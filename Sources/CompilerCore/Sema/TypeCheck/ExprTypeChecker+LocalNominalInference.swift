@@ -173,6 +173,7 @@ extension ExprTypeChecker {
         var directSuperSymbols: [SymbolID] = []
         directSuperSymbols.reserveCapacity(classDecl.superTypeEntries.count)
         var directSuperTypeArgs: [SymbolID: [TypeArg]] = [:]
+        var directSuperTypes: [TypeID] = []
         for entry in classDecl.superTypeEntries {
             let resolved = driver.helpers.resolveTypeRef(
                 entry.typeRef,
@@ -182,6 +183,7 @@ extension ExprTypeChecker {
                 scope: ctx.scope,
                 diagnostics: ctx.sema.diagnostics
             )
+            directSuperTypes.append(resolved)
             if case let .classType(classType) = sema.types.kind(of: resolved) {
                 if classType.classSymbol == classSymbol {
                     ctx.sema.diagnostics.error(
@@ -213,6 +215,21 @@ extension ExprTypeChecker {
         for (superSymbol, args) in directSuperTypeArgs {
             sema.symbols.setSupertypeTypeArgs(args, for: classSymbol, supertype: superSymbol)
             sema.types.setNominalSupertypeTypeArgs(args, for: classSymbol, supertype: superSymbol)
+        }
+
+        let inheritance = DataFlowSemaPhase()
+        for (entry, interfaceType) in zip(classDecl.superTypeEntries, directSuperTypes) {
+            guard let delegateExpression = entry.delegateExpression else { continue }
+            inheritance.registerClassDelegation(
+                delegateExpression: delegateExpression,
+                interfaceType: interfaceType,
+                classSymbol: classSymbol,
+                range: classDecl.range,
+                symbols: sema.symbols,
+                types: sema.types,
+                diagnostics: sema.diagnostics,
+                interner: interner
+            )
         }
 
         let classType = sema.types.make(.classType(ClassType(
@@ -398,6 +415,22 @@ extension ExprTypeChecker {
             objectScope: classScope,
             ctx: ctx
         )
+        inheritance.synthesizeDelegationForwardingForClass(
+            range: classDecl.range,
+            memberFunctions: classDecl.memberFunctions,
+            memberProperties: classDecl.memberProperties,
+            classSymbol: classSymbol,
+            classFQName: classFQName,
+            symbols: sema.symbols,
+            bindings: sema.bindings,
+            types: sema.types,
+            interner: interner
+        )
+        for forwardingSymbol in sema.symbols.classDelegationForwardingMethodSymbols(forClass: classSymbol)
+            + sema.symbols.classDelegationForwardingPropertySymbols(forClass: classSymbol)
+        {
+            classScope.insert(forwardingSymbol)
+        }
         if classDecl.modifiers.contains(.data) {
             DataFlowSemaPhase().collectSyntheticDataClassMethods(
                 classDecl: classDecl, ast: ast, ownerSymbol: classSymbol,
@@ -443,6 +476,15 @@ extension ExprTypeChecker {
             .merging(
                 driver.declChecker.primaryConstructorParameterLocals(classDecl: classDecl, ctx: classCtx)
             ) { _, new in new }
+
+        driver.declChecker.typeCheckClassDelegation(
+            classDecl,
+            symbol: classSymbol,
+            ctx: ctx,
+            solver: driver.solver,
+            diagnostics: sema.diagnostics,
+            baseLocals: outerLocalsSnapshot
+        )
 
         // Unlike an object literal (KSP-CAP-018), a local class's superclass
         // constructor arguments are evaluated inside `<init>`, so they infer
@@ -532,7 +574,9 @@ extension ExprTypeChecker {
             memberProperties: classDecl.memberProperties,
             includePropertyInitializers: true,
             extraBodies: classDecl.initBlocks,
-            extraExprRoots: classDecl.superTypeEntries.flatMap(\.constructorArgs).map(\.expr) + defaultExprRoots,
+            extraExprRoots: classDecl.superTypeEntries.flatMap(\.constructorArgs).map(\.expr)
+                + classDecl.superTypeEntries.compactMap(\.delegateExpression)
+                + defaultExprRoots,
             captureOuterSymbols: captureOuterSymbols,
             ast: ast,
             sema: sema
