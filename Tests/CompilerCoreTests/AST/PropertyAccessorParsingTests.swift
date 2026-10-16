@@ -348,6 +348,48 @@ struct PropertyAccessorParsingTests {
         #expect(callee == KnownCompilerNames(interner: ctx.interner).sbSet)
     }
 
+    @Test
+    func bareDefaultSetterDoesNotConsumeLateinitPropertyType() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        class Holder {
+            lateinit var instance: Holder set
+        }
+        """, includeStdlib: false)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let property = try #require(memberProperty(named: "instance", ofClass: "Holder", in: ast, interner: ctx.interner))
+        let typeRef = try #require(property.type.flatMap { ast.arena.typeRef($0) })
+        guard case let .named(path, _, nullable) = typeRef else {
+            Issue.record("The property's explicit Holder type must remain intact")
+            return
+        }
+        #expect(path.map(ctx.interner.resolve) == ["Holder"])
+        #expect(!nullable)
+        #expect(property.modifiers.contains(.lateinit))
+        #expect(property.setter?.kind == .setter)
+        #expect(property.setter?.visibility == nil)
+        #expect(property.setter?.parameterName == nil)
+        #expect(property.setter?.body == .unit)
+    }
+
+    @Test
+    func bareDefaultSetterKeepsPrimitiveLateinitType() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        class Holder {
+            lateinit var number: Int set
+        }
+        """, includeStdlib: false)
+
+        let property = try #require(memberProperty(named: "number", ofClass: "Holder", in: ast, interner: ctx.interner))
+        let typeRef = try #require(property.type.flatMap { ast.arena.typeRef($0) })
+        guard case let .named(path, _, nullable) = typeRef else {
+            Issue.record("The property's explicit Int type must remain intact")
+            return
+        }
+        #expect(path.map(ctx.interner.resolve) == ["Int"])
+        #expect(!nullable)
+    }
+
     @Test(arguments: ["\n", " ", "; "])
     func expressionSetterPreservesElvisLambdaOrder(separator: String) throws {
         let (ast, ctx) = try buildASTModule(from: """
