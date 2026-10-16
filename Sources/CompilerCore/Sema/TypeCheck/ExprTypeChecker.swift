@@ -220,6 +220,19 @@ final class ExprTypeChecker {
                 !ctx.hasLambdaLabel(label)
                     && ctx.enclosingFunctionSymbol.flatMap { sema.symbols.symbol($0)?.name } == label
             } ?? (ctx.lambdaDepth > 0)
+            let returnsFromConstructor = ctx.enclosingFunctionSymbol.flatMap {
+                sema.symbols.symbol($0)?.kind == .constructor
+            } ?? false
+            let hasForbiddenConstructorReturnValue = returnsFromConstructor
+                && value != nil
+                && (label == nil || targetsFunction)
+            if hasForbiddenConstructorReturnValue {
+                sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0042",
+                    "'return' with a value is not allowed in a constructor.",
+                    range: range
+                )
+            }
             if let lambdaReturnScope,
                let targetIndex = ctx.enclosingLambdaExprIDs.lastIndex(of: lambdaReturnScope.exprID) {
                 sema.bindings.bindLambdaReturn(
@@ -255,7 +268,9 @@ final class ExprTypeChecker {
             // an outer assignment: `x = if (c) 1 else return null` inside a
             // function returning `Int?` must check `return null` against
             // `Int?`, not `x`'s declared `Int`).
-            let returnExpectedType: TypeID? = if label == nil || targetsFunction,
+            let returnExpectedType: TypeID? = if hasForbiddenConstructorReturnValue {
+                nil
+            } else if label == nil || targetsFunction,
                                                     let enclosingFunctionReturnType = ctx.enclosingFunctionReturnType
             {
                 enclosingFunctionReturnType
