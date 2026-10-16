@@ -5,6 +5,43 @@ import TestStdlibCache
 
 @Suite
 struct InfixCallEligibilityTests {
+    @Test
+    func infixCalleeGateAcceptsSimpleIdentifierKeywordsOnly() {
+        #expect(TokenKind.keyword(.infix).isLabelName)
+        #expect(!TokenKind.keyword(.as).isLabelName)
+        #expect(!TokenKind.keyword(.in).isLabelName)
+        #expect(!TokenKind.keyword(.is).isLabelName)
+    }
+
+    @Test
+    func resolvesFunctionNamedInfixAsInfixCallee() throws {
+        let source = """
+        class A {
+            infix fun infix(s: String): String = "O" + s
+        }
+        fun box(): String = A() infix "K"
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let calls = ast.arena.snapshot().infixCallExpressions
+            #expect(calls.count == 1)
+            let call = try #require(calls.first)
+            guard case let .memberCall(_, callee, _, _, _) = ast.arena.expr(call) else {
+                Issue.record("Expected the soft-keyword callee to remain an infix member call")
+                return
+            }
+            #expect(ctx.interner.resolve(callee) == "infix")
+            let binding = try #require(sema.bindings.callBinding(for: call))
+            let symbol = try #require(sema.symbols.symbol(binding.chosenCallee))
+            #expect(ctx.interner.resolve(symbol.name) == "infix")
+        }
+    }
+
     @Test(arguments: [false, true])
     func selectsEligibleExtensionsBeforeOrdinaryMembers(useLibrary: Bool) throws {
         if useLibrary { TestStdlibCache.shared.prepare() }

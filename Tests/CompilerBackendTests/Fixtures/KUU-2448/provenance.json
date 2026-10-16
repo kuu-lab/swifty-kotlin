@@ -1,0 +1,9 @@
+{
+  "repository": "https://github.com/JetBrains/kotlin",
+  "commit": "679366a83f99851b42f64795f10ed803ff011c73",
+  "path": "compiler/testData/codegen/box/controlStructures/kt628.kt",
+  "license": "Apache-2.0",
+  "source_sha256": "ea6182ef6f5273c206c7313293d2218312fbe2bc82ed1d6006efefc03804002d",
+  "source_git_blob": "fb89c053e4198d6c9e01ea210cff6fa08fef162e",
+  "modifications": "The upstream source is unchanged. upstreamRunner.kt supplies the box runner. minimal.kt reproduces the issue; minimalAndControlsRunner.kt exercises the regular infix and dot-call controls."
+}
