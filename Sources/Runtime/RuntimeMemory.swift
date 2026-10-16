@@ -97,6 +97,7 @@ public func __kk_runtime_availableProcessors() -> Int {
 final class RuntimeJavaClassBox: @unchecked Sendable {
     let typeToken: Int
     let nameHint: Int
+    let javaNameOverride: String?
     let canonicalNameOverride: String?
     let className: String?
     let enclosingClassName: String?
@@ -105,6 +106,7 @@ final class RuntimeJavaClassBox: @unchecked Sendable {
     init(
         typeToken: Int,
         nameHint: Int = 0,
+        javaNameOverride: String? = nil,
         canonicalNameOverride: String? = nil,
         className: String? = nil,
         enclosingClassName: String? = nil,
@@ -112,6 +114,7 @@ final class RuntimeJavaClassBox: @unchecked Sendable {
     ) {
         self.typeToken = typeToken
         self.nameHint = nameHint
+        self.javaNameOverride = javaNameOverride
         self.canonicalNameOverride = canonicalNameOverride
         self.className = className
         self.enclosingClassName = enclosingClassName
@@ -254,7 +257,12 @@ public func __kk_class_declared_constructor(_ classRaw: Int, _ parameterTypesRaw
             guard let expected else { return false }
             return normalizedJavaClassTypeToken(expected) == actual
         }
-        if matches { return constructorRaw }
+        if matches {
+            return registerRuntimeObject(
+                RuntimeJavaConstructorBox(callableRaw: constructorRaw, usesDefaultArguments: false),
+                typeID: runtimeStableNominalTypeID(fqName: "java.lang.reflect.Constructor")
+            )
+        }
     }
 
     runtimeStructuredPanic("NoSuchMethodException: no declared constructor matches the requested parameter classes")

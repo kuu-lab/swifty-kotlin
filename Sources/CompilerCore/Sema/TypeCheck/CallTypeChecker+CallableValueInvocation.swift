@@ -89,10 +89,13 @@ extension CallTypeChecker {
         _ id: ExprID,
         chosen initialCallee: SymbolID,
         resolved: ResolvedCall,
-        sema: SemaModule
+        sema: SemaModule,
+        dispatchReceiverSymbol: SymbolID? = nil
     ) -> TypeID {
         let chosen = nullableConsoleCallee(id, chosen: initialCallee, sema: sema)
         bindResolvedFunctionValueSamArguments(id, chosen: chosen, resolved: resolved, sema: sema)
+        let resolvedDispatchReceiver = dispatchReceiverSymbol
+            ?? importedObjectDispatchReceiverSymbol(for: id, callee: chosen, sema: sema)
         sema.bindings.bindCall(
             id,
             binding: CallBinding(
@@ -101,7 +104,8 @@ extension CallTypeChecker {
                     .sorted(by: { $0.key.rawValue < $1.key.rawValue })
                     .map(\.value),
                 parameterMapping: resolved.parameterMapping,
-                defaultArgumentOwner: resolved.defaultArgumentOwner
+                defaultArgumentOwner: resolved.defaultArgumentOwner,
+                dispatchReceiverSymbol: resolvedDispatchReceiver
             )
         )
         sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
@@ -177,6 +181,64 @@ extension CallTypeChecker {
         }
         markRangeCallBindings(id, chosen: chosen, returnType: returnType, sema: sema)
         return returnType
+    }
+
+    /// Recover the singleton named by an explicit import for an ordinary
+    /// member, member extension, or member-extension-property accessor.
+    func importedObjectDispatchReceiverSymbol(
+        for expression: ExprID,
+        callee: SymbolID,
+        sema: SemaModule
+    ) -> SymbolID? {
+        guard let symbol = sema.symbols.symbol(callee),
+              let range = driver.ast.arena.exprRange(expression),
+              let file = driver.ast.file(for: range.start.file)
+        else {
+            return nil
+        }
+        let sourceName: InternedString?
+        switch driver.ast.arena.expr(expression) {
+        case let .call(calleeExpr, _, _, _):
+            if case let .nameRef(name, _) = driver.ast.arena.expr(calleeExpr) {
+                sourceName = name
+            } else {
+                sourceName = nil
+            }
+        case let .memberCall(_, name, _, _, _), let .safeMemberCall(_, name, _, _, _):
+            sourceName = name
+        default:
+            sourceName = nil
+        }
+        guard let sourceName else { return nil }
+
+        let accessorProperty = sema.symbols.accessorOwnerProperty(for: callee)
+            ?? sema.symbols.parentSymbol(for: callee).flatMap { parent in
+                sema.symbols.symbol(parent)?.kind == .property ? parent : nil
+            }
+        let importedMemberName = accessorProperty.flatMap { sema.symbols.symbol($0)?.name } ?? symbol.name
+        let dispatchOwner = sema.symbols.memberExtensionOwnerSymbol(for: callee)
+            ?? accessorProperty.flatMap { sema.symbols.parentSymbol(for: $0) }
+            ?? sema.symbols.parentSymbol(for: callee)
+        guard let dispatchOwner,
+              let ownerInfo = sema.symbols.symbol(dispatchOwner),
+              ownerInfo.kind == .class || ownerInfo.kind == .interface || ownerInfo.kind == .object
+        else {
+            return nil
+        }
+
+        for importDecl in file.imports where !importDecl.isWildcard
+            && (importDecl.alias ?? importDecl.path.last) == sourceName
+            && importDecl.path.last == importedMemberName
+        {
+            let importedObjects = sema.symbols.lookupAll(fqName: Array(importDecl.path.dropLast()))
+            if let object = importedObjects.first(where: { object in
+                sema.symbols.symbol(object)?.kind == .object
+                    && sema.types.isNominalSubtypeSymbol(object, of: dispatchOwner)
+            }) {
+                return object
+            }
+        }
+        return nil
     }
 
     /// Native console metadata retains a String-specialized overload. Java

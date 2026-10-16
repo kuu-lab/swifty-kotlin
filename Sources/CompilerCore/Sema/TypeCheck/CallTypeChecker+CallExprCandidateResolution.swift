@@ -403,7 +403,18 @@ extension CallTypeChecker {
                 range: range,
                 diagnostics: ctx.sema.diagnostics
             )
-            let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
+            let importedDispatchReceiver = importedObjectDispatchReceiverOwners(
+                named: calleeName,
+                candidates: [chosen],
+                ctx: ctx
+            )[chosen]
+            let returnType = bindCallAndResolveReturnType(
+                id,
+                chosen: chosen,
+                resolved: resolved,
+                sema: sema,
+                dispatchReceiverSymbol: importedDispatchReceiver
+            )
             if let extensionReceiverSymbol = memberExtensionReceiverMarks[chosen] {
                 sema.bindings.markImplicitExtensionReceiver(id, symbol: extensionReceiverSymbol)
             }
