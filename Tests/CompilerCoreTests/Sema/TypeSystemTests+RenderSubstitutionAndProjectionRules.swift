@@ -477,6 +477,35 @@ extension TypeSystemTests {
     }
 
     @Test
+    func testSubstituteNullableTypeInDefinitelyNonNullIntersectionNarrowsToNonNull() throws {
+        let ts = TypeSystem()
+        let symbol = SymbolID(rawValue: 0)
+        let typeParameter = ts.make(.typeParam(TypeParamType(symbol: symbol)))
+        let nullableString = ts.make(.stringStruct(.nullable))
+        let intersection = ts.make(.intersection([typeParameter, ts.anyType]))
+        let typeVarBySymbol = ts.makeTypeVarBySymbol([symbol])
+        let typeVar = try #require(typeVarBySymbol[symbol])
+
+        let result = ts.substituteTypeParameters(
+            in: intersection,
+            substitution: [typeVar: nullableString],
+            typeVarBySymbol: typeVarBySymbol
+        )
+
+        guard case let .intersection(parts) = ts.kind(of: result) else {
+            Issue.record("Expected definitely non-null intersection after substitution")
+            return
+        }
+
+        #expect(parts.contains(ts.stringType))
+        #expect(parts.contains(ts.anyType))
+        #expect(!parts.contains(nullableString))
+        #expect(ts.isDefinitelyNonNull(result))
+        #expect(ts.isSubtype(result, ts.stringType))
+        #expect(ts.isSubtype(result, ts.anyType))
+    }
+
+    @Test
     func testSubstituteNoOpForPrimitive() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))

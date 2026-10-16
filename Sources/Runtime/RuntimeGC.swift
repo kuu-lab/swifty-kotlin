@@ -68,6 +68,7 @@ struct GCState {
 
 struct MetadataState {
     var kClassBoxCache: [KClassCacheKey: Int] = [:]
+    var javaClassCache: [Int: Int] = [:]
     var primitiveJavaClassCache: [Int: Int] = [:]
     var delegatedPropertyStubCache: [String: Int] = [:]
     var kTypeProjectionStarRaw: Int?
@@ -610,6 +611,7 @@ func kk_runtime_reset_metadata() {
     let cachedReflectionBoxes = runtimeStorage.withDelegatedPropertyStubLock {
         runtimeStorage.withMetadataLock { state -> [UnsafeMutableRawPointer] in
             var boxes = state.kClassBoxCache.values.compactMap(UnsafeMutableRawPointer.init(bitPattern:))
+            boxes += state.javaClassCache.values.compactMap(UnsafeMutableRawPointer.init(bitPattern:))
             boxes += state.primitiveJavaClassCache.values.compactMap(UnsafeMutableRawPointer.init(bitPattern:))
             boxes += state.delegatedPropertyStubCache.values.compactMap(UnsafeMutableRawPointer.init(bitPattern:))
             if let starRaw = state.kTypeProjectionStarRaw,
@@ -617,6 +619,7 @@ func kk_runtime_reset_metadata() {
                 boxes.append(pointer)
             }
             state.kClassBoxCache.removeAll(keepingCapacity: false)
+            state.javaClassCache.removeAll(keepingCapacity: false)
             state.primitiveJavaClassCache.removeAll(keepingCapacity: false)
             state.delegatedPropertyStubCache.removeAll(keepingCapacity: false)
             state.kTypeProjectionStarRaw = nil
@@ -655,6 +658,9 @@ func kk_runtime_reset_metadata() {
 func removeRuntimeObjectMetadata(forObjectKey key: UInt) {
     runtimeStorage.withMetadataLock { state in
         state.kClassBoxCache = state.kClassBoxCache.filter { _, raw in
+            UInt(bitPattern: raw) != key
+        }
+        state.javaClassCache = state.javaClassCache.filter { _, raw in
             UInt(bitPattern: raw) != key
         }
         state.primitiveJavaClassCache = state.primitiveJavaClassCache.filter { _, raw in

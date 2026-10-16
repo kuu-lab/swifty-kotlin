@@ -32,6 +32,45 @@ struct ObjectMemberFunctionImportTests {
     }
 
     @Test
+    func sameFileObjectMemberImportsResolveAlongsideOverloads() throws {
+        try withTemporaryFiles(contents: [
+            """
+            package views
+
+            import views.Factories.freeze
+            import views.Factories.freeze as frozenCopy
+            import views.Numbers.convert
+            import views.Words.convert
+
+            class Box<T>(val value: T)
+
+            object Factories {
+                fun <T> freeze(values: Box<T>): Box<T> = values
+            }
+            object Numbers {
+                fun convert(value: Int): Int = value
+                fun convert(value: Int, block: (Int) -> Int): Int = block(value)
+            }
+            object Words {
+                fun convert(value: String): String = value
+                fun convert(value: String, block: (String) -> String): String = block(value)
+            }
+
+            fun frozen(values: Box<String>): Box<String> = freeze(values)
+            fun copied(values: Box<String>): Box<String> = frozenCopy(values)
+            fun number(): Int = convert(3)
+            fun word(): String = convert("ok")
+            fun numberWithTransform(): Int = convert(3) { it + 1 }
+            fun wordWithTransform(): String = convert("ok") { it + "!" }
+            """,
+        ]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test
     func importedOverloadsUseEachObjectReceiver() throws {
         try withTemporaryFiles(contents: [
             """

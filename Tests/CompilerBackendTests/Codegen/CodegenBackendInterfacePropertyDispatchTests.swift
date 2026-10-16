@@ -158,6 +158,21 @@ struct CodegenBackendInterfacePropertyDispatchTests {
         )
     }
 
+    @Test
+    func testSourceStdlibTopLevelExtensionsKeepCharSequenceLengthItableSlot() throws {
+        let source = """
+        fun lengthOf(value: CharSequence): Int = value.length
+        fun main() { println(lengthOf("ab")) }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "CharSequenceLengthSourceStdlibItable",
+            expected: "2\n",
+            allowDefaultStdlibLibrary: false
+        )
+    }
+
     // KSP-817: CharSequence.get must dispatch through the interface itable for
     // flat Strings, runtime-backed StringBuilders, and user implementations.
     @Test

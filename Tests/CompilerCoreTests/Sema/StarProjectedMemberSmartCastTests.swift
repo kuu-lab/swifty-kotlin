@@ -39,6 +39,58 @@ struct StarProjectedMemberSmartCastTests {
         }
     }
 
+    @Test func fBoundedCopyableStarProjectionOnIntersectionReceiver() throws {
+        let ctx = makeContextFromSource("""
+        interface Copyable<T> where T : Throwable, T : Copyable<T> {
+            fun createCopy(): T?
+        }
+        class CopyableError : Exception(), Copyable<CopyableError> {
+            override fun createCopy(): CopyableError? = this
+        }
+        fun check(error: Throwable): Throwable? =
+            if (error is Copyable<*>) error.createCopy() else error
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let call = try #require(firstExprID(in: ast) { _, expr in
+            guard case let .memberCall(_, name, _, _, _) = expr else { return false }
+            return name == ctx.interner.intern("createCopy")
+        })
+        #expect(sema.bindings.callBinding(for: call)?.chosenCallee != nil)
+        guard case let .memberCall(receiverID, _, _, _, _) = ast.arena.expr(call),
+              let receiverType = sema.bindings.exprType(for: receiverID),
+              case let .intersection(parts) = sema.types.kind(of: receiverType)
+        else {
+            Issue.record("expected an intersection receiver for the F-bounded member call")
+            return
+        }
+        #expect(parts.contains { part in
+            guard case let .classType(classType) = sema.types.kind(of: part),
+                  let symbol = sema.symbols.symbol(classType.classSymbol)
+            else { return false }
+            return symbol.fqName.last == ctx.interner.intern("Copyable") && classType.args.contains {
+                if case .star = $0 { return true }
+                return false
+            }
+        })
+        let throwableType = try #require(TypeCheckHelpers().throwableType(sema: sema, interner: ctx.interner))
+        let resultType = try #require(sema.bindings.exprType(for: call))
+        #expect(sema.types.isSubtype(resultType, sema.types.makeNullable(throwableType)))
+    }
+
+    @Test func fBoundedCopyableRejectsInvalidConcreteTypeArgument() throws {
+        let ctx = makeContextFromSource("""
+        interface Copyable<T> where T : Throwable, T : Copyable<T> {
+            fun createCopy(): T?
+        }
+        fun invalid(value: Copyable<Throwable>) = value.createCopy()
+        """)
+        try runSema(ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-BOUND", in: ctx)
+    }
+
     @Test func unboundedCopyableLocal() throws {
         let ctx = makeContextFromSource("""
         interface Copyable<T> { fun createCopy(): T? }

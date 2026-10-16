@@ -801,6 +801,9 @@ extension ExprTypeChecker {
             expectedFunctionType = nil
             expectedSamInterfaceType = nil
         }
+        let expectedCallableReferenceReturnType = expectedType.flatMap {
+            driver.helpers.reflectiveCallableReferenceReturnType(from: $0, sema: sema)
+        }
 
         let unboundMemberPropertyReferenceType: TypeID? = if let candidate = unboundMemberPropertyCandidate {
             kPropertyReferenceType(
@@ -956,10 +959,11 @@ extension ExprTypeChecker {
         )
         let chosen = driver.helpers.chooseCallableReferenceTarget(
             from: candidates,
-            expectedType: expectedFunctionType,
+            expectedType: expectedFunctionType ?? expectedType,
             bindReceiver: isBoundReceiver,
             boundReceiverType: boundReceiverType,
             unboundReceiverType: unboundInnerConstructorReceiverType,
+            expectedCallableReferenceReturnType: expectedCallableReferenceReturnType,
             postponedReturnTypeParameter: postponedReturnParameter,
             interner: interner,
             sema: sema
@@ -1092,13 +1096,38 @@ extension ExprTypeChecker {
                            for: signature, bindReceiver: true,
                            boundReceiver: boundReceiverType.map { (chosen, $0) },
                            unboundReceiverType: unboundInnerConstructorReceiverType,
-                           expectedFunctionType: nil, interner: interner, sema: sema
+                           expectedFunctionType: nil,
+                           expectedCallableReferenceReturnType: expectedCallableReferenceReturnType,
+                           interner: interner, sema: sema
                        ) {
                         inferredType = specialization.functionType
                         contextualSpecialization = specialization
                     } else {
                         ctx.sema.diagnostics.error(
                             "KSWIFTK-SEMA-INFER", "Reified callable reference requires contextual type arguments.", range: range
+                        )
+                    }
+                }
+                if let expectedCallableReferenceReturnType,
+                   !signature.typeParameterSymbols.isEmpty
+                {
+                    if let specialization = driver.helpers.contextualCallableReferenceBinding(
+                        for: signature,
+                        bindReceiver: isBoundReceiver,
+                        boundReceiver: boundReceiverType.map { (chosen, $0) },
+                        unboundReceiverType: unboundInnerConstructorReceiverType,
+                        expectedFunctionType: nil,
+                        expectedCallableReferenceReturnType: expectedCallableReferenceReturnType,
+                        interner: interner,
+                        sema: sema
+                    ) {
+                        inferredType = specialization.functionType
+                        contextualSpecialization = specialization
+                    } else {
+                        ctx.sema.diagnostics.error(
+                            "KSWIFTK-TYPE-0001",
+                            "Type constraint could not be satisfied.",
+                            range: range
                         )
                     }
                 }

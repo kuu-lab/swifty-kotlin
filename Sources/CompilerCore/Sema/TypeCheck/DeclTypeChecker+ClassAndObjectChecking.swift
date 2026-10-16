@@ -825,6 +825,22 @@ extension DeclTypeChecker {
         if let owner = sema.symbols.symbol(ownerSymbol),
            owner.kind == .enumClass
         {
+            // `values()` is a synthetic static member rather than an AST
+            // declaration. Header collection inserts it into its class scope,
+            // so preserve it when rebuilding the scope used for member bodies
+            // and companion initializers.
+            let valuesName = ctx.interner.intern("values")
+            for valuesSymbol in sema.symbols.lookupAll(fqName: owner.fqName + [valuesName]) {
+                guard let values = sema.symbols.symbol(valuesSymbol),
+                      values.kind == .function,
+                      values.flags.contains([.synthetic, .static]),
+                      sema.symbols.parentSymbol(for: valuesSymbol) == ownerSymbol
+                else {
+                    continue
+                }
+                classScope.insert(valuesSymbol)
+            }
+
             for childSymbol in sema.symbols.children(ofFQName: owner.fqName) {
                 if let child = sema.symbols.symbol(childSymbol),
                    child.kind == .field

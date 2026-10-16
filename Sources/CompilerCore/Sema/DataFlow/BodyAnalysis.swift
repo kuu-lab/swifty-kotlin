@@ -309,6 +309,7 @@ extension DataFlowSemaPhase {
                     interner: interner,
                     sourceManager: sourceManager,
                     localTypeParameters: localTypeParameters,
+                    relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
                     diagnostics: diagnostics,
