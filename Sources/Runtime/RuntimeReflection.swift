@@ -930,6 +930,20 @@ public func __kk_kconstructor_create(
     return raw
 }
 
+/// Adds one JVM-erased parameter class token to a constructor reflection handle.
+@_cdecl("__kk_kconstructor_set_parameter_type")
+public func __kk_kconstructor_set_parameter_type(
+    _ constructorRaw: Int,
+    _ index: Int,
+    _ typeToken: Int
+) -> Int {
+    guard let box = resolveRuntimeHandle(constructorRaw, as: RuntimeKConstructorBox.self), index >= 0 else {
+        return 0
+    }
+    box.setParameterTypeToken(typeToken, at: index)
+    return 1
+}
+
 @_cdecl("__kk_kconstructor_set_jvm_visibility")
 public func __kk_kconstructor_set_jvm_visibility(_ constructorRaw: Int, _ visibilityOrdinal: Int) -> Int {
     guard (0..<4).contains(visibilityOrdinal),

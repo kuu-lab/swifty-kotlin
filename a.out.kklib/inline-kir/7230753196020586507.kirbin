@@ -1,0 +1,15 @@
+version=2
+nameB64=YXBwZW5kTGluZQ==
+params=2
+paramSymbols=-180424,18937
+suspend=false
+body:
+const result=243781 value=symbol:-180424
+const result=243782 value=symbol:18937
+const result=243783 value=unit
+virtualCall symbol=18929 calleeB64=YXBwZW5k receiver=243781 args=[243782] result=243784 canThrow=1 thrownResult=_ dispatch=itableDynamic:30304579363251029:1 linkB64=a2tfZm5fYXBwZW5kXzE4OTI5X18xM3g0YjUzNzc2OTY2NzQ0YjUzNzQ2NDZjNjk2Ml82eDZiNmY3NDZjNjk2ZV80eDc0NjU3ODc0XzEweDQxNzA3MDY1NmU2NDYxNjI2YzY1XzZ4NjE3MDcwNjU2ZTY0 symbolFQNameB64=a290bGluLnRleHQuQXBwZW5kYWJsZS5hcHBlbmQ=
+const result=562918 value=unit
+const result=562919 value=char:10
+virtualCall symbol=18927 calleeB64=YXBwZW5k receiver=243784 args=[562919] result=562920 canThrow=1 thrownResult=_ dispatch=itableDynamic:30304579363251029:0 linkB64=a2tfZm5fYXBwZW5kXzE4OTI3X18xM3g0YjUzNzc2OTY2NzQ0YjUzNzQ2NDZjNjk2Ml82eDZiNmY3NDZjNjk2ZV80eDc0NjU3ODc0XzEweDQxNzA3MDY1NmU2NDYxNjI2YzY1XzZ4NjE3MDcwNjU2ZTY0 symbolFQNameB64=a290bGluLnRleHQuQXBwZW5kYWJsZS5hcHBlbmQ=
+copy from=562920 to=243785
+returnValue value=243785

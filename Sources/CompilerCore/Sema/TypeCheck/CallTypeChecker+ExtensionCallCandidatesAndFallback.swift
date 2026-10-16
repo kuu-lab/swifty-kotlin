@@ -20,17 +20,6 @@ extension CallTypeChecker {
         callShapeMatches: ((SymbolID) -> Bool)? = nil,
         requiresInfix: Bool = false
     ) -> [SymbolID] {
-        if !isSuperCall,
-           let local = locals[calleeName],
-           !requiresInfix || sema.symbols.symbol(local.symbol)?.flags.contains(.infixFunction) == true,
-           callShapeMatches?(local.symbol) != false,
-           let receiver = sema.symbols.functionSignature(for: local.symbol)?.receiverType,
-           extensionSyntheticFallbackReceiverMatches(
-               callSiteReceiver: memberLookupType, declaredReceiver: receiver, sema: sema
-           )
-        {
-            return [local.symbol]
-        }
         let knownNames = KnownCompilerNames(interner: interner)
         let nonNullReceiverForScope = sema.types.makeNonNullable(memberLookupType)
         let requiresScopedBitwiseExtension = (nonNullReceiverForScope == sema.types.byteType
@@ -53,6 +42,26 @@ extension CallTypeChecker {
                 return sema.symbols.parentSymbol(for: candidate).map { supertypeSymbols.contains($0) } ?? false
             }
             return true
+        }
+        if !isSuperCall {
+            let localFunctionCandidates = ctx.scope.lookup(calleeName, matching: { candidate in
+                ctx.cachedSymbol(candidate)?.flags.contains(.localFunction) == true
+                    && receiverMatches(candidate)
+            })
+            if !localFunctionCandidates.isEmpty {
+                return localFunctionCandidates
+            }
+        }
+        if !isSuperCall,
+           let local = locals[calleeName],
+           !requiresInfix || sema.symbols.symbol(local.symbol)?.flags.contains(.infixFunction) == true,
+           callShapeMatches?(local.symbol) != false,
+           let receiver = sema.symbols.functionSignature(for: local.symbol)?.receiverType,
+           extensionSyntheticFallbackReceiverMatches(
+               callSiteReceiver: memberLookupType, declaredReceiver: receiver, sema: sema
+           )
+        {
+            return [local.symbol]
         }
         var scopeCandidates = ctx.scope.lookup(calleeName, matching: receiverMatches)
         if let callShapeMatches {
@@ -414,9 +423,12 @@ extension CallTypeChecker {
 
         // Same expect/actual dedup and visibility gate as the primary path.
         let candidateSet = Set(allCandidates)
+        let visibleLocalFunctionCandidates = ctx.scope.lookup(calleeName, matching: { candidate in
+            ctx.cachedSymbol(candidate)?.flags.contains(.localFunction) == true
+        })
         let resolvedCandidates = allCandidates.filter { candidate in
             if ctx.cachedSymbol(candidate)?.flags.contains(.localFunction) == true,
-               locals[calleeName]?.symbol != candidate
+               !visibleLocalFunctionCandidates.contains(candidate)
             {
                 return false
             }

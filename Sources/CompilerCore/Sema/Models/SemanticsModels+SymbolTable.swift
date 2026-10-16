@@ -145,6 +145,9 @@ public final class SymbolTable {
     private var lazyImportedMetadataLoader: ((SymbolID) -> Void)?
     private var lazyImportedMetadataLoaded: Set<SymbolID> = []
     private var lazyImportedMetadataLoadInProgress: Set<SymbolID> = []
+    private var indexedImportedNominals: Set<SymbolID> = []
+    private var importedLayoutSynthesizer: ((SymbolID) -> Void)?
+    private var importedLayoutSynthesisInProgress = false
     private var importedNominalsWithoutInitializers: Set<SymbolID> = []
     /// Index-shape hints for lazy shells, keyed by symbol. Consulted by
     /// arity-key builders so they never force body materialization.
@@ -302,8 +305,14 @@ public final class SymbolTable {
     /// outside the symbol model and can reuse the normal import application path.
     func setLazyImportedMetadataLoader(
         alreadyLoaded: Set<SymbolID> = [],
+        indexedNominals: Set<SymbolID> = [],
         _ loader: ((SymbolID) -> Void)?
     ) {
+        lock.lock()
+        defer { lock.unlock() }
+        indexedImportedNominals = indexedNominals
+        importedLayoutSynthesizer = nil
+        importedLayoutSynthesisInProgress = false
         lazyImportedMetadataLoader = loader
         lazyImportedMetadataLoaded = alreadyLoaded
         lazyImportedMetadataLoadInProgress.removeAll()
@@ -311,6 +320,20 @@ public final class SymbolTable {
 
     var hasLazyImportedMetadataLoader: Bool {
         lazyImportedMetadataLoader != nil
+    }
+
+    func hasPendingImportedNominalMetadata(for symbol: SymbolID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return lazyImportedMetadataLoader != nil
+            && indexedImportedNominals.contains(symbol)
+            && !lazyImportedMetadataLoaded.contains(symbol)
+    }
+
+    func setImportedLayoutSynthesizer(_ synthesizer: @escaping (SymbolID) -> Void) {
+        lock.lock()
+        defer { lock.unlock() }
+        importedLayoutSynthesizer = synthesizer
     }
 
     /// Records the compact index shape of a lazy shell so arity-based member
@@ -921,7 +944,19 @@ public final class SymbolTable {
     }
 
     public func nominalLayout(for symbol: SymbolID) -> NominalLayout? {
+        lock.lock()
+        defer { lock.unlock() }
         ensureLazyImportedMetadataLoaded(for: symbol)
+        if nominalLayouts[symbol] == nil,
+           indexedImportedNominals.contains(symbol),
+           !lazyImportedMetadataLoadInProgress.contains(symbol),
+           !importedLayoutSynthesisInProgress,
+           let synthesizer = importedLayoutSynthesizer
+        {
+            importedLayoutSynthesisInProgress = true
+            defer { importedLayoutSynthesisInProgress = false }
+            synthesizer(symbol)
+        }
         return nominalLayouts[symbol]
     }
 

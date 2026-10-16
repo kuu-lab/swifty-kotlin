@@ -1,0 +1,22 @@
+version=2
+nameB64=aWZFbXB0eQ==
+params=2
+paramSymbols=-118540,12063
+suspend=false
+body:
+const result=156620 value=symbol:-118540
+const result=156621 value=symbol:12063
+call symbol=6363 calleeB64=c2l6ZQ== args=[156620] result=610589 canThrow=1 thrownResult=_ isSuperCall=0 qualifiedSuperType=_ linkB64=a2tfZm5fZ2V0XzYzNjNfXzEzeDRiNTM3NzY5NjY3NDRiNTM3NDY0NmM2OTYyXzZ4NmI2Zjc0NmM2OTZlXzExeDYzNmY2YzZjNjU2Mzc0Njk2ZjZlNzNfNHg3MzY5N2E2NV80eDI0Njc2NTc0 symbolFQNameB64=a290bGluLmNvbGxlY3Rpb25zLnNpemUuJGdldA==
+call symbol=_ calleeB64=a2tfdW5ib3hfaW50X3N0YXRpYw== args=[610589] result=156622 canThrow=0 thrownResult=_ isSuperCall=0 qualifiedSuperType=_
+const result=156623 value=int:0
+call symbol=_ calleeB64=a2tfdW5ib3hfaW50X3N0YXRpYw== args=[156622] result=610590 canThrow=0 thrownResult=_ isSuperCall=0 qualifiedSuperType=_
+call symbol=_ calleeB64=a2tfb3BfZXE= args=[610590,156623] result=156624 canThrow=0 thrownResult=_ isSuperCall=0 qualifiedSuperType=_
+const result=156626 value=bool:0
+jumpIfEqual lhs=156624 rhs=156626 target=10000
+call symbol=12063 calleeB64=a2tfZnVuY3Rpb25faW52b2tlXzA= args=[156621] result=156627 canThrow=1 thrownResult=_ isSuperCall=0 qualifiedSuperType=_ symbolFQNameB64=a290bGluLmNvbGxlY3Rpb25zLmlmRW1wdHkuJDEyMDYwLmRlZmF1bHRWYWx1ZQ==
+copy from=156627 to=156625
+jump target=10001
+label id=10000
+copy from=156620 to=156625
+label id=10001
+returnValue value=156625

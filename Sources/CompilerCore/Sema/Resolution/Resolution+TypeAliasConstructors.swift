@@ -52,7 +52,7 @@ extension OverloadResolver {
             receiverType: original.receiverType.map(specialize),
             contextReceiverTypes: original.contextReceiverTypes.map(specialize),
             parameterTypes: original.parameterTypes.map(specialize),
-            returnType: alias.expandedType,
+            returnType: alias.resultType ?? alias.expandedType,
             isSuspend: original.isSuspend,
             canThrow: original.canThrow,
             valueParameterSymbols: original.valueParameterSymbols,

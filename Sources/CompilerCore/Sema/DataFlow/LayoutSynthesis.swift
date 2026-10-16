@@ -18,18 +18,32 @@ extension DataFlowSemaPhase {
     ) {
         let nominalKinds: [SymbolKind] = [.class, .interface, .object, .enumClass, .annotationClass]
         let nominalIDs = nominalKinds.flatMap { symbols.symbols(ofKind: $0) }
+            .filter { !symbols.hasPendingImportedNominalMetadata(for: $0) }
             .sorted(by: { $0.rawValue < $1.rawValue })
-        guard !nominalIDs.isEmpty else { return }
-        let topoOrder = buildTopoOrder(
-            nominalIDs: nominalIDs,
-            symbols: symbols,
-            interner: interner,
-            diagnostics: diagnostics,
-            maxInheritanceDepth: maxInheritanceDepth,
-            maxTypeCount: maxTypeCount
-        )
-        for nominalID in topoOrder {
-            synthesizeLayoutForNominal(nominalID, symbols: symbols, types: types, interner: interner)
+        if !nominalIDs.isEmpty {
+            let topoOrder = buildTopoOrder(
+                nominalIDs: nominalIDs,
+                symbols: symbols,
+                interner: interner,
+                diagnostics: diagnostics,
+                maxInheritanceDepth: maxInheritanceDepth,
+                maxTypeCount: maxTypeCount
+            )
+            for nominalID in topoOrder {
+                synthesizeLayoutForNominal(nominalID, symbols: symbols, types: types, interner: interner)
+            }
+        }
+        // Install after the initial batch so layouts synthesized in that pass
+        // cannot re-enter through the on-demand imported-layout callback.
+        if symbols.hasLazyImportedMetadataLoader {
+            symbols.setImportedLayoutSynthesizer { [self, weak symbols, weak types] symbol in
+                guard let symbols, let types else { return }
+                synthesizeNominalLayouts(
+                    for: [symbol], symbols: symbols, types: types, interner: interner,
+                    diagnostics: diagnostics, includeAncestors: true,
+                    maxInheritanceDepth: maxInheritanceDepth, maxTypeCount: maxTypeCount
+                )
+            }
         }
     }
 
@@ -38,7 +52,10 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        includeAncestors: Bool = false,
+        maxInheritanceDepth: Int = DataFlowSemaPhase.maxNominalLayoutInheritanceDepth,
+        maxTypeCount: Int = DataFlowSemaPhase.maxNominalLayoutTypeCount
     ) {
         guard !nominalIDs.isEmpty else { return }
         let requestedNominals = Set(nominalIDs)
@@ -47,10 +64,10 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner,
             diagnostics: diagnostics,
-            maxInheritanceDepth: Self.maxNominalLayoutInheritanceDepth,
-            maxTypeCount: Self.maxNominalLayoutTypeCount
+            maxInheritanceDepth: maxInheritanceDepth,
+            maxTypeCount: maxTypeCount
         )
-        for nominalID in topoOrder where requestedNominals.contains(nominalID) {
+        for nominalID in topoOrder where includeAncestors || requestedNominals.contains(nominalID) {
             synthesizeLayoutForNominal(nominalID, symbols: symbols, types: types, interner: interner)
         }
     }

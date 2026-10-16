@@ -642,6 +642,55 @@ extension OverloadResolver {
                     guard case .primitive = ctx.types.kind(of: ctx.types.makeNonNullable(type)) else { continue }
                     literalTypeSubstitution[variable] = type
                 }
+
+                // If no concrete input inferred this parameter, an unambiguous
+                // unsigned primitive upper bound can still contextualize a
+                // constant UInt literal. The normal solve and bound validation
+                // below remain authoritative, including the literal's range.
+                var boundSubstitution = partial
+                for (variable, type) in explicitTypeSubstitution {
+                    boundSubstitution[variable] = type
+                }
+                for literalIndex in literalIndices {
+                    guard let parameterIndex = parameterMapping[literalIndex],
+                          signature.parameterTypes.indices.contains(parameterIndex),
+                          case let .typeParam(parameter) = ctx.types.kind(of: ctx.types.makeNonNullable(
+                              signature.parameterTypes[parameterIndex]
+                          )),
+                          let variable = typeVarBySymbol[parameter.symbol],
+                          explicitTypeSubstitution[variable] == nil,
+                          literalTypeSubstitution[variable] == nil,
+                          partial[variable] == nil || partial[variable] == ctx.types.errorType,
+                          let typeParameterIndex = signature.typeParameterSymbols.firstIndex(of: parameter.symbol)
+                    else { continue }
+
+                    let signatureBounds = typeParameterIndex < signature.typeParameterUpperBoundsList.count
+                        ? signature.typeParameterUpperBoundsList[typeParameterIndex] : []
+                    let symbolBounds = ctx.symbols.typeParameterUpperBounds(for: parameter.symbol)
+                    let upperBounds = signatureBounds + symbolBounds.filter { !signatureBounds.contains($0) }
+                    var unsignedPrimitiveBounds: [TypeID] = []
+                    for upperBound in upperBounds {
+                        let substitutedBound = ctx.types.makeNonNullable(ctx.types.substituteTypeParameters(
+                            in: upperBound,
+                            substitution: boundSubstitution,
+                            typeVarBySymbol: typeVarBySymbol
+                        ))
+                        guard case let .primitive(primitive, _) = ctx.types.kind(of: substitutedBound) else {
+                            continue
+                        }
+                        switch primitive {
+                        case .ubyte, .ushort, .uint, .ulong:
+                            if !unsignedPrimitiveBounds.contains(substitutedBound) {
+                                unsignedPrimitiveBounds.append(substitutedBound)
+                            }
+                        default:
+                            continue
+                        }
+                    }
+                    if unsignedPrimitiveBounds.count == 1, let bound = unsignedPrimitiveBounds.first {
+                        literalTypeSubstitution[variable] = bound
+                    }
+                }
             }
         }
         guard appendArgumentConstraints(

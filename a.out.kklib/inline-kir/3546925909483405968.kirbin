@@ -1,0 +1,16 @@
+version=2
+nameB64=aXRlcmF0ZQ==
+params=3
+paramSymbols=-234424,24937,24938
+suspend=false
+body:
+const result=358171 value=symbol:24937
+const result=358172 value=symbol:24938
+const result=358173 value=unit
+const result=358174 value=unit
+call symbol=-235037 calleeB64=Z2V0 args=[] result=358175 canThrow=1 thrownResult=_ isSuperCall=0 qualifiedSuperType=_ linkB64=a2tfZm5fZ2V0X3MyMzUwMzdfXzEzeDRiNTM3NzY5NjY3NDRiNTM3NDY0NmM2OTYy
+const result=358177 value=int:2
+call symbol=_ calleeB64=a2tfYXJyYXlfZ2V0X2luYm91bmRz args=[358171,358177] result=358178 canThrow=0 thrownResult=_ isSuperCall=0 qualifiedSuperType=_
+call symbol=24938 calleeB64=a2tfZnVuY3Rpb25faW52b2tlXzI= args=[358172,358175,358178] result=358179 canThrow=1 thrownResult=_ isSuperCall=0 qualifiedSuperType=_ symbolFQNameB64=a290bGlueC5pby51bnNhZmUuVW5zYWZlQnVmZmVyT3BlcmF0aW9ucy5pdGVyYXRlLiQyNDkzNi5pdGVyYXRpb25BY3Rpb24=
+const result=358180 value=unit
+returnUnit

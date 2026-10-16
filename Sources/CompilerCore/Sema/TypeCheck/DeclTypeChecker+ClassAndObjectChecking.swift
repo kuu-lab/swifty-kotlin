@@ -225,7 +225,8 @@ extension DeclTypeChecker {
         symbol: SymbolID,
         ctx: TypeInferenceContext,
         solver: ConstraintSolver,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        baseLocals: LocalBindings = [:]
     ) {
         typeCheckInterfaceDelegation(
             entries: classDecl.superTypeEntries,
@@ -233,7 +234,8 @@ extension DeclTypeChecker {
             symbol: symbol,
             ctx: ctx,
             solver: solver,
-            diagnostics: diagnostics
+            diagnostics: diagnostics,
+            baseLocals: baseLocals
         )
     }
 
@@ -243,7 +245,8 @@ extension DeclTypeChecker {
         symbol: SymbolID,
         ctx: TypeInferenceContext,
         solver: ConstraintSolver,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        baseLocals: LocalBindings = [:]
     ) {
         let sema = ctx.sema
         let delegatedEntries = entries.filter { $0.delegateExpression != nil }
@@ -266,7 +269,7 @@ extension DeclTypeChecker {
 
         for delegation in delegatedEntries {
             guard let expr = delegation.delegateExpression else { continue }
-            var locals: LocalBindings = [:]
+            var locals = baseLocals
             if let ctorSymbol = ctorSymbols.first,
                let signature = sema.symbols.functionSignature(for: ctorSymbol.id)
             {
