@@ -328,6 +328,18 @@ extension DataFlowSemaPhase {
                     )
                     symbols.setParentSymbol(symbol, for: entrySymbol)
                     symbols.setPropertyType(classType, for: entrySymbol)
+                    symbols.setSourceFileID(file.fileID, for: entrySymbol)
+                    registerAnnotations(
+                        entry.annotations,
+                        symbol: entrySymbol,
+                        declRange: entry.range,
+                        sourceFileID: file.fileID,
+                        sourceFile: file,
+                        sourceManager: sourceManager,
+                        interner: interner,
+                        symbols: symbols,
+                        diagnostics: diagnostics
+                    )
                     classScope.insert(entrySymbol)
                 }
                 collectEnumEntryMemberHeaders(

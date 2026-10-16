@@ -18,6 +18,8 @@ extension CallTypeChecker {
               let signature = sema.symbols.functionSignature(for: chosen)
         else { return resolved }
         let lexicalParameters = driver.helpers.lexicalTypeParameterSymbols(in: ctx)
+        let capturedEnclosingParameters: Set<SymbolID> = sema.symbols.parentSymbol(for: chosen)
+            .map { Set(sema.types.enclosingTypeParameterSymbols(for: $0)) } ?? []
         let variables = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         for (parameterIndex, symbol) in signature.typeParameterSymbols.prefix(signature.classTypeParameterCount).enumerated() {
             guard let variable = variables[symbol],
@@ -26,6 +28,10 @@ extension CallTypeChecker {
                   parameter.capture == nil,
                   parameter.symbol == symbol
             else { continue }
+            // Enclosing type parameters of an inner class are captured from the
+            // enclosing instance during overload resolution; that binding is
+            // their evidence rather than a call argument or expected type.
+            if capturedEnclosingParameters.contains(symbol) { continue }
             if let session = ctx.builderInference,
                !session.isFinalized,
                session.typeVarBySymbol[symbol] != nil

@@ -91,6 +91,7 @@ final class SemaCacheContext {
         let explicitTypeArgs: [TypeID]
         let expectedType: TypeID?
         let elvisLhsExpectedTypeHint: Bool
+        let elvisRhsCallResultTypeHint: TypeID?
         let implicitReceiverType: TypeID?
         let dispatchReceiverTypes: [TypeID]
         let boundObjectDispatchReceiverCandidates: Set<SymbolID>
@@ -144,6 +145,7 @@ final class SemaCacheContext {
             explicitTypeArgs: call.explicitTypeArgs,
             expectedType: expectedType,
             elvisLhsExpectedTypeHint: call.elvisLhsExpectedTypeHint,
+            elvisRhsCallResultTypeHint: call.elvisRhsCallResultTypeHint,
             implicitReceiverType: implicitReceiverType,
             dispatchReceiverTypes: call.dispatchReceiverTypes,
             boundObjectDispatchReceiverCandidates: call.boundObjectDispatchReceiverCandidates

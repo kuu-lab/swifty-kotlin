@@ -390,6 +390,7 @@ extension CallLowerer {
         } else {
             newElement = emitBuiltinIndexedCompoundOp(
                 op: op, elementType: elementType, current: getResult, valueID: valueID,
+                valueType: sema.bindings.exprTypes[valueExpr] ?? sema.types.anyType,
                 sema: sema, arena: arena, interner: interner, instructions: &instructions
             )
         }
@@ -442,6 +443,7 @@ extension CallLowerer {
         elementType: TypeID,
         current getResult: KIRExprID,
         valueID: KIRExprID,
+        valueType: TypeID,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -452,6 +454,41 @@ extension CallLowerer {
         // custom operator's actual return type rather than the receiver's
         // array element type (the receiver here isn't array-shaped).
         let stringType = sema.types.stringType
+        let nullableStringType = sema.types.makeNullable(stringType)
+        if op == .plusAssign,
+           elementType == stringType || elementType == nullableStringType
+        {
+            let stringCurrent = elementType == stringType
+                ? getResult
+                : emitAnyToStringWithNullGuard(
+                    valueID: getResult,
+                    valueType: elementType,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+            let stringValue = valueType == stringType
+                ? valueID
+                : emitAnyToStringWithNullGuard(
+                    valueID: valueID,
+                    valueType: valueType,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+            let result = arena.appendTemporary(type: stringType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("__kk_string_concat_flat"),
+                arguments: [stringCurrent, stringValue],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
         let isStringElement = elementType == stringType
         let isUnsignedElement = sema.types.isUnsigned(elementType)
         let floatingPointPrefix: String? = switch sema.types.kind(of: elementType) {

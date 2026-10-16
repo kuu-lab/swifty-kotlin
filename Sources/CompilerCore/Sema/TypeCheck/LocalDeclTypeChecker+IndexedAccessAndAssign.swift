@@ -94,7 +94,7 @@ extension LocalDeclTypeChecker {
         }
         if getCandidates.isEmpty {
             getCandidates = collectIndexedOperatorExtensionCandidates(
-                named: getName, receiverType: receiverType, ctx: ctx
+                named: getName, receiverType: receiverType, locals: locals, ctx: ctx
             )
         }
 
@@ -127,7 +127,7 @@ extension LocalDeclTypeChecker {
             implicitReceiverType: receiverType, ctx: sema
         ).viableCandidates.isEmpty {
             let extensions = collectIndexedOperatorExtensionCandidates(
-                named: getName, receiverType: receiverType, call: getCall, ctx: ctx
+                named: getName, receiverType: receiverType, call: getCall, locals: locals, ctx: ctx
             )
             if !extensions.isEmpty { getCandidates = extensions }
         }
@@ -443,7 +443,7 @@ extension LocalDeclTypeChecker {
             implicitReceiverType: receiverType, ctx: sema
         ).viableCandidates.isEmpty {
             let extensions = collectIndexedOperatorExtensionCandidates(
-                named: setName, receiverType: receiverType, call: setCall, ctx: ctx
+                named: setName, receiverType: receiverType, call: setCall, locals: locals, ctx: ctx
             )
             if !extensions.isEmpty { setCandidates = extensions }
         }

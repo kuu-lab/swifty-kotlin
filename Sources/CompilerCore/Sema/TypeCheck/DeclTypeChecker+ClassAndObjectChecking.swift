@@ -896,6 +896,8 @@ extension DeclTypeChecker {
                 continue
             }
 
+            typeCheckAnnotationFactories(entry.annotations, symbol: entrySymbol, ctx: ctx)
+
             // Enum entry arguments are constructor calls in the enum's lexical
             // scope. Use the same candidate preparation, overload selection,
             // literal adaptation, and contextual lambda inference as an

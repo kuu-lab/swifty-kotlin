@@ -224,7 +224,8 @@ final class LocalVariableStabilityAnalyzer {
                 }
             }
             children([receiver] + args.map(\.expr))
-        case let .memberAssign(receiver, _, value, _), let .memberCompoundAssign(_, receiver, _, value, _):
+        case let .memberAssign(receiver, _, value, _), let .safeMemberAssign(receiver, _, value, _),
+             let .memberCompoundAssign(_, receiver, _, value, _):
             children([receiver, value])
         case let .indexedAccess(receiver, indices, _):
             children([receiver] + indices)

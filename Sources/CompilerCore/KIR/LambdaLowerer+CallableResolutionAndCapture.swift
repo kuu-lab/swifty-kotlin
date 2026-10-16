@@ -411,7 +411,10 @@ extension LambdaLowerer {
             referenced: &referenced,
             seen: &seen
         )
-        var captures = referenced.filter { symbol in
+        let captureCandidates = uniqueSymbolsPreservingOrder(
+            referenced + backingFieldOwnerCaptureSymbols(from: referenced, sema: sema)
+        )
+        var captures = captureCandidates.filter { symbol in
             canCaptureSymbolForLambda(
                 symbol,
                 lambdaExprID: lambdaExprID,
@@ -525,7 +528,7 @@ extension LambdaLowerer {
             return checkStringTemplateParts(parts, check: check)
         case let .localDecl(_, _, _, initializer, _, _, _):
             return initializer.map(check) ?? false
-        case .localAssign, .compoundAssign, .memberAssign, .indexedAssign, .indexedCompoundAssign, .memberCompoundAssign:
+        case .localAssign, .compoundAssign, .memberAssign, .safeMemberAssign, .indexedAssign, .indexedCompoundAssign, .memberCompoundAssign:
             return checkAssignmentChildren(expr, check: check)
         case let .inExpr(lhs, rhs, _),
              let .notInExpr(lhs, rhs, _):
@@ -634,7 +637,8 @@ extension LambdaLowerer {
             check(valueExpr)
         case let .compoundAssign(_, _, valueExpr, _):
             check(valueExpr)
-        case let .memberAssign(receiver, _, value, _):
+        case let .memberAssign(receiver, _, value, _),
+             let .safeMemberAssign(receiver, _, value, _):
             check(receiver) || check(value)
         case let .indexedAssign(receiver, indices, value, _):
             check(receiver) || indices.contains(where: check) || check(value)

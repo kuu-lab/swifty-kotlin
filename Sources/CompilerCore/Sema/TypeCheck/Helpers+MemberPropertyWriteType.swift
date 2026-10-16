@@ -120,7 +120,12 @@ extension TypeCheckHelpers {
                     }
                 }
             }
-            return types.make(.classType(ClassType(classSymbol: nominal.classSymbol, args: arguments, nullability: nominal.nullability)))
+            return types.make(.classType(ClassType(
+                classSymbol: nominal.classSymbol,
+                args: arguments,
+                enclosingTypeArgs: nominal.enclosingTypeArgs,
+                nullability: nominal.nullability
+            )))
         case let .intersection(parts):
             return types.make(.intersection(parts.map { approximate($0, lower: lower) }))
         case let .kClassType(kClass):

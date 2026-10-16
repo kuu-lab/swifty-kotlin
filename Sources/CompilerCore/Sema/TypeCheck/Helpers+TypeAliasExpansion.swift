@@ -184,9 +184,15 @@ extension TypeCheckHelpers {
             let newArgs = clsType.args.map { arg -> TypeArg in
                 substituteAliasArg(arg, argSubstitution: argSubstitution, sema: sema)
             }
-            if newArgs == clsType.args { return typeID }
+            let newEnclosingTypeArgs = clsType.enclosingTypeArgs.map { arg in
+                substituteAliasArg(arg, argSubstitution: argSubstitution, sema: sema)
+            }
+            if newArgs == clsType.args && newEnclosingTypeArgs == clsType.enclosingTypeArgs { return typeID }
             return types.make(.classType(ClassType(
-                classSymbol: clsType.classSymbol, args: newArgs, nullability: clsType.nullability
+                classSymbol: clsType.classSymbol,
+                args: newArgs,
+                enclosingTypeArgs: newEnclosingTypeArgs,
+                nullability: clsType.nullability
             )))
         case let .functionType(fnType):
             let newContextReceivers = fnType.contextReceivers.map {
