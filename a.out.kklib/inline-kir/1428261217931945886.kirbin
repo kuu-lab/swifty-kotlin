@@ -1,0 +1,10 @@
+version=2
+nameB64=aXRlcmF0b3I=
+params=1
+paramSymbols=-96103
+suspend=false
+body:
+const result=131013 value=symbol:-96103
+const result=131014 value=unit
+call symbol=9484 calleeB64=X19ra19tdXRhYmxlX21hcF9pdGVyYXRvcg== args=[131013] result=131015 canThrow=0 thrownResult=_ isSuperCall=0 qualifiedSuperType=_ linkB64=X19ra19tdXRhYmxlX21hcF9pdGVyYXRvcg== symbolFQNameB64=a290bGluLmNvbGxlY3Rpb25zLl9fa2tfbXV0YWJsZV9tYXBfaXRlcmF0b3I=
+returnValue value=131015

@@ -1,0 +1,11 @@
+version=2
+nameB64=Y29udGFpbnM=
+params=2
+paramSymbols=-154801,16090
+suspend=false
+body:
+const result=202750 value=symbol:-154801
+const result=202751 value=symbol:16090
+copy from=202751 to=202752
+call symbol=_ calleeB64=X19ra19yYW5nZV9jb250YWlucw== args=[202750,202752] result=202753 canThrow=0 thrownResult=_ isSuperCall=0 qualifiedSuperType=_
+returnValue value=202753

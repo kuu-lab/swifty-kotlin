@@ -1,0 +1,11 @@
+version=2
+nameB64=dG8=
+params=2
+paramSymbols=-56503,5170
+suspend=false
+body:
+const result=71127 value=symbol:-56503
+const result=71128 value=symbol:5170
+const result=71129 value=unit
+call symbol=4848 calleeB64=X19ra19wYWlyX25ldw== args=[71127,71128] result=71131 canThrow=0 thrownResult=_ isSuperCall=0 qualifiedSuperType=_ linkB64=X19ra19wYWlyX25ldw== symbolFQNameB64=a290bGluLlBhaXIuPGluaXQ+
+returnValue value=71131

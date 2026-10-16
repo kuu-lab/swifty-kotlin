@@ -1,0 +1,16 @@
+version=2
+nameB64=b3JFbXB0eQ==
+params=1
+paramSymbols=-77023
+suspend=false
+body:
+const result=108162 value=symbol:-77023
+jumpIfNotNull value=108162 target=10000
+const result=108164 value=unit
+call symbol=_ calleeB64=X19ra19lbXB0eUxpc3Q= args=[] result=108165 canThrow=1 thrownResult=_ isSuperCall=0 qualifiedSuperType=_
+copy from=108165 to=108163
+jump target=10001
+label id=10000
+copy from=108162 to=108163
+label id=10001
+returnValue value=108163

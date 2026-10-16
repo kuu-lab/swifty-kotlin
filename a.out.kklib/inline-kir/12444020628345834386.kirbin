@@ -1,0 +1,14 @@
+version=2
+nameB64=eG9y
+params=2
+paramSymbols=-132400,13601
+suspend=false
+body:
+const result=166633 value=symbol:-132400
+const result=166634 value=symbol:13601
+copy from=166633 to=166635
+copy from=166634 to=166636
+call symbol=_ calleeB64=a2tfYml0d2lzZV94b3I= args=[166635,166636] result=595849 canThrow=0 thrownResult=_ isSuperCall=0 qualifiedSuperType=_
+call symbol=_ calleeB64=a2tfaW50X25hcnJvdw== args=[595849] result=166637 canThrow=0 thrownResult=_ isSuperCall=0 qualifiedSuperType=_
+call symbol=_ calleeB64=a2tfaW50X3RvX2J5dGU= args=[166637] result=166638 canThrow=0 thrownResult=_ isSuperCall=0 qualifiedSuperType=_
+returnValue value=166638

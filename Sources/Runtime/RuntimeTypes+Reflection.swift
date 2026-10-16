@@ -466,6 +466,8 @@ final class RuntimeKConstructorBox {
     let declaringClassRaw: Int
     /// Parameter names as KKString raw handles.
     let parameterNameRaws: [Int]
+    /// JVM-erased parameter class tokens used by `Class.getDeclaredConstructor`.
+    var parameterTypeTokens: [Int?] = []
 
     init(
         nameRaw: Int,
@@ -485,6 +487,14 @@ final class RuntimeKConstructorBox {
         self.visibilityRaw = visibilityRaw
         self.declaringClassRaw = declaringClassRaw
         self.parameterNameRaws = parameterNameRaws
+    }
+
+    func setParameterTypeToken(_ typeToken: Int, at index: Int) {
+        guard index >= 0 else { return }
+        if parameterTypeTokens.count <= index {
+            parameterTypeTokens.append(contentsOf: Array(repeating: nil, count: index + 1 - parameterTypeTokens.count))
+        }
+        parameterTypeTokens[index] = typeToken
     }
 }
 
