@@ -17,24 +17,42 @@ from run_jvm_reference import sha256, verify_file
 
 def prepare_catalog(upstream: Path, catalog: list[dict], lock: dict,
                     suites: list[str] | None, output: Path, target: str,
-                    declarations: dict, source_closure: dict | None = None) -> list[dict]:
+                    declarations: dict, source_closure: dict | None = None,
+                    execution_ids: list[str] | None = None) -> list[dict]:
     if target not in {"linux", "macos"}:
         raise ValueError("catalog target must be linux or macos")
     if (declarations["schema_version"] != 1 or declarations["upstream_commit"] != lock["commit"]
             or declarations["native_execution_catalog_sha256"] != lock["native_execution_catalog_sha256"]):
         raise ValueError("candidate declaration index does not match pinned catalog")
     eligible = [row for row in catalog if row["source_set"] == "common" or target == "macos"]
+    if execution_ids is not None:
+        if not execution_ids or len(execution_ids) != len(set(execution_ids)):
+            raise ValueError("execution ID selection must be nonempty and unique")
+        eligible_by_id = {row["execution_id"]: row for row in eligible}
+        if len(eligible_by_id) != len(eligible):
+            raise ValueError("duplicate locked execution ID")
+        missing = set(execution_ids) - set(eligible_by_id)
+        if missing:
+            raise ValueError(f"selected concrete execution ID is absent from target catalog: {sorted(missing)[0]}")
     classes = {row["concrete_class"]: row for row in declarations["classes"]}
     if len(classes) != len(declarations["classes"]):
         raise ValueError("duplicate concrete class locator")
     if set(classes) != {row["concrete_class"] for row in catalog}:
         raise ValueError("class locators must cover the complete pinned catalog")
-    selected = set(suites) if suites else {row["concrete_class"] for row in eligible}
+    if suites is None and execution_ids is not None:
+        selected = {row["concrete_class"] for row in eligible if row["execution_id"] in set(execution_ids)}
+    else:
+        selected = set(suites) if suites else {row["concrete_class"] for row in eligible}
     if suites is not None and (not suites or len(selected) != len(suites)):
         raise ValueError("suite selection must be nonempty and unique")
     if not selected <= {row["concrete_class"] for row in eligible}:
         raise ValueError("selected class is absent from the target catalog")
     rows = [row for row in eligible if row["concrete_class"] in selected]
+    if execution_ids is not None:
+        selected_ids = set(execution_ids)
+        rows = [row for row in rows if row["execution_id"] in selected_ids]
+        if len(rows) != len(selected_ids) or {row["execution_id"] for row in rows} != selected_ids:
+            raise ValueError("selected suite scope omits an expected concrete execution")
     identifiers = [row["execution_id"] for row in rows]
     if len(set(identifiers)) != len(rows):
         raise ValueError("duplicate locked execution ID")
