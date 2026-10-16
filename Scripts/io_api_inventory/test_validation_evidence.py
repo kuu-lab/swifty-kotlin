@@ -175,6 +175,65 @@ class ValidationEvidenceTests(unittest.TestCase):
         self.assertEqual(record["compatibility_obligations"], ["jvm-descriptor"])
         self.assertEqual(self._apply([record], row)["status"], "verified")
 
+    def test_hex_default_bridges_have_exact_owner_source_and_direct_test_refs(self):
+        expected_refs = {
+            (
+                "bytestring",
+                "kotlinx/io/bytestring/HexKt",
+                "toHexString$default",
+                "(Lkotlinx/io/bytestring/ByteString;Lkotlin/text/HexFormat;ILjava/lang/Object;)Ljava/lang/String;",
+            ): (
+                "bytestring/common/test/ByteStringHexTest.kt#testEmpty",
+                "bytestring/common/test/ByteStringHexTest.kt#testDefault",
+            ),
+            (
+                "bytestring",
+                "kotlinx/io/bytestring/HexKt",
+                "toHexString$default",
+                "(Lkotlinx/io/bytestring/ByteString;IILkotlin/text/HexFormat;ILjava/lang/Object;)Ljava/lang/String;",
+            ): (
+                "bytestring/common/test/ByteStringHexTest.kt#testIndexes",
+                "bytestring/common/test/ByteStringHexTest.kt#testDefault",
+            ),
+            (
+                "bytestring",
+                "kotlinx/io/bytestring/HexKt",
+                "hexToByteString$default",
+                "(Ljava/lang/String;Lkotlin/text/HexFormat;ILjava/lang/Object;)Lkotlinx/io/bytestring/ByteString;",
+            ): (
+                "bytestring/common/test/ByteStringHexTest.kt#testEmpty",
+                "bytestring/common/test/ByteStringHexTest.kt#testDefault",
+            ),
+        }
+        for key, upstream_refs in expected_refs.items():
+            with self.subTest(key=key):
+                row = {"_jvm_key": key, "representation": "JVM public ABI dump"}
+                self.assertEqual(self.generator.owner_for(row), "KUU-2621")
+                self.assertEqual(self.generator.upstream_test_refs(row, {}), list(upstream_refs))
+                self.assertEqual(
+                    self.generator.local_test_refs(row, []),
+                    [
+                        "Scripts/diff_cases/kotlinx_io_bytestring_hex_default_bridges.kt",
+                        "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+ByteStringHexDefaults.swift",
+                        "Scripts/io_api_inventory/probe_bytestring_hex_jvm_abi.py",
+                    ],
+                )
+                self.assertEqual(self.generator.validation_obligations(row), ["jvm-descriptor"])
+
+        unrelated_row = {
+            "_jvm_key": ("bytestring", "kotlinx/io/bytestring/ByteString", "toHexString", "()V"),
+            "_candidate_name": "toHexString",
+            "owner_fqn": "kotlinx/io/bytestring/ByteString",
+            "module": "bytestring",
+        }
+        self.assertEqual(
+            self.generator.local_test_refs(unrelated_row, [
+                ("Scripts/diff_cases/kotlinx_io_bytestring_hex_default_bridges.kt", "toHexString"),
+                ("Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+ByteStringHexDefaults.swift", "toHexString"),
+            ]),
+            [],
+        )
+
     def test_unknown_duplicate_and_malformed_evidence_is_rejected(self):
         valid = self._record()
         unknown = copy.deepcopy(valid)

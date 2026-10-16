@@ -1238,7 +1238,75 @@ def parse_jvm_api(path: Path, module: str, sources: list[Path]) -> list[dict]:
     return rows
 
 
+HEX_DEFAULT_BRIDGE_TEST_REFS = {
+    (
+        "bytestring",
+        "kotlinx/io/bytestring/HexKt",
+        "toHexString$default",
+        "(Lkotlinx/io/bytestring/ByteString;Lkotlin/text/HexFormat;ILjava/lang/Object;)Ljava/lang/String;",
+    ): (
+        "bytestring/common/test/ByteStringHexTest.kt#testEmpty",
+        "bytestring/common/test/ByteStringHexTest.kt#testDefault",
+    ),
+    (
+        "bytestring",
+        "kotlinx/io/bytestring/HexKt",
+        "toHexString$default",
+        "(Lkotlinx/io/bytestring/ByteString;IILkotlin/text/HexFormat;ILjava/lang/Object;)Ljava/lang/String;",
+    ): (
+        "bytestring/common/test/ByteStringHexTest.kt#testIndexes",
+        "bytestring/common/test/ByteStringHexTest.kt#testDefault",
+    ),
+    (
+        "bytestring",
+        "kotlinx/io/bytestring/HexKt",
+        "hexToByteString$default",
+        "(Ljava/lang/String;Lkotlin/text/HexFormat;ILjava/lang/Object;)Lkotlinx/io/bytestring/ByteString;",
+    ): (
+        "bytestring/common/test/ByteStringHexTest.kt#testEmpty",
+        "bytestring/common/test/ByteStringHexTest.kt#testDefault",
+    ),
+}
+HEX_DEFAULT_BRIDGE_SOURCE_REFS = {
+    (
+        "bytestring",
+        "kotlinx/io/bytestring/HexKt",
+        "toHexString$default",
+        "(Lkotlinx/io/bytestring/ByteString;Lkotlin/text/HexFormat;ILjava/lang/Object;)Ljava/lang/String;",
+    ): (
+        "bytestring/common/src/Hex.kt:17",
+        "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/Hex.kt:28",
+    ),
+    (
+        "bytestring",
+        "kotlinx/io/bytestring/HexKt",
+        "toHexString$default",
+        "(Lkotlinx/io/bytestring/ByteString;IILkotlin/text/HexFormat;ILjava/lang/Object;)Ljava/lang/String;",
+    ): (
+        "bytestring/common/src/Hex.kt:34",
+        "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/Hex.kt:46",
+    ),
+    (
+        "bytestring",
+        "kotlinx/io/bytestring/HexKt",
+        "hexToByteString$default",
+        "(Ljava/lang/String;Lkotlin/text/HexFormat;ILjava/lang/Object;)Lkotlinx/io/bytestring/ByteString;",
+    ): (
+        "bytestring/common/src/Hex.kt:53",
+        "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/Hex.kt:66",
+    ),
+}
+HEX_DEFAULT_BRIDGE_DIFF_CASE = "Scripts/diff_cases/kotlinx_io_bytestring_hex_default_bridges.kt"
+HEX_DEFAULT_BRIDGE_LOCAL_TEST = (
+    "Tests/CompilerBackendTests/Integration/"
+    "BundledStdlibExecutionTests+ByteStringHexDefaults.swift"
+)
+HEX_DEFAULT_BRIDGE_PROBE = "Scripts/io_api_inventory/probe_bytestring_hex_jvm_abi.py"
+
+
 def owner_for(row: dict) -> str:
+    if row.get("_jvm_key") in HEX_DEFAULT_BRIDGE_TEST_REFS:
+        return "KUU-2621"
     text = " ".join(
         [row["module"], row["owner_fqn"], row["name"], row["signature"], row["upstream_source_refs"]]
     ).lower()
@@ -1522,10 +1590,18 @@ def local_contract_differences(row: dict, index: SourceIndex) -> str:
 
 
 def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
+    if row.get("_jvm_key") in HEX_DEFAULT_BRIDGE_TEST_REFS:
+        return [
+            HEX_DEFAULT_BRIDGE_DIFF_CASE,
+            HEX_DEFAULT_BRIDGE_LOCAL_TEST,
+            HEX_DEFAULT_BRIDGE_PROBE,
+        ]
     name = row["_candidate_name"].lower()
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []
     for path, content in local_tests:
+        if path in {HEX_DEFAULT_BRIDGE_DIFF_CASE, HEX_DEFAULT_BRIDGE_LOCAL_TEST}:
+            continue
         haystack = content.lower()
         if name and re.search(rf"(?<!\w){re.escape(name)}(?!\w)", haystack):
             refs.append(path)
@@ -1552,6 +1628,9 @@ def local_implementation_refs(row: dict, index: SourceIndex, runtime_symbols: di
 
 
 def upstream_test_refs(row: dict, test_index: dict) -> list[str]:
+    exact_bridge_refs = HEX_DEFAULT_BRIDGE_TEST_REFS.get(row.get("_jvm_key"))
+    if exact_bridge_refs is not None:
+        return list(exact_bridge_refs)
     source_paths = row.get("_source_paths", [])
     hints = []
     for source in source_paths:
@@ -1925,7 +2004,20 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
         row["status"] = "unverified" if candidates else "missing"
         if row["representation"] == "JVM public ABI dump" and row["source_api"] == "no":
             row["status"] = "unverified"
-            row["notes"] += "; generated JVM ABI presence cannot be established from Kotlin source-name matching alone"
+            bridge_key = row.get("_jvm_key")
+            if bridge_key in HEX_DEFAULT_BRIDGE_SOURCE_REFS:
+                upstream_source_ref, local_source_ref = HEX_DEFAULT_BRIDGE_SOURCE_REFS[bridge_key]
+                row["upstream_source_refs"] = upstream_source_ref
+                row["local_candidate_refs"] = local_source_ref
+                row["local_implementation_refs"] = local_source_ref
+                row["notes"] += (
+                    "; maps to the defaulted Kotlin declaration at " + upstream_source_ref
+                    + " and native counterpart at " + local_source_ref
+                    + "; the dedicated JVM classfile probe checks only the pinned reference artifact; "
+                    + "KSwiftK emits native code, so native default-dispatch results do not prove candidate JVM classfile ABI"
+                )
+            else:
+                row["notes"] += "; generated JVM ABI presence cannot be established from Kotlin source-name matching alone"
         row["owner_issue"] = owner_for(row)
         row["upstream_test_refs"] = ";".join(upstream_test_refs(row, test_index)) or "no upstream test file mapped"
         row["local_test_refs"] = ";".join(local_test_refs(row, local_tests)) or "none"
