@@ -569,9 +569,7 @@ package final class MetadataEncoder {
                     isDataClass: symbol.flags.contains(.dataType),
                     isOpenClass: symbol.flags.contains(.openType),
                     isInnerClass: symbol.flags.contains(.innerClass),
-                    modality: symbol.flags.contains(.abstractType)
-                        ? .abstract
-                        : (symbol.flags.contains(.openType) ? .open : .final),
+                    modality: metadataModality(for: symbol),
                     isSealedClass: symbol.flags.contains(.sealedType),
                     isFunInterface: symbol.flags.contains(.funInterface),
                     isValueClass: symbol.flags.contains(.valueType),
@@ -589,9 +587,7 @@ package final class MetadataEncoder {
                 isDataClass: symbol.flags.contains(.dataType),
                 isOpenClass: symbol.flags.contains(.openType),
                 isInnerClass: symbol.flags.contains(.innerClass),
-                modality: symbol.flags.contains(.abstractType)
-                    ? .abstract
-                    : (symbol.flags.contains(.openType) ? .open : .final),
+                modality: metadataModality(for: symbol),
                 isSealedClass: symbol.flags.contains(.sealedType),
                 isFunInterface: symbol.flags.contains(.funInterface),
                 isValueClass: symbol.flags.contains(.valueType),
@@ -986,14 +982,7 @@ package final class MetadataEncoder {
         // Kotlin override members are implicitly open unless explicitly final;
         // without this, an imported `override val` (e.g. AbstractMap.size)
         // decodes as final and consumers reject valid overrides.
-        let modality: MetadataModality = if symbol.flags.contains(.abstractType) {
-            .abstract
-        } else if symbol.flags.contains(.openType)
-                    || (symbol.flags.contains(.overrideMember) && !symbol.flags.contains(.finalMember)) {
-            .open
-        } else {
-            .final
-        }
+        let modality = metadataModality(for: symbol)
         let isSealedClass = symbol.flags.contains(.sealedType)
         let isFunInterface = symbol.flags.contains(.funInterface)
         let isExpect = symbol.flags.contains(.expectDeclaration)
@@ -1825,6 +1814,19 @@ package final class MetadataEncoder {
             return lhs.0 < rhs.0
         }
         return sorted.map { "\($0.0)@\($0.1)" }.joined(separator: ",")
+    }
+
+    private func metadataModality(for symbol: SemanticSymbol) -> MetadataModality {
+        // Interfaces are inherently abstract even when their declarations carry no modifier flag.
+        if symbol.kind == .interface || symbol.flags.contains(.abstractType) {
+            return .abstract
+        }
+        if symbol.flags.contains(.openType)
+            || (symbol.flags.contains(.overrideMember) && !symbol.flags.contains(.finalMember))
+        {
+            return .open
+        }
+        return .final
     }
 
     private func encodeAnnotations(_ annotations: [MetadataAnnotationRecord]) -> String {
