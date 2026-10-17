@@ -78,6 +78,18 @@ LOCAL_PROBE_EVIDENCE_CASES = {
         "lanes": ("jvm-descriptor",),
         "methods": {"reference": "jvm-abi-reflection", "candidate": "source-metadata"},
     },
+    "Scripts/io_api_inventory/probes/ByteStringBuilderClassShape.kt#publicFinalClass": {
+        "path": "Scripts/io_api_inventory/probes/ByteStringBuilderClassShape.kt",
+        "row_ids": {"klib-bb1a86c235fe5d90"},
+        "lanes": LOCAL_NATIVE_PROBE_LANES,
+        "methods": {"reference": "jvm-probe", "candidate": "native-matrix"},
+    },
+    "Scripts/io_api_inventory/probes/ByteStringBuilderJvmClassProbe.java#publicFinalClass": {
+        "path": "Scripts/io_api_inventory/probes/ByteStringBuilderJvmClassProbe.java",
+        "row_ids": {"jvm-1d1d46e584ca16cc"},
+        "lanes": ("jvm-descriptor",),
+        "methods": {"reference": "jvm-abi-reflection", "candidate": "native-class-shape-probe"},
+    },
 }
 
 LEDGER_COLUMNS = [

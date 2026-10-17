@@ -6,6 +6,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import tempfile
 import unittest
 
 
@@ -57,6 +58,61 @@ class APIProbeCatalogTests(unittest.TestCase):
                 row = self.rows[probe["row_id"]]
                 refs = set(row["local_test_refs"].split(";"))
                 self.assertTrue(set(probe["probe_paths"]).issubset(refs))
+
+    def test_runner_builds_registered_local_probe_records(self):
+        candidate_sha = "a" * 40
+        for probe in self.catalog["probes"]:
+            with self.subTest(row_id=probe["row_id"]):
+                row = self.rows[probe["row_id"]]
+                results = {
+                    f"{probe['row_id']}:{lane}:{subject}": {"status": "PASS"}
+                    for lane in probe["lanes"]
+                    for subject in ("reference", "candidate")
+                }
+                record = self.runner.build_record(row, probe, candidate_sha, results)
+                spec = self.generator._local_probe_case_spec(row, probe["case_id"])
+                self.assertIsNotNone(spec)
+                self.assertEqual(record["evidence_source"], "local-probe")
+                self.assertEqual(record["row_id"], probe["row_id"])
+                self.assertEqual({execution["lane"] for execution in record["executions"]}, set(probe["lanes"]))
+                for execution in record["executions"]:
+                    for subject in ("reference", "candidate"):
+                        result = execution[subject]
+                        self.assertEqual(
+                            result["execution_id"],
+                            self.generator.local_probe_execution_id(
+                                candidate_sha,
+                                self.generator.EXPECTED_TAG_COMMIT,
+                                probe["case_id"],
+                                execution["lane"],
+                                subject,
+                            ),
+                        )
+                        self.assertEqual(result["method"], spec["methods"][subject])
+                with tempfile.TemporaryDirectory() as temporary_directory:
+                    evidence_path = Path(temporary_directory) / "evidence.json"
+                    evidence_path.write_text(
+                        json.dumps({"schema_version": 2, "records": [record]}), encoding="utf-8"
+                    )
+                    rows = [dict(row)]
+                    lock = json.loads(self.generator.LOCK_PATH.read_text(encoding="utf-8"))
+                    self.generator.apply_validation_evidence(
+                        rows, lock, evidence_path, REPO, UPSTREAM
+                    )
+                    self.assertEqual(rows[0]["status"], "verified")
+
+    def test_runner_normalizes_legacy_schema_v1_evidence_to_v2(self):
+        record = {"row_id": "legacy-record"}
+        normalized = self.runner.normalize_validation_evidence_schema({
+            "schema_version": 1,
+            "records": [record],
+        })
+        self.assertEqual(normalized["schema_version"], self.generator.VALIDATION_EVIDENCE_SCHEMA_VERSION)
+        self.assertEqual(normalized["records"], [{**record, "evidence_source": "upstream-catalog"}])
+
+    def test_runner_preserves_current_schema_v2_evidence(self):
+        evidence = {"schema_version": 2, "records": [{"evidence_source": "local-probe"}]}
+        self.assertIs(self.runner.normalize_validation_evidence_schema(evidence), evidence)
 
     def test_hashes_cover_upstream_assertion_and_probe_inputs(self):
         for probe in self.catalog["probes"]:

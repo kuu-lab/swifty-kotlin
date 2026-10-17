@@ -73,6 +73,26 @@ def save_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
+def normalize_validation_evidence_schema(evidence: dict) -> dict:
+    sys.path.insert(0, str(HERE))
+    import generate
+
+    schema_version = evidence.get("schema_version")
+    records = evidence.get("records")
+    if (type(schema_version) is not int
+            or schema_version not in (1, generate.VALIDATION_EVIDENCE_SCHEMA_VERSION)
+            or not isinstance(records, list)
+            or any(not isinstance(record, dict) for record in records)):
+        raise RuntimeError("unexpected api-validation-evidence schema")
+    if schema_version == 1:
+        evidence["schema_version"] = generate.VALIDATION_EVIDENCE_SCHEMA_VERSION
+        evidence["records"] = [
+            {**record, "evidence_source": "upstream-catalog"}
+            for record in records
+        ]
+    return evidence
+
+
 class ProbeRunner:
     def __init__(self, output: Path, java: Path, kotlin_home: Path, dependencies: Path,
                  compiler: Path, timeout: float) -> None:
@@ -373,15 +393,33 @@ def build_record(row: dict[str, str], probe: dict, candidate_sha: str,
     sys.path.insert(0, str(HERE))
     import generate
 
+    case_id = probe["case_id"]
+    case_spec = generate.LOCAL_PROBE_EVIDENCE_CASES.get(case_id)
+    if case_spec is None or row["row_id"] not in case_spec["row_ids"]:
+        raise RuntimeError(f"API probe is not registered for local evidence: {row['row_id']} {case_id}")
     executions = []
-    for lane, subjects in probe["lanes"].items():
+    for lane in probe["lanes"]:
         reference = results[f"{row['row_id']}:{lane}:reference"]
         candidate = results[f"{row['row_id']}:{lane}:candidate"]
         executions.append({
-            "case_id": probe["case_id"],
+            "case_id": case_id,
             "lane": lane,
-            "reference": {"execution_id": subjects["reference"], "result": reference["status"], "exit_code": 0},
-            "candidate": {"execution_id": subjects["candidate"], "result": candidate["status"], "exit_code": 0},
+            "reference": {
+                "execution_id": generate.local_probe_execution_id(
+                    candidate_sha, EXPECTED_REFERENCE_COMMIT, case_id, lane, "reference"
+                ),
+                "result": reference["status"],
+                "exit_code": 0,
+                "method": case_spec["methods"]["reference"],
+            },
+            "candidate": {
+                "execution_id": generate.local_probe_execution_id(
+                    candidate_sha, EXPECTED_REFERENCE_COMMIT, case_id, lane, "candidate"
+                ),
+                "result": candidate["status"],
+                "exit_code": 0,
+                "method": case_spec["methods"]["candidate"],
+            },
         })
     return {
         "row_id": row["row_id"],
@@ -390,6 +428,7 @@ def build_record(row: dict[str, str], probe: dict, candidate_sha: str,
         "reference_commit": EXPECTED_REFERENCE_COMMIT,
         **generate.validation_input_hashes(row),
         "compatibility_obligations": generate.validation_obligations(row),
+        "evidence_source": "local-probe",
         "executions": executions,
     }
 
@@ -627,9 +666,9 @@ def main(argv: list[str] | None = None) -> int:
             summary["status"] = "FAILED_OR_INCOMPLETE"
             summary["errors"] = errors
         if args.record_evidence and summary["status"] == "SELECTED_API_PROBES_PASS":
-            evidence = json.loads(EVIDENCE_PATH.read_text(encoding="utf-8"))
-            if evidence.get("schema_version") != 1 or not isinstance(evidence.get("records"), list):
-                raise RuntimeError("unexpected api-validation-evidence schema")
+            evidence = normalize_validation_evidence_schema(
+                json.loads(EVIDENCE_PATH.read_text(encoding="utf-8"))
+            )
             run_evidence = json.loads(PROBE_RUN_EVIDENCE_PATH.read_text(encoding="utf-8"))
             if run_evidence.get("schema_version") != 1 or not isinstance(run_evidence.get("runs"), list):
                 raise RuntimeError("unexpected api-probe-run-evidence schema")
