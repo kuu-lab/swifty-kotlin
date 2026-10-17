@@ -1,17 +1,11 @@
 import RuntimeABI
 
-/// List lookup names for `CollectionLiteralLookupTables`.
-///
-/// Split out from `CollectionLiteralLoweringPass+LookupTables.swift`.
 struct ListLookupNames {
-    // Source-level callee names
     let listOfName: InternedString
     let mutableListOfName: InternedString
     let arrayListOfName: InternedString
     let emptyListName: InternedString
-    // Type alias constructor names (STDLIB-245)
     let arrayListName: InternedString
-    // Runtime ABI names
     let kkListOfName: InternedString
     let kkArrayListOfName: InternedString
     let kkEmptyListName: InternedString
@@ -28,11 +22,9 @@ struct ListLookupNames {
     let kkListToStringName: InternedString
     let kkCollectionToMutableListName: InternedString
     let kkCollectionToArrayListName: InternedString
-    // Higher-order collection function ABI names (FUNC-003)
     let kkListAssociateToName: InternedString
     let kkListForEachName: InternedString
     let kkCollectionToCollectionName: InternedString
-    // Additional higher-order collection function ABI names (STDLIB-005)
     let kkListGroupByName: InternedString
     let kkListGroupByTransformName: InternedString
     let kkListSortedByName: InternedString
@@ -79,13 +71,11 @@ struct ListLookupNames {
     let kkListSortedByDescendingName: InternedString
     let kkListSortedWithName: InternedString
     let kkListPartitionName: InternedString
-    // ListIterator member names (STDLIB-538)
     let listIteratorMemberName: InternedString
     let hasPreviousName: InternedString
     let previousName: InternedString
     let nextIndexName: InternedString
     let previousIndexName: InternedString
-    // Common lookup sets
     let listFactoryNames: Set<InternedString>
     let mutableListConstructorNames: Set<InternedString>
 
@@ -160,7 +150,6 @@ struct ListLookupNames {
         kkListSortedByDescendingName = interner.intern("kk_list_sortedByDescending")
         kkListSortedWithName = interner.intern("kk_list_sortedWith")
         kkListPartitionName = .invalid
-        // ListIterator member names (STDLIB-538)
         listIteratorMemberName = interner.intern("listIterator")
         hasPreviousName = interner.intern("hasPrevious")
         previousName = interner.intern("previous")
