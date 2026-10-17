@@ -147,8 +147,6 @@ public extension RuntimeABISpec {
             section: "TypeCheck",
             isThrowing: false
         ),
-        // KClass-handle-based simpleName/qualifiedName bridges (used by
-        // Sources/CompilerCore/Stdlib/kotlin/reflect/KClasses.kt).
         RuntimeABIFunctionSpec(
             name: "__kk_kclass_simple_name",
             parameters: [
