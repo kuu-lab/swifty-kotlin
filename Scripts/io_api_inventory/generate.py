@@ -37,6 +37,16 @@ NO_DIRECT_UPSTREAM_ASSERTION_SOURCE_REFS = {
     "core/common/src/files/Paths.kt:133",
 }
 NO_DIRECT_UPSTREAM_ASSERTION = "none (no direct upstream assertion mapped)"
+DIRECT_UPSTREAM_TEST_REFS = {
+    "jvm-2cd93875bc5aede4": (
+        "core/jvm/test/AbstractSourceTestJVM.kt#readNioBuffer",
+    ),
+    "jvm-5c8f62b61ce2a00a": (
+        "core/jvm/test/AbstractSourceTestJVM.kt#inputStream",
+        "core/jvm/test/AbstractSourceTestJVM.kt#inputStreamOffsetCount",
+        "core/jvm/test/AbstractSourceTestJVM.kt#inputStreamClosesSource",
+    ),
+}
 VALIDATION_EVIDENCE_SCHEMA_VERSION = 2
 VALIDATION_LANES_BY_OBLIGATION = {
     "jvm-descriptor": ("jvm-descriptor",),
@@ -1688,6 +1698,7 @@ def upstream_test_refs(row: dict, test_index: dict) -> list[str]:
         # The upstream smoke cases use SystemFileSystem raw methods; they do not
         # exercise these deprecated Path extensions or assert their annotations.
         return []
+    direct_refs = DIRECT_UPSTREAM_TEST_REFS.get(row.get("row_id"), ())
     source_paths = row.get("_source_paths", [])
     hints = []
     for source in source_paths:
@@ -1701,7 +1712,7 @@ def upstream_test_refs(row: dict, test_index: dict) -> list[str]:
             hints = ["core/common/test/AbstractSourceTest.kt", "core/common/test/AbstractSinkTest.kt"]
     index_by_path = {entry["path"]: entry for entry in test_index["files"]}
     name = row["_candidate_name"].lower()
-    refs = []
+    refs = list(direct_refs)
     for hint in dict.fromkeys(hints):
         entry = index_by_path.get(hint)
         if not entry:
