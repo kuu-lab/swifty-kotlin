@@ -1,6 +1,5 @@
 import CompilerCore
 
-/// Computes hover information (type and symbol) for a position.
 public enum HoverFeature {
     public static func hover(for analysis: Analyzer.Analysis, line: Int, character: Int) -> Hover? {
         guard
