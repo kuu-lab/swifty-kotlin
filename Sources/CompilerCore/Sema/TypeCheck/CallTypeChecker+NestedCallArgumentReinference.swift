@@ -1,4 +1,3 @@
-/// Helpers split from `CallTypeChecker.swift`:
 /// Re-inference of nested generic call arguments whose type arguments collapsed
 /// to `Nothing` or `Any`, or whose own resolution failed outright, before the
 /// enclosing call's constraint set was known.
@@ -30,9 +29,6 @@ struct CandidateSpecificNestedCallArgumentTypes {
 }
 
 extension CallTypeChecker {
-    /// Whether `type` contains `Nothing` anywhere inside its generic
-    /// arguments (e.g. `MutableList<Nothing>`), which marks an uninferred
-    /// nested type argument.
     func typeContainsNothingType(_ type: TypeID, sema: SemaModule, depth: Int = 0) -> Bool {
         guard depth < 8 else {
             return false
@@ -59,10 +55,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Whether `type` contains the error marker anywhere inside its generic
-    /// arguments — the residue of a nested call whose own inference failed
-    /// (e.g. `D(t, 1)` reporting `KSWIFTK-SEMA-INFER` before the enclosing
-    /// call's expected type was known).
     func typeContainsErrorType(_ type: TypeID, sema: SemaModule, depth: Int = 0) -> Bool {
         guard depth < 8 else {
             return false
@@ -90,9 +82,9 @@ extension CallTypeChecker {
         }
     }
 
-    /// Whether `type` carries a bare type parameter directly in a generic
-    /// argument position (e.g. `Holder<T>`), the residue of a nested
-    /// constructor/generic call whose type parameter no argument could fix
+    /// A bare type parameter directly in a generic argument position
+    /// (e.g. `Holder<T>`) is the residue of a nested constructor/generic call
+    /// whose type parameter no argument could fix
     /// (`Holder { value -> Unit }` with an unannotated lambda parameter).
     /// The leaked parameter would otherwise be read as a rigid outer type.
     func typeContainsLeakedTypeParameterArgument(_ type: TypeID, sema: SemaModule) -> Bool {
@@ -110,10 +102,9 @@ extension CallTypeChecker {
         }
     }
 
-    /// Whether `expr` is a nested call whose type arguments were inferred
-    /// (empty explicit type argument list), meaning it can still be steered
-    /// by an expected type — unlike `mutableListOf<Nothing>()`, where the
-    /// explicit argument must be respected.
+    /// A nested call with an empty explicit type argument list can still be
+    /// steered by an expected type — unlike `mutableListOf<Nothing>()`, where
+    /// the explicit argument must be respected.
     func isInferableNestedCallExpr(_ expr: ExprID, ast: ASTModule) -> Bool {
         guard let argumentExpr = ast.arena.expr(expr) else {
             return false
@@ -128,10 +119,9 @@ extension CallTypeChecker {
         }
     }
 
-    /// Whether this is an argument-less stdlib `LinkedHashMap()` whose type
-    /// arguments can be inferred again from an enclosing generic bound.
-    /// Restricting the retry to this constructor avoids treating arbitrary
-    /// `Any`-typed expressions as deferred nested calls.
+    /// Restricting the retry to an argument-less stdlib `LinkedHashMap()`
+    /// avoids treating arbitrary `Any`-typed expressions as deferred nested
+    /// calls.
     func isReinferableLinkedHashMapConstructor(_ expr: ExprID, ctx: TypeInferenceContext) -> Bool {
         guard case let .call(calleeID, typeArgs, arguments, _) = ctx.ast.arena.expr(expr),
               typeArgs.isEmpty,
@@ -154,9 +144,6 @@ extension CallTypeChecker {
         return true
     }
 
-    /// Positional parameter index for a call argument, honoring labeled
-    /// arguments and trailing vararg positions. Returns nil when the
-    /// argument cannot be mapped to a declared parameter.
     func parameterIndexForCallArgument(
         at index: Int,
         label: InternedString?,
@@ -182,10 +169,8 @@ extension CallTypeChecker {
         return nil
     }
 
-    /// Re-infer nested calls against each outer candidate's parameter type,
-    /// after substituting type variables constrained by the call's other
-    /// arguments or extension receiver. Candidate-specific argument types keep
-    /// an overload's context from being shared with its neighbors.
+    /// Candidate-specific argument types keep an overload's context from
+    /// being shared with its neighbors.
     func candidateSpecificNestedCallArgumentTypes(
         candidates: [SymbolID],
         args: [CallArgument],
@@ -441,17 +426,9 @@ extension CallTypeChecker {
         return candidate
     }
 
-    /// The expected type for a deferred nested-call argument, derived from
-    /// the candidate parameter type after applying the substitution inferred
-    /// from the call's other arguments. When the parameter is a bare type
-    /// variable (e.g. `M` in `dest: M`), its declared upper bounds are tried
-    /// in order after applying that substitution. A bound such as
-    /// `MutableMap<in K, MutableList<T>>` can specialize an empty
-    /// `LinkedHashMap()` constructor even if it still contains unresolved
-    /// outer type variables.
-    /// The resulting bound is then re-parameterized onto the nested call's
-    /// own nominal head via `concreteNestedCallExpectedType`.
-    /// Returns nil when no concrete expected type can be derived.
+    /// A bound such as `MutableMap<in K, MutableList<T>>` can specialize an
+    /// empty `LinkedHashMap()` constructor even if it still contains
+    /// unresolved outer type variables.
     func deferredArgumentExpectedType(
         parameterType: TypeID,
         argumentType: TypeID,
@@ -656,9 +633,8 @@ extension CallTypeChecker {
         return nil
     }
 
-    /// Whether either operand of `constraint` is a type that still mentions
-    /// one of the nested callee's unresolved type parameters. Such a
-    /// constraint would equate a free variable with an enclosing candidate's
+    /// A constraint mentioning one of the nested callee's unresolved type
+    /// parameters would equate a free variable with an enclosing candidate's
     /// variable, so it is not usable as outer inference evidence.
     private func constraintMentionsUnboundNestedParameters(
         _ constraint: VariableConstraint,
@@ -676,14 +652,6 @@ extension CallTypeChecker {
         return mentions(constraint.left) || mentions(constraint.right)
     }
 
-    /// Retry overload resolution after re-inferring nested-call arguments
-    /// whose inferred type still contains `Nothing` or failed outright, and
-    /// eligible argument-less `LinkedHashMap()` constructors.
-    ///
-    /// Each candidate contributes a partial substitution probed from the
-    /// non-deferred arguments plus the resolved positions of any
-    /// failed nested call; deferred arguments are then re-inferred under
-    /// their derived expected types and the full call is resolved once more.
     /// Returns the successful resolution, or nil to keep the original
     /// diagnostic.
     func retryResolutionReinferringNestedCallArguments(
