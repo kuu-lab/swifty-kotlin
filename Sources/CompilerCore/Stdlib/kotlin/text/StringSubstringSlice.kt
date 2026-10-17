@@ -1,6 +1,5 @@
 package kotlin.text
 
-// KSP-406: substring / subSequence / slice / removeRange / replaceRange.
 // String operations traverse toString().toList(); CharSequence slice keeps
 // indexed access on the receiver so custom implementations remain observable.
 
