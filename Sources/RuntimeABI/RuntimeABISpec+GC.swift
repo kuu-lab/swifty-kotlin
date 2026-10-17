@@ -1,6 +1,5 @@
 // swiftlint:disable file_length
 
-/// `RuntimeABISpec.gcFunctions` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
     static let gcFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
