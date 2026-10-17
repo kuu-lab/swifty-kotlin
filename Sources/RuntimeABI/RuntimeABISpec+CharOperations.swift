@@ -1,6 +1,5 @@
 // swiftlint:disable file_length
 
-/// `RuntimeABISpec.charFunctions` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
     static let charFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
