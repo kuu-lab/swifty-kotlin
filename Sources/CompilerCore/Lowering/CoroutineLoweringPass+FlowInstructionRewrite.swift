@@ -49,11 +49,10 @@ extension CoroutineLoweringPass {
             return callee == channelFlowName ? channelFlowBridgeName : callbackFlowBridgeName
         }
 
-        // KSP-CAP-010 / KSP-499 Stage 3: both `.call` and `.virtualCall`
-        // branches now gate on `hasRealDeclaration(symbol, in: ctx)`. Calls
-        // whose symbol is unresolved (`nil`) or synthetic are treated as flow
-        // intrinsics and rewritten to `kk_flow_*`; real bundled/user Kotlin
-        // declarations are left unchanged so their actual implementation runs.
+        // KSP-CAP-010 / KSP-499 Stage 3: calls whose symbol is unresolved
+        // (`nil`) or synthetic are treated as flow intrinsics and rewritten to
+        // `kk_flow_*`; real bundled/user Kotlin declarations are left
+        // unchanged so their actual implementation runs.
 
         func appendFlowReleaseCall(_ handleExpr: KIRExprID) {
             loweredBody.append(.call(
@@ -100,7 +99,6 @@ extension CoroutineLoweringPass {
             return (sourceHandle, nil)
         }
 
-        /// Emit a flow transform/error-handling call and track the result as a flow expr.
         func emitFlowTransformCall(
             handleExpr: KIRExprID,
             lambdaExpr: KIRExprID,
@@ -143,7 +141,6 @@ extension CoroutineLoweringPass {
             if let result { flowExprIDs.insert(result.rawValue) }
         }
 
-        /// Emit a flow collect call.
         func emitFlowCollectCall(
             symbol: SymbolID?,
             callee: InternedString,
