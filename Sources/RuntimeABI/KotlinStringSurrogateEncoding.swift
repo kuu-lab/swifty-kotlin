@@ -16,8 +16,6 @@ public enum KotlinStringSurrogateEncoding {
         return 0xD800 + marker - markerBase
     }
 
-    /// If `units[index]` begins a well-formed UTF-16 surrogate pair, returns
-    /// the supplementary scalar the pair encodes; `nil` otherwise.
     private static func supplementaryScalar(in units: [UInt16], at index: Int) -> UInt32? {
         let high = UInt32(units[index])
         guard (0xD800 ... 0xDBFF).contains(high), index + 1 < units.count else { return nil }
