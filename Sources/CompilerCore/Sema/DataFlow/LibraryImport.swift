@@ -29,8 +29,8 @@ extension DataFlowSemaPhase {
         let klibModules: [LoadedKlibModule]
     }
 
-    /// Shared state for indexed metadata materialization. The inline-function
-    /// sink is connected to `SemaModule` after the import phase constructs it.
+    /// The inline-function sink is connected to `SemaModule` after the import
+    /// phase constructs it.
     final class ImportedLibraryLazyLoaderState {
         var importedInlineFunctions: ImportedInlineFunctionStore
         var descriptorSink: ((SymbolID, ImportedInlineFunctionStore.Descriptor) -> Void)?
@@ -1682,9 +1682,7 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Maps the synthetic type-parameter symbols spelled by an imported
-    /// nominal's `typeParamsSig` to the symbols already registered for it, by
-    /// position. Returns `nil` when there is nothing to rewrite (no registered
+    /// Returns `nil` when there is nothing to rewrite (no registered
     /// parameters, no self signature, or both spellings already agree).
     private func importedSyntheticToRegisteredTypeParameters(
         record: ImportedLibrarySymbolRecord,
