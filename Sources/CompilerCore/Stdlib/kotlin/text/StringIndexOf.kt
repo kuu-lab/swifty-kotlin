@@ -1,8 +1,5 @@
 package kotlin.text
 
-// KSP-408: contains/indexOf family migrated from Swift Runtime
-// (RuntimeStringStdlib.swift's contains functions + RuntimeStringSearch.swift).
-//
 // Character traversal goes through toString().toList() (see StringSearchReplace.kt /
 // StringPrefixSuffix.kt): the flat String aggregate's length/get(i) are unreliable for
 // non-ASCII input on a CharSequence-typed receiver, so every function here normalizes
@@ -58,15 +55,13 @@ private fun stringCollectionMatchIndexAt(
     return -1
 }
 
-// startIndex clamp for forward scans (indexOf / indexOfAny / findAnyOf family).
 private fun forwardSearchStart(startIndex: Int, ignoreCase: Boolean, size: Int): Int {
     val lowerClamped = if (startIndex < 0) 0 else startIndex
     if (ignoreCase) return lowerClamped
     return if (lowerClamped > size) size else lowerClamped
 }
 
-// startIndex clamp for backward scans (lastIndexOf / lastIndexOfAny / findLastAnyOf
-// family). `startIndex == null` means "use the default" (upstream `lastIndex`).
+// `startIndex == null` means "use the default" (upstream `lastIndex`).
 // Returns a negative value when the scan range is empty; callers must check.
 private fun backwardSearchStart(startIndex: Int?, ignoreCase: Boolean, size: Int): Int {
     val resolved = startIndex ?: (size - 1)
@@ -78,14 +73,10 @@ private fun backwardSearchStart(startIndex: Int?, ignoreCase: Boolean, size: Int
     return if (resolved < size) resolved else size
 }
 
-/**
- * Returns `true` if this char sequence contains the specified [other] sequence of characters as a substring.
- */
 // Split into two overloads (rather than one function with a defaulted ignoreCase) because
 // this compiler's `in`-operator resolution (ExprTypeChecker.inferContainsCallBinding) only
 // recognizes `operator fun contains` candidates with exactly one formal parameter; it does
-// not fill in defaulted trailing parameters the way normal call resolution does. Matches the
-// arity split the previous synthetic stub used for the same reason.
+// not fill in defaulted trailing parameters the way normal call resolution does.
 public operator fun CharSequence.contains(other: CharSequence): Boolean =
     contains(other, ignoreCase = false)
 
@@ -148,9 +139,6 @@ private fun charSequenceContains(
 public fun CharSequence.contains(other: CharSequence, ignoreCase: Boolean): Boolean =
     charSequenceContains(this, other, ignoreCase)
 
-/**
- * Returns `true` if this char sequence contains the specified [char].
- */
 public operator fun CharSequence.contains(char: Char): Boolean =
     contains(char, ignoreCase = false)
 
@@ -167,9 +155,6 @@ public fun CharSequence.contains(char: Char, ignoreCase: Boolean): Boolean {
     return false
 }
 
-/**
- * Returns the first index of [string] in this char sequence starting from [startIndex], or -1 if not found.
- */
 public fun CharSequence.indexOf(string: String, startIndex: Int = 0, ignoreCase: Boolean = false): Int {
     val selfChars = this.toString().toList()
     val needleChars = string.toList()
@@ -181,9 +166,6 @@ public fun CharSequence.indexOf(string: String, startIndex: Int = 0, ignoreCase:
     return -1
 }
 
-/**
- * Returns the first index of [char] in this char sequence starting from [startIndex], or -1 if not found.
- */
 public fun CharSequence.indexOf(char: Char, startIndex: Int = 0, ignoreCase: Boolean = false): Int {
     val selfChars = this.toString().toList()
     var pos = forwardSearchStart(startIndex, ignoreCase, selfChars.size)
@@ -203,16 +185,9 @@ private fun lastIndexOfStringImpl(selfChars: List<Char>, needleChars: List<Char>
     return -1
 }
 
-/**
- * Returns the last index of [string] in this char sequence, searching backward from the end, or -1 if not found.
- */
 public fun CharSequence.lastIndexOf(string: String, ignoreCase: Boolean = false): Int =
     lastIndexOfStringImpl(this.toString().toList(), string.toList(), null, ignoreCase)
 
-/**
- * Returns the last index of [string] in this char sequence, searching backward starting at [startIndex],
- * or -1 if not found.
- */
 public fun CharSequence.lastIndexOf(string: String, startIndex: Int, ignoreCase: Boolean = false): Int =
     lastIndexOfStringImpl(this.toString().toList(), string.toList(), startIndex, ignoreCase)
 
@@ -225,23 +200,12 @@ private fun lastIndexOfCharImpl(selfChars: List<Char>, char: Char, startIndex: I
     return -1
 }
 
-/**
- * Returns the last index of [char] in this char sequence, searching backward from the end, or -1 if not found.
- */
 public fun CharSequence.lastIndexOf(char: Char, ignoreCase: Boolean = false): Int =
     lastIndexOfCharImpl(this.toString().toList(), char, null, ignoreCase)
 
-/**
- * Returns the last index of [char] in this char sequence, searching backward starting at [startIndex],
- * or -1 if not found.
- */
 public fun CharSequence.lastIndexOf(char: Char, startIndex: Int, ignoreCase: Boolean = false): Int =
     lastIndexOfCharImpl(this.toString().toList(), char, startIndex, ignoreCase)
 
-/**
- * Returns the index of the first occurrence of any of the specified [chars] in this char sequence,
- * starting from [startIndex], or -1 if none of [chars] is found.
- */
 public fun CharSequence.indexOfAny(chars: CharArray, startIndex: Int = 0, ignoreCase: Boolean = false): Int {
     val selfChars = this.toString().toList()
     var pos = forwardSearchStart(startIndex, ignoreCase, selfChars.size)
@@ -252,10 +216,6 @@ public fun CharSequence.indexOfAny(chars: CharArray, startIndex: Int = 0, ignore
     return -1
 }
 
-/**
- * Returns the index of the first occurrence of any of the specified [strings] in this char sequence,
- * starting from [startIndex], or -1 if none of [strings] is found.
- */
 public fun CharSequence.indexOfAny(strings: Collection<String>, startIndex: Int = 0, ignoreCase: Boolean = false): Int {
     val selfChars = this.toString().toList()
     val needlesList = strings.toList()
@@ -276,17 +236,9 @@ private fun lastIndexOfAnyCharsImpl(selfChars: List<Char>, chars: CharArray, sta
     return -1
 }
 
-/**
- * Returns the index of the last occurrence of any of the specified [chars] in this char sequence,
- * searching backward from the end, or -1 if none found.
- */
 public fun CharSequence.lastIndexOfAny(chars: CharArray, ignoreCase: Boolean = false): Int =
     lastIndexOfAnyCharsImpl(this.toString().toList(), chars, null, ignoreCase)
 
-/**
- * Returns the index of the last occurrence of any of the specified [chars] in this char sequence,
- * searching backward starting at [startIndex], or -1 if none found.
- */
 public fun CharSequence.lastIndexOfAny(chars: CharArray, startIndex: Int, ignoreCase: Boolean = false): Int =
     lastIndexOfAnyCharsImpl(this.toString().toList(), chars, startIndex, ignoreCase)
 
@@ -305,24 +257,12 @@ private fun lastIndexOfAnyStringsImpl(
     return -1
 }
 
-/**
- * Returns the index of the last occurrence of any of the specified [strings] in this char sequence,
- * searching backward from the end, or -1 if none found.
- */
 public fun CharSequence.lastIndexOfAny(strings: Collection<String>, ignoreCase: Boolean = false): Int =
     lastIndexOfAnyStringsImpl(this.toString().toList(), strings, null, ignoreCase)
 
-/**
- * Returns the index of the last occurrence of any of the specified [strings] in this char sequence,
- * searching backward starting at [startIndex], or -1 if none found.
- */
 public fun CharSequence.lastIndexOfAny(strings: Collection<String>, startIndex: Int, ignoreCase: Boolean = false): Int =
     lastIndexOfAnyStringsImpl(this.toString().toList(), strings, startIndex, ignoreCase)
 
-/**
- * Finds the first occurrence of any of the specified [strings] in this char sequence, starting from
- * [startIndex]. Returns the index and the matching string as a [Pair], or `null` if none is found.
- */
 public fun CharSequence.findAnyOf(
     strings: Collection<String>,
     startIndex: Int = 0,
@@ -355,23 +295,12 @@ private fun findLastAnyOfImpl(
     return null
 }
 
-/**
- * Finds the last occurrence of any of the specified [strings] in this char sequence, searching backward
- * from the end. Returns the index and the matching string as a [Pair], or `null` if none is found.
- */
 public fun CharSequence.findLastAnyOf(strings: Collection<String>, ignoreCase: Boolean = false): Pair<Int, String>? =
     findLastAnyOfImpl(this.toString().toList(), strings, null, ignoreCase)
 
-/**
- * Finds the last occurrence of any of the specified [strings] in this char sequence, searching backward
- * starting at [startIndex]. Returns the index and the matching string as a [Pair], or `null` if none is found.
- */
 public fun CharSequence.findLastAnyOf(strings: Collection<String>, startIndex: Int, ignoreCase: Boolean = false): Pair<Int, String>? =
     findLastAnyOfImpl(this.toString().toList(), strings, startIndex, ignoreCase)
 
-/**
- * Returns the index of the first character matching the given [predicate], or -1 if none matches.
- */
 public inline fun CharSequence.indexOfFirst(predicate: (Char) -> Boolean): Int {
     val selfChars = this.toString().toList()
     var i = 0
@@ -382,9 +311,6 @@ public inline fun CharSequence.indexOfFirst(predicate: (Char) -> Boolean): Int {
     return -1
 }
 
-/**
- * Returns the index of the last character matching the given [predicate], or -1 if none matches.
- */
 public inline fun CharSequence.indexOfLast(predicate: (Char) -> Boolean): Int {
     val selfChars = this.toString().toList()
     var i = selfChars.size - 1
