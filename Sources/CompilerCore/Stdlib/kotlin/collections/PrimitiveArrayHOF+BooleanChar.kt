@@ -1,11 +1,8 @@
 package kotlin.collections
 
-// KSP-687: primitive array higher-order functions are bundled Kotlin source.
-// The generated-looking repetition mirrors Kotlin's specialized primitive-array API.
-// It keeps element values typed at the source boundary instead of passing raw words
+// The generated-looking repetition mirrors Kotlin's specialized primitive-array API
+// and keeps element values typed at the source boundary instead of passing raw words
 // through the former kk_array_* runtime HOF bridges.
-
-// --- BooleanArray ---
 
 public fun <R> BooleanArray.map(transform: (Boolean) -> R): List<R> {
     val result = mutableListOf<R>()
@@ -335,8 +332,6 @@ public fun BooleanArray.joinToString(
     sb.append(postfix)
     return sb.toString()
 }
-
-// --- CharArray ---
 
 public fun <R> CharArray.map(transform: (Char) -> R): List<R> {
     val result = mutableListOf<R>()
