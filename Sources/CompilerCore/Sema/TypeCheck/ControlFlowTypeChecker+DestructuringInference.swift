@@ -248,8 +248,6 @@ extension ControlFlowTypeChecker {
             .sorted { $0.rawValue < $1.rawValue }
     }
 
-    /// Resolve the effective upper bound for a type parameter, returning `Any?` when
-    /// no explicit bounds exist and an intersection type when multiple bounds exist.
     private func effectiveUpperBound(for symbol: SymbolID, sema: SemaModule) -> TypeID {
         let bounds = sema.symbols.typeParameterUpperBounds(for: symbol)
         if bounds.isEmpty { return sema.types.nullableAnyType }
@@ -257,21 +255,15 @@ extension ControlFlowTypeChecker {
         return sema.types.make(.intersection(bounds))
     }
 
-    /// Specialises the raw return type of a componentN() member by substituting
-    /// the concrete class-level type arguments from the receiver.
-    ///
-    /// When `receiverType` is `Pair<List<Int>, List<Int>>` and `rawReturn` is the
-    /// generic type parameter `A`, the substitution `A → List<Int>` is applied and
-    /// `List<Int>` is returned.  This is needed so that member accesses on the
-    /// destructured variables (e.g. `.size`) resolve to the correct concrete type
-    /// rather than to the raw type parameter.  Fixes STDLIB-021-BUG-01.
+    /// Needed so that member accesses on the destructured variables (e.g. `.size`)
+    /// resolve to the correct concrete type rather than to the raw type parameter.
+    /// Fixes STDLIB-021-BUG-01.
     private func specializeComponentReturnType(
         _ rawReturn: TypeID,
         receiverType: TypeID,
         signature: FunctionSignature,
         sema: SemaModule
     ) -> TypeID {
-        // Only proceed when the receiver is a concrete generic class type.
         let nonNullReceiver = sema.types.makeNonNullable(receiverType)
         guard case let .classType(classType) = sema.types.kind(of: nonNullReceiver),
               !classType.args.isEmpty,
@@ -280,8 +272,6 @@ extension ControlFlowTypeChecker {
             return rawReturn
         }
 
-        // Map the signature's type-parameter symbols to TypeVarIDs so we can
-        // call substituteTypeParameters.
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
 
         // A bare type-parameter type argument (e.g. the `K` in `Map.Entry<K, V>`)
