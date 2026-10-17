@@ -1,7 +1,3 @@
-/// Arena placement and scope stubs for `kotlinx.cinterop` (`memScoped`,
-/// `NativePlacement.alloc`/`allocArray`/`allocRaw`, `free`, `clear`, `defer`,
-/// `Arena`/`MemScope` constructors, `nativeHeap`), extracted from
-/// `registerSyntheticCInteropStubs`.
 extension DataFlowSemaPhase {
     func registerCInteropMemScopedStub(
         cinteropPkg: [InternedString],
@@ -102,8 +98,6 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
-        // fun <reified T : CVariable> NativePlacement.alloc(): T — arena or
-        // native-heap allocation depending on the receiver placement.
         let allocTName = interner.intern("T")
         let allocFunctionFQName = cinteropPkg + [interner.intern("NativePlacement"), interner.intern("alloc")]
         let placementAllocT: SymbolID = if let existing = symbols.lookup(fqName: allocFunctionFQName + [allocTName]) {
@@ -137,7 +131,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // fun <reified T : CVariable> NativePlacement.allocArray(length: Long): CPointer<T>
         // Kotlin/Native accepts both Int and Long counts. Each overload owns
         // its reified parameter so an Int variable preserves the element token.
         for lengthType in [types.longType, types.intType] {
@@ -219,8 +212,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // fun AutofreeScope.clear() — runs deferred blocks and frees every
-        // arena allocation; a throwing deferred block propagates.
+        // A throwing deferred block propagates out of clear().
         registerSyntheticNativeMemberFunction(
             named: "clear",
             ownerSymbol: autofreeScopeSymbol,
@@ -232,7 +224,7 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // fun DeferScope.defer(block: () -> Unit) — LIFO cleanup on clear().
+        // Deferred blocks run LIFO on clear().
         let deferBlockType = types.make(.functionType(FunctionType(
             params: [],
             returnType: types.unitType,
@@ -250,8 +242,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Arena() / MemScope() — user-facing scope values backed by
-        // kk_arena_new / kk_memscope_new arena boxes.
         registerNativeConcurrentConstructor(
             ownerSymbol: arenaSymbol,
             ownerType: arenaType,
@@ -271,7 +261,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // val nativeHeap: NativeFreeablePlacement — zero-argument bridge read.
         let nativeHeapPropertyName = interner.intern("nativeHeap")
         let nativeHeapPropertyFQName = cinteropPkg + [nativeHeapPropertyName]
         if symbols.lookupAll(fqName: nativeHeapPropertyFQName).contains(where: { symbols.symbol($0)?.kind == .property }) {
