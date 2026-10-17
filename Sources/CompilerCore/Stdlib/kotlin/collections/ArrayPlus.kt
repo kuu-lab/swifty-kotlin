@@ -1,7 +1,7 @@
 package kotlin.collections
 
-// KUU-756: Array concatenation is source-backed, using the existing copyOf
-// implementation to keep the result's element type and original contents.
+// Array concatenation uses the existing copyOf implementation to keep the
+// result's element type and original contents.
 @Suppress("UNCHECKED_CAST")
 public operator fun <T> Array<T>.plus(element: T): Array<T> {
     val result = this.copyOf(this.size + 1) as Array<T>
