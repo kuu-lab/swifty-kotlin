@@ -15,8 +15,7 @@ import kotlin.collections.mutableSetOf
 import kotlin.sequences.Sequence
 import kotlin.sequences.emptySequence
 
-// Collection conversions and iterator helpers migrated from the string runtime
-// bridges. String is covered by these CharSequence extensions through the
+// String is covered by these CharSequence extensions through the
 // CharSequence implementation supplied by the compiler.
 
 public fun CharSequence.toList(): List<Char> {
@@ -58,9 +57,7 @@ public fun String.toCharArray(startIndex: Int = 0, endIndex: Int = this.length):
 // KUU-1397: upstream declares the destination-copying overload on String
 // (kotlin.text, since 2.0 — there is no CharSequence.toCharArray in the
 // Kotlin 2.3.10 API surface). Bounds handling mirrors
-// AbstractList.checkBoundsIndexes like Kotlin/Native: out-of-range indices
-// throw IndexOutOfBoundsException, startIndex > endIndex throws
-// IllegalArgumentException, and a second check covers the destination fit.
+// AbstractList.checkBoundsIndexes like Kotlin/Native.
 @SinceKotlin("2.0")
 @IgnorableReturnValue
 public fun String.toCharArray(
@@ -116,9 +113,6 @@ public fun CharSequence.toSet(): Set<Char> {
     return result
 }
 
-// KUU-1361: CharSequence.toSortedSet joins the sorted-collection family —
-// the TreeSet performs the same insertion-order dedup the manual list used
-// to do.
 public fun CharSequence.toSortedSet(): java.util.SortedSet<Char> {
     val result = java.util.TreeSet<Char>()
     for (element in this) result.add(element)
