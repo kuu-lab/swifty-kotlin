@@ -102,7 +102,10 @@ def scenarios() -> list[dict]:
               "jvm_class": "f02consumer.ConsumerKt", "reference": "jvm", "ledger": True},
              {"id": "library-boundary", "producer": [HERE / "f02_boundary/Producer.kt"],
               "consumer": HERE / "f02_boundary/Consumer.kt", "entry": "f02boundaryconsumer.main",
-              "jvm_class": "f02boundaryconsumer.ConsumerKt", "reference": "jvm"}]
+              "jvm_class": "f02boundaryconsumer.ConsumerKt", "reference": "jvm"},
+             {"id": "internal-io-api", "producer": [HERE / "f02_internal_io_api/Producer.kt"],
+              "consumer": HERE / "f02_internal_io_api/Consumer.kt", "entry": "kuu2614consumer.main",
+              "jvm_class": "kuu2614consumer.ConsumerKt", "reference": "jvm"}]
     fixtures = sorted((ROOT / "Scripts/diff_cases").glob("kotlinx_io*.kt"))
     cases.append({"id": "diff-consumers", "fixtures": fixtures, "reference": "jvm",
                   "entry": "f02corpusconsumer.main", "jvm_class": "f02corpusconsumer.ConsumerKt"})

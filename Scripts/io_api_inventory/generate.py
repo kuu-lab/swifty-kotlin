@@ -27,6 +27,8 @@ LEDGER_PATH = HERE / "api-inventory.tsv"
 SCOPE_PATH = HERE / "platform-scope.tsv"
 SUMMARY_PATH = HERE / "inventory-summary.md"
 VALIDATION_EVIDENCE_PATH = HERE / "api-validation-evidence.json"
+PROBE_CASE_CATALOG_PATH = HERE / "probe-case-catalog.json"
+PROBE_RECEIPTS_PATH = HERE / "api-probe-receipts.json"
 UPSTREAM_RUNNER = REPO / "Scripts/kotlinx_io_upstream"
 UPSTREAM_RUNNER_LOCK_PATH = UPSTREAM_RUNNER / "reference-lock.json"
 REFERENCE_EXECUTIONS_PATH = UPSTREAM_RUNNER / "jvm-executions.expected.json"
@@ -306,6 +308,244 @@ def _validation_input_files(
     return files
 
 
+def load_probe_case_catalog() -> dict[str, dict]:
+    try:
+        catalog = json.loads(
+            PROBE_CASE_CATALOG_PATH.read_text(encoding="utf-8"),
+            object_pairs_hook=_unique_json_object,
+        )
+    except OSError as error:
+        fail(f"cannot read probe case catalog: {error}")
+    except json.JSONDecodeError as error:
+        fail(f"invalid probe case catalog JSON: {error}")
+    except UnicodeDecodeError as error:
+        fail(f"probe case catalog is not UTF-8: {error}")
+
+    if not isinstance(catalog, dict) or set(catalog) != {"schema_version", "cases"}:
+        fail("probe case catalog must contain only schema_version and cases")
+    if type(catalog["schema_version"]) is not int or catalog["schema_version"] != 1:
+        fail("unsupported probe case catalog schema_version")
+    if not isinstance(catalog["cases"], list):
+        fail("probe case catalog cases must be an array")
+
+    cases = {}
+    fields = {
+        "case_id", "row_ids", "input_row_ids", "input_files", "upstream_source_refs",
+        "lanes", "expected_stdout",
+    }
+    for case in catalog["cases"]:
+        if not isinstance(case, dict) or set(case) != fields:
+            fail("each probe case must contain exactly the catalog schema v1 fields")
+        case_id = case["case_id"]
+        if not isinstance(case_id, str) or not re.fullmatch(r"probe:[a-z0-9-]+#[a-z0-9-]+", case_id):
+            fail("malformed dedicated probe case_id")
+        if case_id in cases:
+            fail(f"duplicate dedicated probe case_id: {case_id}")
+        for field in ("row_ids", "input_row_ids", "input_files", "upstream_source_refs", "lanes"):
+            values = case[field]
+            if (not isinstance(values, list) or not values
+                    or any(not isinstance(value, str) or not value or value != value.strip() for value in values)
+                    or len(values) != len(set(values))):
+                fail(f"malformed {field} in dedicated probe case {case_id}")
+        if case["lanes"] != [
+            "source-O0", "source-O2", "stdlib-library-O0", "stdlib-library-O2",
+            "producer-consumer-O0", "producer-consumer-O2",
+        ]:
+            fail(f"unexpected dedicated probe lanes for {case_id}")
+        if not isinstance(case["expected_stdout"], str) or not case["expected_stdout"].endswith("\n"):
+            fail(f"dedicated probe needs a newline-terminated expected output: {case_id}")
+        cases[case_id] = case
+    return cases
+
+
+def _probe_case_for_row(row: dict, case_id: str) -> dict | None:
+    case = load_probe_case_catalog().get(case_id)
+    if case and row.get("row_id") in case["row_ids"]:
+        return case
+    return None
+
+
+def _load_probe_receipts(
+    cases: dict[str, dict],
+    rows: dict[str, dict],
+    lock: dict,
+    repository: Path,
+    upstream: Path,
+) -> dict[str, dict]:
+    try:
+        receipts = json.loads(
+            PROBE_RECEIPTS_PATH.read_text(encoding="utf-8"),
+            object_pairs_hook=_unique_json_object,
+        )
+    except OSError as error:
+        fail(f"cannot read API probe receipts: {error}")
+    except json.JSONDecodeError as error:
+        fail(f"invalid API probe receipts JSON: {error}")
+    except UnicodeDecodeError as error:
+        fail(f"API probe receipts are not UTF-8: {error}")
+
+    if not isinstance(receipts, dict) or set(receipts) != {"schema_version", "records"}:
+        fail("API probe receipts must contain only schema_version and records")
+    if type(receipts["schema_version"]) is not int or receipts["schema_version"] != 1:
+        fail("unsupported API probe receipts schema_version")
+    if not isinstance(receipts["records"], list):
+        fail("API probe receipt records must be an array")
+
+    reference_lock_path = REPO / "Scripts/kotlinx_io_upstream/reference-lock.json"
+    reference_lock = json.loads(reference_lock_path.read_text(encoding="utf-8"))
+    expected_artifacts = {
+        "kotlin-compiler.jar": next(
+            entry["sha256"] for entry in reference_lock["sdk_files"]
+            if entry["path"] == "lib/kotlin-compiler.jar"
+        ),
+    }
+    expected_artifacts.update({
+        entry["url"].rsplit("/", 1)[-1]: entry["sha256"]
+        for entry in reference_lock["jvm_artifacts"]
+        if entry["coordinate"].startswith("org.jetbrains.kotlinx:kotlinx-io-")
+    })
+    sha256_pattern = re.compile(r"^[0-9a-f]{64}$")
+    receipt_fields = {
+        "case_id", "row_ids", "candidate_sha", "reference_version", "reference_commit",
+        "row_inputs", "reference_artifacts_sha256", "candidate_stdlib", "reference_java",
+        "expected_stdout_sha256", "expected_stdout_bytes",
+        "local_tests", "reference_jvm", "executions",
+    }
+    result = {}
+    for receipt in receipts["records"]:
+        if not isinstance(receipt, dict) or set(receipt) != receipt_fields:
+            fail("each API probe receipt must contain exactly the receipt schema v1 fields")
+        case_id = receipt["case_id"]
+        case = cases.get(case_id)
+        if case is None or receipt["row_ids"] != case["row_ids"]:
+            fail(f"API probe receipt has an unknown case or row mapping: {case_id}")
+        if case_id in result:
+            fail(f"duplicate API probe receipt: {case_id}")
+        candidate_sha = receipt["candidate_sha"]
+        if not isinstance(candidate_sha, str) or not re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", candidate_sha):
+            fail(f"malformed candidate SHA in API probe receipt: {case_id}")
+        if (receipt["reference_version"], receipt["reference_commit"]) != (
+            lock.get("tag"), lock.get("commit")
+        ):
+            fail(f"reference version mismatch in API probe receipt: {case_id}")
+        expected_row_inputs = {}
+        for row_id in case["row_ids"]:
+            row = rows.get(row_id)
+            if row is None:
+                fail(f"API probe case references missing ledger row: {row_id}")
+            expected_row_inputs[row_id] = validation_input_hashes(row, repository, upstream)
+        if receipt["row_inputs"] != expected_row_inputs:
+            fail(f"stale or incomplete row input hashes in API probe receipt: {case_id}")
+        if receipt["reference_artifacts_sha256"] != expected_artifacts:
+            fail(f"pinned Kotlin compiler/JVM artifacts mismatch in API probe receipt: {case_id}")
+        candidate_stdlib = receipt["candidate_stdlib"]
+        candidate_stdlib_fields = {
+            "origin", "module", "kotlin_language_version", "compiler_sha256", "file_count", "tree_sha256",
+            "manifest_sha256", "metadata_sha256",
+        }
+        if not isinstance(candidate_stdlib, dict) or set(candidate_stdlib) != candidate_stdlib_fields:
+            fail(f"malformed candidate KLIB artifact receipt: {case_id}")
+        if (candidate_stdlib["origin"] != "fresh-cli-stdlib-only"
+                or candidate_stdlib["module"] != "KSwiftKStdlib"
+                or candidate_stdlib["kotlin_language_version"] != "2.4.20"
+                or not isinstance(candidate_stdlib["compiler_sha256"], str)
+                or not sha256_pattern.fullmatch(candidate_stdlib["compiler_sha256"])
+                or type(candidate_stdlib["file_count"]) is not int or candidate_stdlib["file_count"] <= 0
+                or any(not isinstance(candidate_stdlib[field], str) or not sha256_pattern.fullmatch(candidate_stdlib[field])
+                       for field in ("tree_sha256", "manifest_sha256", "metadata_sha256"))):
+            fail(f"candidate KLIB artifact receipt is invalid: {case_id}")
+        reference_java = receipt["reference_java"]
+        if (not isinstance(reference_java, dict) or set(reference_java) != {"version", "binary_sha256"}
+                or not isinstance(reference_java["version"], str)
+                or not re.match(r"^21\.", reference_java["version"])
+                or not isinstance(reference_java["binary_sha256"], str)
+                or not sha256_pattern.fullmatch(reference_java["binary_sha256"])):
+            fail(f"reference JVM must identify Java 21 and its executable hash: {case_id}")
+
+        expected_stdout = case["expected_stdout"].encode("utf-8")
+        expected_stdout_sha = hashlib.sha256(expected_stdout).hexdigest()
+        if receipt["expected_stdout_sha256"] != expected_stdout_sha:
+            fail(f"expected output hash mismatch in API probe receipt: {case_id}")
+        if type(receipt["expected_stdout_bytes"]) is not int or receipt["expected_stdout_bytes"] != len(expected_stdout):
+            fail(f"expected output byte count mismatch in API probe receipt: {case_id}")
+
+        local_tests = receipt["local_tests"]
+        local_test_fields = {"suite", "result", "tests_passed", "tests_failed", "negative_diagnostics", "positive_compiles", "stdout_sha256"}
+        if not isinstance(local_tests, dict) or set(local_tests) != local_test_fields:
+            fail(f"malformed local test result in API probe receipt: {case_id}")
+        if (local_tests["suite"] != "KotlinxIOInternalIoApiContractTests"
+                or local_tests["result"] != "PASS"
+                or local_tests["tests_passed"] != 1
+                or local_tests["tests_failed"] != 0
+                or local_tests["negative_diagnostics"] != 1
+                or local_tests["positive_compiles"] != 1
+                or not isinstance(local_tests["stdout_sha256"], str)
+                or not sha256_pattern.fullmatch(local_tests["stdout_sha256"])):
+            fail(f"local declaration/opt-in tests did not pass as expected: {case_id}")
+
+        reference_jvm = receipt["reference_jvm"]
+        jvm_fields = {
+            "row_id", "status", "class_name", "reference_artifact_sha256", "java_version",
+            "java_binary_sha256", "class_output_sha256", "class_output_bytes", "class_flags",
+            "method_count", "kotlin_retention", "java_retention", "must_be_documented",
+            "requires_opt_in_level", "candidate_descriptor_verified",
+        }
+        if not isinstance(reference_jvm, dict) or set(reference_jvm) != jvm_fields:
+            fail(f"malformed JVM reference inspection: {case_id}")
+        if (reference_jvm["row_id"] != "jvm-608413ae3cc45466"
+                or reference_jvm["status"] != "reference-only"
+                or reference_jvm["class_name"] != "kotlinx.io.InternalIoApi"
+                or reference_jvm["reference_artifact_sha256"] != expected_artifacts["kotlinx-io-core-jvm-0.9.1.jar"]
+                or reference_jvm["java_version"] != reference_java["version"]
+                or reference_jvm["java_binary_sha256"] != reference_java["binary_sha256"]
+                or reference_jvm["class_flags"] != ["PUBLIC", "INTERFACE", "ABSTRACT", "ANNOTATION"]
+                or type(reference_jvm["method_count"]) is not int or reference_jvm["method_count"] != 0
+                or reference_jvm["kotlin_retention"] != "BINARY"
+                or reference_jvm["java_retention"] != "CLASS"
+                or reference_jvm["must_be_documented"] is not True
+                or reference_jvm["requires_opt_in_level"] != "ERROR"
+                or reference_jvm["candidate_descriptor_verified"] is not False
+                or not isinstance(reference_jvm["class_output_sha256"], str)
+                or not sha256_pattern.fullmatch(reference_jvm["class_output_sha256"])
+                or type(reference_jvm["class_output_bytes"]) is not int
+                or reference_jvm["class_output_bytes"] <= 0):
+            fail(f"JVM reference shape is inconsistent or overclaims candidate verification: {case_id}")
+
+        if not isinstance(receipt["executions"], list) or len(receipt["executions"]) != len(case["lanes"]):
+            fail(f"missing API probe lane receipts: {case_id}")
+        seen_lanes = set()
+        execution_fields = {
+            "lane", "reference_execution_id", "candidate_execution_id", "reference_result",
+            "candidate_result", "reference_exit_code", "candidate_exit_code", "reference_stdout_sha256",
+            "candidate_stdout_sha256", "reference_stderr_bytes", "candidate_stderr_bytes", "output_bytes",
+            "harness_stdout_sha256", "harness_stdout_bytes",
+        }
+        for execution in receipt["executions"]:
+            if not isinstance(execution, dict) or set(execution) != execution_fields:
+                fail(f"malformed API probe lane receipt: {case_id}")
+            lane = execution["lane"]
+            if lane not in case["lanes"] or lane in seen_lanes:
+                fail(f"unexpected or duplicate API probe lane: {case_id} {lane}")
+            seen_lanes.add(lane)
+            if (execution["reference_execution_id"] != f"{case_id}:reference:{lane}"
+                    or execution["candidate_execution_id"] != f"{case_id}:candidate:{lane}"
+                    or execution["reference_result"] != "PASS"
+                    or execution["candidate_result"] != "PASS"
+                    or type(execution["reference_exit_code"]) is not int or execution["reference_exit_code"] != 0
+                    or type(execution["candidate_exit_code"]) is not int or execution["candidate_exit_code"] != 0
+                    or execution["reference_stdout_sha256"] != expected_stdout_sha
+                    or execution["candidate_stdout_sha256"] != expected_stdout_sha
+                    or type(execution["reference_stderr_bytes"]) is not int or execution["reference_stderr_bytes"] != 0
+                    or type(execution["candidate_stderr_bytes"]) is not int or execution["candidate_stderr_bytes"] != 0
+                    or type(execution["output_bytes"]) is not int or execution["output_bytes"] != len(expected_stdout)
+                    or not isinstance(execution["harness_stdout_sha256"], str)
+                    or not sha256_pattern.fullmatch(execution["harness_stdout_sha256"])
+                    or type(execution["harness_stdout_bytes"]) is not int or execution["harness_stdout_bytes"] <= 0):
+                fail(f"non-passing or byte-different API probe lane: {case_id} {lane}")
+        result[case_id] = receipt
+    return result
+
+
 def validation_input_hashes(
     row: dict,
     repository: Path = REPO,
@@ -348,6 +588,18 @@ def validation_input_hashes(
             row.get("upstream_test_refs", ""), upstream, "upstream", locked_upstream_tests
         )
     )
+    test_files.update(
+        _validation_input_files(row.get("upstream_source_refs", ""), upstream, "upstream")
+    )
+    for case in load_probe_case_catalog().values():
+        if row.get("row_id") not in case["input_row_ids"]:
+            continue
+        test_files.update(
+            _validation_input_files(";".join(case["input_files"]), repository, "repo")
+        )
+        test_files[
+            f"repo/{PROBE_CASE_CATALOG_PATH.relative_to(REPO).as_posix()}"
+        ] = hashlib.sha256(PROBE_CASE_CATALOG_PATH.read_bytes()).hexdigest()
 
     def digest(files: dict[str, str]) -> str:
         encoded = json.dumps(files, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -406,6 +658,9 @@ def _load_validation_execution_catalogs() -> dict[str, dict[str, str]]:
 
 
 def _case_id_matches_row(row: dict, case_id: str) -> bool:
+    probe_case = _probe_case_for_row(row, case_id)
+    if probe_case:
+        return True
     case_path, separator, case_name = case_id.partition("#")
     if not separator or not case_path or not case_name:
         return False
@@ -456,6 +711,18 @@ def apply_validation_evidence(
     records = evidence["records"]
     if not isinstance(records, list):
         fail("validation evidence records must be an array")
+    probe_cases = load_probe_case_catalog()
+    probe_case_ids = {
+        execution.get("case_id")
+        for record in records if isinstance(record, dict)
+        for execution in record.get("executions", []) if isinstance(execution, dict)
+        if isinstance(execution.get("case_id"), str)
+        and execution["case_id"] in probe_cases
+    }
+    probe_receipts = (
+        _load_probe_receipts(probe_cases, by_id, lock, repository, upstream)
+        if probe_case_ids else {}
+    )
     if records:
         if execution_catalogs is None:
             execution_catalogs = _load_validation_execution_catalogs()
@@ -522,6 +789,7 @@ def apply_validation_evidence(
         covered_lanes = set()
         seen_cases = set()
         seen_execution_ids = {"reference": set(), "candidate": set()}
+        probe_lanes = set()
         for execution in executions:
             if not isinstance(execution, dict) or set(execution) != execution_fields:
                 fail(f"malformed execution record for row {row_id}")
@@ -529,10 +797,13 @@ def apply_validation_evidence(
             lane = execution["lane"]
             if not isinstance(case_id, str) or not case_id.strip() or case_id != case_id.strip():
                 fail(f"empty execution case_id for row {row_id}")
+            probe_case = _probe_case_for_row(row, case_id)
             if not _case_id_matches_row(row, case_id):
-                fail(f"execution case {case_id!r} is not mapped to row {row_id}'s upstream tests")
+                fail(f"execution case {case_id!r} is not mapped to row {row_id}'s upstream tests or dedicated probes")
             if not isinstance(lane, str) or lane not in required_lanes:
                 fail(f"unexpected validation lane {lane!r} for row {row_id}")
+            if probe_case:
+                probe_lanes.add(lane)
             identity = (lane, case_id)
             if identity in seen_cases:
                 fail(f"duplicate execution case {case_id!r} in lane {lane!r} for row {row_id}")
@@ -546,7 +817,13 @@ def apply_validation_evidence(
                 if (not isinstance(execution_id, str) or not execution_id.strip()
                         or execution_id != execution_id.strip()):
                     fail(f"empty {subject} execution_id for row {row_id} case {case_id}")
-                catalog_case_id = execution_catalogs[subject].get(execution_id)
+                if probe_case:
+                    expected_execution_id = f"{case_id}:{subject}:{lane}"
+                    if execution_id != expected_execution_id:
+                        fail(f"{subject} probe execution ID does not match case/lane for row {row_id}")
+                    catalog_case_id = case_id
+                else:
+                    catalog_case_id = execution_catalogs[subject].get(execution_id)
                 if catalog_case_id is None:
                     fail(f"unknown {subject} execution_id for row {row_id}: {execution_id}")
                 if catalog_case_id != case_id:
@@ -563,6 +840,29 @@ def apply_validation_evidence(
         missing_lanes = set(required_lanes) - covered_lanes
         if missing_lanes:
             fail(f"missing validation lanes for row {row_id}: {', '.join(sorted(missing_lanes))}")
+        if probe_lanes:
+            case_ids = {case_id for lane, case_id in seen_cases if _probe_case_for_row(row, case_id)}
+            if len(case_ids) != 1 or probe_lanes != set(required_lanes):
+                fail(f"dedicated probe evidence must cover every required lane for row {row_id}")
+            case_id = next(iter(case_ids))
+            receipt = probe_receipts.get(case_id)
+            if receipt is None:
+                fail(f"missing API probe receipt for {row_id}: {case_id}")
+            if (receipt["candidate_sha"] != candidate_sha
+                    or receipt["reference_version"] != record["reference_version"]
+                    or receipt["reference_commit"] != record["reference_commit"]
+                    or receipt["row_inputs"][row_id] != hashes):
+                fail(f"API probe receipt does not match validation record for {row_id}")
+            receipt_executions = {item["lane"]: item for item in receipt["executions"]}
+            for execution in executions:
+                if execution["case_id"] != case_id:
+                    fail(f"dedicated probe row {row_id} contains unrelated execution cases")
+                expected = receipt_executions[execution["lane"]]
+                for subject in ("reference", "candidate"):
+                    if (execution[subject]["execution_id"] != expected[f"{subject}_execution_id"]
+                            or execution[subject]["result"] != expected[f"{subject}_result"]
+                            or execution[subject]["exit_code"] != expected[f"{subject}_exit_code"]):
+                        fail(f"API probe lane receipt differs from validation evidence for {row_id} {execution['lane']}")
         row["status"] = "verified"
 
 
@@ -1260,6 +1560,8 @@ def owner_for(row: dict) -> str:
     text = " ".join(
         [row["module"], row["owner_fqn"], row["name"], row["signature"], row["upstream_source_refs"]]
     ).lower()
+    if row["owner_fqn"].replace("/", ".") == "kotlinx.io.InternalIoApi":
+        return "KUU-2614"
     if row["platform_scope"] == "apple-only" or "platform.foundation" in text:
         return "KUU-1763"
     key = repr(row.get("_source_key", "")).lower()
@@ -1553,6 +1855,9 @@ def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
             refs.append(path)
         elif owner and owner in haystack and row["module"] == "bytestring":
             refs.append(path)
+    for case in load_probe_case_catalog().values():
+        if row.get("row_id") in case["input_row_ids"]:
+            refs.extend(case["input_files"])
     return list(dict.fromkeys(refs))
 
 
@@ -1853,7 +2158,7 @@ def make_summary(lock: dict, rows: list[dict], scope_rows: list[dict]) -> str:
         "",
         "## Owner routing",
         "",
-        "Rows route to KUU-1729 (Buffer/Segment), KUU-1730 (source/sink lifecycle and common helpers), KUU-1731 (primitive/ByteArray I/O), KUU-1733 (UTF-8), KUU-1760 (ByteString), KUU-1761 (Filesystem), KUU-1762 (JVM interop/ABI/typealiases), or KUU-1763 (Apple). All are children of KUU-1725; missing declarations stay in scope.",
+        "Rows route to KUU-1729 (Buffer/Segment), KUU-1730 (source/sink lifecycle and common helpers), KUU-1731 (primitive/ByteArray I/O), KUU-1733 (UTF-8), KUU-1760 (ByteString), KUU-1761 (Filesystem), KUU-1762 (JVM interop/ABI/typealiases), KUU-1763 (Apple), or KUU-2614 (InternalIoApi declaration and opt-in contract). KUU-2614 is a child of KUU-1826; the other listed implementation issues are children of KUU-1725. Missing declarations stay in scope.",
         "",
         "## JVM ABI classification",
         "",
@@ -1934,6 +2239,8 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     local_paths.append(REPO / "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java")
     for path in sorted(local_paths):
         rel = path.relative_to(REPO).as_posix()
+        if rel == "Tests/CompilerCoreTests/Sema/KotlinxIOInternalIoApiContractTests.swift":
+            continue
         if rel.startswith(LOCAL_IO_TEST_PREFIXES):
             content = path.read_text(encoding="utf-8")
             if "kotlinx.io" in content or "KotlinxIO" in path.name or "KtorIO" in path.name:

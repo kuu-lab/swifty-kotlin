@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "case_id": "probe:internal-io-api#declaration-and-consumer",
+      "row_ids": [
+        "klib-09c8df007d615f43",
+        "klib-724db815089ce6a0"
+      ],
+      "input_row_ids": [
+        "jvm-608413ae3cc45466",
+        "klib-09c8df007d615f43",
+        "klib-724db815089ce6a0"
+      ],
+      "input_files": [
+        "Scripts/io_api_inventory/f02_internal_io_api/Producer.kt",
+        "Scripts/io_api_inventory/f02_internal_io_api/Consumer.kt",
+        "Scripts/io_api_inventory/generate.py",
+        "Scripts/io_api_inventory/run_f02_matrix.py",
+        "Scripts/io_api_inventory/test_f02_matrix.py",
+        "Scripts/io_api_inventory/test_validation_evidence.py",
+        "Scripts/io_api_inventory/inspect_internal_io_api_jvm_reference.py",
+        "Tests/CompilerCoreTests/Sema/KotlinxIOInternalIoApiContractTests.swift"
+      ],
+      "upstream_source_refs": [
+        "core/common/src/Annotations.kt:41"
+      ],
+      "lanes": [
+        "source-O0",
+        "source-O2",
+        "stdlib-library-O0",
+        "stdlib-library-O2",
+        "producer-consumer-O0",
+        "producer-consumer-O2"
+      ],
+      "expected_stdout": "InternalIoApi\n"
+    }
+  ]
+}
