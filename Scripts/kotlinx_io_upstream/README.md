@@ -183,8 +183,9 @@ failure, stale hash, unknown ID, or duplicate ID leaves the seed case unmapped.
 New upstream cases from a regenerated seed therefore remain blockers until their
 own complete mappings are reviewed.
 
-The empty checked-in mapping file is intentional: this infrastructure change
-does not claim suite execution evidence for any upstream function.
+The checked-in mapping records the ten `AbstractSourceTestJVM` functions and
+their 60 locked JVM invocations from KUU-2563. Other upstream functions remain
+unmapped until their own complete evidence is recorded.
 
 ## KUU-2563: JVM `Source.asInputStream` and `Source.readAtMostTo(ByteBuffer)`
 
@@ -236,6 +237,9 @@ is optional and writes `evidence/kuu-2563-matrix.json` after all six candidate
 lanes have been attempted, including per-lane compile failures, crashes,
 timeouts, unobserved IDs and log hashes. It updates `coverage-map.verified.json`
 with ten passing entries only when all six lanes and both reference runners pass.
+The matrix records both the current `candidate_sha` and the original blocked
+`baseline_candidate_sha`; its initial failure evidence is retained as
+`evidence/kuu-2563-matrix-fd01a5e.json`.
 
 The two assigned API ledger rows receive direct references to
 `inputStream`, `inputStreamOffsetCount`, `inputStreamClosesSource`, and
@@ -244,6 +248,12 @@ gate executes Kotlin behavior through KSwiftK's native backend and does not
 produce a candidate JVM classfile from which to verify JVM descriptors or
 flags. Behavioral and assertion mapping evidence must not be read as JVM ABI
 evidence.
+
+Exception observations canonicalize the pinned JVM `IOException` typealias and
+Kotlin standard exception names. In KLIB lanes, `KClass.qualifiedName` can be
+`Unknown`; the pinned `assertFailsWith<T>` assertion establishes the expected
+type, which is recorded by the method-specific mapping while raw run logs remain
+available and hashed.
 
 Apple tests require the macOS CI execution. The seed paired matrix includes all
 680 applicable common/Apple/JVM function IDs as unmapped until assertion-preserving

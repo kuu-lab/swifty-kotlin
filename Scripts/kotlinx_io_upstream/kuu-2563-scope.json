@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
-  "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+  "candidate_sha": "0120dd1da71eaa14a24352ad18d9fc64082137a7",
+  "baseline_candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
   "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
   "source_path": "core/jvm/test/AbstractSourceTestJVM.kt",
   "source_sha256": "5146615c9bd4da93913ae2fb673051be60f3a1d760920b53f955da74e4ba58d0",

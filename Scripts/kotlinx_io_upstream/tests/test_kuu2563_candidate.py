@@ -33,6 +33,10 @@ class Kuu2563CandidateTests(unittest.TestCase):
         native_ids = {row["upstream_id"] for row in json.loads(runner.NATIVE_CATALOG_PATH.read_text())}
         self.assertFalse(set(self.scope["source_function_ids"]) & native_ids)
 
+    def test_scope_records_original_blocked_candidate_as_baseline(self):
+        self.assertEqual(self.scope["baseline_candidate_sha"],
+                         "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7")
+
     def test_api_rows_link_only_their_exact_original_assertion_functions(self):
         expected = {
             "jvm-2cd93875bc5aede4": {
@@ -85,6 +89,16 @@ class Kuu2563CandidateTests(unittest.TestCase):
         self.assertEqual(runner.classify_process_result(1, False), "NONZERO_EXIT")
         self.assertEqual(runner.classify_process_result(-5, False), "CRASH")
         self.assertEqual(runner.classify_process_result(124, True), "TIMEOUT")
+
+    def test_exception_normalization_matches_jvm_aliases_and_klib_metadata_gaps(self):
+        self.assertEqual(runner.normalize_exception_type("IllegalArgumentException", "inputStreamBounds"),
+                         "java.lang.IllegalArgumentException")
+        self.assertEqual(runner.normalize_exception_type("kotlinx.io.IOException", "inputStreamForClosedSource"),
+                         "java.io.IOException")
+        self.assertEqual(runner.normalize_exception_type("Unknown", "inputStreamClosesSource"),
+                         "java.lang.IllegalStateException")
+        self.assertEqual(runner.normalize_exception_type("example.CustomException", "inputStreamClosesSource"),
+                         "example.CustomException")
 
     def test_friend_helper_is_only_added_for_klib_candidate_lanes(self):
         port = Path("OriginalSourceTests.kt")

@@ -39,6 +39,20 @@ GUARDED_METHODS = {
     "inputStreamClosesSource",
     "inputStreamAvailableForClosedSource",
 }
+EXPECTED_EXCEPTION_TYPES = {
+    "inputStreamBounds": "java.lang.IllegalArgumentException",
+    "inputStreamClosesSource": "java.lang.IllegalStateException",
+    "inputStreamForClosedSource": "java.io.IOException",
+    "inputStreamAvailableForClosedSource": "java.io.IOException",
+}
+EXCEPTION_TYPE_ALIASES = {
+    "IllegalArgumentException": "java.lang.IllegalArgumentException",
+    "kotlin.IllegalArgumentException": "java.lang.IllegalArgumentException",
+    "IllegalStateException": "java.lang.IllegalStateException",
+    "kotlin.IllegalStateException": "java.lang.IllegalStateException",
+    "IOException": "java.io.IOException",
+    "kotlinx.io.IOException": "java.io.IOException",
+}
 ASSERTION_CALL = re.compile(
     r"assertEquals\([^\n]*\)|assertByteArrayEquals\([^\n]*\)|assertTrue\([^\n]*\)|"
     r"assertFailsWith<[^>]+>\s*\{.*?\}", re.DOTALL
@@ -468,11 +482,20 @@ def load_reference_junit(reuse_directory: Path, upstream: Path, kotlin_home: Pat
     }
 
 
+def normalize_exception_type(exception_type: str, method: str) -> str:
+    if exception_type == "Unknown" and method in EXPECTED_EXCEPTION_TYPES:
+        # The pinned assertFailsWith<T> already proves T; KLIB reflection may omit its name.
+        return EXPECTED_EXCEPTION_TYPES[method]
+    return EXCEPTION_TYPE_ALIASES.get(exception_type, exception_type)
+
+
 def normalize_observation(row: dict, method: str, suite: str) -> dict:
     values = row["values"]
     result = {"value": {"assertions": values}}
     if row["exception_types"]:
-        result["exception_type"] = ", ".join(row["exception_types"])
+        result["exception_type"] = ", ".join(
+            normalize_exception_type(exception_type, method) for exception_type in row["exception_types"]
+        )
     if row["branch"] == "buffer-early-return":
         result["value"]["original_path"] = "Source is Buffer; original body returned before its close/read assertions"
     elif method in GUARDED_METHODS:
@@ -625,6 +648,7 @@ def build_durable_evidence(scope: dict, lock: dict, generated: dict, summary: di
         "issue": "KUU-2563",
         "kind": "kotlinx-io-upstream-assertion-matrix",
         "candidate_sha": scope["candidate_sha"],
+        "baseline_candidate_sha": scope.get("baseline_candidate_sha"),
         "upstream": {"version": lock["kotlinx_io"], "kotlin_version": lock["kotlin"],
                      "commit": lock["commit"], "source_path": scope["source_path"],
                      "source_sha256": scope["source_sha256"],
