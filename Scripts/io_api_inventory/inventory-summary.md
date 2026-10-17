@@ -13,7 +13,7 @@ Kotlin compiler baseline: `2.3.10`.
 - Rows with exact local declarations or generated ABI entries, without semantic verification: **698**.
 - Rows promoted by current passing reference/candidate evidence: **3**.
 - Public JVM exception typealiases tracked separately: **3**.
-- Source exception contracts documented with `@throws`/`@Throws`: **241** rows.
+- Source exception contracts documented with `@throws`/`@Throws`: **243** rows.
 - Source deprecation levels found: ERROR=4
 - `verified` is derived only from current, passing evidence records; declaration matching and status strings alone cannot promote a row.
 

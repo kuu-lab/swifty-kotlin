@@ -77,6 +77,35 @@ LOCAL_PROBE_EVIDENCE_CASES = {
     },
 }
 
+OUTPUTSTREAM_DEFAULT_BRIDGES = {
+    "jvm-6474dd39fbc52ecd": {
+        "source_key": (
+            "function", "kotlinx.io.copyTo", "kotlinx.io.Buffer",
+            ("java.io.OutputStream", "kotlin.Long", "kotlin.Long"),
+        ),
+        "upstream_tests": (
+            "core/jvm/test/BufferTest.kt#copyToOutputStream",
+            "core/jvm/test/BufferTest.kt#copyToOutputStreamWithStartIndex",
+            "core/jvm/test/BufferTest.kt#copyToOutputStreamWithEndIndex",
+        ),
+    },
+    "jvm-7ea1f3d4aa2ff9ba": {
+        "source_key": (
+            "function", "kotlinx.io.readTo", "kotlinx.io.Buffer",
+            ("java.io.OutputStream", "kotlin.Long"),
+        ),
+        "upstream_tests": (
+            "core/jvm/test/BufferTest.kt#readToOutputStream",
+        ),
+    },
+}
+OUTPUTSTREAM_DEFAULT_LOCAL_TESTS = (
+    "Scripts/diff_cases/kotlinx_io_buffer_outputstream_default_bridges.kt",
+    "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+BufferOutputStreamDefaultBridges.swift",
+    "Scripts/io_api_inventory/probes/BufferOutputStreamDefaultBridgeAbi.java",
+    "Scripts/io_api_inventory/probes/check_buffer_outputstream_default_bridges.sh",
+)
+
 LEDGER_COLUMNS = [
     "row_id",
     "module",
@@ -1365,6 +1394,8 @@ def parse_jvm_api(path: Path, module: str, sources: list[Path]) -> list[dict]:
 
 
 def owner_for(row: dict) -> str:
+    if row.get("row_id") in OUTPUTSTREAM_DEFAULT_BRIDGES:
+        return "KUU-2637"
     text = " ".join(
         [row["module"], row["owner_fqn"], row["name"], row["signature"], row["upstream_source_refs"]]
     ).lower()
@@ -1454,6 +1485,31 @@ def declaration_metadata(declaration: dict) -> tuple[str, str, str]:
     return annotations, deprecated, "; ".join(dict.fromkeys(exceptions)) or "not-declared-in-source"
 
 
+def default_bridge_source_contract(declaration: dict) -> tuple:
+    annotations = tuple(sorted(
+        (
+            entry["name"],
+            entry.get("target"),
+            tuple(sorted((argument.get("name") or "", argument["expression"])
+                         for argument in entry["arguments"])),
+        )
+        for entry in declaration["annotations"]
+    ))
+    parameters = tuple(
+        (parameter["name"], parameter["type"], parameter["default"])
+        for parameter in declaration["parameters"]
+    )
+    _, deprecation, exceptions = declaration_metadata(declaration)
+    return (
+        declaration["visibility"],
+        parameters,
+        annotations,
+        deprecation,
+        exceptions,
+        declaration["returnType"],
+    )
+
+
 def attach_platform_metadata(row: dict, declarations: list[dict]) -> None:
     details = []
     names = set()
@@ -1527,6 +1583,39 @@ def apply_jvm_correspondence(rows: list[dict], index: SourceIndex, lock: dict) -
             continue
         declaration = declarations.get(row["_jvm_key"])
         if declaration is None:
+            bridge = OUTPUTSTREAM_DEFAULT_BRIDGES.get(row["row_id"])
+            if bridge is not None:
+                key = bridge["source_key"]
+                matching = index.match("upstream", key)
+                local = index.match("local", key)
+                if len(matching) != 1 or len(local) != 1:
+                    fail(
+                        "expected one exact upstream and candidate source declaration for "
+                        + row["row_id"]
+                    )
+                if default_bridge_source_contract(matching[0]) != default_bridge_source_contract(local[0]):
+                    fail("upstream and candidate source contracts differ for generated JVM bridge " + row["row_id"])
+                row["_source_key"] = key
+                row["_source_declarations"] = matching
+                row["_source_paths"] = [UPSTREAM / entry["path"] for entry in matching]
+                row["_typed_local_refs"] = sorted(
+                    "%s:%d" % (entry["path"], entry["line"]) for entry in local
+                )
+                row["_candidate_kind"] = "function"
+                row["_candidate_name"] = matching[0]["name"]
+                row["upstream_source_refs"] = ";".join(
+                    "%s:%d" % (entry["path"], entry["line"]) for entry in matching
+                )
+                row["default_parameter_count"] = str(
+                    sum(parameter["default"] is not None for parameter in matching[0]["parameters"])
+                )
+                row["annotations"], row["deprecation"], row["exception_contract"] = declaration_metadata(matching[0])
+                attach_platform_metadata(row, matching)
+                row["notes"] = (
+                    "Generated JVM default bridge maps to the exact public Buffer OutputStream source declaration; "
+                    "the bridge flags and descriptor require the dedicated JVM classfile probe"
+                )
+                continue
             row["_typed_local_refs"] = []
             row["_source_paths"] = []
             row["upstream_source_refs"] = "no direct Kotlin metadata declaration (generated ABI)"
@@ -1648,6 +1737,8 @@ def local_contract_differences(row: dict, index: SourceIndex) -> str:
 
 
 def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
+    if row.get("row_id") in OUTPUTSTREAM_DEFAULT_BRIDGES:
+        return list(OUTPUTSTREAM_DEFAULT_LOCAL_TESTS)
     name = row["_candidate_name"].lower()
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []
@@ -1658,6 +1749,8 @@ def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
                 or path.startswith(SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS[1])):
             if row["row_id"] not in SEGMENT_READ_CONTEXT_IMPL_ROW_IDS:
                 continue
+        if path == OUTPUTSTREAM_DEFAULT_LOCAL_TESTS[0]:
+            continue
         haystack = content.lower()
         if name and re.search(rf"(?<!\w){re.escape(name)}(?!\w)", haystack):
             refs.append(path)
@@ -1688,6 +1781,9 @@ def upstream_test_refs(row: dict, test_index: dict) -> list[str]:
         # The upstream smoke cases use SystemFileSystem raw methods; they do not
         # exercise these deprecated Path extensions or assert their annotations.
         return []
+    bridge = OUTPUTSTREAM_DEFAULT_BRIDGES.get(row.get("row_id"))
+    if bridge is not None:
+        return list(bridge["upstream_tests"])
     source_paths = row.get("_source_paths", [])
     hints = []
     for source in source_paths:
