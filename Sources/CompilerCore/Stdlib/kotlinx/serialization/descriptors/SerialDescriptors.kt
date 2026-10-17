@@ -45,18 +45,10 @@ public class ClassSerialDescriptorBuilder internal constructor(
     public val serialName: String
 ) {
 
-    /**
-     * Indicates that serializer associated with the current serial descriptor
-     * support nullable types, meaning that it should declare nullable type
-     * in its [KSerializer] type parameter and handle nulls during encoding and decoding.
-     */
     @ExperimentalSerializationApi
     @Deprecated("isNullable inside buildSerialDescriptor is deprecated. Please use SerialDescriptor.nullable extension on a builder result.", level = DeprecationLevel.ERROR)
     public var isNullable: Boolean = false
 
-    /**
-     * [Serial][SerialInfo] annotations on a target type.
-     */
     @ExperimentalSerializationApi
     public var annotations: List<Annotation> = emptyList()
 
@@ -66,24 +58,6 @@ public class ClassSerialDescriptorBuilder internal constructor(
     internal val elementAnnotations: MutableList<List<Annotation>> = ArrayList()
     internal val elementOptionality: MutableList<Boolean> = ArrayList()
 
-    /**
-     * Add an element with a given [name][elementName], [descriptor],
-     * type annotations and optionality the resulting descriptor.
-     *
-     * Example of usage:
-     * ```
-     * class Data(
-     *     val intField: Int? = null, // Optional, has default value
-     *     @ProtoNumber(1) val longField: Long
-     * )
-     *
-     * // Corresponding descriptor
-     * SerialDescriptor("package.Data") {
-     *     element<Int?>("intField", isOptional = true)
-     *     element<Long>("longField", annotations = listOf(protoIdAnnotationInstance))
-     * }
-     * ```
-     */
     public fun element(
         elementName: String,
         descriptor: SerialDescriptor,
