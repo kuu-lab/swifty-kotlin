@@ -1,10 +1,5 @@
 import RuntimeABI
 
-/// Supported-member, collection-returning, and arity predicates for
-/// Collection member-call fallbacks, plus the `StdlibSurfaceSpec`
-/// lookup helpers they share.
-///
-/// Split out from `CallTypeChecker+CollectionMemberFallback.swift`.
 extension CallTypeChecker {
     func stdlibSurfaceOwnerKindsForCollectionFallback(
         isIterableReceiver: Bool,
