@@ -52,7 +52,6 @@ final class GoldenSymbolOriginClassifier {
     private let interner: StringInterner
 
     private var memo: [Int32: GoldenSymbolOrigin] = [:]
-    /// `name → [source-backed candidates]` for the member-alias sibling check.
     private var sourceBackedFunctionsByName: [InternedString: [SemanticSymbol]]?
 
     init(sema: SemaModule, sourceManager: SourceManager, interner: StringInterner) {
@@ -96,8 +95,8 @@ final class GoldenSymbolOriginClassifier {
             return .unknown
         }
 
-        // 1. Registration-time file membership, then the declared range's
-        //    file. Both map through `SourceOrigin`, not decl-site presence.
+        // Registration-time file membership, then the declared range's
+        // file. Both map through `SourceOrigin`, not decl-site presence.
         if let fileID = sema.symbols.sourceFileID(for: symbolID) ?? symbol.declSite?.start.file {
             switch sourceManager.origin(of: fileID) {
             case .user:
@@ -109,20 +108,14 @@ final class GoldenSymbolOriginClassifier {
             }
         }
 
-        // 2. Compiled-library imports carry their own registration flag.
         if symbol.flags.contains(.importedLibrary) {
             return .importedLibrary
         }
 
-        // 3. KSP-443 member alias: nil-site synthetic function that shares
-        //    parent, signature and externalLinkName with a source-backed
-        //    declaration.
         if isSourceBackedMemberAlias(symbol) {
             return .sourceBackedAlias
         }
 
-        // 4. Value/type parameters, accessors and nested synthetic members
-        //    inherit the origin of their owner when it is classifiable.
         if let parent = sema.symbols.parentSymbol(for: symbolID),
            let parentSymbol = sema.symbols.symbol(parent),
            parentSymbol.kind != .package {
@@ -132,10 +125,8 @@ final class GoldenSymbolOriginClassifier {
             }
         }
 
-        // 5. Nil-site symbols under a package are stdlib stubs when the
-        //    package's declared members trace to bundled sources. A package
-        //    whose members are user-declared does not produce nil-site
-        //    symbols, so this never misclassifies a `package kotlin` fixture.
+        // A package whose members are user-declared does not produce nil-site
+        // symbols, so this never misclassifies a `package kotlin` fixture.
         if case let packageOrigin = packageHomeOrigin(of: Array(symbol.fqName.dropLast())),
            packageOrigin == .bundledSource {
             return .stdlibStub
@@ -185,9 +176,6 @@ final class GoldenSymbolOriginClassifier {
         }
     }
 
-    /// Classifies a package's home by its directly-declared members: bundled
-    /// when any member traces to bundled stdlib source, fixture when any member
-    /// traces to user source, otherwise unknown.
     private func packageHomeOrigin(of packageFQName: [InternedString]) -> GoldenSymbolOrigin {
         guard !packageFQName.isEmpty else { return .unknown }
         let members = sema.symbols.children(ofFQName: packageFQName)
