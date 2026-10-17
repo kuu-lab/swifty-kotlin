@@ -94,7 +94,7 @@ class APIProbeCatalogTests(unittest.TestCase):
                     evidence_path.write_text(
                         json.dumps({"schema_version": 2, "records": [record]}), encoding="utf-8"
                     )
-                    rows = [dict(row)]
+                    rows = [{**row, "status": "unverified"}]
                     lock = json.loads(self.generator.LOCK_PATH.read_text(encoding="utf-8"))
                     self.generator.apply_validation_evidence(
                         rows, lock, evidence_path, REPO, UPSTREAM
