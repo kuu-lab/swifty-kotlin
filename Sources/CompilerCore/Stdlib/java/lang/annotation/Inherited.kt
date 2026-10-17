@@ -8,7 +8,6 @@ package java.lang.annotation
 import kotlin.annotation.AnnotationRetention
 import kotlin.annotation.AnnotationTarget
 
-/** Marks an annotation type whose annotations are inherited from superclasses. */
 @Target(AnnotationTarget.ANNOTATION_CLASS)
 @Retention(AnnotationRetention.RUNTIME)
 public annotation class Inherited
