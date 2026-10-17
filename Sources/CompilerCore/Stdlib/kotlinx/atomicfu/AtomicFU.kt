@@ -30,8 +30,6 @@ public fun atomic(initial: Long): AtomicLong = atomic(initial, None)
 public fun atomic(initial: Boolean, trace: TraceBase = None): AtomicBoolean = AtomicBoolean(KAtomicInt(if (initial) 1 else 0))
 public fun atomic(initial: Boolean): AtomicBoolean = atomic(initial, None)
 
-// ==================================== AtomicRef ====================================
-
 public class AtomicRef<T> internal constructor(@PublishedApi internal val a: KAtomicRef<T>) {
     public inline var value: T
         get() = a.value
@@ -59,8 +57,6 @@ public class AtomicRef<T> internal constructor(@PublishedApi internal val a: KAt
 
     override fun toString(): String = value.toString()
 }
-
-// ==================================== AtomicBoolean ====================================
 
 public class AtomicBoolean internal constructor(@PublishedApi internal val a: KAtomicInt) {
     public inline var value: Boolean
@@ -92,8 +88,6 @@ public class AtomicBoolean internal constructor(@PublishedApi internal val a: KA
 
     override fun toString(): String = value.toString()
 }
-
-// ==================================== AtomicInt ====================================
 
 public class AtomicInt internal constructor(@PublishedApi internal val a: KAtomicInt) {
     public inline var value: Int
@@ -131,8 +125,6 @@ public class AtomicInt internal constructor(@PublishedApi internal val a: KAtomi
 
     override fun toString(): String = value.toString()
 }
-
-// ==================================== AtomicLong ====================================
 
 public class AtomicLong internal constructor(@PublishedApi internal val a: KAtomicLong) {
     public inline var value: Long
