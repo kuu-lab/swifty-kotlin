@@ -1,6 +1,4 @@
 extension ControlFlowTypeChecker {
-    /// Uses a contextual type as the branch join when the computed LUB is too
-    /// broad to retain a common declared upper bound of all completing branches.
     func contextualizeBranchJoin(
         _ inferredType: TypeID,
         branchTypes: [TypeID],
@@ -119,7 +117,6 @@ extension ControlFlowTypeChecker {
         return contextualized
     }
 
-    /// Collect only result-producing literals and their expression wrappers.
     /// Earlier block statements and branch conditions are never contextualized.
     private func integerBranchLiteralNodes(_ id: ExprID, ctx: TypeInferenceContext) -> [ExprID]? {
         switch ctx.ast.arena.expr(id) {
