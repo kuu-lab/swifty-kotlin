@@ -1,14 +1,4 @@
 
-/// Synthetic stubs for Kotlin stdlib experimental opt-in markers discovered
-/// missing in STDLIB-EXPERIMENTAL-ABI-001.
-///
-/// Each marker is an annotation class annotated with `@RequiresOptIn` at the declared
-/// severity level from the Kotlin stdlib source:
-///
-/// | Annotation                | Package              | Severity |
-/// |---------------------------|----------------------|----------|
-/// | ExperimentalVersionOverloading | kotlin          | ERROR    |
-///
 /// The common root opt-in markers (`ExperimentalUnsignedTypes`,
 /// `ExperimentalMultiplatform`, `ExperimentalSubclassOptIn`) and the
 /// `context parameters`/`uuid`/`io.encoding`/`reflect` experimental markers
@@ -30,7 +20,6 @@ extension DataFlowSemaPhase {
         )
         let kotlinPkgSymbol = symbols.lookup(fqName: kotlinPkg) ?? .invalid
 
-        // --- kotlin.ExperimentalVersionOverloading (ERROR) ---
         registerSyntheticExperimentalMarker(
             named: "ExperimentalVersionOverloading",
             packageFQName: kotlinPkg,
@@ -40,7 +29,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- kotlin.experimental.ExpectRefinement ---
         // The bundled Kotlin declaration owns the annotation and its constructor.
         // Keep the residual stub only for --no-stdlib compilation.
         let kotlinExperimentalPkg = ensurePackage(
@@ -96,7 +84,6 @@ extension DataFlowSemaPhase {
             symbols.setParentSymbol(packageSymbol, for: classSymbol)
         }
 
-        // Attach @RequiresOptIn with the declared severity level.
         var requiresOptInArguments = ["level=RequiresOptIn.Level.\(severity)"]
         if let message {
             requiresOptInArguments.insert("message=\(message)", at: 0)
