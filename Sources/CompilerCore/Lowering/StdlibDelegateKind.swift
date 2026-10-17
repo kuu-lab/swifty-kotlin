@@ -1,8 +1,6 @@
-/// Delegate kinds recognized by the compiler (P5-80, P5-79).
-///
 /// KSP-491 wired `lazy`/`Delegates.observable/vetoable/notNull` to the same
 /// operator-convention `getValue`/`setValue` resolution `.custom` delegates
-/// already use, so this no longer selects a distinct runtime dispatch
+/// already use, so this enum no longer selects a distinct runtime dispatch
 /// strategy for property *access*. It's still needed to pick which bundled
 /// Kotlin implementation to construct for a delegate's *creation* (KIR
 /// lowering can't recover this from the resolved delegate type alone, since
@@ -13,11 +11,8 @@ enum StdlibDelegateKind: Equatable {
     case observable
     case vetoable
     case notNull
-    /// Custom user-defined delegate with getValue/setValue operators.
     case custom
 
-    /// Detects the delegate kind from the delegate expression's AST shape.
-    ///
     /// This is the single source of truth for recognizing the stdlib delegate
     /// factories (`lazy`, `Delegates.observable/vetoable/notNull`) — do not
     /// reimplement the matching elsewhere, since callers disagreeing on which
