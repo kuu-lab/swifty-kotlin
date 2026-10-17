@@ -1,5 +1,4 @@
 extension KotlinLexer {
-    /// Returns the UTF-8 length of an identifier scalar at the given byte offset.
     func templateIdentifierScalarByteLength(at position: Int, isStart: Bool) -> Int? {
         guard position < byteCount() else { return nil }
         let firstByte = byte(at: position)
@@ -26,7 +25,6 @@ extension KotlinLexer {
         return scanTemplateNameCore(start: start, leadingTrivia: leadingTrivia)
     }
 
-    /// Scans an identifier for a simple string template reference (`$name`).
     /// Unlike `scanIdentifierCore`, this stops at `$` so that adjacent
     /// template references like `"$i$j"` are parsed as two separate names.
     private func scanTemplateNameCore(start: Int, leadingTrivia: [TriviaPiece]) -> Token {
