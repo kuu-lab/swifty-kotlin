@@ -8,7 +8,7 @@
 final class KIRLoweringDriver {
     let ctx: KIRLoweringContext
 
-    // Delegates (lazy to break initialization ordering; each holds unowned back-reference)
+    // Lazy to break initialization ordering.
     private(set) lazy var exprLowerer = ExprLowerer(driver: self)
     private(set) lazy var callLowerer = CallLowerer(driver: self)
     private(set) lazy var controlFlowLowerer = ControlFlowLowerer(driver: self)
