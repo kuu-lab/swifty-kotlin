@@ -16,9 +16,8 @@ extension String {
 }
 
 extension MetadataEncoder {
-    /// Returns the inline-KIR filename for a mangled symbol name.
-    /// Short, filesystem-safe names are preserved; long or non-alphanumeric
-    /// mangled names are hashed to avoid exceeding filesystem path limits.
+    /// Long or non-alphanumeric mangled names are hashed to avoid exceeding
+    /// filesystem path limits.
     package static func inlineKIRFileName(for mangledName: String) -> String {
         let safePattern = "^[A-Za-z0-9_-]+$"
         let isSafe = mangledName.range(of: safePattern, options: .regularExpression) != nil
