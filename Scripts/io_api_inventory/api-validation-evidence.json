@@ -444,6 +444,147 @@
         }
       ],
       "evidence_source": "local-probe"
+    },
+    {
+      "row_id": "jvm-b98e822f37597b93",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "07e97f715b374b0e79019e2d5951b9f061f4c78dcc83595ee462104aed1988e4",
+      "test_input_sha256": "1e1e605330d32ff149484afa10b8938a1493597fc2e39054c979bee8a349855c",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "evidence_source": "local-probe",
+      "executions": [
+        {
+          "case_id": "local:Scripts/io_api_inventory/f02_segment_read_context/Consumer.kt#jvm-interface-shape",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:cafde91f8593bec1a56ad19c68978791",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "javap-interface-shape"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:05f8894a5ccf0f3881d4f53fb9cfb5ef",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "source-klib-shape-tests"
+          }
+        }
+      ]
+    },
+    {
+      "row_id": "klib-f6fe9eab2b16817b",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "07e97f715b374b0e79019e2d5951b9f061f4c78dcc83595ee462104aed1988e4",
+      "test_input_sha256": "1e1e605330d32ff149484afa10b8938a1493597fc2e39054c979bee8a349855c",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "evidence_source": "local-probe",
+      "executions": [
+        {
+          "case_id": "local:Scripts/io_api_inventory/f02_segment_read_context/Consumer.kt#native-interface-shape",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:224a7148d30c0e84394a79236892cdb9",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-jvm-consumer"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:f4e2604b1c54d6cc924ca83484939c07",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/f02_segment_read_context/Consumer.kt#native-interface-shape",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:54e6d40c36bd95acb80cf88c2399c6b4",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-jvm-consumer"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:cb1c6c93f66bef097826f8c685551f29",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/f02_segment_read_context/Consumer.kt#native-interface-shape",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:e533a42363ffb46f5a71718eec0c274c",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-jvm-consumer"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:7da401ff04c5db01d1cec62cf42bd016",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/f02_segment_read_context/Consumer.kt#native-interface-shape",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:141beaa07d9f9f6ee0120b81059755f6",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-jvm-consumer"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:e905421d9ed9241322f8c4637168f5a3",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/f02_segment_read_context/Consumer.kt#native-interface-shape",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:f0f9eea96038f8cf5cb4c5eb9ea7a181",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-jvm-consumer"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:2a5c45cc842644356ff23e5229fc9166",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/f02_segment_read_context/Consumer.kt#native-interface-shape",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:aa1d483fbcbca8adb24162571d2ec561",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-jvm-consumer"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:0d3432b7298c08fdc6dcb22508e6163a",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        }
+      ]
     }
   ]
 }

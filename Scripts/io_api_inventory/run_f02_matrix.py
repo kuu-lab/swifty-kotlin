@@ -175,7 +175,12 @@ def scenarios() -> list[dict]:
               "jvm_class": "f02consumer.ConsumerKt", "reference": "jvm", "ledger": True},
              {"id": "library-boundary", "producer": [HERE / "f02_boundary/Producer.kt"],
               "consumer": HERE / "f02_boundary/Consumer.kt", "entry": "f02boundaryconsumer.main",
-              "jvm_class": "f02boundaryconsumer.ConsumerKt", "reference": "jvm"}]
+              "jvm_class": "f02boundaryconsumer.ConsumerKt", "reference": "jvm"},
+             {"id": "segment-read-context-shape",
+              "producer": [HERE / "f02_segment_read_context/Producer.kt"],
+              "consumer": HERE / "f02_segment_read_context/Consumer.kt",
+              "entry": "io_gate.segmentreadcontext.consumer.main",
+              "jvm_class": "io_gate.segmentreadcontext.consumer.ConsumerKt", "reference": "jvm"}]
     cases.append({"id": "segment-data-as-byte-array",
                   "fixture": ROOT / "Scripts/io_api_inventory/probes/segment_data_as_byte_array.kt",
                   "negative_fixture": ROOT / "Scripts/io_api_inventory/probes/segment_data_as_byte_array_negative.kt",

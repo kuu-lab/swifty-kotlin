@@ -33,6 +33,24 @@ else:
 
 
 class F02GateTests(unittest.TestCase):
+    def test_segment_read_context_shape_is_an_isolated_cross_artifact_case(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "segment-read-context-shape")
+        self.assertEqual(case["reference"], "jvm")
+        self.assertEqual(case["entry"], "io_gate.segmentreadcontext.consumer.main")
+        self.assertEqual(len(case["producer"]), 1)
+        producer = case["producer"][0].read_text()
+        consumer = case["consumer"].read_text()
+        self.assertIn("interface SegmentReadContextSubinterface : SegmentReadContext", producer)
+        self.assertIn("action: (context: SegmentReadContext, segment: Segment) -> Unit", producer)
+        self.assertIn("UnsafeBufferOperations.forEachSegment(buffer, action)", producer)
+        self.assertIn("fun readUnchecked(context: SegmentReadContext, segment: Segment, offset: Int): Byte", consumer)
+        self.assertIn("context.getUnchecked(segment, offset)", consumer)
+        self.assertIn("readFromSegments(buffer, action)", consumer)
+        self.assertIn("fun main() {}", consumer)
+        corpus = next(case for case in matrix.scenarios() if case["id"] == "diff-consumers")
+        self.assertNotIn(case["producer"][0], corpus["fixtures"])
+        self.assertNotIn(case["consumer"], corpus["fixtures"])
+
     def test_segment_data_as_byte_array_is_an_independently_selectable_jvm_paired_case(self):
         cases = {case["id"]: case for case in matrix.scenarios()}
         case = cases["segment-data-as-byte-array"]

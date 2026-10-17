@@ -283,6 +283,15 @@ requires the descriptor reflection probe and local source-metadata assertion.
 The local probes' bytes and the referenced upstream tests remain part of the
 row's test input hash, so edits invalidate prior evidence.
 
+`SegmentReadContext` has separate registered cases for its JVM interface view
+and its KLIB/source view. The dedicated producer/consumer pair checks use of
+the interface and `getUnchecked`; `SegmentReadContextShapeTests` checks the
+production AST and generated KLIB metadata directly. The checked receipt at
+`probe-receipts/segment-read-context-shape.json` binds the pinned JVM descriptor,
+fresh KLIB, all six native lanes, test output hashes, and exact probe/upstream
+input hashes. Its bytes are part of both rows' test input hash, and generation
+rejects stale inputs, missing lanes, or a mismatched interface shape.
+
 The obligations follow the ledger representation: JVM ABI rows require only
 `jvm-descriptor`. Other rows require both `native-source` and `native-bridge`.
 The native-source obligation covers `source-O0`, `source-O2`,
