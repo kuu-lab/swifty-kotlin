@@ -177,6 +177,90 @@ struct IOFileFamilyExecutionTests {
                                 lane: "closed-common5-" + (library ? "library" : "source") + "-O\(optimization)", timeout: 10)
     }
 
+    @Test(arguments: [false, true], [0, 2])
+    func fileMetadataConstructorsMatchTheDirectSurfaceProbe(library: Bool, optimization: Int) throws {
+        let stdlib = library ? try artifact() : nil
+        defer { stdlib?.expectUnchanged() }
+        let sourceManifest = BundledStdlib.manifestHash()
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try fm.createDirectory(at: root, withIntermediateDirectories: true)
+        print("KUU2626_FILEMETADATA_DIRECTORY \(root.path)")
+
+        let probe = repository.appendingPathComponent("Scripts/diff_cases/kotlinx_io_filemetadata_constructors.kt")
+        let source = try Data(contentsOf: probe)
+        let expected = try Data(contentsOf: probe.deletingPathExtension().appendingPathExtension("expected"))
+        try #require(FileFingerprint.sha256Hex(source) == "c56bc5f45b59e087d89c84060b33a22a452b59c38eae2b579bb91ee7bd50caa8")
+        try #require(FileFingerprint.sha256Hex(expected) == "2f7f33c00f79d6f9eeebaeb2e7ad73d357d1c191689fd462a1eea7cc6d821a6b")
+        try #require(String(decoding: expected, as: UTF8.self).split(separator: "\n").count == 8)
+        let input = root.appendingPathComponent("FileMetadataConstructors.kt")
+        try source.write(to: input)
+        let inputHashes = try io1761InputHashes([input.path])
+        let binary = root.appendingPathComponent("candidate")
+        try compile(inputs: [input.path], output: binary.path, stdlib: stdlib, optimization: optimization)
+        try executeAndKeepProof(root: root, binary: binary, expected: expected, inputs: [input.path],
+                                inputHashes: inputHashes, sourceManifest: sourceManifest, stdlib: stdlib,
+                                lane: "KUU2626-filemetadata-" + (library ? "library" : "source") + "-O\(optimization)")
+    }
+
+    @Test(arguments: [0, 2])
+    func fileMetadataConstructorMetadataCrossesProducerConsumerBoundary(optimization: Int) throws {
+        let stdlib = try artifact()
+        defer { stdlib.expectUnchanged() }
+        let sourceManifest = BundledStdlib.manifestHash()
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try fm.createDirectory(at: root, withIntermediateDirectories: true)
+        print("KUU2626_FILEMETADATA_DIRECTORY \(root.path)")
+
+        let producer = root.appendingPathComponent("Producer.kt")
+        try """
+        package kuu2626.producer
+        import kotlinx.io.files.FileMetadata
+
+        public fun explicit(): FileMetadata = FileMetadata(true, false, 41L)
+        public fun defaults(): FileMetadata = FileMetadata()
+        public fun partial(): FileMetadata = FileMetadata(isDirectory = true)
+        """.write(to: producer, atomically: true, encoding: .utf8)
+        let producerOutput = root.appendingPathComponent("FileMetadataProducer")
+        try compile(inputs: [producer.path], output: producerOutput.path, emit: .library, stdlib: stdlib,
+                    optimization: optimization, moduleName: "KUU2626FileMetadataProducer")
+        let producerLibrary = producerOutput.appendingPathExtension("kklib")
+        try io1761RequireLibrary(producerLibrary, moduleName: "KUU2626FileMetadataProducer")
+        let producerSnapshot = try IOFileFamilyArtifactSnapshot(producerLibrary)
+
+        let consumer = root.appendingPathComponent("Consumer.kt")
+        try """
+        import kuu2626.producer.defaults
+        import kuu2626.producer.explicit
+        import kuu2626.producer.partial
+        import kotlinx.io.files.FileMetadata
+
+        private fun emit(label: String, metadata: FileMetadata) {
+            println("FileMetadata.$label=${metadata.isRegularFile}:${metadata.isDirectory}:${metadata.size}")
+        }
+
+        fun main() {
+            emit("producer-explicit", explicit())
+            emit("producer-defaults", defaults())
+            emit("producer-partial", partial())
+        }
+        """.write(to: consumer, atomically: true, encoding: .utf8)
+        let expected = Data(("""
+        FileMetadata.producer-explicit=true:false:41
+        FileMetadata.producer-defaults=false:false:0
+        FileMetadata.producer-partial=false:true:0
+        """ + "\n").utf8)
+        let paths = [producer.path, consumer.path]
+        let inputHashes = try io1761InputHashes(paths)
+        let binary = root.appendingPathComponent("candidate")
+        try compile(inputs: [consumer.path], output: binary.path, stdlib: stdlib, optimization: optimization,
+                    searchPaths: [producerLibrary.path], moduleName: "KUU2626FileMetadataConsumer")
+        try executeAndKeepProof(root: root, binary: binary, expected: expected, inputs: paths,
+                                inputHashes: inputHashes, sourceManifest: sourceManifest, stdlib: stdlib,
+                                producer: producerSnapshot, lane: "KUU2626-filemetadata-producer-consumer-O\(optimization)")
+    }
+
     @Test(arguments: [0, 2])
     func defaultsVarargsAndFileSystemValueCrossProducerConsumer(optimization: Int) throws {
         let stdlib = try artifact()

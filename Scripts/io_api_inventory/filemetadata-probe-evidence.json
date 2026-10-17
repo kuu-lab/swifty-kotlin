@@ -1,0 +1,313 @@
+{
+  "candidate_base_sha": "c7b70e8d62bfcd5c1df891ee28d3886ae419414e",
+  "disposition": "audit-only: local probes and artifact lanes do not satisfy the pinned upstream-test promotion gate; all six rows remain unverified",
+  "issue": {
+    "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+    "identifier": "KUU-2626"
+  },
+  "probe": {
+    "case_count": 8,
+    "expected": "Scripts/diff_cases/kotlinx_io_filemetadata_constructors.expected",
+    "expected_sha256": "2f7f33c00f79d6f9eeebaeb2e7ad73d357d1c191689fd462a1eea7cc6d821a6b",
+    "source": "Scripts/diff_cases/kotlinx_io_filemetadata_constructors.kt",
+    "source_sha256": "c56bc5f45b59e087d89c84060b33a22a452b59c38eae2b579bb91ee7bd50caa8"
+  },
+  "reference": {
+    "java_runtime": "OpenJDK Runtime Environment 27.0.1 (DIFF_REQUIRE_JDK21=0)",
+    "jvm_jar_sha256": "765d8851d8ca694706931331b92386844800867e041b720f1f193dbda874d370",
+    "kotlin_version": "2.3.10",
+    "kotlinx_io_version": "0.9.1",
+    "stdlib_jar_sha256": "f61662c6d3a2f8ef5bd34362a02d877772c39f393cd394feb259dfaf7f4d8437",
+    "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281"
+  },
+  "rows": {
+    "jvm-011b45a35d483266": {
+      "implementation_input_sha256": "75f942a2555ab6d98ac947e519c0d02e8cf41334ea4b655805be598db4c0568b",
+      "status": "unverified",
+      "test_input_sha256": "60f547fb9585f5a06d0a25603f99b8a7770daea4c3992618773448deac6beb85"
+    },
+    "jvm-334d56b57e8b5279": {
+      "implementation_input_sha256": "75f942a2555ab6d98ac947e519c0d02e8cf41334ea4b655805be598db4c0568b",
+      "status": "unverified",
+      "test_input_sha256": "fcb7aa0689dc0e8f51b6b8973200050c27b2af3dace7026bd96f6112948dca83"
+    },
+    "jvm-89c4197097b4b6d3": {
+      "implementation_input_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "status": "unverified",
+      "test_input_sha256": "60f547fb9585f5a06d0a25603f99b8a7770daea4c3992618773448deac6beb85"
+    },
+    "jvm-8acfcceaf995d5fa": {
+      "implementation_input_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "status": "unverified",
+      "test_input_sha256": "60f547fb9585f5a06d0a25603f99b8a7770daea4c3992618773448deac6beb85"
+    },
+    "klib-8ad508ac6d89d176": {
+      "implementation_input_sha256": "75f942a2555ab6d98ac947e519c0d02e8cf41334ea4b655805be598db4c0568b",
+      "status": "unverified",
+      "test_input_sha256": "60f547fb9585f5a06d0a25603f99b8a7770daea4c3992618773448deac6beb85"
+    },
+    "klib-998e3a41ef776da3": {
+      "implementation_input_sha256": "75f942a2555ab6d98ac947e519c0d02e8cf41334ea4b655805be598db4c0568b",
+      "status": "unverified",
+      "test_input_sha256": "60f547fb9585f5a06d0a25603f99b8a7770daea4c3992618773448deac6beb85"
+    }
+  },
+  "schema_version": 1,
+  "verification": {
+    "jvm_abi": {
+      "class_shape": "public final class kotlinx.io.files.FileMetadata",
+      "constructors": [
+        {
+          "descriptor": "(ZZJ)V",
+          "synthetic": false,
+          "visibility": "public"
+        },
+        {
+          "descriptor": "(ZZJILkotlin/jvm/internal/DefaultConstructorMarker;)V",
+          "synthetic": true,
+          "visibility": "public"
+        },
+        {
+          "descriptor": "()V",
+          "synthetic": false,
+          "visibility": "public"
+        }
+      ],
+      "fields": [
+        {
+          "descriptor": "Z",
+          "flags": [
+            "ACC_PRIVATE",
+            "ACC_FINAL"
+          ],
+          "name": "isRegularFile"
+        },
+        {
+          "descriptor": "Z",
+          "flags": [
+            "ACC_PRIVATE",
+            "ACC_FINAL"
+          ],
+          "name": "isDirectory"
+        },
+        {
+          "descriptor": "J",
+          "flags": [
+            "ACC_PRIVATE",
+            "ACC_FINAL"
+          ],
+          "name": "size"
+        }
+      ],
+      "jar_sha256": "765d8851d8ca694706931331b92386844800867e041b720f1f193dbda874d370",
+      "javap_path": "Scripts/io_api_inventory/evidence/filemetadata-javap.txt",
+      "javap_sha256": "20174f08c210a5cffeb98fcbabcbca2aeb53ed6b5ef6bb9ffb384df884151829",
+      "result": "pass"
+    },
+    "kotlinc_diff": {
+      "case_count": 1,
+      "report_path": "Scripts/io_api_inventory/evidence/filemetadata-kotlinc-diff.tsv",
+      "report_sha256": "7e4339e19ac385eb11e914ec64745786ac3c5a8e54feb8ff64dadfe730fa1dc3",
+      "result": "pass"
+    },
+    "pinned_candidate": {
+      "backend_test_sha256": "225c99856dbbac855edee827753e20c900edbf42f43bd01012b3538d4ca84525",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "consumer_input_sha256": "6d0689c112401adfe86106a8e4d4e38e3122dc4248ccc0c4555408b11a7089b6",
+      "lanes": [
+        {
+          "actual_exit": 0,
+          "candidate_sha256": "8af3392c5a86f7ec3d133b1b787160cba0505e05a0d04f7224c8a2683d8dbeab",
+          "expected_sha256": "2f7f33c00f79d6f9eeebaeb2e7ad73d357d1c191689fd462a1eea7cc6d821a6b",
+          "lane": "source-O0",
+          "result": "PASS",
+          "stderr_empty": true,
+          "stdout_exact": true,
+          "stdout_sha256": "2f7f33c00f79d6f9eeebaeb2e7ad73d357d1c191689fd462a1eea7cc6d821a6b"
+        },
+        {
+          "actual_exit": 0,
+          "candidate_sha256": "ec745b2d5db2466831c61926dbb904a6922062e602c0f98e7fbe0b62fa93ddfc",
+          "expected_sha256": "2f7f33c00f79d6f9eeebaeb2e7ad73d357d1c191689fd462a1eea7cc6d821a6b",
+          "lane": "source-O2",
+          "result": "PASS",
+          "stderr_empty": true,
+          "stdout_exact": true,
+          "stdout_sha256": "2f7f33c00f79d6f9eeebaeb2e7ad73d357d1c191689fd462a1eea7cc6d821a6b"
+        },
+        {
+          "case_count": 1,
+          "lane": "fresh-kklib-O0",
+          "report_path": "Scripts/io_api_inventory/evidence/filemetadata-kotlinc-diff.tsv",
+          "report_sha256": "7e4339e19ac385eb11e914ec64745786ac3c5a8e54feb8ff64dadfe730fa1dc3",
+          "result": "PASS",
+          "stdlib_manifest": "07190c78b8191ef7"
+        },
+        {
+          "case_count": 1,
+          "lane": "fresh-kklib-O2",
+          "report_path": "Scripts/io_api_inventory/evidence/filemetadata-kotlinc-diff.tsv",
+          "report_sha256": "7e4339e19ac385eb11e914ec64745786ac3c5a8e54feb8ff64dadfe730fa1dc3",
+          "result": "PASS",
+          "stdlib_manifest": "07190c78b8191ef7"
+        },
+        {
+          "actual_exit": 0,
+          "candidate_sha256": "316c4013d5f5df6829e598656625937ad64fda04d46921a8d62e511b487d81d5",
+          "expected_sha256": "7d43a7322b254286064f32448e00185f4ac2bbd092bb4ba47e2217322914fcd5",
+          "lane": "producer-consumer-O0",
+          "producer_library_hashes": {
+            "manifest.json": "65837f96b67aac3ee146d29f732b84ba5587fc1796dd0dbcd182a5db54ea4c12",
+            "metadata.bin": "7a86c77cb79371440dcd01cfa8b9bbdc313308f22d53020b60647b2ab6fc4451",
+            "objects/KUU2626FileMetadataProducer_0.o": "f972b06dadb106ef70718d78aef1500546b226ba3bf00bb5ad9b416b737c2d6d"
+          },
+          "result": "PASS",
+          "stderr_empty": true,
+          "stdlib_manifest_sha256": "60db43cee285f7415d24f0210d00d6ca70078e454aac5109b98147a3e1282569",
+          "stdout_exact": true,
+          "stdout_sha256": "7d43a7322b254286064f32448e00185f4ac2bbd092bb4ba47e2217322914fcd5"
+        },
+        {
+          "actual_exit": 0,
+          "candidate_sha256": "4598cc4ab69f6a2bbeec04c7012870d6726de212bf779901c61bfac9057b7700",
+          "expected_sha256": "7d43a7322b254286064f32448e00185f4ac2bbd092bb4ba47e2217322914fcd5",
+          "lane": "producer-consumer-O2",
+          "producer_library_hashes": {
+            "manifest.json": "65837f96b67aac3ee146d29f732b84ba5587fc1796dd0dbcd182a5db54ea4c12",
+            "metadata.bin": "7a86c77cb79371440dcd01cfa8b9bbdc313308f22d53020b60647b2ab6fc4451",
+            "objects/KUU2626FileMetadataProducer_0.o": "1e246932788df373f31accc577421a49dd55351d8bc5358517cf04d44a4fe980"
+          },
+          "result": "PASS",
+          "stderr_empty": true,
+          "stdlib_manifest_sha256": "60db43cee285f7415d24f0210d00d6ca70078e454aac5109b98147a3e1282569",
+          "stdout_exact": true,
+          "stdout_sha256": "7d43a7322b254286064f32448e00185f4ac2bbd092bb4ba47e2217322914fcd5"
+        }
+      ],
+      "producer_input_sha256": "7ae426905c3835474300c2a96004aeecd1efa08c24aced4da6cb04b5234a973b",
+      "sema": {
+        "modes": [
+          "source",
+          "fresh-stdlib-kklib"
+        ],
+        "passed_cases": 4,
+        "passed_functions": 2,
+        "result": "PASS",
+        "stdlib_manifest": "07190c78b8191ef7",
+        "test_sha256": "ec7c530ce0378e7df5b6046b8f23628fdcbee259272c9a822bc459c9dea5a31b"
+      },
+      "stdlib_manifest": "07190c78b8191ef7",
+      "stdlib_manifest_sha256": "60db43cee285f7415d24f0210d00d6ca70078e454aac5109b98147a3e1282569"
+    },
+    "runtime": {
+      "expected_stdout_sha256": "2f7f33c00f79d6f9eeebaeb2e7ad73d357d1c191689fd462a1eea7cc6d821a6b",
+      "lanes": [
+        {
+          "actual_exit": 0,
+          "candidate_sha256": "0940a963b28f67f1c90191700f1e6dd99f10e84febc97c3d56aac82bd8b81dfc",
+          "expected_sha256": "2f7f33c00f79d6f9eeebaeb2e7ad73d357d1c191689fd462a1eea7cc6d821a6b",
+          "lane": "KUU2626-filemetadata-source-O0",
+          "producer_library_hashes": null,
+          "receipt_id": "00BF054E-5A3E-433B-846A-EB03A192783E",
+          "result": "PASS_CLEANED",
+          "source_manifest": "20075b11789b0373",
+          "stderr_empty": true,
+          "stdlib_artifact_manifest_sha256": null,
+          "stdout_exact": true,
+          "stdout_sha256": "2f7f33c00f79d6f9eeebaeb2e7ad73d357d1c191689fd462a1eea7cc6d821a6b"
+        },
+        {
+          "actual_exit": 0,
+          "candidate_sha256": "d453e846f0c569f829067bb28c07763580d9e95708d570834076a8fc41e83d47",
+          "expected_sha256": "2f7f33c00f79d6f9eeebaeb2e7ad73d357d1c191689fd462a1eea7cc6d821a6b",
+          "lane": "KUU2626-filemetadata-source-O2",
+          "producer_library_hashes": null,
+          "receipt_id": "5FD211A6-D683-4272-AFE9-5A295412C81A",
+          "result": "PASS_CLEANED",
+          "source_manifest": "20075b11789b0373",
+          "stderr_empty": true,
+          "stdlib_artifact_manifest_sha256": null,
+          "stdout_exact": true,
+          "stdout_sha256": "2f7f33c00f79d6f9eeebaeb2e7ad73d357d1c191689fd462a1eea7cc6d821a6b"
+        },
+        {
+          "actual_exit": 0,
+          "candidate_sha256": "fae9fad49dbc22da2aa8434c7aa8f1f52d62f3ce5f3b53bccd51e289c0f50460",
+          "expected_sha256": "2f7f33c00f79d6f9eeebaeb2e7ad73d357d1c191689fd462a1eea7cc6d821a6b",
+          "lane": "KUU2626-filemetadata-library-O0",
+          "producer_library_hashes": null,
+          "receipt_id": "3CB2EF72-813C-4D4C-8F76-3927465ED3E9",
+          "result": "PASS_CLEANED",
+          "source_manifest": "20075b11789b0373",
+          "stderr_empty": true,
+          "stdlib_artifact_manifest_sha256": "ff5d1a9fd2908352ddde0cfdf2b277d95086e4c439a3613b44fb13fb1098c74d",
+          "stdout_exact": true,
+          "stdout_sha256": "2f7f33c00f79d6f9eeebaeb2e7ad73d357d1c191689fd462a1eea7cc6d821a6b"
+        },
+        {
+          "actual_exit": 0,
+          "candidate_sha256": "9d2e3833f266396e61ceb1e74ccfa8573575b298ebe0f8625af22c39b493a3cd",
+          "expected_sha256": "2f7f33c00f79d6f9eeebaeb2e7ad73d357d1c191689fd462a1eea7cc6d821a6b",
+          "lane": "KUU2626-filemetadata-library-O2",
+          "producer_library_hashes": null,
+          "receipt_id": "77E04189-AF7A-407C-B819-6C985C0EDEEC",
+          "result": "PASS_CLEANED",
+          "source_manifest": "20075b11789b0373",
+          "stderr_empty": true,
+          "stdlib_artifact_manifest_sha256": "ff5d1a9fd2908352ddde0cfdf2b277d95086e4c439a3613b44fb13fb1098c74d",
+          "stdout_exact": true,
+          "stdout_sha256": "2f7f33c00f79d6f9eeebaeb2e7ad73d357d1c191689fd462a1eea7cc6d821a6b"
+        },
+        {
+          "actual_exit": 0,
+          "candidate_sha256": "be8ba7583821b3c5ad2392fb2c6947beefbc61f707496718593b98f4311a4b0d",
+          "expected_sha256": "7d43a7322b254286064f32448e00185f4ac2bbd092bb4ba47e2217322914fcd5",
+          "lane": "KUU2626-filemetadata-producer-consumer-O0",
+          "producer_library_hashes": {
+            "manifest.json": "65837f96b67aac3ee146d29f732b84ba5587fc1796dd0dbcd182a5db54ea4c12",
+            "metadata.bin": "355998548ef50fdee4b3f552d5c3bd5d056758a803ee703e2e1cc1fbe7730d41",
+            "objects/KUU2626FileMetadataProducer_0.o": "80bc3a2cc6869fa85b3561a8e02602e8a976d85d51c1fbfcfacec0e475c96c67"
+          },
+          "receipt_id": "744468DE-F7C3-4A8F-87F1-001804414E39",
+          "result": "PASS_CLEANED",
+          "source_manifest": "20075b11789b0373",
+          "stderr_empty": true,
+          "stdlib_artifact_manifest_sha256": "ff5d1a9fd2908352ddde0cfdf2b277d95086e4c439a3613b44fb13fb1098c74d",
+          "stdout_exact": true,
+          "stdout_sha256": "7d43a7322b254286064f32448e00185f4ac2bbd092bb4ba47e2217322914fcd5"
+        },
+        {
+          "actual_exit": 0,
+          "candidate_sha256": "4589975d0a2ea8dcd722833c0f89c387b0230d0ffa6f7cf9b8c71b24115b8aee",
+          "expected_sha256": "7d43a7322b254286064f32448e00185f4ac2bbd092bb4ba47e2217322914fcd5",
+          "lane": "KUU2626-filemetadata-producer-consumer-O2",
+          "producer_library_hashes": {
+            "manifest.json": "65837f96b67aac3ee146d29f732b84ba5587fc1796dd0dbcd182a5db54ea4c12",
+            "metadata.bin": "355998548ef50fdee4b3f552d5c3bd5d056758a803ee703e2e1cc1fbe7730d41",
+            "objects/KUU2626FileMetadataProducer_0.o": "172d631455d9143bbf9ebeeaefde27325f7c3be96366c39dc898c0d2a684e318"
+          },
+          "receipt_id": "6AB1A081-0543-402A-90C1-47E66EE397A0",
+          "result": "PASS_CLEANED",
+          "source_manifest": "20075b11789b0373",
+          "stderr_empty": true,
+          "stdlib_artifact_manifest_sha256": "ff5d1a9fd2908352ddde0cfdf2b277d95086e4c439a3613b44fb13fb1098c74d",
+          "stdout_exact": true,
+          "stdout_sha256": "7d43a7322b254286064f32448e00185f4ac2bbd092bb4ba47e2217322914fcd5"
+        }
+      ],
+      "producer_consumer_expected_stdout_sha256": "7d43a7322b254286064f32448e00185f4ac2bbd092bb4ba47e2217322914fcd5",
+      "stdlib_manifest": "20075b11789b0373"
+    },
+    "sema": {
+      "modes": [
+        "source",
+        "fresh-stdlib-kklib"
+      ],
+      "passed_cases": 4,
+      "passed_functions": 2,
+      "result": "pass",
+      "test": "Tests/CompilerCoreTests/Sema/KotlinxIOFileMetadataContractTests.swift",
+      "test_sha256": "ec7c530ce0378e7df5b6046b8f23628fdcbee259272c9a822bc459c9dea5a31b"
+    }
+  }
+}

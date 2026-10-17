@@ -21,6 +21,7 @@ def load_generator(path):
 
 def rendered_outputs(module):
     lock, rows, scopes = module.build_outputs()
+    module.validate_filemetadata_probe_evidence(rows)
     return (
         module.render_tsv(module.LEDGER_PATH, module.LEDGER_COLUMNS, rows),
         module.render_tsv(module.SCOPE_PATH, module.SCOPE_COLUMNS, scopes),
@@ -57,6 +58,7 @@ class ReproducibilityTests(unittest.TestCase):
             test_inputs = list((REPO / "Tests").rglob("*.swift"))
             test_inputs.extend((REPO / "Tests/CompilerCoreTests/GoldenCases/Sema").glob("*.kt"))
             test_inputs.extend((REPO / "Scripts/diff_cases").glob("*.kt"))
+            test_inputs.append(REPO / original.FILE_METADATA_PROBE_EXPECTED)
             test_inputs.extend((REPO / "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590").glob("*.kt"))
             inputs.extend(
                 path for path in test_inputs

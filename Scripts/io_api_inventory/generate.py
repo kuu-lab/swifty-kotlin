@@ -241,6 +241,7 @@ LOCAL_IO_TEST_PREFIXES = (
     "Scripts/diff_cases/kotlinx_io_",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+ByteString",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+KtorIOCoverage.swift",
+    "Tests/CompilerBackendTests/Integration/IOFileFamilyExecutionTests.swift",
     "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590/",
     "Tests/CompilerCoreTests/GoldenCases/Sema/kotlinx_io_",
     "Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlinx_io_",
@@ -259,6 +260,22 @@ SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS = (
     "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java",
     "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590/",
 )
+FILE_METADATA_PROBE_ROW_IDS = frozenset({
+    "jvm-011b45a35d483266",
+    "jvm-334d56b57e8b5279",
+    "jvm-89c4197097b4b6d3",
+    "jvm-8acfcceaf995d5fa",
+    "klib-8ad508ac6d89d176",
+    "klib-998e3a41ef776da3",
+})
+FILE_METADATA_PROBE_LOCAL_TESTS = frozenset({
+    "Scripts/diff_cases/kotlinx_io_filemetadata_constructors.kt",
+    "Scripts/diff_cases/kotlinx_io_filemetadata_constructors.expected",
+    "Tests/CompilerCoreTests/Sema/KotlinxIOFileMetadataContractTests.swift",
+    "Tests/CompilerBackendTests/Integration/IOFileFamilyExecutionTests.swift",
+})
+FILE_METADATA_PROBE_EXPECTED = "Scripts/diff_cases/kotlinx_io_filemetadata_constructors.expected"
+FILE_METADATA_PROBE_EVIDENCE_PATH = "Scripts/io_api_inventory/filemetadata-probe-evidence.json"
 
 MODIFIERS = (
     "public|internal|private|protected|actual|expect|inline|suspend|operator|"
@@ -394,6 +411,274 @@ def validation_obligations(row: dict) -> list[str]:
     if row.get("representation") == "JVM public ABI dump":
         return ["jvm-descriptor"]
     return ["native-source", "native-bridge"]
+
+
+def validate_filemetadata_probe_evidence(rows: list[dict], repository: Path = REPO) -> None:
+    """Validate audit-only FileMetadata probes without promoting upstream evidence rows."""
+    evidence_path = repository / FILE_METADATA_PROBE_EVIDENCE_PATH
+    try:
+        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        fail(f"cannot read FileMetadata probe evidence {evidence_path}: {error}")
+
+    root_fields = {
+        "schema_version", "issue", "candidate_base_sha", "reference", "probe",
+        "rows", "verification", "disposition",
+    }
+    if not isinstance(evidence, dict) or set(evidence) != root_fields:
+        fail("FileMetadata probe evidence has unexpected fields")
+    if evidence["schema_version"] != 1 or evidence["issue"] != {
+        "identifier": "KUU-2626",
+        "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+    }:
+        fail("FileMetadata probe evidence has the wrong issue or schema version")
+    candidate_base_sha = evidence["candidate_base_sha"]
+    if not isinstance(candidate_base_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", candidate_base_sha):
+        fail("FileMetadata probe evidence has a malformed candidate base SHA")
+
+    lock = json.loads(LOCK_PATH.read_text(encoding="utf-8"))
+    reference = evidence["reference"]
+    if (not isinstance(reference, dict)
+            or set(reference) != {
+                "kotlin_version", "kotlinx_io_version", "upstream_commit", "jvm_jar_sha256",
+                "stdlib_jar_sha256", "java_runtime",
+            }
+            or reference["kotlin_version"] != "2.3.10"
+            or reference["kotlinx_io_version"] != lock["tag"]
+            or reference["upstream_commit"] != lock["commit"]
+            or reference["jvm_jar_sha256"] != lock["mavenArtifacts"][0]["sha256"]
+            or reference["java_runtime"] != "OpenJDK Runtime Environment 27.0.1 (DIFF_REQUIRE_JDK21=0)"
+            or any(not re.fullmatch(r"[0-9a-f]{64}", reference[key])
+                   for key in ("jvm_jar_sha256", "stdlib_jar_sha256"))):
+        fail("FileMetadata probe evidence does not match the pinned reference")
+
+    probe = evidence["probe"]
+    probe_fields = {"source", "source_sha256", "expected", "expected_sha256", "case_count"}
+    if not isinstance(probe, dict) or set(probe) != probe_fields:
+        fail("FileMetadata probe evidence has malformed probe inputs")
+    if (probe["source"] != "Scripts/diff_cases/kotlinx_io_filemetadata_constructors.kt"
+            or probe["expected"] != FILE_METADATA_PROBE_EXPECTED
+            or probe["case_count"] != 8):
+        fail("FileMetadata probe evidence references the wrong direct probe")
+    for path_key, hash_key in (("source", "source_sha256"), ("expected", "expected_sha256")):
+        path = repository / probe[path_key]
+        if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != probe[hash_key]:
+            fail(f"FileMetadata probe input hash is stale: {probe[path_key]}")
+
+    by_id = {row["row_id"]: row for row in rows}
+    if set(evidence["rows"]) != FILE_METADATA_PROBE_ROW_IDS:
+        fail("FileMetadata probe evidence must cover exactly the six KUU-2626 rows")
+    for row_id, recorded in evidence["rows"].items():
+        row = by_id.get(row_id)
+        row_fields = {"status", "implementation_input_sha256", "test_input_sha256"}
+        if not isinstance(recorded, dict) or set(recorded) != row_fields:
+            fail(f"malformed FileMetadata row evidence: {row_id}")
+        if row is None or row.get("status") != "unverified" or recorded["status"] != "unverified":
+            fail(f"FileMetadata evidence must leave {row_id} unverified")
+        if row.get("upstream_test_refs") not in ("", NO_DIRECT_UPSTREAM_ASSERTION):
+            fail(f"FileMetadata row {row_id} unexpectedly claims an upstream assertion")
+        hashes = validation_input_hashes(row, repository)
+        if any(recorded[field] != hashes[field] for field in hashes):
+            fail(f"FileMetadata row input evidence is stale: {row_id}")
+
+    verification = evidence["verification"]
+    verification_fields = {"jvm_abi", "kotlinc_diff", "sema", "runtime", "pinned_candidate"}
+    if not isinstance(verification, dict) or set(verification) != verification_fields:
+        fail("FileMetadata verification record has unexpected fields")
+    abi = verification["jvm_abi"]
+    if not isinstance(abi, dict) or set(abi) != {
+        "result", "jar_sha256", "javap_path", "javap_sha256", "class_shape", "fields", "constructors",
+    }:
+        fail("FileMetadata JVM ABI evidence is malformed")
+    javap_path = repository / "Scripts/io_api_inventory/evidence/filemetadata-javap.txt"
+    if (abi["result"] != "pass"
+            or abi["jar_sha256"] != reference["jvm_jar_sha256"]
+            or abi["javap_path"] != "Scripts/io_api_inventory/evidence/filemetadata-javap.txt"
+            or not javap_path.is_file()
+            or hashlib.sha256(javap_path.read_bytes()).hexdigest() != abi["javap_sha256"]
+            or abi["class_shape"] != "public final class kotlinx.io.files.FileMetadata"
+            or abi["fields"] != [
+                {"name": "isRegularFile", "descriptor": "Z", "flags": ["ACC_PRIVATE", "ACC_FINAL"]},
+                {"name": "isDirectory", "descriptor": "Z", "flags": ["ACC_PRIVATE", "ACC_FINAL"]},
+                {"name": "size", "descriptor": "J", "flags": ["ACC_PRIVATE", "ACC_FINAL"]},
+            ]
+            or abi["constructors"] != [
+                {"descriptor": "(ZZJ)V", "visibility": "public", "synthetic": False},
+                {
+                    "descriptor": "(ZZJILkotlin/jvm/internal/DefaultConstructorMarker;)V",
+                    "visibility": "public", "synthetic": True,
+                },
+                {"descriptor": "()V", "visibility": "public", "synthetic": False},
+            ]):
+        fail("FileMetadata JVM ABI evidence does not match the pinned inspection")
+
+    diff = verification["kotlinc_diff"]
+    if not isinstance(diff, dict) or set(diff) != {"result", "case_count", "report_path", "report_sha256"}:
+        fail("FileMetadata kotlinc diff evidence is malformed")
+    diff_report_path = repository / "Scripts/io_api_inventory/evidence/filemetadata-kotlinc-diff.tsv"
+    if (diff["result"] != "pass" or diff["case_count"] != 1
+            or diff["report_path"] != "Scripts/io_api_inventory/evidence/filemetadata-kotlinc-diff.tsv"
+            or not diff_report_path.is_file()
+            or hashlib.sha256(diff_report_path.read_bytes()).hexdigest() != diff["report_sha256"]):
+        fail("FileMetadata kotlinc diff evidence does not match the recorded single-case run")
+
+    sema = verification["sema"]
+    if not isinstance(sema, dict) or set(sema) != {
+        "result", "test", "test_sha256", "passed_functions", "passed_cases", "modes",
+    }:
+        fail("FileMetadata Sema evidence is malformed")
+    sema_test_path = repository / sema["test"] if isinstance(sema.get("test"), str) else None
+    if (sema["result"] != "pass"
+            or sema["test"] != "Tests/CompilerCoreTests/Sema/KotlinxIOFileMetadataContractTests.swift"
+            or not sema_test_path or not sema_test_path.is_file()
+            or hashlib.sha256(sema_test_path.read_bytes()).hexdigest() != sema["test_sha256"]
+            or sema["passed_functions"] != 2 or sema["passed_cases"] != 4
+            or sema["modes"] != ["source", "fresh-stdlib-kklib"]):
+        fail("FileMetadata Sema evidence does not match the focused source/KLIB run")
+
+    runtime = verification["runtime"]
+    runtime_fields = {
+        "expected_stdout_sha256", "producer_consumer_expected_stdout_sha256", "stdlib_manifest", "lanes",
+    }
+    if not isinstance(runtime, dict) or set(runtime) != runtime_fields:
+        fail("FileMetadata runtime evidence is malformed")
+    if (runtime["expected_stdout_sha256"] != probe["expected_sha256"]
+            or not re.fullmatch(r"[0-9a-f]{64}", runtime["producer_consumer_expected_stdout_sha256"])
+            or not isinstance(runtime["stdlib_manifest"], str)
+            or not re.fullmatch(r"[0-9a-f]{16}", runtime["stdlib_manifest"])):
+        fail("FileMetadata runtime evidence does not match the direct probe output")
+    required_lanes = {
+        "KUU2626-filemetadata-source-O0", "KUU2626-filemetadata-source-O2",
+        "KUU2626-filemetadata-library-O0", "KUU2626-filemetadata-library-O2",
+        "KUU2626-filemetadata-producer-consumer-O0", "KUU2626-filemetadata-producer-consumer-O2",
+    }
+    lanes = runtime["lanes"]
+    if not isinstance(lanes, list) or {entry.get("lane") for entry in lanes if isinstance(entry, dict)} != required_lanes:
+        fail("FileMetadata runtime evidence must contain all six O0/O2 execution lanes")
+    for entry in lanes:
+        lane_fields = {
+            "lane", "receipt_id", "result", "actual_exit", "expected_sha256", "stdout_sha256",
+            "stdout_exact", "stderr_empty", "source_manifest", "candidate_sha256",
+            "stdlib_artifact_manifest_sha256", "producer_library_hashes",
+        }
+        if not isinstance(entry, dict) or set(entry) != lane_fields:
+            fail("malformed FileMetadata runtime lane evidence")
+        producer_consumer = entry["lane"].endswith("producer-consumer-O0") or entry["lane"].endswith("producer-consumer-O2")
+        if (entry["result"] != "PASS_CLEANED" or entry["actual_exit"] != 0
+                or entry["expected_sha256"] != (
+                    runtime["producer_consumer_expected_stdout_sha256"]
+                    if producer_consumer else probe["expected_sha256"]
+                )
+                or entry["stdout_sha256"] != (
+                    runtime["producer_consumer_expected_stdout_sha256"]
+                    if producer_consumer else runtime["expected_stdout_sha256"]
+                )
+                or entry["stdout_exact"] is not True or entry["stderr_empty"] is not True
+                or entry["source_manifest"] != runtime["stdlib_manifest"]
+                or not re.fullmatch(r"[0-9a-f]{64}", entry["candidate_sha256"])):
+            fail(f"FileMetadata runtime lane did not pass exactly: {entry.get('lane')}")
+        if producer_consumer != (entry["producer_library_hashes"] is not None):
+            fail(f"FileMetadata producer library hashes do not match lane: {entry['lane']}")
+        if (entry["lane"].startswith("KUU2626-filemetadata-library-")
+                or producer_consumer):
+            if (not isinstance(entry["stdlib_artifact_manifest_sha256"], str)
+                    or not re.fullmatch(r"[0-9a-f]{64}", entry["stdlib_artifact_manifest_sha256"])):
+                fail(f"FileMetadata KLIB lane has no fresh stdlib manifest hash: {entry['lane']}")
+        elif entry["stdlib_artifact_manifest_sha256"] is not None:
+            fail(f"FileMetadata source/producer lane has an unexpected stdlib manifest hash: {entry['lane']}")
+        if producer_consumer and set(entry["producer_library_hashes"]) != {
+            "manifest.json", "metadata.bin", "objects/KUU2626FileMetadataProducer_0.o",
+        }:
+            fail(f"FileMetadata producer library hashes are incomplete: {entry['lane']}")
+        if producer_consumer and any(
+            not re.fullmatch(r"[0-9a-f]{64}", value)
+            for value in entry["producer_library_hashes"].values()
+        ):
+            fail(f"FileMetadata producer library has malformed hashes: {entry['lane']}")
+
+    pinned = verification["pinned_candidate"]
+    pinned_fields = {
+        "candidate_sha", "stdlib_manifest", "stdlib_manifest_sha256", "backend_test_sha256",
+        "producer_input_sha256", "consumer_input_sha256", "sema", "lanes",
+    }
+    if not isinstance(pinned, dict) or set(pinned) != pinned_fields:
+        fail("FileMetadata issue-pinned candidate evidence is malformed")
+    if (pinned["candidate_sha"] != evidence["issue"]["candidate_sha"]
+            or not re.fullmatch(r"[0-9a-f]{16}", pinned["stdlib_manifest"])
+            or any(not re.fullmatch(r"[0-9a-f]{64}", pinned[key]) for key in (
+                "stdlib_manifest_sha256", "backend_test_sha256", "producer_input_sha256", "consumer_input_sha256",
+            ))):
+        fail("FileMetadata issue-pinned candidate inputs are malformed")
+    backend_test = repository / "Tests/CompilerBackendTests/Integration/IOFileFamilyExecutionTests.swift"
+    if (not backend_test.is_file()
+            or hashlib.sha256(backend_test.read_bytes()).hexdigest() != pinned["backend_test_sha256"]):
+        fail("FileMetadata issue-pinned producer/consumer test source is stale")
+    pinned_sema = pinned["sema"]
+    sema_path = repository / "Tests/CompilerCoreTests/Sema/KotlinxIOFileMetadataContractTests.swift"
+    if (not isinstance(pinned_sema, dict) or set(pinned_sema) != {
+            "result", "test_sha256", "passed_functions", "passed_cases", "modes", "stdlib_manifest",
+        }
+            or pinned_sema["result"] != "PASS"
+            or not sema_path.is_file()
+            or hashlib.sha256(sema_path.read_bytes()).hexdigest() != pinned_sema["test_sha256"]
+            or pinned_sema["passed_functions"] != 2 or pinned_sema["passed_cases"] != 4
+            or pinned_sema["modes"] != ["source", "fresh-stdlib-kklib"]
+            or pinned_sema["stdlib_manifest"] != pinned["stdlib_manifest"]):
+        fail("FileMetadata issue-pinned Sema contract evidence is stale")
+    pinned_lanes = pinned["lanes"]
+    expected_pinned_lanes = {
+        "source-O0", "source-O2", "fresh-kklib-O0", "fresh-kklib-O2",
+        "producer-consumer-O0", "producer-consumer-O2",
+    }
+    if (not isinstance(pinned_lanes, list)
+            or {entry.get("lane") for entry in pinned_lanes if isinstance(entry, dict)} != expected_pinned_lanes):
+        fail("FileMetadata issue-pinned candidate evidence is missing required lanes")
+    for entry in pinned_lanes:
+        if not isinstance(entry, dict) or entry.get("lane") not in expected_pinned_lanes:
+            fail("malformed FileMetadata issue-pinned candidate lane")
+        lane = entry["lane"]
+        if lane.startswith("source-"):
+            fields = {
+                "lane", "result", "actual_exit", "expected_sha256", "stdout_sha256",
+                "stdout_exact", "stderr_empty", "candidate_sha256",
+            }
+            if (set(entry) != fields or entry["result"] != "PASS" or entry["actual_exit"] != 0
+                    or entry["expected_sha256"] != probe["expected_sha256"]
+                    or entry["stdout_sha256"] != probe["expected_sha256"]
+                    or entry["stdout_exact"] is not True or entry["stderr_empty"] is not True
+                    or not re.fullmatch(r"[0-9a-f]{64}", entry["candidate_sha256"])):
+                fail(f"FileMetadata issue-pinned source lane did not pass exactly: {lane}")
+        elif lane.startswith("fresh-kklib-"):
+            fields = {"lane", "result", "case_count", "report_path", "report_sha256", "stdlib_manifest"}
+            if (set(entry) != fields or entry["result"] != "PASS" or entry["case_count"] != 1
+                    or entry["report_path"] != diff["report_path"]
+                    or hashlib.sha256(diff_report_path.read_bytes()).hexdigest() != entry["report_sha256"]
+                    or entry["stdlib_manifest"] != pinned["stdlib_manifest"]):
+                fail(f"FileMetadata issue-pinned KLIB diff lane did not pass exactly: {lane}")
+        else:
+            fields = {
+                "lane", "result", "actual_exit", "expected_sha256", "stdout_sha256",
+                "stdout_exact", "stderr_empty", "candidate_sha256", "stdlib_manifest_sha256",
+                "producer_library_hashes",
+            }
+            if (set(entry) != fields or entry["result"] != "PASS" or entry["actual_exit"] != 0
+                    or entry["expected_sha256"] != runtime["producer_consumer_expected_stdout_sha256"]
+                    or entry["stdout_sha256"] != runtime["producer_consumer_expected_stdout_sha256"]
+                    or entry["stdout_exact"] is not True or entry["stderr_empty"] is not True
+                    or not re.fullmatch(r"[0-9a-f]{64}", entry["candidate_sha256"])
+                    or entry["stdlib_manifest_sha256"] != pinned["stdlib_manifest_sha256"]
+                    or set(entry["producer_library_hashes"]) != {
+                        "manifest.json", "metadata.bin", "objects/KUU2626FileMetadataProducer_0.o",
+                    }
+                    or any(not re.fullmatch(r"[0-9a-f]{64}", value)
+                           for value in entry["producer_library_hashes"].values())):
+                fail(f"FileMetadata issue-pinned producer/consumer lane did not pass exactly: {lane}")
+
+    if evidence["disposition"] != (
+        "audit-only: local probes and artifact lanes do not satisfy the pinned upstream-test promotion gate; "
+        "all six rows remain unverified"
+    ):
+        fail("FileMetadata audit record cannot be used to promote API rows")
 
 
 def required_execution_lanes(obligations: list[str]) -> list[str]:
@@ -1652,6 +1937,10 @@ def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []
     for path, content in local_tests:
+        if path in FILE_METADATA_PROBE_LOCAL_TESTS:
+            if row["row_id"] in FILE_METADATA_PROBE_ROW_IDS:
+                refs.append(path)
+            continue
         if path.startswith("Scripts/io_api_inventory/probes/") and name not in LOCAL_IO_PROBE_API_NAMES:
             continue
         if (path == SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS[0]
@@ -1684,6 +1973,11 @@ def local_implementation_refs(row: dict, index: SourceIndex, runtime_symbols: di
 
 
 def upstream_test_refs(row: dict, test_index: dict) -> list[str]:
+    # SmokeFileTest observes FileMetadata values returned by the filesystem,
+    # but does not directly assert its class/constructor ABI or default mask.
+    owner = row.get("owner_fqn", "").replace(".", "/")
+    if owner == "kotlinx/io/files/FileMetadata" and row.get("name") in {"FileMetadata", "<init>"}:
+        return []
     if row.get("upstream_source_refs") in NO_DIRECT_UPSTREAM_ASSERTION_SOURCE_REFS:
         # The upstream smoke cases use SystemFileSystem raw methods; they do not
         # exercise these deprecated Path extensions or assert their annotations.
@@ -2041,13 +2335,16 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     local_paths.extend(REPO.joinpath("Tests/CompilerCoreTests/GoldenCases/Sema").glob("*.kt"))
     local_paths.extend(REPO.joinpath("Scripts/diff_cases").glob("*.kt"))
     local_paths.extend(REPO.joinpath("Scripts/io_api_inventory/probes").glob("*.kt"))
+    local_paths.append(REPO / FILE_METADATA_PROBE_EXPECTED)
     local_paths.extend(REPO.joinpath("Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590").glob("*.kt"))
     local_paths.append(REPO / "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java")
     for path in sorted(local_paths):
         rel = path.relative_to(REPO).as_posix()
         if rel.startswith(LOCAL_IO_TEST_PREFIXES):
             content = path.read_text(encoding="utf-8")
-            if "kotlinx.io" in content or "KotlinxIO" in path.name or "KtorIO" in path.name:
+            if rel in FILE_METADATA_PROBE_LOCAL_TESTS:
+                local_tests.append((rel, content))
+            elif "kotlinx.io" in content or "KotlinxIO" in path.name or "KtorIO" in path.name:
                 local_tests.append((rel, content))
 
     tests = {entry["path"]: entry for entry in test_index["files"]}
@@ -2123,6 +2420,7 @@ def main() -> int:
         parser.error("choose exactly one of --write, --check, or --show-input-hashes")
 
     lock, rows, scope_rows = build_outputs()
+    validate_filemetadata_probe_evidence(rows)
     ledger_text = render_tsv(LEDGER_PATH, LEDGER_COLUMNS, rows)
     scope_text = render_tsv(SCOPE_PATH, SCOPE_COLUMNS, scope_rows)
     summary_text = make_summary(lock, rows, scope_rows)

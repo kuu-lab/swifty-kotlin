@@ -314,6 +314,13 @@ are sorted. Kotlin golden and diff fixtures participate in the test index,
 alongside Swift tests; references match complete symbol tokens and are candidate
 coverage, not evidence of passing tests or overload-specific assertions.
 
+KUU-2626's `FileMetadata` constructor/type-shape probes are recorded separately
+in `filemetadata-probe-evidence.json`. The generator checks the pinned inputs,
+row input hashes, and all recorded execution lanes on both `--write` and
+`--check`. This audit record does not populate `api-validation-evidence.json`:
+the six API/ABI rows remain `unverified` until a method-specific pinned upstream
+test directly asserts these constructor and type-shape obligations.
+
 Refreshing the declaration catalogs requires the pinned Kotlin 2.3.10 SDK,
 Java and both 0.9.1 jars. Use the final command with `--write` after intentionally
 changing a local source input or extractor. It updates the two catalogs and

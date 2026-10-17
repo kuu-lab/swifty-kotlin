@@ -1,0 +1,218 @@
+Classfile jar:file:///tmp/kuu2581-reference-jvm/dependencies/kotlinx-io-core-jvm-0.9.1.jar!/kotlinx/io/files/FileMetadata.class
+  Last modified 1980/02/01; size 1298 bytes
+  SHA-256 checksum 20fb76b4f3134e3136337753efdd4e2de51567df47000c65f3bf0d70e8aaab2c
+  Compiled from "FileSystem.kt"
+public final class kotlinx.io.files.FileMetadata
+  minor version: 0
+  major version: 52
+  flags: (0x0031) ACC_PUBLIC, ACC_FINAL, ACC_SUPER
+  this_class: #2                          // kotlinx/io/files/FileMetadata
+  super_class: #4                         // java/lang/Object
+  interfaces: 0, fields: 3, methods: 6, attributes: 2
+Constant pool:
+   #1 = Utf8               kotlinx/io/files/FileMetadata
+   #2 = Class              #1             // kotlinx/io/files/FileMetadata
+   #3 = Utf8               java/lang/Object
+   #4 = Class              #3             // java/lang/Object
+   #5 = Utf8               <init>
+   #6 = Utf8               (ZZJ)V
+   #7 = Utf8               ()V
+   #8 = NameAndType        #5:#7          // "<init>":()V
+   #9 = Methodref          #4.#8          // java/lang/Object."<init>":()V
+  #10 = Utf8               isRegularFile
+  #11 = Utf8               Z
+  #12 = NameAndType        #10:#11        // isRegularFile:Z
+  #13 = Fieldref           #2.#12         // kotlinx/io/files/FileMetadata.isRegularFile:Z
+  #14 = Utf8               isDirectory
+  #15 = NameAndType        #14:#11        // isDirectory:Z
+  #16 = Fieldref           #2.#15         // kotlinx/io/files/FileMetadata.isDirectory:Z
+  #17 = Utf8               size
+  #18 = Utf8               J
+  #19 = NameAndType        #17:#18        // size:J
+  #20 = Fieldref           #2.#19         // kotlinx/io/files/FileMetadata.size:J
+  #21 = Utf8               this
+  #22 = Utf8               Lkotlinx/io/files/FileMetadata;
+  #23 = Utf8               (ZZJILkotlin/jvm/internal/DefaultConstructorMarker;)V
+  #24 = NameAndType        #5:#6          // "<init>":(ZZJ)V
+  #25 = Methodref          #2.#24         // kotlinx/io/files/FileMetadata."<init>":(ZZJ)V
+  #26 = Utf8               ()Z
+  #27 = Utf8               getSize
+  #28 = Utf8               ()J
+  #29 = NameAndType        #5:#23         // "<init>":(ZZJILkotlin/jvm/internal/DefaultConstructorMarker;)V
+  #30 = Methodref          #2.#29         // kotlinx/io/files/FileMetadata."<init>":(ZZJILkotlin/jvm/internal/DefaultConstructorMarker;)V
+  #31 = Utf8               Lkotlin/Metadata;
+  #32 = Utf8               mv
+  #33 = Integer            2
+  #34 = Integer            3
+  #35 = Integer            0
+  #36 = Utf8               k
+  #37 = Integer            1
+  #38 = Utf8               xi
+  #39 = Integer            48
+  #40 = Utf8               d1
+  #41 = Utf8               \u0000\u001a\n\u0002\u0018\u0002\n\u0002\u0010\u0000\n\u0000\n\u0002\u0010\u000b\n\u0002\b\u0002\n\u0002\u0010\t\n\u0002\b\u0006\u0018\u00002\u00020\u0001B\'\bF\u0012\b\b\u0002\u0010\u0002\u001a\u00020\u0003\u0012\b\b\u0002\u0010\u0004\u001a\u00020\u0003\u0012\b\b\u0002\u0010\u0005\u001a\u00020\u0006¢\u0006\u0004\b\u0007\u0010\bR\u0015\u0010\u0002\u001a\u00020\u0003X\u0086\u0084\b¢\u0006\b\n\u0000\u001a\u0004\b\u0002\u0010\tR\u0015\u0010\u0004\u001a\u00020\u0003X\u0086\u0084\b¢\u0006\b\n\u0000\u001a\u0004\b\u0004\u0010\tR\u0015\u0010\u0005\u001a\u00020\u0006X\u0086\u0084\b¢\u0006\b\n\u0000\u001a\u0004\b\n\u0010\u000b¨\u0006\f
+  #42 = Utf8               d2
+  #43 = Utf8
+  #44 = Utf8               kotlinx-io-core
+  #45 = Utf8               FileSystem.kt
+  #46 = Utf8               Code
+  #47 = Utf8               LineNumberTable
+  #48 = Utf8               LocalVariableTable
+  #49 = Utf8               StackMapTable
+  #50 = Utf8               SourceFile
+  #51 = Utf8               RuntimeVisibleAnnotations
+{
+  private final boolean isRegularFile;
+    descriptor: Z
+    flags: (0x0012) ACC_PRIVATE, ACC_FINAL
+
+  private final boolean isDirectory;
+    descriptor: Z
+    flags: (0x0012) ACC_PRIVATE, ACC_FINAL
+
+  private final long size;
+    descriptor: J
+    flags: (0x0012) ACC_PRIVATE, ACC_FINAL
+
+  public kotlinx.io.files.FileMetadata(boolean, boolean, long);
+    descriptor: (ZZJ)V
+    flags: (0x0001) ACC_PUBLIC
+    Code:
+      stack=3, locals=5, args_size=4
+         0: aload_0
+         1: invokespecial #9                  // Method java/lang/Object."<init>":()V
+         4: aload_0
+         5: iload_1
+         6: putfield      #13                 // Field isRegularFile:Z
+         9: aload_0
+        10: iload_2
+        11: putfield      #16                 // Field isDirectory:Z
+        14: aload_0
+        15: lload_3
+        16: putfield      #20                 // Field size:J
+        19: return
+      LineNumberTable:
+        line 195: 0
+        line 199: 4
+        line 203: 9
+        line 207: 14
+        line 195: 19
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0      20     0  this   Lkotlinx/io/files/FileMetadata;
+            0      20     1 isRegularFile   Z
+            0      20     2 isDirectory   Z
+            0      20     3  size   J
+
+  public kotlinx.io.files.FileMetadata(boolean, boolean, long, int, kotlin.jvm.internal.DefaultConstructorMarker);
+    descriptor: (ZZJILkotlin/jvm/internal/DefaultConstructorMarker;)V
+    flags: (0x1001) ACC_PUBLIC, ACC_SYNTHETIC
+    Code:
+      stack=5, locals=7, args_size=6
+         0: iload         5
+         2: iconst_1
+         3: iand
+         4: ifeq          9
+         7: iconst_0
+         8: istore_1
+         9: iload         5
+        11: iconst_2
+        12: iand
+        13: ifeq          18
+        16: iconst_0
+        17: istore_2
+        18: iload         5
+        20: iconst_4
+        21: iand
+        22: ifeq          27
+        25: lconst_0
+        26: lstore_3
+        27: aload_0
+        28: iload_1
+        29: iload_2
+        30: lload_3
+        31: invokespecial #25                 // Method "<init>":(ZZJ)V
+        34: return
+      StackMapTable: number_of_entries = 3
+        frame_type = 9 /* same */
+        frame_type = 8 /* same */
+        frame_type = 8 /* same */
+      LineNumberTable:
+        line 195: 0
+        line 199: 7
+        line 195: 9
+        line 203: 16
+        line 195: 18
+        line 207: 25
+        line 195: 27
+        line 208: 34
+
+  public final boolean isRegularFile();
+    descriptor: ()Z
+    flags: (0x0011) ACC_PUBLIC, ACC_FINAL
+    Code:
+      stack=1, locals=1, args_size=1
+         0: aload_0
+         1: getfield      #13                 // Field isRegularFile:Z
+         4: ireturn
+      LineNumberTable:
+        line 199: 0
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0       5     0  this   Lkotlinx/io/files/FileMetadata;
+
+  public final boolean isDirectory();
+    descriptor: ()Z
+    flags: (0x0011) ACC_PUBLIC, ACC_FINAL
+    Code:
+      stack=1, locals=1, args_size=1
+         0: aload_0
+         1: getfield      #16                 // Field isDirectory:Z
+         4: ireturn
+      LineNumberTable:
+        line 203: 0
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0       5     0  this   Lkotlinx/io/files/FileMetadata;
+
+  public final long getSize();
+    descriptor: ()J
+    flags: (0x0011) ACC_PUBLIC, ACC_FINAL
+    Code:
+      stack=2, locals=1, args_size=1
+         0: aload_0
+         1: getfield      #20                 // Field size:J
+         4: lreturn
+      LineNumberTable:
+        line 207: 0
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0       5     0  this   Lkotlinx/io/files/FileMetadata;
+
+  public kotlinx.io.files.FileMetadata();
+    descriptor: ()V
+    flags: (0x0001) ACC_PUBLIC
+    Code:
+      stack=7, locals=1, args_size=1
+         0: aload_0
+         1: iconst_0
+         2: iconst_0
+         3: lconst_0
+         4: bipush        7
+         6: aconst_null
+         7: invokespecial #30                 // Method "<init>":(ZZJILkotlin/jvm/internal/DefaultConstructorMarker;)V
+        10: return
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0      11     0  this   Lkotlinx/io/files/FileMetadata;
+}
+SourceFile: "FileSystem.kt"
+RuntimeVisibleAnnotations:
+  0: #31(#32=[I#33,I#34,I#35],#36=I#37,#38=I#39,#40=[s#41],#42=[s#22,s#43,s#10,s#43,s#14,s#17,s#43,s#5,s#6,s#26,s#27,s#28,s#44])
+    kotlin.Metadata(
+      mv=[2,3,0]
+      k=1
+      xi=48
+      d1=["\u0000\u001a\n\u0002\u0018\u0002\n\u0002\u0010\u0000\n\u0000\n\u0002\u0010\u000b\n\u0002\b\u0002\n\u0002\u0010\t\n\u0002\b\u0006\u0018\u00002\u00020\u0001B\'\bF\u0012\b\b\u0002\u0010\u0002\u001a\u00020\u0003\u0012\b\b\u0002\u0010\u0004\u001a\u00020\u0003\u0012\b\b\u0002\u0010\u0005\u001a\u00020\u0006¢\u0006\u0004\b\u0007\u0010\bR\u0015\u0010\u0002\u001a\u00020\u0003X\u0086\u0084\b¢\u0006\b\n\u0000\u001a\u0004\b\u0002\u0010\tR\u0015\u0010\u0004\u001a\u00020\u0003X\u0086\u0084\b¢\u0006\b\n\u0000\u001a\u0004\b\u0004\u0010\tR\u0015\u0010\u0005\u001a\u00020\u0006X\u0086\u0084\b¢\u0006\b\n\u0000\u001a\u0004\b\n\u0010\u000b¨\u0006\f"]
+      d2=["Lkotlinx/io/files/FileMetadata;","","isRegularFile","","isDirectory","size","","<init>","(ZZJ)V","()Z","getSize","()J","kotlinx-io-core"]
+    )
