@@ -12,10 +12,7 @@ import kotlin.internal.KsSymbolName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ObsoleteCoroutinesApi
 
-// KSP-1573: `CoroutineScope.actor` mirrors `produce` with the roles reversed:
-// the builder launches a consumer coroutine and hands the mailbox channel to
-// the caller as a SendChannel. `ActorScope.channel` exposes the channel the
-// actor should consume; the handle is the same runtime object underneath.
+// KSP-1573: `CoroutineScope.actor` mirrors `produce` with the roles reversed.
 // The launch shares `__kk_produce_launch` with produce — an ActorScope is a
 // channel-backed CoroutineScope exactly like ProducerScope.
 
@@ -38,8 +35,6 @@ public class ActorScope<E> : CoroutineScope {
     public override val coroutineContext: CoroutineContext
         get() = __kkActorScopeContext(this)
 
-    /** The mailbox channel this actor consumes; identical to the SendChannel
-     *  returned to the builder's caller. */
     public val channel: Channel<E>
         get() = __kkActorScopeChannel(this)
 }
