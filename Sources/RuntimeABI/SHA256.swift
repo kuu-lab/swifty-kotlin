@@ -1,5 +1,4 @@
-/// Simple SHA-256 helper used by `RuntimeABISpec` to derive `specVersion`
-/// from the canonical function specs. No external dependencies.
+/// No external dependencies.
 enum SHA256 {
     static func hex(_ bytes: [UInt8]) -> String {
         var hash = [UInt8](repeating: 0, count: 32)
