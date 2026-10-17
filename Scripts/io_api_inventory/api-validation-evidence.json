@@ -444,6 +444,746 @@
         }
       ],
       "evidence_source": "local-probe"
+    },
+    {
+      "row_id": "jvm-06eee316b84478d8",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "bf48e046ee67df3bc0f732fb011546e8cbe52c16c94fe31e7dbba83967119459",
+      "test_input_sha256": "dbd4848d149d323dee0f7b7585074e94670e7b2f3868ce03a6a50edc379a338c",
+      "compatibility_obligations": [
+        "jvm-descriptor",
+        "native-default-dispatch"
+      ],
+      "executions": [
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testDecode",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "kuu-2617:pinned-jvm-classfile:jvm-06eee316b84478d8",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "248761f9fb0a1a6b8998cf6bb303178e9b4729fb2dfc965bf761e8ae71d71e90",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 1
+          },
+          "candidate": null
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testDecode",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "kuu-2617:reference:source-O0:jvm-06eee316b84478d8",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "7ae2c3d1b086a857937e448e763423b2cf380e6e160d3b33b179033bfc530e8c",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 7
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:source-O0:jvm-06eee316b84478d8",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "7ae2c3d1b086a857937e448e763423b2cf380e6e160d3b33b179033bfc530e8c",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 7
+          }
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testDecode",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "kuu-2617:reference:source-O2:jvm-06eee316b84478d8",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "7ae2c3d1b086a857937e448e763423b2cf380e6e160d3b33b179033bfc530e8c",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 7
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:source-O2:jvm-06eee316b84478d8",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "7ae2c3d1b086a857937e448e763423b2cf380e6e160d3b33b179033bfc530e8c",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 7
+          }
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testDecode",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "kuu-2617:reference:stdlib-library-O0:jvm-06eee316b84478d8",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "7ae2c3d1b086a857937e448e763423b2cf380e6e160d3b33b179033bfc530e8c",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 7
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:stdlib-library-O0:jvm-06eee316b84478d8",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "7ae2c3d1b086a857937e448e763423b2cf380e6e160d3b33b179033bfc530e8c",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 7
+          }
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testDecode",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "kuu-2617:reference:stdlib-library-O2:jvm-06eee316b84478d8",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "7ae2c3d1b086a857937e448e763423b2cf380e6e160d3b33b179033bfc530e8c",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 7
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:stdlib-library-O2:jvm-06eee316b84478d8",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "7ae2c3d1b086a857937e448e763423b2cf380e6e160d3b33b179033bfc530e8c",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 7
+          }
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testDecode",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "kuu-2617:reference:producer-consumer-O0:jvm-06eee316b84478d8",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "7ae2c3d1b086a857937e448e763423b2cf380e6e160d3b33b179033bfc530e8c",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 7
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:producer-consumer-O0:jvm-06eee316b84478d8",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "7ae2c3d1b086a857937e448e763423b2cf380e6e160d3b33b179033bfc530e8c",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 7
+          }
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testDecode",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "kuu-2617:reference:producer-consumer-O2:jvm-06eee316b84478d8",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "7ae2c3d1b086a857937e448e763423b2cf380e6e160d3b33b179033bfc530e8c",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 7
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:producer-consumer-O2:jvm-06eee316b84478d8",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "7ae2c3d1b086a857937e448e763423b2cf380e6e160d3b33b179033bfc530e8c",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 7
+          }
+        }
+      ],
+      "evidence_source": "upstream-catalog"
+    },
+    {
+      "row_id": "jvm-0a7391fd7c844ff7",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "bf48e046ee67df3bc0f732fb011546e8cbe52c16c94fe31e7dbba83967119459",
+      "test_input_sha256": "dbd4848d149d323dee0f7b7585074e94670e7b2f3868ce03a6a50edc379a338c",
+      "compatibility_obligations": [
+        "jvm-descriptor",
+        "native-default-dispatch"
+      ],
+      "executions": [
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testDecodeToByteString",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "kuu-2617:pinned-jvm-classfile:jvm-0a7391fd7c844ff7",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "c80fc610b969e1c4bf031a78927f1410aea1fe0b00a5f4025b7428ccbf47069e",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 1
+          },
+          "candidate": null
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testDecodeToByteString",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "kuu-2617:reference:source-O0:jvm-0a7391fd7c844ff7",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "eec729cff97afd71367b1346aab16724a633cd283207ae3d2382305e06adb8e2",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:source-O0:jvm-0a7391fd7c844ff7",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "eec729cff97afd71367b1346aab16724a633cd283207ae3d2382305e06adb8e2",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          }
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testDecodeToByteString",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "kuu-2617:reference:source-O2:jvm-0a7391fd7c844ff7",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "eec729cff97afd71367b1346aab16724a633cd283207ae3d2382305e06adb8e2",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:source-O2:jvm-0a7391fd7c844ff7",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "eec729cff97afd71367b1346aab16724a633cd283207ae3d2382305e06adb8e2",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          }
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testDecodeToByteString",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "kuu-2617:reference:stdlib-library-O0:jvm-0a7391fd7c844ff7",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "eec729cff97afd71367b1346aab16724a633cd283207ae3d2382305e06adb8e2",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:stdlib-library-O0:jvm-0a7391fd7c844ff7",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "eec729cff97afd71367b1346aab16724a633cd283207ae3d2382305e06adb8e2",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          }
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testDecodeToByteString",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "kuu-2617:reference:stdlib-library-O2:jvm-0a7391fd7c844ff7",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "eec729cff97afd71367b1346aab16724a633cd283207ae3d2382305e06adb8e2",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:stdlib-library-O2:jvm-0a7391fd7c844ff7",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "eec729cff97afd71367b1346aab16724a633cd283207ae3d2382305e06adb8e2",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          }
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testDecodeToByteString",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "kuu-2617:reference:producer-consumer-O0:jvm-0a7391fd7c844ff7",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "eec729cff97afd71367b1346aab16724a633cd283207ae3d2382305e06adb8e2",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:producer-consumer-O0:jvm-0a7391fd7c844ff7",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "eec729cff97afd71367b1346aab16724a633cd283207ae3d2382305e06adb8e2",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          }
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testDecodeToByteString",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "kuu-2617:reference:producer-consumer-O2:jvm-0a7391fd7c844ff7",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "eec729cff97afd71367b1346aab16724a633cd283207ae3d2382305e06adb8e2",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:producer-consumer-O2:jvm-0a7391fd7c844ff7",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "eec729cff97afd71367b1346aab16724a633cd283207ae3d2382305e06adb8e2",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          }
+        }
+      ],
+      "evidence_source": "upstream-catalog"
+    },
+    {
+      "row_id": "jvm-1ba14d2113458d26",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "bf48e046ee67df3bc0f732fb011546e8cbe52c16c94fe31e7dbba83967119459",
+      "test_input_sha256": "dbd4848d149d323dee0f7b7585074e94670e7b2f3868ce03a6a50edc379a338c",
+      "compatibility_obligations": [
+        "jvm-descriptor",
+        "native-default-dispatch"
+      ],
+      "executions": [
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testByteArrayDecodeToByteString",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "kuu-2617:pinned-jvm-classfile:jvm-1ba14d2113458d26",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "688d83e4224dda44deb98a52746c21e17fd1056037ff5cd2596fe558604cdec5",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 1
+          },
+          "candidate": null
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testByteArrayDecodeToByteString",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "kuu-2617:reference:source-O0:jvm-1ba14d2113458d26",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "298925a10c87f5a7313effb84c529adc6acc0397107f6bdb8d2d4b74d1e6cd7e",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:source-O0:jvm-1ba14d2113458d26",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "298925a10c87f5a7313effb84c529adc6acc0397107f6bdb8d2d4b74d1e6cd7e",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          }
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testByteArrayDecodeToByteString",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "kuu-2617:reference:source-O2:jvm-1ba14d2113458d26",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "298925a10c87f5a7313effb84c529adc6acc0397107f6bdb8d2d4b74d1e6cd7e",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:source-O2:jvm-1ba14d2113458d26",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "298925a10c87f5a7313effb84c529adc6acc0397107f6bdb8d2d4b74d1e6cd7e",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          }
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testByteArrayDecodeToByteString",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "kuu-2617:reference:stdlib-library-O0:jvm-1ba14d2113458d26",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "298925a10c87f5a7313effb84c529adc6acc0397107f6bdb8d2d4b74d1e6cd7e",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:stdlib-library-O0:jvm-1ba14d2113458d26",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "298925a10c87f5a7313effb84c529adc6acc0397107f6bdb8d2d4b74d1e6cd7e",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          }
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testByteArrayDecodeToByteString",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "kuu-2617:reference:stdlib-library-O2:jvm-1ba14d2113458d26",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "298925a10c87f5a7313effb84c529adc6acc0397107f6bdb8d2d4b74d1e6cd7e",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:stdlib-library-O2:jvm-1ba14d2113458d26",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "298925a10c87f5a7313effb84c529adc6acc0397107f6bdb8d2d4b74d1e6cd7e",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          }
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testByteArrayDecodeToByteString",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "kuu-2617:reference:producer-consumer-O0:jvm-1ba14d2113458d26",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "298925a10c87f5a7313effb84c529adc6acc0397107f6bdb8d2d4b74d1e6cd7e",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:producer-consumer-O0:jvm-1ba14d2113458d26",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "298925a10c87f5a7313effb84c529adc6acc0397107f6bdb8d2d4b74d1e6cd7e",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          }
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testByteArrayDecodeToByteString",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "kuu-2617:reference:producer-consumer-O2:jvm-1ba14d2113458d26",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "298925a10c87f5a7313effb84c529adc6acc0397107f6bdb8d2d4b74d1e6cd7e",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:producer-consumer-O2:jvm-1ba14d2113458d26",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "298925a10c87f5a7313effb84c529adc6acc0397107f6bdb8d2d4b74d1e6cd7e",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          }
+        }
+      ],
+      "evidence_source": "upstream-catalog"
+    },
+    {
+      "row_id": "jvm-c376d0d1321523df",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "bf48e046ee67df3bc0f732fb011546e8cbe52c16c94fe31e7dbba83967119459",
+      "test_input_sha256": "dbd4848d149d323dee0f7b7585074e94670e7b2f3868ce03a6a50edc379a338c",
+      "compatibility_obligations": [
+        "jvm-descriptor",
+        "native-default-dispatch"
+      ],
+      "executions": [
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testDecodeIntoByteArray",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "kuu-2617:pinned-jvm-classfile:jvm-c376d0d1321523df",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "2cdf4cab38ede3352d5515c339e8bc4eebfddfb233b613f5c494b82f07c27802",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 1
+          },
+          "candidate": null
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testDecodeIntoByteArray",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "kuu-2617:reference:source-O0:jvm-c376d0d1321523df",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "ec7e010e019f91d3e5a0c80dfa2c6e6b9a3cf3f22e6ab44c255333832cd4117a",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 7
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:source-O0:jvm-c376d0d1321523df",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "ec7e010e019f91d3e5a0c80dfa2c6e6b9a3cf3f22e6ab44c255333832cd4117a",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 7
+          }
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testDecodeIntoByteArray",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "kuu-2617:reference:source-O2:jvm-c376d0d1321523df",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "ec7e010e019f91d3e5a0c80dfa2c6e6b9a3cf3f22e6ab44c255333832cd4117a",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 7
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:source-O2:jvm-c376d0d1321523df",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "ec7e010e019f91d3e5a0c80dfa2c6e6b9a3cf3f22e6ab44c255333832cd4117a",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 7
+          }
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testDecodeIntoByteArray",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "kuu-2617:reference:stdlib-library-O0:jvm-c376d0d1321523df",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "ec7e010e019f91d3e5a0c80dfa2c6e6b9a3cf3f22e6ab44c255333832cd4117a",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 7
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:stdlib-library-O0:jvm-c376d0d1321523df",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "ec7e010e019f91d3e5a0c80dfa2c6e6b9a3cf3f22e6ab44c255333832cd4117a",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 7
+          }
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testDecodeIntoByteArray",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "kuu-2617:reference:stdlib-library-O2:jvm-c376d0d1321523df",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "ec7e010e019f91d3e5a0c80dfa2c6e6b9a3cf3f22e6ab44c255333832cd4117a",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 7
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:stdlib-library-O2:jvm-c376d0d1321523df",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "ec7e010e019f91d3e5a0c80dfa2c6e6b9a3cf3f22e6ab44c255333832cd4117a",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 7
+          }
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testDecodeIntoByteArray",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "kuu-2617:reference:producer-consumer-O0:jvm-c376d0d1321523df",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "ec7e010e019f91d3e5a0c80dfa2c6e6b9a3cf3f22e6ab44c255333832cd4117a",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 7
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:producer-consumer-O0:jvm-c376d0d1321523df",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "ec7e010e019f91d3e5a0c80dfa2c6e6b9a3cf3f22e6ab44c255333832cd4117a",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 7
+          }
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testDecodeIntoByteArray",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "kuu-2617:reference:producer-consumer-O2:jvm-c376d0d1321523df",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "ec7e010e019f91d3e5a0c80dfa2c6e6b9a3cf3f22e6ab44c255333832cd4117a",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 7
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:producer-consumer-O2:jvm-c376d0d1321523df",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "ec7e010e019f91d3e5a0c80dfa2c6e6b9a3cf3f22e6ab44c255333832cd4117a",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 7
+          }
+        }
+      ],
+      "evidence_source": "upstream-catalog"
+    },
+    {
+      "row_id": "jvm-ebe766fdf289f961",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "bf48e046ee67df3bc0f732fb011546e8cbe52c16c94fe31e7dbba83967119459",
+      "test_input_sha256": "dbd4848d149d323dee0f7b7585074e94670e7b2f3868ce03a6a50edc379a338c",
+      "compatibility_obligations": [
+        "jvm-descriptor",
+        "native-default-dispatch"
+      ],
+      "executions": [
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testByteStringDecodeToByteString",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "kuu-2617:pinned-jvm-classfile:jvm-ebe766fdf289f961",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "3f2fb75345bcade128d51be5f4f0ae9caa35cb1086f28b10d6377935c3f00085",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 1
+          },
+          "candidate": null
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testByteStringDecodeToByteString",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "kuu-2617:reference:source-O0:jvm-ebe766fdf289f961",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "b7615aa790ff40234d7aea8f1fc92853177fc01fe42c8c22db67bed994c70875",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:source-O0:jvm-ebe766fdf289f961",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "b7615aa790ff40234d7aea8f1fc92853177fc01fe42c8c22db67bed994c70875",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          }
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testByteStringDecodeToByteString",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "kuu-2617:reference:source-O2:jvm-ebe766fdf289f961",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "b7615aa790ff40234d7aea8f1fc92853177fc01fe42c8c22db67bed994c70875",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:source-O2:jvm-ebe766fdf289f961",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "b7615aa790ff40234d7aea8f1fc92853177fc01fe42c8c22db67bed994c70875",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          }
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testByteStringDecodeToByteString",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "kuu-2617:reference:stdlib-library-O0:jvm-ebe766fdf289f961",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "b7615aa790ff40234d7aea8f1fc92853177fc01fe42c8c22db67bed994c70875",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:stdlib-library-O0:jvm-ebe766fdf289f961",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "b7615aa790ff40234d7aea8f1fc92853177fc01fe42c8c22db67bed994c70875",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          }
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testByteStringDecodeToByteString",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "kuu-2617:reference:stdlib-library-O2:jvm-ebe766fdf289f961",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "b7615aa790ff40234d7aea8f1fc92853177fc01fe42c8c22db67bed994c70875",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:stdlib-library-O2:jvm-ebe766fdf289f961",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "b7615aa790ff40234d7aea8f1fc92853177fc01fe42c8c22db67bed994c70875",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          }
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testByteStringDecodeToByteString",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "kuu-2617:reference:producer-consumer-O0:jvm-ebe766fdf289f961",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "b7615aa790ff40234d7aea8f1fc92853177fc01fe42c8c22db67bed994c70875",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:producer-consumer-O0:jvm-ebe766fdf289f961",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "b7615aa790ff40234d7aea8f1fc92853177fc01fe42c8c22db67bed994c70875",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          }
+        },
+        {
+          "case_id": "bytestring/common/test/ByteStringBase64Test.kt#testByteStringDecodeToByteString",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "kuu-2617:reference:producer-consumer-O2:jvm-ebe766fdf289f961",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "b7615aa790ff40234d7aea8f1fc92853177fc01fe42c8c22db67bed994c70875",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          },
+          "candidate": {
+            "execution_id": "kuu-2617:candidate:producer-consumer-O2:jvm-ebe766fdf289f961",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "b7615aa790ff40234d7aea8f1fc92853177fc01fe42c8c22db67bed994c70875",
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_count": 6
+          }
+        }
+      ],
+      "evidence_source": "upstream-catalog"
     }
   ]
 }

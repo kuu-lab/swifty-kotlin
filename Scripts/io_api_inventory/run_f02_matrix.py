@@ -24,6 +24,7 @@ from generate import LOCAL_PROBE_EVIDENCE_CASES, local_probe_execution_id
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
+CANDIDATE_PACKAGE_ROOT = ROOT
 LANES = [(route, optimization) for route in ("source", "stdlib-library", "producer-consumer")
          for optimization in ("O0", "O2")]
 # The reference compiler is pinned to Kotlin 2.3.10; KSwiftK currently emits
@@ -51,7 +52,7 @@ def execute(command: list[str], directory: Path, stage: str, timeout: float,
     temporary = workspace / "tmp"
     temporary.mkdir()
     overrides = {"TMPDIR": str(temporary) + "/", "KSWIFTK_STDLIB_CACHE_DIR": str(workspace / "stdlib-cache"),
-                 "KSWIFTK_PACKAGE_ROOT": str(ROOT), **(environment or {})}
+                 "KSWIFTK_PACKAGE_ROOT": str(CANDIDATE_PACKAGE_ROOT), **(environment or {})}
     receipt = {"command": command, "cwd": str(workspace), "environment": overrides,
                "deadline_seconds": timeout, "status": "RUNNING"}
     prefix = directory / stage
@@ -175,7 +176,12 @@ def scenarios() -> list[dict]:
               "jvm_class": "f02consumer.ConsumerKt", "reference": "jvm", "ledger": True},
              {"id": "library-boundary", "producer": [HERE / "f02_boundary/Producer.kt"],
               "consumer": HERE / "f02_boundary/Consumer.kt", "entry": "f02boundaryconsumer.main",
-              "jvm_class": "f02boundaryconsumer.ConsumerKt", "reference": "jvm"}]
+              "jvm_class": "f02boundaryconsumer.ConsumerKt", "reference": "jvm"},
+             {"id": "base64-default-bridges",
+              "producer": [HERE / "probes/Base64DefaultBridgeProducer.kt"],
+              "consumer": HERE / "probes/Base64DefaultBridgeConsumer.kt",
+              "entry": "f02base64consumer.main",
+              "jvm_class": "f02base64consumer.ConsumerKt", "reference": "jvm"}]
     cases.append({"id": "segment-data-as-byte-array",
                   "fixture": ROOT / "Scripts/io_api_inventory/probes/segment_data_as_byte_array.kt",
                   "negative_fixture": ROOT / "Scripts/io_api_inventory/probes/segment_data_as_byte_array_negative.kt",
@@ -402,6 +408,8 @@ def run_lane(case: dict, compiler: Path, stdlib: Path, expected: bytes, director
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--compiler", type=Path, required=True)
+    parser.add_argument("--candidate-source-root", type=Path,
+                        help="source checkout used to build the candidate compiler; requires its .codex-candidate-sha marker")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--kotlin-home", type=Path, required=True)
     parser.add_argument("--java", type=Path, required=True)
@@ -415,6 +423,23 @@ def main(argv: list[str] | None = None) -> int:
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     compiler = args.compiler.resolve()
+    candidate_package_root = args.candidate_source_root.resolve() if args.candidate_source_root else ROOT
+    candidate_sha = subprocess.check_output(
+        ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True
+    ).strip()
+    candidate_marker_sha256 = None
+    if args.candidate_source_root:
+        marker = candidate_package_root / ".codex-candidate-sha"
+        if not marker.is_file(): parser.error("candidate source root must contain .codex-candidate-sha")
+        candidate_sha = marker.read_text(encoding="utf-8").strip()
+        if not re.fullmatch(r"[0-9a-f]{40}", candidate_sha): parser.error("invalid candidate SHA marker")
+        if not (candidate_package_root / "Package.swift").is_file():
+            parser.error("candidate source root must contain Package.swift")
+        if not compiler.is_relative_to(candidate_package_root):
+            parser.error("candidate compiler must be built inside candidate source root")
+        candidate_marker_sha256 = sha(marker)
+    global CANDIDATE_PACKAGE_ROOT
+    CANDIDATE_PACKAGE_ROOT = candidate_package_root
     all_scenarios = scenarios()
     selected = all_scenarios
     if args.case:
@@ -424,15 +449,23 @@ def main(argv: list[str] | None = None) -> int:
     summary = {"status": "RUNNING", "selected_cases": [case["id"] for case in selected],
                "expected_case_ids": [case["id"] for case in all_scenarios], "lanes": LANES,
                "subset": bool(args.case), "issue_complete": False, "results": [], "compiler_sha256": sha(compiler),
+               "compiler_path": str(compiler),
                "workspace_git_sha": subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True).strip(),
+               "candidate_sha": candidate_sha,
+               "candidate_source_root": str(candidate_package_root),
+               "candidate_package_swift_sha256": sha(candidate_package_root / "Package.swift"),
+               "candidate_marker_sha256": candidate_marker_sha256,
                "dirty_patch_sha256": hashlib.sha256(subprocess.check_output(["git", "-C", str(ROOT), "diff", "HEAD"])).hexdigest(),
                "local_probe_executions": [],
                "runtime_cache_provenance": "source and manifest-validated object hashes; not a clean Runtime rebuild"}
     try:
         provenance = [Path(__file__), HERE / "generate_f02_consumers.py", HERE / "generate_f01_consumers.py",
                       HERE / "api-inventory.tsv", HERE / "source-declarations.json", HERE / "upstream-lock.json",
+                      HERE / "record_base64_default_bridge_evidence.py",
+                      HERE / "test_validation_evidence.py",
                       ROOT / "Scripts/kotlinx_io_upstream/reference-lock.json", ROOT / "Package.swift"]
         provenance += sorted((HERE / "f02_consumers").glob("*")) + sorted((HERE / "f02_boundary").glob("*.kt"))
+        provenance += sorted((HERE / "probes").glob("*.kt")) + [HERE / "probe_jvm_default_bridge_abi.py"]
         summary["harness_files_sha256"] = {str(path.relative_to(ROOT)): sha(path) for path in provenance if path.is_file()}
         scenario_inputs = {path for case in selected for path in case.get("producer", []) + case.get("fixtures", [])}
         scenario_inputs |= {case[key] for case in selected for key in (
@@ -445,8 +478,9 @@ def main(argv: list[str] | None = None) -> int:
             compiler.parent / "KSwiftK_CompilerCore.resources",
         ) if (path / "Stdlib").is_dir()), None)
         if resources is None: raise RuntimeError("actual compiler resource bundle required")
-        dependencies = [resources, ROOT / "Sources/CompilerCore", ROOT / "Sources/CompilerBackend",
-                        ROOT / "Sources/KSwiftKCLI", ROOT / "Sources/Runtime", ROOT / "Sources/RuntimeABI"]
+        dependencies = [resources, candidate_package_root / "Sources/CompilerCore", candidate_package_root / "Sources/CompilerBackend",
+                        candidate_package_root / "Sources/KSwiftKCLI", candidate_package_root / "Sources/Runtime",
+                        candidate_package_root / "Sources/RuntimeABI"]
         dependencies_before = {str(path): snapshot(path) for path in dependencies}
         summary["source_and_resource_files_sha256"] = dependencies_before
         for name, contents in generate().items():
@@ -608,8 +642,8 @@ def main(argv: list[str] | None = None) -> int:
                 raise RuntimeError("harness or scenario inputs changed between matrix lanes")
         if {str(path): snapshot(path) for path in dependencies} != dependencies_before:
             raise RuntimeError("compiler resources or runtime/stdlib source inputs changed")
-        summary["runtime_object_sha256"] = {str(path.relative_to(ROOT)): sha(path)
-            for path in sorted((ROOT / ".runtime-build").rglob("*.o")) if path.is_file()}
+        summary["runtime_object_sha256"] = {str(path.relative_to(candidate_package_root)): sha(path)
+            for path in sorted((candidate_package_root / ".runtime-build").rglob("*.o")) if path.is_file()}
         failures = [result for result in summary["results"] if result["status"] != "PASS"]
         summary["status"] = "FAILED_OR_INCOMPLETE" if failures else "SELECTED_MATRIX_PASS"
         if failures: summary["error"] = f"{len(failures)} selected lanes failed; raw evidence retained"

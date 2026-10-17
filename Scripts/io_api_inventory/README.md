@@ -301,17 +301,46 @@ the reference classfile probe therefore does not claim candidate JVM classfile
 ABI. The report, probe, source metadata, upstream test index, and focused test
 inputs participate in the row's input hash and are checked during regeneration.
 
+The five KUU-2617 Base64 default bridges have the additional
+`native-default-dispatch` obligation across all six source, fresh-stdlib-KLIB,
+and producer/consumer lanes. Their `jvm-descriptor` result is reference-only:
+the pinned 0.9.1 JVM class file is checked with `javap`, while KSwiftK's Native
+KLIB/default-call behavior is checked separately. These records include
+per-result stdout/stderr hashes and the number of row-specific assertion lines;
+the descriptor execution must not claim that KSwiftK emitted a JVM class file.
+The row mapping uses an exact Base64 source declaration and direct
+`ByteStringBase64Test` method reference rather than a suite reference.
+
+The matrix accepts `--candidate-source-root` when the harness checkout is newer
+than the candidate under audit. That directory must contain the exact candidate
+source tree, a `.codex-candidate-sha` file containing its 40-character commit,
+and the compiler built from that tree. The matrix summary keeps the harness
+HEAD and candidate SHA separate and records the compiler and candidate package
+manifest hashes. A selected case still records `issue_complete: false`.
+
+```sh
+python3 Scripts/io_api_inventory/probe_jvm_default_bridge_abi.py --report /tmp/kuu-2617-jvm-abi.json
+python3 Scripts/io_api_inventory/record_base64_default_bridge_evidence.py --matrix /tmp/kuu-2617-matrix/summary.json --jvm-probe /tmp/kuu-2617-jvm-abi.json
+python3 Scripts/io_api_inventory/generate.py --write
+python3 Scripts/io_api_inventory/test_validation_evidence.py
+```
+
 The generator rejects unknown or duplicate row IDs, malformed hashes, a
 different reference pin, stale implementation/test inputs, non-passing or
-unrun executions, duplicate cases, and missing or unrelated lanes. Upstream
-case IDs must be referenced by that row's upstream tests, and both execution
-IDs must map to the same case in the locked JVM and Native execution catalogs.
-Local case IDs must match the reviewed probe registry and the row's local test
-references. A manual status edit is discarded when outputs are regenerated.
-`--write` changes only the three generated ledger output files and reads the
-evidence file without rewriting it. `--check` verifies upstream snapshots, the
-test index lock, negative guards, evidence, any execution catalogs used by
-evidence, and byte-for-byte output without modifying files.
+unrun executions, duplicate cases, and missing or unrelated lanes. The case ID
+must match a method-specific upstream test reference for that row;
+`#suite-reference` discovery metadata cannot authorize an arbitrary case from
+the same file. Both execution IDs must map to the same case in the locked JVM
+and Native execution catalogs for catalog-backed records. Local case IDs must
+match the reviewed probe registry and the row's local test references. KUU-2617's
+custom probe records use row-scoped execution IDs and require exact
+method-specific upstream references, passing six-lane JVM comparisons, and a
+separate pinned physical-classfile receipt. A manual status edit is discarded
+when outputs are regenerated. `--write` changes only the three generated ledger
+output files and reads the evidence file without rewriting it. `--check` verifies
+upstream snapshots, the test index lock, negative guards, evidence, any
+execution catalogs used by evidence, and byte-for-byte output without modifying
+files.
 
 ```sh
 python3 Scripts/io_api_inventory/test_validation_evidence.py

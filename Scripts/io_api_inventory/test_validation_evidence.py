@@ -34,6 +34,11 @@ class ValidationEvidenceTests(unittest.TestCase):
         self._write("Sources/Runtime/io_bridge.swift", "func kk_io_foo() {}\n")
         self._write("Tests/CompilerBackendTests/FooTests.swift", "func testFoo() {}\n")
         self._write("core/common/test/FooTest.kt", "fun testFoo() = assertEquals(1, foo())\n", self.upstream)
+        self._write(
+            "bytestring/common/test/ByteStringBase64Test.kt",
+            "class ByteStringBase64Test { fun testDecode() = Unit }\n",
+            self.upstream,
+        )
         self.row = {
             "row_id": "klib-fixture-foo",
             "representation": "Kotlin source API / KLIB dump",
@@ -319,6 +324,105 @@ class ValidationEvidenceTests(unittest.TestCase):
                 self.generator.validate_index_of_bridge_probe(
                     row, record, self.generator.REPO
                 )
+
+    def test_base64_default_bridge_needs_physical_reference_and_all_native_dispatch_lanes(self):
+        row = copy.deepcopy(self.row)
+        row["row_id"] = "jvm-06eee316b84478d8"
+        row["representation"] = "JVM public ABI dump"
+        row["local_test_refs"] = "Tests/CompilerBackendTests/FooTests.swift"
+        row["upstream_test_refs"] = "bytestring/common/test/ByteStringBase64Test.kt#testDecode"
+        obligations = self.generator.validation_obligations(row)
+        self.assertEqual(obligations, ["jvm-descriptor", "native-default-dispatch"])
+        self.assertEqual(self.generator.required_execution_lanes(obligations), [
+            "jvm-descriptor", "source-O0", "source-O2", "stdlib-library-O0",
+            "stdlib-library-O2", "producer-consumer-O0", "producer-consumer-O2",
+        ])
+
+        case_id = row["upstream_test_refs"]
+        lanes = self.generator.required_execution_lanes(obligations)
+        executions = []
+        for lane in lanes:
+            descriptor = lane == "jvm-descriptor"
+            reference_id = (
+                f"kuu-2617:pinned-jvm-classfile:{row['row_id']}"
+                if descriptor else f"kuu-2617:reference:{lane}:{row['row_id']}"
+            )
+            def result(execution_id):
+                return {
+                    "execution_id": execution_id,
+                    "result": "PASS",
+                    "exit_code": 0,
+                    "stdout_sha256": "a" * 64,
+                    "stderr_sha256": "b" * 64,
+                    "output_count": 1,
+                }
+            executions.append({
+                "case_id": case_id,
+                "lane": lane,
+                "reference": result(reference_id),
+                "candidate": None if descriptor else result(
+                    f"kuu-2617:candidate:{lane}:{row['row_id']}"
+                ),
+            })
+        record = {
+            "row_id": row["row_id"],
+            "candidate_sha": "a" * 40,
+            "reference_version": self.lock["tag"],
+            "reference_commit": self.lock["commit"],
+            **self.generator.validation_input_hashes(row, self.repository, self.upstream),
+            "compatibility_obligations": obligations,
+            "executions": executions,
+        }
+        self.assertEqual(self._apply([record], row)["status"], "verified")
+
+        missing_lane = copy.deepcopy(record)
+        missing_lane["executions"].pop()
+        with self.assertRaisesRegex(SystemExit, "missing validation lanes.*producer-consumer-O2"):
+            self._apply([missing_lane], row)
+        malformed_output = copy.deepcopy(record)
+        malformed_output["executions"][1]["candidate"]["output_count"] = 0
+        with self.assertRaisesRegex(SystemExit, "non-positive output_count"):
+            self._apply([malformed_output], row)
+        false_classfile_claim = copy.deepcopy(record)
+        false_classfile_claim["executions"][0]["candidate"] = copy.deepcopy(
+            false_classfile_claim["executions"][1]["candidate"]
+        )
+        with self.assertRaisesRegex(SystemExit, "must not claim a native candidate classfile"):
+            self._apply([false_classfile_claim], row)
+
+    def test_base64_default_bridges_map_to_exact_source_overloads_and_original_tests(self):
+        _, rows, _ = self.generator.build_outputs()
+        by_id = {row["row_id"]: row for row in rows}
+        expected = {
+            "jvm-06eee316b84478d8": ("klib-f7d98255f9d6ecdd", "testDecode", "decode"),
+            "jvm-0a7391fd7c844ff7": ("klib-aada9b079769b5b8", "testDecodeToByteString", "decodeToByteString"),
+            "jvm-1ba14d2113458d26": ("klib-4d38fa01cf9280a5", "testByteArrayDecodeToByteString", "decodeToByteString"),
+            "jvm-c376d0d1321523df": ("klib-30f3a5c70398830b", "testDecodeIntoByteArray", "decodeIntoByteArray"),
+            "jvm-ebe766fdf289f961": ("klib-f6856a243e61dd47", "testByteStringDecodeToByteString", "decodeToByteString"),
+        }
+        for bridge_id, (source_id, test_name, function_name) in expected.items():
+            with self.subTest(bridge_id=bridge_id):
+                bridge, source = by_id[bridge_id], by_id[source_id]
+                self.assertEqual(bridge["api_kind"], "default/synthetic bridge")
+                self.assertEqual(bridge["_source_key"], source["_source_key"])
+                self.assertEqual(bridge["default_parameter_count"], source["default_parameter_count"])
+                self.assertEqual(
+                    bridge["upstream_test_refs"],
+                    f"bytestring/common/test/ByteStringBase64Test.kt#{test_name}",
+                )
+                self.assertEqual(bridge["owner_issue"], "KUU-2617")
+                self.assertIn(
+                    f"Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/Base64.kt:",
+                    bridge["local_candidate_refs"],
+                )
+                self.assertIn(function_name, bridge["signature"])
+                self.assertTrue(bridge["signature"].startswith("public static synthetic fun "))
+                self.assertIn("Ljava/lang/Object;", bridge["signature"])
+                self.assertEqual(json.loads(bridge["platform_metadata"])[0]["visibility"], "public")
+                self.assertEqual(bridge["annotations"], "none")
+                self.assertIn("IndexOutOfBoundsException", bridge["exception_contract"])
+                self.assertIn("IllegalArgumentException", bridge["exception_contract"])
+                self.assertEqual(bridge["_inventory_status"], "unverified")
 
     def test_unknown_duplicate_and_malformed_evidence_is_rejected(self):
         valid = self._record()
