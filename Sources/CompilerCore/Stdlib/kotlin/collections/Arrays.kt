@@ -7,9 +7,6 @@
 
 package kotlin.collections
 
-/**
- * Returns a single list of all elements from all arrays in the given array.
- */
 public fun <T> Array<out Array<out T>>.flatten(): List<T> {
     val result = mutableListOf<T>()
     for (element in this) {
