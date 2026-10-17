@@ -75,6 +75,12 @@ LOCAL_PROBE_EVIDENCE_CASES = {
         "lanes": ("jvm-descriptor",),
         "methods": {"reference": "jvm-abi-reflection", "candidate": "source-metadata"},
     },
+    "local:Scripts/io_api_inventory/probe_system_temporary_directory.py#run_probe": {
+        "path": "Scripts/io_api_inventory/probe_system_temporary_directory.py#run_probe",
+        "row_ids": {"jvm-6dcae71c67e2278f"},
+        "lanes": ("jvm-descriptor",),
+        "methods": {"reference": "jvm-abi-reflection", "candidate": "source-metadata"},
+    },
 }
 
 LEDGER_COLUMNS = [
@@ -1365,6 +1371,8 @@ def parse_jvm_api(path: Path, module: str, sources: list[Path]) -> list[dict]:
 
 
 def owner_for(row: dict) -> str:
+    if row.get("row_id") == "jvm-6dcae71c67e2278f":
+        return "KUU-2638"
     text = " ".join(
         [row["module"], row["owner_fqn"], row["name"], row["signature"], row["upstream_source_refs"]]
     ).lower()
@@ -1648,6 +1656,16 @@ def local_contract_differences(row: dict, index: SourceIndex) -> str:
 
 
 def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
+    if row.get("row_id") == "jvm-6dcae71c67e2278f":
+        return [
+            "Scripts/io_api_inventory/probe_system_temporary_directory.py#run_probe",
+            "Scripts/io_api_inventory/probes/system_temporary_directory.kt#systemTemporaryDirectoryProbe",
+            "Scripts/io_api_inventory/probes/SystemTemporaryDirectoryJvmProbe.java#main",
+            "Scripts/io_api_inventory/generate.py#apply_validation_evidence",
+            "Scripts/io_api_inventory/test_validation_evidence.py#test_system_temporary_directory_probe_is_registered_for_its_jvm_row",
+            "Scripts/io_api_inventory/upstream-lock.json#SystemTemporaryDirectory",
+            "Scripts/kotlinx_io_upstream/reference-lock.json#SystemTemporaryDirectory",
+        ]
     name = row["_candidate_name"].lower()
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []
@@ -1680,6 +1698,8 @@ def local_implementation_refs(row: dict, index: SourceIndex, runtime_symbols: di
             for argument in annotation["arguments"]:
                 name = argument["expression"].strip('"')
                 references.extend(runtime_symbols.get(name, []))
+    if row.get("row_id") == "jvm-6dcae71c67e2278f":
+        references.append("Sources/Runtime/RuntimeIoFileSystem.swift:371")
     return sorted(set(references))
 
 
@@ -1963,7 +1983,7 @@ def make_summary(lock: dict, rows: list[dict], scope_rows: list[dict]) -> str:
         "",
         "## Owner routing",
         "",
-        "Rows route to KUU-1729 (Buffer/Segment), KUU-1730 (source/sink lifecycle and common helpers), KUU-1731 (primitive/ByteArray I/O), KUU-1733 (UTF-8), KUU-1760 (ByteString), KUU-1761 (Filesystem), KUU-1762 (JVM interop/ABI/typealiases), or KUU-1763 (Apple). All are children of KUU-1725; missing declarations stay in scope.",
+        "Rows route to KUU-1729 (Buffer/Segment), KUU-1730 (source/sink lifecycle and common helpers), KUU-1731 (primitive/ByteArray I/O), KUU-1733 (UTF-8), KUU-1760 (ByteString), KUU-1761 (Filesystem), KUU-1762 (JVM interop/ABI/typealiases), or KUU-1763 (Apple). These component backlog issues are children of KUU-1725. The SystemTemporaryDirectory JVM field ABI row is tracked separately by KUU-2638, a child of KUU-1826; missing declarations stay in scope.",
         "",
         "## JVM ABI classification",
         "",

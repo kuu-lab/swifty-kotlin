@@ -280,6 +280,9 @@ Local evidence must cover every registered case and every lane for that row.
 For `Segment.dataAsByteArray`, native rows require both the backing-view probe
 and the cross-module visibility probe in all six native lanes; the JVM ABI row
 requires the descriptor reflection probe and local source-metadata assertion.
+The `SystemTemporaryDirectory` row has a dedicated Kotlin consumer for source
+and fresh-KLIB O0/O2 value, type, and identity assertions, plus JVM reflection
+for the pinned field owner, descriptor, flags, value, and singleton identity.
 The local probes' bytes and the referenced upstream tests remain part of the
 row's test input hash, so edits invalidate prior evidence.
 

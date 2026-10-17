@@ -188,6 +188,24 @@ class ValidationEvidenceTests(unittest.TestCase):
         record = self._local_probe_record(row)
         self.assertEqual(self._apply([record], row, schema_version=2)["status"], "verified")
 
+    def test_system_temporary_directory_probe_is_registered_for_its_jvm_row(self):
+        case_id = "local:Scripts/io_api_inventory/probe_system_temporary_directory.py#run_probe"
+        path = "Scripts/io_api_inventory/probe_system_temporary_directory.py"
+        row = copy.deepcopy(self.row)
+        row["row_id"] = "jvm-6dcae71c67e2278f"
+        row["representation"] = "JVM public ABI dump"
+        row["local_test_refs"] = f"{path}#run_probe"
+
+        spec = self.generator._local_probe_case_spec(row, case_id)
+
+        self.assertIsNotNone(spec)
+        self.assertEqual(spec["row_ids"], {"jvm-6dcae71c67e2278f"})
+        self.assertEqual(spec["lanes"], ("jvm-descriptor",))
+        self.assertEqual(spec["methods"], {
+            "reference": "jvm-abi-reflection",
+            "candidate": "source-metadata",
+        })
+
     def test_local_probe_evidence_rejects_unregistered_cases_and_forged_ids(self):
         row = self._local_probe_row()
         valid = self._local_probe_record(row)
