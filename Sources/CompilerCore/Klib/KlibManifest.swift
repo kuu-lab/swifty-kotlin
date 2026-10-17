@@ -1,7 +1,5 @@
 import Foundation
 
-/// Java `properties` parser for `.klib` manifest files.
-///
 /// Kotlin writes `manifest` with `java.util.Properties.store`: one
 /// `key=value` (or `key: value`) per line, `#`/`!` comment lines, `\`
 /// line continuations, and `\t \n \r \f \\ \uXXXX` escapes. Duplicate keys
@@ -112,8 +110,6 @@ package enum JavaProperties {
     }
 }
 
-/// Typed view of a Kotlin `.klib` `manifest` file (Java properties format).
-///
 /// Reference fields written by the Kotlin compiler include `unique_name`,
 /// `compiler_version`, `abi_version`, `metadata_version`, `depends`,
 /// `builtins_platform`, `ir_signature_versions`, `library_version` and the
@@ -147,7 +143,6 @@ package struct KlibManifest {
         package var description: String { "\(major).\(minor).\(patch)" }
     }
 
-    /// How well this compiler can consume the klib.
     package enum Compatibility: Equatable {
         /// Produced by a Kotlin version whose IR layout we fully support.
         case supported
