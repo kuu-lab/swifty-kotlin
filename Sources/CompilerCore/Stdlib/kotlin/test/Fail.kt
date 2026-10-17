@@ -12,17 +12,10 @@
 package kotlin.test
 
 
-/** Marks a test as having failed if this point in the execution path is reached, with an optional [message]. */
 public fun fail(message: String? = null): Nothing {
     asserter.fail(message)
 }
 
-/**
- * Marks a test as having failed if this point in the execution path is reached, with an optional [message]
- * and [cause] exception.
- *
- * The [cause] exception is set as the root cause of the test failure.
- */
 @SinceKotlin("1.4")
 public fun fail(message: String? = null, cause: Throwable? = null): Nothing {
     asserter.fail(message, cause)
