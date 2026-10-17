@@ -7,9 +7,8 @@ package kotlin.ranges
 
 import kotlin.internal.KsSymbolName
 
-// KSP-1314: UIntRange owns its public constructor and Companion object in
-// bundled Kotlin source. The range payload remains a runtime-managed unsigned
-// range handle, so construction retains the existing ABI factory.
+// The range payload remains a runtime-managed unsigned range handle, so
+// construction retains the existing ABI factory.
 // `equals`/`hashCode`/`toString` are declared here as real members (matching
 // Kotlin's UIntRange): member dispatch on this final class stays static, so
 // calls don't fall through to virtual UIntProgression slots the runtime
@@ -18,8 +17,6 @@ public class UIntRange @KsSymbolName("__kk_uint_rangeTo") constructor(
     start: UInt,
     endInclusive: UInt,
 ) : UIntProgression(start, endInclusive, 1), ClosedRange<UInt>, OpenEndRange<UInt> {
-    // KSP-709: `start` joins the other OpenEndRange/ClosedRange overrides as a
-    // real member now that the synthetic unsigned range stub is gone.
     public override val start: UInt get() = first
 
     public override val endInclusive: UInt get() = last
