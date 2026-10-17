@@ -1,0 +1,7 @@
+[
+  "/private/tmp/kuu2549-jdk21/jdk-21.0.12.1+1/Contents/Home/bin/java",
+  "-Xmx1024m",
+  "-cp",
+  "/private/tmp/kuu2549-jvm-selected-final/selected-upstream-samples.jar:/private/tmp/kuu2549-jvm-reference/dependencies/kotlinx-io-core-jvm-0.9.1.jar:/private/tmp/kuu2549-jvm-reference/dependencies/kotlinx-io-bytestring-jvm-0.9.1.jar:/private/tmp/kuu2549-jvm-reference/dependencies/junit-platform-console-standalone-1.12.2.jar:/private/tmp/kuu2549-jvm-reference/installation/kotlinc/lib/kotlin-test.jar:/private/tmp/kuu2549-jvm-reference/installation/kotlinc/lib/kotlin-test-junit5.jar",
+  "SelectedReferenceDriverKt"
+]

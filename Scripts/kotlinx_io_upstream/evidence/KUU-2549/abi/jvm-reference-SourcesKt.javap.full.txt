@@ -1,0 +1,3132 @@
+Classfile jar:file:///tmp/kuu2549-jvm-reference/dependencies/kotlinx-io-core-jvm-0.9.1.jar!/kotlinx/io/SourcesKt.class
+  Last modified 1980/02/01; size 16497 bytes
+  SHA-256 checksum f34321e633b0d8c26ce5333745db26347ea50d71874c47dbe417f95ceb460865
+  Compiled from "Sources.kt"
+public final class kotlinx.io.SourcesKt
+  minor version: 0
+  major version: 52
+  flags: (0x0031) ACC_PUBLIC, ACC_FINAL, ACC_SUPER
+  this_class: #2                          // kotlinx/io/SourcesKt
+  super_class: #4                         // java/lang/Object
+  interfaces: 0, fields: 2, methods: 24, attributes: 5
+Constant pool:
+    #1 = Utf8               kotlinx/io/SourcesKt
+    #2 = Class              #1            // kotlinx/io/SourcesKt
+    #3 = Utf8               java/lang/Object
+    #4 = Class              #3            // java/lang/Object
+    #5 = Utf8               readShortLe
+    #6 = Utf8               (Lkotlinx/io/Source;)S
+    #7 = Utf8               Lorg/jetbrains/annotations/NotNull;
+    #8 = Utf8               <this>
+    #9 = String             #8            // <this>
+   #10 = Utf8               kotlin/jvm/internal/Intrinsics
+   #11 = Class              #10           // kotlin/jvm/internal/Intrinsics
+   #12 = Utf8               checkNotNullParameter
+   #13 = Utf8               (Ljava/lang/Object;Ljava/lang/String;)V
+   #14 = NameAndType        #12:#13       // checkNotNullParameter:(Ljava/lang/Object;Ljava/lang/String;)V
+   #15 = Methodref          #11.#14       // kotlin/jvm/internal/Intrinsics.checkNotNullParameter:(Ljava/lang/Object;Ljava/lang/String;)V
+   #16 = Utf8               kotlinx/io/Source
+   #17 = Class              #16           // kotlinx/io/Source
+   #18 = Utf8               readShort
+   #19 = Utf8               ()S
+   #20 = NameAndType        #18:#19       // readShort:()S
+   #21 = InterfaceMethodref #17.#20       // kotlinx/io/Source.readShort:()S
+   #22 = Utf8               kotlinx/io/_UtilsJvmKt
+   #23 = Class              #22           // kotlinx/io/_UtilsJvmKt
+   #24 = Utf8               reverseBytes
+   #25 = Utf8               (S)S
+   #26 = NameAndType        #24:#25       // reverseBytes:(S)S
+   #27 = Methodref          #23.#26       // kotlinx/io/_UtilsJvmKt.reverseBytes:(S)S
+   #28 = Utf8               $this$readShortLe
+   #29 = Utf8               Lkotlinx/io/Source;
+   #30 = Utf8               readIntLe
+   #31 = Utf8               (Lkotlinx/io/Source;)I
+   #32 = Utf8               readInt
+   #33 = Utf8               ()I
+   #34 = NameAndType        #32:#33       // readInt:()I
+   #35 = InterfaceMethodref #17.#34       // kotlinx/io/Source.readInt:()I
+   #36 = Utf8               (I)I
+   #37 = NameAndType        #24:#36       // reverseBytes:(I)I
+   #38 = Methodref          #23.#37       // kotlinx/io/_UtilsJvmKt.reverseBytes:(I)I
+   #39 = Utf8               $this$readIntLe
+   #40 = Utf8               readLongLe
+   #41 = Utf8               (Lkotlinx/io/Source;)J
+   #42 = Utf8               readLong
+   #43 = Utf8               ()J
+   #44 = NameAndType        #42:#43       // readLong:()J
+   #45 = InterfaceMethodref #17.#44       // kotlinx/io/Source.readLong:()J
+   #46 = Utf8               (J)J
+   #47 = NameAndType        #24:#46       // reverseBytes:(J)J
+   #48 = Methodref          #23.#47       // kotlinx/io/_UtilsJvmKt.reverseBytes:(J)J
+   #49 = Utf8               $this$readLongLe
+   #50 = Utf8               readDecimalLong
+   #51 = Utf8               require
+   #52 = Utf8               (J)V
+   #53 = NameAndType        #51:#52       // require:(J)V
+   #54 = InterfaceMethodref #17.#53       // kotlinx/io/Source.require:(J)V
+   #55 = Long               -7l
+   #57 = Utf8               getBuffer
+   #58 = Utf8               ()Lkotlinx/io/Buffer;
+   #59 = NameAndType        #57:#58       // getBuffer:()Lkotlinx/io/Buffer;
+   #60 = InterfaceMethodref #17.#59       // kotlinx/io/Source.getBuffer:()Lkotlinx/io/Buffer;
+   #61 = Utf8               kotlinx/io/Buffer
+   #62 = Class              #61           // kotlinx/io/Buffer
+   #63 = Utf8               get
+   #64 = Utf8               (J)B
+   #65 = NameAndType        #63:#64       // get:(J)B
+   #66 = Methodref          #62.#65       // kotlinx/io/Buffer.get:(J)B
+   #67 = Long               -1l
+   #69 = Long               2l
+   #71 = Utf8               java/lang/NumberFormatException
+   #72 = Class              #71           // java/lang/NumberFormatException
+   #73 = Utf8               java/lang/StringBuilder
+   #74 = Class              #73           // java/lang/StringBuilder
+   #75 = Utf8               <init>
+   #76 = Utf8               ()V
+   #77 = NameAndType        #75:#76       // "<init>":()V
+   #78 = Methodref          #74.#77       // java/lang/StringBuilder."<init>":()V
+   #79 = Utf8               Expected a digit but was 0x
+   #80 = String             #79           // Expected a digit but was 0x
+   #81 = Utf8               append
+   #82 = Utf8               (Ljava/lang/String;)Ljava/lang/StringBuilder;
+   #83 = NameAndType        #81:#82       // append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+   #84 = Methodref          #74.#83       // java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+   #85 = Utf8               kotlinx/io/_UtilKt
+   #86 = Class              #85           // kotlinx/io/_UtilKt
+   #87 = Utf8               toHexString
+   #88 = Utf8               (B)Ljava/lang/String;
+   #89 = NameAndType        #87:#88       // toHexString:(B)Ljava/lang/String;
+   #90 = Methodref          #86.#89       // kotlinx/io/_UtilKt.toHexString:(B)Ljava/lang/String;
+   #91 = Utf8               toString
+   #92 = Utf8               ()Ljava/lang/String;
+   #93 = NameAndType        #91:#92       // toString:()Ljava/lang/String;
+   #94 = Methodref          #74.#93       // java/lang/StringBuilder.toString:()Ljava/lang/String;
+   #95 = Utf8               (Ljava/lang/String;)V
+   #96 = NameAndType        #75:#95       // "<init>":(Ljava/lang/String;)V
+   #97 = Methodref          #72.#96       // java/lang/NumberFormatException."<init>":(Ljava/lang/String;)V
+   #98 = Utf8               Expected a digit or \'-\' but was 0x
+   #99 = String             #98           // Expected a digit or \'-\' but was 0x
+  #100 = Utf8               request
+  #101 = Utf8               (J)Z
+  #102 = NameAndType        #100:#101     // request:(J)Z
+  #103 = InterfaceMethodref #17.#102      // kotlinx/io/Source.request:(J)Z
+  #104 = Utf8               getHead
+  #105 = Utf8               ()Lkotlinx/io/Segment;
+  #106 = NameAndType        #104:#105     // getHead:()Lkotlinx/io/Segment;
+  #107 = Methodref          #62.#106      // kotlinx/io/Buffer.getHead:()Lkotlinx/io/Segment;
+  #108 = Utf8               checkNotNull
+  #109 = Utf8               (Ljava/lang/Object;)V
+  #110 = NameAndType        #108:#109     // checkNotNull:(Ljava/lang/Object;)V
+  #111 = Methodref          #11.#110      // kotlin/jvm/internal/Intrinsics.checkNotNull:(Ljava/lang/Object;)V
+  #112 = Utf8               kotlinx/io/Segment
+  #113 = Class              #112          // kotlinx/io/Segment
+  #114 = Utf8               getSize
+  #115 = NameAndType        #114:#33      // getSize:()I
+  #116 = Methodref          #113.#115     // kotlinx/io/Segment.getSize:()I
+  #117 = Utf8               getUnchecked$kotlinx_io_core
+  #118 = Utf8               (I)B
+  #119 = NameAndType        #117:#118     // getUnchecked$kotlinx_io_core:(I)B
+  #120 = Methodref          #113.#119     // kotlinx/io/Segment.getUnchecked$kotlinx_io_core:(I)B
+  #121 = Long               -922337203685477580l
+  #123 = Methodref          #62.#77       // kotlinx/io/Buffer."<init>":()V
+  #124 = Utf8               kotlinx/io/Sink
+  #125 = Class              #124          // kotlinx/io/Sink
+  #126 = Utf8               kotlinx/io/SinksKt
+  #127 = Class              #126          // kotlinx/io/SinksKt
+  #128 = Utf8               writeDecimalLong
+  #129 = Utf8               (Lkotlinx/io/Sink;J)V
+  #130 = NameAndType        #128:#129     // writeDecimalLong:(Lkotlinx/io/Sink;J)V
+  #131 = Methodref          #127.#130     // kotlinx/io/SinksKt.writeDecimalLong:(Lkotlinx/io/Sink;J)V
+  #132 = Utf8               writeByte
+  #133 = Utf8               (B)V
+  #134 = NameAndType        #132:#133     // writeByte:(B)V
+  #135 = Methodref          #62.#134      // kotlinx/io/Buffer.writeByte:(B)V
+  #136 = Utf8               readByte
+  #137 = Utf8               ()B
+  #138 = NameAndType        #136:#137     // readByte:()B
+  #139 = Methodref          #62.#138      // kotlinx/io/Buffer.readByte:()B
+  #140 = Utf8               Number too large:
+  #141 = String             #140          // Number too large:
+  #142 = Utf8               kotlinx/io/Utf8Kt
+  #143 = Class              #142          // kotlinx/io/Utf8Kt
+  #144 = Utf8               readString
+  #145 = Utf8               (Lkotlinx/io/Buffer;)Ljava/lang/String;
+  #146 = NameAndType        #144:#145     // readString:(Lkotlinx/io/Buffer;)Ljava/lang/String;
+  #147 = Methodref          #143.#146     // kotlinx/io/Utf8Kt.readString:(Lkotlinx/io/Buffer;)Ljava/lang/String;
+  #148 = Long               10l
+  #150 = NameAndType        #114:#43      // getSize:()J
+  #151 = Methodref          #62.#150      // kotlinx/io/Buffer.getSize:()J
+  #152 = Utf8               getTail
+  #153 = NameAndType        #152:#105     // getTail:()Lkotlinx/io/Segment;
+  #154 = Methodref          #62.#153      // kotlinx/io/Buffer.getTail:()Lkotlinx/io/Segment;
+  #155 = Utf8               getLimit
+  #156 = NameAndType        #155:#33      // getLimit:()I
+  #157 = Methodref          #113.#156     // kotlinx/io/Segment.getLimit:()I
+  #158 = Utf8               getPos
+  #159 = NameAndType        #158:#33      // getPos:()I
+  #160 = Methodref          #113.#159     // kotlinx/io/Segment.getPos:()I
+  #161 = Utf8               getPrev
+  #162 = NameAndType        #161:#105     // getPrev:()Lkotlinx/io/Segment;
+  #163 = Methodref          #113.#162     // kotlinx/io/Segment.getPrev:()Lkotlinx/io/Segment;
+  #164 = Utf8               getNext
+  #165 = NameAndType        #164:#105     // getNext:()Lkotlinx/io/Segment;
+  #166 = Methodref          #113.#165     // kotlinx/io/Segment.getNext:()Lkotlinx/io/Segment;
+  #167 = Utf8               skip
+  #168 = NameAndType        #167:#52      // skip:(J)V
+  #169 = InterfaceMethodref #17.#168      // kotlinx/io/Source.skip:(J)V
+  #170 = Utf8               b
+  #171 = Utf8               B
+  #172 = Utf8               $i$a$-with-SourcesKt$readDecimalLong$finished$1$1
+  #173 = Utf8               I
+  #174 = Utf8               $this$readDecimalLong_u24lambda_u240_u240
+  #175 = Utf8               Lkotlinx/io/Buffer;
+  #176 = Utf8               digit
+  #177 = Utf8               $i$a$-seek-SourcesKt$readDecimalLong$finished$1
+  #178 = Utf8               currIdx
+  #179 = Utf8               size
+  #180 = Utf8               seg
+  #181 = Utf8               Lkotlinx/io/Segment;
+  #182 = Utf8               offset
+  #183 = Utf8               J
+  #184 = Utf8               s$iv
+  #185 = Utf8               offset$iv
+  #186 = Utf8               nextOffset$iv
+  #187 = Utf8               $i$f$seek
+  #188 = Utf8               $this$seek$iv
+  #189 = Utf8               fromIndex$iv
+  #190 = Utf8               finished
+  #191 = Utf8               Z
+  #192 = Utf8               negative
+  #193 = Utf8               value
+  #194 = Utf8               overflowDigit
+  #195 = Utf8               bufferOffset
+  #196 = Utf8               $this$readDecimalLong
+  #197 = Utf8               readHexadecimalUnsignedLong
+  #198 = Utf8               Expected leading [0-9a-fA-F] character but was 0x
+  #199 = String             #198          // Expected leading [0-9a-fA-F] character but was 0x
+  #200 = Long               -1152921504606846976l
+  #202 = Utf8               writeHexadecimalUnsignedLong
+  #203 = NameAndType        #202:#129     // writeHexadecimalUnsignedLong:(Lkotlinx/io/Sink;J)V
+  #204 = Methodref          #127.#203     // kotlinx/io/SinksKt.writeHexadecimalUnsignedLong:(Lkotlinx/io/Sink;J)V
+  #205 = Utf8               $i$a$-with-SourcesKt$readHexadecimalUnsignedLong$stop$1$1
+  #206 = Utf8               $this$readHexadecimalUnsignedLong_u24lambda_u240_u240
+  #207 = Utf8               bDigit
+  #208 = Utf8               localOffset
+  #209 = Utf8               $i$a$-seek-SourcesKt$readHexadecimalUnsignedLong$stop$1
+  #210 = Utf8               startIndex
+  #211 = Utf8               stop
+  #212 = Utf8               result
+  #213 = Utf8               bytesRead
+  #214 = Utf8               $this$readHexadecimalUnsignedLong
+  #215 = Utf8               indexOf
+  #216 = Utf8               (Lkotlinx/io/Source;BJJ)J
+  #217 = Utf8               startIndex (
+  #218 = String             #217          // startIndex (
+  #219 = Utf8               (J)Ljava/lang/StringBuilder;
+  #220 = NameAndType        #81:#219      // append:(J)Ljava/lang/StringBuilder;
+  #221 = Methodref          #74.#220      // java/lang/StringBuilder.append:(J)Ljava/lang/StringBuilder;
+  #222 = Utf8               ) and endIndex (
+  #223 = String             #222          // ) and endIndex (
+  #224 = Utf8               ) should be non negative
+  #225 = String             #224          // ) should be non negative
+  #226 = Utf8               ) is not within the range [0..endIndex(
+  #227 = String             #226          // ) is not within the range [0..endIndex(
+  #228 = Utf8               ))
+  #229 = String             #228          // ))
+  #230 = Utf8               java/lang/IllegalArgumentException
+  #231 = Class              #230          // java/lang/IllegalArgumentException
+  #232 = Methodref          #4.#93        // java/lang/Object.toString:()Ljava/lang/String;
+  #233 = Methodref          #231.#96      // java/lang/IllegalArgumentException."<init>":(Ljava/lang/String;)V
+  #234 = Utf8               java/lang/Math
+  #235 = Class              #234          // java/lang/Math
+  #236 = Utf8               min
+  #237 = Utf8               (JJ)J
+  #238 = NameAndType        #236:#237     // min:(JJ)J
+  #239 = Methodref          #235.#238     // java/lang/Math.min:(JJ)J
+  #240 = Utf8               kotlinx/io/BuffersKt
+  #241 = Class              #240          // kotlinx/io/BuffersKt
+  #242 = Utf8               (Lkotlinx/io/Buffer;BJJ)J
+  #243 = NameAndType        #215:#242     // indexOf:(Lkotlinx/io/Buffer;BJJ)J
+  #244 = Methodref          #241.#243     // kotlinx/io/BuffersKt.indexOf:(Lkotlinx/io/Buffer;BJJ)J
+  #245 = Utf8               $i$a$-require-SourcesKt$indexOf$1
+  #246 = Utf8               idx
+  #247 = Utf8               $this$indexOf
+  #248 = Utf8               byte
+  #249 = Utf8               endIndex
+  #250 = Utf8               java/lang/String
+  #251 = Class              #250          // java/lang/String
+  #252 = Utf8               indexOf$default
+  #253 = Utf8               (Lkotlinx/io/Source;BJJILjava/lang/Object;)J
+  #254 = Long               9223372036854775807l
+  #256 = NameAndType        #215:#216     // indexOf:(Lkotlinx/io/Source;BJJ)J
+  #257 = Methodref          #2.#256       // kotlinx/io/SourcesKt.indexOf:(Lkotlinx/io/Source;BJJ)J
+  #258 = Utf8               readByteArray
+  #259 = Utf8               (Lkotlinx/io/Source;)[B
+  #260 = Utf8               readByteArrayImpl
+  #261 = Utf8               (Lkotlinx/io/Source;I)[B
+  #262 = NameAndType        #260:#261     // readByteArrayImpl:(Lkotlinx/io/Source;I)[B
+  #263 = Methodref          #2.#262       // kotlinx/io/SourcesKt.readByteArrayImpl:(Lkotlinx/io/Source;I)[B
+  #264 = Utf8               $this$readByteArray
+  #265 = Utf8               byteCount (
+  #266 = String             #265          // byteCount (
+  #267 = Utf8               ) < 0
+  #268 = String             #267          // ) < 0
+  #269 = Utf8               $i$a$-require-_UtilKt$checkByteCount$1$iv
+  #270 = Utf8               $i$f$checkByteCount
+  #271 = Utf8               byteCount$iv
+  #272 = Utf8               byteCount
+  #273 = Long               2147483647l
+  #275 = Utf8               Can\'t create an array of size
+  #276 = String             #275          // Can\'t create an array of size
+  #277 = Utf8               java/lang/IllegalStateException
+  #278 = Class              #277          // java/lang/IllegalStateException
+  #279 = Methodref          #278.#96      // java/lang/IllegalStateException."<init>":(Ljava/lang/String;)V
+  #280 = Utf8               readTo$default
+  #281 = Utf8               (Lkotlinx/io/Source;[BIIILjava/lang/Object;)V
+  #282 = NameAndType        #280:#281     // readTo$default:(Lkotlinx/io/Source;[BIIILjava/lang/Object;)V
+  #283 = Methodref          #2.#282       // kotlinx/io/SourcesKt.readTo$default:(Lkotlinx/io/Source;[BIIILjava/lang/Object;)V
+  #284 = Utf8               $i$a$-check-SourcesKt$readByteArrayImpl$1
+  #285 = Utf8               fetchSize
+  #286 = Utf8               arraySize
+  #287 = Utf8               array
+  #288 = Utf8               [B
+  #289 = Utf8               $this$readByteArrayImpl
+  #290 = Utf8               readTo
+  #291 = Utf8               (Lkotlinx/io/Source;[BII)V
+  #292 = Utf8               sink
+  #293 = String             #292          // sink
+  #294 = Utf8               checkBounds
+  #295 = Utf8               (JJJ)V
+  #296 = NameAndType        #294:#295     // checkBounds:(JJJ)V
+  #297 = Methodref          #86.#296      // kotlinx/io/_UtilKt.checkBounds:(JJJ)V
+  #298 = Utf8               readAtMostTo
+  #299 = Utf8               ([BII)I
+  #300 = NameAndType        #298:#299     // readAtMostTo:([BII)I
+  #301 = InterfaceMethodref #17.#300      // kotlinx/io/Source.readAtMostTo:([BII)I
+  #302 = Utf8               java/io/EOFException
+  #303 = Class              #302          // java/io/EOFException
+  #304 = Utf8               Source exhausted before reading
+  #305 = String             #304          // Source exhausted before reading
+  #306 = Utf8               (I)Ljava/lang/StringBuilder;
+  #307 = NameAndType        #81:#306      // append:(I)Ljava/lang/StringBuilder;
+  #308 = Methodref          #74.#307      // java/lang/StringBuilder.append:(I)Ljava/lang/StringBuilder;
+  #309 = Utf8                bytes. Only
+  #310 = String             #309          //  bytes. Only
+  #311 = Utf8                bytes were read.
+  #312 = String             #311          //  bytes were read.
+  #313 = Methodref          #303.#96      // java/io/EOFException."<init>":(Ljava/lang/String;)V
+  #314 = Utf8               $i$f$checkBounds
+  #315 = Utf8               size$iv
+  #316 = Utf8               startIndex$iv
+  #317 = Utf8               endIndex$iv
+  #318 = Utf8               $this$readTo
+  #319 = Class              #288          // "[B"
+  #320 = NameAndType        #290:#291     // readTo:(Lkotlinx/io/Source;[BII)V
+  #321 = Methodref          #2.#320       // kotlinx/io/SourcesKt.readTo:(Lkotlinx/io/Source;[BII)V
+  #322 = Utf8               readUByte
+  #323 = Utf8               (Lkotlinx/io/Source;)B
+  #324 = InterfaceMethodref #17.#138      // kotlinx/io/Source.readByte:()B
+  #325 = Utf8               kotlin/UByte
+  #326 = Class              #325          // kotlin/UByte
+  #327 = Utf8               constructor-impl
+  #328 = Utf8               (B)B
+  #329 = NameAndType        #327:#328     // "constructor-impl":(B)B
+  #330 = Methodref          #326.#329     // kotlin/UByte."constructor-impl":(B)B
+  #331 = Utf8               $this$readUByte
+  #332 = Utf8               readUShort
+  #333 = Utf8               kotlin/UShort
+  #334 = Class              #333          // kotlin/UShort
+  #335 = NameAndType        #327:#25      // "constructor-impl":(S)S
+  #336 = Methodref          #334.#335     // kotlin/UShort."constructor-impl":(S)S
+  #337 = Utf8               $this$readUShort
+  #338 = Utf8               readUInt
+  #339 = Utf8               kotlin/UInt
+  #340 = Class              #339          // kotlin/UInt
+  #341 = NameAndType        #327:#36      // "constructor-impl":(I)I
+  #342 = Methodref          #340.#341     // kotlin/UInt."constructor-impl":(I)I
+  #343 = Utf8               $this$readUInt
+  #344 = Utf8               readULong
+  #345 = Utf8               kotlin/ULong
+  #346 = Class              #345          // kotlin/ULong
+  #347 = NameAndType        #327:#46      // "constructor-impl":(J)J
+  #348 = Methodref          #346.#347     // kotlin/ULong."constructor-impl":(J)J
+  #349 = Utf8               $this$readULong
+  #350 = Utf8               readUShortLe
+  #351 = NameAndType        #5:#6         // readShortLe:(Lkotlinx/io/Source;)S
+  #352 = Methodref          #2.#351       // kotlinx/io/SourcesKt.readShortLe:(Lkotlinx/io/Source;)S
+  #353 = Utf8               $this$readUShortLe
+  #354 = Utf8               readUIntLe
+  #355 = NameAndType        #30:#31       // readIntLe:(Lkotlinx/io/Source;)I
+  #356 = Methodref          #2.#355       // kotlinx/io/SourcesKt.readIntLe:(Lkotlinx/io/Source;)I
+  #357 = Utf8               $this$readUIntLe
+  #358 = Utf8               readULongLe
+  #359 = NameAndType        #40:#41       // readLongLe:(Lkotlinx/io/Source;)J
+  #360 = Methodref          #2.#359       // kotlinx/io/SourcesKt.readLongLe:(Lkotlinx/io/Source;)J
+  #361 = Utf8               $this$readULongLe
+  #362 = Utf8               readFloat
+  #363 = Utf8               (Lkotlinx/io/Source;)F
+  #364 = Utf8               kotlin/jvm/internal/FloatCompanionObject
+  #365 = Class              #364          // kotlin/jvm/internal/FloatCompanionObject
+  #366 = Utf8               INSTANCE
+  #367 = Utf8               Lkotlin/jvm/internal/FloatCompanionObject;
+  #368 = NameAndType        #366:#367     // INSTANCE:Lkotlin/jvm/internal/FloatCompanionObject;
+  #369 = Fieldref           #365.#368     // kotlin/jvm/internal/FloatCompanionObject.INSTANCE:Lkotlin/jvm/internal/FloatCompanionObject;
+  #370 = Utf8               java/lang/Float
+  #371 = Class              #370          // java/lang/Float
+  #372 = Utf8               intBitsToFloat
+  #373 = Utf8               (I)F
+  #374 = NameAndType        #372:#373     // intBitsToFloat:(I)F
+  #375 = Methodref          #371.#374     // java/lang/Float.intBitsToFloat:(I)F
+  #376 = Utf8               $this$readFloat
+  #377 = Utf8               readDouble
+  #378 = Utf8               (Lkotlinx/io/Source;)D
+  #379 = Utf8               kotlin/jvm/internal/DoubleCompanionObject
+  #380 = Class              #379          // kotlin/jvm/internal/DoubleCompanionObject
+  #381 = Utf8               Lkotlin/jvm/internal/DoubleCompanionObject;
+  #382 = NameAndType        #366:#381     // INSTANCE:Lkotlin/jvm/internal/DoubleCompanionObject;
+  #383 = Fieldref           #380.#382     // kotlin/jvm/internal/DoubleCompanionObject.INSTANCE:Lkotlin/jvm/internal/DoubleCompanionObject;
+  #384 = Utf8               java/lang/Double
+  #385 = Class              #384          // java/lang/Double
+  #386 = Utf8               longBitsToDouble
+  #387 = Utf8               (J)D
+  #388 = NameAndType        #386:#387     // longBitsToDouble:(J)D
+  #389 = Methodref          #385.#388     // java/lang/Double.longBitsToDouble:(J)D
+  #390 = Utf8               $this$readDouble
+  #391 = Utf8               readFloatLe
+  #392 = Utf8               $this$readFloatLe
+  #393 = Utf8               readDoubleLe
+  #394 = Utf8               $this$readDoubleLe
+  #395 = Utf8               startsWith
+  #396 = Utf8               (Lkotlinx/io/Source;B)Z
+  #397 = Utf8               $this$startsWith
+  #398 = Utf8               OVERFLOW_ZONE
+  #399 = Utf8               OVERFLOW_DIGIT_START
+  #400 = Utf8               Lkotlin/Metadata;
+  #401 = Utf8               mv
+  #402 = Integer            2
+  #403 = Integer            3
+  #404 = Integer            0
+  #405 = Utf8               k
+  #406 = Utf8               xi
+  #407 = Integer            48
+  #408 = Utf8               d1
+  #409 = Utf8               \u0000f\n\u0000\n\u0002\u0010\n\n\u0002\u0018\u0002\n\u0000\n\u0002\u0010\b\n\u0000\n\u0002\u0010\t\n\u0002\b\u0006\n\u0002\u0010\u0005\n\u0002\b\u0003\n\u0002\u0010\u0012\n\u0002\b\u0004\n\u0002\u0010\u0002\n\u0002\b\u0002\n\u0002\u0018\u0002\n\u0002\b\u0002\n\u0002\u0018\u0002\n\u0002\b\u0002\n\u0002\u0018\u0002\n\u0002\b\u0002\n\u0002\u0018\u0002\n\u0002\b\u0005\n\u0002\u0010\u0007\n\u0000\n\u0002\u0010\u0006\n\u0002\b\u0003\n\u0002\u0010\u000b\n\u0000\u001a\u000e\u0010\u0000\u001a\u00020\u0001*\u00020\u0002H\u0086\u0080\u0004\u001a\u000e\u0010\u0003\u001a\u00020\u0004*\u00020\u0002H\u0086\u0080\u0004\u001a\u000e\u0010\u0005\u001a\u00020\u0006*\u00020\u0002H\u0086\u0080\u0004\u001a\u000e\u0010\t\u001a\u00020\u0006*\u00020\u0002H\u0086\u0080\u0004\u001a\u000e\u0010\n\u001a\u00020\u0006*\u00020\u0002H\u0086\u0080\u0004\u001a*\u0010\u000b\u001a\u00020\u0006*\u00020\u00022\u0006\u0010\f\u001a\u00020\r2\b\b\u0002\u0010\u000e\u001a\u00020\u00062\b\b\u0002\u0010\u000f\u001a\u00020\u0006H\u0086\u0080\u0004\u001a\u000e\u0010\u0010\u001a\u00020\u0011*\u00020\u0002H\u0086\u0080\u0004\u001a\u0016\u0010\u0010\u001a\u00020\u0011*\u00020\u00022\u0006\u0010\u0012\u001a\u00020\u0004H\u0086\u0080\u0004\u001a\u0016\u0010\u0013\u001a\u00020\u0011*\u00020\u00022\u0006\u0010\u0014\u001a\u00020\u0004H\u0082\u0080\u0004\u001a*\u0010\u0015\u001a\u00020\u0016*\u00020\u00022\u0006\u0010\u0017\u001a\u00020\u00112\b\b\u0002\u0010\u000e\u001a\u00020\u00042\b\b\u0002\u0010\u000f\u001a\u00020\u0004H\u0086\u0080\u0004\u001a\u0013\u0010\u0018\u001a\u00020\u0019*\u00020\u0002H\u0086\u0080\u0004¢\u0006\u0002\u0010\u001a\u001a\u0013\u0010\u001b\u001a\u00020\u001c*\u00020\u0002H\u0086\u0080\u0004¢\u0006\u0002\u0010\u001d\u001a\u0013\u0010\u001e\u001a\u00020\u001f*\u00020\u0002H\u0086\u0080\u0004¢\u0006\u0002\u0010 \u001a\u0013\u0010!\u001a\u00020\"*\u00020\u0002H\u0086\u0080\u0004¢\u0006\u0002\u0010#\u001a\u0013\u0010$\u001a\u00020\u001c*\u00020\u0002H\u0086\u0080\u0004¢\u0006\u0002\u0010\u001d\u001a\u0013\u0010%\u001a\u00020\u001f*\u00020\u0002H\u0086\u0080\u0004¢\u0006\u0002\u0010 \u001a\u0013\u0010&\u001a\u00020\"*\u00020\u0002H\u0086\u0080\u0004¢\u0006\u0002\u0010#\u001a\u000e\u0010\'\u001a\u00020(*\u00020\u0002H\u0086\u0080\u0004\u001a\u000e\u0010)\u001a\u00020**\u00020\u0002H\u0086\u0080\u0004\u001a\u000e\u0010+\u001a\u00020(*\u00020\u0002H\u0086\u0080\u0004\u001a\u000e\u0010,\u001a\u00020**\u00020\u0002H\u0086\u0080\u0004\u001a\u0016\u0010-\u001a\u00020.*\u00020\u00022\u0006\u0010\f\u001a\u00020\rH\u0086\u0080\u0004\"\u000f\u0010\u0007\u001a\u00020\u0006X\u0080Ô\b¢\u0006\u0002\n\u0000\"\u000f\u0010\b\u001a\u00020\u0006X\u0080Ô\b¢\u0006\u0002\n\u0000¨\u0006/
+  #410 = Utf8               d2
+  #411 = Utf8
+  #412 = Utf8               Lkotlin/UByte;
+  #413 = Utf8               Lkotlin/UShort;
+  #414 = Utf8               Lkotlin/UInt;
+  #415 = Utf8               Lkotlin/ULong;
+  #416 = Utf8               kotlinx-io-core
+  #417 = Utf8               kotlin/jvm/internal/Ref$BooleanRef
+  #418 = Class              #417          // kotlin/jvm/internal/Ref$BooleanRef
+  #419 = Utf8               kotlin/jvm/internal/Ref
+  #420 = Class              #419          // kotlin/jvm/internal/Ref
+  #421 = Utf8               BooleanRef
+  #422 = Utf8               kotlin/jvm/internal/Ref$LongRef
+  #423 = Class              #422          // kotlin/jvm/internal/Ref$LongRef
+  #424 = Utf8               LongRef
+  #425 = Utf8               Sources.kt
+  #426 = Utf8               Lkotlin/jvm/internal/SourceDebugExtension;
+  #427 = Utf8               SMAP\nSources.kt\nKotlin\n*S Kotlin\n*F\n+ 1 Sources.kt\nkotlinx/io/SourcesKt\n+ 2 Buffer.kt\nkotlinx/io/BufferKt\n+ 3 -Util.kt\nkotlinx/io/_UtilKt\n+ 4 fake.kt\nkotlin/jvm/internal/FakeKt\n*L\n1#1,467:1\n659#2,25:468\n659#2,25:493\n52#3:518\n53#3:520\n38#3:522\n1#4:519\n1#4:521\n*S KotlinDebug\n*F\n+ 1 Sources.kt\nkotlinx/io/SourcesKt\n*L\n94#1:468,25\n158#1:493,25\n253#1:518\n253#1:520\n293#1:522\n253#1:519\n*E\n
+  #428 = Utf8               ConstantValue
+  #429 = Utf8               Code
+  #430 = Utf8               LineNumberTable
+  #431 = Utf8               LocalVariableTable
+  #432 = Utf8               RuntimeInvisibleParameterAnnotations
+  #433 = Utf8               StackMapTable
+  #434 = Utf8               RuntimeInvisibleAnnotations
+  #435 = Utf8               InnerClasses
+  #436 = Utf8               SourceFile
+  #437 = Utf8               SourceDebugExtension
+  #438 = Utf8               RuntimeVisibleAnnotations
+{
+  public static final long OVERFLOW_ZONE;
+    descriptor: J
+    flags: (0x0019) ACC_PUBLIC, ACC_STATIC, ACC_FINAL
+    ConstantValue: long -922337203685477580l
+
+  public static final long OVERFLOW_DIGIT_START;
+    descriptor: J
+    flags: (0x0019) ACC_PUBLIC, ACC_STATIC, ACC_FINAL
+    ConstantValue: long -7l
+
+  public static final short readShortLe(kotlinx.io.Source);
+    descriptor: (Lkotlinx/io/Source;)S
+    flags: (0x0019) ACC_PUBLIC, ACC_STATIC, ACC_FINAL
+    Code:
+      stack=2, locals=1, args_size=1
+         0: aload_0
+         1: ldc           #9                  // String <this>
+         3: invokestatic  #15                 // Method kotlin/jvm/internal/Intrinsics.checkNotNullParameter:(Ljava/lang/Object;Ljava/lang/String;)V
+         6: aload_0
+         7: invokeinterface #21,  1           // InterfaceMethod kotlinx/io/Source.readShort:()S
+        12: invokestatic  #27                 // Method kotlinx/io/_UtilsJvmKt.reverseBytes:(S)S
+        15: ireturn
+      LineNumberTable:
+        line 18: 6
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0      16     0 $this$readShortLe   Lkotlinx/io/Source;
+    RuntimeInvisibleParameterAnnotations:
+      parameter 0:
+        0: #7()
+          org.jetbrains.annotations.NotNull
+
+  public static final int readIntLe(kotlinx.io.Source);
+    descriptor: (Lkotlinx/io/Source;)I
+    flags: (0x0019) ACC_PUBLIC, ACC_STATIC, ACC_FINAL
+    Code:
+      stack=2, locals=1, args_size=1
+         0: aload_0
+         1: ldc           #9                  // String <this>
+         3: invokestatic  #15                 // Method kotlin/jvm/internal/Intrinsics.checkNotNullParameter:(Ljava/lang/Object;Ljava/lang/String;)V
+         6: aload_0
+         7: invokeinterface #35,  1           // InterfaceMethod kotlinx/io/Source.readInt:()I
+        12: invokestatic  #38                 // Method kotlinx/io/_UtilsJvmKt.reverseBytes:(I)I
+        15: ireturn
+      LineNumberTable:
+        line 31: 6
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0      16     0 $this$readIntLe   Lkotlinx/io/Source;
+    RuntimeInvisibleParameterAnnotations:
+      parameter 0:
+        0: #7()
+          org.jetbrains.annotations.NotNull
+
+  public static final long readLongLe(kotlinx.io.Source);
+    descriptor: (Lkotlinx/io/Source;)J
+    flags: (0x0019) ACC_PUBLIC, ACC_STATIC, ACC_FINAL
+    Code:
+      stack=2, locals=1, args_size=1
+         0: aload_0
+         1: ldc           #9                  // String <this>
+         3: invokestatic  #15                 // Method kotlin/jvm/internal/Intrinsics.checkNotNullParameter:(Ljava/lang/Object;Ljava/lang/String;)V
+         6: aload_0
+         7: invokeinterface #45,  1           // InterfaceMethod kotlinx/io/Source.readLong:()J
+        12: invokestatic  #48                 // Method kotlinx/io/_UtilsJvmKt.reverseBytes:(J)J
+        15: lreturn
+      LineNumberTable:
+        line 44: 6
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0      16     0 $this$readLongLe   Lkotlinx/io/Source;
+    RuntimeInvisibleParameterAnnotations:
+      parameter 0:
+        0: #7()
+          org.jetbrains.annotations.NotNull
+
+  public static final long readDecimalLong(kotlinx.io.Source);
+    descriptor: (Lkotlinx/io/Source;)J
+    flags: (0x0019) ACC_PUBLIC, ACC_STATIC, ACC_FINAL
+    Code:
+      stack=6, locals=37, args_size=1
+         0: aload_0
+         1: ldc           #9                  // String <this>
+         3: invokestatic  #15                 // Method kotlin/jvm/internal/Intrinsics.checkNotNullParameter:(Ljava/lang/Object;Ljava/lang/String;)V
+         6: aload_0
+         7: lconst_1
+         8: invokeinterface #54,  3           // InterfaceMethod kotlinx/io/Source.require:(J)V
+        13: iconst_0
+        14: istore_1
+        15: lconst_0
+        16: lstore        31
+        18: lconst_0
+        19: lstore        33
+        21: ldc2_w        #55                 // long -7l
+        24: lstore        33
+        26: aload_0
+        27: invokeinterface #60,  1           // InterfaceMethod kotlinx/io/Source.getBuffer:()Lkotlinx/io/Buffer;
+        32: lconst_0
+        33: invokevirtual #66                 // Method kotlinx/io/Buffer.get:(J)B
+        36: istore_2
+        37: iload_2
+        38: bipush        45
+        40: if_icmpne     138
+        43: iconst_1
+        44: istore_1
+        45: lload         33
+        47: lstore_3
+        48: lload_3
+        49: ldc2_w        #67                 // long -1l
+        52: ladd
+        53: lstore        33
+        55: aload_0
+        56: ldc2_w        #69                 // long 2l
+        59: invokeinterface #54,  3           // InterfaceMethod kotlinx/io/Source.require:(J)V
+        64: aload_0
+        65: invokeinterface #60,  1           // InterfaceMethod kotlinx/io/Source.getBuffer:()Lkotlinx/io/Buffer;
+        70: lconst_1
+        71: invokevirtual #66                 // Method kotlinx/io/Buffer.get:(J)B
+        74: istore_3
+        75: bipush        48
+        77: iload_3
+        78: if_icmpgt     95
+        81: iload_3
+        82: bipush        58
+        84: if_icmpge     91
+        87: iconst_1
+        88: goto          96
+        91: iconst_0
+        92: goto          96
+        95: iconst_0
+        96: ifne          204
+        99: new           #72                 // class java/lang/NumberFormatException
+       102: dup
+       103: new           #74                 // class java/lang/StringBuilder
+       106: dup
+       107: invokespecial #78                 // Method java/lang/StringBuilder."<init>":()V
+       110: ldc           #80                 // String Expected a digit but was 0x
+       112: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+       115: aload_0
+       116: invokeinterface #60,  1           // InterfaceMethod kotlinx/io/Source.getBuffer:()Lkotlinx/io/Buffer;
+       121: lconst_1
+       122: invokevirtual #66                 // Method kotlinx/io/Buffer.get:(J)B
+       125: invokestatic  #90                 // Method kotlinx/io/_UtilKt.toHexString:(B)Ljava/lang/String;
+       128: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+       131: invokevirtual #94                 // Method java/lang/StringBuilder.toString:()Ljava/lang/String;
+       134: invokespecial #97                 // Method java/lang/NumberFormatException."<init>":(Ljava/lang/String;)V
+       137: athrow
+       138: iload_2
+       139: istore_3
+       140: bipush        48
+       142: iload_3
+       143: if_icmpgt     160
+       146: iload_3
+       147: bipush        58
+       149: if_icmpge     156
+       152: iconst_1
+       153: goto          161
+       156: iconst_0
+       157: goto          161
+       160: iconst_0
+       161: ifeq          174
+       164: bipush        48
+       166: iload_2
+       167: isub
+       168: i2l
+       169: lstore        31
+       171: goto          204
+       174: new           #72                 // class java/lang/NumberFormatException
+       177: dup
+       178: new           #74                 // class java/lang/StringBuilder
+       181: dup
+       182: invokespecial #78                 // Method java/lang/StringBuilder."<init>":()V
+       185: ldc           #99                 // String Expected a digit or \'-\' but was 0x
+       187: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+       190: iload_2
+       191: invokestatic  #90                 // Method kotlinx/io/_UtilKt.toHexString:(B)Ljava/lang/String;
+       194: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+       197: invokevirtual #94                 // Method java/lang/StringBuilder.toString:()Ljava/lang/String;
+       200: invokespecial #97                 // Method java/lang/NumberFormatException."<init>":(Ljava/lang/String;)V
+       203: athrow
+       204: lconst_0
+       205: lstore        35
+       207: lconst_1
+       208: lstore        35
+       210: aload_0
+       211: lload         35
+       213: lconst_1
+       214: ladd
+       215: invokeinterface #103,  3          // InterfaceMethod kotlinx/io/Source.request:(J)Z
+       220: ifeq          1057
+       223: aload_0
+       224: invokeinterface #60,  1           // InterfaceMethod kotlinx/io/Source.getBuffer:()Lkotlinx/io/Buffer;
+       229: astore        4
+       231: lload         35
+       233: lstore        5
+       235: iconst_0
+       236: istore        7
+       238: aload         4
+       240: invokevirtual #107                // Method kotlinx/io/Buffer.getHead:()Lkotlinx/io/Segment;
+       243: ifnonnull     471
+       246: aconst_null
+       247: ldc2_w        #67                 // long -1l
+       250: lstore        8
+       252: astore        10
+       254: iconst_0
+       255: istore        11
+       257: aload         10
+       259: dup
+       260: invokestatic  #111                // Method kotlin/jvm/internal/Intrinsics.checkNotNull:(Ljava/lang/Object;)V
+       263: pop
+       264: lload         35
+       266: lload         8
+       268: lsub
+       269: l2i
+       270: istore        12
+       272: aload         10
+       274: invokevirtual #116                // Method kotlinx/io/Segment.getSize:()I
+       277: istore        13
+       279: iload         12
+       281: iload         13
+       283: if_icmpge     467
+       286: aload         10
+       288: iload         12
+       290: invokevirtual #120                // Method kotlinx/io/Segment.getUnchecked$kotlinx_io_core:(I)B
+       293: istore        14
+       295: iload         14
+       297: istore        15
+       299: bipush        48
+       301: iload         15
+       303: if_icmpgt     321
+       306: iload         15
+       308: bipush        58
+       310: if_icmpge     317
+       313: iconst_1
+       314: goto          322
+       317: iconst_0
+       318: goto          322
+       321: iconst_0
+       322: ifeq          459
+       325: bipush        48
+       327: iload         14
+       329: isub
+       330: istore        15
+       332: lload         31
+       334: ldc2_w        #121                // long -922337203685477580l
+       337: lcmp
+       338: iflt          359
+       341: lload         31
+       343: ldc2_w        #121                // long -922337203685477580l
+       346: lcmp
+       347: ifne          429
+       350: iload         15
+       352: i2l
+       353: lload         33
+       355: lcmp
+       356: ifge          429
+       359: new           #62                 // class kotlinx/io/Buffer
+       362: dup
+       363: invokespecial #123                // Method kotlinx/io/Buffer."<init>":()V
+       366: astore        16
+       368: iconst_0
+       369: istore        17
+       371: aload         16
+       373: checkcast     #125                // class kotlinx/io/Sink
+       376: lload         31
+       378: invokestatic  #131                // Method kotlinx/io/SinksKt.writeDecimalLong:(Lkotlinx/io/Sink;J)V
+       381: aload         16
+       383: iload         14
+       385: invokevirtual #135                // Method kotlinx/io/Buffer.writeByte:(B)V
+       388: iload_1
+       389: ifne          398
+       392: aload         16
+       394: invokevirtual #139                // Method kotlinx/io/Buffer.readByte:()B
+       397: pop
+       398: new           #72                 // class java/lang/NumberFormatException
+       401: dup
+       402: new           #74                 // class java/lang/StringBuilder
+       405: dup
+       406: invokespecial #78                 // Method java/lang/StringBuilder."<init>":()V
+       409: ldc           #141                // String Number too large:
+       411: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+       414: aload         16
+       416: invokestatic  #147                // Method kotlinx/io/Utf8Kt.readString:(Lkotlinx/io/Buffer;)Ljava/lang/String;
+       419: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+       422: invokevirtual #94                 // Method java/lang/StringBuilder.toString:()Ljava/lang/String;
+       425: invokespecial #97                 // Method java/lang/NumberFormatException."<init>":(Ljava/lang/String;)V
+       428: athrow
+       429: lload         31
+       431: ldc2_w        #148                // long 10l
+       434: lmul
+       435: iload         15
+       437: i2l
+       438: ladd
+       439: lstore        31
+       441: iinc          12, 1
+       444: lload         35
+       446: lstore        18
+       448: lload         18
+       450: lconst_1
+       451: ladd
+       452: lstore        35
+       454: lload         18
+       456: goto          463
+       459: iconst_1
+       460: goto          468
+       463: pop2
+       464: goto          279
+       467: iconst_0
+       468: goto          1049
+       471: aload         4
+       473: invokevirtual #151                // Method kotlinx/io/Buffer.getSize:()J
+       476: lload         5
+       478: lsub
+       479: lload         5
+       481: lcmp
+       482: ifge          772
+       485: aload         4
+       487: invokevirtual #154                // Method kotlinx/io/Buffer.getTail:()Lkotlinx/io/Segment;
+       490: astore        20
+       492: aload         4
+       494: invokevirtual #151                // Method kotlinx/io/Buffer.getSize:()J
+       497: lstore        21
+       499: aload         20
+       501: ifnull        547
+       504: lload         21
+       506: lload         5
+       508: lcmp
+       509: ifle          547
+       512: lload         21
+       514: aload         20
+       516: invokevirtual #157                // Method kotlinx/io/Segment.getLimit:()I
+       519: aload         20
+       521: invokevirtual #160                // Method kotlinx/io/Segment.getPos:()I
+       524: isub
+       525: i2l
+       526: lsub
+       527: lstore        21
+       529: lload         21
+       531: lload         5
+       533: lcmp
+       534: ifle          547
+       537: aload         20
+       539: invokevirtual #163                // Method kotlinx/io/Segment.getPrev:()Lkotlinx/io/Segment;
+       542: astore        20
+       544: goto          499
+       547: aload         20
+       549: lload         21
+       551: lstore        8
+       553: astore        10
+       555: iconst_0
+       556: istore        11
+       558: aload         10
+       560: dup
+       561: invokestatic  #111                // Method kotlin/jvm/internal/Intrinsics.checkNotNull:(Ljava/lang/Object;)V
+       564: pop
+       565: lload         35
+       567: lload         8
+       569: lsub
+       570: l2i
+       571: istore        12
+       573: aload         10
+       575: invokevirtual #116                // Method kotlinx/io/Segment.getSize:()I
+       578: istore        13
+       580: iload         12
+       582: iload         13
+       584: if_icmpge     768
+       587: aload         10
+       589: iload         12
+       591: invokevirtual #120                // Method kotlinx/io/Segment.getUnchecked$kotlinx_io_core:(I)B
+       594: istore        14
+       596: iload         14
+       598: istore        15
+       600: bipush        48
+       602: iload         15
+       604: if_icmpgt     622
+       607: iload         15
+       609: bipush        58
+       611: if_icmpge     618
+       614: iconst_1
+       615: goto          623
+       618: iconst_0
+       619: goto          623
+       622: iconst_0
+       623: ifeq          760
+       626: bipush        48
+       628: iload         14
+       630: isub
+       631: istore        15
+       633: lload         31
+       635: ldc2_w        #121                // long -922337203685477580l
+       638: lcmp
+       639: iflt          660
+       642: lload         31
+       644: ldc2_w        #121                // long -922337203685477580l
+       647: lcmp
+       648: ifne          730
+       651: iload         15
+       653: i2l
+       654: lload         33
+       656: lcmp
+       657: ifge          730
+       660: new           #62                 // class kotlinx/io/Buffer
+       663: dup
+       664: invokespecial #123                // Method kotlinx/io/Buffer."<init>":()V
+       667: astore        16
+       669: iconst_0
+       670: istore        17
+       672: aload         16
+       674: checkcast     #125                // class kotlinx/io/Sink
+       677: lload         31
+       679: invokestatic  #131                // Method kotlinx/io/SinksKt.writeDecimalLong:(Lkotlinx/io/Sink;J)V
+       682: aload         16
+       684: iload         14
+       686: invokevirtual #135                // Method kotlinx/io/Buffer.writeByte:(B)V
+       689: iload_1
+       690: ifne          699
+       693: aload         16
+       695: invokevirtual #139                // Method kotlinx/io/Buffer.readByte:()B
+       698: pop
+       699: new           #72                 // class java/lang/NumberFormatException
+       702: dup
+       703: new           #74                 // class java/lang/StringBuilder
+       706: dup
+       707: invokespecial #78                 // Method java/lang/StringBuilder."<init>":()V
+       710: ldc           #141                // String Number too large:
+       712: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+       715: aload         16
+       717: invokestatic  #147                // Method kotlinx/io/Utf8Kt.readString:(Lkotlinx/io/Buffer;)Ljava/lang/String;
+       720: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+       723: invokevirtual #94                 // Method java/lang/StringBuilder.toString:()Ljava/lang/String;
+       726: invokespecial #97                 // Method java/lang/NumberFormatException."<init>":(Ljava/lang/String;)V
+       729: athrow
+       730: lload         31
+       732: ldc2_w        #148                // long 10l
+       735: lmul
+       736: iload         15
+       738: i2l
+       739: ladd
+       740: lstore        31
+       742: iinc          12, 1
+       745: lload         35
+       747: lstore        18
+       749: lload         18
+       751: lconst_1
+       752: ladd
+       753: lstore        35
+       755: lload         18
+       757: goto          764
+       760: iconst_1
+       761: goto          769
+       764: pop2
+       765: goto          580
+       768: iconst_0
+       769: goto          1049
+       772: aload         4
+       774: invokevirtual #107                // Method kotlinx/io/Buffer.getHead:()Lkotlinx/io/Segment;
+       777: astore        20
+       779: lconst_0
+       780: lstore        21
+       782: aload         20
+       784: ifnull        826
+       787: lload         21
+       789: aload         20
+       791: invokevirtual #157                // Method kotlinx/io/Segment.getLimit:()I
+       794: aload         20
+       796: invokevirtual #160                // Method kotlinx/io/Segment.getPos:()I
+       799: isub
+       800: i2l
+       801: ladd
+       802: lstore        23
+       804: lload         23
+       806: lload         5
+       808: lcmp
+       809: ifgt          826
+       812: aload         20
+       814: invokevirtual #166                // Method kotlinx/io/Segment.getNext:()Lkotlinx/io/Segment;
+       817: astore        20
+       819: lload         23
+       821: lstore        21
+       823: goto          782
+       826: aload         20
+       828: lload         21
+       830: lstore        25
+       832: astore        27
+       834: iconst_0
+       835: istore        12
+       837: aload         27
+       839: dup
+       840: invokestatic  #111                // Method kotlin/jvm/internal/Intrinsics.checkNotNull:(Ljava/lang/Object;)V
+       843: pop
+       844: lload         35
+       846: lload         25
+       848: lsub
+       849: l2i
+       850: istore        13
+       852: aload         27
+       854: invokevirtual #116                // Method kotlinx/io/Segment.getSize:()I
+       857: istore        14
+       859: iload         13
+       861: iload         14
+       863: if_icmpge     1047
+       866: aload         27
+       868: iload         13
+       870: invokevirtual #120                // Method kotlinx/io/Segment.getUnchecked$kotlinx_io_core:(I)B
+       873: istore        15
+       875: iload         15
+       877: istore        16
+       879: bipush        48
+       881: iload         16
+       883: if_icmpgt     901
+       886: iload         16
+       888: bipush        58
+       890: if_icmpge     897
+       893: iconst_1
+       894: goto          902
+       897: iconst_0
+       898: goto          902
+       901: iconst_0
+       902: ifeq          1039
+       905: bipush        48
+       907: iload         15
+       909: isub
+       910: istore        16
+       912: lload         31
+       914: ldc2_w        #121                // long -922337203685477580l
+       917: lcmp
+       918: iflt          939
+       921: lload         31
+       923: ldc2_w        #121                // long -922337203685477580l
+       926: lcmp
+       927: ifne          1009
+       930: iload         16
+       932: i2l
+       933: lload         33
+       935: lcmp
+       936: ifge          1009
+       939: new           #62                 // class kotlinx/io/Buffer
+       942: dup
+       943: invokespecial #123                // Method kotlinx/io/Buffer."<init>":()V
+       946: astore        17
+       948: iconst_0
+       949: istore        28
+       951: aload         17
+       953: checkcast     #125                // class kotlinx/io/Sink
+       956: lload         31
+       958: invokestatic  #131                // Method kotlinx/io/SinksKt.writeDecimalLong:(Lkotlinx/io/Sink;J)V
+       961: aload         17
+       963: iload         15
+       965: invokevirtual #135                // Method kotlinx/io/Buffer.writeByte:(B)V
+       968: iload_1
+       969: ifne          978
+       972: aload         17
+       974: invokevirtual #139                // Method kotlinx/io/Buffer.readByte:()B
+       977: pop
+       978: new           #72                 // class java/lang/NumberFormatException
+       981: dup
+       982: new           #74                 // class java/lang/StringBuilder
+       985: dup
+       986: invokespecial #78                 // Method java/lang/StringBuilder."<init>":()V
+       989: ldc           #141                // String Number too large:
+       991: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+       994: aload         17
+       996: invokestatic  #147                // Method kotlinx/io/Utf8Kt.readString:(Lkotlinx/io/Buffer;)Ljava/lang/String;
+       999: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+      1002: invokevirtual #94                 // Method java/lang/StringBuilder.toString:()Ljava/lang/String;
+      1005: invokespecial #97                 // Method java/lang/NumberFormatException."<init>":(Ljava/lang/String;)V
+      1008: athrow
+      1009: lload         31
+      1011: ldc2_w        #148                // long 10l
+      1014: lmul
+      1015: iload         16
+      1017: i2l
+      1018: ladd
+      1019: lstore        31
+      1021: iinc          13, 1
+      1024: lload         35
+      1026: lstore        29
+      1028: lload         29
+      1030: lconst_1
+      1031: ladd
+      1032: lstore        35
+      1034: lload         29
+      1036: goto          1043
+      1039: iconst_1
+      1040: goto          1048
+      1043: pop2
+      1044: goto          859
+      1047: iconst_0
+      1048: nop
+      1049: istore_3
+      1050: iload_3
+      1051: ifeq          210
+      1054: goto          1057
+      1057: aload_0
+      1058: lload         35
+      1060: invokeinterface #169,  3          // InterfaceMethod kotlinx/io/Source.skip:(J)V
+      1065: iload_1
+      1066: ifeq          1074
+      1069: lload         31
+      1071: goto          1077
+      1074: lload         31
+      1076: lneg
+      1077: lreturn
+      StackMapTable: number_of_entries = 53
+        frame_type = 255 /* full_frame */
+          offset_delta = 91
+          locals = [ class kotlinx/io/Source, int, int, int, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, long, long ]
+          stack = []
+        frame_type = 3 /* same */
+        frame_type = 64 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 255 /* full_frame */
+          offset_delta = 41
+          locals = [ class kotlinx/io/Source, int, int, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, long, long ]
+          stack = []
+        frame_type = 255 /* full_frame */
+          offset_delta = 17
+          locals = [ class kotlinx/io/Source, int, int, int, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, long, long ]
+          stack = []
+        frame_type = 3 /* same */
+        frame_type = 64 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 12 /* same */
+        frame_type = 29 /* same */
+        frame_type = 252 /* append */
+          offset_delta = 5
+          locals = [ long ]
+        frame_type = 255 /* full_frame */
+          offset_delta = 68
+          locals = [ class kotlinx/io/Source, int, int, int, class kotlinx/io/Buffer, long, int, long, null, int, int, int, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, long, long, long ]
+          stack = []
+        frame_type = 255 /* full_frame */
+          offset_delta = 37
+          locals = [ class kotlinx/io/Source, int, int, int, class kotlinx/io/Buffer, long, int, long, null, int, int, int, int, int, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, long, long, long ]
+          stack = []
+        frame_type = 3 /* same */
+        frame_type = 64 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 36 /* same */
+        frame_type = 255 /* full_frame */
+          offset_delta = 38
+          locals = [ class kotlinx/io/Source, int, int, int, class kotlinx/io/Buffer, long, int, long, null, int, int, int, int, int, class kotlinx/io/Buffer, int, top, top, top, top, top, top, top, top, top, top, top, top, top, long, long, long ]
+          stack = []
+        frame_type = 255 /* full_frame */
+          offset_delta = 30
+          locals = [ class kotlinx/io/Source, int, int, int, class kotlinx/io/Buffer, long, int, long, null, int, int, int, int, int, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, long, long, long ]
+          stack = []
+        frame_type = 29 /* same */
+        frame_type = 255 /* full_frame */
+          offset_delta = 3
+          locals = [ class kotlinx/io/Source, int, int, int, class kotlinx/io/Buffer, long, int, long, null, int, int, int, int, int, top, top, long, top, top, top, top, top, top, top, top, top, top, top, long, long, long ]
+          stack = [ long ]
+        frame_type = 255 /* full_frame */
+          offset_delta = 3
+          locals = [ class kotlinx/io/Source, int, int, int, class kotlinx/io/Buffer, long, int, long, null, int, int, int, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, long, long, long ]
+          stack = []
+        frame_type = 64 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 255 /* full_frame */
+          offset_delta = 2
+          locals = [ class kotlinx/io/Source, int, int, int, class kotlinx/io/Buffer, long, int, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, long, long, long ]
+          stack = []
+        frame_type = 255 /* full_frame */
+          offset_delta = 27
+          locals = [ class kotlinx/io/Source, int, int, int, class kotlinx/io/Buffer, long, int, top, top, top, top, top, top, top, top, top, top, top, top, class kotlinx/io/Segment, long, top, top, top, top, top, top, top, top, long, long, long ]
+          stack = []
+        frame_type = 47 /* same */
+        frame_type = 255 /* full_frame */
+          offset_delta = 32
+          locals = [ class kotlinx/io/Source, int, int, int, class kotlinx/io/Buffer, long, int, long, class kotlinx/io/Segment, int, int, int, top, top, top, top, top, top, class kotlinx/io/Segment, long, top, top, top, top, top, top, top, top, long, long, long ]
+          stack = []
+        frame_type = 255 /* full_frame */
+          offset_delta = 37
+          locals = [ class kotlinx/io/Source, int, int, int, class kotlinx/io/Buffer, long, int, long, class kotlinx/io/Segment, int, int, int, int, int, top, top, top, top, class kotlinx/io/Segment, long, top, top, top, top, top, top, top, top, long, long, long ]
+          stack = []
+        frame_type = 3 /* same */
+        frame_type = 64 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 36 /* same */
+        frame_type = 255 /* full_frame */
+          offset_delta = 38
+          locals = [ class kotlinx/io/Source, int, int, int, class kotlinx/io/Buffer, long, int, long, class kotlinx/io/Segment, int, int, int, int, int, class kotlinx/io/Buffer, int, top, top, class kotlinx/io/Segment, long, top, top, top, top, top, top, top, top, long, long, long ]
+          stack = []
+        frame_type = 255 /* full_frame */
+          offset_delta = 30
+          locals = [ class kotlinx/io/Source, int, int, int, class kotlinx/io/Buffer, long, int, long, class kotlinx/io/Segment, int, int, int, int, int, top, top, top, top, class kotlinx/io/Segment, long, top, top, top, top, top, top, top, top, long, long, long ]
+          stack = []
+        frame_type = 29 /* same */
+        frame_type = 255 /* full_frame */
+          offset_delta = 3
+          locals = [ class kotlinx/io/Source, int, int, int, class kotlinx/io/Buffer, long, int, long, class kotlinx/io/Segment, int, int, int, int, int, top, top, long, class kotlinx/io/Segment, long, top, top, top, top, top, top, top, top, long, long, long ]
+          stack = [ long ]
+        frame_type = 255 /* full_frame */
+          offset_delta = 3
+          locals = [ class kotlinx/io/Source, int, int, int, class kotlinx/io/Buffer, long, int, long, class kotlinx/io/Segment, int, int, int, top, top, top, top, top, top, class kotlinx/io/Segment, long, top, top, top, top, top, top, top, top, long, long, long ]
+          stack = []
+        frame_type = 64 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 255 /* full_frame */
+          offset_delta = 2
+          locals = [ class kotlinx/io/Source, int, int, int, class kotlinx/io/Buffer, long, int, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, long, long, long ]
+          stack = []
+        frame_type = 255 /* full_frame */
+          offset_delta = 9
+          locals = [ class kotlinx/io/Source, int, int, int, class kotlinx/io/Buffer, long, int, top, top, top, top, top, top, top, top, top, top, top, top, class kotlinx/io/Segment, long, top, top, top, top, top, top, top, top, long, long, long ]
+          stack = []
+        frame_type = 43 /* same */
+        frame_type = 255 /* full_frame */
+          offset_delta = 32
+          locals = [ class kotlinx/io/Source, int, int, int, class kotlinx/io/Buffer, long, int, top, top, top, top, int, int, int, top, top, top, top, top, class kotlinx/io/Segment, long, top, top, long, class kotlinx/io/Segment, top, top, top, long, long, long ]
+          stack = []
+        frame_type = 255 /* full_frame */
+          offset_delta = 37
+          locals = [ class kotlinx/io/Source, int, int, int, class kotlinx/io/Buffer, long, int, top, top, top, top, int, int, int, int, int, top, top, top, class kotlinx/io/Segment, long, top, top, long, class kotlinx/io/Segment, top, top, top, long, long, long ]
+          stack = []
+        frame_type = 3 /* same */
+        frame_type = 64 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 36 /* same */
+        frame_type = 255 /* full_frame */
+          offset_delta = 38
+          locals = [ class kotlinx/io/Source, int, int, int, class kotlinx/io/Buffer, long, int, top, top, top, top, int, int, int, int, int, class kotlinx/io/Buffer, top, top, class kotlinx/io/Segment, long, top, top, long, class kotlinx/io/Segment, int, top, top, long, long, long ]
+          stack = []
+        frame_type = 255 /* full_frame */
+          offset_delta = 30
+          locals = [ class kotlinx/io/Source, int, int, int, class kotlinx/io/Buffer, long, int, top, top, top, top, int, int, int, int, int, top, top, top, class kotlinx/io/Segment, long, top, top, long, class kotlinx/io/Segment, top, top, top, long, long, long ]
+          stack = []
+        frame_type = 29 /* same */
+        frame_type = 255 /* full_frame */
+          offset_delta = 3
+          locals = [ class kotlinx/io/Source, int, int, int, class kotlinx/io/Buffer, long, int, top, top, top, top, int, int, int, int, int, top, top, top, class kotlinx/io/Segment, long, top, top, long, class kotlinx/io/Segment, top, long, long, long, long ]
+          stack = [ long ]
+        frame_type = 255 /* full_frame */
+          offset_delta = 3
+          locals = [ class kotlinx/io/Source, int, int, int, class kotlinx/io/Buffer, long, int, top, top, top, top, int, int, int, top, top, top, top, top, class kotlinx/io/Segment, long, top, top, long, class kotlinx/io/Segment, top, top, top, long, long, long ]
+          stack = []
+        frame_type = 64 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 255 /* full_frame */
+          offset_delta = 0
+          locals = [ class kotlinx/io/Source, int, int, int, class kotlinx/io/Buffer, long, int, top, top, top, top, int, int, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, long, long, long ]
+          stack = [ int ]
+        frame_type = 255 /* full_frame */
+          offset_delta = 7
+          locals = [ class kotlinx/io/Source, int, int, int, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, long, long, long ]
+          stack = []
+        frame_type = 16 /* same */
+        frame_type = 66 /* same_locals_1_stack_item */
+          stack = [ long ]
+      LineNumberTable:
+        line 67: 6
+        line 69: 13
+        line 70: 15
+        line 71: 18
+        line 73: 26
+        line 74: 37
+        line 75: 43
+        line 76: 45
+        line 77: 55
+        line 78: 64
+        line 79: 99
+        line 83: 138
+        line 84: 164
+        line 88: 174
+        line 92: 204
+        line 93: 210
+        line 94: 223
+        line 468: 238
+        line 469: 246
+        line 95: 257
+        line 96: 264
+        line 97: 272
+        line 98: 279
+        line 99: 286
+        line 100: 295
+        line 101: 325
+        line 104: 332
+        line 105: 359
+        line 106: 371
+        line 107: 381
+        line 109: 388
+        line 110: 392
+        line 112: 398
+        line 115: 429
+        line 116: 441
+        line 117: 444
+        line 119: 459
+        line 122: 467
+        line 469: 468
+        line 472: 471
+        line 473: 485
+        line 475: 492
+        line 476: 499
+        line 477: 512
+        line 478: 529
+        line 479: 537
+        line 481: 547
+        line 95: 558
+        line 96: 565
+        line 97: 573
+        line 98: 580
+        line 99: 587
+        line 100: 596
+        line 101: 626
+        line 104: 633
+        line 105: 660
+        line 106: 672
+        line 107: 682
+        line 109: 689
+        line 110: 693
+        line 112: 699
+        line 115: 730
+        line 116: 742
+        line 117: 745
+        line 119: 760
+        line 122: 768
+        line 481: 769
+        line 483: 772
+        line 485: 779
+        line 486: 782
+        line 487: 787
+        line 488: 804
+        line 489: 812
+        line 490: 819
+        line 492: 826
+        line 95: 837
+        line 96: 844
+        line 97: 852
+        line 98: 859
+        line 99: 866
+        line 100: 875
+        line 101: 905
+        line 104: 912
+        line 105: 939
+        line 106: 951
+        line 107: 961
+        line 109: 968
+        line 110: 972
+        line 112: 978
+        line 115: 1009
+        line 116: 1021
+        line 117: 1024
+        line 119: 1039
+        line 122: 1047
+        line 492: 1048
+        line 94: 1049
+        line 124: 1050
+        line 126: 1057
+        line 128: 1065
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+           37     167     2     b   B
+          371      58    17 $i$a$-with-SourcesKt$readDecimalLong$finished$1$1   I
+          368      61    16 $this$readDecimalLong_u24lambda_u240_u240   Lkotlinx/io/Buffer;
+          332     124    15 digit   I
+          295     169    14     b   B
+          257     211    11 $i$a$-seek-SourcesKt$readDecimalLong$finished$1   I
+          272     196    12 currIdx   I
+          279     189    13  size   I
+          254     214    10   seg   Lkotlinx/io/Segment;
+          254     214     8 offset   J
+          672      58    17 $i$a$-with-SourcesKt$readDecimalLong$finished$1$1   I
+          669      61    16 $this$readDecimalLong_u24lambda_u240_u240   Lkotlinx/io/Buffer;
+          633     124    15 digit   I
+          596     169    14     b   B
+          558     211    11 $i$a$-seek-SourcesKt$readDecimalLong$finished$1   I
+          573     196    12 currIdx   I
+          580     189    13  size   I
+          555     214    10   seg   Lkotlinx/io/Segment;
+          555     214     8 offset   J
+          951      58    28 $i$a$-with-SourcesKt$readDecimalLong$finished$1$1   I
+          948      61    17 $this$readDecimalLong_u24lambda_u240_u240   Lkotlinx/io/Buffer;
+          912     124    16 digit   I
+          875     169    15     b   B
+          837     211    12 $i$a$-seek-SourcesKt$readDecimalLong$finished$1   I
+          852     196    13 currIdx   I
+          859     189    14  size   I
+          834     214    27   seg   Lkotlinx/io/Segment;
+          834     214    25 offset   J
+          492     280    20  s$iv   Lkotlinx/io/Segment;
+          499     273    21 offset$iv   J
+          804      19    23 nextOffset$iv   J
+          779     270    20  s$iv   Lkotlinx/io/Segment;
+          782     267    21 offset$iv   J
+          238     811     7 $i$f$seek   I
+          235     814     4 $this$seek$iv   Lkotlinx/io/Buffer;
+          235     814     5 fromIndex$iv   J
+         1050       7     3 finished   Z
+           15    1063     1 negative   Z
+           18    1060    31 value   J
+           21    1057    33 overflowDigit   J
+          207     871    35 bufferOffset   J
+            0    1078     0 $this$readDecimalLong   Lkotlinx/io/Source;
+    RuntimeInvisibleParameterAnnotations:
+      parameter 0:
+        0: #7()
+          org.jetbrains.annotations.NotNull
+
+  public static final long readHexadecimalUnsignedLong(kotlinx.io.Source);
+    descriptor: (Lkotlinx/io/Source;)J
+    flags: (0x0019) ACC_PUBLIC, ACC_STATIC, ACC_FINAL
+    Code:
+      stack=5, locals=34, args_size=1
+         0: aload_0
+         1: ldc           #9                  // String <this>
+         3: invokestatic  #15                 // Method kotlin/jvm/internal/Intrinsics.checkNotNullParameter:(Ljava/lang/Object;Ljava/lang/String;)V
+         6: aload_0
+         7: lconst_1
+         8: invokeinterface #54,  3           // InterfaceMethod kotlinx/io/Source.require:(J)V
+        13: lconst_0
+        14: lstore        30
+        16: aload_0
+        17: invokeinterface #60,  1           // InterfaceMethod kotlinx/io/Source.getBuffer:()Lkotlinx/io/Buffer;
+        22: lconst_0
+        23: invokevirtual #66                 // Method kotlinx/io/Buffer.get:(J)B
+        26: istore_1
+        27: iload_1
+        28: istore_2
+        29: bipush        48
+        31: iload_2
+        32: if_icmpgt     49
+        35: iload_2
+        36: bipush        58
+        38: if_icmpge     45
+        41: iconst_1
+        42: goto          50
+        45: iconst_0
+        46: goto          50
+        49: iconst_0
+        50: ifeq          60
+        53: iload_1
+        54: bipush        48
+        56: isub
+        57: goto          162
+        60: iload_1
+        61: istore_2
+        62: bipush        97
+        64: iload_2
+        65: if_icmpgt     82
+        68: iload_2
+        69: bipush        103
+        71: if_icmpge     78
+        74: iconst_1
+        75: goto          83
+        78: iconst_0
+        79: goto          83
+        82: iconst_0
+        83: ifeq          96
+        86: iload_1
+        87: bipush        97
+        89: isub
+        90: bipush        10
+        92: iadd
+        93: goto          162
+        96: iload_1
+        97: istore_2
+        98: bipush        65
+       100: iload_2
+       101: if_icmpgt     118
+       104: iload_2
+       105: bipush        71
+       107: if_icmpge     114
+       110: iconst_1
+       111: goto          119
+       114: iconst_0
+       115: goto          119
+       118: iconst_0
+       119: ifeq          132
+       122: iload_1
+       123: bipush        65
+       125: isub
+       126: bipush        10
+       128: iadd
+       129: goto          162
+       132: new           #72                 // class java/lang/NumberFormatException
+       135: dup
+       136: new           #74                 // class java/lang/StringBuilder
+       139: dup
+       140: invokespecial #78                 // Method java/lang/StringBuilder."<init>":()V
+       143: ldc           #199                // String Expected leading [0-9a-fA-F] character but was 0x
+       145: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+       148: iload_1
+       149: invokestatic  #90                 // Method kotlinx/io/_UtilKt.toHexString:(B)Ljava/lang/String;
+       152: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+       155: invokevirtual #94                 // Method java/lang/StringBuilder.toString:()Ljava/lang/String;
+       158: invokespecial #97                 // Method java/lang/NumberFormatException."<init>":(Ljava/lang/String;)V
+       161: athrow
+       162: i2l
+       163: lstore        30
+       165: lconst_0
+       166: lstore        32
+       168: lconst_1
+       169: lstore        32
+       171: aload_0
+       172: lload         32
+       174: lconst_1
+       175: ladd
+       176: invokeinterface #103,  3          // InterfaceMethod kotlinx/io/Source.request:(J)Z
+       181: ifeq          1177
+       184: aload_0
+       185: invokeinterface #60,  1           // InterfaceMethod kotlinx/io/Source.getBuffer:()Lkotlinx/io/Buffer;
+       190: astore_3
+       191: lload         32
+       193: lstore        4
+       195: iconst_0
+       196: istore        6
+       198: aload_3
+       199: invokevirtual #107                // Method kotlinx/io/Buffer.getHead:()Lkotlinx/io/Segment;
+       202: ifnonnull     485
+       205: aconst_null
+       206: ldc2_w        #67                 // long -1l
+       209: lstore        7
+       211: astore        9
+       213: iconst_0
+       214: istore        10
+       216: aload         9
+       218: dup
+       219: invokestatic  #111                // Method kotlin/jvm/internal/Intrinsics.checkNotNull:(Ljava/lang/Object;)V
+       222: pop
+       223: lload         32
+       225: lload         7
+       227: lsub
+       228: l2i
+       229: istore        11
+       231: iload         11
+       233: istore        12
+       235: aload         9
+       237: invokevirtual #116                // Method kotlinx/io/Segment.getSize:()I
+       240: istore        13
+       242: iload         12
+       244: iload         13
+       246: if_icmpge     481
+       249: aload         9
+       251: iload         12
+       253: invokevirtual #120                // Method kotlinx/io/Segment.getUnchecked$kotlinx_io_core:(I)B
+       256: istore        14
+       258: iload         14
+       260: istore        15
+       262: iload         15
+       264: istore        16
+       266: bipush        48
+       268: iload         16
+       270: if_icmpgt     288
+       273: iload         16
+       275: bipush        58
+       277: if_icmpge     284
+       280: iconst_1
+       281: goto          289
+       284: iconst_0
+       285: goto          289
+       288: iconst_0
+       289: ifeq          300
+       292: iload         14
+       294: bipush        48
+       296: isub
+       297: goto          386
+       300: iload         15
+       302: istore        16
+       304: bipush        97
+       306: iload         16
+       308: if_icmpgt     326
+       311: iload         16
+       313: bipush        103
+       315: if_icmpge     322
+       318: iconst_1
+       319: goto          327
+       322: iconst_0
+       323: goto          327
+       326: iconst_0
+       327: ifeq          341
+       330: iload         14
+       332: bipush        97
+       334: isub
+       335: bipush        10
+       337: iadd
+       338: goto          386
+       341: iload         15
+       343: istore        16
+       345: bipush        65
+       347: iload         16
+       349: if_icmpgt     367
+       352: iload         16
+       354: bipush        71
+       356: if_icmpge     363
+       359: iconst_1
+       360: goto          368
+       363: iconst_0
+       364: goto          368
+       367: iconst_0
+       368: ifeq          382
+       371: iload         14
+       373: bipush        65
+       375: isub
+       376: bipush        10
+       378: iadd
+       379: goto          386
+       382: iconst_1
+       383: goto          482
+       386: istore        17
+       388: lload         30
+       390: ldc2_w        #200                // long -1152921504606846976l
+       393: land
+       394: lconst_0
+       395: lcmp
+       396: ifeq          459
+       399: new           #62                 // class kotlinx/io/Buffer
+       402: dup
+       403: invokespecial #123                // Method kotlinx/io/Buffer."<init>":()V
+       406: astore        16
+       408: iconst_0
+       409: istore        18
+       411: aload         16
+       413: checkcast     #125                // class kotlinx/io/Sink
+       416: lload         30
+       418: invokestatic  #204                // Method kotlinx/io/SinksKt.writeHexadecimalUnsignedLong:(Lkotlinx/io/Sink;J)V
+       421: aload         16
+       423: iload         14
+       425: invokevirtual #135                // Method kotlinx/io/Buffer.writeByte:(B)V
+       428: new           #72                 // class java/lang/NumberFormatException
+       431: dup
+       432: new           #74                 // class java/lang/StringBuilder
+       435: dup
+       436: invokespecial #78                 // Method java/lang/StringBuilder."<init>":()V
+       439: ldc           #141                // String Number too large:
+       441: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+       444: aload         16
+       446: invokestatic  #147                // Method kotlinx/io/Utf8Kt.readString:(Lkotlinx/io/Buffer;)Ljava/lang/String;
+       449: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+       452: invokevirtual #94                 // Method java/lang/StringBuilder.toString:()Ljava/lang/String;
+       455: invokespecial #97                 // Method java/lang/NumberFormatException."<init>":(Ljava/lang/String;)V
+       458: athrow
+       459: lload         30
+       461: iconst_4
+       462: lshl
+       463: iload         17
+       465: i2l
+       466: ladd
+       467: lstore        30
+       469: lload         32
+       471: lconst_1
+       472: ladd
+       473: lstore        32
+       475: iinc          12, 1
+       478: goto          242
+       481: iconst_0
+       482: goto          1169
+       485: aload_3
+       486: invokevirtual #151                // Method kotlinx/io/Buffer.getSize:()J
+       489: lload         4
+       491: lsub
+       492: lload         4
+       494: lcmp
+       495: ifge          838
+       498: aload_3
+       499: invokevirtual #154                // Method kotlinx/io/Buffer.getTail:()Lkotlinx/io/Segment;
+       502: astore        19
+       504: aload_3
+       505: invokevirtual #151                // Method kotlinx/io/Buffer.getSize:()J
+       508: lstore        20
+       510: aload         19
+       512: ifnull        558
+       515: lload         20
+       517: lload         4
+       519: lcmp
+       520: ifle          558
+       523: lload         20
+       525: aload         19
+       527: invokevirtual #157                // Method kotlinx/io/Segment.getLimit:()I
+       530: aload         19
+       532: invokevirtual #160                // Method kotlinx/io/Segment.getPos:()I
+       535: isub
+       536: i2l
+       537: lsub
+       538: lstore        20
+       540: lload         20
+       542: lload         4
+       544: lcmp
+       545: ifle          558
+       548: aload         19
+       550: invokevirtual #163                // Method kotlinx/io/Segment.getPrev:()Lkotlinx/io/Segment;
+       553: astore        19
+       555: goto          510
+       558: aload         19
+       560: lload         20
+       562: lstore        22
+       564: astore        24
+       566: iconst_0
+       567: istore        11
+       569: aload         24
+       571: dup
+       572: invokestatic  #111                // Method kotlin/jvm/internal/Intrinsics.checkNotNull:(Ljava/lang/Object;)V
+       575: pop
+       576: lload         32
+       578: lload         22
+       580: lsub
+       581: l2i
+       582: istore        12
+       584: iload         12
+       586: istore        13
+       588: aload         24
+       590: invokevirtual #116                // Method kotlinx/io/Segment.getSize:()I
+       593: istore        14
+       595: iload         13
+       597: iload         14
+       599: if_icmpge     834
+       602: aload         24
+       604: iload         13
+       606: invokevirtual #120                // Method kotlinx/io/Segment.getUnchecked$kotlinx_io_core:(I)B
+       609: istore        15
+       611: iload         15
+       613: istore        16
+       615: iload         16
+       617: istore        17
+       619: bipush        48
+       621: iload         17
+       623: if_icmpgt     641
+       626: iload         17
+       628: bipush        58
+       630: if_icmpge     637
+       633: iconst_1
+       634: goto          642
+       637: iconst_0
+       638: goto          642
+       641: iconst_0
+       642: ifeq          653
+       645: iload         15
+       647: bipush        48
+       649: isub
+       650: goto          739
+       653: iload         16
+       655: istore        17
+       657: bipush        97
+       659: iload         17
+       661: if_icmpgt     679
+       664: iload         17
+       666: bipush        103
+       668: if_icmpge     675
+       671: iconst_1
+       672: goto          680
+       675: iconst_0
+       676: goto          680
+       679: iconst_0
+       680: ifeq          694
+       683: iload         15
+       685: bipush        97
+       687: isub
+       688: bipush        10
+       690: iadd
+       691: goto          739
+       694: iload         16
+       696: istore        17
+       698: bipush        65
+       700: iload         17
+       702: if_icmpgt     720
+       705: iload         17
+       707: bipush        71
+       709: if_icmpge     716
+       712: iconst_1
+       713: goto          721
+       716: iconst_0
+       717: goto          721
+       720: iconst_0
+       721: ifeq          735
+       724: iload         15
+       726: bipush        65
+       728: isub
+       729: bipush        10
+       731: iadd
+       732: goto          739
+       735: iconst_1
+       736: goto          835
+       739: istore        18
+       741: lload         30
+       743: ldc2_w        #200                // long -1152921504606846976l
+       746: land
+       747: lconst_0
+       748: lcmp
+       749: ifeq          812
+       752: new           #62                 // class kotlinx/io/Buffer
+       755: dup
+       756: invokespecial #123                // Method kotlinx/io/Buffer."<init>":()V
+       759: astore        17
+       761: iconst_0
+       762: istore        25
+       764: aload         17
+       766: checkcast     #125                // class kotlinx/io/Sink
+       769: lload         30
+       771: invokestatic  #204                // Method kotlinx/io/SinksKt.writeHexadecimalUnsignedLong:(Lkotlinx/io/Sink;J)V
+       774: aload         17
+       776: iload         15
+       778: invokevirtual #135                // Method kotlinx/io/Buffer.writeByte:(B)V
+       781: new           #72                 // class java/lang/NumberFormatException
+       784: dup
+       785: new           #74                 // class java/lang/StringBuilder
+       788: dup
+       789: invokespecial #78                 // Method java/lang/StringBuilder."<init>":()V
+       792: ldc           #141                // String Number too large:
+       794: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+       797: aload         17
+       799: invokestatic  #147                // Method kotlinx/io/Utf8Kt.readString:(Lkotlinx/io/Buffer;)Ljava/lang/String;
+       802: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+       805: invokevirtual #94                 // Method java/lang/StringBuilder.toString:()Ljava/lang/String;
+       808: invokespecial #97                 // Method java/lang/NumberFormatException."<init>":(Ljava/lang/String;)V
+       811: athrow
+       812: lload         30
+       814: iconst_4
+       815: lshl
+       816: iload         18
+       818: i2l
+       819: ladd
+       820: lstore        30
+       822: lload         32
+       824: lconst_1
+       825: ladd
+       826: lstore        32
+       828: iinc          13, 1
+       831: goto          595
+       834: iconst_0
+       835: goto          1169
+       838: aload_3
+       839: invokevirtual #107                // Method kotlinx/io/Buffer.getHead:()Lkotlinx/io/Segment;
+       842: astore        19
+       844: lconst_0
+       845: lstore        20
+       847: aload         19
+       849: ifnull        891
+       852: lload         20
+       854: aload         19
+       856: invokevirtual #157                // Method kotlinx/io/Segment.getLimit:()I
+       859: aload         19
+       861: invokevirtual #160                // Method kotlinx/io/Segment.getPos:()I
+       864: isub
+       865: i2l
+       866: ladd
+       867: lstore        7
+       869: lload         7
+       871: lload         4
+       873: lcmp
+       874: ifgt          891
+       877: aload         19
+       879: invokevirtual #166                // Method kotlinx/io/Segment.getNext:()Lkotlinx/io/Segment;
+       882: astore        19
+       884: lload         7
+       886: lstore        20
+       888: goto          847
+       891: aload         19
+       893: lload         20
+       895: lstore        26
+       897: astore        10
+       899: iconst_0
+       900: istore        13
+       902: aload         10
+       904: dup
+       905: invokestatic  #111                // Method kotlin/jvm/internal/Intrinsics.checkNotNull:(Ljava/lang/Object;)V
+       908: pop
+       909: lload         32
+       911: lload         26
+       913: lsub
+       914: l2i
+       915: istore        14
+       917: iload         14
+       919: istore        15
+       921: aload         10
+       923: invokevirtual #116                // Method kotlinx/io/Segment.getSize:()I
+       926: istore        16
+       928: iload         15
+       930: iload         16
+       932: if_icmpge     1167
+       935: aload         10
+       937: iload         15
+       939: invokevirtual #120                // Method kotlinx/io/Segment.getUnchecked$kotlinx_io_core:(I)B
+       942: istore        17
+       944: iload         17
+       946: istore        18
+       948: iload         18
+       950: istore        25
+       952: bipush        48
+       954: iload         25
+       956: if_icmpgt     974
+       959: iload         25
+       961: bipush        58
+       963: if_icmpge     970
+       966: iconst_1
+       967: goto          975
+       970: iconst_0
+       971: goto          975
+       974: iconst_0
+       975: ifeq          986
+       978: iload         17
+       980: bipush        48
+       982: isub
+       983: goto          1072
+       986: iload         18
+       988: istore        25
+       990: bipush        97
+       992: iload         25
+       994: if_icmpgt     1012
+       997: iload         25
+       999: bipush        103
+      1001: if_icmpge     1008
+      1004: iconst_1
+      1005: goto          1013
+      1008: iconst_0
+      1009: goto          1013
+      1012: iconst_0
+      1013: ifeq          1027
+      1016: iload         17
+      1018: bipush        97
+      1020: isub
+      1021: bipush        10
+      1023: iadd
+      1024: goto          1072
+      1027: iload         18
+      1029: istore        25
+      1031: bipush        65
+      1033: iload         25
+      1035: if_icmpgt     1053
+      1038: iload         25
+      1040: bipush        71
+      1042: if_icmpge     1049
+      1045: iconst_1
+      1046: goto          1054
+      1049: iconst_0
+      1050: goto          1054
+      1053: iconst_0
+      1054: ifeq          1068
+      1057: iload         17
+      1059: bipush        65
+      1061: isub
+      1062: bipush        10
+      1064: iadd
+      1065: goto          1072
+      1068: iconst_1
+      1069: goto          1168
+      1072: istore        28
+      1074: lload         30
+      1076: ldc2_w        #200                // long -1152921504606846976l
+      1079: land
+      1080: lconst_0
+      1081: lcmp
+      1082: ifeq          1145
+      1085: new           #62                 // class kotlinx/io/Buffer
+      1088: dup
+      1089: invokespecial #123                // Method kotlinx/io/Buffer."<init>":()V
+      1092: astore        25
+      1094: iconst_0
+      1095: istore        29
+      1097: aload         25
+      1099: checkcast     #125                // class kotlinx/io/Sink
+      1102: lload         30
+      1104: invokestatic  #204                // Method kotlinx/io/SinksKt.writeHexadecimalUnsignedLong:(Lkotlinx/io/Sink;J)V
+      1107: aload         25
+      1109: iload         17
+      1111: invokevirtual #135                // Method kotlinx/io/Buffer.writeByte:(B)V
+      1114: new           #72                 // class java/lang/NumberFormatException
+      1117: dup
+      1118: new           #74                 // class java/lang/StringBuilder
+      1121: dup
+      1122: invokespecial #78                 // Method java/lang/StringBuilder."<init>":()V
+      1125: ldc           #141                // String Number too large:
+      1127: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+      1130: aload         25
+      1132: invokestatic  #147                // Method kotlinx/io/Utf8Kt.readString:(Lkotlinx/io/Buffer;)Ljava/lang/String;
+      1135: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+      1138: invokevirtual #94                 // Method java/lang/StringBuilder.toString:()Ljava/lang/String;
+      1141: invokespecial #97                 // Method java/lang/NumberFormatException."<init>":(Ljava/lang/String;)V
+      1144: athrow
+      1145: lload         30
+      1147: iconst_4
+      1148: lshl
+      1149: iload         28
+      1151: i2l
+      1152: ladd
+      1153: lstore        30
+      1155: lload         32
+      1157: lconst_1
+      1158: ladd
+      1159: lstore        32
+      1161: iinc          15, 1
+      1164: goto          928
+      1167: iconst_0
+      1168: nop
+      1169: istore_2
+      1170: iload_2
+      1171: ifeq          171
+      1174: goto          1177
+      1177: aload_0
+      1178: lload         32
+      1180: invokeinterface #169,  3          // InterfaceMethod kotlinx/io/Source.skip:(J)V
+      1185: lload         30
+      1187: lreturn
+      StackMapTable: number_of_entries = 73
+        frame_type = 255 /* full_frame */
+          offset_delta = 45
+          locals = [ class kotlinx/io/Source, int, int, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, long ]
+          stack = []
+        frame_type = 3 /* same */
+        frame_type = 64 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 9 /* same */
+        frame_type = 17 /* same */
+        frame_type = 3 /* same */
+        frame_type = 64 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 12 /* same */
+        frame_type = 17 /* same */
+        frame_type = 3 /* same */
+        frame_type = 64 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 12 /* same */
+        frame_type = 93 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 252 /* append */
+          offset_delta = 8
+          locals = [ long ]
+        frame_type = 255 /* full_frame */
+          offset_delta = 70
+          locals = [ class kotlinx/io/Source, int, int, class kotlinx/io/Buffer, long, int, long, null, int, int, int, int, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, long, long ]
+          stack = []
+        frame_type = 255 /* full_frame */
+          offset_delta = 41
+          locals = [ class kotlinx/io/Source, int, int, class kotlinx/io/Buffer, long, int, long, null, int, int, int, int, int, int, int, top, top, top, top, top, top, top, top, top, top, top, top, top, long, long ]
+          stack = []
+        frame_type = 3 /* same */
+        frame_type = 64 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 10 /* same */
+        frame_type = 21 /* same */
+        frame_type = 3 /* same */
+        frame_type = 64 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 13 /* same */
+        frame_type = 21 /* same */
+        frame_type = 3 /* same */
+        frame_type = 64 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 13 /* same */
+        frame_type = 67 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 255 /* full_frame */
+          offset_delta = 72
+          locals = [ class kotlinx/io/Source, int, int, class kotlinx/io/Buffer, long, int, long, null, int, int, int, int, int, int, int, int, top, top, top, top, top, top, top, top, top, top, top, top, long, long ]
+          stack = []
+        frame_type = 255 /* full_frame */
+          offset_delta = 21
+          locals = [ class kotlinx/io/Source, int, int, class kotlinx/io/Buffer, long, int, long, null, int, int, int, int, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, long, long ]
+          stack = []
+        frame_type = 64 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 255 /* full_frame */
+          offset_delta = 2
+          locals = [ class kotlinx/io/Source, int, int, class kotlinx/io/Buffer, long, int, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, long, long ]
+          stack = []
+        frame_type = 255 /* full_frame */
+          offset_delta = 24
+          locals = [ class kotlinx/io/Source, int, int, class kotlinx/io/Buffer, long, int, top, top, top, top, top, top, top, top, top, top, top, top, class kotlinx/io/Segment, long, top, top, top, top, top, top, top, top, long, long ]
+          stack = []
+        frame_type = 47 /* same */
+        frame_type = 255 /* full_frame */
+          offset_delta = 36
+          locals = [ class kotlinx/io/Source, int, int, class kotlinx/io/Buffer, long, int, top, top, top, top, int, int, int, int, top, top, top, top, class kotlinx/io/Segment, long, long, class kotlinx/io/Segment, top, top, top, top, top, long, long ]
+          stack = []
+        frame_type = 255 /* full_frame */
+          offset_delta = 41
+          locals = [ class kotlinx/io/Source, int, int, class kotlinx/io/Buffer, long, int, top, top, top, top, int, int, int, int, int, int, int, top, class kotlinx/io/Segment, long, long, class kotlinx/io/Segment, top, top, top, top, top, long, long ]
+          stack = []
+        frame_type = 3 /* same */
+        frame_type = 64 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 10 /* same */
+        frame_type = 21 /* same */
+        frame_type = 3 /* same */
+        frame_type = 64 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 13 /* same */
+        frame_type = 21 /* same */
+        frame_type = 3 /* same */
+        frame_type = 64 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 13 /* same */
+        frame_type = 67 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 255 /* full_frame */
+          offset_delta = 72
+          locals = [ class kotlinx/io/Source, int, int, class kotlinx/io/Buffer, long, int, top, top, top, top, int, int, int, int, int, int, int, int, class kotlinx/io/Segment, long, long, class kotlinx/io/Segment, top, top, top, top, top, long, long ]
+          stack = []
+        frame_type = 255 /* full_frame */
+          offset_delta = 21
+          locals = [ class kotlinx/io/Source, int, int, class kotlinx/io/Buffer, long, int, top, top, top, top, int, int, int, int, top, top, top, top, class kotlinx/io/Segment, long, long, class kotlinx/io/Segment, top, top, top, top, top, long, long ]
+          stack = []
+        frame_type = 64 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 255 /* full_frame */
+          offset_delta = 2
+          locals = [ class kotlinx/io/Source, int, int, class kotlinx/io/Buffer, long, int, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, long, long ]
+          stack = []
+        frame_type = 255 /* full_frame */
+          offset_delta = 8
+          locals = [ class kotlinx/io/Source, int, int, class kotlinx/io/Buffer, long, int, top, top, top, top, top, top, top, top, top, top, top, top, class kotlinx/io/Segment, long, top, top, top, top, top, top, top, top, long, long ]
+          stack = []
+        frame_type = 43 /* same */
+        frame_type = 255 /* full_frame */
+          offset_delta = 36
+          locals = [ class kotlinx/io/Source, int, int, class kotlinx/io/Buffer, long, int, top, top, top, class kotlinx/io/Segment, top, top, int, int, int, int, top, top, class kotlinx/io/Segment, long, top, top, top, top, long, top, top, long, long ]
+          stack = []
+        frame_type = 255 /* full_frame */
+          offset_delta = 41
+          locals = [ class kotlinx/io/Source, int, int, class kotlinx/io/Buffer, long, int, top, top, top, class kotlinx/io/Segment, top, top, int, int, int, int, int, int, class kotlinx/io/Segment, long, top, top, top, int, long, top, top, long, long ]
+          stack = []
+        frame_type = 3 /* same */
+        frame_type = 64 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 10 /* same */
+        frame_type = 21 /* same */
+        frame_type = 3 /* same */
+        frame_type = 64 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 13 /* same */
+        frame_type = 21 /* same */
+        frame_type = 3 /* same */
+        frame_type = 64 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 13 /* same */
+        frame_type = 67 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 255 /* full_frame */
+          offset_delta = 72
+          locals = [ class kotlinx/io/Source, int, int, class kotlinx/io/Buffer, long, int, top, top, top, class kotlinx/io/Segment, top, top, int, int, int, int, int, int, class kotlinx/io/Segment, long, top, top, top, int, long, int, top, long, long ]
+          stack = []
+        frame_type = 255 /* full_frame */
+          offset_delta = 21
+          locals = [ class kotlinx/io/Source, int, int, class kotlinx/io/Buffer, long, int, top, top, top, class kotlinx/io/Segment, top, top, int, int, int, int, top, top, class kotlinx/io/Segment, long, top, top, top, top, long, top, top, long, long ]
+          stack = []
+        frame_type = 64 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 255 /* full_frame */
+          offset_delta = 0
+          locals = [ class kotlinx/io/Source, int, int, class kotlinx/io/Buffer, long, int, top, top, top, top, top, top, int, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, long, long ]
+          stack = [ int ]
+        frame_type = 255 /* full_frame */
+          offset_delta = 7
+          locals = [ class kotlinx/io/Source, int, int, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, top, long, long ]
+          stack = []
+      LineNumberTable:
+        line 147: 6
+        line 148: 13
+        line 153: 16
+        line 148: 16
+        line 149: 27
+        line 150: 60
+        line 151: 96
+        line 152: 132
+        line 153: 162
+        line 148: 163
+        line 155: 165
+        line 157: 171
+        line 158: 184
+        line 493: 198
+        line 494: 205
+        line 159: 216
+        line 160: 223
+        line 161: 231
+        line 162: 249
+        line 163: 258
+        line 164: 262
+        line 165: 300
+        line 166: 341
+        line 167: 382
+        line 163: 386
+        line 169: 388
+        line 170: 399
+        line 171: 411
+        line 172: 421
+        line 173: 428
+        line 176: 459
+        line 177: 469
+        line 161: 475
+        line 179: 481
+        line 494: 482
+        line 497: 485
+        line 498: 498
+        line 500: 504
+        line 501: 510
+        line 502: 523
+        line 503: 540
+        line 504: 548
+        line 506: 558
+        line 159: 569
+        line 160: 576
+        line 161: 584
+        line 162: 602
+        line 163: 611
+        line 164: 615
+        line 165: 653
+        line 166: 694
+        line 167: 735
+        line 163: 739
+        line 169: 741
+        line 170: 752
+        line 171: 764
+        line 172: 774
+        line 173: 781
+        line 176: 812
+        line 177: 822
+        line 161: 828
+        line 179: 834
+        line 506: 835
+        line 508: 838
+        line 510: 844
+        line 511: 847
+        line 512: 852
+        line 513: 869
+        line 514: 877
+        line 515: 884
+        line 517: 891
+        line 159: 902
+        line 160: 909
+        line 161: 917
+        line 162: 935
+        line 163: 944
+        line 164: 948
+        line 165: 986
+        line 166: 1027
+        line 167: 1068
+        line 163: 1072
+        line 169: 1074
+        line 170: 1085
+        line 171: 1097
+        line 172: 1107
+        line 173: 1114
+        line 176: 1145
+        line 177: 1155
+        line 161: 1161
+        line 179: 1167
+        line 517: 1168
+        line 158: 1169
+        line 181: 1170
+        line 183: 1177
+        line 184: 1185
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+           27     135     1     b   B
+          411      48    18 $i$a$-with-SourcesKt$readHexadecimalUnsignedLong$stop$1$1   I
+          408      51    16 $this$readHexadecimalUnsignedLong_u24lambda_u240_u240   Lkotlinx/io/Buffer;
+          258     217    14     b   B
+          388      87    17 bDigit   I
+          235     246    12 localOffset   I
+          216     266    10 $i$a$-seek-SourcesKt$readHexadecimalUnsignedLong$stop$1   I
+          231     251    11 startIndex   I
+          213     269     9   seg   Lkotlinx/io/Segment;
+          213     269     7 offset   J
+          764      48    25 $i$a$-with-SourcesKt$readHexadecimalUnsignedLong$stop$1$1   I
+          761      51    17 $this$readHexadecimalUnsignedLong_u24lambda_u240_u240   Lkotlinx/io/Buffer;
+          611     217    15     b   B
+          741      87    18 bDigit   I
+          588     246    13 localOffset   I
+          569     266    11 $i$a$-seek-SourcesKt$readHexadecimalUnsignedLong$stop$1   I
+          584     251    12 startIndex   I
+          566     269    24   seg   Lkotlinx/io/Segment;
+          566     269    22 offset   J
+         1097      48    29 $i$a$-with-SourcesKt$readHexadecimalUnsignedLong$stop$1$1   I
+         1094      51    25 $this$readHexadecimalUnsignedLong_u24lambda_u240_u240   Lkotlinx/io/Buffer;
+          944     217    17     b   B
+         1074      87    28 bDigit   I
+          921     246    15 localOffset   I
+          902     266    13 $i$a$-seek-SourcesKt$readHexadecimalUnsignedLong$stop$1   I
+          917     251    14 startIndex   I
+          899     269    10   seg   Lkotlinx/io/Segment;
+          899     269    26 offset   J
+          504     334    19  s$iv   Lkotlinx/io/Segment;
+          510     328    20 offset$iv   J
+          869      19     7 nextOffset$iv   J
+          844     325    19  s$iv   Lkotlinx/io/Segment;
+          847     322    20 offset$iv   J
+          198     971     6 $i$f$seek   I
+          195     974     3 $this$seek$iv   Lkotlinx/io/Buffer;
+          195     974     4 fromIndex$iv   J
+         1170       7     2  stop   Z
+           16    1172    30 result   J
+          168    1020    32 bytesRead   J
+            0    1188     0 $this$readHexadecimalUnsignedLong   Lkotlinx/io/Source;
+    RuntimeInvisibleParameterAnnotations:
+      parameter 0:
+        0: #7()
+          org.jetbrains.annotations.NotNull
+
+  public static final long indexOf(kotlinx.io.Source, byte, long, long);
+    descriptor: (Lkotlinx/io/Source;BJJ)J
+    flags: (0x0019) ACC_PUBLIC, ACC_STATIC, ACC_FINAL
+    Code:
+      stack=8, locals=10, args_size=4
+         0: aload_0
+         1: ldc           #9                  // String <this>
+         3: invokestatic  #15                 // Method kotlin/jvm/internal/Intrinsics.checkNotNullParameter:(Ljava/lang/Object;Ljava/lang/String;)V
+         6: lconst_0
+         7: lload_2
+         8: lcmp
+         9: ifgt          27
+        12: lload_2
+        13: lload         4
+        15: lcmp
+        16: ifgt          23
+        19: iconst_1
+        20: goto          28
+        23: iconst_0
+        24: goto          28
+        27: iconst_0
+        28: ifne          128
+        31: iconst_0
+        32: istore        7
+        34: lload         4
+        36: lconst_0
+        37: lcmp
+        38: ifge          78
+        41: new           #74                 // class java/lang/StringBuilder
+        44: dup
+        45: invokespecial #78                 // Method java/lang/StringBuilder."<init>":()V
+        48: ldc           #218                // String startIndex (
+        50: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+        53: lload_2
+        54: invokevirtual #221                // Method java/lang/StringBuilder.append:(J)Ljava/lang/StringBuilder;
+        57: ldc           #223                // String ) and endIndex (
+        59: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+        62: lload         4
+        64: invokevirtual #221                // Method java/lang/StringBuilder.append:(J)Ljava/lang/StringBuilder;
+        67: ldc           #225                // String ) should be non negative
+        69: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+        72: invokevirtual #94                 // Method java/lang/StringBuilder.toString:()Ljava/lang/String;
+        75: goto          112
+        78: new           #74                 // class java/lang/StringBuilder
+        81: dup
+        82: invokespecial #78                 // Method java/lang/StringBuilder."<init>":()V
+        85: ldc           #218                // String startIndex (
+        87: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+        90: lload_2
+        91: invokevirtual #221                // Method java/lang/StringBuilder.append:(J)Ljava/lang/StringBuilder;
+        94: ldc           #227                // String ) is not within the range [0..endIndex(
+        96: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+        99: lload         4
+       101: invokevirtual #221                // Method java/lang/StringBuilder.append:(J)Ljava/lang/StringBuilder;
+       104: ldc           #229                // String ))
+       106: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+       109: invokevirtual #94                 // Method java/lang/StringBuilder.toString:()Ljava/lang/String;
+       112: nop
+       113: astore        7
+       115: new           #231                // class java/lang/IllegalArgumentException
+       118: dup
+       119: aload         7
+       121: invokevirtual #232                // Method java/lang/Object.toString:()Ljava/lang/String;
+       124: invokespecial #233                // Method java/lang/IllegalArgumentException."<init>":(Ljava/lang/String;)V
+       127: athrow
+       128: lload_2
+       129: lload         4
+       131: lcmp
+       132: ifne          139
+       135: ldc2_w        #67                 // long -1l
+       138: lreturn
+       139: lload_2
+       140: lstore        6
+       142: lload         6
+       144: lload         4
+       146: lcmp
+       147: ifge          217
+       150: aload_0
+       151: lload         6
+       153: lconst_1
+       154: ladd
+       155: invokeinterface #103,  3          // InterfaceMethod kotlinx/io/Source.request:(J)Z
+       160: ifeq          217
+       163: aload_0
+       164: invokeinterface #60,  1           // InterfaceMethod kotlinx/io/Source.getBuffer:()Lkotlinx/io/Buffer;
+       169: iload_1
+       170: lload         6
+       172: lload         4
+       174: aload_0
+       175: invokeinterface #60,  1           // InterfaceMethod kotlinx/io/Source.getBuffer:()Lkotlinx/io/Buffer;
+       180: invokevirtual #151                // Method kotlinx/io/Buffer.getSize:()J
+       183: invokestatic  #239                // Method java/lang/Math.min:(JJ)J
+       186: invokestatic  #244                // Method kotlinx/io/BuffersKt.indexOf:(Lkotlinx/io/Buffer;BJJ)J
+       189: lstore        8
+       191: lload         8
+       193: ldc2_w        #67                 // long -1l
+       196: lcmp
+       197: ifeq          203
+       200: lload         8
+       202: lreturn
+       203: aload_0
+       204: invokeinterface #60,  1           // InterfaceMethod kotlinx/io/Source.getBuffer:()Lkotlinx/io/Buffer;
+       209: invokevirtual #151                // Method kotlinx/io/Buffer.getSize:()J
+       212: lstore        6
+       214: goto          142
+       217: ldc2_w        #67                 // long -1l
+       220: lreturn
+      StackMapTable: number_of_entries = 10
+        frame_type = 23 /* same */
+        frame_type = 3 /* same */
+        frame_type = 64 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 253 /* append */
+          offset_delta = 49
+          locals = [ top, int ]
+        frame_type = 97 /* same_locals_1_stack_item */
+          stack = [ class java/lang/String ]
+        frame_type = 249 /* chop */
+          offset_delta = 15
+        frame_type = 10 /* same */
+        frame_type = 252 /* append */
+          offset_delta = 2
+          locals = [ long ]
+        frame_type = 252 /* append */
+          offset_delta = 60
+          locals = [ long ]
+        frame_type = 250 /* chop */
+          offset_delta = 13
+      LineNumberTable:
+        line 208: 6
+        line 209: 34
+        line 210: 41
+        line 212: 78
+        line 213: 112
+        line 208: 113
+        line 215: 128
+        line 217: 139
+        line 218: 142
+        line 219: 163
+        line 219: 186
+        line 220: 191
+        line 221: 200
+        line 223: 203
+        line 225: 217
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+           34      79     7 $i$a$-require-SourcesKt$indexOf$1   I
+          191      23     8   idx   J
+          142      79     6 offset   J
+            0     221     0 $this$indexOf   Lkotlinx/io/Source;
+            0     221     1  byte   B
+            0     221     2 startIndex   J
+            0     221     4 endIndex   J
+    RuntimeInvisibleParameterAnnotations:
+      parameter 0:
+        0: #7()
+          org.jetbrains.annotations.NotNull
+      parameter 1:
+      parameter 2:
+      parameter 3:
+
+  public static long indexOf$default(kotlinx.io.Source, byte, long, long, int, java.lang.Object);
+    descriptor: (Lkotlinx/io/Source;BJJILjava/lang/Object;)J
+    flags: (0x1009) ACC_PUBLIC, ACC_STATIC, ACC_SYNTHETIC
+    Code:
+      stack=6, locals=8, args_size=6
+         0: iload         6
+         2: iconst_2
+         3: iand
+         4: ifeq          9
+         7: lconst_0
+         8: lstore_2
+         9: iload         6
+        11: iconst_4
+        12: iand
+        13: ifeq          21
+        16: ldc2_w        #254                // long 9223372036854775807l
+        19: lstore        4
+        21: aload_0
+        22: iload_1
+        23: lload_2
+        24: lload         4
+        26: invokestatic  #257                // Method indexOf:(Lkotlinx/io/Source;BJJ)J
+        29: lreturn
+      StackMapTable: number_of_entries = 2
+        frame_type = 9 /* same */
+        frame_type = 11 /* same */
+      LineNumberTable:
+        line 207: 0
+
+  public static final byte[] readByteArray(kotlinx.io.Source);
+    descriptor: (Lkotlinx/io/Source;)[B
+    flags: (0x0019) ACC_PUBLIC, ACC_STATIC, ACC_FINAL
+    Code:
+      stack=2, locals=1, args_size=1
+         0: aload_0
+         1: ldc           #9                  // String <this>
+         3: invokestatic  #15                 // Method kotlin/jvm/internal/Intrinsics.checkNotNullParameter:(Ljava/lang/Object;Ljava/lang/String;)V
+         6: aload_0
+         7: iconst_m1
+         8: invokestatic  #263                // Method readByteArrayImpl:(Lkotlinx/io/Source;I)[B
+        11: areturn
+      LineNumberTable:
+        line 237: 6
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0      12     0 $this$readByteArray   Lkotlinx/io/Source;
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+    RuntimeInvisibleParameterAnnotations:
+      parameter 0:
+        0: #7()
+          org.jetbrains.annotations.NotNull
+
+  public static final byte[] readByteArray(kotlinx.io.Source, int);
+    descriptor: (Lkotlinx/io/Source;I)[B
+    flags: (0x0019) ACC_PUBLIC, ACC_STATIC, ACC_FINAL
+    Code:
+      stack=4, locals=6, args_size=2
+         0: aload_0
+         1: ldc           #9                  // String <this>
+         3: invokestatic  #15                 // Method kotlin/jvm/internal/Intrinsics.checkNotNullParameter:(Ljava/lang/Object;Ljava/lang/String;)V
+         6: iload_1
+         7: i2l
+         8: lstore_2
+         9: iconst_0
+        10: istore        4
+        12: lload_2
+        13: lconst_0
+        14: lcmp
+        15: iflt          22
+        18: iconst_1
+        19: goto          23
+        22: iconst_0
+        23: ifne          70
+        26: iconst_0
+        27: istore        5
+        29: new           #74                 // class java/lang/StringBuilder
+        32: dup
+        33: invokespecial #78                 // Method java/lang/StringBuilder."<init>":()V
+        36: ldc_w         #266                // String byteCount (
+        39: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+        42: lload_2
+        43: invokevirtual #221                // Method java/lang/StringBuilder.append:(J)Ljava/lang/StringBuilder;
+        46: ldc_w         #268                // String ) < 0
+        49: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+        52: invokevirtual #94                 // Method java/lang/StringBuilder.toString:()Ljava/lang/String;
+        55: astore        5
+        57: new           #231                // class java/lang/IllegalArgumentException
+        60: dup
+        61: aload         5
+        63: invokevirtual #232                // Method java/lang/Object.toString:()Ljava/lang/String;
+        66: invokespecial #233                // Method java/lang/IllegalArgumentException."<init>":(Ljava/lang/String;)V
+        69: athrow
+        70: nop
+        71: aload_0
+        72: iload_1
+        73: invokestatic  #263                // Method readByteArrayImpl:(Lkotlinx/io/Source;I)[B
+        76: areturn
+      StackMapTable: number_of_entries = 3
+        frame_type = 253 /* append */
+          offset_delta = 22
+          locals = [ long, int ]
+        frame_type = 64 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 46 /* same */
+      LineNumberTable:
+        line 253: 6
+        line 518: 12
+        line 519: 26
+        line 518: 29
+        line 518: 55
+        line 520: 70
+        line 254: 71
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+           29      26     5 $i$a$-require-_UtilKt$checkByteCount$1$iv   I
+           12      59     4 $i$f$checkByteCount   I
+            9      62     2 byteCount$iv   J
+            0      77     0 $this$readByteArray   Lkotlinx/io/Source;
+            0      77     1 byteCount   I
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+    RuntimeInvisibleParameterAnnotations:
+      parameter 0:
+        0: #7()
+          org.jetbrains.annotations.NotNull
+      parameter 1:
+
+  private static final byte[] readByteArrayImpl(kotlinx.io.Source, int);
+    descriptor: (Lkotlinx/io/Source;I)[B
+    flags: (0x001a) ACC_PRIVATE, ACC_STATIC, ACC_FINAL
+    Code:
+      stack=6, locals=6, args_size=2
+         0: iload_1
+         1: istore_2
+         2: iload_1
+         3: iconst_m1
+         4: if_icmpne     129
+         7: ldc2_w        #273                // long 2147483647l
+        10: lstore_3
+        11: aload_0
+        12: invokeinterface #60,  1           // InterfaceMethod kotlinx/io/Source.getBuffer:()Lkotlinx/io/Buffer;
+        17: invokevirtual #151                // Method kotlinx/io/Buffer.getSize:()J
+        20: ldc2_w        #273                // long 2147483647l
+        23: lcmp
+        24: ifge          45
+        27: aload_0
+        28: lload_3
+        29: invokeinterface #103,  3          // InterfaceMethod kotlinx/io/Source.request:(J)Z
+        34: ifeq          45
+        37: lload_3
+        38: iconst_2
+        39: i2l
+        40: lmul
+        41: lstore_3
+        42: goto          11
+        45: aload_0
+        46: invokeinterface #60,  1           // InterfaceMethod kotlinx/io/Source.getBuffer:()Lkotlinx/io/Buffer;
+        51: invokevirtual #151                // Method kotlinx/io/Buffer.getSize:()J
+        54: ldc2_w        #273                // long 2147483647l
+        57: lcmp
+        58: ifge          65
+        61: iconst_1
+        62: goto          66
+        65: iconst_0
+        66: ifne          115
+        69: iconst_0
+        70: istore        5
+        72: new           #74                 // class java/lang/StringBuilder
+        75: dup
+        76: invokespecial #78                 // Method java/lang/StringBuilder."<init>":()V
+        79: ldc_w         #276                // String Can\'t create an array of size
+        82: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+        85: aload_0
+        86: invokeinterface #60,  1           // InterfaceMethod kotlinx/io/Source.getBuffer:()Lkotlinx/io/Buffer;
+        91: invokevirtual #151                // Method kotlinx/io/Buffer.getSize:()J
+        94: invokevirtual #221                // Method java/lang/StringBuilder.append:(J)Ljava/lang/StringBuilder;
+        97: invokevirtual #94                 // Method java/lang/StringBuilder.toString:()Ljava/lang/String;
+       100: astore        5
+       102: new           #278                // class java/lang/IllegalStateException
+       105: dup
+       106: aload         5
+       108: invokevirtual #232                // Method java/lang/Object.toString:()Ljava/lang/String;
+       111: invokespecial #279                // Method java/lang/IllegalStateException."<init>":(Ljava/lang/String;)V
+       114: athrow
+       115: aload_0
+       116: invokeinterface #60,  1           // InterfaceMethod kotlinx/io/Source.getBuffer:()Lkotlinx/io/Buffer;
+       121: invokevirtual #151                // Method kotlinx/io/Buffer.getSize:()J
+       124: l2i
+       125: istore_2
+       126: goto          137
+       129: aload_0
+       130: iload_1
+       131: i2l
+       132: invokeinterface #54,  3           // InterfaceMethod kotlinx/io/Source.require:(J)V
+       137: iload_2
+       138: newarray       byte
+       140: astore_3
+       141: aload_0
+       142: invokeinterface #60,  1           // InterfaceMethod kotlinx/io/Source.getBuffer:()Lkotlinx/io/Buffer;
+       147: checkcast     #17                 // class kotlinx/io/Source
+       150: aload_3
+       151: iconst_0
+       152: iconst_0
+       153: bipush        6
+       155: aconst_null
+       156: invokestatic  #283                // Method readTo$default:(Lkotlinx/io/Source;[BIIILjava/lang/Object;)V
+       159: aload_3
+       160: areturn
+      StackMapTable: number_of_entries = 7
+        frame_type = 253 /* append */
+          offset_delta = 11
+          locals = [ int, long ]
+        frame_type = 33 /* same */
+        frame_type = 19 /* same */
+        frame_type = 64 /* same_locals_1_stack_item */
+          stack = [ int ]
+        frame_type = 48 /* same */
+        frame_type = 250 /* chop */
+          offset_delta = 13
+        frame_type = 7 /* same */
+      LineNumberTable:
+        line 259: 0
+        line 260: 2
+        line 261: 7
+        line 262: 11
+        line 263: 37
+        line 265: 45
+        line 521: 69
+        line 265: 72
+        line 265: 100
+        line 266: 115
+        line 268: 129
+        line 270: 137
+        line 271: 141
+        line 272: 159
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+           72      28     5 $i$a$-check-SourcesKt$readByteArrayImpl$1   I
+           11     115     3 fetchSize   J
+            2     159     2 arraySize   I
+          141      20     3 array   [B
+            0     161     0 $this$readByteArrayImpl   Lkotlinx/io/Source;
+            0     161     1  size   I
+
+  public static final void readTo(kotlinx.io.Source, byte[], int, int);
+    descriptor: (Lkotlinx/io/Source;[BII)V
+    flags: (0x0019) ACC_PUBLIC, ACC_STATIC, ACC_FINAL
+    Code:
+      stack=6, locals=8, args_size=4
+         0: aload_0
+         1: ldc           #9                  // String <this>
+         3: invokestatic  #15                 // Method kotlin/jvm/internal/Intrinsics.checkNotNullParameter:(Ljava/lang/Object;Ljava/lang/String;)V
+         6: aload_1
+         7: ldc_w         #293                // String sink
+        10: invokestatic  #15                 // Method kotlin/jvm/internal/Intrinsics.checkNotNullParameter:(Ljava/lang/Object;Ljava/lang/String;)V
+        13: aload_1
+        14: arraylength
+        15: istore        4
+        17: iload_2
+        18: istore        5
+        20: iload_3
+        21: istore        6
+        23: iconst_0
+        24: istore        7
+        26: iload         4
+        28: i2l
+        29: iload         5
+        31: i2l
+        32: iload         6
+        34: i2l
+        35: invokestatic  #297                // Method kotlinx/io/_UtilKt.checkBounds:(JJJ)V
+        38: iload_2
+        39: istore        4
+        41: iload         4
+        43: iload_3
+        44: if_icmpge     122
+        47: aload_0
+        48: aload_1
+        49: iload         4
+        51: iload_3
+        52: invokeinterface #301,  4          // InterfaceMethod kotlinx/io/Source.readAtMostTo:([BII)I
+        57: istore        5
+        59: iload         5
+        61: iconst_m1
+        62: if_icmpne     112
+        65: new           #303                // class java/io/EOFException
+        68: dup
+        69: new           #74                 // class java/lang/StringBuilder
+        72: dup
+        73: invokespecial #78                 // Method java/lang/StringBuilder."<init>":()V
+        76: ldc_w         #305                // String Source exhausted before reading
+        79: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+        82: iload_3
+        83: iload_2
+        84: isub
+        85: invokevirtual #308                // Method java/lang/StringBuilder.append:(I)Ljava/lang/StringBuilder;
+        88: ldc_w         #310                // String  bytes. Only
+        91: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+        94: iload         5
+        96: invokevirtual #308                // Method java/lang/StringBuilder.append:(I)Ljava/lang/StringBuilder;
+        99: ldc_w         #312                // String  bytes were read.
+       102: invokevirtual #84                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+       105: invokevirtual #94                 // Method java/lang/StringBuilder.toString:()Ljava/lang/String;
+       108: invokespecial #313                // Method java/io/EOFException."<init>":(Ljava/lang/String;)V
+       111: athrow
+       112: iload         4
+       114: iload         5
+       116: iadd
+       117: istore        4
+       119: goto          41
+       122: return
+      StackMapTable: number_of_entries = 3
+        frame_type = 255 /* full_frame */
+          offset_delta = 41
+          locals = [ class kotlinx/io/Source, class "[B", int, int, int, int, int, int ]
+          stack = []
+        frame_type = 251 /* same_frame_extended */
+          offset_delta = 70
+        frame_type = 9 /* same */
+      LineNumberTable:
+        line 293: 13
+        line 522: 26
+        line 294: 38
+        line 295: 41
+        line 296: 47
+        line 297: 59
+        line 298: 65
+        line 299: 69
+        line 300: 94
+        line 299: 96
+        line 300: 99
+        line 299: 102
+        line 298: 108
+        line 303: 112
+        line 305: 122
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+           26      12     7 $i$f$checkBounds   I
+           23      15     4 size$iv   I
+           23      15     5 startIndex$iv   I
+           23      15     6 endIndex$iv   I
+           59      60     5 bytesRead   I
+           41      82     4 offset   I
+            0     123     0 $this$readTo   Lkotlinx/io/Source;
+            0     123     1  sink   [B
+            0     123     2 startIndex   I
+            0     123     3 endIndex   I
+    RuntimeInvisibleParameterAnnotations:
+      parameter 0:
+        0: #7()
+          org.jetbrains.annotations.NotNull
+      parameter 1:
+        0: #7()
+          org.jetbrains.annotations.NotNull
+      parameter 2:
+      parameter 3:
+
+  public static void readTo$default(kotlinx.io.Source, byte[], int, int, int, java.lang.Object);
+    descriptor: (Lkotlinx/io/Source;[BIIILjava/lang/Object;)V
+    flags: (0x1009) ACC_PUBLIC, ACC_STATIC, ACC_SYNTHETIC
+    Code:
+      stack=4, locals=6, args_size=6
+         0: iload         4
+         2: iconst_2
+         3: iand
+         4: ifeq          9
+         7: iconst_0
+         8: istore_2
+         9: iload         4
+        11: iconst_4
+        12: iand
+        13: ifeq          19
+        16: aload_1
+        17: arraylength
+        18: istore_3
+        19: aload_0
+        20: aload_1
+        21: iload_2
+        22: iload_3
+        23: invokestatic  #321                // Method readTo:(Lkotlinx/io/Source;[BII)V
+        26: return
+      StackMapTable: number_of_entries = 2
+        frame_type = 9 /* same */
+        frame_type = 9 /* same */
+      LineNumberTable:
+        line 292: 0
+
+  public static final byte readUByte(kotlinx.io.Source);
+    descriptor: (Lkotlinx/io/Source;)B
+    flags: (0x0019) ACC_PUBLIC, ACC_STATIC, ACC_FINAL
+    Code:
+      stack=2, locals=1, args_size=1
+         0: aload_0
+         1: ldc           #9                  // String <this>
+         3: invokestatic  #15                 // Method kotlin/jvm/internal/Intrinsics.checkNotNullParameter:(Ljava/lang/Object;Ljava/lang/String;)V
+         6: aload_0
+         7: invokeinterface #324,  1          // InterfaceMethod kotlinx/io/Source.readByte:()B
+        12: invokestatic  #330                // Method kotlin/UByte."constructor-impl":(B)B
+        15: ireturn
+      LineNumberTable:
+        line 316: 6
+        line 316: 15
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0      16     0 $this$readUByte   Lkotlinx/io/Source;
+    RuntimeInvisibleParameterAnnotations:
+      parameter 0:
+        0: #7()
+          org.jetbrains.annotations.NotNull
+
+  public static final short readUShort(kotlinx.io.Source);
+    descriptor: (Lkotlinx/io/Source;)S
+    flags: (0x0019) ACC_PUBLIC, ACC_STATIC, ACC_FINAL
+    Code:
+      stack=2, locals=1, args_size=1
+         0: aload_0
+         1: ldc           #9                  // String <this>
+         3: invokestatic  #15                 // Method kotlin/jvm/internal/Intrinsics.checkNotNullParameter:(Ljava/lang/Object;Ljava/lang/String;)V
+         6: aload_0
+         7: invokeinterface #21,  1           // InterfaceMethod kotlinx/io/Source.readShort:()S
+        12: invokestatic  #336                // Method kotlin/UShort."constructor-impl":(S)S
+        15: ireturn
+      LineNumberTable:
+        line 328: 6
+        line 328: 15
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0      16     0 $this$readUShort   Lkotlinx/io/Source;
+    RuntimeInvisibleParameterAnnotations:
+      parameter 0:
+        0: #7()
+          org.jetbrains.annotations.NotNull
+
+  public static final int readUInt(kotlinx.io.Source);
+    descriptor: (Lkotlinx/io/Source;)I
+    flags: (0x0019) ACC_PUBLIC, ACC_STATIC, ACC_FINAL
+    Code:
+      stack=2, locals=1, args_size=1
+         0: aload_0
+         1: ldc           #9                  // String <this>
+         3: invokestatic  #15                 // Method kotlin/jvm/internal/Intrinsics.checkNotNullParameter:(Ljava/lang/Object;Ljava/lang/String;)V
+         6: aload_0
+         7: invokeinterface #35,  1           // InterfaceMethod kotlinx/io/Source.readInt:()I
+        12: invokestatic  #342                // Method kotlin/UInt."constructor-impl":(I)I
+        15: ireturn
+      LineNumberTable:
+        line 340: 6
+        line 340: 15
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0      16     0 $this$readUInt   Lkotlinx/io/Source;
+    RuntimeInvisibleParameterAnnotations:
+      parameter 0:
+        0: #7()
+          org.jetbrains.annotations.NotNull
+
+  public static final long readULong(kotlinx.io.Source);
+    descriptor: (Lkotlinx/io/Source;)J
+    flags: (0x0019) ACC_PUBLIC, ACC_STATIC, ACC_FINAL
+    Code:
+      stack=2, locals=1, args_size=1
+         0: aload_0
+         1: ldc           #9                  // String <this>
+         3: invokestatic  #15                 // Method kotlin/jvm/internal/Intrinsics.checkNotNullParameter:(Ljava/lang/Object;Ljava/lang/String;)V
+         6: aload_0
+         7: invokeinterface #45,  1           // InterfaceMethod kotlinx/io/Source.readLong:()J
+        12: invokestatic  #348                // Method kotlin/ULong."constructor-impl":(J)J
+        15: lreturn
+      LineNumberTable:
+        line 352: 6
+        line 352: 15
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0      16     0 $this$readULong   Lkotlinx/io/Source;
+    RuntimeInvisibleParameterAnnotations:
+      parameter 0:
+        0: #7()
+          org.jetbrains.annotations.NotNull
+
+  public static final short readUShortLe(kotlinx.io.Source);
+    descriptor: (Lkotlinx/io/Source;)S
+    flags: (0x0019) ACC_PUBLIC, ACC_STATIC, ACC_FINAL
+    Code:
+      stack=2, locals=1, args_size=1
+         0: aload_0
+         1: ldc           #9                  // String <this>
+         3: invokestatic  #15                 // Method kotlin/jvm/internal/Intrinsics.checkNotNullParameter:(Ljava/lang/Object;Ljava/lang/String;)V
+         6: aload_0
+         7: invokestatic  #352                // Method readShortLe:(Lkotlinx/io/Source;)S
+        10: invokestatic  #336                // Method kotlin/UShort."constructor-impl":(S)S
+        13: ireturn
+      LineNumberTable:
+        line 364: 6
+        line 364: 13
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0      14     0 $this$readUShortLe   Lkotlinx/io/Source;
+    RuntimeInvisibleParameterAnnotations:
+      parameter 0:
+        0: #7()
+          org.jetbrains.annotations.NotNull
+
+  public static final int readUIntLe(kotlinx.io.Source);
+    descriptor: (Lkotlinx/io/Source;)I
+    flags: (0x0019) ACC_PUBLIC, ACC_STATIC, ACC_FINAL
+    Code:
+      stack=2, locals=1, args_size=1
+         0: aload_0
+         1: ldc           #9                  // String <this>
+         3: invokestatic  #15                 // Method kotlin/jvm/internal/Intrinsics.checkNotNullParameter:(Ljava/lang/Object;Ljava/lang/String;)V
+         6: aload_0
+         7: invokestatic  #356                // Method readIntLe:(Lkotlinx/io/Source;)I
+        10: invokestatic  #342                // Method kotlin/UInt."constructor-impl":(I)I
+        13: ireturn
+      LineNumberTable:
+        line 376: 6
+        line 376: 13
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0      14     0 $this$readUIntLe   Lkotlinx/io/Source;
+    RuntimeInvisibleParameterAnnotations:
+      parameter 0:
+        0: #7()
+          org.jetbrains.annotations.NotNull
+
+  public static final long readULongLe(kotlinx.io.Source);
+    descriptor: (Lkotlinx/io/Source;)J
+    flags: (0x0019) ACC_PUBLIC, ACC_STATIC, ACC_FINAL
+    Code:
+      stack=2, locals=1, args_size=1
+         0: aload_0
+         1: ldc           #9                  // String <this>
+         3: invokestatic  #15                 // Method kotlin/jvm/internal/Intrinsics.checkNotNullParameter:(Ljava/lang/Object;Ljava/lang/String;)V
+         6: aload_0
+         7: invokestatic  #360                // Method readLongLe:(Lkotlinx/io/Source;)J
+        10: invokestatic  #348                // Method kotlin/ULong."constructor-impl":(J)J
+        13: lreturn
+      LineNumberTable:
+        line 388: 6
+        line 388: 13
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0      14     0 $this$readULongLe   Lkotlinx/io/Source;
+    RuntimeInvisibleParameterAnnotations:
+      parameter 0:
+        0: #7()
+          org.jetbrains.annotations.NotNull
+
+  public static final float readFloat(kotlinx.io.Source);
+    descriptor: (Lkotlinx/io/Source;)F
+    flags: (0x0019) ACC_PUBLIC, ACC_STATIC, ACC_FINAL
+    Code:
+      stack=2, locals=1, args_size=1
+         0: aload_0
+         1: ldc           #9                  // String <this>
+         3: invokestatic  #15                 // Method kotlin/jvm/internal/Intrinsics.checkNotNullParameter:(Ljava/lang/Object;Ljava/lang/String;)V
+         6: getstatic     #369                // Field kotlin/jvm/internal/FloatCompanionObject.INSTANCE:Lkotlin/jvm/internal/FloatCompanionObject;
+         9: pop
+        10: aload_0
+        11: invokeinterface #35,  1           // InterfaceMethod kotlinx/io/Source.readInt:()I
+        16: invokestatic  #375                // Method java/lang/Float.intBitsToFloat:(I)F
+        19: freturn
+      LineNumberTable:
+        line 406: 6
+        line 406: 19
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0      20     0 $this$readFloat   Lkotlinx/io/Source;
+    RuntimeInvisibleParameterAnnotations:
+      parameter 0:
+        0: #7()
+          org.jetbrains.annotations.NotNull
+
+  public static final double readDouble(kotlinx.io.Source);
+    descriptor: (Lkotlinx/io/Source;)D
+    flags: (0x0019) ACC_PUBLIC, ACC_STATIC, ACC_FINAL
+    Code:
+      stack=2, locals=1, args_size=1
+         0: aload_0
+         1: ldc           #9                  // String <this>
+         3: invokestatic  #15                 // Method kotlin/jvm/internal/Intrinsics.checkNotNullParameter:(Ljava/lang/Object;Ljava/lang/String;)V
+         6: getstatic     #383                // Field kotlin/jvm/internal/DoubleCompanionObject.INSTANCE:Lkotlin/jvm/internal/DoubleCompanionObject;
+         9: pop
+        10: aload_0
+        11: invokeinterface #45,  1           // InterfaceMethod kotlinx/io/Source.readLong:()J
+        16: invokestatic  #389                // Method java/lang/Double.longBitsToDouble:(J)D
+        19: dreturn
+      LineNumberTable:
+        line 420: 6
+        line 420: 19
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0      20     0 $this$readDouble   Lkotlinx/io/Source;
+    RuntimeInvisibleParameterAnnotations:
+      parameter 0:
+        0: #7()
+          org.jetbrains.annotations.NotNull
+
+  public static final float readFloatLe(kotlinx.io.Source);
+    descriptor: (Lkotlinx/io/Source;)F
+    flags: (0x0019) ACC_PUBLIC, ACC_STATIC, ACC_FINAL
+    Code:
+      stack=2, locals=1, args_size=1
+         0: aload_0
+         1: ldc           #9                  // String <this>
+         3: invokestatic  #15                 // Method kotlin/jvm/internal/Intrinsics.checkNotNullParameter:(Ljava/lang/Object;Ljava/lang/String;)V
+         6: getstatic     #369                // Field kotlin/jvm/internal/FloatCompanionObject.INSTANCE:Lkotlin/jvm/internal/FloatCompanionObject;
+         9: pop
+        10: aload_0
+        11: invokestatic  #356                // Method readIntLe:(Lkotlinx/io/Source;)I
+        14: invokestatic  #375                // Method java/lang/Float.intBitsToFloat:(I)F
+        17: freturn
+      LineNumberTable:
+        line 438: 6
+        line 438: 17
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0      18     0 $this$readFloatLe   Lkotlinx/io/Source;
+    RuntimeInvisibleParameterAnnotations:
+      parameter 0:
+        0: #7()
+          org.jetbrains.annotations.NotNull
+
+  public static final double readDoubleLe(kotlinx.io.Source);
+    descriptor: (Lkotlinx/io/Source;)D
+    flags: (0x0019) ACC_PUBLIC, ACC_STATIC, ACC_FINAL
+    Code:
+      stack=2, locals=1, args_size=1
+         0: aload_0
+         1: ldc           #9                  // String <this>
+         3: invokestatic  #15                 // Method kotlin/jvm/internal/Intrinsics.checkNotNullParameter:(Ljava/lang/Object;Ljava/lang/String;)V
+         6: getstatic     #383                // Field kotlin/jvm/internal/DoubleCompanionObject.INSTANCE:Lkotlin/jvm/internal/DoubleCompanionObject;
+         9: pop
+        10: aload_0
+        11: invokestatic  #360                // Method readLongLe:(Lkotlinx/io/Source;)J
+        14: invokestatic  #389                // Method java/lang/Double.longBitsToDouble:(J)D
+        17: dreturn
+      LineNumberTable:
+        line 452: 6
+        line 452: 17
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0      18     0 $this$readDoubleLe   Lkotlinx/io/Source;
+    RuntimeInvisibleParameterAnnotations:
+      parameter 0:
+        0: #7()
+          org.jetbrains.annotations.NotNull
+
+  public static final boolean startsWith(kotlinx.io.Source, byte);
+    descriptor: (Lkotlinx/io/Source;B)Z
+    flags: (0x0019) ACC_PUBLIC, ACC_STATIC, ACC_FINAL
+    Code:
+      stack=3, locals=2, args_size=2
+         0: aload_0
+         1: ldc           #9                  // String <this>
+         3: invokestatic  #15                 // Method kotlin/jvm/internal/Intrinsics.checkNotNullParameter:(Ljava/lang/Object;Ljava/lang/String;)V
+         6: aload_0
+         7: lconst_1
+         8: invokeinterface #103,  3          // InterfaceMethod kotlinx/io/Source.request:(J)Z
+        13: ifeq          34
+        16: aload_0
+        17: invokeinterface #60,  1           // InterfaceMethod kotlinx/io/Source.getBuffer:()Lkotlinx/io/Buffer;
+        22: lconst_0
+        23: invokevirtual #66                 // Method kotlinx/io/Buffer.get:(J)B
+        26: iload_1
+        27: if_icmpne     34
+        30: iconst_1
+        31: goto          35
+        34: iconst_0
+        35: ireturn
+      StackMapTable: number_of_entries = 2
+        frame_type = 34 /* same */
+        frame_type = 64 /* same_locals_1_stack_item */
+          stack = [ int ]
+      LineNumberTable:
+        line 466: 6
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0      36     0 $this$startsWith   Lkotlinx/io/Source;
+            0      36     1  byte   B
+    RuntimeInvisibleParameterAnnotations:
+      parameter 0:
+        0: #7()
+          org.jetbrains.annotations.NotNull
+      parameter 1:
+}
+InnerClasses:
+  public static final #421= #418 of #420; // BooleanRef=class kotlin/jvm/internal/Ref$BooleanRef of class kotlin/jvm/internal/Ref
+  public static final #424= #423 of #420; // LongRef=class kotlin/jvm/internal/Ref$LongRef of class kotlin/jvm/internal/Ref
+SourceFile: "Sources.kt"
+SourceDebugExtension:
+  SMAP
+  Sources.kt
+  Kotlin
+  *S Kotlin
+  *F
+  + 1 Sources.kt
+  kotlinx/io/SourcesKt
+  + 2 Buffer.kt
+  kotlinx/io/BufferKt
+  + 3 -Util.kt
+  kotlinx/io/_UtilKt
+  + 4 fake.kt
+  kotlin/jvm/internal/FakeKt
+  *L
+  1#1,467:1
+  659#2,25:468
+  659#2,25:493
+  52#3:518
+  53#3:520
+  38#3:522
+  1#4:519
+  1#4:521
+  *S KotlinDebug
+  *F
+  + 1 Sources.kt
+  kotlinx/io/SourcesKt
+  *L
+  94#1:468,25
+  158#1:493,25
+  253#1:518
+  253#1:520
+  293#1:522
+  253#1:519
+  *E
+RuntimeVisibleAnnotations:
+  0: #400(#401=[I#402,I#403,I#404],#405=I#402,#406=I#407,#408=[s#409],#410=[s#5,s#411,s#29,s#30,s#411,s#40,s#411,s#398,s#399,s#50,s#197,s#215,s#248,s#411,s#210,s#249,s#258,s#411,s#272,s#260,s#179,s#290,s#411,s#292,s#322,s#412,s#323,s#332,s#413,s#6,s#338,s#414,s#31,s#344,s#415,s#41,s#350,s#354,s#358,s#362,s#411,s#377,s#411,s#391,s#393,s#395,s#411,s#416])
+    kotlin.Metadata(
+      mv=[2,3,0]
+      k=2
+      xi=48
+      d1=["\u0000f\n\u0000\n\u0002\u0010\n\n\u0002\u0018\u0002\n\u0000\n\u0002\u0010\b\n\u0000\n\u0002\u0010\t\n\u0002\b\u0006\n\u0002\u0010\u0005\n\u0002\b\u0003\n\u0002\u0010\u0012\n\u0002\b\u0004\n\u0002\u0010\u0002\n\u0002\b\u0002\n\u0002\u0018\u0002\n\u0002\b\u0002\n\u0002\u0018\u0002\n\u0002\b\u0002\n\u0002\u0018\u0002\n\u0002\b\u0002\n\u0002\u0018\u0002\n\u0002\b\u0005\n\u0002\u0010\u0007\n\u0000\n\u0002\u0010\u0006\n\u0002\b\u0003\n\u0002\u0010\u000b\n\u0000\u001a\u000e\u0010\u0000\u001a\u00020\u0001*\u00020\u0002H\u0086\u0080\u0004\u001a\u000e\u0010\u0003\u001a\u00020\u0004*\u00020\u0002H\u0086\u0080\u0004\u001a\u000e\u0010\u0005\u001a\u00020\u0006*\u00020\u0002H\u0086\u0080\u0004\u001a\u000e\u0010\t\u001a\u00020\u0006*\u00020\u0002H\u0086\u0080\u0004\u001a\u000e\u0010\n\u001a\u00020\u0006*\u00020\u0002H\u0086\u0080\u0004\u001a*\u0010\u000b\u001a\u00020\u0006*\u00020\u00022\u0006\u0010\f\u001a\u00020\r2\b\b\u0002\u0010\u000e\u001a\u00020\u00062\b\b\u0002\u0010\u000f\u001a\u00020\u0006H\u0086\u0080\u0004\u001a\u000e\u0010\u0010\u001a\u00020\u0011*\u00020\u0002H\u0086\u0080\u0004\u001a\u0016\u0010\u0010\u001a\u00020\u0011*\u00020\u00022\u0006\u0010\u0012\u001a\u00020\u0004H\u0086\u0080\u0004\u001a\u0016\u0010\u0013\u001a\u00020\u0011*\u00020\u00022\u0006\u0010\u0014\u001a\u00020\u0004H\u0082\u0080\u0004\u001a*\u0010\u0015\u001a\u00020\u0016*\u00020\u00022\u0006\u0010\u0017\u001a\u00020\u00112\b\b\u0002\u0010\u000e\u001a\u00020\u00042\b\b\u0002\u0010\u000f\u001a\u00020\u0004H\u0086\u0080\u0004\u001a\u0013\u0010\u0018\u001a\u00020\u0019*\u00020\u0002H\u0086\u0080\u0004¢\u0006\u0002\u0010\u001a\u001a\u0013\u0010\u001b\u001a\u00020\u001c*\u00020\u0002H\u0086\u0080\u0004¢\u0006\u0002\u0010\u001d\u001a\u0013\u0010\u001e\u001a\u00020\u001f*\u00020\u0002H\u0086\u0080\u0004¢\u0006\u0002\u0010 \u001a\u0013\u0010!\u001a\u00020\"*\u00020\u0002H\u0086\u0080\u0004¢\u0006\u0002\u0010#\u001a\u0013\u0010$\u001a\u00020\u001c*\u00020\u0002H\u0086\u0080\u0004¢\u0006\u0002\u0010\u001d\u001a\u0013\u0010%\u001a\u00020\u001f*\u00020\u0002H\u0086\u0080\u0004¢\u0006\u0002\u0010 \u001a\u0013\u0010&\u001a\u00020\"*\u00020\u0002H\u0086\u0080\u0004¢\u0006\u0002\u0010#\u001a\u000e\u0010\'\u001a\u00020(*\u00020\u0002H\u0086\u0080\u0004\u001a\u000e\u0010)\u001a\u00020**\u00020\u0002H\u0086\u0080\u0004\u001a\u000e\u0010+\u001a\u00020(*\u00020\u0002H\u0086\u0080\u0004\u001a\u000e\u0010,\u001a\u00020**\u00020\u0002H\u0086\u0080\u0004\u001a\u0016\u0010-\u001a\u00020.*\u00020\u00022\u0006\u0010\f\u001a\u00020\rH\u0086\u0080\u0004\"\u000f\u0010\u0007\u001a\u00020\u0006X\u0080Ô\b¢\u0006\u0002\n\u0000\"\u000f\u0010\b\u001a\u00020\u0006X\u0080Ô\b¢\u0006\u0002\n\u0000¨\u0006/"]
+      d2=["readShortLe","","Lkotlinx/io/Source;","readIntLe","","readLongLe","","OVERFLOW_ZONE","OVERFLOW_DIGIT_START","readDecimalLong","readHexadecimalUnsignedLong","indexOf","byte","","startIndex","endIndex","readByteArray","","byteCount","readByteArrayImpl","size","readTo","","sink","readUByte","Lkotlin/UByte;","(Lkotlinx/io/Source;)B","readUShort","Lkotlin/UShort;","(Lkotlinx/io/Source;)S","readUInt","Lkotlin/UInt;","(Lkotlinx/io/Source;)I","readULong","Lkotlin/ULong;","(Lkotlinx/io/Source;)J","readUShortLe","readUIntLe","readULongLe","readFloat","","readDouble","","readFloatLe","readDoubleLe","startsWith","","kotlinx-io-core"]
+    )
+RuntimeInvisibleAnnotations:
+  0: #426(#193=[s#427])
+    kotlin.jvm.internal.SourceDebugExtension(
+      value=["SMAP\nSources.kt\nKotlin\n*S Kotlin\n*F\n+ 1 Sources.kt\nkotlinx/io/SourcesKt\n+ 2 Buffer.kt\nkotlinx/io/BufferKt\n+ 3 -Util.kt\nkotlinx/io/_UtilKt\n+ 4 fake.kt\nkotlin/jvm/internal/FakeKt\n*L\n1#1,467:1\n659#2,25:468\n659#2,25:493\n52#3:518\n53#3:520\n38#3:522\n1#4:519\n1#4:521\n*S KotlinDebug\n*F\n+ 1 Sources.kt\nkotlinx/io/SourcesKt\n*L\n94#1:468,25\n158#1:493,25\n253#1:518\n253#1:520\n293#1:522\n253#1:519\n*E\n"]
+    )

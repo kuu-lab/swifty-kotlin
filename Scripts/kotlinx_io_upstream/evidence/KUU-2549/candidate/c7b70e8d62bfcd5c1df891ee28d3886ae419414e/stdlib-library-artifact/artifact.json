@@ -1,0 +1,9 @@
+{
+  "kind": "KSwiftKStdlib.kklib directory artifact; binaries are intentionally omitted from this evidence checkout",
+  "candidate_sha": "c7b70e8d62bfcd5c1df891ee28d3886ae419414e",
+  "manifest_sha256": "ff5d1a9fd2908352ddde0cfdf2b277d95086e4c439a3613b44fb13fb1098c74d",
+  "metadata_bin_sha256": "dd6d9584b2f42794c14930f7e4e77d4eb40d6b1538f8e9d29d3b349006a8f14c",
+  "metadata_bin_size_bytes": 19330635,
+  "stdlib_content_sha256": "c1431bbe0e329aadb5630b3cf908dfd91f3fb3ef7b5b0a83926d7b7bf68a3b35",
+  "manifest_stdlib_hash": "20075b11789b0373"
+}

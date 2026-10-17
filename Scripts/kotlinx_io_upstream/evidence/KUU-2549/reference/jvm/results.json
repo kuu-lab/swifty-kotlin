@@ -1,0 +1,62 @@
+[
+  {
+    "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.samples.KotlinxIoCoreCommonSamples]/[method:indexOfByteSample()]",
+    "status": "PASS",
+    "stdout": "",
+    "exception_type": null
+  },
+  {
+    "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.samples.KotlinxIoCoreCommonSamples]/[method:readByteArraySample()]",
+    "status": "PASS",
+    "stdout": "",
+    "exception_type": null
+  },
+  {
+    "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.samples.KotlinxIoCoreCommonSamples]/[method:readHexLong()]",
+    "status": "PASS",
+    "stdout": "",
+    "exception_type": null
+  },
+  {
+    "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.samples.KotlinxIoCoreCommonSamples]/[method:readToArraySample()]",
+    "status": "PASS",
+    "stdout": "",
+    "exception_type": null
+  },
+  {
+    "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.samples.KotlinxIoCoreCommonSamples]/[method:readUtf8()]",
+    "status": "PASS",
+    "stdout": "",
+    "exception_type": null
+  },
+  {
+    "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.samples.KotlinxIoCoreCommonSamples]/[method:startsWithSample()]",
+    "status": "PASS",
+    "stdout": "",
+    "exception_type": null
+  },
+  {
+    "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.samples.KotlinxIoCoreCommonSamples]/[method:writeDecimalLong()]",
+    "status": "PASS",
+    "stdout": "",
+    "exception_type": null
+  },
+  {
+    "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.samples.KotlinxIoCoreCommonSamples]/[method:writeHexLong()]",
+    "status": "PASS",
+    "stdout": "",
+    "exception_type": null
+  },
+  {
+    "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.samples.KotlinxIoCoreCommonSamples]/[method:writeUtf8Sample()]",
+    "status": "PASS",
+    "stdout": "",
+    "exception_type": null
+  },
+  {
+    "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.samples.KotlinxIoCoreCommonSamples]/[method:writeUtf8SeqSample()]",
+    "status": "PASS",
+    "stdout": "",
+    "exception_type": null
+  }
+]

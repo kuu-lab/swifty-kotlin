@@ -1,0 +1,12 @@
+warning: ATTENTION!
+This build uses unsafe internal compiler arguments:
+
+-XXLanguage:+UnnamedLocalVariables
+
+This mode is not recommended for production use,
+as no stability/compatibility guarantees are given on
+compiler or generated code. Use it at your own risk!
+
+/private/tmp/kuu2549-jvm-selected-final/samples.kt:1:36: warning: suppression of error 'INVISIBLE_REFERENCE' might compile and work, but the compiler behavior is UNSPECIFIED and WILL NOT BE PRESERVED. Please report your use case to the Kotlin issue tracker instead: https://kotl.in/issue
+@file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+                                   ^^^^^^^^^^^^^^^^^^^^^

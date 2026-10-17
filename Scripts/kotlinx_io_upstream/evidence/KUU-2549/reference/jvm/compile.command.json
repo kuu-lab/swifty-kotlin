@@ -1,0 +1,17 @@
+[
+  "/private/tmp/kuu2549-jvm-reference/installation/kotlinc/bin/kotlinc",
+  "/private/tmp/kuu2549-jvm-selected-final/samples.kt",
+  "/private/tmp/kuu2549-jvm-selected-final/SelectedReferenceDriver.kt",
+  "-classpath",
+  "/private/tmp/kuu2549-jvm-reference/dependencies/kotlinx-io-core-jvm-0.9.1.jar:/private/tmp/kuu2549-jvm-reference/dependencies/kotlinx-io-bytestring-jvm-0.9.1.jar:/private/tmp/kuu2549-jvm-reference/dependencies/junit-platform-console-standalone-1.12.2.jar:/private/tmp/kuu2549-jvm-reference/installation/kotlinc/lib/kotlin-test.jar:/private/tmp/kuu2549-jvm-reference/installation/kotlinc/lib/kotlin-test-junit5.jar",
+  "-Xmulti-platform",
+  "-Xexpect-actual-classes",
+  "-Xcommon-sources=/private/tmp/kuu2549-jvm-selected-final/samples.kt",
+  "-Xfriend-paths=/private/tmp/kuu2549-jvm-reference/dependencies/kotlinx-io-core-jvm-0.9.1.jar,/private/tmp/kuu2549-jvm-reference/dependencies/kotlinx-io-bytestring-jvm-0.9.1.jar",
+  "-opt-in=kotlinx.io.InternalIoApi",
+  "-opt-in=kotlin.ExperimentalStdlibApi",
+  "-XXLanguage:+UnnamedLocalVariables",
+  "-include-runtime",
+  "-d",
+  "/private/tmp/kuu2549-jvm-selected-final/selected-upstream-samples.jar"
+]

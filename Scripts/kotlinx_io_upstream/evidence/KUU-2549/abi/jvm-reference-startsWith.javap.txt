@@ -1,0 +1,23 @@
+  public static final boolean startsWith(kotlinx.io.Source, byte);
+    descriptor: (Lkotlinx/io/Source;B)Z
+    flags: (0x0019) ACC_PUBLIC, ACC_STATIC, ACC_FINAL
+    Code:
+      stack=3, locals=2, args_size=2
+         0: aload_0
+         1: ldc           #9                  // String <this>
+         3: invokestatic  #15                 // Method kotlin/jvm/internal/Intrinsics.checkNotNullParameter:(Ljava/lang/Object;Ljava/lang/String;)V
+         6: aload_0
+         7: lconst_1
+         8: invokeinterface #103,  3          // InterfaceMethod kotlinx/io/Source.request:(J)Z
+        13: ifeq          34
+        16: aload_0
+        17: invokeinterface #60,  1           // InterfaceMethod kotlinx/io/Source.getBuffer:()Lkotlinx/io/Buffer;
+        22: lconst_0
+        23: invokevirtual #66                 // Method kotlinx/io/Buffer.get:(J)B
+        26: iload_1
+        27: if_icmpne     34
+        30: iconst_1
+        31: goto          35
+        34: iconst_0
+        35: ireturn
+      StackMapTable: number_of_entries = 2
