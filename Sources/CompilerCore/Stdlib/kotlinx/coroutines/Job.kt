@@ -129,17 +129,8 @@ public fun CoroutineContext.cancel(cause: CancellationException? = null) {
     if (job != null) __kkJobCancel(job, cause)
 }
 
-// kotlinx.coroutines Job.kt: `cancel(message, cause)` wraps the diagnostic
-// message in a CancellationException and delegates to `cancel(cause)`.
 public fun Job.cancel(message: String, cause: Throwable? = null): Unit =
     cancel(CancellationException(message, cause))
-
-// KUU-CORO-101: Job/CoroutineContext members that were unresolved wherever
-// real-world coroutine code reads its own job (`this.coroutineContext.job`),
-// checks why it stopped (`job.getCancellationException()`), or reacts to
-// completion (`job.invokeOnCompletion { ... }`). Expressed here in terms of
-// `kk_*` runtime bridges, following the same migration pattern as
-// Mutex/Semaphore in sync/Sync.kt (KSP-677).
 
 @KsSymbolName("kk_job_get_cancellation_exception")
 internal external fun __kkJobGetCancellationException(job: Job): CancellationException
@@ -170,7 +161,6 @@ internal external fun __kkContextJob(context: CoroutineContext): Job
 internal fun __kkContextGetJob(context: CoroutineContext): Job? =
     if (__kkContextJobHandle(context) == 0L) null else __kkContextJob(context)
 
-/// The Job that runs in this context, or throws if the context has none.
 public val CoroutineContext.job: Job
     get() = __kkContextGetJob(this) ?: error("Current context doesn't contain Job in it: $this")
 
@@ -201,9 +191,8 @@ public fun Job.invokeOnCompletion(
     return DisposableHandle { __kkJobDisposeCompletionHandler(this, id) }
 }
 
-// `Job.cancelAndJoin` / `Job.cancelAndJoin(cause)` from kotlinx-coroutines
-// Job.kt: cancel first so `join()` waits for the job to actually finish
-// winding down instead of suspending on a still-running job.
+// Cancel first so `join()` waits for the job to actually finish winding down
+// instead of suspending on a still-running job.
 public suspend fun Job.cancelAndJoin() {
     cancel()
     join()
