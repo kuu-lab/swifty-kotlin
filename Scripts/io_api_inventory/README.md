@@ -307,6 +307,39 @@ evidence, and byte-for-byte output without modifying files.
 python3 Scripts/io_api_inventory/test_validation_evidence.py
 ```
 
+### KUU-2640: `Sink.writeString(Charset)` default bridge
+
+`jvm-9996895f35860b5d` is the generated `SinksJvmKt.writeString$default` ABI
+row. The generator maps it to the exact upstream and local
+`Sink.writeString(String, Charset, startIndex, endIndex)` declaration, including
+its two defaults and documented contracts. Its direct upstream assertion is
+`core/jvm/test/AbstractSinkTestJVM.kt#writeStringWithCharset`; broad
+`writeString` callers are not counted as direct evidence for this bridge.
+
+The Java probe checks the pinned JVM artifact's exact descriptor,
+public/static/synthetic flags, non-bridge status, range-mask bits, and marker
+argument. The F02 consumer runs the default and explicit-range calls against
+Kotlin 2.3.10, then against KSwiftK source-injected and freshly generated stdlib
+artifacts at O0/O2, plus independent producer/consumer O0/O2. The Native
+execution checks default metadata and dispatch; it does not claim that KSwiftK
+emits this physical JVM classfile ABI. Probe execution IDs and their exact
+input references are registered in `candidate-probes.json`; a passing record
+is added to `api-validation-evidence.json` only after every required candidate
+lane passes.
+
+Run the selected reference and candidate matrix with the locked Kotlin 2.3.10,
+Java 21, and pinned kotlinx-io jars:
+
+```sh
+python3 Scripts/io_api_inventory/run_f02_matrix.py \
+  --compiler .build/debug/kswiftc \
+  --output /tmp/kuu2640-write-string-charset \
+  --kotlin-home /path/to/kotlinc-2.3.10 \
+  --java /path/to/jdk-21/bin/java \
+  --dependencies /path/to/pinned-io-jars \
+  --case write-string-charset-default
+```
+
 The relocation regression copies inputs into a different checkout root in
 reverse filesystem creation order and compares all three generated outputs.
 PublishedApi row identities use upstream-relative paths, and local references

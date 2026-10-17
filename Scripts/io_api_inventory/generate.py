@@ -27,6 +27,7 @@ LEDGER_PATH = HERE / "api-inventory.tsv"
 SCOPE_PATH = HERE / "platform-scope.tsv"
 SUMMARY_PATH = HERE / "inventory-summary.md"
 VALIDATION_EVIDENCE_PATH = HERE / "api-validation-evidence.json"
+LOCAL_CANDIDATE_PROBES_PATH = HERE / "candidate-probes.json"
 UPSTREAM_RUNNER = REPO / "Scripts/kotlinx_io_upstream"
 UPSTREAM_RUNNER_LOCK_PATH = UPSTREAM_RUNNER / "reference-lock.json"
 REFERENCE_EXECUTIONS_PATH = UPSTREAM_RUNNER / "jvm-executions.expected.json"
@@ -38,6 +39,12 @@ NO_DIRECT_UPSTREAM_ASSERTION_SOURCE_REFS = {
 }
 NO_DIRECT_UPSTREAM_ASSERTION = "none (no direct upstream assertion mapped)"
 VALIDATION_EVIDENCE_SCHEMA_VERSION = 2
+SINK_WRITE_STRING_CHARSET_DEFAULT_ROW_ID = "jvm-9996895f35860b5d"
+SINK_WRITE_STRING_CHARSET_TEST_REF = "core/jvm/test/AbstractSinkTestJVM.kt#writeStringWithCharset"
+SINK_WRITE_STRING_CHARSET_SOURCE_KEY = (
+    "function", "kotlinx.io.writeString", "kotlinx.io.Sink",
+    ("kotlin.String", "java.nio.charset.Charset", "kotlin.Int", "kotlin.Int"),
+)
 VALIDATION_LANES_BY_OBLIGATION = {
     "jvm-descriptor": ("jvm-descriptor",),
     "native-source": (
@@ -295,6 +302,60 @@ def _unique_json_object(pairs: list[tuple[str, object]]) -> dict:
     return result
 
 
+def load_candidate_probe_catalog(path: Path = LOCAL_CANDIDATE_PROBES_PATH) -> list[dict]:
+    """Load explicit reference/candidate probes for contracts absent from locked test catalogs."""
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_unique_json_object)
+    except OSError as error:
+        fail(f"cannot read local candidate probe catalog {path}: {error}")
+    except json.JSONDecodeError as error:
+        fail(f"invalid local candidate probe catalog JSON: {error}")
+    except UnicodeDecodeError as error:
+        fail(f"local candidate probe catalog is not UTF-8: {error}")
+    if not isinstance(value, dict) or set(value) != {"schema_version", "probes"}:
+        fail("local candidate probe catalog must contain only schema_version and probes")
+    if type(value["schema_version"]) is not int or value["schema_version"] != 1:
+        fail("unsupported local candidate probe catalog schema_version")
+    probes = value["probes"]
+    if not isinstance(probes, list):
+        fail("local candidate probes must be an array")
+    fields = {
+        "row_id", "case_id", "reference_execution_id", "candidate_execution_id",
+        "reference_probe_ref", "candidate_probe_ref", "test_refs",
+    }
+    seen_rows = set()
+    seen_execution_ids = set()
+    for probe in probes:
+        if not isinstance(probe, dict) or set(probe) != fields:
+            fail("each local candidate probe must contain exactly the schema v1 fields")
+        for field in fields - {"test_refs"}:
+            if (not isinstance(probe[field], str) or not probe[field].strip()
+                    or probe[field] != probe[field].strip()):
+                fail(f"local candidate probe has an empty or malformed {field}")
+        if probe["row_id"] in seen_rows:
+            fail(f"duplicate local candidate probe row_id: {probe['row_id']}")
+        seen_rows.add(probe["row_id"])
+        if probe["reference_execution_id"] == probe["candidate_execution_id"]:
+            fail(f"local candidate probe reuses one execution ID for both subjects: {probe['row_id']}")
+        for field in ("reference_execution_id", "candidate_execution_id"):
+            execution_id = probe[field]
+            if execution_id in seen_execution_ids:
+                fail(f"duplicate local candidate probe execution ID: {execution_id}")
+            seen_execution_ids.add(execution_id)
+        refs = probe["test_refs"]
+        if (not isinstance(refs, list) or not refs
+                or any(not isinstance(ref, str) or not ref.strip() or ref != ref.strip() for ref in refs)
+                or len(refs) != len(set(refs))):
+            fail(f"local candidate probe test_refs are empty, malformed, or duplicated: {probe['row_id']}")
+        if probe["reference_probe_ref"] not in refs or probe["candidate_probe_ref"] not in refs:
+            fail(f"local candidate probe sources are not included in test_refs: {probe['row_id']}")
+        for ref in refs:
+            relative = ref.split("#", 1)[0]
+            if Path(relative).is_absolute() or ".." in Path(relative).parts:
+                fail(f"unsafe local candidate probe test reference: {ref}")
+    return probes
+
+
 def _validation_input_files(
     references: str,
     root: Path,
@@ -482,6 +543,7 @@ def apply_validation_evidence(
     repository: Path = REPO,
     upstream: Path = UPSTREAM,
     execution_catalogs: dict[str, dict[str, str]] | None = None,
+    candidate_probes: list[dict] | None = None,
 ) -> None:
     """Promote rows only when their pinned, current evidence satisfies every obligation."""
     by_id = {}
@@ -513,6 +575,15 @@ def apply_validation_evidence(
     records = evidence["records"]
     if not isinstance(records, list):
         fail("validation evidence records must be an array")
+    if candidate_probes is None:
+        candidate_probes = load_candidate_probe_catalog()
+    probe_executions = {}
+    for probe in candidate_probes:
+        for subject in ("reference", "candidate"):
+            execution_id = probe[f"{subject}_execution_id"]
+            if execution_id in probe_executions:
+                fail(f"duplicate local candidate probe execution ID: {execution_id}")
+            probe_executions[execution_id] = (probe, subject)
     if records and (schema_version == 1 or any(
         isinstance(record, dict) and record.get("evidence_source") == "upstream-catalog"
         for record in records
@@ -630,7 +701,23 @@ def apply_validation_evidence(
                 if local_case_spec is None:
                     catalog_case_id = execution_catalogs[subject].get(execution_id)
                     if catalog_case_id is None:
-                        fail(f"unknown {subject} execution_id for row {row_id}: {execution_id}")
+                        local_probe = probe_executions.get(execution_id)
+                        if local_probe is None:
+                            fail(f"unknown {subject} execution_id for row {row_id}: {execution_id}")
+                        probe, probe_subject = local_probe
+                        if probe_subject != subject:
+                            fail(f"local candidate probe execution_id has the wrong subject for row {row_id}: {execution_id}")
+                        if probe["row_id"] != row_id or probe["case_id"] != case_id:
+                            fail(f"local candidate probe does not map to row {row_id} case {case_id}: {execution_id}")
+                        probe_ref = probe[f"{subject}_probe_ref"]
+                        probe_source = probe_ref.partition("#")[0]
+                        mapped_sources = {
+                            reference.partition(":")[0]
+                            for reference in row.get("local_test_refs", "").split(";")
+                        }
+                        if probe_source not in mapped_sources:
+                            fail(f"local candidate probe source is not mapped to row {row_id}: {probe_ref}")
+                        catalog_case_id = probe["case_id"]
                     if catalog_case_id != case_id:
                         fail(f"{subject} execution_id does not map to case {case_id} for row {row_id}")
                 else:
@@ -1365,6 +1452,8 @@ def parse_jvm_api(path: Path, module: str, sources: list[Path]) -> list[dict]:
 
 
 def owner_for(row: dict) -> str:
+    if row.get("row_id") == SINK_WRITE_STRING_CHARSET_DEFAULT_ROW_ID:
+        return "KUU-2640"
     text = " ".join(
         [row["module"], row["owner_fqn"], row["name"], row["signature"], row["upstream_source_refs"]]
     ).lower()
@@ -1647,7 +1736,18 @@ def local_contract_differences(row: dict, index: SourceIndex) -> str:
     return json.dumps(differences, sort_keys=True, separators=(",", ":")) if differences else "none detected (semantics unverified)"
 
 
-def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
+def local_test_refs(
+    row: dict,
+    local_tests: list[tuple[str, str]],
+    candidate_probes: list[dict] | None = None,
+) -> list[str]:
+    if candidate_probes is None:
+        candidate_probes = load_candidate_probe_catalog()
+    if row.get("row_id") == SINK_WRITE_STRING_CHARSET_DEFAULT_ROW_ID:
+        probes = [probe for probe in candidate_probes if probe["row_id"] == row["row_id"]]
+        if len(probes) != 1:
+            fail(f"expected one dedicated local candidate probe for {row['row_id']}")
+        return probes[0]["test_refs"]
     name = row["_candidate_name"].lower()
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []
@@ -1684,6 +1784,8 @@ def local_implementation_refs(row: dict, index: SourceIndex, runtime_symbols: di
 
 
 def upstream_test_refs(row: dict, test_index: dict) -> list[str]:
+    if row.get("row_id") == SINK_WRITE_STRING_CHARSET_DEFAULT_ROW_ID:
+        return [SINK_WRITE_STRING_CHARSET_TEST_REF]
     if row.get("upstream_source_refs") in NO_DIRECT_UPSTREAM_ASSERTION_SOURCE_REFS:
         # The upstream smoke cases use SystemFileSystem raw methods; they do not
         # exercise these deprecated Path extensions or assert their annotations.
@@ -2018,6 +2120,7 @@ def verify_jars(lock: dict, directory: Path | None, download: bool) -> None:
 
 def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     lock, test_index, files, _ = load_inputs()
+    candidate_probes = load_candidate_probe_catalog()
     index = SourceIndex(HERE / "source-declarations.json", REPO, UPSTREAM)
     sources = source_paths(files)
     api_rows = []
@@ -2035,6 +2138,41 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     api_rows.extend(typed_published_internals(index))
     api_rows.extend(platform_typealiases(index))
     apply_jvm_correspondence(api_rows, index, lock)
+
+    write_string_declarations = index.match("upstream", SINK_WRITE_STRING_CHARSET_SOURCE_KEY)
+    if not write_string_declarations:
+        fail("cannot map the Sink.writeString(Charset) generated bridge to its upstream declaration")
+    write_string_local_refs = sorted({
+        f"{declaration['path']}:{declaration['line']}"
+        for declaration in index.match("local", SINK_WRITE_STRING_CHARSET_SOURCE_KEY)
+    })
+    bridge_rows = [row for row in api_rows if row.get("row_id") == SINK_WRITE_STRING_CHARSET_DEFAULT_ROW_ID]
+    if len(bridge_rows) != 1:
+        fail(f"expected one JVM Sink.writeString(Charset) default bridge row, got {len(bridge_rows)}")
+    bridge = bridge_rows[0]
+    bridge["_source_key"] = SINK_WRITE_STRING_CHARSET_SOURCE_KEY
+    bridge["_source_declarations"] = write_string_declarations
+    bridge["_source_paths"] = [UPSTREAM / declaration["path"] for declaration in write_string_declarations]
+    bridge["_typed_local_refs"] = write_string_local_refs
+    bridge["_candidate_kind"] = "function"
+    bridge["_candidate_name"] = "writeString"
+    bridge["_accessor_role"] = None
+    bridge["upstream_source_refs"] = ";".join(
+        f"{declaration['path']}:{declaration['line']}" for declaration in write_string_declarations
+    )
+    bridge["annotations"], bridge["deprecation"], bridge["exception_contract"] = declaration_metadata(
+        write_string_declarations[0]
+    )
+    attach_platform_metadata(bridge, write_string_declarations)
+    bridge["default_parameter_count"] = str(sum(
+        parameter["default"] is not None for parameter in write_string_declarations[0]["parameters"]
+    ))
+    bridge["source_api"] = "no"
+    bridge["notes"] += (
+        "; generated default bridge mapped to Sink.writeString(String, Charset, startIndex, endIndex)"
+        f" at {bridge['upstream_source_refs']}; candidate mapping: {', '.join(write_string_local_refs) or 'missing'}"
+        "; JVM classfile descriptor/flags are checked on the pinned JVM artifact, separately from Native default dispatch"
+    )
 
     local_tests = []
     local_paths = list(REPO.joinpath("Tests").rglob("*.swift"))
@@ -2068,7 +2206,7 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
         row["owner_issue"] = owner_for(row)
         direct_upstream_tests = upstream_test_refs(row, test_index)
         row["upstream_test_refs"] = ";".join(direct_upstream_tests) or NO_DIRECT_UPSTREAM_ASSERTION
-        row["local_test_refs"] = ";".join(local_test_refs(row, local_tests)) or "none"
+        row["local_test_refs"] = ";".join(local_test_refs(row, local_tests, candidate_probes)) or "none"
         if row["representation"] == "JVM public ABI dump":
             row["scope_decision"] = "in-scope JVM ABI and Java interoperability"
         for test_ref in row["upstream_test_refs"].split(";"):
@@ -2083,7 +2221,7 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
 
     pair_rows(api_rows)
     api_rows.sort(key=lambda row: (row["module"], row["representation"], row["row_id"]))
-    apply_validation_evidence(api_rows, lock)
+    apply_validation_evidence(api_rows, lock, candidate_probes=candidate_probes)
     check_negative_guards(api_rows)
     scope_rows = parse_platform_public_declarations(sources, api_rows, index)
     return lock, api_rows, scope_rows
