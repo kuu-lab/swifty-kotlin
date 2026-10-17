@@ -1,6 +1,5 @@
 package kotlin
 
-// KSP-790: Keep the UInt top-level implementation family source-backed.
 @PublishedApi
 internal fun uintRemainder(v1: UInt, v2: UInt): UInt =
     (v1.toLong() % v2.toLong()).toUInt()
@@ -26,8 +25,7 @@ internal inline fun uintToFloat(value: Int): Float = uintToDouble(value).toFloat
 internal fun uintToDouble(value: Int): Double =
     (value and Int.MAX_VALUE).toDouble() + (value ushr 31 shl 30).toDouble() * 2
 
-// KSP-790: Keep the primitive UIntArray factory source-backed.
-// The compiler's vararg representation is a generic array, so copy each
+// KSP-790: The compiler's vararg representation is a generic array, so copy each
 // element into the primitive array rather than returning the vararg directly.
 @ExperimentalUnsignedTypes
 public inline fun uintArrayOf(vararg elements: UInt): UIntArray {
