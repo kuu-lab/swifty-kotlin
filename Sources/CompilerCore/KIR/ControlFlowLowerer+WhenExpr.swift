@@ -25,8 +25,6 @@ extension ControlFlowLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
-            // Register `when (val x = expr)` subject variable as a local value
-            // so that branch bodies can reference it by symbol.
             // The subject variable symbol is bound to the whenExpr ID (not the
             // subject expression ID), because `bindIdentifier` in sema uses the
             // when expression's own ExprID.
@@ -65,9 +63,6 @@ extension ControlFlowLowerer {
         var allBranchesTerminated = true
         for (index, branch) in branches.enumerated() {
             if branch.conditions.count > 1 {
-                // Multiple conditions: build an OR-chain that jumps to the body label
-                // as soon as any condition is true.
-                // CTRL-001: Deduplicate conditions to avoid redundant comparisons.
                 let deduplicatedConditions = deduplicateWhenConditions(
                     branch.conditions, ast: ast, sema: sema, interner: interner
                 )
@@ -91,17 +86,14 @@ extension ControlFlowLowerer {
                     )
                     let isLastCondition = condIdx == deduplicatedConditions.count - 1
                     if isLastCondition {
-                        // Last condition: if false, jump to next branch
                         instructions.append(.jumpIfEqual(lhs: matchesID, rhs: falseID, target: nextBranchLabels[index]))
                     } else {
-                        // Not last condition: if true, jump to body (short-circuit OR)
                         instructions.append(.jumpIfEqual(lhs: matchesID, rhs: hoistedTrueID, target: bodyLabel))
                     }
                 }
 
                 instructions.append(.label(bodyLabel))
             } else if !branch.conditions.isEmpty {
-                // Single condition: no OR-chain, just evaluate and branch on false.
                 let conditionExprID = branch.conditions[0]
                 let matchesID = lowerWhenConditionMatch(
                     conditionExprID: conditionExprID,
@@ -118,7 +110,6 @@ extension ControlFlowLowerer {
                 instructions.append(.jumpIfEqual(lhs: matchesID, rhs: falseID, target: nextBranchLabels[index]))
             }
 
-            // Emit guard condition: if the guard evaluates to false, skip to next branch.
             if let guardExprID = branch.guard_ {
                 let guardID = driver.lowerExpr(
                     guardExprID,
@@ -171,7 +162,6 @@ extension ControlFlowLowerer {
             instructions.append(.copy(from: unitVal, to: result))
         }
         instructions.append(.label(endLabel))
-        // Propagate Nothing type when all branches (including else) terminate
         if allBranchesTerminated, elseTerminated {
             arena.setExprType(sema.types.nothingType, for: result)
         }
