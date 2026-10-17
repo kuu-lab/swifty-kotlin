@@ -18,14 +18,11 @@ public final class CompilationContext: @unchecked Sendable {
     public internal(set) var generatedObjectPath: String?
     public internal(set) var generatedLLVMIRPath: String?
 
-    /// Incremental compilation cache (non-nil when incremental mode is active).
     public internal(set) var incrementalCache: IncrementalCompilationCache?
 
-    /// Set of file paths that need recompilation in incremental mode.
     /// `nil` means full build (all files).
     public internal(set) var incrementalRecompileSet: Set<String>?
 
-    /// Frontend state restored from the previous successful incremental build.
     /// Present only when file-level frontend reuse is safe for this invocation.
     public internal(set) var incrementalFrontendState: IncrementalFrontendState?
 
@@ -33,7 +30,6 @@ public final class CompilationContext: @unchecked Sendable {
     /// cache and intentionally skipped the remaining pipeline phases.
     public internal(set) var incrementalOutputRestored = false
 
-    /// Phase timer for recording per-phase wall-clock durations.
     /// Non-nil when the `time-phases` frontend flag is active.
     public internal(set) var phaseTimer: PhaseTimer?
 
@@ -49,13 +45,10 @@ public final class CompilationContext: @unchecked Sendable {
         self.interner = interner
     }
 
-    /// Returns `true` when incremental compilation is active.
     public var isIncremental: Bool {
         incrementalCache != nil
     }
 
-    /// Returns `true` when the given file path needs recompilation
-    /// (always `true` in non-incremental mode).
     public func needsRecompilation(path: String) -> Bool {
         guard let recompileSet = incrementalRecompileSet else {
             return true
@@ -67,8 +60,6 @@ public final class CompilationContext: @unchecked Sendable {
         needsRecompilation(path: sourceManager.path(of: fileID))
     }
 
-    /// The number of frontend parallel jobs parsed from `-Xfrontend jobs=N`.
-    /// Returns 1 (sequential) if the flag is not set.
     public var frontendJobs: Int {
         options.frontendJobs
     }
