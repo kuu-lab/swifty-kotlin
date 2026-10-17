@@ -317,6 +317,29 @@ evidence, and byte-for-byte output without modifying files.
 python3 Scripts/io_api_inventory/test_validation_evidence.py
 ```
 
+### Direct declaration and singleton probes
+
+`api-shape-probe-evidence.json` records direct shape checks that do not map to
+an upstream method-level behavior test. It pins the candidate SHA, the Kotlin
+source/JVM/KLIB snapshots, the locked JVM artifact, each row's implementation
+and test input hashes, case/lane results, output hashes, and pass/fail/skip
+counts. The generator checks this file during both `--write` and `--check`, and
+never rewrites it. These direct probes remain separate from
+`api-validation-evidence.json`; they do not promote a ledger row from
+`unverified` or claim upstream behavior coverage.
+
+For KUU-2582 the evidence has 12 passing cases: three pinned snapshot
+assertions, one `javap` JVM descriptor inspection, two source/imported-KLIB
+metadata cases, and six source/stdlib-library/producer-consumer native runs at
+O0/O2. The JVM artifact is SHA-256 checked against `upstream-lock.json`. An
+Apple reference is not applicable to these common/JVM rows.
+
+```sh
+python3 Scripts/io_api_inventory/test_shape_probe_evidence.py
+python3 Scripts/io_api_inventory/generate.py --write
+python3 Scripts/io_api_inventory/generate.py --check
+```
+
 The relocation regression copies inputs into a different checkout root in
 reverse filesystem creation order and compares all three generated outputs.
 PublishedApi row identities use upstream-relative paths, and local references

@@ -27,6 +27,7 @@ LEDGER_PATH = HERE / "api-inventory.tsv"
 SCOPE_PATH = HERE / "platform-scope.tsv"
 SUMMARY_PATH = HERE / "inventory-summary.md"
 VALIDATION_EVIDENCE_PATH = HERE / "api-validation-evidence.json"
+SHAPE_PROBE_EVIDENCE_PATH = HERE / "api-shape-probe-evidence.json"
 UPSTREAM_RUNNER = REPO / "Scripts/kotlinx_io_upstream"
 UPSTREAM_RUNNER_LOCK_PATH = UPSTREAM_RUNNER / "reference-lock.json"
 REFERENCE_EXECUTIONS_PATH = UPSTREAM_RUNNER / "jvm-executions.expected.json"
@@ -236,6 +237,7 @@ TEST_HINTS = {
 }
 
 LOCAL_IO_TEST_PREFIXES = (
+    "Scripts/io_api_inventory/test_unsafe_bytestring_operations_shape.py",
     "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java",
     "Scripts/io_api_inventory/probes/",
     "Scripts/diff_cases/kotlinx_io_",
@@ -245,6 +247,8 @@ LOCAL_IO_TEST_PREFIXES = (
     "Tests/CompilerCoreTests/GoldenCases/Sema/kotlinx_io_",
     "Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlinx_io_",
     "Tests/CompilerCoreTests/Sema/KotlinxIO",
+    "Tests/CompilerCoreTests/Sema/UnsafeByteStringOperationsShapeTests.swift",
+    "Tests/CompilerBackendTests/Integration/IOUnsafeByteStringOperationsSingletonTests.swift",
     "Tests/RuntimeTests/RuntimeIoFileSystemTests.swift",
 )
 LOCAL_IO_PROBE_API_NAMES = {"dataasbytearray"}
@@ -255,6 +259,51 @@ SEGMENT_READ_CONTEXT_IMPL_ROW_IDS = frozenset({
     "klib-80388c3ba30d5f55",
     "klib-bc524370ccf4a2da",
 })
+UNSAFE_BYTESTRING_OPERATIONS_SHAPE_ROW_IDS = frozenset({
+    "jvm-16874beea5466602",
+    "jvm-1aae98343452a402",
+    "klib-f6cdd7b8ec302161",
+})
+UNSAFE_BYTESTRING_OPERATIONS_SHAPE_TESTS = frozenset({
+    "Scripts/io_api_inventory/test_unsafe_bytestring_operations_shape.py",
+    "Tests/CompilerCoreTests/Sema/UnsafeByteStringOperationsShapeTests.swift",
+    "Tests/CompilerBackendTests/Integration/IOUnsafeByteStringOperationsSingletonTests.swift",
+})
+UNSAFE_BYTESTRING_OPERATIONS_SOURCE = "bytestring/common/src/unsafe/UnsafeByteStringOperations.kt"
+UNSAFE_BYTESTRING_OPERATIONS_JVM_API = "bytestring/api/kotlinx-io-bytestring.api"
+UNSAFE_BYTESTRING_OPERATIONS_KLIB_API = "bytestring/api/kotlinx-io-bytestring.klib.api"
+UNSAFE_BYTESTRING_OPERATIONS_CANDIDATE_SHA = "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7"
+UNSAFE_BYTESTRING_OPERATIONS_REFERENCE_FILES = frozenset({
+    UNSAFE_BYTESTRING_OPERATIONS_SOURCE,
+    UNSAFE_BYTESTRING_OPERATIONS_JVM_API,
+    UNSAFE_BYTESTRING_OPERATIONS_KLIB_API,
+})
+UNSAFE_BYTESTRING_OPERATIONS_REFERENCE_ASSERTIONS = {
+    "jvm-16874beea5466602": (
+        (UNSAFE_BYTESTRING_OPERATIONS_SOURCE, "@UnsafeByteStringApi\n@OptIn(ExperimentalContracts::class)\npublic object UnsafeByteStringOperations {"),
+        (UNSAFE_BYTESTRING_OPERATIONS_JVM_API, "public final class kotlinx/io/bytestring/unsafe/UnsafeByteStringOperations {"),
+    ),
+    "jvm-1aae98343452a402": (
+        (UNSAFE_BYTESTRING_OPERATIONS_JVM_API, "\tpublic static final field INSTANCE Lkotlinx/io/bytestring/unsafe/UnsafeByteStringOperations;"),
+    ),
+    "klib-f6cdd7b8ec302161": (
+        (UNSAFE_BYTESTRING_OPERATIONS_SOURCE, "@UnsafeByteStringApi\n@OptIn(ExperimentalContracts::class)\npublic object UnsafeByteStringOperations {"),
+        (UNSAFE_BYTESTRING_OPERATIONS_KLIB_API, "final object kotlinx.io.bytestring.unsafe/UnsafeByteStringOperations {"),
+    ),
+}
+UNSAFE_BYTESTRING_OPERATIONS_STATIC_CASE_IDS = frozenset({
+    "Scripts/io_api_inventory/test_unsafe_bytestring_operations_shape.py#test_pinned_source_and_klib_declare_the_public_marked_object",
+    "Scripts/io_api_inventory/test_unsafe_bytestring_operations_shape.py#test_pinned_jvm_dump_has_exact_public_static_final_singleton_field",
+    "Scripts/io_api_inventory/test_unsafe_bytestring_operations_shape.py#test_inventory_keeps_the_three_object_shape_rows_and_their_pairing",
+})
+UNSAFE_BYTESTRING_OPERATIONS_SEMA_CASE_ID = (
+    "Tests/CompilerCoreTests/Sema/UnsafeByteStringOperationsShapeTests.swift#"
+    "independentConsumerSeesPublicObjectInSourceAndKlib"
+)
+UNSAFE_BYTESTRING_OPERATIONS_BACKEND_CASE_ID = (
+    "Tests/CompilerBackendTests/Integration/IOUnsafeByteStringOperationsSingletonTests.swift#"
+    "externalConsumerObservesOneUnsafeOperationsSingleton"
+)
 SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS = (
     "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java",
     "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590/",
@@ -909,6 +958,349 @@ def apply_validation_evidence(
                 fail(f"row {row_id} has no registered local probe evidence cases")
         validate_index_of_bridge_probe(row, record, repository)
         row["status"] = "verified"
+
+
+def validate_shape_probe_evidence(
+    rows: list[dict],
+    lock: dict,
+    evidence_path: Path = SHAPE_PROBE_EVIDENCE_PATH,
+    repository: Path = REPO,
+    upstream: Path = UPSTREAM,
+) -> None:
+    """Keep direct shape probes separate from upstream behavior evidence and check their inputs."""
+    try:
+        evidence = json.loads(
+            evidence_path.read_text(encoding="utf-8"), object_pairs_hook=_unique_json_object
+        )
+    except OSError as error:
+        fail(f"cannot read shape probe evidence {evidence_path}: {error}")
+    except json.JSONDecodeError as error:
+        fail(f"invalid shape probe evidence JSON: {error}")
+    except UnicodeDecodeError as error:
+        fail(f"shape probe evidence is not UTF-8: {error}")
+
+    fields = {
+        "schema_version",
+        "candidate_sha",
+        "reference_version",
+        "reference_commit",
+        "commands",
+        "platform_notes",
+        "reference_snapshots",
+        "jvm_artifact",
+        "rows",
+        "executions",
+        "summary",
+    }
+    if not isinstance(evidence, dict) or set(evidence) != fields:
+        fail("shape probe evidence must contain exactly the schema v1 fields")
+    if type(evidence["schema_version"]) is not int or evidence["schema_version"] != 1:
+        fail("unsupported shape probe evidence schema_version")
+    candidate_sha = evidence["candidate_sha"]
+    if not isinstance(candidate_sha, str) or not re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", candidate_sha):
+        fail("malformed candidate SHA in shape probe evidence")
+    if candidate_sha != UNSAFE_BYTESTRING_OPERATIONS_CANDIDATE_SHA:
+        fail("shape probe evidence does not use the issue's pinned candidate SHA")
+    if (evidence["reference_version"], evidence["reference_commit"]) != (
+        lock.get("tag"), lock.get("commit")
+    ):
+        fail("shape probe evidence uses a different reference pin")
+    expected_commands = {
+        "snapshot_static": "python3 Scripts/io_api_inventory/test_unsafe_bytestring_operations_shape.py",
+        "jvm_reference_download": (
+            "curl --fail --location --output /tmp/kuu2582/kotlinx-io-bytestring-jvm-0.9.1.jar "
+            "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-io-bytestring-jvm/0.9.1/"
+            "kotlinx-io-bytestring-jvm-0.9.1.jar"
+        ),
+        "jvm_reference": (
+            "javap -classpath /tmp/kuu2582/kotlinx-io-bytestring-jvm-0.9.1.jar -p -s "
+            "kotlinx.io.bytestring.unsafe.UnsafeByteStringOperations"
+        ),
+        "sema_probe": (
+            "SWIFT_TEST_PRODUCT=CompilerCoreTests SWIFT_TEST_BUILD_JOBS=1 bash Scripts/swift_test.sh "
+            "--no-parallel --filter UnsafeByteStringOperationsShapeTests"
+        ),
+        "native_matrix": (
+            "SWIFT_TEST_PRODUCT=CompilerBackendTests SWIFT_TEST_BUILD_JOBS=1 bash Scripts/swift_test.sh "
+            "--no-parallel --filter IOUnsafeByteStringOperationsSingletonTests"
+        ),
+        "regeneration": (
+            "python3 Scripts/io_api_inventory/generate.py --write; "
+            "python3 Scripts/io_api_inventory/generate.py --check"
+        ),
+    }
+    if evidence["commands"] != expected_commands:
+        fail("shape probe evidence commands do not match the reproducible probe commands")
+    expected_platform_notes = {
+        "candidate": "macOS arm64; Swift Testing reported arm64e-apple-macos14.0",
+        "jvm_reference": "Pinned kotlinx-io-bytestring-jvm 0.9.1 artifact inspected with javap",
+        "apple_reference": "not applicable: the target rows are common/JVM and have no Apple target marker",
+    }
+    if evidence["platform_notes"] != expected_platform_notes:
+        fail("shape probe platform scope notes changed")
+
+    snapshots = evidence["reference_snapshots"]
+    if not isinstance(snapshots, list):
+        fail("shape probe reference_snapshots must be an array")
+    snapshot_hashes = {}
+    for snapshot in snapshots:
+        if not isinstance(snapshot, dict) or set(snapshot) != {"path", "sha256"}:
+            fail("malformed shape probe reference snapshot")
+        path = snapshot["path"]
+        digest = snapshot["sha256"]
+        if not isinstance(path, str) or path in snapshot_hashes:
+            fail("duplicate or empty path in shape probe reference snapshots")
+        if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+            fail(f"malformed reference snapshot SHA-256 for {path}")
+        snapshot_path = (upstream / path).resolve()
+        if upstream.resolve() not in snapshot_path.parents or not snapshot_path.is_file():
+            fail(f"missing or unsafe shape probe reference snapshot: {path}")
+        if hashlib.sha256(snapshot_path.read_bytes()).hexdigest() != digest:
+            fail(f"stale shape probe reference snapshot hash: {path}")
+        snapshot_hashes[path] = digest
+    if set(snapshot_hashes) != UNSAFE_BYTESTRING_OPERATIONS_REFERENCE_FILES:
+        fail("shape probe evidence must pin exactly the source, JVM, and KLIB snapshots")
+
+    artifact = evidence["jvm_artifact"]
+    if not isinstance(artifact, dict) or set(artifact) != {"coordinate", "sha256"}:
+        fail("malformed pinned JVM artifact in shape probe evidence")
+    if not isinstance(artifact["coordinate"], str) or not isinstance(artifact["sha256"], str):
+        fail("malformed pinned JVM artifact coordinate or SHA-256")
+    locked_artifacts = {entry["coordinate"]: entry["sha256"] for entry in lock.get("mavenArtifacts", [])}
+    if artifact.get("coordinate") != "org.jetbrains.kotlinx:kotlinx-io-bytestring-jvm:0.9.1":
+        fail("shape probe evidence uses the wrong JVM artifact")
+    if locked_artifacts.get(artifact["coordinate"]) != artifact.get("sha256"):
+        fail("shape probe JVM artifact hash does not match the upstream lock")
+
+    rows_by_id = {row.get("row_id"): row for row in rows}
+    row_records = evidence["rows"]
+    if not isinstance(row_records, list) or len(row_records) != len(UNSAFE_BYTESTRING_OPERATIONS_SHAPE_ROW_IDS):
+        fail("shape probe evidence must contain exactly the three target rows")
+    seen_row_ids = set()
+    row_fields = {
+        "row_id",
+        "implementation_input_sha256",
+        "test_input_sha256",
+        "compatibility_obligations",
+        "reference_assertions",
+    }
+    for record in row_records:
+        if not isinstance(record, dict) or set(record) != row_fields:
+            fail("malformed target row in shape probe evidence")
+        row_id = record["row_id"]
+        if (not isinstance(row_id, str) or row_id not in UNSAFE_BYTESTRING_OPERATIONS_SHAPE_ROW_IDS
+                or row_id in seen_row_ids):
+            fail(f"unknown or duplicate shape probe row ID: {row_id}")
+        seen_row_ids.add(row_id)
+        row = rows_by_id.get(row_id)
+        if row is None:
+            fail(f"shape probe evidence references an absent inventory row: {row_id}")
+        if record["compatibility_obligations"] != validation_obligations(row):
+            fail(f"shape probe obligations do not match row {row_id}")
+        current_hashes = validation_input_hashes(row, repository, upstream)
+        for field in ("implementation_input_sha256", "test_input_sha256"):
+            value = record[field]
+            if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
+                fail(f"malformed {field} for shape probe row {row_id}")
+            if value != current_hashes[field]:
+                fail(f"stale {field} for shape probe row {row_id}")
+
+        expected_assertions = [
+            {
+                "snapshot_path": path,
+                "signature": signature,
+                "result": "PASS",
+                "output_sha256": hashlib.sha256(signature.encode("utf-8")).hexdigest(),
+            }
+            for path, signature in UNSAFE_BYTESTRING_OPERATIONS_REFERENCE_ASSERTIONS[row_id]
+        ]
+        if record["reference_assertions"] != expected_assertions:
+            fail(f"reference assertions do not match the pinned declaration shape for {row_id}")
+        for assertion in expected_assertions:
+            snapshot_path = upstream / assertion["snapshot_path"]
+            if assertion["signature"] not in snapshot_path.read_text(encoding="utf-8"):
+                fail(f"pinned reference assertion missing for {row_id}: {assertion['signature']}")
+    if seen_row_ids != UNSAFE_BYTESTRING_OPERATIONS_SHAPE_ROW_IDS:
+        fail("shape probe evidence is missing one or more target rows")
+
+    executions = evidence["executions"]
+    if not isinstance(executions, list):
+        fail("shape probe executions must be an array")
+    execution_fields = {
+        "subject",
+        "case_ids",
+        "lane",
+        "row_ids",
+        "result",
+        "exit_code",
+        "case_count",
+        "passed_count",
+        "failed_count",
+        "skipped_count",
+        "output_kind",
+        "output",
+        "output_sha256",
+    }
+    expected_executions = {
+        ("reference", "snapshot-static"),
+        ("reference", "jvm-descriptor"),
+        ("candidate", "source-shape"),
+        ("candidate", "stdlib-library-shape"),
+        *( ("candidate", lane) for lane in (
+            "source-O0", "source-O2", "stdlib-library-O0", "stdlib-library-O2",
+            "producer-consumer-O0", "producer-consumer-O2",
+        )),
+    }
+    observed_executions = set()
+    lane_coverage = {row_id: set() for row_id in UNSAFE_BYTESTRING_OPERATIONS_SHAPE_ROW_IDS}
+    total_cases = total_passed = total_failed = total_skipped = 0
+    for execution in executions:
+        if not isinstance(execution, dict) or set(execution) != execution_fields:
+            fail("malformed shape probe execution record")
+        subject = execution["subject"]
+        lane = execution["lane"]
+        if not isinstance(subject, str) or not isinstance(lane, str):
+            fail("shape probe subject and lane must be strings")
+        identity = (subject, lane)
+        if identity not in expected_executions or identity in observed_executions:
+            fail(f"unknown or duplicate shape probe execution: {identity}")
+        observed_executions.add(identity)
+        case_ids = execution["case_ids"]
+        row_ids = execution["row_ids"]
+        if (not isinstance(case_ids, list) or not case_ids
+                or any(not isinstance(case_id, str) or not case_id for case_id in case_ids)):
+            fail(f"malformed case IDs for shape probe lane {lane}")
+        if len(case_ids) != len(set(case_ids)):
+            fail(f"duplicate case IDs for shape probe lane {lane}")
+        if (not isinstance(row_ids, list) or not row_ids
+                or any(not isinstance(row_id, str) or not row_id for row_id in row_ids)):
+            fail(f"malformed row IDs for shape probe lane {lane}")
+        if len(row_ids) != len(set(row_ids)) or set(row_ids) - UNSAFE_BYTESTRING_OPERATIONS_SHAPE_ROW_IDS:
+            fail(f"duplicate or unknown row IDs for shape probe lane {lane}")
+        case_count = execution["case_count"]
+        passed_count = execution["passed_count"]
+        failed_count = execution["failed_count"]
+        skipped_count = execution["skipped_count"]
+        if type(case_count) is not int or case_count != len(case_ids) or case_count < 1:
+            fail(f"case count does not match recorded case IDs for shape probe lane {lane}")
+        if (type(execution["exit_code"]) is not int or execution["exit_code"] != 0
+                or execution["result"] != "PASS"):
+            fail(f"non-passing shape probe execution in lane {lane}")
+        if (passed_count != case_count or failed_count != 0 or skipped_count != 0
+                or any(type(value) is not int for value in (passed_count, failed_count, skipped_count))):
+            fail(f"shape probe counts include a failure, skip, or unrun case in lane {lane}")
+        output = execution["output"]
+        output_digest = execution["output_sha256"]
+        if not isinstance(output, str) or not isinstance(output_digest, str):
+            fail(f"malformed output in shape probe lane {lane}")
+        if hashlib.sha256(output.encode("utf-8")).hexdigest() != output_digest:
+            fail(f"output SHA-256 mismatch in shape probe lane {lane}")
+
+        if subject == "reference":
+            expected_rows = (
+                UNSAFE_BYTESTRING_OPERATIONS_SHAPE_ROW_IDS
+                if lane == "snapshot-static"
+                else frozenset({"jvm-16874beea5466602", "jvm-1aae98343452a402"})
+            )
+            if set(row_ids) != expected_rows:
+                fail(f"reference probe row mapping is incorrect for lane {lane}")
+            if lane == "snapshot-static" and case_count != len(UNSAFE_BYTESTRING_OPERATIONS_STATIC_CASE_IDS):
+                fail("static reference probe must record all three shape assertions")
+            if lane == "snapshot-static" and (
+                execution["output_kind"] != "process-output"
+                or "Ran 3 tests" not in output
+                or "\nOK\n" not in output
+            ):
+                fail("static reference probe output does not show all three passing assertions")
+            if lane == "jvm-descriptor":
+                expected_class = "public final class kotlinx.io.bytestring.unsafe.UnsafeByteStringOperations {"
+                expected_field = "public static final kotlinx.io.bytestring.unsafe.UnsafeByteStringOperations INSTANCE;"
+                expected_descriptor = "descriptor: Lkotlinx/io/bytestring/unsafe/UnsafeByteStringOperations;"
+                if (execution["output_kind"] != "process-stdout" or expected_class not in output
+                        or expected_field not in output or expected_descriptor not in output):
+                    fail("pinned JVM artifact output does not prove the singleton class and INSTANCE field")
+        else:
+            if lane in {
+                "source-O0", "source-O2", "stdlib-library-O0", "stdlib-library-O2",
+                "producer-consumer-O0", "producer-consumer-O2",
+            }:
+                if set(row_ids) != UNSAFE_BYTESTRING_OPERATIONS_SHAPE_ROW_IDS:
+                    fail(f"candidate singleton probe must cover all target rows in lane {lane}")
+                expected_output = "true\ntrue\ntrue\ntrue\n" if lane.startswith("producer-consumer") else "true\ntrue\n"
+                if execution["output_kind"] != "program-stdout" or output != expected_output:
+                    fail(f"unexpected singleton identity output in lane {lane}")
+                for row_id in row_ids:
+                    lane_coverage[row_id].add(lane)
+            else:
+                if set(row_ids) != {"jvm-16874beea5466602", "klib-f6cdd7b8ec302161"}:
+                    fail(f"candidate declaration probe row mapping is incorrect for lane {lane}")
+                expected_summaries = {
+                    "source-shape": (
+                        "public object; UnsafeByteStringApi marker; typed singleton consumer resolved; "
+                        "no error-severity diagnostics"
+                    ),
+                    "stdlib-library-shape": (
+                        "imported public object; marker metadata; unique object record; "
+                        "initializer and lazy-initializer link names"
+                    ),
+                }
+                if (execution["output_kind"] != "assertion-summary"
+                        or output != expected_summaries[lane]):
+                    fail(f"shape metadata lane {lane} must record assertion-summary output")
+        if not isinstance(execution["output_kind"], str) or not execution["output_kind"]:
+            fail(f"empty output kind in shape probe lane {lane}")
+        total_cases += case_count
+        total_passed += passed_count
+        total_failed += failed_count
+        total_skipped += skipped_count
+
+    if observed_executions != expected_executions:
+        missing = expected_executions - observed_executions
+        fail(f"missing shape probe executions: {sorted(missing)}")
+    expected_case_ids = {
+        ("reference", "snapshot-static"): UNSAFE_BYTESTRING_OPERATIONS_STATIC_CASE_IDS,
+        ("reference", "jvm-descriptor"): frozenset({"javap#kotlinx.io.bytestring.unsafe.UnsafeByteStringOperations.INSTANCE"}),
+        ("candidate", "source-shape"): frozenset({UNSAFE_BYTESTRING_OPERATIONS_SEMA_CASE_ID + "(library:false)"}),
+        ("candidate", "stdlib-library-shape"): frozenset({UNSAFE_BYTESTRING_OPERATIONS_SEMA_CASE_ID + "(library:true)"}),
+    }
+    backend_case_parameters = {
+        "source-O0": ("source", 0),
+        "source-O2": ("source", 2),
+        "stdlib-library-O0": ("stdlib-library", 0),
+        "stdlib-library-O2": ("stdlib-library", 2),
+        "producer-consumer-O0": ("producer-consumer", 0),
+        "producer-consumer-O2": ("producer-consumer", 2),
+    }
+    for lane, (route, optimization) in backend_case_parameters.items():
+        expected_case_ids[("candidate", lane)] = frozenset({
+            UNSAFE_BYTESTRING_OPERATIONS_BACKEND_CASE_ID
+            + f'(route:"{route}",optimization:{optimization})'
+        })
+    for execution in executions:
+        expected = expected_case_ids[(execution["subject"], execution["lane"])]
+        if set(execution["case_ids"]) != expected:
+            fail(f"unexpected case IDs for shape probe lane {execution['lane']}")
+    if any(lanes != set(required_execution_lanes(["native-source", "native-bridge"])) for lanes in lane_coverage.values()):
+        fail("shape probe evidence is missing one or more source/KLIB O0/O2 candidate lanes")
+
+    summary = evidence["summary"]
+    if not isinstance(summary, dict) or set(summary) != {
+        "case_count", "passed_count", "failed_count", "skipped_count", "not_run_count", "result"
+    }:
+        fail("malformed shape probe summary")
+    if summary != {
+        "case_count": total_cases,
+        "passed_count": total_passed,
+        "failed_count": total_failed,
+        "skipped_count": total_skipped,
+        "not_run_count": 0,
+        "result": "PASS",
+    }:
+        fail("shape probe summary does not match its execution records")
+    if any(type(summary[name]) is not int for name in (
+        "case_count", "passed_count", "failed_count", "skipped_count", "not_run_count"
+    )):
+        fail("shape probe summary counts must be integers")
 
 
 def load_inputs() -> tuple[dict, dict, list[dict], list[dict]]:
@@ -1966,6 +2358,8 @@ def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
     for path, content in local_tests:
         if path.startswith("Scripts/io_api_inventory/probes/") and name not in LOCAL_IO_PROBE_API_NAMES:
             continue
+        if path in UNSAFE_BYTESTRING_OPERATIONS_SHAPE_TESTS and row["row_id"] not in UNSAFE_BYTESTRING_OPERATIONS_SHAPE_ROW_IDS:
+            continue
         if (path == SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS[0]
                 or path.startswith(SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS[1])):
             if row["row_id"] not in SEGMENT_READ_CONTEXT_IMPL_ROW_IDS:
@@ -2049,6 +2443,29 @@ def pair_rows(rows: list[dict]) -> None:
                 other["row_id"] for other in opposite if key is not None and other.get("_source_key") == key
                 and (role is None or other.get("_accessor_role") is None or role == other["_accessor_role"])
             ))
+
+    # Kotlin object INSTANCE fields are generated JVM ABI entries, so they
+    # have no direct Kotlin source key. Pair them with the KLIB object whose
+    # qualified owner matches the JVM field owner.
+    for row in binary_rows:
+        if row.get("api_kind") != "JVM field ABI" or row.get("name") != "INSTANCE":
+            continue
+        owner_package, separator, owner_name = row.get("owner_fqn", "").rpartition("/")
+        if not separator or not owner_name:
+            continue
+        klib_owner = owner_package.replace("/", ".") + "/" + owner_name
+        matching_objects = [
+            source_row for source_row in source_rows
+            if source_row.get("api_kind") == "object" and source_row.get("owner_fqn") == klib_owner
+        ]
+        if len(matching_objects) != 1:
+            continue
+        object_row = matching_objects[0]
+        row["jvm_abi_refs"] = object_row["row_id"]
+        linked_rows = set(object_row.get("jvm_abi_refs", "").split(";"))
+        linked_rows.discard("")
+        linked_rows.add(row["row_id"])
+        object_row["jvm_abi_refs"] = ";".join(sorted(linked_rows))
 
 
 def parse_published_internals(sources: list[Path]) -> list[dict]:
@@ -2364,6 +2781,7 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     local_paths.extend(REPO.joinpath("Scripts/io_api_inventory/probes").glob("*.kt"))
     local_paths.extend(REPO.joinpath("Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590").glob("*.kt"))
     local_paths.append(REPO / "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java")
+    local_paths.append(REPO / "Scripts/io_api_inventory/test_unsafe_bytestring_operations_shape.py")
     for path in sorted(local_paths):
         rel = path.relative_to(REPO).as_posix()
         if rel in {INDEX_OF_DEFAULT_BRIDGE_DIFF_CASE, INDEX_OF_DEFAULT_BRIDGE_LOCAL_TEST}:
@@ -2408,6 +2826,7 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     pair_rows(api_rows)
     api_rows.sort(key=lambda row: (row["module"], row["representation"], row["row_id"]))
     apply_validation_evidence(api_rows, lock)
+    validate_shape_probe_evidence(api_rows, lock)
     check_negative_guards(api_rows)
     scope_rows = parse_platform_public_declarations(sources, api_rows, index)
     return lock, api_rows, scope_rows

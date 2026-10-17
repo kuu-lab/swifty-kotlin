@@ -1,0 +1,319 @@
+{
+  "schema_version": 1,
+  "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+  "reference_version": "0.9.1",
+  "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+  "commands": {
+    "snapshot_static": "python3 Scripts/io_api_inventory/test_unsafe_bytestring_operations_shape.py",
+    "jvm_reference_download": "curl --fail --location --output /tmp/kuu2582/kotlinx-io-bytestring-jvm-0.9.1.jar https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-io-bytestring-jvm/0.9.1/kotlinx-io-bytestring-jvm-0.9.1.jar",
+    "jvm_reference": "javap -classpath /tmp/kuu2582/kotlinx-io-bytestring-jvm-0.9.1.jar -p -s kotlinx.io.bytestring.unsafe.UnsafeByteStringOperations",
+    "sema_probe": "SWIFT_TEST_PRODUCT=CompilerCoreTests SWIFT_TEST_BUILD_JOBS=1 bash Scripts/swift_test.sh --no-parallel --filter UnsafeByteStringOperationsShapeTests",
+    "native_matrix": "SWIFT_TEST_PRODUCT=CompilerBackendTests SWIFT_TEST_BUILD_JOBS=1 bash Scripts/swift_test.sh --no-parallel --filter IOUnsafeByteStringOperationsSingletonTests",
+    "regeneration": "python3 Scripts/io_api_inventory/generate.py --write; python3 Scripts/io_api_inventory/generate.py --check"
+  },
+  "platform_notes": {
+    "candidate": "macOS arm64; Swift Testing reported arm64e-apple-macos14.0",
+    "jvm_reference": "Pinned kotlinx-io-bytestring-jvm 0.9.1 artifact inspected with javap",
+    "apple_reference": "not applicable: the target rows are common/JVM and have no Apple target marker"
+  },
+  "reference_snapshots": [
+    {
+      "path": "bytestring/api/kotlinx-io-bytestring.api",
+      "sha256": "02921223ed48787ea218108be213b566ecc81f902d2376905437e2f77837ca04"
+    },
+    {
+      "path": "bytestring/api/kotlinx-io-bytestring.klib.api",
+      "sha256": "e6f9cc2e0b124a7b9c520d4a26d5a08efdd7f9be5f59562e06088a6d461c7670"
+    },
+    {
+      "path": "bytestring/common/src/unsafe/UnsafeByteStringOperations.kt",
+      "sha256": "2e846278797a5cacacad52247cccb499a2b43d1bba132ba87bf32fbfc047fa2c"
+    }
+  ],
+  "jvm_artifact": {
+    "coordinate": "org.jetbrains.kotlinx:kotlinx-io-bytestring-jvm:0.9.1",
+    "sha256": "8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4"
+  },
+  "rows": [
+    {
+      "row_id": "jvm-16874beea5466602",
+      "implementation_input_sha256": "7ebfa437b32f0f335ef43f98c0fdbe96a82ddebbda2c96493fc7cd23edfe776d",
+      "test_input_sha256": "626af52b24cc994c85653fb8e8783c95e932fdf8e7aba062e26ac527b02aa3f8",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "reference_assertions": [
+        {
+          "snapshot_path": "bytestring/common/src/unsafe/UnsafeByteStringOperations.kt",
+          "signature": "@UnsafeByteStringApi\n@OptIn(ExperimentalContracts::class)\npublic object UnsafeByteStringOperations {",
+          "result": "PASS",
+          "output_sha256": "4d6f48614098a21a4979a01a300a7e9a528fb1c407c4e593eba047480bce5977"
+        },
+        {
+          "snapshot_path": "bytestring/api/kotlinx-io-bytestring.api",
+          "signature": "public final class kotlinx/io/bytestring/unsafe/UnsafeByteStringOperations {",
+          "result": "PASS",
+          "output_sha256": "7896d87512dd3bcb6f4b787b1c32f242d38b4d0df79d34cec442c8c1bacc7b4d"
+        }
+      ]
+    },
+    {
+      "row_id": "jvm-1aae98343452a402",
+      "implementation_input_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "test_input_sha256": "4e076b0987f54b9706c5ded9b89266d19758a33a9cd2aaf1ef1f9e73c2292603",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "reference_assertions": [
+        {
+          "snapshot_path": "bytestring/api/kotlinx-io-bytestring.api",
+          "signature": "\tpublic static final field INSTANCE Lkotlinx/io/bytestring/unsafe/UnsafeByteStringOperations;",
+          "result": "PASS",
+          "output_sha256": "18de293a91059f5a6894ef4597b50b7e7bfc07c2f09e30e11aba1d13c9e6667f"
+        }
+      ]
+    },
+    {
+      "row_id": "klib-f6cdd7b8ec302161",
+      "implementation_input_sha256": "7ebfa437b32f0f335ef43f98c0fdbe96a82ddebbda2c96493fc7cd23edfe776d",
+      "test_input_sha256": "626af52b24cc994c85653fb8e8783c95e932fdf8e7aba062e26ac527b02aa3f8",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "reference_assertions": [
+        {
+          "snapshot_path": "bytestring/common/src/unsafe/UnsafeByteStringOperations.kt",
+          "signature": "@UnsafeByteStringApi\n@OptIn(ExperimentalContracts::class)\npublic object UnsafeByteStringOperations {",
+          "result": "PASS",
+          "output_sha256": "4d6f48614098a21a4979a01a300a7e9a528fb1c407c4e593eba047480bce5977"
+        },
+        {
+          "snapshot_path": "bytestring/api/kotlinx-io-bytestring.klib.api",
+          "signature": "final object kotlinx.io.bytestring.unsafe/UnsafeByteStringOperations {",
+          "result": "PASS",
+          "output_sha256": "bbefff3fcfdefb90820858486acc30318bf6aaa12293b915d9136a6504b04dcc"
+        }
+      ]
+    }
+  ],
+  "executions": [
+    {
+      "subject": "reference",
+      "case_ids": [
+        "Scripts/io_api_inventory/test_unsafe_bytestring_operations_shape.py#test_inventory_keeps_the_three_object_shape_rows_and_their_pairing",
+        "Scripts/io_api_inventory/test_unsafe_bytestring_operations_shape.py#test_pinned_jvm_dump_has_exact_public_static_final_singleton_field",
+        "Scripts/io_api_inventory/test_unsafe_bytestring_operations_shape.py#test_pinned_source_and_klib_declare_the_public_marked_object"
+      ],
+      "lane": "snapshot-static",
+      "row_ids": [
+        "jvm-16874beea5466602",
+        "jvm-1aae98343452a402",
+        "klib-f6cdd7b8ec302161"
+      ],
+      "result": "PASS",
+      "exit_code": 0,
+      "case_count": 3,
+      "passed_count": 3,
+      "failed_count": 0,
+      "skipped_count": 0,
+      "output_kind": "process-output",
+      "output": "...\n----------------------------------------------------------------------\nRan 3 tests in 0.022s\n\nOK\n",
+      "output_sha256": "e19e86343fe7ad5cbfcc1f5c6855458cc698e8fdefa4d66f13c567b4230c5d00"
+    },
+    {
+      "subject": "reference",
+      "case_ids": [
+        "javap#kotlinx.io.bytestring.unsafe.UnsafeByteStringOperations.INSTANCE"
+      ],
+      "lane": "jvm-descriptor",
+      "row_ids": [
+        "jvm-16874beea5466602",
+        "jvm-1aae98343452a402"
+      ],
+      "result": "PASS",
+      "exit_code": 0,
+      "case_count": 1,
+      "passed_count": 1,
+      "failed_count": 0,
+      "skipped_count": 0,
+      "output_kind": "process-stdout",
+      "output": "Compiled from \"UnsafeByteStringOperations.kt\"\npublic final class kotlinx.io.bytestring.unsafe.UnsafeByteStringOperations {\n  public static final kotlinx.io.bytestring.unsafe.UnsafeByteStringOperations INSTANCE;\n    descriptor: Lkotlinx/io/bytestring/unsafe/UnsafeByteStringOperations;\n  private kotlinx.io.bytestring.unsafe.UnsafeByteStringOperations();\n    descriptor: ()V\n\n  public final kotlinx.io.bytestring.ByteString wrapUnsafe(byte[]);\n    descriptor: ([B)Lkotlinx/io/bytestring/ByteString;\n\n  public final void withByteArrayUnsafe(kotlinx.io.bytestring.ByteString, kotlin.jvm.functions.Function1<? super byte[], kotlin.Unit>);\n    descriptor: (Lkotlinx/io/bytestring/ByteString;Lkotlin/jvm/functions/Function1;)V\n\n  static {};\n    descriptor: ()V\n}\n",
+      "output_sha256": "838cd0fd6fb0e5967f202204cec1939d08c45463aa6f687facdd5faffa840516"
+    },
+    {
+      "subject": "candidate",
+      "case_ids": [
+        "Tests/CompilerCoreTests/Sema/UnsafeByteStringOperationsShapeTests.swift#independentConsumerSeesPublicObjectInSourceAndKlib(library:false)"
+      ],
+      "lane": "source-shape",
+      "row_ids": [
+        "jvm-16874beea5466602",
+        "klib-f6cdd7b8ec302161"
+      ],
+      "result": "PASS",
+      "exit_code": 0,
+      "case_count": 1,
+      "passed_count": 1,
+      "failed_count": 0,
+      "skipped_count": 0,
+      "output_kind": "assertion-summary",
+      "output": "public object; UnsafeByteStringApi marker; typed singleton consumer resolved; no error-severity diagnostics",
+      "output_sha256": "61e46f9ef3e5fb0fbae4714799135255286a569ecaf05c6dba8a96ec403c94cb"
+    },
+    {
+      "subject": "candidate",
+      "case_ids": [
+        "Tests/CompilerCoreTests/Sema/UnsafeByteStringOperationsShapeTests.swift#independentConsumerSeesPublicObjectInSourceAndKlib(library:true)"
+      ],
+      "lane": "stdlib-library-shape",
+      "row_ids": [
+        "jvm-16874beea5466602",
+        "klib-f6cdd7b8ec302161"
+      ],
+      "result": "PASS",
+      "exit_code": 0,
+      "case_count": 1,
+      "passed_count": 1,
+      "failed_count": 0,
+      "skipped_count": 0,
+      "output_kind": "assertion-summary",
+      "output": "imported public object; marker metadata; unique object record; initializer and lazy-initializer link names",
+      "output_sha256": "b43d71f9ddf6d3707705096eae749c80767376f68bcc88ea0c8c2786d3c266ff"
+    },
+    {
+      "subject": "candidate",
+      "case_ids": [
+        "Tests/CompilerBackendTests/Integration/IOUnsafeByteStringOperationsSingletonTests.swift#externalConsumerObservesOneUnsafeOperationsSingleton(route:\"source\",optimization:0)"
+      ],
+      "lane": "source-O0",
+      "row_ids": [
+        "jvm-16874beea5466602",
+        "jvm-1aae98343452a402",
+        "klib-f6cdd7b8ec302161"
+      ],
+      "result": "PASS",
+      "exit_code": 0,
+      "case_count": 1,
+      "passed_count": 1,
+      "failed_count": 0,
+      "skipped_count": 0,
+      "output_kind": "program-stdout",
+      "output": "true\ntrue\n",
+      "output_sha256": "21d91041c5d1a59661f8936571ee5c87e96f6f0c7a532b52ec17c5b9bea8220b"
+    },
+    {
+      "subject": "candidate",
+      "case_ids": [
+        "Tests/CompilerBackendTests/Integration/IOUnsafeByteStringOperationsSingletonTests.swift#externalConsumerObservesOneUnsafeOperationsSingleton(route:\"source\",optimization:2)"
+      ],
+      "lane": "source-O2",
+      "row_ids": [
+        "jvm-16874beea5466602",
+        "jvm-1aae98343452a402",
+        "klib-f6cdd7b8ec302161"
+      ],
+      "result": "PASS",
+      "exit_code": 0,
+      "case_count": 1,
+      "passed_count": 1,
+      "failed_count": 0,
+      "skipped_count": 0,
+      "output_kind": "program-stdout",
+      "output": "true\ntrue\n",
+      "output_sha256": "21d91041c5d1a59661f8936571ee5c87e96f6f0c7a532b52ec17c5b9bea8220b"
+    },
+    {
+      "subject": "candidate",
+      "case_ids": [
+        "Tests/CompilerBackendTests/Integration/IOUnsafeByteStringOperationsSingletonTests.swift#externalConsumerObservesOneUnsafeOperationsSingleton(route:\"stdlib-library\",optimization:0)"
+      ],
+      "lane": "stdlib-library-O0",
+      "row_ids": [
+        "jvm-16874beea5466602",
+        "jvm-1aae98343452a402",
+        "klib-f6cdd7b8ec302161"
+      ],
+      "result": "PASS",
+      "exit_code": 0,
+      "case_count": 1,
+      "passed_count": 1,
+      "failed_count": 0,
+      "skipped_count": 0,
+      "output_kind": "program-stdout",
+      "output": "true\ntrue\n",
+      "output_sha256": "21d91041c5d1a59661f8936571ee5c87e96f6f0c7a532b52ec17c5b9bea8220b"
+    },
+    {
+      "subject": "candidate",
+      "case_ids": [
+        "Tests/CompilerBackendTests/Integration/IOUnsafeByteStringOperationsSingletonTests.swift#externalConsumerObservesOneUnsafeOperationsSingleton(route:\"stdlib-library\",optimization:2)"
+      ],
+      "lane": "stdlib-library-O2",
+      "row_ids": [
+        "jvm-16874beea5466602",
+        "jvm-1aae98343452a402",
+        "klib-f6cdd7b8ec302161"
+      ],
+      "result": "PASS",
+      "exit_code": 0,
+      "case_count": 1,
+      "passed_count": 1,
+      "failed_count": 0,
+      "skipped_count": 0,
+      "output_kind": "program-stdout",
+      "output": "true\ntrue\n",
+      "output_sha256": "21d91041c5d1a59661f8936571ee5c87e96f6f0c7a532b52ec17c5b9bea8220b"
+    },
+    {
+      "subject": "candidate",
+      "case_ids": [
+        "Tests/CompilerBackendTests/Integration/IOUnsafeByteStringOperationsSingletonTests.swift#externalConsumerObservesOneUnsafeOperationsSingleton(route:\"producer-consumer\",optimization:0)"
+      ],
+      "lane": "producer-consumer-O0",
+      "row_ids": [
+        "jvm-16874beea5466602",
+        "jvm-1aae98343452a402",
+        "klib-f6cdd7b8ec302161"
+      ],
+      "result": "PASS",
+      "exit_code": 0,
+      "case_count": 1,
+      "passed_count": 1,
+      "failed_count": 0,
+      "skipped_count": 0,
+      "output_kind": "program-stdout",
+      "output": "true\ntrue\ntrue\ntrue\n",
+      "output_sha256": "a8c8704687490f20e1992b9d6a9578237617ebd0894ee14f5682acea27e3845a"
+    },
+    {
+      "subject": "candidate",
+      "case_ids": [
+        "Tests/CompilerBackendTests/Integration/IOUnsafeByteStringOperationsSingletonTests.swift#externalConsumerObservesOneUnsafeOperationsSingleton(route:\"producer-consumer\",optimization:2)"
+      ],
+      "lane": "producer-consumer-O2",
+      "row_ids": [
+        "jvm-16874beea5466602",
+        "jvm-1aae98343452a402",
+        "klib-f6cdd7b8ec302161"
+      ],
+      "result": "PASS",
+      "exit_code": 0,
+      "case_count": 1,
+      "passed_count": 1,
+      "failed_count": 0,
+      "skipped_count": 0,
+      "output_kind": "program-stdout",
+      "output": "true\ntrue\ntrue\ntrue\n",
+      "output_sha256": "a8c8704687490f20e1992b9d6a9578237617ebd0894ee14f5682acea27e3845a"
+    }
+  ],
+  "summary": {
+    "case_count": 12,
+    "passed_count": 12,
+    "failed_count": 0,
+    "skipped_count": 0,
+    "not_run_count": 0,
+    "result": "PASS"
+  }
+}
