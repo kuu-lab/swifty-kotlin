@@ -140,10 +140,10 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                               allowIterableReceiver: true
                           , locals: &locals) {
                     // No dedicated Iterable source declaration or synthetic
-                    // stub was found for this
-                    // aggregate HOF (unlike reduce); fall back to the bundled
-                    // Sequence<T> source body, which is plain iteration and
-                    // therefore valid for any Iterable receiver.
+                    // stub was found for this aggregate HOF (unlike reduce);
+                    // fall back to the bundled Sequence<T> source body, which
+                    // is plain iteration and therefore valid for any Iterable
+                    // receiver.
                     if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
                     }
@@ -270,8 +270,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 bindBundledSequenceAggregateSource(typeArguments: sourceBackedSequenceAggregateTypeArguments, locals: &locals)
             }
 
-            // KSP-441: Bind source-backed Sequence transform extensions (map, filter,
-            // mapIndexed, etc.) once the result element type is known. Do not override
+            // Bind once the result element type is known. Do not override
             // an already-bound CallBinding from a list/aggregate source path.
             if isSequenceReceiver, sema.bindings.callBindings[id] == nil {
                 _ = bindBundledSequenceSourceIfAvailable(resultType: resultType, locals: &locals)
