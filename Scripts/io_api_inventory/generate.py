@@ -75,6 +75,34 @@ LOCAL_PROBE_EVIDENCE_CASES = {
         "lanes": ("jvm-descriptor",),
         "methods": {"reference": "jvm-abi-reflection", "candidate": "source-metadata"},
     },
+    "local:Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt#opt-in-use": {
+        "path": "Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt",
+        "row_ids": {"klib-48c0b12efeabdf13", "klib-8fe21b6650324264"},
+        "lanes": LOCAL_NATIVE_PROBE_LANES,
+        "methods": {"reference": "jvm-probe", "candidate": "native-matrix"},
+    },
+    "local:Tests/CompilerCoreTests/Sema/KotlinxIOUnsafeByteStringApiContractTests.swift#jvm-annotation-shape": {
+        "path": "Tests/CompilerCoreTests/Sema/KotlinxIOUnsafeByteStringApiContractTests.swift",
+        "row_ids": {"jvm-7915e4861d081be6"},
+        "lanes": ("jvm-descriptor",),
+        "methods": {"reference": "jvm-abi-bytecode", "candidate": "source-metadata"},
+    },
+}
+UNSAFE_BYTESTRING_API_EVIDENCE_ROW_IDS = {
+    "jvm-7915e4861d081be6",
+    "klib-48c0b12efeabdf13",
+    "klib-8fe21b6650324264",
+}
+UNSAFE_BYTESTRING_API_SEMA_TEST = "Tests/CompilerCoreTests/Sema/KotlinxIOUnsafeByteStringApiContractTests.swift"
+UNSAFE_BYTESTRING_API_ROW_IDS = UNSAFE_BYTESTRING_API_EVIDENCE_ROW_IDS
+UNSAFE_BYTESTRING_API_LOCAL_TESTS = [
+    "Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt",
+    UNSAFE_BYTESTRING_API_SEMA_TEST,
+]
+LOCAL_PROBE_RECEIPT_HARNESS_PATHS = {
+    "Scripts/io_api_inventory/generate.py",
+    "Scripts/io_api_inventory/run_f02_matrix.py",
+    "Scripts/io_api_inventory/record_unsafe_bytestring_api_evidence.py",
 }
 
 LEDGER_COLUMNS = [
@@ -426,6 +454,139 @@ def _local_probe_case_spec(row: dict, case_id: str) -> dict | None:
     return spec
 
 
+def _validate_local_probe_run_receipts(
+    record: dict,
+    row: dict,
+    executions: list[dict],
+    repository: Path,
+) -> None:
+    """Validate the extra output and artifact receipts required by KUU-2585."""
+    receipts = record.get("run_receipts")
+    row_id = row["row_id"]
+    if row_id in UNSAFE_BYTESTRING_API_EVIDENCE_ROW_IDS and receipts is None:
+        fail(f"missing local probe run receipts for row {row_id}")
+    if receipts is None:
+        return
+
+    fields = {
+        "kind",
+        "case_count",
+        "probe_sha256",
+        "harness_sha256",
+        "reference_sha256",
+        "output",
+        "output_sha256",
+        "lanes",
+        "focused_test",
+    }
+    if not isinstance(receipts, dict) or set(receipts) != fields:
+        fail(f"malformed local probe run receipts for row {row_id}")
+
+    expected_kind = "jvm-abi" if row.get("representation") == "JVM public ABI dump" else "f02-matrix"
+    if receipts["kind"] != expected_kind:
+        fail(f"local probe receipt kind mismatch for row {row_id}")
+    sha256_pattern = re.compile(r"^[0-9a-f]{64}$")
+
+    probe_hashes = receipts["probe_sha256"]
+    local_test_paths = set(row.get("local_test_refs", "").split(";"))
+    if not isinstance(probe_hashes, dict) or not probe_hashes:
+        fail(f"local probe receipts have no probe hashes for row {row_id}")
+    for relative, value in probe_hashes.items():
+        if not isinstance(relative, str) or relative not in local_test_paths:
+            fail(f"local probe receipt references an unmapped probe for row {row_id}")
+        if not isinstance(value, str) or not sha256_pattern.fullmatch(value):
+            fail(f"malformed local probe SHA-256 for row {row_id}")
+        path = (repository / relative).resolve()
+        if repository.resolve() not in path.parents or not path.is_file():
+            fail(f"missing local probe receipt input for row {row_id}: {relative}")
+        if hashlib.sha256(path.read_bytes()).hexdigest() != value:
+            fail(f"stale local probe receipt input for row {row_id}: {relative}")
+
+    expected_harness_paths = LOCAL_PROBE_RECEIPT_HARNESS_PATHS
+    harness_hashes = receipts["harness_sha256"]
+    if not isinstance(harness_hashes, dict) or set(harness_hashes) != expected_harness_paths:
+        fail(f"local probe receipts have incomplete harness hashes for row {row_id}")
+    for relative, value in harness_hashes.items():
+        if not isinstance(value, str) or not sha256_pattern.fullmatch(value):
+            fail(f"malformed local probe harness SHA-256 for row {row_id}")
+        path = (repository / relative).resolve()
+        if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != value:
+            fail(f"stale local probe receipt harness for row {row_id}: {relative}")
+
+    reference_hashes = receipts["reference_sha256"]
+    if not isinstance(reference_hashes, dict) or not reference_hashes:
+        fail(f"local probe receipts have no reference hashes for row {row_id}")
+    if any(not isinstance(value, str) or not sha256_pattern.fullmatch(value)
+           for value in reference_hashes.values()):
+        fail(f"malformed local probe reference SHA-256 for row {row_id}")
+
+    output = receipts["output"]
+    output_sha = receipts["output_sha256"]
+    if not isinstance(output, str) or not output.strip():
+        fail(f"local probe receipt has no checked output for row {row_id}")
+    if not isinstance(output_sha, str) or not sha256_pattern.fullmatch(output_sha):
+        fail(f"malformed local probe output SHA-256 for row {row_id}")
+    if hashlib.sha256(output.encode("utf-8")).hexdigest() != output_sha:
+        fail(f"local probe output SHA-256 mismatch for row {row_id}")
+
+    if type(receipts["case_count"]) is not int or receipts["case_count"] != len({
+        execution["case_id"] for execution in executions
+    }):
+        fail(f"local probe case count mismatch for row {row_id}")
+
+    lane_fields = {
+        "case_id",
+        "lane",
+        "status",
+        "reference_stdout_sha256",
+        "candidate_stdout_sha256",
+        "artifacts_sha256",
+    }
+    lane_receipts = receipts["lanes"]
+    if not isinstance(lane_receipts, list):
+        fail(f"local probe lane receipts must be an array for row {row_id}")
+    expected_lanes = {(execution["case_id"], execution["lane"]) for execution in executions}
+    observed_lanes = set()
+    for lane_receipt in lane_receipts:
+        if not isinstance(lane_receipt, dict) or set(lane_receipt) != lane_fields:
+            fail(f"malformed local probe lane receipt for row {row_id}")
+        identity = (lane_receipt["case_id"], lane_receipt["lane"])
+        if identity not in expected_lanes or identity in observed_lanes:
+            fail(f"unmapped or duplicate local probe lane receipt for row {row_id}")
+        observed_lanes.add(identity)
+        if lane_receipt["status"] != "PASS":
+            fail(f"non-passing local probe lane receipt for row {row_id}")
+        for field in ("reference_stdout_sha256", "candidate_stdout_sha256"):
+            value = lane_receipt[field]
+            if not isinstance(value, str) or not sha256_pattern.fullmatch(value):
+                fail(f"malformed {field} in local probe receipt for row {row_id}")
+        artifact_hashes = lane_receipt["artifacts_sha256"]
+        if not isinstance(artifact_hashes, dict) or not artifact_hashes:
+            fail(f"local probe lane receipt has no artifact hashes for row {row_id}")
+        if any(not isinstance(value, str) or not sha256_pattern.fullmatch(value)
+               for value in artifact_hashes.values()):
+            fail(f"malformed local probe artifact SHA-256 for row {row_id}")
+    if observed_lanes != expected_lanes:
+        fail(f"missing local probe lane receipts for row {row_id}")
+
+    focused_test = receipts["focused_test"]
+    focused_test_fields = {
+        "command", "status", "tests_passed", "stdout_sha256", "stderr_sha256", "test_source_sha256"
+    }
+    if not isinstance(focused_test, dict) or set(focused_test) != focused_test_fields:
+        fail(f"malformed focused contract test receipt for row {row_id}")
+    if (not isinstance(focused_test["command"], str) or not focused_test["command"]
+            or focused_test["status"] != "PASS"
+            or type(focused_test["tests_passed"]) is not int or focused_test["tests_passed"] != 2):
+        fail(f"focused contract test did not pass its two cases for row {row_id}")
+    for field in ("stdout_sha256", "stderr_sha256", "test_source_sha256"):
+        value = focused_test[field]
+        if not isinstance(value, str) or not sha256_pattern.fullmatch(value):
+            fail(f"malformed {field} in focused contract test receipt for row {row_id}")
+    if probe_hashes.get(UNSAFE_BYTESTRING_API_SEMA_TEST) != focused_test["test_source_sha256"]:
+        fail(f"focused contract test source hash mismatch for row {row_id}")
+
+
 def _load_validation_execution_catalogs() -> dict[str, dict[str, str]]:
     try:
         lock = json.loads(UPSTREAM_RUNNER_LOCK_PATH.read_text(encoding="utf-8"))
@@ -544,10 +705,14 @@ def apply_validation_evidence(
             fail("each validation record must be an object")
         evidence_source = "upstream-catalog" if schema_version == 1 else record.get("evidence_source")
         record_fields = base_record_fields | ({"evidence_source"} if schema_version == 2 else set())
+        if schema_version == 2 and "run_receipts" in record:
+            record_fields.add("run_receipts")
         if set(record) != record_fields:
             fail(f"each validation record must contain exactly the schema v{schema_version} fields")
         if evidence_source not in ("upstream-catalog", "local-probe"):
             fail(f"unknown evidence_source for schema v{schema_version}")
+        if "run_receipts" in record and evidence_source != "local-probe":
+            fail("run receipts are supported only for local-probe evidence")
         if evidence_source == "upstream-catalog" and execution_catalogs is None:
             execution_catalogs = _load_validation_execution_catalogs()
         row_id = record["row_id"]
@@ -671,6 +836,8 @@ def apply_validation_evidence(
                     )
             if not required_cases:
                 fail(f"row {row_id} has no registered local probe evidence cases")
+        if row_id in UNSAFE_BYTESTRING_API_EVIDENCE_ROW_IDS or "run_receipts" in record:
+            _validate_local_probe_run_receipts(record, row, executions, repository)
         row["status"] = "verified"
 
 
@@ -1656,6 +1823,7 @@ def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
         if missing:
             fail("missing dedicated UnsafeByteStringApi probes: " + ", ".join(sorted(missing)))
         return list(UNSAFE_BYTESTRING_API_LOCAL_TESTS)
+    local_tests = [item for item in local_tests if item[0] not in UNSAFE_BYTESTRING_API_LOCAL_TESTS]
     name = row["_candidate_name"].lower()
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []

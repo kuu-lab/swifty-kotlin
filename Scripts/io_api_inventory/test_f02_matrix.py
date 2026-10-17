@@ -153,6 +153,16 @@ class F02GateTests(unittest.TestCase):
         case = next(case for case in matrix.scenarios() if case["id"] == "unsafe-bytestring-api")
         self.assertEqual(case["reference"], "jvm")
         self.assertEqual(case["fixture"], matrix.ROOT / "Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt")
+        self.assertEqual(
+            matrix.unsafe_byte_string_api_local_probe_case_ids("producer-consumer-O2"),
+            ["local:Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt#opt-in-use"],
+        )
+        jvm_case = "local:Tests/CompilerCoreTests/Sema/KotlinxIOUnsafeByteStringApiContractTests.swift#jvm-annotation-shape"
+        self.assertEqual(inventory_generator.LOCAL_PROBE_EVIDENCE_CASES[jvm_case]["lanes"], ("jvm-descriptor",))
+        self.assertEqual(
+            inventory_generator.LOCAL_PROBE_EVIDENCE_CASES[jvm_case]["row_ids"],
+            {"jvm-7915e4861d081be6"},
+        )
 
     def test_deprecated_path_rows_have_no_unrelated_upstream_assertions(self):
         expected = {

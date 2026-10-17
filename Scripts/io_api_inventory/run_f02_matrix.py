@@ -13,6 +13,7 @@ import math
 import os
 import re
 import signal
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -139,6 +140,69 @@ def verify_segment_data_as_byte_array_source_metadata() -> dict:
     }
 
 
+def verify_unsafe_byte_string_api_source_metadata() -> dict:
+    source = ROOT / "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/unsafe/Annotations.kt"
+    contents = source.read_text(encoding="utf-8")
+    required = (
+        "@MustBeDocumented",
+        "@Retention(AnnotationRetention.BINARY)",
+        "@RequiresOptIn(",
+        "level = RequiresOptIn.Level.ERROR,",
+        "public annotation class UnsafeByteStringApi",
+    )
+    missing = [item for item in required if item not in contents]
+    if missing:
+        raise RuntimeError("candidate UnsafeByteStringApi source metadata is missing: " + ", ".join(missing))
+    return {
+        "status": "PASS",
+        "exit_code": 0,
+        "method": "source-metadata",
+        "source_path": str(source.relative_to(ROOT)),
+        "source_sha256": sha(source),
+        "assertions": list(required),
+    }
+
+
+def verify_unsafe_byte_string_api_jvm_metadata(javap: Path, jar: Path, directory: Path) -> dict:
+    class_name = "kotlinx.io.bytestring.unsafe.UnsafeByteStringApi"
+    process = subprocess.run(
+        [str(javap), "-v", "-classpath", str(jar), class_name],
+        cwd=directory,
+        capture_output=True,
+        timeout=60,
+        check=False,
+    )
+    stdout_path = directory / "javap.stdout"
+    stderr_path = directory / "javap.stderr"
+    stdout_path.write_bytes(process.stdout)
+    stderr_path.write_bytes(process.stderr)
+    output = process.stdout.decode("utf-8", errors="replace")
+    required = (
+        "ACC_PUBLIC, ACC_INTERFACE, ACC_ABSTRACT, ACC_ANNOTATION",
+        "kotlin.annotation.MustBeDocumented",
+        "Lkotlin/annotation/AnnotationRetention;.BINARY",
+        "Ljava/lang/annotation/RetentionPolicy;.CLASS",
+        "kotlin.RequiresOptIn(",
+        "level=Lkotlin/RequiresOptIn$Level;.ERROR",
+    )
+    missing = [item for item in required if item not in output]
+    if process.returncode != 0 or process.stderr or missing:
+        raise RuntimeError(
+            "pinned UnsafeByteStringApi JVM annotation probe failed: "
+            f"exit={process.returncode}, missing={missing}, stderr={process.stderr.decode(errors='replace')}"
+        )
+    return {
+        "status": "PASS",
+        "exit_code": 0,
+        "method": "jvm-abi-bytecode",
+        "class_name": class_name,
+        "assertions": list(required),
+        "stdout_sha256": sha(stdout_path),
+        "stderr_sha256": sha(stderr_path),
+        "tool_sha256": sha(javap),
+        "artifact_sha256": sha(jar),
+        "output": "public annotation interface; BINARY retention; RequiresOptIn(ERROR); MustBeDocumented",
+    }
 def local_probe_execution(case_id: str, lane: str, candidate_sha: str, reference_commit: str,
                           subject: str, result: str) -> dict:
     spec = LOCAL_PROBE_EVIDENCE_CASES[case_id]
@@ -155,6 +219,14 @@ def segment_local_probe_case_ids(lane: str) -> list[str]:
         case_id
         for case_id, spec in LOCAL_PROBE_EVIDENCE_CASES.items()
         if case_id.endswith(("#internal-view", "#internal-visibility")) and lane in spec["lanes"]
+    ]
+
+
+def unsafe_byte_string_api_local_probe_case_ids(lane: str) -> list[str]:
+    return [
+        case_id
+        for case_id, spec in LOCAL_PROBE_EVIDENCE_CASES.items()
+        if case_id.endswith("#opt-in-use") and lane in spec["lanes"]
     ]
 
 
@@ -433,7 +505,7 @@ def main(argv: list[str] | None = None) -> int:
                "runtime_cache_provenance": "source and manifest-validated object hashes; not a clean Runtime rebuild"}
     try:
         provenance = [Path(__file__), HERE / "generate_f02_consumers.py", HERE / "generate_f01_consumers.py",
-                      HERE / "api-inventory.tsv", HERE / "source-declarations.json", HERE / "upstream-lock.json",
+                      HERE / "generate.py", HERE / "api-inventory.tsv", HERE / "source-declarations.json", HERE / "upstream-lock.json",
                       ROOT / "Scripts/kotlinx_io_upstream/reference-lock.json", ROOT / "Package.swift"]
         provenance += sorted((HERE / "f02_consumers").glob("*")) + sorted((HERE / "f02_boundary").glob("*.kt"))
         summary["harness_files_sha256"] = {str(path.relative_to(ROOT)): sha(path) for path in provenance if path.is_file()}
@@ -456,10 +528,15 @@ def main(argv: list[str] | None = None) -> int:
             if (HERE / "f02_consumers" / name).read_text() != contents: raise RuntimeError("regenerate F02 consumers first")
         lock = json.loads((ROOT / "Scripts/kotlinx_io_upstream/reference-lock.json").read_text())
         target_probe_selected = any(case["id"] == "segment-data-as-byte-array" for case in selected)
+        unsafe_api_selected = any(case["id"] == "unsafe-bytestring-api" for case in selected)
         candidate_source_metadata = None
         if target_probe_selected:
             candidate_source_metadata = verify_segment_data_as_byte_array_source_metadata()
             summary["candidate_source_metadata_assertion"] = candidate_source_metadata
+        candidate_unsafe_api_source_metadata = None
+        if unsafe_api_selected:
+            candidate_unsafe_api_source_metadata = verify_unsafe_byte_string_api_source_metadata()
+            summary["candidate_unsafe_byte_string_api_source_metadata"] = candidate_unsafe_api_source_metadata
         for record in lock["sdk_files"]:
             if sha(args.kotlin_home / record["path"]) != record["sha256"]: raise RuntimeError("reference SDK hash mismatch")
         jars = []
@@ -471,6 +548,13 @@ def main(argv: list[str] | None = None) -> int:
         reference_tools = [args.java.resolve()]
         if any("jvm_abi_probe" in case for case in selected):
             reference_tools.append(args.java.resolve().parent / "javac")
+        javap = None
+        if unsafe_api_selected:
+            javap_path = shutil.which("javap")
+            if javap_path is None:
+                raise RuntimeError("javap is required for the pinned UnsafeByteStringApi JVM ABI probe")
+            javap = Path(javap_path).resolve()
+            reference_tools.append(javap)
         summary["reference_sha256"] = {str(path): sha(path) for path in [*jars, *reference_tools]}
         require_stage([str(args.java.resolve()), "-version"], output, "java-version", 30)
         if not re.search(rb'version "21[.\"]', (output / "java-version.stderr").read_bytes()):
@@ -486,6 +570,27 @@ def main(argv: list[str] | None = None) -> int:
                 or manifest.get("kotlinLanguageVersion") != CANDIDATE_KOTLIN_LANGUAGE_VERSION):
             raise RuntimeError("stdlib artifact module/language mismatch")
         summary["stdlib_files_sha256"] = snapshot(stdlib)
+        if unsafe_api_selected:
+            bytestring_jar = next((jar for jar in jars if "bytestring" in jar.name), None)
+            if bytestring_jar is None or javap is None:
+                raise RuntimeError("pinned bytestring JAR or javap is unavailable for the JVM ABI probe")
+            jvm_probe_dir = output / "unsafe-bytestring-api-jvm-abi"
+            jvm_probe_dir.mkdir()
+            jvm_probe = verify_unsafe_byte_string_api_jvm_metadata(javap, bytestring_jar, jvm_probe_dir)
+            summary["unsafe_byte_string_api_jvm_probe"] = jvm_probe
+            case_id = "local:Tests/CompilerCoreTests/Sema/KotlinxIOUnsafeByteStringApiContractTests.swift#jvm-annotation-shape"
+            summary["local_probe_executions"].append({
+                "case_id": case_id,
+                "lane": "jvm-descriptor",
+                "reference": local_probe_execution(
+                    case_id, "jvm-descriptor", summary["workspace_git_sha"], lock["commit"],
+                    "reference", jvm_probe["status"],
+                ),
+                "candidate": local_probe_execution(
+                    case_id, "jvm-descriptor", summary["workspace_git_sha"], lock["commit"],
+                    "candidate", candidate_unsafe_api_source_metadata["status"],
+                ),
+            })
         def record_lane(case: dict, expected: bytes, directory: Path, route: str, optimization: str) -> None:
             print(f"RUN {case['id']} {route} {optimization}", flush=True)
             try:
@@ -511,6 +616,20 @@ def main(argv: list[str] | None = None) -> int:
                         "candidate": local_probe_execution(
                             case_id, lane, summary["workspace_git_sha"], lock["commit"], "candidate",
                             candidate_result,
+                        ),
+                    })
+            if case["id"] == "unsafe-bytestring-api":
+                lane = f"{route}-{optimization}"
+                for case_id in unsafe_byte_string_api_local_probe_case_ids(lane):
+                    summary["local_probe_executions"].append({
+                        "case_id": case_id,
+                        "lane": lane,
+                        "reference": local_probe_execution(
+                            case_id, lane, summary["workspace_git_sha"], lock["commit"], "reference", "PASS"
+                        ),
+                        "candidate": local_probe_execution(
+                            case_id, lane, summary["workspace_git_sha"], lock["commit"], "candidate",
+                            result.get("status", "FAIL"),
                         ),
                     })
             summary["results"].append({"case": case["id"], **result})

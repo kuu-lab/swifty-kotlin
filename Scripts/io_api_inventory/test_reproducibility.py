@@ -207,6 +207,13 @@ class ReproducibilityTests(unittest.TestCase):
                 self.assertFalse(self.generator._case_id_matches_row(
                     row, "bytestring/common/test/unsafe/UnsafeByteStringOperationsTest.kt#callsInPlaceContract"))
         for row in self.rows:
+            if row["row_id"] not in self.generator.UNSAFE_BYTESTRING_API_ROW_IDS:
+                self.assertNotIn("Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt", row["local_test_refs"])
+                self.assertNotIn(
+                    "Tests/CompilerCoreTests/Sema/KotlinxIOUnsafeByteStringApiContractTests.swift",
+                    row["local_test_refs"],
+                )
+        for row in self.rows:
             if "/ KLIB dump" in row["representation"] or "_source_key" in row:
                 self.assertNotIn("unmapped", row["upstream_source_refs"], row["_api_id"])
 

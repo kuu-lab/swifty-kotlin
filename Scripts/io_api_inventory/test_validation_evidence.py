@@ -2,6 +2,7 @@
 """Exercise validation evidence application with a one-row inventory fixture."""
 
 import copy
+import hashlib
 import importlib.util
 import json
 import tempfile
@@ -165,6 +166,114 @@ class ValidationEvidenceTests(unittest.TestCase):
             "executions": executions,
         }
 
+    def _unsafe_bytestring_row(self, row_id):
+        row = copy.deepcopy(self.row)
+        row["row_id"] = row_id
+        row["local_candidate_refs"] = "Sources/CompilerCore/Stdlib/kotlinx/io/Foo.kt:1"
+        row["local_implementation_refs"] = (
+            "none (interface/abstract/generated or no implementation mapped)"
+            if row_id == "jvm-7915e4861d081be6"
+            else "Sources/CompilerCore/Stdlib/kotlinx/io/Foo.kt:1"
+        )
+        row["local_test_refs"] = (
+            "Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt;"
+            "Tests/CompilerCoreTests/Sema/KotlinxIOUnsafeByteStringApiContractTests.swift"
+        )
+        if row_id == "jvm-7915e4861d081be6":
+            row["representation"] = "JVM public ABI dump"
+        self._write("Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt", "fun main() = println(3)\n")
+        self._write(
+            "Tests/CompilerCoreTests/Sema/KotlinxIOUnsafeByteStringApiContractTests.swift",
+            "struct UnsafeByteStringApiContractTests {}\n",
+        )
+        for relative in self.generator.LOCAL_PROBE_RECEIPT_HARNESS_PATHS:
+            self._write(relative, "# pinned harness fixture\n")
+        return row
+
+    def _unsafe_bytestring_local_record(self, row):
+        candidate_sha = "a" * 40
+        executions = []
+        case_specs = [
+            (case_id, spec)
+            for case_id, spec in self.generator.LOCAL_PROBE_EVIDENCE_CASES.items()
+            if row["row_id"] in spec["row_ids"]
+            and spec["path"] in row["local_test_refs"].split(";")
+        ]
+        for case_id, spec in case_specs:
+            for lane in spec["lanes"]:
+                executions.append({
+                    "case_id": case_id,
+                    "lane": lane,
+                    **{
+                        subject: {
+                            "execution_id": self.generator.local_probe_execution_id(
+                                candidate_sha, self.lock["commit"], case_id, lane, subject
+                            ),
+                            "result": "PASS",
+                            "exit_code": 0,
+                            "method": spec["methods"][subject],
+                        }
+                        for subject in ("reference", "candidate")
+                    },
+                })
+        record = {
+            "row_id": row["row_id"],
+            "candidate_sha": candidate_sha,
+            "reference_version": self.lock["tag"],
+            "reference_commit": self.lock["commit"],
+            **self.generator.validation_input_hashes(row, self.repository, self.upstream),
+            "compatibility_obligations": self.generator.validation_obligations(row),
+            "evidence_source": "local-probe",
+            "executions": executions,
+        }
+        probe_hashes = {
+            relative: hashlib.sha256((self.repository / relative).read_bytes()).hexdigest()
+            for relative in row["local_test_refs"].split(";")
+        }
+        record["run_receipts"] = {
+            "kind": "jvm-abi" if row["representation"] == "JVM public ABI dump" else "f02-matrix",
+            "case_count": len({execution["case_id"] for execution in executions}),
+            "probe_sha256": probe_hashes,
+            "harness_sha256": {
+                relative: hashlib.sha256((self.repository / relative).read_bytes()).hexdigest()
+                for relative in self.generator.LOCAL_PROBE_RECEIPT_HARNESS_PATHS
+            },
+            "reference_sha256": {"pinned-reference.jar": "b" * 64},
+            "output": (
+                "public annotation interface; BINARY retention; RequiresOptIn(ERROR); MustBeDocumented"
+                if row["representation"] == "JVM public ABI dump" else "3\n"
+            ),
+            "output_sha256": hashlib.sha256((
+                "public annotation interface; BINARY retention; RequiresOptIn(ERROR); MustBeDocumented"
+                if row["representation"] == "JVM public ABI dump" else "3\n"
+            ).encode()).hexdigest(),
+            "lanes": [
+                {
+                    "case_id": execution["case_id"],
+                    "lane": execution["lane"],
+                    "status": "PASS",
+                    "reference_stdout_sha256": "c" * 64,
+                    "candidate_stdout_sha256": "d" * 64,
+                    "artifacts_sha256": {"reference": "e" * 64, "candidate": "f" * 64},
+                }
+                for execution in executions
+            ],
+            "focused_test": {
+                "command": (
+                    "bash Scripts/swift_test.sh --filter CompilerCoreTests.KotlinxIOUnsafeByteStringApiContractTests "
+                    "--no-parallel -Xswiftc -swift-version -Xswiftc 6"
+                ),
+                "status": "PASS",
+                "tests_passed": 2,
+                "stdout_sha256": "1" * 64,
+                "stderr_sha256": "2" * 64,
+                "test_source_sha256": probe_hashes[
+                    "Tests/CompilerCoreTests/Sema/KotlinxIOUnsafeByteStringApiContractTests.swift"
+                ],
+            },
+        }
+        return record
+
     def test_current_reference_and_candidate_passes_promote_only_the_fixture_row(self):
         row = self._apply([self._record()])
         self.assertEqual(row["status"], "verified")
@@ -187,6 +296,38 @@ class ValidationEvidenceTests(unittest.TestCase):
         row = self._local_probe_row()
         record = self._local_probe_record(row)
         self.assertEqual(self._apply([record], row, schema_version=2)["status"], "verified")
+
+    def test_unsafe_bytestring_api_evidence_keeps_all_row_receipts_and_promotes_only_direct_probes(self):
+        row_ids = (
+            "jvm-7915e4861d081be6",
+            "klib-48c0b12efeabdf13",
+            "klib-8fe21b6650324264",
+        )
+        for row_id in row_ids:
+            with self.subTest(row_id=row_id):
+                row = self._unsafe_bytestring_row(row_id)
+                record = self._unsafe_bytestring_local_record(row)
+                self.assertGreater(len(record["executions"]), 0)
+                promoted = self._apply([record], row, schema_version=2)
+                self.assertEqual(promoted["status"], "verified")
+                repeated = self._apply([record], row, schema_version=2)
+                self.assertEqual(repeated["status"], "verified")
+
+    def test_unsafe_bytestring_api_evidence_requires_current_output_and_probe_receipts(self):
+        row = self._unsafe_bytestring_row("klib-48c0b12efeabdf13")
+        record = self._unsafe_bytestring_local_record(row)
+        stale_output = copy.deepcopy(record)
+        stale_output["run_receipts"]["output"] = "different\n"
+        stale_input = copy.deepcopy(record)
+        stale_input["run_receipts"]["probe_sha256"][
+            "Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt"
+        ] = "9" * 64
+        missing_lane = copy.deepcopy(record)
+        missing_lane["run_receipts"]["lanes"].pop()
+        for invalid in (stale_output, stale_input, missing_lane):
+            with self.subTest(invalid=invalid["run_receipts"]):
+                with self.assertRaises(SystemExit):
+                    self._apply([invalid], row, schema_version=2)
 
     def test_local_probe_evidence_rejects_unregistered_cases_and_forged_ids(self):
         row = self._local_probe_row()
