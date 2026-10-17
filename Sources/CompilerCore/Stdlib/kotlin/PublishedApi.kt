@@ -8,9 +8,6 @@
 package kotlin
 
 /**
- * When applied to a class or a member with internal visibility allows using it from public inline functions and
- * makes it effectively public.
- *
  * Public inline functions cannot use non-public API, since if they are inlined, those non-public API references
  * would violate access restrictions at a call site (see restrictions for public API inline functions).
  *
