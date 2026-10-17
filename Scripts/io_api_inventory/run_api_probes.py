@@ -37,6 +37,19 @@ EXPECTED_REFERENCE_VERSION = "0.9.1"
 EXPECTED_KOTLIN_VERSION = "2.3.10"
 
 
+def validate_final_class_diagnostic(diagnostic: str, compiler_kind: str) -> tuple[str, str]:
+    if compiler_kind == "kswiftc":
+        expected = ("KSWIFTK-SEMA-FINAL", "kotlinx.io.bytestring.ByteStringBuilder")
+    elif compiler_kind == "kotlinc":
+        expected = ("this type is final", "cannot be extended")
+    else:
+        raise RuntimeError(f"unsupported compiler kind for final-class probe: {compiler_kind}")
+    combined = diagnostic.lower()
+    if any(term.lower() not in combined for term in expected):
+        raise RuntimeError(f"final-class rejection did not match {compiler_kind}: {diagnostic}")
+    return expected
+
+
 def sha(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -178,13 +191,10 @@ class ProbeRunner:
                        compiler_kind: str, env: dict[str, str] | None = None) -> dict:
         result = self.stage(command, directory, name, expected_code=1, env=env)
         diagnostic = result["stderr"] + result["stdout"]
-        if compiler_kind == "kswiftc":
-            expected = ("KSWIFTK-SEMA-FINAL", "kotlinx.io.bytestring.ByteStringBuilder")
-        else:
-            expected = ("final", "cannot be inherited")
-        combined = diagnostic.lower()
-        if any(term.lower() not in combined for term in expected):
-            raise RuntimeError(f"{name} failed for an unexpected reason: {diagnostic}")
+        try:
+            expected = validate_final_class_diagnostic(diagnostic, compiler_kind)
+        except RuntimeError as error:
+            raise RuntimeError(f"{name} failed for an unexpected reason: {diagnostic}") from error
         result["expected_rejection"] = list(expected)
         return result
 

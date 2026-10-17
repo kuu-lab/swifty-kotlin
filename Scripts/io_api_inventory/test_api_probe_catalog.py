@@ -21,10 +21,18 @@ def load_generator():
     return module
 
 
+def load_probe_runner():
+    spec = importlib.util.spec_from_file_location("io_api_probe_runner", HERE / "run_api_probes.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 class APIProbeCatalogTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.generator = load_generator()
+        cls.runner = load_probe_runner()
         cls.catalog = cls.generator.load_api_probe_catalog()
         with (HERE / "api-inventory.tsv").open(encoding="utf-8", newline="") as stream:
             cls.rows = {row["row_id"]: row for row in csv.DictReader(stream, delimiter="\t")}
@@ -119,6 +127,26 @@ class APIProbeCatalogTests(unittest.TestCase):
             with self.subTest(run=run):
                 with self.assertRaises(SystemExit):
                     self.generator.validate_api_probe_build_stages(run, sha256_pattern)
+
+    def test_reference_final_class_diagnostic_uses_pinned_kotlinc_wording(self):
+        diagnostic = "this type is final, so it cannot be extended."
+        self.assertEqual(
+            self.runner.validate_final_class_diagnostic(diagnostic, "kotlinc"),
+            ("this type is final", "cannot be extended"),
+        )
+        with self.assertRaisesRegex(RuntimeError, "final-class rejection"):
+            self.runner.validate_final_class_diagnostic(
+                "class is final and cannot be inherited", "kotlinc"
+            )
+
+    def test_candidate_final_class_diagnostic_requires_issue_and_symbol(self):
+        self.assertEqual(
+            self.runner.validate_final_class_diagnostic(
+                "error KSWIFTK-SEMA-FINAL: kotlinx.io.bytestring.ByteStringBuilder is final",
+                "kswiftc",
+            ),
+            ("KSWIFTK-SEMA-FINAL", "kotlinx.io.bytestring.ByteStringBuilder"),
+        )
 
     @staticmethod
     def _build_stage(stage_name, command):
