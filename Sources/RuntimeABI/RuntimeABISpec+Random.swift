@@ -1,4 +1,4 @@
-// kotlin.random.Random's core API (nextInt/nextLong/nextFloat/
+// KSP-466: kotlin.random.Random's core API (nextInt/nextLong/nextFloat/
 // nextDouble/nextBoolean/nextBits/nextBytes, Random.Default, Random(seed)) is
 // now Kotlin source (Sources/CompilerCore/Stdlib/kotlin/random/Random.kt) with
 // no native ABI surface beyond __kk_random_seed_entropy. asKotlinRandom/
