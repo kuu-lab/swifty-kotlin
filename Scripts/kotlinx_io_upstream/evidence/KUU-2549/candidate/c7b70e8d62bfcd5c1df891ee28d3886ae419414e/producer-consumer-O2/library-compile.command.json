@@ -1,0 +1,13 @@
+[
+  "/Users/kuu/.codex/worktrees/03a5/swifty-kotlin/.build/out/Products/Debug/kswiftc",
+  "-O2",
+  "--stdlib-library",
+  "/private/tmp/kuu2549-candidate-master-stdlib.kklib",
+  "--emit",
+  "library",
+  "-m",
+  "KioOriginalTests",
+  "/private/tmp/kuu2549-candidate-master-producer-consumer-O2/ports/core/common/test/samples/samples.kt",
+  "-o",
+  "/private/tmp/kuu2549-candidate-master-producer-consumer-O2/OriginalTests.kklib"
+]

@@ -1,0 +1,21 @@
+=== diff_kotlinc Configuration ===
+Workers: 1
+Compile timeout: 120s
+Run timeout: 10s
+Script timeout: 120s
+Force run skipped: 1
+Candidate-only: 0
+kswiftc flags: <none>
+Clean runtime cache: 0
+Kotlinc reference cache: /Users/kuu/.codex/worktrees/03a5/swifty-kotlin/.runtime-build/kotlinc-ref-cache
+Kotlinc JAVA_OPTS: -XX:TieredStopAtLevel=1
+Reference JAVA_FLAGS: -XX:-UsePerfData
+Stdlib artifact: /private/tmp/kuu2549-candidate-master-stdlib.kklib (provided)
+Target: Scripts/diff_cases/kotlinx_io_sources_starts_with_contracts.kt
+==================================
+Stdlib artifact: /private/tmp/kuu2549-candidate-master-stdlib.kklib
+Stdlib artifact manifest hash: 20075b11789b0373
+CASE 1: Scripts/diff_cases/kotlinx_io_sources_starts_with_contracts.kt
+PASS Scripts/diff_cases/kotlinx_io_sources_starts_with_contracts.kt
+  artifacts: /var/folders/xt/mvg03l_j5slcdt7l9yf5xcwr0000gn/T/kswiftk-diff-XXXXXX.VzLKlu9kkU
+Summary: total=1 failed=0 passed=1 skipped=0

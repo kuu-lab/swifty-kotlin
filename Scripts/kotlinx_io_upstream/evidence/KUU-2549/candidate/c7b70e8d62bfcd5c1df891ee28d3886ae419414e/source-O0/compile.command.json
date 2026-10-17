@@ -1,0 +1,9 @@
+[
+  "/Users/kuu/.codex/worktrees/03a5/swifty-kotlin/.build/out/Products/Debug/kswiftc",
+  "-O0",
+  "--stdlib-from-source",
+  "/private/tmp/kuu2549-candidate-master-source-O0/ports/core/common/test/samples/samples.kt",
+  "/private/tmp/kuu2549-candidate-master-source-O0/CombinedDriver.kt",
+  "-o",
+  "/private/tmp/kuu2549-candidate-master-source-O0/candidate"
+]

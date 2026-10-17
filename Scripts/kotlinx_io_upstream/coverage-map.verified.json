@@ -1,5 +1,1151 @@
 {
   "schema_version": 1,
   "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
-  "mappings": []
+  "mappings": [
+    {
+      "upstream_id": "core/common/test/samples/samples.kt#writeDecimalLong",
+      "upstream_path": "core/common/test/samples/samples.kt",
+      "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+      "source_git_blob_sha": "870bfa7643536a008320f4cff5a050788c1b886d",
+      "disposition": "paired",
+      "reason": "Pinned JVM and macOS Native references plus the current KSwiftK macOS Native candidate each executed the unchanged sample assertions; startsWithSample has an additional source-state and exception differential probe.",
+      "assertions": [
+        {
+          "id": "writeDecimalLong-assert-1",
+          "source_path": "core/common/test/samples/samples.kt",
+          "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+          "line_start": 259,
+          "line_end": 259,
+          "expression": "assertEquals(\"1024, -24\", buffer.readString())",
+          "required_observations": [
+            "value"
+          ]
+        }
+      ],
+      "executions": [
+        {
+          "platform": "jvm",
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.samples.KotlinxIoCoreCommonSamples]/[method:writeDecimalLong()]",
+          "invocation": {
+            "display_name": "writeDecimalLong()",
+            "concrete_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "declaring_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "method_name": "writeDecimalLong",
+            "parameter_types": ""
+          },
+          "assertion_ids": [
+            "writeDecimalLong-assert-1"
+          ],
+          "reference": {
+            "runner": "Pinned kotlinx-io 0.9.1 direct selected upstream reference suite",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/reference/jvm/results.json",
+              "sha256": "270ff6bcfe3ce59d168ce1d55e13dbcfd6b8090a0c3590bacf87cc179c252b17"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          },
+          "candidate": {
+            "runner": "KSwiftK macOS Native direct selected suite; original common source and assertions preserved",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/candidate/c7b70e8d62bfcd5c1df891ee28d3886ae419414e/source-O0/results.json",
+              "sha256": "5e99296c5638d2c105d70b8c9ec4187119212819b691ee1d5a498f73ed51d017"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          }
+        },
+        {
+          "platform": "native",
+          "execution_id": "kotlinx.io.samples.KotlinxIoCoreCommonSamples.writeDecimalLong",
+          "invocation": {
+            "display_name": "writeDecimalLong()",
+            "concrete_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "declaring_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "method_name": "writeDecimalLong",
+            "parameter_types": ""
+          },
+          "assertion_ids": [
+            "writeDecimalLong-assert-1"
+          ],
+          "reference": {
+            "runner": "Pinned kotlinx-io 0.9.1 direct selected upstream reference suite",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/reference/native-macos-arm64/results.json",
+              "sha256": "b47ec18bcb7175f50eef237fc56059296fa9e584238daa14d706a3ff69099678"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          },
+          "candidate": {
+            "runner": "KSwiftK macOS Native direct selected suite; original common source and assertions preserved",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/candidate/c7b70e8d62bfcd5c1df891ee28d3886ae419414e/source-O0/results.json",
+              "sha256": "5e99296c5638d2c105d70b8c9ec4187119212819b691ee1d5a498f73ed51d017"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "upstream_id": "core/common/test/samples/samples.kt#writeHexLong",
+      "upstream_path": "core/common/test/samples/samples.kt",
+      "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+      "source_git_blob_sha": "870bfa7643536a008320f4cff5a050788c1b886d",
+      "disposition": "paired",
+      "reason": "Pinned JVM and macOS Native references plus the current KSwiftK macOS Native candidate each executed the unchanged sample assertions; startsWithSample has an additional source-state and exception differential probe.",
+      "assertions": [
+        {
+          "id": "writeHexLong-assert-1",
+          "source_path": "core/common/test/samples/samples.kt",
+          "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+          "line_start": 267,
+          "line_end": 267,
+          "expression": "assertEquals(\"a\", buffer.readString())",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "writeHexLong-assert-2",
+          "source_path": "core/common/test/samples/samples.kt",
+          "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+          "line_start": 270,
+          "line_end": 270,
+          "expression": "assertEquals(\"fffffffffffffff6\", buffer.readString())",
+          "required_observations": [
+            "value"
+          ]
+        }
+      ],
+      "executions": [
+        {
+          "platform": "jvm",
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.samples.KotlinxIoCoreCommonSamples]/[method:writeHexLong()]",
+          "invocation": {
+            "display_name": "writeHexLong()",
+            "concrete_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "declaring_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "method_name": "writeHexLong",
+            "parameter_types": ""
+          },
+          "assertion_ids": [
+            "writeHexLong-assert-1",
+            "writeHexLong-assert-2"
+          ],
+          "reference": {
+            "runner": "Pinned kotlinx-io 0.9.1 direct selected upstream reference suite",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/reference/jvm/results.json",
+              "sha256": "270ff6bcfe3ce59d168ce1d55e13dbcfd6b8090a0c3590bacf87cc179c252b17"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          },
+          "candidate": {
+            "runner": "KSwiftK macOS Native direct selected suite; original common source and assertions preserved",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/candidate/c7b70e8d62bfcd5c1df891ee28d3886ae419414e/source-O0/results.json",
+              "sha256": "5e99296c5638d2c105d70b8c9ec4187119212819b691ee1d5a498f73ed51d017"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          }
+        },
+        {
+          "platform": "native",
+          "execution_id": "kotlinx.io.samples.KotlinxIoCoreCommonSamples.writeHexLong",
+          "invocation": {
+            "display_name": "writeHexLong()",
+            "concrete_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "declaring_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "method_name": "writeHexLong",
+            "parameter_types": ""
+          },
+          "assertion_ids": [
+            "writeHexLong-assert-1",
+            "writeHexLong-assert-2"
+          ],
+          "reference": {
+            "runner": "Pinned kotlinx-io 0.9.1 direct selected upstream reference suite",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/reference/native-macos-arm64/results.json",
+              "sha256": "b47ec18bcb7175f50eef237fc56059296fa9e584238daa14d706a3ff69099678"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          },
+          "candidate": {
+            "runner": "KSwiftK macOS Native direct selected suite; original common source and assertions preserved",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/candidate/c7b70e8d62bfcd5c1df891ee28d3886ae419414e/source-O0/results.json",
+              "sha256": "5e99296c5638d2c105d70b8c9ec4187119212819b691ee1d5a498f73ed51d017"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "upstream_id": "core/common/test/samples/samples.kt#readHexLong",
+      "upstream_path": "core/common/test/samples/samples.kt",
+      "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+      "source_git_blob_sha": "870bfa7643536a008320f4cff5a050788c1b886d",
+      "disposition": "paired",
+      "reason": "Pinned JVM and macOS Native references plus the current KSwiftK macOS Native candidate each executed the unchanged sample assertions; startsWithSample has an additional source-state and exception differential probe.",
+      "assertions": [
+        {
+          "id": "readHexLong-assert-1",
+          "source_path": "core/common/test/samples/samples.kt",
+          "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+          "line_start": 278,
+          "line_end": 278,
+          "expression": "assertEquals(10L, buffer.readHexadecimalUnsignedLong())",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "readHexLong-assert-2",
+          "source_path": "core/common/test/samples/samples.kt",
+          "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+          "line_start": 281,
+          "line_end": 281,
+          "expression": "assertEquals(-10L, buffer.readHexadecimalUnsignedLong())",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "readHexLong-assert-3",
+          "source_path": "core/common/test/samples/samples.kt",
+          "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+          "line_start": 284,
+          "line_end": 284,
+          "expression": "assertEquals(0xdea, buffer.readHexadecimalUnsignedLong())",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "readHexLong-assert-4",
+          "source_path": "core/common/test/samples/samples.kt",
+          "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+          "line_start": 285,
+          "line_end": 285,
+          "expression": "assertEquals(\"r friend!\", buffer.readString())",
+          "required_observations": [
+            "value"
+          ]
+        }
+      ],
+      "executions": [
+        {
+          "platform": "jvm",
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.samples.KotlinxIoCoreCommonSamples]/[method:readHexLong()]",
+          "invocation": {
+            "display_name": "readHexLong()",
+            "concrete_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "declaring_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "method_name": "readHexLong",
+            "parameter_types": ""
+          },
+          "assertion_ids": [
+            "readHexLong-assert-1",
+            "readHexLong-assert-2",
+            "readHexLong-assert-3",
+            "readHexLong-assert-4"
+          ],
+          "reference": {
+            "runner": "Pinned kotlinx-io 0.9.1 direct selected upstream reference suite",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/reference/jvm/results.json",
+              "sha256": "270ff6bcfe3ce59d168ce1d55e13dbcfd6b8090a0c3590bacf87cc179c252b17"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          },
+          "candidate": {
+            "runner": "KSwiftK macOS Native direct selected suite; original common source and assertions preserved",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/candidate/c7b70e8d62bfcd5c1df891ee28d3886ae419414e/source-O0/results.json",
+              "sha256": "5e99296c5638d2c105d70b8c9ec4187119212819b691ee1d5a498f73ed51d017"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          }
+        },
+        {
+          "platform": "native",
+          "execution_id": "kotlinx.io.samples.KotlinxIoCoreCommonSamples.readHexLong",
+          "invocation": {
+            "display_name": "readHexLong()",
+            "concrete_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "declaring_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "method_name": "readHexLong",
+            "parameter_types": ""
+          },
+          "assertion_ids": [
+            "readHexLong-assert-1",
+            "readHexLong-assert-2",
+            "readHexLong-assert-3",
+            "readHexLong-assert-4"
+          ],
+          "reference": {
+            "runner": "Pinned kotlinx-io 0.9.1 direct selected upstream reference suite",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/reference/native-macos-arm64/results.json",
+              "sha256": "b47ec18bcb7175f50eef237fc56059296fa9e584238daa14d706a3ff69099678"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          },
+          "candidate": {
+            "runner": "KSwiftK macOS Native direct selected suite; original common source and assertions preserved",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/candidate/c7b70e8d62bfcd5c1df891ee28d3886ae419414e/source-O0/results.json",
+              "sha256": "5e99296c5638d2c105d70b8c9ec4187119212819b691ee1d5a498f73ed51d017"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "upstream_id": "core/common/test/samples/samples.kt#startsWithSample",
+      "upstream_path": "core/common/test/samples/samples.kt",
+      "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+      "source_git_blob_sha": "870bfa7643536a008320f4cff5a050788c1b886d",
+      "disposition": "paired",
+      "reason": "Pinned JVM and macOS Native references plus the current KSwiftK macOS Native candidate each executed the unchanged sample assertions; startsWithSample has an additional source-state and exception differential probe.",
+      "assertions": [
+        {
+          "id": "startsWithSample-assert-1",
+          "source_path": "core/common/test/samples/samples.kt",
+          "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+          "line_start": 293,
+          "line_end": 293,
+          "expression": "assertTrue(buffer.startsWith(1))",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "startsWithSample-assert-2",
+          "source_path": "core/common/test/samples/samples.kt",
+          "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+          "line_start": 294,
+          "line_end": 294,
+          "expression": "assertFalse(buffer.startsWith(0))",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "startsWithSample-assert-3",
+          "source_path": "core/common/test/samples/samples.kt",
+          "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+          "line_start": 297,
+          "line_end": 297,
+          "expression": "assertFalse(buffer.startsWith(1))",
+          "required_observations": [
+            "value"
+          ]
+        }
+      ],
+      "executions": [
+        {
+          "platform": "jvm",
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.samples.KotlinxIoCoreCommonSamples]/[method:startsWithSample()]",
+          "invocation": {
+            "display_name": "startsWithSample()",
+            "concrete_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "declaring_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "method_name": "startsWithSample",
+            "parameter_types": ""
+          },
+          "assertion_ids": [
+            "startsWithSample-assert-1",
+            "startsWithSample-assert-2",
+            "startsWithSample-assert-3"
+          ],
+          "reference": {
+            "runner": "Pinned kotlinx-io 0.9.1 direct selected upstream reference suite",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/reference/jvm/results.json",
+              "sha256": "270ff6bcfe3ce59d168ce1d55e13dbcfd6b8090a0c3590bacf87cc179c252b17"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          },
+          "candidate": {
+            "runner": "KSwiftK macOS Native direct selected suite; original common source and assertions preserved",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/candidate/c7b70e8d62bfcd5c1df891ee28d3886ae419414e/source-O0/results.json",
+              "sha256": "5e99296c5638d2c105d70b8c9ec4187119212819b691ee1d5a498f73ed51d017"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          }
+        },
+        {
+          "platform": "native",
+          "execution_id": "kotlinx.io.samples.KotlinxIoCoreCommonSamples.startsWithSample",
+          "invocation": {
+            "display_name": "startsWithSample()",
+            "concrete_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "declaring_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "method_name": "startsWithSample",
+            "parameter_types": ""
+          },
+          "assertion_ids": [
+            "startsWithSample-assert-1",
+            "startsWithSample-assert-2",
+            "startsWithSample-assert-3"
+          ],
+          "reference": {
+            "runner": "Pinned kotlinx-io 0.9.1 direct selected upstream reference suite",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/reference/native-macos-arm64/results.json",
+              "sha256": "b47ec18bcb7175f50eef237fc56059296fa9e584238daa14d706a3ff69099678"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          },
+          "candidate": {
+            "runner": "KSwiftK macOS Native direct selected suite; original common source and assertions preserved",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/candidate/c7b70e8d62bfcd5c1df891ee28d3886ae419414e/source-O0/results.json",
+              "sha256": "5e99296c5638d2c105d70b8c9ec4187119212819b691ee1d5a498f73ed51d017"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "upstream_id": "core/common/test/samples/samples.kt#indexOfByteSample",
+      "upstream_path": "core/common/test/samples/samples.kt",
+      "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+      "source_git_blob_sha": "870bfa7643536a008320f4cff5a050788c1b886d",
+      "disposition": "paired",
+      "reason": "Pinned JVM and macOS Native references plus the current KSwiftK macOS Native candidate each executed the unchanged sample assertions; startsWithSample has an additional source-state and exception differential probe.",
+      "assertions": [
+        {
+          "id": "indexOfByteSample-assert-1",
+          "source_path": "core/common/test/samples/samples.kt",
+          "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+          "line_start": 304,
+          "line_end": 304,
+          "expression": "assertEquals(-1, buffer.indexOf('\\n'.code.toByte()))",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "indexOfByteSample-assert-2",
+          "source_path": "core/common/test/samples/samples.kt",
+          "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+          "line_start": 307,
+          "line_end": 307,
+          "expression": "assertEquals(5, buffer.indexOf('\\n'.code.toByte()))",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "indexOfByteSample-assert-3",
+          "source_path": "core/common/test/samples/samples.kt",
+          "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+          "line_start": 308,
+          "line_end": 308,
+          "expression": "assertEquals(20, buffer.indexOf('\\n'.code.toByte(), startIndex = 6))",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "indexOfByteSample-assert-4",
+          "source_path": "core/common/test/samples/samples.kt",
+          "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+          "line_start": 309,
+          "line_end": 309,
+          "expression": "assertEquals(-1, buffer.indexOf('\\n'.code.toByte(), startIndex = 21))",
+          "required_observations": [
+            "value"
+          ]
+        }
+      ],
+      "executions": [
+        {
+          "platform": "jvm",
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.samples.KotlinxIoCoreCommonSamples]/[method:indexOfByteSample()]",
+          "invocation": {
+            "display_name": "indexOfByteSample()",
+            "concrete_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "declaring_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "method_name": "indexOfByteSample",
+            "parameter_types": ""
+          },
+          "assertion_ids": [
+            "indexOfByteSample-assert-1",
+            "indexOfByteSample-assert-2",
+            "indexOfByteSample-assert-3",
+            "indexOfByteSample-assert-4"
+          ],
+          "reference": {
+            "runner": "Pinned kotlinx-io 0.9.1 direct selected upstream reference suite",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/reference/jvm/results.json",
+              "sha256": "270ff6bcfe3ce59d168ce1d55e13dbcfd6b8090a0c3590bacf87cc179c252b17"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          },
+          "candidate": {
+            "runner": "KSwiftK macOS Native direct selected suite; original common source and assertions preserved",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/candidate/c7b70e8d62bfcd5c1df891ee28d3886ae419414e/source-O0/results.json",
+              "sha256": "5e99296c5638d2c105d70b8c9ec4187119212819b691ee1d5a498f73ed51d017"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          }
+        },
+        {
+          "platform": "native",
+          "execution_id": "kotlinx.io.samples.KotlinxIoCoreCommonSamples.indexOfByteSample",
+          "invocation": {
+            "display_name": "indexOfByteSample()",
+            "concrete_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "declaring_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "method_name": "indexOfByteSample",
+            "parameter_types": ""
+          },
+          "assertion_ids": [
+            "indexOfByteSample-assert-1",
+            "indexOfByteSample-assert-2",
+            "indexOfByteSample-assert-3",
+            "indexOfByteSample-assert-4"
+          ],
+          "reference": {
+            "runner": "Pinned kotlinx-io 0.9.1 direct selected upstream reference suite",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/reference/native-macos-arm64/results.json",
+              "sha256": "b47ec18bcb7175f50eef237fc56059296fa9e584238daa14d706a3ff69099678"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          },
+          "candidate": {
+            "runner": "KSwiftK macOS Native direct selected suite; original common source and assertions preserved",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/candidate/c7b70e8d62bfcd5c1df891ee28d3886ae419414e/source-O0/results.json",
+              "sha256": "5e99296c5638d2c105d70b8c9ec4187119212819b691ee1d5a498f73ed51d017"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "upstream_id": "core/common/test/samples/samples.kt#readToArraySample",
+      "upstream_path": "core/common/test/samples/samples.kt",
+      "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+      "source_git_blob_sha": "870bfa7643536a008320f4cff5a050788c1b886d",
+      "disposition": "paired",
+      "reason": "Pinned JVM and macOS Native references plus the current KSwiftK macOS Native candidate each executed the unchanged sample assertions; startsWithSample has an additional source-state and exception differential probe.",
+      "assertions": [
+        {
+          "id": "readToArraySample-assert-1",
+          "source_path": "core/common/test/samples/samples.kt",
+          "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+          "line_start": 319,
+          "line_end": 319,
+          "expression": "assertContentEquals(byteArrayOf(0, 1, 2, 3, 0, 0, 0, 0, 0, 0), out)",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "readToArraySample-assert-2",
+          "source_path": "core/common/test/samples/samples.kt",
+          "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+          "line_start": 320,
+          "line_end": 320,
+          "expression": "assertContentEquals(byteArrayOf(4, 5, 6, 7), buffer.readByteArray())",
+          "required_observations": [
+            "value"
+          ]
+        }
+      ],
+      "executions": [
+        {
+          "platform": "jvm",
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.samples.KotlinxIoCoreCommonSamples]/[method:readToArraySample()]",
+          "invocation": {
+            "display_name": "readToArraySample()",
+            "concrete_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "declaring_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "method_name": "readToArraySample",
+            "parameter_types": ""
+          },
+          "assertion_ids": [
+            "readToArraySample-assert-1",
+            "readToArraySample-assert-2"
+          ],
+          "reference": {
+            "runner": "Pinned kotlinx-io 0.9.1 direct selected upstream reference suite",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/reference/jvm/results.json",
+              "sha256": "270ff6bcfe3ce59d168ce1d55e13dbcfd6b8090a0c3590bacf87cc179c252b17"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          },
+          "candidate": {
+            "runner": "KSwiftK macOS Native direct selected suite; original common source and assertions preserved",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/candidate/c7b70e8d62bfcd5c1df891ee28d3886ae419414e/source-O0/results.json",
+              "sha256": "5e99296c5638d2c105d70b8c9ec4187119212819b691ee1d5a498f73ed51d017"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          }
+        },
+        {
+          "platform": "native",
+          "execution_id": "kotlinx.io.samples.KotlinxIoCoreCommonSamples.readToArraySample",
+          "invocation": {
+            "display_name": "readToArraySample()",
+            "concrete_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "declaring_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "method_name": "readToArraySample",
+            "parameter_types": ""
+          },
+          "assertion_ids": [
+            "readToArraySample-assert-1",
+            "readToArraySample-assert-2"
+          ],
+          "reference": {
+            "runner": "Pinned kotlinx-io 0.9.1 direct selected upstream reference suite",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/reference/native-macos-arm64/results.json",
+              "sha256": "b47ec18bcb7175f50eef237fc56059296fa9e584238daa14d706a3ff69099678"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          },
+          "candidate": {
+            "runner": "KSwiftK macOS Native direct selected suite; original common source and assertions preserved",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/candidate/c7b70e8d62bfcd5c1df891ee28d3886ae419414e/source-O0/results.json",
+              "sha256": "5e99296c5638d2c105d70b8c9ec4187119212819b691ee1d5a498f73ed51d017"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "upstream_id": "core/common/test/samples/samples.kt#writeUtf8Sample",
+      "upstream_path": "core/common/test/samples/samples.kt",
+      "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+      "source_git_blob_sha": "870bfa7643536a008320f4cff5a050788c1b886d",
+      "disposition": "paired",
+      "reason": "Pinned JVM and macOS Native references plus the current KSwiftK macOS Native candidate each executed the unchanged sample assertions; startsWithSample has an additional source-state and exception differential probe.",
+      "assertions": [
+        {
+          "id": "writeUtf8Sample-assert-1",
+          "source_path": "core/common/test/samples/samples.kt",
+          "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+          "line_start": 328,
+          "line_end": 334,
+          "expression": "assertContentEquals(\n            byteArrayOf(\n                'e'.code.toByte(),\n                'l'.code.toByte(),\n                'l'.code.toByte()\n            ), buffer.readByteArray()\n        )",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "writeUtf8Sample-assert-2",
+          "source_path": "core/common/test/samples/samples.kt",
+          "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+          "line_start": 337,
+          "line_end": 337,
+          "expression": "assertContentEquals(byteArrayOf(0xce.toByte(), 0x94.toByte()), buffer.readByteArray())",
+          "required_observations": [
+            "value"
+          ]
+        }
+      ],
+      "executions": [
+        {
+          "platform": "jvm",
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.samples.KotlinxIoCoreCommonSamples]/[method:writeUtf8Sample()]",
+          "invocation": {
+            "display_name": "writeUtf8Sample()",
+            "concrete_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "declaring_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "method_name": "writeUtf8Sample",
+            "parameter_types": ""
+          },
+          "assertion_ids": [
+            "writeUtf8Sample-assert-1",
+            "writeUtf8Sample-assert-2"
+          ],
+          "reference": {
+            "runner": "Pinned kotlinx-io 0.9.1 direct selected upstream reference suite",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/reference/jvm/results.json",
+              "sha256": "270ff6bcfe3ce59d168ce1d55e13dbcfd6b8090a0c3590bacf87cc179c252b17"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          },
+          "candidate": {
+            "runner": "KSwiftK macOS Native direct selected suite; original common source and assertions preserved",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/candidate/c7b70e8d62bfcd5c1df891ee28d3886ae419414e/source-O0/results.json",
+              "sha256": "5e99296c5638d2c105d70b8c9ec4187119212819b691ee1d5a498f73ed51d017"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          }
+        },
+        {
+          "platform": "native",
+          "execution_id": "kotlinx.io.samples.KotlinxIoCoreCommonSamples.writeUtf8Sample",
+          "invocation": {
+            "display_name": "writeUtf8Sample()",
+            "concrete_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "declaring_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "method_name": "writeUtf8Sample",
+            "parameter_types": ""
+          },
+          "assertion_ids": [
+            "writeUtf8Sample-assert-1",
+            "writeUtf8Sample-assert-2"
+          ],
+          "reference": {
+            "runner": "Pinned kotlinx-io 0.9.1 direct selected upstream reference suite",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/reference/native-macos-arm64/results.json",
+              "sha256": "b47ec18bcb7175f50eef237fc56059296fa9e584238daa14d706a3ff69099678"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          },
+          "candidate": {
+            "runner": "KSwiftK macOS Native direct selected suite; original common source and assertions preserved",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/candidate/c7b70e8d62bfcd5c1df891ee28d3886ae419414e/source-O0/results.json",
+              "sha256": "5e99296c5638d2c105d70b8c9ec4187119212819b691ee1d5a498f73ed51d017"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "upstream_id": "core/common/test/samples/samples.kt#writeUtf8SeqSample",
+      "upstream_path": "core/common/test/samples/samples.kt",
+      "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+      "source_git_blob_sha": "870bfa7643536a008320f4cff5a050788c1b886d",
+      "disposition": "paired",
+      "reason": "Pinned JVM and macOS Native references plus the current KSwiftK macOS Native candidate each executed the unchanged sample assertions; startsWithSample has an additional source-state and exception differential probe.",
+      "assertions": [
+        {
+          "id": "writeUtf8SeqSample-assert-1",
+          "source_path": "core/common/test/samples/samples.kt",
+          "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+          "line_start": 345,
+          "line_end": 351,
+          "expression": "assertContentEquals(\n            byteArrayOf(\n                'e'.code.toByte(),\n                'l'.code.toByte(),\n                'l'.code.toByte()\n            ), buffer.readByteArray()\n        )",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "writeUtf8SeqSample-assert-2",
+          "source_path": "core/common/test/samples/samples.kt",
+          "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+          "line_start": 354,
+          "line_end": 354,
+          "expression": "assertContentEquals(byteArrayOf(0xce.toByte(), 0x94.toByte()), buffer.readByteArray())",
+          "required_observations": [
+            "value"
+          ]
+        }
+      ],
+      "executions": [
+        {
+          "platform": "jvm",
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.samples.KotlinxIoCoreCommonSamples]/[method:writeUtf8SeqSample()]",
+          "invocation": {
+            "display_name": "writeUtf8SeqSample()",
+            "concrete_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "declaring_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "method_name": "writeUtf8SeqSample",
+            "parameter_types": ""
+          },
+          "assertion_ids": [
+            "writeUtf8SeqSample-assert-1",
+            "writeUtf8SeqSample-assert-2"
+          ],
+          "reference": {
+            "runner": "Pinned kotlinx-io 0.9.1 direct selected upstream reference suite",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/reference/jvm/results.json",
+              "sha256": "270ff6bcfe3ce59d168ce1d55e13dbcfd6b8090a0c3590bacf87cc179c252b17"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          },
+          "candidate": {
+            "runner": "KSwiftK macOS Native direct selected suite; original common source and assertions preserved",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/candidate/c7b70e8d62bfcd5c1df891ee28d3886ae419414e/source-O0/results.json",
+              "sha256": "5e99296c5638d2c105d70b8c9ec4187119212819b691ee1d5a498f73ed51d017"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          }
+        },
+        {
+          "platform": "native",
+          "execution_id": "kotlinx.io.samples.KotlinxIoCoreCommonSamples.writeUtf8SeqSample",
+          "invocation": {
+            "display_name": "writeUtf8SeqSample()",
+            "concrete_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "declaring_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "method_name": "writeUtf8SeqSample",
+            "parameter_types": ""
+          },
+          "assertion_ids": [
+            "writeUtf8SeqSample-assert-1",
+            "writeUtf8SeqSample-assert-2"
+          ],
+          "reference": {
+            "runner": "Pinned kotlinx-io 0.9.1 direct selected upstream reference suite",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/reference/native-macos-arm64/results.json",
+              "sha256": "b47ec18bcb7175f50eef237fc56059296fa9e584238daa14d706a3ff69099678"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          },
+          "candidate": {
+            "runner": "KSwiftK macOS Native direct selected suite; original common source and assertions preserved",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/candidate/c7b70e8d62bfcd5c1df891ee28d3886ae419414e/source-O0/results.json",
+              "sha256": "5e99296c5638d2c105d70b8c9ec4187119212819b691ee1d5a498f73ed51d017"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "upstream_id": "core/common/test/samples/samples.kt#readUtf8",
+      "upstream_path": "core/common/test/samples/samples.kt",
+      "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+      "source_git_blob_sha": "870bfa7643536a008320f4cff5a050788c1b886d",
+      "disposition": "paired",
+      "reason": "Pinned JVM and macOS Native references plus the current KSwiftK macOS Native candidate each executed the unchanged sample assertions; startsWithSample has an additional source-state and exception differential probe.",
+      "assertions": [
+        {
+          "id": "readUtf8-assert-1",
+          "source_path": "core/common/test/samples/samples.kt",
+          "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+          "line_start": 362,
+          "line_end": 362,
+          "expression": "assertEquals(\"hello\", buffer.readString(5))",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "readUtf8-assert-2",
+          "source_path": "core/common/test/samples/samples.kt",
+          "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+          "line_start": 363,
+          "line_end": 363,
+          "expression": "assertEquals(\" world\", buffer.readString())",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "readUtf8-assert-3",
+          "source_path": "core/common/test/samples/samples.kt",
+          "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+          "line_start": 366,
+          "line_end": 366,
+          "expression": "assertEquals(\"Δ\", buffer.readString())",
+          "required_observations": [
+            "value"
+          ]
+        }
+      ],
+      "executions": [
+        {
+          "platform": "jvm",
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.samples.KotlinxIoCoreCommonSamples]/[method:readUtf8()]",
+          "invocation": {
+            "display_name": "readUtf8()",
+            "concrete_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "declaring_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "method_name": "readUtf8",
+            "parameter_types": ""
+          },
+          "assertion_ids": [
+            "readUtf8-assert-1",
+            "readUtf8-assert-2",
+            "readUtf8-assert-3"
+          ],
+          "reference": {
+            "runner": "Pinned kotlinx-io 0.9.1 direct selected upstream reference suite",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/reference/jvm/results.json",
+              "sha256": "270ff6bcfe3ce59d168ce1d55e13dbcfd6b8090a0c3590bacf87cc179c252b17"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          },
+          "candidate": {
+            "runner": "KSwiftK macOS Native direct selected suite; original common source and assertions preserved",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/candidate/c7b70e8d62bfcd5c1df891ee28d3886ae419414e/source-O0/results.json",
+              "sha256": "5e99296c5638d2c105d70b8c9ec4187119212819b691ee1d5a498f73ed51d017"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          }
+        },
+        {
+          "platform": "native",
+          "execution_id": "kotlinx.io.samples.KotlinxIoCoreCommonSamples.readUtf8",
+          "invocation": {
+            "display_name": "readUtf8()",
+            "concrete_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "declaring_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "method_name": "readUtf8",
+            "parameter_types": ""
+          },
+          "assertion_ids": [
+            "readUtf8-assert-1",
+            "readUtf8-assert-2",
+            "readUtf8-assert-3"
+          ],
+          "reference": {
+            "runner": "Pinned kotlinx-io 0.9.1 direct selected upstream reference suite",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/reference/native-macos-arm64/results.json",
+              "sha256": "b47ec18bcb7175f50eef237fc56059296fa9e584238daa14d706a3ff69099678"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          },
+          "candidate": {
+            "runner": "KSwiftK macOS Native direct selected suite; original common source and assertions preserved",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/candidate/c7b70e8d62bfcd5c1df891ee28d3886ae419414e/source-O0/results.json",
+              "sha256": "5e99296c5638d2c105d70b8c9ec4187119212819b691ee1d5a498f73ed51d017"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "upstream_id": "core/common/test/samples/samples.kt#readByteArraySample",
+      "upstream_path": "core/common/test/samples/samples.kt",
+      "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+      "source_git_blob_sha": "870bfa7643536a008320f4cff5a050788c1b886d",
+      "disposition": "paired",
+      "reason": "Pinned JVM and macOS Native references plus the current KSwiftK macOS Native candidate each executed the unchanged sample assertions; startsWithSample has an additional source-state and exception differential probe.",
+      "assertions": [
+        {
+          "id": "readByteArraySample-assert-1",
+          "source_path": "core/common/test/samples/samples.kt",
+          "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+          "line_start": 375,
+          "line_end": 375,
+          "expression": "assertContentEquals(byteArrayOf(0x12, 0x34), buffer.readByteArray(2))",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "readByteArraySample-assert-2",
+          "source_path": "core/common/test/samples/samples.kt",
+          "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+          "line_start": 376,
+          "line_end": 376,
+          "expression": "assertContentEquals(byteArrayOf(0x56, 0x78, 0, 0), buffer.readByteArray())",
+          "required_observations": [
+            "value"
+          ]
+        }
+      ],
+      "executions": [
+        {
+          "platform": "jvm",
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.samples.KotlinxIoCoreCommonSamples]/[method:readByteArraySample()]",
+          "invocation": {
+            "display_name": "readByteArraySample()",
+            "concrete_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "declaring_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "method_name": "readByteArraySample",
+            "parameter_types": ""
+          },
+          "assertion_ids": [
+            "readByteArraySample-assert-1",
+            "readByteArraySample-assert-2"
+          ],
+          "reference": {
+            "runner": "Pinned kotlinx-io 0.9.1 direct selected upstream reference suite",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/reference/jvm/results.json",
+              "sha256": "270ff6bcfe3ce59d168ce1d55e13dbcfd6b8090a0c3590bacf87cc179c252b17"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          },
+          "candidate": {
+            "runner": "KSwiftK macOS Native direct selected suite; original common source and assertions preserved",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/candidate/c7b70e8d62bfcd5c1df891ee28d3886ae419414e/source-O0/results.json",
+              "sha256": "5e99296c5638d2c105d70b8c9ec4187119212819b691ee1d5a498f73ed51d017"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          }
+        },
+        {
+          "platform": "native",
+          "execution_id": "kotlinx.io.samples.KotlinxIoCoreCommonSamples.readByteArraySample",
+          "invocation": {
+            "display_name": "readByteArraySample()",
+            "concrete_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "declaring_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+            "method_name": "readByteArraySample",
+            "parameter_types": ""
+          },
+          "assertion_ids": [
+            "readByteArraySample-assert-1",
+            "readByteArraySample-assert-2"
+          ],
+          "reference": {
+            "runner": "Pinned kotlinx-io 0.9.1 direct selected upstream reference suite",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/reference/native-macos-arm64/results.json",
+              "sha256": "b47ec18bcb7175f50eef237fc56059296fa9e584238daa14d706a3ff69099678"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          },
+          "candidate": {
+            "runner": "KSwiftK macOS Native direct selected suite; original common source and assertions preserved",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2549/candidate/c7b70e8d62bfcd5c1df891ee28d3886ae419414e/source-O0/results.json",
+              "sha256": "5e99296c5638d2c105d70b8c9ec4187119212819b691ee1d5a498f73ed51d017"
+            },
+            "observations": {
+              "value": "All original assertions in this direct sample execution passed."
+            }
+          }
+        }
+      ]
+    }
+  ]
 }

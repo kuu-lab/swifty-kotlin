@@ -1,0 +1,9 @@
+[
+  "/tmp/kuu2549-jdk21/jdk-21.0.12.1+1/Contents/Home/bin/javap",
+  "-classpath",
+  "/tmp/kuu2549-jvm-reference/dependencies/kotlinx-io-core-jvm-0.9.1.jar",
+  "-p",
+  "-s",
+  "-v",
+  "kotlinx.io.SourcesKt"
+]

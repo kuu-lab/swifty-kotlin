@@ -235,6 +235,13 @@ TEST_HINTS = {
     "FileSystemApple.kt": ["core/common/test/files/SmokeFileTest.kt"],
 }
 
+LOCAL_TEST_ROW_HINTS = {
+    "Scripts/diff_cases/kotlinx_io_sources_starts_with_contracts.kt": {
+        "jvm-dca5a43e89484e1c",
+        "klib-78eaf273a0fd2845",
+    },
+}
+
 LOCAL_IO_TEST_PREFIXES = (
     "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java",
     "Scripts/io_api_inventory/probes/",
@@ -1652,6 +1659,9 @@ def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []
     for path, content in local_tests:
+        allowed_rows = LOCAL_TEST_ROW_HINTS.get(path)
+        if allowed_rows is not None and row["row_id"] not in allowed_rows:
+            continue
         if path.startswith("Scripts/io_api_inventory/probes/") and name not in LOCAL_IO_PROBE_API_NAMES:
             continue
         if (path == SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS[0]
@@ -1692,6 +1702,8 @@ def upstream_test_refs(row: dict, test_index: dict) -> list[str]:
     hints = []
     for source in source_paths:
         hints.extend(TEST_HINTS.get(source.name, []))
+    if row.get("upstream_source_refs") == "core/common/src/Sources.kt:466":
+        hints.append("core/common/test/samples/samples.kt")
     if not hints:
         if row["module"] == "bytestring":
             hints = ["bytestring/common/test/ByteStringTest.kt"]

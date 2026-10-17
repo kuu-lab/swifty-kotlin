@@ -52,6 +52,14 @@ class ReproducibilityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="io-inventory-relocated-") as temporary:
             relocated = Path(temporary) / "checkout"
             inputs = list(HERE.rglob("*"))
+            inputs.extend(
+                REPO / "Scripts/kotlinx_io_upstream" / filename
+                for filename in (
+                    "reference-lock.json",
+                    "jvm-executions.expected.json",
+                    "native-executions.expected.json",
+                )
+            )
             inputs.extend((REPO / "Sources/CompilerCore/Stdlib/kotlinx/io").rglob("*.kt"))
             inputs.extend((REPO / "Sources/Runtime").rglob("*.swift"))
             test_inputs = list((REPO / "Tests").rglob("*.swift"))

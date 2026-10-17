@@ -1,0 +1,19 @@
+[
+  {
+    "execution_id": "kotlinx.io.samples.KotlinxIoCoreCommonSamples.startsWithSample",
+    "status": "PASS",
+    "stdout": "",
+    "exception_type": null,
+    "source_function_id": "core/common/test/samples/samples.kt#startsWithSample",
+    "concrete_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+    "declaring_class": "kotlinx.io.samples.KotlinxIoCoreCommonSamples",
+    "source_path": "core/common/test/samples/samples.kt",
+    "source_sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+    "source_git_blob_sha": "870bfa7643536a008320f4cff5a050788c1b886d",
+    "candidate_port_sha256": "b0c9f7da486d6a7755bc0de4e5624684fb1920896b3bad6b635eaa23ad25adcd",
+    "driver_sha256": "1a3e9b4e4556f0d8a8507711f0b8b046b5221e6914625504596a636f2795f3f0",
+    "suite_driver_sha256": "1a3e9b4e4556f0d8a8507711f0b8b046b5221e6914625504596a636f2795f3f0",
+    "candidate_executable_sha256": "31b646d74ecbcb8cc2354e998a1cc870758519ed989040a88e55081eae8a75cc",
+    "catalog_row_sha256": "3a58b6d9f4c7d7773a2c0edd51f5d6ba8644b965af618d4e3f1ffd10348a62a0"
+  }
+]

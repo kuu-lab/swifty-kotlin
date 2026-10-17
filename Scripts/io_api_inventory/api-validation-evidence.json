@@ -444,6 +444,105 @@
         }
       ],
       "evidence_source": "local-probe"
+    },
+    {
+      "row_id": "klib-78eaf273a0fd2845",
+      "candidate_sha": "c7b70e8d62bfcd5c1df891ee28d3886ae419414e",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "3817278aa522307f0b70203b2bc8487bf20c768145417accd7582e363351ae50",
+      "test_input_sha256": "9d4c5127acaeda09376a3710367432ddeea469ad96002b8f22573de39c6a3392",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "executions": [
+        {
+          "case_id": "core/common/test/samples/samples.kt#startsWithSample",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.samples.KotlinxIoCoreCommonSamples]/[method:startsWithSample()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.samples.KotlinxIoCoreCommonSamples.startsWithSample",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/samples/samples.kt#startsWithSample",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.samples.KotlinxIoCoreCommonSamples]/[method:startsWithSample()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.samples.KotlinxIoCoreCommonSamples.startsWithSample",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/samples/samples.kt#startsWithSample",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.samples.KotlinxIoCoreCommonSamples]/[method:startsWithSample()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.samples.KotlinxIoCoreCommonSamples.startsWithSample",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/samples/samples.kt#startsWithSample",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.samples.KotlinxIoCoreCommonSamples]/[method:startsWithSample()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.samples.KotlinxIoCoreCommonSamples.startsWithSample",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/samples/samples.kt#startsWithSample",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.samples.KotlinxIoCoreCommonSamples]/[method:startsWithSample()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.samples.KotlinxIoCoreCommonSamples.startsWithSample",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/samples/samples.kt#startsWithSample",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.samples.KotlinxIoCoreCommonSamples]/[method:startsWithSample()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.samples.KotlinxIoCoreCommonSamples.startsWithSample",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "evidence_source": "upstream-catalog"
     }
   ]
 }

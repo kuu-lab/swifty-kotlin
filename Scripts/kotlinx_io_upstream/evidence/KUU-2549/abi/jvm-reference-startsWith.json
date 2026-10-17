@@ -1,0 +1,23 @@
+{
+  "kind": "upstream-jvm-reference-abi",
+  "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+  "kotlinx_io_version": "0.9.1",
+  "class": "kotlinx.io.SourcesKt",
+  "method": "startsWith",
+  "descriptor": "(Lkotlinx/io/Source;B)Z",
+  "flags": [
+    "ACC_PUBLIC",
+    "ACC_STATIC",
+    "ACC_FINAL"
+  ],
+  "default_bridge_matches": [],
+  "reference_artifact": "kotlinx-io-core-jvm-0.9.1.jar",
+  "reference_artifact_sha256": "765d8851d8ca694706931331b92386844800867e041b720f1f193dbda874d370",
+  "inspection_tool": "javap 21.0.12.1",
+  "inspection_tool_sha256": "be5086ec34259f69afdf95c214c62b8ef87e4e7acf458b1de5b56075d478430a",
+  "javap_full_output_sha256": "bbf70ca636dc06869aa61223c9b4939048db96accb4bf1ce447dc880225dfa60",
+  "observed_declaration": "public static final boolean startsWith(kotlinx.io.Source, byte);",
+  "candidate_disposition": "UNVERIFIED",
+  "candidate_limit": "The KSwiftK candidate emits macOS Native artifacts and does not emit JVM bytecode; this artifact verifies the pinned upstream JVM descriptor only.",
+  "javap_full_output_artifact": "jvm-reference-SourcesKt.javap.full.txt"
+}

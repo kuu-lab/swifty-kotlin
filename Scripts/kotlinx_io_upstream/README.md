@@ -150,6 +150,40 @@ JVM suite and the common/Apple suite on the actual macOS runner architecture,
 and uploads raw logs, commands, hashes, discovery and execution maps even on
 failure. A local Linux success does not establish Apple or macOS success.
 
+### Selected reference methods
+
+`run_selected_reference_subset.py` runs only the requested source-function IDs
+from one direct, parameterless source file. It verifies the pinned upstream
+file, test catalog, Kotlin toolchain and dependencies, preserves the original
+file bytes, and writes one result for every selected concrete execution ID.
+Inherited, parameterized or lifecycle-hook methods are rejected. This is
+reference execution only; it does not create candidate or paired evidence.
+
+```sh
+python3 Scripts/kotlinx_io_upstream/run_selected_reference_subset.py \
+  --target jvm --upstream /tmp/kio-jvm-environment/upstream \
+  --kotlin-home /tmp/kio-jvm-environment/installation/kotlinc \
+  --java /path/to/java21/bin/java --dependencies /tmp/kio-jvm-environment/dependencies \
+  --source-function-id core/common/test/samples/samples.kt#writeDecimalLong \
+  --source-function-id core/common/test/samples/samples.kt#writeHexLong \
+  --source-function-id core/common/test/samples/samples.kt#readHexLong \
+  --source-function-id core/common/test/samples/samples.kt#startsWithSample \
+  --source-function-id core/common/test/samples/samples.kt#indexOfByteSample \
+  --source-function-id core/common/test/samples/samples.kt#readToArraySample \
+  --source-function-id core/common/test/samples/samples.kt#writeUtf8Sample \
+  --source-function-id core/common/test/samples/samples.kt#writeUtf8SeqSample \
+  --source-function-id core/common/test/samples/samples.kt#readUtf8 \
+  --source-function-id core/common/test/samples/samples.kt#readByteArraySample \
+  --output /tmp/kio-selected-jvm
+```
+
+For macOS Native, use `--target macos_arm64` or `macos_x64` and also pass
+`--compiler-archive` and `--konan-data`. The original test source is compiled
+as a KLIB, then the generated driver is linked as a consumer; this follows the
+Kotlin/Native multiplatform compilation boundary. Candidate lanes remain
+separate runs through `run_candidate_suites.py` so their route and optimization
+are recorded independently.
+
 ## Source inventory and remaining execution coverage
 
 `coverage-map.seed.json` contains 684 test/sample function IDs from 61 pinned
@@ -183,18 +217,20 @@ failure, stale hash, unknown ID, or duplicate ID leaves the seed case unmapped.
 New upstream cases from a regenerated seed therefore remain blockers until their
 own complete mappings are reviewed.
 
-The empty checked-in mapping file is intentional: this infrastructure change
-does not claim suite execution evidence for any upstream function.
+`coverage-map.verified.json` contains only individually reviewed mappings with
+passing reference and candidate executions. New upstream cases remain unmapped
+until their complete assertion and execution records are added.
 
 Apple tests require the macOS CI execution. The seed paired matrix includes all
 680 applicable common/Apple/JVM function IDs as unmapped until assertion-preserving
 candidate adapters exist. Four Windows-only IDs are explicitly unsupported.
 No Apple reference success is claimed by the JVM or Linux result.
 
-KSwiftK ports preserving every original upstream assertion body and their
+Most KSwiftK ports preserving every original upstream assertion body and their
 paired observation adapters remain unfinished. Existing `kotlinx_io_*` diff cases
-and Swift integration tests provide local coverage, but do not yet establish
-that mapping. KUU-1727 remains incomplete until those candidate adapters are verified.
+and Swift integration tests provide local coverage, but do not establish an
+upstream mapping by themselves. KUU-1727 remains incomplete until the remaining
+candidate adapters are verified.
 The macOS arm64 reference CI has passed all 1,217 locked executions (JVM CI:
 1,403); this remains reference-only. Run the focused harness checks with:
 
