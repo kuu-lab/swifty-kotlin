@@ -4,8 +4,7 @@ package kotlin.ranges
 // coerceIn / coerceAtLeast / coerceAtMost migrated to Kotlin source for
 // Int, Long, Double, Float, Byte, Short, UByte, UShort, UInt, ULong.
 
-// KSP-641: generic Comparable coercion follows the stdlib implementation.
-// Nullable bounds are treated as unbounded on their respective sides.
+// KSP-641: Nullable bounds are treated as unbounded on their respective sides.
 public fun <T : Comparable<T>> T.coerceIn(minimumValue: T?, maximumValue: T?): T {
     if (minimumValue != null && maximumValue != null && minimumValue > maximumValue) {
         throw IllegalArgumentException("Cannot coerce value to an empty range: maximum $maximumValue is less than minimum $minimumValue.")
