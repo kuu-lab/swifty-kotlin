@@ -19,9 +19,6 @@ import kotlin.internal.KsSymbolName
 @KsSymbolName("kk_atomic_long_array_create")
 public external fun AtomicLongArray(size: Int): AtomicLongArray
 
-/**
- * Creates an atomic long array from a copy of the supplied array.
- */
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
 public fun AtomicLongArray(array: LongArray): AtomicLongArray {
@@ -34,10 +31,6 @@ public fun AtomicLongArray(array: LongArray): AtomicLongArray {
     return result
 }
 
-/**
- * Creates a new [AtomicLongArray] of the given [size], where each element is
- * initialised by calling the [init] function with its index.
- */
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
 public inline fun AtomicLongArray(size: Int, init: (Int) -> Long): AtomicLongArray {
