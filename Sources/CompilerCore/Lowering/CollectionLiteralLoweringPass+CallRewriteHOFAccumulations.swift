@@ -1,4 +1,3 @@
-/// Predicate and accumulation higher-order collection rewrites.
 extension CollectionLiteralConstructionLoweringPass {
     func rewriteAccumulationHigherOrderCollectionCall(
         callee: InternedString,
@@ -71,7 +70,6 @@ extension CollectionLiteralConstructionLoweringPass {
     }
 
 
-    // scan / runningFold on sequence → kk_sequence_scan / kk_sequence_runningFold (STDLIB-558, 560)
     if callee == lookup.scanName || callee == lookup.runningFoldName, (3 ... 4).contains(arguments.count) {
         let receiverID = arguments[0]
         let initialID = arguments[1]
@@ -102,7 +100,6 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
     }
-    // runningReduce on sequence → kk_sequence_runningReduce (STDLIB-559)
     if callee == lookup.runningReduceName, (2 ... 3).contains(arguments.count) {
         let receiverID = arguments[0]
         let lambdaID = arguments[1]
@@ -130,7 +127,6 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
     }
-    // runningReduceIndexed on sequence → kk_sequence_runningReduceIndexed (STDLIB-SEQ-017)
     if callee == lookup.runningReduceIndexedName, (2 ... 3).contains(arguments.count) {
         let receiverID = arguments[0]
         let lambdaID = arguments[1]
