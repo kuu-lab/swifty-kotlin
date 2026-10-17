@@ -223,9 +223,7 @@ extension CoroutineLoweringPass {
         return thunkBody
     }
 
-    /// Returns `true` when `symbol` is one of the actual kotlinx.coroutines
-    /// launcher declarations (`runBlocking`, `launch`, `async`, `produce`).
-    /// This lets us distinguish user-defined methods that happen to share a name
+    /// Lets us distinguish user-defined methods that happen to share a name
     /// (e.g. `Producer.produce`) from real coroutine builders.
     func isKnownCoroutineLauncherSymbol(_ symbol: SymbolID, using rewrite: SuspendRewriteContext) -> Bool {
         guard let sema = rewrite.ctx.sema,
@@ -302,9 +300,8 @@ extension CoroutineLoweringPass {
             .hasPrefix("kk_function_value_adapter_")
     }
 
-    /// STDLIB-CORO-001: Detect whether an expression has the synthetic
-    /// `kotlinx.coroutines.CoroutineStart` enum type, used to disambiguate
-    /// `launch(start = CoroutineStart.LAZY)` from `launch(Dispatchers.Default)`.
+    /// Used to disambiguate `launch(start = CoroutineStart.LAZY)` from
+    /// `launch(Dispatchers.Default)`.
     func isCoroutineStartExpression(
         _ exprID: KIRExprID,
         using rewrite: SuspendRewriteContext
@@ -405,7 +402,6 @@ extension CoroutineLoweringPass {
             return [call.instruction]
         }
 
-        // STDLIB-CORO-072: Check if the first argument is a dispatcher (not a suspend function).
         // launch(Dispatchers.IO) { } has the dispatcher as arguments[0] and the lambda as arguments[1].
         let firstArgSymbol = symbolReference(
             for: call.arguments[0],
@@ -445,7 +441,6 @@ extension CoroutineLoweringPass {
                 return [call.instruction]
             }
 
-            // First argument is not a suspend function. Try to interpret it as a dispatcher.
             let dispatcherExpr = call.arguments[0]
             let suspendArgExpr = call.arguments[1]
 
@@ -487,7 +482,6 @@ extension CoroutineLoweringPass {
                     using: rewrite
                 )
             }
-            // Fall through to normal error path if we still cannot resolve.
             rewrite.ctx.diagnostics.error(
                 "KSWIFTK-CORO-0002",
                 "Coroutine launcher '\(rewrite.ctx.interner.resolve(call.callee))' requires a suspend function reference argument.",
@@ -571,7 +565,6 @@ extension CoroutineLoweringPass {
         )
     }
 
-    // STDLIB-CORO-072: Rewrite launch(dispatcher) { } with no captures
     func rewriteZeroArgDispatcherLauncherCall(
         dispatcherExpr: KIRExprID,
         loweredTarget: LoweredSuspendFunction,
@@ -598,7 +591,6 @@ extension CoroutineLoweringPass {
         ]
     }
 
-    // STDLIB-CORO-072: Rewrite launch(dispatcher) { captures } with captures
     func rewriteArgBearingDispatcherLauncherCall(
         dispatcherExpr: KIRExprID,
         loweredTarget: LoweredSuspendFunction,
@@ -659,8 +651,6 @@ extension CoroutineLoweringPass {
         return rewritten
     }
 
-    // STDLIB-CORO-001: Rewrite launch/async (start = CoroutineStart.X) { block }.
-    //
     // Kotlin's four start modes are not interchangeable. DEFAULT and ATOMIC
     // schedule the body right away (they differ only in whether a cancel before
     // the first suspension can still stop it, which this runtime does not model
@@ -734,9 +724,6 @@ extension CoroutineLoweringPass {
         )
     }
 
-    /// The runtime launchers implementing the `CoroutineStart` mode named by
-    /// `startExpr`, for the no-capture and capture-bearing call shapes.
-    ///
     /// `builderCallee` picks the family: `launch` returns a `Job` handle,
     /// `async` a `Deferred` one carrying the block's result, so the two cannot
     /// share entry points even where their scheduling is identical.
@@ -870,9 +857,7 @@ extension CoroutineLoweringPass {
 
         // Captured outer variables of the launched lambda are appended after the
         // suspend function reference (see the kk_coroutine_scope_launch capture
-        // injection in CallLowerer). Non-capturing blocks take the simple
-        // functionID path; capturing blocks thread their captures through a
-        // continuation like the dispatcher-aware launch does.
+        // injection in CallLowerer).
         let targetArity = rewrite.suspendFunctionArityBySymbol[suspendSymbol] ?? 0
         let extraArgs = Array(call.arguments.dropFirst(2))
         guard extraArgs.count == targetArity else {
@@ -907,10 +892,8 @@ extension CoroutineLoweringPass {
         )
     }
 
-    // Receiver-aware counterpart to rewriteArgBearingDispatcherLauncherCall: threads
-    // the launched lambda's captured outer variables through a fresh continuation and
-    // routes to kk_coroutine_scope_launch_with_cont, keeping the explicit receiver
-    // scope in front of the thunk reference (BUG-049).
+    // Receiver-aware counterpart to rewriteArgBearingDispatcherLauncherCall, keeping
+    // the explicit receiver scope in front of the thunk reference (BUG-049).
     func rewriteArgBearingCoroutineScopeLauncherCall(
         scopeExpr: KIRExprID,
         loweredTarget: LoweredSuspendFunction,
@@ -1146,7 +1129,6 @@ extension CoroutineLoweringPass {
         return rewritten
     }
 
-    /// Parses lambda ExprIDs from names like `kk_lambda_42`.
     private func lambdaExprID(from name: InternedString, interner: StringInterner) -> Int32? {
         let rawName = interner.resolve(name)
         let prefix = "kk_lambda_"
