@@ -47,7 +47,6 @@ extension CallTypeChecker {
             sema.bindings.bindFloatingPointRangeElementType(elementType, forExpr: id)
         }
 
-        // Classify the concrete range/progression kind for UInt/ULong/Char dispatch.
         if let (_, symbol) = resolveClassTypeSymbol(returnType, sema: sema) {
             let className = interner.resolve(symbol.name)
             switch className {
@@ -183,8 +182,6 @@ extension CallTypeChecker {
         return returnType
     }
 
-    /// Recover the singleton named by an explicit import for an ordinary
-    /// member, member extension, or member-extension-property accessor.
     func importedObjectDispatchReceiverSymbol(
         for expression: ExprID,
         callee: SymbolID,
