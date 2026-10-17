@@ -249,6 +249,25 @@ LOCAL_IO_TEST_PREFIXES = (
 )
 LOCAL_IO_PROBE_API_NAMES = {"dataasbytearray"}
 
+JVM_DEFAULT_BRIDGE_KLIB_COUNTERPARTS = {
+    "jvm-b6f447c2ba2daba9": "klib-54782273b181aa94",
+    "jvm-caddbfc2da0eaa02": "klib-293d4e80c1fd216b",
+    "jvm-d17f7b740f731918": "klib-14f4f1842013a782",
+}
+JVM_DEFAULT_BRIDGE_UPSTREAM_TESTS = {
+    "jvm-b6f447c2ba2daba9": ("toByteArray", "toByteArrayWithInvalidIndex"),
+    "jvm-caddbfc2da0eaa02": ("substring", "substringWithInvalidArgs"),
+    "jvm-d17f7b740f731918": ("copyTo", "copyToWithInvalidArguments"),
+}
+JVM_DEFAULT_BRIDGE_LOCAL_TEST_INPUTS = (
+    "Scripts/io_api_inventory/f02_default_bridges/Producer.kt",
+    "Scripts/io_api_inventory/f02_default_bridges/Consumer.kt",
+    "Scripts/io_api_inventory/f02_default_bridges/ByteStringDefaultBridgeAbiProbe.java",
+    "Scripts/io_api_inventory/run_f02_matrix.py",
+    "Scripts/io_api_inventory/test_f02_matrix.py",
+    "Tests/CompilerCoreTests/Sema/JVMInteropNioSourceContractsTests.swift",
+)
+
 SEGMENT_READ_CONTEXT_IMPL_ROW_IDS = frozenset({
     "internal-230a62161c7ea51a",
     "jvm-f8c529b67df6423d",
@@ -1365,6 +1384,8 @@ def parse_jvm_api(path: Path, module: str, sources: list[Path]) -> list[dict]:
 
 
 def owner_for(row: dict) -> str:
+    if row.get("row_id") in JVM_DEFAULT_BRIDGE_KLIB_COUNTERPARTS:
+        return "KUU-1762"
     text = " ".join(
         [row["module"], row["owner_fqn"], row["name"], row["signature"], row["upstream_source_refs"]]
     ).lower()
@@ -1532,6 +1553,30 @@ def apply_jvm_correspondence(rows: list[dict], index: SourceIndex, lock: dict) -
             row["upstream_source_refs"] = "no direct Kotlin metadata declaration (generated ABI)"
             row["annotations"], row["deprecation"], row["exception_contract"] = "n/a", "n/a", "n/a"
             row["notes"] = "JVM ABI signature: " + repr(row["_jvm_key"]) + "; no direct Kotlin metadata declaration"
+            counterpart_id = JVM_DEFAULT_BRIDGE_KLIB_COUNTERPARTS.get(row["row_id"])
+            if counterpart_id is not None:
+                counterparts = [candidate for candidate in rows if candidate["row_id"] == counterpart_id]
+                if len(counterparts) != 1:
+                    fail(f"missing or duplicate Kotlin source counterpart for JVM default bridge {row['row_id']}")
+                counterpart = counterparts[0]
+                if (counterpart["representation"] != "Kotlin source API / KLIB dump"
+                        or counterpart["module"] != row["module"]
+                        or row["name"] != counterpart["name"] + "$default"
+                        or "_source_key" not in counterpart):
+                    fail(f"unexpected Kotlin source counterpart for JVM default bridge {row['row_id']}")
+                row["_source_key"] = counterpart["_source_key"]
+                row["_source_declarations"] = counterpart.get("_source_declarations", [])
+                row["_source_paths"] = counterpart.get("_source_paths", [])
+                row["_typed_local_refs"] = counterpart.get("_typed_local_refs", [])
+                row["_candidate_kind"] = counterpart["_candidate_kind"]
+                row["_candidate_name"] = counterpart["_candidate_name"]
+                row["_api_id"] = counterpart["_api_id"]
+                row["default_parameter_count"] = counterpart["default_parameter_count"]
+                source_refs = counterpart["upstream_source_refs"]
+                row["notes"] += (
+                    f"; native source/default-metadata counterpart {counterpart_id} ({source_refs}); "
+                    "candidate mapping does not claim JVM classfile emission"
+                )
             if row["source_api"] == "yes":
                 row["source_api"] = "no"
                 row["api_kind"] = "JVM ABI without direct Kotlin metadata declaration"
@@ -1648,6 +1693,8 @@ def local_contract_differences(row: dict, index: SourceIndex) -> str:
 
 
 def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
+    if row.get("row_id") in JVM_DEFAULT_BRIDGE_KLIB_COUNTERPARTS:
+        return list(JVM_DEFAULT_BRIDGE_LOCAL_TEST_INPUTS)
     name = row["_candidate_name"].lower()
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []
@@ -1684,6 +1731,17 @@ def local_implementation_refs(row: dict, index: SourceIndex, runtime_symbols: di
 
 
 def upstream_test_refs(row: dict, test_index: dict) -> list[str]:
+    direct_methods = JVM_DEFAULT_BRIDGE_UPSTREAM_TESTS.get(row.get("row_id"))
+    if direct_methods is not None:
+        path = "bytestring/common/test/ByteStringTest.kt"
+        entry = next((item for item in test_index["files"] if item["path"] == path), None)
+        if entry is None:
+            fail(f"missing locked upstream test source for JVM default bridge {row['row_id']}")
+        available = set(entry.get("testNames", []))
+        missing = set(direct_methods) - available
+        if missing:
+            fail(f"missing direct upstream assertions for JVM default bridge {row['row_id']}: {sorted(missing)}")
+        return [f"{path}#{method}" for method in direct_methods]
     if row.get("upstream_source_refs") in NO_DIRECT_UPSTREAM_ASSERTION_SOURCE_REFS:
         # The upstream smoke cases use SystemFileSystem raw methods; they do not
         # exercise these deprecated Path extensions or assert their annotations.

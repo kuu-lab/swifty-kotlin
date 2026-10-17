@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Check that the ledger survives relocation and filesystem creation order."""
 
+import csv
 import importlib.util
 import shutil
 import tempfile
@@ -98,6 +99,47 @@ class ReproducibilityTests(unittest.TestCase):
         for row in self.rows:
             if row["row_id"] not in row_ids:
                 self.assertFalse(probe_refs.intersection(row["local_test_refs"].split(";")))
+
+    def test_bytestring_default_bridges_map_to_source_without_claiming_native_jvm_abi(self):
+        rows = {row["row_id"]: row for row in self.rows}
+        with self.generator.LEDGER_PATH.open(encoding="utf-8", newline="") as stream:
+            committed_rows = {row["row_id"]: row for row in csv.DictReader(stream, delimiter="\t")}
+        pairs = {
+            "jvm-b6f447c2ba2daba9": ("klib-54782273b181aa94", "toByteArray$default", 2,
+                                      {"bytestring/common/test/ByteStringTest.kt#toByteArray",
+                                       "bytestring/common/test/ByteStringTest.kt#toByteArrayWithInvalidIndex"}),
+            "jvm-caddbfc2da0eaa02": ("klib-293d4e80c1fd216b", "substring$default", 1,
+                                     {"bytestring/common/test/ByteStringTest.kt#substring",
+                                      "bytestring/common/test/ByteStringTest.kt#substringWithInvalidArgs"}),
+            "jvm-d17f7b740f731918": ("klib-14f4f1842013a782", "copyInto$default", 3,
+                                     {"bytestring/common/test/ByteStringTest.kt#copyTo",
+                                      "bytestring/common/test/ByteStringTest.kt#copyToWithInvalidArguments"}),
+        }
+        required_inputs = {
+            "Scripts/io_api_inventory/f02_default_bridges/Producer.kt",
+            "Scripts/io_api_inventory/f02_default_bridges/Consumer.kt",
+            "Scripts/io_api_inventory/f02_default_bridges/ByteStringDefaultBridgeAbiProbe.java",
+            "Scripts/io_api_inventory/run_f02_matrix.py",
+            "Scripts/io_api_inventory/test_f02_matrix.py",
+            "Tests/CompilerCoreTests/Sema/JVMInteropNioSourceContractsTests.swift",
+        }
+        for bridge_id, (source_id, name, defaults, tests) in pairs.items():
+            with self.subTest(bridge_id=bridge_id):
+                bridge, source = rows[bridge_id], rows[source_id]
+                committed_bridge = committed_rows[bridge_id]
+                self.assertEqual(bridge["representation"], "JVM public ABI dump")
+                self.assertEqual(bridge["name"], name)
+                self.assertEqual(int(bridge["default_parameter_count"]), defaults)
+                self.assertEqual(bridge["jvm_abi_refs"], source_id)
+                self.assertIn(bridge_id, source["jvm_abi_refs"].split(";"))
+                self.assertEqual(set(bridge["upstream_test_refs"].split(";")), tests)
+                self.assertTrue(required_inputs.issubset(bridge["local_test_refs"].split(";")))
+                self.assertEqual(bridge["status"], "unverified")
+                self.assertIn("candidate mapping does not claim JVM classfile emission", bridge["notes"])
+                for field in ("default_parameter_count", "jvm_abi_refs", "local_candidate_refs",
+                              "local_test_refs", "upstream_test_refs", "notes", "status"):
+                    self.assertEqual(committed_bridge[field], bridge[field], field)
+                self.assertEqual(committed_rows[source_id]["jvm_abi_refs"], source["jvm_abi_refs"])
 
     def test_exact_overload_exception_and_abi_mapping(self):
         declaration = self.row("kotlinx.io/readByteArray|readByteArray@kotlinx.io.Source(kotlin.Int){}")

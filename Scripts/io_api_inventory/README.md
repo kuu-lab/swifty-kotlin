@@ -153,6 +153,14 @@ python3 Scripts/io_api_inventory/run_f02_matrix.py \
   --dependencies /path/to/locked-io-jars
 ```
 
+The `bytestring-default-bridges` case checks the pinned JVM `$default` methods
+with a reflection probe for exact parameter/return types and synthetic/static
+flags, then compares defaulted `toByteArray`, `substring`, and `copyInto` calls
+against the native candidate in source, fresh stdlib-library, and independent
+producer/consumer lanes at O0/O2. The JVM classfile probe is reference-only;
+native source metadata and default dispatch are checked separately and do not
+claim that KSwiftK emits JVM classfiles.
+
 Every selected lane is attempted after a lane failure, and each failure retains
 its raw diagnostic or output difference. The original Apple test module is run
 separately: its test-only helpers occupy real stdlib packages and can conflict
