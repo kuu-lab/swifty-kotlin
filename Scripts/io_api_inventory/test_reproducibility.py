@@ -54,10 +54,12 @@ class ReproducibilityTests(unittest.TestCase):
             inputs = list(HERE.rglob("*"))
             inputs.extend((REPO / "Sources/CompilerCore/Stdlib/kotlinx/io").rglob("*.kt"))
             inputs.extend((REPO / "Sources/Runtime").rglob("*.swift"))
+            inputs.extend((REPO / "Scripts/kotlinx_io_upstream").rglob("*"))
             test_inputs = list((REPO / "Tests").rglob("*.swift"))
             test_inputs.extend((REPO / "Tests/CompilerCoreTests/GoldenCases/Sema").glob("*.kt"))
             test_inputs.extend((REPO / "Scripts/diff_cases").glob("*.kt"))
             test_inputs.extend((REPO / "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590").glob("*.kt"))
+            test_inputs.extend((REPO / "Tests/CompilerBackendTests/Fixtures/IOSegmentPos2595").glob("*.kt"))
             inputs.extend(
                 path for path in test_inputs
                 if path.relative_to(REPO).as_posix().startswith(original.LOCAL_IO_TEST_PREFIXES)
@@ -98,6 +100,21 @@ class ReproducibilityTests(unittest.TestCase):
         for row in self.rows:
             if row["row_id"] not in row_ids:
                 self.assertFalse(probe_refs.intersection(row["local_test_refs"].split(";")))
+
+    def test_segment_pos_probe_is_hashed_without_promoting_rows(self):
+        row_ids = self.generator.SEGMENT_POS_ROW_IDS
+        expected_refs = {
+            "Tests/CompilerBackendTests/Fixtures/IOSegmentPos2595/Producer.kt",
+            "Scripts/io_api_inventory/f02_consumers/SegmentPosAbiProbe.java",
+        }
+        for row_id in row_ids:
+            row = next(row for row in self.rows if row["row_id"] == row_id)
+            self.assertTrue(expected_refs.issubset(set(row["local_test_refs"].split(";"))))
+            self.assertEqual(row["status"], "unverified")
+
+        for row in self.rows:
+            if row["row_id"] not in row_ids:
+                self.assertFalse(expected_refs.intersection(row["local_test_refs"].split(";")))
 
     def test_exact_overload_exception_and_abi_mapping(self):
         declaration = self.row("kotlinx.io/readByteArray|readByteArray@kotlinx.io.Source(kotlin.Int){}")

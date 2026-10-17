@@ -197,6 +197,10 @@ def scenarios() -> list[dict]:
          "consumer": base / "IOSegmentReadContextImpl2590/Consumer.kt", "entry": "kuu2590consumer.main",
          "jvm_class": "kuu2590consumer.ConsumerKt", "reference": "jvm", "friend_io_artifacts": True,
          "jvm_abi_probe": HERE / "f02_consumers/SegmentReadContextAbiProbe.java"},
+        {"id": "segment-pos-accessors", "producer": [base / "IOSegmentPos2595/Producer.kt"],
+         "consumer": base / "IOSegmentPos2595/Consumer.kt", "entry": "kuu2595consumer.main",
+         "jvm_class": "kuu2595consumer.ConsumerKt", "reference": "jvm", "friend_io_artifacts": True,
+         "jvm_abi_probe": HERE / "f02_consumers/SegmentPosAbiProbe.java"},
         {"id": "buffering-contracts", "producer": [base / "IOBuffering1730/BufferingContracts.kt"],
          "consumer": base / "IOBuffering1730/Consumer.kt", "entry": "kuu1730consumer.main",
          "expected": base / "IOBuffering1730/reference.stdout", "reference": "pinned-JVM"},
@@ -294,6 +298,10 @@ def reference_friend_args(case: dict, io_jars: list[Path]) -> list[str]:
     if not case.get("friend_io_artifacts"):
         return []
     return ["-Xfriend-paths=" + ",".join(map(str, io_jars))]
+
+
+def jvm_abi_probe_class(case: dict) -> str:
+    return case["jvm_abi_probe"].stem
 
 
 def batch_group_stdout(stdout: bytes, identifier: str) -> bytes:
@@ -572,7 +580,7 @@ def main(argv: list[str] | None = None) -> int:
                     require_stage([str(javac), "-d", str(probe_classes), str(case["jvm_abi_probe"])],
                                   directory, "jvm-abi-compile", args.compile_timeout)
                     require_stage([str(args.java.resolve()), "-cp", os.pathsep.join(
-                        map(str, [probe_classes, jar, *jars])), "SegmentReadContextAbiProbe"],
+                        map(str, [probe_classes, jar, *jars])), jvm_abi_probe_class(case)],
                         directory, "jvm-abi-probe", 30)
             else:
                 expected = case["expected"].read_bytes()
