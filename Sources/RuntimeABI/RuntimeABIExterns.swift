@@ -1,12 +1,9 @@
-/// Canonical C ABI extern declarations derived from `RuntimeABISpec`.
-///
 /// `RuntimeABISpec` is the single source of truth. This type keeps the
 /// compiler/test-facing extern view stable without duplicating hundreds of
 /// handwritten declarations.
 public enum RuntimeABIExterns {
     public static let specVersion = RuntimeABISpec.specVersion
 
-    /// A single extern function declaration for the C preamble.
     public struct ExternDecl: Equatable, Sendable {
         public let name: String
         public let parameterTypes: [String]
@@ -27,14 +24,12 @@ public enum RuntimeABIExterns {
         }
     }
 
-    /// All runtime extern declarations, ordered by section.
     public static let allExterns = RuntimeABISpec.allFunctions.map(ExternDecl.init(spec:))
 
     private static let externsByName: [String: ExternDecl] = Dictionary(
         uniqueKeysWithValues: allExterns.map { ($0.name, $0) }
     )
 
-    /// Look up an extern declaration by symbol name.
     public static func externDecl(named name: String) -> ExternDecl? {
         externsByName[name]
     }
