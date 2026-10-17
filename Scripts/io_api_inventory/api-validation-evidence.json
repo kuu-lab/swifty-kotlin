@@ -444,6 +444,233 @@
         }
       ],
       "evidence_source": "local-probe"
+    },
+    {
+      "row_id": "jvm-a1d46eb1f6c5e933",
+      "candidate_sha": "39931d2101a9d713d3fb0b7a91ebfb590f19915d",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "e6ccf57cff69d41058d3365989d6339b2d297f6ea839aaf52c1d195847379095",
+      "test_input_sha256": "632c197e30eac92fe2c9d464c6a76e5d46081dd3e47193f1da697855216312ac",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "Scripts/io_api_inventory/probes/systempathseparator/SystemPathSeparatorJvmAbiProbe.java#main",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "kuu2641-reference-44abd34fb8f24cbd59b54616",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": null,
+            "result": "NOT_APPLICABLE",
+            "exit_code": null,
+            "reason": "KSwiftK Native backend does not emit JVM classfiles"
+          }
+        }
+      ],
+      "evidence_source": "upstream-catalog"
+    },
+    {
+      "row_id": "klib-1cea0040ddde9cf5",
+      "candidate_sha": "39931d2101a9d713d3fb0b7a91ebfb590f19915d",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "e6ccf57cff69d41058d3365989d6339b2d297f6ea839aaf52c1d195847379095",
+      "test_input_sha256": "a651908d3d9503968535be5228cf108bd7c41b8b5e2d015060b5e4f23dc6d2cb",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "executions": [
+        {
+          "case_id": "Scripts/io_api_inventory/probes/systempathseparator/SystemPathSeparatorBindingProbe.kt#systemPathSeparatorBinding",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "kuu2641-reference-10fe3c43cb005c477613e981",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kuu2641-candidate-b0c7f543c8554e17571ac0c9",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/systempathseparator/SystemPathSeparatorBindingProbe.kt#systemPathSeparatorBinding",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "kuu2641-reference-35c70d63be33c4e0c641edf7",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kuu2641-candidate-0985c3aefe1c880a7d085fbe",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/systempathseparator/SystemPathSeparatorBindingProbe.kt#systemPathSeparatorBinding",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "kuu2641-reference-210ce011930a92eccd8c7798",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kuu2641-candidate-008ed4ea78cdac2905007549",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/systempathseparator/SystemPathSeparatorBindingProbe.kt#systemPathSeparatorBinding",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "kuu2641-reference-652ce60a1c7f732c72bf1d83",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kuu2641-candidate-ccf5a14e4069a1bbf2ee00f5",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/systempathseparator/SystemPathSeparatorBindingProbe.kt#systemPathSeparatorBinding",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "kuu2641-reference-aa94c1f13bc69d00793ad134",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kuu2641-candidate-0145860bcdb795d63196b2c4",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/systempathseparator/SystemPathSeparatorBindingProbe.kt#systemPathSeparatorBinding",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "kuu2641-reference-9bbf202a685b0612e4eb0247",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kuu2641-candidate-e497c654659747fb4b04ee87",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "evidence_source": "upstream-catalog"
+    },
+    {
+      "row_id": "klib-e375bc5c05e11b68",
+      "candidate_sha": "39931d2101a9d713d3fb0b7a91ebfb590f19915d",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "e6ccf57cff69d41058d3365989d6339b2d297f6ea839aaf52c1d195847379095",
+      "test_input_sha256": "a651908d3d9503968535be5228cf108bd7c41b8b5e2d015060b5e4f23dc6d2cb",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "executions": [
+        {
+          "case_id": "Scripts/io_api_inventory/probes/systempathseparator/SystemPathSeparatorBindingProbe.kt#systemPathSeparatorBinding",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "kuu2641-reference-10fe3c43cb005c477613e981",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kuu2641-candidate-b0c7f543c8554e17571ac0c9",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/systempathseparator/SystemPathSeparatorBindingProbe.kt#systemPathSeparatorBinding",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "kuu2641-reference-35c70d63be33c4e0c641edf7",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kuu2641-candidate-0985c3aefe1c880a7d085fbe",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/systempathseparator/SystemPathSeparatorBindingProbe.kt#systemPathSeparatorBinding",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "kuu2641-reference-210ce011930a92eccd8c7798",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kuu2641-candidate-008ed4ea78cdac2905007549",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/systempathseparator/SystemPathSeparatorBindingProbe.kt#systemPathSeparatorBinding",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "kuu2641-reference-652ce60a1c7f732c72bf1d83",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kuu2641-candidate-ccf5a14e4069a1bbf2ee00f5",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/systempathseparator/SystemPathSeparatorBindingProbe.kt#systemPathSeparatorBinding",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "kuu2641-reference-aa94c1f13bc69d00793ad134",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kuu2641-candidate-0145860bcdb795d63196b2c4",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/systempathseparator/SystemPathSeparatorBindingProbe.kt#systemPathSeparatorBinding",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "kuu2641-reference-9bbf202a685b0612e4eb0247",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kuu2641-candidate-e497c654659747fb4b04ee87",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "evidence_source": "upstream-catalog"
     }
   ]
 }
