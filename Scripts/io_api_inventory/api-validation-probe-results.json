@@ -1,0 +1,320 @@
+{
+  "schema_version": 1,
+  "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+  "candidate_compiler_sha256": "da5344886ee1213ba6c867492ae5b061169f13c9558f5ca69e181fcdfccfd798",
+  "reference_version": "0.9.1",
+  "reference_kotlin_version": "2.3.10",
+  "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+  "probe_inputs_sha256": {
+    "reference-sdk/bin/kotlinc": "90750c977cc043dd2b05c69dd4e052c10377554925dd5a155e74ef732be28c7d",
+    "reference-sdk/lib/allopen-compiler-plugin.jar": "31b7748ab62f5f5879aea85a87b7a4cded65f545aebc7bae74f7f6e2b2740bb3",
+    "reference-sdk/lib/annotations-13.0.jar": "ace2a10dc8e2d5fd34925ecac03e4988b2c0f851650c94b8cef49ba1bd111478",
+    "reference-sdk/lib/assignment-compiler-plugin.jar": "49c47d47d040aac599dd472b93b5d8acc290734efbedca383c598217937d2dc6",
+    "reference-sdk/lib/compose-compiler-plugin.jar": "de3ed66aaf3fbbd74c64164fd75ac93778e59f90146e1b5de7f9398189589d46",
+    "reference-sdk/lib/jvm-abi-gen.jar": "ffd4e08aca14cd06d27c9208376351dc065080bc6354ae8a023df585446922bf",
+    "reference-sdk/lib/kotlin-annotation-processing-cli.jar": "c6cae005cab063c28e2ec2af8421e6d0dc2c6be03fe73b433a6a5129061d907f",
+    "reference-sdk/lib/kotlin-annotation-processing-runtime.jar": "1ddca86ef9462961b656a03040caf5f940b850fd196a52db29065c9352dc8074",
+    "reference-sdk/lib/kotlin-annotation-processing.jar": "6f382abd85925cf6b9021e5e5a7a10ff441ff5ae35b06d7fb2118b62c978f660",
+    "reference-sdk/lib/kotlin-annotations-jvm-sources.jar": "bf594d0e3a35c21b1f07097d9e10b6ab524ae5bb2ffdb92ea9b1f79f28e8ab09",
+    "reference-sdk/lib/kotlin-annotations-jvm.jar": "6054230599c840c69af3657c292b768f2b585c25fba91d26cd5ad8c992757b03",
+    "reference-sdk/lib/kotlin-compiler.jar": "205abc86c6b0a40bc1a318bb24a062c7eb9a99abb023ee276bf925e3732511c8",
+    "reference-sdk/lib/kotlin-daemon-client.jar": "d21a6f77d9803a615e6d150857377e10a9e8c7cd06ae6e1c1eb99920fda38b93",
+    "reference-sdk/lib/kotlin-daemon.jar": "5b9f59f55e4090f8060b299fcb7e5d67df6c98a0fafcc7273d82866e13be5101",
+    "reference-sdk/lib/kotlin-main-kts.jar": "693b9dafe66bcb518dbcd16142f35cac6cb9ccbb871643d96d2b02b11bde2f96",
+    "reference-sdk/lib/kotlin-metadata-jvm-sources.jar": "b57b430ec604edd61b4cc863e09b48efb5c67ca06bacf30857e105045d2f4ddd",
+    "reference-sdk/lib/kotlin-metadata-jvm.jar": "c1df5bc6530b4c744b13788dbf8540a469898fdfbcde6abca9119184f5d3707c",
+    "reference-sdk/lib/kotlin-preloader.jar": "af1a852e4d69a657a38c5116b44af9dcea18a94bccbf1c0792c07827cf02fb56",
+    "reference-sdk/lib/kotlin-reflect-sources.jar": "fa1664e3d51e4a27d7a2f440581e3f5ffce01795790c11b145a9965f5101cbfa",
+    "reference-sdk/lib/kotlin-reflect.jar": "10b4a1b5e3957efe90f474bd04a747249a259b2615a6f0504507d323c2be350b",
+    "reference-sdk/lib/kotlin-runner.jar": "8730617cf81d6c8392ba9d70e75232bc1e709f06226eacd5aba06bf7466a0561",
+    "reference-sdk/lib/kotlin-script-runtime-sources.jar": "d9d6b416bf1267d5d9a2fffb309c8d02fa707608154d7b0d7dd318d2dd7daa96",
+    "reference-sdk/lib/kotlin-script-runtime.jar": "d0b3b08ecf8901c6610aa0e8efb29db3731bfbd96afd4f987cc817016b1e003e",
+    "reference-sdk/lib/kotlin-scripting-common.jar": "7e9143d22c80b3d02c96982431b1c96ba091eff7bf4390ab4b8949ecee43f285",
+    "reference-sdk/lib/kotlin-scripting-compiler-impl.jar": "8955408e620788a43519a8394a89ae2a8f4ca19cc5137f733fdd2b67d6e9d57e",
+    "reference-sdk/lib/kotlin-scripting-compiler.jar": "6a63a02a78c7344732d411eb22fdec6b87b377b65190d1ecd8ec28c174c12b08",
+    "reference-sdk/lib/kotlin-scripting-jvm.jar": "bf232a519af02952e101086fabd4884436257656c45db081783cac4b149664b7",
+    "reference-sdk/lib/kotlin-serialization-compiler-plugin.jar": "9a4d5139df8ef580005b737e2accef070fbc3b581d95e5f64d74a93abb4069a6",
+    "reference-sdk/lib/kotlin-stdlib-jdk7-sources.jar": "2534c8908432e06de73177509903d405b55f423dd4c2f747e16b92a2162611e6",
+    "reference-sdk/lib/kotlin-stdlib-jdk7.jar": "9c208de17b6d0d701629cb972eb568d092f28af863e32ef68f22374dc8b8b8fb",
+    "reference-sdk/lib/kotlin-stdlib-jdk8-sources.jar": "3cb6895054a0985bba591c165503fe4dd63a215af53263b67a071ccdc242bf6e",
+    "reference-sdk/lib/kotlin-stdlib-jdk8.jar": "6581d8c24374200577b84149d8be7f744e07e1cd3bc425179a3b9d07bf3f6741",
+    "reference-sdk/lib/kotlin-stdlib-js-sources.jar": "d1c87b3f87e58ad5494c5ed064053f79d96585e2bd627c7250e7c5d43faa68dc",
+    "reference-sdk/lib/kotlin-stdlib-sources.jar": "21a3acec677a5483cacd6e956bee49f1f816c0e9ece3b39d188b6fd3720fd306",
+    "reference-sdk/lib/kotlin-stdlib.jar": "f61662c6d3a2f8ef5bd34362a02d877772c39f393cd394feb259dfaf7f4d8437",
+    "reference-sdk/lib/kotlin-test-js-sources.jar": "9a52592696b63a75dea3f181bf8bb4ff0515f30a9b663058241885857507f6ac",
+    "reference-sdk/lib/kotlin-test-junit-sources.jar": "3fd39bbf3f8283cf7b7759e02abdd752ddde9964352f645467b779257bccef20",
+    "reference-sdk/lib/kotlin-test-junit.jar": "5b2a437aaed0af8212afac1b544c8982896c687c387fe561a8118037d92e55b5",
+    "reference-sdk/lib/kotlin-test-junit5-sources.jar": "5e0d4688277a3f859be086b874601b45f54b30b5b045800138b54e9418bdc95b",
+    "reference-sdk/lib/kotlin-test-junit5.jar": "cf8ca32a20b18130acdde3f6b8e29b01cc7ea7f792326a122c6fe5434214c889",
+    "reference-sdk/lib/kotlin-test-sources.jar": "031bd9d2f7cc9caaf369448c60eaa61f68788bd9777ae0c1141ec9b7fe5a83b4",
+    "reference-sdk/lib/kotlin-test-testng-sources.jar": "b88a8f12928480d14e29c6c879958c156afc946b9b8d333d1c2f4a428cdb1041",
+    "reference-sdk/lib/kotlin-test-testng.jar": "ed3fbd193452534df58d345d4e15ab079a08e5b2d79ced24896d01b1879e3099",
+    "reference-sdk/lib/kotlin-test.jar": "25e706274e2815ee00e051e2b27adc250dcc6450cd8ec4f79f7225f5b5a13cb8",
+    "reference-sdk/lib/kotlinx-coroutines-core-jvm.jar": "9860906a1937490bf5f3b06d2f0e10ef451e65b95b269f22daf68a3d1f5065c5",
+    "reference-sdk/lib/kotlinx-serialization-compiler-plugin.jar": "9a4d5139df8ef580005b737e2accef070fbc3b581d95e5f64d74a93abb4069a6",
+    "reference-sdk/lib/lombok-compiler-plugin.jar": "849f0a740c4fdd49e5c72b39a1e30c2c70bbc2dbf914160c228dd1ea9728ecea",
+    "reference-sdk/lib/mutability-annotations-compat.jar": "8c76693fde1f34baaeaf5298e1953fca489c8e90ce6c065f96dd20d978c2003b",
+    "reference-sdk/lib/noarg-compiler-plugin.jar": "98e509a1e1f94fb29e4fcd9ef3eccf3b16c33457b8a76e07251c411b327ddc63",
+    "reference-sdk/lib/parcelize-compiler.jar": "9a440c5b2e7cae6cf09623ffd0d49134c35e169183a0d01a8b819bca956e1630",
+    "reference-sdk/lib/parcelize-runtime.jar": "89ee89608e9f2b54364758c81448b3324afb11be9863c6ef410bb2e35c34e332",
+    "reference-sdk/lib/power-assert-compiler-plugin.jar": "19a8cb1ab7e5e342254cf0b724e5e2deb725deaa113c5a844473ea3aee7863e4",
+    "reference-sdk/lib/sam-with-receiver-compiler-plugin.jar": "db21d5c13f6e3663f09cf4e418a4cf2f05637ae758c615eafaded778d5348931",
+    "reference-sdk/lib/scripting-compiler.jar": "6a63a02a78c7344732d411eb22fdec6b87b377b65190d1ecd8ec28c174c12b08",
+    "repo/Scripts/io_api_inventory/api-probe-catalog.json": "6db5d1039bd0ef85777ce87fa125a42851c5660f5847914d808a384b88e77127",
+    "repo/Scripts/io_api_inventory/run_segment_type_probe.py": "a2e82c3fcb9e6216600e1108e44f39c5b6902e90cf4b51f2b93f64460fbbaecf",
+    "repo/Scripts/io_api_inventory/upstream/kotlinx-io-0.9.1/core/common/src/Segment.kt": "95bc6d82bea14b9aad3f0b9461180e3577990c7e16c96734898a739635b61aac",
+    "repo/Scripts/io_api_inventory/upstream/kotlinx-io-0.9.1/core/api/kotlinx-io-core.api": "8b48641fa461021fd2e1fd632baaf3eceeb94cbbdf3813e13aab3b02863a8df3",
+    "repo/Scripts/io_api_inventory/upstream/kotlinx-io-0.9.1/core/api/kotlinx-io-core.klib.api": "667b85c08144ad34edf289c593a55f39b5862623726a8bb23e4f0b7b3b4e2780",
+    "repo/Scripts/io_api_inventory/segment_type_probe/SegmentConstructionForbidden.kt": "0fe7ddba6a5573be6fcc562d0f616b943b12a7721d485d9c3aa2366f4ba49e66",
+    "repo/Scripts/io_api_inventory/segment_type_probe/SegmentPublicType.kt": "20c7eb6cadd76bd1b7cbcc9862feff179d3e822d446cd867f2b890146ffef5f7",
+    "repo/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt": "cd28023a5e81422d3b33e1961bfd62269e11b6bc0c26c390cbf50ba22d0aa2da",
+    "repo/Scripts/io_api_inventory/segment_type_probe/SegmentTypeConsumer.kt": "794d4f672d428971e2769d97743d3250aecdf66529b5003231f9c6d436e10e36",
+    "repo/Scripts/io_api_inventory/segment_type_probe/SegmentTypeProducer.kt": "c18889b4a49a7e1f64d3a2e7cde98783bb3eada8437bc0315453ced4a5b44ff6",
+    "candidate:Sources/CompilerCore/Stdlib/kotlinx/io/Segment.kt": "7d435296e9b68b53fc19599cf97e2fd53b10af65517f15eb63bcce4d1ec77d4b",
+    "tool:kotlin-compiler": "90750c977cc043dd2b05c69dd4e052c10377554925dd5a155e74ef732be28c7d",
+    "tool:java": "05687a76275264affc701d1cbc005960002295e2da9f2833aa6c0ebfecd77943",
+    "tool:javap": "ece358719e260fc6e77700765d7653fe0bc7965a3ad2ecf919acdafff20af2a6",
+    "reference:kotlinx-io-core-jvm": "765d8851d8ca694706931331b92386844800867e041b720f1f193dbda874d370",
+    "reference:kotlinx-io-bytestring-jvm": "8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4",
+    "candidate:stdlib-metadata": "5296e1e4f35735fe956a9389c3a299e88e088f61a39b90ea826dc8d559e8a0a7",
+    "candidate:stdlib-artifact-tree": "7ebfb93dc5bed96a9c44f350fe53c90c02dc55725744592d598f887e0ae534e5"
+  },
+  "summary": {
+    "case_count": 2,
+    "lane_count": 7,
+    "passed": 7,
+    "failed": 0
+  },
+  "executions": [
+    {
+      "row_id": "jvm-e405f88094ec1353",
+      "case_id": "api-probe:KUU-2609:segment-jvm-type-shape",
+      "lane": "jvm-descriptor",
+      "reference": {
+        "execution_id": "jvm-e405f88094ec1353:jvm-descriptor:reference",
+        "result": "PASS",
+        "exit_code": 0,
+        "command": [
+          "/opt/homebrew/Cellar/openjdk/27/libexec/openjdk.jdk/Contents/Home/bin/javap -classpath /private/tmp/kuu-2609-jars/kotlinx-io-core-jvm-0.9.1.jar -public -v kotlinx.io.Segment"
+        ],
+        "stdout": "public-final-type:verified\n",
+        "stderr": "",
+        "stdout_sha256": "7a80eb62fa89b48a2e9c8337b77c0c9b38baf92fc92c483bf1c66f90c9dcbd13",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "candidate": {
+        "execution_id": "jvm-e405f88094ec1353:jvm-descriptor:candidate",
+        "result": "PASS",
+        "exit_code": 0,
+        "command": [
+          "/private/tmp/kuu-2609-candidate-fd01-build/out/Products/Debug/kswiftc -O0 --no-incremental --stdlib-library /private/tmp/kuu-2609-segment-probe-final-compile-only/KSwiftKStdlib.kklib --emit kir /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentPublicType.kt -o /private/tmp/kuu-2609-segment-probe-final-compile-only/jvm-descriptor/jvm-e405f88094ec1353/candidate/positive",
+          "/private/tmp/kuu-2609-candidate-fd01-build/out/Products/Debug/kswiftc -O0 --no-incremental --stdlib-library /private/tmp/kuu-2609-segment-probe-final-compile-only/KSwiftKStdlib.kklib --emit kir /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentConstructionForbidden.kt /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt -o /private/tmp/kuu-2609-segment-probe-final-compile-only/jvm-descriptor/jvm-e405f88094ec1353/candidate/negative/negative"
+        ],
+        "stdout": "public-final-type-mapping:ok\nsegment-public-type:compiled\nprivate-constructor:rejected\nfinal-class-subclass:rejected\n",
+        "stderr": "/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentConstructionForbidden.kt:5:47: error KSWIFTK-SEMA-0040: Cannot access 'Segment': it is private.\nfun constructSegmentOutsideOwner(): Segment = Segment()\n                                              ^\n/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt:5:1: error KSWIFTK-SEMA-FINAL: Cannot inherit from final class 'kotlinx.io.Segment'. Mark it as 'open' to allow subclassing.\nclass SegmentSubclass : Segment()\n^\n",
+        "stdout_sha256": "a724c9b93e112ef3574a97fd10be88818c0bd6d3cc524c54610f963de94dba33",
+        "stderr_sha256": "748e1a45e05e2eb7c9696f06a3cf78c10aaad3e70dcd860bbd4724a00f3cc7c1"
+      }
+    },
+    {
+      "row_id": "klib-4ab35f2484026657",
+      "case_id": "api-probe:KUU-2609:segment-public-type-and-construction-boundary",
+      "lane": "source-O0",
+      "reference": {
+        "execution_id": "klib-4ab35f2484026657:shared-reference",
+        "result": "PASS",
+        "exit_code": 0,
+        "command": [
+          "/private/tmp/kuu-2609-toolchain/kotlinc/bin/kotlinc -classpath /private/tmp/kuu-2609-jars/kotlinx-io-core-jvm-0.9.1.jar /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentTypeProducer.kt -d /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeProducer.jar",
+          "/private/tmp/kuu-2609-toolchain/kotlinc/bin/kotlinc -classpath /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeProducer.jar:/private/tmp/kuu-2609-jars/kotlinx-io-core-jvm-0.9.1.jar -include-runtime /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentTypeConsumer.kt -d /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeConsumer.jar",
+          "/opt/homebrew/Cellar/openjdk/27/libexec/openjdk.jdk/Contents/Home/bin/java -cp /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeConsumer.jar:/private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeProducer.jar:/private/tmp/kuu-2609-jars/kotlinx-io-core-jvm-0.9.1.jar io.segmenttypeprobe.consumer.SegmentTypeConsumerKt",
+          "/private/tmp/kuu-2609-toolchain/kotlinc/bin/kotlinc -classpath /private/tmp/kuu-2609-jars/kotlinx-io-core-jvm-0.9.1.jar /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentConstructionForbidden.kt /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt -d /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/negative/negative.jar"
+        ],
+        "stdout": "segment-library-boundary:ok\nprivate-constructor:rejected\nfinal-class-subclass:rejected\n",
+        "stderr": "/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentConstructionForbidden.kt:5:47: error: cannot access 'constructor(): Segment': it is private in 'kotlinx.io.Segment'.\nfun constructSegmentOutsideOwner(): Segment = Segment()\n                                              ^^^^^^^\n/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt:5:25: error: this type is final, so it cannot be extended.\nclass SegmentSubclass : Segment()\n                        ^^^^^^^\n/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt:5:25: error: cannot access 'constructor(): Segment': it is private in 'kotlinx.io.Segment'.\nclass SegmentSubclass : Segment()\n                        ^^^^^^^\n",
+        "stdout_sha256": "dd73841f75e8ccd4a24e67b7ec0dc87fbd6d85ded30705137405c816872b887a",
+        "stderr_sha256": "ae13019f5e320196fc4bb33fa373174b95ac36d768b068dd2848c5078ec59921"
+      },
+      "candidate": {
+        "execution_id": "klib-4ab35f2484026657:source-O0:candidate",
+        "result": "PASS",
+        "exit_code": 0,
+        "command": [
+          "/private/tmp/kuu-2609-candidate-fd01-build/out/Products/Debug/kswiftc -O0 --no-incremental --stdlib-from-source --emit kir /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentPublicType.kt -o /private/tmp/kuu-2609-segment-probe-final-compile-only/source-O0/klib-4ab35f2484026657/candidate/positive",
+          "/private/tmp/kuu-2609-candidate-fd01-build/out/Products/Debug/kswiftc -O0 --no-incremental --stdlib-from-source --emit kir /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentConstructionForbidden.kt /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt -o /private/tmp/kuu-2609-segment-probe-final-compile-only/source-O0/klib-4ab35f2484026657/candidate/negative/negative"
+        ],
+        "stdout": "public-final-type-mapping:ok\nsegment-public-type:compiled\nprivate-constructor:rejected\nfinal-class-subclass:rejected\n",
+        "stderr": "/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentConstructionForbidden.kt:5:47: error KSWIFTK-SEMA-0040: Cannot access 'Segment': it is private.\nfun constructSegmentOutsideOwner(): Segment = Segment()\n                                              ^\n/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt:5:1: error KSWIFTK-SEMA-FINAL: Cannot inherit from final class 'kotlinx.io.Segment'. Mark it as 'open' to allow subclassing.\nclass SegmentSubclass : Segment()\n^\n",
+        "stdout_sha256": "a724c9b93e112ef3574a97fd10be88818c0bd6d3cc524c54610f963de94dba33",
+        "stderr_sha256": "748e1a45e05e2eb7c9696f06a3cf78c10aaad3e70dcd860bbd4724a00f3cc7c1"
+      }
+    },
+    {
+      "row_id": "klib-4ab35f2484026657",
+      "case_id": "api-probe:KUU-2609:segment-public-type-and-construction-boundary",
+      "lane": "source-O2",
+      "reference": {
+        "execution_id": "klib-4ab35f2484026657:shared-reference",
+        "result": "PASS",
+        "exit_code": 0,
+        "command": [
+          "/private/tmp/kuu-2609-toolchain/kotlinc/bin/kotlinc -classpath /private/tmp/kuu-2609-jars/kotlinx-io-core-jvm-0.9.1.jar /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentTypeProducer.kt -d /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeProducer.jar",
+          "/private/tmp/kuu-2609-toolchain/kotlinc/bin/kotlinc -classpath /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeProducer.jar:/private/tmp/kuu-2609-jars/kotlinx-io-core-jvm-0.9.1.jar -include-runtime /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentTypeConsumer.kt -d /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeConsumer.jar",
+          "/opt/homebrew/Cellar/openjdk/27/libexec/openjdk.jdk/Contents/Home/bin/java -cp /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeConsumer.jar:/private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeProducer.jar:/private/tmp/kuu-2609-jars/kotlinx-io-core-jvm-0.9.1.jar io.segmenttypeprobe.consumer.SegmentTypeConsumerKt",
+          "/private/tmp/kuu-2609-toolchain/kotlinc/bin/kotlinc -classpath /private/tmp/kuu-2609-jars/kotlinx-io-core-jvm-0.9.1.jar /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentConstructionForbidden.kt /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt -d /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/negative/negative.jar"
+        ],
+        "stdout": "segment-library-boundary:ok\nprivate-constructor:rejected\nfinal-class-subclass:rejected\n",
+        "stderr": "/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentConstructionForbidden.kt:5:47: error: cannot access 'constructor(): Segment': it is private in 'kotlinx.io.Segment'.\nfun constructSegmentOutsideOwner(): Segment = Segment()\n                                              ^^^^^^^\n/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt:5:25: error: this type is final, so it cannot be extended.\nclass SegmentSubclass : Segment()\n                        ^^^^^^^\n/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt:5:25: error: cannot access 'constructor(): Segment': it is private in 'kotlinx.io.Segment'.\nclass SegmentSubclass : Segment()\n                        ^^^^^^^\n",
+        "stdout_sha256": "dd73841f75e8ccd4a24e67b7ec0dc87fbd6d85ded30705137405c816872b887a",
+        "stderr_sha256": "ae13019f5e320196fc4bb33fa373174b95ac36d768b068dd2848c5078ec59921"
+      },
+      "candidate": {
+        "execution_id": "klib-4ab35f2484026657:source-O2:candidate",
+        "result": "PASS",
+        "exit_code": 0,
+        "command": [
+          "/private/tmp/kuu-2609-candidate-fd01-build/out/Products/Debug/kswiftc -O2 --no-incremental --stdlib-from-source --emit kir /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentPublicType.kt -o /private/tmp/kuu-2609-segment-probe-final-compile-only/source-O2/klib-4ab35f2484026657/candidate/positive",
+          "/private/tmp/kuu-2609-candidate-fd01-build/out/Products/Debug/kswiftc -O2 --no-incremental --stdlib-from-source --emit kir /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentConstructionForbidden.kt /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt -o /private/tmp/kuu-2609-segment-probe-final-compile-only/source-O2/klib-4ab35f2484026657/candidate/negative/negative"
+        ],
+        "stdout": "public-final-type-mapping:ok\nsegment-public-type:compiled\nprivate-constructor:rejected\nfinal-class-subclass:rejected\n",
+        "stderr": "/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentConstructionForbidden.kt:5:47: error KSWIFTK-SEMA-0040: Cannot access 'Segment': it is private.\nfun constructSegmentOutsideOwner(): Segment = Segment()\n                                              ^\n/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt:5:1: error KSWIFTK-SEMA-FINAL: Cannot inherit from final class 'kotlinx.io.Segment'. Mark it as 'open' to allow subclassing.\nclass SegmentSubclass : Segment()\n^\n",
+        "stdout_sha256": "a724c9b93e112ef3574a97fd10be88818c0bd6d3cc524c54610f963de94dba33",
+        "stderr_sha256": "748e1a45e05e2eb7c9696f06a3cf78c10aaad3e70dcd860bbd4724a00f3cc7c1"
+      }
+    },
+    {
+      "row_id": "klib-4ab35f2484026657",
+      "case_id": "api-probe:KUU-2609:segment-public-type-and-construction-boundary",
+      "lane": "stdlib-library-O0",
+      "reference": {
+        "execution_id": "klib-4ab35f2484026657:shared-reference",
+        "result": "PASS",
+        "exit_code": 0,
+        "command": [
+          "/private/tmp/kuu-2609-toolchain/kotlinc/bin/kotlinc -classpath /private/tmp/kuu-2609-jars/kotlinx-io-core-jvm-0.9.1.jar /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentTypeProducer.kt -d /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeProducer.jar",
+          "/private/tmp/kuu-2609-toolchain/kotlinc/bin/kotlinc -classpath /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeProducer.jar:/private/tmp/kuu-2609-jars/kotlinx-io-core-jvm-0.9.1.jar -include-runtime /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentTypeConsumer.kt -d /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeConsumer.jar",
+          "/opt/homebrew/Cellar/openjdk/27/libexec/openjdk.jdk/Contents/Home/bin/java -cp /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeConsumer.jar:/private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeProducer.jar:/private/tmp/kuu-2609-jars/kotlinx-io-core-jvm-0.9.1.jar io.segmenttypeprobe.consumer.SegmentTypeConsumerKt",
+          "/private/tmp/kuu-2609-toolchain/kotlinc/bin/kotlinc -classpath /private/tmp/kuu-2609-jars/kotlinx-io-core-jvm-0.9.1.jar /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentConstructionForbidden.kt /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt -d /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/negative/negative.jar"
+        ],
+        "stdout": "segment-library-boundary:ok\nprivate-constructor:rejected\nfinal-class-subclass:rejected\n",
+        "stderr": "/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentConstructionForbidden.kt:5:47: error: cannot access 'constructor(): Segment': it is private in 'kotlinx.io.Segment'.\nfun constructSegmentOutsideOwner(): Segment = Segment()\n                                              ^^^^^^^\n/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt:5:25: error: this type is final, so it cannot be extended.\nclass SegmentSubclass : Segment()\n                        ^^^^^^^\n/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt:5:25: error: cannot access 'constructor(): Segment': it is private in 'kotlinx.io.Segment'.\nclass SegmentSubclass : Segment()\n                        ^^^^^^^\n",
+        "stdout_sha256": "dd73841f75e8ccd4a24e67b7ec0dc87fbd6d85ded30705137405c816872b887a",
+        "stderr_sha256": "ae13019f5e320196fc4bb33fa373174b95ac36d768b068dd2848c5078ec59921"
+      },
+      "candidate": {
+        "execution_id": "klib-4ab35f2484026657:stdlib-library-O0:candidate",
+        "result": "PASS",
+        "exit_code": 0,
+        "command": [
+          "/private/tmp/kuu-2609-candidate-fd01-build/out/Products/Debug/kswiftc -O0 --no-incremental --stdlib-library /private/tmp/kuu-2609-segment-probe-final-compile-only/KSwiftKStdlib.kklib --emit kir /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentPublicType.kt -o /private/tmp/kuu-2609-segment-probe-final-compile-only/stdlib-library-O0/klib-4ab35f2484026657/candidate/positive",
+          "/private/tmp/kuu-2609-candidate-fd01-build/out/Products/Debug/kswiftc -O0 --no-incremental --stdlib-library /private/tmp/kuu-2609-segment-probe-final-compile-only/KSwiftKStdlib.kklib --emit kir /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentConstructionForbidden.kt /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt -o /private/tmp/kuu-2609-segment-probe-final-compile-only/stdlib-library-O0/klib-4ab35f2484026657/candidate/negative/negative"
+        ],
+        "stdout": "public-final-type-mapping:ok\nsegment-public-type:compiled\nprivate-constructor:rejected\nfinal-class-subclass:rejected\n",
+        "stderr": "/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentConstructionForbidden.kt:5:47: error KSWIFTK-SEMA-0040: Cannot access 'Segment': it is private.\nfun constructSegmentOutsideOwner(): Segment = Segment()\n                                              ^\n/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt:5:1: error KSWIFTK-SEMA-FINAL: Cannot inherit from final class 'kotlinx.io.Segment'. Mark it as 'open' to allow subclassing.\nclass SegmentSubclass : Segment()\n^\n",
+        "stdout_sha256": "a724c9b93e112ef3574a97fd10be88818c0bd6d3cc524c54610f963de94dba33",
+        "stderr_sha256": "748e1a45e05e2eb7c9696f06a3cf78c10aaad3e70dcd860bbd4724a00f3cc7c1"
+      }
+    },
+    {
+      "row_id": "klib-4ab35f2484026657",
+      "case_id": "api-probe:KUU-2609:segment-public-type-and-construction-boundary",
+      "lane": "stdlib-library-O2",
+      "reference": {
+        "execution_id": "klib-4ab35f2484026657:shared-reference",
+        "result": "PASS",
+        "exit_code": 0,
+        "command": [
+          "/private/tmp/kuu-2609-toolchain/kotlinc/bin/kotlinc -classpath /private/tmp/kuu-2609-jars/kotlinx-io-core-jvm-0.9.1.jar /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentTypeProducer.kt -d /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeProducer.jar",
+          "/private/tmp/kuu-2609-toolchain/kotlinc/bin/kotlinc -classpath /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeProducer.jar:/private/tmp/kuu-2609-jars/kotlinx-io-core-jvm-0.9.1.jar -include-runtime /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentTypeConsumer.kt -d /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeConsumer.jar",
+          "/opt/homebrew/Cellar/openjdk/27/libexec/openjdk.jdk/Contents/Home/bin/java -cp /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeConsumer.jar:/private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeProducer.jar:/private/tmp/kuu-2609-jars/kotlinx-io-core-jvm-0.9.1.jar io.segmenttypeprobe.consumer.SegmentTypeConsumerKt",
+          "/private/tmp/kuu-2609-toolchain/kotlinc/bin/kotlinc -classpath /private/tmp/kuu-2609-jars/kotlinx-io-core-jvm-0.9.1.jar /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentConstructionForbidden.kt /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt -d /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/negative/negative.jar"
+        ],
+        "stdout": "segment-library-boundary:ok\nprivate-constructor:rejected\nfinal-class-subclass:rejected\n",
+        "stderr": "/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentConstructionForbidden.kt:5:47: error: cannot access 'constructor(): Segment': it is private in 'kotlinx.io.Segment'.\nfun constructSegmentOutsideOwner(): Segment = Segment()\n                                              ^^^^^^^\n/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt:5:25: error: this type is final, so it cannot be extended.\nclass SegmentSubclass : Segment()\n                        ^^^^^^^\n/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt:5:25: error: cannot access 'constructor(): Segment': it is private in 'kotlinx.io.Segment'.\nclass SegmentSubclass : Segment()\n                        ^^^^^^^\n",
+        "stdout_sha256": "dd73841f75e8ccd4a24e67b7ec0dc87fbd6d85ded30705137405c816872b887a",
+        "stderr_sha256": "ae13019f5e320196fc4bb33fa373174b95ac36d768b068dd2848c5078ec59921"
+      },
+      "candidate": {
+        "execution_id": "klib-4ab35f2484026657:stdlib-library-O2:candidate",
+        "result": "PASS",
+        "exit_code": 0,
+        "command": [
+          "/private/tmp/kuu-2609-candidate-fd01-build/out/Products/Debug/kswiftc -O2 --no-incremental --stdlib-library /private/tmp/kuu-2609-segment-probe-final-compile-only/KSwiftKStdlib.kklib --emit kir /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentPublicType.kt -o /private/tmp/kuu-2609-segment-probe-final-compile-only/stdlib-library-O2/klib-4ab35f2484026657/candidate/positive",
+          "/private/tmp/kuu-2609-candidate-fd01-build/out/Products/Debug/kswiftc -O2 --no-incremental --stdlib-library /private/tmp/kuu-2609-segment-probe-final-compile-only/KSwiftKStdlib.kklib --emit kir /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentConstructionForbidden.kt /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt -o /private/tmp/kuu-2609-segment-probe-final-compile-only/stdlib-library-O2/klib-4ab35f2484026657/candidate/negative/negative"
+        ],
+        "stdout": "public-final-type-mapping:ok\nsegment-public-type:compiled\nprivate-constructor:rejected\nfinal-class-subclass:rejected\n",
+        "stderr": "/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentConstructionForbidden.kt:5:47: error KSWIFTK-SEMA-0040: Cannot access 'Segment': it is private.\nfun constructSegmentOutsideOwner(): Segment = Segment()\n                                              ^\n/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt:5:1: error KSWIFTK-SEMA-FINAL: Cannot inherit from final class 'kotlinx.io.Segment'. Mark it as 'open' to allow subclassing.\nclass SegmentSubclass : Segment()\n^\n",
+        "stdout_sha256": "a724c9b93e112ef3574a97fd10be88818c0bd6d3cc524c54610f963de94dba33",
+        "stderr_sha256": "748e1a45e05e2eb7c9696f06a3cf78c10aaad3e70dcd860bbd4724a00f3cc7c1"
+      }
+    },
+    {
+      "row_id": "klib-4ab35f2484026657",
+      "case_id": "api-probe:KUU-2609:segment-public-type-and-construction-boundary",
+      "lane": "producer-consumer-O0",
+      "reference": {
+        "execution_id": "klib-4ab35f2484026657:shared-reference",
+        "result": "PASS",
+        "exit_code": 0,
+        "command": [
+          "/private/tmp/kuu-2609-toolchain/kotlinc/bin/kotlinc -classpath /private/tmp/kuu-2609-jars/kotlinx-io-core-jvm-0.9.1.jar /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentTypeProducer.kt -d /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeProducer.jar",
+          "/private/tmp/kuu-2609-toolchain/kotlinc/bin/kotlinc -classpath /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeProducer.jar:/private/tmp/kuu-2609-jars/kotlinx-io-core-jvm-0.9.1.jar -include-runtime /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentTypeConsumer.kt -d /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeConsumer.jar",
+          "/opt/homebrew/Cellar/openjdk/27/libexec/openjdk.jdk/Contents/Home/bin/java -cp /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeConsumer.jar:/private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeProducer.jar:/private/tmp/kuu-2609-jars/kotlinx-io-core-jvm-0.9.1.jar io.segmenttypeprobe.consumer.SegmentTypeConsumerKt",
+          "/private/tmp/kuu-2609-toolchain/kotlinc/bin/kotlinc -classpath /private/tmp/kuu-2609-jars/kotlinx-io-core-jvm-0.9.1.jar /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentConstructionForbidden.kt /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt -d /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/negative/negative.jar"
+        ],
+        "stdout": "segment-library-boundary:ok\nprivate-constructor:rejected\nfinal-class-subclass:rejected\n",
+        "stderr": "/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentConstructionForbidden.kt:5:47: error: cannot access 'constructor(): Segment': it is private in 'kotlinx.io.Segment'.\nfun constructSegmentOutsideOwner(): Segment = Segment()\n                                              ^^^^^^^\n/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt:5:25: error: this type is final, so it cannot be extended.\nclass SegmentSubclass : Segment()\n                        ^^^^^^^\n/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt:5:25: error: cannot access 'constructor(): Segment': it is private in 'kotlinx.io.Segment'.\nclass SegmentSubclass : Segment()\n                        ^^^^^^^\n",
+        "stdout_sha256": "dd73841f75e8ccd4a24e67b7ec0dc87fbd6d85ded30705137405c816872b887a",
+        "stderr_sha256": "ae13019f5e320196fc4bb33fa373174b95ac36d768b068dd2848c5078ec59921"
+      },
+      "candidate": {
+        "execution_id": "klib-4ab35f2484026657:producer-consumer-O0:candidate",
+        "result": "PASS",
+        "exit_code": 0,
+        "command": [
+          "/private/tmp/kuu-2609-candidate-fd01-build/out/Products/Debug/kswiftc -O0 --no-incremental --stdlib-library /private/tmp/kuu-2609-segment-probe-final-compile-only/KSwiftKStdlib.kklib --emit library -m SegmentTypeProducer /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentTypeProducer.kt -o /private/tmp/kuu-2609-segment-probe-final-compile-only/producer-consumer-O0/klib-4ab35f2484026657/candidate/SegmentTypeProducer.kklib",
+          "/private/tmp/kuu-2609-candidate-fd01-build/out/Products/Debug/kswiftc -O0 --no-incremental --stdlib-library /private/tmp/kuu-2609-segment-probe-final-compile-only/KSwiftKStdlib.kklib -I /private/tmp/kuu-2609-segment-probe-final-compile-only/producer-consumer-O0/klib-4ab35f2484026657/candidate/SegmentTypeProducer.kklib --emit kir /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentTypeConsumer.kt -o /private/tmp/kuu-2609-segment-probe-final-compile-only/producer-consumer-O0/klib-4ab35f2484026657/candidate/consumer",
+          "/private/tmp/kuu-2609-candidate-fd01-build/out/Products/Debug/kswiftc -O0 --no-incremental --stdlib-library /private/tmp/kuu-2609-segment-probe-final-compile-only/KSwiftKStdlib.kklib -I /private/tmp/kuu-2609-segment-probe-final-compile-only/producer-consumer-O0/klib-4ab35f2484026657/candidate/SegmentTypeProducer.kklib --emit kir /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentConstructionForbidden.kt /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt -o /private/tmp/kuu-2609-segment-probe-final-compile-only/producer-consumer-O0/klib-4ab35f2484026657/candidate/negative/negative"
+        ],
+        "stdout": "public-final-type-mapping:ok\nsegment-library-boundary:compiled\nprivate-constructor:rejected\nfinal-class-subclass:rejected\n",
+        "stderr": "/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentConstructionForbidden.kt:5:47: error KSWIFTK-SEMA-0040: Cannot access 'Segment': it is private.\nfun constructSegmentOutsideOwner(): Segment = Segment()\n                                              ^\n/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt:5:1: error KSWIFTK-SEMA-FINAL: Cannot inherit from final class 'kotlinx.io.Segment'. Mark it as 'open' to allow subclassing.\nclass SegmentSubclass : Segment()\n^\n",
+        "stdout_sha256": "c1ae86ea4a3bef3dd244297e652c70b4773187966f0c65b03c50518826887395",
+        "stderr_sha256": "748e1a45e05e2eb7c9696f06a3cf78c10aaad3e70dcd860bbd4724a00f3cc7c1"
+      }
+    },
+    {
+      "row_id": "klib-4ab35f2484026657",
+      "case_id": "api-probe:KUU-2609:segment-public-type-and-construction-boundary",
+      "lane": "producer-consumer-O2",
+      "reference": {
+        "execution_id": "klib-4ab35f2484026657:shared-reference",
+        "result": "PASS",
+        "exit_code": 0,
+        "command": [
+          "/private/tmp/kuu-2609-toolchain/kotlinc/bin/kotlinc -classpath /private/tmp/kuu-2609-jars/kotlinx-io-core-jvm-0.9.1.jar /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentTypeProducer.kt -d /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeProducer.jar",
+          "/private/tmp/kuu-2609-toolchain/kotlinc/bin/kotlinc -classpath /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeProducer.jar:/private/tmp/kuu-2609-jars/kotlinx-io-core-jvm-0.9.1.jar -include-runtime /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentTypeConsumer.kt -d /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeConsumer.jar",
+          "/opt/homebrew/Cellar/openjdk/27/libexec/openjdk.jdk/Contents/Home/bin/java -cp /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeConsumer.jar:/private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/SegmentTypeProducer.jar:/private/tmp/kuu-2609-jars/kotlinx-io-core-jvm-0.9.1.jar io.segmenttypeprobe.consumer.SegmentTypeConsumerKt",
+          "/private/tmp/kuu-2609-toolchain/kotlinc/bin/kotlinc -classpath /private/tmp/kuu-2609-jars/kotlinx-io-core-jvm-0.9.1.jar /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentConstructionForbidden.kt /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt -d /private/tmp/kuu-2609-segment-probe-final-compile-only/reference/klib-shared/negative/negative.jar"
+        ],
+        "stdout": "segment-library-boundary:ok\nprivate-constructor:rejected\nfinal-class-subclass:rejected\n",
+        "stderr": "/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentConstructionForbidden.kt:5:47: error: cannot access 'constructor(): Segment': it is private in 'kotlinx.io.Segment'.\nfun constructSegmentOutsideOwner(): Segment = Segment()\n                                              ^^^^^^^\n/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt:5:25: error: this type is final, so it cannot be extended.\nclass SegmentSubclass : Segment()\n                        ^^^^^^^\n/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt:5:25: error: cannot access 'constructor(): Segment': it is private in 'kotlinx.io.Segment'.\nclass SegmentSubclass : Segment()\n                        ^^^^^^^\n",
+        "stdout_sha256": "dd73841f75e8ccd4a24e67b7ec0dc87fbd6d85ded30705137405c816872b887a",
+        "stderr_sha256": "ae13019f5e320196fc4bb33fa373174b95ac36d768b068dd2848c5078ec59921"
+      },
+      "candidate": {
+        "execution_id": "klib-4ab35f2484026657:producer-consumer-O2:candidate",
+        "result": "PASS",
+        "exit_code": 0,
+        "command": [
+          "/private/tmp/kuu-2609-candidate-fd01-build/out/Products/Debug/kswiftc -O2 --no-incremental --stdlib-library /private/tmp/kuu-2609-segment-probe-final-compile-only/KSwiftKStdlib.kklib --emit library -m SegmentTypeProducer /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentTypeProducer.kt -o /private/tmp/kuu-2609-segment-probe-final-compile-only/producer-consumer-O2/klib-4ab35f2484026657/candidate/SegmentTypeProducer.kklib",
+          "/private/tmp/kuu-2609-candidate-fd01-build/out/Products/Debug/kswiftc -O2 --no-incremental --stdlib-library /private/tmp/kuu-2609-segment-probe-final-compile-only/KSwiftKStdlib.kklib -I /private/tmp/kuu-2609-segment-probe-final-compile-only/producer-consumer-O2/klib-4ab35f2484026657/candidate/SegmentTypeProducer.kklib --emit kir /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentTypeConsumer.kt -o /private/tmp/kuu-2609-segment-probe-final-compile-only/producer-consumer-O2/klib-4ab35f2484026657/candidate/consumer",
+          "/private/tmp/kuu-2609-candidate-fd01-build/out/Products/Debug/kswiftc -O2 --no-incremental --stdlib-library /private/tmp/kuu-2609-segment-probe-final-compile-only/KSwiftKStdlib.kklib -I /private/tmp/kuu-2609-segment-probe-final-compile-only/producer-consumer-O2/klib-4ab35f2484026657/candidate/SegmentTypeProducer.kklib --emit kir /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentConstructionForbidden.kt /Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt -o /private/tmp/kuu-2609-segment-probe-final-compile-only/producer-consumer-O2/klib-4ab35f2484026657/candidate/negative/negative"
+        ],
+        "stdout": "public-final-type-mapping:ok\nsegment-library-boundary:compiled\nprivate-constructor:rejected\nfinal-class-subclass:rejected\n",
+        "stderr": "/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentConstructionForbidden.kt:5:47: error KSWIFTK-SEMA-0040: Cannot access 'Segment': it is private.\nfun constructSegmentOutsideOwner(): Segment = Segment()\n                                              ^\n/Users/kuu/.codex/worktrees/eb67/swifty-kotlin/Scripts/io_api_inventory/segment_type_probe/SegmentSubclassForbidden.kt:5:1: error KSWIFTK-SEMA-FINAL: Cannot inherit from final class 'kotlinx.io.Segment'. Mark it as 'open' to allow subclassing.\nclass SegmentSubclass : Segment()\n^\n",
+        "stdout_sha256": "c1ae86ea4a3bef3dd244297e652c70b4773187966f0c65b03c50518826887395",
+        "stderr_sha256": "748e1a45e05e2eb7c9696f06a3cf78c10aaad3e70dcd860bbd4724a00f3cc7c1"
+      }
+    }
+  ]
+}

@@ -2,11 +2,13 @@
 """Exercise validation evidence application with a one-row inventory fixture."""
 
 import copy
+import hashlib
 import importlib.util
 import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 HERE = Path(__file__).resolve().parent
@@ -96,14 +98,40 @@ class ValidationEvidenceTests(unittest.TestCase):
             | {"candidate-wrong": other_case_id},
         }
 
-    def _apply(self, records, row=None):
+    def _apply(self, records, row=None, probe_catalog=None, execution_catalogs=None):
         fixture_row = copy.deepcopy(row or self.row)
         self.evidence_path.write_text(json.dumps({"schema_version": 1, "records": records}), encoding="utf-8")
         self.generator.apply_validation_evidence(
             [fixture_row], self.lock, self.evidence_path, self.repository, self.upstream,
-            self._execution_catalogs(),
+            execution_catalogs or self._execution_catalogs(), probe_catalog,
         )
         return fixture_row
+
+    def _probe_evidence(self):
+        case_id = "api-probe:fixture:foo-public-type"
+        record = self._record()
+        catalog = {
+            self.row["row_id"]: {
+                "case_id": case_id,
+                "lanes": self.generator.required_execution_lanes(record["compatibility_obligations"]),
+            }
+        }
+        execution_catalogs = {"reference": {}, "candidate": {}}
+        for execution in record["executions"]:
+            lane = execution["lane"]
+            execution["case_id"] = case_id
+            for subject in ("reference", "candidate"):
+                execution_id = (f"{self.row['row_id']}:shared-reference" if subject == "reference"
+                                else f"{self.row['row_id']}:{lane}:candidate")
+                execution[subject]["execution_id"] = execution_id
+                execution_catalogs[subject][execution_id] = {
+                    "case_id": case_id,
+                    "lane": "shared" if subject == "reference" else lane,
+                    "candidate_sha": record["candidate_sha"],
+                    "reference_version": record["reference_version"],
+                    "reference_commit": record["reference_commit"],
+                }
+        return record, catalog, execution_catalogs
 
     def test_current_reference_and_candidate_passes_promote_only_the_fixture_row(self):
         row = self._apply([self._record()])
@@ -166,6 +194,63 @@ class ValidationEvidenceTests(unittest.TestCase):
         row["upstream_test_refs"] = "core/common/test/FooTest.kt#suite-reference"
         with self.assertRaisesRegex(SystemExit, "is not mapped to row"):
             self._apply([self._record(row)], row)
+
+    def test_row_owned_probe_case_can_promote_only_after_every_lane_passes(self):
+        record, probe_catalog, execution_catalogs = self._probe_evidence()
+        promoted = self._apply([record], probe_catalog=probe_catalog, execution_catalogs=execution_catalogs)
+        self.assertEqual(promoted["status"], "verified")
+
+    def test_probe_case_cannot_be_reused_by_another_row(self):
+        record, probe_catalog, execution_catalogs = self._probe_evidence()
+        probe_catalog["klib-fixture-other"] = probe_catalog.pop(self.row["row_id"])
+        with self.assertRaisesRegex(SystemExit, "not mapped to row"):
+            self._apply([record], probe_catalog=probe_catalog, execution_catalogs=execution_catalogs)
+
+    def test_probe_execution_must_match_its_recorded_lane(self):
+        record, probe_catalog, execution_catalogs = self._probe_evidence()
+        first = record["executions"][0]
+        execution_catalogs["candidate"][first["candidate"]["execution_id"]]["lane"] = "source-O2"
+        with self.assertRaisesRegex(SystemExit, "wrong lane"):
+            self._apply([record], probe_catalog=probe_catalog, execution_catalogs=execution_catalogs)
+
+    def test_probe_receipt_checks_complete_passes_and_output_hashes(self):
+        case_id = "api-probe:fixture:receipt"
+        row_id = "klib-fixture-foo"
+        lane = "source-O0"
+        def result(subject):
+            output = f"{subject}:pass\n"
+            return {
+                "execution_id": f"{row_id}:{lane}:{subject}",
+                "result": "PASS",
+                "exit_code": 0,
+                "command": [subject, lane],
+                "stdout": output,
+                "stderr": "",
+                "stdout_sha256": hashlib.sha256(output.encode()).hexdigest(),
+                "stderr_sha256": hashlib.sha256(b"").hexdigest(),
+            }
+        payload = {
+            "schema_version": 1,
+            "candidate_sha": "a" * 40,
+            "candidate_compiler_sha256": "b" * 64,
+            "reference_version": "0.9.1",
+            "reference_kotlin_version": "2.3.10",
+            "reference_commit": self.generator.EXPECTED_TAG_COMMIT,
+            "probe_inputs_sha256": {"reference:test-input": "c" * 64},
+            "summary": {"case_count": 1, "lane_count": 1, "passed": 1, "failed": 0},
+            "executions": [{"row_id": row_id, "case_id": case_id, "lane": lane,
+                            "reference": result("reference"), "candidate": result("candidate")}],
+        }
+        path = self.root / "probe-results.json"
+        catalog = {row_id: {"case_id": case_id, "lanes": [lane]}}
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        with patch.object(self.generator, "API_PROBE_RESULTS_PATH", path):
+            loaded = self.generator._load_validation_probe_results(catalog)
+            self.assertEqual(loaded["summary"]["passed"], 1)
+            payload["executions"][0]["candidate"]["stdout_sha256"] = "0" * 64
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(SystemExit, "stdout hash mismatch"):
+                self.generator._load_validation_probe_results(catalog)
 
     def test_jvm_abi_requires_only_descriptor_evidence(self):
         row = copy.deepcopy(self.row)

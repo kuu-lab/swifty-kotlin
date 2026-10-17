@@ -1,4 +1,130 @@
 {
   "schema_version": 1,
-  "records": []
+  "records": [
+    {
+      "row_id": "jvm-e405f88094ec1353",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "e59a228d2d9af85d7c46aa101d43ce63e43d4adcc955ad3ca359982a2b6df54e",
+      "test_input_sha256": "ff5868e1e521cc23870bb20bb6c638cbb4537805d81a87b0d5459812549efd02",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "api-probe:KUU-2609:segment-jvm-type-shape",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "jvm-e405f88094ec1353:jvm-descriptor:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "jvm-e405f88094ec1353:jvm-descriptor:candidate",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    {
+      "row_id": "klib-4ab35f2484026657",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "e59a228d2d9af85d7c46aa101d43ce63e43d4adcc955ad3ca359982a2b6df54e",
+      "test_input_sha256": "ff5868e1e521cc23870bb20bb6c638cbb4537805d81a87b0d5459812549efd02",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "executions": [
+        {
+          "case_id": "api-probe:KUU-2609:segment-public-type-and-construction-boundary",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "klib-4ab35f2484026657:shared-reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "klib-4ab35f2484026657:source-O0:candidate",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "api-probe:KUU-2609:segment-public-type-and-construction-boundary",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "klib-4ab35f2484026657:shared-reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "klib-4ab35f2484026657:source-O2:candidate",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "api-probe:KUU-2609:segment-public-type-and-construction-boundary",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "klib-4ab35f2484026657:shared-reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "klib-4ab35f2484026657:stdlib-library-O0:candidate",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "api-probe:KUU-2609:segment-public-type-and-construction-boundary",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "klib-4ab35f2484026657:shared-reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "klib-4ab35f2484026657:stdlib-library-O2:candidate",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "api-probe:KUU-2609:segment-public-type-and-construction-boundary",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "klib-4ab35f2484026657:shared-reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "klib-4ab35f2484026657:producer-consumer-O0:candidate",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "api-probe:KUU-2609:segment-public-type-and-construction-boundary",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "klib-4ab35f2484026657:shared-reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "klib-4ab35f2484026657:producer-consumer-O2:candidate",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ]
+    }
+  ]
 }

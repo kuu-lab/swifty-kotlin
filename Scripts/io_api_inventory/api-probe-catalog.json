@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "row_id": "jvm-e405f88094ec1353",
+      "case_id": "api-probe:KUU-2609:segment-jvm-type-shape",
+      "lanes": [
+        "jvm-descriptor"
+      ]
+    },
+    {
+      "row_id": "klib-4ab35f2484026657",
+      "case_id": "api-probe:KUU-2609:segment-public-type-and-construction-boundary",
+      "lanes": [
+        "source-O0",
+        "source-O2",
+        "stdlib-library-O0",
+        "stdlib-library-O2",
+        "producer-consumer-O0",
+        "producer-consumer-O2"
+      ]
+    }
+  ]
+}
