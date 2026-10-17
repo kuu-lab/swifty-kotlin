@@ -30,8 +30,8 @@ struct LocalBindings: ExpressibleByDictionaryLiteral, Sequence {
     }
 }
 
-/// Dispatch hub for type checking. Replaces the monolithic extension-based splitting
-/// of `TypeCheckSemaPhase` with independent delegate classes.
+/// Replaces the monolithic extension-based splitting of `TypeCheckSemaPhase` with
+/// independent delegate classes.
 ///
 /// Each delegate holds an `unowned` back-reference to this driver so that mutually
 /// recursive calls (e.g. `inferExpr` → `inferCallExpr` → `inferExpr`) can be
@@ -45,7 +45,6 @@ final class TypeCheckDriver {
     var precheckedPropertyDecls: Set<DeclID> = []
     /// Object headers published for forward references, with bodies still unchecked.
     var predeclaredObjectLiteralDecls: Set<DeclID> = []
-    /// Top-level expression bodies whose header return type is still a placeholder.
     var inferredReturnFunctions: [SymbolID: (function: FunDecl, context: TypeInferenceContext)] = [:]
     var checkingInferredReturnFunctions: Set<SymbolID> = []
     var checkedInferredReturnFunctions: Set<SymbolID> = []
@@ -64,7 +63,6 @@ final class TypeCheckDriver {
     let dataFlow: DataFlowAnalyzer
     let interner: StringInterner
     let diagnostics: DiagnosticEngine
-    /// Sema cache context for hot-path caching.  `nil` when caching is disabled.
     let semaCacheContext: SemaCacheContext?
     let useNewInference: Bool
     let useUnrestrictedBuilderInference: Bool
@@ -78,7 +76,6 @@ final class TypeCheckDriver {
     private(set) lazy var localDeclChecker = LocalDeclTypeChecker(driver: self)
     private(set) lazy var declChecker = DeclTypeChecker(driver: self)
 
-    /// Cached `BuiltinTypeNames` instance to avoid repeated allocations on hot paths.
     private(set) lazy var builtinTypeNamesCache = BuiltinTypeNames(interner: interner)
 
     // Stateless utilities (no back-reference needed)
@@ -613,10 +610,6 @@ final class TypeCheckDriver {
         }
     }
 
-    /// ARCH-031: attach where the expected type comes from as secondary ranges
-    /// on a failed subtype constraint — the expected type's own declaration
-    /// site plus any caller-provided ranges (e.g. the enclosing function whose
-    /// signature declares the expected return type).
     private func withExpectedTypeOrigin(
         _ failure: Diagnostic,
         expectedType: TypeID,
@@ -644,9 +637,6 @@ final class TypeCheckDriver {
         )
     }
 
-    /// Declaration site of the expected type itself (a nominal class or a type
-    /// parameter declared in source). Returns empty for primitive, function,
-    /// or otherwise non-declared types.
     private func expectedTypeOriginRanges(of type: TypeID, sema: SemaModule) -> [SourceRange] {
         let symbol: SymbolID? = switch sema.types.kind(of: type) {
         case let .classType(classType):
