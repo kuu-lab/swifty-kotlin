@@ -79,7 +79,6 @@ struct KIRLoweringEmitContext: RandomAccessCollection, MutableCollection, RangeR
         let removedMaxLabelID = KIRLabelRelocation.maxLabelID(in: instructions[subrange])
         let insertedMaxLabelID = KIRLabelRelocation.maxLabelID(in: newElements)
         instructions.replaceSubrange(subrange, with: newElements)
-        // Keep instructionLocations in sync with the same structural edit.
         if instructionLocations.count < subrange.upperBound {
             instructionLocations.append(
                 contentsOf: repeatElement(nil, count: subrange.upperBound - instructionLocations.count)
@@ -87,7 +86,6 @@ struct KIRLoweringEmitContext: RandomAccessCollection, MutableCollection, RangeR
         }
         let newLocations = Array(repeating: currentSourceRange, count: newElements.count)
         instructionLocations.replaceSubrange(subrange, with: newLocations)
-        // Final safety sync.
         if instructionLocations.count < instructions.count {
             instructionLocations.append(
                 contentsOf: repeatElement(nil, count: instructions.count - instructionLocations.count)
@@ -98,10 +96,9 @@ struct KIRLoweringEmitContext: RandomAccessCollection, MutableCollection, RangeR
         noteReplacedLabels(removedMax: removedMaxLabelID, insertedMax: insertedMaxLabelID)
     }
 
-    /// Reconciles ``maxLabelID`` after a structural edit. The full buffer is
-    /// rescanned only when the edit removed the instruction(s) supplying the
-    /// current maximum without inserting an equal-or-higher ID, so appends
-    /// stay O(1) in the tracked value.
+    /// The full buffer is rescanned only when the edit removed the
+    /// instruction(s) supplying the current maximum without inserting an
+    /// equal-or-higher ID, so appends stay O(1) in the tracked value.
     private mutating func noteReplacedLabels(removedMax: Int32?, insertedMax: Int32?) {
         guard let current = maxLabelID else {
             maxLabelID = insertedMax
