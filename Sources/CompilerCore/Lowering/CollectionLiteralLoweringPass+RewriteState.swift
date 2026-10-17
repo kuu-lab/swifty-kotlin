@@ -1,6 +1,4 @@
 extension CollectionLiteralLoweringSupport {
-    /// Axis a classification fact is recorded on.
-    ///
     /// Facts on different axes answer different questions about the same value,
     /// so a value can carry facts on both, and "unknown" is meaningful per axis
     /// rather than only for a value carrying no facts at all.
@@ -27,8 +25,6 @@ extension CollectionLiteralLoweringSupport {
         case runtimeRepresentation
     }
 
-    /// One classification a rewrite can know about an expression.
-    ///
     /// `rawValue` doubles as the bit position in ``ClassificationFacts``, so the
     /// cases must stay contiguous from zero.
     enum Classification: Int, CaseIterable, Sendable {
@@ -82,7 +78,6 @@ extension CollectionLiteralLoweringSupport {
             }
         }
 
-        /// The classification a tracked static type implies.
         init(_ trackedStaticType: CollectionLiteralTrackedStaticTypeKind) {
             switch trackedStaticType {
             case .list: self = .list
@@ -95,8 +90,6 @@ extension CollectionLiteralLoweringSupport {
         }
     }
 
-    /// Runtime representation evidence for a value that may be a Sequence.
-    ///
     /// The static `Sequence` type is intentionally not represented by either
     /// `runtimeBox` or `sourceObject`: both representations satisfy that
     /// interface, and the type alone cannot select the bridge safely.  The
@@ -105,11 +98,8 @@ extension CollectionLiteralLoweringSupport {
     /// is simply unavailable.  Unknown values must stay on the original
     /// iterator path rather than being guessed to be source-backed.
     enum SequenceRuntimeRepresentation: Equatable, Sendable {
-        /// A confirmed `RuntimeSequenceBox` handle.
         case runtimeBox
-        /// A confirmed source-backed `object : Sequence<T>` value.
         case sourceObject
-        /// The receiver is known not to be a Sequence value.
         case notSequence
         /// Sequence-typed or otherwise insufficiently classified; no runtime
         /// representation may be selected from the available facts.
@@ -153,13 +143,10 @@ extension CollectionLiteralLoweringSupport {
             contains(ClassificationFacts(classification))
         }
 
-        /// The facts recorded on `axis` alone.
         func facts(on axis: ClassificationAxis) -> ClassificationFacts {
             intersection(.mask(for: axis))
         }
 
-        /// Nothing is known about the value on `axis`.
-        ///
         /// A value can be unknown on one axis while classified on the other, so
         /// callers must ask about the axis they care about instead of reading an
         /// empty fact set as the only form of unknown.
@@ -172,9 +159,6 @@ extension CollectionLiteralLoweringSupport {
         }
     }
 
-    /// The classification store: the one place facts about lowered expressions
-    /// live, addressed by ``KIRExprID``.
-    ///
     /// Facts are physically grouped per classification rather than per
     /// expression. The indexed store keeps membership checks O(1) without
     /// rebuilding a fact set for every expression, while the named accessors
@@ -292,8 +276,6 @@ extension CollectionLiteralLoweringSupport {
             _modify { yield &memberships[Classification.ulongRangeIterator.rawValue] }
         }
 
-        /// Every classification known about `exprID`.
-        ///
         /// Assigning replaces the expression's facts wholesale, so a fact the
         /// new value does not carry is cleared rather than left behind.
         subscript(exprID: KIRExprID) -> ClassificationFacts {
@@ -329,8 +311,6 @@ extension CollectionLiteralLoweringSupport {
             memberships[classification.rawValue].remove(exprID.rawValue)
         }
 
-        /// Replace everything known about `to` with everything known about `from`.
-        ///
         /// Mutable locals reuse their expression ID. A copy replaces their value,
         /// so facts about the previous value must not survive it — including when
         /// `from` carries no facts at all.
@@ -389,9 +369,6 @@ extension CollectionLiteralLoweringSupport {
             self[to] = self[to].union(self[from])
         }
 
-        /// Drop Sequence provenance that a `seedCopy` union has made
-        /// contradictory (RF-LOWER-STATE-009).
-        ///
         /// ``Classification/sequence`` (confirmed `RuntimeSequenceBox`) and
         /// ``Classification/sequenceSourceObject`` (confirmed source object)
         /// are mutually exclusive facts about a single runtime value, but
@@ -411,9 +388,6 @@ extension CollectionLiteralLoweringSupport {
             remove(.sequenceSourceObject, expr)
         }
 
-        /// Resolve the runtime representation that is safe to use for a
-        /// Sequence bridge decision.
-        ///
         /// Provenance facts are authoritative when they are exclusive. A
         /// contradictory runtime union is conservative: it becomes unknown
         /// instead of selecting either side. A static `Sequence` fact carries
