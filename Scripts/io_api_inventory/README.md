@@ -340,6 +340,30 @@ python3 Scripts/io_api_inventory/run_f02_matrix.py \
   --case write-string-charset-default
 ```
 
+
+Pinned candidate `fd01a5e98145e8295e5b299b0a7190cc8d44e3a7` was exercised on
+2026-10-17. The Kotlin 2.3.10 reference output and the exact JVM descriptor
+probe passed. All six native executions compiled, then exited `-5` at runtime
+with `kk_array_get_inbounds precondition failed` in `Buffer.writableSegment`.
+The same empty-buffer first-write failure is already tracked by
+[KUU-2652](https://linear.app/kuu/issue/KUU-2652/bufferwritebyte-が空-buffer-の-writablesegment-で-runtime-panic-する)
+and its [regression PR #9507](https://github.com/kuu-lab/swifty-kotlin/pull/9507).
+The pinned compiler product SHA-256 was
+`a54d9cb314883f2273412b8a494921dbf171d1f4efdf545f95a3daae5befc447`; the
+fresh KLIB metadata and manifest hashes were
+`5296e1e4f35735fe956a9389c3a299e88e088f61a39b90ea826dc8d559e8a0a7` and
+`60db43cee285f7415d24f0210d00d6ca70078e454aac5109b98147a3e1282569`.
+Reference stdout SHA-256 was
+`1aa481fae05ee1d9c038566ea3bdcad2e60b5e9bab3401c05bf0405bf4044a4d`; the
+descriptor probe stdout SHA-256 was
+`7b482acb9ef330bbdeff43461b32585ceae9aa4fcccbaa56306c85a54eafa24e`.
+The implementation/test input hashes were
+`f38e95d335751d4196ecc570694785f3114a232d9e8b1a120422bdb2c9d271d0` and
+`6e0c1b1ca45c9a5fe1b0b7981085fbbdf6aaaf0da21a9981a0a1d4b04dc76b0c`.
+Keep this row `unverified`; the successful-reference-only evidence file cannot
+record a candidate crash as a pass. Raw receipts are in
+`/private/tmp/kuu2640-f02-fd01-run5/summary.json`.
+
 The relocation regression copies inputs into a different checkout root in
 reverse filesystem creation order and compares all three generated outputs.
 PublishedApi row identities use upstream-relative paths, and local references

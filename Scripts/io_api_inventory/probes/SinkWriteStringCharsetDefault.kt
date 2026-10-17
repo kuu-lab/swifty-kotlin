@@ -1,12 +1,12 @@
-import java.nio.charset.Charset
 import kotlinx.io.Buffer
 import kotlinx.io.bytestring.toHexString
 import kotlinx.io.snapshot
 import kotlinx.io.writeString
+import kotlin.text.Charsets
 
 fun main() {
     val text = "təˈranəˌsôr"
-    val charset = Charset.forName("UTF-32BE")
+    val charset = Charsets.UTF_32BE
 
     val full = Buffer()
     full.writeString(string = text, charset = charset)
