@@ -149,6 +149,11 @@ class F02GateTests(unittest.TestCase):
             ("producer-consumer", "O0"), ("producer-consumer", "O2"),
         ])
 
+    def test_unsafe_bytestring_api_probe_is_independently_selectable(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "unsafe-bytestring-api")
+        self.assertEqual(case["reference"], "jvm")
+        self.assertEqual(case["fixture"], matrix.ROOT / "Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt")
+
     def test_deprecated_path_rows_have_no_unrelated_upstream_assertions(self):
         expected = {
             "jvm-23bdc46eecb769ad": (

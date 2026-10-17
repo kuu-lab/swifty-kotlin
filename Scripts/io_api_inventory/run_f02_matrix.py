@@ -188,6 +188,9 @@ def scenarios() -> list[dict]:
     cases.append({"id": "deprecated-path-source-sink",
                   "fixture": ROOT / "Scripts/diff_cases/kotlinx_io_file_legacy_suppressed.kt",
                   "reference": "jvm"})
+    cases.append({"id": "unsafe-bytestring-api",
+                  "fixture": ROOT / "Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt",
+                  "reference": "jvm"})
     base = ROOT / "Tests/CompilerBackendTests/Fixtures"
     cases += [
         {"id": "buffer-boundaries", "producer": [base / "IOBuffer1729/BufferBoundaries.kt"],

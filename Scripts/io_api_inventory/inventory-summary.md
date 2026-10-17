@@ -41,7 +41,7 @@ python3 Scripts/io_api_inventory/generate.py --check --verify-jars /tmp
 
 ## Owner routing
 
-Rows route to KUU-1729 (Buffer/Segment), KUU-1730 (source/sink lifecycle and common helpers), KUU-1731 (primitive/ByteArray I/O), KUU-1733 (UTF-8), KUU-1760 (ByteString), KUU-1761 (Filesystem), KUU-1762 (JVM interop/ABI/typealiases), or KUU-1763 (Apple). All are children of KUU-1725; missing declarations stay in scope.
+Rows route to KUU-1729 (Buffer/Segment), KUU-1730 (source/sink lifecycle and common helpers), KUU-1731 (primitive/ByteArray I/O), KUU-1733 (UTF-8), KUU-1760 (ByteString), KUU-2585 (UnsafeByteStringApi opt-in and annotation shape), KUU-1761 (Filesystem), KUU-1762 (JVM interop/ABI/typealiases), or KUU-1763 (Apple). The KUU-172x owners are children of KUU-1725; KUU-2585 is a child of KUU-1826. Missing declarations stay in scope.
 
 ## JVM ABI classification
 

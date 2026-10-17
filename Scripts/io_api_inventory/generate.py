@@ -1365,6 +1365,8 @@ def parse_jvm_api(path: Path, module: str, sources: list[Path]) -> list[dict]:
 
 
 def owner_for(row: dict) -> str:
+    if row.get("row_id") in UNSAFE_BYTESTRING_API_ROW_IDS:
+        return "KUU-2585"
     text = " ".join(
         [row["module"], row["owner_fqn"], row["name"], row["signature"], row["upstream_source_refs"]]
     ).lower()
@@ -1648,6 +1650,12 @@ def local_contract_differences(row: dict, index: SourceIndex) -> str:
 
 
 def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
+    if row.get("row_id") in UNSAFE_BYTESTRING_API_ROW_IDS:
+        available = {path for path, _ in local_tests}
+        missing = set(UNSAFE_BYTESTRING_API_LOCAL_TESTS) - available
+        if missing:
+            fail("missing dedicated UnsafeByteStringApi probes: " + ", ".join(sorted(missing)))
+        return list(UNSAFE_BYTESTRING_API_LOCAL_TESTS)
     name = row["_candidate_name"].lower()
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []
@@ -1963,7 +1971,7 @@ def make_summary(lock: dict, rows: list[dict], scope_rows: list[dict]) -> str:
         "",
         "## Owner routing",
         "",
-        "Rows route to KUU-1729 (Buffer/Segment), KUU-1730 (source/sink lifecycle and common helpers), KUU-1731 (primitive/ByteArray I/O), KUU-1733 (UTF-8), KUU-1760 (ByteString), KUU-1761 (Filesystem), KUU-1762 (JVM interop/ABI/typealiases), or KUU-1763 (Apple). All are children of KUU-1725; missing declarations stay in scope.",
+        "Rows route to KUU-1729 (Buffer/Segment), KUU-1730 (source/sink lifecycle and common helpers), KUU-1731 (primitive/ByteArray I/O), KUU-1733 (UTF-8), KUU-1760 (ByteString), KUU-2585 (UnsafeByteStringApi opt-in and annotation shape), KUU-1761 (Filesystem), KUU-1762 (JVM interop/ABI/typealiases), or KUU-1763 (Apple). The KUU-172x owners are children of KUU-1725; KUU-2585 is a child of KUU-1826. Missing declarations stay in scope.",
         "",
         "## JVM ABI classification",
         "",
