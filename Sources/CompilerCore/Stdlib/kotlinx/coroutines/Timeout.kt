@@ -9,22 +9,14 @@ package kotlinx.coroutines
 import kotlin.internal.KsSymbolName
 import kotlin.time.Duration
 
-// KSP-1566 (KUU-902): `withTimeout` / `withTimeoutOrNull` were synthetic
-// top-level stubs; they are bundled Kotlin now, mirroring upstream
-// `Timeout.kt`.
-//
-// Every overload is declared directly on the runtime bridge:
-// Both bridges propagate block failures through `outThrown`. `kk_with_timeout`
-// throws TimeoutCancellationException on expiry; `kk_with_timeout_or_null_throwing`
+// Both bridges (`kk_with_timeout`, `kk_with_timeout_or_null_throwing`)
+// propagate block failures through `outThrown`. `kk_with_timeout` throws
+// TimeoutCancellationException on expiry; `kk_with_timeout_or_null_throwing`
 // returns the null sentinel only for its own deadline. CoroutineLoweringPass
-// rewrites call sites to these cdecls with the block's suspend-entry point and the caller
-// continuation; a Duration first argument is converted to milliseconds at
-// the call site (`inWholeMilliseconds`), and the Int overload mirrors
-// Kotlin's integer-literal adaptation, which this compiler's constraint
-// solver does not perform.
-//
-// CoroutineLoweringPass adapts stored receiver-function values to the runtime
-// entry-point ABI while preserving their captures and continuation state.
+// converts a Duration first argument to milliseconds at the call site
+// (`inWholeMilliseconds`), and the Int overload mirrors Kotlin's
+// integer-literal adaptation, which this compiler's constraint solver does not
+// perform.
 
 @KsSymbolName("kk_with_timeout")
 public external suspend fun <T> withTimeout(timeMillis: Long, block: suspend CoroutineScope.() -> T): T
