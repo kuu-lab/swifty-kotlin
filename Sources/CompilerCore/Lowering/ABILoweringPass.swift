@@ -52,11 +52,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             ctx.interner.intern("kk_op_umul"),
         ]
         // Comparison operators: result type is Boolean so we cannot use the
-        // result to drive unboxing.  Instead unboxOperandToOwnType uses each
-        // operand's own declared primitive type as the target, with a hint
-        // from a sibling operand when one side has no direct type info.
-        // Idempotent for already-unboxed values (kk_unbox_* passes raw
-        // primitives through unchanged).
+        // result to drive unboxing.  Idempotent for already-unboxed values
+        // (kk_unbox_* passes raw primitives through unchanged).
         let inlineComparisonCallees: Set<InternedString> = [
             ctx.interner.intern("kk_op_eq"),
             ctx.interner.intern("kk_op_ne"),
@@ -328,7 +325,6 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     continue
                 }
 
-                // Normalize boxed and primitive return representations.
                 if case let .returnValue(value) = instruction, let types,
                    let rewritten = rewriteReturnValueBoxingOrUnboxing(
                        value: value,
@@ -367,7 +363,6 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     continue
                 }
 
-                // Handle copy: insert boxing/unboxing at type boundaries
                 if case let .copy(from, to) = instruction, let types,
                    let rewritten = rewriteCopyBoxingOrUnboxing(
                        from: from, to: to,
@@ -388,8 +383,6 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     continue
                 }
 
-                // Handle binary: unbox Any/reference-typed operands when the
-                // result is a primitive (smart-cast after `is` check).
                 if case let .binary(op, lhs, rhs, result) = instruction, let types {
                     let newLhs = unboxBinaryOperandIfNeeded(
                         operand: lhs, resultExpr: result,
@@ -428,10 +421,6 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     let propertySymbol = SyntheticSymbolScheme.originalPropertySymbolFromAccessor(s)
                     return syms.delegateStorageSymbol(for: propertySymbol) != nil
                 }()
-                // ABI-001: For synthetic setter accessor calls whose callee is still
-                // "set", derive the actual runtime store function name from the getter
-                // link registered on the original property symbol (e.g.
-                // __kk_atomic_bool_load → __kk_atomic_bool_store).
                 let rewrittenCallee: InternedString? = {
                     guard isSyntheticAccessor,
                           let s = callSymbol,
@@ -639,10 +628,9 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     )
                 }
 
-                // Unbox Any/reference-typed arguments for inline arithmetic
-                // calls (kk_op_add, etc.) when the result is a primitive.
-                // These calls have no FunctionSignature so the normal
-                // argument-boxing path above leaves them untouched.
+                // Inline arithmetic calls (kk_op_add, etc.) have no
+                // FunctionSignature so the normal argument-boxing path above
+                // leaves them untouched.
                 if signature == nil, let types, let result,
                    inlineArithmeticCallees.contains(effectiveCallee)
                 {
@@ -671,7 +659,6 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         )
                     }
                 }
-                // Unbox operands for comparison operators (==, !=, <, etc.).
                 // The result is Boolean so the arithmetic path above cannot
                 // determine the operand's primitive type from the result; use
                 // each operand's own declared type instead.
@@ -701,11 +688,10 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         )
                     }
                 }
-                // Box the "value" operand of kk_op_is/kk_op_cast/kk_op_safe_cast
-                // whenever it is a concrete primitive or a non-null enum. See
-                // typeCheckValueCallees above. Enum values resolve to Int for their
-                // unboxed representation, but must retain their nominal class ID when
-                // boxed so nominal and interface checks can recognize them.
+                // See typeCheckValueCallees above. Enum values resolve to Int for
+                // their unboxed representation, but must retain their nominal
+                // class ID when boxed so nominal and interface checks can
+                // recognize them.
                 if signature == nil, let types,
                    typeCheckValueCallees.contains(effectiveCallee),
                    let firstArg = boxedArguments.first
