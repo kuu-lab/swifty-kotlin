@@ -1,8 +1,6 @@
 // swiftlint:disable file_length
 
-/// `RuntimeABISpec.rangeFunctions` (P5-68) extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
-    /// Range/Progression (P5-68)
     static let rangeFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
             name: "__kk_floating_range_endpoint_or_null",
@@ -393,7 +391,6 @@ public extension RuntimeABISpec {
             section: "Range",
             isThrowing: false
         ),
-        // ULong iterator (STDLIB-RANGE-037)
         RuntimeABIFunctionSpec(
             name: "__kk_ulong_range_iterator",
             parameters: [
@@ -452,7 +449,6 @@ public extension RuntimeABISpec {
             section: "Range",
             isThrowing: false
         ),
-        // Range HOFs (STDLIB-RANGE-038)
         RuntimeABIFunctionSpec(
             name: "kk_range_mapIndexed",
             parameters: [
@@ -684,7 +680,6 @@ public extension RuntimeABISpec {
             section: "Range",
             isThrowing: false
         ),
-        // Progression fromClosedRange (STDLIB-RANGE-039)
         RuntimeABIFunctionSpec(
             name: "__kk_int_progression_fromClosedRange",
             parameters: [
@@ -745,7 +740,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Range"
         ),
-        // LongRange (STDLIB-RANGE-035)
         RuntimeABIFunctionSpec(
             name: "__kk_long_rangeTo",
             parameters: [
@@ -841,7 +835,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Range"
         ),
-        // UIntProgression operations (STDLIB-RANGE-039)
         RuntimeABIFunctionSpec(
             name: "__kk_uint_rangeTo",
             parameters: [
@@ -898,7 +891,6 @@ public extension RuntimeABISpec {
             section: "Range",
             isThrowing: false
         ),
-        // ULongProgression operations (STDLIB-RANGE-039)
         RuntimeABIFunctionSpec(
             name: "__kk_ulong_rangeTo",
             parameters: [
@@ -928,7 +920,6 @@ public extension RuntimeABISpec {
             section: "Range",
             isThrowing: false
         ),
-        // CharRange (STDLIB-290)
         RuntimeABIFunctionSpec(
             name: "__kk_char_range_step",
             parameters: [
