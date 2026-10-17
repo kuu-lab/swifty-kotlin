@@ -6,9 +6,6 @@
  */
 package kotlin.experimental
 
-/**
- * The experimental marker for type inference augmenting annotations.
- */
 @Target(
     AnnotationTarget.CLASS,
     AnnotationTarget.ANNOTATION_CLASS,
