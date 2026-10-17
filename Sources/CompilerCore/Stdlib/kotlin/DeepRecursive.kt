@@ -2,8 +2,8 @@ package kotlin
 
 import kotlin.internal.KsSymbolName
 
-// KSP-612 / KUU-642: kotlin.DeepRecursiveFunction / kotlin.DeepRecursiveScope
-// migrated to bundled Kotlin source. Both types are opaque runtime handles.
+// KSP-612 / KUU-642: DeepRecursiveFunction / DeepRecursiveScope are opaque
+// runtime handles.
 //
 // The block is the suspend receiver lambda
 // `suspend DeepRecursiveScope<T, R>.(T) -> R` required by Kotlin's public API.
