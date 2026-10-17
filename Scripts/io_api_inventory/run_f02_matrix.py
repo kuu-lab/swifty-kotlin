@@ -86,6 +86,20 @@ def require_stage(command: list[str], directory: Path, stage: str, timeout: floa
         raise RuntimeError(f"failed stage: {directory / stage}; raw streams retained")
 
 
+def require_diagnostic_failure(command: list[str], directory: Path, stage: str, timeout: float,
+                               markers: list[str], environment: dict[str, str] | None = None) -> None:
+    exit_code = execute(command, directory, stage, timeout, environment)
+    prefix = directory / stage
+    receipt = json.loads(prefix.with_suffix(".json").read_text(encoding="utf-8"))
+    if receipt.get("status") != "EXITED" or exit_code == 0:
+        raise RuntimeError(f"negative probe unexpectedly passed or did not exit: {prefix}")
+    output = (prefix.with_suffix(".stdout").read_bytes()
+              + prefix.with_suffix(".stderr").read_bytes()).decode(errors="replace").lower()
+    missing = [marker for marker in markers if marker.lower() not in output]
+    if missing:
+        raise RuntimeError(f"negative probe missed diagnostics {missing}: {prefix}; raw output retained")
+
+
 def visibility_rejection_passed(directory: Path, stage: str, exit_code: int | None = None) -> bool:
     receipt_path = directory / f"{stage}.json"
     diagnostic_path = directory / f"{stage}.stderr"
@@ -139,6 +153,34 @@ def verify_segment_data_as_byte_array_source_metadata() -> dict:
     }
 
 
+def verify_buffer_head_source_metadata() -> dict:
+    source = ROOT / "Sources/CompilerCore/Stdlib/kotlinx/io/Buffer.kt"
+    contents = source.read_text(encoding="utf-8")
+    declaration = re.search(
+        r"(?P<annotations>(?:^[ \t]*@[^\n]*\n)+)^[ \t]*internal var head: (?P<type>[A-Za-z0-9_.?]+)",
+        contents,
+        re.MULTILINE,
+    )
+    if declaration is None:
+        raise RuntimeError("candidate Buffer.head declaration is missing")
+    annotation_lines = declaration.group("annotations").splitlines()
+    annotations = {line.strip() for line in annotation_lines}
+    if (declaration.group("type") != "Segment?"
+            or "@PublishedApi" not in annotations
+            or "@get:kotlin.jvm.JvmSynthetic" not in annotations
+            or "@set:kotlin.jvm.JvmSynthetic" not in annotations):
+        raise RuntimeError("candidate Buffer.head declaration metadata does not match its API rows")
+    return {
+        "status": "PASS",
+        "exit_code": 0,
+        "method": "source-metadata",
+        "source_path": str(source.relative_to(ROOT)),
+        "source_sha256": sha(source),
+        "annotations": sorted(annotations),
+        "property_type": declaration.group("type"),
+    }
+
+
 def local_probe_execution(case_id: str, lane: str, candidate_sha: str, reference_commit: str,
                           subject: str, result: str) -> dict:
     spec = LOCAL_PROBE_EVIDENCE_CASES[case_id]
@@ -155,6 +197,13 @@ def segment_local_probe_case_ids(lane: str) -> list[str]:
         case_id
         for case_id, spec in LOCAL_PROBE_EVIDENCE_CASES.items()
         if case_id.endswith(("#internal-view", "#internal-visibility")) and lane in spec["lanes"]
+    ]
+
+
+def buffer_head_local_probe_case_ids(lane: str) -> list[str]:
+    return [
+        case_id for case_id, spec in LOCAL_PROBE_EVIDENCE_CASES.items()
+        if case_id.endswith("#probeBufferHeadAccessors") and lane in spec["lanes"]
     ]
 
 
@@ -197,6 +246,34 @@ def scenarios() -> list[dict]:
          "consumer": base / "IOSegmentReadContextImpl2590/Consumer.kt", "entry": "kuu2590consumer.main",
          "jvm_class": "kuu2590consumer.ConsumerKt", "reference": "jvm", "friend_io_artifacts": True,
          "jvm_abi_probe": HERE / "f02_consumers/SegmentReadContextAbiProbe.java"},
+        {"id": "buffer-head-2589",
+         "case_id": "Tests/CompilerBackendTests/Fixtures/IOBufferHead2589/Producer.kt#probeBufferHeadAccessors",
+         "producer": [base / "IOBufferHead2589/Producer.kt"],
+         "consumer": base / "IOBufferHead2589/Consumer.kt", "entry": "kuu2589consumer.main",
+         "jvm_class": "kuu2589consumer.ConsumerKt", "reference": "jvm", "friend_io_artifacts": True,
+         "jvm_abi_probe": HERE / "f02_consumers/BufferHeadAbiProbe.java",
+         "jvm_abi_class": "BufferHeadAbiProbe",
+         "jvm_abi_expected_stdout": (
+             "getHead=public-final-synthetic;return=Segment\n"
+             "setHead=public-final-synthetic;parameter=Segment;return=void\n"
+             "headInitiallyNull=true\n"
+             "headUpdatePreservesIdentity=true\n"
+             "headSetterAcceptsNull=true\n"
+         ),
+         "jvm_java_source_negative": HERE / "f02_consumers/BufferHeadJavaSourceNegative.java",
+         "local_probe_support_files": [
+             ROOT / "Tests/CompilerCoreTests/Sema/KotlinxIOBufferHeadContractTests.swift",
+         ],
+         "negative_probes": [
+             {"id": "head-internal", "file": base / "IOBufferHead2589/InternalVisibilityNegative.kt",
+              "entry": "kuu2589visibilitynegative.main", "diagnostic_markers": ["head", "internal"]},
+             {"id": "head-internal-set", "file": base / "IOBufferHead2589/SetterVisibilityNegative.kt",
+              "entry": "kuu2589setvisibilitynegative.main", "diagnostic_markers": ["head", "internal"]},
+             {"id": "head-nullable", "file": base / "IOBufferHead2589/NullableGetterNegative.kt",
+              "entry": "kuu2589nullabilitynegative.main", "friend_io_artifacts": True,
+              "reference_diagnostic_markers": ["head", "segment?"],
+              "candidate_diagnostic_markers": ["KSWIFTK-TYPE-0001", "head", "Segment"]},
+         ]},
         {"id": "buffering-contracts", "producer": [base / "IOBuffering1730/BufferingContracts.kt"],
          "consumer": base / "IOBuffering1730/Consumer.kt", "entry": "kuu1730consumer.main",
          "expected": base / "IOBuffering1730/reference.stdout", "reference": "pinned-JVM"},
@@ -341,6 +418,12 @@ def run_lane(case: dict, compiler: Path, stdlib: Path, expected: bytes, director
     stdlib_before = snapshot(stdlib)
     base = [str(compiler), "-" + optimization, "--no-incremental"]
     base += ["--stdlib-from-source"] if route == "source" else ["--stdlib-library", str(stdlib)]
+    for probe in case.get("negative_probes", []):
+        negative_binary = directory / f"{probe['id']}-negative"
+        require_diagnostic_failure(
+            base + ["--entry-point", probe["entry"], str(probe["file"]), "-o", str(negative_binary)],
+            directory, f"{probe['id']}-negative", timeout,
+            probe.get("candidate_diagnostic_markers", probe.get("diagnostic_markers", [])))
     if case.get("negative_fixture"):
         negative_directory = directory / "negative-visibility"
         negative_directory.mkdir()
@@ -430,14 +513,18 @@ def main(argv: list[str] | None = None) -> int:
                "runtime_cache_provenance": "source and manifest-validated object hashes; not a clean Runtime rebuild"}
     try:
         provenance = [Path(__file__), HERE / "generate_f02_consumers.py", HERE / "generate_f01_consumers.py",
-                      HERE / "api-inventory.tsv", HERE / "source-declarations.json", HERE / "upstream-lock.json",
+                      HERE / "generate.py", HERE / "api-validation-evidence.json", HERE / "api-inventory.tsv",
+                      HERE / "source-declarations.json", HERE / "upstream-lock.json",
                       ROOT / "Scripts/kotlinx_io_upstream/reference-lock.json", ROOT / "Package.swift"]
         provenance += sorted((HERE / "f02_consumers").glob("*")) + sorted((HERE / "f02_boundary").glob("*.kt"))
         summary["harness_files_sha256"] = {str(path.relative_to(ROOT)): sha(path) for path in provenance if path.is_file()}
         scenario_inputs = {path for case in selected for path in case.get("producer", []) + case.get("fixtures", [])}
         scenario_inputs |= {case[key] for case in selected for key in (
-            "consumer", "expected", "fixture", "negative_fixture", "reference_probe", "provenance", "jvm_abi_probe"
+            "consumer", "expected", "fixture", "negative_fixture", "reference_probe", "provenance",
+            "jvm_abi_probe", "jvm_java_source_negative"
         ) if key in case}
+        scenario_inputs |= {path for case in selected for path in case.get("local_probe_support_files", [])}
+        scenario_inputs |= {probe["file"] for case in selected for probe in case.get("negative_probes", [])}
         summary["scenario_files_sha256"] = {str(path.relative_to(ROOT)): sha(path) for path in sorted(scenario_inputs)}
         resources = next((path for path in (
             compiler.parent / "KSwiftK_CompilerCore.bundle/Contents/Resources",
@@ -452,10 +539,14 @@ def main(argv: list[str] | None = None) -> int:
         for name, contents in generate().items():
             if (HERE / "f02_consumers" / name).read_text() != contents: raise RuntimeError("regenerate F02 consumers first")
         lock = json.loads((ROOT / "Scripts/kotlinx_io_upstream/reference-lock.json").read_text())
-        target_probe_selected = any(case["id"] == "segment-data-as-byte-array" for case in selected)
+        target_probe_selected = any(case["id"] in ("segment-data-as-byte-array", "buffer-head-2589")
+                                    for case in selected)
         candidate_source_metadata = None
         if target_probe_selected:
-            candidate_source_metadata = verify_segment_data_as_byte_array_source_metadata()
+            if any(case["id"] == "buffer-head-2589" for case in selected):
+                candidate_source_metadata = verify_buffer_head_source_metadata()
+            else:
+                candidate_source_metadata = verify_segment_data_as_byte_array_source_metadata()
             summary["candidate_source_metadata_assertion"] = candidate_source_metadata
         for record in lock["sdk_files"]:
             if sha(args.kotlin_home / record["path"]) != record["sha256"]: raise RuntimeError("reference SDK hash mismatch")
@@ -466,7 +557,7 @@ def main(argv: list[str] | None = None) -> int:
                 if sha(jar) != record["sha256"]: raise RuntimeError("reference IO jar hash mismatch")
                 jars.append(jar)
         reference_tools = [args.java.resolve()]
-        if any("jvm_abi_probe" in case for case in selected):
+        if any("jvm_abi_probe" in case or "jvm_java_source_negative" in case for case in selected):
             reference_tools.append(args.java.resolve().parent / "javac")
         summary["reference_sha256"] = {str(path): sha(path) for path in [*jars, *reference_tools]}
         require_stage([str(args.java.resolve()), "-version"], output, "java-version", 30)
@@ -510,6 +601,20 @@ def main(argv: list[str] | None = None) -> int:
                             candidate_result,
                         ),
                     })
+            if case["id"] == "buffer-head-2589":
+                lane = f"{route}-{optimization}"
+                for case_id in buffer_head_local_probe_case_ids(lane):
+                    summary["local_probe_executions"].append({
+                        "case_id": case_id,
+                        "lane": lane,
+                        "reference": local_probe_execution(
+                            case_id, lane, summary["workspace_git_sha"], lock["commit"], "reference", "PASS"
+                        ),
+                        "candidate": local_probe_execution(
+                            case_id, lane, summary["workspace_git_sha"], lock["commit"], "candidate",
+                            result.get("status", "FAIL"),
+                        ),
+                    })
             summary["results"].append({"case": case["id"], **result})
             save(output / "summary.json", summary)
             print(f"{result['status']} {case['id']} {route} {optimization}", flush=True)
@@ -536,6 +641,16 @@ def main(argv: list[str] | None = None) -> int:
                          str(case["negative_fixture"]), "-classpath", classpath,
                          "-d", str(negative_directory / "consumer.jar")],
                         negative_directory, "reference", args.compile_timeout,
+                        {"JAVA_HOME": str(args.java.resolve().parent.parent)})
+                for probe in case.get("negative_probes", []):
+                    negative_reference = directory / f"reference-{probe['id']}.jar"
+                    friend_args = reference_friend_args(case, jars) if probe.get("friend_io_artifacts") else []
+                    negative_command = [str((args.kotlin_home / "bin/kotlinc").resolve()), str(probe["file"]),
+                                        "-classpath", classpath, *friend_args, "-d", str(negative_reference)]
+                    require_diagnostic_failure(
+                        negative_command, directory, f"reference-{probe['id']}-negative",
+                        args.compile_timeout,
+                        probe.get("reference_diagnostic_markers", probe.get("diagnostic_markers", [])),
                         {"JAVA_HOME": str(args.java.resolve().parent.parent)})
                 reference_sources = [*map(str, producers), str(consumer)]
                 if case.get("reference_probe"):
@@ -565,15 +680,44 @@ def main(argv: list[str] | None = None) -> int:
                             candidate_source_metadata["status"],
                         ),
                     })
+                if case["id"] == "buffer-head-2589":
+                    case_id = "local:Scripts/io_api_inventory/f02_consumers/BufferHeadAbiProbe.java#main"
+                    lane = "jvm-descriptor"
+                    summary["local_probe_executions"].append({
+                        "case_id": case_id,
+                        "lane": lane,
+                        "reference": local_probe_execution(
+                            case_id, lane, summary["workspace_git_sha"], lock["commit"], "reference", "PASS"
+                        ),
+                        "candidate": local_probe_execution(
+                            case_id, lane, summary["workspace_git_sha"], lock["commit"], "candidate",
+                            candidate_source_metadata["status"],
+                        ),
+                    })
                 if "jvm_abi_probe" in case:
                     probe_classes = directory / "jvm-abi-probe-classes"
                     probe_classes.mkdir()
                     javac = args.java.resolve().parent / "javac"
                     require_stage([str(javac), "-d", str(probe_classes), str(case["jvm_abi_probe"])],
                                   directory, "jvm-abi-compile", args.compile_timeout)
+                    probe_class = case.get("jvm_abi_class", "SegmentReadContextAbiProbe")
                     require_stage([str(args.java.resolve()), "-cp", os.pathsep.join(
-                        map(str, [probe_classes, jar, *jars])), "SegmentReadContextAbiProbe"],
+                        map(str, [probe_classes, jar, *jars])), probe_class],
                         directory, "jvm-abi-probe", 30)
+                    if "jvm_abi_expected_stdout" in case:
+                        probe_stdout = (directory / "jvm-abi-probe.stdout").read_text(encoding="utf-8")
+                        if (probe_stdout != case["jvm_abi_expected_stdout"]
+                                or (directory / "jvm-abi-probe.stderr").read_bytes()):
+                            raise RuntimeError("JVM ABI probe output did not match its direct assertions")
+                if "jvm_java_source_negative" in case:
+                    negative_classes = directory / "jvm-java-negative-classes"
+                    negative_classes.mkdir()
+                    kotlin_stdlib = args.kotlin_home / "lib/kotlin-stdlib.jar"
+                    java_classpath = os.pathsep.join(map(str, [*jars, kotlin_stdlib]))
+                    require_diagnostic_failure(
+                        [str(args.java.resolve().parent / "javac"), "-classpath", java_classpath,
+                         "-d", str(negative_classes), str(case["jvm_java_source_negative"])],
+                        directory, "jvm-java-source-negative", args.compile_timeout, ["getHead", "setHead"])
             else:
                 expected = case["expected"].read_bytes()
                 reject_unhandled_events(expected)
