@@ -46,8 +46,7 @@ extension CollectionLiteralLoweringSupport {
         state.tag(expr, as: trackedKind)
     }
 
-    /// Classify a stdlib-typed symbol into its tracked collection kind using
-    /// the once-per-pass `lookup.staticTypeClassification` tables — a single
+    /// Uses the once-per-pass `lookup.staticTypeClassification` tables — a single
     /// dictionary probe plus an element-wise package prefix check, instead of
     /// re-interning ~43 constant names per call.
     ///
