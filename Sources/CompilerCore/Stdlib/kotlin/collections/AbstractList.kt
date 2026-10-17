@@ -7,8 +7,6 @@
 
 package kotlin.collections
 
-// KSP-700: source-backed nominal shell and default read-only list behavior.
-// Concrete subclasses only need to provide indexed access and size.
 public abstract class AbstractList<out E> protected constructor() : AbstractCollection<E>(), List<E> {
     public abstract override operator fun get(index: Int): E
 
