@@ -1,7 +1,4 @@
 
-/// Main member-call dispatcher.
-///
-/// Specialized lowering families live in adjacent `CallLowerer+*MemberCall*.swift` files.
 extension CallLowerer {
     // KSP-496: simpleName/qualifiedName/isInstance/cast/safeCast/the boolean
     // flags/visibility/annotations/members/constructors/primaryConstructor/
@@ -167,7 +164,6 @@ extension CallLowerer {
             return lateinitStatus
         }
 
-        // ── KCallable metadata → shared reflection bridge ─────────────────
         if let kPropertyResult = tryLowerKPropertyMemberAccess(
             exprID,
             receiverExpr: receiverExpr,
@@ -182,7 +178,6 @@ extension CallLowerer {
             return kPropertyResult
         }
 
-        // ── KFunction<*>.name/returnType/parameters/... → kk_kfunction_get_*(receiver) ──
         if let kFunctionResult = tryLowerKFunctionMemberAccess(
             exprID,
             receiverExpr: receiverExpr,
@@ -197,7 +192,6 @@ extension CallLowerer {
             return kFunctionResult
         }
 
-        // ── KParameter.index/name/type/isOptional/kind → kk_kparameter_*(receiver) ──
         if let kParameterResult = tryLowerKParameterMemberAccess(
             exprID,
             receiverExpr: receiverExpr,
@@ -212,7 +206,6 @@ extension CallLowerer {
             return kParameterResult
         }
 
-        // ── KFunction<*>.call(...) → kk_kfunction_call_N(receiver, args...) ──
         if let kFunctionCallResult = tryLowerKFunctionCallInvocation(
             exprID,
             receiverExpr: receiverExpr,
@@ -228,7 +221,6 @@ extension CallLowerer {
             return kFunctionCallResult
         }
 
-        // ── Int/Long/.../Double.compareTo(other) → kk_primitive_compareTo(...) ──
         if let primitiveCompareResult = tryLowerPrimitiveCompareTo(
             exprID,
             receiverExpr: receiverExpr,
@@ -244,7 +236,6 @@ extension CallLowerer {
             return primitiveCompareResult
         }
 
-        // ── non-escaping Comparable<Char> local .compareTo → kk_char_compareTo ──
         if let comparableCharResult = tryLowerComparableCharCompareTo(
             exprID,
             receiverExpr: receiverExpr,
@@ -260,9 +251,6 @@ extension CallLowerer {
             return comparableCharResult
         }
 
-        // ── Number.toDouble/toFloat/toLong/toInt/toShort/toByte/toChar() on an
-        //    erased receiver → kk_number_to_primitive(receiver, slot, kind)
-        //    (KSP-1540, KUU-1372) ──
         if let numberConversionResult = tryLowerNumberConversion(
             exprID,
             receiverExpr: receiverExpr,
@@ -417,7 +405,6 @@ extension CallLowerer {
             )
         }
 
-        // ── T::class.findAssociatedObject<A>() and native KClass properties ──
         // KSP-496: simpleName/qualifiedName/isInstance/cast/safeCast/the
         // boolean flags now resolve as ordinary Kotlin extension declarations
         // (Sources/CompilerCore/Stdlib/kotlin/reflect/) through the normal
@@ -445,7 +432,6 @@ extension CallLowerer {
             }
         }
 
-        // KSP-496: KClass-typed variable receiver for the remaining native members.
         if let receiverType = sema.bindings.exprTypes[receiverExpr],
            isKClassReceiverType(receiverType, sema: sema, interner: interner)
         {
@@ -465,7 +451,6 @@ extension CallLowerer {
             }
         }
 
-        // --- Scope functions: run, apply, use, usePinned, useContents (STDLIB-004) ---
         if let scopeResult = tryScopeFunctionLowering(
             exprID,
             receiverExpr: receiverExpr,
@@ -480,10 +465,8 @@ extension CallLowerer {
             return scopeResult
         }
 
-        // Explicit `.invoke(...)` on a receiver whose own type is a function
-        // type (e.g. `f.invoke(3)`, `ef.invoke(5, 6)`) -- unlike the
-        // receiver-lambda sugar just below, `receiverExpr` here IS the
-        // callable value itself, not a separate dispatch receiver.
+        // Unlike the receiver-lambda sugar just below, `receiverExpr` here IS
+        // the callable value itself, not a separate dispatch receiver.
         if interner.resolve(calleeName) == "invoke",
            sema.bindings.callableValueCalls[exprID] != nil,
            case .functionType = sema.types.kind(
@@ -508,7 +491,7 @@ extension CallLowerer {
         }
 
         // Receiver-lambda invocation: `receiver.localVar()` where localVar has
-        // a function-with-receiver type (e.g. `sb.action()` with action: StringBuilder.() -> Unit).
+        // a function-with-receiver type.
         // Some frontends may also encode the receiver as the first parameter of a regular
         // function type (`(StringBuilder) -> Unit`), so we mirror the type-checker
         // fallback here when needed.
@@ -516,12 +499,8 @@ extension CallLowerer {
            case let .functionType(fnType) = sema.types.kind(of: callableBinding.functionType),
            case let .localValue(localSym) = callableBinding.target,
            let receiverExprType = sema.bindings.exprType(for: receiverExpr) {
-            // Member-property callable invocation: `receiver.prop(args)` where
-            // `prop` is a function-typed member property (KUU-482/BUG-250).
             // The property symbol is not a local value, so the local-value arm
-            // below cannot resolve it — read `receiver.prop` through the
-            // ordinary member-read path, then invoke the function value
-            // through the runtime kk_function_invoke* ABI.
+            // below cannot resolve it.
             if sema.symbols.symbol(localSym)?.kind == .property,
                let invokeCallee = runtimeCallableInvokeCallee(
                    callableValueCallBinding: callableBinding,
@@ -558,8 +537,7 @@ extension CallLowerer {
                        callableBinding.receiverArgumentOffset == 0,
                        sema.symbols.extensionPropertyReceiverType(for: localSym) == nil
                     {
-                        // `val action: R.() -> T` invoked as `receiver.action(args)`:
-                        // the call-site receiver is the lambda's dispatch receiver,
+                        // The call-site receiver is the lambda's dispatch receiver,
                         // passed right after the function value (mirroring the
                         // local-value arm below).
                         invokeArgs.insert(loweredReceiverID, at: 0)
@@ -671,10 +649,8 @@ extension CallLowerer {
             }
         }
 
-        // Explicit `invoke` sugar on a function-typed value:
-        // `f.invoke(args)` / `prop.invoke(args)` (KUU-644). Sema binds a
-        // CallableValueCallBinding with `target == nil`, so the lowered
-        // receiver expression itself is the function object to invoke.
+        // Sema binds a CallableValueCallBinding with `target == nil`, so the
+        // lowered receiver expression itself is the function object to invoke.
         if let callableBinding = sema.bindings.callableValueCalls[exprID],
            callableBinding.target == nil,
            case .functionType = sema.types.kind(of: callableBinding.functionType),
