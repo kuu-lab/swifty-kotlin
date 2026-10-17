@@ -1,5 +1,3 @@
-// ThreadLocal (java.lang.ThreadLocal / kotlin.concurrent.getOrSet)
-
 public extension RuntimeABISpec {
     static let threadLocalNewBridgeSpec = RuntimeABIFunctionSpec(
         name: "__kk_thread_local_new",
