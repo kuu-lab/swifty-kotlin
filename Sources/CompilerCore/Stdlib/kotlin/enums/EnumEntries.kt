@@ -10,8 +10,6 @@ package kotlin.enums
 import kotlin.internal.KsSymbolName
 
 /**
- * Returns the entries of the reified enum type in declaration order.
- *
  * The compiler expands this declaration at a concrete call site to the
  * enum-specific cached runtime representation. The placeholder body mirrors
  * the existing enumValues intrinsic pattern; the generic body itself is never
@@ -22,12 +20,10 @@ import kotlin.internal.KsSymbolName
 public inline fun <reified T : Enum<T>> enumEntries(): EnumEntries<T> =
     throw NotImplementedError()
 
-/** Compiler intrinsic used by the public reified overload. */
 @PublishedApi
 @SinceKotlin("1.9")
 internal external fun <T : Enum<T>> enumEntriesIntrinsic(): EnumEntries<T>
 
-/** Builds an entries view after evaluating the provider exactly once. */
 @PublishedApi
 @SinceKotlin("1.8")
 internal fun <E : Enum<E>> enumEntries(entriesProvider: () -> Array<E>): EnumEntries<E> =
