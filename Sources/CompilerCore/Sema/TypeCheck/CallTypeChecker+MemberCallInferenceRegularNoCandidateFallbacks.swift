@@ -24,9 +24,7 @@ extension CallTypeChecker {
         let calleeStr = interner.resolve(calleeName)
         let invocationLocals = locals
         let isSuperReceiver = if case .superRef = ast.arena.expr(request.receiverID) { true } else { false }
-        // For non-empty-arg member calls, try member property/field lookup.
-        // This handles callable property syntax (e.g. `receiver.f(...)`);
-        // an explicit `receiver.f()` call takes the same path so a
+        // An explicit `receiver.f()` call takes the same path so a
         // zero-parameter function-typed property can be invoked (KUU-644).
         // Skip this for class-name receivers — only companion members are
         // accessible via `ClassName.member`, not instance properties.
@@ -100,7 +98,6 @@ extension CallTypeChecker {
             return (property, propertyType)
         }()
         if let propResult = callableProperty {
-            // Check visibility before trying callable-style resolution.
             if let propSymbol = sema.symbols.symbol(propResult.symbol),
                !ctx.visibilityChecker.isAccessible(propSymbol, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol)
             {
@@ -108,7 +105,6 @@ extension CallTypeChecker {
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
 
-            // Property value call with function type (`receiver.f(...)`).
             // Kotlin requires `?.`/`!!` to call a nullable function value,
             // so a `f: ((Int) -> Int)?` property must not take this arm — a
             // null function object would reach kk_function_invoke (KUU-644).
@@ -139,7 +135,6 @@ extension CallTypeChecker {
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
 
-            // Property value call through `operator fun invoke(...)`.
             let invokeName = interner.intern("invoke")
             let invokeCandidates = nominalCallablePropertyInvokeCandidates(
                 propResult.type, request: request, argTypes: argTypes, locals: invocationLocals
@@ -186,9 +181,8 @@ extension CallTypeChecker {
 
     /// `Enum.ENTRY(args)` is a value call, but it reaches member-call
     /// inference before the enum entry can be read as a standalone value.
-    /// After ordinary `ENTRY` member candidates and extensions have failed,
-    /// resolve the entry's enum-class `invoke` member through the regular
-    /// candidate and constraint machinery.
+    /// This path runs only after ordinary `ENTRY` member candidates and
+    /// extensions have failed.
     func inferEnumEntryInvokeCall(
         _ request: MemberCallInferenceRequest,
         memberLookupType: TypeID,
@@ -470,7 +464,6 @@ extension CallTypeChecker {
                 }
             }
         }
-        // STDLIB-003-ABI-001: Char.digitToInt(radix: Int) / Char.digitToIntOrNull(radix: Int) — 1-arg overloads
         if args.count == 1, calleeStr == "digitToInt" {
             let receiverTypeForCheck = safeCall
                 ? sema.types.makeNonNullable(lookupReceiverType)
@@ -495,7 +488,6 @@ extension CallTypeChecker {
                 return finalType
             }
         }
-        // Boolean.not() / Boolean.and(other) / Boolean.or(other) / Boolean.xor(other) (STDLIB-308)
         do {
             let receiverTypeForCheck = safeCall
                 ? sema.types.makeNonNullable(lookupReceiverType)
@@ -516,7 +508,6 @@ extension CallTypeChecker {
                 }
             }
         }
-        // STDLIB-HEX-001: HexFormat extension methods with default format parameter.
         do {
             let receiverTypeForCheck = safeCall
                 ? sema.types.makeNonNullable(lookupReceiverType)
@@ -569,7 +560,6 @@ extension CallTypeChecker {
                 }
             }
         }
-        // String stdlib: nullable-receiver 0-arg methods (NULL-002)
         // isNullOrEmpty/isNullOrBlank accept String? receiver directly (no safe-call needed).
         if args.isEmpty {
             if !isNullLiteralReceiver,
@@ -583,7 +573,6 @@ extension CallTypeChecker {
             if !isNullLiteralReceiver,
                calleeStr == "isNullOrEmpty" || calleeStr == "isNullOrBlank"
             {
-                // Strip nullability so that String? and String both match.
                 let baseType = sema.types.makeNonNullable(lookupReceiverType)
                 if sema.types.isSubtype(baseType, sema.types.stringType) {
                     let resultType = sema.types.booleanType
@@ -606,7 +595,6 @@ extension CallTypeChecker {
                 }
             }
         }
-        // String stdlib: 0-arg methods (STDLIB-006)
         let listCharType = makeSyntheticListType(
             symbols: sema.symbols,
             types: sema.types,
@@ -729,7 +717,6 @@ extension CallTypeChecker {
             }
         }
         // KSP-404: removePrefix/removeSuffix/removeSurrounding are bundled Kotlin source.
-        // String stdlib: 1-arg methods (STDLIB-006)
         if args.count == 1 {
             let receiverTypeForCheck = safeCall
                 ? sema.types.makeNonNullable(lookupReceiverType)
@@ -836,7 +823,6 @@ extension CallTypeChecker {
             }
         }
         // KSP-404: 2-arg removeSurrounding(prefix, suffix) is bundled Kotlin source.
-        // String.replaceIndentByMargin(newIndent, marginPrefix)
         if args.count == 2 {
             let receiverTypeForCheck = safeCall
                 ? sema.types.makeNonNullable(lookupReceiverType)
@@ -915,7 +901,6 @@ extension CallTypeChecker {
             }
         }
         // KSP-406: substring is bundled Kotlin source (StringSubstringSlice.kt).
-        // String stdlib: equals(other: String?) (STDLIB-192).
         // KSP-413: equals(other, ignoreCase) is bundled Kotlin source.
         if calleeStr == "equals" {
             let receiverTypeForCheck = safeCall
@@ -948,7 +933,6 @@ extension CallTypeChecker {
         }
         // KSP-413: 2-arg compareTo(String, Boolean) is bundled Kotlin source
         // (STDLIB-141 fallback removed).
-        // String stdlib: replaceFirst(oldValue, newValue) (STDLIB-188)
         if args.count == 2, calleeStr == "replaceFirst" {
             let receiverTypeForCheck = safeCall
                 ? sema.types.makeNonNullable(lookupReceiverType)
@@ -1316,7 +1300,6 @@ extension CallTypeChecker {
                 return finalType
             }
         }
-        // String stdlib: 2-arg methods (STDLIB-006)
         if args.count == 2, calleeStr == "replace" {
             let receiverTypeForCheck = safeCall
                 ? sema.types.makeNonNullable(lookupReceiverType)
@@ -1362,7 +1345,6 @@ extension CallTypeChecker {
                 return finalType
             }
         }
-        // String stdlib: 2-arg substring overload (STDLIB-009)
         if args.count == 2 {
             let receiverTypeForCheck = safeCall
                 ? sema.types.makeNonNullable(lookupReceiverType)
@@ -1401,7 +1383,6 @@ extension CallTypeChecker {
                 }
             }
         }
-        // String stdlib: format(vararg args) (STDLIB-006)
         if calleeName == interner.intern("format"), !hasLeadingLocaleArgument {
             let receiverTypeForCheck = safeCall
                 ? sema.types.makeNonNullable(lookupReceiverType)
@@ -1428,12 +1409,11 @@ extension CallTypeChecker {
             isClassNameReceiver: isClassNameReceiver, locals: &locals
         ) { return result }
 
-        // Explicit `invoke` sugar on a function-typed value:
-        // `f.invoke(args)` / `prop?.invoke(args)` (KUU-644). Function types
-        // have no nominal member table, so candidate collection never
-        // reaches `FunctionN.invoke` — bind the callable-value invocation
-        // directly. `callableTarget` stays nil so KIR lowering uses the
-        // lowered receiver expression itself as the function object.
+        // Function types have no nominal member table, so candidate
+        // collection never reaches `FunctionN.invoke` — bind the
+        // callable-value invocation directly. `callableTarget` stays nil
+        // so KIR lowering uses the lowered receiver expression itself as
+        // the function object.
         // A non-safe `x.invoke` on a nullable function value is rejected
         // like `x(args)` — `x?.invoke` unwraps the receiver first, so the
         // check only excludes the unsafe form (KUU-644).
@@ -1508,8 +1488,7 @@ extension CallTypeChecker {
         ) {
             return fallbackType
         }
-        // Flow member access fallback (CORO-003): allow flow chain calls
-        // only when receiver provenance is known as Flow.
+        // Allow flow chain calls only when receiver provenance is known as Flow.
         if !isClassNameReceiver, isFlowReceiver {
             let memberName = calleeStr
             let flowMembers: Set = ["map", "filter", "take", "collect", "single", "catch", "retry", "retryWhen"]
@@ -1629,7 +1608,6 @@ extension CallTypeChecker {
                 break
             }
         }
-        // Builder DSL member functions (STDLIB-002).
         if ctx.isBuilderLambdaScope, let activeBuilderKind = ctx.builderKind {
             let name = calleeStr
             let isBuilderMember: Bool = switch activeBuilderKind {
@@ -1646,7 +1624,6 @@ extension CallTypeChecker {
             }
         }
 
-        // STDLIB-532/533/534, STDLIB-SEQ-011: orEmpty() on nullable receivers
         if calleeStr == "orEmpty", args.isEmpty {
             let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
