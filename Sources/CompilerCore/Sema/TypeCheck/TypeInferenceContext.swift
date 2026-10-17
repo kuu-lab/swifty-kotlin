@@ -78,12 +78,9 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// A break/continue may cross these boundaries only when every intervening
     /// lambda is an argument to an inline parameter that allows non-local jumps.
     var lambdaLoopScopes: [(exprID: ExprID, loopDepth: Int, labels: [InternedString])] = []
-    /// Stack of labels attached to enclosing lambda literals, paired with
-    /// whether the label denotes a function. `return@label` uses it to verify
-    /// that the label references a valid lambda. A label written on a lambda
-    /// that is immediately consumed by a postfix suffix (`foo@{ ... }()`)
-    /// binds to the postfix expression in Kotlin, so it is tracked here as
-    /// visible but not function-denoting.
+    /// A label written on a lambda that is immediately consumed by a postfix
+    /// suffix (`foo@{ ... }()`) binds to the postfix expression in Kotlin, so it
+    /// is tracked here as visible but not function-denoting.
     var lambdaLabelStack: [(label: InternedString, denotesFunction: Bool)]
     var lambdaReturnScopes: [LambdaReturnInferenceScope] = []
     /// Number of lambda bodies enclosing the expression currently being inferred.
@@ -134,13 +131,13 @@ struct TypeInferenceContext: CustomStringConvertible {
     var outerReceiverTypes: [(label: InternedString, type: TypeID, symbol: SymbolID?)]
     /// Context receiver types available to `contextOf<A>()` in the current lambda body.
     var contextReceiverTypes: [TypeID] = []
-    /// When true, the current scope is a builder DSL lambda body (STDLIB-002).
+    /// When true, the current scope is a builder DSL lambda body.
     /// Used to scope `append`/`add`/`put` fallback resolution.
     var isBuilderLambdaScope: Bool = false
     /// When true, platform-type warnings for `return` expressions should be suppressed.
     /// Set for functions whose return type is inferred (not user-declared).
     var suppressPlatformReturnWarning: Bool = false
-    /// The specific builder kind for this scope (STDLIB-002).
+    /// The specific builder kind for this scope.
     /// Used to restrict member function resolution to the correct kind.
     var builderKind: BuilderDSLKind?
     /// When true, the current scope is a `flow { ... }` builder lambda body.
@@ -155,7 +152,6 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// initialization rather than reassignment. Used for `init {}` and
     /// constructor bodies.
     var allowsValPropertyInitialization: Bool = false
-    /// Sema cache context for hot-path caching.  `nil` when caching is disabled.
     let semaCacheContext: SemaCacheContext?
     /// Mirrors Kotlin's `-Xnew-inference`.
     let useNewInference: Bool
@@ -172,7 +168,6 @@ struct TypeInferenceContext: CustomStringConvertible {
     var annotationOptInValidation: (owner: SymbolID, range: SourceRange?, markers: Set<SymbolID>)?
     /// Opt-ins retained when local functions replace the current declaration.
     var inheritedOptInMarkers: Set<SymbolID> = []
-    /// Set of DslMarker annotation FQ names active on the current implicit receiver.
     /// When a nested lambda introduces a receiver whose class carries the same
     /// DslMarker annotation as an outer receiver, the outer receiver is hidden
     /// from implicit resolution.
@@ -180,7 +175,6 @@ struct TypeInferenceContext: CustomStringConvertible {
     func with(implicitReceiverType newType: TypeID?) -> TypeInferenceContext {
         var copy = self
         copy.implicitReceiverType = newType
-        // Update active DslMarker annotations for the new receiver.
         if let newType {
             copy.activeDslMarkerAnnotations = copy.collectDslMarkerAnnotations(for: newType)
         } else {
@@ -189,8 +183,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         return copy
     }
 
-    /// The source file whose body is currently being inferred.
-    ///
     /// Member-style fallback resolution occasionally needs the file's import
     /// provenance to disambiguate source-backed aliases that expand to the same
     /// nominal runtime type. Keep that lookup on the context so callers do not
@@ -339,7 +331,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         if let scope { copy.scope = scope }
         if let implicitReceiverType {
             copy.implicitReceiverType = implicitReceiverType
-            // Update active DslMarker annotations when the receiver changes.
             if let newType = implicitReceiverType {
                 copy.activeDslMarkerAnnotations = copy.collectDslMarkerAnnotations(for: newType)
             } else {
@@ -400,8 +391,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         return nil
     }
 
-    /// Returns the enum-entry field represented by a qualified enum-entry
-    /// receiver such as `this@X`.
     func enumEntryReceiverSymbol(forQualifiedThisLabel label: InternedString) -> SymbolID? {
         guard resolveQualifiedThis(label: label) != nil,
               let enumSymbol = resolveQualifiedThisReceiverSymbol(label: label),
@@ -518,7 +507,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         return (visible, invisible)
     }
 
-    /// Looks up a symbol, using the sema cache when available.
     func cachedSymbol(_ id: SymbolID) -> SemanticSymbol? {
         if let cache = semaCacheContext {
             return cache.symbol(id, in: sema.symbols)
@@ -526,8 +514,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         return sema.symbols.symbol(id)
     }
 
-    /// Performs a scope lookup, using the sema cache when available.
-    ///
     /// `expect`/`actual` pairs are intentionally allowed to coexist in the same
     /// scope (KSwiftK has no separate common/platform module compilation), so a
     /// linked `expect` declaration is filtered out here once its `actual` is
@@ -551,10 +537,8 @@ struct TypeInferenceContext: CustomStringConvertible {
         return sema.symbols.actualSymbol(for: id) != nil
     }
 
-    /// Collects the FQ names of all @DslMarker meta-annotations that apply to
-    /// the given type.  A type carries a DslMarker if it is a class/interface
-    /// annotated with an annotation class that is itself annotated with
-    /// `@DslMarker`.
+    /// A type carries a DslMarker if it is a class/interface annotated with an
+    /// annotation class that is itself annotated with `@DslMarker`.
     func collectDslMarkerAnnotations(for typeID: TypeID) -> Set<String> {
         let nonNull = sema.types.makeNonNullable(typeID)
         guard let classType = resolveClassType(nonNull, sema: sema) else {
@@ -564,8 +548,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         let annotations = sema.symbols.annotations(for: classSymbol)
         var dslMarkers: Set<String> = []
         for annotation in annotations {
-            // Check if the annotation class itself is annotated with @DslMarker.
-            // First, look up the annotation class symbol by its FQ name.
             let annotationFQName = annotation.annotationFQName
             if isDslMarkerAnnotation(annotationFQName) {
                 dslMarkers.insert(annotationFQName)
@@ -574,14 +556,10 @@ struct TypeInferenceContext: CustomStringConvertible {
         return dslMarkers
     }
 
-    /// Returns true if the annotation with the given FQ name is a DslMarker
-    /// annotation — i.e. the annotation class itself is annotated with @DslMarker.
     private func isDslMarkerAnnotation(_ annotationFQName: String) -> Bool {
-        // Look up the annotation class by its simple or qualified name in the symbol table.
         let parts = annotationFQName.split(separator: ".").map { String($0) }
         let internedParts = parts.map { interner.intern($0) }
 
-        // Try qualified lookup first
         if let annotationSymbol = sema.symbols.lookup(fqName: internedParts) {
             let metaAnnotations = sema.symbols.annotations(for: annotationSymbol)
             for meta in metaAnnotations {
@@ -591,7 +569,6 @@ struct TypeInferenceContext: CustomStringConvertible {
                 }
             }
         }
-        // Try simple name lookup (single segment)
         if parts.count == 1 {
             let simpleName = interner.intern(parts[0])
             let candidates = scope.lookup(simpleName)
@@ -612,11 +589,9 @@ struct TypeInferenceContext: CustomStringConvertible {
         return false
     }
 
-    /// Returns true if accessing the given candidate symbol through the scope
-    /// chain is blocked by @DslMarker restrictions.  A member symbol is blocked
-    /// when its owner class/interface carries a DslMarker annotation that also
-    /// applies to the current implicit receiver, and the owner is NOT the
-    /// current implicit receiver itself.
+    /// A member symbol is blocked when its owner class/interface carries a
+    /// DslMarker annotation that also applies to the current implicit receiver,
+    /// and the owner is NOT the current implicit receiver itself.
     func isCandidateBlockedByDslMarker(_ candidateID: SymbolID) -> Bool {
         guard !activeDslMarkerAnnotations.isEmpty else {
             return false
@@ -630,7 +605,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         else {
             return false
         }
-        // If the parent IS the current implicit receiver's class, no restriction.
         if let receiverType = implicitReceiverType {
             let nonNull = sema.types.makeNonNullable(receiverType)
             if case let .classType(classType) = sema.types.kind(of: nonNull),
@@ -639,8 +613,6 @@ struct TypeInferenceContext: CustomStringConvertible {
                 return false
             }
         }
-        // Check if the parent class's DslMarker annotations overlap with the
-        // active ones from the current implicit receiver.
         let parentType = sema.types.make(.classType(ClassType(
             classSymbol: parentID, args: [], nullability: .nonNull
         )))
