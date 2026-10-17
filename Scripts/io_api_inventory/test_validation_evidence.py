@@ -2,6 +2,7 @@
 """Exercise validation evidence application with a one-row inventory fixture."""
 
 import copy
+import csv
 import importlib.util
 import json
 import tempfile
@@ -292,6 +293,46 @@ class ValidationEvidenceTests(unittest.TestCase):
             with self.subTest(records=records):
                 with self.assertRaises(SystemExit):
                     self._apply(records)
+
+
+class FileMetadataReferenceMappingTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.generator = load_generator()
+
+    def test_class_and_constructor_rows_do_not_claim_indirect_smoke_assertions(self):
+        target_ids = {
+            "jvm-011b45a35d483266",
+            "jvm-334d56b57e8b5279",
+            "jvm-89c4197097b4b6d3",
+            "jvm-8acfcceaf995d5fa",
+            "klib-8ad508ac6d89d176",
+            "klib-998e3a41ef776da3",
+        }
+        with (HERE / "api-inventory.tsv").open(encoding="utf-8", newline="") as stream:
+            rows = {row["row_id"]: row for row in csv.DictReader(stream, delimiter="\t")
+                    if row["row_id"] in target_ids}
+        self.assertEqual(set(rows), target_ids)
+        for row_id, row in rows.items():
+            with self.subTest(row_id=row_id):
+                self.assertEqual(self.generator.upstream_test_refs(row, {}), [])
+
+    def test_dedicated_probe_references_are_limited_to_the_six_target_rows(self):
+        expected_refs = set(self.generator.FILE_METADATA_PROBE_LOCAL_TESTS)
+        with (HERE / "api-inventory.tsv").open(encoding="utf-8", newline="") as stream:
+            rows = list(csv.DictReader(stream, delimiter="\t"))
+        self.assertEqual(
+            {row["row_id"] for row in rows if expected_refs.intersection(row["local_test_refs"].split(";"))},
+            self.generator.FILE_METADATA_PROBE_ROW_IDS,
+        )
+        for row in rows:
+            if row["row_id"] in self.generator.FILE_METADATA_PROBE_ROW_IDS:
+                self.assertTrue(expected_refs.issubset(set(row["local_test_refs"].split(";"))))
+
+    def test_audit_evidence_is_current_and_does_not_promote_rows(self):
+        with (HERE / "api-inventory.tsv").open(encoding="utf-8", newline="") as stream:
+            rows = list(csv.DictReader(stream, delimiter="\t"))
+        self.generator.validate_filemetadata_probe_evidence(rows)
 
 
 if __name__ == "__main__":
