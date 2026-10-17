@@ -1,8 +1,5 @@
 import Foundation
 
-/// Read access to a Kotlin `.klib` library, packed (zip archive) or
-/// unpacked (directory containing `<component>/manifest`).
-///
 /// A klib carries one or more *components* — top-level directories that
 /// each contain a `manifest`. Libraries produced for a single target use
 /// the conventional `default` component; `read(_:)` resolves paths relative
@@ -13,9 +10,8 @@ package struct KlibContainer {
         case directory(root: URL)
     }
 
-    /// Filesystem path, kept for diagnostics.
+    /// Kept for diagnostics.
     package let path: String
-    /// Name of the selected component directory (usually `"default"`).
     package let component: String
     private let storage: Storage
 
@@ -49,7 +45,6 @@ package struct KlibContainer {
         }
     }
 
-    /// `manifest` of the selected component, parsed.
     package func manifest() throws -> KlibManifest {
         let bytes = try read("manifest")
         return try KlibManifest(contents: String(decoding: bytes, as: UTF8.self))
