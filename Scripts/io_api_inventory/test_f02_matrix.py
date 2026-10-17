@@ -86,6 +86,14 @@ class F02GateTests(unittest.TestCase):
         self.assertEqual(metadata["status"], "PASS")
         self.assertTrue({"PublishedApi", "JvmSynthetic"}.issubset(metadata["annotations"]))
 
+    def test_evidence_reference_lock_accepts_the_runner_lock_schema(self):
+        lock_path = matrix.ROOT / "Scripts/kotlinx_io_upstream/reference-lock.json"
+        lock = json.loads(lock_path.read_text(encoding="utf-8"))
+        self.assertEqual(
+            matrix.normalize_evidence_reference_lock(lock),
+            {"tag": "0.9.1", "commit": "362bdc35e159bad6da1e08101c8321792d762281"},
+        )
+
     def test_unsafe_buffer_operations_shape_is_an_independently_selectable_case(self):
         case = next(case for case in matrix.scenarios()
                     if case["id"] == "unsafe-buffer-operations-object-shape")

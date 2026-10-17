@@ -266,8 +266,17 @@ def scenarios() -> list[dict]:
     return cases
 
 
+def normalize_evidence_reference_lock(lock: dict) -> dict[str, str]:
+    version = lock.get("tag") or lock.get("kotlinx_io")
+    commit = lock.get("commit")
+    if not isinstance(version, str) or not version or not isinstance(commit, str) or not commit:
+        raise RuntimeError("reference lock must include a kotlinx-io version and commit")
+    return {"tag": version, "commit": commit}
+
+
 def write_local_probe_evidence(summary: dict, lock: dict, output: Path) -> list[str]:
     candidate_sha = summary["workspace_git_sha"]
+    evidence_lock = normalize_evidence_reference_lock(lock)
     observed = summary.get("local_probe_executions", [])
     touched_row_ids = sorted({
         row_id
@@ -312,8 +321,8 @@ def write_local_probe_evidence(summary: dict, lock: dict, output: Path) -> list[
         records.append({
             "row_id": row_id,
             "candidate_sha": candidate_sha,
-            "reference_version": lock["tag"],
-            "reference_commit": lock["commit"],
+            "reference_version": evidence_lock["tag"],
+            "reference_commit": evidence_lock["commit"],
             **inventory.validation_input_hashes(row, ROOT, inventory.UPSTREAM),
             "compatibility_obligations": inventory.validation_obligations(row),
             "evidence_source": "local-probe",
@@ -325,7 +334,7 @@ def write_local_probe_evidence(summary: dict, lock: dict, output: Path) -> list[
     validation_rows = [dict(rows_by_id[row_id]) for row_id in touched_row_ids]
     inventory.apply_validation_evidence(
         validation_rows,
-        {"tag": lock["tag"], "commit": lock["commit"]},
+        evidence_lock,
         candidate_path,
         ROOT,
         inventory.UPSTREAM,
