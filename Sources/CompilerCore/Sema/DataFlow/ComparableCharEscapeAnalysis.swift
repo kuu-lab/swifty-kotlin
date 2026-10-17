@@ -37,16 +37,10 @@ final class ComparableCharEscapeAnalyzer {
     private let bindings: BindingTable
     private let compareToName: InternedString
 
-    /// All `Comparable<Char>` locals discovered, and the nesting depth at
-    /// which each was declared.
     private var candidates: Set<SymbolID> = []
     private var candidateDepth: [SymbolID: Int] = [:]
-    /// Symbols read in (or copied into a component read in) an object position.
     private var escaped: Set<SymbolID> = []
-    /// Symbols written at least once with a value that is neither statically
-    /// `Char` nor a copy of another candidate.
     private var nonCharWritten: Set<SymbolID> = []
-    /// Copy-edge union-find parent.
     private var unionParent: [SymbolID: SymbolID] = [:]
 
     init(ast: ASTModule, symbols: SymbolTable, types: TypeSystem, bindings: BindingTable, interner: StringInterner) {
@@ -57,8 +51,6 @@ final class ComparableCharEscapeAnalyzer {
         self.compareToName = interner.intern("compareTo")
     }
 
-    /// Returns the `SymbolID`s of `Comparable<Char>` locals whose `compareTo`
-    /// receiver read may keep unboxed (normalized) comparison semantics.
     func analyze() -> Set<SymbolID> {
         for file in ast.sortedFiles {
             for declID in file.topLevelDecls {
@@ -104,7 +96,6 @@ final class ComparableCharEscapeAnalyzer {
         bindings.exprTypes[exprID] == types.charType
     }
 
-    /// The candidate symbol a `nameRef`/`nullAssert(nameRef)` reads, if any.
     private func candidateRead(_ exprID: ExprID, allowNullAssert: Bool = false) -> SymbolID? {
         var current = exprID
         if allowNullAssert, case let .nullAssert(inner, _) = ast.arena.expr(current) {
@@ -288,9 +279,6 @@ final class ComparableCharEscapeAnalyzer {
         }
     }
 
-    /// Member bodies / ctor-arg exprs / nested decls of a nominal decl at the
-    /// given inner depth — shared for `objectDecl`, `classDecl`,
-    /// `interfaceDecl`, and `enumEntryDecl` wherever they appear.
     private func eachDeclChild(of declID: DeclID, depth: Int, _ visit: @escaping (ExprID, Int, Bool) -> Void) {
         guard let decl = ast.arena.decl(declID) else {
             return
