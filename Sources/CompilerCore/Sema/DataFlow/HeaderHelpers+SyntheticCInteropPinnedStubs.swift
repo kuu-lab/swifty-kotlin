@@ -1,6 +1,3 @@
-/// `Pinned<T>` pinning surface for `kotlinx.cinterop` (`pin`,
-/// `Pinned.get`/`unpin`, and the `usePinned` scope function), extracted from
-/// `registerSyntheticCInteropStubs`.
 extension DataFlowSemaPhase {
     func registerCInteropPinnedStubs(
         cinteropPkg: [InternedString],
@@ -113,10 +110,8 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
-        // fun <T : Any, R> T.usePinned(block: (Pinned<T>) -> R): R — STDLIB-CINTEROP-FN-042
-        // Pins the receiver, invokes block with the Pinned<T> handle, and unpins it in a
-        // finally block. Special-cased as a scope function (like Closeable.use); inline-
-        // expanded by CallLowerer, no runtime call for usePinned itself.
+        // Special-cased as a scope function (like Closeable.use); inline-expanded
+        // by CallLowerer, no runtime call for usePinned itself.
         let usePinnedName = interner.intern("usePinned")
         let usePinnedFQName = cinteropPkg + [usePinnedName]
         if symbols.lookup(fqName: usePinnedFQName) == nil {
