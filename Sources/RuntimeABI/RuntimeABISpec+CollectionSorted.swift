@@ -1,8 +1,5 @@
-/// java.util sorted collection (TreeSet/TreeMap, Sorted/Navigable Set/Map) ABI specs split out from `RuntimeABISpec+Collection.swift`.
 public extension RuntimeABISpec {
     static let collectionSortedFunctions: [RuntimeABIFunctionSpec] = [
-        // KUU-1361: java.util sorted collections (TreeSet/TreeMap and the
-        // SortedSet/NavigableSet/SortedMap/NavigableMap member surface).
         RuntimeABIFunctionSpec(
             name: "__kk_tree_set_new",
             parameters: [
