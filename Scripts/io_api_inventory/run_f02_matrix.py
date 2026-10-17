@@ -173,6 +173,10 @@ def scenarios() -> list[dict]:
     cases = [{"id": "ledger-jvm", "producer": [HERE / "f02_consumers/Producer.kt"],
               "consumer": HERE / "f02_consumers/Consumer.kt", "entry": "f02consumer.main",
               "jvm_class": "f02consumer.ConsumerKt", "reference": "jvm", "ledger": True},
+             {"id": "systempathseparator-binding",
+              "fixture": HERE / "probes/systempathseparator/SystemPathSeparatorBindingProbe.kt",
+              "probe_case_id": "Scripts/io_api_inventory/probes/systempathseparator/SystemPathSeparatorBindingProbe.kt#systemPathSeparatorBinding",
+              "reference": "jvm"},
              {"id": "library-boundary", "producer": [HERE / "f02_boundary/Producer.kt"],
               "consumer": HERE / "f02_boundary/Consumer.kt", "entry": "f02boundaryconsumer.main",
               "jvm_class": "f02boundaryconsumer.ConsumerKt", "reference": "jvm"}]
@@ -487,6 +491,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"RUN {case['id']} {route} {optimization}", flush=True)
             try:
                 result = run_lane(case, compiler, stdlib, expected, directory, route, optimization, args.compile_timeout)
+                result["expected_stdout_sha256"] = hashlib.sha256(expected).hexdigest()
             except Exception as error:
                 result = {"status": "FAIL", "route": route, "optimization": optimization,
                           "error": str(error), "evidence_directory": str(directory)}
@@ -510,7 +515,11 @@ def main(argv: list[str] | None = None) -> int:
                             candidate_result,
                         ),
                     })
-            summary["results"].append({"case": case["id"], **result})
+            summary["results"].append({
+                "case": case["id"],
+                **({"probe_case_id": case["probe_case_id"]} if case.get("probe_case_id") else {}),
+                **result,
+            })
             save(output / "summary.json", summary)
             print(f"{result['status']} {case['id']} {route} {optimization}", flush=True)
 
