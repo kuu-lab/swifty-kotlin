@@ -8,14 +8,12 @@ package kotlinx.coroutines
 
 public typealias CancellationException = kotlin.coroutines.cancellation.CancellationException
 
-/** A job was cancelled before completing normally. */
 internal class JobCancellationException(
     message: String,
     cause: Throwable?,
     val job: Job
 ) : CancellationException(message, cause)
 
-/** The deadline of a withTimeout block has expired. */
 public class TimeoutCancellationException : CancellationException {
     internal constructor(message: String) : super(message)
     internal constructor(message: String, coroutine: Job?) : super(message)
