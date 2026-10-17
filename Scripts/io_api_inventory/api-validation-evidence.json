@@ -209,6 +209,804 @@
       "evidence_source": "local-probe"
     },
     {
+      "row_id": "jvm-03f47bd77ab530ed",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "e6ccf57cff69d41058d3365989d6339b2d297f6ea839aaf52c1d195847379095",
+      "test_input_sha256": "56d74f717e93b8ac2ca803071f7f5a6599918c343e780d55e5a61661312aa30f",
+      "compatibility_obligations": [
+        "jvm-descriptor",
+        "native-source",
+        "native-bridge"
+      ],
+      "evidence_source": "local-probe",
+      "executions": [
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/PathContract.kt#public-surface",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:79056cefe90f61000af96e26cd1daf98",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-reference"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:0cddc4657ddb254fda976c14cf2b55d4",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/PathJvmAbiProbe.java#jvm-public-shape",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:d08abbf492fc2ec2b0adfe4ab006e2ee",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-abi-reflection"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:8b639ef13a854262e21fb092ef05e42e",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "fresh-klib-shape"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#internal-constructor",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:69f253c6475d1e7239989cdef01cf818",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:c681ee4c9908b857d44fd4dd4ce75862",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#final-class",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:a0610038b6a146508dfcb7dea90c720b",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:f2eb07d50ae0e1d1c001a96228235d15",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#nullable-parent",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:12acb786c37de6e7654ab27ffc73eb14",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:d6ec7ba6f1d02a0ad3481bdd243d00a1",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/PathContract.kt#public-surface",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:1dc66777b931554aa84ad9f2aa1df1b2",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-reference"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:1b0c6d82a386025b43140d4177175e08",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/PathContract.kt#public-surface",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:afb4e6a63dc73ed825ff3c9437e12482",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-reference"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:38037c3948f4f4d6250e2c49b1b072f0",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/PathContract.kt#public-surface",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:66b88b571919645546b169b1c699c77e",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-reference"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:e29d09244e45866017cbd709b6681516",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#internal-constructor",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:3c8bde79fe5dc7db47e31eedcd3f89a1",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:859451f2592235923849895c95795edd",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#final-class",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:4e3239f9a55643129dd14fbec5feb408",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:ca702162a9cd4c4f5332f6ef2f674762",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#nullable-parent",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:ac818d6638f5a5d392c995406e62dea0",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:6cc176d5fae4bbaf29da2008a6cf632d",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/PathContract.kt#public-surface",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:9d28b2f011e16edce782e10c96262cb4",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-reference"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:7cdd5ead1e2fd42ddbcb215b62208b63",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#internal-constructor",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:045c65d5ad7c740d86fb2d552f44a1d3",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:e23d05271ffabc57c3feb9c00bdfa2ac",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#final-class",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:985cffd54591dbfe961d139342ece791",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:8acba4c224638bd46a195bd288f2b945",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#nullable-parent",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:74438ec6d819a4a71555117a01bd73cd",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:395e96b5d9eae0b716687ca8a1dd9998",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/PathContract.kt#public-surface",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:dbe1d0b329f71994e3680342c4d3231b",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-reference"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:91a367df2b11526aad23a4637b843602",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#internal-constructor",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:0416cf455ae8414797b6849ebf827ef3",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:d139ef8bce6ef01112197a5742fbcdc4",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#final-class",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:b928e856fb0adc2ad396f57a927adf81",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:fbad29c8baaf4ce45c3292b8a9152bfd",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#nullable-parent",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:3c1038bf451ed7371f8e259097bc5d77",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:5aa8cc9018d7451f1f4d8243b39a116b",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/PathContract.kt#public-surface",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:138edd89bbed44d23556837a945a6806",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-reference"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:a081135908dab44ccbe1aff1593649fe",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#internal-constructor",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:afc3103041bfee9bb6a35562f8f23757",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:b0cb7803ef810ca9b3c927533c7a4d2b",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#final-class",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:4e6291aafd30c70328166605ae891e53",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:9518539af45cc409e5bee2d452fda074",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#nullable-parent",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:0bbfe8cc4616f0ac269c1b84c3f56daa",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:135309190b901425c2b7dc4b2b58e821",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        }
+      ]
+    },
+    {
+      "row_id": "jvm-f7053c9293f03a10",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "fb80e9f124137b5acefc4e81887af5d40acc42279e9c004bd01543d03fc2ab11",
+      "test_input_sha256": "b27722a49c75bdea256bede2eecf9256efe7ce3cb7715c49771b055144fd7154",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/segment_data_as_byte_array_jvm_abi.kt#jvm-descriptor",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:637c85c911a69b9cbbba1465a6e298e6",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-abi-reflection"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:2ab41515fb124993bcdcaf784bf081a6",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "source-metadata"
+          }
+        }
+      ],
+      "evidence_source": "local-probe"
+    },
+    {
+      "row_id": "klib-6b354812fb812d2e",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "e6ccf57cff69d41058d3365989d6339b2d297f6ea839aaf52c1d195847379095",
+      "test_input_sha256": "56d74f717e93b8ac2ca803071f7f5a6599918c343e780d55e5a61661312aa30f",
+      "compatibility_obligations": [
+        "jvm-descriptor",
+        "native-source",
+        "native-bridge"
+      ],
+      "evidence_source": "local-probe",
+      "executions": [
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/PathContract.kt#public-surface",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:79056cefe90f61000af96e26cd1daf98",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-reference"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:0cddc4657ddb254fda976c14cf2b55d4",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/PathJvmAbiProbe.java#jvm-public-shape",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:d08abbf492fc2ec2b0adfe4ab006e2ee",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-abi-reflection"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:8b639ef13a854262e21fb092ef05e42e",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "fresh-klib-shape"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#internal-constructor",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:69f253c6475d1e7239989cdef01cf818",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:c681ee4c9908b857d44fd4dd4ce75862",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#final-class",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:a0610038b6a146508dfcb7dea90c720b",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:f2eb07d50ae0e1d1c001a96228235d15",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#nullable-parent",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:12acb786c37de6e7654ab27ffc73eb14",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:d6ec7ba6f1d02a0ad3481bdd243d00a1",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/PathContract.kt#public-surface",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:1dc66777b931554aa84ad9f2aa1df1b2",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-reference"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:1b0c6d82a386025b43140d4177175e08",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/PathContract.kt#public-surface",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:afb4e6a63dc73ed825ff3c9437e12482",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-reference"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:38037c3948f4f4d6250e2c49b1b072f0",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/PathContract.kt#public-surface",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:66b88b571919645546b169b1c699c77e",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-reference"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:e29d09244e45866017cbd709b6681516",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#internal-constructor",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:3c8bde79fe5dc7db47e31eedcd3f89a1",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:859451f2592235923849895c95795edd",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#final-class",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:4e3239f9a55643129dd14fbec5feb408",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:ca702162a9cd4c4f5332f6ef2f674762",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#nullable-parent",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:ac818d6638f5a5d392c995406e62dea0",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:6cc176d5fae4bbaf29da2008a6cf632d",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/PathContract.kt#public-surface",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:9d28b2f011e16edce782e10c96262cb4",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-reference"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:7cdd5ead1e2fd42ddbcb215b62208b63",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#internal-constructor",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:045c65d5ad7c740d86fb2d552f44a1d3",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:e23d05271ffabc57c3feb9c00bdfa2ac",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#final-class",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:985cffd54591dbfe961d139342ece791",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:8acba4c224638bd46a195bd288f2b945",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#nullable-parent",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:74438ec6d819a4a71555117a01bd73cd",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:395e96b5d9eae0b716687ca8a1dd9998",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/PathContract.kt#public-surface",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:dbe1d0b329f71994e3680342c4d3231b",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-reference"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:91a367df2b11526aad23a4637b843602",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#internal-constructor",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:0416cf455ae8414797b6849ebf827ef3",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:d139ef8bce6ef01112197a5742fbcdc4",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#final-class",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:b928e856fb0adc2ad396f57a927adf81",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:fbad29c8baaf4ce45c3292b8a9152bfd",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#nullable-parent",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:3c1038bf451ed7371f8e259097bc5d77",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:5aa8cc9018d7451f1f4d8243b39a116b",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/PathContract.kt#public-surface",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:138edd89bbed44d23556837a945a6806",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-reference"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:a081135908dab44ccbe1aff1593649fe",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#internal-constructor",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:afc3103041bfee9bb6a35562f8f23757",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:b0cb7803ef810ca9b3c927533c7a4d2b",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#final-class",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:4e6291aafd30c70328166605ae891e53",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:9518539af45cc409e5bee2d452fda074",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#nullable-parent",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:0bbfe8cc4616f0ac269c1b84c3f56daa",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "pinned-native-negative"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:135309190b901425c2b7dc4b2b58e821",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "external-klib-negative"
+          }
+        }
+      ]
+    },
+    {
       "row_id": "klib-952eb71e7667983b",
       "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
       "reference_version": "0.9.1",
@@ -410,36 +1208,6 @@
             "result": "PASS",
             "exit_code": 0,
             "method": "native-visibility-probe"
-          }
-        }
-      ],
-      "evidence_source": "local-probe"
-    },
-    {
-      "row_id": "jvm-f7053c9293f03a10",
-      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
-      "reference_version": "0.9.1",
-      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
-      "implementation_input_sha256": "fb80e9f124137b5acefc4e81887af5d40acc42279e9c004bd01543d03fc2ab11",
-      "test_input_sha256": "b27722a49c75bdea256bede2eecf9256efe7ce3cb7715c49771b055144fd7154",
-      "compatibility_obligations": [
-        "jvm-descriptor"
-      ],
-      "executions": [
-        {
-          "case_id": "local:Scripts/io_api_inventory/probes/segment_data_as_byte_array_jvm_abi.kt#jvm-descriptor",
-          "lane": "jvm-descriptor",
-          "reference": {
-            "execution_id": "local-probe-v1:reference:637c85c911a69b9cbbba1465a6e298e6",
-            "result": "PASS",
-            "exit_code": 0,
-            "method": "jvm-abi-reflection"
-          },
-          "candidate": {
-            "execution_id": "local-probe-v1:candidate:2ab41515fb124993bcdcaf784bf081a6",
-            "result": "PASS",
-            "exit_code": 0,
-            "method": "source-metadata"
           }
         }
       ],

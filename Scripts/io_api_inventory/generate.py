@@ -56,6 +56,35 @@ LOCAL_NATIVE_PROBE_LANES = (
     "producer-consumer-O0",
     "producer-consumer-O2",
 )
+PATH_CLASS_ROW_IDS = frozenset({
+    "jvm-03f47bd77ab530ed",
+    "klib-6b354812fb812d2e",
+})
+PATH_CLASS_LOCAL_TEST_REFS = (
+    "Scripts/io_api_inventory/path_contract/PathContract.kt#public-surface",
+    "Scripts/io_api_inventory/path_contract/Producer.kt",
+    "Scripts/io_api_inventory/path_contract/PathInternalConstructor.kt#internal-constructor",
+    "Scripts/io_api_inventory/path_contract/PathSubclass.kt#final-class",
+    "Scripts/io_api_inventory/path_contract/PathParentNonNull.kt#nullable-parent",
+    "Scripts/io_api_inventory/path_contract/ReferenceInternalConstructor.kt#jvm-internal-constructor",
+    "Scripts/io_api_inventory/path_contract/ReferenceSubclass.kt#jvm-final-class",
+    "Scripts/io_api_inventory/path_contract/ReferenceParentNonNull.kt#jvm-nullable-parent",
+    "Scripts/io_api_inventory/path_contract/ReferenceNativeSubclass.kt#native-final-class",
+    "Scripts/io_api_inventory/path_contract/PathJvmAbiProbe.java#jvm-public-shape",
+    "Scripts/io_api_inventory/path_contract/ReferenceNativeInternalConstructor.kt#native-internal-constructor",
+    "Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#internal-constructor",
+    "Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#final-class",
+    "Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#nullable-parent",
+    "Scripts/io_api_inventory/path_contract/run_path_contract_gate.py",
+)
+PATH_CLASS_NATIVE_LANES = ("source-O0", "source-O2") + LOCAL_NATIVE_PROBE_LANES[2:]
+PATH_CLASS_EXTERNAL_LANES = (
+    "jvm-descriptor",
+    "stdlib-library-O0",
+    "stdlib-library-O2",
+    "producer-consumer-O0",
+    "producer-consumer-O2",
+)
 LOCAL_PROBE_EVIDENCE_CASES = {
     "local:Scripts/io_api_inventory/probes/segment_data_as_byte_array.kt#internal-view": {
         "path": "Scripts/io_api_inventory/probes/segment_data_as_byte_array.kt",
@@ -74,6 +103,36 @@ LOCAL_PROBE_EVIDENCE_CASES = {
         "row_ids": {"jvm-f7053c9293f03a10"},
         "lanes": ("jvm-descriptor",),
         "methods": {"reference": "jvm-abi-reflection", "candidate": "source-metadata"},
+    },
+    "local:Scripts/io_api_inventory/path_contract/PathContract.kt#public-surface": {
+        "path": "Scripts/io_api_inventory/path_contract/PathContract.kt#public-surface",
+        "row_ids": PATH_CLASS_ROW_IDS,
+        "lanes": ("jvm-descriptor",) + PATH_CLASS_NATIVE_LANES,
+        "methods": {"reference": "pinned-native-reference", "candidate": "native-matrix"},
+    },
+    "local:Scripts/io_api_inventory/path_contract/PathJvmAbiProbe.java#jvm-public-shape": {
+        "path": "Scripts/io_api_inventory/path_contract/PathJvmAbiProbe.java#jvm-public-shape",
+        "row_ids": PATH_CLASS_ROW_IDS,
+        "lanes": ("jvm-descriptor",),
+        "methods": {"reference": "jvm-abi-reflection", "candidate": "fresh-klib-shape"},
+    },
+    "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#internal-constructor": {
+        "path": "Scripts/io_api_inventory/path_contract/PathInternalConstructor.kt#internal-constructor",
+        "row_ids": PATH_CLASS_ROW_IDS,
+        "lanes": PATH_CLASS_EXTERNAL_LANES,
+        "methods": {"reference": "pinned-native-negative", "candidate": "external-klib-negative"},
+    },
+    "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#final-class": {
+        "path": "Scripts/io_api_inventory/path_contract/PathSubclass.kt#final-class",
+        "row_ids": PATH_CLASS_ROW_IDS,
+        "lanes": PATH_CLASS_EXTERNAL_LANES,
+        "methods": {"reference": "pinned-native-negative", "candidate": "external-klib-negative"},
+    },
+    "local:Scripts/io_api_inventory/path_contract/run_path_contract_gate.py#nullable-parent": {
+        "path": "Scripts/io_api_inventory/path_contract/PathParentNonNull.kt#nullable-parent",
+        "row_ids": PATH_CLASS_ROW_IDS,
+        "lanes": PATH_CLASS_EXTERNAL_LANES,
+        "methods": {"reference": "pinned-native-negative", "candidate": "external-klib-negative"},
     },
 }
 
@@ -391,6 +450,8 @@ def validation_input_hashes(
 
 def validation_obligations(row: dict) -> list[str]:
     """Return the compatibility obligations that apply to this ledger representation."""
+    if row.get("row_id") in PATH_CLASS_ROW_IDS:
+        return ["jvm-descriptor", "native-source", "native-bridge"]
     if row.get("representation") == "JVM public ABI dump":
         return ["jvm-descriptor"]
     return ["native-source", "native-bridge"]
@@ -1365,6 +1426,8 @@ def parse_jvm_api(path: Path, module: str, sources: list[Path]) -> list[dict]:
 
 
 def owner_for(row: dict) -> str:
+    if row.get("row_id") in PATH_CLASS_ROW_IDS:
+        return "KUU-2628"
     text = " ".join(
         [row["module"], row["owner_fqn"], row["name"], row["signature"], row["upstream_source_refs"]]
     ).lower()
@@ -1648,6 +1711,8 @@ def local_contract_differences(row: dict, index: SourceIndex) -> str:
 
 
 def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
+    if row.get("row_id") in PATH_CLASS_ROW_IDS:
+        return list(PATH_CLASS_LOCAL_TEST_REFS)
     name = row["_candidate_name"].lower()
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []
@@ -1684,6 +1749,8 @@ def local_implementation_refs(row: dict, index: SourceIndex, runtime_symbols: di
 
 
 def upstream_test_refs(row: dict, test_index: dict) -> list[str]:
+    if row.get("row_id") in PATH_CLASS_ROW_IDS:
+        return []
     if row.get("upstream_source_refs") in NO_DIRECT_UPSTREAM_ASSERTION_SOURCE_REFS:
         # The upstream smoke cases use SystemFileSystem raw methods; they do not
         # exercise these deprecated Path extensions or assert their annotations.
