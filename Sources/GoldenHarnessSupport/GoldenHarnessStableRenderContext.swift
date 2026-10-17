@@ -5,11 +5,6 @@ final class StableRenderContext {
     let sema: SemaModule
     let interner: StringInterner
     let arena: ASTArena
-    /// The contract the ordinary `symbol`/`expr`/`decl` body is rendered
-    /// under (RF-GOLDEN-007). `.fixtureOwned` — the RF-GOLDEN-008 default —
-    /// limits `symbol` rows to fixture-owned declarations and spells every
-    /// reference with the RF-GOLDEN-006 public key. `.current` keeps the
-    /// legacy committed format for tests that compare both contracts.
     let contract: GoldenSemaRenderingContract
 
     private let sourceManager: SourceManager
@@ -19,11 +14,7 @@ final class StableRenderContext {
     /// ordinary Golden body uses; `symbolFQ` still feeds the legacy `.current`
     /// topology key for tests that render it explicitly.
     private let publicSymbolFQ: [Int32: String]
-    /// Maps `SymbolID.rawValue` to the public reference key — the ordinary
-    /// Golden body's default spelling since RF-GOLDEN-008.
     private let publicReferenceKeys: [Int32: String]
-    /// Maps `SymbolID.rawValue` to the RF-GOLDEN-002 origin — the ownership
-    /// evidence the fixture-owned contract filters `symbol` rows by.
     private let symbolOrigins: [Int32: GoldenSymbolOrigin]
     /// Maps `SymbolID.rawValue` to a stable key derived from the declaration's
     /// meaning (`<fq>[kind=…;recv=…;params=…]`), not from its position in the
@@ -113,41 +104,30 @@ final class StableRenderContext {
         self.publicReferenceKeys = publicKeyComputer.computePublicKeys()
     }
 
-    /// Returns the stable, meaning-derived key for a symbol. The key combines the
-    /// rendered FQName with a bracketed descriptor of the declaration itself
-    /// (kind, receiver, parameter types, generic arity, and — only when needed —
-    /// a declaration-scope discriminator). It never depends on how many other
-    /// candidates share the FQName, their registration order, or SymbolIDs.
+    /// The key never depends on how many other candidates share the FQName,
+    /// their registration order, or SymbolIDs.
     func stableKey(for symbolID: SymbolID) -> String {
         symbolKeys[symbolID.rawValue] ?? "_"
     }
 
-    /// Returns a stable reference for the public API represented by a symbol.
-    ///
     /// A runtime-linked bundled extension may have both a package-level
     /// source declaration and a synthetic member alias under its receiver.
     /// The alias is projected to the source declaration's public FQName only
     /// when RF-GOLDEN-002 proves a unique bundled sibling with the same
     /// receiver, signature, and link. The link itself never appears in this
     /// key, and fixture-owned or unresolved symbols are never projected.
-    ///
-    /// This projection is intentionally opt-in. RF-GOLDEN-008 will decide when
-    /// it becomes the default spelling used by ordinary Golden output.
     func publicReferenceKey(for symbolID: SymbolID) -> String {
         publicReferenceKeys[symbolID.rawValue] ?? "_"
     }
 
-    /// Returns the stable, source-position-derived key for an expression.
     func exprKey(_ id: ExprID) -> String {
         exprKeys[id.rawValue] ?? "e?\(id.rawValue)"
     }
 
-    /// Returns the stable, path-derived key for a file.
     func fileKey(_ file: FileID) -> String {
         fileKeys[file.rawValue] ?? "f?\(file.rawValue)"
     }
 
-    /// Renders a syntactic type reference to a stable, arena-ID-free string.
     /// Used for the type positions that have no resolved sema `TypeID` binding
     /// (local declaration annotations, object-literal supertypes, local-function
     /// return types). The output never contains arena ordinals, so it stays
@@ -200,10 +180,7 @@ final class StableRenderContext {
         return stabilizeTypeRefs(in: raw)
     }
 
-    /// Renders a resolved type through the public declaration projection.
-    /// This keeps the usual human-readable type spelling while replacing
-    /// implementation-specific `Class#` references with the projected public
-    /// FQName. Unlike `renderType`, this method does not add symbols to the
+    /// Unlike `renderType`, this method does not add symbols to the
     /// ordinary transitive metadata set unless `collectRequiredSymbols` is
     /// passed — the fixture-owned contract does so for ordinary-body renders
     /// so a fixture type nested inside an external signature or `targs=`
@@ -217,10 +194,8 @@ final class StableRenderContext {
         )
     }
 
-    /// Renders a function signature through the public type projection. The
-    /// formatter retains return type, nullability, variance, bounds, suspend,
-    /// default and vararg masks; parameter names remain available in the
-    /// public reference key when named-argument resolution depends on them.
+    /// Parameter names remain available in the public reference key when
+    /// named-argument resolution depends on them.
     func renderPublicSignature(
         _ signature: FunctionSignature,
         collectRequiredSymbols: Bool = false
@@ -230,19 +205,12 @@ final class StableRenderContext {
         }
     }
 
-    /// The RF-GOLDEN-002 origin of a registered symbol — the ownership
-    /// evidence the fixture-owned contract filters `symbol` rows by.
     /// `.unknown` is a real answer: callers must surface it, never silently
     /// treat it as external.
     func symbolOrigin(_ symbolID: SymbolID) -> GoldenSymbolOrigin {
         symbolOrigins[symbolID.rawValue] ?? .unknown
     }
 
-    /// Spelling of a symbol reference inside the ordinary
-    /// `decl`/`expr`/`symbol` body under this context's contract: the
-    /// RF-GOLDEN-010 implementation-topology key under `.current`, the
-    /// RF-GOLDEN-006 public declaration key under `.fixtureOwned` (the
-    /// RF-GOLDEN-008 default).
     func ordinarySymbolKey(for symbolID: SymbolID) -> String {
         switch contract {
         case .current:
@@ -252,11 +220,9 @@ final class StableRenderContext {
         }
     }
 
-    /// Renders a resolved type as the ordinary body spells it under this
-    /// contract — `renderType` under `.current`, the public projection under
-    /// `.fixtureOwned`. Either way the class symbols inside the rendered type
-    /// join `requiredSymbols`, so collection through `type=`/`targs=` fields
-    /// is identical between contracts.
+    /// Under both contracts the class symbols inside the rendered type join
+    /// `requiredSymbols`, so collection through `type=`/`targs=` fields is
+    /// identical between them.
     func ordinaryType(_ typeID: TypeID) -> String {
         switch contract {
         case .current:
@@ -266,8 +232,6 @@ final class StableRenderContext {
         }
     }
 
-    /// Renders a function signature as the ordinary body spells it under this
-    /// contract (`sig=` fields on `symbol` rows).
     func ordinarySignature(_ signature: FunctionSignature) -> String {
         switch contract {
         case .current:
@@ -277,7 +241,6 @@ final class StableRenderContext {
         }
     }
 
-    /// Whether `symbol` earns an ordinary `symbol` row under this contract.
     /// `.current` keeps the historical rule: only declarations whose
     /// `declSite` sits inside the case file list `flags`/`sig`/`type` —
     /// library-owned symbols (bundled-stdlib decls, imported `.kklib` decls,
@@ -340,8 +303,6 @@ final class StableRenderContext {
         requiredSymbols = visited
     }
 
-    /// Builds the stable expression keys for every expression in the arena.
-    ///
     /// Each key is derived from the expression's source start position
     /// (`e@<line>:<column>`) so the dump stays stable when unrelated
     /// expressions are inserted elsewhere. When several expressions share the
@@ -473,8 +434,6 @@ final class StableRenderContext {
 
 }
 
-/// Computes the meaning-based stable key for every symbol in a compilation.
-///
 /// The previous scheme numbered same-FQName candidates `#0`, `#1`, … in
 /// signature order, so adding an *unreferenced* overload renumbered existing
 /// references and a 1→2 candidate transition toggled the suffix entirely.
@@ -506,7 +465,6 @@ private final class StableSemanticKeyComputer {
     /// share one key.
     private let publicOriginBySymbol: [Int32: GoldenSymbolOrigin]
 
-    /// Per-render memoization of encoded types and type-parameter indices.
     private var typeKeyMemo: [TypeID: String] = [:]
     private var typeParamIndexMemo: [Int32: String] = [:]
     /// Reverse map `typeParameter symbol → declaration index inside its owner`.
@@ -539,7 +497,6 @@ private final class StableSemanticKeyComputer {
         self.publicOriginBySymbol = publicOriginBySymbol
     }
 
-    /// Returns `stableKey` for every symbol: `<displayFQ>[<inner>]`.
     func computeKeys() -> [Int32: String] {
         let allSymbols = sema.symbols.allSymbols()
 
@@ -576,14 +533,14 @@ private final class StableSemanticKeyComputer {
         return result
     }
 
-    /// Computes the public API projection of every symbol. Unlike
-    /// `computeKeys()`, this key uses the canonical public FQName supplied by
-    /// the caller and includes the signature facts that affect source-level
-    /// calls: return type, bounds, parameter names, default/vararg masks,
-    /// nullability, variance, suspend and throwing behavior. It deliberately
-    /// does not add declaration-position scopes: a source declaration and its
-    /// proven alias are one public declaration, while genuinely different
-    /// overloads remain distinct through their structural contract.
+    /// Unlike `computeKeys()`, this key uses the canonical public FQName
+    /// supplied by the caller and includes the signature facts that affect
+    /// source-level calls: return type, bounds, parameter names, default/vararg
+    /// masks, nullability, variance, suspend and throwing behavior. It
+    /// deliberately does not add declaration-position scopes: a source
+    /// declaration and its proven alias are one public declaration, while
+    /// genuinely different overloads remain distinct through their structural
+    /// contract.
     func computePublicKeys() -> [Int32: String] {
         let allSymbols = sema.symbols.allSymbols()
         indexTypeParameters(in: allSymbols)
@@ -658,9 +615,6 @@ private final class StableSemanticKeyComputer {
         return parts.joined(separator: ";")
     }
 
-    /// Structural identity for the public declaration contract. This is kept
-    /// separate from RF-GOLDEN-010's existing implementation-topology key so
-    /// the opt-in projection can grow without changing ordinary Goldens.
     private func publicInnerKey(for symbol: SemanticSymbol) -> String {
         var parts = ["kind=\(Self.kindToken(symbol.kind))"]
         if let signature = sema.symbols.functionSignature(for: symbol.id) {
