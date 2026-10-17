@@ -69,8 +69,6 @@ extension DataFlowSemaPhase {
 
         switch decl {
         case let .classDecl(classDecl):
-            // Register class type parameters as symbols so member functions
-            // can reference them (e.g. `fun get(): T` inside `class Box<T>`).
             let classTypeParamResult = registerNominalTypeParameters(
                 classDecl.typeParams,
                 ownerSymbol: symbol,
@@ -476,7 +474,6 @@ extension DataFlowSemaPhase {
                     interner: interner
                 )
             } else if declaration.kind == .enumClass {
-                // Synthesize implicit companion for enum classes (valueOf, entries)
                 let companionName = interner.intern("Companion")
                 let companionFQName = fqName + [companionName]
                 let companionSymbol = symbols.define(
@@ -1049,9 +1046,7 @@ extension DataFlowSemaPhase {
                 }
             }
 
-            // Materialize a backing field symbol for top-level properties with
-            // custom accessors or explicit backing field declarations
-            // (mirrors member property backing field logic).
+            // Mirrors member property backing field logic.
             // Simple properties with only an initializer don't need a separate
             // backing field — the property symbol IS the storage.
             // Getter-only computed properties never need a backing field.
@@ -1074,8 +1069,6 @@ extension DataFlowSemaPhase {
                     visibility: .private,
                     flags: propertyDecl.isVar ? [.mutable] : []
                 )
-                // When an explicit backing field declares its own type, use that
-                // type for the backing field symbol instead of the property type.
                 let backingFieldType: TypeID
                 if let explicitField = propertyDecl.explicitBackingField,
                    let explicitType = explicitField.type
