@@ -1,10 +1,4 @@
-/// Expansion-target index for the inline pass: every function body the pass
-/// can splice into a caller, keyed by `SymbolID`, plus the classification and
-/// dependency queries the scheduler consumes.
-///
-/// The index is built once per module from the arena declarations and the
-/// imported inline store, then updated in place as nested bodyless calls are
-/// expanded. Which body a symbol maps to can change during scheduling; the
+/// Which body a symbol maps to can change during scheduling; the
 /// classification (`origin`, `isBodyless`, membership in each table) is fixed
 /// after recursive auto-inline declarations regain their native bodies.
 ///
@@ -32,21 +26,14 @@
 /// symbol non-inline), so the tables stay separate rather than merging into a
 /// single entry record.
 final class InlineExpansionIndex {
-    /// Where an expansion target's body came from.
     enum Origin: Sendable {
-        /// Declared `inline` in this module's arena.
         case module
-        /// Restored from an imported library's inline-KIR metadata.
         case imported
     }
 
-    /// Expansion targets keyed by callee symbol: module `inline`
-    /// declarations plus materialized imported inline bodies.
     private(set) var inlineFunctionsBySymbol: [SymbolID: KIRFunction]
 
-    /// Module-declared bodies keyed by symbol: every function in the arena
-    /// -- regular functions, `inline` declarations, and lambda bodies. The
-    /// lookup lambda resolution uses; never contains an imported body.
+    /// Never contains an imported body.
     private(set) var allFunctionsBySymbol: [SymbolID: KIRFunction]
 
     /// Callees whose body never reaches an object file: module
@@ -65,21 +52,14 @@ final class InlineExpansionIndex {
     /// scheduler expands each original once against prepared callee snapshots.
     private(set) var originalBodies: [SymbolID: KIRFunction]
 
-    /// Where each expansion target's body was sourced (`nil` for symbols
-    /// that are not expansion targets).
     private(set) var origins: [SymbolID: Origin]
 
-    /// The lazily-resolved imported bodies: descriptors for symbols not yet
-    /// parsed, plus the already-materialized cache the index mirrors into
-    /// `inlineFunctionsBySymbol`.
     private let importedStore: ImportedInlineFunctionStore
 
-    /// The module arena deferred materialization rebinds expression IDs into.
     private let arena: KIRArena
 
     private var cachedInlineFunctionsByName: [InternedString: [SymbolID]]?
 
-    /// Snapshot the module's functions and the imported inline store.
     /// Materialized imported bodies fill only symbols no module `inline`
     /// declaration owns; every imported symbol — materialized or still a
     /// descriptor — is marked bodyless.
@@ -149,23 +129,14 @@ final class InlineExpansionIndex {
         self.arena = module.arena
     }
 
-    /// Where the expansion target for `symbol` came from: `.module` for a
-    /// module `inline` declaration, `.imported` for a body restored from
-    /// library metadata. `nil` when `symbol` is not an expansion target at
-    /// all (a regular module function or lambda body).
     func origin(of symbol: SymbolID) -> Origin? {
         origins[symbol]
     }
 
-    /// Whether `symbol` is a bodyless callee whose calls must be expanded.
     func isBodyless(_ symbol: SymbolID) -> Bool {
         bodylessInlineSymbols.contains(symbol)
     }
 
-    /// Whether `symbol` maps to an expansion target (module `inline` or
-    /// imported inline — resolved or still deferred), as opposed to a
-    /// module-only body that lambda resolution can still reach through
-    /// `allFunctionsBySymbol`.
     func isExpansionTarget(_ symbol: SymbolID) -> Bool {
         inlineFunctionsBySymbol[symbol] != nil || importedStore.descriptors[symbol] != nil
     }
@@ -207,8 +178,6 @@ final class InlineExpansionIndex {
         cachedInlineFunctionsByName = nil
     }
 
-    /// The expansion target for a `.call` carrying `callSymbol` / `callee`.
-    ///
     /// The name fallback only applies to calls whose callee symbol is
     /// unknown here. A call with a *known* callee symbol that isn't an
     /// expansion target in this module must not be redirected to a
@@ -309,11 +278,10 @@ final class InlineExpansionIndex {
         return callees
     }
 
-    /// Snapshots whose current body still calls a bodyless callee, in
-    /// deterministic expansion order. Ordering compares the frozen original
-    /// bodies via `snapshotExpansionOrder`, so it never depends on
-    /// dictionary enumeration order -- expansion appends expressions to the
-    /// module arena, and enumeration order must not choose expression IDs.
+    /// Ordering compares the frozen original bodies via
+    /// `snapshotExpansionOrder`, so it never depends on dictionary
+    /// enumeration order -- expansion appends expressions to the module
+    /// arena, and enumeration order must not choose expression IDs.
     func pendingBodylessCallers(interner: StringInterner) -> [SymbolID] {
         originalBodies
             .filter { !bodylessCallees(of: $0.key).isEmpty }
@@ -321,10 +289,9 @@ final class InlineExpansionIndex {
             .map(\.key)
     }
 
-    /// Total order used to schedule snapshot expansion: resolved name, then
-    /// parameter count, then source range, then symbol raw value. The symbol
-    /// raw value is a unique final tiebreaker, so the order is total and the
-    /// resulting schedule is the same regardless of enumeration order.
+    /// The symbol raw value is a unique final tiebreaker, so the order is
+    /// total and the resulting schedule is the same regardless of
+    /// enumeration order.
     static func snapshotExpansionOrder(
         _ lhs: KIRFunction,
         _ rhs: KIRFunction,
@@ -352,12 +319,9 @@ final class InlineExpansionIndex {
         return lhs.symbol.rawValue < rhs.symbol.rawValue
     }
 
-    /// Whether a `.call` with this callee identity names a bodyless callee
-    /// -- one whose body never reaches an object file, so the call must have
-    /// been expanded away rather than left for the linker. Applies the same
-    /// binding rule as `inlineTarget` (a known symbol binds to its own
-    /// snapshot only; a symbol-unknown call takes the unique by-name
-    /// candidate) without materializing a deferred body.
+    /// Applies the same binding rule as `inlineTarget` (a known symbol binds
+    /// to its own snapshot only; a symbol-unknown call takes the unique
+    /// by-name candidate) without materializing a deferred body.
     ///
     /// A known symbol is only mandatory while the callee text still names
     /// that symbol's emitted identity -- the declared name or its external
@@ -425,7 +389,6 @@ final class InlineExpansionIndex {
                 edges[symbol] = targets
             }
         }
-        // A symbol is cyclic when its own successors can reach it again.
         var cyclic: Set<SymbolID> = []
         for (symbol, targets) in edges {
             var visited: Set<SymbolID> = []
@@ -457,8 +420,6 @@ final class InlineExpansionIndex {
         return reaching
     }
 
-    /// Records an expanded snapshot for `symbol` in every table that holds
-    /// it -- the module table and/or the expansion-target table.
     func recordExpansion(of symbol: SymbolID, to function: KIRFunction) {
         if inlineFunctionsBySymbol[symbol] != nil {
             inlineFunctionsBySymbol[symbol] = function
