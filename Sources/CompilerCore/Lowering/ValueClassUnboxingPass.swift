@@ -1,17 +1,3 @@
-/// VAL-001: Value class unboxing lowering pass.
-///
-/// This pass rewrites KIR instructions that reference value class types so that
-/// at the ABI level they operate on the underlying primitive type directly,
-/// eliminating heap allocation:
-///
-/// - **Constructor calls** (`kk_object_new` + `<init>` call) for a value class
-///   are replaced with a simple copy of the single argument to the result.
-///   `Meter(42)` -> `copy(42, result)`.
-///
-/// - **Property getter calls** via `kk_array_get_inbounds` on value class
-///   receivers are replaced with a copy of the receiver to the result.
-///   `m.amount` -> `copy(m, result)`.
-///
 /// This pass must run **before** PropertyLoweringPass and ABILoweringPass.
 final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
     static let name = "ValueClassUnboxing"
@@ -41,8 +27,6 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
         let symbols = sema.symbols
         let types = sema.types
 
-        // Collect value class info: constructor symbols, underlying types,
-        // and the set of class symbols that are value classes.
         var valueClassCtors: Set<SymbolID> = []
         var valueClassSymbols: Set<SymbolID> = []
 
@@ -93,8 +77,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
         module.recordLowering(Self.name)
     }
 
-    /// Returns true if the given expression has a type that is a value class
-    /// instance. Nullable value-class-typed expressions are included: a
+    /// Nullable value-class-typed expressions are included: a
     /// `kk_array_get_inbounds` property read only ever appears on a receiver
     /// Kotlin's type checker has already proven non-null at that point (e.g.
     /// the non-null branch of a safe call, or the result of `maxByOrNull`
@@ -127,31 +110,17 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
         kk_object_new: InternedString,
         kk_array_get_inbounds: InternedString
     ) -> [KIRInstruction] {
-        // First pass: identify which expressions are kk_object_new results
-        // that feed into value class constructors. We need to track these to
-        // remove the allocation instruction.
-        //
         // The KIR pattern for `val m = Meter(42)` is:
         //   constValue slotCount = 1
         //   constValue classID = ...
         //   call kk_object_new(slotCount, classID) -> allocObj     [symbol: nil]
         //   ... (possibly kk_type_register_super/iface calls) ...
         //   call <init>(allocObj, 42) -> result                     [symbol: ctor]
-        //
-        // We want to:
-        //   1. Remove the kk_object_new call (replace with nop)
-        //   2. Remove the associated constValue instructions for slotCount and classID
-        //   3. Replace the <init> call with: copy(42, result)
-        //   4. Remove kk_type_register_* calls that use the classID
 
-        // Track kk_object_new result expressions -> (slotCountExpr, classIDExpr)
         var allocExprs: Set<KIRExprID> = []
-        // Track constValue exprs used only for kk_object_new args
         var allocConstExprs: Set<KIRExprID> = []
-        // Track classID expressions used for kk_type_register_* calls
         var classIDExprs: Set<KIRExprID> = []
 
-        // Scan for kk_object_new calls that produce value class typed results
         for instruction in body {
             if case let .call(_, callee, arguments, result, _, _, _, _) = instruction,
                callee == kk_object_new,
@@ -170,8 +139,6 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
             }
         }
 
-        // Scan for kk_type_register_super/iface calls that reference the classID
-        // of a value class allocation - collect the constValue expr used for childExpr
         var typeRegisterConstExprs: Set<KIRExprID> = []
         for instruction in body {
             if case let .call(_, callee, arguments, result, _, _, _, _) = instruction,
@@ -198,13 +165,11 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
             }
         }
 
-        // Second pass: rewrite
         var result: [KIRInstruction] = []
         result.reserveCapacity(body.count)
 
         for instruction in body {
             switch instruction {
-            // Remove kk_object_new calls for value class allocations
             case let .call(_, callee, _, callResult, _, _, _, _)
                 where callee == kk_object_new
                     && callResult != nil
@@ -212,13 +177,11 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                 result.append(.nop)
                 continue
 
-            // Remove constValue instructions that only feed into removed allocations
             case let .constValue(constResult, _)
                 where allocConstExprs.contains(constResult):
                 result.append(.nop)
                 continue
 
-            // Remove kk_type_register_* calls for value class allocations
             case let .call(_, callee, arguments, _, _, _, _, _)
                 where {
                     let name = interner.resolve(callee)
@@ -237,14 +200,11 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                 result.append(.nop)
                 continue
 
-            // Remove constValue instructions used only for type register calls
             case let .constValue(constResult, _)
                 where typeRegisterConstExprs.contains(constResult):
                 result.append(.nop)
                 continue
 
-            // Rewrite value class constructor calls:
-            // call <init>(allocObj, value) -> result  =>  copy(value, result)
             case let .call(symbol, callee, arguments, callResult, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
                 if let symbol, valueClassCtors.contains(symbol),
                    let callResult
@@ -259,9 +219,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                         continue
                     }
                 }
-                // Rewrite kk_array_get_inbounds on value class receivers:
                 // call kk_array_get_inbounds(receiver, offset) -> result
-                //   => copy(receiver, result)
                 if callee == kk_array_get_inbounds,
                    let callResult,
                    arguments.count == 2,
