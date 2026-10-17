@@ -173,6 +173,13 @@ def scenarios() -> list[dict]:
     cases = [{"id": "ledger-jvm", "producer": [HERE / "f02_consumers/Producer.kt"],
               "consumer": HERE / "f02_consumers/Consumer.kt", "entry": "f02consumer.main",
               "jvm_class": "f02consumer.ConsumerKt", "reference": "jvm", "ledger": True},
+             {"id": "bytestring-default-bridges",
+              "producer": [HERE / "f02_default_bridges/Producer.kt"],
+              "consumer": HERE / "f02_default_bridges/Consumer.kt",
+              "entry": "io2624consumer.main", "jvm_class": "io2624consumer.ConsumerKt",
+              "reference": "jvm",
+              "jvm_abi_probe_class": "ByteStringDefaultBridgeAbiProbe",
+              "jvm_abi_probe": HERE / "f02_default_bridges/ByteStringDefaultBridgeAbiProbe.java"},
              {"id": "library-boundary", "producer": [HERE / "f02_boundary/Producer.kt"],
               "consumer": HERE / "f02_boundary/Consumer.kt", "entry": "f02boundaryconsumer.main",
               "jvm_class": "f02boundaryconsumer.ConsumerKt", "reference": "jvm"}]
@@ -196,6 +203,7 @@ def scenarios() -> list[dict]:
         {"id": "segment-read-context-impl", "producer": [base / "IOSegmentReadContextImpl2590/Producer.kt"],
          "consumer": base / "IOSegmentReadContextImpl2590/Consumer.kt", "entry": "kuu2590consumer.main",
          "jvm_class": "kuu2590consumer.ConsumerKt", "reference": "jvm", "friend_io_artifacts": True,
+         "jvm_abi_probe_class": "SegmentReadContextAbiProbe",
          "jvm_abi_probe": HERE / "f02_consumers/SegmentReadContextAbiProbe.java"},
         {"id": "buffering-contracts", "producer": [base / "IOBuffering1730/BufferingContracts.kt"],
          "consumer": base / "IOBuffering1730/Consumer.kt", "entry": "kuu1730consumer.main",
@@ -572,7 +580,8 @@ def main(argv: list[str] | None = None) -> int:
                     require_stage([str(javac), "-d", str(probe_classes), str(case["jvm_abi_probe"])],
                                   directory, "jvm-abi-compile", args.compile_timeout)
                     require_stage([str(args.java.resolve()), "-cp", os.pathsep.join(
-                        map(str, [probe_classes, jar, *jars])), "SegmentReadContextAbiProbe"],
+                        map(str, [probe_classes, jar, *jars])),
+                        case.get("jvm_abi_probe_class", "SegmentReadContextAbiProbe")],
                         directory, "jvm-abi-probe", 30)
             else:
                 expected = case["expected"].read_bytes()

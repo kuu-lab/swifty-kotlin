@@ -93,14 +93,17 @@ struct JVMInteropNioSourceContractsTests {
         token.replacingOccurrences(of: "T-?[0-9]+", with: "T", options: .regularExpression)
     }
 
-    @Test(arguments: [false, true])
-    func all43NativeDefaultStubCounterpartsSurviveActualArtifact(library: Bool) throws {
+    private func verifyNativeDefaultStubCounterparts(rowIDs: Set<String>?, library: Bool) throws {
         var root = URL(fileURLWithPath: #filePath)
         for _ in 0..<4 { root.deleteLastPathComponent() }
         let index = try JSONDecoder().decode(DefaultObligations.self, from: Data(contentsOf: root.appendingPathComponent(
             "Scripts/kotlinx_io_upstream/jvm_interop/native-default-obligations.expected.json")))
         try #require(index.schemaVersion == 1 && index.upstreamCommit == "362bdc35e159bad6da1e08101c8321792d762281")
         try #require(index.rowCount == 43 && index.rows.count == 43 && Set(index.rows.map(\.rowID)).count == 43)
+        let selectedRows = rowIDs.map { ids in index.rows.filter { ids.contains($0.rowID) } } ?? index.rows
+        if let rowIDs {
+            try #require(Set(selectedRows.map(\.rowID)) == rowIDs)
+        }
         let (ctx, initial) = try context("fun main() {}", library: library)
         defer { unchanged(ctx, initial) }
         try runSema(ctx)
@@ -115,7 +118,7 @@ struct JVMInteropNioSourceContractsTests {
             records = MetadataDecoder().decode(try Data(contentsOf: URL(fileURLWithPath: path)
                 .appendingPathComponent("metadata.bin")))
         } else { records = [] }
-        for row in index.rows {
+        for row in selectedRows {
             let matches = sema.symbols.lookupAll(fqName: row.fqName.split(separator: ".").map { ctx.interner.intern(String($0)) })
                 .compactMap { sema.symbols.symbol($0) }.filter { symbol in
                     guard symbol.kind == .function, !symbol.flags.contains(.extensionMemberAlias),
@@ -142,6 +145,20 @@ struct JVMInteropNioSourceContractsTests {
                 #expect(record.defaultStubExternalLinkName?.isEmpty == false, "Actual Native default stub: \(row.rowID)")
             }
         }
+    }
+
+    @Test(arguments: [false, true])
+    func all43NativeDefaultStubCounterpartsSurviveActualArtifact(library: Bool) throws {
+        try verifyNativeDefaultStubCounterparts(rowIDs: nil, library: library)
+    }
+
+    @Test(arguments: [false, true])
+    func threeByteStringDefaultStubCounterpartsSurviveActualArtifact(library: Bool) throws {
+        try verifyNativeDefaultStubCounterparts(rowIDs: [
+            "jvm-b6f447c2ba2daba9",
+            "jvm-caddbfc2da0eaa02",
+            "jvm-d17f7b740f731918",
+        ], library: library)
     }
 
     @Test(arguments: [false, true])

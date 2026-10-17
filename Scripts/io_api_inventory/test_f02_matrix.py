@@ -108,12 +108,39 @@ class F02GateTests(unittest.TestCase):
             )
             self.assertFalse(matrix.visibility_rejection_passed(directory, "candidate"))
 
+    def test_bytestring_default_bridges_have_a_dedicated_jvm_abi_and_native_consumer(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "bytestring-default-bridges")
+        producer = case["producer"][0].read_text(encoding="utf-8")
+        consumer = case["consumer"].read_text(encoding="utf-8")
+        probe = case["jvm_abi_probe"].read_text(encoding="utf-8")
+
+        self.assertEqual(case["reference"], "jvm")
+        self.assertEqual(case["entry"], "io2624consumer.main")
+        self.assertEqual(case["jvm_class"], "io2624consumer.ConsumerKt")
+        self.assertEqual(case["jvm_abi_probe_class"], "ByteStringDefaultBridgeAbiProbe")
+        for method in ("toByteArray", "substring", "copyInto"):
+            with self.subTest(method=method):
+                self.assertIn(method, producer)
+                self.assertIn(method, consumer)
+                self.assertIn(method + "$default", probe)
+        for flag in ("Modifier.isPublic", "Modifier.isStatic", "method.isSynthetic()", "method.isBridge()"):
+            self.assertIn(flag, probe)
+        for mask in ("toByteArray mask 1", "toByteArray mask 2", "invoke(substring, value, 2, -1, 2, null)",
+                     "copyInto mask 14", "copyInto mask 2", "copyInto mask 4", "copyInto mask 8"):
+            self.assertIn(mask, probe)
+        self.assertIn("expected.isInstance(failure)", probe)
+        for lane in (("source", "O0"), ("source", "O2"),
+                     ("stdlib-library", "O0"), ("stdlib-library", "O2"),
+                     ("producer-consumer", "O0"), ("producer-consumer", "O2")):
+            self.assertIn(lane, matrix.LANES)
+
     def test_segment_read_context_probe_is_a_dedicated_friend_consumer(self):
         case = next(case for case in matrix.scenarios() if case["id"] == "segment-read-context-impl")
         producer = case["producer"][0].read_text(encoding="utf-8")
         probe = case["jvm_abi_probe"].read_text(encoding="utf-8")
 
         self.assertEqual(case["entry"], "kuu2590consumer.main")
+        self.assertEqual(case["jvm_abi_probe_class"], "SegmentReadContextAbiProbe")
         self.assertTrue(case["friend_io_artifacts"])
         self.assertEqual(matrix.reference_friend_args(case, [Path("core.jar"), Path("bytestring.jar")]),
                          ["-Xfriend-paths=core.jar,bytestring.jar"])
