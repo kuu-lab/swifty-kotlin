@@ -49,8 +49,6 @@ extension TypeCheckHelpers {
         return sema.types.withNullability(classType.nullability, for: implementationType)
     }
 
-    /// Expand a typealias symbol to its underlying type, substituting type arguments.
-    /// Handles generic aliases, cycle detection, and depth limiting.
     func expandTypeAlias(
         _ symbolID: SymbolID,
         typeArgs: [TypeArg],
@@ -140,7 +138,6 @@ extension TypeCheckHelpers {
         return expanded
     }
 
-    /// Substitute type alias type parameters with provided type arguments.
     func substituteTypeAliasParamsForTypeCheck(
         _ typeID: TypeID,
         aliasSymbol: SymbolID,
@@ -170,7 +167,6 @@ extension TypeCheckHelpers {
         return applyAliasSubstitution(typeID, argSubstitution: argSubstitution, sema: sema)
     }
 
-    /// Recursively apply type argument substitution to a type.
     func applyAliasSubstitution(
         _ typeID: TypeID,
         argSubstitution: [SymbolID: TypeArg],
