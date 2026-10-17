@@ -100,7 +100,6 @@ extension ExprTypeChecker {
             sema.bindings.bindNominalFunctionExpectedType(id, type: expectedType)
         }
 
-        // ── T::class  — reified type-parameter class reference ──────────
         if member == KnownCompilerNames(interner: interner).className,
            let receiverTypeRef = ast.arena.callableRefReceiverTypeRef(for: id)
         {
@@ -135,8 +134,6 @@ extension ExprTypeChecker {
             )
         }
 
-        // ── REFL-PRIMOP: Int::plus / Int::times — primitive operator with
-        // no backing symbol ───────────────────────────────────────────────
         // `plus`/`times` on a primitive numeric receiver are a table-driven
         // type-inference special case (tryInferRegularMemberCallPrimitiveSpecials),
         // not a real member declaration -- ordinary candidate lookup below
@@ -156,9 +153,8 @@ extension ExprTypeChecker {
             return result
         }
 
-        // ── REFL-PRIMOP: Boolean::not — primitive unary operator with no
-        // backing member symbol. Keep this callable-reference-only; regular
-        // member and unary-expression resolution retain their existing paths.
+        // Keep this callable-reference-only; regular member and
+        // unary-expression resolution retain their existing paths.
         if let receiver,
            ast.arena.callableRefReceiverTypeRef(for: id) == nil,
            case let .nameRef(receiverName, _) = ast.arena.expr(receiver),
@@ -171,11 +167,6 @@ extension ExprTypeChecker {
             return result
         }
 
-        // ── REFL-003: Type::member — unbound callable reference ─────────
-        // When the receiver is a name that refers to a class/interface/enum
-        // (not an instance variable), treat it as an unbound member reference.
-        // The resulting function type includes the receiver type as the
-        // first parameter: `Type::method` becomes `(Type) -> ReturnType`.
         var unboundClassType: TypeID?
         if let receiverTypeRef = ast.arena.callableRefReceiverTypeRef(for: id) {
             unboundClassType = driver.helpers.resolveTypeRef(
@@ -411,17 +402,16 @@ extension ExprTypeChecker {
                 resolvedPropertyType: implicitPropertyType
             )
         }
-        // REFL-CTOR: set when `candidates` were filled with constructor
-        // symbols for a bare or nested constructor reference below. A constructor
-        // signature's `receiverType` field carries the class type for the
-        // constructor body's own implicit `this` (MemberHeaderCollection.swift),
-        // not a real extension-style receiver -- `callableFunctionType` must
-        // therefore treat it as already "bound" for ordinary constructors
-        // (excluded from the resulting function type's parameter list) the same
-        // way a bound `obj::method` reference is, or `(Int) -> Foo` would gain
-        // a spurious leading `Foo` parameter. An inner constructor is the
-        // exception for a type receiver: its enclosing instance is the unbound
-        // first parameter. A value receiver binds that enclosing instance.
+        // A constructor signature's `receiverType` field carries the class type
+        // for the constructor body's own implicit `this`
+        // (MemberHeaderCollection.swift), not a real extension-style receiver --
+        // `callableFunctionType` must therefore treat it as already "bound" for
+        // ordinary constructors (excluded from the resulting function type's
+        // parameter list) the same way a bound `obj::method` reference is, or
+        // `(Int) -> Foo` would gain a spurious leading `Foo` parameter. An inner
+        // constructor is the exception for a type receiver: its enclosing
+        // instance is the unbound first parameter. A value receiver binds that
+        // enclosing instance.
         var isConstructorReference = false
         var unboundInnerConstructorReceiverType: TypeID?
         var isImplicitlyBoundMember = false
@@ -1586,8 +1576,6 @@ extension ExprTypeChecker {
         return resultType
     }
 
-    /// Resolves an unbound generic extension property's value type from its
-    /// receiver and retains the accessor specialization for reified calls.
     private func resolveExtensionPropertyReferenceType(
         _ propertySymbol: SymbolID,
         receiverType: TypeID,
@@ -1749,8 +1737,6 @@ extension ExprTypeChecker {
         )
     }
 
-    /// Decides the expression type for a property callable reference.
-    ///
     /// A property reference is also a valid function value — Kotlin allows
     /// `list.map(Person::name)` or `val f: (Person) -> String = Person::name`
     /// — so an `expectedType` that is a function type (or SAM-convertible
