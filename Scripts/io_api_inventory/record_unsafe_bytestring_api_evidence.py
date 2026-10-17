@@ -65,7 +65,7 @@ def load_summary(path: Path) -> dict:
     if summary.get("selected_cases") != [F02_CASE_ID] or summary.get("issue_complete") is not False:
         fail("F02 summary must contain only the UnsafeByteStringApi selected case")
     lanes = summary.get("results", [])
-    expected_lanes = {f"{route}-{optimization}" for route, optimization in generate.LOCAL_NATIVE_PROBE_LANES}
+    expected_lanes = set(generate.LOCAL_NATIVE_PROBE_LANES)
     observed = {
         f"{entry.get('route')}-{entry.get('optimization')}": entry
         for entry in lanes
@@ -97,8 +97,7 @@ def lane_receipts(summary: dict, summary_path: Path, output: str) -> list[dict]:
         for entry in summary["results"]
     }
     receipts = []
-    for route, optimization in generate.LOCAL_NATIVE_PROBE_LANES:
-        lane = f"{route}-{optimization}"
+    for lane in generate.LOCAL_NATIVE_PROBE_LANES:
         result = result_by_lane[lane]
         if result.get("normalized_stdout_sha256") != reference_stdout_sha:
             fail(f"candidate output differs from the pinned JVM output in {lane}")

@@ -103,6 +103,7 @@ LOCAL_PROBE_RECEIPT_HARNESS_PATHS = {
     "Scripts/io_api_inventory/generate.py",
     "Scripts/io_api_inventory/run_f02_matrix.py",
     "Scripts/io_api_inventory/record_unsafe_bytestring_api_evidence.py",
+    "Scripts/io_api_inventory/test_record_unsafe_bytestring_api_evidence.py",
 }
 
 LEDGER_COLUMNS = [
