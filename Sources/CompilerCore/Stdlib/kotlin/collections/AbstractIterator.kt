@@ -9,13 +9,7 @@ package kotlin.collections
 
 import kotlin.internal.KsSymbolName
 
-/**
- * An iterator over a sequence of elements.
- */
 public interface Iterator<out T> {
-    /**
-     * Returns true if the iteration has more elements.
-     */
     @KsSymbolName("kk_iterator_hasNext")
     public operator fun hasNext(): Boolean
 
@@ -27,10 +21,6 @@ public interface Iterator<out T> {
     public operator fun next(): T
 }
 
-/**
- * A base class to simplify implementing iterators so that implementations only have to implement [computeNext]
- * to implement the iterator, calling [done] when the iteration is complete.
- */
 public abstract class AbstractIterator<T> : Iterator<T> {
     private var state = State.NotReady
     private var nextValue: T? = null
@@ -60,8 +50,6 @@ public abstract class AbstractIterator<T> : Iterator<T> {
     }
 
     /**
-     * Computes the next item in the iterator.
-     *
      * This callback method should call one of these two methods:
      *
      * * [setNext] with the next value of the iteration
@@ -71,17 +59,11 @@ public abstract class AbstractIterator<T> : Iterator<T> {
      */
     protected abstract fun computeNext(): Unit
 
-    /**
-     * Sets the next value in the iteration, called from the [computeNext] function
-     */
     protected fun setNext(value: T): Unit {
         nextValue = value
         state = State.Ready
     }
 
-    /**
-     * Sets the state to done so that the iteration terminates.
-     */
     protected fun done() {
         state = State.Done
     }
