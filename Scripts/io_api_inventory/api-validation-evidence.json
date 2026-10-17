@@ -444,6 +444,177 @@
         }
       ],
       "evidence_source": "local-probe"
+    },
+    {
+      "row_id": "jvm-0cf64a4acbc38a06",
+      "candidate_sha": "77f4b06a4d3592064ac6eebd775ede59bc4b783f",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "07e97f715b374b0e79019e2d5951b9f061f4c78dcc83595ee462104aed1988e4",
+      "test_input_sha256": "e9bffa24990ba3764e52718398ae4a648e7a54ce1504f40845152e8544c53b5b",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "evidence_source": "local-probe",
+      "executions": [
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/UnsafeBufferOperationsObjectShape.kt#jvm-class-shape",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:8ff031342c5320a671f99e821a1c14b2",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-abi-reflection"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:4687cb20c4dfffa0ff6b3a30348f1dfb",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "source-object-contract"
+          }
+        }
+      ]
+    },
+    {
+      "row_id": "jvm-893b52117cdc6202",
+      "candidate_sha": "77f4b06a4d3592064ac6eebd775ede59bc4b783f",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "test_input_sha256": "69c69b01f27cd0101e15563e9b397771aa911ba72e1611ce7b0e4fde41010808",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "evidence_source": "local-probe",
+      "executions": [
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/UnsafeBufferOperationsObjectShape.kt#jvm-instance-field-shape",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:cfff1afc3d9e015b785ae44dae754e62",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-abi-reflection"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:7509c13c9735b884f87cd43970181705",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "source-object-contract"
+          }
+        }
+      ]
+    },
+    {
+      "row_id": "klib-0f0ae6b0e4f74922",
+      "candidate_sha": "77f4b06a4d3592064ac6eebd775ede59bc4b783f",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "07e97f715b374b0e79019e2d5951b9f061f4c78dcc83595ee462104aed1988e4",
+      "test_input_sha256": "e9bffa24990ba3764e52718398ae4a648e7a54ce1504f40845152e8544c53b5b",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "evidence_source": "local-probe",
+      "executions": [
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/UnsafeBufferOperationsObjectShape.kt#typed-object-and-singleton-identity",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:42faf36ee82c4ffa372bc99d8942e52a",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-object-runtime"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:44694dfcd119e8e190c47445046e24f5",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/UnsafeBufferOperationsObjectShape.kt#typed-object-and-singleton-identity",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:5d91b1d21eac463f9c1d61312704e4aa",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-object-runtime"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:2b20f984ad6c82134d2d952fad3d77bb",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/UnsafeBufferOperationsObjectShape.kt#typed-object-and-singleton-identity",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:143ce380e2594fa87ee12f3af5da4518",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-object-runtime"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:e8657028966691affa1429cc9e3a36ab",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/UnsafeBufferOperationsObjectShape.kt#typed-object-and-singleton-identity",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:438c862dfc31b6059f9f18f22a7ef777",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-object-runtime"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:5f41b2669216b787bd210d9a7f4c0741",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/UnsafeBufferOperationsObjectShape.kt#typed-object-and-singleton-identity",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:514f42fb296071674afc180d11a5210d",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-object-runtime"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:cc6249a4ddf4383c588ac963cb4b3864",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/UnsafeBufferOperationsObjectShape.kt#typed-object-and-singleton-identity",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:6706fc2657dd64d81b910e3300bbad4e",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-object-runtime"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:663b027d1d36436f266e1b74b9a9c89b",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        }
+      ]
     }
   ]
 }
