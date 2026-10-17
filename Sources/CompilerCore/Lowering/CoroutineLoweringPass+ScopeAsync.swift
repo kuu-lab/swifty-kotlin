@@ -71,8 +71,6 @@ extension CoroutineLoweringPass {
             var instructions: [KIRInstruction] = []
             if let info = callableInfo,
                !isFunctionValueAdapterSymbol(info.symbol, using: rewrite) {
-                // A non-adapter suspend value whose symbol is not lowered in
-                // this module: pass its fnPtr with the packed capture env.
                 entryExpr = arena.appendTemporary(type: rewrite.intType)
                 instructions.append(.constValue(
                     result: entryExpr,
