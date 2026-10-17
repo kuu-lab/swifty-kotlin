@@ -15,12 +15,9 @@
 /// `ExprTypeChecker` / `CallTypeChecker` keys off that flag, so `B.plus`
 /// above used to be dropped and the call rejected with `KSWIFTK-SEMA-0002`.
 ///
-/// This pass runs alongside `inheritDefaultArgumentValuesForOverrides`
-/// (same supertype matching via `nearestOverriddenFunctionCandidates`) and
-/// copies `.operatorFunction` onto every override whose overridden
-/// declaration carries it. It iterates to a fixpoint so a chain of
-/// intermediate keyword-less overrides inherits regardless of the order
-/// `symbols.allSymbols()` visits them in.
+/// This pass iterates to a fixpoint so a chain of intermediate keyword-less
+/// overrides inherits regardless of the order `symbols.allSymbols()` visits
+/// them in.
 ///
 /// Only overrides declared in user source inherit the flag. Bundled stdlib
 /// declarations keep exactly the modifiers they spell out: several of them
