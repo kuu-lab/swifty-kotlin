@@ -23,8 +23,6 @@ import kotlin.random.Random
 // The `first`, `last`, and `step` properties are intentionally NOT included here: they are
 // constant-time field reads with no pure-Kotlin expression available (would
 // require introducing new native bridge plumbing for zero behavioral change).
-// `count()`, `sum()`, and `reversed()` are now included and wired to the shared
-// `__kk_range_*` ABI surface.
 //
 // `count(predicate)` is intentionally NOT included: CallTypeChecker+RangeMemberFallback.swift's
 // isValidRangeMemberArity() only accepts a 0-arg `count` for range-like receivers, and (as noted
@@ -32,9 +30,8 @@ import kotlin.random.Random
 // so a 1-arg overload here would be an uncallable, misleading declaration. Widening that arity
 // allow-list is dispatch-wiring work, not a Kotlin-source migration.
 
-// KSP-457: range random APIs are public Kotlin source wrappers around the
-// runtime's retained random-engine primitives. The __kk_* names deliberately
-// keep these bridges private to the bundled stdlib layer.
+// KSP-457: The __kk_* names deliberately keep these bridges private to the
+// bundled stdlib layer.
 @KsSymbolName("__kk_range_random")
 private external fun __kk_intRangeRandom(range: IntRange): Int
 
