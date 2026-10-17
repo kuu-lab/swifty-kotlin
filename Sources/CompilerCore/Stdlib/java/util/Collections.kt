@@ -1,6 +1,5 @@
 package java.util
 
-/** Java collection views required by KotlinPoet's immutable collection boundaries. */
 public object Collections {
     public fun <T> unmodifiableList(list: List<T>?): MutableList<T> =
         collectionsUnmodifiableList(list!!)
