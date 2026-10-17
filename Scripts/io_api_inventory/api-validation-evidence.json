@@ -445,5 +445,333 @@
       ],
       "evidence_source": "local-probe"
     }
+  ],
+  "reference_observations": [
+    {
+      "row_id": "jvm-2a9d7e102164fbd2",
+      "candidate_sha": "d610e43f3275f9f5603a41543bd5b77ab7e067b0",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "640a5c7d793d600e9e48baaa1cf8fc727c9d118c0ebb0052404abe15d327ed75",
+      "test_input_sha256": "b62472ceaa76399f32980709b27e8cbc5cd9c2085208df60c50af4f3bed7e7c7",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "core/common/test/AbstractSinkTest.kt#writeUtf8FromIndex",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferSinkTest]/[method:writeUtf8FromIndex()]",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/AbstractSinkTest.kt#writeUtf8FromIndex",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RealSinkTest]/[method:writeUtf8FromIndex()]",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/AbstractSinkTest.kt#writeUtf8WithInvalidIndexes",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferSinkTest]/[method:writeUtf8WithInvalidIndexes()]",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/AbstractSinkTest.kt#writeUtf8WithInvalidIndexes",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RealSinkTest]/[method:writeUtf8WithInvalidIndexes()]",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "candidate_execution_kind": "macOS-native-direct-assertions",
+      "non_promotion_reason": "The candidate emits macOS Native code and has no JVM classfile; the JVM classfile ABI observation applies only to the pinned reference artifact.",
+      "reference_abi_probe": {
+        "result": "PASS",
+        "artifact_coordinate": "org.jetbrains.kotlinx:kotlinx-io-core-jvm:0.9.1",
+        "artifact_sha256": "765d8851d8ca694706931331b92386844800867e041b720f1f193dbda874d370",
+        "class": "kotlinx/io/Utf8Kt.class",
+        "class_sha256": "c1eabe9fe5010243622d54c8bcca26643e4d1c24fb771006317a90c74584efc5",
+        "probe_sha256": "f5951c82ad0316c4a672b09d19595b981bad157d9a5ce981c9b35d4e7314b654",
+        "method": {
+          "name": "writeString$default",
+          "descriptor": "(Lkotlinx/io/Sink;Ljava/lang/String;IIILjava/lang/Object;)V",
+          "flags": {
+            "bridge": false,
+            "public": true,
+            "static": true,
+            "synthetic": true
+          },
+          "default_mask_values_when_both_indices_are_omitted": [
+            6
+          ],
+          "marker_parameter": "java.lang.Object"
+        },
+        "implementation_opt_ins_match": true,
+        "documented_exception_types": [
+          "IndexOutOfBoundsException",
+          "IllegalArgumentException",
+          "IllegalStateException",
+          "IOException"
+        ]
+      },
+      "native_assertion_runs": [
+        {
+          "lane": "native-source-O0",
+          "result": "PASS",
+          "execution_count": 4,
+          "execution_ids": [
+            "kotlinx.io.BufferSinkTest.writeUtf8FromIndex",
+            "kotlinx.io.BufferSinkTest.writeUtf8WithInvalidIndexes",
+            "kotlinx.io.RealSinkTest.writeUtf8FromIndex",
+            "kotlinx.io.RealSinkTest.writeUtf8WithInvalidIndexes"
+          ],
+          "summary_sha256": "d4649f32be7bb47527ca8e1ab8db806d2aa8d166b9831f5ee332417dd9244bef",
+          "compiler_sha256": "b900af44ba5cabb16f6fd0ce981eef68be6b0cb04443c517728704e4847acc04"
+        },
+        {
+          "lane": "native-source-O2",
+          "result": "PASS",
+          "execution_count": 4,
+          "execution_ids": [
+            "kotlinx.io.BufferSinkTest.writeUtf8FromIndex",
+            "kotlinx.io.BufferSinkTest.writeUtf8WithInvalidIndexes",
+            "kotlinx.io.RealSinkTest.writeUtf8FromIndex",
+            "kotlinx.io.RealSinkTest.writeUtf8WithInvalidIndexes"
+          ],
+          "summary_sha256": "649e28b422e2b5be412f08b2c801fb00d16f035b6171a5c3e850e772ac57e80e",
+          "compiler_sha256": "b900af44ba5cabb16f6fd0ce981eef68be6b0cb04443c517728704e4847acc04"
+        }
+      ],
+      "targeted_consumer": {
+        "case_id": "sink-write-string-default-bridges",
+        "summary_sha256": "db17a153156770fd42ad6931fd4077d522a9d51762a49a3700dc552b5914e12a",
+        "compiler_sha256": "b900af44ba5cabb16f6fd0ce981eef68be6b0cb04443c517728704e4847acc04",
+        "lanes": [
+          {
+            "lane": "source-O0",
+            "result": "PASS",
+            "exit_code": 0,
+            "reference_normalized_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93",
+            "candidate_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93",
+            "candidate_normalized_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93"
+          },
+          {
+            "lane": "source-O2",
+            "result": "PASS",
+            "exit_code": 0,
+            "reference_normalized_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93",
+            "candidate_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93",
+            "candidate_normalized_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93"
+          },
+          {
+            "lane": "stdlib-library-O0",
+            "result": "PASS",
+            "exit_code": 0,
+            "reference_normalized_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93",
+            "candidate_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93",
+            "candidate_normalized_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93"
+          },
+          {
+            "lane": "stdlib-library-O2",
+            "result": "PASS",
+            "exit_code": 0,
+            "reference_normalized_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93",
+            "candidate_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93",
+            "candidate_normalized_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93"
+          },
+          {
+            "lane": "producer-consumer-O0",
+            "result": "PASS",
+            "exit_code": 0,
+            "reference_normalized_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93",
+            "candidate_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93",
+            "candidate_normalized_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93"
+          },
+          {
+            "lane": "producer-consumer-O2",
+            "result": "PASS",
+            "exit_code": 0,
+            "reference_normalized_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93",
+            "candidate_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93",
+            "candidate_normalized_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93"
+          }
+        ]
+      }
+    },
+    {
+      "row_id": "jvm-804266071f0ab846",
+      "candidate_sha": "d610e43f3275f9f5603a41543bd5b77ab7e067b0",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "640a5c7d793d600e9e48baaa1cf8fc727c9d118c0ebb0052404abe15d327ed75",
+      "test_input_sha256": "b62472ceaa76399f32980709b27e8cbc5cd9c2085208df60c50af4f3bed7e7c7",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "core/common/test/AbstractSinkTest.kt#writeCharSequenceFromIndex",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferSinkTest]/[method:writeCharSequenceFromIndex()]",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/AbstractSinkTest.kt#writeCharSequenceFromIndex",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RealSinkTest]/[method:writeCharSequenceFromIndex()]",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/AbstractSinkTest.kt#writeCharSequenceWithInvalidIndexes",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferSinkTest]/[method:writeCharSequenceWithInvalidIndexes()]",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/AbstractSinkTest.kt#writeCharSequenceWithInvalidIndexes",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RealSinkTest]/[method:writeCharSequenceWithInvalidIndexes()]",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "candidate_execution_kind": "macOS-native-direct-assertions",
+      "non_promotion_reason": "The candidate emits macOS Native code and has no JVM classfile; the JVM classfile ABI observation applies only to the pinned reference artifact.",
+      "reference_abi_probe": {
+        "result": "PASS",
+        "artifact_coordinate": "org.jetbrains.kotlinx:kotlinx-io-core-jvm:0.9.1",
+        "artifact_sha256": "765d8851d8ca694706931331b92386844800867e041b720f1f193dbda874d370",
+        "class": "kotlinx/io/Utf8Kt.class",
+        "class_sha256": "c1eabe9fe5010243622d54c8bcca26643e4d1c24fb771006317a90c74584efc5",
+        "probe_sha256": "f5951c82ad0316c4a672b09d19595b981bad157d9a5ce981c9b35d4e7314b654",
+        "method": {
+          "name": "writeString$default",
+          "descriptor": "(Lkotlinx/io/Sink;Ljava/lang/CharSequence;IIILjava/lang/Object;)V",
+          "flags": {
+            "bridge": false,
+            "public": true,
+            "static": true,
+            "synthetic": true
+          },
+          "default_mask_values_when_both_indices_are_omitted": [
+            6
+          ],
+          "marker_parameter": "java.lang.Object"
+        },
+        "implementation_opt_ins_match": true,
+        "documented_exception_types": [
+          "IndexOutOfBoundsException",
+          "IllegalArgumentException",
+          "IllegalStateException",
+          "IOException"
+        ]
+      },
+      "native_assertion_runs": [
+        {
+          "lane": "native-source-O0",
+          "result": "PASS",
+          "execution_count": 4,
+          "execution_ids": [
+            "kotlinx.io.BufferSinkTest.writeCharSequenceFromIndex",
+            "kotlinx.io.BufferSinkTest.writeCharSequenceWithInvalidIndexes",
+            "kotlinx.io.RealSinkTest.writeCharSequenceFromIndex",
+            "kotlinx.io.RealSinkTest.writeCharSequenceWithInvalidIndexes"
+          ],
+          "summary_sha256": "d4649f32be7bb47527ca8e1ab8db806d2aa8d166b9831f5ee332417dd9244bef",
+          "compiler_sha256": "b900af44ba5cabb16f6fd0ce981eef68be6b0cb04443c517728704e4847acc04"
+        },
+        {
+          "lane": "native-source-O2",
+          "result": "PASS",
+          "execution_count": 4,
+          "execution_ids": [
+            "kotlinx.io.BufferSinkTest.writeCharSequenceFromIndex",
+            "kotlinx.io.BufferSinkTest.writeCharSequenceWithInvalidIndexes",
+            "kotlinx.io.RealSinkTest.writeCharSequenceFromIndex",
+            "kotlinx.io.RealSinkTest.writeCharSequenceWithInvalidIndexes"
+          ],
+          "summary_sha256": "649e28b422e2b5be412f08b2c801fb00d16f035b6171a5c3e850e772ac57e80e",
+          "compiler_sha256": "b900af44ba5cabb16f6fd0ce981eef68be6b0cb04443c517728704e4847acc04"
+        }
+      ],
+      "targeted_consumer": {
+        "case_id": "sink-write-string-default-bridges",
+        "summary_sha256": "db17a153156770fd42ad6931fd4077d522a9d51762a49a3700dc552b5914e12a",
+        "compiler_sha256": "b900af44ba5cabb16f6fd0ce981eef68be6b0cb04443c517728704e4847acc04",
+        "lanes": [
+          {
+            "lane": "source-O0",
+            "result": "PASS",
+            "exit_code": 0,
+            "reference_normalized_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93",
+            "candidate_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93",
+            "candidate_normalized_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93"
+          },
+          {
+            "lane": "source-O2",
+            "result": "PASS",
+            "exit_code": 0,
+            "reference_normalized_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93",
+            "candidate_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93",
+            "candidate_normalized_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93"
+          },
+          {
+            "lane": "stdlib-library-O0",
+            "result": "PASS",
+            "exit_code": 0,
+            "reference_normalized_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93",
+            "candidate_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93",
+            "candidate_normalized_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93"
+          },
+          {
+            "lane": "stdlib-library-O2",
+            "result": "PASS",
+            "exit_code": 0,
+            "reference_normalized_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93",
+            "candidate_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93",
+            "candidate_normalized_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93"
+          },
+          {
+            "lane": "producer-consumer-O0",
+            "result": "PASS",
+            "exit_code": 0,
+            "reference_normalized_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93",
+            "candidate_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93",
+            "candidate_normalized_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93"
+          },
+          {
+            "lane": "producer-consumer-O2",
+            "result": "PASS",
+            "exit_code": 0,
+            "reference_normalized_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93",
+            "candidate_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93",
+            "candidate_normalized_stdout_sha256": "e653870b117bb59a75d6c646a71da6b1c7a251dcb90d0da3aa9fd05a8a8c6d93"
+          }
+        ]
+      }
+    }
   ]
 }

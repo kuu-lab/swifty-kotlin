@@ -325,4 +325,14 @@ provenance and catalog hashes. `results.json` records each execution's terminal
 state and source, port, driver, catalog-row and executable hashes. The default
 Native invocation still selects the complete target catalog. A limited
 selection reports its selected `expected_count` and cannot pass full-catalog
-count and ID validation.
+count and ID validation. `--candidate-sha` records the caller-supplied candidate
+commit in `summary.json`; callers using an extracted package root must verify its
+source provenance separately.
+
+The KUU-2634 macOS Native subset supplies
+`fixtures/sink-write-string-native-support.macos.kt` with `--support-source`.
+This adapter replaces only the test helper's inaccessible
+`SystemTemporaryDirectory.path` lookup with macOS `/tmp`; the six selected
+`AbstractSinkTest` bodies do not call `tempFileName()`. The locked common test
+sources and their assertions stay unchanged, and the adapter's content hash is
+recorded in the run receipt.
