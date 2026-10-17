@@ -1,7 +1,6 @@
 
 extension CollectionLiteralConstructionLoweringPass {
 
-    /// Rewrites array factory calls and bridges range-style iterator intrinsics to runtime iterators.
     func rewriteArrayAndIteratorBridgeCall(
         symbol: SymbolID?,
         callee: InternedString,
@@ -47,7 +46,6 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
 
-        // --- Rewrite arrayOf → kk_array_of ---
         if isStdlibArrayFactoryCall(symbol: symbol, callee: callee, lookup: lookup, ctx: ctx) {
             let (arrayExpr, _) = appendRuntimeArrayStorage(
                 arguments: arguments,
@@ -87,7 +85,6 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
 
-        // --- Rewrite kk_range_iterator on ULong range → __kk_ulong_range_iterator (STDLIB-RANGE-037) ---
         if callee == lookup.kkRangeIteratorName, arguments.count == 1 {
             let argID = arguments[0]
             if state.ulongRangeExprIDs.contains(argID.rawValue) {
@@ -115,7 +112,6 @@ extension CollectionLiteralConstructionLoweringPass {
             }
         }
 
-        // --- Rewrite kk_range_iterator on list/set → kk_list_iterator ---
         if callee == lookup.kkRangeIteratorName, arguments.count == 1 {
             let argID = arguments[0]
             if state.listExprIDs.contains(argID.rawValue) || state.setExprIDs.contains(argID.rawValue) {
@@ -142,7 +138,7 @@ extension CollectionLiteralConstructionLoweringPass {
                 ))
                 return true
             }
-            // STDLIB-331/564: iterator {} result is already an iterator; pass through
+            // iterator {} result is already an iterator; pass through
             if state.iteratorBuilderExprIDs.contains(argID.rawValue) {
                 if let result {
                     state.iteratorBuilderExprIDs.insert(result.rawValue)
@@ -152,7 +148,6 @@ extension CollectionLiteralConstructionLoweringPass {
             }
         }
 
-        // --- Rewrite kk_range_hasNext on ULong range iterator → __kk_ulong_range_hasNext (STDLIB-RANGE-037) ---
         if callee == lookup.kkRangeHasNextName, arguments.count == 1 {
             let argID = arguments[0]
             if state.ulongRangeIteratorExprIDs.contains(argID.rawValue) {
@@ -168,7 +163,6 @@ extension CollectionLiteralConstructionLoweringPass {
             }
         }
 
-        // --- Rewrite list-iterator hasNext calls → kk_list_iterator_hasNext ---
         // Source-backed collection shells can bind Iterator.hasNext directly,
         // which emits the generic kk_iterator_hasNext callee. The iterator
         // result is still recognized as a concrete list iterator above, so
@@ -211,7 +205,6 @@ extension CollectionLiteralConstructionLoweringPass {
             }
         }
 
-        // --- Rewrite kk_range_next on ULong range iterator → __kk_ulong_range_next (STDLIB-RANGE-037) ---
         if callee == lookup.kkRangeNextName, arguments.count == 1 {
             let argID = arguments[0]
             if state.ulongRangeIteratorExprIDs.contains(argID.rawValue) {
@@ -227,7 +220,6 @@ extension CollectionLiteralConstructionLoweringPass {
             }
         }
 
-        // --- Rewrite list-iterator next calls → kk_list_iterator_next ---
         if (callee == lookup.kkRangeNextName || callee == ctx.interner.intern("kk_iterator_next")), arguments.count == 1 {
             let argID = arguments[0]
             if state.listIteratorExprIDs.contains(argID.rawValue) {
@@ -254,7 +246,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 ))
                 return true
             }
-            // STDLIB-331/564: Rewrite kk_range_next on iterator builder → __kk_iterator_builder_next
             if state.iteratorBuilderExprIDs.contains(argID.rawValue) {
                 if callee == ctx.interner.intern("kk_iterator_next") {
                     // kk_iterator_next accepts outThrown and already
@@ -287,7 +278,6 @@ extension CollectionLiteralConstructionLoweringPass {
             }
         }
 
-        // --- STDLIB-538: Rewrite explicit listIterator() on list → kk_list_iterator ---
         if callee == lookup.listIteratorMemberName, arguments.count == 1 {
             let receiverID = arguments[0]
             if state.listExprIDs.contains(receiverID.rawValue) {
@@ -304,7 +294,6 @@ extension CollectionLiteralConstructionLoweringPass {
             }
         }
 
-        // --- Rewrite explicit iterator() on list/set → kk_list_iterator ---
         if callee == lookup.iteratorName, arguments.count == 1 {
             let receiverID = arguments[0]
             if state.listExprIDs.contains(receiverID.rawValue) || state.setExprIDs.contains(receiverID.rawValue) {
@@ -321,7 +310,6 @@ extension CollectionLiteralConstructionLoweringPass {
             }
         }
 
-        // --- STDLIB-538: Rewrite hasPrevious()/previous() on list iterator ---
         let isListIteratorReceiverCall = arguments.count == 1
             && state.listIteratorExprIDs.contains(arguments[0].rawValue)
         if isListIteratorReceiverCall,
@@ -381,9 +369,9 @@ extension CollectionLiteralConstructionLoweringPass {
         )
     }
 
-    /// Emits a `kk_list_iterator_next`-style call and, when the result expression
-    /// has a non-null primitive type, appends an unboxing call so that the loop
-    /// variable holds a raw primitive value rather than a boxed heap pointer.
+    /// When the result expression has a non-null primitive type, appends an
+    /// unboxing call so that the loop variable holds a raw primitive value
+    /// rather than a boxed heap pointer.
     private func appendListIteratorNextWithUnboxing(
         callee: InternedString,
         arguments: [KIRExprID],
