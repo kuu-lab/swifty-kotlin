@@ -2,8 +2,6 @@
 import Foundation
 
 extension CallTypeChecker {
-    /// IntRange/IntProgression members with bundled Kotlin source
-    /// implementations (KSP-453) — see `isIntRangeSourceBackedHOF`.
     private static let intRangeSourceBackedHOFNames: Set<String> = [
         "toList", "average", "sorted",
         "forEach", "map", "mapIndexed", "mapNotNull",
@@ -17,8 +15,6 @@ extension CallTypeChecker {
         "random", "randomOrNull",
     ]
 
-    /// UIntRange/ULongRange members with bundled Kotlin source
-    /// implementations — see `isUnsignedRangeSourceBackedHOF`.
     private static let unsignedRangeSourceBackedHOFNames: Set<String> = [
         "map", "mapIndexed", "mapNotNull",
         "filter", "filterIndexed", "filterNot",
@@ -32,8 +28,6 @@ extension CallTypeChecker {
         "sorted",
     ]
 
-    /// Members the legacy range fallback binds a result type for — see
-    /// `isSupportedRangeMember`.
     private static let supportedRangeMemberNames: Set<String> = [
         "start", "end", "endInclusive", "endExclusive", "first", "last", "count",
         "toList", "forEach", "map", "mapIndexed", "mapNotNull",
@@ -283,7 +277,6 @@ extension CallTypeChecker {
             sema.bindings.bindIdentifier(id, symbol: propertyResult.symbol)
         }
 
-        // Provide contextual function type for range HOF lambda inference.
         var mappedElementType: TypeID?
         if let expectation = rangeMemberLambdaExpectation(
             memberName: memberName,
@@ -333,14 +326,12 @@ extension CallTypeChecker {
         }
         if memberName == "reversed" || (memberName == "step" && args.count == 1) {
             sema.bindings.markRangeExpr(id)
-            // Propagate char range marker through range-preserving transforms.
             if sema.bindings.isCharRangeExpr(receiverID) {
                 sema.bindings.markCharRangeExpr(id)
             }
             if sema.bindings.isUIntRangeExpr(receiverID) {
                 sema.bindings.markUIntRangeExpr(id)
             }
-            // Propagate ULong range marker through range-preserving transforms.
             if sema.bindings.isULongRangeExpr(receiverID) {
                 sema.bindings.markULongRangeExpr(id)
             }
@@ -570,9 +561,8 @@ extension CallTypeChecker {
             || argumentType == sema.types.ushortType
     }
 
-    /// Returns true for a bare signed integer literal that Kotlin can
-    /// contextualize to a range element type. Unary +/- is kept in the same
-    /// category because the parser represents it as a wrapper expression.
+    /// Unary +/- is treated like a bare signed integer literal because the
+    /// parser represents it as a wrapper expression.
     func isContextualizableIntegerLiteral(_ exprID: ExprID, ast: ASTModule) -> Bool {
         guard let expr = ast.arena.expr(exprID) else { return false }
         switch expr {
@@ -1250,13 +1240,10 @@ extension CallTypeChecker {
         // allowlist entry: they resolve earlier via `bindSourceRangeHOFCall`
         // (bundled Kotlin source); verified by probe that both still
         // type-check and produce correct results with `average` absent from
-        // this set. `ULongRange.average()` also still compiles with `average`
-        // removed from this set, but only via its own, unrelated Sema
-        // KSP-1524 applies the same rejection rule to ULongRange.average().
-        // `toUIntArray` was never valid for any other range type's receiver,
-        // and neither are `toIntArray`/`toLongArray`/`toULongArray` for their
-        // signed/ULong counterparts (BUG-259/KSP-1524) -- none of the four
-        // belong in this allowlist.
+        // this set. `toUIntArray` was never valid for any other range type's
+        // receiver, and neither are `toIntArray`/`toLongArray`/`toULongArray`
+        // for their signed/ULong counterparts (BUG-259/KSP-1524) -- none of the
+        // four belong in this allowlist.
         return Self.supportedRangeMemberNames.contains(memberName)
     }
 
@@ -1294,7 +1281,6 @@ extension CallTypeChecker {
         ["toList", "map", "mapIndexed", "mapNotNull", "filter", "filterIndexed", "filterNot", "chunked", "windowed", "take", "drop", "sorted"].contains(memberName)
     }
 
-    /// Returns the element type for a range expression based on its range-kind markers.
     private func rangeMemberElementType(
         sema: SemaModule,
         isCharRange: Bool,
