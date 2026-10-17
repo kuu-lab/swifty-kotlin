@@ -130,6 +130,35 @@ def map_executions(discovered: list[dict], results: list[dict], lookup: dict, ex
     return mapped
 
 
+def select_execution_rows(catalog: list[dict], source_function_ids: list[str] | None = None,
+                          execution_ids: list[str] | None = None) -> list[dict]:
+    source_ids = list(source_function_ids or [])
+    exact_ids = list(execution_ids or [])
+    if len(source_ids) > 10 or len(exact_ids) > 10:
+        raise ValueError("at most 10 source function IDs or concrete execution IDs may be selected")
+    if any(not value or value != value.strip() for value in source_ids + exact_ids):
+        raise ValueError("selected IDs must be nonempty and have no surrounding whitespace")
+    if len(source_ids) != len(set(source_ids)) or len(exact_ids) != len(set(exact_ids)):
+        raise ValueError("ID selection must be unique")
+    if not source_ids and not exact_ids:
+        return list(catalog)
+
+    selected: set[str] = set()
+    all_ids = {str(row.get("execution_id", "")) for row in catalog}
+    for source_id in source_ids:
+        matches = [row for row in catalog if row.get("upstream_id") == source_id]
+        if not matches:
+            raise ValueError(f"unknown source function ID: {source_id}")
+        selected.update(row["execution_id"] for row in matches)
+    for identifier in exact_ids:
+        if identifier not in all_ids:
+            raise ValueError(f"unknown concrete execution ID: {identifier}")
+        if identifier in selected:
+            raise ValueError(f"duplicate execution selected by multiple IDs: {identifier}")
+        selected.add(identifier)
+    return [row for row in catalog if row["execution_id"] in selected]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--upstream", type=Path, required=True)
@@ -137,6 +166,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--java", type=Path, required=True)
     parser.add_argument("--dependencies", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--source-function-id", action="append", default=[],
+                        help="select every concrete JVM execution for an upstream source ID (path#function)")
+    parser.add_argument("--execution-id", action="append", default=[],
+                        help="select one concrete JVM execution ID; may be repeated")
     parser.add_argument("--download", action="store_true", help="download missing locked Maven jars")
     parser.add_argument("--compile-timeout", type=float, default=180)
     parser.add_argument("--run-timeout", type=float, default=180)
@@ -167,6 +200,28 @@ def main(argv: list[str] | None = None) -> int:
             if row["platform"] in {"common", "jvm"} and "Windows" not in row["upstream_path"]}
         if {row["upstream_id"] for row in expected} != eligible:
             raise ValueError("expected execution catalog does not cover every eligible upstream function ID")
+        selected = select_execution_rows(expected, args.source_function_id, args.execution_id)
+        if not selected:
+            raise ValueError("selection resolved to no concrete executions")
+        selected_ids = [row["execution_id"] for row in selected]
+        source_hashes = {row["path"]: row["sha256"] for row in lock["upstream_files"]}
+        selection = {
+            "selection_mode": "explicit-ids" if args.source_function_id or args.execution_id else "full-catalog",
+            "upstream_commit": lock["commit"],
+            "catalog_sha256": sha256(catalog_path),
+            "reference_lock_sha256": sha256(lock_path),
+            "requested_source_function_ids": args.source_function_id,
+            "requested_execution_ids": args.execution_id,
+            "selected_source_function_ids": sorted({row["upstream_id"] for row in selected}),
+            "selected_execution_ids": selected_ids,
+            "selected_execution_count": len(selected),
+            "selected_execution_records": [{**{key: row.get(key) for key in (
+                "execution_id", "upstream_id", "concrete_class", "declaring_class", "method_name",
+                "parameter_types", "upstream_path", "git_blob_sha", "source_set")},
+                "source_sha256": source_hashes[row["upstream_path"]]}
+                for row in selected],
+        }
+        (args.output / "selection.json").write_text(json.dumps(selection, indent=2) + "\n")
         sources = sorted({row["upstream_path"] for row in seed["cases"]
             if row["platform"] in {"common", "jvm"} and "Windows" not in row["upstream_path"]}
             | {row["path"] for row in seed["inventory_only_sources"]
@@ -187,7 +242,8 @@ def main(argv: list[str] | None = None) -> int:
             "kotlinx_io": lock["kotlinx_io"], "upstream_commit": lock["commit"],
             "reference_lock_sha256": sha256(lock_path), "coverage_map_sha256": sha256(HERE / "coverage-map.seed.json"),
             "runner_sha256": sha256(HERE / "JvmReferenceRunner.java"), "host": platform.platform(),
-            "java": str(args.java.resolve()), "source_files": sources,
+            "orchestrator_sha256": sha256(Path(__file__)),
+            "java": str(args.java.resolve()), "java_sha256": sha256(args.java), "source_files": sources,
             "unsupported_source_files": [row["path"] for row in lock["upstream_files"] if row["path"] not in sources],
             "sdk_files": lock["sdk_files"], "reference_artifacts": lock["jvm_artifacts"]}
         compiler_environment = {"JAVACMD": str(args.java.resolve())}
@@ -210,15 +266,20 @@ def main(argv: list[str] | None = None) -> int:
             ("kotlin-stdlib.jar", "kotlin-reflect.jar", "kotlin-test.jar", "kotlin-test-junit5.jar")]
         command = [str(args.java.resolve()), "-Xmx1024m", "-cp", os.pathsep.join(map(str, runtime_cp)),
             str(HERE / "JvmReferenceRunner.java"), str(tests_jar), str(args.output.resolve() / "junit")]
+        if args.source_function_id or args.execution_id:
+            command += [row["concrete_class"] + "#" + row["method_name"] for row in selected]
         code = execute(command, args.output, "run", args.run_timeout)
         output = args.output / "junit"
         if not (output / "results.json").exists():
             return 1
         mapped = map_executions(json.loads((output / "discovered.json").read_text()),
-            json.loads((output / "results.json").read_text()), lookup, expected)
+            json.loads((output / "results.json").read_text()), lookup, selected)
         (args.output / "execution-map.json").write_text(json.dumps(mapped, indent=2) + "\n")
         reference_counts = dict(collections.Counter(row["reference_result"]["status"] for row in mapped))
-        summary = {"kind": "reference-only", "concrete_execution_count": len(mapped),
+        summary = {"kind": "reference-only", "selection_mode": selection["selection_mode"],
+            "expected_execution_count": len(selected), "selected_execution_ids": selected_ids,
+            "selection_sha256": sha256(args.output / "selection.json"),
+            "concrete_execution_count": len(mapped),
             "unique_upstream_function_ids": len({row["upstream_id"] for row in mapped}),
             "reference_counts": reference_counts, "candidate_counts": {"UNMAPPED": len(mapped)},
             "paired_pass_count": 0, "source_files_compiled": len(sources)}

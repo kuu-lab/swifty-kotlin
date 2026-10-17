@@ -96,6 +96,18 @@ class CandidateSuitesTests(unittest.TestCase):
             select_catalog_rows([first, second], [first["concrete_class"]], "linux",
                                 source_function_ids=[first["upstream_id"]])
 
+    def test_jvm_catalog_selection_keeps_jvm_ids_out_of_native_catalog_scope(self):
+        common = dict(self.rows[0], execution_id="sample.CommonTest.original", source_set="common")
+        jvm = dict(self.rows[0], execution_id="sample.JvmTest.original", source_set="jvm",
+                   concrete_class="sample.JvmTest", declaring_class="sample.JvmTest")
+        selected = select_catalog_rows([common, jvm], None, "jvm",
+                                       source_function_ids=[self.rows[0]["upstream_id"]])
+        self.assertEqual([row["execution_id"] for row in selected],
+                         [common["execution_id"], jvm["execution_id"]])
+        native_catalog = [common]
+        self.assertNotIn(jvm["execution_id"],
+                          [row["execution_id"] for row in runner.target_catalog_rows(native_catalog, "macos")])
+
     def test_exact_execution_and_invalid_id_selections_are_checked(self):
         exact = self.rows[0]["execution_id"]
         self.assertEqual([row["execution_id"] for row in select_catalog_rows(
@@ -160,7 +172,7 @@ class CandidateSuitesTests(unittest.TestCase):
         self.assertEqual(compiler_resource_bundle(compiler, bundle), resources)
 
     def run_library_lane(self, library_exit, selector=None, test_library=True,
-                         stdlib_from_source=False, optimization="O0"):
+                         stdlib_from_source=False, optimization="O0", jvm_catalog=False):
         compiler = self.root / "kswiftc"
         compiler.write_bytes(b"compiler")
         if stdlib_from_source:
@@ -179,9 +191,11 @@ class CandidateSuitesTests(unittest.TestCase):
         (self.root / "Package.swift").write_text("package")
         (self.root / "run_candidate_subset.py").write_text("helper")
         (self.root / "run_jvm_reference.py").write_text("helper")
-        catalog = self.root / "native-executions.expected.json"
+        catalog = self.root / ("jvm-executions.expected.json" if jvm_catalog
+                               else "native-executions.expected.json")
         catalog.write_text(json.dumps(self.rows))
-        self.lock["native_execution_catalog_sha256"] = hashlib.sha256(catalog.read_bytes()).hexdigest()
+        lock_key = "jvm_execution_catalog_sha256" if jvm_catalog else "native_execution_catalog_sha256"
+        self.lock[lock_key] = hashlib.sha256(catalog.read_bytes()).hexdigest()
         (self.root / "reference-lock.json").write_text(json.dumps(self.lock))
         output = self.root / "lane"
         stages = []
@@ -210,6 +224,8 @@ class CandidateSuitesTests(unittest.TestCase):
                 "--optimization", optimization, "--output", str(output)]
         if test_library:
             args.append("--test-library")
+        if jvm_catalog:
+            args.append("--jvm-catalog")
         if selector:
             args.extend(selector)
         else:
@@ -260,6 +276,19 @@ class CandidateSuitesTests(unittest.TestCase):
         self.assertIn("--stdlib-from-source", stages[0][1])
         self.assertEqual([row["execution_id"] for row in results], [self.rows[0]["execution_id"]])
         self.assertEqual(summary["selected_source_function_count"], 1)
+
+    def test_jvm_catalog_runs_only_selected_upstream_id_through_native_bridge(self):
+        selected_function = self.rows[0]["upstream_id"]
+        exitcode, stages, summary, results = self.run_library_lane(
+            0, selector=["--source-function-id", selected_function],
+            test_library=False, stdlib_from_source=True, optimization="O2", jvm_catalog=True)
+        self.assertEqual(exitcode, 0)
+        self.assertEqual([stage for stage, _ in stages], ["compile", "run"])
+        self.assertEqual(summary["kind"], "candidate-assertion-jvm-bridge-subset")
+        self.assertEqual(summary["candidate_catalog_target"], "jvm-native-bridge")
+        self.assertEqual(summary["result_execution_ids"], [self.rows[0]["execution_id"]])
+        selection = json.loads((self.root / "lane" / "selection.json").read_text())
+        self.assertEqual(selection["target"], "jvm")
 
 
 if __name__ == "__main__":

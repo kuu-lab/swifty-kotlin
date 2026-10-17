@@ -24,9 +24,127 @@ from run_jvm_reference import HERE, execute, sha256, verify_file
 
 PREFIX = b'@file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")\n\n'
 IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z_0-9]*\Z")
+KUU_2566_METHODS = frozenset({
+    "readFromDoesNotLeaveEmptyTailSegment",
+    "bufferInputStreamByteByByte",
+    "bufferInputStreamBulkReads",
+    "copyToOutputStream",
+    "copyToOutputStreamWithStartIndex",
+    "copyToOutputStreamWithEndIndex",
+    "copyToOutputStreamWithIndices",
+    "copyToOutputStreamWithEmptyRange",
+    "readToOutputStream",
+    "readToOutputStreamWithByteCount",
+})
 
 
-def prepare_port(upstream: Path, rows: list[dict], lock: dict, output: Path) -> dict:
+def matching_kotlin_brace(text: str, opening: int) -> int:
+    depth = 0
+    state = "code"
+    block_comment_depth = 0
+    index = opening
+    while index < len(text):
+        if state == "code":
+            if text.startswith("//", index):
+                state = "line-comment"
+                index += 2
+                continue
+            if text.startswith("/*", index):
+                state = "block-comment"
+                block_comment_depth = 1
+                index += 2
+                continue
+            if text.startswith('"""', index):
+                state = "raw-string"
+                index += 3
+                continue
+            if text[index] == '"':
+                state = "string"
+                index += 1
+                continue
+            if text[index] == "'":
+                state = "character"
+                index += 1
+                continue
+            if text[index] == "{":
+                depth += 1
+            elif text[index] == "}":
+                depth -= 1
+                if depth == 0:
+                    return index
+        elif state == "line-comment":
+            if text[index] == "\n":
+                state = "code"
+        elif state == "block-comment":
+            if text.startswith("/*", index):
+                block_comment_depth += 1
+                index += 2
+                continue
+            if text.startswith("*/", index):
+                block_comment_depth -= 1
+                index += 2
+                if block_comment_depth == 0:
+                    state = "code"
+                continue
+        elif state == "raw-string":
+            if text.startswith('"""', index):
+                state = "code"
+                index += 3
+                continue
+        elif state in {"string", "character"}:
+            if text[index] == "\\":
+                index += 2
+                continue
+            if (state == "string" and text[index] == '"') or (state == "character" and text[index] == "'"):
+                state = "code"
+        index += 1
+    raise ValueError("selected test method has an unclosed body")
+
+
+def extract_selected_test_methods(text: str, method_names: list[str]) -> tuple[str, list[dict]]:
+    if not method_names or len(method_names) != len(set(method_names)):
+        raise ValueError("method source closure requires unique selected methods")
+    if not set(method_names) <= KUU_2566_METHODS:
+        raise ValueError("method source closure only supports the locked KUU-2566 BufferTest methods")
+    package = re.search(r"(?m)^package\s+kotlinx\.io\s*$", text)
+    segment_size = re.search(r"(?m)^private const val SEGMENT_SIZE = Segment\.SIZE\s*$", text)
+    if package is None or segment_size is None:
+        raise ValueError("BufferTest method source closure is missing its locked package or SEGMENT_SIZE declaration")
+    imports = re.findall(r"(?m)^import\s+[^\r\n]+$", text)
+    prelude = package.group(0) + "\n\n" + "\n".join(imports) + "\n\n" + segment_size.group(0)
+    method_records = []
+    method_blocks = []
+    for method_name in method_names:
+        declaration = re.compile(
+            r"(?m)^[ \t]*@Test[ \t]*\r?\n[ \t]*fun[ \t]+" + re.escape(method_name)
+            + r"[ \t]*\([ \t]*\)[ \t]*\{"
+        )
+        matches = list(declaration.finditer(text))
+        if len(matches) != 1:
+            raise ValueError(f"selected original test declaration must occur exactly once: {method_name}")
+        match = matches[0]
+        opening = match.end() - 1
+        closing = matching_kotlin_brace(text, opening)
+        source_region = text[match.start():closing + 1]
+        method_blocks.append(source_region)
+        method_records.append({
+            "method_name": method_name,
+            "source_line_start": text.count("\n", 0, match.start()) + 1,
+            "source_line_end": text.count("\n", 0, closing) + 1,
+            "source_region_sha256": hashlib.sha256(source_region.encode("utf-8")).hexdigest(),
+            "source_region_preserved_exactly": True,
+        })
+    ordered = sorted(zip(method_records, method_blocks), key=lambda item: item[0]["source_line_start"])
+    method_records = [record for record, _ in ordered]
+    ordered_blocks = [block for _, block in ordered]
+    source = prelude + "\n\nclass BufferTest {\n" + "\n".join(
+        block for block in ordered_blocks
+    ) + "\n}\n"
+    return source, method_records
+
+
+def prepare_port(upstream: Path, rows: list[dict], lock: dict, output: Path,
+                 method_source_closure: bool = False) -> dict:
     if not rows:
         raise ValueError("suite has no locked execution IDs")
     suite = rows[0]["concrete_class"]
@@ -54,14 +172,24 @@ def prepare_port(upstream: Path, rows: list[dict], lock: dict, output: Path) -> 
         raise ValueError("duplicate locked execution ID or method")
     for row in rows:
         method = row["method_name"]
-        if not IDENTIFIER.fullmatch(method) or row["execution_id"] != suite + "." + method:
+        native_execution_id = suite + "." + method
+        jvm_execution_id = f"[engine:junit-jupiter]/[class:{suite}]/[method:{method}()]"
+        if not IDENTIFIER.fullmatch(method) or row["execution_id"] not in {native_execution_id, jvm_execution_id}:
             raise ValueError("unsupported execution/method identifier")
         if row["git_blob_sha"] != record["git_blob_sha"]:
             raise ValueError("catalog/source blob mismatch")
         if not re.search(r"\bfun\s+" + re.escape(method) + r"\s*\(\s*\)", text):
             raise ValueError("locked method is not a parameterless source declaration")
+    method_records = []
+    if method_source_closure:
+        if suite != "kotlinx.io.BufferTest":
+            raise ValueError("method source closure is only supported for kotlinx.io.BufferTest")
+        source_body, method_records = extract_selected_test_methods(text, methods)
+        port_bytes = PREFIX + source_body.encode("utf-8")
+    else:
+        port_bytes = PREFIX + raw
     port = output / source.name
-    port.write_bytes(PREFIX + raw)
+    port.write_bytes(port_bytes)
     token = "KIO_" + hashlib.sha256(raw + suite.encode()).hexdigest()[:24]
     driver = ["fun main() {"]
     for row in rows:
@@ -79,16 +207,24 @@ def prepare_port(upstream: Path, rows: list[dict], lock: dict, output: Path) -> 
     driver += ["}", ""]
     driver_path = output / "CandidateDriver.kt"
     driver_path.write_text("\n".join(driver), encoding="utf-8")
-    return {
+    result = {
         "suite": suite, "source_path": path, "source_sha256": record["sha256"],
         "source_git_blob_sha": record["git_blob_sha"], "prefix_bytes": len(PREFIX),
-        "original_bytes_preserved_as_suffix": port.read_bytes()[len(PREFIX):] == raw,
         "assertions_parameters_constructors_changed": False,
         "constructor_policy": "fresh original class instance per test",
         "port_path": str(port), "port_sha256": sha256(port),
         "driver_path": str(driver_path), "driver_sha256": sha256(driver_path),
         "execution_ids": identifiers, "event_token": token,
     }
+    if method_source_closure:
+        result["source_port_mode"] = "selected-original-test-method-closure"
+        result["selected_method_source_records"] = method_records
+        result["complete_original_file_compiled"] = False
+    else:
+        result["source_port_mode"] = "complete-original-source-file"
+        result["complete_original_file_compiled"] = True
+        result["original_bytes_preserved_as_suffix"] = port_bytes[len(PREFIX):] == raw
+    return result
 
 
 def parse_events(text: str, identifiers: list[str], token: str) -> list[dict]:

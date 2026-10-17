@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Run locked original suites together, from source or a separate test library.
+"""Run locked original suites from source or a separate test library.
 
-Original assertions and constructors are preserved. The audited Native catalog
-driver supports its concrete factories and cleanup hook; paired PASS is zero.
+Original assertions and constructors are preserved. The Native catalog driver
+supports its audited factories and cleanup hooks; JVM catalog selections keep
+their upstream IDs while executing through KSwiftK's native Java I/O bridge.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ import platform
 import subprocess
 import sys
 
-from run_candidate_subset import parse_events, prepare_port, tree_hash
+from run_candidate_subset import KUU_2566_METHODS, parse_events, prepare_port, tree_hash
 from prepare_candidate_catalog import prepare_catalog
 from run_jvm_reference import HERE, execute, sha256, verify_file
 
@@ -33,8 +34,10 @@ def canonical_sha256(value: object) -> str:
 def target_catalog_rows(catalog: list[dict], target: str | None) -> list[dict]:
     if target is None:
         return list(catalog)
+    if target == "jvm":
+        return [row for row in catalog if row["source_set"] in {"common", "jvm"}]
     if target not in {"linux", "macos"}:
-        raise ValueError("catalog target must be linux or macos")
+        raise ValueError("catalog target must be jvm, linux or macos")
     return [row for row in catalog if row["source_set"] == "common" or target == "macos"]
 
 
@@ -170,7 +173,8 @@ def validate_full_catalog_artifact(selection: dict, results: list[dict], expecte
 
 def prepare_suites(upstream: Path, catalog: list[dict], lock: dict,
                    suites: list[str], output: Path,
-                   execution_ids: list[str] | None = None) -> list[dict]:
+                   execution_ids: list[str] | None = None,
+                   method_source_closure: bool = False) -> list[dict]:
     if not suites or len(set(suites)) != len(suites):
         raise ValueError("suite selection must be nonempty and unique")
     if execution_ids is not None and (not execution_ids or len(execution_ids) != len(set(execution_ids))):
@@ -183,7 +187,8 @@ def prepare_suites(upstream: Path, catalog: list[dict], lock: dict,
         directory.mkdir()
         rows = [row for row in catalog if row["concrete_class"] == suite
                 and (selected_ids is None or row["execution_id"] in selected_ids)]
-        port = prepare_port(upstream, rows, lock, directory)
+        port = prepare_port(upstream, rows, lock, directory,
+                            method_source_closure=method_source_closure)
         if port["source_path"] in source_paths:
             raise ValueError("multiple selected classes share a source file; use a verified multi-class driver")
         source_paths.add(port["source_path"])
@@ -289,6 +294,10 @@ def main(argv: list[str] | None = None) -> int:
                         help="select one concrete catalog execution ID; may be repeated")
     parser.add_argument("--native-catalog", choices=["linux", "macos"],
                         help="use the audited factory/lifecycle driver; without suite or ID selectors runs the full target catalog")
+    parser.add_argument("--jvm-catalog", action="store_true",
+                        help="select locked JVM IDs and execute their unchanged assertions through KSwiftK's native Java I/O bridge")
+    parser.add_argument("--method-source-closure", action="store_true",
+                        help="compile only the unchanged selected KUU-2566 BufferTest methods plus their source header")
     parser.add_argument("--source-closure-index", type=Path,
                         help="explicit audited source closure for selected Native suites; never full catalog coverage")
     parser.add_argument("--isolated-filesystem", action="store_true",
@@ -309,7 +318,7 @@ def main(argv: list[str] | None = None) -> int:
     args.output.mkdir(parents=True, exist_ok=False)
     root = args.package_root.resolve()
     lock_path = HERE / "reference-lock.json"
-    catalog_path = HERE / "native-executions.expected.json"
+    catalog_path = HERE / ("jvm-executions.expected.json" if args.jvm_catalog else "native-executions.expected.json")
     declaration_path = HERE / "candidate-declarations.json"
     summary = {"kind": "candidate-assertion-direct-suites", "paired_pass_count": 0,
                "paired_disposition": "UNMAPPED", "seven_observations_exported": False,
@@ -318,9 +327,14 @@ def main(argv: list[str] | None = None) -> int:
                "stdlib_mode": "source" if args.stdlib_from_source else "library",
                "test_body_mode": "library-consumer" if args.test_library else "source",
                "runtime_cache_provenance": "Runtime source hashes only; cached object bytes are outside this proof",
-               "native_catalog_target": args.native_catalog}
+               "native_catalog_target": args.native_catalog,
+               "candidate_catalog_target": "jvm-native-bridge" if args.jvm_catalog else args.native_catalog}
     try:
-        if not args.native_catalog and not args.suite and not (args.source_function_id or args.execution_id):
+        if args.jvm_catalog and args.native_catalog:
+            raise ValueError("--jvm-catalog and --native-catalog are mutually exclusive")
+        if args.jvm_catalog and not (args.source_function_id or args.execution_id):
+            raise ValueError("--jvm-catalog requires explicit source-function or execution IDs")
+        if not args.native_catalog and not args.jvm_catalog and not args.suite and not (args.source_function_id or args.execution_id):
             raise ValueError("direct mode requires --suite or an explicit ID selection")
         if args.native_catalog and platform.system() != {"linux": "Linux", "macos": "Darwin"}[args.native_catalog]:
             raise ValueError("Native catalog must execute on its target host")
@@ -340,16 +354,28 @@ def main(argv: list[str] | None = None) -> int:
         lock = json.loads(lock_path.read_text())
         for record in lock["upstream_files"]:
             verify_file(args.upstream / record["path"], record)
-        verify_file(catalog_path, {"sha256": lock["native_execution_catalog_sha256"]})
+        catalog_lock_key = "jvm_execution_catalog_sha256" if args.jvm_catalog else "native_execution_catalog_sha256"
+        verify_file(catalog_path, {"sha256": lock[catalog_lock_key]})
         catalog = json.loads(catalog_path.read_text())
         if args.source_closure_index and not args.native_catalog:
             raise ValueError("scoped source closure requires the Native catalog lifecycle driver")
         closure = json.loads(args.source_closure_index.read_text()) if args.source_closure_index else None
+        catalog_target = "jvm" if args.jvm_catalog else args.native_catalog
         selected_rows = select_catalog_rows(
-            catalog, args.suite, args.native_catalog,
+            catalog, args.suite, catalog_target,
             source_function_ids=args.source_function_id,
             execution_ids=args.execution_id)
         selected_ids = [row["execution_id"] for row in selected_rows]
+        if args.method_source_closure:
+            if not args.jvm_catalog:
+                raise ValueError("--method-source-closure requires --jvm-catalog")
+            if not {row["method_name"] for row in selected_rows} <= KUU_2566_METHODS:
+                raise ValueError("--method-source-closure only supports locked KUU-2566 BufferTest methods")
+            if not any(path.name == "KUU-2566-support.kt" for path in args.support_source):
+                raise ValueError("--method-source-closure requires the KUU-2566 support helper closure")
+            summary["kind"] = "candidate-assertion-jvm-bridge-method-closure-subset"
+        elif args.jvm_catalog:
+            summary["kind"] = "candidate-assertion-jvm-bridge-subset"
         selected_suites = sorted({row["concrete_class"] for row in selected_rows})
         if args.source_function_id or args.execution_id:
             selection_mode = "explicit-ids"
@@ -358,10 +384,16 @@ def main(argv: list[str] | None = None) -> int:
         else:
             selection_mode = "full-target-catalog"
         selection = make_selection_manifest(
-            catalog, selected_rows, args.native_catalog, selection_mode,
+            catalog, selected_rows, catalog_target, selection_mode,
             args.source_function_id, args.execution_id, sha256(catalog_path),
             source_file_sha256={row["path"]: row["sha256"] for row in lock["upstream_files"]},
             upstream_commit=lock["commit"], reference_lock_sha256=sha256(lock_path))
+        if args.jvm_catalog:
+            selection["candidate_correspondence"] = {
+                "mode": "same-upstream-jvm-execution-id-on-native-java-io-bridge",
+                "candidate_execution_ids": selected_ids,
+                "native_catalog_execution_ids": [],
+            }
         if args.native_catalog:
             suites_for_catalog = args.suite
             if suites_for_catalog is None and selection_mode == "explicit-ids":
@@ -375,7 +407,8 @@ def main(argv: list[str] | None = None) -> int:
         else:
             suites_for_direct = args.suite if args.suite is not None else selected_suites
             ports = prepare_suites(args.upstream, catalog, lock, suites_for_direct, args.output,
-                                   execution_ids=selected_ids)
+                                   execution_ids=selected_ids,
+                                   method_source_closure=args.method_source_closure)
         prepared_ids = [identifier for port in ports for identifier in port["execution_ids"]]
         if len(prepared_ids) != len(set(prepared_ids)) or set(prepared_ids) != set(selected_ids):
             raise ValueError("prepared candidate IDs do not match the selected catalog IDs")
@@ -486,7 +519,7 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 validate_full_catalog_artifact(
                     selection, results,
-                    [row["execution_id"] for row in target_catalog_rows(catalog, args.native_catalog)])
+                    [row["execution_id"] for row in target_catalog_rows(catalog, catalog_target)])
                 full_catalog_validation = {"status": "PASS"}
             except ValueError as error:
                 full_catalog_validation = {"status": "FAIL", "error": str(error)}

@@ -1,0 +1,2415 @@
+{
+  "schema_version": 1,
+  "issue": "KUU-2566",
+  "title": "[IO-GATE] BufferTest selected JVM methods",
+  "tested_worktree": {
+    "commit": "c7b70e8d62bfcd5c1df891ee28d3886ae419414e",
+    "branch": "kuxu2525/kuu-2566-io-gate-buffertest-の",
+    "compiler_sha256": "fed11f57ac30c14a60b2859654b34b29d0a5365a63fa22050116891ff693fb95",
+    "compiler_resource_bundle_sha256": "59cebba3fb685fc81075d8091edc0f025c6b84766ce3314829edb8e07aeae1d9",
+    "host": "macOS-27.0-arm64-arm-64bit-Mach-O",
+    "compiler_path": "/Users/kuu/.codex/worktrees/24c8/swifty-kotlin/.build/debug/kswiftc"
+  },
+  "scope": {
+    "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+    "upstream_repository": "https://github.com/Kotlin/kotlinx-io",
+    "kotlinx_io": "0.9.1",
+    "kotlin": "2.3.10",
+    "source_path": "core/jvm/test/BufferTest.kt",
+    "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+    "source_git_blob_sha": "693cf67caf375cc51d568b7b39c27fff9a84dc98",
+    "jvm_catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+    "reference_lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+    "selected_function_count": 10,
+    "selected_jvm_execution_count": 10,
+    "selected_native_execution_count": 0,
+    "selected_execution_ids": [
+      "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readFromDoesNotLeaveEmptyTailSegment()]",
+      "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamByteByByte()]",
+      "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamBulkReads()]",
+      "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStream()]",
+      "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithStartIndex()]",
+      "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEndIndex()]",
+      "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithIndices()]",
+      "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEmptyRange()]",
+      "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStream()]",
+      "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStreamWithByteCount()]"
+    ]
+  },
+  "selection": {
+    "mode": "explicit-ids",
+    "method_source_closure": true,
+    "original_method_bodies_preserved_exactly": true,
+    "complete_original_file_compiled": false,
+    "candidate_correspondence": "same-upstream-jvm-execution-id-on-native-java-io-bridge",
+    "native_catalog_execution_ids": [],
+    "method_source_records": [
+      {
+        "method_name": "readFromDoesNotLeaveEmptyTailSegment",
+        "source_line_start": 142,
+        "source_line_end": 147,
+        "source_region_sha256": "b1485733226001ef50d9efe80bd8165fb4c5e2c292201192a488d1c4eb5e7206",
+        "source_region_preserved_exactly": true
+      },
+      {
+        "method_name": "bufferInputStreamByteByByte",
+        "source_line_start": 149,
+        "source_line_end": 160,
+        "source_region_sha256": "5420e059a8e6f4c95d160bcc8fb5026d864286f411cd67e18ec25d18a5f4e52d",
+        "source_region_preserved_exactly": true
+      },
+      {
+        "method_name": "bufferInputStreamBulkReads",
+        "source_line_start": 162,
+        "source_line_end": 174,
+        "source_region_sha256": "c7e1af11a4a93eab0c6baf51ccf3e693aa970d4e8151a728ba4d7de9169bf602",
+        "source_region_preserved_exactly": true
+      },
+      {
+        "method_name": "copyToOutputStream",
+        "source_line_start": 176,
+        "source_line_end": 185,
+        "source_region_sha256": "64c780b83559f18dc7537dcf6bf41bd4d32b66c22a3d1523408931a1ad4fd67c",
+        "source_region_preserved_exactly": true
+      },
+      {
+        "method_name": "copyToOutputStreamWithStartIndex",
+        "source_line_start": 187,
+        "source_line_end": 196,
+        "source_region_sha256": "89dc0e7ad7142b6d31278d2408567281c8e304ff38375452b75757a303ea5088",
+        "source_region_preserved_exactly": true
+      },
+      {
+        "method_name": "copyToOutputStreamWithEndIndex",
+        "source_line_start": 198,
+        "source_line_end": 207,
+        "source_region_sha256": "3cbad9020df88d49e5918eca61974e08c55ba9912e1b3fdfde555f527bd10995",
+        "source_region_preserved_exactly": true
+      },
+      {
+        "method_name": "copyToOutputStreamWithIndices",
+        "source_line_start": 209,
+        "source_line_end": 218,
+        "source_region_sha256": "81c782cce93c82ceb437ac76ebe20e66f11625036c1d481a9b88d803295aa88b",
+        "source_region_preserved_exactly": true
+      },
+      {
+        "method_name": "copyToOutputStreamWithEmptyRange",
+        "source_line_start": 220,
+        "source_line_end": 229,
+        "source_region_sha256": "33969a0952d61adbfe4435edd62a06a7910d4489c861d5484146d2d3c478d510",
+        "source_region_preserved_exactly": true
+      },
+      {
+        "method_name": "readToOutputStream",
+        "source_line_start": 231,
+        "source_line_end": 240,
+        "source_region_sha256": "38b722d411e9153bb1ac8f573a4752b3aa462435e2974ba42011861f8702396b",
+        "source_region_preserved_exactly": true
+      },
+      {
+        "method_name": "readToOutputStreamWithByteCount",
+        "source_line_start": 242,
+        "source_line_end": 251,
+        "source_region_sha256": "bc66cbc2b6841feb4af67087906fe5beea554f973ac981ad7607e74c4d9a8c50",
+        "source_region_preserved_exactly": true
+      }
+    ],
+    "assertion_count": 25,
+    "original_assertions_preserved": true
+  },
+  "support_helper_closure": {
+    "path": "Scripts/kotlinx_io_upstream/buffer/KUU-2566-support.kt",
+    "sha256": "626e7958f2516fd95ce2ef2522f4cf107142520c1711d393db5f405b6bd588d0",
+    "original_source_path": "core/common/test/util.kt",
+    "original_source_sha256": "828ba55155aa655334db84312f11e65a27eae86ef7406177984a07b031d67434",
+    "original_source_git_blob_sha": "3d15705113a2da5629722f19e4da7d6396e72d76",
+    "copied_functions": [
+      "segmentSizes",
+      "assertNoEmptySegments"
+    ],
+    "function_bodies_byte_identical": true,
+    "source_region_sha256": "ab6eb5516e0340baa563cc145cc504dfa118658f832c19793fd053faebccf088"
+  },
+  "reference": {
+    "runner": "JVM reference JUnit runner",
+    "runtime_environment": {
+      "kotlin": "2.3.10",
+      "kotlinx_io": "0.9.1",
+      "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "host": "macOS-27.0-arm64-arm-64bit-Mach-O",
+      "reference_lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+      "runner_sha256": "1e7860d6cc7fd842a777650782fd2d3694d29456bedbd63d0e240c64e5145a5d",
+      "java_version": "",
+      "kotlin_version": "",
+      "source_files_compiled": 50
+    },
+    "selection_mode": "explicit-ids",
+    "selected_execution_count": 10,
+    "counts": {
+      "PASS": 10
+    },
+    "candidate_counts_from_reference_runner": {
+      "UNMAPPED": 10
+    },
+    "artifact_fingerprints": {
+      "summary": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-reference/summary.json",
+        "sha256": "6cc914a6de11b2f126b28abf4766d4e68e953e9284c4df0ff9bed181bdf44ce8",
+        "bytes": 1355
+      },
+      "junit_results": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-reference/junit/results.json",
+        "sha256": "c4a9fdc5dcdbbbdeb787e6c1b768555ba97cdd39b63a0187db2bfcf52d88fac7",
+        "bytes": 4243
+      },
+      "selection_manifest": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-reference/selection.json",
+        "sha256": "34935fb2159f0906a4fd12cdce205728f8b4690073a160b5ba664c1461d908b2",
+        "bytes": 8171
+      },
+      "execution_map": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-reference/execution-map.json",
+        "sha256": "c2d5cb7899ce64f8d713c17bf008caef2cd8c168b5c77fc0981e855d2674537e",
+        "bytes": 14248
+      },
+      "compile_result": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-reference/compile.result.json",
+        "sha256": "f5637cd028c5299233596fb1adef350dd1afa8f6ce5426b6e133e36a99fec9a0",
+        "bytes": 61
+      },
+      "run_result": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-reference/run.result.json",
+        "sha256": "41021b90b3a0ea5c21ea420d73a9a00f12d540c0f4ef12f15b8cc6bbd5e63812",
+        "bytes": 60
+      },
+      "environment": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-reference/environment.json",
+        "sha256": "3882dec0defa5a6141a03b8d618df48e3ea95385b6174250f03730b68c4933e6",
+        "bytes": 12632
+      },
+      "java_version": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-reference/java-version.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "kotlin_version": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-reference/kotlin-version.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "test_jar": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-reference/upstream-jvm-tests.jar",
+        "sha256": "1cf8158c928ded91d6b980efc28b7020f6f39186bbb11113e740298a7ad377ec",
+        "bytes": 280165
+      },
+      "compile_command": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-reference/compile.command.json",
+        "sha256": "72f6e7518873163f283c11df27ee9fe3745683000685b7a64342e2291d4bf8d6",
+        "bytes": 10487
+      },
+      "run_command": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-reference/run.command.json",
+        "sha256": "ee995213af84132988fa0f21c45e854838a92b47bdc1b639a8bf55be06ed9a26",
+        "bytes": 1830
+      }
+    },
+    "per_execution": [
+      {
+        "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamBulkReads()]",
+        "status": "PASS",
+        "exception_type": null,
+        "elapsed_seconds": 0.469923708
+      },
+      {
+        "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamByteByByte()]",
+        "status": "PASS",
+        "exception_type": null,
+        "elapsed_seconds": 0.00034425
+      },
+      {
+        "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStream()]",
+        "status": "PASS",
+        "exception_type": null,
+        "elapsed_seconds": 0.003202833
+      },
+      {
+        "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEmptyRange()]",
+        "status": "PASS",
+        "exception_type": null,
+        "elapsed_seconds": 0.00058025
+      },
+      {
+        "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEndIndex()]",
+        "status": "PASS",
+        "exception_type": null,
+        "elapsed_seconds": 0.000297333
+      },
+      {
+        "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithIndices()]",
+        "status": "PASS",
+        "exception_type": null,
+        "elapsed_seconds": 0.000214625
+      },
+      {
+        "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithStartIndex()]",
+        "status": "PASS",
+        "exception_type": null,
+        "elapsed_seconds": 0.000207
+      },
+      {
+        "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readFromDoesNotLeaveEmptyTailSegment()]",
+        "status": "PASS",
+        "exception_type": null,
+        "elapsed_seconds": 0.00089525
+      },
+      {
+        "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStream()]",
+        "status": "PASS",
+        "exception_type": null,
+        "elapsed_seconds": 0.0002335
+      },
+      {
+        "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStreamWithByteCount()]",
+        "status": "PASS",
+        "exception_type": null,
+        "elapsed_seconds": 0.000206042
+      }
+    ]
+  },
+  "fresh_stdlib_klib": {
+    "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-stdlib-build/KSwiftKStdlib.kklib",
+    "module": null,
+    "manifest": {
+      "compilerVersion": "0.1.0",
+      "formatVersion": 2,
+      "inlineKIRDir": "inline-kir",
+      "kotlinLanguageVersion": "2.4.20",
+      "libraryKind": "stdlib",
+      "metadata": "metadata.bin",
+      "moduleName": "KSwiftKStdlib",
+      "objects": [
+        "objects/KSwiftKStdlib_0.o"
+      ],
+      "sourceVarargStorageABI": "array-v1",
+      "stdlibManifestHash": "20075b11789b0373",
+      "target": "arm64-apple-macosx",
+      "topLevelInitializerLinkName": "kk_fn___kk_library_top_level_init_KSwiftKStdlib_s70003920__13x4b53776966744b5374646c6962"
+    },
+    "manifest_sha256": "ff5d1a9fd2908352ddde0cfdf2b277d95086e4c439a3613b44fb13fb1098c74d",
+    "tree_sha256": "c1431bbe0e329aadb5630b3cf908dfd91f3fb3ef7b5b0a83926d7b7bf68a3b35",
+    "built_by": ".build/debug/kswiftc --stdlib-only --no-incremental"
+  },
+  "candidate_lanes": [
+    {
+      "name": "source-O0",
+      "stdlib_route": "source",
+      "test_body_route": "source-compiled-with-stdlib",
+      "optimization": "O0",
+      "status": "PASS",
+      "counts": {
+        "PASS": 10
+      },
+      "compile_exitcode": 0,
+      "library_compile_exitcode": null,
+      "run_exitcode": 0,
+      "selected_execution_count": 10,
+      "selected_execution_ids": [
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamBulkReads()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamByteByByte()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStream()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEmptyRange()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEndIndex()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithIndices()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithStartIndex()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readFromDoesNotLeaveEmptyTailSegment()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStream()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStreamWithByteCount()]"
+      ],
+      "candidate_executable_sha256": "3516429c2039b0b71adc917ded6e92742e3fbd3b5473a2f1c9cb7108106649ea",
+      "test_library_sha256": null,
+      "summary": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O0/summary.json",
+        "sha256": "64151f56c3c5188aee01927675e63c7f5ac90459d0c04913ca9bba02921748fb"
+      },
+      "results": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O0/results.json",
+        "sha256": "ae7bd2f289f2c01b008cd4ae54020b84417d35e69534df83f015f985ead85737"
+      },
+      "selection_manifest": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O0/selection.json",
+        "sha256": "a5e7ebcb780b2f824743e352b6e071636abc384711568eb1884efc2ad9731cb5"
+      },
+      "compile_result": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O0/compile.result.json",
+        "sha256": "bd56c15996b2f666876a0e0e7d1a8f103188ce18b1f8b5950b64b3f5bf79f56f"
+      },
+      "run_result": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O0/run.result.json",
+        "sha256": "6dd521385dc533ba7d6e6986a31a0cb62dbfe35d33e75d4ddc54e8e471ff72a9"
+      },
+      "library_compile_result": null,
+      "input_hashes": {
+        "workspace_git_sha": "c7b70e8d62bfcd5c1df891ee28d3886ae419414e",
+        "compiler_sha256": "fed11f57ac30c14a60b2859654b34b29d0a5365a63fa22050116891ff693fb95",
+        "compiler_resource_bundle_sha256": "59cebba3fb685fc81075d8091edc0f025c6b84766ce3314829edb8e07aeae1d9",
+        "stdlib_content_sha256": null,
+        "stdlib_sources_sha256": "3cbc578a6eb2e5c77a2fc7c751229443da88bb3d7db31f4fd7856bfb076ac3ff",
+        "runtime_sources_sha256": "65e060f3c5248a31d05a81fff33390068f7f7e3f2d949220c681cf3417ddd7c8",
+        "runtime_abi_sources_sha256": "a50d8ceb8a733f14e713bcebb1aa657348ec354a418d97ea817f16f8a39a0ebe",
+        "package_manifest_sha256": "d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1",
+        "lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+        "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+        "runner_sha256": "92d5454aa9fd69346fa05a05fcb0bc2feaa4e1e4d17533a2d368eb8c8384c733",
+        "direct_runner_sha256": "9e9a6f7bd3c654619dfb1badeeded764cdcca0fc259ca448c692e53f1ecdeb2e",
+        "helper_sha256": "cbdadd22c6062fa4080833bb3524812be5e2f31b2aa8a38e8f0b89b7b235b9fe",
+        "driver_sha256": "227fc14fb67d2b89474cfd838ece51377bcb9e8d5073af854bfc9d288a7d4163",
+        "support_source_sha256": {
+          "/Users/kuu/.codex/worktrees/24c8/swifty-kotlin/Scripts/kotlinx_io_upstream/buffer/KUU-2566-support.kt": "626e7958f2516fd95ce2ef2522f4cf107142520c1711d393db5f405b6bd588d0"
+        },
+        "source_closure_index_sha256": null,
+        "port_sha256": {
+          "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O0/suite-000/BufferTest.kt": "d2c61f50364532e048499eceb69d524bf2afedc513e438f93581ccf505c1e18c"
+        },
+        "catalog_preparer_sha256": null,
+        "declaration_index_sha256": null,
+        "selection_manifest_sha256": "a5e7ebcb780b2f824743e352b6e071636abc384711568eb1884efc2ad9731cb5"
+      },
+      "candidate_execution_statuses": [
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamBulkReads()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#bufferInputStreamBulkReads",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "3516429c2039b0b71adc917ded6e92742e3fbd3b5473a2f1c9cb7108106649ea",
+          "catalog_row_sha256": "b71af0d7e00a6ee698c79aa0be46659b0b1f3416d747a7dfc1079aca015b9947"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamByteByByte()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#bufferInputStreamByteByByte",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "3516429c2039b0b71adc917ded6e92742e3fbd3b5473a2f1c9cb7108106649ea",
+          "catalog_row_sha256": "f9c96d1bb704b8f64068a2100875abf9d8a4014a6ef73921c54cabfc65c3f7f7"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStream()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStream",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "3516429c2039b0b71adc917ded6e92742e3fbd3b5473a2f1c9cb7108106649ea",
+          "catalog_row_sha256": "d6bd65e86458eba9db2708c6f5aa7553a86c81b7da917f0bfcb64793834c34cf"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEmptyRange()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithEmptyRange",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "3516429c2039b0b71adc917ded6e92742e3fbd3b5473a2f1c9cb7108106649ea",
+          "catalog_row_sha256": "fc5d304534981a9d891c3f2a9cb83506a02aba79503b7e8e4a81b4006160bdd3"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEndIndex()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithEndIndex",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "3516429c2039b0b71adc917ded6e92742e3fbd3b5473a2f1c9cb7108106649ea",
+          "catalog_row_sha256": "0d7e3043ae044a331854bff4b61f39181f24031c39848e7cd70cb10d9d9c3791"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithIndices()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithIndices",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "3516429c2039b0b71adc917ded6e92742e3fbd3b5473a2f1c9cb7108106649ea",
+          "catalog_row_sha256": "f60308270a9d6d9849b9d0cf1a15615702e60c2be0dacceb19789b448079f5f5"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithStartIndex()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithStartIndex",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "3516429c2039b0b71adc917ded6e92742e3fbd3b5473a2f1c9cb7108106649ea",
+          "catalog_row_sha256": "b76a6d7deb5966351aaa36e8ea2eb52f6931dedc17e3d2dc5c98bbcc0e805010"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readFromDoesNotLeaveEmptyTailSegment()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#readFromDoesNotLeaveEmptyTailSegment",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "3516429c2039b0b71adc917ded6e92742e3fbd3b5473a2f1c9cb7108106649ea",
+          "catalog_row_sha256": "b394de51a50455af3d2cb9319fc9c9dea4bd78b27697373da34a00199df27581"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStream()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#readToOutputStream",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "3516429c2039b0b71adc917ded6e92742e3fbd3b5473a2f1c9cb7108106649ea",
+          "catalog_row_sha256": "1372f66c12c9382890fa3c76907dd4ed812016a70f47e73631a8b2414982c9f6"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStreamWithByteCount()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#readToOutputStreamWithByteCount",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "3516429c2039b0b71adc917ded6e92742e3fbd3b5473a2f1c9cb7108106649ea",
+          "catalog_row_sha256": "eacd9e51212dda1040db7f6bd18b822ecee2cc1b305624f47b982a5b0abae755"
+        }
+      ],
+      "inputs_unchanged": true,
+      "commands": {
+        "compile": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O0/compile.command.json",
+          "sha256": "86eaaf80d619efb47565f7e71f2a03d13a1f0145bcc974936b325a26473699d7",
+          "argv": [
+            "/Users/kuu/.codex/worktrees/24c8/swifty-kotlin/.build/out/Products/Debug/kswiftc",
+            "-O0",
+            "--stdlib-from-source",
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O0/suite-000/BufferTest.kt",
+            "/Users/kuu/.codex/worktrees/24c8/swifty-kotlin/Scripts/kotlinx_io_upstream/buffer/KUU-2566-support.kt",
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O0/CombinedDriver.kt",
+            "-o",
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O0/candidate"
+          ]
+        },
+        "run": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O0/run.command.json",
+          "sha256": "217fbf4b23270381fd2c600d3199f07bb5a6c78c1ffa473c06d0ddc9bc490716",
+          "argv": [
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O0/candidate"
+          ]
+        }
+      },
+      "stage_logs": {
+        "compile.stdout": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O0/compile.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "compile.stderr": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O0/compile.stderr",
+          "sha256": "fd3d194d99e499485ae5f39cecc12f4510b9575db061dae4843a7a71005342b6",
+          "bytes": 7440
+        },
+        "run.stdout": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O0/run.stdout",
+          "sha256": "27ef36ba40b59b495b7ddda19fb8547b82c3670bbbc8126e8ab2d61b1771c001",
+          "bytes": 2548
+        },
+        "run.stderr": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O0/run.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      }
+    },
+    {
+      "name": "source-O2",
+      "stdlib_route": "source",
+      "test_body_route": "source-compiled-with-stdlib",
+      "optimization": "O2",
+      "status": "PASS",
+      "counts": {
+        "PASS": 10
+      },
+      "compile_exitcode": 0,
+      "library_compile_exitcode": null,
+      "run_exitcode": 0,
+      "selected_execution_count": 10,
+      "selected_execution_ids": [
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamBulkReads()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamByteByByte()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStream()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEmptyRange()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEndIndex()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithIndices()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithStartIndex()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readFromDoesNotLeaveEmptyTailSegment()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStream()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStreamWithByteCount()]"
+      ],
+      "candidate_executable_sha256": "1986deb63c1ab93b04980bfbddafef2c736e9ee7031cc3fe1a0ecf8176271216",
+      "test_library_sha256": null,
+      "summary": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O2/summary.json",
+        "sha256": "5dc9eabcb0040e2fdf269b864d2fc408c93723a8aacfba1d51462a483d49b3ea"
+      },
+      "results": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O2/results.json",
+        "sha256": "3886a3d1a4ee370148cfefa1577e0e3ad92505fdc4b29b5bd2ad018feaaed34d"
+      },
+      "selection_manifest": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O2/selection.json",
+        "sha256": "a470ab481aec80e9a9b3e0612723bd61c63232a4132effe230d9c01ef07436bc"
+      },
+      "compile_result": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O2/compile.result.json",
+        "sha256": "0105062ceaf7610cf1cfa13e0b7f398c3bb48111beb879bcbcbf1bc83318bd0d"
+      },
+      "run_result": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O2/run.result.json",
+        "sha256": "9ac30577362a23ddf7eaa5af0442e67b342df0040fdaf236ad31e2521b8a20d9"
+      },
+      "library_compile_result": null,
+      "input_hashes": {
+        "workspace_git_sha": "c7b70e8d62bfcd5c1df891ee28d3886ae419414e",
+        "compiler_sha256": "fed11f57ac30c14a60b2859654b34b29d0a5365a63fa22050116891ff693fb95",
+        "compiler_resource_bundle_sha256": "59cebba3fb685fc81075d8091edc0f025c6b84766ce3314829edb8e07aeae1d9",
+        "stdlib_content_sha256": null,
+        "stdlib_sources_sha256": "3cbc578a6eb2e5c77a2fc7c751229443da88bb3d7db31f4fd7856bfb076ac3ff",
+        "runtime_sources_sha256": "65e060f3c5248a31d05a81fff33390068f7f7e3f2d949220c681cf3417ddd7c8",
+        "runtime_abi_sources_sha256": "a50d8ceb8a733f14e713bcebb1aa657348ec354a418d97ea817f16f8a39a0ebe",
+        "package_manifest_sha256": "d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1",
+        "lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+        "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+        "runner_sha256": "92d5454aa9fd69346fa05a05fcb0bc2feaa4e1e4d17533a2d368eb8c8384c733",
+        "direct_runner_sha256": "9e9a6f7bd3c654619dfb1badeeded764cdcca0fc259ca448c692e53f1ecdeb2e",
+        "helper_sha256": "cbdadd22c6062fa4080833bb3524812be5e2f31b2aa8a38e8f0b89b7b235b9fe",
+        "driver_sha256": "227fc14fb67d2b89474cfd838ece51377bcb9e8d5073af854bfc9d288a7d4163",
+        "support_source_sha256": {
+          "/Users/kuu/.codex/worktrees/24c8/swifty-kotlin/Scripts/kotlinx_io_upstream/buffer/KUU-2566-support.kt": "626e7958f2516fd95ce2ef2522f4cf107142520c1711d393db5f405b6bd588d0"
+        },
+        "source_closure_index_sha256": null,
+        "port_sha256": {
+          "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O2/suite-000/BufferTest.kt": "d2c61f50364532e048499eceb69d524bf2afedc513e438f93581ccf505c1e18c"
+        },
+        "catalog_preparer_sha256": null,
+        "declaration_index_sha256": null,
+        "selection_manifest_sha256": "a470ab481aec80e9a9b3e0612723bd61c63232a4132effe230d9c01ef07436bc"
+      },
+      "candidate_execution_statuses": [
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamBulkReads()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#bufferInputStreamBulkReads",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "1986deb63c1ab93b04980bfbddafef2c736e9ee7031cc3fe1a0ecf8176271216",
+          "catalog_row_sha256": "b71af0d7e00a6ee698c79aa0be46659b0b1f3416d747a7dfc1079aca015b9947"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamByteByByte()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#bufferInputStreamByteByByte",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "1986deb63c1ab93b04980bfbddafef2c736e9ee7031cc3fe1a0ecf8176271216",
+          "catalog_row_sha256": "f9c96d1bb704b8f64068a2100875abf9d8a4014a6ef73921c54cabfc65c3f7f7"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStream()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStream",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "1986deb63c1ab93b04980bfbddafef2c736e9ee7031cc3fe1a0ecf8176271216",
+          "catalog_row_sha256": "d6bd65e86458eba9db2708c6f5aa7553a86c81b7da917f0bfcb64793834c34cf"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEmptyRange()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithEmptyRange",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "1986deb63c1ab93b04980bfbddafef2c736e9ee7031cc3fe1a0ecf8176271216",
+          "catalog_row_sha256": "fc5d304534981a9d891c3f2a9cb83506a02aba79503b7e8e4a81b4006160bdd3"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEndIndex()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithEndIndex",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "1986deb63c1ab93b04980bfbddafef2c736e9ee7031cc3fe1a0ecf8176271216",
+          "catalog_row_sha256": "0d7e3043ae044a331854bff4b61f39181f24031c39848e7cd70cb10d9d9c3791"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithIndices()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithIndices",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "1986deb63c1ab93b04980bfbddafef2c736e9ee7031cc3fe1a0ecf8176271216",
+          "catalog_row_sha256": "f60308270a9d6d9849b9d0cf1a15615702e60c2be0dacceb19789b448079f5f5"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithStartIndex()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithStartIndex",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "1986deb63c1ab93b04980bfbddafef2c736e9ee7031cc3fe1a0ecf8176271216",
+          "catalog_row_sha256": "b76a6d7deb5966351aaa36e8ea2eb52f6931dedc17e3d2dc5c98bbcc0e805010"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readFromDoesNotLeaveEmptyTailSegment()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#readFromDoesNotLeaveEmptyTailSegment",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "1986deb63c1ab93b04980bfbddafef2c736e9ee7031cc3fe1a0ecf8176271216",
+          "catalog_row_sha256": "b394de51a50455af3d2cb9319fc9c9dea4bd78b27697373da34a00199df27581"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStream()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#readToOutputStream",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "1986deb63c1ab93b04980bfbddafef2c736e9ee7031cc3fe1a0ecf8176271216",
+          "catalog_row_sha256": "1372f66c12c9382890fa3c76907dd4ed812016a70f47e73631a8b2414982c9f6"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStreamWithByteCount()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#readToOutputStreamWithByteCount",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "1986deb63c1ab93b04980bfbddafef2c736e9ee7031cc3fe1a0ecf8176271216",
+          "catalog_row_sha256": "eacd9e51212dda1040db7f6bd18b822ecee2cc1b305624f47b982a5b0abae755"
+        }
+      ],
+      "inputs_unchanged": true,
+      "commands": {
+        "compile": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O2/compile.command.json",
+          "sha256": "211380f264685022b94bfe2e3a07a9891c8c34881730d52ba6c9f49c55e2e0cd",
+          "argv": [
+            "/Users/kuu/.codex/worktrees/24c8/swifty-kotlin/.build/out/Products/Debug/kswiftc",
+            "-O2",
+            "--stdlib-from-source",
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O2/suite-000/BufferTest.kt",
+            "/Users/kuu/.codex/worktrees/24c8/swifty-kotlin/Scripts/kotlinx_io_upstream/buffer/KUU-2566-support.kt",
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O2/CombinedDriver.kt",
+            "-o",
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O2/candidate"
+          ]
+        },
+        "run": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O2/run.command.json",
+          "sha256": "94f6196d6bba9e25e678f6c03ca296c31f52ea4e90e59adee1d579f0823592df",
+          "argv": [
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O2/candidate"
+          ]
+        }
+      },
+      "stage_logs": {
+        "compile.stdout": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O2/compile.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "compile.stderr": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O2/compile.stderr",
+          "sha256": "fd3d194d99e499485ae5f39cecc12f4510b9575db061dae4843a7a71005342b6",
+          "bytes": 7440
+        },
+        "run.stdout": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O2/run.stdout",
+          "sha256": "27ef36ba40b59b495b7ddda19fb8547b82c3670bbbc8126e8ab2d61b1771c001",
+          "bytes": 2548
+        },
+        "run.stderr": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-source-O2/run.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      }
+    },
+    {
+      "name": "stdlib-library-O0",
+      "stdlib_route": "fresh-stdlib-KLIB",
+      "test_body_route": "test-methods-compiled-from-source-with-fresh-stdlib-KLIB",
+      "optimization": "O0",
+      "status": "PASS",
+      "counts": {
+        "PASS": 10
+      },
+      "compile_exitcode": 0,
+      "library_compile_exitcode": null,
+      "run_exitcode": 0,
+      "selected_execution_count": 10,
+      "selected_execution_ids": [
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamBulkReads()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamByteByByte()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStream()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEmptyRange()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEndIndex()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithIndices()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithStartIndex()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readFromDoesNotLeaveEmptyTailSegment()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStream()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStreamWithByteCount()]"
+      ],
+      "candidate_executable_sha256": "dea89b54fd53608a5d646ec86bd08c6f74e3b8ad64a1f185a64ae257fe03e0bb",
+      "test_library_sha256": null,
+      "summary": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O0/summary.json",
+        "sha256": "dc95de12cbe3e46cc062bd248cc92e182e03b88b3dd364aa1368646cc4bbeb10"
+      },
+      "results": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O0/results.json",
+        "sha256": "fdf389c3a8061629c0479ca42e769c7fe06910470a2f990c6c36e4ecfbba18f5"
+      },
+      "selection_manifest": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O0/selection.json",
+        "sha256": "6ee132d61f862c155b21ca4f22d85303bef2a93f1f9c88845abe9bcb104e125b"
+      },
+      "compile_result": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O0/compile.result.json",
+        "sha256": "5745cea6889d72d9c360bd031ffb635feed220eb6e2147e9beca03da8a6035d8"
+      },
+      "run_result": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O0/run.result.json",
+        "sha256": "ce2e5e481f70f944132558c8c12a12d5a1169d2bf672069cedfc676ea130d212"
+      },
+      "library_compile_result": null,
+      "input_hashes": {
+        "workspace_git_sha": "c7b70e8d62bfcd5c1df891ee28d3886ae419414e",
+        "compiler_sha256": "fed11f57ac30c14a60b2859654b34b29d0a5365a63fa22050116891ff693fb95",
+        "compiler_resource_bundle_sha256": "59cebba3fb685fc81075d8091edc0f025c6b84766ce3314829edb8e07aeae1d9",
+        "stdlib_content_sha256": "c1431bbe0e329aadb5630b3cf908dfd91f3fb3ef7b5b0a83926d7b7bf68a3b35",
+        "stdlib_sources_sha256": "3cbc578a6eb2e5c77a2fc7c751229443da88bb3d7db31f4fd7856bfb076ac3ff",
+        "runtime_sources_sha256": "65e060f3c5248a31d05a81fff33390068f7f7e3f2d949220c681cf3417ddd7c8",
+        "runtime_abi_sources_sha256": "a50d8ceb8a733f14e713bcebb1aa657348ec354a418d97ea817f16f8a39a0ebe",
+        "package_manifest_sha256": "d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1",
+        "lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+        "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+        "runner_sha256": "92d5454aa9fd69346fa05a05fcb0bc2feaa4e1e4d17533a2d368eb8c8384c733",
+        "direct_runner_sha256": "9e9a6f7bd3c654619dfb1badeeded764cdcca0fc259ca448c692e53f1ecdeb2e",
+        "helper_sha256": "cbdadd22c6062fa4080833bb3524812be5e2f31b2aa8a38e8f0b89b7b235b9fe",
+        "driver_sha256": "227fc14fb67d2b89474cfd838ece51377bcb9e8d5073af854bfc9d288a7d4163",
+        "support_source_sha256": {
+          "/Users/kuu/.codex/worktrees/24c8/swifty-kotlin/Scripts/kotlinx_io_upstream/buffer/KUU-2566-support.kt": "626e7958f2516fd95ce2ef2522f4cf107142520c1711d393db5f405b6bd588d0"
+        },
+        "source_closure_index_sha256": null,
+        "port_sha256": {
+          "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O0/suite-000/BufferTest.kt": "d2c61f50364532e048499eceb69d524bf2afedc513e438f93581ccf505c1e18c"
+        },
+        "catalog_preparer_sha256": null,
+        "declaration_index_sha256": null,
+        "selection_manifest_sha256": "6ee132d61f862c155b21ca4f22d85303bef2a93f1f9c88845abe9bcb104e125b"
+      },
+      "candidate_execution_statuses": [
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamBulkReads()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#bufferInputStreamBulkReads",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "dea89b54fd53608a5d646ec86bd08c6f74e3b8ad64a1f185a64ae257fe03e0bb",
+          "catalog_row_sha256": "b71af0d7e00a6ee698c79aa0be46659b0b1f3416d747a7dfc1079aca015b9947"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamByteByByte()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#bufferInputStreamByteByByte",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "dea89b54fd53608a5d646ec86bd08c6f74e3b8ad64a1f185a64ae257fe03e0bb",
+          "catalog_row_sha256": "f9c96d1bb704b8f64068a2100875abf9d8a4014a6ef73921c54cabfc65c3f7f7"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStream()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStream",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "dea89b54fd53608a5d646ec86bd08c6f74e3b8ad64a1f185a64ae257fe03e0bb",
+          "catalog_row_sha256": "d6bd65e86458eba9db2708c6f5aa7553a86c81b7da917f0bfcb64793834c34cf"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEmptyRange()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithEmptyRange",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "dea89b54fd53608a5d646ec86bd08c6f74e3b8ad64a1f185a64ae257fe03e0bb",
+          "catalog_row_sha256": "fc5d304534981a9d891c3f2a9cb83506a02aba79503b7e8e4a81b4006160bdd3"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEndIndex()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithEndIndex",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "dea89b54fd53608a5d646ec86bd08c6f74e3b8ad64a1f185a64ae257fe03e0bb",
+          "catalog_row_sha256": "0d7e3043ae044a331854bff4b61f39181f24031c39848e7cd70cb10d9d9c3791"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithIndices()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithIndices",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "dea89b54fd53608a5d646ec86bd08c6f74e3b8ad64a1f185a64ae257fe03e0bb",
+          "catalog_row_sha256": "f60308270a9d6d9849b9d0cf1a15615702e60c2be0dacceb19789b448079f5f5"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithStartIndex()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithStartIndex",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "dea89b54fd53608a5d646ec86bd08c6f74e3b8ad64a1f185a64ae257fe03e0bb",
+          "catalog_row_sha256": "b76a6d7deb5966351aaa36e8ea2eb52f6931dedc17e3d2dc5c98bbcc0e805010"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readFromDoesNotLeaveEmptyTailSegment()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#readFromDoesNotLeaveEmptyTailSegment",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "dea89b54fd53608a5d646ec86bd08c6f74e3b8ad64a1f185a64ae257fe03e0bb",
+          "catalog_row_sha256": "b394de51a50455af3d2cb9319fc9c9dea4bd78b27697373da34a00199df27581"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStream()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#readToOutputStream",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "dea89b54fd53608a5d646ec86bd08c6f74e3b8ad64a1f185a64ae257fe03e0bb",
+          "catalog_row_sha256": "1372f66c12c9382890fa3c76907dd4ed812016a70f47e73631a8b2414982c9f6"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStreamWithByteCount()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#readToOutputStreamWithByteCount",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "dea89b54fd53608a5d646ec86bd08c6f74e3b8ad64a1f185a64ae257fe03e0bb",
+          "catalog_row_sha256": "eacd9e51212dda1040db7f6bd18b822ecee2cc1b305624f47b982a5b0abae755"
+        }
+      ],
+      "inputs_unchanged": true,
+      "commands": {
+        "compile": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O0/compile.command.json",
+          "sha256": "306986a02c820bf6ed378b0a214f36c3d298c32422a42f01b2eb766a7c643295",
+          "argv": [
+            "/Users/kuu/.codex/worktrees/24c8/swifty-kotlin/.build/out/Products/Debug/kswiftc",
+            "-O0",
+            "--stdlib-library",
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-stdlib-build/KSwiftKStdlib.kklib",
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O0/suite-000/BufferTest.kt",
+            "/Users/kuu/.codex/worktrees/24c8/swifty-kotlin/Scripts/kotlinx_io_upstream/buffer/KUU-2566-support.kt",
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O0/CombinedDriver.kt",
+            "-o",
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O0/candidate"
+          ]
+        },
+        "run": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O0/run.command.json",
+          "sha256": "ec366ef4f742ca1ecc2dfea2c07ba28a9d604fccedf34076f13cfd8205621a88",
+          "argv": [
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O0/candidate"
+          ]
+        }
+      },
+      "stage_logs": {
+        "compile.stdout": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O0/compile.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "compile.stderr": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O0/compile.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "run.stdout": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O0/run.stdout",
+          "sha256": "27ef36ba40b59b495b7ddda19fb8547b82c3670bbbc8126e8ab2d61b1771c001",
+          "bytes": 2548
+        },
+        "run.stderr": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O0/run.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      }
+    },
+    {
+      "name": "stdlib-library-O2",
+      "stdlib_route": "fresh-stdlib-KLIB",
+      "test_body_route": "test-methods-compiled-from-source-with-fresh-stdlib-KLIB",
+      "optimization": "O2",
+      "status": "PASS",
+      "counts": {
+        "PASS": 10
+      },
+      "compile_exitcode": 0,
+      "library_compile_exitcode": null,
+      "run_exitcode": 0,
+      "selected_execution_count": 10,
+      "selected_execution_ids": [
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamBulkReads()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamByteByByte()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStream()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEmptyRange()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEndIndex()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithIndices()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithStartIndex()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readFromDoesNotLeaveEmptyTailSegment()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStream()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStreamWithByteCount()]"
+      ],
+      "candidate_executable_sha256": "ea79762ac0c90c2b276c9d5de06c61e43df506b960be024e01ba622a32090574",
+      "test_library_sha256": null,
+      "summary": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O2/summary.json",
+        "sha256": "883e02090ece9757ab68b8f5b8dd137df1841e43b4d9d08b21a14fe0ea16353a"
+      },
+      "results": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O2/results.json",
+        "sha256": "b3b1e6534cacaf5b7ddda6e7395c0d17bdf22818319e4972ab1f18c03f3f27ed"
+      },
+      "selection_manifest": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O2/selection.json",
+        "sha256": "b13a741ec63f9d9c315127f1c0f9aaed248ba1fc6f3d2e784097fa614bfc1c77"
+      },
+      "compile_result": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O2/compile.result.json",
+        "sha256": "6cd8074101c3cbd5d265ab22911631be8f3f0582c4733397a68989825d90982d"
+      },
+      "run_result": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O2/run.result.json",
+        "sha256": "c584c2fa396de2ed84e4ef7f72214dd9f5b4d79a08d51def7ab06df5ed423fcf"
+      },
+      "library_compile_result": null,
+      "input_hashes": {
+        "workspace_git_sha": "c7b70e8d62bfcd5c1df891ee28d3886ae419414e",
+        "compiler_sha256": "fed11f57ac30c14a60b2859654b34b29d0a5365a63fa22050116891ff693fb95",
+        "compiler_resource_bundle_sha256": "59cebba3fb685fc81075d8091edc0f025c6b84766ce3314829edb8e07aeae1d9",
+        "stdlib_content_sha256": "c1431bbe0e329aadb5630b3cf908dfd91f3fb3ef7b5b0a83926d7b7bf68a3b35",
+        "stdlib_sources_sha256": "3cbc578a6eb2e5c77a2fc7c751229443da88bb3d7db31f4fd7856bfb076ac3ff",
+        "runtime_sources_sha256": "65e060f3c5248a31d05a81fff33390068f7f7e3f2d949220c681cf3417ddd7c8",
+        "runtime_abi_sources_sha256": "a50d8ceb8a733f14e713bcebb1aa657348ec354a418d97ea817f16f8a39a0ebe",
+        "package_manifest_sha256": "d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1",
+        "lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+        "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+        "runner_sha256": "92d5454aa9fd69346fa05a05fcb0bc2feaa4e1e4d17533a2d368eb8c8384c733",
+        "direct_runner_sha256": "9e9a6f7bd3c654619dfb1badeeded764cdcca0fc259ca448c692e53f1ecdeb2e",
+        "helper_sha256": "cbdadd22c6062fa4080833bb3524812be5e2f31b2aa8a38e8f0b89b7b235b9fe",
+        "driver_sha256": "227fc14fb67d2b89474cfd838ece51377bcb9e8d5073af854bfc9d288a7d4163",
+        "support_source_sha256": {
+          "/Users/kuu/.codex/worktrees/24c8/swifty-kotlin/Scripts/kotlinx_io_upstream/buffer/KUU-2566-support.kt": "626e7958f2516fd95ce2ef2522f4cf107142520c1711d393db5f405b6bd588d0"
+        },
+        "source_closure_index_sha256": null,
+        "port_sha256": {
+          "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O2/suite-000/BufferTest.kt": "d2c61f50364532e048499eceb69d524bf2afedc513e438f93581ccf505c1e18c"
+        },
+        "catalog_preparer_sha256": null,
+        "declaration_index_sha256": null,
+        "selection_manifest_sha256": "b13a741ec63f9d9c315127f1c0f9aaed248ba1fc6f3d2e784097fa614bfc1c77"
+      },
+      "candidate_execution_statuses": [
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamBulkReads()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#bufferInputStreamBulkReads",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "ea79762ac0c90c2b276c9d5de06c61e43df506b960be024e01ba622a32090574",
+          "catalog_row_sha256": "b71af0d7e00a6ee698c79aa0be46659b0b1f3416d747a7dfc1079aca015b9947"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamByteByByte()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#bufferInputStreamByteByByte",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "ea79762ac0c90c2b276c9d5de06c61e43df506b960be024e01ba622a32090574",
+          "catalog_row_sha256": "f9c96d1bb704b8f64068a2100875abf9d8a4014a6ef73921c54cabfc65c3f7f7"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStream()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStream",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "ea79762ac0c90c2b276c9d5de06c61e43df506b960be024e01ba622a32090574",
+          "catalog_row_sha256": "d6bd65e86458eba9db2708c6f5aa7553a86c81b7da917f0bfcb64793834c34cf"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEmptyRange()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithEmptyRange",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "ea79762ac0c90c2b276c9d5de06c61e43df506b960be024e01ba622a32090574",
+          "catalog_row_sha256": "fc5d304534981a9d891c3f2a9cb83506a02aba79503b7e8e4a81b4006160bdd3"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEndIndex()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithEndIndex",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "ea79762ac0c90c2b276c9d5de06c61e43df506b960be024e01ba622a32090574",
+          "catalog_row_sha256": "0d7e3043ae044a331854bff4b61f39181f24031c39848e7cd70cb10d9d9c3791"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithIndices()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithIndices",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "ea79762ac0c90c2b276c9d5de06c61e43df506b960be024e01ba622a32090574",
+          "catalog_row_sha256": "f60308270a9d6d9849b9d0cf1a15615702e60c2be0dacceb19789b448079f5f5"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithStartIndex()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithStartIndex",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "ea79762ac0c90c2b276c9d5de06c61e43df506b960be024e01ba622a32090574",
+          "catalog_row_sha256": "b76a6d7deb5966351aaa36e8ea2eb52f6931dedc17e3d2dc5c98bbcc0e805010"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readFromDoesNotLeaveEmptyTailSegment()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#readFromDoesNotLeaveEmptyTailSegment",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "ea79762ac0c90c2b276c9d5de06c61e43df506b960be024e01ba622a32090574",
+          "catalog_row_sha256": "b394de51a50455af3d2cb9319fc9c9dea4bd78b27697373da34a00199df27581"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStream()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#readToOutputStream",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "ea79762ac0c90c2b276c9d5de06c61e43df506b960be024e01ba622a32090574",
+          "catalog_row_sha256": "1372f66c12c9382890fa3c76907dd4ed812016a70f47e73631a8b2414982c9f6"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStreamWithByteCount()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#readToOutputStreamWithByteCount",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "ea79762ac0c90c2b276c9d5de06c61e43df506b960be024e01ba622a32090574",
+          "catalog_row_sha256": "eacd9e51212dda1040db7f6bd18b822ecee2cc1b305624f47b982a5b0abae755"
+        }
+      ],
+      "inputs_unchanged": true,
+      "commands": {
+        "compile": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O2/compile.command.json",
+          "sha256": "d8bc67f5511d5a455844cb5ac4565e27acdf1ea92ef38879fa581757f87b7e4d",
+          "argv": [
+            "/Users/kuu/.codex/worktrees/24c8/swifty-kotlin/.build/out/Products/Debug/kswiftc",
+            "-O2",
+            "--stdlib-library",
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-stdlib-build/KSwiftKStdlib.kklib",
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O2/suite-000/BufferTest.kt",
+            "/Users/kuu/.codex/worktrees/24c8/swifty-kotlin/Scripts/kotlinx_io_upstream/buffer/KUU-2566-support.kt",
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O2/CombinedDriver.kt",
+            "-o",
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O2/candidate"
+          ]
+        },
+        "run": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O2/run.command.json",
+          "sha256": "685614e3c7e74d2a159b8ddf83665e190c5bf638cda71fdfd96bd8b1fd00f92f",
+          "argv": [
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O2/candidate"
+          ]
+        }
+      },
+      "stage_logs": {
+        "compile.stdout": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O2/compile.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "compile.stderr": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O2/compile.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "run.stdout": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O2/run.stdout",
+          "sha256": "27ef36ba40b59b495b7ddda19fb8547b82c3670bbbc8126e8ab2d61b1771c001",
+          "bytes": 2548
+        },
+        "run.stderr": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-stdlib-library-O2/run.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      }
+    },
+    {
+      "name": "producer-consumer-O0",
+      "stdlib_route": "fresh-stdlib-KLIB",
+      "test_body_route": "separate-test-KLIB-then-consumer",
+      "optimization": "O0",
+      "status": "PASS",
+      "counts": {
+        "PASS": 10
+      },
+      "compile_exitcode": 0,
+      "library_compile_exitcode": 0,
+      "run_exitcode": 0,
+      "selected_execution_count": 10,
+      "selected_execution_ids": [
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamBulkReads()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamByteByByte()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStream()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEmptyRange()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEndIndex()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithIndices()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithStartIndex()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readFromDoesNotLeaveEmptyTailSegment()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStream()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStreamWithByteCount()]"
+      ],
+      "candidate_executable_sha256": "268ff6061eaeee7b0897e7215840b1558f1a0cfa4e645f55e5362211bf8c9ea2",
+      "test_library_sha256": "35113ac13b772fc986af8bb0fce9e5292f233ac0c749a331b57de0bca0976c19",
+      "summary": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O0/summary.json",
+        "sha256": "f584f15128299457d52719ce2c7c31854a8379e9a7904d25f0f53535658ee579"
+      },
+      "results": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O0/results.json",
+        "sha256": "b8c81b180fa5b893f23e0a667ad9ef4433f9dade7cc6fc9d0f43bcbc24a27a0f"
+      },
+      "selection_manifest": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O0/selection.json",
+        "sha256": "2af2f79ee85a7ec0a86facdc138d9ce1fcef55602418129fa6e61ff48cd16cef"
+      },
+      "compile_result": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O0/compile.result.json",
+        "sha256": "ff1192e415a28595273083398b97aabd93b50c0e3aede7999a7c2ab718b285a1"
+      },
+      "run_result": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O0/run.result.json",
+        "sha256": "3dbe4d7dc393beec4630d24c55472cc32390f63dfd338266c4355085fb062ee2"
+      },
+      "library_compile_result": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O0/library-compile.result.json",
+        "sha256": "2a826b31caf54b756837c8bba620aa89f6124b784a463c978eab46c479922cad"
+      },
+      "input_hashes": {
+        "workspace_git_sha": "c7b70e8d62bfcd5c1df891ee28d3886ae419414e",
+        "compiler_sha256": "fed11f57ac30c14a60b2859654b34b29d0a5365a63fa22050116891ff693fb95",
+        "compiler_resource_bundle_sha256": "59cebba3fb685fc81075d8091edc0f025c6b84766ce3314829edb8e07aeae1d9",
+        "stdlib_content_sha256": "c1431bbe0e329aadb5630b3cf908dfd91f3fb3ef7b5b0a83926d7b7bf68a3b35",
+        "stdlib_sources_sha256": "3cbc578a6eb2e5c77a2fc7c751229443da88bb3d7db31f4fd7856bfb076ac3ff",
+        "runtime_sources_sha256": "65e060f3c5248a31d05a81fff33390068f7f7e3f2d949220c681cf3417ddd7c8",
+        "runtime_abi_sources_sha256": "a50d8ceb8a733f14e713bcebb1aa657348ec354a418d97ea817f16f8a39a0ebe",
+        "package_manifest_sha256": "d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1",
+        "lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+        "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+        "runner_sha256": "92d5454aa9fd69346fa05a05fcb0bc2feaa4e1e4d17533a2d368eb8c8384c733",
+        "direct_runner_sha256": "9e9a6f7bd3c654619dfb1badeeded764cdcca0fc259ca448c692e53f1ecdeb2e",
+        "helper_sha256": "cbdadd22c6062fa4080833bb3524812be5e2f31b2aa8a38e8f0b89b7b235b9fe",
+        "driver_sha256": "227fc14fb67d2b89474cfd838ece51377bcb9e8d5073af854bfc9d288a7d4163",
+        "support_source_sha256": {
+          "/Users/kuu/.codex/worktrees/24c8/swifty-kotlin/Scripts/kotlinx_io_upstream/buffer/KUU-2566-support.kt": "626e7958f2516fd95ce2ef2522f4cf107142520c1711d393db5f405b6bd588d0"
+        },
+        "source_closure_index_sha256": null,
+        "port_sha256": {
+          "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O0/suite-000/BufferTest.kt": "d2c61f50364532e048499eceb69d524bf2afedc513e438f93581ccf505c1e18c"
+        },
+        "catalog_preparer_sha256": null,
+        "declaration_index_sha256": null,
+        "selection_manifest_sha256": "2af2f79ee85a7ec0a86facdc138d9ce1fcef55602418129fa6e61ff48cd16cef"
+      },
+      "candidate_execution_statuses": [
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamBulkReads()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#bufferInputStreamBulkReads",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "268ff6061eaeee7b0897e7215840b1558f1a0cfa4e645f55e5362211bf8c9ea2",
+          "catalog_row_sha256": "b71af0d7e00a6ee698c79aa0be46659b0b1f3416d747a7dfc1079aca015b9947"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamByteByByte()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#bufferInputStreamByteByByte",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "268ff6061eaeee7b0897e7215840b1558f1a0cfa4e645f55e5362211bf8c9ea2",
+          "catalog_row_sha256": "f9c96d1bb704b8f64068a2100875abf9d8a4014a6ef73921c54cabfc65c3f7f7"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStream()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStream",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "268ff6061eaeee7b0897e7215840b1558f1a0cfa4e645f55e5362211bf8c9ea2",
+          "catalog_row_sha256": "d6bd65e86458eba9db2708c6f5aa7553a86c81b7da917f0bfcb64793834c34cf"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEmptyRange()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithEmptyRange",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "268ff6061eaeee7b0897e7215840b1558f1a0cfa4e645f55e5362211bf8c9ea2",
+          "catalog_row_sha256": "fc5d304534981a9d891c3f2a9cb83506a02aba79503b7e8e4a81b4006160bdd3"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEndIndex()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithEndIndex",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "268ff6061eaeee7b0897e7215840b1558f1a0cfa4e645f55e5362211bf8c9ea2",
+          "catalog_row_sha256": "0d7e3043ae044a331854bff4b61f39181f24031c39848e7cd70cb10d9d9c3791"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithIndices()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithIndices",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "268ff6061eaeee7b0897e7215840b1558f1a0cfa4e645f55e5362211bf8c9ea2",
+          "catalog_row_sha256": "f60308270a9d6d9849b9d0cf1a15615702e60c2be0dacceb19789b448079f5f5"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithStartIndex()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithStartIndex",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "268ff6061eaeee7b0897e7215840b1558f1a0cfa4e645f55e5362211bf8c9ea2",
+          "catalog_row_sha256": "b76a6d7deb5966351aaa36e8ea2eb52f6931dedc17e3d2dc5c98bbcc0e805010"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readFromDoesNotLeaveEmptyTailSegment()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#readFromDoesNotLeaveEmptyTailSegment",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "268ff6061eaeee7b0897e7215840b1558f1a0cfa4e645f55e5362211bf8c9ea2",
+          "catalog_row_sha256": "b394de51a50455af3d2cb9319fc9c9dea4bd78b27697373da34a00199df27581"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStream()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#readToOutputStream",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "268ff6061eaeee7b0897e7215840b1558f1a0cfa4e645f55e5362211bf8c9ea2",
+          "catalog_row_sha256": "1372f66c12c9382890fa3c76907dd4ed812016a70f47e73631a8b2414982c9f6"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStreamWithByteCount()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#readToOutputStreamWithByteCount",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "268ff6061eaeee7b0897e7215840b1558f1a0cfa4e645f55e5362211bf8c9ea2",
+          "catalog_row_sha256": "eacd9e51212dda1040db7f6bd18b822ecee2cc1b305624f47b982a5b0abae755"
+        }
+      ],
+      "inputs_unchanged": true,
+      "commands": {
+        "compile": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O0/compile.command.json",
+          "sha256": "b02200c103546e8856c8a4c5ed8d9d68f452a8fd0c9eb4a686f5bb8d65a62d70",
+          "argv": [
+            "/Users/kuu/.codex/worktrees/24c8/swifty-kotlin/.build/out/Products/Debug/kswiftc",
+            "-O0",
+            "--stdlib-library",
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-stdlib-build/KSwiftKStdlib.kklib",
+            "-I",
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O0/OriginalTests.kklib",
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O0/CombinedDriver.kt",
+            "-o",
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O0/candidate"
+          ]
+        },
+        "run": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O0/run.command.json",
+          "sha256": "fa4f3674da80657c5cf561176d7f51bbf10629430497eebea98bb604f18581ca",
+          "argv": [
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O0/candidate"
+          ]
+        },
+        "library_compile": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O0/library-compile.command.json",
+          "sha256": "a628f04a1f0e8503baa5562e0dcb5d4fac0d2d4060568a1a38effdd1dde58db8",
+          "argv": [
+            "/Users/kuu/.codex/worktrees/24c8/swifty-kotlin/.build/out/Products/Debug/kswiftc",
+            "-O0",
+            "--stdlib-library",
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-stdlib-build/KSwiftKStdlib.kklib",
+            "--emit",
+            "library",
+            "-m",
+            "KioOriginalTests",
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O0/suite-000/BufferTest.kt",
+            "/Users/kuu/.codex/worktrees/24c8/swifty-kotlin/Scripts/kotlinx_io_upstream/buffer/KUU-2566-support.kt",
+            "-o",
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O0/OriginalTests.kklib"
+          ]
+        }
+      },
+      "stage_logs": {
+        "compile.stdout": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O0/compile.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "compile.stderr": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O0/compile.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "run.stdout": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O0/run.stdout",
+          "sha256": "27ef36ba40b59b495b7ddda19fb8547b82c3670bbbc8126e8ab2d61b1771c001",
+          "bytes": 2548
+        },
+        "run.stderr": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O0/run.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "library-compile.stdout": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O0/library-compile.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "library-compile.stderr": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O0/library-compile.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      }
+    },
+    {
+      "name": "producer-consumer-O2",
+      "stdlib_route": "fresh-stdlib-KLIB",
+      "test_body_route": "separate-test-KLIB-then-consumer",
+      "optimization": "O2",
+      "status": "PASS",
+      "counts": {
+        "PASS": 10
+      },
+      "compile_exitcode": 0,
+      "library_compile_exitcode": 0,
+      "run_exitcode": 0,
+      "selected_execution_count": 10,
+      "selected_execution_ids": [
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamBulkReads()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamByteByByte()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStream()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEmptyRange()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEndIndex()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithIndices()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithStartIndex()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readFromDoesNotLeaveEmptyTailSegment()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStream()]",
+        "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStreamWithByteCount()]"
+      ],
+      "candidate_executable_sha256": "7bed2e5d9e39f549bfbc7bad79808d39426469348e73d8d950eb031256615f2f",
+      "test_library_sha256": "776d9aa5dc2578be34e7076de948b1c0e87b73f2e2e681d8a9d03b4d29fbbeef",
+      "summary": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O2/summary.json",
+        "sha256": "db782dc2b2f875874cd20efff64e05de1b28614ff085abc2016e95ad445d56b8"
+      },
+      "results": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O2/results.json",
+        "sha256": "9646f1a7d72f9a76f3fd8651870c530f7010b5c6970a95ea79d111f5fc4dca64"
+      },
+      "selection_manifest": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O2/selection.json",
+        "sha256": "157df308155ca03c3a242f151323cc63472f8e7b56d6f1b7250904b281e45ea1"
+      },
+      "compile_result": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O2/compile.result.json",
+        "sha256": "ba04cb68c8938bb24d43df581016b8aa17a13598832958d4a0268d0bc8b723a5"
+      },
+      "run_result": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O2/run.result.json",
+        "sha256": "7e2d361133db2ec11949cea57bb5998e5d34b2a1291e470d674c345abf2f881b"
+      },
+      "library_compile_result": {
+        "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O2/library-compile.result.json",
+        "sha256": "e2291a2ae25985643a3b7c158c8dcca85dbf7ab8dc4ef8d4ec5d1a2775e502c1"
+      },
+      "input_hashes": {
+        "workspace_git_sha": "c7b70e8d62bfcd5c1df891ee28d3886ae419414e",
+        "compiler_sha256": "fed11f57ac30c14a60b2859654b34b29d0a5365a63fa22050116891ff693fb95",
+        "compiler_resource_bundle_sha256": "59cebba3fb685fc81075d8091edc0f025c6b84766ce3314829edb8e07aeae1d9",
+        "stdlib_content_sha256": "c1431bbe0e329aadb5630b3cf908dfd91f3fb3ef7b5b0a83926d7b7bf68a3b35",
+        "stdlib_sources_sha256": "3cbc578a6eb2e5c77a2fc7c751229443da88bb3d7db31f4fd7856bfb076ac3ff",
+        "runtime_sources_sha256": "65e060f3c5248a31d05a81fff33390068f7f7e3f2d949220c681cf3417ddd7c8",
+        "runtime_abi_sources_sha256": "a50d8ceb8a733f14e713bcebb1aa657348ec354a418d97ea817f16f8a39a0ebe",
+        "package_manifest_sha256": "d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1",
+        "lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+        "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+        "runner_sha256": "92d5454aa9fd69346fa05a05fcb0bc2feaa4e1e4d17533a2d368eb8c8384c733",
+        "direct_runner_sha256": "9e9a6f7bd3c654619dfb1badeeded764cdcca0fc259ca448c692e53f1ecdeb2e",
+        "helper_sha256": "cbdadd22c6062fa4080833bb3524812be5e2f31b2aa8a38e8f0b89b7b235b9fe",
+        "driver_sha256": "227fc14fb67d2b89474cfd838ece51377bcb9e8d5073af854bfc9d288a7d4163",
+        "support_source_sha256": {
+          "/Users/kuu/.codex/worktrees/24c8/swifty-kotlin/Scripts/kotlinx_io_upstream/buffer/KUU-2566-support.kt": "626e7958f2516fd95ce2ef2522f4cf107142520c1711d393db5f405b6bd588d0"
+        },
+        "source_closure_index_sha256": null,
+        "port_sha256": {
+          "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O2/suite-000/BufferTest.kt": "d2c61f50364532e048499eceb69d524bf2afedc513e438f93581ccf505c1e18c"
+        },
+        "catalog_preparer_sha256": null,
+        "declaration_index_sha256": null,
+        "selection_manifest_sha256": "157df308155ca03c3a242f151323cc63472f8e7b56d6f1b7250904b281e45ea1"
+      },
+      "candidate_execution_statuses": [
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamBulkReads()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#bufferInputStreamBulkReads",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "7bed2e5d9e39f549bfbc7bad79808d39426469348e73d8d950eb031256615f2f",
+          "catalog_row_sha256": "b71af0d7e00a6ee698c79aa0be46659b0b1f3416d747a7dfc1079aca015b9947"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamByteByByte()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#bufferInputStreamByteByByte",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "7bed2e5d9e39f549bfbc7bad79808d39426469348e73d8d950eb031256615f2f",
+          "catalog_row_sha256": "f9c96d1bb704b8f64068a2100875abf9d8a4014a6ef73921c54cabfc65c3f7f7"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStream()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStream",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "7bed2e5d9e39f549bfbc7bad79808d39426469348e73d8d950eb031256615f2f",
+          "catalog_row_sha256": "d6bd65e86458eba9db2708c6f5aa7553a86c81b7da917f0bfcb64793834c34cf"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEmptyRange()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithEmptyRange",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "7bed2e5d9e39f549bfbc7bad79808d39426469348e73d8d950eb031256615f2f",
+          "catalog_row_sha256": "fc5d304534981a9d891c3f2a9cb83506a02aba79503b7e8e4a81b4006160bdd3"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEndIndex()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithEndIndex",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "7bed2e5d9e39f549bfbc7bad79808d39426469348e73d8d950eb031256615f2f",
+          "catalog_row_sha256": "0d7e3043ae044a331854bff4b61f39181f24031c39848e7cd70cb10d9d9c3791"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithIndices()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithIndices",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "7bed2e5d9e39f549bfbc7bad79808d39426469348e73d8d950eb031256615f2f",
+          "catalog_row_sha256": "f60308270a9d6d9849b9d0cf1a15615702e60c2be0dacceb19789b448079f5f5"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithStartIndex()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithStartIndex",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "7bed2e5d9e39f549bfbc7bad79808d39426469348e73d8d950eb031256615f2f",
+          "catalog_row_sha256": "b76a6d7deb5966351aaa36e8ea2eb52f6931dedc17e3d2dc5c98bbcc0e805010"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readFromDoesNotLeaveEmptyTailSegment()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#readFromDoesNotLeaveEmptyTailSegment",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "7bed2e5d9e39f549bfbc7bad79808d39426469348e73d8d950eb031256615f2f",
+          "catalog_row_sha256": "b394de51a50455af3d2cb9319fc9c9dea4bd78b27697373da34a00199df27581"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStream()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#readToOutputStream",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "7bed2e5d9e39f549bfbc7bad79808d39426469348e73d8d950eb031256615f2f",
+          "catalog_row_sha256": "1372f66c12c9382890fa3c76907dd4ed812016a70f47e73631a8b2414982c9f6"
+        },
+        {
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStreamWithByteCount()]",
+          "upstream_id": "core/jvm/test/BufferTest.kt#readToOutputStreamWithByteCount",
+          "status": "PASS",
+          "exception_type": null,
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "candidate_executable_sha256": "7bed2e5d9e39f549bfbc7bad79808d39426469348e73d8d950eb031256615f2f",
+          "catalog_row_sha256": "eacd9e51212dda1040db7f6bd18b822ecee2cc1b305624f47b982a5b0abae755"
+        }
+      ],
+      "inputs_unchanged": true,
+      "commands": {
+        "compile": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O2/compile.command.json",
+          "sha256": "2803413af94630b7d51187b51e9e4bd5cacca20122ebfecc5a4af1bca3ec32c7",
+          "argv": [
+            "/Users/kuu/.codex/worktrees/24c8/swifty-kotlin/.build/out/Products/Debug/kswiftc",
+            "-O2",
+            "--stdlib-library",
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-stdlib-build/KSwiftKStdlib.kklib",
+            "-I",
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O2/OriginalTests.kklib",
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O2/CombinedDriver.kt",
+            "-o",
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O2/candidate"
+          ]
+        },
+        "run": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O2/run.command.json",
+          "sha256": "a28678ebf0eca5a813aaf629426350bf6c69d8e6d7bbccd5d3f8b8eb6cc31370",
+          "argv": [
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O2/candidate"
+          ]
+        },
+        "library_compile": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O2/library-compile.command.json",
+          "sha256": "df3169f2ad079c2b754aaa18e7cb0852ab415146ef58edfb2f79d0a651634549",
+          "argv": [
+            "/Users/kuu/.codex/worktrees/24c8/swifty-kotlin/.build/out/Products/Debug/kswiftc",
+            "-O2",
+            "--stdlib-library",
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-stdlib-build/KSwiftKStdlib.kklib",
+            "--emit",
+            "library",
+            "-m",
+            "KioOriginalTests",
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O2/suite-000/BufferTest.kt",
+            "/Users/kuu/.codex/worktrees/24c8/swifty-kotlin/Scripts/kotlinx_io_upstream/buffer/KUU-2566-support.kt",
+            "-o",
+            "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O2/OriginalTests.kklib"
+          ]
+        }
+      },
+      "stage_logs": {
+        "compile.stdout": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O2/compile.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "compile.stderr": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O2/compile.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "run.stdout": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O2/run.stdout",
+          "sha256": "27ef36ba40b59b495b7ddda19fb8547b82c3670bbbc8126e8ab2d61b1771c001",
+          "bytes": 2548
+        },
+        "run.stderr": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O2/run.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "library-compile.stdout": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O2/library-compile.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "library-compile.stderr": {
+          "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-c7b70-candidate-producer-consumer-O2/library-compile.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      }
+    }
+  ],
+  "functions": [
+    {
+      "upstream_id": "core/jvm/test/BufferTest.kt#readFromDoesNotLeaveEmptyTailSegment",
+      "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readFromDoesNotLeaveEmptyTailSegment()]",
+      "invocation": {
+        "display_name": "readFromDoesNotLeaveEmptyTailSegment()",
+        "concrete_class": "kotlinx.io.BufferTest",
+        "declaring_class": "kotlinx.io.BufferTest",
+        "method_name": "readFromDoesNotLeaveEmptyTailSegment",
+        "parameter_types": ""
+      },
+      "source_method": {
+        "line_start": 142,
+        "line_end": 147,
+        "source_region_sha256": "b1485733226001ef50d9efe80bd8165fb4c5e2c292201192a488d1c4eb5e7206",
+        "source_region_preserved_exactly": true
+      },
+      "assertions": [
+        {
+          "id": "readFromDoesNotLeaveEmptyTailSegment:L146",
+          "source_path": "core/jvm/test/BufferTest.kt",
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "line_start": 146,
+          "line_end": 146,
+          "expression": "assertNoEmptySegments(buffer)",
+          "required_observations": [
+            "buffer_state"
+          ]
+        }
+      ],
+      "assertion_observations": {
+        "buffer_state": {
+          "all_segments_non_empty": true
+        }
+      },
+      "reference": {
+        "status": "PASS",
+        "exception_type": null,
+        "elapsed_seconds": 0.00089525
+      },
+      "candidate_lanes": {
+        "source-O0": "PASS",
+        "source-O2": "PASS",
+        "stdlib-library-O0": "PASS",
+        "stdlib-library-O2": "PASS",
+        "producer-consumer-O0": "PASS",
+        "producer-consumer-O2": "PASS"
+      }
+    },
+    {
+      "upstream_id": "core/jvm/test/BufferTest.kt#bufferInputStreamByteByByte",
+      "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamByteByByte()]",
+      "invocation": {
+        "display_name": "bufferInputStreamByteByByte()",
+        "concrete_class": "kotlinx.io.BufferTest",
+        "declaring_class": "kotlinx.io.BufferTest",
+        "method_name": "bufferInputStreamByteByByte",
+        "parameter_types": ""
+      },
+      "source_method": {
+        "line_start": 149,
+        "line_end": 160,
+        "source_region_sha256": "5420e059a8e6f4c95d160bcc8fb5026d864286f411cd67e18ec25d18a5f4e52d",
+        "source_region_preserved_exactly": true
+      },
+      "assertions": [
+        {
+          "id": "bufferInputStreamByteByByte:L154",
+          "source_path": "core/jvm/test/BufferTest.kt",
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "line_start": 154,
+          "line_end": 154,
+          "expression": "assertEquals(3, input.available())",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "bufferInputStreamByteByByte:L155",
+          "source_path": "core/jvm/test/BufferTest.kt",
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "line_start": 155,
+          "line_end": 155,
+          "expression": "assertEquals('a'.code, input.read())",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "bufferInputStreamByteByByte:L156",
+          "source_path": "core/jvm/test/BufferTest.kt",
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "line_start": 156,
+          "line_end": 156,
+          "expression": "assertEquals('b'.code, input.read())",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "bufferInputStreamByteByByte:L157",
+          "source_path": "core/jvm/test/BufferTest.kt",
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "line_start": 157,
+          "line_end": 157,
+          "expression": "assertEquals('c'.code, input.read())",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "bufferInputStreamByteByByte:L158",
+          "source_path": "core/jvm/test/BufferTest.kt",
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "line_start": 158,
+          "line_end": 158,
+          "expression": "assertEquals(-1, input.read())",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "bufferInputStreamByteByByte:L159",
+          "source_path": "core/jvm/test/BufferTest.kt",
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "line_start": 159,
+          "line_end": 159,
+          "expression": "assertEquals(0, input.available())",
+          "required_observations": [
+            "value",
+            "bytes_consumed"
+          ]
+        }
+      ],
+      "assertion_observations": {
+        "value": {
+          "available_before": 3,
+          "read_values": [
+            97,
+            98,
+            99
+          ],
+          "eof": -1,
+          "available_after_eof": 0
+        },
+        "bytes_consumed": 3
+      },
+      "reference": {
+        "status": "PASS",
+        "exception_type": null,
+        "elapsed_seconds": 0.00034425
+      },
+      "candidate_lanes": {
+        "source-O0": "PASS",
+        "source-O2": "PASS",
+        "stdlib-library-O0": "PASS",
+        "stdlib-library-O2": "PASS",
+        "producer-consumer-O0": "PASS",
+        "producer-consumer-O2": "PASS"
+      }
+    },
+    {
+      "upstream_id": "core/jvm/test/BufferTest.kt#bufferInputStreamBulkReads",
+      "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:bufferInputStreamBulkReads()]",
+      "invocation": {
+        "display_name": "bufferInputStreamBulkReads()",
+        "concrete_class": "kotlinx.io.BufferTest",
+        "declaring_class": "kotlinx.io.BufferTest",
+        "method_name": "bufferInputStreamBulkReads",
+        "parameter_types": ""
+      },
+      "source_method": {
+        "line_start": 162,
+        "line_end": 174,
+        "source_region_sha256": "c7e1af11a4a93eab0c6baf51ccf3e693aa970d4e8151a728ba4d7de9169bf602",
+        "source_region_preserved_exactly": true
+      },
+      "assertions": [
+        {
+          "id": "bufferInputStreamBulkReads:L169",
+          "source_path": "core/jvm/test/BufferTest.kt",
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "line_start": 169,
+          "line_end": 169,
+          "expression": "assertEquals(3, input.read(byteArray))",
+          "required_observations": [
+            "value",
+            "bytes_consumed"
+          ]
+        },
+        {
+          "id": "bufferInputStreamBulkReads:L170",
+          "source_path": "core/jvm/test/BufferTest.kt",
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "line_start": 170,
+          "line_end": 170,
+          "expression": "assertEquals(\"[97, 98, 99, -5]\", byteArray.contentToString())",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "bufferInputStreamBulkReads:L172",
+          "source_path": "core/jvm/test/BufferTest.kt",
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "line_start": 172,
+          "line_end": 172,
+          "expression": "assertEquals(-1, input.read(byteArray))",
+          "required_observations": [
+            "value",
+            "bytes_consumed"
+          ]
+        },
+        {
+          "id": "bufferInputStreamBulkReads:L173",
+          "source_path": "core/jvm/test/BufferTest.kt",
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "line_start": 173,
+          "line_end": 173,
+          "expression": "assertEquals(\"[-7, -7, -7, -7]\", byteArray.contentToString())",
+          "required_observations": [
+            "value"
+          ]
+        }
+      ],
+      "assertion_observations": {
+        "value": {
+          "read_count": 3,
+          "array_after_read": [
+            97,
+            98,
+            99,
+            -5
+          ],
+          "eof_read_count": -1,
+          "array_after_eof_read": [
+            -7,
+            -7,
+            -7,
+            -7
+          ]
+        },
+        "bytes_consumed": 3
+      },
+      "reference": {
+        "status": "PASS",
+        "exception_type": null,
+        "elapsed_seconds": 0.469923708
+      },
+      "candidate_lanes": {
+        "source-O0": "PASS",
+        "source-O2": "PASS",
+        "stdlib-library-O0": "PASS",
+        "stdlib-library-O2": "PASS",
+        "producer-consumer-O0": "PASS",
+        "producer-consumer-O2": "PASS"
+      }
+    },
+    {
+      "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStream",
+      "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStream()]",
+      "invocation": {
+        "display_name": "copyToOutputStream()",
+        "concrete_class": "kotlinx.io.BufferTest",
+        "declaring_class": "kotlinx.io.BufferTest",
+        "method_name": "copyToOutputStream",
+        "parameter_types": ""
+      },
+      "source_method": {
+        "line_start": 176,
+        "line_end": 185,
+        "source_region_sha256": "64c780b83559f18dc7537dcf6bf41bd4d32b66c22a3d1523408931a1ad4fd67c",
+        "source_region_preserved_exactly": true
+      },
+      "assertions": [
+        {
+          "id": "copyToOutputStream:L183",
+          "source_path": "core/jvm/test/BufferTest.kt",
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "line_start": 183,
+          "line_end": 183,
+          "expression": "assertEquals(\"party\", target.readString())",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "copyToOutputStream:L184",
+          "source_path": "core/jvm/test/BufferTest.kt",
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "line_start": 184,
+          "line_end": 184,
+          "expression": "assertEquals(\"party\", source.readString())",
+          "required_observations": [
+            "buffer_state"
+          ]
+        }
+      ],
+      "assertion_observations": {
+        "value": {
+          "target_read_string": "party"
+        },
+        "buffer_state": {
+          "source_read_string_result": "party"
+        }
+      },
+      "reference": {
+        "status": "PASS",
+        "exception_type": null,
+        "elapsed_seconds": 0.003202833
+      },
+      "candidate_lanes": {
+        "source-O0": "PASS",
+        "source-O2": "PASS",
+        "stdlib-library-O0": "PASS",
+        "stdlib-library-O2": "PASS",
+        "producer-consumer-O0": "PASS",
+        "producer-consumer-O2": "PASS"
+      }
+    },
+    {
+      "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithStartIndex",
+      "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithStartIndex()]",
+      "invocation": {
+        "display_name": "copyToOutputStreamWithStartIndex()",
+        "concrete_class": "kotlinx.io.BufferTest",
+        "declaring_class": "kotlinx.io.BufferTest",
+        "method_name": "copyToOutputStreamWithStartIndex",
+        "parameter_types": ""
+      },
+      "source_method": {
+        "line_start": 187,
+        "line_end": 196,
+        "source_region_sha256": "89dc0e7ad7142b6d31278d2408567281c8e304ff38375452b75757a303ea5088",
+        "source_region_preserved_exactly": true
+      },
+      "assertions": [
+        {
+          "id": "copyToOutputStreamWithStartIndex:L194",
+          "source_path": "core/jvm/test/BufferTest.kt",
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "line_start": 194,
+          "line_end": 194,
+          "expression": "assertEquals(\"rty\", target.readString())",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "copyToOutputStreamWithStartIndex:L195",
+          "source_path": "core/jvm/test/BufferTest.kt",
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "line_start": 195,
+          "line_end": 195,
+          "expression": "assertEquals(\"party\", source.readString())",
+          "required_observations": [
+            "buffer_state"
+          ]
+        }
+      ],
+      "assertion_observations": {
+        "value": {
+          "target_read_string": "rty"
+        },
+        "buffer_state": {
+          "source_read_string_result": "party"
+        }
+      },
+      "reference": {
+        "status": "PASS",
+        "exception_type": null,
+        "elapsed_seconds": 0.000207
+      },
+      "candidate_lanes": {
+        "source-O0": "PASS",
+        "source-O2": "PASS",
+        "stdlib-library-O0": "PASS",
+        "stdlib-library-O2": "PASS",
+        "producer-consumer-O0": "PASS",
+        "producer-consumer-O2": "PASS"
+      }
+    },
+    {
+      "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithEndIndex",
+      "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEndIndex()]",
+      "invocation": {
+        "display_name": "copyToOutputStreamWithEndIndex()",
+        "concrete_class": "kotlinx.io.BufferTest",
+        "declaring_class": "kotlinx.io.BufferTest",
+        "method_name": "copyToOutputStreamWithEndIndex",
+        "parameter_types": ""
+      },
+      "source_method": {
+        "line_start": 198,
+        "line_end": 207,
+        "source_region_sha256": "3cbad9020df88d49e5918eca61974e08c55ba9912e1b3fdfde555f527bd10995",
+        "source_region_preserved_exactly": true
+      },
+      "assertions": [
+        {
+          "id": "copyToOutputStreamWithEndIndex:L205",
+          "source_path": "core/jvm/test/BufferTest.kt",
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "line_start": 205,
+          "line_end": 205,
+          "expression": "assertEquals(\"par\", target.readString())",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "copyToOutputStreamWithEndIndex:L206",
+          "source_path": "core/jvm/test/BufferTest.kt",
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "line_start": 206,
+          "line_end": 206,
+          "expression": "assertEquals(\"party\", source.readString())",
+          "required_observations": [
+            "buffer_state"
+          ]
+        }
+      ],
+      "assertion_observations": {
+        "value": {
+          "target_read_string": "par"
+        },
+        "buffer_state": {
+          "source_read_string_result": "party"
+        }
+      },
+      "reference": {
+        "status": "PASS",
+        "exception_type": null,
+        "elapsed_seconds": 0.000297333
+      },
+      "candidate_lanes": {
+        "source-O0": "PASS",
+        "source-O2": "PASS",
+        "stdlib-library-O0": "PASS",
+        "stdlib-library-O2": "PASS",
+        "producer-consumer-O0": "PASS",
+        "producer-consumer-O2": "PASS"
+      }
+    },
+    {
+      "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithIndices",
+      "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithIndices()]",
+      "invocation": {
+        "display_name": "copyToOutputStreamWithIndices()",
+        "concrete_class": "kotlinx.io.BufferTest",
+        "declaring_class": "kotlinx.io.BufferTest",
+        "method_name": "copyToOutputStreamWithIndices",
+        "parameter_types": ""
+      },
+      "source_method": {
+        "line_start": 209,
+        "line_end": 218,
+        "source_region_sha256": "81c782cce93c82ceb437ac76ebe20e66f11625036c1d481a9b88d803295aa88b",
+        "source_region_preserved_exactly": true
+      },
+      "assertions": [
+        {
+          "id": "copyToOutputStreamWithIndices:L216",
+          "source_path": "core/jvm/test/BufferTest.kt",
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "line_start": 216,
+          "line_end": 216,
+          "expression": "assertEquals(\"art\", target.readString())",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "copyToOutputStreamWithIndices:L217",
+          "source_path": "core/jvm/test/BufferTest.kt",
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "line_start": 217,
+          "line_end": 217,
+          "expression": "assertEquals(\"party\", source.readString())",
+          "required_observations": [
+            "buffer_state"
+          ]
+        }
+      ],
+      "assertion_observations": {
+        "value": {
+          "target_read_string": "art"
+        },
+        "buffer_state": {
+          "source_read_string_result": "party"
+        }
+      },
+      "reference": {
+        "status": "PASS",
+        "exception_type": null,
+        "elapsed_seconds": 0.000214625
+      },
+      "candidate_lanes": {
+        "source-O0": "PASS",
+        "source-O2": "PASS",
+        "stdlib-library-O0": "PASS",
+        "stdlib-library-O2": "PASS",
+        "producer-consumer-O0": "PASS",
+        "producer-consumer-O2": "PASS"
+      }
+    },
+    {
+      "upstream_id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithEmptyRange",
+      "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:copyToOutputStreamWithEmptyRange()]",
+      "invocation": {
+        "display_name": "copyToOutputStreamWithEmptyRange()",
+        "concrete_class": "kotlinx.io.BufferTest",
+        "declaring_class": "kotlinx.io.BufferTest",
+        "method_name": "copyToOutputStreamWithEmptyRange",
+        "parameter_types": ""
+      },
+      "source_method": {
+        "line_start": 220,
+        "line_end": 229,
+        "source_region_sha256": "33969a0952d61adbfe4435edd62a06a7910d4489c861d5484146d2d3c478d510",
+        "source_region_preserved_exactly": true
+      },
+      "assertions": [
+        {
+          "id": "copyToOutputStreamWithEmptyRange:L227",
+          "source_path": "core/jvm/test/BufferTest.kt",
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "line_start": 227,
+          "line_end": 227,
+          "expression": "assertEquals(\"hello\", source.readString())",
+          "required_observations": [
+            "buffer_state"
+          ]
+        },
+        {
+          "id": "copyToOutputStreamWithEmptyRange:L228",
+          "source_path": "core/jvm/test/BufferTest.kt",
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "line_start": 228,
+          "line_end": 228,
+          "expression": "assertEquals(\"\", target.readString())",
+          "required_observations": [
+            "value"
+          ]
+        }
+      ],
+      "assertion_observations": {
+        "value": {
+          "target_read_string": ""
+        },
+        "buffer_state": {
+          "source_read_string_result": "hello"
+        }
+      },
+      "reference": {
+        "status": "PASS",
+        "exception_type": null,
+        "elapsed_seconds": 0.00058025
+      },
+      "candidate_lanes": {
+        "source-O0": "PASS",
+        "source-O2": "PASS",
+        "stdlib-library-O0": "PASS",
+        "stdlib-library-O2": "PASS",
+        "producer-consumer-O0": "PASS",
+        "producer-consumer-O2": "PASS"
+      }
+    },
+    {
+      "upstream_id": "core/jvm/test/BufferTest.kt#readToOutputStream",
+      "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStream()]",
+      "invocation": {
+        "display_name": "readToOutputStream()",
+        "concrete_class": "kotlinx.io.BufferTest",
+        "declaring_class": "kotlinx.io.BufferTest",
+        "method_name": "readToOutputStream",
+        "parameter_types": ""
+      },
+      "source_method": {
+        "line_start": 231,
+        "line_end": 240,
+        "source_region_sha256": "38b722d411e9153bb1ac8f573a4752b3aa462435e2974ba42011861f8702396b",
+        "source_region_preserved_exactly": true
+      },
+      "assertions": [
+        {
+          "id": "readToOutputStream:L238",
+          "source_path": "core/jvm/test/BufferTest.kt",
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "line_start": 238,
+          "line_end": 238,
+          "expression": "assertEquals(\"party\", target.readString())",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "readToOutputStream:L239",
+          "source_path": "core/jvm/test/BufferTest.kt",
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "line_start": 239,
+          "line_end": 239,
+          "expression": "assertEquals(\"\", source.readString())",
+          "required_observations": [
+            "buffer_state",
+            "bytes_consumed"
+          ]
+        }
+      ],
+      "assertion_observations": {
+        "value": {
+          "target_read_string": "party"
+        },
+        "buffer_state": {
+          "source_read_string_result": ""
+        },
+        "bytes_consumed": 5
+      },
+      "reference": {
+        "status": "PASS",
+        "exception_type": null,
+        "elapsed_seconds": 0.0002335
+      },
+      "candidate_lanes": {
+        "source-O0": "PASS",
+        "source-O2": "PASS",
+        "stdlib-library-O0": "PASS",
+        "stdlib-library-O2": "PASS",
+        "producer-consumer-O0": "PASS",
+        "producer-consumer-O2": "PASS"
+      }
+    },
+    {
+      "upstream_id": "core/jvm/test/BufferTest.kt#readToOutputStreamWithByteCount",
+      "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:readToOutputStreamWithByteCount()]",
+      "invocation": {
+        "display_name": "readToOutputStreamWithByteCount()",
+        "concrete_class": "kotlinx.io.BufferTest",
+        "declaring_class": "kotlinx.io.BufferTest",
+        "method_name": "readToOutputStreamWithByteCount",
+        "parameter_types": ""
+      },
+      "source_method": {
+        "line_start": 242,
+        "line_end": 251,
+        "source_region_sha256": "bc66cbc2b6841feb4af67087906fe5beea554f973ac981ad7607e74c4d9a8c50",
+        "source_region_preserved_exactly": true
+      },
+      "assertions": [
+        {
+          "id": "readToOutputStreamWithByteCount:L249",
+          "source_path": "core/jvm/test/BufferTest.kt",
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "line_start": 249,
+          "line_end": 249,
+          "expression": "assertEquals(\"par\", target.readString())",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "readToOutputStreamWithByteCount:L250",
+          "source_path": "core/jvm/test/BufferTest.kt",
+          "source_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+          "line_start": 250,
+          "line_end": 250,
+          "expression": "assertEquals(\"ty\", source.readString())",
+          "required_observations": [
+            "buffer_state",
+            "bytes_consumed"
+          ]
+        }
+      ],
+      "assertion_observations": {
+        "value": {
+          "target_read_string": "par"
+        },
+        "buffer_state": {
+          "source_read_string_result": "ty"
+        },
+        "bytes_consumed": 3
+      },
+      "reference": {
+        "status": "PASS",
+        "exception_type": null,
+        "elapsed_seconds": 0.000206042
+      },
+      "candidate_lanes": {
+        "source-O0": "PASS",
+        "source-O2": "PASS",
+        "stdlib-library-O0": "PASS",
+        "stdlib-library-O2": "PASS",
+        "producer-consumer-O0": "PASS",
+        "producer-consumer-O2": "PASS"
+      }
+    }
+  ],
+  "observation_scope": {
+    "basis": "Observations are the literal values checked by the unchanged upstream assertions and the test runner PASS records.",
+    "asserted": [
+      "value",
+      "source/target Buffer readString results",
+      "segment non-emptiness",
+      "InputStream read counts and EOF values",
+      "bytes consumed where a test assertion establishes the count"
+    ],
+    "not_asserted_or_claimed": [
+      "callbacks",
+      "close",
+      "flush",
+      "resource lifecycle"
+    ],
+    "notes": "These ten test methods do not close streams or assert callback, close/flush, or resource-lifecycle behavior. No such observations are claimed."
+  },
+  "historical_candidate_failure": {
+    "candidate_commit": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+    "candidate_archive_sha256": "aa5c77df72703ed711c3f14219c4c5e43536b8ce93cf78865604a4b7b2590c12",
+    "compiler_sha256": "820dd6ab96dd619dde468c257ca25a1147604a10e1aba2be6c9a98d98a5a1e72",
+    "lane": "source-O0",
+    "compile_exitcode": 0,
+    "run_exitcode": -5,
+    "summary_status": "FAIL",
+    "counts": {
+      "NOT_RUN": 10
+    },
+    "selected_execution_count": 10,
+    "candidate_executable_sha256": "0108294ad0a9c7cf20592f3d689f61a12773f175bc9308745f334ed60e4b059d",
+    "summary": {
+      "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-fd01a5-candidate-source-O0-authorized/summary.json",
+      "sha256": "30516e7b0a2e2f50782dbffae9d38787a28eb5ea79a5d303b19a830c1748af71"
+    },
+    "results": {
+      "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-fd01a5-candidate-source-O0-authorized/results.json",
+      "sha256": "c8064ac80053fbdc8a89ccdfb59e4aeb92cf5f494627eb6d9f3ad6d73ea2d35a"
+    },
+    "runtime_stderr": {
+      "path": "/private/tmp/kio-reference-environment-kuu2566-20261017/results-KUU-2566-fd01a5-candidate-source-O0-authorized/run.stderr",
+      "sha256": "8c0b6ee3b0165b74a8ef6cb9c23558f21725b04fb28238d6c65291bb86fd9de2"
+    },
+    "result": "FAIL before any selected method produced a candidate status; runtime exited -5 with KSWIFTK-RUNTIME-0001 kk_array_get_inbounds precondition failure. The debugger trace stopped in bufferInputStreamBulkReads while compiling source.writeString(\"abc\") through kotlinx.io Utf8.writeToInternalBuffer and a local callable reference/default capture.",
+    "known_fix_present_in_current_head": {
+      "commit": "6974f959ba68109cccb871e6e1adba3074b3323e",
+      "title": "Fix local callable reference default captures (#9432)",
+      "ancestor_of_tested_worktree": true,
+      "regression_test": "Tests/CompilerCoreTests/KIR/BuildKIRRegressionTests+DefaultArgsAndVarargForwardingBugs.swift"
+    },
+    "treatment": "Historical baseline failure only. It does not count as an IO mapping result; the mapping below is backed by current worktree c7b70e8d62bfcd5c1df891ee28d3886ae419414e after the compiler fix."
+  },
+  "tooling_fingerprints": {
+    "run_candidate_suites.py": "92d5454aa9fd69346fa05a05fcb0bc2feaa4e1e4d17533a2d368eb8c8384c733",
+    "run_candidate_subset.py": "9e9a6f7bd3c654619dfb1badeeded764cdcca0fc259ca448c692e53f1ecdeb2e",
+    "run_jvm_reference.py": "cbdadd22c6062fa4080833bb3524812be5e2f31b2aa8a38e8f0b89b7b235b9fe",
+    "JvmReferenceRunner.java": "1e7860d6cc7fd842a777650782fd2d3694d29456bedbd63d0e240c64e5145a5d"
+  },
+  "candidate_reproduction_notes": {
+    "lane_matrix": "The six current-worktree candidate lanes each selected the same ten locked JVM execution IDs; each lane compiled and linked independently at the indicated optimization level.",
+    "stdlib_routes": [
+      "stdlib from source",
+      "fresh stdlib KLIB with original methods compiled from source",
+      "fresh stdlib KLIB with original methods compiled into a separate test KLIB and called from a consumer"
+    ],
+    "fresh_test_library_sha256_by_lane": {
+      "producer-consumer-O0": "35113ac13b772fc986af8bb0fce9e5292f233ac0c749a331b57de0bca0976c19",
+      "producer-consumer-O2": "776d9aa5dc2578be34e7076de948b1c0e87b73f2e2e681d8a9d03b4d29fbbeef"
+    }
+  }
+}

@@ -261,9 +261,59 @@ pass its actual path with `--compiler-resource-bundle`; source mode requires a
 resource bundle. A failed test-library compile retains every ID as `NOT_RUN`
 and verifies inputs before returning, without starting a consumer.
 Runtime source hashes are checked; cached Runtime object bytes are outside this
-provenance proof. This also remains **assertion-only candidate execution**:
-seven-observation mappings are unfinished, paired PASS stays zero, and KUU-1727
-remains partial even if selected assertions pass.
+provenance proof. Generic candidate runs remain **assertion-only** and do not
+automatically export the full seven-observation set. KUU-2566 adds reviewed
+mappings for exactly ten JVM BufferTest functions from their unchanged
+assertions; it does not complete KUU-1727 or verify behaviors those assertions
+do not cover.
+
+### JVM IDs on the KSwiftK native Java I/O bridge
+
+`run_jvm_reference.py` accepts repeated `--source-function-id` or
+`--execution-id` selectors and still validates the complete locked JVM catalog
+before running only the requested concrete executions. The candidate runner's
+`--jvm-catalog` mode selects from that same JVM catalog and requires explicit
+IDs; it compiles and runs the unchanged original methods on KSwiftK's native
+Java I/O bridge. These candidate executions retain the upstream JVM execution
+IDs in `selection.json` and `results.json`. They are not counted as executions
+in the Native catalog, which intentionally has no rows for JVM-only methods.
+
+```sh
+python3 Scripts/kotlinx_io_upstream/run_jvm_reference.py \
+  --upstream /tmp/kio-reference-environment/upstream \
+  --kotlin-home /tmp/kio-reference-environment/installation/kotlinc \
+  --java /path/to/java21/bin/java \
+  --dependencies /tmp/kio-reference-environment/dependencies \
+  --source-function-id core/jvm/test/BufferTest.kt#readFromDoesNotLeaveEmptyTailSegment \
+  --output /tmp/kio-buffer-reference
+
+python3 Scripts/kotlinx_io_upstream/run_candidate_suites.py \
+  --upstream /tmp/kio-reference-environment/upstream \
+  --compiler /path/to/kswiftc --stdlib-from-source \
+  --package-root /path/to/swifty-kotlin --jvm-catalog --method-source-closure \
+  --source-function-id core/jvm/test/BufferTest.kt#readFromDoesNotLeaveEmptyTailSegment \
+  --support-source Scripts/kotlinx_io_upstream/buffer/KUU-2566-support.kt \
+  --optimization O0 --output /tmp/kio-buffer-candidate
+```
+
+The JVM reference selector preserves every factory-expanded execution for a
+selected source function. Candidate results state `jvm-native-bridge` as their
+catalog target and record the selected upstream JVM IDs, source/catalog hashes,
+compiler inputs, optimization, and execution results. No JVM-only source ID is
+silently dropped for lacking a Native catalog counterpart.
+
+`--method-source-closure` is limited to the KUU-2566 BufferTest method IDs. It
+retains the exact original selected `@Test` declaration and body bytes, records
+their pinned source line ranges and per-method SHA-256 values, and compiles only
+those methods with the original imports and `SEGMENT_SIZE` declaration. It is
+useful when unrelated methods in the original test class exceed the candidate
+compiler's finite compile deadline.
+
+For `readFromDoesNotLeaveEmptyTailSegment`, the support file retains the exact
+`segmentSizes` and `assertNoEmptySegments` bodies from the locked
+`core/common/test/util.kt`; it omits unrelated helpers and expect declarations.
+The file-level invisible-access suppression matches the direct test port, and
+does not change the BufferTest assertions or helper bodies.
 
 ### Audited Native catalog factories and cleanup
 

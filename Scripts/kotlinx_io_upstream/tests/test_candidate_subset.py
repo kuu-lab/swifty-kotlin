@@ -6,7 +6,7 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from run_candidate_subset import PREFIX, main, parse_events, prepare_port, tree_hash
+from run_candidate_subset import KUU_2566_METHODS, PREFIX, main, parse_events, prepare_port, tree_hash
 
 
 class CandidateSubsetTests(unittest.TestCase):
@@ -33,6 +33,54 @@ class CandidateSubsetTests(unittest.TestCase):
         driver = Path(result["driver_path"]).read_text()
         self.assertIn("sample.ExampleTest().original()", driver)
         self.assertFalse(result["assertions_parameters_constructors_changed"])
+
+    def test_jvm_catalog_execution_id_is_preserved_by_native_bridge_driver(self):
+        identifier = "[engine:junit-jupiter]/[class:sample.ExampleTest]/[method:original()]"
+        row = {**self.rows[0], "execution_id": identifier, "source_set": "jvm"}
+        result = prepare_port(self.root, [row], self.lock, self.output)
+        self.assertEqual(result["execution_ids"], [identifier])
+        self.assertIn(identifier, Path(result["driver_path"]).read_text())
+        self.assertIn("sample.ExampleTest().original()", Path(result["driver_path"]).read_text())
+
+    def test_kuu_2566_method_closure_preserves_only_selected_original_methods(self):
+        source = self.root / "BufferTest.kt"
+        declarations = []
+        for method in sorted(KUU_2566_METHODS):
+            declarations.append(
+                f'    @Test\n    fun {method}() {{\n'
+                '        val marker = "}"\n'
+                '        if (marker.isNotEmpty()) {\n'
+                '            assertEquals("}", marker)\n'
+                '        }\n'
+                '    }'
+            )
+        raw = (
+            "package kotlinx.io\n\nimport kotlin.test.Test\nimport kotlin.test.assertEquals\n\n"
+            "private const val SEGMENT_SIZE = Segment.SIZE\n\nclass BufferTest {\n"
+            + "\n".join(declarations)
+            + "\n    @Test\n    fun unrelated() { assertEquals(1, 1) }\n}\n"
+        ).encode()
+        source.write_bytes(raw)
+        blob = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
+        lock = {"upstream_files": [{"path": source.name,
+                "sha256": hashlib.sha256(raw).hexdigest(), "git_blob_sha": blob}]}
+        rows = [{
+            "execution_id": f"[engine:junit-jupiter]/[class:kotlinx.io.BufferTest]/[method:{method}()]",
+            "concrete_class": "kotlinx.io.BufferTest", "declaring_class": "kotlinx.io.BufferTest",
+            "method_name": method, "parameter_types": "", "upstream_path": source.name,
+            "git_blob_sha": blob,
+        } for method in KUU_2566_METHODS]
+
+        result = prepare_port(self.root, rows, lock, self.output, method_source_closure=True)
+        port = Path(result["port_path"]).read_text()
+        self.assertEqual(result["source_port_mode"], "selected-original-test-method-closure")
+        self.assertEqual(len(result["selected_method_source_records"]), 10)
+        self.assertTrue(all(row["source_region_preserved_exactly"]
+                            for row in result["selected_method_source_records"]))
+        self.assertNotIn("fun unrelated()", port)
+        self.assertEqual(port.count("    fun "), 10)
+        for row in rows:
+            self.assertIn(f"    fun {row['method_name']}()", port)
 
     def test_modified_upstream_is_rejected(self):
         self.source.write_bytes(self.raw.replace(b"== 4", b"== 5"))
