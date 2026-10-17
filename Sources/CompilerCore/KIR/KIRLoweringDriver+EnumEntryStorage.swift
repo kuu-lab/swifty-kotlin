@@ -1,5 +1,3 @@
-/// Enum entry construction and property storage.
-///
 /// Enum values stay ordinal-backed (a boxed ordinal at `Any` boundaries), so
 /// an entry has no heap object to hold its fields. Each enum class instead
 /// gets per-entry side storage: one global slot per (entry, stored property),
@@ -50,9 +48,6 @@ extension KIRLoweringDriver {
 
     private typealias EnumEntryBodyGetterSymbols = [[InternedString: SymbolID]]
 
-    /// BUG-205: synthesizes the per-enum-class property helpers (and, when
-    /// needed, the entry storage and lazy initializer described above).
-    ///
     /// The helper names are intentionally free of the owner symbol's
     /// rawValue: symbol IDs are re-assigned on .kklib import, so an ID-bearing
     /// name would make the helper's fqName unresolvable for consumers. The
@@ -118,7 +113,6 @@ extension KIRLoweringDriver {
             ) ?? [:]
         }
 
-        // Stored properties, keyed by name in declaration order.
         var storedProperties: [EnumStoredProperty] = []
         var storedPropertyIndexByName: [InternedString: Int] = [:]
         func addStoredProperty(_ property: EnumStoredProperty) {
@@ -281,8 +275,6 @@ extension KIRLoweringDriver {
         )
     }
 
-    /// A property whose value is plain backing storage: no delegate, no
-    /// custom accessor body and no explicit backing field.
     private func isPlainStoredEnumProperty(_ property: PropertyDecl) -> Bool {
         property.delegateExpression == nil
             && property.explicitBackingField == nil
@@ -354,9 +346,8 @@ extension KIRLoweringDriver {
             .contains(where: { sema.symbols.symbol($0)?.kind == .function })
     }
 
-    /// Emits `switch (unbox(receiver)) { ordinal -> emitCase(ordinal) }`
-    /// followed by an unreachable trap; `emitCase` must end its block with a
-    /// return or return `false` to fall through to the next ordinal.
+    /// `emitCase` must end its block with a return or return `false` to fall
+    /// through to the next ordinal.
     private func emitEnumOrdinalSwitch(
         receiver: KIRExprID,
         entryCount: Int,
@@ -405,7 +396,6 @@ extension KIRLoweringDriver {
         }
     }
 
-    /// Builds one getter helper `(receiver: Any) -> T` and appends it.
     private func appendEnumGetterHelper(
         property: EnumStoredProperty,
         ownerInfo: SemanticSymbol,
