@@ -240,6 +240,17 @@ python3 Scripts/io_api_inventory/test_reproducibility.py
 python3 Scripts/io_api_inventory/refresh_source_index.py --kotlin-home /path/to/kotlinc --jars-dir /path/to/jar-directory --check
 ```
 
+Single-row audit tickets can regenerate and verify only their selected ledger
+row while still rebuilding all inputs and validating stored evidence:
+
+```sh
+python3 Scripts/io_api_inventory/generate.py --write --row-id jvm-3ca45621ab7698c8
+python3 Scripts/io_api_inventory/generate.py --check --row-id jvm-3ca45621ab7698c8
+```
+
+The row-scoped mode preserves all other ledger lines. Use the full `--write`
+and `--check` modes for intentional inventory-wide refreshes.
+
 The final command expects the two pinned jars named either as full Maven file
 names or as `kotlinx-io-core-jvm.jar` and `kotlinx-io-bytestring-jvm.jar`.
 `--download-jars` can fetch them from Maven Central where network access is
@@ -248,7 +259,8 @@ available; every downloaded artifact is SHA-256 checked before success.
 ### Per-row validation evidence
 
 `api-validation-evidence.json` is an independent, versioned input to the
-generator. Add one record per API `row_id`; do not promote `status` by editing
+generator. Add one record per API `row_id`; use schema-v2 `observations` for
+validated but non-promoting outcomes. Do not promote `status` by editing
 `api-inventory.tsv`. Schema v2 keeps the upstream-catalog evidence route and
 adds a registered local-probe route. Schema v1 records remain readable as
 upstream-catalog records. To get the current implementation/test hashes,
@@ -300,6 +312,16 @@ mapping to the Kotlin source declaration. KSwiftK currently emits native code;
 the reference classfile probe therefore does not claim candidate JVM classfile
 ABI. The report, probe, source metadata, upstream test index, and focused test
 inputs participate in the row's input hash and are checked during regeneration.
+
+Schema v2 also accepts `observations` for probes that must be retained without
+promoting a row. For example, a JVM ABI row can record the pinned JVM
+classfile probe together with a candidate's native source and fresh-KLIB
+default-dispatch matrix. If the candidate does not emit JVM classfiles, its
+`NOT_EMITTED` outcome and source-metadata inspection remain an observation;
+they do not satisfy `jvm-descriptor`, and regeneration keeps the row
+`unverified`. A passing native execution or matching Kotlin defaults cannot
+stand in for the physical descriptor, synthetic flags, mask/marker parameters,
+annotations, or visibility in a JVM classfile.
 
 The generator rejects unknown or duplicate row IDs, malformed hashes, a
 different reference pin, stale implementation/test inputs, non-passing or
