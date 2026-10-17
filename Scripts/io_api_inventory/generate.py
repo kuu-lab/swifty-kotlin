@@ -47,6 +47,14 @@ VALIDATION_LANES_BY_OBLIGATION = {
         "stdlib-library-O2",
     ),
     "native-bridge": ("producer-consumer-O0", "producer-consumer-O2"),
+    "native-default-dispatch": (
+        "source-O0",
+        "source-O2",
+        "stdlib-library-O0",
+        "stdlib-library-O2",
+        "producer-consumer-O0",
+        "producer-consumer-O2",
+    ),
 }
 LOCAL_NATIVE_PROBE_LANES = (
     "source-O0",
@@ -76,6 +84,24 @@ LOCAL_PROBE_EVIDENCE_CASES = {
         "methods": {"reference": "jvm-abi-reflection", "candidate": "source-metadata"},
     },
 }
+
+BASE64_DEFAULT_BRIDGE_ROWS = {
+    "jvm-06eee316b84478d8": ("klib-f7d98255f9d6ecdd", "testDecode"),
+    "jvm-0a7391fd7c844ff7": ("klib-aada9b079769b5b8", "testDecodeToByteString"),
+    "jvm-1ba14d2113458d26": ("klib-4d38fa01cf9280a5", "testByteArrayDecodeToByteString"),
+    "jvm-c376d0d1321523df": ("klib-30f3a5c70398830b", "testDecodeIntoByteArray"),
+    "jvm-ebe766fdf289f961": ("klib-f6856a243e61dd47", "testByteStringDecodeToByteString"),
+}
+BASE64_DEFAULT_BRIDGE_TEST_INPUTS = (
+    "Scripts/io_api_inventory/probes/Base64DefaultBridgeProducer.kt",
+    "Scripts/io_api_inventory/probes/Base64DefaultBridgeConsumer.kt",
+    "Scripts/io_api_inventory/run_f02_matrix.py",
+    "Scripts/io_api_inventory/test_f02_matrix.py",
+    "Scripts/io_api_inventory/test_validation_evidence.py",
+    "Scripts/io_api_inventory/probe_jvm_default_bridge_abi.py",
+    "Scripts/io_api_inventory/record_base64_default_bridge_evidence.py",
+    "Scripts/io_api_inventory/generate.py",
+)
 
 LEDGER_COLUMNS = [
     "row_id",
@@ -486,6 +512,8 @@ def validation_obligations(row: dict) -> list[str]:
         # candidate's native implementation lanes, with the classfile probe
         # recorded separately so native output cannot stand in for JVM ABI.
         return ["jvm-descriptor", "native-source"]
+    if row.get("row_id") in BASE64_DEFAULT_BRIDGE_ROWS:
+        return ["jvm-descriptor", "native-default-dispatch"]
     if row.get("representation") == "JVM public ABI dump":
         return ["jvm-descriptor"]
     return ["native-source", "native-bridge"]
@@ -771,6 +799,7 @@ def apply_validation_evidence(
     execution_fields = {"case_id", "lane", "reference", "candidate"}
     catalog_result_fields = {"execution_id", "result", "exit_code"}
     local_result_fields = catalog_result_fields | {"method"}
+    probe_result_fields = catalog_result_fields | {"stdout_sha256", "stderr_sha256", "output_count"}
     seen_ids = set()
     sha256_pattern = re.compile(r"^[0-9a-f]{64}$")
     candidate_sha_pattern = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
@@ -854,22 +883,41 @@ def apply_validation_evidence(
             covered_lanes.add(lane)
             if local_case_spec is not None:
                 covered_local_case_lanes.add((case_id, lane))
-            for subject in ("reference", "candidate"):
+            bridge_descriptor_probe = row_id in BASE64_DEFAULT_BRIDGE_ROWS and lane == "jvm-descriptor"
+            subjects = ("reference",) if bridge_descriptor_probe else ("reference", "candidate")
+            if bridge_descriptor_probe and execution["candidate"] is not None:
+                fail(f"physical JVM descriptor evidence must not claim a native candidate classfile for {row_id}")
+            if not bridge_descriptor_probe and execution["candidate"] is None:
+                fail(f"candidate result is required for {row_id} lane {lane}")
+            for subject in subjects:
                 result = execution[subject]
-                result_fields = local_result_fields if local_case_spec is not None else catalog_result_fields
-                if not isinstance(result, dict) or set(result) != result_fields:
+                custom_probe = row_id in BASE64_DEFAULT_BRIDGE_ROWS
+                if custom_probe:
+                    expected_fields = probe_result_fields
+                elif local_case_spec is not None:
+                    expected_fields = local_result_fields
+                else:
+                    expected_fields = catalog_result_fields
+                if not isinstance(result, dict) or set(result) != expected_fields:
                     fail(f"malformed {subject} result for row {row_id} case {case_id}")
                 execution_id = result["execution_id"]
                 if (not isinstance(execution_id, str) or not execution_id.strip()
                         or execution_id != execution_id.strip()):
                     fail(f"empty {subject} execution_id for row {row_id} case {case_id}")
-                if local_case_spec is None:
-                    catalog_case_id = execution_catalogs[subject].get(execution_id)
-                    if catalog_case_id is None:
-                        fail(f"unknown {subject} execution_id for row {row_id}: {execution_id}")
-                    if catalog_case_id != case_id:
-                        fail(f"{subject} execution_id does not map to case {case_id} for row {row_id}")
-                else:
+                if custom_probe:
+                    expected_execution_id = (
+                        f"kuu-2617:pinned-jvm-classfile:{row_id}"
+                        if bridge_descriptor_probe
+                        else f"kuu-2617:{subject}:{lane}:{row_id}"
+                    )
+                    if execution_id != expected_execution_id:
+                        fail(f"unexpected {subject} probe execution_id for row {row_id}: {execution_id}")
+                    for field in ("stdout_sha256", "stderr_sha256"):
+                        if not isinstance(result[field], str) or not sha256_pattern.fullmatch(result[field]):
+                            fail(f"malformed {field} for {row_id} {lane} {subject}")
+                    if type(result["output_count"]) is not int or result["output_count"] <= 0:
+                        fail(f"non-positive output_count for {row_id} {lane} {subject}")
+                elif local_case_spec is not None:
                     expected_execution_id = local_probe_execution_id(
                         candidate_sha, record["reference_commit"], case_id, lane, subject
                     )
@@ -877,6 +925,12 @@ def apply_validation_evidence(
                         fail(f"{subject} local execution_id does not map to case/lane for row {row_id}")
                     if result["method"] != local_case_spec["methods"][subject]:
                         fail(f"unexpected {subject} evidence method for row {row_id} case {case_id}")
+                else:
+                    catalog_case_id = execution_catalogs[subject].get(execution_id)
+                    if catalog_case_id is None:
+                        fail(f"unknown {subject} execution_id for row {row_id}: {execution_id}")
+                    if catalog_case_id != case_id:
+                        fail(f"{subject} execution_id does not map to case {case_id} for row {row_id}")
                 execution_identity = (lane, execution_id)
                 if execution_identity in seen_execution_ids[subject]:
                     fail(f"duplicate {subject} execution_id for row {row_id}: {execution_id}")
@@ -1874,6 +1928,50 @@ def apply_jvm_correspondence(rows: list[dict], index: SourceIndex, lock: dict) -
         row["notes"] = "Exact Kotlin metadata JVM signature: " + repr(row["_jvm_key"]) + "; Kotlin source key: " + repr(key) + "; visibility: " + declaration["visibility"]
 
 
+def apply_base64_default_bridge_correspondence(rows: list[dict]) -> None:
+    """Link the five physical JVM bridges to their exact Kotlin defaulted declarations."""
+    by_id = {row["row_id"]: row for row in rows}
+    for bridge_id, (source_id, test_name) in BASE64_DEFAULT_BRIDGE_ROWS.items():
+        bridge = by_id.get(bridge_id)
+        source = by_id.get(source_id)
+        if bridge is None or source is None:
+            fail(f"Base64 default bridge correspondence is missing {bridge_id} or {source_id}")
+        if (bridge["representation"] != "JVM public ABI dump"
+                or bridge["api_kind"] != "default/synthetic bridge"
+                or source["representation"] != "Kotlin source API / KLIB dump"):
+            fail(f"unexpected Base64 default bridge correspondence for {bridge_id}")
+        for field in (
+            "_source_key",
+            "_source_declarations",
+            "_accessor_role",
+            "_typed_local_refs",
+            "_candidate_kind",
+            "_candidate_name",
+            "annotations",
+            "deprecation",
+            "exception_contract",
+            "platform_metadata",
+            "default_parameter_count",
+            "local_contract_differences",
+        ):
+            if field in source:
+                bridge[field] = source[field]
+        bridge["_source_paths"] = source["_source_paths"]
+        bridge["upstream_source_refs"] = source["upstream_source_refs"]
+        bridge["upstream_test_refs"] = (
+            f"bytestring/common/test/ByteStringBase64Test.kt#{test_name}"
+        )
+        bridge["local_test_refs"] = ";".join(BASE64_DEFAULT_BRIDGE_TEST_INPUTS)
+        bridge["owner_issue"] = "KUU-2617"
+        bridge["notes"] = (
+            f"Generated JVM default bridge mapped to {source['row_id']} at "
+            f"{source['upstream_source_refs']}; direct upstream assertion: "
+            f"bytestring/common/test/ByteStringBase64Test.kt#{test_name}; "
+            "the extension has no own opt-in annotation; its Base64 receiver requires ExperimentalEncodingApi; "
+            "physical JVM descriptor/flags and Native default dispatch are validated separately"
+        )
+
+
 def typed_published_internals(index: SourceIndex) -> list[dict]:
     rows = []
     for declaration in index.declarations:
@@ -1960,6 +2058,8 @@ def local_contract_differences(row: dict, index: SourceIndex) -> str:
 def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
     if row.get("_jvm_key") in INDEX_OF_DEFAULT_BRIDGES:
         return list(INDEX_OF_DEFAULT_BRIDGE_TEST_INPUTS)
+    if row.get("row_id") in BASE64_DEFAULT_BRIDGE_ROWS:
+        return list(BASE64_DEFAULT_BRIDGE_TEST_INPUTS)
     name = row["_candidate_name"].lower()
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []
@@ -2008,6 +2108,9 @@ def upstream_test_refs(row: dict, test_index: dict) -> list[str]:
         # The upstream smoke cases use SystemFileSystem raw methods; they do not
         # exercise these deprecated Path extensions or assert their annotations.
         return []
+    if row.get("row_id") in BASE64_DEFAULT_BRIDGE_ROWS:
+        _, test_name = BASE64_DEFAULT_BRIDGE_ROWS[row["row_id"]]
+        return [f"bytestring/common/test/ByteStringBase64Test.kt#{test_name}"]
     source_paths = row.get("_source_paths", [])
     hints = []
     for source in source_paths:
@@ -2356,6 +2459,7 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     api_rows.extend(platform_typealiases(index))
     apply_jvm_correspondence(api_rows, index, lock)
     apply_index_of_default_bridge_mappings(api_rows, index)
+    apply_base64_default_bridge_correspondence(api_rows)
 
     local_tests = []
     local_paths = list(REPO.joinpath("Tests").rglob("*.swift"))
@@ -2387,9 +2491,11 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
         row["status"] = "unverified" if candidates else "missing"
         if row["representation"] == "JVM public ABI dump" and row["source_api"] == "no":
             row["status"] = "unverified"
-            if row.get("_jvm_key") not in INDEX_OF_DEFAULT_BRIDGES:
+            if row.get("_jvm_key") not in INDEX_OF_DEFAULT_BRIDGES and row["row_id"] not in BASE64_DEFAULT_BRIDGE_ROWS:
                 row["notes"] += "; generated JVM ABI presence cannot be established from Kotlin source-name matching alone"
         row["owner_issue"] = owner_for(row)
+        if row["row_id"] in BASE64_DEFAULT_BRIDGE_ROWS:
+            row["owner_issue"] = "KUU-2617"
         direct_upstream_tests = upstream_test_refs(row, test_index)
         row["upstream_test_refs"] = ";".join(direct_upstream_tests) or NO_DIRECT_UPSTREAM_ASSERTION
         row["local_test_refs"] = ";".join(local_test_refs(row, local_tests)) or "none"

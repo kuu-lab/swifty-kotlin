@@ -123,6 +123,28 @@ class F02GateTests(unittest.TestCase):
         self.assertIn("getter.isSynthetic()", probe)
         self.assertIn("getter.invoke(null)", probe)
 
+    def test_base64_default_bridge_probe_is_a_selectable_six_lane_case(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "base64-default-bridges")
+        self.assertEqual(case["reference"], "jvm")
+        self.assertEqual(case["entry"], "f02base64consumer.main")
+        self.assertEqual(case["jvm_class"], "f02base64consumer.ConsumerKt")
+        self.assertEqual(case["producer"], [matrix.HERE / "probes/Base64DefaultBridgeProducer.kt"])
+        self.assertEqual(case["consumer"], matrix.HERE / "probes/Base64DefaultBridgeConsumer.kt")
+        producer = case["producer"][0].read_text()
+        consumer = case["consumer"].read_text()
+        for call in ("Base64.decode(encodedByteString)",
+                     "Base64.decodeToByteString(encodedChars)",
+                     "Base64.decodeToByteString(encodedArray)",
+                     "Base64.decodeToByteString(encodedByteString)",
+                     "Base64.decodeIntoByteArray(encodedByteString, destination)"):
+            self.assertIn(call, producer + consumer)
+        self.assertIn("producer-default", consumer)
+        self.assertEqual(matrix.LANES, [
+            ("source", "O0"), ("source", "O2"),
+            ("stdlib-library", "O0"), ("stdlib-library", "O2"),
+            ("producer-consumer", "O0"), ("producer-consumer", "O2"),
+        ])
+
     def test_generated_public_rows_and_every_full_default_call_are_required(self):
         generated = generator.generate()
         manifest = json.loads(generated["manifest.json"])
@@ -314,6 +336,7 @@ class F02GateTests(unittest.TestCase):
     def test_failed_lane_does_not_suppress_other_routes_or_apple_originals(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
+            (root / "Package.swift").write_text("// fixture package manifest\n")
             compiler = root / "compiler"
             compiler.write_text("unused test compiler")
             harness = root / "run_f02_matrix.py"
