@@ -11,7 +11,6 @@ struct ByteStringBuilderContractTests {
             + "Make sure you fully read and understand documentation of the declaration that is marked as an unsafe API."
     }
 
-
     /// Sema tests use kirDump, whose process-default artifact lookup is intentionally disabled.
     /// Pass the published path explicitly and verify the actual imported declarations afterward.
     private func makeContractContext(_ source: String, allowDefaultStdlibLibrary: Bool) throws -> CompilationContext {
@@ -145,15 +144,6 @@ struct ByteStringBuilderContractTests {
         let appendable = try #require(symbols("kotlinx.io.bytestring.encodeToAppendable").first)
         #expect(annotated(appendable, "IgnorableReturnValue"))
 
-        let marker = try #require(symbols("kotlinx.io.bytestring.unsafe.UnsafeByteStringApi").first)
-        #expect(annotated(marker, "MustBeDocumented"))
-        let annotations = sema.symbols.annotations(for: marker)
-        #expect(annotations.contains { $0.annotationFQName.hasSuffix("Retention") && $0.arguments.joined().contains("BINARY") })
-        #expect(annotations.contains { $0.annotationFQName.hasSuffix("RequiresOptIn") && $0.arguments.joined().contains("ERROR") })
-        let requiresOptIn = try #require(annotations.first { $0.annotationFQName.hasSuffix("RequiresOptIn") })
-        let message = try #require(requiresOptIn.arguments.first { $0.hasPrefix("message=") })
-        #expect(message.dropFirst("message=".count).replacingOccurrences(of: "\"", with: "")
-            .replacingOccurrences(of: "+", with: "") == unsafeWarning)
     }
 
     @Test(arguments: [true, false])

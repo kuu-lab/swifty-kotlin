@@ -194,6 +194,25 @@ class ReproducibilityTests(unittest.TestCase):
         self.assertEqual(row["default_parameter_count"], "2")
         self.assertEqual(row["local_contract_differences"], "none detected (semantics unverified)")
         self.assertEqual(row["owner_issue"], "KUU-1760")
+        unsafe_rows = {row["row_id"]: row for row in self.rows
+                       if row["row_id"] in self.generator.UNSAFE_BYTESTRING_API_ROW_IDS}
+        self.assertEqual(set(unsafe_rows), self.generator.UNSAFE_BYTESTRING_API_ROW_IDS)
+        for row_id, row in unsafe_rows.items():
+            with self.subTest(row_id=row_id):
+                self.assertEqual(row["owner_issue"], "KUU-2585")
+                self.assertEqual(row["status"], "verified")
+                self.assertEqual(row["local_test_refs"].split(";"),
+                                 self.generator.UNSAFE_BYTESTRING_API_LOCAL_TESTS)
+                self.assertEqual(row["upstream_test_refs"], "bytestring/common/test/ByteStringTest.kt#suite-reference")
+                self.assertFalse(self.generator._case_id_matches_row(
+                    row, "bytestring/common/test/unsafe/UnsafeByteStringOperationsTest.kt#callsInPlaceContract"))
+        for row in self.rows:
+            if row["row_id"] not in self.generator.UNSAFE_BYTESTRING_API_ROW_IDS:
+                self.assertNotIn("Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt", row["local_test_refs"])
+                self.assertNotIn(
+                    "Tests/CompilerCoreTests/Sema/KotlinxIOUnsafeByteStringApiContractTests.swift",
+                    row["local_test_refs"],
+                )
         for row in self.rows:
             if "/ KLIB dump" in row["representation"] or "_source_key" in row:
                 self.assertNotIn("unmapped", row["upstream_source_refs"], row["_api_id"])

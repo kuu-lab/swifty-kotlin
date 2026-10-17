@@ -283,6 +283,12 @@ requires the descriptor reflection probe and local source-metadata assertion.
 The local probes' bytes and the referenced upstream tests remain part of the
 row's test input hash, so edits invalidate prior evidence.
 
+KUU-2585 UnsafeByteStringApi records also carry `run_receipts`: the selected
+case count and expected output, reference/probe and harness hashes, per-case
+and per-lane stdout/artifact hashes, and the focused source/shared-KLIB Sema
+test result. Regeneration checks the current probe and harness inputs, output
+digest, and an exact match between receipt lanes and the local-probe executions.
+
 The obligations follow the ledger representation: JVM ABI rows require only
 `jvm-descriptor`. Other rows require both `native-source` and `native-bridge`.
 The native-source obligation covers `source-O0`, `source-O2`,

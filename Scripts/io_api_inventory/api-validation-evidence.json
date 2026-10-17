@@ -209,6 +209,553 @@
       "evidence_source": "local-probe"
     },
     {
+      "row_id": "jvm-7915e4861d081be6",
+      "candidate_sha": "c05cf41c16df9f73b49406a0e71400aff90f875e",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "30c5b604cc757b8390e4c2d2e2c72336e568552d0abb8fbe5a4b89637dcc5b0c",
+      "test_input_sha256": "94d8058826ee376a4637c9d76d28a42994e193ce9ec39ee316c9e8e4ff6fc2a0",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "evidence_source": "local-probe",
+      "executions": [
+        {
+          "case_id": "local:Tests/CompilerCoreTests/Sema/KotlinxIOUnsafeByteStringApiContractTests.swift#jvm-annotation-shape",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:76b53b0bc057d13928aea21f01da2499",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-abi-bytecode"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:39eecf4a2522d6a899b825ceac91ccac",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "source-metadata"
+          }
+        }
+      ],
+      "run_receipts": {
+        "kind": "jvm-abi",
+        "case_count": 1,
+        "probe_sha256": {
+          "Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt": "aac069b9451170a9df5feba62b3b7dbad6ec843dfeae6b705a188048e789ebf7",
+          "Tests/CompilerCoreTests/Sema/KotlinxIOUnsafeByteStringApiContractTests.swift": "0a45165b0ca6c941366d09aca0b3085e809db89835291327b940e60c7bc9d1d4"
+        },
+        "harness_sha256": {
+          "Scripts/io_api_inventory/generate.py": "4fd9751248ea363e7cabf7525d09e558b0998e68e544233f2443e377a6ccd962",
+          "Scripts/io_api_inventory/record_unsafe_bytestring_api_evidence.py": "444c0e0c728dce9fb08962277670d371d7fa0ed854879d9c9e5facf65fcf0a2d",
+          "Scripts/io_api_inventory/run_f02_matrix.py": "44a0ed1df96b7292583005edd35e2f9e51c051bb468c20839f768261d89cb7d4",
+          "Scripts/io_api_inventory/test_record_unsafe_bytestring_api_evidence.py": "be7a31b3005f2adb74aea72d6cc89756eb2d1c3c91b821a7b46ce06c0a3a8af1"
+        },
+        "reference_sha256": {
+          "kotlinx-io-core-jvm-0.9.1.jar": "765d8851d8ca694706931331b92386844800867e041b720f1f193dbda874d370",
+          "kotlinx-io-bytestring-jvm-0.9.1.jar": "8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4",
+          "java": "9be1d0a740ff6502df1a762145e62860f5de4b7e17658d9cb9498da3acf9d16c",
+          "javap": "ece358719e260fc6e77700765d7653fe0bc7965a3ad2ecf919acdafff20af2a6",
+          "upstream:bytestring/common/src/unsafe/Annotations.kt": "d69106b0a5b7f3cac5d60cba381b091a3e0247536ee6e5abb63154712b1ca550",
+          "upstream:bytestring/api/kotlinx-io-bytestring.api": "02921223ed48787ea218108be213b566ecc81f902d2376905437e2f77837ca04",
+          "upstream:bytestring/api/kotlinx-io-bytestring.klib.api": "e6f9cc2e0b124a7b9c520d4a26d5a08efdd7f9be5f59562e06088a6d461c7670"
+        },
+        "output": "public annotation interface; BINARY retention; RequiresOptIn(ERROR); MustBeDocumented",
+        "output_sha256": "bdcc638c8468e072f5f5079da4ced7b37858aee45c7b316f3f943123d08ea99c",
+        "lanes": [
+          {
+            "case_id": "local:Tests/CompilerCoreTests/Sema/KotlinxIOUnsafeByteStringApiContractTests.swift#jvm-annotation-shape",
+            "lane": "jvm-descriptor",
+            "status": "PASS",
+            "reference_stdout_sha256": "dc912f56f9aa759c4124878c6b6ce4225b0bf7b4631510759cb9f541ce476852",
+            "candidate_stdout_sha256": "2616b49c8a81ab061b9bdd4c458b3a18bebb04ae55ca71dbd89c6245164445b2",
+            "artifacts_sha256": {
+              "reference_bytestring_jar": "8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4",
+              "reference_javap": "ece358719e260fc6e77700765d7653fe0bc7965a3ad2ecf919acdafff20af2a6",
+              "candidate_annotation_source": "3eeb2819e63f7c7cc54f91039bf87e5770d794b0ef22902a039a1a87e6b03df3"
+            }
+          }
+        ],
+        "focused_test": {
+          "command": "bash Scripts/swift_test.sh --filter CompilerCoreTests.KotlinxIOUnsafeByteStringApiContractTests --no-parallel -Xswiftc -swift-version -Xswiftc 6",
+          "status": "PASS",
+          "tests_passed": 2,
+          "stdout_sha256": "7a2eddcdda10c05678a486c02b4ecab02282b7e13c8492224b5dfb66fda1cb4a",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "test_source_sha256": "0a45165b0ca6c941366d09aca0b3085e809db89835291327b940e60c7bc9d1d4"
+        }
+      }
+    },
+    {
+      "row_id": "jvm-f7053c9293f03a10",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "fb80e9f124137b5acefc4e81887af5d40acc42279e9c004bd01543d03fc2ab11",
+      "test_input_sha256": "b27722a49c75bdea256bede2eecf9256efe7ce3cb7715c49771b055144fd7154",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/segment_data_as_byte_array_jvm_abi.kt#jvm-descriptor",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:637c85c911a69b9cbbba1465a6e298e6",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-abi-reflection"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:2ab41515fb124993bcdcaf784bf081a6",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "source-metadata"
+          }
+        }
+      ],
+      "evidence_source": "local-probe"
+    },
+    {
+      "row_id": "klib-48c0b12efeabdf13",
+      "candidate_sha": "c05cf41c16df9f73b49406a0e71400aff90f875e",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "30c5b604cc757b8390e4c2d2e2c72336e568552d0abb8fbe5a4b89637dcc5b0c",
+      "test_input_sha256": "94d8058826ee376a4637c9d76d28a42994e193ce9ec39ee316c9e8e4ff6fc2a0",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "evidence_source": "local-probe",
+      "executions": [
+        {
+          "case_id": "local:Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt#opt-in-use",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:dd4cdaffcff6767778295737e0a151c0",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:e878eb405b0c3563e89e9451bf3e428b",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt#opt-in-use",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:efec3eab911acff741afff851b1745bb",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:3ed063bfeb53497b4ae2f0b3c2fbe05a",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt#opt-in-use",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:c189a0fa9d1b39dbf972eecbd9dafb2b",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:8325a805df838c6aebc5438b6a04d3e8",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt#opt-in-use",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:3a7be31f2f682feffcf28d5f13ce3308",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:3e23beebeefdeb5f042eff44b7b73d7a",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt#opt-in-use",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:6aef5227e5d1a97ac99324412c22d8b2",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:305b6c056ec2b4bbe185980dcded810d",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt#opt-in-use",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:e942566e7ef17d985003a2f5f2844e3e",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:38c8ab24a04315bd63f8be555e42d490",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        }
+      ],
+      "run_receipts": {
+        "kind": "f02-matrix",
+        "case_count": 1,
+        "probe_sha256": {
+          "Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt": "aac069b9451170a9df5feba62b3b7dbad6ec843dfeae6b705a188048e789ebf7",
+          "Tests/CompilerCoreTests/Sema/KotlinxIOUnsafeByteStringApiContractTests.swift": "0a45165b0ca6c941366d09aca0b3085e809db89835291327b940e60c7bc9d1d4"
+        },
+        "harness_sha256": {
+          "Scripts/io_api_inventory/generate.py": "4fd9751248ea363e7cabf7525d09e558b0998e68e544233f2443e377a6ccd962",
+          "Scripts/io_api_inventory/record_unsafe_bytestring_api_evidence.py": "444c0e0c728dce9fb08962277670d371d7fa0ed854879d9c9e5facf65fcf0a2d",
+          "Scripts/io_api_inventory/run_f02_matrix.py": "44a0ed1df96b7292583005edd35e2f9e51c051bb468c20839f768261d89cb7d4",
+          "Scripts/io_api_inventory/test_record_unsafe_bytestring_api_evidence.py": "be7a31b3005f2adb74aea72d6cc89756eb2d1c3c91b821a7b46ce06c0a3a8af1"
+        },
+        "reference_sha256": {
+          "kotlinx-io-core-jvm-0.9.1.jar": "765d8851d8ca694706931331b92386844800867e041b720f1f193dbda874d370",
+          "kotlinx-io-bytestring-jvm-0.9.1.jar": "8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4",
+          "java": "9be1d0a740ff6502df1a762145e62860f5de4b7e17658d9cb9498da3acf9d16c",
+          "javap": "ece358719e260fc6e77700765d7653fe0bc7965a3ad2ecf919acdafff20af2a6",
+          "upstream:bytestring/common/src/unsafe/Annotations.kt": "d69106b0a5b7f3cac5d60cba381b091a3e0247536ee6e5abb63154712b1ca550",
+          "upstream:bytestring/api/kotlinx-io-bytestring.api": "02921223ed48787ea218108be213b566ecc81f902d2376905437e2f77837ca04",
+          "upstream:bytestring/api/kotlinx-io-bytestring.klib.api": "e6f9cc2e0b124a7b9c520d4a26d5a08efdd7f9be5f59562e06088a6d461c7670"
+        },
+        "output": "3\n",
+        "output_sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+        "lanes": [
+          {
+            "case_id": "local:Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt#opt-in-use",
+            "lane": "producer-consumer-O0",
+            "status": "PASS",
+            "reference_stdout_sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+            "candidate_stdout_sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+            "artifacts_sha256": {
+              "reference_jar": "0d9b16fb921da073d534b3dc998885ed1f67d7ec50ab1b1320d354fe480a5f59",
+              "candidate_executable": "a5c7fbfa61e22f2d64d9886cb2281fd28e0962ce1d304011f0f8d99dc826eff2",
+              "fresh_stdlib_manifest": "2463b9b1962e1368448a57282e669ecd2d881ee918d9c9fe5e735bf3ccc47ee8",
+              "producer_artifact_manifest": "c422b90be732cfd5ee8473ad747fa0814665610720bfdc658131db4277faf617"
+            }
+          },
+          {
+            "case_id": "local:Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt#opt-in-use",
+            "lane": "producer-consumer-O2",
+            "status": "PASS",
+            "reference_stdout_sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+            "candidate_stdout_sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+            "artifacts_sha256": {
+              "reference_jar": "0d9b16fb921da073d534b3dc998885ed1f67d7ec50ab1b1320d354fe480a5f59",
+              "candidate_executable": "d15041bdbb14503e4f6354ecb617cdf32cfe4b4e6c03a70d0280c745a97a39bd",
+              "fresh_stdlib_manifest": "2463b9b1962e1368448a57282e669ecd2d881ee918d9c9fe5e735bf3ccc47ee8",
+              "producer_artifact_manifest": "e791f95cf263fb729da82c22de52361ce4d6ab153602d6d83b564dd65b62404b"
+            }
+          },
+          {
+            "case_id": "local:Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt#opt-in-use",
+            "lane": "source-O0",
+            "status": "PASS",
+            "reference_stdout_sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+            "candidate_stdout_sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+            "artifacts_sha256": {
+              "reference_jar": "0d9b16fb921da073d534b3dc998885ed1f67d7ec50ab1b1320d354fe480a5f59",
+              "candidate_executable": "879f8dc6136b9ea2994898866a65f312006a56ede24c14849c9dfa0e0f374df9",
+              "fresh_stdlib_manifest": "2463b9b1962e1368448a57282e669ecd2d881ee918d9c9fe5e735bf3ccc47ee8"
+            }
+          },
+          {
+            "case_id": "local:Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt#opt-in-use",
+            "lane": "source-O2",
+            "status": "PASS",
+            "reference_stdout_sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+            "candidate_stdout_sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+            "artifacts_sha256": {
+              "reference_jar": "0d9b16fb921da073d534b3dc998885ed1f67d7ec50ab1b1320d354fe480a5f59",
+              "candidate_executable": "90a89f67f1a25ac1218e0075b70fdd01aa04c37078b81a3091696ca59841f53b",
+              "fresh_stdlib_manifest": "2463b9b1962e1368448a57282e669ecd2d881ee918d9c9fe5e735bf3ccc47ee8"
+            }
+          },
+          {
+            "case_id": "local:Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt#opt-in-use",
+            "lane": "stdlib-library-O0",
+            "status": "PASS",
+            "reference_stdout_sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+            "candidate_stdout_sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+            "artifacts_sha256": {
+              "reference_jar": "0d9b16fb921da073d534b3dc998885ed1f67d7ec50ab1b1320d354fe480a5f59",
+              "candidate_executable": "f54d9cffa86b1e40b5c4cd966522af37ac54c45ad2ac56e3d6fc15ef6745f30b",
+              "fresh_stdlib_manifest": "2463b9b1962e1368448a57282e669ecd2d881ee918d9c9fe5e735bf3ccc47ee8"
+            }
+          },
+          {
+            "case_id": "local:Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt#opt-in-use",
+            "lane": "stdlib-library-O2",
+            "status": "PASS",
+            "reference_stdout_sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+            "candidate_stdout_sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+            "artifacts_sha256": {
+              "reference_jar": "0d9b16fb921da073d534b3dc998885ed1f67d7ec50ab1b1320d354fe480a5f59",
+              "candidate_executable": "a7be006ce0cd1a268a40a058d480db1dae3a51e0b4fcc73a6be40c0f1ae02a79",
+              "fresh_stdlib_manifest": "2463b9b1962e1368448a57282e669ecd2d881ee918d9c9fe5e735bf3ccc47ee8"
+            }
+          }
+        ],
+        "focused_test": {
+          "command": "bash Scripts/swift_test.sh --filter CompilerCoreTests.KotlinxIOUnsafeByteStringApiContractTests --no-parallel -Xswiftc -swift-version -Xswiftc 6",
+          "status": "PASS",
+          "tests_passed": 2,
+          "stdout_sha256": "7a2eddcdda10c05678a486c02b4ecab02282b7e13c8492224b5dfb66fda1cb4a",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "test_source_sha256": "0a45165b0ca6c941366d09aca0b3085e809db89835291327b940e60c7bc9d1d4"
+        }
+      }
+    },
+    {
+      "row_id": "klib-8fe21b6650324264",
+      "candidate_sha": "c05cf41c16df9f73b49406a0e71400aff90f875e",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "30c5b604cc757b8390e4c2d2e2c72336e568552d0abb8fbe5a4b89637dcc5b0c",
+      "test_input_sha256": "94d8058826ee376a4637c9d76d28a42994e193ce9ec39ee316c9e8e4ff6fc2a0",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "evidence_source": "local-probe",
+      "executions": [
+        {
+          "case_id": "local:Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt#opt-in-use",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:dd4cdaffcff6767778295737e0a151c0",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:e878eb405b0c3563e89e9451bf3e428b",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt#opt-in-use",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:efec3eab911acff741afff851b1745bb",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:3ed063bfeb53497b4ae2f0b3c2fbe05a",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt#opt-in-use",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:c189a0fa9d1b39dbf972eecbd9dafb2b",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:8325a805df838c6aebc5438b6a04d3e8",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt#opt-in-use",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:3a7be31f2f682feffcf28d5f13ce3308",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:3e23beebeefdeb5f042eff44b7b73d7a",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt#opt-in-use",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:6aef5227e5d1a97ac99324412c22d8b2",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:305b6c056ec2b4bbe185980dcded810d",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt#opt-in-use",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:e942566e7ef17d985003a2f5f2844e3e",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:38c8ab24a04315bd63f8be555e42d490",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        }
+      ],
+      "run_receipts": {
+        "kind": "f02-matrix",
+        "case_count": 1,
+        "probe_sha256": {
+          "Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt": "aac069b9451170a9df5feba62b3b7dbad6ec843dfeae6b705a188048e789ebf7",
+          "Tests/CompilerCoreTests/Sema/KotlinxIOUnsafeByteStringApiContractTests.swift": "0a45165b0ca6c941366d09aca0b3085e809db89835291327b940e60c7bc9d1d4"
+        },
+        "harness_sha256": {
+          "Scripts/io_api_inventory/generate.py": "4fd9751248ea363e7cabf7525d09e558b0998e68e544233f2443e377a6ccd962",
+          "Scripts/io_api_inventory/record_unsafe_bytestring_api_evidence.py": "444c0e0c728dce9fb08962277670d371d7fa0ed854879d9c9e5facf65fcf0a2d",
+          "Scripts/io_api_inventory/run_f02_matrix.py": "44a0ed1df96b7292583005edd35e2f9e51c051bb468c20839f768261d89cb7d4",
+          "Scripts/io_api_inventory/test_record_unsafe_bytestring_api_evidence.py": "be7a31b3005f2adb74aea72d6cc89756eb2d1c3c91b821a7b46ce06c0a3a8af1"
+        },
+        "reference_sha256": {
+          "kotlinx-io-core-jvm-0.9.1.jar": "765d8851d8ca694706931331b92386844800867e041b720f1f193dbda874d370",
+          "kotlinx-io-bytestring-jvm-0.9.1.jar": "8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4",
+          "java": "9be1d0a740ff6502df1a762145e62860f5de4b7e17658d9cb9498da3acf9d16c",
+          "javap": "ece358719e260fc6e77700765d7653fe0bc7965a3ad2ecf919acdafff20af2a6",
+          "upstream:bytestring/common/src/unsafe/Annotations.kt": "d69106b0a5b7f3cac5d60cba381b091a3e0247536ee6e5abb63154712b1ca550",
+          "upstream:bytestring/api/kotlinx-io-bytestring.api": "02921223ed48787ea218108be213b566ecc81f902d2376905437e2f77837ca04",
+          "upstream:bytestring/api/kotlinx-io-bytestring.klib.api": "e6f9cc2e0b124a7b9c520d4a26d5a08efdd7f9be5f59562e06088a6d461c7670"
+        },
+        "output": "3\n",
+        "output_sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+        "lanes": [
+          {
+            "case_id": "local:Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt#opt-in-use",
+            "lane": "producer-consumer-O0",
+            "status": "PASS",
+            "reference_stdout_sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+            "candidate_stdout_sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+            "artifacts_sha256": {
+              "reference_jar": "0d9b16fb921da073d534b3dc998885ed1f67d7ec50ab1b1320d354fe480a5f59",
+              "candidate_executable": "a5c7fbfa61e22f2d64d9886cb2281fd28e0962ce1d304011f0f8d99dc826eff2",
+              "fresh_stdlib_manifest": "2463b9b1962e1368448a57282e669ecd2d881ee918d9c9fe5e735bf3ccc47ee8",
+              "producer_artifact_manifest": "c422b90be732cfd5ee8473ad747fa0814665610720bfdc658131db4277faf617"
+            }
+          },
+          {
+            "case_id": "local:Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt#opt-in-use",
+            "lane": "producer-consumer-O2",
+            "status": "PASS",
+            "reference_stdout_sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+            "candidate_stdout_sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+            "artifacts_sha256": {
+              "reference_jar": "0d9b16fb921da073d534b3dc998885ed1f67d7ec50ab1b1320d354fe480a5f59",
+              "candidate_executable": "d15041bdbb14503e4f6354ecb617cdf32cfe4b4e6c03a70d0280c745a97a39bd",
+              "fresh_stdlib_manifest": "2463b9b1962e1368448a57282e669ecd2d881ee918d9c9fe5e735bf3ccc47ee8",
+              "producer_artifact_manifest": "e791f95cf263fb729da82c22de52361ce4d6ab153602d6d83b564dd65b62404b"
+            }
+          },
+          {
+            "case_id": "local:Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt#opt-in-use",
+            "lane": "source-O0",
+            "status": "PASS",
+            "reference_stdout_sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+            "candidate_stdout_sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+            "artifacts_sha256": {
+              "reference_jar": "0d9b16fb921da073d534b3dc998885ed1f67d7ec50ab1b1320d354fe480a5f59",
+              "candidate_executable": "879f8dc6136b9ea2994898866a65f312006a56ede24c14849c9dfa0e0f374df9",
+              "fresh_stdlib_manifest": "2463b9b1962e1368448a57282e669ecd2d881ee918d9c9fe5e735bf3ccc47ee8"
+            }
+          },
+          {
+            "case_id": "local:Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt#opt-in-use",
+            "lane": "source-O2",
+            "status": "PASS",
+            "reference_stdout_sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+            "candidate_stdout_sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+            "artifacts_sha256": {
+              "reference_jar": "0d9b16fb921da073d534b3dc998885ed1f67d7ec50ab1b1320d354fe480a5f59",
+              "candidate_executable": "90a89f67f1a25ac1218e0075b70fdd01aa04c37078b81a3091696ca59841f53b",
+              "fresh_stdlib_manifest": "2463b9b1962e1368448a57282e669ecd2d881ee918d9c9fe5e735bf3ccc47ee8"
+            }
+          },
+          {
+            "case_id": "local:Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt#opt-in-use",
+            "lane": "stdlib-library-O0",
+            "status": "PASS",
+            "reference_stdout_sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+            "candidate_stdout_sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+            "artifacts_sha256": {
+              "reference_jar": "0d9b16fb921da073d534b3dc998885ed1f67d7ec50ab1b1320d354fe480a5f59",
+              "candidate_executable": "f54d9cffa86b1e40b5c4cd966522af37ac54c45ad2ac56e3d6fc15ef6745f30b",
+              "fresh_stdlib_manifest": "2463b9b1962e1368448a57282e669ecd2d881ee918d9c9fe5e735bf3ccc47ee8"
+            }
+          },
+          {
+            "case_id": "local:Scripts/diff_cases/kotlinx_io_unsafe_bytestring_api.kt#opt-in-use",
+            "lane": "stdlib-library-O2",
+            "status": "PASS",
+            "reference_stdout_sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+            "candidate_stdout_sha256": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+            "artifacts_sha256": {
+              "reference_jar": "0d9b16fb921da073d534b3dc998885ed1f67d7ec50ab1b1320d354fe480a5f59",
+              "candidate_executable": "a7be006ce0cd1a268a40a058d480db1dae3a51e0b4fcc73a6be40c0f1ae02a79",
+              "fresh_stdlib_manifest": "2463b9b1962e1368448a57282e669ecd2d881ee918d9c9fe5e735bf3ccc47ee8"
+            }
+          }
+        ],
+        "focused_test": {
+          "command": "bash Scripts/swift_test.sh --filter CompilerCoreTests.KotlinxIOUnsafeByteStringApiContractTests --no-parallel -Xswiftc -swift-version -Xswiftc 6",
+          "status": "PASS",
+          "tests_passed": 2,
+          "stdout_sha256": "7a2eddcdda10c05678a486c02b4ecab02282b7e13c8492224b5dfb66fda1cb4a",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "test_source_sha256": "0a45165b0ca6c941366d09aca0b3085e809db89835291327b940e60c7bc9d1d4"
+        }
+      }
+    },
+    {
       "row_id": "klib-952eb71e7667983b",
       "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
       "reference_version": "0.9.1",
@@ -410,36 +957,6 @@
             "result": "PASS",
             "exit_code": 0,
             "method": "native-visibility-probe"
-          }
-        }
-      ],
-      "evidence_source": "local-probe"
-    },
-    {
-      "row_id": "jvm-f7053c9293f03a10",
-      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
-      "reference_version": "0.9.1",
-      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
-      "implementation_input_sha256": "fb80e9f124137b5acefc4e81887af5d40acc42279e9c004bd01543d03fc2ab11",
-      "test_input_sha256": "b27722a49c75bdea256bede2eecf9256efe7ce3cb7715c49771b055144fd7154",
-      "compatibility_obligations": [
-        "jvm-descriptor"
-      ],
-      "executions": [
-        {
-          "case_id": "local:Scripts/io_api_inventory/probes/segment_data_as_byte_array_jvm_abi.kt#jvm-descriptor",
-          "lane": "jvm-descriptor",
-          "reference": {
-            "execution_id": "local-probe-v1:reference:637c85c911a69b9cbbba1465a6e298e6",
-            "result": "PASS",
-            "exit_code": 0,
-            "method": "jvm-abi-reflection"
-          },
-          "candidate": {
-            "execution_id": "local-probe-v1:candidate:2ab41515fb124993bcdcaf784bf081a6",
-            "result": "PASS",
-            "exit_code": 0,
-            "method": "source-metadata"
           }
         }
       ],
