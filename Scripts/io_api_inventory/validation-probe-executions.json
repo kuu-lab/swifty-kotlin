@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "reference": [
+    {
+      "execution_id": "kuu2625-reference-jvm-descriptor",
+      "case_id": "Scripts/io_api_inventory/probes/ByteStringCompareToObjectJvmAbiProbe.java#main",
+      "lane": "jvm-descriptor",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "177ded95604ffaf8c1369695b7baf1e16df194a7266085ce37e8d037e53415ab",
+      "normalized_stdout_sha256": "177ded95604ffaf8c1369695b7baf1e16df194a7266085ce37e8d037e53415ab",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "probe_input_sha256": "d136a8d7c6b9fca24ac8df50d228863972a69a8b04c6ecff6e2e8befdb1734c8",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "javap_stdout_sha256": "0d7a06a9f51dcc336d6a97f4d92660e552f586529a62630186d21faf461f1621"
+    }
+  ],
+  "candidate": []
+}

@@ -261,14 +261,47 @@ descriptor evidence.
 The generator rejects unknown or duplicate row IDs, malformed hashes, a
 different reference pin, stale implementation/test inputs, non-passing or
 unrun executions, duplicate cases, and missing or unrelated lanes. The case ID
-must match a method-specific upstream test reference for that row;
+must match a method-specific upstream test reference or an exact case in
+`validation-probe-refs.json` registered to that row. Direct probe source and
+harness inputs are included in the row's test-input hash;
 `#suite-reference` discovery metadata cannot authorize an arbitrary case from
 the same file. Both execution IDs must map to the same case in the locked JVM
-and Native execution catalogs. A manual status edit is discarded when outputs
-are regenerated. `--write` changes only the three generated ledger output files
-and reads the evidence file without rewriting it. `--check` verifies upstream
-snapshots, the test index lock, negative guards, evidence, any execution
-catalogs used by evidence, and byte-for-byte output without modifying files.
+and Native execution catalogs, or to a local probe receipt that also pins the
+lane, raw and normalized output hashes, probe source hash, candidate SHA, and
+upstream commit; JVM descriptor receipts also pin the `javap` output hash. A
+reference-only JVM descriptor probe may record candidate `NOT_APPLICABLE` only for a JVM ABI row;
+that result keeps the row `unverified` because the Native backend does not emit
+JVM classfiles. A manual status edit is discarded when outputs are regenerated.
+`--write` changes only the three generated ledger output files and reads the
+evidence file without rewriting it. `--check` verifies upstream snapshots, the
+test index lock, negative guards, evidence, any execution catalogs used by
+evidence, and byte-for-byte output without modifying files.
+
+The `ByteString.compareTo(Object)` row uses a Java reflection and `javap`
+probe against the hash-locked JVM artifact to check the erased descriptor,
+bridge/synthetic flags, delegation to `compareTo(ByteString)`, and wrong-type
+and null behavior. KSwiftK's Native output has no JVM classfile, so that row
+records candidate JVM emission as `NOT_APPLICABLE` and remains `unverified`.
+A separate candidate Kotlin consumer exercises typed and `Comparable<ByteString>`
+dispatch at O0/O2 with source injection and fresh bundled `.kklib` artifacts;
+those Native results are supplementary and do not stand in for JVM bridge
+evidence.
+
+Prepare the pinned JVM reference and run the focused probe with the candidate
+checkout at the recorded SHA:
+
+```sh
+python3 Scripts/kotlinx_io_upstream/prepare_reference.py --target jvm --output /tmp/kuu2625-reference
+python3 Scripts/io_api_inventory/run_bytestring_compareto_object_probe.py \
+  --reference-root /tmp/kuu2625-reference \
+  --java /path/to/jdk/bin/java \
+  --candidate-root /path/to/checkout-at-fd01a5e \
+  --compiler /path/to/checkout-at-fd01a5e/.build/debug/kswiftc \
+  --candidate-sha fd01a5e98145e8295e5b299b0a7190cc8d44e3a7 \
+  --output /tmp/kuu2625-compareto-object
+```
+
+Run the focused evidence validator with:
 
 ```sh
 python3 Scripts/io_api_inventory/test_validation_evidence.py
