@@ -36,14 +36,13 @@ struct ASTEquivalenceRegressionTests {
     private func assertValidSourceRange(
         _ range: SourceRange?,
         label: String,
-        file: StaticString = #filePath,
-        line: UInt = #line
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
     ) {
         guard let range else {
-            Issue.record("\(label): range is nil")
+            Issue.record("\(label): range is nil", sourceLocation: sourceLocation)
             return
         }
-        #expect(range.start.offset <= range.end.offset, "\(label): start (\(range.start.offset)) should be <= end (\(range.end.offset))")
+        #expect(range.start.offset <= range.end.offset, "\(label): start (\(range.start.offset)) should be <= end (\(range.end.offset))", sourceLocation: sourceLocation)
     }
 
     private func assertAllExprRangesValid(in ast: ASTModule) {
