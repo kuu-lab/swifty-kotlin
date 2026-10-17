@@ -1,9 +1,5 @@
 package kotlin.time
 
-// KSP-648
-// TimeMark operations dispatch to the mark's own time source. Only Monotonic
-// samples the native clock through timeMarkElapsedNanos.
-//
 // Reading arithmetic saturates at Long.MIN_VALUE/Long.MAX_VALUE, matching the previous
 // native implementation so that shifting a mark by Duration.INFINITE stays well defined.
 
