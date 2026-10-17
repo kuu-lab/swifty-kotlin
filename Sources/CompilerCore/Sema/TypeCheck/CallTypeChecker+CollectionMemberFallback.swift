@@ -1,12 +1,6 @@
 // swiftlint:disable file_length
 import RuntimeABI
 
-/// Member-call fallback resolution for Collection-typed receivers
-/// (List / Iterable / Set / Sequence / Collection): supported-member
-/// check, parameter-mapping, result-type inference, lambda-expectation
-/// inference, and the receiver-kind predicates.
-///
-/// Split out from `CallTypeChecker+MemberCallFallbacks.swift`.
 extension CallTypeChecker {
     private func stdlibSurfaceResultType(
         for spec: StdlibSurfaceSpec,
@@ -112,8 +106,6 @@ extension CallTypeChecker {
             isMapReceiver: isMapReceiver,
             isSetReceiver: isSetReceiver
         )
-        // chunked(size): returns Sequence<List<T>> for sequence receivers,
-        // List<List<T>> for list/collection receivers.
         if memberName == knownNames.chunked, args.count == 1 {
             let chunkType = makeSyntheticListType(
                 symbols: sema.symbols,
@@ -138,8 +130,8 @@ extension CallTypeChecker {
             }
         }
         // filterNotNull() on a List<T?> is bound directly to the bundled
-        // Kotlin-source declaration (see didBindListFilterNotNullSource
-        // above), so it has no stdlibSurfaceSpecForCollectionFallback entry.
+        // Kotlin-source declaration (see didBindListFilterNotNullSource),
+        // so it has no stdlibSurfaceSpecForCollectionFallback entry.
         // Compute its List<T> result type explicitly instead of falling
         // through to the generic `Any` default below.
         if memberName == knownNames.filterNotNull, isListReceiver, args.isEmpty {
@@ -180,7 +172,6 @@ extension CallTypeChecker {
             return sema.types.make(.primitive(.int, .nonNull))
         }
 
-        // sum()/maxBy() use the receiver element type as the result.
         if memberName == knownNames.sum || memberName == knownNames.maxBy {
             return receiverElementType
         }
@@ -468,7 +459,6 @@ extension CallTypeChecker {
             return sema.types.nullableAnyType
         }
 
-        // Map.toList() pairs up each entry instead of yielding Map.Entry values.
         if memberName == knownNames.toList, isMapReceiver,
            let pairSymbol = sema.symbols.lookupByShortName(knownNames.pair).first
         {
@@ -680,8 +670,6 @@ extension CallTypeChecker {
             || memberName == knownNames.runningFoldIndexed,
            let listSymbol = sema.symbols.lookupByShortName(knownNames.list).first
         {
-            // scan/runningFold variants return List<R> where R is the accumulator type,
-            // derived from the initial value (first argument).
             let accumulatorType: TypeID
             if args.count >= 1, let inferredInitType = sema.bindings.exprTypes[args[0].expr] {
                 accumulatorType = inferredInitType
@@ -722,8 +710,6 @@ extension CallTypeChecker {
             )))
         }
 
-        // sorted(), sortedDescending(), sortedWith(), sorted(comparator): return List<E>
-        // reversed(), asReversed(), distinct(), distinctBy(): return List<E>
         let listPreservingMembers = knownNames.listPreservingMembers
         if memberName == knownNames.shuffled, isSequenceReceiver {
             return makeSyntheticSequenceType(
@@ -753,14 +739,13 @@ extension CallTypeChecker {
             )))
         }
 
-        // flatten(): for List<List<E>>, returns List<E> (element type of the outer list elements).
+        // flatten(): for List<List<E>>, returns List<E>.
         // Skip this for sequence receivers — the existing sequence HOF logic handles them,
         // and mixed-type sequence flatten should fail gracefully (matching kotlinc).
         if memberName == knownNames.flatten,
            !isSequenceReceiver,
            let listSymbol = sema.symbols.lookupByShortName(knownNames.list).first
         {
-            // The receiverElementType is List<E> (the inner list). Extract E from it.
             let innerElementType: TypeID
             if case let .classType(innerListType) = sema.types.kind(of: receiverElementType),
                let firstArg = innerListType.args.first
@@ -779,8 +764,6 @@ extension CallTypeChecker {
             )))
         }
 
-        // zip(other): returns List<Pair<A,B>> or Sequence<Pair<A,B>> where A
-        // is receiver element type and B is the other collection element type.
         if memberName == knownNames.zip,
            !args.isEmpty,
            let pairSymbol = sema.symbols.lookupByShortName(knownNames.pair).first
@@ -845,12 +828,10 @@ extension CallTypeChecker {
             )
         }
 
-        // unzip(): for List<Pair<A,B>>, returns Pair<List<A>, List<B>>
         if memberName == knownNames.unzip,
            let listSymbol = sema.symbols.lookupByShortName(knownNames.list).first,
            let pairSymbol = sema.symbols.lookupByShortName(knownNames.pair).first
         {
-            // receiverElementType should be Pair<A, B>; extract A and B
             let aType: TypeID
             let bType: TypeID
             if case let .classType(pairClassType) = sema.types.kind(of: receiverElementType),
@@ -1252,8 +1233,6 @@ extension CallTypeChecker {
             return (argumentIndex: 1, expectedType: expectedType)
         }
 
-        // zip(other, transform): transform receives the receiver element and
-        // the other collection element.
         if memberName == knownNames.zip, argCount == 2 {
             let otherElementType: TypeID
             if let otherCollectionType = sema.bindings.exprTypes[args[0].expr] {
@@ -1280,10 +1259,7 @@ extension CallTypeChecker {
             return (argumentIndex: 1, expectedType: expectedType)
         }
 
-        // chunked(size, transform): transform receives List<T> and returns R
         if memberName == knownNames.chunked, argCount == 2 {
-            // Build List<T> for the lambda parameter type; the transform receives
-            // a List<T> chunk.
             let listType: TypeID
             if let listSymbol = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsListFQName) {
                 listType = sema.types.make(.classType(ClassType(
@@ -1303,7 +1279,6 @@ extension CallTypeChecker {
             return (argumentIndex: 1, expectedType: expectedType)
         }
 
-        // windowed(size, step, partialWindows, transform): transform receives List<T> and returns R
         if memberName == knownNames.windowed, (2...4).contains(argCount) {
             let lastArgIsFunctionLike: Bool = if let lastExpr = args.last?.expr,
                                                  let lastExprNode = ctx.ast.arena.expr(lastExpr) {
@@ -1429,8 +1404,7 @@ extension CallTypeChecker {
             || memberName == knownNames.runningFoldIndexed, argCount == 2
         {
             // scan/runningFold variants: (acc: R, element: T) -> R
-            // The accumulator type is unknown in the fallback path, so use Any;
-            // indexed variants prepend the Int index parameter.
+            // The accumulator type is unknown in the fallback path, so use Any.
             let params: [TypeID] = if memberName == knownNames.scanIndexed
                 || memberName == knownNames.runningFoldIndexed
             {
@@ -1454,7 +1428,6 @@ extension CallTypeChecker {
             || memberName == knownNames.reduceRightOrNull
             || memberName == knownNames.reduceIndexedOrNull, argCount == 1
         {
-            // reduce/runningReduce variants use receiver element type.
             let params: [TypeID] = if memberName == knownNames.runningReduceIndexed
                 || memberName == knownNames.reduceIndexedOrNull
                 || memberName == knownNames.reduceRightIndexed
@@ -1527,7 +1500,6 @@ extension CallTypeChecker {
             return (argumentIndex: 1, expectedType: expectedType)
         }
 
-        // List.getOrElse(index, { default }) — lambda takes Int (index), returns element type
         if memberName == knownNames.getOrElse, !isMapReceiver, argCount == 2 {
             let expectedType = sema.types.make(.functionType(FunctionType(
                 params: [sema.types.intType],
@@ -1538,7 +1510,6 @@ extension CallTypeChecker {
             return (argumentIndex: 1, expectedType: expectedType)
         }
 
-        // List.elementAtOrElse(index, { default }) — same as getOrElse
         if memberName == knownNames.elementAtOrElse, argCount == 2 {
             let expectedType = sema.types.make(.functionType(FunctionType(
                 params: [sema.types.intType],
