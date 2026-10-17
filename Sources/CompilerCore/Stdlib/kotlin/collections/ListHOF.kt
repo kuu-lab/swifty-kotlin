@@ -1,12 +1,8 @@
 package kotlin.collections
 
 // MIGRATION-COL-002
-// List transform HOFs migrated to Kotlin source.
 // Migration source:
 //   Sources/CompilerCore/Driver/BundledStdlib.swift (map, mapIndexed, mapNotNull, flatMap, flatten)
-//
-// NOTE: Runtime ABI entry points are intentionally kept as bridge/compatibility
-// helpers while stdlib-source dispatch is rolled out incrementally.
 
 public inline fun <T, R> List<T>.map(transform: (T) -> R): List<R> {
     val result = mutableListOf<R>()
