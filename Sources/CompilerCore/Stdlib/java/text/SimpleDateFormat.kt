@@ -3,7 +3,6 @@ package java.text
 import java.util.Date
 import kotlin.internal.KsSymbolName
 
-/** Source-backed subset of Java's SimpleDateFormat used by Forge's date parser. */
 public class SimpleDateFormat(
     private val pattern: String,
 ) {
