@@ -18,9 +18,6 @@ import kotlin.time.now
 
 private const val UUID_HEX_DIGITS: String = "0123456789abcdef"
 
-/**
- * Represents a Universally Unique Identifier (UUID) as defined by RFC 9562.
- */
 @ExperimentalUuidApi
 public class Uuid private constructor(
     msb: Long,
@@ -332,10 +329,10 @@ public class Uuid private constructor(
     }
 }
 
-// Holds Uuid.Companion's monotonic generateV7() state: the last-used
-// (timestamp << 16 | version | counter) value, packed identically to a v7
-// uuid's own msb so it can be reused as one directly. See generateV7()'s
-// doc comment for why this is a plain var rather than an AtomicLong.
+// Last-used (timestamp << 16 | version | counter) value, packed identically
+// to a v7 uuid's own msb so it can be reused as one directly. See
+// generateV7()'s doc comment for why this is a plain var rather than an
+// AtomicLong.
 internal class UuidV7MonotonicState {
     var timestampAndCounter: Long = 0L
 }
