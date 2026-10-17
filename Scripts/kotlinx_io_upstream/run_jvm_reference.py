@@ -39,6 +39,22 @@ def verify_file(path: Path, record: dict) -> None:
             raise ValueError(f"Git blob mismatch: {path}")
 
 
+def select_execution_rows(catalog: list[dict], execution_ids: list[str]) -> list[dict]:
+    """Select exact locked executions while rejecting empty, duplicate, and unknown IDs."""
+    if not execution_ids:
+        return list(catalog)
+    if any(not identifier or identifier != identifier.strip() for identifier in execution_ids):
+        raise ValueError("selected execution IDs must be nonempty and have no surrounding whitespace")
+    if len(execution_ids) != len(set(execution_ids)):
+        raise ValueError("selected execution IDs must be unique")
+    by_id = {row["execution_id"]: row for row in catalog}
+    unknown = set(execution_ids) - set(by_id)
+    if unknown:
+        raise ValueError(f"unknown locked execution ID: {sorted(unknown)[0]}")
+    selected = set(execution_ids)
+    return [row for row in catalog if row["execution_id"] in selected]
+
+
 def execute(command: list[str], output: Path, stage: str, timeout: float, environment: dict | None = None,
             working_directory: Path | None = None) -> int:
     (output / f"{stage}.command.json").write_text(json.dumps(command, indent=2) + "\n")
@@ -205,6 +221,7 @@ def main(argv: list[str] | None = None) -> int:
             "kotlinx_io": lock["kotlinx_io"], "upstream_commit": lock["commit"],
             "reference_lock_sha256": sha256(lock_path), "coverage_map_sha256": sha256(HERE / "coverage-map.seed.json"),
             "runner_sha256": sha256(HERE / "JvmReferenceRunner.java"), "host": platform.platform(),
+            "selection_mode": "explicit-ids" if requested_ids else "full-catalog",
             "java": str(args.java.resolve()), "source_files": sources,
             "selected_execution_ids": [row["execution_id"] for row in expected],
             "full_catalog_execution_count": len(expected_catalog),
@@ -242,6 +259,7 @@ def main(argv: list[str] | None = None) -> int:
         reference_counts = dict(collections.Counter(row["reference_result"]["status"] for row in mapped))
         summary = {"kind": "reference-only", "concrete_execution_count": len(mapped),
             "unique_upstream_function_ids": len({row["upstream_id"] for row in mapped}),
+            "selection_mode": "explicit-ids" if requested_ids else "full-catalog",
             "full_catalog_execution_count": len(expected_catalog),
             "covers_full_catalog": len(mapped) == len(expected_catalog),
             "selected_execution_ids": [row["execution_id"] for row in expected],

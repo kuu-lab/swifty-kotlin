@@ -21,6 +21,7 @@ import org.junit.platform.launcher.TestPlan;
 import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
 import org.junit.platform.launcher.core.LauncherFactory;
 import static org.junit.platform.engine.discovery.DiscoverySelectors.selectClasspathRoots;
+import static org.junit.platform.engine.discovery.DiscoverySelectors.selectUniqueId;
 
 /** Java 21 source-mode runner: the original test classes and assertions are unchanged. */
 class JvmReferenceRunner {
@@ -73,6 +74,7 @@ class JvmReferenceRunner {
         Path output = Path.of(args[1]);
         Files.createDirectories(output);
         Set<String> selectedExecutionIds = new HashSet<>(List.of(args).subList(2, args.length));
+        if (selectedExecutionIds.size() != args.length - 2) throw new IllegalArgumentException("duplicate execution ID");
         var launcher = LauncherFactory.create();
         var classFilter = org.junit.platform.engine.discovery.ClassNameFilter.includeClassNamePatterns(".*");
         var requestBuilder = LauncherDiscoveryRequestBuilder.request()

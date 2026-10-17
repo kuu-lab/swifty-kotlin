@@ -1,0 +1,14 @@
+[
+  "/Users/kuu/.codex/worktrees/9348/swifty-kotlin/.build/out/Products/Debug/kswiftc",
+  "-O0",
+  "--stdlib-library",
+  "/private/tmp/kuu2561-evidence/candidate-c7-stdlib.kklib",
+  "--emit",
+  "library",
+  "-m",
+  "KioOriginalTests",
+  "/private/tmp/kuu2561-evidence/candidate-c7-producer-consumer-O0/ports/core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt",
+  "/Users/kuu/.codex/worktrees/9348/swifty-kotlin/Scripts/kotlinx_io_upstream/support/unsafe_buffer_operations_write_assertions.kt",
+  "-o",
+  "/private/tmp/kuu2561-evidence/candidate-c7-producer-consumer-O0/OriginalTests.kklib"
+]

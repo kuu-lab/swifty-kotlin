@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "candidate_sha": "c7b70e8d62bfcd5c1df891ee28d3886ae419414e",
+  "stdlib_content_sha256": "c1431bbe0e329aadb5630b3cf908dfd91f3fb3ef7b5b0a83926d7b7bf68a3b35",
+  "negative_probe": {
+    "source": "Scripts/kotlinx_io_upstream/evidence/KUU-2561/contract-probes/SetUncheckedNoOptIn.kt",
+    "compile_exit_code": 0,
+    "diagnostic_code": "KSWIFTK-SEMA-OPT-IN",
+    "warning_count": 5,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "779fa77668d85140c18dd8b672af41ab5d6ad9962e5e44f828c4eace8fdb51e6"
+  },
+  "positive_probe": {
+    "source": "Scripts/kotlinx_io_upstream/evidence/KUU-2561/contract-probes/SetUncheckedOptIn.kt",
+    "compile_exit_code": 0,
+    "diagnostic_count": 0,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "interpretation": "UnsafeIoApi is WARNING-level opt-in: unannotated use emits the marker diagnostic; @OptIn suppresses it."
+}

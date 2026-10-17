@@ -1,0 +1,19 @@
+{
+  "kind": "reference-only",
+  "concrete_execution_count": 3,
+  "unique_upstream_function_ids": 3,
+  "selection_mode": "explicit-ids",
+  "selected_execution_ids": [
+    "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:resetWriteOnException()]",
+    "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:returnLessBytesThanItWasActuallyWritten()]",
+    "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]"
+  ],
+  "reference_counts": {
+    "PASS": 3
+  },
+  "candidate_counts": {
+    "UNMAPPED": 3
+  },
+  "paired_pass_count": 0,
+  "source_files_compiled": 50
+}

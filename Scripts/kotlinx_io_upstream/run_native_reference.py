@@ -17,7 +17,7 @@ import re
 import sys
 import tarfile
 
-from run_jvm_reference import execute, sha256, verify_file
+from run_jvm_reference import execute, select_execution_rows, sha256, verify_file
 
 HERE = Path(__file__).resolve().parent
 
@@ -165,6 +165,58 @@ def dependency_fingerprint(directory: Path) -> dict:
         "sha256": digest.hexdigest(), "files": count, "bytes": total}
 
 
+def run_native_tests(binary: Path, expected: list[dict], output: Path, timeout: float,
+                     overrides: dict, exact_selection: bool) -> tuple[int, list[dict]]:
+    """Run each selected ID with an exact Native filter; comma filters are unsupported."""
+    command_specs = []
+    if exact_selection:
+        command_specs = [
+            ([str(binary), "--ktest_logger=TEAMCITY", f"--ktest_filter={row['execution_id']}"],
+             {row["execution_id"]})
+            for row in expected
+        ]
+    else:
+        command_specs = [([str(binary), "--ktest_logger=TEAMCITY"],
+                          {row["execution_id"] for row in expected})]
+
+    all_results = []
+    output_code = 0
+    output_timeout = False
+    elapsed = 0.0
+    stdout_parts = []
+    stderr_parts = []
+    commands = []
+    for index, (command, expected_ids) in enumerate(command_specs, start=1):
+        stage = f"run-{index:03d}" if exact_selection else "run"
+        commands.append(command)
+        code = execute(command, output, stage, timeout, overrides)
+        result_info = json.loads((output / f"{stage}.result.json").read_text())
+        stdout = (output / f"{stage}.stdout").read_text()
+        stderr = (output / f"{stage}.stderr").read_text()
+        rows = parse_teamcity(stdout)
+        check_ids([row["execution_id"] for row in rows], expected_ids, stage)
+        all_results.extend(rows)
+        stdout_parts.append(stdout)
+        stderr_parts.append(stderr)
+        elapsed += float(result_info["seconds"])
+        output_timeout = output_timeout or bool(result_info["timeout"])
+        if code != 0 and output_code == 0:
+            output_code = code
+
+    if exact_selection:
+        expected_ids = {row["execution_id"] for row in expected}
+        check_ids([row["execution_id"] for row in all_results], expected_ids, "runtime execution")
+        (output / "run.commands.json").write_text(json.dumps(commands, indent=2) + "\n")
+        (output / "run.stdout").write_text("".join(stdout_parts))
+        (output / "run.stderr").write_text("".join(stderr_parts))
+        (output / "run.result.json").write_text(json.dumps({
+            "exitcode": output_code,
+            "timeout": output_timeout,
+            "seconds": round(elapsed, 3),
+        }, indent=2) + "\n")
+    return output_code, all_results
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--upstream", type=Path, required=True)
@@ -175,6 +227,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dependencies", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--target", choices=("linux_x64", "macos_x64", "macos_arm64"), required=True)
+    parser.add_argument("--execution-id", action="append", default=[],
+                        help="run one locked common/Apple concrete execution ID; may be repeated")
     parser.add_argument("--offline", action="store_true", help="require already-cached Native toolchain dependencies")
     parser.add_argument("--compile-timeout", type=float, default=600)
     parser.add_argument("--run-timeout", type=float, default=180)
@@ -201,18 +255,22 @@ def main(argv: list[str] | None = None) -> int:
             libraries.append(path)
         catalog_path = HERE / "native-executions.expected.json"
         verify_file(catalog_path, {"sha256": lock["native_execution_catalog_sha256"]})
-        expected = [row for row in json.loads(catalog_path.read_text())
+        full_expected = [row for row in json.loads(catalog_path.read_text())
             if row["source_set"] == "common" or args.target.startswith("macos_")]
+        full_expected_ids = {row["execution_id"] for row in full_expected}
+        check_ids([row["execution_id"] for row in full_expected], full_expected_ids, "expected catalog")
+        expected = select_execution_rows(full_expected, args.execution_id)
+        if not expected:
+            raise ValueError("execution selection is empty")
         expected_ids = {row["execution_id"] for row in expected}
-        check_ids([row["execution_id"] for row in expected], expected_ids, "expected catalog")
         seed = json.loads((HERE / "coverage-map.seed.json").read_text())
         eligible = {row["upstream_id"] for row in seed["cases"]
             if (row["platform"] == "common" or args.target.startswith("macos_") and row["platform"] == "apple")
             and "Windows" not in row["upstream_path"]}
-        if {row["upstream_id"] for row in expected} != eligible:
+        if {row["upstream_id"] for row in full_expected} != eligible:
             raise ValueError("Native catalog does not cover every eligible upstream function ID")
         source_records = {row["path"]: row for row in lock["upstream_files"]}
-        for row in expected:
+        for row in full_expected:
             if row["git_blob_sha"] != source_records[row["upstream_path"]]["git_blob_sha"]:
                 raise ValueError("Native catalog source blob mismatch")
         sources = [row["path"] for row in lock["upstream_files"]
@@ -228,6 +286,8 @@ def main(argv: list[str] | None = None) -> int:
             "upstream_commit": lock["commit"], "kotlin": lock["kotlin"], "kotlinx_io": lock["kotlinx_io"],
             "reference_lock_sha256": sha256(lock_path), "runner_sha256": sha256(Path(__file__)),
             "expected_catalog_sha256": sha256(catalog_path), "source_files": sources,
+            "selection_mode": "explicit-ids" if args.execution_id else "full-catalog",
+            "selected_execution_ids": [row["execution_id"] for row in expected],
             "reference_artifacts": artifacts, "environment_overrides": overrides, "offline": args.offline}
         (args.output / "environment.json").write_text(json.dumps(environment, indent=2) + "\n")
         compiler = str((args.kotlin_home / "bin/konanc").resolve())
@@ -268,13 +328,13 @@ def main(argv: list[str] | None = None) -> int:
         (args.output / "toolchain-dependencies.json").write_text(json.dumps(
             dependency_fingerprint(args.konan_data / "dependencies"), indent=2) + "\n")
         dumped = [line.strip().replace(":", ".", 1) for line in dump.read_text().splitlines() if line.strip()]
-        check_ids(dumped, expected_ids, "generated dump")
+        check_ids(dumped, full_expected_ids, "generated dump")
         if execute([str(binary), "--ktest_list_tests"], args.output, "list", args.run_timeout, overrides):
             return 1
         listed = parse_list((args.output / "list.stdout").read_text())
-        check_ids(listed, expected_ids, "runtime discovery")
-        code = execute([str(binary), "--ktest_logger=TEAMCITY"], args.output, "run", args.run_timeout, overrides)
-        results = parse_teamcity((args.output / "run.stdout").read_text())
+        check_ids(listed, full_expected_ids, "runtime discovery")
+        code, results = run_native_tests(binary, expected, args.output, args.run_timeout,
+                                         overrides, exact_selection=bool(args.execution_id))
         (args.output / "results.json").write_text(json.dumps(results, indent=2) + "\n")
         check_ids([row["execution_id"] for row in results], expected_ids, "runtime execution")
         outcomes = {row["execution_id"]: row for row in results}
@@ -284,6 +344,9 @@ def main(argv: list[str] | None = None) -> int:
         counts = dict(collections.Counter(row["status"] for row in results))
         summary = {"kind": "reference-only", "target": args.target, "source_file_count": len(sources),
             "concrete_execution_count": len(mapped), "reference_counts": counts,
+            "catalog_execution_count": len(full_expected),
+            "selection_mode": "explicit-ids" if args.execution_id else "full-catalog",
+            "selected_execution_ids": [row["execution_id"] for row in expected],
             "candidate_counts": {"UNMAPPED": len(mapped)}, "paired_pass_count": 0}
         (args.output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
         for row in lock["upstream_files"]:

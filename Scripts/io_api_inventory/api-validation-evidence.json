@@ -444,6 +444,514 @@
         }
       ],
       "evidence_source": "local-probe"
+    },
+    {
+      "row_id": "jvm-184249263a53bd1c",
+      "candidate_sha": "c7b70e8d62bfcd5c1df891ee28d3886ae419414e",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "07e97f715b374b0e79019e2d5951b9f061f4c78dcc83595ee462104aed1988e4",
+      "test_input_sha256": "29192d2bf64a323d27519c7a5eff9305f71f878ef3bee71122c89c461d77992d",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "evidence_source": "upstream-catalog"
+    },
+    {
+      "row_id": "jvm-4c7d8cabace27adf",
+      "candidate_sha": "c7b70e8d62bfcd5c1df891ee28d3886ae419414e",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "07e97f715b374b0e79019e2d5951b9f061f4c78dcc83595ee462104aed1988e4",
+      "test_input_sha256": "29192d2bf64a323d27519c7a5eff9305f71f878ef3bee71122c89c461d77992d",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "evidence_source": "upstream-catalog"
+    },
+    {
+      "row_id": "jvm-e648005c75c9a635",
+      "candidate_sha": "c7b70e8d62bfcd5c1df891ee28d3886ae419414e",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "07e97f715b374b0e79019e2d5951b9f061f4c78dcc83595ee462104aed1988e4",
+      "test_input_sha256": "29192d2bf64a323d27519c7a5eff9305f71f878ef3bee71122c89c461d77992d",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "evidence_source": "upstream-catalog"
+    },
+    {
+      "row_id": "jvm-fa7bf8ebed5bf8aa",
+      "candidate_sha": "c7b70e8d62bfcd5c1df891ee28d3886ae419414e",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "07e97f715b374b0e79019e2d5951b9f061f4c78dcc83595ee462104aed1988e4",
+      "test_input_sha256": "29192d2bf64a323d27519c7a5eff9305f71f878ef3bee71122c89c461d77992d",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "evidence_source": "upstream-catalog"
+    },
+    {
+      "row_id": "klib-122a0905894ba00e",
+      "candidate_sha": "c7b70e8d62bfcd5c1df891ee28d3886ae419414e",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "07e97f715b374b0e79019e2d5951b9f061f4c78dcc83595ee462104aed1988e4",
+      "test_input_sha256": "29192d2bf64a323d27519c7a5eff9305f71f878ef3bee71122c89c461d77992d",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "executions": [
+        {
+          "case_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "evidence_source": "upstream-catalog"
+    },
+    {
+      "row_id": "klib-b8615ffaceb2162f",
+      "candidate_sha": "c7b70e8d62bfcd5c1df891ee28d3886ae419414e",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "07e97f715b374b0e79019e2d5951b9f061f4c78dcc83595ee462104aed1988e4",
+      "test_input_sha256": "29192d2bf64a323d27519c7a5eff9305f71f878ef3bee71122c89c461d77992d",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "executions": [
+        {
+          "case_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "evidence_source": "upstream-catalog"
+    },
+    {
+      "row_id": "klib-f570c311693d6703",
+      "candidate_sha": "c7b70e8d62bfcd5c1df891ee28d3886ae419414e",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "07e97f715b374b0e79019e2d5951b9f061f4c78dcc83595ee462104aed1988e4",
+      "test_input_sha256": "29192d2bf64a323d27519c7a5eff9305f71f878ef3bee71122c89c461d77992d",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "executions": [
+        {
+          "case_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "evidence_source": "upstream-catalog"
+    },
+    {
+      "row_id": "klib-fdb3da4587313f8c",
+      "candidate_sha": "c7b70e8d62bfcd5c1df891ee28d3886ae419414e",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "07e97f715b374b0e79019e2d5951b9f061f4c78dcc83595ee462104aed1988e4",
+      "test_input_sha256": "29192d2bf64a323d27519c7a5eff9305f71f878ef3bee71122c89c461d77992d",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "executions": [
+        {
+          "case_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "evidence_source": "upstream-catalog"
     }
   ]
 }

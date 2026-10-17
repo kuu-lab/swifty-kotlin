@@ -1,5 +1,578 @@
 {
   "schema_version": 1,
   "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
-  "mappings": []
+  "mappings": [
+    {
+      "upstream_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+      "upstream_path": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt",
+      "source_sha256": "d49a734d0446659692b10032f751b1232ad8c57a8ce58ad4288f9115abf78eda",
+      "source_git_blob_sha": "9e638245ca323a19fc2c464069ed5613802fe1e0",
+      "disposition": "verified",
+      "reason": "Pinned original assertions passed on JVM and macOS Native references and on the same c7 candidate; all target assertion IDs link to concrete invocation/result evidence.",
+      "assertions": [
+        {
+          "id": "wm-return-full-10",
+          "source_path": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt",
+          "source_sha256": "d49a734d0446659692b10032f751b1232ad8c57a8ce58ad4288f9115abf78eda",
+          "line_start": 206,
+          "line_end": 206,
+          "expression": "}.also { assertEquals(10, it) }",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "wm-bytes-full-10",
+          "source_path": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt",
+          "source_sha256": "d49a734d0446659692b10032f751b1232ad8c57a8ce58ad4288f9115abf78eda",
+          "line_start": 208,
+          "line_end": 208,
+          "expression": "assertArrayEquals(ByteArray(10) { (it + 1).toByte() }, buffer.readByteArray())",
+          "required_observations": [
+            "value",
+            "bytes_consumed"
+          ]
+        },
+        {
+          "id": "wm-return-overlap-4",
+          "source_path": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt",
+          "source_sha256": "d49a734d0446659692b10032f751b1232ad8c57a8ce58ad4288f9115abf78eda",
+          "line_start": 217,
+          "line_end": 217,
+          "expression": "}.also { assertEquals(4, it) }",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "wm-bytes-overlap-4",
+          "source_path": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt",
+          "source_sha256": "d49a734d0446659692b10032f751b1232ad8c57a8ce58ad4288f9115abf78eda",
+          "line_start": 218,
+          "line_end": 218,
+          "expression": "assertArrayEquals(byteArrayOf(11, 10, 9, 8), buffer.readByteArray())",
+          "required_observations": [
+            "value",
+            "bytes_consumed"
+          ]
+        }
+      ],
+      "executions": [
+        {
+          "platform": "jvm",
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+          "invocation": {
+            "display_name": "writeMultipleBytes()",
+            "concrete_class": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest",
+            "declaring_class": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest",
+            "method_name": "writeMultipleBytes",
+            "parameter_types": ""
+          },
+          "assertion_ids": [
+            "wm-return-full-10",
+            "wm-bytes-full-10",
+            "wm-return-overlap-4",
+            "wm-bytes-overlap-4"
+          ],
+          "reference": {
+            "runner": "kotlin-2.3.10-jvm-reference",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2561/reference/jvm-results.json#execution_id=[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:writeMultipleBytes()]",
+              "sha256": "31d7969bb264b7c372125b4e3b055864e2fc9b67c2a4d0da502e88a384e6e1e7"
+            },
+            "observations": {
+              "value": {
+                "assertions": {
+                  "wm-return-full-10": 10,
+                  "wm-bytes-full-10": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10
+                  ],
+                  "wm-return-overlap-4": 4,
+                  "wm-bytes-overlap-4": [
+                    11,
+                    10,
+                    9,
+                    8
+                  ]
+                }
+              },
+              "bytes_consumed": 14
+            }
+          },
+          "candidate": {
+            "runner": "kswiftc-c7b70e8-source-O0-macos-arm64",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2561/candidate/source-O0/results.json#execution_id=kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+              "sha256": "baeca27371e40b0b2093df0e3c07eb1e17dadb9ff22432da55e6b7874027d1be"
+            },
+            "observations": {
+              "value": {
+                "assertions": {
+                  "wm-return-full-10": 10,
+                  "wm-bytes-full-10": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10
+                  ],
+                  "wm-return-overlap-4": 4,
+                  "wm-bytes-overlap-4": [
+                    11,
+                    10,
+                    9,
+                    8
+                  ]
+                }
+              },
+              "bytes_consumed": 14
+            }
+          }
+        },
+        {
+          "platform": "native",
+          "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+          "invocation": {
+            "display_name": "writeMultipleBytes()",
+            "concrete_class": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest",
+            "declaring_class": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest",
+            "method_name": "writeMultipleBytes",
+            "parameter_types": ""
+          },
+          "assertion_ids": [
+            "wm-return-full-10",
+            "wm-bytes-full-10",
+            "wm-return-overlap-4",
+            "wm-bytes-overlap-4"
+          ],
+          "reference": {
+            "runner": "kotlin-2.3.10-macos-native-reference",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2561/reference/native-results.json#execution_id=kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+              "sha256": "91391b358de67e5e04858c67a59c7c6e6f20180819c9c7cd9604fac1bffd8d21"
+            },
+            "observations": {
+              "value": {
+                "assertions": {
+                  "wm-return-full-10": 10,
+                  "wm-bytes-full-10": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10
+                  ],
+                  "wm-return-overlap-4": 4,
+                  "wm-bytes-overlap-4": [
+                    11,
+                    10,
+                    9,
+                    8
+                  ]
+                }
+              },
+              "bytes_consumed": 14
+            }
+          },
+          "candidate": {
+            "runner": "kswiftc-c7b70e8-source-O0-macos-arm64",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2561/candidate/source-O0/results.json#execution_id=kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+              "sha256": "baeca27371e40b0b2093df0e3c07eb1e17dadb9ff22432da55e6b7874027d1be"
+            },
+            "observations": {
+              "value": {
+                "assertions": {
+                  "wm-return-full-10": 10,
+                  "wm-bytes-full-10": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10
+                  ],
+                  "wm-return-overlap-4": 4,
+                  "wm-bytes-overlap-4": [
+                    11,
+                    10,
+                    9,
+                    8
+                  ]
+                }
+              },
+              "bytes_consumed": 14
+            }
+          }
+        }
+      ]
+    },
+    {
+      "upstream_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#resetWriteOnException",
+      "upstream_path": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt",
+      "source_sha256": "d49a734d0446659692b10032f751b1232ad8c57a8ce58ad4288f9115abf78eda",
+      "source_git_blob_sha": "9e638245ca323a19fc2c464069ed5613802fe1e0",
+      "disposition": "verified",
+      "reason": "Pinned original assertions passed on JVM and macOS Native references and on the same c7 candidate; all target assertion IDs link to concrete invocation/result evidence.",
+      "assertions": [
+        {
+          "id": "rwe-three-arg-exception",
+          "source_path": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt",
+          "source_sha256": "d49a734d0446659692b10032f751b1232ad8c57a8ce58ad4288f9115abf78eda",
+          "line_start": 225,
+          "line_end": 229,
+          "expression": "assertFailsWith<TestException> {\n            UnsafeBufferOperations.writeToTail(buffer, 2) { _, _, _ ->\n                throw TestException()\n            }\n        }",
+          "required_observations": [
+            "exception_type"
+          ]
+        },
+        {
+          "id": "rwe-three-arg-reset",
+          "source_path": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt",
+          "source_sha256": "d49a734d0446659692b10032f751b1232ad8c57a8ce58ad4288f9115abf78eda",
+          "line_start": 231,
+          "line_end": 231,
+          "expression": "assertTrue(buffer.exhausted())",
+          "required_observations": [
+            "buffer_state"
+          ]
+        },
+        {
+          "id": "rwe-two-arg-exception",
+          "source_path": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt",
+          "source_sha256": "d49a734d0446659692b10032f751b1232ad8c57a8ce58ad4288f9115abf78eda",
+          "line_start": 233,
+          "line_end": 237,
+          "expression": "assertFailsWith<TestException> {\n            UnsafeBufferOperations.writeToTail(buffer, 2) { _, _ ->\n                throw TestException()\n            }\n        }",
+          "required_observations": [
+            "exception_type"
+          ]
+        },
+        {
+          "id": "rwe-two-arg-reset",
+          "source_path": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt",
+          "source_sha256": "d49a734d0446659692b10032f751b1232ad8c57a8ce58ad4288f9115abf78eda",
+          "line_start": 239,
+          "line_end": 239,
+          "expression": "assertTrue(buffer.exhausted())",
+          "required_observations": [
+            "buffer_state"
+          ]
+        }
+      ],
+      "executions": [
+        {
+          "platform": "jvm",
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:resetWriteOnException()]",
+          "invocation": {
+            "display_name": "resetWriteOnException()",
+            "concrete_class": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest",
+            "declaring_class": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest",
+            "method_name": "resetWriteOnException",
+            "parameter_types": ""
+          },
+          "assertion_ids": [
+            "rwe-three-arg-exception",
+            "rwe-three-arg-reset",
+            "rwe-two-arg-exception",
+            "rwe-two-arg-reset"
+          ],
+          "reference": {
+            "runner": "kotlin-2.3.10-jvm-reference",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2561/reference/jvm-results.json#execution_id=[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:resetWriteOnException()]",
+              "sha256": "31d7969bb264b7c372125b4e3b055864e2fc9b67c2a4d0da502e88a384e6e1e7"
+            },
+            "observations": {
+              "exception_type": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.TestException",
+              "buffer_state": {
+                "rwe-three-arg-reset": {
+                  "exhausted": true
+                },
+                "rwe-two-arg-reset": {
+                  "exhausted": true
+                }
+              }
+            }
+          },
+          "candidate": {
+            "runner": "kswiftc-c7b70e8-source-O0-macos-arm64",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2561/candidate/source-O0/results.json#execution_id=kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.resetWriteOnException",
+              "sha256": "baeca27371e40b0b2093df0e3c07eb1e17dadb9ff22432da55e6b7874027d1be"
+            },
+            "observations": {
+              "exception_type": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.TestException",
+              "buffer_state": {
+                "rwe-three-arg-reset": {
+                  "exhausted": true
+                },
+                "rwe-two-arg-reset": {
+                  "exhausted": true
+                }
+              }
+            }
+          }
+        },
+        {
+          "platform": "native",
+          "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.resetWriteOnException",
+          "invocation": {
+            "display_name": "resetWriteOnException()",
+            "concrete_class": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest",
+            "declaring_class": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest",
+            "method_name": "resetWriteOnException",
+            "parameter_types": ""
+          },
+          "assertion_ids": [
+            "rwe-three-arg-exception",
+            "rwe-three-arg-reset",
+            "rwe-two-arg-exception",
+            "rwe-two-arg-reset"
+          ],
+          "reference": {
+            "runner": "kotlin-2.3.10-macos-native-reference",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2561/reference/native-results.json#execution_id=kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.resetWriteOnException",
+              "sha256": "91391b358de67e5e04858c67a59c7c6e6f20180819c9c7cd9604fac1bffd8d21"
+            },
+            "observations": {
+              "exception_type": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.TestException",
+              "buffer_state": {
+                "rwe-three-arg-reset": {
+                  "exhausted": true
+                },
+                "rwe-two-arg-reset": {
+                  "exhausted": true
+                }
+              }
+            }
+          },
+          "candidate": {
+            "runner": "kswiftc-c7b70e8-source-O0-macos-arm64",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2561/candidate/source-O0/results.json#execution_id=kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.resetWriteOnException",
+              "sha256": "baeca27371e40b0b2093df0e3c07eb1e17dadb9ff22432da55e6b7874027d1be"
+            },
+            "observations": {
+              "exception_type": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.TestException",
+              "buffer_state": {
+                "rwe-three-arg-reset": {
+                  "exhausted": true
+                },
+                "rwe-two-arg-reset": {
+                  "exhausted": true
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "upstream_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#returnLessBytesThanItWasActuallyWritten",
+      "upstream_path": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt",
+      "source_sha256": "d49a734d0446659692b10032f751b1232ad8c57a8ce58ad4288f9115abf78eda",
+      "source_git_blob_sha": "9e638245ca323a19fc2c464069ed5613802fe1e0",
+      "disposition": "verified",
+      "reason": "Pinned original assertions passed on JVM and macOS Native references and on the same c7 candidate; all target assertion IDs link to concrete invocation/result evidence.",
+      "assertions": [
+        {
+          "id": "rl-return-count",
+          "source_path": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt",
+          "source_sha256": "d49a734d0446659692b10032f751b1232ad8c57a8ce58ad4288f9115abf78eda",
+          "line_start": 249,
+          "line_end": 249,
+          "expression": "}.also { assertEquals(4, it) }",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "rl-buffer-size",
+          "source_path": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt",
+          "source_sha256": "d49a734d0446659692b10032f751b1232ad8c57a8ce58ad4288f9115abf78eda",
+          "line_start": 250,
+          "line_end": 250,
+          "expression": "assertEquals(4, buffer.size)",
+          "required_observations": [
+            "buffer_state"
+          ]
+        },
+        {
+          "id": "rl-read-uint",
+          "source_path": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt",
+          "source_sha256": "d49a734d0446659692b10032f751b1232ad8c57a8ce58ad4288f9115abf78eda",
+          "line_start": 251,
+          "line_end": 251,
+          "expression": "assertEquals(0xababababu, buffer.readUInt())",
+          "required_observations": [
+            "value",
+            "bytes_consumed"
+          ]
+        }
+      ],
+      "executions": [
+        {
+          "platform": "jvm",
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:returnLessBytesThanItWasActuallyWritten()]",
+          "invocation": {
+            "display_name": "returnLessBytesThanItWasActuallyWritten()",
+            "concrete_class": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest",
+            "declaring_class": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest",
+            "method_name": "returnLessBytesThanItWasActuallyWritten",
+            "parameter_types": ""
+          },
+          "assertion_ids": [
+            "rl-return-count",
+            "rl-buffer-size",
+            "rl-read-uint"
+          ],
+          "reference": {
+            "runner": "kotlin-2.3.10-jvm-reference",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2561/reference/jvm-results.json#execution_id=[engine:junit-jupiter]/[class:kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest]/[method:returnLessBytesThanItWasActuallyWritten()]",
+              "sha256": "31d7969bb264b7c372125b4e3b055864e2fc9b67c2a4d0da502e88a384e6e1e7"
+            },
+            "observations": {
+              "value": {
+                "assertions": {
+                  "rl-return-count": 4,
+                  "rl-read-uint": {
+                    "unsigned": 2880154539,
+                    "hex": "0xabababab"
+                  }
+                }
+              },
+              "buffer_state": {
+                "size_before_read": 4,
+                "exhausted_after_read": true
+              },
+              "bytes_consumed": 4
+            }
+          },
+          "candidate": {
+            "runner": "kswiftc-c7b70e8-source-O0-macos-arm64",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2561/candidate/source-O0/results.json#execution_id=kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.returnLessBytesThanItWasActuallyWritten",
+              "sha256": "baeca27371e40b0b2093df0e3c07eb1e17dadb9ff22432da55e6b7874027d1be"
+            },
+            "observations": {
+              "value": {
+                "assertions": {
+                  "rl-return-count": 4,
+                  "rl-read-uint": {
+                    "unsigned": 2880154539,
+                    "hex": "0xabababab"
+                  }
+                }
+              },
+              "buffer_state": {
+                "size_before_read": 4,
+                "exhausted_after_read": true
+              },
+              "bytes_consumed": 4
+            }
+          }
+        },
+        {
+          "platform": "native",
+          "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.returnLessBytesThanItWasActuallyWritten",
+          "invocation": {
+            "display_name": "returnLessBytesThanItWasActuallyWritten()",
+            "concrete_class": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest",
+            "declaring_class": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest",
+            "method_name": "returnLessBytesThanItWasActuallyWritten",
+            "parameter_types": ""
+          },
+          "assertion_ids": [
+            "rl-return-count",
+            "rl-buffer-size",
+            "rl-read-uint"
+          ],
+          "reference": {
+            "runner": "kotlin-2.3.10-macos-native-reference",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2561/reference/native-results.json#execution_id=kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.returnLessBytesThanItWasActuallyWritten",
+              "sha256": "91391b358de67e5e04858c67a59c7c6e6f20180819c9c7cd9604fac1bffd8d21"
+            },
+            "observations": {
+              "value": {
+                "assertions": {
+                  "rl-return-count": 4,
+                  "rl-read-uint": {
+                    "unsigned": 2880154539,
+                    "hex": "0xabababab"
+                  }
+                }
+              },
+              "buffer_state": {
+                "size_before_read": 4,
+                "exhausted_after_read": true
+              },
+              "bytes_consumed": 4
+            }
+          },
+          "candidate": {
+            "runner": "kswiftc-c7b70e8-source-O0-macos-arm64",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2561/candidate/source-O0/results.json#execution_id=kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.returnLessBytesThanItWasActuallyWritten",
+              "sha256": "baeca27371e40b0b2093df0e3c07eb1e17dadb9ff22432da55e6b7874027d1be"
+            },
+            "observations": {
+              "value": {
+                "assertions": {
+                  "rl-return-count": 4,
+                  "rl-read-uint": {
+                    "unsigned": 2880154539,
+                    "hex": "0xabababab"
+                  }
+                }
+              },
+              "buffer_state": {
+                "size_before_read": 4,
+                "exhausted_after_read": true
+              },
+              "bytes_consumed": 4
+            }
+          }
+        }
+      ]
+    }
+  ]
 }

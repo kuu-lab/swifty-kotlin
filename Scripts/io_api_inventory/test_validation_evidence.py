@@ -51,6 +51,22 @@ class ValidationEvidenceTests(unittest.TestCase):
     def tearDown(self):
         self.temporary.cleanup()
 
+    def test_set_unchecked_rows_use_the_exact_original_write_test(self):
+        row = {
+            "_candidate_name": "setUnchecked",
+            "owner_fqn": "kotlinx.io.unsafe.SegmentWriteContext",
+            "_source_paths": [Path("UnsafeBufferOperations.kt")],
+            "module": "core",
+        }
+        index = {"files": [{
+            "path": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt",
+            "testNames": ["writeMultipleBytes", "writeWithCtx"],
+        }]}
+        self.assertEqual(
+            self.generator.upstream_test_refs(row, index),
+            ["core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes"],
+        )
+
     def _write(self, relative, content, root=None):
         path = (root or self.repository) / relative
         path.parent.mkdir(parents=True, exist_ok=True)

@@ -1,0 +1,53 @@
+[
+  {
+    "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.resetWriteOnException",
+    "status": "PASS",
+    "stdout": "",
+    "exception_type": null,
+    "source_function_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#resetWriteOnException",
+    "concrete_class": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest",
+    "declaring_class": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest",
+    "source_path": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt",
+    "source_sha256": "d49a734d0446659692b10032f751b1232ad8c57a8ce58ad4288f9115abf78eda",
+    "source_git_blob_sha": "9e638245ca323a19fc2c464069ed5613802fe1e0",
+    "candidate_port_sha256": "47091d5b62a3a429ff56cd688b7b5345779311d40d85594c1cf476f0f76c7f2f",
+    "driver_sha256": "5aae973cc6cca4c00b58e499fc5dd3b5145304eb2250ea3a746c4ed38b003c53",
+    "suite_driver_sha256": "5aae973cc6cca4c00b58e499fc5dd3b5145304eb2250ea3a746c4ed38b003c53",
+    "candidate_executable_sha256": "849cc26bb742bcb758ea65feb77624bea5c5965914199b0de2baf72bc28f26bd",
+    "catalog_row_sha256": "7a627f3b707e237a7746a21f327728c6cbe5dfc2618285aed1a64c5ab5da2ab9"
+  },
+  {
+    "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.returnLessBytesThanItWasActuallyWritten",
+    "status": "PASS",
+    "stdout": "",
+    "exception_type": null,
+    "source_function_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#returnLessBytesThanItWasActuallyWritten",
+    "concrete_class": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest",
+    "declaring_class": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest",
+    "source_path": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt",
+    "source_sha256": "d49a734d0446659692b10032f751b1232ad8c57a8ce58ad4288f9115abf78eda",
+    "source_git_blob_sha": "9e638245ca323a19fc2c464069ed5613802fe1e0",
+    "candidate_port_sha256": "47091d5b62a3a429ff56cd688b7b5345779311d40d85594c1cf476f0f76c7f2f",
+    "driver_sha256": "5aae973cc6cca4c00b58e499fc5dd3b5145304eb2250ea3a746c4ed38b003c53",
+    "suite_driver_sha256": "5aae973cc6cca4c00b58e499fc5dd3b5145304eb2250ea3a746c4ed38b003c53",
+    "candidate_executable_sha256": "849cc26bb742bcb758ea65feb77624bea5c5965914199b0de2baf72bc28f26bd",
+    "catalog_row_sha256": "b4d171950567d0b6e59a9bb38bb4c585a1723cbbc465fcaddd635186aa9627ba"
+  },
+  {
+    "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+    "status": "PASS",
+    "stdout": "",
+    "exception_type": null,
+    "source_function_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+    "concrete_class": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest",
+    "declaring_class": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest",
+    "source_path": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt",
+    "source_sha256": "d49a734d0446659692b10032f751b1232ad8c57a8ce58ad4288f9115abf78eda",
+    "source_git_blob_sha": "9e638245ca323a19fc2c464069ed5613802fe1e0",
+    "candidate_port_sha256": "47091d5b62a3a429ff56cd688b7b5345779311d40d85594c1cf476f0f76c7f2f",
+    "driver_sha256": "5aae973cc6cca4c00b58e499fc5dd3b5145304eb2250ea3a746c4ed38b003c53",
+    "suite_driver_sha256": "5aae973cc6cca4c00b58e499fc5dd3b5145304eb2250ea3a746c4ed38b003c53",
+    "candidate_executable_sha256": "849cc26bb742bcb758ea65feb77624bea5c5965914199b0de2baf72bc28f26bd",
+    "catalog_row_sha256": "69c7b90843d2fba8dbb95c759f759c25c47064f3a18f7a6f717279d8a6777e35"
+  }
+]

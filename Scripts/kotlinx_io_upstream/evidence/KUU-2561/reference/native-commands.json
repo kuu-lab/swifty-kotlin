@@ -1,0 +1,17 @@
+[
+  [
+    "/private/tmp/kuu2561-evidence/native-reference-online/upstream-native-tests.kexe",
+    "--ktest_logger=TEAMCITY",
+    "--ktest_filter=kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes"
+  ],
+  [
+    "/private/tmp/kuu2561-evidence/native-reference-online/upstream-native-tests.kexe",
+    "--ktest_logger=TEAMCITY",
+    "--ktest_filter=kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.resetWriteOnException"
+  ],
+  [
+    "/private/tmp/kuu2561-evidence/native-reference-online/upstream-native-tests.kexe",
+    "--ktest_logger=TEAMCITY",
+    "--ktest_filter=kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.returnLessBytesThanItWasActuallyWritten"
+  ]
+]

@@ -1,0 +1,202 @@
+{
+  "kind": "candidate-assertion-native-scoped-catalog",
+  "paired_pass_count": 0,
+  "paired_disposition": "UNMAPPED",
+  "seven_observations_exported": false,
+  "host": "macOS-27.0-arm64-arm-64bit-Mach-O",
+  "python_version": "3.14.8 (main, Sep 30 2026, 17:55:09) [Clang 21.0.0 (clang-2100.3.34.2)]",
+  "optimization": "O2",
+  "package_root": "/Users/kuu/.codex/worktrees/9348/swifty-kotlin",
+  "stdlib_mode": "source",
+  "test_body_mode": "source",
+  "runtime_cache_provenance": "Runtime source hashes only; cached object bytes are outside this proof",
+  "native_catalog_target": "macos",
+  "compiler_resource_bundle": "/Users/kuu/.codex/worktrees/9348/swifty-kotlin/.build/out/Products/Debug/KSwiftK_CompilerCore.bundle/Contents/Resources",
+  "compiler_resource_bundle_provenance": "explicit caller-selected Bundle.module directory",
+  "selection": {
+    "schema_version": 1,
+    "selection_mode": "explicit-ids",
+    "target": "macos",
+    "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+    "catalog_sha256": "3bd3e5e45e2a86315dfb7c8a5ef171abdeeab49dbc50b6260c219155b67ac57e",
+    "reference_lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+    "catalog_execution_count": 1217,
+    "target_catalog_execution_count": 1217,
+    "target_catalog_execution_ids_sha256": "f8690ddbf6b98c2850b10350f0baf594a464a21f1e958089bc11a2b350961877",
+    "requested_source_function_ids": [],
+    "requested_execution_ids": [
+      "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+      "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.resetWriteOnException",
+      "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.returnLessBytesThanItWasActuallyWritten"
+    ],
+    "selected_source_function_ids": [
+      "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#resetWriteOnException",
+      "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#returnLessBytesThanItWasActuallyWritten",
+      "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes"
+    ],
+    "selected_concrete_classes": [
+      "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest"
+    ],
+    "selected_execution_count": 3,
+    "selected_execution_ids": [
+      "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.resetWriteOnException",
+      "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.returnLessBytesThanItWasActuallyWritten",
+      "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes"
+    ],
+    "selected_execution_records": [
+      {
+        "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.resetWriteOnException",
+        "upstream_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#resetWriteOnException",
+        "concrete_class": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest",
+        "declaring_class": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest",
+        "method_name": "resetWriteOnException",
+        "parameter_types": "",
+        "upstream_path": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt",
+        "git_blob_sha": "9e638245ca323a19fc2c464069ed5613802fe1e0",
+        "source_set": "common",
+        "source_sha256": "d49a734d0446659692b10032f751b1232ad8c57a8ce58ad4288f9115abf78eda"
+      },
+      {
+        "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.returnLessBytesThanItWasActuallyWritten",
+        "upstream_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#returnLessBytesThanItWasActuallyWritten",
+        "concrete_class": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest",
+        "declaring_class": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest",
+        "method_name": "returnLessBytesThanItWasActuallyWritten",
+        "parameter_types": "",
+        "upstream_path": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt",
+        "git_blob_sha": "9e638245ca323a19fc2c464069ed5613802fe1e0",
+        "source_set": "common",
+        "source_sha256": "d49a734d0446659692b10032f751b1232ad8c57a8ce58ad4288f9115abf78eda"
+      },
+      {
+        "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+        "upstream_id": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes",
+        "concrete_class": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest",
+        "declaring_class": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest",
+        "method_name": "writeMultipleBytes",
+        "parameter_types": "",
+        "upstream_path": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt",
+        "git_blob_sha": "9e638245ca323a19fc2c464069ed5613802fe1e0",
+        "source_set": "common",
+        "source_sha256": "d49a734d0446659692b10032f751b1232ad8c57a8ce58ad4288f9115abf78eda"
+      }
+    ],
+    "selected_execution_records_sha256": "2f2c9200566a0d0346d51abcb9a0157b8fa9569a754e4720064e3de53f82d70e",
+    "covers_full_catalog": false,
+    "input_hashes": {
+      "workspace_git_sha": "c7b70e8d62bfcd5c1df891ee28d3886ae419414e",
+      "compiler_sha256": "466800e6ca596ead594ec53fbec8cd37b0f982f5458e5bd02fbea6dc176222a0",
+      "compiler_resource_bundle_sha256": "59cebba3fb685fc81075d8091edc0f025c6b84766ce3314829edb8e07aeae1d9",
+      "stdlib_content_sha256": null,
+      "stdlib_sources_sha256": "3cbc578a6eb2e5c77a2fc7c751229443da88bb3d7db31f4fd7856bfb076ac3ff",
+      "runtime_sources_sha256": "65e060f3c5248a31d05a81fff33390068f7f7e3f2d949220c681cf3417ddd7c8",
+      "runtime_abi_sources_sha256": "a50d8ceb8a733f14e713bcebb1aa657348ec354a418d97ea817f16f8a39a0ebe",
+      "package_manifest_sha256": "d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1",
+      "lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+      "catalog_sha256": "3bd3e5e45e2a86315dfb7c8a5ef171abdeeab49dbc50b6260c219155b67ac57e",
+      "runner_sha256": "bd7046ae7097aaf90cd7e156f35e132b90c696d44b62db79ab1bf2c517baaacb",
+      "direct_runner_sha256": "e790f203b6c9673804607660fb3bbbad5566594d1213405f5a77678cbc8ab0df",
+      "helper_sha256": "2981c31b7e4a0f46da512bb155100281df346f33255c2a625ded3560cfc8481c",
+      "driver_sha256": "5aae973cc6cca4c00b58e499fc5dd3b5145304eb2250ea3a746c4ed38b003c53",
+      "support_source_sha256": {
+        "/Users/kuu/.codex/worktrees/9348/swifty-kotlin/Scripts/kotlinx_io_upstream/support/unsafe_buffer_operations_write_assertions.kt": "dd06a0d7971298194e07ff991113d1810a66e066b304a2ceacaddbd5fce42859"
+      },
+      "source_closure_index_sha256": "d8a82d3ab261911f0e57812fa6529f003dfc90851c65dc87e687b52b234f50ee",
+      "port_sha256": {
+        "/private/tmp/kuu2561-evidence/candidate-c7-source-O2/ports/core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt": "47091d5b62a3a429ff56cd688b7b5345779311d40d85594c1cf476f0f76c7f2f"
+      },
+      "catalog_preparer_sha256": "589cd2bf4092a0299e4184c8e208d1002fc9e49b0be5f5e924739dd53e4bf002",
+      "declaration_index_sha256": "7ff0f473815211b1f1acca4e3f6ace2175de152b81a9e3eece265003d8fbab39"
+    }
+  },
+  "selection_manifest": "/private/tmp/kuu2561-evidence/candidate-c7-source-O2/selection.json",
+  "selection_manifest_sha256": "4fb0d624f8fc38170b664d7f0b613d016b21c9bb4a7aca87de30cc68043a2cb0",
+  "catalog_execution_count": 1217,
+  "target_catalog_execution_count": 1217,
+  "selected_execution_count": 3,
+  "selected_source_function_count": 3,
+  "covers_full_catalog": false,
+  "selection_mode": "explicit-ids",
+  "workspace_git_sha": "c7b70e8d62bfcd5c1df891ee28d3886ae419414e",
+  "ports": [
+    {
+      "suite": "native-catalog-macos",
+      "target": "macos",
+      "source_ports": [
+        "/private/tmp/kuu2561-evidence/candidate-c7-source-O2/ports/core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt"
+      ],
+      "original_sources": [
+        {
+          "source_path": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt",
+          "source_sha256": "d49a734d0446659692b10032f751b1232ad8c57a8ce58ad4288f9115abf78eda",
+          "source_git_blob_sha": "9e638245ca323a19fc2c464069ed5613802fe1e0",
+          "port_path": "/private/tmp/kuu2561-evidence/candidate-c7-source-O2/ports/core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt",
+          "port_sha256": "47091d5b62a3a429ff56cd688b7b5345779311d40d85594c1cf476f0f76c7f2f",
+          "prefix_bytes": 59,
+          "original_bytes_preserved_as_suffix": true
+        }
+      ],
+      "source_closure_scope": "explicit-scoped",
+      "driver_path": "/private/tmp/kuu2561-evidence/candidate-c7-source-O2/CombinedDriver.kt",
+      "driver_sha256": "5aae973cc6cca4c00b58e499fc5dd3b5145304eb2250ea3a746c4ed38b003c53",
+      "execution_ids": [
+        "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.resetWriteOnException",
+        "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.returnLessBytesThanItWasActuallyWritten",
+        "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes"
+      ],
+      "source_function_ids": [
+        "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#resetWriteOnException",
+        "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#returnLessBytesThanItWasActuallyWritten",
+        "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes"
+      ],
+      "event_token": "KIO_9eae2f8a2b75be06a8b5ffff",
+      "assertions_parameters_constructors_changed": false,
+      "constructor_policy": "fresh original concrete class instance per execution",
+      "lifecycle_policy": "Kotlin/Native 2.3.10: fresh lazy instance per execution; after hook in finally; cleanup failure replaces body failure"
+    }
+  ],
+  "inputs": {
+    "workspace_git_sha": "c7b70e8d62bfcd5c1df891ee28d3886ae419414e",
+    "compiler_sha256": "466800e6ca596ead594ec53fbec8cd37b0f982f5458e5bd02fbea6dc176222a0",
+    "compiler_resource_bundle_sha256": "59cebba3fb685fc81075d8091edc0f025c6b84766ce3314829edb8e07aeae1d9",
+    "stdlib_content_sha256": null,
+    "stdlib_sources_sha256": "3cbc578a6eb2e5c77a2fc7c751229443da88bb3d7db31f4fd7856bfb076ac3ff",
+    "runtime_sources_sha256": "65e060f3c5248a31d05a81fff33390068f7f7e3f2d949220c681cf3417ddd7c8",
+    "runtime_abi_sources_sha256": "a50d8ceb8a733f14e713bcebb1aa657348ec354a418d97ea817f16f8a39a0ebe",
+    "package_manifest_sha256": "d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1",
+    "lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+    "catalog_sha256": "3bd3e5e45e2a86315dfb7c8a5ef171abdeeab49dbc50b6260c219155b67ac57e",
+    "runner_sha256": "bd7046ae7097aaf90cd7e156f35e132b90c696d44b62db79ab1bf2c517baaacb",
+    "direct_runner_sha256": "e790f203b6c9673804607660fb3bbbad5566594d1213405f5a77678cbc8ab0df",
+    "helper_sha256": "2981c31b7e4a0f46da512bb155100281df346f33255c2a625ded3560cfc8481c",
+    "driver_sha256": "5aae973cc6cca4c00b58e499fc5dd3b5145304eb2250ea3a746c4ed38b003c53",
+    "support_source_sha256": {
+      "/Users/kuu/.codex/worktrees/9348/swifty-kotlin/Scripts/kotlinx_io_upstream/support/unsafe_buffer_operations_write_assertions.kt": "dd06a0d7971298194e07ff991113d1810a66e066b304a2ceacaddbd5fce42859"
+    },
+    "source_closure_index_sha256": "d8a82d3ab261911f0e57812fa6529f003dfc90851c65dc87e687b52b234f50ee",
+    "port_sha256": {
+      "/private/tmp/kuu2561-evidence/candidate-c7-source-O2/ports/core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt": "47091d5b62a3a429ff56cd688b7b5345779311d40d85594c1cf476f0f76c7f2f"
+    },
+    "catalog_preparer_sha256": "589cd2bf4092a0299e4184c8e208d1002fc9e49b0be5f5e924739dd53e4bf002",
+    "declaration_index_sha256": "7ff0f473815211b1f1acca4e3f6ace2175de152b81a9e3eece265003d8fbab39",
+    "selection_manifest_sha256": "4fb0d624f8fc38170b664d7f0b613d016b21c9bb4a7aca87de30cc68043a2cb0"
+  },
+  "expected_count": 3,
+  "compile_exitcode": 0,
+  "executable_sha256": "2dbc567523f7708ef68468b66c5442874bd264d7dea73a628a9fbff941e16cbe",
+  "run_exitcode": 0,
+  "counts": {
+    "PASS": 3
+  },
+  "inputs_unchanged": true,
+  "candidate_executions": 3,
+  "result_execution_ids": [
+    "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.resetWriteOnException",
+    "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.returnLessBytesThanItWasActuallyWritten",
+    "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes"
+  ],
+  "full_catalog_validation": {
+    "status": "NOT_REQUIRED"
+  },
+  "status": "PASS"
+}
