@@ -13,9 +13,8 @@ import kotlin.js.ExperimentalJsExport
 import kotlin.js.collections.JsReadonlyArray
 import kotlin.js.collections.createJsReadonlyArrayViewFrom
 
-// KSP-700: List's covariant nominal shell and directly bridged members are
-// source-backed here. The link names stay stable for the built-in list boxes;
-// the corresponding Swift registrations remain only as no-stdlib/precompiled
+// KSP-700: The link names stay stable for the built-in list boxes; the
+// corresponding Swift registrations remain only as no-stdlib/precompiled
 // fallbacks.
 // KSP-1063: `size` redeclares the Collection contract; `@KsSymbolName` cannot
 // annotate a property, so its `__kk_collection_size` bridge link is supplied by
@@ -63,7 +62,6 @@ public interface List<out E> : Collection<E> {
     @KsSymbolName("kk_list_subList")
     public fun subList(fromIndex: Int, toIndex: Int): List<E>
 
-    /** Returns a readonly array view backed by this list. */
     @ExperimentalJsExport
     @ExperimentalJsCollectionsApi
     @SinceKotlin("2.0")
