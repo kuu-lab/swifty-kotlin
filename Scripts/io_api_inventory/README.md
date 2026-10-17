@@ -301,6 +301,30 @@ the reference classfile probe therefore does not claim candidate JVM classfile
 ABI. The report, probe, source metadata, upstream test index, and focused test
 inputs participate in the row's input hash and are checked during regeneration.
 
+The ByteString `getBackingArrayReference()` internal declaration and KLIB view
+also require the pinned Apple Native reference at O0/O2. Its paired public JVM
+ABI row has an independent `jvm-descriptor` check. For KUU-2581, run the
+dedicated probes against candidate `fd01a5e98145e8295e5b299b0a7190cc8d44e3a7`
+with pinned JVM and `macos_arm64` references:
+
+```sh
+python3 Scripts/io_api_inventory/run_bytestring_backing_array_probe.py \
+  --candidate-sha fd01a5e98145e8295e5b299b0a7190cc8d44e3a7 \
+  --package-root /path/to/fd01a5e-source \
+  --compiler /path/to/fd01a5e-source/.build/debug/kswiftc \
+  --reference-root /path/to/prepared-jvm-reference \
+  --native-reference-root /path/to/prepared-macos-arm64-reference \
+  --konan-data /path/to/kotlin-native-cache \
+  --output /path/to/new-run-directory
+```
+
+The probe checks direct identity and repeated `@PublishedApi` inline access
+through source, fresh stdlib KLIB, and producer/consumer compilation at O0/O2.
+The Kotlin 2.3.10 JVM probe uses the pinned ByteString JAR as a friend module;
+the Native reference uses the pinned `macos_arm64` KLIBs. The runner records
+the descriptor, compiler/test results, exact stdout/stderr hashes, and promotes
+the three ledger rows only when every row-specific lane passes.
+
 The generator rejects unknown or duplicate row IDs, malformed hashes, a
 different reference pin, stale implementation/test inputs, non-passing or
 unrun executions, duplicate cases, and missing or unrelated lanes. Upstream

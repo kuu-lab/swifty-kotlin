@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "executions": [
+    {
+      "execution_id": "bytestring-backing-array:jvm:reference",
+      "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt#directBackingArrayIdentity",
+      "lane": "*",
+      "side": "reference",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "891e1195c85318d302c8ede5745e06bf3294ac131a824d31bcb0f6d6bd98a33f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "execution_id": "bytestring-backing-array:f02:source-O0",
+      "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt#directBackingArrayIdentity",
+      "lane": "source-O0",
+      "side": "candidate",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "891e1195c85318d302c8ede5745e06bf3294ac131a824d31bcb0f6d6bd98a33f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "execution_id": "bytestring-backing-array:f02:source-O2",
+      "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt#directBackingArrayIdentity",
+      "lane": "source-O2",
+      "side": "candidate",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "891e1195c85318d302c8ede5745e06bf3294ac131a824d31bcb0f6d6bd98a33f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "execution_id": "bytestring-backing-array:f02:stdlib-library-O0",
+      "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt#directBackingArrayIdentity",
+      "lane": "stdlib-library-O0",
+      "side": "candidate",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "891e1195c85318d302c8ede5745e06bf3294ac131a824d31bcb0f6d6bd98a33f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "execution_id": "bytestring-backing-array:f02:stdlib-library-O2",
+      "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt#directBackingArrayIdentity",
+      "lane": "stdlib-library-O2",
+      "side": "candidate",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "891e1195c85318d302c8ede5745e06bf3294ac131a824d31bcb0f6d6bd98a33f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "execution_id": "bytestring-backing-array:f02:producer-consumer-O0",
+      "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt#directBackingArrayIdentity",
+      "lane": "producer-consumer-O0",
+      "side": "candidate",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "891e1195c85318d302c8ede5745e06bf3294ac131a824d31bcb0f6d6bd98a33f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "execution_id": "bytestring-backing-array:f02:producer-consumer-O2",
+      "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt#directBackingArrayIdentity",
+      "lane": "producer-consumer-O2",
+      "side": "candidate",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "891e1195c85318d302c8ede5745e06bf3294ac131a824d31bcb0f6d6bd98a33f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "execution_id": "bytestring-backing-array:jvm-descriptor:reference",
+      "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Producer.kt#publishedBackingArrayForProbe",
+      "lane": "jvm-descriptor",
+      "side": "reference",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "33437a8e438a115652a3947ca76bda824c4a114a1d8ae8495a8d22c4a1e9814e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "execution_id": "bytestring-backing-array:jvm-descriptor:candidate",
+      "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Producer.kt#publishedBackingArrayForProbe",
+      "lane": "jvm-descriptor",
+      "side": "candidate",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "110144c5529ca1ee41cf8b19414efb3433b52b1d939d62bd8d24ddb01c58e9ec",
+      "stderr_sha256": "612e2551d98432d680db57aa0340512689cbabf5992ad7483ceb2061b8bde52d"
+    },
+    {
+      "execution_id": "bytestring-backing-array:apple-reference:O0",
+      "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt#directBackingArrayIdentity",
+      "lane": "apple-native-O0",
+      "side": "reference",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "891e1195c85318d302c8ede5745e06bf3294ac131a824d31bcb0f6d6bd98a33f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "execution_id": "bytestring-backing-array:apple-candidate:O0",
+      "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt#directBackingArrayIdentity",
+      "lane": "apple-native-O0",
+      "side": "candidate",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "891e1195c85318d302c8ede5745e06bf3294ac131a824d31bcb0f6d6bd98a33f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "execution_id": "bytestring-backing-array:apple-reference:O2",
+      "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt#directBackingArrayIdentity",
+      "lane": "apple-native-O2",
+      "side": "reference",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "891e1195c85318d302c8ede5745e06bf3294ac131a824d31bcb0f6d6bd98a33f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "execution_id": "bytestring-backing-array:apple-candidate:O2",
+      "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt#directBackingArrayIdentity",
+      "lane": "apple-native-O2",
+      "side": "candidate",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "891e1195c85318d302c8ede5745e06bf3294ac131a824d31bcb0f6d6bd98a33f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

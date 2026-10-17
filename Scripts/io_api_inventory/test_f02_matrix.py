@@ -186,6 +186,12 @@ class F02GateTests(unittest.TestCase):
                 self.assertIn("Scripts/diff_cases/kotlinx_io_file_legacy_suppressed.kt", row["local_test_refs"])
                 self.assertIn("Tests/CompilerCoreTests/Sema/KotlinxIOF01ContractTests.swift", row["local_test_refs"])
 
+    def test_backing_array_jvm_reference_uses_the_pinned_friend_module(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "bytestring-backing-array")
+        flags = matrix.jvm_friend_flags(case, Path("/locked/dependencies"))
+        self.assertEqual(flags, [
+            "-Xfriend-paths=/locked/dependencies/kotlinx-io-bytestring-jvm-0.9.1.jar"
+        ])
     def test_missing_default_call_and_duplicate_row_cannot_pass(self):
         manifest = {"paired_source_rows": ["a"], "required_call_ids": ["a:0", "a:1"]}
         complete = b"BEGIN:a\nCALL:a:0\nCALL-END:a:0\nCALL:a:1\nCALL-END:a:1\nEND:a\n"
