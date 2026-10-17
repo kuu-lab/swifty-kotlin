@@ -1,9 +1,5 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
-/// Argument-context preparation for `inferCallExpr`: coroutine-launcher
-/// detection and lambda ABI marks, then the expected-type and lambda-context
-/// overrides that `prepareCallArguments` consumes.
-/// Extracted from `CallTypeChecker+CallExprInference.swift`.
 func resolvedExplicitTypeArgument(at index: Int, in explicitTypeArgs: [TypeID]) -> TypeID? {
     guard explicitTypeArgs.indices.contains(index) else { return nil }
     let type = explicitTypeArgs[index]
@@ -11,11 +7,9 @@ func resolvedExplicitTypeArgument(at index: Int, in explicitTypeArgs: [TypeID]) 
 }
 
 extension CallTypeChecker {
-    /// A single outer candidate, or multiple candidates that agree on an
-    /// argument type, supplies an unambiguous expected type for each nested
-    /// call argument. Member calls need this context too: their arguments are
-    /// first inferred to collect candidates, then prepared again after the
-    /// selected receiver and candidate set are known.
+    /// Member calls need this context: their arguments are first inferred to
+    /// collect candidates, then prepared again after the selected receiver and
+    /// candidate set are known.
     func prepareUnambiguousNestedCallExpectedTypes(
         args: [CallArgument],
         callRange: SourceRange,
@@ -132,9 +126,8 @@ extension CallTypeChecker {
                 || calleeName == knownNames.supervisorScope
         )
         let coroutineLauncherExpectedLambdaType: TypeID?
-        // STDLIB-CORO-072: Support launch(dispatcher) { } by checking both first and
-        // second argument for a trailing lambda. When the first argument is a dispatcher
-        // (non-lambda) and the second is a lambda, treat it as the block argument.
+        // Support launch(dispatcher) { } by checking both first and second
+        // argument for a trailing lambda.
         let coroutineLauncherLambdaArgIndex: Int? = {
             guard isCoroutineLauncher
             else { return nil }
