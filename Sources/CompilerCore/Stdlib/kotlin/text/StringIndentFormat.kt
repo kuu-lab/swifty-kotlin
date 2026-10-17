@@ -2,9 +2,6 @@ package kotlin.text
 
 // String indent and format functions migrated from Swift Runtime.
 // MIGRATION-TEXT-006
-//
-// Public APIs are now fully implemented in Kotlin. The legacy `__kk_string_*`
-// runtime bridges have been removed as part of the KSP-302 cleanup.
 
 internal fun String.normalizeLineSeparators(): String {
     val sb = StringBuilder()
@@ -69,17 +66,10 @@ private fun String.trimBlankEdges(): List<String> {
     return lines.subList(start, end)
 }
 
-/**
- * Detects a common minimal indent of all the input lines, removes it from every line and also
- * removes the first and the last lines if they are blank.
- */
 public fun String.trimIndent(): String {
     return replaceIndent("")
 }
 
-/**
- * Detects indent (as in [trimIndent]), removes it, then prepends [newIndent] to every line.
- */
 public fun String.replaceIndent(newIndent: String = ""): String {
     val lines = trimBlankEdges()
     if (lines.isEmpty()) return ""
@@ -110,18 +100,10 @@ public fun String.replaceIndent(newIndent: String = ""): String {
     return sb.toString()
 }
 
-/**
- * Trims leading whitespace characters followed by [marginPrefix] from every line of a source string
- * and removes the first and the last lines if they are blank.
- */
 public fun String.trimMargin(marginPrefix: String = "|"): String {
     return replaceIndentByMargin("", marginPrefix)
 }
 
-/**
- * Trims leading whitespace followed by [marginPrefix] (as in [trimMargin]),
- * then prepends [newIndent] to every non-margin line.
- */
 public fun String.replaceIndentByMargin(newIndent: String = "", marginPrefix: String = "|"): String {
     if (marginPrefix.isBlankLine()) {
         throw IllegalArgumentException("marginPrefix must be non-blank string.")
@@ -145,13 +127,6 @@ public fun String.replaceIndentByMargin(newIndent: String = "", marginPrefix: St
     return sb.toString()
 }
 
-/**
- * Prepends [indent] to every line of the original string.
- *
- * Blank lines shorter than [indent] are replaced by [indent] alone; blank lines
- * that are already at least as long as [indent] are left unchanged. Non-blank
- * lines always get [indent] prepended.
- */
 public fun String.prependIndent(indent: String = "    "): String {
     val lines = splitIntoLines()
     val sb = StringBuilder()
@@ -173,15 +148,8 @@ public fun String.prependIndent(indent: String = "    "): String {
     return sb.toString()
 }
 
-/**
- * Returns a string with content of this string where each line is indented by 4 spaces.
- */
 public fun String.indent(): String = indent(4)
 
-/**
- * Returns a string with content of this string where each line is indented by [n] spaces
- * (or has up to [n] leading spaces removed, when [n] is negative).
- */
 public fun String.indent(n: Int): String {
     if (n == 0) return this
     val lines = splitIntoLines()
