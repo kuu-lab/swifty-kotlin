@@ -1,4 +1,3 @@
-/// Sequence and iterator builder call rewrites.
 extension CollectionLiteralConstructionLoweringPass {
     func rewriteSequenceBuilderCall(
         symbol: SymbolID?,
@@ -31,7 +30,6 @@ extension CollectionLiteralConstructionLoweringPass {
         // The raw-source-name rewrites that used to synthesize these calls for
         // the Swift-side synthetic stub were removed here.
 
-        // yield(value) inside sequence builder → __kk_sequence_builder_yield
         if callee == lookup.yieldName, arguments.count == 2 {
             let builderArg = arguments[0]
             let valueArg = arguments[1]
