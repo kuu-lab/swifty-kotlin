@@ -470,7 +470,6 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: stringType)
             return stringType
         }
-        // STDLIB-345: List/Sequence plus/minus operators
         if !lhsIsPrimitive, op == .add || op == .subtract {
             let isListLhs = driver.callChecker.isListLikeType(lhs, sema: sema, interner: interner)
             let isSeqLhs = driver.callChecker.isSequenceLikeType(lhs, sema: sema, interner: interner)
@@ -695,7 +694,6 @@ extension ExprTypeChecker {
         // IntProgression.step takes Int, not UInt.
         let allowsMixedSignedness: Bool = {
             if case .step = op, lhsIsUnsigned, rhsIsSigned {
-                // UIntProgression.step expects Int
                 if lhs == uintType { return rhs == intType }
                 // ULongProgression.step expects Long. Kotlin does not perform
                 // implicit numeric widening for non-literals; only integer
@@ -728,7 +726,6 @@ extension ExprTypeChecker {
         switch op {
         case .add:
             if lhs == charType && rhs == intType {
-                // Char + Int -> Char
                 type = charType
             } else if lhs == doubleType || rhs == doubleType {
                 type = doubleType
@@ -745,10 +742,8 @@ extension ExprTypeChecker {
             }
         case .subtract:
             if lhs == charType && rhs == charType {
-                // Char - Char -> Int
                 type = intType
             } else if lhs == charType && rhs == intType {
-                // Char - Int -> Char
                 type = charType
             } else if lhs == doubleType || rhs == doubleType {
                 type = doubleType
@@ -810,8 +805,6 @@ extension ExprTypeChecker {
                 }
             }
         case .rangeTo, .rangeUntil, .downTo:
-            // LongRange when either operand is Long; ULongRange when ULong (STDLIB-524);
-            // UIntRange when UInt, UShort, or UByte (STDLIB-523); IntRange otherwise.
             if lhs == longType || rhs == longType {
                 type = longType
             } else if lhs == ulongType || rhs == ulongType {
@@ -835,18 +828,15 @@ extension ExprTypeChecker {
                     : sema.types.doubleType
                 sema.bindings.bindFloatingPointRangeElementType(elementType, forExpr: id, endExclusive: op == .rangeUntil)
             }
-            // Detect CharRange: if either operand is Char, mark as char range (STDLIB-290)
             if lhs == sema.types.charType || rhs == sema.types.charType {
                 sema.bindings.markCharRangeExpr(id)
             }
         case .step:
-            // LongRange when the receiver (lhs) is Long; ULongRange when ULong (STDLIB-524);
-            // UIntRange when UInt (STDLIB-523). An Int range expression uses the
-            // scalar Int type plus a range marker, but `step` returns
-            // IntProgression, not IntRange. Keep that nominal distinction so
-            // source-backed HOF lookup does not bind a positive-step progression
-            // to the IntRange overload and then lower its loop with step 1
-            // (KUU-576).
+            // An Int range expression uses the scalar Int type plus a range
+            // marker, but `step` returns IntProgression, not IntRange. Keep that
+            // nominal distinction so source-backed HOF lookup does not bind a
+            // positive-step progression to the IntRange overload and then lower
+            // its loop with step 1 (KUU-576).
             if lhs == longType {
                 type = longType
             } else if lhs == ulongType {
@@ -867,11 +857,9 @@ extension ExprTypeChecker {
                 type = intType
             }
             sema.bindings.markRangeExpr(id)
-            // For step, inherit CharRange flag from the receiver (the range expression)
             if sema.bindings.isCharRangeExpr(lhsID) {
                 sema.bindings.markCharRangeExpr(id)
             }
-            // Inherit ULong range flag from the receiver (STDLIB-524)
             if sema.bindings.isULongRangeExpr(lhsID) {
                 sema.bindings.markULongRangeExpr(id)
             }
@@ -1047,7 +1035,6 @@ extension ExprTypeChecker {
                 return false
             }
 
-            // Support both invariant and contravariant Comparable bounds
             let argumentType: TypeID
             switch classType.args[0] {
             case let .invariant(type):
