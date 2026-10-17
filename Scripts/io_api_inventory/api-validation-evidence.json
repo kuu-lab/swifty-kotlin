@@ -453,7 +453,7 @@
       "reference_version": "0.9.1",
       "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
       "implementation_input_sha256": "41ab7a346c995538252b1c8e23304cfd365573f36e1fd294c1df4f751d6c11bf",
-      "test_input_sha256": "dd8b18e908e9eb9b74f6d16e6d9a829fed59d25fa507d089e11e782a25b03bb3",
+      "test_input_sha256": "9bef3c3c9a2cd9ec791a47e989e93f091d43c067d20db868772534261fdb3793",
       "compatibility_obligations": [
         "jvm-descriptor"
       ],
@@ -466,7 +466,7 @@
             "result": "PASS",
             "exit_code": 0,
             "method": "jvm-abi-reflection",
-            "output_sha256": "dd619c3a152f2239749e844bf39657d1904a164571ec3d7d90462e4c38fa8971"
+            "output_sha256": "9d2ff2a4d20dadbf6265c4de7b413d46a09707a7c2faa0ce35d6461b2878e608"
           },
           "candidate": {
             "execution_id": "local-probe-v1:candidate:760d6a45341d0864bd1d957cc1c4aa63",
