@@ -81,7 +81,6 @@ extension KIRLoweringDriver {
         let thisRefExprID = arena.appendExpr(.null, type: sema.types.nullableAnyType)
         initInstructions.append(.constValue(result: thisRefExprID, value: .null))
 
-        // Build a KProperty<*> stub.
         let kPropertyExprID = emitKPropertyStubCreate(
             propertySymbol: symbol,
             sema: sema,
@@ -90,7 +89,6 @@ extension KIRLoweringDriver {
             emit: &initInstructions
         )
 
-        // Call provideDelegate(thisRef, kProperty) on the raw delegate.
         let provideDelegateName = interner.intern("provideDelegate")
         let provideDelegateResult = arena.appendTemporary(type: sema.types.anyType
         )
