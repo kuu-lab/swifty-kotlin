@@ -414,10 +414,6 @@ public extension RuntimeABISpec {
             section: "NumericConversion",
             isThrowing: false
         ),
-        // Number.toDouble/toFloat/toLong/toInt/toShort/toByte/toChar dispatch
-        // for an erased `Number`/`T : Number` receiver — see
-        // CallLowerer+NumberConversionMemberCalls.swift and
-        // Sources/Runtime/RuntimeNumberConversionDispatch.swift.
         RuntimeABIFunctionSpec(
             name: "kk_number_to_primitive",
             parameters: [
