@@ -8,8 +8,7 @@ package kotlin
 
 import kotlin.internal.KsSymbolName
 
-// KSP-851: source owner for the complete IllegalStateException constructor surface.
-// The runtime-backed constructors preserve typed throwable identity and storage.
+// KSP-851: The runtime-backed constructors preserve typed throwable identity and storage.
 
 public open class IllegalStateException : RuntimeException {
     @KsSymbolName("__kk_illegal_state_exception_new")
