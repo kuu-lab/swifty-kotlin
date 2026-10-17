@@ -200,7 +200,7 @@ class ReproducibilityTests(unittest.TestCase):
         for row_id, row in unsafe_rows.items():
             with self.subTest(row_id=row_id):
                 self.assertEqual(row["owner_issue"], "KUU-2585")
-                self.assertEqual(row["status"], "unverified")
+                self.assertEqual(row["status"], "verified")
                 self.assertEqual(row["local_test_refs"].split(";"),
                                  self.generator.UNSAFE_BYTESTRING_API_LOCAL_TESTS)
                 self.assertEqual(row["upstream_test_refs"], "bytestring/common/test/ByteStringTest.kt#suite-reference")
