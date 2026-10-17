@@ -5,12 +5,6 @@
  */
 package kotlin.jvm
 
-/**
- * Instructs the Kotlin compiler not to generate getters/setters for this property and expose it as a field.
- *
- * See the [Kotlin language documentation](https://kotlinlang.org/docs/reference/java-to-kotlin-interop.html#instance-fields)
- * for more information.
- */
 @Target(AnnotationTarget.FIELD)
 @MustBeDocumented
 @OptIn(ExperimentalMultiplatform::class)
