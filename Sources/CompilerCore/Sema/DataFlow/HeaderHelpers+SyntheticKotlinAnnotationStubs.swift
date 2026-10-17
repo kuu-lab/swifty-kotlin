@@ -1,10 +1,4 @@
 
-/// Kotlin-native metaprogramming annotation stubs.
-///
-/// Registers synthetic `kotlin.*`, `kotlin.annotation.*`, and
-/// `kotlin.experimental.*` annotation classes that are needed for
-/// name-resolution and type-checking on any Kotlin target (including Native).
-///
 /// JVM-specific annotations (`kotlin.jvm.*`) were removed as part of
 /// CLEANUP-STUB-084 since this compiler targets macOS native via LLVM.
 extension DataFlowSemaPhase {
@@ -13,7 +7,6 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
-        // kotlin package — ensure built-in metadata annotations are present.
         let kotlinPkg = ensurePackage(
             path: ["kotlin"],
             symbols: symbols,
