@@ -1,6 +1,5 @@
 // swiftlint:disable file_length
 
-/// Shared helpers for collection higher-order function ABI specs.
 public extension RuntimeABISpec {
     private static let listZipTransformParams = [
         RuntimeABIParameter(name: "listRaw", type: .intptr),
@@ -476,7 +475,6 @@ isThrowing: false
                 listMinBySpec,
                 listMaxOfOrNullSpec,
                 listMinOfOrNullSpec,
-                // ArrayDeque (STDLIB-240 / KSP-625 ring-buffer bridges)
                 RuntimeABIFunctionSpec(
                     name: "__kk_arraydeque_new",
                     parameters: [],
@@ -559,7 +557,6 @@ isThrowing: false
                     section: "Collection",
                     isThrowing: false
                 ),
-                // STDLIB-250: Closeable.use {}
                 RuntimeABIFunctionSpec(
                     name: "__kk_auto_closeable_create",
                     parameters: [
@@ -570,7 +567,6 @@ isThrowing: false
                     section: "Collection",
                     isThrowing: false
                 ),
-                // STDLIB-533: List?.orEmpty()
             ]
     }()
 }
