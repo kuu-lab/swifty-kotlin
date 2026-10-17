@@ -7,17 +7,17 @@
         "klib-09c8df007d615f43",
         "klib-724db815089ce6a0"
       ],
-      "candidate_sha": "6b1691387692f4da60c633619eca2c324604bc96",
+      "candidate_sha": "cf9aec1198f40d41d24a57f997b7bca5578778b8",
       "reference_version": "0.9.1",
       "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
       "row_inputs": {
         "klib-09c8df007d615f43": {
           "implementation_input_sha256": "9c3a19bf769a0e3ef3d62f422be3abd93e68101726891d909b7b1d285e69a28b",
-          "test_input_sha256": "cbed8bed898d0a5e09f4dcd0945cd660bbdc9b48c0b134edb8aaa7f8f72524e9"
+          "test_input_sha256": "3d18c933bc019e8e3facf6cb90460a68c75d0b2275773e90e0b846d666e1fa9b"
         },
         "klib-724db815089ce6a0": {
           "implementation_input_sha256": "9c3a19bf769a0e3ef3d62f422be3abd93e68101726891d909b7b1d285e69a28b",
-          "test_input_sha256": "cbed8bed898d0a5e09f4dcd0945cd660bbdc9b48c0b134edb8aaa7f8f72524e9"
+          "test_input_sha256": "3d18c933bc019e8e3facf6cb90460a68c75d0b2275773e90e0b846d666e1fa9b"
         }
       },
       "reference_artifacts_sha256": {
@@ -29,9 +29,9 @@
         "origin": "fresh-cli-stdlib-only",
         "module": "KSwiftKStdlib",
         "kotlin_language_version": "2.4.20",
-        "compiler_sha256": "1a3264d35f8bcbf8c5d12e1e6798dcb3203e041877568d6dd02bc5c0b5caf72d",
+        "compiler_sha256": "b46331d70d2d620527109be8e71296b6babfc9e76dc1e86245676d8a674e6b20",
         "file_count": 1859,
-        "tree_sha256": "dd0e8a90979ed0fa046910ee749cdc162e9280777abc3abe3f21b4ca46d17c26",
+        "tree_sha256": "07cea5e57e72b0de0757e3009644d7effef216d51bbb40960352e839cab4f833",
         "manifest_sha256": "ff5d1a9fd2908352ddde0cfdf2b277d95086e4c439a3613b44fb13fb1098c74d",
         "metadata_sha256": "dd6d9584b2f42794c14930f7e4e77d4eb40d6b1538f8e9d29d3b349006a8f14c"
       },
@@ -48,13 +48,15 @@
         "tests_failed": 0,
         "negative_diagnostics": 1,
         "positive_compiles": 1,
-        "stdout_sha256": "b9fe621f7141a1fd036ae361d8cfb97c16de86a2b2b8dfe0eb368ae352960b25"
+        "stdout_sha256": "24377bcf32626167de2a998dcb8a18618ac67344cc00f3cd58f59ff70eb8ef0a"
       },
       "reference_jvm": {
+        "row_id": "jvm-608413ae3cc45466",
+        "status": "reference-only",
         "class_name": "kotlinx.io.InternalIoApi",
+        "reference_artifact_sha256": "765d8851d8ca694706931331b92386844800867e041b720f1f193dbda874d370",
         "java_version": "21.0.12.1",
         "java_binary_sha256": "9be1d0a740ff6502df1a762145e62860f5de4b7e17658d9cb9498da3acf9d16c",
-        "reference_artifact_sha256": "765d8851d8ca694706931331b92386844800867e041b720f1f193dbda874d370",
         "class_output_sha256": "bd08708f522470bedc2e686a88214933b0d337c39fb6eb24180e1816f869ba2b",
         "class_output_bytes": 4363,
         "class_flags": [
@@ -68,9 +70,7 @@
         "java_retention": "CLASS",
         "must_be_documented": true,
         "requires_opt_in_level": "ERROR",
-        "candidate_descriptor_verified": false,
-        "row_id": "jvm-608413ae3cc45466",
-        "status": "reference-only"
+        "candidate_descriptor_verified": false
       },
       "executions": [
         {
@@ -86,8 +86,8 @@
           "reference_stderr_bytes": 0,
           "candidate_stderr_bytes": 0,
           "output_bytes": 14,
-          "harness_stdout_sha256": "a3e0902af797090daa209a7fdcdebc2a484c188a49122470133a8fe8e4565eb9",
-          "harness_stdout_bytes": 66
+          "harness_stdout_sha256": "97f86df0560d9f047c094ae4d3fcbf6b570e4bf161cec04f6b269b0159194148",
+          "harness_stdout_bytes": 14
         },
         {
           "lane": "source-O2",
@@ -102,8 +102,8 @@
           "reference_stderr_bytes": 0,
           "candidate_stderr_bytes": 0,
           "output_bytes": 14,
-          "harness_stdout_sha256": "a3e0902af797090daa209a7fdcdebc2a484c188a49122470133a8fe8e4565eb9",
-          "harness_stdout_bytes": 66
+          "harness_stdout_sha256": "97f86df0560d9f047c094ae4d3fcbf6b570e4bf161cec04f6b269b0159194148",
+          "harness_stdout_bytes": 14
         },
         {
           "lane": "stdlib-library-O0",
@@ -118,8 +118,8 @@
           "reference_stderr_bytes": 0,
           "candidate_stderr_bytes": 0,
           "output_bytes": 14,
-          "harness_stdout_sha256": "a3e0902af797090daa209a7fdcdebc2a484c188a49122470133a8fe8e4565eb9",
-          "harness_stdout_bytes": 66
+          "harness_stdout_sha256": "97f86df0560d9f047c094ae4d3fcbf6b570e4bf161cec04f6b269b0159194148",
+          "harness_stdout_bytes": 14
         },
         {
           "lane": "stdlib-library-O2",
@@ -134,8 +134,8 @@
           "reference_stderr_bytes": 0,
           "candidate_stderr_bytes": 0,
           "output_bytes": 14,
-          "harness_stdout_sha256": "a3e0902af797090daa209a7fdcdebc2a484c188a49122470133a8fe8e4565eb9",
-          "harness_stdout_bytes": 66
+          "harness_stdout_sha256": "97f86df0560d9f047c094ae4d3fcbf6b570e4bf161cec04f6b269b0159194148",
+          "harness_stdout_bytes": 14
         },
         {
           "lane": "producer-consumer-O0",
@@ -150,8 +150,8 @@
           "reference_stderr_bytes": 0,
           "candidate_stderr_bytes": 0,
           "output_bytes": 14,
-          "harness_stdout_sha256": "a3e0902af797090daa209a7fdcdebc2a484c188a49122470133a8fe8e4565eb9",
-          "harness_stdout_bytes": 66
+          "harness_stdout_sha256": "97f86df0560d9f047c094ae4d3fcbf6b570e4bf161cec04f6b269b0159194148",
+          "harness_stdout_bytes": 14
         },
         {
           "lane": "producer-consumer-O2",
@@ -166,8 +166,8 @@
           "reference_stderr_bytes": 0,
           "candidate_stderr_bytes": 0,
           "output_bytes": 14,
-          "harness_stdout_sha256": "a3e0902af797090daa209a7fdcdebc2a484c188a49122470133a8fe8e4565eb9",
-          "harness_stdout_bytes": 66
+          "harness_stdout_sha256": "97f86df0560d9f047c094ae4d3fcbf6b570e4bf161cec04f6b269b0159194148",
+          "harness_stdout_bytes": 14
         }
       ]
     }
