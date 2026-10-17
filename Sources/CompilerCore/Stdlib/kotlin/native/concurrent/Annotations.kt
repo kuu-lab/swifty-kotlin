@@ -9,8 +9,6 @@
 package kotlin.native.concurrent
 
 /**
- * This annotation has no effect, and its usages can be safely dropped.
- *
  * Since 1.7.20 usage of this annotation is deprecated. See
  * https://kotlinlang.org/docs/native-migration-guide.html for details.
  */
@@ -20,7 +18,6 @@ package kotlin.native.concurrent
 @Retention(AnnotationRetention.BINARY)
 public annotation class SharedImmutable
 
-/** Marks a top-level property or object as having thread-local state. */
 @Target(AnnotationTarget.PROPERTY, AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.BINARY)
 public annotation class ThreadLocal
