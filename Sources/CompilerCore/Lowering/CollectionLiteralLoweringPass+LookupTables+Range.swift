@@ -1,14 +1,10 @@
 import RuntimeABI
 
-/// Range lookup names for `CollectionLiteralLookupTables`.
-///
-/// Split out from `CollectionLiteralLoweringPass+LookupTables.swift`.
 struct RangeLookupNames {
     // Range iterator names (emitted by ForLoweringPass)
     let kkRangeIteratorName: InternedString
     let kkRangeHasNextName: InternedString
     let kkRangeNextName: InternedString
-    // Range factory / member ABI names (STDLIB-090/091/092/093)
     let kkOpRangeToName: InternedString
     let kkOpRangeUntilName: InternedString
     let kkOpULongRangeUntilName: InternedString
@@ -50,11 +46,9 @@ struct RangeLookupNames {
     let kkRangeAverageName: InternedString
     let kkRangeSortedName: InternedString
     let kkOpContainsName: InternedString
-    // CharRange (STDLIB-290)
     let kkBoxCharName: InternedString
     let kkCharRangeToListName: InternedString
     let kkCharRangeForEachName: InternedString
-    // ULongRange (STDLIB-524, STDLIB-RANGE-037)
     let kkULongRangeStepName: InternedString
     let kkULongRangeIteratorName: InternedString
     let kkULongRangeHasNextName: InternedString
@@ -105,11 +99,9 @@ struct RangeLookupNames {
         kkRangeAverageName = interner.intern("kk_range_average")
         kkRangeSortedName = interner.intern("kk_range_sorted")
         kkOpContainsName = interner.intern("kk_op_contains")
-        // CharRange (STDLIB-290)
         kkBoxCharName = ABILoweringPass.primitiveBoxingCallee(for: .char, interner: interner)
         kkCharRangeToListName = interner.intern("__kk_char_range_toList")
         kkCharRangeForEachName = interner.intern("__kk_char_range_forEach")
-        // ULongRange (STDLIB-524, STDLIB-RANGE-037)
         kkULongRangeStepName = interner.intern("__kk_ulong_range_step")
         kkULongRangeIteratorName = interner.intern("__kk_ulong_range_iterator")
         kkULongRangeHasNextName = interner.intern("__kk_ulong_range_hasNext")
