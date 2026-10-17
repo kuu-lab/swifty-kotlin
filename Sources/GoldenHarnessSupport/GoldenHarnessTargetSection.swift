@@ -1,9 +1,6 @@
 @testable import CompilerCore
 import Foundation
 
-/// Resolves a case spec's `target=` directives against the Sema symbol table
-/// and renders the dedicated `section stdlib-targets` block (RF-GOLDEN-011).
-///
 /// Unlike the ordinary `symbol`/`expr` body — which only covers what the
 /// fixture itself declares and references — this section deliberately dumps
 /// the *library-owned* declarations a case claims responsibility for: full
