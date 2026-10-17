@@ -1,6 +1,5 @@
 // swiftlint:disable file_length
 
-/// `RuntimeABISpec.operatorFunctions` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
     static let opIsSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
         name: "kk_op_is",
@@ -148,8 +147,6 @@ public extension RuntimeABISpec {
             section: "TypeCheck",
             isThrowing: false
         ),
-        // KSP-496: KClass-handle-based simpleName/qualifiedName bridges (used by
-        // Sources/CompilerCore/Stdlib/kotlin/reflect/KClasses.kt).
         RuntimeABIFunctionSpec(
             name: "__kk_kclass_simple_name",
             parameters: [
@@ -216,7 +213,6 @@ public extension RuntimeABISpec {
             section: "TypeCheck",
             isThrowing: false
         ),
-        // REFL-004: KClass binary metadata registration and accessors
         RuntimeABIFunctionSpec(
             name: "__kk_kclass_register_metadata",
             parameters: [
@@ -295,7 +291,6 @@ public extension RuntimeABISpec {
             section: "TypeCheck",
             isThrowing: false
         ),
-        // STDLIB-REFLECT-067: KClass type-kind introspection
         RuntimeABIFunctionSpec(
             name: "__kk_kclass_is_inner",
             parameters: [
@@ -323,7 +318,6 @@ public extension RuntimeABISpec {
             section: "TypeCheck",
             isThrowing: false
         ),
-        // STDLIB-REFLECT-065: Annotation reflection
         RuntimeABIFunctionSpec(
             name: "__kk_kclass_get_annotations_typed",
             parameters: [RuntimeABIParameter(name: "kclassRaw", type: .intptr),
@@ -390,7 +384,6 @@ public extension RuntimeABISpec {
             section: "Reflection",
             isThrowing: false
         ),
-        // REFL-005: KClass.isInstance, members, constructors
         RuntimeABIFunctionSpec(
             name: "__kk_kclass_isInstance",
             parameters: [
@@ -580,7 +573,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "TypeCheck"
         ),
-        // KUU-1357: KClass.companionObject / nested class registration
         RuntimeABIFunctionSpec(
             name: "__kk_kclass_companion_object",
             parameters: [
@@ -612,7 +604,6 @@ public extension RuntimeABISpec {
             section: "TypeCheck",
             isThrowing: false
         ),
-        // STDLIB-REFLECT-064: KClass.primaryConstructor
         RuntimeABIFunctionSpec(
             name: "__kk_kclass_primary_constructor",
             parameters: [
@@ -622,7 +613,6 @@ public extension RuntimeABISpec {
             section: "TypeCheck"
         ),
 
-        // STDLIB-REFLECT-061: KClass member access
         RuntimeABIFunctionSpec(
             name: "__kk_kclass_properties",
             parameters: [
@@ -671,7 +661,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "TypeCheck"
         ),
-        // REFL-005: KType and typeOf<T>()
         RuntimeABIFunctionSpec(
             name: "__kk_ktype_classifier",
             parameters: [
@@ -699,7 +688,6 @@ public extension RuntimeABISpec {
             section: "TypeCheck",
             isThrowing: false
         ),
-        // KUU-1377: KClassifier.createType / starProjectedType
         RuntimeABIFunctionSpec(
             name: "__kk_ktype_create",
             parameters: [
@@ -833,6 +821,4 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
     ]
-
-    /// Stdlib Delegate Functions (P5-80)
 }
