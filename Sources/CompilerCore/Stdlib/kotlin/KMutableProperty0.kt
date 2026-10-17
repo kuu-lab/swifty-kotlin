@@ -10,9 +10,6 @@ package kotlin
 import kotlin.reflect.KMutableProperty0
 import kotlin.reflect.KProperty
 
-/**
- * Allows delegating a mutable receiverless property to a property reference.
- */
 @SinceKotlin("1.4")
 @kotlin.internal.InlineOnly
 public inline operator fun <V> KMutableProperty0<V>.setValue(
