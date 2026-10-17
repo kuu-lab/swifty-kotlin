@@ -42,8 +42,6 @@ public fun <T> AtomicReference<T>.compareAndExchange(expectedValue: T, newValue:
 public fun <T> AtomicReference<T>.compareAndSet(expectedValue: T, newValue: T): Boolean =
     compareAndExchange(expectedValue, newValue) === expectedValue
 
-// fetchAndUpdate / update / updateAndFetch are CAS retry loops built on the
-// bundled compareAndExchange above, matching the stdlib contract (KSP-1107).
 // CAS success is tested with `===` against the returned witness (identity
 // CAS), mirroring kotlin.concurrent.compareAndSet.
 @ExperimentalAtomicApi
