@@ -11,7 +11,6 @@ private external fun readInto(fd: Int, bytes: ByteArray, offset: Int, count: Int
 @KsSymbolName("__kk_io_fs_close")
 private external fun closeRead(fd: Int)
 
-/** Native file-content operations, backed by the existing byte I/O boundary. */
 public object Files {
     public fun readAllBytes(path: Path): ByteArray {
         val fd = openRead(path.toString())
