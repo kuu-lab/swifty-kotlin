@@ -1,7 +1,4 @@
 
-/// KProperty / KFunction reflection-aware member-call lowerings.
-///
-/// Split out from `CallLowerer+MemberCalls.swift`.
 extension CallLowerer {
 
     private func isKCallableReceiverType(
@@ -66,7 +63,6 @@ extension CallLowerer {
             return nil
         }
 
-        // Lower the receiver expression.
         let receiverID = driver.exprLowerer.lowerExpr(
             receiverExpr, ast: ast, sema: sema, arena: arena, interner: interner,
             propertyConstantInitializers: propertyConstantInitializers,
@@ -124,7 +120,6 @@ extension CallLowerer {
         interner: StringInterner
     ) -> Bool {
         let nonNullType = sema.types.makeNonNullable(receiverType)
-        // Check for KFunction class types.
         if let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema)
         {
             let resolvedName = interner.resolve(symbol.name)
@@ -138,7 +133,6 @@ extension CallLowerer {
         return false
     }
 
-    /// Known KFunction member names and their corresponding runtime function.
     private static let kFunctionMemberMap: [String: String] = [
         "name": "__kk_kcallable_get_name",
         "returnType": "__kk_kcallable_get_return_type",
@@ -174,7 +168,6 @@ extension CallLowerer {
         let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         guard isKFunctionReceiverType(receiverType, sema: sema, interner: interner) else { return nil }
 
-        // Lower the receiver expression.
         let receiverID = driver.exprLowerer.lowerExpr(
             receiverExpr, ast: ast, sema: sema, arena: arena, interner: interner,
             propertyConstantInitializers: propertyConstantInitializers,
@@ -205,7 +198,6 @@ extension CallLowerer {
         return interner.resolve(symbol.name) == "KParameter"
     }
 
-    /// Known KParameter member names and their corresponding runtime function.
     private static let kParameterMemberMap: [String: String] = [
         "index": "__kk_kparameter_get_index",
         "name": "__kk_kparameter_get_name",
@@ -250,7 +242,6 @@ extension CallLowerer {
         return result
     }
 
-    /// Lowers KFunction.call() with arguments to the appropriate arity-specific runtime call.
     func tryLowerKFunctionCallInvocation(
         _ exprID: ExprID,
         receiverExpr: ExprID,
@@ -269,7 +260,6 @@ extension CallLowerer {
         let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         guard case .functionType = sema.types.kind(of: sema.types.makeNonNullable(receiverType)) else { return nil }
 
-        // Lower the receiver expression (the KFunction handle).
         let receiverID = driver.exprLowerer.lowerExpr(
             receiverExpr, ast: ast, sema: sema, arena: arena, interner: interner,
             propertyConstantInitializers: propertyConstantInitializers,
@@ -287,7 +277,6 @@ extension CallLowerer {
             return typed
         }
 
-        // Lower all arguments.
         var argExprs: [KIRExprID] = []
         for arg in args {
             let argExpr = driver.exprLowerer.lowerExpr(
