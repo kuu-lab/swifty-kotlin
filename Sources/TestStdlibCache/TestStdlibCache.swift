@@ -95,10 +95,8 @@ public final class TestStdlibCache: @unchecked Sendable {
         }
     }
 
-    /// Resolves the shared artifact under `buildDirectory` for `contentKey`,
-    /// invoking `builder` to produce it only if no artifact for that key
-    /// exists yet. `builder` receives an output-base path (no extension) and
-    /// must return the path of the `.kklib` directory it produced there.
+    /// `builder` receives an output-base path (no extension) and must return
+    /// the path of the `.kklib` directory it produced there.
     ///
     /// Exposed as an injectable-builder helper (rather than folded directly
     /// into `build()`) so tests can exercise the locking/no-delete contract
