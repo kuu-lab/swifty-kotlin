@@ -54,6 +54,8 @@ class ReproducibilityTests(unittest.TestCase):
             inputs = list(HERE.rglob("*"))
             inputs.extend((REPO / "Sources/CompilerCore/Stdlib/kotlinx/io").rglob("*.kt"))
             inputs.extend((REPO / "Sources/Runtime").rglob("*.swift"))
+            inputs.extend(REPO / path for path in original.BYTESTRING_BUILDER_DEFAULT_RUNNER_INPUTS)
+            inputs.extend((REPO / "Scripts/kotlinx_io_upstream").rglob("*"))
             test_inputs = list((REPO / "Tests").rglob("*.swift"))
             test_inputs.extend((REPO / "Tests/CompilerCoreTests/GoldenCases/Sema").glob("*.kt"))
             test_inputs.extend((REPO / "Scripts/diff_cases").glob("*.kt"))
@@ -214,6 +216,34 @@ class ReproducibilityTests(unittest.TestCase):
                                if declaration["kind"] == "constructor" and declaration["expect"]]
         self.assertTrue(expect_constructors)
         self.assertTrue(all(not declaration["hasBody"] for declaration in expect_constructors))
+
+    def test_bytestring_builder_default_abi_rows_have_direct_probe_and_consumer_inputs(self):
+        row_ids = {
+            "jvm-0de664be9f7d0a3a",
+            "jvm-4c5b809c5600e77b",
+            "jvm-827d471d59e105ce",
+            "jvm-f183ae0aeeced795",
+        }
+        rows = [row for row in self.rows if row["row_id"] in row_ids]
+        self.assertEqual({row["row_id"] for row in rows}, row_ids)
+        self.assertEqual(
+            {row["row_id"] for row in self.rows if row["owner_issue"] == "KUU-2619"},
+            row_ids,
+        )
+        required_refs = {
+            "Scripts/kotlinx_io_upstream/reference-lock.json",
+            "Scripts/kotlinx_io_upstream/jvm-executions.expected.json",
+            "Scripts/kotlinx_io_upstream/native-executions.expected.json",
+            "Scripts/io_api_inventory/evidence/legacy_run_candidate_suites.py",
+            "Scripts/io_api_inventory/cases/bytestring_builder_default_bridges.kt",
+            "Scripts/io_api_inventory/cases/bytestring_builder_default_bridges.expected",
+            "Scripts/io_api_inventory/probe_bytestring_builder_jvm_abi.py",
+            "Scripts/io_api_inventory/bytestring_builder_validation.json",
+        }
+        for row in rows:
+            self.assertEqual(row["owner_issue"], "KUU-2619")
+            self.assertTrue(required_refs.issubset(set(row["local_test_refs"].split(";"))))
+            self.assertEqual(row["status"], "verified")
 
 
 if __name__ == "__main__":

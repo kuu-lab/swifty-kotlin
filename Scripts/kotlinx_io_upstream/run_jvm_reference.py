@@ -130,6 +130,28 @@ def map_executions(discovered: list[dict], results: list[dict], lookup: dict, ex
     return mapped
 
 
+def select_execution_rows(expected: list[dict], execution_ids: list[str]) -> list[dict]:
+    """Select exact concrete executions without implying full catalog coverage."""
+    if not execution_ids:
+        return list(expected)
+    if len(execution_ids) > 10:
+        raise ValueError("at most 10 concrete JVM execution IDs may be selected")
+    if any(not identifier or identifier != identifier.strip() for identifier in execution_ids):
+        raise ValueError("selected execution IDs must be nonempty and trimmed")
+    if len(set(execution_ids)) != len(execution_ids):
+        raise ValueError("execution ID selection must be unique")
+    by_id = {row["execution_id"]: row for row in expected}
+    if len(by_id) != len(expected):
+        raise ValueError("duplicate locked JVM execution ID")
+    missing = set(execution_ids) - set(by_id)
+    if missing:
+        raise ValueError(f"unknown JVM execution ID: {sorted(missing)[0]}")
+    selected = [row for row in expected if row["execution_id"] in set(execution_ids)]
+    if len(selected) != len(execution_ids):
+        raise ValueError("expected JVM execution is missing from the selected catalog")
+    return selected
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--upstream", type=Path, required=True)
@@ -137,6 +159,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--java", type=Path, required=True)
     parser.add_argument("--dependencies", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--execution-id", action="append", default=[],
+                        help="select one concrete JVM catalog execution; may be repeated (at most 10)")
     parser.add_argument("--download", action="store_true", help="download missing locked Maven jars")
     parser.add_argument(
         "--execution-id",

@@ -1,0 +1,9 @@
+constructor-default:0:0:true
+constructor-explicit-zero:0
+append-all:4:true
+append-start:2:true
+append-end:2:true
+append-explicit:2:true
+build-default:1:0:4:true
+append-default-negative-start:IndexOutOfBoundsException
+append-default-negative-end:IllegalArgumentException

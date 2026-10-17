@@ -313,6 +313,14 @@ evidence file without rewriting it. `--check` verifies upstream snapshots, the
 test index lock, negative guards, evidence, any execution catalogs used by
 evidence, and byte-for-byte output without modifying files.
 
+The KUU-2619 ByteStringBuilder rows also lock
+`bytestring_builder_validation.json` through their `test_input_sha256`. The
+generator checks its exact JVM classfile probe output, four descriptor/flag
+rows, mask bytecode, selected upstream results, and source/KLIB O0/O2 runs
+before promoting those rows. `evidence/legacy_run_candidate_suites.py` pins the
+candidate runner version that produced the recorded results; the current
+runner adds workspace-revision provenance and has a different source hash.
+
 ```sh
 python3 Scripts/io_api_inventory/test_validation_evidence.py
 ```
