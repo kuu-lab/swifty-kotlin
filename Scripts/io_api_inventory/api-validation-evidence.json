@@ -445,5 +445,148 @@
       ],
       "evidence_source": "local-probe"
     }
+  ],
+  "observations": [
+    {
+      "row_id": "jvm-3ca45621ab7698c8",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "41ab7a346c995538252b1c8e23304cfd365573f36e1fd294c1df4f751d6c11bf",
+      "test_input_sha256": "dd8b18e908e9eb9b74f6d16e6d9a829fed59d25fa507d089e11e782a25b03bb3",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer_copy_to_buffer_default_bridge_jvm_abi.java#jvm-descriptor",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:e1db2d4a46ec9aab70dc332071a492bf",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-abi-reflection",
+            "output_sha256": "dd619c3a152f2239749e844bf39657d1904a164571ec3d7d90462e4c38fa8971"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:760d6a45341d0864bd1d957cc1c4aa63",
+            "result": "NOT_EMITTED",
+            "exit_code": 0,
+            "method": "source-metadata",
+            "output_sha256": "57191ca046388a54eee777d4de629c36a8e18b6cb2602c4f06b709c9dd3c8881"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer_copy_to_buffer_default_bridge.kt#native-default-range",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:3e9415878050ec855260bc2fd6ec546f",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "kotlin-jvm-execution",
+            "output_sha256": "9e3c1227647699f3f07aa35cf3391ef207a7dbd41c7ef163cda1019b6eb3a07e"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:0111ad2a525e45c0159e8e9b5b62182b",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "kswift-native-execution",
+            "output_sha256": "9e3c1227647699f3f07aa35cf3391ef207a7dbd41c7ef163cda1019b6eb3a07e"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer_copy_to_buffer_default_bridge.kt#native-default-range",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:62f75a8779bd24764243b42638749d12",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "kotlin-jvm-execution",
+            "output_sha256": "9e3c1227647699f3f07aa35cf3391ef207a7dbd41c7ef163cda1019b6eb3a07e"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:54eef9dbc033f53c7b68f3341e57b7a1",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "kswift-native-execution",
+            "output_sha256": "9e3c1227647699f3f07aa35cf3391ef207a7dbd41c7ef163cda1019b6eb3a07e"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer_copy_to_buffer_default_bridge.kt#native-default-range",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:5afc2cbb32cfd8ed6ce9dac997882c90",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "kotlin-jvm-execution",
+            "output_sha256": "9e3c1227647699f3f07aa35cf3391ef207a7dbd41c7ef163cda1019b6eb3a07e"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:d667afd8061708f6b324f1eed162809a",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "kswift-native-execution",
+            "output_sha256": "9e3c1227647699f3f07aa35cf3391ef207a7dbd41c7ef163cda1019b6eb3a07e"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer_copy_to_buffer_default_bridge.kt#native-default-range",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:093800d8cf390415f28cd61e4fad0e3f",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "kotlin-jvm-execution",
+            "output_sha256": "9e3c1227647699f3f07aa35cf3391ef207a7dbd41c7ef163cda1019b6eb3a07e"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:aa0b5295ab45b2e65b07e57989ca8847",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "kswift-native-execution",
+            "output_sha256": "9e3c1227647699f3f07aa35cf3391ef207a7dbd41c7ef163cda1019b6eb3a07e"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer_copy_to_buffer_default_bridge.kt#native-default-range",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:1497f74aae1e6d009c2f19f67a2f404c",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "kotlin-jvm-execution",
+            "output_sha256": "9e3c1227647699f3f07aa35cf3391ef207a7dbd41c7ef163cda1019b6eb3a07e"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:5054152332230645a23cb231d799a6b4",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "kswift-native-execution",
+            "output_sha256": "9e3c1227647699f3f07aa35cf3391ef207a7dbd41c7ef163cda1019b6eb3a07e"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer_copy_to_buffer_default_bridge.kt#native-default-range",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:6e9eb74e3e10512828787b134428f292",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "kotlin-jvm-execution",
+            "output_sha256": "9e3c1227647699f3f07aa35cf3391ef207a7dbd41c7ef163cda1019b6eb3a07e"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:96ecf7a342608d5eb9314cace153b27b",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "kswift-native-execution",
+            "output_sha256": "9e3c1227647699f3f07aa35cf3391ef207a7dbd41c7ef163cda1019b6eb3a07e"
+          }
+        }
+      ],
+      "evidence_source": "local-observation",
+      "observation_reason": "candidate-does-not-emit-jvm-classfile"
+    }
   ]
 }

@@ -86,27 +86,6 @@ class ValidationEvidenceTests(unittest.TestCase):
             "executions": executions,
         }
 
-    def _execution_catalogs(self):
-        case_id = "core/common/test/FooTest.kt#testFoo"
-        other_case_id = "core/common/test/BarTest.kt#testBar"
-        return {
-            "reference": {f"reference-{index}": case_id for index in range(6)}
-            | {"reference-wrong": other_case_id},
-            "candidate": {f"candidate-{index}": case_id for index in range(6)}
-            | {"candidate-wrong": other_case_id},
-        }
-
-    def _apply(self, records, row=None, schema_version=1):
-        fixture_row = copy.deepcopy(row or self.row)
-        self.evidence_path.write_text(
-            json.dumps({"schema_version": schema_version, "records": records}), encoding="utf-8"
-        )
-        self.generator.apply_validation_evidence(
-            [fixture_row], self.lock, self.evidence_path, self.repository, self.upstream,
-            self._execution_catalogs(),
-        )
-        return fixture_row
-
     def _local_probe_row(self):
         row = copy.deepcopy(self.row)
         row.update(
@@ -165,6 +144,113 @@ class ValidationEvidenceTests(unittest.TestCase):
             "executions": executions,
         }
 
+    def _observation_row(self):
+        row = copy.deepcopy(self.row)
+        row.update(
+            row_id="jvm-3ca45621ab7698c8",
+            representation="JVM public ABI dump",
+            local_candidate_refs="Sources/CompilerCore/Stdlib/kotlinx/io/Buffer.kt:1",
+            local_implementation_refs="Sources/CompilerCore/Stdlib/kotlinx/io/Buffer.kt:1",
+            local_test_refs=";".join(
+                self.generator.LOCAL_PROBE_TEST_REFS_BY_ROW["jvm-3ca45621ab7698c8"]
+            ),
+        )
+        self._write("Sources/CompilerCore/Stdlib/kotlinx/io/Buffer.kt", "public class Buffer\n")
+        for test_ref in self.generator.LOCAL_PROBE_TEST_REFS_BY_ROW["jvm-3ca45621ab7698c8"]:
+            self._write(test_ref, "// probe\n")
+        return row
+
+    def _non_promotable_probe_record(self, row=None):
+        row = row or self._observation_row()
+        case_id = "local:Scripts/io_api_inventory/probes/buffer_copy_to_buffer_default_bridge_jvm_abi.java#jvm-descriptor"
+        spec = self.generator.LOCAL_PROBE_EVIDENCE_CASES[case_id]
+        lane = "jvm-descriptor"
+        candidate_sha = "b" * 40
+        execution = {
+            "case_id": case_id,
+            "lane": lane,
+            "reference": {
+                "execution_id": self.generator.local_probe_execution_id(
+                    candidate_sha, self.lock["commit"], case_id, lane, "reference"
+                ),
+                "result": "PASS",
+                "exit_code": 0,
+                "method": spec["methods"]["reference"],
+            },
+            "candidate": {
+                "execution_id": self.generator.local_probe_execution_id(
+                    candidate_sha, self.lock["commit"], case_id, lane, "candidate"
+                ),
+                "result": "PASS",
+                "exit_code": 0,
+                "method": spec["methods"]["candidate"],
+            },
+        }
+        return {
+            "row_id": row["row_id"],
+            "candidate_sha": candidate_sha,
+            "reference_version": self.lock["tag"],
+            "reference_commit": self.lock["commit"],
+            **self.generator.validation_input_hashes(row, self.repository, self.upstream),
+            "compatibility_obligations": self.generator.validation_obligations(row),
+            "executions": [execution],
+            "evidence_source": "local-probe",
+        }
+
+    def _local_observation(self, row=None):
+        row = row or self._observation_row()
+        executions = []
+        candidate_sha = "b" * 40
+        for case_id, spec in self.generator.LOCAL_VALIDATION_OBSERVATION_CASES.items():
+            for lane in spec["lanes"]:
+                execution = {"case_id": case_id, "lane": lane}
+                for subject in ("reference", "candidate"):
+                    execution[subject] = {
+                        "execution_id": self.generator.local_probe_execution_id(
+                            candidate_sha, self.lock["commit"], case_id, lane, subject
+                        ),
+                        "result": spec["results"][subject],
+                        "exit_code": 0,
+                        "method": spec["methods"][subject],
+                        "output_sha256": "c" * 64,
+                    }
+                executions.append(execution)
+        return {
+            "row_id": row["row_id"],
+            "candidate_sha": candidate_sha,
+            "reference_version": self.lock["tag"],
+            "reference_commit": self.lock["commit"],
+            **self.generator.validation_input_hashes(row, self.repository, self.upstream),
+            "compatibility_obligations": self.generator.validation_obligations(row),
+            "executions": executions,
+            "evidence_source": "local-observation",
+            "observation_reason": self.generator.NON_PROMOTING_OBSERVATION_REASON,
+        }
+
+    def _execution_catalogs(self):
+        case_id = "core/common/test/FooTest.kt#testFoo"
+        other_case_id = "core/common/test/BarTest.kt#testBar"
+        return {
+            "reference": {f"reference-{index}": case_id for index in range(6)}
+            | {"reference-wrong": other_case_id},
+            "candidate": {f"candidate-{index}": case_id for index in range(6)}
+            | {"candidate-wrong": other_case_id},
+        }
+
+    def _apply(self, records, row=None, schema_version=1, observations=None):
+        fixture_row = copy.deepcopy(row or self.row)
+        evidence = {"schema_version": schema_version, "records": records}
+        if schema_version == 2:
+            evidence["observations"] = observations or []
+        self.evidence_path.write_text(
+            json.dumps(evidence), encoding="utf-8"
+        )
+        self.generator.apply_validation_evidence(
+            [fixture_row], self.lock, self.evidence_path, self.repository, self.upstream,
+            self._execution_catalogs(),
+        )
+        return fixture_row
+
     def test_current_reference_and_candidate_passes_promote_only_the_fixture_row(self):
         row = self._apply([self._record()])
         self.assertEqual(row["status"], "verified")
@@ -214,6 +300,47 @@ class ValidationEvidenceTests(unittest.TestCase):
         ]
         with self.assertRaisesRegex(SystemExit, "missing local probe lanes"):
             self._apply([record], row, schema_version=2)
+
+    def test_source_metadata_cannot_promote_physical_jvm_abi(self):
+        row = self._observation_row()
+        with self.assertRaisesRegex(SystemExit, "cannot satisfy.*physical ABI"):
+            self._apply([self._non_promotable_probe_record(row)], row, schema_version=2)
+
+    def test_native_matrix_and_missing_jvm_classfile_are_preserved_without_promotion(self):
+        row = self._observation_row()
+        observation = self._local_observation(row)
+        observed = self._apply([], row, schema_version=2, observations=[observation])
+        self.assertEqual(observed["status"], "unverified")
+        rendered = self.generator.render_tsv(
+            HERE / "api-inventory.tsv", self.generator.LEDGER_COLUMNS, [observed]
+        )
+        self.assertEqual(rendered.splitlines()[1].split("\t")[21], "unverified")
+
+    def test_observation_rejects_unregistered_case_wrong_method_missing_lane_or_false_abi_pass(self):
+        row = self._observation_row()
+        case_id = next(
+            key for key in self.generator.LOCAL_VALIDATION_OBSERVATION_CASES
+            if key.endswith("#jvm-descriptor")
+        )
+        for mutation in ("case", "method", "lane", "abi-result", "output-hash"):
+            with self.subTest(mutation=mutation):
+                observation = self._local_observation(row)
+                if mutation == "case":
+                    observation["executions"][0]["case_id"] = "local:unregistered.kt#jvm-descriptor"
+                elif mutation == "method":
+                    observation["executions"][0]["candidate"]["method"] = "jvm-abi-reflection"
+                else:
+                    jvm_execution = next(
+                        item for item in observation["executions"] if item["case_id"] == case_id
+                    )
+                    if mutation == "lane":
+                        observation["executions"].remove(jvm_execution)
+                    elif mutation == "abi-result":
+                        jvm_execution["candidate"]["result"] = "PASS"
+                    else:
+                        jvm_execution["candidate"]["output_sha256"] = "not-a-sha256"
+                with self.assertRaises(SystemExit):
+                    self._apply([], row, schema_version=2, observations=[observation])
 
     def test_status_text_without_evidence_does_not_promote(self):
         row = copy.deepcopy(self.row)

@@ -75,6 +75,49 @@ LOCAL_PROBE_EVIDENCE_CASES = {
         "lanes": ("jvm-descriptor",),
         "methods": {"reference": "jvm-abi-reflection", "candidate": "source-metadata"},
     },
+    "local:Scripts/io_api_inventory/probes/buffer_copy_to_buffer_default_bridge_jvm_abi.java#jvm-descriptor": {
+        "path": "Scripts/io_api_inventory/probes/buffer_copy_to_buffer_default_bridge_jvm_abi.java",
+        "row_ids": {"jvm-3ca45621ab7698c8"},
+        "lanes": ("jvm-descriptor",),
+        "methods": {"reference": "jvm-abi-reflection", "candidate": "jvm-classfile-reflection"},
+        "promotable": False,
+    },
+}
+LOCAL_VALIDATION_OBSERVATION_CASES = {
+    "local:Scripts/io_api_inventory/probes/buffer_copy_to_buffer_default_bridge.kt#native-default-range": {
+        "path": "Scripts/io_api_inventory/probes/buffer_copy_to_buffer_default_bridge.kt",
+        "row_ids": {"jvm-3ca45621ab7698c8"},
+        "lanes": (
+            "source-O0", "source-O2", "stdlib-library-O0", "stdlib-library-O2",
+            "producer-consumer-O0", "producer-consumer-O2",
+        ),
+        "methods": {"reference": "kotlin-jvm-execution", "candidate": "kswift-native-execution"},
+        "results": {"reference": "PASS", "candidate": "PASS"},
+    },
+    "local:Scripts/io_api_inventory/probes/buffer_copy_to_buffer_default_bridge_jvm_abi.java#jvm-descriptor": {
+        "path": "Scripts/io_api_inventory/probes/buffer_copy_to_buffer_default_bridge_jvm_abi.java",
+        "row_ids": {"jvm-3ca45621ab7698c8"},
+        "lanes": ("jvm-descriptor",),
+        "methods": {"reference": "jvm-abi-reflection", "candidate": "source-metadata"},
+        "results": {"reference": "PASS", "candidate": "NOT_EMITTED"},
+    },
+}
+NON_PROMOTING_OBSERVATION_REASON = "candidate-does-not-emit-jvm-classfile"
+LOCAL_PROBE_TEST_REFS_BY_ROW = {
+    "jvm-3ca45621ab7698c8": (
+        "Scripts/io_api_inventory/probes/buffer_copy_to_buffer_default_bridge.kt",
+        "Scripts/io_api_inventory/probes/buffer_copy_to_buffer_default_bridge_jvm_abi.java",
+    ),
+}
+LOCAL_GENERATED_BRIDGE_SOURCE_REFS = {
+    "jvm-3ca45621ab7698c8": "Sources/CompilerCore/Stdlib/kotlinx/io/Buffer.kt:189",
+}
+UPSTREAM_BEHAVIOR_TEST_REFS_BY_ROW = {
+    "jvm-3ca45621ab7698c8": (
+        "core/common/test/CommonBufferTest.kt#copyToAll",
+        "core/common/test/CommonBufferTest.kt#copyToWithOnlyStartIndex",
+        "core/common/test/CommonBufferTest.kt#copyToWithOnlyEndIndex",
+    ),
 }
 
 LEDGER_COLUMNS = [
@@ -741,14 +784,22 @@ def apply_validation_evidence(
     except UnicodeDecodeError as error:
         fail(f"validation evidence is not UTF-8: {error}")
 
-    if not isinstance(evidence, dict) or set(evidence) != {"schema_version", "records"}:
-        fail("validation evidence must contain only schema_version and records")
+    if not isinstance(evidence, dict):
+        fail("validation evidence must be an object")
     schema_version = evidence["schema_version"]
     if type(schema_version) is not int or schema_version not in (1, VALIDATION_EVIDENCE_SCHEMA_VERSION):
         fail("unsupported validation evidence schema_version")
+    expected_evidence_fields = {"schema_version", "records"}
+    if schema_version == VALIDATION_EVIDENCE_SCHEMA_VERSION:
+        expected_evidence_fields.add("observations")
+    if not set(evidence).issubset(expected_evidence_fields):
+        fail(f"validation evidence must contain only schema v{schema_version} fields")
     records = evidence["records"]
     if not isinstance(records, list):
         fail("validation evidence records must be an array")
+    observations = evidence.get("observations", [])
+    if not isinstance(observations, list):
+        fail("validation evidence observations must be an array")
     if records and (schema_version == 1 or any(
         isinstance(record, dict) and record.get("evidence_source") == "upstream-catalog"
         for record in records
@@ -843,6 +894,8 @@ def apply_validation_evidence(
                 local_case_spec = _local_probe_case_spec(row, case_id)
                 if local_case_spec is None:
                     fail(f"local probe case {case_id!r} is not registered for row {row_id}")
+                if not local_case_spec.get("promotable", True):
+                    fail(f"local probe case {case_id!r} cannot satisfy row {row_id}'s physical ABI obligation")
             if not isinstance(lane, str) or lane not in required_lanes:
                 fail(f"unexpected validation lane {lane!r} for row {row_id}")
             if local_case_spec is not None and lane not in local_case_spec["lanes"]:
@@ -909,6 +962,102 @@ def apply_validation_evidence(
                 fail(f"row {row_id} has no registered local probe evidence cases")
         validate_index_of_bridge_probe(row, record, repository)
         row["status"] = "verified"
+
+    seen_observation_ids = set()
+    observation_fields = base_record_fields | {"evidence_source", "observation_reason"}
+    observation_result_fields = local_result_fields | {"output_sha256"}
+    for observation in observations:
+        if not isinstance(observation, dict) or set(observation) != observation_fields:
+            fail("each validation observation must contain exactly the schema v2 observation fields")
+        if observation["evidence_source"] != "local-observation":
+            fail("validation observations must use local-observation evidence_source")
+        row_id = observation["row_id"]
+        if not isinstance(row_id, str) or not row_id:
+            fail("validation observation has an empty row_id")
+        if row_id in seen_observation_ids or row_id in seen_ids:
+            fail(f"duplicate validation evidence row_id: {row_id}")
+        seen_observation_ids.add(row_id)
+        row = by_id.get(row_id)
+        if row is None:
+            fail(f"validation observation references unknown row_id: {row_id}")
+        if row["status"] != "unverified":
+            fail(f"validation observation cannot annotate {row_id} after promotion")
+
+        candidate_sha = observation["candidate_sha"]
+        if not isinstance(candidate_sha, str) or not candidate_sha_pattern.fullmatch(candidate_sha):
+            fail(f"malformed candidate SHA for observation row {row_id}")
+        if (observation["reference_version"], observation["reference_commit"]) != (
+            lock.get("tag"), lock.get("commit")
+        ):
+            fail(f"reference version mismatch for observation row {row_id}")
+        hashes = validation_input_hashes(row, repository, upstream)
+        for field in ("implementation_input_sha256", "test_input_sha256"):
+            value = observation[field]
+            if not isinstance(value, str) or not sha256_pattern.fullmatch(value):
+                fail(f"malformed {field} for observation row {row_id}")
+            if value != hashes[field]:
+                fail(f"stale {field} for observation row {row_id}")
+        if observation["compatibility_obligations"] != validation_obligations(row):
+            fail(f"compatibility obligations mismatch for observation row {row_id}")
+        if observation["observation_reason"] != NON_PROMOTING_OBSERVATION_REASON:
+            fail(f"unknown non-promoting observation reason for row {row_id}")
+
+        executions = observation["executions"]
+        if not isinstance(executions, list) or not executions:
+            fail(f"validation observation has no executed cases for row {row_id}")
+        observed_case_lanes = set()
+        seen_observation_execution_ids = {"reference": set(), "candidate": set()}
+        for execution in executions:
+            if not isinstance(execution, dict) or set(execution) != execution_fields:
+                fail(f"malformed observation execution for row {row_id}")
+            case_id = execution["case_id"]
+            lane = execution["lane"]
+            spec = LOCAL_VALIDATION_OBSERVATION_CASES.get(case_id)
+            if (spec is None or row_id not in spec["row_ids"]
+                    or spec["path"] not in row.get("local_test_refs", "").split(";")):
+                fail(f"local observation case {case_id!r} is not registered for row {row_id}")
+            if lane not in spec["lanes"]:
+                fail(f"unexpected local observation lane {lane!r} for row {row_id} case {case_id}")
+            identity = (case_id, lane)
+            if identity in observed_case_lanes:
+                fail(f"duplicate observation execution case {case_id!r} in lane {lane!r} for row {row_id}")
+            observed_case_lanes.add(identity)
+            for subject in ("reference", "candidate"):
+                result = execution[subject]
+                if not isinstance(result, dict) or set(result) != observation_result_fields:
+                    fail(f"malformed {subject} observation result for row {row_id} case {case_id}")
+                execution_id = result["execution_id"]
+                if not isinstance(execution_id, str) or not execution_id.strip() or execution_id != execution_id.strip():
+                    fail(f"empty {subject} observation execution_id for row {row_id} case {case_id}")
+                expected_execution_id = local_probe_execution_id(
+                    candidate_sha, observation["reference_commit"], case_id, lane, subject
+                )
+                if execution_id != expected_execution_id:
+                    fail(f"{subject} observation execution_id does not map to case/lane for row {row_id}")
+                if execution_id in seen_observation_execution_ids[subject]:
+                    fail(f"duplicate {subject} observation execution_id for row {row_id}: {execution_id}")
+                seen_observation_execution_ids[subject].add(execution_id)
+                if result["method"] != spec["methods"][subject]:
+                    fail(f"unexpected {subject} observation method for row {row_id} case {case_id}")
+                if result["result"] != spec["results"][subject]:
+                    fail(f"unexpected {subject} observation result for row {row_id} case {case_id}")
+                if type(result["exit_code"]) is not int or result["exit_code"] != 0:
+                    fail(f"non-zero {subject} observation exit code for row {row_id} case {case_id}")
+                if not isinstance(result["output_sha256"], str) or not sha256_pattern.fullmatch(result["output_sha256"]):
+                    fail(f"malformed {subject} observation output hash for row {row_id} case {case_id}")
+
+        required_observation_case_lanes = {
+            (case_id, lane)
+            for case_id, spec in LOCAL_VALIDATION_OBSERVATION_CASES.items()
+            if row_id in spec["row_ids"] and spec["path"] in row.get("local_test_refs", "").split(";")
+            for lane in spec["lanes"]
+        }
+        missing_observations = required_observation_case_lanes - observed_case_lanes
+        if missing_observations:
+            missing = ", ".join(f"{case_id} [{lane}]" for case_id, lane in sorted(missing_observations))
+            fail(f"missing local observation executions for row {row_id}: {missing}")
+        # These observations describe a passing native source/KLIB behavior matrix and
+        # an unavailable candidate JVM classfile. They never satisfy the JVM ABI row.
 
 
 def load_inputs() -> tuple[dict, dict, list[dict], list[dict]]:
@@ -1730,6 +1879,9 @@ def apply_index_of_default_bridge_mappings(rows: list[dict], index: SourceIndex)
 
 
 def local_candidates(row: dict) -> list[str]:
+    bridge_source = LOCAL_GENERATED_BRIDGE_SOURCE_REFS.get(row.get("row_id"))
+    if bridge_source is not None:
+        return [bridge_source]
     if "_typed_local_refs" in row:
         return row["_typed_local_refs"]
     name = row["_candidate_name"]
@@ -1960,6 +2112,12 @@ def local_contract_differences(row: dict, index: SourceIndex) -> str:
 def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
     if row.get("_jvm_key") in INDEX_OF_DEFAULT_BRIDGES:
         return list(INDEX_OF_DEFAULT_BRIDGE_TEST_INPUTS)
+    probe_refs = LOCAL_PROBE_TEST_REFS_BY_ROW.get(row.get("row_id"))
+    if probe_refs is not None:
+        missing = [reference for reference in probe_refs if not (REPO / reference).is_file()]
+        if missing:
+            fail("missing registered local probe inputs: " + ", ".join(missing))
+        return list(probe_refs)
     name = row["_candidate_name"].lower()
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []
@@ -1979,6 +2137,9 @@ def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
 
 
 def local_implementation_refs(row: dict, index: SourceIndex, runtime_symbols: dict) -> list[str]:
+    bridge_source = LOCAL_GENERATED_BRIDGE_SOURCE_REFS.get(row.get("row_id"))
+    if bridge_source is not None:
+        return [bridge_source]
     key = row.get("_source_key")
     if key is None:
         return []
@@ -2004,6 +2165,9 @@ def upstream_test_refs(row: dict, test_index: dict) -> list[str]:
         if entry is None or case_name not in entry.get("testNames", []):
             fail(f"locked upstream test is missing for ByteString.indexOf bridge: {case_name}")
         return [f"{path}#{case_name}"]
+    direct_tests = UPSTREAM_BEHAVIOR_TEST_REFS_BY_ROW.get(row.get("row_id"))
+    if direct_tests is not None:
+        return list(direct_tests)
     if row.get("upstream_source_refs") in NO_DIRECT_UPSTREAM_ASSERTION_SOURCE_REFS:
         # The upstream smoke cases use SystemFileSystem raw methods; they do not
         # exercise these deprecated Path extensions or assert their annotations.
@@ -2419,13 +2583,14 @@ def main() -> int:
     mode.add_argument("--write", action="store_true", help="regenerate the TSV and summary files")
     mode.add_argument("--check", action="store_true", help="verify inputs and generated outputs")
     mode.add_argument("--show-input-hashes", metavar="ROW_ID", help="print current validation inputs for one ledger row")
+    parser.add_argument("--row-id", help="limit --write/--check to one API inventory row")
     parser.add_argument("--verify-jars", type=Path, help="verify previously downloaded jars in this directory")
     parser.add_argument("--download-jars", action="store_true", help="download and verify the two pinned Maven Central jars")
     args = parser.parse_args()
 
     if args.show_input_hashes:
-        if args.verify_jars or args.download_jars:
-            parser.error("--show-input-hashes cannot be combined with jar verification")
+        if args.verify_jars or args.download_jars or args.row_id:
+            parser.error("--show-input-hashes cannot be combined with row selection or jar verification")
         with LEDGER_PATH.open(encoding="utf-8", newline="") as stream:
             matches = [row for row in csv.DictReader(stream, delimiter="\t")
                        if row.get("row_id") == args.show_input_hashes]
@@ -2453,6 +2618,28 @@ def main() -> int:
     ledger_text = render_tsv(LEDGER_PATH, LEDGER_COLUMNS, rows)
     scope_text = render_tsv(SCOPE_PATH, SCOPE_COLUMNS, scope_rows)
     summary_text = make_summary(lock, rows, scope_rows)
+    if args.row_id:
+        matching_rows = [row for row in rows if row.get("row_id") == args.row_id]
+        if len(matching_rows) != 1:
+            fail(f"expected exactly one generated row with row_id {args.row_id!r}; found {len(matching_rows)}")
+        current_lines = LEDGER_PATH.read_text(encoding="utf-8").splitlines()
+        line_indexes = [index for index, line in enumerate(current_lines)
+                        if line.split("\t", 1)[0] == args.row_id]
+        if len(line_indexes) != 1:
+            fail(f"expected exactly one existing row with row_id {args.row_id!r}; found {len(line_indexes)}")
+        expected_lines = render_tsv(LEDGER_PATH, LEDGER_COLUMNS, matching_rows).splitlines()
+        expected_line = expected_lines[1]
+        if args.check:
+            if current_lines[line_indexes[0]] != expected_line:
+                fail(f"generated row is stale: {args.row_id}; run with --write --row-id {args.row_id}")
+            print(f"OK deterministic row: {args.row_id}; {len(rows)} inventory rows loaded.")
+        else:
+            current_lines[line_indexes[0]] = expected_line
+            LEDGER_PATH.write_bytes(("\n".join(current_lines) + "\n").encode("utf-8"))
+            print(f"Wrote API inventory row {args.row_id}; preserved all other rows.")
+        verify_jars(lock, args.verify_jars, args.download_jars)
+        return 0
+
     if args.write:
         # Write bytes to preserve the deterministic LF output on Python 3.9,
         # which is still the system interpreter on the supported macOS host.

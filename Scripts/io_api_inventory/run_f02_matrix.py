@@ -20,12 +20,15 @@ import time
 from pathlib import Path
 
 from generate_f02_consumers import generate
-from generate import LOCAL_PROBE_EVIDENCE_CASES, local_probe_execution_id
+from generate import LOCAL_PROBE_EVIDENCE_CASES, LOCAL_VALIDATION_OBSERVATION_CASES, local_probe_execution_id
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 LANES = [(route, optimization) for route in ("source", "stdlib-library", "producer-consumer")
          for optimization in ("O0", "O2")]
+LOCAL_DEFAULT_RANGE_CASE_ID = (
+    "local:Scripts/io_api_inventory/probes/buffer_copy_to_buffer_default_bridge.kt#native-default-range"
+)
 # The reference compiler is pinned to Kotlin 2.3.10; KSwiftK currently emits
 # artifacts with its product language version, Kotlin 2.4.20.
 CANDIDATE_KOTLIN_LANGUAGE_VERSION = "2.4.20"
@@ -139,13 +142,44 @@ def verify_segment_data_as_byte_array_source_metadata() -> dict:
     }
 
 
+def verify_buffer_copy_to_buffer_default_bridge_source_metadata() -> dict:
+    source = ROOT / "Sources/CompilerCore/Stdlib/kotlinx/io/Buffer.kt"
+    contents = source.read_text(encoding="utf-8")
+    declaration = re.search(
+        r"(?ms)^[ \t]*public fun copyTo\(\s*(?P<parameters>.*?)\s*\)\s*\{",
+        contents,
+    )
+    if declaration is None or "public class Buffer" not in contents:
+        raise RuntimeError("candidate Buffer.copyTo declaration or owner is missing")
+    parameters = " ".join(declaration.group("parameters").split())
+    expected = "out: Buffer, startIndex: Long = 0L, endIndex: Long = size"
+    if parameters != expected:
+        raise RuntimeError(f"candidate Buffer.copyTo parameters differ from the ABI mapping: {parameters}")
+    declaration_prefix = contents[:declaration.start()].split("*/")[-1]
+    annotations = re.findall(r"(?m)^[ \t]*@([\w.]+)", declaration_prefix)
+    if annotations:
+        raise RuntimeError(f"candidate Buffer.copyTo unexpectedly declares annotations: {annotations}")
+    return {
+        "status": "PASS",
+        "exit_code": 0,
+        "method": "source-metadata",
+        "source_path": str(source.relative_to(ROOT)),
+        "source_sha256": sha(source),
+        "visibility": "public",
+        "receiver": "kotlinx.io.Buffer",
+        "parameters": parameters,
+        "annotations": annotations,
+        "jvm_classfile_emitted_by_candidate": False,
+    }
+
+
 def local_probe_execution(case_id: str, lane: str, candidate_sha: str, reference_commit: str,
                           subject: str, result: str) -> dict:
-    spec = LOCAL_PROBE_EVIDENCE_CASES[case_id]
+    spec = LOCAL_PROBE_EVIDENCE_CASES.get(case_id) or LOCAL_VALIDATION_OBSERVATION_CASES[case_id]
     return {
         "execution_id": local_probe_execution_id(candidate_sha, reference_commit, case_id, lane, subject),
         "result": result,
-        "exit_code": 0 if result == "PASS" else 1,
+        "exit_code": 0 if result in ("PASS", "NOT_EMITTED") else 1,
         "method": spec["methods"][subject],
     }
 
@@ -156,8 +190,6 @@ def segment_local_probe_case_ids(lane: str) -> list[str]:
         for case_id, spec in LOCAL_PROBE_EVIDENCE_CASES.items()
         if case_id.endswith(("#internal-view", "#internal-visibility")) and lane in spec["lanes"]
     ]
-
-
 def packaged(raw: bytes, package: str) -> bytes:
     if re.search(rb"^package\s", raw, re.MULTILINE):
         raise ValueError("only unqualified fixtures may receive a package insertion")
@@ -182,6 +214,17 @@ def scenarios() -> list[dict]:
                   "reference_probe": ROOT / "Scripts/io_api_inventory/probes/segment_data_as_byte_array_jvm_abi.kt",
                   "entry": "f02consumer.main", "jvm_class": "f02consumer.ConsumerKt",
                   "reference_class": "f02jvmabi.SegmentDataAsByteArrayJvmAbi", "reference": "jvm"})
+    cases.append({
+        "id": "buffer-copy-to-buffer-default-bridge",
+        "fixture": HERE / "probes/buffer_copy_to_buffer_default_bridge.kt",
+        "jvm_abi_probe": HERE / "probes/buffer_copy_to_buffer_default_bridge_jvm_abi.java",
+        "jvm_abi_class": "BufferCopyToBufferDefaultBridgeAbiProbe",
+        "local_probe_case_id": (
+            "local:Scripts/io_api_inventory/probes/"
+            "buffer_copy_to_buffer_default_bridge_jvm_abi.java#jvm-descriptor"
+        ),
+        "reference": "jvm",
+    })
     fixtures = sorted((ROOT / "Scripts/diff_cases").glob("kotlinx_io*.kt"))
     cases.append({"id": "diff-consumers", "fixtures": fixtures, "reference": "jvm",
                   "entry": "f02corpusconsumer.main", "jvm_class": "f02corpusconsumer.ConsumerKt"})
@@ -396,6 +439,7 @@ def run_lane(case: dict, compiler: Path, stdlib: Path, expected: bytes, director
             "stdlib_files_sha256": stdlib_before, "producer_files_sha256": artifact_before,
             "inputs_sha256": inputs_before, "executable_sha256": sha(binary), "stdout_sha256": sha(directory / "run.stdout"),
             "normalized_stdout_sha256": hashlib.sha256(observed).hexdigest(),
+            "reference_normalized_stdout_sha256": hashlib.sha256(expected).hexdigest(),
             "reference_kind": case["reference"], "compiler_processes_separated": route == "producer-consumer"}
 
 
@@ -452,10 +496,12 @@ def main(argv: list[str] | None = None) -> int:
         for name, contents in generate().items():
             if (HERE / "f02_consumers" / name).read_text() != contents: raise RuntimeError("regenerate F02 consumers first")
         lock = json.loads((ROOT / "Scripts/kotlinx_io_upstream/reference-lock.json").read_text())
-        target_probe_selected = any(case["id"] == "segment-data-as-byte-array" for case in selected)
         candidate_source_metadata = None
-        if target_probe_selected:
+        if any(case["id"] == "segment-data-as-byte-array" for case in selected):
             candidate_source_metadata = verify_segment_data_as_byte_array_source_metadata()
+            summary["candidate_source_metadata_assertion"] = candidate_source_metadata
+        if any("local_probe_case_id" in case for case in selected):
+            candidate_source_metadata = verify_buffer_copy_to_buffer_default_bridge_source_metadata()
             summary["candidate_source_metadata_assertion"] = candidate_source_metadata
         for record in lock["sdk_files"]:
             if sha(args.kotlin_home / record["path"]) != record["sha256"]: raise RuntimeError("reference SDK hash mismatch")
@@ -511,6 +557,21 @@ def main(argv: list[str] | None = None) -> int:
                         ),
                     })
             summary["results"].append({"case": case["id"], **result})
+            if case.get("local_probe_case_id") and result.get("status") == "PASS":
+                case_id = LOCAL_DEFAULT_RANGE_CASE_ID
+                lane = route + "-" + optimization
+                reference = local_probe_execution(
+                    case_id, lane, summary["workspace_git_sha"], lock["commit"], "reference", "PASS"
+                )
+                candidate = local_probe_execution(
+                    case_id, lane, summary["workspace_git_sha"], lock["commit"], "candidate", "PASS"
+                )
+                reference["output_sha256"] = result["reference_normalized_stdout_sha256"]
+                candidate["output_sha256"] = result["normalized_stdout_sha256"]
+                summary["local_probe_executions"].append({
+                    "case_id": case_id, "lane": lane,
+                    "reference": reference, "candidate": candidate,
+                })
             save(output / "summary.json", summary)
             print(f"{result['status']} {case['id']} {route} {optimization}", flush=True)
 
@@ -572,8 +633,26 @@ def main(argv: list[str] | None = None) -> int:
                     require_stage([str(javac), "-d", str(probe_classes), str(case["jvm_abi_probe"])],
                                   directory, "jvm-abi-compile", args.compile_timeout)
                     require_stage([str(args.java.resolve()), "-cp", os.pathsep.join(
-                        map(str, [probe_classes, jar, *jars])), "SegmentReadContextAbiProbe"],
+                        map(str, [probe_classes, jar, *jars])),
+                        case.get("jvm_abi_class", "SegmentReadContextAbiProbe")],
                         directory, "jvm-abi-probe", 30)
+                    case_id = case.get("local_probe_case_id")
+                    if case_id is not None:
+                        lane = "jvm-descriptor"
+                        summary["local_probe_executions"].append({
+                            "case_id": case_id,
+                            "lane": lane,
+                            "reference": dict(local_probe_execution(
+                                case_id, lane, summary["workspace_git_sha"], lock["commit"], "reference", "PASS"
+                            ), output_sha256=sha(directory / "jvm-abi-probe.stdout")),
+                            "candidate": dict(local_probe_execution(
+                                case_id, lane, summary["workspace_git_sha"], lock["commit"], "candidate",
+                                "NOT_EMITTED",
+                            ), output_sha256=hashlib.sha256(json.dumps(
+                                candidate_source_metadata, ensure_ascii=False, sort_keys=True,
+                                separators=(",", ":"),
+                            ).encode()).hexdigest()),
+                        })
             else:
                 expected = case["expected"].read_bytes()
                 reject_unhandled_events(expected)
