@@ -1,6 +1,5 @@
 import RuntimeABI
 
-/// Destination, association, zip, and indexed higher-order collection rewrites.
 extension CollectionLiteralLoweringSupport {
     private func isGenericKotlinArrayExpr(
         _ expr: KIRExprID,
@@ -126,7 +125,6 @@ extension CollectionLiteralLoweringSupport {
         return true
     }
 
-    // --- STDLIB-631: groupBy with value transform (two-lambda variant) ---
     // Arguments: [receiver, keyLambda, keyClosureRaw, valueLambda] (4 args)
     // or [receiver, keyLambda, keyClosureRaw, valueLambda, valueClosureRaw] (5 args)
     if callee == lookup.groupByName,
@@ -159,7 +157,6 @@ extension CollectionLiteralLoweringSupport {
         return true
     }
 
-    // --- Rewrite additional HOF collection member calls (STDLIB-005) ---
     // 1-param lambda HOFs with [receiver, lambda, closureRaw?]
     if callee == lookup.groupByName
         || callee == lookup.associateByName || callee == lookup.associateWithName || callee == lookup.associateName
@@ -251,7 +248,7 @@ extension CollectionLiteralLoweringSupport {
         }
     }
 
-    // --- STDLIB-SEQ-023 / STDLIB-535/536/537: list *To variants with [receiver, dest, lambda, closureRaw?] ---
+    // list *To variants with [receiver, dest, lambda, closureRaw?]
     if callee == lookup.associateByToName || callee == lookup.associateWithToName
         || callee == lookup.groupByToName
     {
@@ -405,7 +402,6 @@ extension CollectionLiteralLoweringSupport {
         }
     }
 
-    // zipWithNext(): List<Pair<T, T>> — 0-arg (receiver only)
     if callee == lookup.zipWithNextName, arguments.count == 1 {
         let receiverID = arguments[0]
         if state.listExprIDs.contains(receiverID.rawValue) {
@@ -428,7 +424,6 @@ extension CollectionLiteralLoweringSupport {
         }
     }
 
-    // zipWithNext(transform): List<R> — 1-arg HOF (receiver + lambda + closure)
     if callee == lookup.zipWithNextName, arguments.count == 2 || arguments.count == 3 {
         let receiverID = arguments[0]
         if state.listExprIDs.contains(receiverID.rawValue) {
