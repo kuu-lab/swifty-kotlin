@@ -1,6 +1,5 @@
 package kotlin
 
-// KSP-883: source-backed API surface for kotlin.RequiresOptIn.Level.
 public val RequiresOptIn.Level.entries: kotlin.enums.EnumEntries<RequiresOptIn.Level>
     get() = enumEntries<RequiresOptIn.Level>()
 
