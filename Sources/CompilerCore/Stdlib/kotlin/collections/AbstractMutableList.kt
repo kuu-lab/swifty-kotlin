@@ -7,14 +7,8 @@
 
 package kotlin.collections
 
-// KSP-929: the nominal `AbstractMutableList<E>` declaration is source-backed
-// here; the compiler-side shell remains the fallback for non-bundled contexts.
-// KSP-1036: the default list members are also implemented here, following the
-// Kotlin 2.3.10 native-wasm contract.
+// The compiler-side shell remains the fallback for non-bundled contexts.
 
-/**
- * Provides a skeletal implementation of the [MutableList] interface.
- */
 public abstract class AbstractMutableList<E> protected constructor() : AbstractMutableCollection<E>(), MutableList<E> {
     /**
      * The number of structural modifications observed by iterators.
@@ -111,9 +105,6 @@ public abstract class AbstractMutableList<E> protected constructor() : AbstractM
 
     override fun subList(fromIndex: Int, toIndex: Int): MutableList<E> = SubList(this, fromIndex, toIndex)
 
-    /**
-     * Removes the range starting at [fromIndex] and ending before [toIndex].
-     */
     protected open fun removeRange(fromIndex: Int, toIndex: Int) {
         val iterator = listIterator(fromIndex)
         repeat(toIndex - fromIndex) {
