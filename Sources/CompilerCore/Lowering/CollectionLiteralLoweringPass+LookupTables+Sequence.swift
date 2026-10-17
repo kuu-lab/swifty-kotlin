@@ -1,10 +1,6 @@
 import RuntimeABI
 
-/// Sequence lookup names for `CollectionLiteralLookupTables`.
-///
-/// Split out from `CollectionLiteralLoweringPass+LookupTables.swift`.
 struct SequenceLookupNames {
-    // Sequence ABI names (STDLIB-003)
     let kkSequenceMapName: InternedString
     let kkSequenceFilterName: InternedString
     let kkSequenceRequireNoNullsName: InternedString
@@ -16,16 +12,13 @@ struct SequenceLookupNames {
     let kkIteratorBuilderBuildName: InternedString
     let kkIteratorBuilderHasNextName: InternedString
     let kkIteratorBuilderNextName: InternedString
-    // Sequence ABI names (STDLIB-095)
     let kkSequenceFlatMapName: InternedString
     let kkSequenceFlatMapIndexedName: InternedString
     let kkSequenceShuffledName: InternedString
     let kkSequenceShuffledRandomName: InternedString
-    // STDLIB-558, 559, 560: Sequence scan / runningFold / runningReduce
     let kkSequenceScanName: InternedString
     let kkSequenceRunningFoldName: InternedString
     let kkSequenceRunningReduceName: InternedString
-    // STDLIB-470: Sequence terminal ops
     let kkSequenceToSetName: InternedString
     let kkSequenceToMapName: InternedString
     let kkSequenceToCollectionName: InternedString
@@ -39,18 +32,14 @@ struct SequenceLookupNames {
     let kkSequenceReduceIndexedName: InternedString
     let kkSequenceReduceIndexedOrNullName: InternedString
     let kkSequenceRunningReduceIndexedName: InternedString
-    // STDLIB-561/562: Sequence plus/minus
     let kkSequencePlusName: InternedString
     let kkSequencePlusElementName: InternedString
     let kkSequenceMinusName: InternedString
     let kkSequenceOfSingleName: InternedString
-    // STDLIB-SEQ-012: Sequence partition
-    // Sequence plus/minus member names (STDLIB-561/562)
     let plusMemberName: InternedString
     let plusElementName: InternedString
     let minusElementName: InternedString
     let minusMemberName: InternedString
-    // Sequence member names (STDLIB-003)
     let asSequenceName: InternedString
     let toListName: InternedString
     let constrainOnceName: InternedString
