@@ -9,15 +9,7 @@
 /// class-kind flags now resolve as ordinary Kotlin extension declarations
 /// (Sources/CompilerCore/Stdlib/kotlin/reflect/KClasses.kt)
 /// through normal overload resolution.
-///
-/// Split out from `CallTypeChecker+MemberCallInference.swift`.
 extension CallTypeChecker {
-    /// Handles `T::class.java / .js / .javaClass /
-    /// .findAssociatedObject<A>()` when the receiver is a compile-time class
-    /// reference (callableRef with
-    /// member "class").
-    /// Returns the inferred type, or `nil` when the receiver isn't a class-ref
-    /// or the calleeName doesn't match any handled member.
     func tryInferClassRefMemberCall(
         _ id: ExprID,
         receiverID: ExprID,
@@ -105,7 +97,6 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: listType)
             return listType
         }
-        // STDLIB-REFLECT-079: findAssociatedObject<T>()
         if calleeName == knownNames.findAssociatedObjectName {
             return bindKClassFindAssociatedObjectCall(
                 id,
@@ -119,11 +110,6 @@ extension CallTypeChecker {
         return nil
     }
 
-    /// Handles KClass member access when the receiver is a runtime KClass<T>
-    /// expression (variable / property whose type is `kotlin.reflect.KClass<…>`):
-    /// `.java / .js / .javaClass / .findAssociatedObject<A>()`.
-    /// Returns the inferred type, or `nil` when the receiver isn't a runtime
-    /// KClass or the calleeName doesn't match any handled member.
     func tryInferKClassReceiverMemberCall(
         _ id: ExprID,
         receiverType: TypeID,
@@ -193,7 +179,6 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: listType)
             return listType
         }
-        // STDLIB-REFLECT-079: findAssociatedObject<T>()
         if calleeName == knownNames.findAssociatedObjectName {
             return bindKClassFindAssociatedObjectCall(
                 id,
