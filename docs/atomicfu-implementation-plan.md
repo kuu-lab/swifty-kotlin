@@ -200,12 +200,7 @@ Prepared enforcing checks use actual compiler sources/artifacts, not local mock
 AtomicInt declarations: four Core cases (150 exact identities in source/library,
 plus negative visibility/leak tests), twelve Backend cases (source/library O0/O2
 for scalar/array/Trace, lock/parking, and independent producer/consumer), and ten
-Runtime methods. The two compiled symbol snapshots are independently compared
-by `check_atomicfu_compiled_api.py` against expected types, nullability, receiver,
-generic bounds, defaults, inline flags, visibility, mutable properties and
-argument-bearing annotations from the pinned ledger. Unexpected public or
-PublishedApi symbols fail. Generator/checker Python tests are controls of the
-checker, never actual registration evidence.
+Runtime methods.
 
 These expectations have not been compiled or executed during preparation.
 Fixture stdout is specification-derived and needs the pinned actual Native
