@@ -1,14 +1,3 @@
-/// `CoroutineContext` stubs for the synthetic coroutine registry:
-/// the CoroutineContext / Element / Key hierarchy (get / fold /
-/// minusKey / plus), NonCancellable, CoroutineName,
-/// CoroutineExceptionHandler, EmptyCoroutineContext, and the
-/// cancellation-package `cancel` extension.
-///
-/// Extracted from `registerSyntheticCoroutineStubs`
-/// (HeaderHelpers+SyntheticCoroutineRegistry.swift). The extracted
-/// methods thread the shared registry state through `context` so the
-/// call order and side effects are unchanged.
-
 extension DataFlowSemaPhase {
     func registerCoroutineContextHierarchy(context: inout SyntheticCoroutineRegistryContext) {
         let symbols = context.symbols
@@ -20,7 +9,6 @@ extension DataFlowSemaPhase {
         let jobSymbol = context.jobSymbol!
         let deferredSymbol = context.deferredSymbol!
 
-        // STDLIB-CORO-077: CoroutineContext, CoroutineContext.Element, CoroutineContext.Key
         let coroutineContextSymbol = ensureInterfaceSymbol(
             named: "CoroutineContext",
             in: kotlinCoroutinesPkg,
@@ -76,9 +64,7 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // `kotlinx.coroutines.NonCancellable`: a CoroutineContext.Element used with
-        // `withContext(NonCancellable) { ... }` to run cleanup code that ignores the
-        // enclosing job's cancellation. Referenced bare (not via member access), so it
+        // NonCancellable is referenced bare (not via member access), so it
         // resolves through the object-with-externalLinkName path in ExprLowerer.
         let nonCancellableSymbol = ensureSyntheticObjectSymbol(
             named: "NonCancellable",
@@ -404,9 +390,8 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([coroutineContextElementSymbol, coroutineContextSymbol], for: coroutineExceptionHandlerSymbol)
         types.setNominalDirectSupertypes([coroutineContextElementSymbol, coroutineContextSymbol], for: coroutineExceptionHandlerSymbol)
 
-        // KUU-1405: `companion object Key : CoroutineContext.Key<CoroutineExceptionHandler>`
-        // — materializes the `kk_exception_handler_key` singleton so
-        // `ctx[CoroutineExceptionHandler]` / `minusKey` resolve like Job.Key.
+        // KUU-1405: The companion `Key` materializes the `kk_exception_handler_key`
+        // singleton so `ctx[CoroutineExceptionHandler]` / `minusKey` resolve like Job.Key.
         if symbols.companionObjectSymbol(for: coroutineExceptionHandlerSymbol) == nil {
             let keyName = interner.intern("Key")
             let keyFQName = coroutinesPkg
@@ -475,7 +460,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // CoroutineExceptionHandler { context, exception -> } factory
         registerSyntheticCoroutineTopLevelFunction(
             named: "CoroutineExceptionHandler",
             packageFQName: coroutinesPkg,
