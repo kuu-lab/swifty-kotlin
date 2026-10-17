@@ -1,8 +1,5 @@
 import Foundation
 
-/// Minimal Protocol Buffers wire-format reader for the Kotlin IR schema
-/// (`KotlinIr.proto`, proto2).
-///
 /// A message is collected into field-number → value lists up front, so
 /// decoders look up fields by number without tracking a cursor. Only the
 /// wire types used by the Kotlin IR schema are supported: varint, fixed64,
@@ -17,7 +14,6 @@ package struct ProtoFields {
 
     private var values: [Int: [WireValue]] = [:]
 
-    /// An empty message — useful as a default for optional sub-messages.
     package static let empty = ProtoFields()
 
     private init() {}
@@ -59,7 +55,6 @@ package struct ProtoFields {
         values[field] ?? []
     }
 
-    /// Last varint value of `field`, if present.
     package func varint(_ field: Int) -> UInt64? {
         values[field]?.last.flatMap {
             guard case .varint(let v) = $0 else { return nil }
@@ -104,7 +99,6 @@ package struct ProtoFields {
         }
     }
 
-    /// Last length-delimited value, as a nested message.
     package func message(_ field: Int) throws -> ProtoFields? {
         guard let bytes = values[field]?.last.flatMap({ value -> ArraySlice<UInt8>? in
             guard case .bytes(let b) = value else { return nil }
@@ -113,7 +107,6 @@ package struct ProtoFields {
         return try ProtoFields(bytes)
     }
 
-    /// All length-delimited values, each decoded as a nested message.
     package func messages(_ field: Int) throws -> [ProtoFields] {
         try wireValues(field).compactMap { value in
             guard case .bytes(let b) = value else { return nil }
@@ -159,7 +152,6 @@ package struct ProtoFields {
     }
 }
 
-/// Cursor over a byte slice for varint/fixed reads.
 package struct ProtoCursor {
     private let bytes: ArraySlice<UInt8>
     private(set) var position: ArraySlice<UInt8>.Index
