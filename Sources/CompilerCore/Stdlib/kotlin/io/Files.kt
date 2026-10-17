@@ -1,6 +1,5 @@
 package kotlin.io
 
-// KSP-483: File path pure-logic layer.
 // Migration source: Sources/Runtime/RuntimeFileIO.swift
 //   kk_file_name, kk_file_extension, kk_file_nameWithoutExtension, kk_file_parent,
 //   kk_file_invariantSeparatorsPath, kk_file_isRooted, kk_file_startsWith_file,
