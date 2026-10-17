@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "probes": [
+    {
+      "row_id": "klib-bb1a86c235fe5d90",
+      "case_id": "Scripts/io_api_inventory/probes/ByteStringBuilderClassShape.kt#publicFinalClass",
+      "upstream_reference_paths": [
+        "bytestring/common/src/ByteStringBuilder.kt",
+        "bytestring/api/kotlinx-io-bytestring.klib.api"
+      ],
+      "probe_paths": [
+        "Tests/CompilerCoreTests/Sema/ByteStringBuilderClassShapeTests.swift",
+        "Scripts/io_api_inventory/probes/ByteStringBuilderClassShape.kt",
+        "Scripts/io_api_inventory/probes/ByteStringBuilderClassShapeProducer.kt",
+        "Scripts/io_api_inventory/probes/ByteStringBuilderClassShapeConsumer.kt",
+        "Scripts/io_api_inventory/probes/ByteStringBuilderSubclassRejected.kt"
+      ],
+      "lanes": {
+        "source-O0": {
+          "reference": "api-probe:KUU-2583:klib-bb1a86c235fe5d90:reference:source-O0",
+          "candidate": "api-probe:KUU-2583:klib-bb1a86c235fe5d90:candidate:source-O0"
+        },
+        "source-O2": {
+          "reference": "api-probe:KUU-2583:klib-bb1a86c235fe5d90:reference:source-O2",
+          "candidate": "api-probe:KUU-2583:klib-bb1a86c235fe5d90:candidate:source-O2"
+        },
+        "stdlib-library-O0": {
+          "reference": "api-probe:KUU-2583:klib-bb1a86c235fe5d90:reference:stdlib-library-O0",
+          "candidate": "api-probe:KUU-2583:klib-bb1a86c235fe5d90:candidate:stdlib-library-O0"
+        },
+        "stdlib-library-O2": {
+          "reference": "api-probe:KUU-2583:klib-bb1a86c235fe5d90:reference:stdlib-library-O2",
+          "candidate": "api-probe:KUU-2583:klib-bb1a86c235fe5d90:candidate:stdlib-library-O2"
+        },
+        "producer-consumer-O0": {
+          "reference": "api-probe:KUU-2583:klib-bb1a86c235fe5d90:reference:producer-consumer-O0",
+          "candidate": "api-probe:KUU-2583:klib-bb1a86c235fe5d90:candidate:producer-consumer-O0"
+        },
+        "producer-consumer-O2": {
+          "reference": "api-probe:KUU-2583:klib-bb1a86c235fe5d90:reference:producer-consumer-O2",
+          "candidate": "api-probe:KUU-2583:klib-bb1a86c235fe5d90:candidate:producer-consumer-O2"
+        }
+      }
+    },
+    {
+      "row_id": "jvm-1d1d46e584ca16cc",
+      "case_id": "Scripts/io_api_inventory/probes/ByteStringBuilderJvmClassProbe.java#publicFinalClass",
+      "upstream_reference_paths": [
+        "bytestring/common/src/ByteStringBuilder.kt",
+        "bytestring/api/kotlinx-io-bytestring.api"
+      ],
+      "probe_paths": [
+        "Scripts/io_api_inventory/probes/ByteStringBuilderJvmClassProbe.java",
+        "Tests/CompilerCoreTests/Sema/ByteStringBuilderClassShapeTests.swift",
+        "Scripts/io_api_inventory/probes/ByteStringBuilderClassShape.kt",
+        "Scripts/io_api_inventory/probes/ByteStringBuilderSubclassRejected.kt"
+      ],
+      "lanes": {
+        "jvm-descriptor": {
+          "reference": "api-probe:KUU-2583:jvm-1d1d46e584ca16cc:reference:jvm-descriptor",
+          "candidate": "api-probe:KUU-2583:jvm-1d1d46e584ca16cc:candidate:jvm-descriptor"
+        }
+      }
+    }
+  ]
+}
