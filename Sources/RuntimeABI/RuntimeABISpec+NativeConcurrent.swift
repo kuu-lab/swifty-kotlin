@@ -1,6 +1,6 @@
 public extension RuntimeABISpec {
     /// Memory-representation and worker-thread bridges retained for the
-    /// source-backed kotlin.native.concurrent package functions (KSP-1216).
+    /// source-backed kotlin.native.concurrent package functions.
     static let nativeConcurrentFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
             name: "__kk_native_concurrent_active_workers",
