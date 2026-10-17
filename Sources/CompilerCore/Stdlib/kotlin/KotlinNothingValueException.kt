@@ -2,8 +2,6 @@ package kotlin
 
 import kotlin.internal.KsSymbolName
 
-// KSP-742: bundled Kotlin source for KotlinNothingValueException.
-
 public class KotlinNothingValueException : RuntimeException {
     @KsSymbolName("__kk_kotlin_nothing_value_exception_new")
     public constructor()
