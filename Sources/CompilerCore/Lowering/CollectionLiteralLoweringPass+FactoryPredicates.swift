@@ -1,6 +1,3 @@
-/// Stdlib factory / java.io.File predicates and the primitive box-callee
-/// table consulted by `rewriteCalls`.
-///
 /// Split out from `CollectionLiteralLoweringPass+CallRewrite.swift` to
 /// keep the giant `rewriteCalls` body file scoped only to the rewrite
 /// dispatcher.
@@ -67,8 +64,7 @@ extension CollectionLiteralLoweringSupport {
         )
     }
 
-    /// Resolves mutable map constructors by their simple name or constructor
-    /// owner. Source-backed constructors may carry a mangled callee name in KIR.
+    /// Source-backed constructors may carry a mangled callee name in KIR.
     func stdlibMutableMapConstructorName(
         symbol: SymbolID?,
         callee: InternedString,
@@ -102,8 +98,6 @@ extension CollectionLiteralLoweringSupport {
 
 extension CollectionLiteralConstructionLoweringPass {
 
-    /// Recognizes both the legacy bare `HashSet` constructor name and the
-    /// source-backed class constructor symbol emitted for the nominal class.
     func isHashSetConstructor(
         callee: InternedString,
         symbol: SymbolID?,
@@ -224,14 +218,12 @@ extension CollectionLiteralConstructionLoweringPass {
         )
     }
 
-    /// Which `java.util.TreeSet` constructor overload a call resolved to.
     enum TreeSetConstructorKind {
         case emptyOrComparator
         case collection
         case sortedSet
     }
 
-    /// Which `java.util.TreeMap` constructor overload a call resolved to.
     enum TreeMapConstructorKind {
         case emptyOrComparator
         case map
@@ -377,11 +369,9 @@ extension CollectionLiteralConstructionLoweringPass {
         return BoxingCalleeTable(interner: interner).boxCallee(for: kind, requireNonNull: false)
     }
 
-    /// Returns true when the resolved symbol's FQN matches one of the known
-    /// `kotlin.collections.*` factory FQNs.  When the symbol is nil (unresolved)
-    /// we conservatively allow the rewrite – the name check already passed and
-    /// unresolved symbols are common for synthetic stubs that have no KIR-level
-    /// symbol entry.
+    /// When the symbol is nil (unresolved) we conservatively allow the rewrite –
+    /// the name check already passed and unresolved symbols are common for
+    /// synthetic stubs that have no KIR-level symbol entry.
     func isStdlibCollectionFactory(
         symbol: SymbolID?,
         lookup: CollectionLiteralLookupTables,
@@ -395,7 +385,6 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
         let fqName = resolved.fqName
-        // Match against known stdlib collection factory FQNs
         return fqName == lookup.emptyListFQName
             || fqName == lookup.emptyArrayFQName
             || fqName == lookup.listOfFQName
