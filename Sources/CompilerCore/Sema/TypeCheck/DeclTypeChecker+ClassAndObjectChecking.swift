@@ -371,8 +371,7 @@ extension DeclTypeChecker {
         typeCheckInitBlocks(objectDecl.initBlocks, ctx: objectCtx)
     }
 
-    /// Resolves the superclass constructor named by `object O : Base(args)`
-    /// and records the full call binding under the object symbol, so KIR
+    /// Records the full call binding under the object symbol, so KIR
     /// lowering can apply the same named-argument / default normalization as
     /// for a class header's `super(...)` call
     /// (`typeCheckPrimaryConstructorSuperDelegation`).
