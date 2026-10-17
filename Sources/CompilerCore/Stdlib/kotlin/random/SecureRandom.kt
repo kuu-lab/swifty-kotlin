@@ -2,9 +2,7 @@ package kotlin.random
 
 import kotlin.internal.KsSymbolName
 
-// KSP-467: SecureRandom compatibility layer migrated to bundled Kotlin source.
-// The public surface is a class that delegates to the runtime's __kk_secure_random_*
-// bridges. The runtime opaque handle is passed as `this` to the member bridges.
+// The runtime opaque handle is passed as `this` to the member bridges.
 
 public class SecureRandom private constructor() {
     public companion object {
