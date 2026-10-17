@@ -1,12 +1,9 @@
 package kotlin.time
 
-// KSP-472
-// Clock.System.now() factory.
 // Migration source: Sources/Runtime/RuntimeInstant.swift (kk_clock_system_now)
 //
 // Clock.System is a nested object, so its now() factory is expressed as a
-// Kotlin-source extension on that object. The implementation delegates to the
-// __kk_clock_system_now bridge, which is backed by the kk_clock_system_now ABI.
+// Kotlin-source extension on that object.
 
 import kotlin.internal.KsSymbolName
 
