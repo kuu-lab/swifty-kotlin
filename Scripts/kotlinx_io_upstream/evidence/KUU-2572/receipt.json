@@ -1,0 +1,296 @@
+{
+  "schema_version": 1,
+  "issue": "KUU-2572",
+  "title": "[IO-GATE] RefCounteringCopyTrackerTest の stateTransition を検証する",
+  "scope": {
+    "upstream_id": "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition",
+    "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+    "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+    "source_git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+    "source_bytes": 968,
+    "original_test_body_preserved_as_exact_suffix": true,
+    "assertion_count": 12,
+    "assertions": [
+      {
+        "id": "state-transition-01",
+        "line": 16,
+        "expression": "assertFalse(tracker.shared)",
+        "observed_value": false
+      },
+      {
+        "id": "state-transition-02",
+        "line": 18,
+        "expression": "assertFalse(tracker.removeCopy())",
+        "observed_value": false
+      },
+      {
+        "id": "state-transition-03",
+        "line": 19,
+        "expression": "assertFalse(tracker.shared)",
+        "observed_value": false
+      },
+      {
+        "id": "state-transition-04",
+        "line": 22,
+        "expression": "assertTrue(tracker.shared)",
+        "observed_value": true
+      },
+      {
+        "id": "state-transition-05",
+        "line": 23,
+        "expression": "assertTrue(tracker.removeCopy())",
+        "observed_value": true
+      },
+      {
+        "id": "state-transition-06",
+        "line": 24,
+        "expression": "assertFalse(tracker.shared)",
+        "observed_value": false
+      },
+      {
+        "id": "state-transition-07",
+        "line": 27,
+        "expression": "assertTrue(tracker.shared)",
+        "observed_value": true
+      },
+      {
+        "id": "state-transition-08",
+        "line": 29,
+        "expression": "assertTrue(tracker.shared)",
+        "observed_value": true
+      },
+      {
+        "id": "state-transition-09",
+        "line": 30,
+        "expression": "assertTrue(tracker.removeCopy())",
+        "observed_value": true
+      },
+      {
+        "id": "state-transition-10",
+        "line": 31,
+        "expression": "assertTrue(tracker.shared)",
+        "observed_value": true
+      },
+      {
+        "id": "state-transition-11",
+        "line": 32,
+        "expression": "assertTrue(tracker.removeCopy())",
+        "observed_value": true
+      },
+      {
+        "id": "state-transition-12",
+        "line": 33,
+        "expression": "assertFalse(tracker.shared)",
+        "observed_value": false
+      }
+    ],
+    "reference_catalog": {
+      "jvm_execution_count": 1,
+      "jvm_execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]",
+      "native_execution_count": 0,
+      "jvm_catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+      "native_catalog_sha256": "3bd3e5e45e2a86315dfb7c8a5ef171abdeeab49dbc50b6260c219155b67ac57e"
+    }
+  },
+  "reference": {
+    "kotlinx_io_version": "0.9.1",
+    "kotlin_version": "2.3.10",
+    "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+    "reference_lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+    "status": "PASS",
+    "selected_execution_ids": [
+      "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+    ],
+    "reference_counts": {
+      "PASS": 1
+    },
+    "source_files_compiled": 50,
+    "junit_result": {
+      "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]",
+      "display_name": "stateTransition()",
+      "concrete_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+      "declaring_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+      "method_name": "stateTransition",
+      "parameter_types": "",
+      "status": "PASS",
+      "elapsed_seconds": 0.016849583,
+      "stdout": "",
+      "stderr": "",
+      "exception_type": null,
+      "exception_message": null
+    },
+    "result_artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2572/reference-results.json",
+    "result_sha256": "bd5e28f6a03a96bd8512eb5f6c13f854cc2e35b80f4bc8b0d1a367e1fb0c9ed0",
+    "runner_artifact_sha256": {
+      "summary.json": "c877aff1e37eb213fc307030f098a188f08b9cc8c8e0bb0e1416125de36b70b7",
+      "environment.json": "e7476eab88dd84a9fa34547a4f2d530355a0dee3c38ab17aaa56860624b185d3",
+      "execution-map.json": "bc6e96e49e8941183a71e2b16ce67edd9e623ba8cb1d3d22243b237011974481",
+      "junit/results.json": "bd5e28f6a03a96bd8512eb5f6c13f854cc2e35b80f4bc8b0d1a367e1fb0c9ed0",
+      "junit/discovered.json": "9c946e08dddf4ccdafa630590f41b5fb3ac6999fce62bf22b4622af7e7ed707c",
+      "compile.command.json": "968fcd1167f6bbd4789d0f4804608b5d36403cdc8381cd6456e0bde836d0044f",
+      "compile.result.json": "982587768545154b9f2782533a0fb512be80e73598e66e4d84eae363d544e081",
+      "run.command.json": "084084d13b37ff0b24b429465e922d6bca566d8e7ac9abf367e01662998509ff",
+      "run.result.json": "783061c3c0ca4210992dfd9b6db1e7ad675de372a89710f640df0b67e23c7acd",
+      "java-version.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kotlin-version.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "jdk": {
+      "version": "Temurin 21.0.12.1+1-LTS",
+      "archive_sha256": "3623232f33a9c3baadf304480b2535f9a3cba8a58d42ecbb438ba267315d9998"
+    },
+    "kotlin_compiler_archive_sha256": "c8d546f9ff433b529fb0ad43feceb39831040cae2ca8d17e7df46364368c9a9e"
+  },
+  "candidate": {
+    "commit": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+    "tree": "63188798fc39b8608f25c7ad8223c84f2a63476a",
+    "platform": "native",
+    "execution_id": "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition",
+    "build_configuration": "Release",
+    "swift_version": "Apple Swift version 6.4.0.30.4",
+    "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+    "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+    "fresh_stdlib_library_sha256": "de6113c1f46ab08f6b36c13bffd35bb1003b59d42660b23ab9a95cf90118a672",
+    "support_bridge": {
+      "path": "Scripts/kotlinx_io_upstream/native_bridges/RefCountingCopyTracker.kt",
+      "sha256": "4bf93133fa7d4b5b46a37975e621ef460471969d26bfd17f8bcf048376518aa0",
+      "scope": "test-only sequential state-transition replacement for the JVM atomic updater; no concurrency or SegmentPool behavior claim"
+    },
+    "matrix_artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2572/candidate-matrix.json",
+    "matrix_sha256": "6711cc0d9e84a39c2575cb7840a80c2e5510b45496ffa738a1b15798149cd034",
+    "matrix_status": "PASS",
+    "lane_count": 6,
+    "pass_count": 6,
+    "lanes": [
+      {
+        "lane": "source-O0",
+        "optimization": "O0",
+        "stdlib_mode": "source",
+        "test_body_mode": "source",
+        "status": "PASS",
+        "expected_count": 1,
+        "counts": {
+          "PASS": 1
+        },
+        "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+        "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+        "stdlib_content_sha256": null,
+        "test_library_sha256": null,
+        "candidate_executable_sha256": "8d95f6ea92e93a8ccf87a038486079b751290177990a5e00b93b11fd08653ac1"
+      },
+      {
+        "lane": "source-O2",
+        "optimization": "O2",
+        "stdlib_mode": "source",
+        "test_body_mode": "source",
+        "status": "PASS",
+        "expected_count": 1,
+        "counts": {
+          "PASS": 1
+        },
+        "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+        "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+        "stdlib_content_sha256": null,
+        "test_library_sha256": null,
+        "candidate_executable_sha256": "db0296e1741a642c89321409a787fd129f3af8c7df7c4ecdb2cb6e1a376b3c03"
+      },
+      {
+        "lane": "stdlib-library-O0",
+        "optimization": "O0",
+        "stdlib_mode": "library",
+        "test_body_mode": "source",
+        "status": "PASS",
+        "expected_count": 1,
+        "counts": {
+          "PASS": 1
+        },
+        "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+        "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+        "stdlib_content_sha256": "de6113c1f46ab08f6b36c13bffd35bb1003b59d42660b23ab9a95cf90118a672",
+        "test_library_sha256": null,
+        "candidate_executable_sha256": "285acb2780d4c867ea69dde545617c8c68c0524e7c2fc4b42c2196fcfc56ed6b"
+      },
+      {
+        "lane": "stdlib-library-O2",
+        "optimization": "O2",
+        "stdlib_mode": "library",
+        "test_body_mode": "source",
+        "status": "PASS",
+        "expected_count": 1,
+        "counts": {
+          "PASS": 1
+        },
+        "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+        "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+        "stdlib_content_sha256": "de6113c1f46ab08f6b36c13bffd35bb1003b59d42660b23ab9a95cf90118a672",
+        "test_library_sha256": null,
+        "candidate_executable_sha256": "6899e7c05163c45bc2141dca35f85e8999dad9e34d9c3ca796e657772d48926a"
+      },
+      {
+        "lane": "producer-consumer-O0",
+        "optimization": "O0",
+        "stdlib_mode": "library",
+        "test_body_mode": "library-consumer",
+        "status": "PASS",
+        "expected_count": 1,
+        "counts": {
+          "PASS": 1
+        },
+        "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+        "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+        "stdlib_content_sha256": "de6113c1f46ab08f6b36c13bffd35bb1003b59d42660b23ab9a95cf90118a672",
+        "test_library_sha256": "8213ad1b91d25210e69da8c2b37906b37037c3687d8f288897f36b5182ca1d09",
+        "candidate_executable_sha256": "42dee056e56a8e27d0745535df4559a8b1ee1f7ed5825458923baa813f8dbdd1"
+      },
+      {
+        "lane": "producer-consumer-O2",
+        "optimization": "O2",
+        "stdlib_mode": "library",
+        "test_body_mode": "library-consumer",
+        "status": "PASS",
+        "expected_count": 1,
+        "counts": {
+          "PASS": 1
+        },
+        "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+        "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+        "stdlib_content_sha256": "de6113c1f46ab08f6b36c13bffd35bb1003b59d42660b23ab9a95cf90118a672",
+        "test_library_sha256": "862e2bcf0afeffc3907b67d6a00dd8ad65e6426f2dced35585cf6cc0a7deae4f",
+        "candidate_executable_sha256": "66f4459b284ca05097eabf13ec1bc280b75199e02924c49fe7f26c514f73ebdd"
+      }
+    ],
+    "superseded_attempts": [
+      {
+        "attempt": "debug-source-O0",
+        "candidate_commit": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+        "build_configuration": "Debug",
+        "status": "FAIL",
+        "compile_exitcode": 124,
+        "timed_out": true,
+        "compile_seconds": 900.259,
+        "candidate_executions": 0,
+        "workspace_git_sha_recorded_by_runner": null,
+        "reason": "debug source compile exceeded the 900-second deadline before execution",
+        "summary_sha256": "f7b92436e89aa150ba8d16467be05f0d8d346387b8ae024b8bd4ae7e213f8e4a",
+        "compile_result_sha256": "9a198b32fdca516e47cdb25e09a49f1b2f937481c02a5b0722ec6c90b4b48662",
+        "compile_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "attempt": "release-source-O0-sandboxed-link",
+        "candidate_commit": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+        "build_configuration": "Release",
+        "status": "FAIL",
+        "compile_exitcode": 1,
+        "timed_out": false,
+        "compile_seconds": 61.531,
+        "candidate_executions": 0,
+        "workspace_git_sha_recorded_by_runner": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+        "reason": "Swift runtime linking was denied by the default sandbox; retried with escalation",
+        "summary_sha256": "194723212749101a1e81c5e6666f74c0dc4528b84debb2f0f9d0d2691fbed865",
+        "compile_result_sha256": "529495f13a332bef3b5180634e35edb1489eb8ae00a46b66db0c4b3da5812bee",
+        "compile_stderr_sha256": "d258b9350ca77410d50937a49bc70a8897bc77056bd1563e86b84c559c40ab80"
+      }
+    ]
+  },
+  "api_inventory_rows_added": 0,
+  "assertion_observation_note": "The unchanged upstream assertion body ran to completion in the JVM reference and in all six Native candidate lanes; each recorded boolean is the value required by its assertTrue/assertFalse expression."
+}

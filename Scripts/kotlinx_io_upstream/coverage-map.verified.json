@@ -1,5 +1,349 @@
 {
   "schema_version": 1,
   "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
-  "mappings": []
+  "mappings": [
+    {
+      "upstream_id": "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition",
+      "upstream_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+      "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+      "source_git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+      "disposition": "verified",
+      "reason": "The exact JVM reference execution and all six final KSwiftK Native candidate lanes passed with every original stateTransition assertion preserved.",
+      "assertions": [
+        {
+          "id": "state-transition-01",
+          "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+          "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+          "line_start": 16,
+          "line_end": 16,
+          "expression": "assertFalse(tracker.shared)",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "state-transition-02",
+          "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+          "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+          "line_start": 18,
+          "line_end": 18,
+          "expression": "assertFalse(tracker.removeCopy())",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "state-transition-03",
+          "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+          "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+          "line_start": 19,
+          "line_end": 19,
+          "expression": "assertFalse(tracker.shared)",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "state-transition-04",
+          "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+          "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+          "line_start": 22,
+          "line_end": 22,
+          "expression": "assertTrue(tracker.shared)",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "state-transition-05",
+          "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+          "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+          "line_start": 23,
+          "line_end": 23,
+          "expression": "assertTrue(tracker.removeCopy())",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "state-transition-06",
+          "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+          "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+          "line_start": 24,
+          "line_end": 24,
+          "expression": "assertFalse(tracker.shared)",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "state-transition-07",
+          "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+          "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+          "line_start": 27,
+          "line_end": 27,
+          "expression": "assertTrue(tracker.shared)",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "state-transition-08",
+          "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+          "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+          "line_start": 29,
+          "line_end": 29,
+          "expression": "assertTrue(tracker.shared)",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "state-transition-09",
+          "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+          "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+          "line_start": 30,
+          "line_end": 30,
+          "expression": "assertTrue(tracker.removeCopy())",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "state-transition-10",
+          "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+          "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+          "line_start": 31,
+          "line_end": 31,
+          "expression": "assertTrue(tracker.shared)",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "state-transition-11",
+          "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+          "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+          "line_start": 32,
+          "line_end": 32,
+          "expression": "assertTrue(tracker.removeCopy())",
+          "required_observations": [
+            "value"
+          ]
+        },
+        {
+          "id": "state-transition-12",
+          "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+          "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+          "line_start": 33,
+          "line_end": 33,
+          "expression": "assertFalse(tracker.shared)",
+          "required_observations": [
+            "value"
+          ]
+        }
+      ],
+      "executions": [
+        {
+          "platform": "jvm",
+          "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]",
+          "invocation": {
+            "display_name": "stateTransition()",
+            "concrete_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+            "declaring_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+            "method_name": "stateTransition",
+            "parameter_types": ""
+          },
+          "assertion_ids": [
+            "state-transition-01",
+            "state-transition-02",
+            "state-transition-03",
+            "state-transition-04",
+            "state-transition-05",
+            "state-transition-06",
+            "state-transition-07",
+            "state-transition-08",
+            "state-transition-09",
+            "state-transition-10",
+            "state-transition-11",
+            "state-transition-12"
+          ],
+          "candidate_platform": "native",
+          "candidate_execution_id": "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition",
+          "reference": {
+            "runner": "Kotlin 2.3.10 / JUnit Platform reference runner",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2572/reference-results.json",
+              "sha256": "bd5e28f6a03a96bd8512eb5f6c13f854cc2e35b80f4bc8b0d1a367e1fb0c9ed0"
+            },
+            "observations": {
+              "value": [
+                {
+                  "assertion_id": "state-transition-01",
+                  "source_line": 16,
+                  "expression": "assertFalse(tracker.shared)",
+                  "value": false
+                },
+                {
+                  "assertion_id": "state-transition-02",
+                  "source_line": 18,
+                  "expression": "assertFalse(tracker.removeCopy())",
+                  "value": false
+                },
+                {
+                  "assertion_id": "state-transition-03",
+                  "source_line": 19,
+                  "expression": "assertFalse(tracker.shared)",
+                  "value": false
+                },
+                {
+                  "assertion_id": "state-transition-04",
+                  "source_line": 22,
+                  "expression": "assertTrue(tracker.shared)",
+                  "value": true
+                },
+                {
+                  "assertion_id": "state-transition-05",
+                  "source_line": 23,
+                  "expression": "assertTrue(tracker.removeCopy())",
+                  "value": true
+                },
+                {
+                  "assertion_id": "state-transition-06",
+                  "source_line": 24,
+                  "expression": "assertFalse(tracker.shared)",
+                  "value": false
+                },
+                {
+                  "assertion_id": "state-transition-07",
+                  "source_line": 27,
+                  "expression": "assertTrue(tracker.shared)",
+                  "value": true
+                },
+                {
+                  "assertion_id": "state-transition-08",
+                  "source_line": 29,
+                  "expression": "assertTrue(tracker.shared)",
+                  "value": true
+                },
+                {
+                  "assertion_id": "state-transition-09",
+                  "source_line": 30,
+                  "expression": "assertTrue(tracker.removeCopy())",
+                  "value": true
+                },
+                {
+                  "assertion_id": "state-transition-10",
+                  "source_line": 31,
+                  "expression": "assertTrue(tracker.shared)",
+                  "value": true
+                },
+                {
+                  "assertion_id": "state-transition-11",
+                  "source_line": 32,
+                  "expression": "assertTrue(tracker.removeCopy())",
+                  "value": true
+                },
+                {
+                  "assertion_id": "state-transition-12",
+                  "source_line": 33,
+                  "expression": "assertFalse(tracker.shared)",
+                  "value": false
+                }
+              ],
+              "exception_type": null
+            }
+          },
+          "candidate": {
+            "runner": "KSwiftK Native candidate runner; six final lanes",
+            "target_platform": "native",
+            "execution_id": "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition",
+            "result": {
+              "status": "PASS",
+              "artifact": "Scripts/kotlinx_io_upstream/evidence/KUU-2572/candidate-matrix.json",
+              "sha256": "6711cc0d9e84a39c2575cb7840a80c2e5510b45496ffa738a1b15798149cd034"
+            },
+            "observations": {
+              "value": [
+                {
+                  "assertion_id": "state-transition-01",
+                  "source_line": 16,
+                  "expression": "assertFalse(tracker.shared)",
+                  "value": false
+                },
+                {
+                  "assertion_id": "state-transition-02",
+                  "source_line": 18,
+                  "expression": "assertFalse(tracker.removeCopy())",
+                  "value": false
+                },
+                {
+                  "assertion_id": "state-transition-03",
+                  "source_line": 19,
+                  "expression": "assertFalse(tracker.shared)",
+                  "value": false
+                },
+                {
+                  "assertion_id": "state-transition-04",
+                  "source_line": 22,
+                  "expression": "assertTrue(tracker.shared)",
+                  "value": true
+                },
+                {
+                  "assertion_id": "state-transition-05",
+                  "source_line": 23,
+                  "expression": "assertTrue(tracker.removeCopy())",
+                  "value": true
+                },
+                {
+                  "assertion_id": "state-transition-06",
+                  "source_line": 24,
+                  "expression": "assertFalse(tracker.shared)",
+                  "value": false
+                },
+                {
+                  "assertion_id": "state-transition-07",
+                  "source_line": 27,
+                  "expression": "assertTrue(tracker.shared)",
+                  "value": true
+                },
+                {
+                  "assertion_id": "state-transition-08",
+                  "source_line": 29,
+                  "expression": "assertTrue(tracker.shared)",
+                  "value": true
+                },
+                {
+                  "assertion_id": "state-transition-09",
+                  "source_line": 30,
+                  "expression": "assertTrue(tracker.removeCopy())",
+                  "value": true
+                },
+                {
+                  "assertion_id": "state-transition-10",
+                  "source_line": 31,
+                  "expression": "assertTrue(tracker.shared)",
+                  "value": true
+                },
+                {
+                  "assertion_id": "state-transition-11",
+                  "source_line": 32,
+                  "expression": "assertTrue(tracker.removeCopy())",
+                  "value": true
+                },
+                {
+                  "assertion_id": "state-transition-12",
+                  "source_line": 33,
+                  "expression": "assertFalse(tracker.shared)",
+                  "value": false
+                }
+              ],
+              "exception_type": null
+            }
+          }
+        }
+      ]
+    }
+  ]
 }

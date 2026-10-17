@@ -10,7 +10,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from run_candidate_subset import PREFIX
 import run_candidate_suites as runner
 from run_candidate_suites import (compiler_resource_bundle, make_selection_manifest, parse_suite_results,
-                                  prepare_suites, select_catalog_rows, validate_full_catalog_artifact)
+                                  map_jvm_rows_to_native_candidate, prepare_suites,
+                                  select_catalog_rows, validate_full_catalog_artifact)
 
 
 class CandidateSuitesTests(unittest.TestCase):
@@ -38,6 +39,16 @@ class CandidateSuitesTests(unittest.TestCase):
 
     def prepare(self):
         return prepare_suites(self.root, self.rows, self.lock, self.suites, self.output)
+
+    def test_jvm_reference_ids_get_explicit_native_candidate_ids(self):
+        source = dict(self.rows[0], source_set="jvm",
+                      execution_id="[engine:junit-jupiter]/[class:sample.FirstTest]/[method:original()]")
+        mapped = map_jvm_rows_to_native_candidate([source])
+        self.assertEqual(mapped[0]["reference_execution_id"], source["execution_id"])
+        self.assertEqual(mapped[0]["execution_id"], "sample.FirstTest.original")
+        self.assertEqual(mapped[0]["candidate_platform"], "native")
+        with self.assertRaisesRegex(ValueError, "JVM source-set"):
+            map_jvm_rows_to_native_candidate([self.rows[0]])
 
     def events(self, port, result="PASS"):
         identifier = port["execution_ids"][0]

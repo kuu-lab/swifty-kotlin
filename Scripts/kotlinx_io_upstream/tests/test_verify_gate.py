@@ -80,6 +80,34 @@ def minimal_root(root: Path) -> None:
     write_json(root / "Scripts/kotlinx_io_upstream/coverage-map.verified.json", verified_map)
 
 
+def jvm_only_fixture(root: Path, include_native_candidate: bool) -> None:
+    minimal_root(root)
+    base = root / "Scripts/kotlinx_io_upstream"
+    seed_path = base / "coverage-map.seed.json"
+    seed = verify_gate.read_json(seed_path)
+    seed["cases"][0]["platform"] = "jvm"
+    write_json(seed_path, seed)
+
+    verified_path = base / "coverage-map.verified.json"
+    verified = verify_gate.read_json(verified_path)
+    entry = verified["mappings"][0]
+    entry["executions"] = [row for row in entry["executions"] if row["platform"] == "jvm"]
+    if include_native_candidate:
+        for row in entry["executions"]:
+            row["candidate_platform"] = "native"
+            row["candidate_execution_id"] = "native-bridge:" + row["execution_id"]
+            row["candidate"]["target_platform"] = "native"
+            row["candidate"]["execution_id"] = row["candidate_execution_id"]
+    write_json(verified_path, verified)
+
+    native_path = base / "native-executions.expected.json"
+    write_json(native_path, [])
+    lock_path = base / "reference-lock.json"
+    lock = verify_gate.read_json(lock_path)
+    lock["native_execution_catalog_sha256"] = hashlib.sha256(native_path.read_bytes()).hexdigest()
+    write_json(lock_path, lock)
+
+
 def complete_f02_summary() -> dict:
     lanes = [list(lane) for lane in sorted(verify_gate.F02_LANES)]
     cases = ["case-a", "case-b"]
@@ -147,6 +175,40 @@ class VerifyGateTests(unittest.TestCase):
                 execution_coverage["verified_execution_mappings"][0]["candidate"]["observations"]["bytes_consumed"],
                 2,
             )
+
+    def test_jvm_only_function_requires_an_explicit_native_candidate_id(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            jvm_only_fixture(root, include_native_candidate=False)
+            base = root / "Scripts/kotlinx_io_upstream"
+            seed = verify_gate.read_json(base / "coverage-map.seed.json")
+            index = verify_gate.read_json(root / "Scripts/io_api_inventory/upstream-tests-index.json")
+            lock = verify_gate.read_json(base / "reference-lock.json")
+            verified = verify_gate.read_json(base / "coverage-map.verified.json")
+            jvm = verify_gate.read_json(base / "jvm-executions.expected.json")
+            cases, blockers, summary = verify_gate.compose_verified_coverage(
+                seed["cases"], index, lock, verified, jvm, [])
+            self.assertFalse(summary["verified_source_function_count"])
+            self.assertTrue(any(
+                "must explicitly map the JVM-only reference to a Native candidate" in row["reason"]
+                for row in blockers
+            ))
+            self.assertEqual(cases[0]["disposition"], "unmapped")
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            jvm_only_fixture(root, include_native_candidate=True)
+            base = root / "Scripts/kotlinx_io_upstream"
+            seed = verify_gate.read_json(base / "coverage-map.seed.json")
+            index = verify_gate.read_json(root / "Scripts/io_api_inventory/upstream-tests-index.json")
+            lock = verify_gate.read_json(base / "reference-lock.json")
+            verified = verify_gate.read_json(base / "coverage-map.verified.json")
+            jvm = verify_gate.read_json(base / "jvm-executions.expected.json")
+            cases, blockers, summary = verify_gate.compose_verified_coverage(
+                seed["cases"], index, lock, verified, jvm, [])
+            self.assertFalse(blockers)
+            self.assertEqual(summary["verified_source_function_count"], 1)
+            self.assertEqual(cases[0]["mapping"]["verified_evidence"]["executions"][0]["candidate_platform"], "native")
 
     def test_static_audit_fails_missing_unverified_and_unmapped_rows(self):
         with tempfile.TemporaryDirectory() as temporary:

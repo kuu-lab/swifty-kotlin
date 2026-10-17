@@ -13,6 +13,22 @@ SPEC.loader.exec_module(RUNNER)
 
 
 class JvmReferenceTests(unittest.TestCase):
+    def test_exact_execution_selection_keeps_only_the_requested_jvm_id(self):
+        expected = [
+            {"upstream_id": "core/jvm/test/One.kt#first", "execution_id": "jvm.One.first"},
+            {"upstream_id": "core/jvm/test/One.kt#second", "execution_id": "jvm.One.second"},
+        ]
+        self.assertEqual(
+            RUNNER.select_expected_executions(expected, [], ["jvm.One.second"]),
+            [expected[1]],
+        )
+        self.assertEqual(
+            RUNNER.select_expected_executions(expected, ["core/jvm/test/One.kt#first"], []),
+            [expected[0]],
+        )
+        with self.assertRaisesRegex(ValueError, "unknown JVM execution ID"):
+            RUNNER.select_expected_executions(expected, [], ["jvm.One.missing"])
+
     def test_inherited_factory_executions_remain_distinct_and_candidate_unmapped(self):
         source = {"upstream_id": "core/common/test/Source.kt#read",
             "upstream_path": "core/common/test/Source.kt", "platform": "common",
