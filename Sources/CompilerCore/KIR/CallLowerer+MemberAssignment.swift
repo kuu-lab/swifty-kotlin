@@ -1,5 +1,4 @@
 
-/// Lowering for member assignment expressions.
 extension CallLowerer {
     /// The bundled `kotlin.text.String?.plus(Any?)` declaration is a source
     /// wrapper around a runtime bridge, but compound assignment must still use
@@ -294,7 +293,6 @@ extension CallLowerer {
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
         }
-        // Use the call binding from sema if available (property setter).
         let callBinding = sema.bindings.callBindings[exprID]
         let chosenCallee = callBinding?.chosenCallee
         let setterName = loweredMemberCalleeName(
@@ -368,13 +366,11 @@ extension CallLowerer {
     /// Lowers `receiver.field op= value` (and the desugared form of
     /// `receiver.field++` / `receiver.field--`) as load -> compute -> store,
     /// evaluating `receiver` exactly once. The load and store sides mirror
-    /// `lowerMemberAssignExpr`'s safe, well-defined storage strategies —
-    /// a synthetic runtime accessor (`_load`/`_store` link-name pair), an
-    /// `object` member's global slot, or a direct field offset on a
-    /// class/interface instance — falling back to a best-effort setter/getter
-    /// name for anything else, the same fallback (and the same pre-existing
-    /// limitations for custom accessors reached through an explicit
-    /// receiver) that plain member assignment already relies on.
+    /// `lowerMemberAssignExpr`'s safe, well-defined storage strategies,
+    /// falling back to a best-effort setter/getter name for anything else, the
+    /// same fallback (and the same pre-existing limitations for custom
+    /// accessors reached through an explicit receiver) that plain member
+    /// assignment already relies on.
     func lowerMemberCompoundAssignExpr(
         _ exprID: ExprID,
         op: CompoundAssignOp,
@@ -435,7 +431,6 @@ extension CallLowerer {
         let usesBuiltinStringCompound = op == .plusAssign
             && (propType == stringType || propType == nullableStringType)
 
-        // Synthetic runtime accessor (e.g. AtomicBoolean.value -> __kk_atomic_bool_load/_store).
         let syntheticLinks: (load: String, store: String)? = {
             guard let propertySymbol,
                   let info = sema.symbols.symbol(propertySymbol),
@@ -496,9 +491,6 @@ extension CallLowerer {
             return (getter, setter)
         }()
 
-        // Direct field-offset storage for ordinary stored properties on
-        // class/interface instances (and for a local `object`'s
-        // object-literal instance fields).
         let fieldOffset: Int? = {
             guard syntheticLinks == nil,
                   !isObjectOwned,
@@ -542,7 +534,6 @@ extension CallLowerer {
             )
         }
 
-        // ── Load ─────────────────────────────────────────────────────────
         let currentValue: KIRExprID
         if let cachedValue = ast.arena.incrementDecrementCachedValue(for: exprID) {
             currentValue = driver.lowerExpr(
@@ -661,7 +652,6 @@ extension CallLowerer {
             currentValue = result
         }
 
-        // ── Compute ──────────────────────────────────────────────────────
         // `newValue == nil` means a Unit-returning `plusAssign`-style operator
         // already mutated the loaded value in place, so no store is needed —
         // mirrors bare-name compound assign's handling in ExprLowerer.
@@ -816,7 +806,6 @@ extension CallLowerer {
             return result
         }()
 
-        // ── Store ────────────────────────────────────────────────────────
         if let newValue {
             if let syntheticLinks {
                 instructions.append(.call(
@@ -930,11 +919,6 @@ extension CallLowerer {
         return unit
     }
 
-    /// Mirrors `memberPropertyUsesAccessor` (the read-side/getter check in
-    /// `CallLowerer+MemberPropertyReads.swift`) but for the setter half: true
-    /// when the property has a real, user-written `set(...) { ... }` body, in
-    /// which case assignment must dispatch to the setter accessor instead of
-    /// writing storage directly.
     /// The setter placeholder for a stored member property of an enum class
     /// (see `KIRLoweringDriver+EnumEntryStorage.swift`), or `nil` when the
     /// property is not enum-owned or is written through its own accessor.
@@ -959,7 +943,6 @@ extension CallLowerer {
         )
     }
 
-    /// The getter placeholder counterpart of `enumPropertySetterPlaceholder`.
     func enumPropertyGetterPlaceholder(
         for propertySymbol: SymbolID,
         sema: SemaModule,
