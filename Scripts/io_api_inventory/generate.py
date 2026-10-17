@@ -38,6 +38,55 @@ NO_DIRECT_UPSTREAM_ASSERTION_SOURCE_REFS = {
 }
 NO_DIRECT_UPSTREAM_ASSERTION = "none (no direct upstream assertion mapped)"
 VALIDATION_EVIDENCE_SCHEMA_VERSION = 2
+BYTESTRING_BUILDER_CANDIDATE_SHA = "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7"
+BYTESTRING_BUILDER_DEFAULT_ROWS = {
+    "jvm-0de664be9f7d0a3a": {
+        "upstream_source_ref": "bytestring/common/src/ByteStringBuilder.kt:79",
+        "local_source_ref": "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteStringBuilder.kt:29",
+        "upstream_test_refs": ["bytestring/common/test/ByteStringBuilderTest.kt#appendArray"],
+        "descriptor": "(Lkotlinx/io/bytestring/ByteStringBuilder;[BIIILjava/lang/Object;)V",
+    },
+    "jvm-4c5b809c5600e77b": {
+        "upstream_source_ref": "bytestring/common/src/ByteStringBuilder.kt:28",
+        "local_source_ref": "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteStringBuilder.kt:9",
+        "upstream_test_refs": ["bytestring/common/test/ByteStringBuilderTest.kt#testCapacity"],
+        "descriptor": "()V",
+    },
+    "jvm-827d471d59e105ce": {
+        "upstream_source_ref": "bytestring/common/src/ByteStringBuilder.kt:126",
+        "local_source_ref": "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteStringBuilder.kt:56",
+        "upstream_test_refs": ["bytestring/common/test/ByteStringBuilderTest.kt#appendBytes"],
+        "descriptor": "(ILkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lkotlinx/io/bytestring/ByteString;",
+    },
+    "jvm-f183ae0aeeced795": {
+        "upstream_source_ref": "bytestring/common/src/ByteStringBuilder.kt:28",
+        "local_source_ref": "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteStringBuilder.kt:9",
+        "upstream_test_refs": ["bytestring/common/test/ByteStringBuilderTest.kt#testCapacity"],
+        "descriptor": "(IILkotlin/jvm/internal/DefaultConstructorMarker;)V",
+    },
+}
+BYTESTRING_BUILDER_DEFAULT_CONSUMER = (
+    "Scripts/io_api_inventory/cases/bytestring_builder_default_bridges.kt"
+)
+BYTESTRING_BUILDER_DEFAULT_EXPECTED = (
+    "Scripts/io_api_inventory/cases/bytestring_builder_default_bridges.expected"
+)
+BYTESTRING_BUILDER_DEFAULT_PROBE = (
+    "Scripts/io_api_inventory/probe_bytestring_builder_jvm_abi.py"
+)
+BYTESTRING_BUILDER_DEFAULT_REPORT = (
+    "Scripts/io_api_inventory/bytestring_builder_validation.json"
+)
+BYTESTRING_BUILDER_DEFAULT_RUNNER_INPUTS = (
+    "Scripts/kotlinx_io_upstream/reference-lock.json",
+    "Scripts/kotlinx_io_upstream/jvm-executions.expected.json",
+    "Scripts/kotlinx_io_upstream/native-executions.expected.json",
+    "Scripts/io_api_inventory/evidence/legacy_run_candidate_suites.py",
+    "Scripts/kotlinx_io_upstream/run_candidate_subset.py",
+    "Scripts/kotlinx_io_upstream/prepare_candidate_catalog.py",
+    "Scripts/kotlinx_io_upstream/run_jvm_reference.py",
+    "Scripts/kotlinx_io_upstream/JvmReferenceRunner.java",
+)
 VALIDATION_LANES_BY_OBLIGATION = {
     "jvm-descriptor": ("jvm-descriptor",),
     "native-source": (
@@ -711,6 +760,387 @@ def _case_id_matches_row(row: dict, case_id: str) -> bool:
     return False
 
 
+def _sha256_text(value: object, subject: str) -> str:
+    if not isinstance(value, str):
+        fail(f"validation report has no text output for {subject}")
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _report_result_rows(run: dict, subject: str, expected_ids: set[str]) -> list[dict]:
+    output_field = "results_output"
+    hash_field = "results_sha256"
+    output = run.get(output_field)
+    if not isinstance(output, str) or _sha256_text(output, subject) != run.get(hash_field):
+        fail(f"validation report output hash mismatch for {subject}")
+    try:
+        results = json.loads(output)
+    except json.JSONDecodeError as error:
+        fail(f"validation report contains invalid result output for {subject}: {error}")
+    if not isinstance(results, list):
+        fail(f"validation report result output is not an array for {subject}")
+    ids = [result.get("execution_id") for result in results if isinstance(result, dict)]
+    if len(results) != len(expected_ids) or len(ids) != len(results) or set(ids) != expected_ids:
+        fail(f"validation report execution count or IDs mismatch for {subject}")
+    if any(result.get("status") != "PASS" for result in results):
+        fail(f"validation report contains a non-passing execution for {subject}")
+    return results
+
+
+def _validate_builder_default_report(record: dict, row: dict, lock: dict, repository: Path) -> None:
+    report_path = repository / BYTESTRING_BUILDER_DEFAULT_REPORT
+    try:
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as error:
+        fail(f"cannot read ByteStringBuilder validation report: {error}")
+    required_fields = {
+        "schema_version", "issue", "candidate_sha", "reference_version", "reference_commit",
+        "original_inputs", "source_hashes", "candidate_artifacts", "probe", "reference_run", "candidate_runs",
+        "consumer_runs",
+    }
+    if not isinstance(report, dict) or set(report) != required_fields or report["schema_version"] != 1:
+        fail("malformed ByteStringBuilder validation report")
+    if (report["issue"] != "KUU-2619"
+            or report["candidate_sha"] != record["candidate_sha"]
+            or record["candidate_sha"] != BYTESTRING_BUILDER_CANDIDATE_SHA):
+        fail(f"ByteStringBuilder validation report candidate or issue mismatch for {row['row_id']}")
+    if (report["reference_version"], report["reference_commit"]) != (
+        lock.get("tag"), lock.get("commit")
+    ):
+        fail(f"ByteStringBuilder validation report reference pin mismatch for {row['row_id']}")
+    candidate_artifacts = report["candidate_artifacts"]
+    sha256_pattern = re.compile(r"^[0-9a-f]{64}$")
+    if (not isinstance(candidate_artifacts, dict)
+            or set(candidate_artifacts) != {
+                "compiler_commit", "compiler_path", "compiler_sha256", "stdlib_klib_path",
+                "stdlib_klib_sha256", "generation_output", "generation_output_sha256",
+            }
+            or candidate_artifacts["compiler_commit"] != record["candidate_sha"]
+            or not isinstance(candidate_artifacts["compiler_path"], str)
+            or not isinstance(candidate_artifacts["stdlib_klib_path"], str)
+            or not isinstance(candidate_artifacts["generation_output"], str)
+            or any(not isinstance(candidate_artifacts[field], str)
+                   or not sha256_pattern.fullmatch(candidate_artifacts[field])
+                   for field in ("compiler_sha256", "stdlib_klib_sha256", "generation_output_sha256"))):
+        fail(f"ByteStringBuilder candidate compiler/KLIB hashes are malformed for {row['row_id']}")
+    generation_output = candidate_artifacts["generation_output"]
+    if _sha256_text(generation_output, "KLIB generation output") != candidate_artifacts["generation_output_sha256"]:
+        fail("ByteStringBuilder KLIB generation output hash mismatch")
+    try:
+        generation = json.loads(generation_output)
+    except json.JSONDecodeError as error:
+        fail(f"ByteStringBuilder KLIB generation output is invalid JSON: {error}")
+    generation_command = generation.get("command")
+    compiler_path = candidate_artifacts["compiler_path"]
+    klib_path = candidate_artifacts["stdlib_klib_path"]
+    if (generation.get("status") != "EXITED" or generation.get("exitcode") != 0
+            or not isinstance(generation_command, list) or not generation_command
+            or generation_command[0] != compiler_path
+            or "--stdlib-only" not in generation_command
+            or "--no-incremental" not in generation_command
+            or "-o" not in generation_command
+            or generation_command[-1] != klib_path
+            or generation.get("environment", {}).get("KSWIFTK_PACKAGE_ROOT")
+            != str(Path(compiler_path).resolve().parents[4])
+            or generation.get("stdout_sha256") != hashlib.sha256(b"").hexdigest()
+            or generation.get("stderr_sha256") != hashlib.sha256(b"").hexdigest()
+            or not isinstance(generation.get("seconds"), (int, float))
+            or generation["seconds"] <= 0):
+        fail("ByteStringBuilder KLIB generation output does not prove a successful non-incremental build")
+
+    original_inputs = report["original_inputs"]
+    if not isinstance(original_inputs, dict) or set(original_inputs) != {
+        "upstream_source", "upstream_test", "reference_artifact"
+    }:
+        fail("malformed ByteStringBuilder original input hashes")
+    source_lock = next(
+        (item for item in lock.get("upstreamFiles", [])
+         if item["path"] == "bytestring/common/src/ByteStringBuilder.kt"), None
+    )
+    test_lock = next(
+        (item for item in lock.get("upstreamTests", [])
+         if item["path"] == "bytestring/common/test/ByteStringBuilderTest.kt"), None
+    )
+    artifact_lock = next(
+        (item for item in lock.get("mavenArtifacts", [])
+         if item["coordinate"] == "org.jetbrains.kotlinx:kotlinx-io-bytestring-jvm:0.9.1"), None
+    )
+    if source_lock is None or test_lock is None or artifact_lock is None:
+        fail("pinned ByteStringBuilder source, test, or JVM artifact is absent from the lock")
+    for key, pinned in (("upstream_source", source_lock), ("upstream_test", test_lock)):
+        value = original_inputs[key]
+        if not isinstance(value, dict) or set(value) != {"path", "sha256", "git_blob_sha", "size"}:
+            fail(f"malformed ByteStringBuilder {key} hash record")
+        if (value["path"], value["git_blob_sha"], value["size"]) != (
+            pinned["path"], pinned["gitBlobSha"], pinned["size"]
+        ):
+            fail(f"ByteStringBuilder {key} does not match the pinned upstream")
+        pinned_sha256 = pinned.get("sha256")
+        if pinned_sha256 is not None and value["sha256"] != pinned_sha256:
+            fail(f"ByteStringBuilder {key} SHA-256 does not match the upstream lock")
+    artifact = original_inputs["reference_artifact"]
+    if (not isinstance(artifact, dict) or set(artifact) != {"coordinate", "sha256"}
+            or artifact != {"coordinate": artifact_lock["coordinate"], "sha256": artifact_lock["sha256"]}):
+        fail("ByteStringBuilder reference artifact does not match the pinned JVM JAR")
+
+    source_hashes = {
+        "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteStringBuilder.kt",
+        BYTESTRING_BUILDER_DEFAULT_CONSUMER,
+        BYTESTRING_BUILDER_DEFAULT_EXPECTED,
+        BYTESTRING_BUILDER_DEFAULT_PROBE,
+        *BYTESTRING_BUILDER_DEFAULT_RUNNER_INPUTS,
+    }
+    recorded_sources = report.get("source_hashes")
+    if not isinstance(recorded_sources, dict) or set(recorded_sources) != source_hashes:
+        fail("ByteStringBuilder report does not hash every consumer and probe input")
+    for relative in source_hashes:
+        try:
+            actual = hashlib.sha256((repository / relative).read_bytes()).hexdigest()
+        except OSError as error:
+            fail(f"cannot hash ByteStringBuilder validation input {relative}: {error}")
+        if recorded_sources[relative] != actual:
+            fail(f"ByteStringBuilder report source hash mismatch for {relative}")
+
+    probe = report["probe"]
+    if not isinstance(probe, dict) or set(probe) != {
+        "result", "exit_code", "row_count", "command", "output", "output_sha256"
+    }:
+        fail("malformed ByteStringBuilder ABI probe record")
+    probe_output = probe["output"]
+    if (probe["result"] != "PASS" or type(probe["exit_code"]) is not int or probe["exit_code"] != 0
+            or type(probe["row_count"]) is not int or probe["row_count"] != len(BYTESTRING_BUILDER_DEFAULT_ROWS)
+            or not isinstance(probe["command"], list) or not probe["command"]
+            or BYTESTRING_BUILDER_DEFAULT_PROBE not in probe["command"]
+            or "--jar" not in probe["command"]
+            or _sha256_text(probe_output, "ABI probe") != probe["output_sha256"]):
+        fail("ByteStringBuilder ABI probe did not pass with four recorded rows and output")
+    try:
+        probe_document = json.loads(probe_output)
+    except (json.JSONDecodeError, TypeError) as error:
+        fail(f"ByteStringBuilder ABI probe output is invalid JSON: {error}")
+    probe_rows = {item.get("row_id") for item in probe_document.get("inventory_rows", [])}
+    classfile_rows = {
+        item.get("row_id") for item in probe_document.get("classfile_probe", {}).get("methods", [])
+    }
+    if (probe_document.get("result") != "PASS"
+            or probe_document.get("reference_commit") != lock.get("commit")
+            or probe_document.get("reference_version") != lock.get("tag")
+            or probe_rows != set(BYTESTRING_BUILDER_DEFAULT_ROWS)
+            or classfile_rows != set(BYTESTRING_BUILDER_DEFAULT_ROWS)
+            or probe_document.get("classfile_probe", {}).get("artifact_sha256") != artifact_lock["sha256"]
+            or probe_document.get("reference_declarations", {}).get("candidate_source_sha256")
+            != recorded_sources["Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteStringBuilder.kt"]):
+        fail("ByteStringBuilder ABI probe output does not confirm the four pinned classfile rows")
+    expected_flags = {
+        "jvm-0de664be9f7d0a3a": {"public": True, "static": True, "bridge": False, "synthetic": True},
+        "jvm-4c5b809c5600e77b": {"public": True, "static": False, "bridge": False, "synthetic": False},
+        "jvm-827d471d59e105ce": {"public": True, "static": True, "bridge": False, "synthetic": True},
+        "jvm-f183ae0aeeced795": {"public": True, "static": False, "bridge": False, "synthetic": True},
+    }
+    observed_flags = {
+        item["row_id"]: item["observed_flags"]
+        for item in probe_document["classfile_probe"]["methods"]
+    }
+    if observed_flags != expected_flags:
+        fail("ByteStringBuilder reference classfile access flags do not match the four ledger rows")
+    observed_descriptors = {
+        item["row_id"]: item["descriptor"]
+        for item in probe_document["classfile_probe"]["methods"]
+    }
+    expected_descriptors = {
+        row_id: value["descriptor"] for row_id, value in BYTESTRING_BUILDER_DEFAULT_ROWS.items()
+    }
+    if observed_descriptors != expected_descriptors:
+        fail("ByteStringBuilder reference classfile descriptors do not match the four ledger rows")
+    expected_mask_checks = {
+        ("jvm-f183ae0aeeced795", 1),
+        ("jvm-0de664be9f7d0a3a", 2),
+        ("jvm-0de664be9f7d0a3a", 4),
+        ("jvm-827d471d59e105ce", 1),
+    }
+    observed_mask_checks = {
+        (item.get("row_id"), item.get("mask"))
+        for item in probe_document["classfile_probe"].get("mask_bytecode_checks", [])
+    }
+    if observed_mask_checks != expected_mask_checks:
+        fail("ByteStringBuilder reference classfile mask instructions do not match the expected parameter positions")
+    if probe_document["classfile_probe"].get("noarg_constructor_delegation") != {
+        "capacity": 0,
+        "mask": 1,
+        "marker": None,
+        "target": {
+            "owner": "kotlinx/io/bytestring/ByteStringBuilder",
+            "name": "<init>",
+            "descriptor": "(IILkotlin/jvm/internal/DefaultConstructorMarker;)V",
+        },
+    }:
+        fail("ByteStringBuilder no-arg reference constructor delegation does not match the default constructor")
+
+    reference_ids = {
+        f"[engine:junit-jupiter]/[class:kotlinx.io.bytestring.ByteStringBuilderTest]/[method:{method}()]"
+        for method in ("appendArray", "appendBytes", "testCapacity")
+    }
+    candidate_ids = {
+        f"kotlinx.io.bytestring.ByteStringBuilderTest.{method}"
+        for method in ("appendArray", "appendBytes", "testCapacity")
+    }
+
+    def check_run(run: dict, subject: str, expected_ids: set[str]) -> None:
+        if not isinstance(run, dict):
+            fail(f"malformed {subject} run in ByteStringBuilder report")
+        count = len(expected_ids)
+        if (run.get("exit_code") != 0 or run.get("selected_count") != count
+                or run.get("passed_count") != count or set(run.get("selected_ids", [])) != expected_ids
+                or not isinstance(run.get("command"), list) or not run["command"]):
+            fail(f"{subject} did not pass all three selected ByteStringBuilder assertions")
+        _report_result_rows(run, subject, expected_ids)
+        summary = run.get("summary_output")
+        if (not isinstance(summary, str)
+                or _sha256_text(summary, subject + " summary") != run.get("summary_sha256")):
+            fail(f"{subject} summary output hash mismatch")
+        try:
+            summary_document = json.loads(summary)
+        except json.JSONDecodeError as error:
+            fail(f"{subject} summary output is invalid JSON: {error}")
+        if subject == "pinned JVM reference":
+            if (summary_document.get("selected_execution_count") != count
+                    or summary_document.get("reference_counts") != {"PASS": count}
+                    or summary_document.get("covers_full_catalog") is not False):
+                fail("pinned JVM reference summary does not confirm only the three passing selected tests")
+            environment_output = run.get("environment_output")
+            if (not isinstance(environment_output, str)
+                    or _sha256_text(environment_output, subject + " environment")
+                    != run.get("environment_sha256")):
+                fail("pinned JVM reference environment hash mismatch")
+            try:
+                environment = json.loads(environment_output)
+            except json.JSONDecodeError as error:
+                fail(f"pinned JVM reference environment is invalid JSON: {error}")
+            if (environment.get("kotlin") != "2.3.10"
+                    or environment.get("kotlinx_io") != lock.get("tag")
+                    or environment.get("upstream_commit") != lock.get("commit")
+                    or environment.get("runner_sha256")
+                    != recorded_sources["Scripts/kotlinx_io_upstream/JvmReferenceRunner.java"]
+                    or environment.get("selection", {}).get("covers_full_catalog") is not False
+                    or set(environment.get("selection", {}).get("selected_execution_ids", []))
+                    != expected_ids):
+                fail("pinned JVM reference environment does not confirm the locked, selected assertions")
+            if (run.get("compile_exit_code") != 0
+                    or not isinstance(run.get("compile_command"), list)
+                    or not run["compile_command"]
+                    or not any("kotlinc" in str(argument) for argument in run["compile_command"])
+                    or not any("ByteStringBuilderTest.kt" in str(argument)
+                               for argument in run["compile_command"])):
+                fail("pinned JVM reference selected test source was not compiled by Kotlin")
+        elif (summary_document.get("status") != "PASS"
+                or summary_document.get("run_exitcode") != 0
+                or summary_document.get("compile_exitcode") != 0
+                or summary_document.get("inputs", {}).get("compiler_sha256") != candidate_artifacts["compiler_sha256"]
+                or summary_document.get("counts") != {"PASS": count}
+                or summary_document.get("inputs_unchanged") is not True
+                or set(summary_document.get("result_execution_ids", [])) != expected_ids
+                or summary_document.get("full_catalog_validation", {}).get("status") != "NOT_REQUIRED"):
+            fail(f"{subject} candidate summary does not confirm a passing targeted run")
+        if subject.startswith("candidate "):
+            summary_inputs = summary_document.get("inputs", {})
+            expected_runner_hashes = {
+                "runner_sha256": "Scripts/io_api_inventory/evidence/legacy_run_candidate_suites.py",
+                "direct_runner_sha256": "Scripts/kotlinx_io_upstream/run_candidate_subset.py",
+                "helper_sha256": "Scripts/kotlinx_io_upstream/run_jvm_reference.py",
+                "catalog_preparer_sha256": "Scripts/kotlinx_io_upstream/prepare_candidate_catalog.py",
+            }
+            if any(summary_inputs.get(field) != recorded_sources[path]
+                   for field, path in expected_runner_hashes.items()):
+                fail(f"{subject} ran with different candidate validation harness inputs")
+            upstream_test_hash = original_inputs["upstream_test"]["sha256"]
+            observed_test_hashes = {
+                source.get("source_sha256")
+                for port in summary_document.get("ports", [])
+                for source in port.get("original_sources", [])
+                if source.get("source_path") == "bytestring/common/test/ByteStringBuilderTest.kt"
+                and source.get("source_git_blob_sha") == original_inputs["upstream_test"]["git_blob_sha"]
+            }
+            if upstream_test_hash not in observed_test_hashes:
+                fail(f"{subject} did not execute the recorded pinned upstream test input")
+        if subject.startswith("candidate stdlib-library") and (
+                summary_document.get("inputs", {}).get("stdlib_content_sha256")
+                != candidate_artifacts["stdlib_klib_sha256"]):
+            fail(f"{subject} did not use the recorded fresh KLIB")
+
+    reference_run = report["reference_run"]
+    check_run(reference_run, "pinned JVM reference", reference_ids)
+    candidate_runs = report["candidate_runs"]
+    expected_candidate_lanes = {"source-O0", "source-O2", "stdlib-library-O0", "stdlib-library-O2"}
+    if (not isinstance(candidate_runs, list) or len(candidate_runs) != len(expected_candidate_lanes)
+            or {run.get("lane") for run in candidate_runs if isinstance(run, dict)} != expected_candidate_lanes):
+        fail("ByteStringBuilder candidate source/KLIB runs do not cover O0 and O2")
+    for run in candidate_runs:
+        lane = run.get("lane") if isinstance(run, dict) else None
+        if (not isinstance(run, dict) or not isinstance(run.get("compile_command"), list)
+                or not run["compile_command"] or not isinstance(run.get("run_command"), list)
+                or not run["run_command"]):
+            fail("malformed ByteStringBuilder candidate command record")
+        expected_optimization = "-O0" if lane.endswith("O0") else "-O2"
+        if (run["compile_command"][0] != compiler_path
+                or expected_optimization not in run["compile_command"]
+                or ("--stdlib-from-source" in run["compile_command"]) != lane.startswith("source-")
+                or ("--stdlib-library" in run["compile_command"]) != lane.startswith("stdlib-library-")
+                or (lane.startswith("stdlib-library-") and klib_path not in run["compile_command"])):
+            fail(f"ByteStringBuilder candidate command does not match lane {lane}")
+        check_run(run, "candidate " + run["lane"], candidate_ids)
+
+    expected_consumer = (repository / BYTESTRING_BUILDER_DEFAULT_EXPECTED).read_text(encoding="utf-8")
+    consumer_runs = report["consumer_runs"]
+    expected_consumer_lanes = {"reference-jvm", "source-O0", "source-O2", "stdlib-library-O0", "stdlib-library-O2"}
+    if (not isinstance(consumer_runs, list) or len(consumer_runs) != len(expected_consumer_lanes)
+            or {run.get("lane") for run in consumer_runs if isinstance(run, dict)} != expected_consumer_lanes):
+        fail("ByteStringBuilder direct consumer runs do not cover the JVM reference and native O0/O2 lanes")
+    for run in consumer_runs:
+        if (run.get("result") != "PASS" or run.get("compile_exit_code") != 0
+                or run.get("exit_code") != 0
+                or not isinstance(run.get("compile_command"), list)
+                or not run["compile_command"]
+                or not isinstance(run.get("run_command"), list)
+                or not run["run_command"]
+                or run.get("stdout") != expected_consumer
+                or _sha256_text(run.get("stdout"), run.get("lane", "consumer")) != run.get("stdout_sha256")
+                or run.get("stderr") != ""
+                or _sha256_text(run.get("stderr"), run.get("lane", "consumer") + " stderr")
+                != run.get("stderr_sha256")):
+            fail(f"ByteStringBuilder direct consumer output mismatch for {run.get('lane')}")
+        lane = run["lane"]
+        if lane == "reference-jvm":
+            if (not any("kotlinc" in str(argument) for argument in run["compile_command"])
+                    or not any(str(argument).endswith(BYTESTRING_BUILDER_DEFAULT_CONSUMER)
+                               for argument in run["compile_command"])
+                    or not any("Bytestring_builder_default_bridgesKt" in str(argument)
+                               for argument in run["run_command"])):
+                fail("ByteStringBuilder reference consumer was not compiled by the pinned Kotlin compiler")
+        else:
+            expected_optimization = "-O0" if lane.endswith("O0") else "-O2"
+            if (run["compile_command"][0] != compiler_path
+                    or not any(str(argument).endswith(BYTESTRING_BUILDER_DEFAULT_CONSUMER)
+                               for argument in run["compile_command"])
+                    or expected_optimization not in run["compile_command"]
+                    or ("--stdlib-from-source" in run["compile_command"]) != lane.startswith("source-")
+                    or ("--stdlib-library" in run["compile_command"]) != lane.startswith("stdlib-library-")
+                    or (lane.startswith("stdlib-library-") and klib_path not in run["compile_command"])):
+                fail(f"ByteStringBuilder candidate consumer command does not match lane {lane}")
+            output_flag = run["compile_command"].index("-o") if "-o" in run["compile_command"] else -1
+            if (output_flag < 0 or output_flag + 1 >= len(run["compile_command"])
+                    or run["run_command"][0] != run["compile_command"][output_flag + 1]):
+                fail(f"ByteStringBuilder candidate consumer execution does not match its compiled output: {lane}")
+
+    expected_method = BYTESTRING_BUILDER_DEFAULT_ROWS[row["row_id"]]["upstream_test_refs"][0].split("#", 1)[1]
+    expected_case_id = f"bytestring/common/test/ByteStringBuilderTest.kt#{expected_method}"
+    expected_reference_id = f"[engine:junit-jupiter]/[class:kotlinx.io.bytestring.ByteStringBuilderTest]/[method:{expected_method}()]"
+    expected_candidate_id = f"kotlinx.io.bytestring.ByteStringBuilderTest.{expected_method}"
+    for execution in record["executions"]:
+        if (execution["case_id"] != expected_case_id
+                or execution["reference"]["execution_id"] != expected_reference_id
+                or execution["candidate"]["execution_id"] != expected_candidate_id):
+            fail(f"KUU-2619 row-level evidence does not match the recorded case for {row['row_id']}")
+
+
 def apply_validation_evidence(
     rows: list[dict],
     lock: dict,
@@ -889,6 +1319,8 @@ def apply_validation_evidence(
         missing_lanes = set(required_lanes) - covered_lanes
         if missing_lanes:
             fail(f"missing validation lanes for row {row_id}: {', '.join(sorted(missing_lanes))}")
+        if row_id in BYTESTRING_BUILDER_DEFAULT_ROWS:
+            _validate_builder_default_report(record, row, lock, repository)
         if evidence_source == "local-probe":
             required_cases = {
                 case_id: spec
@@ -1604,6 +2036,8 @@ def parse_jvm_api(path: Path, module: str, sources: list[Path]) -> list[dict]:
 def owner_for(row: dict) -> str:
     if row.get("_jvm_key") in INDEX_OF_DEFAULT_BRIDGES:
         return "KUU-2618"
+    if row.get("row_id") in BYTESTRING_BUILDER_DEFAULT_ROWS:
+        return "KUU-2619"
     text = " ".join(
         [row["module"], row["owner_fqn"], row["name"], row["signature"], row["upstream_source_refs"]]
     ).lower()
@@ -1960,6 +2394,14 @@ def local_contract_differences(row: dict, index: SourceIndex) -> str:
 def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
     if row.get("_jvm_key") in INDEX_OF_DEFAULT_BRIDGES:
         return list(INDEX_OF_DEFAULT_BRIDGE_TEST_INPUTS)
+    if row.get("row_id") in BYTESTRING_BUILDER_DEFAULT_ROWS:
+        return [
+            BYTESTRING_BUILDER_DEFAULT_CONSUMER,
+            BYTESTRING_BUILDER_DEFAULT_EXPECTED,
+            BYTESTRING_BUILDER_DEFAULT_PROBE,
+            BYTESTRING_BUILDER_DEFAULT_REPORT,
+            *BYTESTRING_BUILDER_DEFAULT_RUNNER_INPUTS,
+        ]
     name = row["_candidate_name"].lower()
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []
@@ -2008,6 +2450,8 @@ def upstream_test_refs(row: dict, test_index: dict) -> list[str]:
         # The upstream smoke cases use SystemFileSystem raw methods; they do not
         # exercise these deprecated Path extensions or assert their annotations.
         return []
+    if row.get("row_id") in BYTESTRING_BUILDER_DEFAULT_ROWS:
+        return BYTESTRING_BUILDER_DEFAULT_ROWS[row["row_id"]]["upstream_test_refs"]
     source_paths = row.get("_source_paths", [])
     hints = []
     for source in source_paths:
@@ -2380,15 +2824,32 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
         for match in re.finditer(r'@_cdecl\("([^"]+)"\)', content):
             runtime_symbols[match.group(1)].append("%s:%d" % (path.relative_to(REPO).as_posix(), content[:match.start()].count("\n") + 1))
     for row in api_rows:
+        builder_default = BYTESTRING_BUILDER_DEFAULT_ROWS.get(row["row_id"])
         candidates = local_candidates(row)
+        if builder_default is not None:
+            candidates = [builder_default["local_source_ref"]]
         row["local_candidate_refs"] = ";".join(candidates) or "none"
-        row["local_implementation_refs"] = ";".join(local_implementation_refs(row, index, runtime_symbols)) or "none (interface/abstract/generated or no implementation mapped)"
+        implementation_refs = local_implementation_refs(row, index, runtime_symbols)
+        if builder_default is not None:
+            implementation_refs = [builder_default["local_source_ref"]]
+        row["local_implementation_refs"] = ";".join(implementation_refs) or "none (interface/abstract/generated or no implementation mapped)"
         row["local_contract_differences"] = local_contract_differences(row, index)
         row["status"] = "unverified" if candidates else "missing"
         if row["representation"] == "JVM public ABI dump" and row["source_api"] == "no":
             row["status"] = "unverified"
-            if row.get("_jvm_key") not in INDEX_OF_DEFAULT_BRIDGES:
+            if row.get("_jvm_key") not in INDEX_OF_DEFAULT_BRIDGES and builder_default is None:
                 row["notes"] += "; generated JVM ABI presence cannot be established from Kotlin source-name matching alone"
+        if builder_default is not None:
+            row["upstream_source_refs"] = builder_default["upstream_source_ref"]
+            row["local_contract_differences"] = "defaulted Kotlin declaration mapped; JVM shape checked against the pinned reference artifact"
+            row["notes"] += (
+                "; mapped to the defaulted Kotlin declaration at "
+                + builder_default["upstream_source_ref"]
+                + " and native counterpart at "
+                + builder_default["local_source_ref"]
+                + "; exact JVM descriptor, access flags, mask positions, and marker type are checked on the pinned reference JAR; "
+                + "KSwiftK emits native code, so these results do not claim candidate JVM classfile ABI"
+            )
         row["owner_issue"] = owner_for(row)
         direct_upstream_tests = upstream_test_refs(row, test_index)
         row["upstream_test_refs"] = ";".join(direct_upstream_tests) or NO_DIRECT_UPSTREAM_ASSERTION

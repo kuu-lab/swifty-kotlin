@@ -444,6 +444,118 @@
         }
       ],
       "evidence_source": "local-probe"
+    },
+    {
+      "row_id": "jvm-0de664be9f7d0a3a",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "d0ed90dc15a78b1f80a7b78d73371788fc89e3da9a4f914ed73159d50dce9d59",
+      "test_input_sha256": "6199b104299c6ee32b9258088a2a1caa1bdb1fb55ff789c020b9d10f8dcc6c31",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "bytestring/common/test/ByteStringBuilderTest.kt#appendArray",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.bytestring.ByteStringBuilderTest]/[method:appendArray()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.bytestring.ByteStringBuilderTest.appendArray",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "evidence_source": "upstream-catalog"
+    },
+    {
+      "row_id": "jvm-4c5b809c5600e77b",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "d0ed90dc15a78b1f80a7b78d73371788fc89e3da9a4f914ed73159d50dce9d59",
+      "test_input_sha256": "6199b104299c6ee32b9258088a2a1caa1bdb1fb55ff789c020b9d10f8dcc6c31",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "bytestring/common/test/ByteStringBuilderTest.kt#testCapacity",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.bytestring.ByteStringBuilderTest]/[method:testCapacity()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.bytestring.ByteStringBuilderTest.testCapacity",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "evidence_source": "upstream-catalog"
+    },
+    {
+      "row_id": "jvm-827d471d59e105ce",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "d0ed90dc15a78b1f80a7b78d73371788fc89e3da9a4f914ed73159d50dce9d59",
+      "test_input_sha256": "6199b104299c6ee32b9258088a2a1caa1bdb1fb55ff789c020b9d10f8dcc6c31",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "bytestring/common/test/ByteStringBuilderTest.kt#appendBytes",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.bytestring.ByteStringBuilderTest]/[method:appendBytes()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.bytestring.ByteStringBuilderTest.appendBytes",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "evidence_source": "upstream-catalog"
+    },
+    {
+      "row_id": "jvm-f183ae0aeeced795",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "d0ed90dc15a78b1f80a7b78d73371788fc89e3da9a4f914ed73159d50dce9d59",
+      "test_input_sha256": "6199b104299c6ee32b9258088a2a1caa1bdb1fb55ff789c020b9d10f8dcc6c31",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "bytestring/common/test/ByteStringBuilderTest.kt#testCapacity",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.bytestring.ByteStringBuilderTest]/[method:testCapacity()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kotlinx.io.bytestring.ByteStringBuilderTest.testCapacity",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "evidence_source": "upstream-catalog"
     }
   ]
 }

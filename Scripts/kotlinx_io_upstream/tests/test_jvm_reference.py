@@ -46,6 +46,17 @@ class JvmReferenceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "NOT_DISCOVERED=1"):
             RUNNER.map_executions(tests[:1], [], {}, tests)
 
+    def test_exact_execution_selection_is_explicit_and_catalog_bounded(self):
+        tests = [{"execution_id": identifier} for identifier in ("one", "two", "three")]
+        self.assertEqual(RUNNER.select_execution_rows(tests, []), tests)
+        self.assertEqual(RUNNER.select_execution_rows(tests, ["three", "one"]), [tests[0], tests[2]])
+        with self.assertRaisesRegex(ValueError, "unknown JVM execution ID"):
+            RUNNER.select_execution_rows(tests, ["missing"])
+        with self.assertRaisesRegex(ValueError, "unique"):
+            RUNNER.select_execution_rows(tests, ["one", "one"])
+        with self.assertRaisesRegex(ValueError, "at most 10"):
+            RUNNER.select_execution_rows(tests, ["one"] * 11)
+
     def test_modified_upstream_source_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "Test.kt"

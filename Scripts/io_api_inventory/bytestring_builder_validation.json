@@ -1,0 +1,519 @@
+{
+  "schema_version": 1,
+  "issue": "KUU-2619",
+  "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+  "reference_version": "0.9.1",
+  "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+  "original_inputs": {
+    "upstream_source": {
+      "path": "bytestring/common/src/ByteStringBuilder.kt",
+      "sha256": "8cd22668096edc1c3a5088fd3014535b24753a379e5a59a8b06c55e83052de88",
+      "git_blob_sha": "7b0de5d3e9465c40a4c6d08217059aa3c9f5a860",
+      "size": 4622
+    },
+    "upstream_test": {
+      "path": "bytestring/common/test/ByteStringBuilderTest.kt",
+      "sha256": "ae29b06e49a8b17d2a5c84bd33fe4af290ce76dc3382b721f329af2ec31b9f72",
+      "git_blob_sha": "2fbb054083fa091ef563e62c51533fe07c1d0c9e",
+      "size": 4494
+    },
+    "reference_artifact": {
+      "coordinate": "org.jetbrains.kotlinx:kotlinx-io-bytestring-jvm:0.9.1",
+      "sha256": "8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4"
+    }
+  },
+  "source_hashes": {
+    "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteStringBuilder.kt": "eb939b05fcc991f860906b244d1a897503b3e794c83bcf1509ecfdc25370cb15",
+    "Scripts/io_api_inventory/cases/bytestring_builder_default_bridges.kt": "b86634f66e9ac763c4abced22b22dd2589172959426d9c585a49d9baeabc27f5",
+    "Scripts/io_api_inventory/cases/bytestring_builder_default_bridges.expected": "8d589b44e8a3a011dfac4167852efe0c04631bf10b0f939352ed22042e53d40e",
+    "Scripts/io_api_inventory/probe_bytestring_builder_jvm_abi.py": "fef03ac180c82daae3181eaf7c0abae89be918987f00e419a52b43eb2911f2da",
+    "Scripts/kotlinx_io_upstream/run_candidate_subset.py": "e790f203b6c9673804607660fb3bbbad5566594d1213405f5a77678cbc8ab0df",
+    "Scripts/kotlinx_io_upstream/prepare_candidate_catalog.py": "589cd2bf4092a0299e4184c8e208d1002fc9e49b0be5f5e924739dd53e4bf002",
+    "Scripts/kotlinx_io_upstream/run_jvm_reference.py": "8bc008313e34693eb70ea4c821503607749e727d5e3544676573eb0c813e3145",
+    "Scripts/kotlinx_io_upstream/JvmReferenceRunner.java": "52d066d67624ad276da337923d0ed5a860cbb4edc9a48b4f094935e64be73220",
+    "Scripts/kotlinx_io_upstream/reference-lock.json": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+    "Scripts/kotlinx_io_upstream/jvm-executions.expected.json": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+    "Scripts/kotlinx_io_upstream/native-executions.expected.json": "3bd3e5e45e2a86315dfb7c8a5ef171abdeeab49dbc50b6260c219155b67ac57e",
+    "Scripts/io_api_inventory/evidence/legacy_run_candidate_suites.py": "b8e5dbcb1cbd2a0d1043aed1cd18ced7a72d77e372d910f52d2b4365fc9bd5b5"
+  },
+  "candidate_artifacts": {
+    "compiler_commit": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+    "compiler_path": "/private/tmp/kuu2607-fd01/.build/out/Products/Debug/kswiftc",
+    "compiler_sha256": "2edd7e84b2e730e4b3eb6e0907d3b13876bcd13fe8323e31696b4d1f63c3d743",
+    "stdlib_klib_path": "/private/tmp/kuu2607-fd01-f02/KSwiftKStdlib.kklib",
+    "stdlib_klib_sha256": "de6113c1f46ab08f6b36c13bffd35bb1003b59d42660b23ab9a95cf90118a672",
+    "generation_output": "{\n  \"command\": [\n    \"/private/tmp/kuu2607-fd01/.build/out/Products/Debug/kswiftc\",\n    \"--stdlib-only\",\n    \"--no-incremental\",\n    \"-o\",\n    \"/private/tmp/kuu2607-fd01-f02/KSwiftKStdlib.kklib\"\n  ],\n  \"cwd\": \"/private/tmp/kuu2607-fd01-f02/stdlib-work\",\n  \"environment\": {\n    \"TMPDIR\": \"/private/tmp/kuu2607-fd01-f02/stdlib-work/tmp/\",\n    \"KSWIFTK_STDLIB_CACHE_DIR\": \"/private/tmp/kuu2607-fd01-f02/stdlib-work/stdlib-cache\",\n    \"KSWIFTK_PACKAGE_ROOT\": \"/private/tmp/kuu2607-fd01\"\n  },\n  \"deadline_seconds\": 1800.0,\n  \"status\": \"EXITED\",\n  \"pid\": 21420,\n  \"pgid\": 21420,\n  \"exitcode\": 0,\n  \"seconds\": 104.82115858301404,\n  \"stdout_sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\n  \"stderr_sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"\n}\n",
+    "generation_output_sha256": "c00c973fba6d252abbe69a73d47c8a2e4322c58897eef13988f69414e2edf3c6"
+  },
+  "probe": {
+    "result": "PASS",
+    "exit_code": 0,
+    "row_count": 4,
+    "command": [
+      "python3",
+      "Scripts/io_api_inventory/probe_bytestring_builder_jvm_abi.py",
+      "--jar",
+      "/private/tmp/kotlinx-io-bytestring-jvm-0.9.1.jar",
+      "--output",
+      "/private/tmp/kuu2619/jvm-abi-probe-final.json"
+    ],
+    "output": "{\n  \"schema_version\": 1,\n  \"result\": \"PASS\",\n  \"reference_version\": \"0.9.1\",\n  \"reference_commit\": \"362bdc35e159bad6da1e08101c8321792d762281\",\n  \"reference_declarations\": {\n    \"upstream_source_sha256\": \"8cd22668096edc1c3a5088fd3014535b24753a379e5a59a8b06c55e83052de88\",\n    \"upstream_source_git_blob_sha\": \"7b0de5d3e9465c40a4c6d08217059aa3c9f5a860\",\n    \"candidate_source_sha256\": \"eb939b05fcc991f860906b244d1a897503b3e794c83bcf1509ecfdc25370cb15\",\n    \"jvm_declarations_sha256\": \"430abec2143506801dde63151b2895b983a6e7fcc80571398b42ebc5af94c64c\",\n    \"declarations\": [\n      {\n        \"owner\": \"kotlinx/io/bytestring/ByteStringBuilder\",\n        \"name\": \"<init>\",\n        \"descriptor\": \"(I)V\",\n        \"fqName\": \"kotlinx.io.bytestring.ByteStringBuilder.<init>\",\n        \"parameters\": [\n          \"kotlin.Int\"\n        ],\n        \"defaults\": [\n          true\n        ]\n      },\n      {\n        \"owner\": \"kotlinx/io/bytestring/ByteStringBuilder\",\n        \"name\": \"append\",\n        \"descriptor\": \"([BII)V\",\n        \"fqName\": \"kotlinx.io.bytestring.ByteStringBuilder.append\",\n        \"parameters\": [\n          \"kotlin.ByteArray\",\n          \"kotlin.Int\",\n          \"kotlin.Int\"\n        ],\n        \"defaults\": [\n          false,\n          true,\n          true\n        ]\n      },\n      {\n        \"owner\": \"kotlinx/io/bytestring/ByteStringBuilderKt\",\n        \"name\": \"buildByteString\",\n        \"descriptor\": \"(ILkotlin/jvm/functions/Function1;)Lkotlinx/io/bytestring/ByteString;\",\n        \"fqName\": \"kotlinx.io.bytestring.buildByteString\",\n        \"parameters\": [\n          \"kotlin.Int\",\n          \"kotlin.Function1<kotlinx.io.bytestring.ByteStringBuilder,kotlin.Unit>\"\n        ],\n        \"defaults\": [\n          true,\n          false\n        ]\n      }\n    ]\n  },\n  \"inventory_rows\": [\n    {\n      \"row_id\": \"jvm-0de664be9f7d0a3a\",\n      \"descriptor\": \"(Lkotlinx/io/bytestring/ByteStringBuilder;[BIIILjava/lang/Object;)V\"\n    },\n    {\n      \"row_id\": \"jvm-4c5b809c5600e77b\",\n      \"descriptor\": \"()V\"\n    },\n    {\n      \"row_id\": \"jvm-827d471d59e105ce\",\n      \"descriptor\": \"(ILkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lkotlinx/io/bytestring/ByteString;\"\n    },\n    {\n      \"row_id\": \"jvm-f183ae0aeeced795\",\n      \"descriptor\": \"(IILkotlin/jvm/internal/DefaultConstructorMarker;)V\"\n    }\n  ],\n  \"classfile_probe\": {\n    \"result\": \"PASS\",\n    \"artifact_coordinate\": \"org.jetbrains.kotlinx:kotlinx-io-bytestring-jvm:0.9.1\",\n    \"artifact_sha256\": \"8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4\",\n    \"classes\": {\n      \"kotlinx/io/bytestring/ByteStringBuilder\": {\n        \"path\": \"kotlinx/io/bytestring/ByteStringBuilder.class\",\n        \"sha256\": \"3f1410966a0485ab7346228fd1c5700e45e91b52c58ea37cee45c103bc18e898\"\n      },\n      \"kotlinx/io/bytestring/ByteStringBuilderKt\": {\n        \"path\": \"kotlinx/io/bytestring/ByteStringBuilderKt.class\",\n        \"sha256\": \"a75ff5be7b4fdea22f1efa5102d4d38a18a10349cf117e1940849739162a47a9\"\n      }\n    },\n    \"methods\": [\n      {\n        \"row_id\": \"jvm-0de664be9f7d0a3a\",\n        \"class\": \"kotlinx/io/bytestring/ByteStringBuilder\",\n        \"name\": \"append$default\",\n        \"descriptor\": \"(Lkotlinx/io/bytestring/ByteStringBuilder;[BIIILjava/lang/Object;)V\",\n        \"flags\": {\n          \"public\": true,\n          \"static\": true,\n          \"bridge\": false,\n          \"synthetic\": true\n        },\n        \"marker_parameter\": \"java.lang.Object\",\n        \"declaration\": \"kotlinx.io.bytestring.ByteStringBuilder.append([BII)\",\n        \"kotlin_owner\": \"kotlinx/io/bytestring/ByteStringBuilder\",\n        \"kotlin_name\": \"append\",\n        \"kotlin_descriptor\": \"([BII)V\",\n        \"upstream_ref\": \"bytestring/common/src/ByteStringBuilder.kt:79\",\n        \"candidate_ref\": \"Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteStringBuilder.kt:29\",\n        \"observed_flags\": {\n          \"public\": true,\n          \"static\": true,\n          \"bridge\": false,\n          \"synthetic\": true\n        },\n        \"underlying_defaults\": [\n          false,\n          true,\n          true\n        ],\n        \"mask_parameter_values\": [\n          6,\n          2,\n          4\n        ]\n      },\n      {\n        \"row_id\": \"jvm-4c5b809c5600e77b\",\n        \"class\": \"kotlinx/io/bytestring/ByteStringBuilder\",\n        \"name\": \"<init>\",\n        \"descriptor\": \"()V\",\n        \"flags\": {\n          \"public\": true,\n          \"static\": false,\n          \"bridge\": false,\n          \"synthetic\": false\n        },\n        \"marker_parameter\": null,\n        \"declaration\": \"kotlinx.io.bytestring.ByteStringBuilder.<init>(I)\",\n        \"kotlin_owner\": \"kotlinx/io/bytestring/ByteStringBuilder\",\n        \"kotlin_name\": \"<init>\",\n        \"kotlin_descriptor\": \"(I)V\",\n        \"upstream_ref\": \"bytestring/common/src/ByteStringBuilder.kt:28\",\n        \"candidate_ref\": \"Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteStringBuilder.kt:9\",\n        \"observed_flags\": {\n          \"public\": true,\n          \"static\": false,\n          \"bridge\": false,\n          \"synthetic\": false\n        },\n        \"underlying_defaults\": [\n          true\n        ],\n        \"mask_parameter_values\": []\n      },\n      {\n        \"row_id\": \"jvm-827d471d59e105ce\",\n        \"class\": \"kotlinx/io/bytestring/ByteStringBuilderKt\",\n        \"name\": \"buildByteString$default\",\n        \"descriptor\": \"(ILkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lkotlinx/io/bytestring/ByteString;\",\n        \"flags\": {\n          \"public\": true,\n          \"static\": true,\n          \"bridge\": false,\n          \"synthetic\": true\n        },\n        \"marker_parameter\": \"java.lang.Object\",\n        \"declaration\": \"kotlinx.io.bytestring.buildByteString(ILkotlin/jvm/functions/Function1;)\",\n        \"kotlin_owner\": \"kotlinx/io/bytestring/ByteStringBuilderKt\",\n        \"kotlin_name\": \"buildByteString\",\n        \"kotlin_descriptor\": \"(ILkotlin/jvm/functions/Function1;)Lkotlinx/io/bytestring/ByteString;\",\n        \"upstream_ref\": \"bytestring/common/src/ByteStringBuilder.kt:126\",\n        \"candidate_ref\": \"Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteStringBuilder.kt:56\",\n        \"observed_flags\": {\n          \"public\": true,\n          \"static\": true,\n          \"bridge\": false,\n          \"synthetic\": true\n        },\n        \"underlying_defaults\": [\n          true,\n          false\n        ],\n        \"mask_parameter_values\": [\n          1\n        ]\n      },\n      {\n        \"row_id\": \"jvm-f183ae0aeeced795\",\n        \"class\": \"kotlinx/io/bytestring/ByteStringBuilder\",\n        \"name\": \"<init>\",\n        \"descriptor\": \"(IILkotlin/jvm/internal/DefaultConstructorMarker;)V\",\n        \"flags\": {\n          \"public\": true,\n          \"static\": false,\n          \"bridge\": false,\n          \"synthetic\": true\n        },\n        \"marker_parameter\": \"kotlin.jvm.internal.DefaultConstructorMarker\",\n        \"declaration\": \"kotlinx.io.bytestring.ByteStringBuilder.<init>(I)\",\n        \"kotlin_owner\": \"kotlinx/io/bytestring/ByteStringBuilder\",\n        \"kotlin_name\": \"<init>\",\n        \"kotlin_descriptor\": \"(I)V\",\n        \"upstream_ref\": \"bytestring/common/src/ByteStringBuilder.kt:28\",\n        \"candidate_ref\": \"Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteStringBuilder.kt:9\",\n        \"observed_flags\": {\n          \"public\": true,\n          \"static\": false,\n          \"bridge\": false,\n          \"synthetic\": true\n        },\n        \"underlying_defaults\": [\n          true\n        ],\n        \"mask_parameter_values\": [\n          1\n        ]\n      }\n    ],\n    \"mask_bytecode_checks\": [\n      {\n        \"row_id\": \"jvm-f183ae0aeeced795\",\n        \"mask\": 1,\n        \"mask_local\": 2,\n        \"branch_offset\": 0,\n        \"default_instructions_hex\": \"033c\"\n      },\n      {\n        \"row_id\": \"jvm-0de664be9f7d0a3a\",\n        \"mask\": 2,\n        \"mask_local\": 4,\n        \"branch_offset\": 0,\n        \"default_instructions_hex\": \"033d\"\n      },\n      {\n        \"row_id\": \"jvm-0de664be9f7d0a3a\",\n        \"mask\": 4,\n        \"mask_local\": 4,\n        \"branch_offset\": 9,\n        \"default_instructions_hex\": \"2bbe3e\"\n      },\n      {\n        \"row_id\": \"jvm-827d471d59e105ce\",\n        \"mask\": 1,\n        \"mask_local\": 2,\n        \"branch_offset\": 0,\n        \"default_instructions_hex\": \"033b\"\n      }\n    ],\n    \"noarg_constructor_delegation\": {\n      \"capacity\": 0,\n      \"mask\": 1,\n      \"marker\": null,\n      \"target\": {\n        \"owner\": \"kotlinx/io/bytestring/ByteStringBuilder\",\n        \"name\": \"<init>\",\n        \"descriptor\": \"(IILkotlin/jvm/internal/DefaultConstructorMarker;)V\"\n      }\n    },\n    \"boundary\": \"This verifies physical classfile shape in the pinned reference JAR. KSwiftK emits native code; candidate source and KLIB default-dispatch runs are separate evidence.\"\n  }\n}\n",
+    "output_sha256": "2a7fafc3c0084a68384506419c5b9177ddc1a6dff78ad66a1e224e88b03430f1"
+  },
+  "reference_run": {
+    "command": [
+      "/private/tmp/kuu2596-temurin21/jdk-21.0.12.1+1/Contents/Home/bin/java",
+      "-Xmx1024m",
+      "-cp",
+      "/private/tmp/kuu2607-kio-reference-environment/dependencies/kotlinx-io-core-jvm-0.9.1.jar:/private/tmp/kuu2607-kio-reference-environment/dependencies/kotlinx-io-bytestring-jvm-0.9.1.jar:/private/tmp/kuu2607-kio-reference-environment/dependencies/junit-platform-console-standalone-1.12.2.jar:/private/tmp/kuu2619/jvm-reference-pinned/upstream-jvm-tests.jar:/private/tmp/kuu2607-kio-reference-environment/installation/kotlinc/lib/kotlin-stdlib.jar:/private/tmp/kuu2607-kio-reference-environment/installation/kotlinc/lib/kotlin-reflect.jar:/private/tmp/kuu2607-kio-reference-environment/installation/kotlinc/lib/kotlin-test.jar:/private/tmp/kuu2607-kio-reference-environment/installation/kotlinc/lib/kotlin-test-junit5.jar",
+      "/Users/kuu/.codex/worktrees/b7c9/swifty-kotlin/Scripts/kotlinx_io_upstream/JvmReferenceRunner.java",
+      "/private/tmp/kuu2619/jvm-reference-pinned/upstream-jvm-tests.jar",
+      "/private/tmp/kuu2619/jvm-reference-pinned/junit",
+      "[engine:junit-jupiter]/[class:kotlinx.io.bytestring.ByteStringBuilderTest]/[method:appendArray()]",
+      "[engine:junit-jupiter]/[class:kotlinx.io.bytestring.ByteStringBuilderTest]/[method:appendBytes()]",
+      "[engine:junit-jupiter]/[class:kotlinx.io.bytestring.ByteStringBuilderTest]/[method:testCapacity()]"
+    ],
+    "run_command": [
+      "/private/tmp/kuu2596-temurin21/jdk-21.0.12.1+1/Contents/Home/bin/java",
+      "-Xmx1024m",
+      "-cp",
+      "/private/tmp/kuu2607-kio-reference-environment/dependencies/kotlinx-io-core-jvm-0.9.1.jar:/private/tmp/kuu2607-kio-reference-environment/dependencies/kotlinx-io-bytestring-jvm-0.9.1.jar:/private/tmp/kuu2607-kio-reference-environment/dependencies/junit-platform-console-standalone-1.12.2.jar:/private/tmp/kuu2619/jvm-reference-pinned/upstream-jvm-tests.jar:/private/tmp/kuu2607-kio-reference-environment/installation/kotlinc/lib/kotlin-stdlib.jar:/private/tmp/kuu2607-kio-reference-environment/installation/kotlinc/lib/kotlin-reflect.jar:/private/tmp/kuu2607-kio-reference-environment/installation/kotlinc/lib/kotlin-test.jar:/private/tmp/kuu2607-kio-reference-environment/installation/kotlinc/lib/kotlin-test-junit5.jar",
+      "/Users/kuu/.codex/worktrees/b7c9/swifty-kotlin/Scripts/kotlinx_io_upstream/JvmReferenceRunner.java",
+      "/private/tmp/kuu2619/jvm-reference-pinned/upstream-jvm-tests.jar",
+      "/private/tmp/kuu2619/jvm-reference-pinned/junit",
+      "[engine:junit-jupiter]/[class:kotlinx.io.bytestring.ByteStringBuilderTest]/[method:appendArray()]",
+      "[engine:junit-jupiter]/[class:kotlinx.io.bytestring.ByteStringBuilderTest]/[method:appendBytes()]",
+      "[engine:junit-jupiter]/[class:kotlinx.io.bytestring.ByteStringBuilderTest]/[method:testCapacity()]"
+    ],
+    "compile_command": [
+      "/private/tmp/kuu2607-kio-reference-environment/installation/kotlinc/bin/kotlinc",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/bytestring/common/test/ByteStringBase64Test.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/bytestring/common/test/ByteStringBuilderTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/bytestring/common/test/ByteStringHexTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/bytestring/common/test/ByteStringTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/bytestring/common/test/samples/samples.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/bytestring/common/test/unsafe/UnsafeByteStringOperationsTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/bytestring/jvm/test/ByteStringByteBufferExtensionsTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/bytestring/jvm/test/ByteStringJvmTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/bytestring/jvm/test/samples/samplesJvm.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/AbstractSinkTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/AbstractSourceTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/AlwaysSharedCopyTrackerTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/CommonBufferTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/CommonPlatformTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/CommonRealSinkTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/CommonRealSourceTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/DelicateApiTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/LineSeparatorTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/MockSink.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/SinkFactory.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/SourceFactory.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/Utf8Test.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/UtilsTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/files/SmokeFileTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/files/UtilsTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/samples/byteStringSample.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/samples/moduleDescriptionSample.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/samples/rawSinkSample.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/samples/rawSourceSample.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/samples/samples.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/samples/unsafe/unsafeSamples.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/unsafe/UnsafeBufferOperationsForEachTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/unsafe/UnsafeBufferOperationsIterationTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/unsafe/UnsafeBufferOperationsMoveTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/unsafe/UnsafeBufferOperationsReadTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/util.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/jvm/test/AbstractSinkTestJVM.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/jvm/test/AbstractSourceTestJVM.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/jvm/test/BufferTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/jvm/test/JvmPlatformTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/jvm/test/NioTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/jvm/test/PoolingTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/jvm/test/RefCounteringCopyTrackerTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/jvm/test/samples/samplesJvm.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/jvm/test/samples/unsafeAccessSamplesJvm.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadFromHeadTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/jvm/test/unsafe/UnsafeBufferOperationsJvmWriteToTailTest.kt",
+      "/private/tmp/kuu2607-kio-reference-environment/upstream/core/jvm/test/utilJVM.kt",
+      "-classpath",
+      "/private/tmp/kuu2607-kio-reference-environment/dependencies/kotlinx-io-core-jvm-0.9.1.jar:/private/tmp/kuu2607-kio-reference-environment/dependencies/kotlinx-io-bytestring-jvm-0.9.1.jar:/private/tmp/kuu2607-kio-reference-environment/dependencies/junit-platform-console-standalone-1.12.2.jar:/private/tmp/kuu2607-kio-reference-environment/installation/kotlinc/lib/kotlin-test.jar:/private/tmp/kuu2607-kio-reference-environment/installation/kotlinc/lib/kotlin-test-junit5.jar",
+      "-Xmulti-platform",
+      "-Xexpect-actual-classes",
+      "-Xcommon-sources=/private/tmp/kuu2607-kio-reference-environment/upstream/bytestring/common/test/ByteStringBase64Test.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/bytestring/common/test/ByteStringBuilderTest.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/bytestring/common/test/ByteStringHexTest.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/bytestring/common/test/ByteStringTest.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/bytestring/common/test/samples/samples.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/bytestring/common/test/unsafe/UnsafeByteStringOperationsTest.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/AbstractSinkTest.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/AbstractSourceTest.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/AlwaysSharedCopyTrackerTest.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/CommonBufferTest.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/CommonPlatformTest.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/CommonRealSinkTest.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/CommonRealSourceTest.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/DelicateApiTest.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/LineSeparatorTest.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/MockSink.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/SinkFactory.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/SourceFactory.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/Utf8Test.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/UtilsTest.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/files/SmokeFileTest.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/files/UtilsTest.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/samples/byteStringSample.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/samples/moduleDescriptionSample.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/samples/rawSinkSample.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/samples/rawSourceSample.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/samples/samples.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/samples/unsafe/unsafeSamples.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/unsafe/UnsafeBufferOperationsForEachTest.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/unsafe/UnsafeBufferOperationsIterationTest.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/unsafe/UnsafeBufferOperationsMoveTest.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/unsafe/UnsafeBufferOperationsReadTest.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt,/private/tmp/kuu2607-kio-reference-environment/upstream/core/common/test/util.kt",
+      "-Xfriend-paths=/private/tmp/kuu2607-kio-reference-environment/dependencies/kotlinx-io-core-jvm-0.9.1.jar,/private/tmp/kuu2607-kio-reference-environment/dependencies/kotlinx-io-bytestring-jvm-0.9.1.jar",
+      "-opt-in=kotlinx.io.InternalIoApi",
+      "-opt-in=kotlin.ExperimentalStdlibApi",
+      "-XXLanguage:+UnnamedLocalVariables",
+      "-d",
+      "/private/tmp/kuu2619/jvm-reference-pinned/upstream-jvm-tests.jar"
+    ],
+    "compile_exit_code": 0,
+    "selected_ids": [
+      "[engine:junit-jupiter]/[class:kotlinx.io.bytestring.ByteStringBuilderTest]/[method:appendArray()]",
+      "[engine:junit-jupiter]/[class:kotlinx.io.bytestring.ByteStringBuilderTest]/[method:appendBytes()]",
+      "[engine:junit-jupiter]/[class:kotlinx.io.bytestring.ByteStringBuilderTest]/[method:testCapacity()]"
+    ],
+    "selected_count": 3,
+    "passed_count": 3,
+    "exit_code": 0,
+    "results_output": "[{\"execution_id\":\"[engine:junit-jupiter]/[class:kotlinx.io.bytestring.ByteStringBuilderTest]/[method:appendArray()]\",\"display_name\":\"appendArray()\",\"concrete_class\":\"kotlinx.io.bytestring.ByteStringBuilderTest\",\"declaring_class\":\"kotlinx.io.bytestring.ByteStringBuilderTest\",\"method_name\":\"appendArray\",\"parameter_types\":\"\",\"status\":\"PASS\",\"elapsed_seconds\":0.271635792,\"stdout\":\"\",\"stderr\":\"\",\"exception_type\":null,\"exception_message\":null},{\"execution_id\":\"[engine:junit-jupiter]/[class:kotlinx.io.bytestring.ByteStringBuilderTest]/[method:appendBytes()]\",\"display_name\":\"appendBytes()\",\"concrete_class\":\"kotlinx.io.bytestring.ByteStringBuilderTest\",\"declaring_class\":\"kotlinx.io.bytestring.ByteStringBuilderTest\",\"method_name\":\"appendBytes\",\"parameter_types\":\"\",\"status\":\"PASS\",\"elapsed_seconds\":4.2E-4,\"stdout\":\"\",\"stderr\":\"\",\"exception_type\":null,\"exception_message\":null},{\"execution_id\":\"[engine:junit-jupiter]/[class:kotlinx.io.bytestring.ByteStringBuilderTest]/[method:testCapacity()]\",\"display_name\":\"testCapacity()\",\"concrete_class\":\"kotlinx.io.bytestring.ByteStringBuilderTest\",\"declaring_class\":\"kotlinx.io.bytestring.ByteStringBuilderTest\",\"method_name\":\"testCapacity\",\"parameter_types\":\"\",\"status\":\"PASS\",\"elapsed_seconds\":3.81833E-4,\"stdout\":\"\",\"stderr\":\"\",\"exception_type\":null,\"exception_message\":null}]\n",
+    "results_sha256": "6813da0de27f86dacea7a6b7469113f40eff36815524f7135738d0b4ccd3b0aa",
+    "summary_output": "{\n  \"kind\": \"reference-only\",\n  \"concrete_execution_count\": 3,\n  \"unique_upstream_function_ids\": 3,\n  \"catalog_execution_count\": 1403,\n  \"selected_execution_count\": 3,\n  \"selected_execution_ids\": [\n    \"[engine:junit-jupiter]/[class:kotlinx.io.bytestring.ByteStringBuilderTest]/[method:appendArray()]\",\n    \"[engine:junit-jupiter]/[class:kotlinx.io.bytestring.ByteStringBuilderTest]/[method:appendBytes()]\",\n    \"[engine:junit-jupiter]/[class:kotlinx.io.bytestring.ByteStringBuilderTest]/[method:testCapacity()]\"\n  ],\n  \"covers_full_catalog\": false,\n  \"reference_counts\": {\n    \"PASS\": 3\n  },\n  \"candidate_counts\": {\n    \"UNMAPPED\": 3\n  },\n  \"paired_pass_count\": 0,\n  \"source_files_compiled\": 50\n}\n",
+    "summary_sha256": "072a022635cab82f201f22f59b5a1e34e4283214b06e7631221036fe2a424f8b",
+    "environment_output": "{\n  \"schema_version\": 1,\n  \"kind\": \"reference-only\",\n  \"kotlin\": \"2.3.10\",\n  \"kotlinx_io\": \"0.9.1\",\n  \"upstream_commit\": \"362bdc35e159bad6da1e08101c8321792d762281\",\n  \"reference_lock_sha256\": \"1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014\",\n  \"coverage_map_sha256\": \"24da6c4871f01a83845b6028e847715bbae7b8fe0492c3f6e27fc65005d7fe85\",\n  \"runner_sha256\": \"52d066d67624ad276da337923d0ed5a860cbb4edc9a48b4f094935e64be73220\",\n  \"host\": \"macOS-27.0-arm64-arm-64bit-Mach-O\",\n  \"java\": \"/private/tmp/kuu2596-temurin21/jdk-21.0.12.1+1/Contents/Home/bin/java\",\n  \"source_files\": [\n    \"bytestring/common/test/ByteStringBase64Test.kt\",\n    \"bytestring/common/test/ByteStringBuilderTest.kt\",\n    \"bytestring/common/test/ByteStringHexTest.kt\",\n    \"bytestring/common/test/ByteStringTest.kt\",\n    \"bytestring/common/test/samples/samples.kt\",\n    \"bytestring/common/test/unsafe/UnsafeByteStringOperationsTest.kt\",\n    \"bytestring/jvm/test/ByteStringByteBufferExtensionsTest.kt\",\n    \"bytestring/jvm/test/ByteStringJvmTest.kt\",\n    \"bytestring/jvm/test/samples/samplesJvm.kt\",\n    \"core/common/test/AbstractSinkTest.kt\",\n    \"core/common/test/AbstractSourceTest.kt\",\n    \"core/common/test/AlwaysSharedCopyTrackerTest.kt\",\n    \"core/common/test/CommonBufferTest.kt\",\n    \"core/common/test/CommonPlatformTest.kt\",\n    \"core/common/test/CommonRealSinkTest.kt\",\n    \"core/common/test/CommonRealSourceTest.kt\",\n    \"core/common/test/DelicateApiTest.kt\",\n    \"core/common/test/LineSeparatorTest.kt\",\n    \"core/common/test/MockSink.kt\",\n    \"core/common/test/SinkFactory.kt\",\n    \"core/common/test/SourceFactory.kt\",\n    \"core/common/test/Utf8Test.kt\",\n    \"core/common/test/UtilsTest.kt\",\n    \"core/common/test/files/SmokeFileTest.kt\",\n    \"core/common/test/files/UtilsTest.kt\",\n    \"core/common/test/samples/byteStringSample.kt\",\n    \"core/common/test/samples/moduleDescriptionSample.kt\",\n    \"core/common/test/samples/rawSinkSample.kt\",\n    \"core/common/test/samples/rawSourceSample.kt\",\n    \"core/common/test/samples/samples.kt\",\n    \"core/common/test/samples/unsafe/unsafeSamples.kt\",\n    \"core/common/test/unsafe/UnsafeBufferOperationsForEachTest.kt\",\n    \"core/common/test/unsafe/UnsafeBufferOperationsIterationTest.kt\",\n    \"core/common/test/unsafe/UnsafeBufferOperationsMoveTest.kt\",\n    \"core/common/test/unsafe/UnsafeBufferOperationsReadTest.kt\",\n    \"core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt\",\n    \"core/common/test/util.kt\",\n    \"core/jvm/test/AbstractSinkTestJVM.kt\",\n    \"core/jvm/test/AbstractSourceTestJVM.kt\",\n    \"core/jvm/test/BufferTest.kt\",\n    \"core/jvm/test/JvmPlatformTest.kt\",\n    \"core/jvm/test/NioTest.kt\",\n    \"core/jvm/test/PoolingTest.kt\",\n    \"core/jvm/test/RefCounteringCopyTrackerTest.kt\",\n    \"core/jvm/test/samples/samplesJvm.kt\",\n    \"core/jvm/test/samples/unsafeAccessSamplesJvm.kt\",\n    \"core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt\",\n    \"core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadFromHeadTest.kt\",\n    \"core/jvm/test/unsafe/UnsafeBufferOperationsJvmWriteToTailTest.kt\",\n    \"core/jvm/test/utilJVM.kt\"\n  ],\n  \"selection\": {\n    \"schema_version\": 1,\n    \"selection_mode\": \"explicit-ids\",\n    \"catalog_execution_count\": 1403,\n    \"selected_execution_count\": 3,\n    \"selected_execution_ids\": [\n      \"[engine:junit-jupiter]/[class:kotlinx.io.bytestring.ByteStringBuilderTest]/[method:appendArray()]\",\n      \"[engine:junit-jupiter]/[class:kotlinx.io.bytestring.ByteStringBuilderTest]/[method:appendBytes()]\",\n      \"[engine:junit-jupiter]/[class:kotlinx.io.bytestring.ByteStringBuilderTest]/[method:testCapacity()]\"\n    ],\n    \"covers_full_catalog\": false\n  },\n  \"unsupported_source_files\": [\n    \"bytestring/apple/test/ByteStringAppleTest.kt\",\n    \"bytestring/apple/test/samples/samplesApple.kt\",\n    \"core/apple/test/NSInputStreamSourceTest.kt\",\n    \"core/apple/test/NSOutputStreamSinkTest.kt\",\n    \"core/apple/test/SinkNSOutputStreamTest.kt\",\n    \"core/apple/test/SourceNSInputStreamTest.kt\",\n    \"core/apple/test/samples/samplesApple.kt\",\n    \"core/apple/test/utilApple.kt\",\n    \"core/common/test/files/SmokeFileTestWindows.kt\",\n    \"core/jvm/test/files/SmokeFileTestWindowsJVM.kt\",\n    \"core/native/test/util.kt\"\n  ],\n  \"sdk_files\": [\n    {\n      \"path\": \"bin/kotlinc\",\n      \"sha256\": \"90750c977cc043dd2b05c69dd4e052c10377554925dd5a155e74ef732be28c7d\"\n    },\n    {\n      \"path\": \"lib/allopen-compiler-plugin.jar\",\n      \"sha256\": \"31b7748ab62f5f5879aea85a87b7a4cded65f545aebc7bae74f7f6e2b2740bb3\"\n    },\n    {\n      \"path\": \"lib/annotations-13.0.jar\",\n      \"sha256\": \"ace2a10dc8e2d5fd34925ecac03e4988b2c0f851650c94b8cef49ba1bd111478\"\n    },\n    {\n      \"path\": \"lib/assignment-compiler-plugin.jar\",\n      \"sha256\": \"49c47d47d040aac599dd472b93b5d8acc290734efbedca383c598217937d2dc6\"\n    },\n    {\n      \"path\": \"lib/compose-compiler-plugin.jar\",\n      \"sha256\": \"de3ed66aaf3fbbd74c64164fd75ac93778e59f90146e1b5de7f9398189589d46\"\n    },\n    {\n      \"path\": \"lib/jvm-abi-gen.jar\",\n      \"sha256\": \"ffd4e08aca14cd06d27c9208376351dc065080bc6354ae8a023df585446922bf\"\n    },\n    {\n      \"path\": \"lib/kotlin-annotation-processing-cli.jar\",\n      \"sha256\": \"c6cae005cab063c28e2ec2af8421e6d0dc2c6be03fe73b433a6a5129061d907f\"\n    },\n    {\n      \"path\": \"lib/kotlin-annotation-processing-runtime.jar\",\n      \"sha256\": \"1ddca86ef9462961b656a03040caf5f940b850fd196a52db29065c9352dc8074\"\n    },\n    {\n      \"path\": \"lib/kotlin-annotation-processing.jar\",\n      \"sha256\": \"6f382abd85925cf6b9021e5e5a7a10ff441ff5ae35b06d7fb2118b62c978f660\"\n    },\n    {\n      \"path\": \"lib/kotlin-annotations-jvm-sources.jar\",\n      \"sha256\": \"bf594d0e3a35c21b1f07097d9e10b6ab524ae5bb2ffdb92ea9b1f79f28e8ab09\"\n    },\n    {\n      \"path\": \"lib/kotlin-annotations-jvm.jar\",\n      \"sha256\": \"6054230599c840c69af3657c292b768f2b585c25fba91d26cd5ad8c992757b03\"\n    },\n    {\n      \"path\": \"lib/kotlin-compiler.jar\",\n      \"sha256\": \"205abc86c6b0a40bc1a318bb24a062c7eb9a99abb023ee276bf925e3732511c8\"\n    },\n    {\n      \"path\": \"lib/kotlin-daemon-client.jar\",\n      \"sha256\": \"d21a6f77d9803a615e6d150857377e10a9e8c7cd06ae6e1c1eb99920fda38b93\"\n    },\n    {\n      \"path\": \"lib/kotlin-daemon.jar\",\n      \"sha256\": \"5b9f59f55e4090f8060b299fcb7e5d67df6c98a0fafcc7273d82866e13be5101\"\n    },\n    {\n      \"path\": \"lib/kotlin-main-kts.jar\",\n      \"sha256\": \"693b9dafe66bcb518dbcd16142f35cac6cb9ccbb871643d96d2b02b11bde2f96\"\n    },\n    {\n      \"path\": \"lib/kotlin-metadata-jvm-sources.jar\",\n      \"sha256\": \"b57b430ec604edd61b4cc863e09b48efb5c67ca06bacf30857e105045d2f4ddd\"\n    },\n    {\n      \"path\": \"lib/kotlin-metadata-jvm.jar\",\n      \"sha256\": \"c1df5bc6530b4c744b13788dbf8540a469898fdfbcde6abca9119184f5d3707c\"\n    },\n    {\n      \"path\": \"lib/kotlin-preloader.jar\",\n      \"sha256\": \"af1a852e4d69a657a38c5116b44af9dcea18a94bccbf1c0792c07827cf02fb56\"\n    },\n    {\n      \"path\": \"lib/kotlin-reflect-sources.jar\",\n      \"sha256\": \"fa1664e3d51e4a27d7a2f440581e3f5ffce01795790c11b145a9965f5101cbfa\"\n    },\n    {\n      \"path\": \"lib/kotlin-reflect.jar\",\n      \"sha256\": \"10b4a1b5e3957efe90f474bd04a747249a259b2615a6f0504507d323c2be350b\"\n    },\n    {\n      \"path\": \"lib/kotlin-runner.jar\",\n      \"sha256\": \"8730617cf81d6c8392ba9d70e75232bc1e709f06226eacd5aba06bf7466a0561\"\n    },\n    {\n      \"path\": \"lib/kotlin-script-runtime-sources.jar\",\n      \"sha256\": \"d9d6b416bf1267d5d9a2fffb309c8d02fa707608154d7b0d7dd318d2dd7daa96\"\n    },\n    {\n      \"path\": \"lib/kotlin-script-runtime.jar\",\n      \"sha256\": \"d0b3b08ecf8901c6610aa0e8efb29db3731bfbd96afd4f987cc817016b1e003e\"\n    },\n    {\n      \"path\": \"lib/kotlin-scripting-common.jar\",\n      \"sha256\": \"7e9143d22c80b3d02c96982431b1c96ba091eff7bf4390ab4b8949ecee43f285\"\n    },\n    {\n      \"path\": \"lib/kotlin-scripting-compiler-impl.jar\",\n      \"sha256\": \"8955408e620788a43519a8394a89ae2a8f4ca19cc5137f733fdd2b67d6e9d57e\"\n    },\n    {\n      \"path\": \"lib/kotlin-scripting-compiler.jar\",\n      \"sha256\": \"6a63a02a78c7344732d411eb22fdec6b87b377b65190d1ecd8ec28c174c12b08\"\n    },\n    {\n      \"path\": \"lib/kotlin-scripting-jvm.jar\",\n      \"sha256\": \"bf232a519af02952e101086fabd4884436257656c45db081783cac4b149664b7\"\n    },\n    {\n      \"path\": \"lib/kotlin-serialization-compiler-plugin.jar\",\n      \"sha256\": \"9a4d5139df8ef580005b737e2accef070fbc3b581d95e5f64d74a93abb4069a6\"\n    },\n    {\n      \"path\": \"lib/kotlin-stdlib-jdk7-sources.jar\",\n      \"sha256\": \"2534c8908432e06de73177509903d405b55f423dd4c2f747e16b92a2162611e6\"\n    },\n    {\n      \"path\": \"lib/kotlin-stdlib-jdk7.jar\",\n      \"sha256\": \"9c208de17b6d0d701629cb972eb568d092f28af863e32ef68f22374dc8b8b8fb\"\n    },\n    {\n      \"path\": \"lib/kotlin-stdlib-jdk8-sources.jar\",\n      \"sha256\": \"3cb6895054a0985bba591c165503fe4dd63a215af53263b67a071ccdc242bf6e\"\n    },\n    {\n      \"path\": \"lib/kotlin-stdlib-jdk8.jar\",\n      \"sha256\": \"6581d8c24374200577b84149d8be7f744e07e1cd3bc425179a3b9d07bf3f6741\"\n    },\n    {\n      \"path\": \"lib/kotlin-stdlib-js-sources.jar\",\n      \"sha256\": \"d1c87b3f87e58ad5494c5ed064053f79d96585e2bd627c7250e7c5d43faa68dc\"\n    },\n    {\n      \"path\": \"lib/kotlin-stdlib-sources.jar\",\n      \"sha256\": \"21a3acec677a5483cacd6e956bee49f1f816c0e9ece3b39d188b6fd3720fd306\"\n    },\n    {\n      \"path\": \"lib/kotlin-stdlib.jar\",\n      \"sha256\": \"f61662c6d3a2f8ef5bd34362a02d877772c39f393cd394feb259dfaf7f4d8437\"\n    },\n    {\n      \"path\": \"lib/kotlin-test-js-sources.jar\",\n      \"sha256\": \"9a52592696b63a75dea3f181bf8bb4ff0515f30a9b663058241885857507f6ac\"\n    },\n    {\n      \"path\": \"lib/kotlin-test-junit-sources.jar\",\n      \"sha256\": \"3fd39bbf3f8283cf7b7759e02abdd752ddde9964352f645467b779257bccef20\"\n    },\n    {\n      \"path\": \"lib/kotlin-test-junit.jar\",\n      \"sha256\": \"5b2a437aaed0af8212afac1b544c8982896c687c387fe561a8118037d92e55b5\"\n    },\n    {\n      \"path\": \"lib/kotlin-test-junit5-sources.jar\",\n      \"sha256\": \"5e0d4688277a3f859be086b874601b45f54b30b5b045800138b54e9418bdc95b\"\n    },\n    {\n      \"path\": \"lib/kotlin-test-junit5.jar\",\n      \"sha256\": \"cf8ca32a20b18130acdde3f6b8e29b01cc7ea7f792326a122c6fe5434214c889\"\n    },\n    {\n      \"path\": \"lib/kotlin-test-sources.jar\",\n      \"sha256\": \"031bd9d2f7cc9caaf369448c60eaa61f68788bd9777ae0c1141ec9b7fe5a83b4\"\n    },\n    {\n      \"path\": \"lib/kotlin-test-testng-sources.jar\",\n      \"sha256\": \"b88a8f12928480d14e29c6c879958c156afc946b9b8d333d1c2f4a428cdb1041\"\n    },\n    {\n      \"path\": \"lib/kotlin-test-testng.jar\",\n      \"sha256\": \"ed3fbd193452534df58d345d4e15ab079a08e5b2d79ced24896d01b1879e3099\"\n    },\n    {\n      \"path\": \"lib/kotlin-test.jar\",\n      \"sha256\": \"25e706274e2815ee00e051e2b27adc250dcc6450cd8ec4f79f7225f5b5a13cb8\"\n    },\n    {\n      \"path\": \"lib/kotlinx-coroutines-core-jvm.jar\",\n      \"sha256\": \"9860906a1937490bf5f3b06d2f0e10ef451e65b95b269f22daf68a3d1f5065c5\"\n    },\n    {\n      \"path\": \"lib/kotlinx-serialization-compiler-plugin.jar\",\n      \"sha256\": \"9a4d5139df8ef580005b737e2accef070fbc3b581d95e5f64d74a93abb4069a6\"\n    },\n    {\n      \"path\": \"lib/lombok-compiler-plugin.jar\",\n      \"sha256\": \"849f0a740c4fdd49e5c72b39a1e30c2c70bbc2dbf914160c228dd1ea9728ecea\"\n    },\n    {\n      \"path\": \"lib/mutability-annotations-compat.jar\",\n      \"sha256\": \"8c76693fde1f34baaeaf5298e1953fca489c8e90ce6c065f96dd20d978c2003b\"\n    },\n    {\n      \"path\": \"lib/noarg-compiler-plugin.jar\",\n      \"sha256\": \"98e509a1e1f94fb29e4fcd9ef3eccf3b16c33457b8a76e07251c411b327ddc63\"\n    },\n    {\n      \"path\": \"lib/parcelize-compiler.jar\",\n      \"sha256\": \"9a440c5b2e7cae6cf09623ffd0d49134c35e169183a0d01a8b819bca956e1630\"\n    },\n    {\n      \"path\": \"lib/parcelize-runtime.jar\",\n      \"sha256\": \"89ee89608e9f2b54364758c81448b3324afb11be9863c6ef410bb2e35c34e332\"\n    },\n    {\n      \"path\": \"lib/power-assert-compiler-plugin.jar\",\n      \"sha256\": \"19a8cb1ab7e5e342254cf0b724e5e2deb725deaa113c5a844473ea3aee7863e4\"\n    },\n    {\n      \"path\": \"lib/sam-with-receiver-compiler-plugin.jar\",\n      \"sha256\": \"db21d5c13f6e3663f09cf4e418a4cf2f05637ae758c615eafaded778d5348931\"\n    },\n    {\n      \"path\": \"lib/scripting-compiler.jar\",\n      \"sha256\": \"6a63a02a78c7344732d411eb22fdec6b87b377b65190d1ecd8ec28c174c12b08\"\n    }\n  ],\n  \"reference_artifacts\": [\n    {\n      \"coordinate\": \"org.jetbrains.kotlinx:kotlinx-io-core-jvm:0.9.1\",\n      \"url\": \"https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-io-core-jvm/0.9.1/kotlinx-io-core-jvm-0.9.1.jar\",\n      \"sha256\": \"765d8851d8ca694706931331b92386844800867e041b720f1f193dbda874d370\"\n    },\n    {\n      \"coordinate\": \"org.jetbrains.kotlinx:kotlinx-io-bytestring-jvm:0.9.1\",\n      \"url\": \"https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-io-bytestring-jvm/0.9.1/kotlinx-io-bytestring-jvm-0.9.1.jar\",\n      \"sha256\": \"8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4\"\n    },\n    {\n      \"coordinate\": \"org.junit.platform:junit-platform-console-standalone:1.12.2\",\n      \"url\": \"https://repo.maven.apache.org/maven2/org/junit/platform/junit-platform-console-standalone/1.12.2/junit-platform-console-standalone-1.12.2.jar\",\n      \"sha256\": \"329bd10288875a74d04c9ca6b7c9889c265ddf87b21a9ea42a7f7392f391472a\",\n      \"bytes\": 2950047\n    }\n  ],\n  \"compiler_environment\": {\n    \"JAVACMD\": \"/private/tmp/kuu2596-temurin21/jdk-21.0.12.1+1/Contents/Home/bin/java\"\n  }\n}\n",
+    "environment_sha256": "4c8ac6e1ecf03b86b53a7d9ff57c714f921365697adf9bd86451f00fd40942ee"
+  },
+  "candidate_runs": [
+    {
+      "lane": "source-O0",
+      "command": [
+        "python3",
+        "Scripts/kotlinx_io_upstream/run_candidate_suites.py",
+        "--upstream",
+        "/private/tmp/kuu2607-kio-reference-environment/upstream",
+        "--compiler",
+        "/private/tmp/kuu2607-fd01/.build/out/Products/Debug/kswiftc",
+        "--package-root",
+        "/private/tmp/kuu2607-fd01",
+        "--compiler-resource-bundle",
+        "/private/tmp/kuu2607-fd01/.build/out/Products/Debug/KSwiftK_CompilerCore.bundle/Contents/Resources",
+        "--source-closure-index",
+        "/private/tmp/kuu2619/bytestring-builder-source-closure.json",
+        "--execution-id",
+        "kotlinx.io.bytestring.ByteStringBuilderTest.appendArray",
+        "--execution-id",
+        "kotlinx.io.bytestring.ByteStringBuilderTest.appendBytes",
+        "--execution-id",
+        "kotlinx.io.bytestring.ByteStringBuilderTest.testCapacity",
+        "--native-catalog",
+        "macos",
+        "--stdlib-from-source",
+        "--optimization",
+        "O0",
+        "--compile-timeout",
+        "900",
+        "--run-timeout",
+        "300",
+        "--output",
+        "/private/tmp/kuu2619/candidate-source-O0-finalrun"
+      ],
+      "compile_command": [
+        "/private/tmp/kuu2607-fd01/.build/out/Products/Debug/kswiftc",
+        "-O0",
+        "--stdlib-from-source",
+        "/private/tmp/kuu2619/candidate-source-O0-finalrun/ports/bytestring/common/test/ByteStringBuilderTest.kt",
+        "/private/tmp/kuu2619/candidate-source-O0-finalrun/CombinedDriver.kt",
+        "-o",
+        "/private/tmp/kuu2619/candidate-source-O0-finalrun/candidate"
+      ],
+      "run_command": [
+        "/private/tmp/kuu2619/candidate-source-O0-finalrun/candidate"
+      ],
+      "selected_ids": [
+        "kotlinx.io.bytestring.ByteStringBuilderTest.appendArray",
+        "kotlinx.io.bytestring.ByteStringBuilderTest.appendBytes",
+        "kotlinx.io.bytestring.ByteStringBuilderTest.testCapacity"
+      ],
+      "selected_count": 3,
+      "passed_count": 3,
+      "exit_code": 0,
+      "results_output": "[\n  {\n    \"execution_id\": \"kotlinx.io.bytestring.ByteStringBuilderTest.appendArray\",\n    \"status\": \"PASS\",\n    \"stdout\": \"\",\n    \"exception_type\": null,\n    \"source_function_id\": \"bytestring/common/test/ByteStringBuilderTest.kt#appendArray\",\n    \"concrete_class\": \"kotlinx.io.bytestring.ByteStringBuilderTest\",\n    \"declaring_class\": \"kotlinx.io.bytestring.ByteStringBuilderTest\",\n    \"source_path\": \"bytestring/common/test/ByteStringBuilderTest.kt\",\n    \"source_sha256\": \"ae29b06e49a8b17d2a5c84bd33fe4af290ce76dc3382b721f329af2ec31b9f72\",\n    \"source_git_blob_sha\": \"2fbb054083fa091ef563e62c51533fe07c1d0c9e\",\n    \"candidate_port_sha256\": \"f7e79d5ad8c46c0e57f20594a8edfcb0d0119c7c38e3f65d76a17d74600c4135\",\n    \"driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n    \"suite_driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n    \"candidate_executable_sha256\": \"79295497a8c9888a554c4054b6e531e899d9ebc50330489bb61184541de99da6\",\n    \"catalog_row_sha256\": \"41176541dffd0a9f5f886570403071206fc3ab0359239932d8b3526c43d30366\"\n  },\n  {\n    \"execution_id\": \"kotlinx.io.bytestring.ByteStringBuilderTest.appendBytes\",\n    \"status\": \"PASS\",\n    \"stdout\": \"\",\n    \"exception_type\": null,\n    \"source_function_id\": \"bytestring/common/test/ByteStringBuilderTest.kt#appendBytes\",\n    \"concrete_class\": \"kotlinx.io.bytestring.ByteStringBuilderTest\",\n    \"declaring_class\": \"kotlinx.io.bytestring.ByteStringBuilderTest\",\n    \"source_path\": \"bytestring/common/test/ByteStringBuilderTest.kt\",\n    \"source_sha256\": \"ae29b06e49a8b17d2a5c84bd33fe4af290ce76dc3382b721f329af2ec31b9f72\",\n    \"source_git_blob_sha\": \"2fbb054083fa091ef563e62c51533fe07c1d0c9e\",\n    \"candidate_port_sha256\": \"f7e79d5ad8c46c0e57f20594a8edfcb0d0119c7c38e3f65d76a17d74600c4135\",\n    \"driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n    \"suite_driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n    \"candidate_executable_sha256\": \"79295497a8c9888a554c4054b6e531e899d9ebc50330489bb61184541de99da6\",\n    \"catalog_row_sha256\": \"25d4b7ec958dbf923e63e98bbddeebc777bfec742cd441fed1cea7b6019ad10a\"\n  },\n  {\n    \"execution_id\": \"kotlinx.io.bytestring.ByteStringBuilderTest.testCapacity\",\n    \"status\": \"PASS\",\n    \"stdout\": \"\",\n    \"exception_type\": null,\n    \"source_function_id\": \"bytestring/common/test/ByteStringBuilderTest.kt#testCapacity\",\n    \"concrete_class\": \"kotlinx.io.bytestring.ByteStringBuilderTest\",\n    \"declaring_class\": \"kotlinx.io.bytestring.ByteStringBuilderTest\",\n    \"source_path\": \"bytestring/common/test/ByteStringBuilderTest.kt\",\n    \"source_sha256\": \"ae29b06e49a8b17d2a5c84bd33fe4af290ce76dc3382b721f329af2ec31b9f72\",\n    \"source_git_blob_sha\": \"2fbb054083fa091ef563e62c51533fe07c1d0c9e\",\n    \"candidate_port_sha256\": \"f7e79d5ad8c46c0e57f20594a8edfcb0d0119c7c38e3f65d76a17d74600c4135\",\n    \"driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n    \"suite_driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n    \"candidate_executable_sha256\": \"79295497a8c9888a554c4054b6e531e899d9ebc50330489bb61184541de99da6\",\n    \"catalog_row_sha256\": \"b49f9daa65ba42d58832ffbb0b2fe572aada77d41b056b707065c6d2b15cfda1\"\n  }\n]\n",
+      "results_sha256": "e18724ea0945d0eaa1350ade31876d46ce0dd455ee45da142f22a72b1ff30783",
+      "summary_output": "{\n  \"kind\": \"candidate-assertion-native-scoped-catalog\",\n  \"paired_pass_count\": 0,\n  \"paired_disposition\": \"UNMAPPED\",\n  \"seven_observations_exported\": false,\n  \"host\": \"macOS-27.0-arm64-arm-64bit-Mach-O\",\n  \"python_version\": \"3.14.8 (main, Sep 30 2026, 17:55:09) [Clang 21.0.0 (clang-2100.3.34.2)]\",\n  \"optimization\": \"O0\",\n  \"package_root\": \"/private/tmp/kuu2607-fd01\",\n  \"stdlib_mode\": \"source\",\n  \"test_body_mode\": \"source\",\n  \"runtime_cache_provenance\": \"Runtime source hashes only; cached object bytes are outside this proof\",\n  \"native_catalog_target\": \"macos\",\n  \"compiler_resource_bundle\": \"/private/tmp/kuu2607-fd01/.build/out/Products/Debug/KSwiftK_CompilerCore.bundle/Contents/Resources\",\n  \"compiler_resource_bundle_provenance\": \"explicit caller-selected Bundle.module directory\",\n  \"selection_manifest\": \"/private/tmp/kuu2619/candidate-source-O0-finalrun/selection.json\",\n  \"selection_manifest_sha256\": \"3cc0bdb677e01e750ffbb38b2d520790a31d957a14c31c53acc23539e5f95530\",\n  \"catalog_execution_count\": 1217,\n  \"target_catalog_execution_count\": 1217,\n  \"selected_execution_count\": 3,\n  \"selected_source_function_count\": 3,\n  \"covers_full_catalog\": false,\n  \"selection_mode\": \"explicit-ids\",\n  \"ports\": [\n    {\n      \"suite\": \"native-catalog-macos\",\n      \"target\": \"macos\",\n      \"source_ports\": [\n        \"/private/tmp/kuu2619/candidate-source-O0-finalrun/ports/bytestring/common/test/ByteStringBuilderTest.kt\"\n      ],\n      \"original_sources\": [\n        {\n          \"source_path\": \"bytestring/common/test/ByteStringBuilderTest.kt\",\n          \"source_sha256\": \"ae29b06e49a8b17d2a5c84bd33fe4af290ce76dc3382b721f329af2ec31b9f72\",\n          \"source_git_blob_sha\": \"2fbb054083fa091ef563e62c51533fe07c1d0c9e\",\n          \"port_path\": \"/private/tmp/kuu2619/candidate-source-O0-finalrun/ports/bytestring/common/test/ByteStringBuilderTest.kt\",\n          \"port_sha256\": \"f7e79d5ad8c46c0e57f20594a8edfcb0d0119c7c38e3f65d76a17d74600c4135\",\n          \"prefix_bytes\": 59,\n          \"original_bytes_preserved_as_suffix\": true\n        }\n      ],\n      \"source_closure_scope\": \"explicit-scoped\",\n      \"driver_path\": \"/private/tmp/kuu2619/candidate-source-O0-finalrun/CombinedDriver.kt\",\n      \"driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n      \"execution_ids\": [\n        \"kotlinx.io.bytestring.ByteStringBuilderTest.appendArray\",\n        \"kotlinx.io.bytestring.ByteStringBuilderTest.appendBytes\",\n        \"kotlinx.io.bytestring.ByteStringBuilderTest.testCapacity\"\n      ],\n      \"source_function_ids\": [\n        \"bytestring/common/test/ByteStringBuilderTest.kt#appendArray\",\n        \"bytestring/common/test/ByteStringBuilderTest.kt#appendBytes\",\n        \"bytestring/common/test/ByteStringBuilderTest.kt#testCapacity\"\n      ],\n      \"event_token\": \"KIO_078e8b16b3271cd7068578c3\",\n      \"assertions_parameters_constructors_changed\": false,\n      \"constructor_policy\": \"fresh original concrete class instance per execution\",\n      \"lifecycle_policy\": \"Kotlin/Native 2.3.10: fresh lazy instance per execution; after hook in finally; cleanup failure replaces body failure\"\n    }\n  ],\n  \"inputs\": {\n    \"compiler_sha256\": \"2edd7e84b2e730e4b3eb6e0907d3b13876bcd13fe8323e31696b4d1f63c3d743\",\n    \"compiler_resource_bundle_sha256\": \"1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9\",\n    \"stdlib_content_sha256\": null,\n    \"stdlib_sources_sha256\": \"613722d4e26ac34800f46128568f2114628df8d0a5d0f9124164d84d7bdd9b9d\",\n    \"runtime_sources_sha256\": \"3e128e5ac5a164c7c3cda1ee8859595fc12da2a8a229e999a9291f1b419b3f83\",\n    \"runtime_abi_sources_sha256\": \"5e62bb524c8d55d62fceca1f9f2583e1c2728bbb08923074767dd91c34597b39\",\n    \"package_manifest_sha256\": \"d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1\",\n    \"lock_sha256\": \"1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014\",\n    \"catalog_sha256\": \"3bd3e5e45e2a86315dfb7c8a5ef171abdeeab49dbc50b6260c219155b67ac57e\",\n    \"selection_manifest_sha256\": \"3cc0bdb677e01e750ffbb38b2d520790a31d957a14c31c53acc23539e5f95530\",\n    \"runner_sha256\": \"b8e5dbcb1cbd2a0d1043aed1cd18ced7a72d77e372d910f52d2b4365fc9bd5b5\",\n    \"direct_runner_sha256\": \"e790f203b6c9673804607660fb3bbbad5566594d1213405f5a77678cbc8ab0df\",\n    \"helper_sha256\": \"8bc008313e34693eb70ea4c821503607749e727d5e3544676573eb0c813e3145\",\n    \"driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n    \"support_source_sha256\": {},\n    \"source_closure_index_sha256\": \"e19dcf9a9dc4051fda8a88133ce9efbcfb223a3d361e5317f6ffd23075a06447\",\n    \"port_sha256\": {\n      \"/private/tmp/kuu2619/candidate-source-O0-finalrun/ports/bytestring/common/test/ByteStringBuilderTest.kt\": \"f7e79d5ad8c46c0e57f20594a8edfcb0d0119c7c38e3f65d76a17d74600c4135\"\n    },\n    \"catalog_preparer_sha256\": \"589cd2bf4092a0299e4184c8e208d1002fc9e49b0be5f5e924739dd53e4bf002\",\n    \"declaration_index_sha256\": \"7ff0f473815211b1f1acca4e3f6ace2175de152b81a9e3eece265003d8fbab39\"\n  },\n  \"expected_count\": 3,\n  \"compile_exitcode\": 0,\n  \"executable_sha256\": \"79295497a8c9888a554c4054b6e531e899d9ebc50330489bb61184541de99da6\",\n  \"run_exitcode\": 0,\n  \"counts\": {\n    \"PASS\": 3\n  },\n  \"inputs_unchanged\": true,\n  \"candidate_executions\": 3,\n  \"result_execution_ids\": [\n    \"kotlinx.io.bytestring.ByteStringBuilderTest.appendArray\",\n    \"kotlinx.io.bytestring.ByteStringBuilderTest.appendBytes\",\n    \"kotlinx.io.bytestring.ByteStringBuilderTest.testCapacity\"\n  ],\n  \"full_catalog_validation\": {\n    \"status\": \"NOT_REQUIRED\"\n  },\n  \"status\": \"PASS\"\n}\n",
+      "summary_sha256": "560c885f662b9c96d8373d67a271f3d879500d2d2f4bee6c85ce0dfceaf89c21"
+    },
+    {
+      "lane": "source-O2",
+      "command": [
+        "python3",
+        "Scripts/kotlinx_io_upstream/run_candidate_suites.py",
+        "--upstream",
+        "/private/tmp/kuu2607-kio-reference-environment/upstream",
+        "--compiler",
+        "/private/tmp/kuu2607-fd01/.build/out/Products/Debug/kswiftc",
+        "--package-root",
+        "/private/tmp/kuu2607-fd01",
+        "--compiler-resource-bundle",
+        "/private/tmp/kuu2607-fd01/.build/out/Products/Debug/KSwiftK_CompilerCore.bundle/Contents/Resources",
+        "--source-closure-index",
+        "/private/tmp/kuu2619/bytestring-builder-source-closure.json",
+        "--execution-id",
+        "kotlinx.io.bytestring.ByteStringBuilderTest.appendArray",
+        "--execution-id",
+        "kotlinx.io.bytestring.ByteStringBuilderTest.appendBytes",
+        "--execution-id",
+        "kotlinx.io.bytestring.ByteStringBuilderTest.testCapacity",
+        "--native-catalog",
+        "macos",
+        "--stdlib-from-source",
+        "--optimization",
+        "O2",
+        "--compile-timeout",
+        "900",
+        "--run-timeout",
+        "300",
+        "--output",
+        "/private/tmp/kuu2619/candidate-source-O2-finalrun"
+      ],
+      "compile_command": [
+        "/private/tmp/kuu2607-fd01/.build/out/Products/Debug/kswiftc",
+        "-O2",
+        "--stdlib-from-source",
+        "/private/tmp/kuu2619/candidate-source-O2-finalrun/ports/bytestring/common/test/ByteStringBuilderTest.kt",
+        "/private/tmp/kuu2619/candidate-source-O2-finalrun/CombinedDriver.kt",
+        "-o",
+        "/private/tmp/kuu2619/candidate-source-O2-finalrun/candidate"
+      ],
+      "run_command": [
+        "/private/tmp/kuu2619/candidate-source-O2-finalrun/candidate"
+      ],
+      "selected_ids": [
+        "kotlinx.io.bytestring.ByteStringBuilderTest.appendArray",
+        "kotlinx.io.bytestring.ByteStringBuilderTest.appendBytes",
+        "kotlinx.io.bytestring.ByteStringBuilderTest.testCapacity"
+      ],
+      "selected_count": 3,
+      "passed_count": 3,
+      "exit_code": 0,
+      "results_output": "[\n  {\n    \"execution_id\": \"kotlinx.io.bytestring.ByteStringBuilderTest.appendArray\",\n    \"status\": \"PASS\",\n    \"stdout\": \"\",\n    \"exception_type\": null,\n    \"source_function_id\": \"bytestring/common/test/ByteStringBuilderTest.kt#appendArray\",\n    \"concrete_class\": \"kotlinx.io.bytestring.ByteStringBuilderTest\",\n    \"declaring_class\": \"kotlinx.io.bytestring.ByteStringBuilderTest\",\n    \"source_path\": \"bytestring/common/test/ByteStringBuilderTest.kt\",\n    \"source_sha256\": \"ae29b06e49a8b17d2a5c84bd33fe4af290ce76dc3382b721f329af2ec31b9f72\",\n    \"source_git_blob_sha\": \"2fbb054083fa091ef563e62c51533fe07c1d0c9e\",\n    \"candidate_port_sha256\": \"f7e79d5ad8c46c0e57f20594a8edfcb0d0119c7c38e3f65d76a17d74600c4135\",\n    \"driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n    \"suite_driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n    \"candidate_executable_sha256\": \"4eb4240e74a2ba21dca60f5fa6a6aab2b7b65ef84c625539d0578631f6452187\",\n    \"catalog_row_sha256\": \"41176541dffd0a9f5f886570403071206fc3ab0359239932d8b3526c43d30366\"\n  },\n  {\n    \"execution_id\": \"kotlinx.io.bytestring.ByteStringBuilderTest.appendBytes\",\n    \"status\": \"PASS\",\n    \"stdout\": \"\",\n    \"exception_type\": null,\n    \"source_function_id\": \"bytestring/common/test/ByteStringBuilderTest.kt#appendBytes\",\n    \"concrete_class\": \"kotlinx.io.bytestring.ByteStringBuilderTest\",\n    \"declaring_class\": \"kotlinx.io.bytestring.ByteStringBuilderTest\",\n    \"source_path\": \"bytestring/common/test/ByteStringBuilderTest.kt\",\n    \"source_sha256\": \"ae29b06e49a8b17d2a5c84bd33fe4af290ce76dc3382b721f329af2ec31b9f72\",\n    \"source_git_blob_sha\": \"2fbb054083fa091ef563e62c51533fe07c1d0c9e\",\n    \"candidate_port_sha256\": \"f7e79d5ad8c46c0e57f20594a8edfcb0d0119c7c38e3f65d76a17d74600c4135\",\n    \"driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n    \"suite_driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n    \"candidate_executable_sha256\": \"4eb4240e74a2ba21dca60f5fa6a6aab2b7b65ef84c625539d0578631f6452187\",\n    \"catalog_row_sha256\": \"25d4b7ec958dbf923e63e98bbddeebc777bfec742cd441fed1cea7b6019ad10a\"\n  },\n  {\n    \"execution_id\": \"kotlinx.io.bytestring.ByteStringBuilderTest.testCapacity\",\n    \"status\": \"PASS\",\n    \"stdout\": \"\",\n    \"exception_type\": null,\n    \"source_function_id\": \"bytestring/common/test/ByteStringBuilderTest.kt#testCapacity\",\n    \"concrete_class\": \"kotlinx.io.bytestring.ByteStringBuilderTest\",\n    \"declaring_class\": \"kotlinx.io.bytestring.ByteStringBuilderTest\",\n    \"source_path\": \"bytestring/common/test/ByteStringBuilderTest.kt\",\n    \"source_sha256\": \"ae29b06e49a8b17d2a5c84bd33fe4af290ce76dc3382b721f329af2ec31b9f72\",\n    \"source_git_blob_sha\": \"2fbb054083fa091ef563e62c51533fe07c1d0c9e\",\n    \"candidate_port_sha256\": \"f7e79d5ad8c46c0e57f20594a8edfcb0d0119c7c38e3f65d76a17d74600c4135\",\n    \"driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n    \"suite_driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n    \"candidate_executable_sha256\": \"4eb4240e74a2ba21dca60f5fa6a6aab2b7b65ef84c625539d0578631f6452187\",\n    \"catalog_row_sha256\": \"b49f9daa65ba42d58832ffbb0b2fe572aada77d41b056b707065c6d2b15cfda1\"\n  }\n]\n",
+      "results_sha256": "60c4f54fedad0738163d0c1d40c4687ef502f92c577b629e683bff6964e057b5",
+      "summary_output": "{\n  \"kind\": \"candidate-assertion-native-scoped-catalog\",\n  \"paired_pass_count\": 0,\n  \"paired_disposition\": \"UNMAPPED\",\n  \"seven_observations_exported\": false,\n  \"host\": \"macOS-27.0-arm64-arm-64bit-Mach-O\",\n  \"python_version\": \"3.14.8 (main, Sep 30 2026, 17:55:09) [Clang 21.0.0 (clang-2100.3.34.2)]\",\n  \"optimization\": \"O2\",\n  \"package_root\": \"/private/tmp/kuu2607-fd01\",\n  \"stdlib_mode\": \"source\",\n  \"test_body_mode\": \"source\",\n  \"runtime_cache_provenance\": \"Runtime source hashes only; cached object bytes are outside this proof\",\n  \"native_catalog_target\": \"macos\",\n  \"compiler_resource_bundle\": \"/private/tmp/kuu2607-fd01/.build/out/Products/Debug/KSwiftK_CompilerCore.bundle/Contents/Resources\",\n  \"compiler_resource_bundle_provenance\": \"explicit caller-selected Bundle.module directory\",\n  \"selection_manifest\": \"/private/tmp/kuu2619/candidate-source-O2-finalrun/selection.json\",\n  \"selection_manifest_sha256\": \"3cc0bdb677e01e750ffbb38b2d520790a31d957a14c31c53acc23539e5f95530\",\n  \"catalog_execution_count\": 1217,\n  \"target_catalog_execution_count\": 1217,\n  \"selected_execution_count\": 3,\n  \"selected_source_function_count\": 3,\n  \"covers_full_catalog\": false,\n  \"selection_mode\": \"explicit-ids\",\n  \"ports\": [\n    {\n      \"suite\": \"native-catalog-macos\",\n      \"target\": \"macos\",\n      \"source_ports\": [\n        \"/private/tmp/kuu2619/candidate-source-O2-finalrun/ports/bytestring/common/test/ByteStringBuilderTest.kt\"\n      ],\n      \"original_sources\": [\n        {\n          \"source_path\": \"bytestring/common/test/ByteStringBuilderTest.kt\",\n          \"source_sha256\": \"ae29b06e49a8b17d2a5c84bd33fe4af290ce76dc3382b721f329af2ec31b9f72\",\n          \"source_git_blob_sha\": \"2fbb054083fa091ef563e62c51533fe07c1d0c9e\",\n          \"port_path\": \"/private/tmp/kuu2619/candidate-source-O2-finalrun/ports/bytestring/common/test/ByteStringBuilderTest.kt\",\n          \"port_sha256\": \"f7e79d5ad8c46c0e57f20594a8edfcb0d0119c7c38e3f65d76a17d74600c4135\",\n          \"prefix_bytes\": 59,\n          \"original_bytes_preserved_as_suffix\": true\n        }\n      ],\n      \"source_closure_scope\": \"explicit-scoped\",\n      \"driver_path\": \"/private/tmp/kuu2619/candidate-source-O2-finalrun/CombinedDriver.kt\",\n      \"driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n      \"execution_ids\": [\n        \"kotlinx.io.bytestring.ByteStringBuilderTest.appendArray\",\n        \"kotlinx.io.bytestring.ByteStringBuilderTest.appendBytes\",\n        \"kotlinx.io.bytestring.ByteStringBuilderTest.testCapacity\"\n      ],\n      \"source_function_ids\": [\n        \"bytestring/common/test/ByteStringBuilderTest.kt#appendArray\",\n        \"bytestring/common/test/ByteStringBuilderTest.kt#appendBytes\",\n        \"bytestring/common/test/ByteStringBuilderTest.kt#testCapacity\"\n      ],\n      \"event_token\": \"KIO_078e8b16b3271cd7068578c3\",\n      \"assertions_parameters_constructors_changed\": false,\n      \"constructor_policy\": \"fresh original concrete class instance per execution\",\n      \"lifecycle_policy\": \"Kotlin/Native 2.3.10: fresh lazy instance per execution; after hook in finally; cleanup failure replaces body failure\"\n    }\n  ],\n  \"inputs\": {\n    \"compiler_sha256\": \"2edd7e84b2e730e4b3eb6e0907d3b13876bcd13fe8323e31696b4d1f63c3d743\",\n    \"compiler_resource_bundle_sha256\": \"1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9\",\n    \"stdlib_content_sha256\": null,\n    \"stdlib_sources_sha256\": \"613722d4e26ac34800f46128568f2114628df8d0a5d0f9124164d84d7bdd9b9d\",\n    \"runtime_sources_sha256\": \"3e128e5ac5a164c7c3cda1ee8859595fc12da2a8a229e999a9291f1b419b3f83\",\n    \"runtime_abi_sources_sha256\": \"5e62bb524c8d55d62fceca1f9f2583e1c2728bbb08923074767dd91c34597b39\",\n    \"package_manifest_sha256\": \"d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1\",\n    \"lock_sha256\": \"1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014\",\n    \"catalog_sha256\": \"3bd3e5e45e2a86315dfb7c8a5ef171abdeeab49dbc50b6260c219155b67ac57e\",\n    \"selection_manifest_sha256\": \"3cc0bdb677e01e750ffbb38b2d520790a31d957a14c31c53acc23539e5f95530\",\n    \"runner_sha256\": \"b8e5dbcb1cbd2a0d1043aed1cd18ced7a72d77e372d910f52d2b4365fc9bd5b5\",\n    \"direct_runner_sha256\": \"e790f203b6c9673804607660fb3bbbad5566594d1213405f5a77678cbc8ab0df\",\n    \"helper_sha256\": \"8bc008313e34693eb70ea4c821503607749e727d5e3544676573eb0c813e3145\",\n    \"driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n    \"support_source_sha256\": {},\n    \"source_closure_index_sha256\": \"e19dcf9a9dc4051fda8a88133ce9efbcfb223a3d361e5317f6ffd23075a06447\",\n    \"port_sha256\": {\n      \"/private/tmp/kuu2619/candidate-source-O2-finalrun/ports/bytestring/common/test/ByteStringBuilderTest.kt\": \"f7e79d5ad8c46c0e57f20594a8edfcb0d0119c7c38e3f65d76a17d74600c4135\"\n    },\n    \"catalog_preparer_sha256\": \"589cd2bf4092a0299e4184c8e208d1002fc9e49b0be5f5e924739dd53e4bf002\",\n    \"declaration_index_sha256\": \"7ff0f473815211b1f1acca4e3f6ace2175de152b81a9e3eece265003d8fbab39\"\n  },\n  \"expected_count\": 3,\n  \"compile_exitcode\": 0,\n  \"executable_sha256\": \"4eb4240e74a2ba21dca60f5fa6a6aab2b7b65ef84c625539d0578631f6452187\",\n  \"run_exitcode\": 0,\n  \"counts\": {\n    \"PASS\": 3\n  },\n  \"inputs_unchanged\": true,\n  \"candidate_executions\": 3,\n  \"result_execution_ids\": [\n    \"kotlinx.io.bytestring.ByteStringBuilderTest.appendArray\",\n    \"kotlinx.io.bytestring.ByteStringBuilderTest.appendBytes\",\n    \"kotlinx.io.bytestring.ByteStringBuilderTest.testCapacity\"\n  ],\n  \"full_catalog_validation\": {\n    \"status\": \"NOT_REQUIRED\"\n  },\n  \"status\": \"PASS\"\n}\n",
+      "summary_sha256": "43aea0193c08209df7e09439bc17e949c3c2980ae02396d81783b8d23a6b66c7"
+    },
+    {
+      "lane": "stdlib-library-O0",
+      "command": [
+        "python3",
+        "Scripts/kotlinx_io_upstream/run_candidate_suites.py",
+        "--upstream",
+        "/private/tmp/kuu2607-kio-reference-environment/upstream",
+        "--compiler",
+        "/private/tmp/kuu2607-fd01/.build/out/Products/Debug/kswiftc",
+        "--package-root",
+        "/private/tmp/kuu2607-fd01",
+        "--compiler-resource-bundle",
+        "/private/tmp/kuu2607-fd01/.build/out/Products/Debug/KSwiftK_CompilerCore.bundle/Contents/Resources",
+        "--source-closure-index",
+        "/private/tmp/kuu2619/bytestring-builder-source-closure.json",
+        "--execution-id",
+        "kotlinx.io.bytestring.ByteStringBuilderTest.appendArray",
+        "--execution-id",
+        "kotlinx.io.bytestring.ByteStringBuilderTest.appendBytes",
+        "--execution-id",
+        "kotlinx.io.bytestring.ByteStringBuilderTest.testCapacity",
+        "--native-catalog",
+        "macos",
+        "--stdlib-library",
+        "/private/tmp/kuu2607-fd01-f02/KSwiftKStdlib.kklib",
+        "--optimization",
+        "O0",
+        "--compile-timeout",
+        "900",
+        "--run-timeout",
+        "300",
+        "--output",
+        "/private/tmp/kuu2619/candidate-klib-O0-finalrun"
+      ],
+      "compile_command": [
+        "/private/tmp/kuu2607-fd01/.build/out/Products/Debug/kswiftc",
+        "-O0",
+        "--stdlib-library",
+        "/private/tmp/kuu2607-fd01-f02/KSwiftKStdlib.kklib",
+        "/private/tmp/kuu2619/candidate-klib-O0-finalrun/ports/bytestring/common/test/ByteStringBuilderTest.kt",
+        "/private/tmp/kuu2619/candidate-klib-O0-finalrun/CombinedDriver.kt",
+        "-o",
+        "/private/tmp/kuu2619/candidate-klib-O0-finalrun/candidate"
+      ],
+      "run_command": [
+        "/private/tmp/kuu2619/candidate-klib-O0-finalrun/candidate"
+      ],
+      "selected_ids": [
+        "kotlinx.io.bytestring.ByteStringBuilderTest.appendArray",
+        "kotlinx.io.bytestring.ByteStringBuilderTest.appendBytes",
+        "kotlinx.io.bytestring.ByteStringBuilderTest.testCapacity"
+      ],
+      "selected_count": 3,
+      "passed_count": 3,
+      "exit_code": 0,
+      "results_output": "[\n  {\n    \"execution_id\": \"kotlinx.io.bytestring.ByteStringBuilderTest.appendArray\",\n    \"status\": \"PASS\",\n    \"stdout\": \"\",\n    \"exception_type\": null,\n    \"source_function_id\": \"bytestring/common/test/ByteStringBuilderTest.kt#appendArray\",\n    \"concrete_class\": \"kotlinx.io.bytestring.ByteStringBuilderTest\",\n    \"declaring_class\": \"kotlinx.io.bytestring.ByteStringBuilderTest\",\n    \"source_path\": \"bytestring/common/test/ByteStringBuilderTest.kt\",\n    \"source_sha256\": \"ae29b06e49a8b17d2a5c84bd33fe4af290ce76dc3382b721f329af2ec31b9f72\",\n    \"source_git_blob_sha\": \"2fbb054083fa091ef563e62c51533fe07c1d0c9e\",\n    \"candidate_port_sha256\": \"f7e79d5ad8c46c0e57f20594a8edfcb0d0119c7c38e3f65d76a17d74600c4135\",\n    \"driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n    \"suite_driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n    \"candidate_executable_sha256\": \"13eefc901af4d65c6807780ddb3fe5205971105c7f05287c4e6ca6fecb185d3a\",\n    \"catalog_row_sha256\": \"41176541dffd0a9f5f886570403071206fc3ab0359239932d8b3526c43d30366\"\n  },\n  {\n    \"execution_id\": \"kotlinx.io.bytestring.ByteStringBuilderTest.appendBytes\",\n    \"status\": \"PASS\",\n    \"stdout\": \"\",\n    \"exception_type\": null,\n    \"source_function_id\": \"bytestring/common/test/ByteStringBuilderTest.kt#appendBytes\",\n    \"concrete_class\": \"kotlinx.io.bytestring.ByteStringBuilderTest\",\n    \"declaring_class\": \"kotlinx.io.bytestring.ByteStringBuilderTest\",\n    \"source_path\": \"bytestring/common/test/ByteStringBuilderTest.kt\",\n    \"source_sha256\": \"ae29b06e49a8b17d2a5c84bd33fe4af290ce76dc3382b721f329af2ec31b9f72\",\n    \"source_git_blob_sha\": \"2fbb054083fa091ef563e62c51533fe07c1d0c9e\",\n    \"candidate_port_sha256\": \"f7e79d5ad8c46c0e57f20594a8edfcb0d0119c7c38e3f65d76a17d74600c4135\",\n    \"driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n    \"suite_driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n    \"candidate_executable_sha256\": \"13eefc901af4d65c6807780ddb3fe5205971105c7f05287c4e6ca6fecb185d3a\",\n    \"catalog_row_sha256\": \"25d4b7ec958dbf923e63e98bbddeebc777bfec742cd441fed1cea7b6019ad10a\"\n  },\n  {\n    \"execution_id\": \"kotlinx.io.bytestring.ByteStringBuilderTest.testCapacity\",\n    \"status\": \"PASS\",\n    \"stdout\": \"\",\n    \"exception_type\": null,\n    \"source_function_id\": \"bytestring/common/test/ByteStringBuilderTest.kt#testCapacity\",\n    \"concrete_class\": \"kotlinx.io.bytestring.ByteStringBuilderTest\",\n    \"declaring_class\": \"kotlinx.io.bytestring.ByteStringBuilderTest\",\n    \"source_path\": \"bytestring/common/test/ByteStringBuilderTest.kt\",\n    \"source_sha256\": \"ae29b06e49a8b17d2a5c84bd33fe4af290ce76dc3382b721f329af2ec31b9f72\",\n    \"source_git_blob_sha\": \"2fbb054083fa091ef563e62c51533fe07c1d0c9e\",\n    \"candidate_port_sha256\": \"f7e79d5ad8c46c0e57f20594a8edfcb0d0119c7c38e3f65d76a17d74600c4135\",\n    \"driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n    \"suite_driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n    \"candidate_executable_sha256\": \"13eefc901af4d65c6807780ddb3fe5205971105c7f05287c4e6ca6fecb185d3a\",\n    \"catalog_row_sha256\": \"b49f9daa65ba42d58832ffbb0b2fe572aada77d41b056b707065c6d2b15cfda1\"\n  }\n]\n",
+      "results_sha256": "cf179a5cedda4f95cca2799434c3f807916763b7524ef655cdd2eca59bbe4555",
+      "summary_output": "{\n  \"kind\": \"candidate-assertion-native-scoped-catalog\",\n  \"paired_pass_count\": 0,\n  \"paired_disposition\": \"UNMAPPED\",\n  \"seven_observations_exported\": false,\n  \"host\": \"macOS-27.0-arm64-arm-64bit-Mach-O\",\n  \"python_version\": \"3.14.8 (main, Sep 30 2026, 17:55:09) [Clang 21.0.0 (clang-2100.3.34.2)]\",\n  \"optimization\": \"O0\",\n  \"package_root\": \"/private/tmp/kuu2607-fd01\",\n  \"stdlib_mode\": \"library\",\n  \"test_body_mode\": \"source\",\n  \"runtime_cache_provenance\": \"Runtime source hashes only; cached object bytes are outside this proof\",\n  \"native_catalog_target\": \"macos\",\n  \"compiler_resource_bundle\": \"/private/tmp/kuu2607-fd01/.build/out/Products/Debug/KSwiftK_CompilerCore.bundle/Contents/Resources\",\n  \"compiler_resource_bundle_provenance\": \"explicit caller-selected Bundle.module directory\",\n  \"selection_manifest\": \"/private/tmp/kuu2619/candidate-klib-O0-finalrun/selection.json\",\n  \"selection_manifest_sha256\": \"3cc0bdb677e01e750ffbb38b2d520790a31d957a14c31c53acc23539e5f95530\",\n  \"catalog_execution_count\": 1217,\n  \"target_catalog_execution_count\": 1217,\n  \"selected_execution_count\": 3,\n  \"selected_source_function_count\": 3,\n  \"covers_full_catalog\": false,\n  \"selection_mode\": \"explicit-ids\",\n  \"ports\": [\n    {\n      \"suite\": \"native-catalog-macos\",\n      \"target\": \"macos\",\n      \"source_ports\": [\n        \"/private/tmp/kuu2619/candidate-klib-O0-finalrun/ports/bytestring/common/test/ByteStringBuilderTest.kt\"\n      ],\n      \"original_sources\": [\n        {\n          \"source_path\": \"bytestring/common/test/ByteStringBuilderTest.kt\",\n          \"source_sha256\": \"ae29b06e49a8b17d2a5c84bd33fe4af290ce76dc3382b721f329af2ec31b9f72\",\n          \"source_git_blob_sha\": \"2fbb054083fa091ef563e62c51533fe07c1d0c9e\",\n          \"port_path\": \"/private/tmp/kuu2619/candidate-klib-O0-finalrun/ports/bytestring/common/test/ByteStringBuilderTest.kt\",\n          \"port_sha256\": \"f7e79d5ad8c46c0e57f20594a8edfcb0d0119c7c38e3f65d76a17d74600c4135\",\n          \"prefix_bytes\": 59,\n          \"original_bytes_preserved_as_suffix\": true\n        }\n      ],\n      \"source_closure_scope\": \"explicit-scoped\",\n      \"driver_path\": \"/private/tmp/kuu2619/candidate-klib-O0-finalrun/CombinedDriver.kt\",\n      \"driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n      \"execution_ids\": [\n        \"kotlinx.io.bytestring.ByteStringBuilderTest.appendArray\",\n        \"kotlinx.io.bytestring.ByteStringBuilderTest.appendBytes\",\n        \"kotlinx.io.bytestring.ByteStringBuilderTest.testCapacity\"\n      ],\n      \"source_function_ids\": [\n        \"bytestring/common/test/ByteStringBuilderTest.kt#appendArray\",\n        \"bytestring/common/test/ByteStringBuilderTest.kt#appendBytes\",\n        \"bytestring/common/test/ByteStringBuilderTest.kt#testCapacity\"\n      ],\n      \"event_token\": \"KIO_078e8b16b3271cd7068578c3\",\n      \"assertions_parameters_constructors_changed\": false,\n      \"constructor_policy\": \"fresh original concrete class instance per execution\",\n      \"lifecycle_policy\": \"Kotlin/Native 2.3.10: fresh lazy instance per execution; after hook in finally; cleanup failure replaces body failure\"\n    }\n  ],\n  \"inputs\": {\n    \"compiler_sha256\": \"2edd7e84b2e730e4b3eb6e0907d3b13876bcd13fe8323e31696b4d1f63c3d743\",\n    \"compiler_resource_bundle_sha256\": \"1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9\",\n    \"stdlib_content_sha256\": \"de6113c1f46ab08f6b36c13bffd35bb1003b59d42660b23ab9a95cf90118a672\",\n    \"stdlib_sources_sha256\": \"613722d4e26ac34800f46128568f2114628df8d0a5d0f9124164d84d7bdd9b9d\",\n    \"runtime_sources_sha256\": \"3e128e5ac5a164c7c3cda1ee8859595fc12da2a8a229e999a9291f1b419b3f83\",\n    \"runtime_abi_sources_sha256\": \"5e62bb524c8d55d62fceca1f9f2583e1c2728bbb08923074767dd91c34597b39\",\n    \"package_manifest_sha256\": \"d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1\",\n    \"lock_sha256\": \"1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014\",\n    \"catalog_sha256\": \"3bd3e5e45e2a86315dfb7c8a5ef171abdeeab49dbc50b6260c219155b67ac57e\",\n    \"selection_manifest_sha256\": \"3cc0bdb677e01e750ffbb38b2d520790a31d957a14c31c53acc23539e5f95530\",\n    \"runner_sha256\": \"b8e5dbcb1cbd2a0d1043aed1cd18ced7a72d77e372d910f52d2b4365fc9bd5b5\",\n    \"direct_runner_sha256\": \"e790f203b6c9673804607660fb3bbbad5566594d1213405f5a77678cbc8ab0df\",\n    \"helper_sha256\": \"8bc008313e34693eb70ea4c821503607749e727d5e3544676573eb0c813e3145\",\n    \"driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n    \"support_source_sha256\": {},\n    \"source_closure_index_sha256\": \"e19dcf9a9dc4051fda8a88133ce9efbcfb223a3d361e5317f6ffd23075a06447\",\n    \"port_sha256\": {\n      \"/private/tmp/kuu2619/candidate-klib-O0-finalrun/ports/bytestring/common/test/ByteStringBuilderTest.kt\": \"f7e79d5ad8c46c0e57f20594a8edfcb0d0119c7c38e3f65d76a17d74600c4135\"\n    },\n    \"catalog_preparer_sha256\": \"589cd2bf4092a0299e4184c8e208d1002fc9e49b0be5f5e924739dd53e4bf002\",\n    \"declaration_index_sha256\": \"7ff0f473815211b1f1acca4e3f6ace2175de152b81a9e3eece265003d8fbab39\"\n  },\n  \"expected_count\": 3,\n  \"compile_exitcode\": 0,\n  \"executable_sha256\": \"13eefc901af4d65c6807780ddb3fe5205971105c7f05287c4e6ca6fecb185d3a\",\n  \"run_exitcode\": 0,\n  \"counts\": {\n    \"PASS\": 3\n  },\n  \"inputs_unchanged\": true,\n  \"candidate_executions\": 3,\n  \"result_execution_ids\": [\n    \"kotlinx.io.bytestring.ByteStringBuilderTest.appendArray\",\n    \"kotlinx.io.bytestring.ByteStringBuilderTest.appendBytes\",\n    \"kotlinx.io.bytestring.ByteStringBuilderTest.testCapacity\"\n  ],\n  \"full_catalog_validation\": {\n    \"status\": \"NOT_REQUIRED\"\n  },\n  \"status\": \"PASS\"\n}\n",
+      "summary_sha256": "d98847e722d50a674c645ec75eac4146059da3cbcb3ce75d5c2d07c82f4afebd"
+    },
+    {
+      "lane": "stdlib-library-O2",
+      "command": [
+        "python3",
+        "Scripts/kotlinx_io_upstream/run_candidate_suites.py",
+        "--upstream",
+        "/private/tmp/kuu2607-kio-reference-environment/upstream",
+        "--compiler",
+        "/private/tmp/kuu2607-fd01/.build/out/Products/Debug/kswiftc",
+        "--package-root",
+        "/private/tmp/kuu2607-fd01",
+        "--compiler-resource-bundle",
+        "/private/tmp/kuu2607-fd01/.build/out/Products/Debug/KSwiftK_CompilerCore.bundle/Contents/Resources",
+        "--source-closure-index",
+        "/private/tmp/kuu2619/bytestring-builder-source-closure.json",
+        "--execution-id",
+        "kotlinx.io.bytestring.ByteStringBuilderTest.appendArray",
+        "--execution-id",
+        "kotlinx.io.bytestring.ByteStringBuilderTest.appendBytes",
+        "--execution-id",
+        "kotlinx.io.bytestring.ByteStringBuilderTest.testCapacity",
+        "--native-catalog",
+        "macos",
+        "--stdlib-library",
+        "/private/tmp/kuu2607-fd01-f02/KSwiftKStdlib.kklib",
+        "--optimization",
+        "O2",
+        "--compile-timeout",
+        "900",
+        "--run-timeout",
+        "300",
+        "--output",
+        "/private/tmp/kuu2619/candidate-klib-O2-finalrun"
+      ],
+      "compile_command": [
+        "/private/tmp/kuu2607-fd01/.build/out/Products/Debug/kswiftc",
+        "-O2",
+        "--stdlib-library",
+        "/private/tmp/kuu2607-fd01-f02/KSwiftKStdlib.kklib",
+        "/private/tmp/kuu2619/candidate-klib-O2-finalrun/ports/bytestring/common/test/ByteStringBuilderTest.kt",
+        "/private/tmp/kuu2619/candidate-klib-O2-finalrun/CombinedDriver.kt",
+        "-o",
+        "/private/tmp/kuu2619/candidate-klib-O2-finalrun/candidate"
+      ],
+      "run_command": [
+        "/private/tmp/kuu2619/candidate-klib-O2-finalrun/candidate"
+      ],
+      "selected_ids": [
+        "kotlinx.io.bytestring.ByteStringBuilderTest.appendArray",
+        "kotlinx.io.bytestring.ByteStringBuilderTest.appendBytes",
+        "kotlinx.io.bytestring.ByteStringBuilderTest.testCapacity"
+      ],
+      "selected_count": 3,
+      "passed_count": 3,
+      "exit_code": 0,
+      "results_output": "[\n  {\n    \"execution_id\": \"kotlinx.io.bytestring.ByteStringBuilderTest.appendArray\",\n    \"status\": \"PASS\",\n    \"stdout\": \"\",\n    \"exception_type\": null,\n    \"source_function_id\": \"bytestring/common/test/ByteStringBuilderTest.kt#appendArray\",\n    \"concrete_class\": \"kotlinx.io.bytestring.ByteStringBuilderTest\",\n    \"declaring_class\": \"kotlinx.io.bytestring.ByteStringBuilderTest\",\n    \"source_path\": \"bytestring/common/test/ByteStringBuilderTest.kt\",\n    \"source_sha256\": \"ae29b06e49a8b17d2a5c84bd33fe4af290ce76dc3382b721f329af2ec31b9f72\",\n    \"source_git_blob_sha\": \"2fbb054083fa091ef563e62c51533fe07c1d0c9e\",\n    \"candidate_port_sha256\": \"f7e79d5ad8c46c0e57f20594a8edfcb0d0119c7c38e3f65d76a17d74600c4135\",\n    \"driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n    \"suite_driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n    \"candidate_executable_sha256\": \"98e6a6c9157489380ddeb5e49378610d645bd838b9f5e442cf258f2456ec8309\",\n    \"catalog_row_sha256\": \"41176541dffd0a9f5f886570403071206fc3ab0359239932d8b3526c43d30366\"\n  },\n  {\n    \"execution_id\": \"kotlinx.io.bytestring.ByteStringBuilderTest.appendBytes\",\n    \"status\": \"PASS\",\n    \"stdout\": \"\",\n    \"exception_type\": null,\n    \"source_function_id\": \"bytestring/common/test/ByteStringBuilderTest.kt#appendBytes\",\n    \"concrete_class\": \"kotlinx.io.bytestring.ByteStringBuilderTest\",\n    \"declaring_class\": \"kotlinx.io.bytestring.ByteStringBuilderTest\",\n    \"source_path\": \"bytestring/common/test/ByteStringBuilderTest.kt\",\n    \"source_sha256\": \"ae29b06e49a8b17d2a5c84bd33fe4af290ce76dc3382b721f329af2ec31b9f72\",\n    \"source_git_blob_sha\": \"2fbb054083fa091ef563e62c51533fe07c1d0c9e\",\n    \"candidate_port_sha256\": \"f7e79d5ad8c46c0e57f20594a8edfcb0d0119c7c38e3f65d76a17d74600c4135\",\n    \"driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n    \"suite_driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n    \"candidate_executable_sha256\": \"98e6a6c9157489380ddeb5e49378610d645bd838b9f5e442cf258f2456ec8309\",\n    \"catalog_row_sha256\": \"25d4b7ec958dbf923e63e98bbddeebc777bfec742cd441fed1cea7b6019ad10a\"\n  },\n  {\n    \"execution_id\": \"kotlinx.io.bytestring.ByteStringBuilderTest.testCapacity\",\n    \"status\": \"PASS\",\n    \"stdout\": \"\",\n    \"exception_type\": null,\n    \"source_function_id\": \"bytestring/common/test/ByteStringBuilderTest.kt#testCapacity\",\n    \"concrete_class\": \"kotlinx.io.bytestring.ByteStringBuilderTest\",\n    \"declaring_class\": \"kotlinx.io.bytestring.ByteStringBuilderTest\",\n    \"source_path\": \"bytestring/common/test/ByteStringBuilderTest.kt\",\n    \"source_sha256\": \"ae29b06e49a8b17d2a5c84bd33fe4af290ce76dc3382b721f329af2ec31b9f72\",\n    \"source_git_blob_sha\": \"2fbb054083fa091ef563e62c51533fe07c1d0c9e\",\n    \"candidate_port_sha256\": \"f7e79d5ad8c46c0e57f20594a8edfcb0d0119c7c38e3f65d76a17d74600c4135\",\n    \"driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n    \"suite_driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n    \"candidate_executable_sha256\": \"98e6a6c9157489380ddeb5e49378610d645bd838b9f5e442cf258f2456ec8309\",\n    \"catalog_row_sha256\": \"b49f9daa65ba42d58832ffbb0b2fe572aada77d41b056b707065c6d2b15cfda1\"\n  }\n]\n",
+      "results_sha256": "b1195cd84e4d812017a587feb3e2d0eb9ce3166fc9801b4918f59100d8e5d25a",
+      "summary_output": "{\n  \"kind\": \"candidate-assertion-native-scoped-catalog\",\n  \"paired_pass_count\": 0,\n  \"paired_disposition\": \"UNMAPPED\",\n  \"seven_observations_exported\": false,\n  \"host\": \"macOS-27.0-arm64-arm-64bit-Mach-O\",\n  \"python_version\": \"3.14.8 (main, Sep 30 2026, 17:55:09) [Clang 21.0.0 (clang-2100.3.34.2)]\",\n  \"optimization\": \"O2\",\n  \"package_root\": \"/private/tmp/kuu2607-fd01\",\n  \"stdlib_mode\": \"library\",\n  \"test_body_mode\": \"source\",\n  \"runtime_cache_provenance\": \"Runtime source hashes only; cached object bytes are outside this proof\",\n  \"native_catalog_target\": \"macos\",\n  \"compiler_resource_bundle\": \"/private/tmp/kuu2607-fd01/.build/out/Products/Debug/KSwiftK_CompilerCore.bundle/Contents/Resources\",\n  \"compiler_resource_bundle_provenance\": \"explicit caller-selected Bundle.module directory\",\n  \"selection_manifest\": \"/private/tmp/kuu2619/candidate-klib-O2-finalrun/selection.json\",\n  \"selection_manifest_sha256\": \"3cc0bdb677e01e750ffbb38b2d520790a31d957a14c31c53acc23539e5f95530\",\n  \"catalog_execution_count\": 1217,\n  \"target_catalog_execution_count\": 1217,\n  \"selected_execution_count\": 3,\n  \"selected_source_function_count\": 3,\n  \"covers_full_catalog\": false,\n  \"selection_mode\": \"explicit-ids\",\n  \"ports\": [\n    {\n      \"suite\": \"native-catalog-macos\",\n      \"target\": \"macos\",\n      \"source_ports\": [\n        \"/private/tmp/kuu2619/candidate-klib-O2-finalrun/ports/bytestring/common/test/ByteStringBuilderTest.kt\"\n      ],\n      \"original_sources\": [\n        {\n          \"source_path\": \"bytestring/common/test/ByteStringBuilderTest.kt\",\n          \"source_sha256\": \"ae29b06e49a8b17d2a5c84bd33fe4af290ce76dc3382b721f329af2ec31b9f72\",\n          \"source_git_blob_sha\": \"2fbb054083fa091ef563e62c51533fe07c1d0c9e\",\n          \"port_path\": \"/private/tmp/kuu2619/candidate-klib-O2-finalrun/ports/bytestring/common/test/ByteStringBuilderTest.kt\",\n          \"port_sha256\": \"f7e79d5ad8c46c0e57f20594a8edfcb0d0119c7c38e3f65d76a17d74600c4135\",\n          \"prefix_bytes\": 59,\n          \"original_bytes_preserved_as_suffix\": true\n        }\n      ],\n      \"source_closure_scope\": \"explicit-scoped\",\n      \"driver_path\": \"/private/tmp/kuu2619/candidate-klib-O2-finalrun/CombinedDriver.kt\",\n      \"driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n      \"execution_ids\": [\n        \"kotlinx.io.bytestring.ByteStringBuilderTest.appendArray\",\n        \"kotlinx.io.bytestring.ByteStringBuilderTest.appendBytes\",\n        \"kotlinx.io.bytestring.ByteStringBuilderTest.testCapacity\"\n      ],\n      \"source_function_ids\": [\n        \"bytestring/common/test/ByteStringBuilderTest.kt#appendArray\",\n        \"bytestring/common/test/ByteStringBuilderTest.kt#appendBytes\",\n        \"bytestring/common/test/ByteStringBuilderTest.kt#testCapacity\"\n      ],\n      \"event_token\": \"KIO_078e8b16b3271cd7068578c3\",\n      \"assertions_parameters_constructors_changed\": false,\n      \"constructor_policy\": \"fresh original concrete class instance per execution\",\n      \"lifecycle_policy\": \"Kotlin/Native 2.3.10: fresh lazy instance per execution; after hook in finally; cleanup failure replaces body failure\"\n    }\n  ],\n  \"inputs\": {\n    \"compiler_sha256\": \"2edd7e84b2e730e4b3eb6e0907d3b13876bcd13fe8323e31696b4d1f63c3d743\",\n    \"compiler_resource_bundle_sha256\": \"1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9\",\n    \"stdlib_content_sha256\": \"de6113c1f46ab08f6b36c13bffd35bb1003b59d42660b23ab9a95cf90118a672\",\n    \"stdlib_sources_sha256\": \"613722d4e26ac34800f46128568f2114628df8d0a5d0f9124164d84d7bdd9b9d\",\n    \"runtime_sources_sha256\": \"3e128e5ac5a164c7c3cda1ee8859595fc12da2a8a229e999a9291f1b419b3f83\",\n    \"runtime_abi_sources_sha256\": \"5e62bb524c8d55d62fceca1f9f2583e1c2728bbb08923074767dd91c34597b39\",\n    \"package_manifest_sha256\": \"d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1\",\n    \"lock_sha256\": \"1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014\",\n    \"catalog_sha256\": \"3bd3e5e45e2a86315dfb7c8a5ef171abdeeab49dbc50b6260c219155b67ac57e\",\n    \"selection_manifest_sha256\": \"3cc0bdb677e01e750ffbb38b2d520790a31d957a14c31c53acc23539e5f95530\",\n    \"runner_sha256\": \"b8e5dbcb1cbd2a0d1043aed1cd18ced7a72d77e372d910f52d2b4365fc9bd5b5\",\n    \"direct_runner_sha256\": \"e790f203b6c9673804607660fb3bbbad5566594d1213405f5a77678cbc8ab0df\",\n    \"helper_sha256\": \"8bc008313e34693eb70ea4c821503607749e727d5e3544676573eb0c813e3145\",\n    \"driver_sha256\": \"4f71d82f3a5186a9b4c5e77498064073e328a1c7372180c82d0891bdfbdfd11c\",\n    \"support_source_sha256\": {},\n    \"source_closure_index_sha256\": \"e19dcf9a9dc4051fda8a88133ce9efbcfb223a3d361e5317f6ffd23075a06447\",\n    \"port_sha256\": {\n      \"/private/tmp/kuu2619/candidate-klib-O2-finalrun/ports/bytestring/common/test/ByteStringBuilderTest.kt\": \"f7e79d5ad8c46c0e57f20594a8edfcb0d0119c7c38e3f65d76a17d74600c4135\"\n    },\n    \"catalog_preparer_sha256\": \"589cd2bf4092a0299e4184c8e208d1002fc9e49b0be5f5e924739dd53e4bf002\",\n    \"declaration_index_sha256\": \"7ff0f473815211b1f1acca4e3f6ace2175de152b81a9e3eece265003d8fbab39\"\n  },\n  \"expected_count\": 3,\n  \"compile_exitcode\": 0,\n  \"executable_sha256\": \"98e6a6c9157489380ddeb5e49378610d645bd838b9f5e442cf258f2456ec8309\",\n  \"run_exitcode\": 0,\n  \"counts\": {\n    \"PASS\": 3\n  },\n  \"inputs_unchanged\": true,\n  \"candidate_executions\": 3,\n  \"result_execution_ids\": [\n    \"kotlinx.io.bytestring.ByteStringBuilderTest.appendArray\",\n    \"kotlinx.io.bytestring.ByteStringBuilderTest.appendBytes\",\n    \"kotlinx.io.bytestring.ByteStringBuilderTest.testCapacity\"\n  ],\n  \"full_catalog_validation\": {\n    \"status\": \"NOT_REQUIRED\"\n  },\n  \"status\": \"PASS\"\n}\n",
+      "summary_sha256": "62b5027e6cd14ec338873cbfa690394e0e8b4868bc052ab6c847bfd3c100aa3c"
+    }
+  ],
+  "consumer_runs": [
+    {
+      "lane": "reference-jvm",
+      "result": "PASS",
+      "compile_exit_code": 0,
+      "exit_code": 0,
+      "compile_command": [
+        "/private/tmp/kuu2607-kio-reference-environment/installation/kotlinc/bin/kotlinc",
+        "/Users/kuu/.codex/worktrees/b7c9/swifty-kotlin/Scripts/io_api_inventory/cases/bytestring_builder_default_bridges.kt",
+        "-classpath",
+        "/private/tmp/kuu2607-kio-reference-environment/dependencies/kotlinx-io-core-jvm-0.9.1.jar:/private/tmp/kuu2607-kio-reference-environment/dependencies/kotlinx-io-bytestring-jvm-0.9.1.jar",
+        "-include-runtime",
+        "-d",
+        "/private/tmp/kuu2619/consumer-reference/consumer.jar"
+      ],
+      "run_command": [
+        "/private/tmp/kuu2596-temurin21/jdk-21.0.12.1+1/Contents/Home/bin/java",
+        "-cp",
+        "/private/tmp/kuu2619/consumer-reference/consumer.jar:/private/tmp/kuu2607-kio-reference-environment/dependencies/kotlinx-io-core-jvm-0.9.1.jar:/private/tmp/kuu2607-kio-reference-environment/dependencies/kotlinx-io-bytestring-jvm-0.9.1.jar",
+        "Bytestring_builder_default_bridgesKt"
+      ],
+      "stdout": "constructor-default:0:0:true\nconstructor-explicit-zero:0\nappend-all:4:true\nappend-start:2:true\nappend-end:2:true\nappend-explicit:2:true\nbuild-default:1:0:4:true\nappend-default-negative-start:IndexOutOfBoundsException\nappend-default-negative-end:IllegalArgumentException\n",
+      "stdout_sha256": "8d589b44e8a3a011dfac4167852efe0c04631bf10b0f939352ed22042e53d40e",
+      "stderr": "",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "lane": "source-O0",
+      "result": "PASS",
+      "compile_exit_code": 0,
+      "exit_code": 0,
+      "compile_command": [
+        "/private/tmp/kuu2607-fd01/.build/out/Products/Debug/kswiftc",
+        "-O0",
+        "--stdlib-from-source",
+        "/Users/kuu/.codex/worktrees/b7c9/swifty-kotlin/Scripts/io_api_inventory/cases/bytestring_builder_default_bridges.kt",
+        "-o",
+        "/private/tmp/kuu2619/consumer-source-O0/consumer"
+      ],
+      "run_command": [
+        "/private/tmp/kuu2619/consumer-source-O0/consumer"
+      ],
+      "stdout": "constructor-default:0:0:true\nconstructor-explicit-zero:0\nappend-all:4:true\nappend-start:2:true\nappend-end:2:true\nappend-explicit:2:true\nbuild-default:1:0:4:true\nappend-default-negative-start:IndexOutOfBoundsException\nappend-default-negative-end:IllegalArgumentException\n",
+      "stdout_sha256": "8d589b44e8a3a011dfac4167852efe0c04631bf10b0f939352ed22042e53d40e",
+      "stderr": "",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "lane": "source-O2",
+      "result": "PASS",
+      "compile_exit_code": 0,
+      "exit_code": 0,
+      "compile_command": [
+        "/private/tmp/kuu2607-fd01/.build/out/Products/Debug/kswiftc",
+        "-O2",
+        "--stdlib-from-source",
+        "/Users/kuu/.codex/worktrees/b7c9/swifty-kotlin/Scripts/io_api_inventory/cases/bytestring_builder_default_bridges.kt",
+        "-o",
+        "/private/tmp/kuu2619/consumer-source-O2/consumer"
+      ],
+      "run_command": [
+        "/private/tmp/kuu2619/consumer-source-O2/consumer"
+      ],
+      "stdout": "constructor-default:0:0:true\nconstructor-explicit-zero:0\nappend-all:4:true\nappend-start:2:true\nappend-end:2:true\nappend-explicit:2:true\nbuild-default:1:0:4:true\nappend-default-negative-start:IndexOutOfBoundsException\nappend-default-negative-end:IllegalArgumentException\n",
+      "stdout_sha256": "8d589b44e8a3a011dfac4167852efe0c04631bf10b0f939352ed22042e53d40e",
+      "stderr": "",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "lane": "stdlib-library-O0",
+      "result": "PASS",
+      "compile_exit_code": 0,
+      "exit_code": 0,
+      "compile_command": [
+        "/private/tmp/kuu2607-fd01/.build/out/Products/Debug/kswiftc",
+        "-O0",
+        "--stdlib-library",
+        "/private/tmp/kuu2607-fd01-f02/KSwiftKStdlib.kklib",
+        "/Users/kuu/.codex/worktrees/b7c9/swifty-kotlin/Scripts/io_api_inventory/cases/bytestring_builder_default_bridges.kt",
+        "-o",
+        "/private/tmp/kuu2619/consumer-stdlib-library-O0/consumer"
+      ],
+      "run_command": [
+        "/private/tmp/kuu2619/consumer-stdlib-library-O0/consumer"
+      ],
+      "stdout": "constructor-default:0:0:true\nconstructor-explicit-zero:0\nappend-all:4:true\nappend-start:2:true\nappend-end:2:true\nappend-explicit:2:true\nbuild-default:1:0:4:true\nappend-default-negative-start:IndexOutOfBoundsException\nappend-default-negative-end:IllegalArgumentException\n",
+      "stdout_sha256": "8d589b44e8a3a011dfac4167852efe0c04631bf10b0f939352ed22042e53d40e",
+      "stderr": "",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "lane": "stdlib-library-O2",
+      "result": "PASS",
+      "compile_exit_code": 0,
+      "exit_code": 0,
+      "compile_command": [
+        "/private/tmp/kuu2607-fd01/.build/out/Products/Debug/kswiftc",
+        "-O2",
+        "--stdlib-library",
+        "/private/tmp/kuu2607-fd01-f02/KSwiftKStdlib.kklib",
+        "/Users/kuu/.codex/worktrees/b7c9/swifty-kotlin/Scripts/io_api_inventory/cases/bytestring_builder_default_bridges.kt",
+        "-o",
+        "/private/tmp/kuu2619/consumer-stdlib-library-O2/consumer"
+      ],
+      "run_command": [
+        "/private/tmp/kuu2619/consumer-stdlib-library-O2/consumer"
+      ],
+      "stdout": "constructor-default:0:0:true\nconstructor-explicit-zero:0\nappend-all:4:true\nappend-start:2:true\nappend-end:2:true\nappend-explicit:2:true\nbuild-default:1:0:4:true\nappend-default-negative-start:IndexOutOfBoundsException\nappend-default-negative-end:IllegalArgumentException\n",
+      "stdout_sha256": "8d589b44e8a3a011dfac4167852efe0c04631bf10b0f939352ed22042e53d40e",
+      "stderr": "",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}
