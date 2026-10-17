@@ -1,7 +1,5 @@
 package kotlin.text
 
-// Empty, blank, and line helpers are implemented in bundled Kotlin source.
-
 public fun CharSequence.isEmpty(): Boolean = this.length == 0
 
 public fun CharSequence.isNotEmpty(): Boolean = this.length != 0
