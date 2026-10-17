@@ -7,9 +7,6 @@
 
 package kotlin
 
-// KSP-733: the opt-in marker for context parameters, migrated out of the
-// synthetic experimental-marker stubs in HeaderHelpers+SyntheticExperimentalMarkerStubs.swift.
-
 @kotlin.RequiresOptIn(
     message = "The API is related to the experimental feature \"context parameters\" (see KEEP-367) and may be changed or removed in any future release.",
     level = RequiresOptIn.Level.ERROR
@@ -19,14 +16,11 @@ package kotlin
 @kotlin.SinceKotlin("2.2")
 public annotation class ExperimentalContextParameters
 
-// KSP-603: the `context` / `contextOf` helpers migrated out of the synthetic
-// stubs in HeaderHelpers+SyntheticScopeFunctionStubs.swift.
-//
-// Both are compiler intrinsics: `CallTypeChecker` binds the call to the
-// declaration below and `CallLowerer` inline-expands it, substituting the
-// context arguments for the block's context receivers and resolving `contextOf`
-// against them. The bodies here only give the declarations a well-formed Kotlin
-// shape; they are never executed.
+// KSP-603: `context` / `contextOf` are compiler intrinsics: `CallTypeChecker`
+// binds the call to the declaration below and `CallLowerer` inline-expands it,
+// substituting the context arguments for the block's context receivers and
+// resolving `contextOf` against them. The bodies here only give the
+// declarations a well-formed Kotlin shape; they are never executed.
 
 @ExperimentalContextParameters
 @kotlin.internal.InlineOnly
