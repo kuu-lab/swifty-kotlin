@@ -69,15 +69,81 @@ def minimal_root(root: Path) -> None:
     native_path = root / "Scripts/kotlinx_io_upstream/native-executions.expected.json"
     write_json(jvm_path, jvm_catalog)
     write_json(native_path, native_catalog)
+    jvm_candidate_path = root / "Scripts/kotlinx_io_upstream/jvm-candidate-executions.expected.json"
+    write_json(jvm_candidate_path, {
+        "schema_version": 1,
+        "kind": "candidate-macos-native-jvm-suite",
+        "candidate_runtime": "kswiftk-native",
+        "target": "macos",
+        "candidate_commit": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+        "upstream_commit": "abc123",
+        "reference_catalog_sha256": hashlib.sha256(jvm_path.read_bytes()).hexdigest(),
+        "execution_count": 0,
+        "executions": [],
+    })
     write_json(root / "Scripts/kotlinx_io_upstream/reference-lock.json", {
         "commit": "abc123",
         "upstream_files": [{
             "path": source_path, "sha256": source_sha256, "git_blob_sha": source_git_blob_sha,
         }],
         "jvm_execution_catalog_sha256": hashlib.sha256(jvm_path.read_bytes()).hexdigest(),
+        "jvm_candidate_execution_catalog_sha256": hashlib.sha256(jvm_candidate_path.read_bytes()).hexdigest(),
         "native_execution_catalog_sha256": hashlib.sha256(native_path.read_bytes()).hexdigest(),
     })
     write_json(root / "Scripts/kotlinx_io_upstream/coverage-map.verified.json", verified_map)
+
+
+def install_candidate_jvm_mappings(root: Path) -> None:
+    runner = root / "Scripts/kotlinx_io_upstream"
+    jvm_catalog = json.loads((runner / "jvm-executions.expected.json").read_text())
+    candidate_rows = []
+    id_by_reference = {}
+    for row in jvm_catalog:
+        candidate_id = row["execution_id"].replace("[engine:junit-jupiter]", "[engine:kswiftk-macos-native]")
+        id_by_reference[row["execution_id"]] = candidate_id
+        candidate_rows.append({
+            **row,
+            "execution_id": candidate_id,
+            "reference_execution_id": row["execution_id"],
+        })
+    candidate_path = runner / "jvm-candidate-executions.expected.json"
+    write_json(candidate_path, {
+        "schema_version": 1,
+        "kind": "candidate-macos-native-jvm-suite",
+        "candidate_runtime": "kswiftk-native",
+        "target": "macos",
+        "candidate_commit": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+        "upstream_commit": "abc123",
+        "reference_catalog_sha256": hashlib.sha256((runner / "jvm-executions.expected.json").read_bytes()).hexdigest(),
+        "source_function_ids": sorted({row["upstream_id"] for row in candidate_rows}),
+        "execution_count": len(candidate_rows),
+        "executions": candidate_rows,
+    })
+    reference_lock_path = runner / "reference-lock.json"
+    reference_lock = json.loads(reference_lock_path.read_text())
+    reference_lock["jvm_candidate_execution_catalog_sha256"] = hashlib.sha256(candidate_path.read_bytes()).hexdigest()
+    write_json(reference_lock_path, reference_lock)
+
+    verified_path = runner / "coverage-map.verified.json"
+    verified = json.loads(verified_path.read_text())
+    for mapping in verified["mappings"]:
+        for execution in mapping["executions"]:
+            if execution["platform"] != "jvm":
+                continue
+            execution["candidate_execution_id"] = id_by_reference[execution["execution_id"]]
+            candidate = execution["candidate"]
+            candidate["candidate_sha"] = "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7"
+            candidate["lane_results"] = {
+                lane: {
+                    "status": "PASS",
+                    "artifact": f"fixture/candidate/{lane}.json",
+                    "sha256": "d" * 64,
+                    "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+                    "observations": candidate["observations"],
+                }
+                for lane in verify_gate.JVM_CANDIDATE_LANE_IDS
+            }
+    write_json(verified_path, verified)
 
 
 def complete_f02_summary() -> dict:
@@ -147,6 +213,36 @@ class VerifyGateTests(unittest.TestCase):
                 execution_coverage["verified_execution_mappings"][0]["candidate"]["observations"]["bytes_consumed"],
                 2,
             )
+
+    def test_static_audit_pairs_jvm_only_references_with_six_candidate_lanes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            minimal_root(root)
+            install_candidate_jvm_mappings(root)
+            report, mapping = verify_gate.audit_static(root)
+            self.assertEqual(report["status"], "PASS", report["blockers"])
+            self.assertEqual(report["upstream_tests"]["jvm_candidate_execution_count"], 2)
+            self.assertEqual(
+                len(mapping["execution_coverage"][0]["verified_execution_mappings"]), 4,
+            )
+
+    def test_static_audit_rejects_wrong_jvm_candidate_pairing(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            minimal_root(root)
+            install_candidate_jvm_mappings(root)
+            verified_path = root / "Scripts/kotlinx_io_upstream/coverage-map.verified.json"
+            verified = verify_gate.read_json(verified_path)
+            first, second = [row for row in verified["mappings"][0]["executions"]
+                             if row["platform"] == "jvm"]
+            first["candidate_execution_id"], second["candidate_execution_id"] = (
+                second["candidate_execution_id"], first["candidate_execution_id"]
+            )
+            write_json(verified_path, verified)
+            report, _ = verify_gate.audit_static(root)
+            self.assertEqual(report["status"], "FAIL")
+            self.assertTrue(any("different reference invocation" in row["reason"]
+                                for row in report["blockers"]))
 
     def test_static_audit_fails_missing_unverified_and_unmapped_rows(self):
         with tempfile.TemporaryDirectory() as temporary:

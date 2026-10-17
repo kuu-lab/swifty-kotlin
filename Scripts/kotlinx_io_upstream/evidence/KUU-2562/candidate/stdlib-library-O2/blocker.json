@@ -1,0 +1,7 @@
+{
+  "issue": "KUU-2652",
+  "reason": "Not run after the same Buffer.writableSegment panic was confirmed in three lanes.",
+  "lane_status": "NOT_RUN",
+  "compile_exitcode": null,
+  "run_exitcode": null
+}

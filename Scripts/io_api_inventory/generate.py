@@ -31,7 +31,9 @@ UPSTREAM_RUNNER = REPO / "Scripts/kotlinx_io_upstream"
 UPSTREAM_RUNNER_LOCK_PATH = UPSTREAM_RUNNER / "reference-lock.json"
 REFERENCE_EXECUTIONS_PATH = UPSTREAM_RUNNER / "jvm-executions.expected.json"
 CANDIDATE_EXECUTIONS_PATH = UPSTREAM_RUNNER / "native-executions.expected.json"
+CANDIDATE_JVM_EXECUTIONS_PATH = UPSTREAM_RUNNER / "jvm-candidate-executions.expected.json"
 EXPECTED_TAG_COMMIT = "362bdc35e159bad6da1e08101c8321792d762281"
+JVM_NATIVE_INTEROP_CANDIDATE_SHA = "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7"
 NO_DIRECT_UPSTREAM_ASSERTION_SOURCE_REFS = {
     "core/common/src/files/Paths.kt:115",
     "core/common/src/files/Paths.kt:133",
@@ -47,6 +49,14 @@ VALIDATION_LANES_BY_OBLIGATION = {
         "stdlib-library-O2",
     ),
     "native-bridge": ("producer-consumer-O0", "producer-consumer-O2"),
+    "native-jvm-interop": (
+        "source-O0",
+        "source-O2",
+        "stdlib-library-O0",
+        "stdlib-library-O2",
+        "producer-consumer-O0",
+        "producer-consumer-O2",
+    ),
 }
 LOCAL_NATIVE_PROBE_LANES = (
     "source-O0",
@@ -76,6 +86,36 @@ LOCAL_PROBE_EVIDENCE_CASES = {
         "methods": {"reference": "jvm-abi-reflection", "candidate": "source-metadata"},
     },
 }
+JVM_NATIVE_INTEROP_API_TESTS = {
+    "jvm-2963caac68a96f39": (
+        "outputStream",
+        "outputStreamBounds",
+        "writeToClosedOutputStream",
+        "outputStreamClosesSink",
+    ),
+    "jvm-8592e640ea83a724": (
+        "writeNioBuffer",
+        "writeLargeNioBufferWritesAllData",
+        "writeNioBufferToClosedSink",
+    ),
+    "jvm-dda61f0299dd8305": (
+        "writeStringWithCharset",
+        "writeSubstringWithCharset",
+        "writeUtf8SubstringWithCharset",
+    ),
+}
+JVM_NATIVE_INTEROP_LOCAL_TEST_REFS = (
+    "Scripts/kotlinx_io_upstream/run_candidate_jvm_sink.py",
+    "Scripts/kotlinx_io_upstream/run_jvm_reference.py",
+    "Scripts/kotlinx_io_upstream/JvmReferenceRunner.java",
+    "Scripts/kotlinx_io_upstream/prepare_jvm_candidate_catalog.py",
+    "Scripts/kotlinx_io_upstream/reference-lock.json",
+    "Scripts/kotlinx_io_upstream/jvm-candidate-executions.expected.json",
+    "Scripts/kotlinx_io_upstream/run_jvm_sink_contract_probe.py",
+    "Scripts/kotlinx_io_upstream/jvm-sink-contract-probe.expected.json",
+    "Scripts/kotlinx_io_upstream/fixtures/jvm_sink_test_support.kt",
+    "Scripts/kotlinx_io_upstream/fixtures/jvm_sink_contract_probe.kt",
+)
 
 LEDGER_COLUMNS = [
     "row_id",
@@ -391,6 +431,8 @@ def validation_input_hashes(
 
 def validation_obligations(row: dict) -> list[str]:
     """Return the compatibility obligations that apply to this ledger representation."""
+    if row.get("row_id") in JVM_NATIVE_INTEROP_API_TESTS:
+        return ["native-jvm-interop"]
     if row.get("representation") == "JVM public ABI dump":
         return ["jvm-descriptor"]
     return ["native-source", "native-bridge"]
@@ -456,6 +498,57 @@ def _load_validation_execution_catalogs() -> dict[str, dict[str, str]]:
                     fail(f"duplicate {subject} execution ID in locked catalog: {execution_id}")
                 catalog[execution_id] = case_id
             catalogs[subject] = catalog
+        candidate_bytes = CANDIDATE_JVM_EXECUTIONS_PATH.read_bytes()
+        candidate_lock = json.loads(UPSTREAM_RUNNER_LOCK_PATH.read_text(encoding="utf-8"))
+        if hashlib.sha256(candidate_bytes).hexdigest() != candidate_lock.get(
+                "jvm_candidate_execution_catalog_sha256"):
+            fail("candidate JVM execution catalog does not match its lock")
+        candidate_document = json.loads(candidate_bytes.decode("utf-8"))
+        candidate_source_ids = candidate_document.get("source_function_ids") if isinstance(candidate_document, dict) else None
+        if (not isinstance(candidate_document, dict)
+                or candidate_document.get("schema_version") != 1
+                or candidate_document.get("kind") != "candidate-macos-native-jvm-suite"
+                or candidate_document.get("candidate_runtime") != "kswiftk-native"
+                or candidate_document.get("target") != "macos"
+                or candidate_document.get("candidate_commit") != JVM_NATIVE_INTEROP_CANDIDATE_SHA
+                or candidate_document.get("upstream_commit") != EXPECTED_TAG_COMMIT
+                or candidate_document.get("reference_catalog_sha256")
+                    != candidate_lock.get("jvm_execution_catalog_sha256")
+                or not isinstance(candidate_document.get("executions"), list)
+                or candidate_document.get("execution_count") != len(candidate_document["executions"])
+                or candidate_document.get("execution_count") != 20
+                or not isinstance(candidate_source_ids, list)
+                or any(not isinstance(identifier, str) or not identifier for identifier in candidate_source_ids)
+                or len(candidate_source_ids) != 10
+                or len(set(candidate_source_ids)) != 10):
+            fail("candidate JVM execution catalog has an unexpected scope")
+        seen_reference_ids = set()
+        seen_source_ids = set()
+        for entry in candidate_document.get("executions", []):
+            if not isinstance(entry, dict):
+                fail("candidate JVM execution catalog contains a malformed entry")
+            execution_id = entry.get("execution_id")
+            case_id = entry.get("upstream_id")
+            reference_id = entry.get("reference_execution_id")
+            if not isinstance(execution_id, str) or not execution_id:
+                fail("candidate JVM execution catalog has an empty execution_id")
+            if not isinstance(case_id, str) or not case_id:
+                fail("candidate JVM execution catalog has an empty upstream_id")
+            if not isinstance(reference_id, str) or not reference_id:
+                fail("candidate JVM execution catalog has an empty reference_execution_id")
+            if execution_id in catalogs["candidate"]:
+                fail(f"duplicate candidate execution ID in locked catalogs: {execution_id}")
+            if catalogs["reference"].get(reference_id) != case_id:
+                fail(f"candidate JVM execution does not map to its locked reference ID: {execution_id}")
+            if reference_id in seen_reference_ids:
+                fail(f"candidate JVM execution catalog repeats a reference ID: {reference_id}")
+            if case_id not in candidate_document["source_function_ids"]:
+                fail(f"candidate JVM execution is outside the declared source scope: {execution_id}")
+            seen_reference_ids.add(reference_id)
+            seen_source_ids.add(case_id)
+            catalogs["candidate"][execution_id] = case_id
+        if seen_source_ids != set(candidate_document["source_function_ids"]):
+            fail("candidate JVM execution catalog does not cover every declared source function")
         return catalogs
     except (OSError, json.JSONDecodeError, UnicodeDecodeError) as error:
         fail(f"cannot load validation execution catalogs: {error}")
@@ -565,6 +658,8 @@ def apply_validation_evidence(
         candidate_sha = record["candidate_sha"]
         if not isinstance(candidate_sha, str) or not candidate_sha_pattern.fullmatch(candidate_sha):
             fail(f"malformed candidate SHA for row {row_id}")
+        if row_id in JVM_NATIVE_INTEROP_API_TESTS and candidate_sha != JVM_NATIVE_INTEROP_CANDIDATE_SHA:
+            fail(f"candidate SHA mismatch for JVM-only interop evidence row {row_id}")
         if (record["reference_version"], record["reference_commit"]) != (
             lock.get("tag"),
             lock.get("commit"),
@@ -1648,6 +1743,8 @@ def local_contract_differences(row: dict, index: SourceIndex) -> str:
 
 
 def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
+    if row.get("row_id") in JVM_NATIVE_INTEROP_API_TESTS:
+        return list(JVM_NATIVE_INTEROP_LOCAL_TEST_REFS)
     name = row["_candidate_name"].lower()
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []
@@ -1684,6 +1781,18 @@ def local_implementation_refs(row: dict, index: SourceIndex, runtime_symbols: di
 
 
 def upstream_test_refs(row: dict, test_index: dict) -> list[str]:
+    selected_tests = JVM_NATIVE_INTEROP_API_TESTS.get(row.get("row_id"))
+    if selected_tests is not None:
+        path = "core/jvm/test/AbstractSinkTestJVM.kt"
+        index_by_path = {entry["path"]: entry for entry in test_index["files"]}
+        entry = index_by_path.get(path)
+        if entry is None:
+            fail(f"locked upstream test index is missing {path}")
+        indexed_names = set(entry.get("testNames", []))
+        missing = set(selected_tests) - indexed_names
+        if missing:
+            fail(f"locked upstream test index is missing targeted JVM methods: {sorted(missing)}")
+        return [f"{path}#{name}" for name in selected_tests]
     if row.get("upstream_source_refs") in NO_DIRECT_UPSTREAM_ASSERTION_SOURCE_REFS:
         # The upstream smoke cases use SystemFileSystem raw methods; they do not
         # exercise these deprecated Path extensions or assert their annotations.

@@ -32,6 +32,11 @@ F02_LANES = {
     ("stdlib-library", "O0"), ("stdlib-library", "O2"),
     ("producer-consumer", "O0"), ("producer-consumer", "O2"),
 }
+JVM_CANDIDATE_LANE_IDS = {
+    "source-O0", "source-O2", "stdlib-library-O0", "stdlib-library-O2",
+    "producer-consumer-O0", "producer-consumer-O2",
+}
+EXPECTED_JVM_CANDIDATE_SHA = "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7"
 REQUIRED_SUMMARY_ARTIFACTS = {
     "api-audit": ("kotlinx-io-gate-api-", "/api-gate-summary.json"),
     "reference-jvm": ("kotlinx-io-gate-reference-jvm-", "/reference/results/summary.json"),
@@ -82,6 +87,8 @@ def compose_verified_coverage(
     verified_map: dict[str, Any],
     jvm_catalog: list[dict[str, Any]],
     native_catalog: list[dict[str, Any]],
+    jvm_candidate_catalog: list[dict[str, Any]] | None = None,
+    jvm_candidate_commit: str | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, str]], dict[str, Any]]:
     """Join durable assertion mappings to the generated seed without editing it."""
     blockers: list[dict[str, str]] = []
@@ -113,6 +120,17 @@ def compose_verified_coverage(
             execution_id = row.get("execution_id")
             if isinstance(identifier, str) and isinstance(execution_id, str) and execution_id:
                 expected_by_id[identifier][(platform_name, execution_id)] = row
+    candidate_by_id: dict[str, dict[str, Any]] = {}
+    candidate_by_reference: dict[str, dict[str, Any]] = {}
+    for row in jvm_candidate_catalog or []:
+        if not isinstance(row, dict):
+            continue
+        candidate_id = row.get("execution_id")
+        reference_id = row.get("reference_execution_id")
+        if isinstance(candidate_id, str) and candidate_id:
+            candidate_by_id[candidate_id] = row
+        if isinstance(reference_id, str) and reference_id:
+            candidate_by_reference[reference_id] = row
 
     def add_blocker(identifier: str, reason: str) -> None:
         blockers.append({"kind": "test-mapping", "id": identifier or "<empty>", "reason": reason})
@@ -272,12 +290,29 @@ def compose_verified_coverage(
                             errors.append(f"{label}.invocation.{field} differs from the locked execution catalog")
 
             mapped_assertion_ids = execution.get("assertion_ids")
-            if (not isinstance(mapped_assertion_ids, list) or not mapped_assertion_ids
+            if (not isinstance(mapped_assertion_ids, list)
                     or any(not isinstance(assertion_id, str) or assertion_id not in assertion_ids
                            for assertion_id in mapped_assertion_ids)):
-                errors.append(f"{label}.assertion_ids must map to original assertions")
+                errors.append(f"{label}.assertion_ids must map to original assertions or be empty for an early-return factory")
                 mapped_assertion_ids = []
             mapped_assertions.update(mapped_assertion_ids)
+            paired_candidate = candidate_by_reference.get(execution_id) if platform_name == "jvm" else None
+            if paired_candidate is not None:
+                candidate_execution_id = execution.get("candidate_execution_id")
+                if not isinstance(candidate_execution_id, str) or not candidate_execution_id:
+                    errors.append(f"{label}.candidate_execution_id is required for a JVM-only candidate execution")
+                else:
+                    candidate_execution = candidate_by_id.get(candidate_execution_id)
+                    if candidate_execution is None:
+                        errors.append(f"unknown candidate JVM execution ID: {candidate_execution_id}")
+                    elif candidate_execution is not paired_candidate:
+                        errors.append(f"{label}.candidate_execution_id maps to a different reference invocation")
+                    elif expected is not None:
+                        for field in INVOCATION_FIELDS:
+                            if candidate_execution.get(field) != expected.get(field):
+                                errors.append(f"{label}.candidate_execution_id has a different {field}")
+            elif execution.get("candidate_execution_id") is not None:
+                errors.append(f"{label}.candidate_execution_id is not present in the locked JVM candidate catalog")
             for side in ("reference", "candidate"):
                 result = execution.get(side)
                 if not isinstance(result, dict) or not isinstance(result.get("result"), dict):
@@ -307,6 +342,42 @@ def compose_verified_coverage(
                         errors.append(
                             f"{label}.{side} is missing required observations for {assertion_id}: {sorted(missing)}"
                         )
+                if side == "candidate" and paired_candidate is not None:
+                    if result.get("candidate_sha") != jvm_candidate_commit:
+                        errors.append(f"{label}.candidate.candidate_sha differs from the issue-pinned candidate commit")
+                    lane_results = result.get("lane_results")
+                    if not isinstance(lane_results, dict) or set(lane_results) != JVM_CANDIDATE_LANE_IDS:
+                        errors.append(f"{label}.candidate.lane_results must contain all six source/library/consumer lanes")
+                        lane_results = {}
+                    for lane_id in JVM_CANDIDATE_LANE_IDS & set(lane_results):
+                        lane_result = lane_results[lane_id]
+                        if not isinstance(lane_result, dict):
+                            errors.append(f"{label}.candidate.lane_results[{lane_id}] must be an object")
+                            continue
+                        lane_status = str(lane_result.get("status", "")).upper().replace("-", "_")
+                        if lane_status != "PASS":
+                            errors.append(f"{label}.candidate lane {lane_id} result is {lane_status or 'NOT_RUN'}")
+                        if not isinstance(lane_result.get("artifact"), str) or not lane_result["artifact"].strip():
+                            errors.append(f"{label}.candidate lane {lane_id} artifact is required")
+                        if not isinstance(lane_result.get("sha256"), str) or not re.fullmatch(
+                                r"[0-9a-fA-F]{64}", lane_result["sha256"]):
+                            errors.append(f"{label}.candidate lane {lane_id} sha256 must be a SHA-256 digest")
+                        if lane_result.get("candidate_sha") != jvm_candidate_commit:
+                            errors.append(f"{label}.candidate lane {lane_id} candidate_sha differs from the issue-pinned candidate commit")
+                        lane_observations = lane_result.get("observations")
+                        if not isinstance(lane_observations, dict):
+                            errors.append(f"{label}.candidate lane {lane_id} observations must be an object")
+                            continue
+                        for assertion_id in mapped_assertion_ids:
+                            missing = {
+                                kind for kind in assertion_observations.get(assertion_id, set())
+                                if not observation_is_present(kind, lane_observations)
+                            }
+                            if missing:
+                                errors.append(
+                                    f"{label}.candidate lane {lane_id} is missing observations for "
+                                    f"{assertion_id}: {sorted(missing)}"
+                                )
 
         expected_pairs = set(expected_by_id.get(identifier_text, {}))
         if not expected_pairs and identifier_text in target_ids:
@@ -385,6 +456,7 @@ def audit_static(root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     coverage_path = root / "Scripts/kotlinx_io_upstream/coverage-map.seed.json"
     verified_coverage_path = root / "Scripts/kotlinx_io_upstream/coverage-map.verified.json"
     jvm_catalog_path = root / "Scripts/kotlinx_io_upstream/jvm-executions.expected.json"
+    jvm_candidate_catalog_path = root / "Scripts/kotlinx_io_upstream/jvm-candidate-executions.expected.json"
     native_catalog_path = root / "Scripts/kotlinx_io_upstream/native-executions.expected.json"
 
     api_rows = read_tsv(inventory_path)
@@ -394,10 +466,64 @@ def audit_static(root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     coverage = read_json(coverage_path)
     verified_coverage = read_json(verified_coverage_path)
     jvm_catalog = read_json(jvm_catalog_path)
+    jvm_candidate_document = read_json(jvm_candidate_catalog_path)
+    jvm_candidate_catalog = jvm_candidate_document.get("executions", []) if isinstance(
+        jvm_candidate_document, dict) else []
     native_catalog = read_json(native_catalog_path)
     blockers: list[dict[str, str]] = []
+    expected_candidate_catalog_hash = reference_lock.get("jvm_candidate_execution_catalog_sha256")
+    actual_candidate_catalog_hash = hashlib.sha256(jvm_candidate_catalog_path.read_bytes()).hexdigest()
+    if expected_candidate_catalog_hash != actual_candidate_catalog_hash:
+        blockers.append({"kind": "execution-catalog", "id": jvm_candidate_catalog_path.name,
+                         "reason": f"SHA-256 {actual_candidate_catalog_hash} differs from the reference lock"})
+    if not isinstance(jvm_candidate_document, dict) or (
+            jvm_candidate_document.get("schema_version") != 1
+            or jvm_candidate_document.get("kind") != "candidate-macos-native-jvm-suite"
+            or jvm_candidate_document.get("candidate_runtime") != "kswiftk-native"
+            or jvm_candidate_document.get("target") != "macos"
+            or jvm_candidate_document.get("candidate_commit") != EXPECTED_JVM_CANDIDATE_SHA
+            or jvm_candidate_document.get("upstream_commit") != reference_lock.get("commit")
+            or jvm_candidate_document.get("reference_catalog_sha256") != reference_lock.get("jvm_execution_catalog_sha256")
+            or not isinstance(jvm_candidate_catalog, list)
+            or jvm_candidate_document.get("execution_count") != len(jvm_candidate_catalog)):
+        blockers.append({"kind": "execution-catalog", "id": jvm_candidate_catalog_path.name,
+                         "reason": "candidate JVM catalog metadata or reference link is invalid"})
+    reference_by_id = {row.get("execution_id"): row for row in jvm_catalog if isinstance(row, dict)}
+    candidate_ids = [row.get("execution_id") for row in jvm_candidate_catalog if isinstance(row, dict)]
+    candidate_reference_ids = [row.get("reference_execution_id") for row in jvm_candidate_catalog
+                               if isinstance(row, dict)]
+    declared_candidate_sources = (jvm_candidate_document.get("source_function_ids", [])
+                                  if isinstance(jvm_candidate_document, dict) else None)
+    actual_candidate_sources = {row.get("upstream_id") for row in jvm_candidate_catalog if isinstance(row, dict)}
+    if (not isinstance(declared_candidate_sources, list)
+            or any(not isinstance(identifier, str) or not identifier for identifier in declared_candidate_sources)
+            or len(declared_candidate_sources) != len(set(declared_candidate_sources))
+            or set(declared_candidate_sources) != actual_candidate_sources):
+        blockers.append({"kind": "execution-catalog", "id": jvm_candidate_catalog_path.name,
+                         "reason": "candidate JVM source scope does not match its execution entries"})
+    for label, identifiers in (("candidate execution ID", candidate_ids),
+                               ("candidate reference execution ID", candidate_reference_ids)):
+        for identifier, count in collections.Counter(identifiers).items():
+            if not isinstance(identifier, str) or not identifier or count > 1:
+                blockers.append({"kind": "execution-identity", "id": str(identifier or "<empty>"),
+                                 "reason": f"empty or duplicate {label}"})
+    for row in jvm_candidate_catalog:
+        if not isinstance(row, dict):
+            blockers.append({"kind": "execution-catalog", "id": jvm_candidate_catalog_path.name,
+                             "reason": "candidate JVM catalog contains a malformed entry"})
+            continue
+        reference = reference_by_id.get(row.get("reference_execution_id"))
+        if (reference is None or row.get("upstream_id") != reference.get("upstream_id")
+                or row.get("upstream_path") != reference.get("upstream_path")
+                or row.get("git_blob_sha") != reference.get("git_blob_sha")
+                or any(not isinstance(row.get(field), str) or not row[field]
+                       for field in INVOCATION_FIELDS)):
+            blockers.append({"kind": "execution-catalog", "id": str(row.get("execution_id", "<empty>")),
+                             "reason": "candidate JVM invocation does not match its locked JVM reference"})
     cases, verified_mapping_blockers, verified_mapping_summary = compose_verified_coverage(
         coverage.get("cases", []), test_index, reference_lock, verified_coverage, jvm_catalog, native_catalog,
+        jvm_candidate_catalog,
+        jvm_candidate_document.get("candidate_commit") if isinstance(jvm_candidate_document, dict) else None,
     )
     blockers.extend(verified_mapping_blockers)
 
@@ -490,6 +616,7 @@ def audit_static(root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
         if reference_lock.get(lock_key) != actual_hash:
             blockers.append({"kind": "execution-catalog", "id": path.name,
                              "reason": f"SHA-256 {actual_hash} differs from the reference lock"})
+    catalog_hashes["jvm_candidate"] = actual_candidate_catalog_hash
 
     jvm_source_ids = {row.get("upstream_id") for row in jvm_catalog}
     native_source_ids = {row.get("upstream_id") for row in native_catalog}
@@ -576,6 +703,8 @@ def audit_static(root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
             "mapping_status_counts": dict(sorted(mapping_state_counts.items())),
             "jvm_concrete_execution_count": len(jvm_catalog),
             "jvm_execution_catalog_sha256": catalog_hashes["jvm"],
+            "jvm_candidate_execution_count": len(jvm_candidate_catalog),
+            "jvm_candidate_execution_catalog_sha256": catalog_hashes["jvm_candidate"],
             "jvm_source_function_count": len(jvm_source_ids),
             "native_concrete_execution_count": len(native_catalog),
             "native_execution_catalog_sha256": catalog_hashes["native"],

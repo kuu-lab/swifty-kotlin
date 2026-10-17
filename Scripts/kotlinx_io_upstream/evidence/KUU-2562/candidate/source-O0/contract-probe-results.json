@@ -1,0 +1,12 @@
+{
+  "status": "FAIL",
+  "expected": "negative-start=java.lang.IndexOutOfBoundsException;reversed-range=java.lang.IllegalArgumentException;closed-sink=java.lang.IllegalStateException;io-failure=java.io.IOException",
+  "actual": null,
+  "event_count": 0,
+  "source_sha256": "7c50bb911cd5a720540949dcee7b4fb1472bd8b78014bf9d49ad93bc8962ecc1",
+  "expected_contract_sha256": "88c1665a1e2ebd2bf6cf9ef533023a79a261b335a41e92ff4011de81bb2fcf5c",
+  "lane": "source",
+  "optimization": "O0",
+  "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+  "candidate_executable_sha256": "543b5897eb66c67a6b75dd6fa0cd112ed304f57bcd26d0ed4f6186669082e0a2"
+}

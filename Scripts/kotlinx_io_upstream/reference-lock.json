@@ -705,5 +705,8 @@
   },
   "native_execution_catalog_sha256": "3bd3e5e45e2a86315dfb7c8a5ef171abdeeab49dbc50b6260c219155b67ac57e",
   "expected_native_common_execution_count": 1188,
-  "expected_native_apple_execution_count": 29
+  "expected_native_apple_execution_count": 29,
+  "jvm_candidate_execution_catalog_sha256": "a455bfb269c87affaed93786e12b73404e2a088ee77bc31049211dfb41d1fb94",
+  "jvm_sink_contract_probe_source_sha256": "7c50bb911cd5a720540949dcee7b4fb1472bd8b78014bf9d49ad93bc8962ecc1",
+  "jvm_sink_contract_probe_expected_sha256": "88c1665a1e2ebd2bf6cf9ef533023a79a261b335a41e92ff4011de81bb2fcf5c"
 }

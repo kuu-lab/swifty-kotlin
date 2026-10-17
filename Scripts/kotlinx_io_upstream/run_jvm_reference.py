@@ -23,6 +23,20 @@ import urllib.request
 
 
 HERE = Path(__file__).resolve().parent
+JVM_SINK_TEST_PATH = "core/jvm/test/AbstractSinkTestJVM.kt"
+JVM_SINK_REFERENCE_SOURCE_CLOSURE = (
+    "core/common/test/SinkFactory.kt",
+    "core/common/test/util.kt",
+    "core/jvm/test/utilJVM.kt",
+    JVM_SINK_TEST_PATH,
+)
+EXCEPTION_ASSERTION_FUNCTIONS = {
+    "outputStreamBounds",
+    "writeToClosedOutputStream",
+    "outputStreamClosesSink",
+    "writeNioBufferToClosedSink",
+}
+BUFFER_EARLY_RETURN_FUNCTIONS = EXCEPTION_ASSERTION_FUNCTIONS - {"outputStreamBounds"}
 
 
 def sha256(path: Path) -> str:
@@ -113,6 +127,16 @@ def map_executions(discovered: list[dict], results: list[dict], lookup: dict, ex
             raise ValueError(f"ambiguous executed upstream method: {key}")
         source = candidates[0]
         outcome = outcomes.pop(identifier, None)
+        observations = {}
+        if outcome and outcome.get("status") == "PASS":
+            method_name = execution.get("method_name")
+            is_buffer_early_return = (
+                execution.get("concrete_class", "").endswith("BufferSinkTestJVM")
+                and method_name in BUFFER_EARLY_RETURN_FUNCTIONS
+            )
+            if not is_buffer_early_return:
+                observation_kind = "exception_type" if method_name in EXCEPTION_ASSERTION_FUNCTIONS else "value"
+                observations[observation_kind] = "original upstream assertion(s) passed"
         mapped.append({
             **execution,
             "upstream_id": source["upstream_id"],
@@ -121,13 +145,42 @@ def map_executions(discovered: list[dict], results: list[dict], lookup: dict, ex
             "source_set": source["platform"],
             "original_assertions": "unchanged upstream test body and helpers",
             "factory_expansion": "concrete JUnit class; constructor and inherited methods unchanged",
-            "reference_result": outcome or {"status": "NOT_RUN"},
+            "reference_result": {**(outcome or {"status": "NOT_RUN"}), "observations": observations},
             "candidate_disposition": "unmapped",
             "candidate_reason": "No verified KSwiftK port preserving this upstream assertion body yet.",
         })
     if outcomes:
         raise ValueError(f"unexpected reference results, including failed containers: {list(outcomes)}")
     return mapped
+
+
+def select_executions(expected: list[dict], source_function_ids: list[str], execution_ids: list[str]) -> list[dict]:
+    if len(source_function_ids) != len(set(source_function_ids)):
+        raise ValueError("source function selection contains duplicates")
+    if len(execution_ids) != len(set(execution_ids)):
+        raise ValueError("execution ID selection contains duplicates")
+    if any(not value or value != value.strip() for value in source_function_ids + execution_ids):
+        raise ValueError("selected IDs must be nonempty and have no surrounding whitespace")
+    by_id = {row["execution_id"]: row for row in expected}
+    if len(by_id) != len(expected):
+        raise ValueError("locked JVM catalog contains duplicate execution IDs")
+    selected = set()
+    for source_id in source_function_ids:
+        matches = [row["execution_id"] for row in expected if row["upstream_id"] == source_id]
+        if not matches:
+            raise ValueError(f"source function ID is absent from the locked JVM catalog: {source_id}")
+        selected.update(matches)
+    for identifier in execution_ids:
+        if identifier not in by_id:
+            raise ValueError(f"execution ID is absent from the locked JVM catalog: {identifier}")
+        if identifier in selected:
+            raise ValueError(f"execution ID selected more than once: {identifier}")
+        selected.add(identifier)
+    if not source_function_ids and not execution_ids:
+        return expected
+    if not selected:
+        raise ValueError("execution selection resolved to no JVM tests")
+    return [row for row in expected if row["execution_id"] in selected]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -138,6 +191,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dependencies", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--download", action="store_true", help="download missing locked Maven jars")
+    parser.add_argument("--source-function-id", action="append", default=[],
+                        help="select all locked JVM executions for one upstream source test ID")
+    parser.add_argument("--execution-id", action="append", default=[],
+                        help="select one locked JVM concrete execution ID; may be repeated")
     parser.add_argument("--compile-timeout", type=float, default=180)
     parser.add_argument("--run-timeout", type=float, default=180)
     args = parser.parse_args(argv)
@@ -167,11 +224,19 @@ def main(argv: list[str] | None = None) -> int:
             if row["platform"] in {"common", "jvm"} and "Windows" not in row["upstream_path"]}
         if {row["upstream_id"] for row in expected} != eligible:
             raise ValueError("expected execution catalog does not cover every eligible upstream function ID")
-        sources = sorted({row["upstream_path"] for row in seed["cases"]
-            if row["platform"] in {"common", "jvm"} and "Windows" not in row["upstream_path"]}
-            | {row["path"] for row in seed["inventory_only_sources"]
-                if any(part in row["path"] for part in ("/common/test/", "/jvm/test/"))
-                and "Windows" not in row["path"]})
+        selected = select_executions(expected, args.source_function_id, args.execution_id)
+        if args.source_function_id or args.execution_id:
+            selected_source_paths = {row["upstream_path"] for row in selected}
+        else:
+            selected_source_paths = set()
+        if selected_source_paths == {JVM_SINK_TEST_PATH}:
+            sources = list(JVM_SINK_REFERENCE_SOURCE_CLOSURE)
+        else:
+            sources = sorted({row["upstream_path"] for row in seed["cases"]
+                if row["platform"] in {"common", "jvm"} and "Windows" not in row["upstream_path"]}
+                | {row["path"] for row in seed["inventory_only_sources"]
+                    if any(part in row["path"] for part in ("/common/test/", "/jvm/test/"))
+                    and "Windows" not in row["path"]})
         common = [str((args.upstream / source).resolve()) for source in sources if "/common/" in source]
         tests_jar = (args.output / "upstream-jvm-tests.jar").resolve()
         sdk = args.kotlin_home.resolve() / "lib"
@@ -210,18 +275,24 @@ def main(argv: list[str] | None = None) -> int:
             ("kotlin-stdlib.jar", "kotlin-reflect.jar", "kotlin-test.jar", "kotlin-test-junit5.jar")]
         command = [str(args.java.resolve()), "-Xmx1024m", "-cp", os.pathsep.join(map(str, runtime_cp)),
             str(HERE / "JvmReferenceRunner.java"), str(tests_jar), str(args.output.resolve() / "junit")]
+        if args.source_function_id or args.execution_id:
+            selected_ids_path = args.output / "selected-execution-ids.txt"
+            selected_ids_path.write_text("\n".join(row["execution_id"] for row in selected) + "\n")
+            command.append(str(selected_ids_path.resolve()))
         code = execute(command, args.output, "run", args.run_timeout)
         output = args.output / "junit"
         if not (output / "results.json").exists():
             return 1
         mapped = map_executions(json.loads((output / "discovered.json").read_text()),
-            json.loads((output / "results.json").read_text()), lookup, expected)
+            json.loads((output / "results.json").read_text()), lookup, selected)
         (args.output / "execution-map.json").write_text(json.dumps(mapped, indent=2) + "\n")
         reference_counts = dict(collections.Counter(row["reference_result"]["status"] for row in mapped))
         summary = {"kind": "reference-only", "concrete_execution_count": len(mapped),
             "unique_upstream_function_ids": len({row["upstream_id"] for row in mapped}),
             "reference_counts": reference_counts, "candidate_counts": {"UNMAPPED": len(mapped)},
-            "paired_pass_count": 0, "source_files_compiled": len(sources)}
+            "paired_pass_count": 0, "source_files_compiled": len(sources),
+            "selection_mode": "explicit-ids" if args.source_function_id or args.execution_id else "full-catalog",
+            "selected_execution_ids": [row["execution_id"] for row in selected]}
         (args.output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
         print(json.dumps(summary))
         return 0 if code == 0 and reference_counts == {"PASS": len(mapped)} else 1

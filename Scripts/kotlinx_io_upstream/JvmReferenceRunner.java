@@ -17,6 +17,7 @@ import org.junit.platform.launcher.TestPlan;
 import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
 import org.junit.platform.launcher.core.LauncherFactory;
 import static org.junit.platform.engine.discovery.DiscoverySelectors.selectClasspathRoots;
+import static org.junit.platform.engine.discovery.DiscoverySelectors.selectUniqueId;
 
 /** Java 21 source-mode runner: the original test classes and assertions are unchanged. */
 class JvmReferenceRunner {
@@ -65,15 +66,24 @@ class JvmReferenceRunner {
     }
 
     public static void main(String[] args) throws Exception {
-        if (args.length != 2) throw new IllegalArgumentException("test jar and output directory required");
+        if (args.length != 2 && args.length != 3) {
+            throw new IllegalArgumentException("test jar, output directory, and optional selected execution IDs required");
+        }
         Path output = Path.of(args[1]);
         Files.createDirectories(output);
         var launcher = LauncherFactory.create();
-        var request = LauncherDiscoveryRequestBuilder.request()
-            .selectors(selectClasspathRoots(java.util.Set.of(Path.of(args[0]))))
-            .filters(org.junit.platform.engine.discovery.ClassNameFilter.includeClassNamePatterns(".*"))
-            .configurationParameter("junit.jupiter.execution.parallel.enabled", "false")
-            .build();
+        var requestBuilder = LauncherDiscoveryRequestBuilder.request()
+            .configurationParameter("junit.jupiter.execution.parallel.enabled", "false");
+        if (args.length == 3) {
+            var selectedIds = Files.readAllLines(Path.of(args[2])).stream()
+                .filter(value -> !value.isBlank()).toArray(String[]::new);
+            if (selectedIds.length == 0) throw new IllegalArgumentException("selected execution ID list is empty");
+            requestBuilder.selectors(java.util.Arrays.stream(selectedIds).map(id -> selectUniqueId(id)).toList());
+        } else {
+            requestBuilder.selectors(selectClasspathRoots(java.util.Set.of(Path.of(args[0]))))
+                .filters(org.junit.platform.engine.discovery.ClassNameFilter.includeClassNamePatterns(".*"));
+        }
+        var request = requestBuilder.build();
         TestPlan plan = launcher.discover(request);
         var discovered = new ArrayList<Map<String, Object>>();
         plan.getRoots().forEach(root -> plan.getDescendants(root).stream()

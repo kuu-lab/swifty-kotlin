@@ -1,0 +1,316 @@
+{
+  "schema_version": 1,
+  "kind": "reference-only",
+  "kotlin": "2.3.10",
+  "kotlinx_io": "0.9.1",
+  "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+  "reference_lock_sha256": "92c490e3da3f4924381c15ddeaf44db86b37e4961c2d0e2a3576e159384e19ec",
+  "coverage_map_sha256": "24da6c4871f01a83845b6028e847715bbae7b8fe0492c3f6e27fc65005d7fe85",
+  "runner_sha256": "f22b06ace6b9609c8d60a8f2d5c41fb6410300611cb697fd462de2d20e4bfb63",
+  "host": "macOS-27.0-arm64-arm-64bit-Mach-O",
+  "java": "/private/tmp/kuu-2562-jdk21/Contents/Home/bin/java",
+  "source_files": [
+    "core/common/test/SinkFactory.kt",
+    "core/common/test/util.kt",
+    "core/jvm/test/utilJVM.kt",
+    "core/jvm/test/AbstractSinkTestJVM.kt"
+  ],
+  "unsupported_source_files": [
+    "bytestring/apple/test/ByteStringAppleTest.kt",
+    "bytestring/apple/test/samples/samplesApple.kt",
+    "bytestring/common/test/ByteStringBase64Test.kt",
+    "bytestring/common/test/ByteStringBuilderTest.kt",
+    "bytestring/common/test/ByteStringHexTest.kt",
+    "bytestring/common/test/ByteStringTest.kt",
+    "bytestring/common/test/samples/samples.kt",
+    "bytestring/common/test/unsafe/UnsafeByteStringOperationsTest.kt",
+    "bytestring/jvm/test/ByteStringByteBufferExtensionsTest.kt",
+    "bytestring/jvm/test/ByteStringJvmTest.kt",
+    "bytestring/jvm/test/samples/samplesJvm.kt",
+    "core/apple/test/NSInputStreamSourceTest.kt",
+    "core/apple/test/NSOutputStreamSinkTest.kt",
+    "core/apple/test/SinkNSOutputStreamTest.kt",
+    "core/apple/test/SourceNSInputStreamTest.kt",
+    "core/apple/test/samples/samplesApple.kt",
+    "core/apple/test/utilApple.kt",
+    "core/common/test/AbstractSinkTest.kt",
+    "core/common/test/AbstractSourceTest.kt",
+    "core/common/test/AlwaysSharedCopyTrackerTest.kt",
+    "core/common/test/CommonBufferTest.kt",
+    "core/common/test/CommonPlatformTest.kt",
+    "core/common/test/CommonRealSinkTest.kt",
+    "core/common/test/CommonRealSourceTest.kt",
+    "core/common/test/DelicateApiTest.kt",
+    "core/common/test/LineSeparatorTest.kt",
+    "core/common/test/MockSink.kt",
+    "core/common/test/SourceFactory.kt",
+    "core/common/test/Utf8Test.kt",
+    "core/common/test/UtilsTest.kt",
+    "core/common/test/files/SmokeFileTest.kt",
+    "core/common/test/files/SmokeFileTestWindows.kt",
+    "core/common/test/files/UtilsTest.kt",
+    "core/common/test/samples/byteStringSample.kt",
+    "core/common/test/samples/moduleDescriptionSample.kt",
+    "core/common/test/samples/rawSinkSample.kt",
+    "core/common/test/samples/rawSourceSample.kt",
+    "core/common/test/samples/samples.kt",
+    "core/common/test/samples/unsafe/unsafeSamples.kt",
+    "core/common/test/unsafe/UnsafeBufferOperationsForEachTest.kt",
+    "core/common/test/unsafe/UnsafeBufferOperationsIterationTest.kt",
+    "core/common/test/unsafe/UnsafeBufferOperationsMoveTest.kt",
+    "core/common/test/unsafe/UnsafeBufferOperationsReadTest.kt",
+    "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt",
+    "core/jvm/test/AbstractSourceTestJVM.kt",
+    "core/jvm/test/BufferTest.kt",
+    "core/jvm/test/JvmPlatformTest.kt",
+    "core/jvm/test/NioTest.kt",
+    "core/jvm/test/PoolingTest.kt",
+    "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+    "core/jvm/test/files/SmokeFileTestWindowsJVM.kt",
+    "core/jvm/test/samples/samplesJvm.kt",
+    "core/jvm/test/samples/unsafeAccessSamplesJvm.kt",
+    "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt",
+    "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadFromHeadTest.kt",
+    "core/jvm/test/unsafe/UnsafeBufferOperationsJvmWriteToTailTest.kt",
+    "core/native/test/util.kt"
+  ],
+  "sdk_files": [
+    {
+      "path": "bin/kotlinc",
+      "sha256": "90750c977cc043dd2b05c69dd4e052c10377554925dd5a155e74ef732be28c7d"
+    },
+    {
+      "path": "lib/allopen-compiler-plugin.jar",
+      "sha256": "31b7748ab62f5f5879aea85a87b7a4cded65f545aebc7bae74f7f6e2b2740bb3"
+    },
+    {
+      "path": "lib/annotations-13.0.jar",
+      "sha256": "ace2a10dc8e2d5fd34925ecac03e4988b2c0f851650c94b8cef49ba1bd111478"
+    },
+    {
+      "path": "lib/assignment-compiler-plugin.jar",
+      "sha256": "49c47d47d040aac599dd472b93b5d8acc290734efbedca383c598217937d2dc6"
+    },
+    {
+      "path": "lib/compose-compiler-plugin.jar",
+      "sha256": "de3ed66aaf3fbbd74c64164fd75ac93778e59f90146e1b5de7f9398189589d46"
+    },
+    {
+      "path": "lib/jvm-abi-gen.jar",
+      "sha256": "ffd4e08aca14cd06d27c9208376351dc065080bc6354ae8a023df585446922bf"
+    },
+    {
+      "path": "lib/kotlin-annotation-processing-cli.jar",
+      "sha256": "c6cae005cab063c28e2ec2af8421e6d0dc2c6be03fe73b433a6a5129061d907f"
+    },
+    {
+      "path": "lib/kotlin-annotation-processing-runtime.jar",
+      "sha256": "1ddca86ef9462961b656a03040caf5f940b850fd196a52db29065c9352dc8074"
+    },
+    {
+      "path": "lib/kotlin-annotation-processing.jar",
+      "sha256": "6f382abd85925cf6b9021e5e5a7a10ff441ff5ae35b06d7fb2118b62c978f660"
+    },
+    {
+      "path": "lib/kotlin-annotations-jvm-sources.jar",
+      "sha256": "bf594d0e3a35c21b1f07097d9e10b6ab524ae5bb2ffdb92ea9b1f79f28e8ab09"
+    },
+    {
+      "path": "lib/kotlin-annotations-jvm.jar",
+      "sha256": "6054230599c840c69af3657c292b768f2b585c25fba91d26cd5ad8c992757b03"
+    },
+    {
+      "path": "lib/kotlin-compiler.jar",
+      "sha256": "205abc86c6b0a40bc1a318bb24a062c7eb9a99abb023ee276bf925e3732511c8"
+    },
+    {
+      "path": "lib/kotlin-daemon-client.jar",
+      "sha256": "d21a6f77d9803a615e6d150857377e10a9e8c7cd06ae6e1c1eb99920fda38b93"
+    },
+    {
+      "path": "lib/kotlin-daemon.jar",
+      "sha256": "5b9f59f55e4090f8060b299fcb7e5d67df6c98a0fafcc7273d82866e13be5101"
+    },
+    {
+      "path": "lib/kotlin-main-kts.jar",
+      "sha256": "693b9dafe66bcb518dbcd16142f35cac6cb9ccbb871643d96d2b02b11bde2f96"
+    },
+    {
+      "path": "lib/kotlin-metadata-jvm-sources.jar",
+      "sha256": "b57b430ec604edd61b4cc863e09b48efb5c67ca06bacf30857e105045d2f4ddd"
+    },
+    {
+      "path": "lib/kotlin-metadata-jvm.jar",
+      "sha256": "c1df5bc6530b4c744b13788dbf8540a469898fdfbcde6abca9119184f5d3707c"
+    },
+    {
+      "path": "lib/kotlin-preloader.jar",
+      "sha256": "af1a852e4d69a657a38c5116b44af9dcea18a94bccbf1c0792c07827cf02fb56"
+    },
+    {
+      "path": "lib/kotlin-reflect-sources.jar",
+      "sha256": "fa1664e3d51e4a27d7a2f440581e3f5ffce01795790c11b145a9965f5101cbfa"
+    },
+    {
+      "path": "lib/kotlin-reflect.jar",
+      "sha256": "10b4a1b5e3957efe90f474bd04a747249a259b2615a6f0504507d323c2be350b"
+    },
+    {
+      "path": "lib/kotlin-runner.jar",
+      "sha256": "8730617cf81d6c8392ba9d70e75232bc1e709f06226eacd5aba06bf7466a0561"
+    },
+    {
+      "path": "lib/kotlin-script-runtime-sources.jar",
+      "sha256": "d9d6b416bf1267d5d9a2fffb309c8d02fa707608154d7b0d7dd318d2dd7daa96"
+    },
+    {
+      "path": "lib/kotlin-script-runtime.jar",
+      "sha256": "d0b3b08ecf8901c6610aa0e8efb29db3731bfbd96afd4f987cc817016b1e003e"
+    },
+    {
+      "path": "lib/kotlin-scripting-common.jar",
+      "sha256": "7e9143d22c80b3d02c96982431b1c96ba091eff7bf4390ab4b8949ecee43f285"
+    },
+    {
+      "path": "lib/kotlin-scripting-compiler-impl.jar",
+      "sha256": "8955408e620788a43519a8394a89ae2a8f4ca19cc5137f733fdd2b67d6e9d57e"
+    },
+    {
+      "path": "lib/kotlin-scripting-compiler.jar",
+      "sha256": "6a63a02a78c7344732d411eb22fdec6b87b377b65190d1ecd8ec28c174c12b08"
+    },
+    {
+      "path": "lib/kotlin-scripting-jvm.jar",
+      "sha256": "bf232a519af02952e101086fabd4884436257656c45db081783cac4b149664b7"
+    },
+    {
+      "path": "lib/kotlin-serialization-compiler-plugin.jar",
+      "sha256": "9a4d5139df8ef580005b737e2accef070fbc3b581d95e5f64d74a93abb4069a6"
+    },
+    {
+      "path": "lib/kotlin-stdlib-jdk7-sources.jar",
+      "sha256": "2534c8908432e06de73177509903d405b55f423dd4c2f747e16b92a2162611e6"
+    },
+    {
+      "path": "lib/kotlin-stdlib-jdk7.jar",
+      "sha256": "9c208de17b6d0d701629cb972eb568d092f28af863e32ef68f22374dc8b8b8fb"
+    },
+    {
+      "path": "lib/kotlin-stdlib-jdk8-sources.jar",
+      "sha256": "3cb6895054a0985bba591c165503fe4dd63a215af53263b67a071ccdc242bf6e"
+    },
+    {
+      "path": "lib/kotlin-stdlib-jdk8.jar",
+      "sha256": "6581d8c24374200577b84149d8be7f744e07e1cd3bc425179a3b9d07bf3f6741"
+    },
+    {
+      "path": "lib/kotlin-stdlib-js-sources.jar",
+      "sha256": "d1c87b3f87e58ad5494c5ed064053f79d96585e2bd627c7250e7c5d43faa68dc"
+    },
+    {
+      "path": "lib/kotlin-stdlib-sources.jar",
+      "sha256": "21a3acec677a5483cacd6e956bee49f1f816c0e9ece3b39d188b6fd3720fd306"
+    },
+    {
+      "path": "lib/kotlin-stdlib.jar",
+      "sha256": "f61662c6d3a2f8ef5bd34362a02d877772c39f393cd394feb259dfaf7f4d8437"
+    },
+    {
+      "path": "lib/kotlin-test-js-sources.jar",
+      "sha256": "9a52592696b63a75dea3f181bf8bb4ff0515f30a9b663058241885857507f6ac"
+    },
+    {
+      "path": "lib/kotlin-test-junit-sources.jar",
+      "sha256": "3fd39bbf3f8283cf7b7759e02abdd752ddde9964352f645467b779257bccef20"
+    },
+    {
+      "path": "lib/kotlin-test-junit.jar",
+      "sha256": "5b2a437aaed0af8212afac1b544c8982896c687c387fe561a8118037d92e55b5"
+    },
+    {
+      "path": "lib/kotlin-test-junit5-sources.jar",
+      "sha256": "5e0d4688277a3f859be086b874601b45f54b30b5b045800138b54e9418bdc95b"
+    },
+    {
+      "path": "lib/kotlin-test-junit5.jar",
+      "sha256": "cf8ca32a20b18130acdde3f6b8e29b01cc7ea7f792326a122c6fe5434214c889"
+    },
+    {
+      "path": "lib/kotlin-test-sources.jar",
+      "sha256": "031bd9d2f7cc9caaf369448c60eaa61f68788bd9777ae0c1141ec9b7fe5a83b4"
+    },
+    {
+      "path": "lib/kotlin-test-testng-sources.jar",
+      "sha256": "b88a8f12928480d14e29c6c879958c156afc946b9b8d333d1c2f4a428cdb1041"
+    },
+    {
+      "path": "lib/kotlin-test-testng.jar",
+      "sha256": "ed3fbd193452534df58d345d4e15ab079a08e5b2d79ced24896d01b1879e3099"
+    },
+    {
+      "path": "lib/kotlin-test.jar",
+      "sha256": "25e706274e2815ee00e051e2b27adc250dcc6450cd8ec4f79f7225f5b5a13cb8"
+    },
+    {
+      "path": "lib/kotlinx-coroutines-core-jvm.jar",
+      "sha256": "9860906a1937490bf5f3b06d2f0e10ef451e65b95b269f22daf68a3d1f5065c5"
+    },
+    {
+      "path": "lib/kotlinx-serialization-compiler-plugin.jar",
+      "sha256": "9a4d5139df8ef580005b737e2accef070fbc3b581d95e5f64d74a93abb4069a6"
+    },
+    {
+      "path": "lib/lombok-compiler-plugin.jar",
+      "sha256": "849f0a740c4fdd49e5c72b39a1e30c2c70bbc2dbf914160c228dd1ea9728ecea"
+    },
+    {
+      "path": "lib/mutability-annotations-compat.jar",
+      "sha256": "8c76693fde1f34baaeaf5298e1953fca489c8e90ce6c065f96dd20d978c2003b"
+    },
+    {
+      "path": "lib/noarg-compiler-plugin.jar",
+      "sha256": "98e509a1e1f94fb29e4fcd9ef3eccf3b16c33457b8a76e07251c411b327ddc63"
+    },
+    {
+      "path": "lib/parcelize-compiler.jar",
+      "sha256": "9a440c5b2e7cae6cf09623ffd0d49134c35e169183a0d01a8b819bca956e1630"
+    },
+    {
+      "path": "lib/parcelize-runtime.jar",
+      "sha256": "89ee89608e9f2b54364758c81448b3324afb11be9863c6ef410bb2e35c34e332"
+    },
+    {
+      "path": "lib/power-assert-compiler-plugin.jar",
+      "sha256": "19a8cb1ab7e5e342254cf0b724e5e2deb725deaa113c5a844473ea3aee7863e4"
+    },
+    {
+      "path": "lib/sam-with-receiver-compiler-plugin.jar",
+      "sha256": "db21d5c13f6e3663f09cf4e418a4cf2f05637ae758c615eafaded778d5348931"
+    },
+    {
+      "path": "lib/scripting-compiler.jar",
+      "sha256": "6a63a02a78c7344732d411eb22fdec6b87b377b65190d1ecd8ec28c174c12b08"
+    }
+  ],
+  "reference_artifacts": [
+    {
+      "coordinate": "org.jetbrains.kotlinx:kotlinx-io-core-jvm:0.9.1",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-io-core-jvm/0.9.1/kotlinx-io-core-jvm-0.9.1.jar",
+      "sha256": "765d8851d8ca694706931331b92386844800867e041b720f1f193dbda874d370"
+    },
+    {
+      "coordinate": "org.jetbrains.kotlinx:kotlinx-io-bytestring-jvm:0.9.1",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-io-bytestring-jvm/0.9.1/kotlinx-io-bytestring-jvm-0.9.1.jar",
+      "sha256": "8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4"
+    },
+    {
+      "coordinate": "org.junit.platform:junit-platform-console-standalone:1.12.2",
+      "url": "https://repo.maven.apache.org/maven2/org/junit/platform/junit-platform-console-standalone/1.12.2/junit-platform-console-standalone-1.12.2.jar",
+      "sha256": "329bd10288875a74d04c9ca6b7c9889c265ddf87b21a9ea42a7f7392f391472a",
+      "bytes": 2950047
+    }
+  ],
+  "compiler_environment": {
+    "JAVACMD": "/private/tmp/kuu-2562-jdk21/Contents/Home/bin/java"
+  }
+}

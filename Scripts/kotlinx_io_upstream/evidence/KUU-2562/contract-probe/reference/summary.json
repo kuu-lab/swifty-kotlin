@@ -1,0 +1,29 @@
+{
+  "kind": "locked-jvm-sink-contract-probe",
+  "status": "PASS",
+  "host": "macOS-27.0-arm64-arm-64bit-Mach-O",
+  "checks": 4,
+  "reference_version": "0.9.1",
+  "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+  "artifacts": {
+    "core": "765d8851d8ca694706931331b92386844800867e041b720f1f193dbda874d370",
+    "bytestring": "8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4"
+  },
+  "probe_source_sha256": "7c50bb911cd5a720540949dcee7b4fb1472bd8b78014bf9d49ad93bc8962ecc1",
+  "expected_contract_sha256": "88c1665a1e2ebd2bf6cf9ef533023a79a261b335a41e92ff4011de81bb2fcf5c",
+  "compile_result": {
+    "exitcode": 0,
+    "seconds": 9.35,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "run_result": {
+    "exitcode": 0,
+    "seconds": 0.161,
+    "stdout_sha256": "3c0a397f42e373c297410b2ddff3ec689e43b8a9a5ebcebdb9175139e084c320",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "actual": "negative-start=java.lang.IndexOutOfBoundsException;reversed-range=java.lang.IllegalArgumentException;closed-sink=java.lang.IllegalStateException;io-failure=java.io.IOException",
+  "contract_probe_result": "contract-probe-results.json",
+  "contract_probe_result_sha256": "e3d04193807dc50d0cfe26ac8f08a9cad141e9843be6cffe5a64e750fe947dfe"
+}

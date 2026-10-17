@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "expected_output": "negative-start=java.lang.IndexOutOfBoundsException;reversed-range=java.lang.IllegalArgumentException;closed-sink=java.lang.IllegalStateException;io-failure=java.io.IOException",
+  "checks": [
+    "negative character start is rejected as IndexOutOfBoundsException",
+    "reversed character range is rejected as IllegalArgumentException",
+    "writing to a closed sink is rejected as IllegalStateException",
+    "underlying sink IOExceptions propagate from writeString"
+  ]
+}
