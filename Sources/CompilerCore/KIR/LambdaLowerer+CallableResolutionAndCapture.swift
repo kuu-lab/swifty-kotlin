@@ -25,11 +25,8 @@ extension LambdaLowerer {
         driver.ctx.setLocalValue(receiver, for: symbol)
     }
 
-    /// Binds the lambda's receiver value (the explicit receiver parameter, or the
-    /// active implicit receiver it was satisfied by) to
-    /// `SyntheticSymbolScheme.lambdaReceiverSymbol`, the symbol Sema gives the
-    /// lambda's `this@callee` references. Must run after the receiver parameter
-    /// and capture bindings have been installed as the implicit receiver.
+    /// Must run after the receiver parameter and capture bindings have been
+    /// installed as the implicit receiver.
     func registerLambdaReceiverValue(lambdaExprID: ExprID, hasReceiverParam: Bool) {
         guard hasReceiverParam,
               let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
@@ -225,10 +222,7 @@ extension LambdaLowerer {
 
     /// True when `symbol` is an ordinary `class` declaration — i.e.
     /// something whose instances a plain `this` receiver capture is known to
-    /// work correctly for. Used to distinguish a bare `::member` reference
-    /// to an instance member of the enclosing class (needs an
-    /// implicit-receiver capture) from one to a genuine top-level
-    /// declaration (`parentSymbol` is nil, so no capture applies).
+    /// work correctly for.
     ///
     /// Deliberately narrower than "has instances a `this` could refer to"
     /// (which would also include `.interface`/`.object`/`.enumClass`):
@@ -266,10 +260,6 @@ extension LambdaLowerer {
         sema.symbols.symbol(symbol)?.kind == .class
     }
 
-    /// True when `implicitReceiver`'s KIR-level type is `ownerSymbol` itself
-    /// or a subtype of it — i.e. it's actually safe to treat as the `this`
-    /// for a member of `ownerSymbol`.
-    ///
     /// `driver.ctx.activeImplicitReceiverExprID()` reflects whichever
     /// receiver-introducing scope is innermost at the current lowering
     /// point (KIRLoweringContext keeps only one "current" receiver, not a
@@ -438,9 +428,6 @@ extension LambdaLowerer {
         return captures
     }
 
-    /// STDLIB-004: Check if an expression tree contains any implicit receiver
-    /// member accesses (bare name references resolved through implicitReceiverType).
-    /// Mirrors `containsImplicitReceiverReference` for all AST node types.
     func containsImplicitReceiverMemberAccess(
         in exprID: ExprID, ast: ASTModule, sema: SemaModule,
         excludingReceiverType: TypeID? = nil, outerReceiverType: TypeID? = nil,
