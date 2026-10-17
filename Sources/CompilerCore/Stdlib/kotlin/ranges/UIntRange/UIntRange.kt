@@ -5,11 +5,6 @@
 
 package kotlin.ranges
 
-// KSP-1315: Keep UIntRange's public receiver members source-backed while the
-// nominal shell stays synthetic (KSP-1314). `first`/`last` are the
-// runtime-backed payload accessors these members delegate to; `isEmpty` is
-// already source-backed in RangeMembership.kt.
-
 public val UIntRange.start: UInt
     get() = first
 
