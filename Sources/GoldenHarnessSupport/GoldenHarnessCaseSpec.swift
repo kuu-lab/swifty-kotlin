@@ -1,7 +1,5 @@
 import Foundation
 
-/// The stdlib mode a golden case compiles against (RF-GOLDEN-012).
-///
 /// Cases without a spec file keep the historical implicit behavior — the
 /// worker uses `KSWIFTK_GOLDEN_STDLIB_LIBRARY` when present and falls back to
 /// bundled-source injection when it is not. A case that declares a profile
@@ -49,8 +47,6 @@ public struct GoldenHarnessCaseSpec: Sendable, Equatable {
         self.targets = targets
     }
 
-    /// The spec URL adjacent to a case source file (`foo.kt` →
-    /// `foo.golden-spec`).
     public static func specURL(forSourceURL sourceURL: URL) -> URL {
         sourceURL.deletingPathExtension().appendingPathExtension(specFileExtension)
     }
