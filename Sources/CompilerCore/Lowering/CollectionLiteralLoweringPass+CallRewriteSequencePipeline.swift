@@ -1,4 +1,3 @@
-/// Sequence pipeline rewrites such as asSequence, map/filter, zip, plus, and minus.
 extension CollectionLiteralConstructionLoweringPass {
     func rewriteSequencePipelineCall(
         symbol: SymbolID?,
@@ -25,7 +24,6 @@ extension CollectionLiteralConstructionLoweringPass {
             return false
         }
 
-    // --- Rewrite sequence member calls (STDLIB-003 / STDLIB-471) ---
     // asSequence() on collection → kk_list_asSequence or kk_array_asSequence
     // Guard with state.arrayExprIDs / state.listExprIDs so we only rewrite
     // receivers whose concrete collection kind is known.
@@ -94,7 +92,7 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
 
-        // KSP-441〜447: true source-backed Sequence/Iterable.asSequence — keep virtual.
+        // True source-backed Sequence/Iterable.asSequence — keep virtual.
         // Require a real symbol so unbound calls are not treated as source-backed.
         if let symbol,
            let sema = ctx.sema,
@@ -109,7 +107,6 @@ extension CollectionLiteralConstructionLoweringPass {
         return true
     }
 
-    // constrainOnce() on sequence -> kk_sequence_constrainOnce
     if callee == lookup.constrainOnceName, arguments.count == 1 {
         let receiverID = arguments[0]
         if state.sequenceExprIDs.contains(receiverID.rawValue) {
@@ -126,7 +123,6 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
-    // requireNoNulls() on sequence -> kk_sequence_requireNoNulls
     // The bundled source iterator cannot propagate an exception thrown from
     // hasNext(), so the runtime pipeline step (which sets outThrown) is kept.
     if callee == lookup.requireNoNullsName, arguments.count == 1,
@@ -143,7 +139,6 @@ extension CollectionLiteralConstructionLoweringPass {
         return true
     }
 
-    // map/filter on sequence → kk_sequence_map/kk_sequence_filter
     if callee == lookup.mapName || callee == lookup.filterName,
        arguments.count == 2 || arguments.count == 3
     {
@@ -171,8 +166,6 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
-    // flatMap/flatMapIndexed on a runtime sequence handle
-    // → kk_sequence_flatMap/kk_sequence_flatMapIndexed
     if callee == lookup.flatMapName || callee == lookup.flatMapIndexedName,
        arguments.count == 2 || arguments.count == 3
     {
@@ -201,7 +194,6 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
-    // flatMap on sequence → kk_sequence_flatMap (STDLIB-095)
     if callee == lookup.flatMapName,
        arguments.count == 2 || arguments.count == 3
     {
@@ -220,7 +212,6 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
-    // flatMapIndexed on sequence -> kk_sequence_flatMapIndexed (STDLIB-SEQ-020)
     if callee == lookup.flatMapIndexedName,
        arguments.count == 2 || arguments.count == 3
     {
@@ -239,7 +230,6 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
-    // shuffled([random]) on sequence -> kk_sequence_shuffled(_random)
     if callee == lookup.shuffledName, arguments.count == 1 || arguments.count == 2 {
         let receiverID = arguments[0]
         if state.sequenceExprIDs.contains(receiverID.rawValue) {
@@ -265,7 +255,6 @@ extension CollectionLiteralConstructionLoweringPass {
         ofSingle: lookup.kkSequenceOfSingleName
     )
 
-    // plus(other) on sequence → kk_sequence_plus (STDLIB-561)
     if callee == lookup.plusMemberName, arguments.count == 2 {
         let receiverID = arguments[0]
         if state.sequenceExprIDs.contains(receiverID.rawValue) {
@@ -290,7 +279,6 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
-    // plusElement(element) on sequence -> kk_sequence_plus_element (STDLIB-SEQ-013)
     if callee == lookup.plusElementName, arguments.count == 2 {
         let receiverID = arguments[0]
         if state.sequenceExprIDs.contains(receiverID.rawValue) {
@@ -307,7 +295,6 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
-    // minus(element)/minusElement(element) on sequence → kk_sequence_minus
     if callee == lookup.minusMemberName || callee == lookup.minusElementName, arguments.count == 2 {
         let receiverID = arguments[0]
         if state.sequenceExprIDs.contains(receiverID.rawValue) {
