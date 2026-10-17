@@ -1,9 +1,8 @@
 package kotlin.sequences
 
 // MIGRATION-SEQ-005 / KSP-441
-// Sequence window, limiting, and zip/distinct HOFs implemented as lazy
-// object-expression pipelines.  This replaces the previous runtime-bridge
-// based implementation so that source-backed Sequence objects can be chained.
+// Lazy object-expression pipelines replace the previous runtime-bridge based
+// implementation so that source-backed Sequence objects can be chained.
 
 public fun <T> Sequence<T>.take(n: Int): Sequence<T> {
     require(n >= 0) { "Requested element count $n is less than zero." }
