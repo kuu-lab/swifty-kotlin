@@ -2,11 +2,6 @@ package kotlin.text
 
 import kotlin.internal.KsSymbolName
 
-/**
- * A mutable sequence of characters backed by the KSwiftK runtime string-builder
- * handle. Public operations are implemented in Kotlin; only the small mutable
- * buffer bridge below crosses into the runtime.
- */
 public class StringBuilder : Appendable, CharSequence, Comparable<StringBuilder> {
     constructor()
     constructor(content: String)
