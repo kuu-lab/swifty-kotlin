@@ -2,25 +2,12 @@ package kotlin.text
 
 import kotlin.internal.KsSymbolName
 
-// KSP-486
 // MatchResult / MatchGroup / MatchGroupCollection / MatchResult.Destructured
 // public layer, migrated from Sources/Runtime/RuntimeRegex.swift.
-//
-// Only the raw match position data of a match (group count, per-group value and
-// UTF-16 start/end offsets, named-group index) and the engine-driven next()
-// iteration remain in Swift, as __kk_* bridges. Every derived operation --
-// value, range, groupValues, groups, componentN, destructuring, named group
-// lookup, Regex.groupNames, Regex.options -- is expressed here in Kotlin.
 
-// -- nominal anchors --
-
-/** The opaque match handle exposed by the native regular-expression engine. */
 public interface MatchResult {
-    /** The component container used by destructuring declarations. */
     public class Destructured internal constructor() {}
 }
-
-// -- bridges: raw match data --
 
 @KsSymbolName("__kk_match_result_group_count")
 internal external fun __kkMatchResultGroupCount(match: MatchResult): Int
@@ -58,8 +45,6 @@ internal external fun __kkRegexPattern(regex: Regex): String
 /** Bit mask of the `RegexOption` ordinals the regex was created with. */
 @KsSymbolName("__kk_regex_option_mask")
 internal external fun __kkRegexOptionMask(regex: Regex): Int
-
-// -- Regex accessors --
 
 public val Regex.pattern: String
     get() = __kkRegexPattern(this)
@@ -114,12 +99,7 @@ private fun __kkIsGroupNameStart(c: Char): Boolean =
 private fun __kkIsGroupNamePart(c: Char): Boolean =
     __kkIsGroupNameStart(c) || (c >= '0' && c <= '9')
 
-// -- MatchGroup --
-
-/** A matched capture group: its text and the range it spans in the input. */
 public data class MatchGroup(public val value: String, public val range: IntRange)
-
-// -- MatchGroupCollection --
 
 /**
  * The capture groups of a single match, addressable by index (0 = entire match)
@@ -176,13 +156,9 @@ private class MatchGroupCollectionImpl(
     }
 }
 
-// -- MatchResult --
-
-/** The substring of the input captured by the entire match. */
 public val MatchResult.value: String
     get() = __kkMatchResultGroupValue(this, 0)
 
-/** The range of indices in the input covered by the entire match. */
 public val MatchResult.range: IntRange
     get() {
         val start = __kkMatchResultGroupStart(this, 0)
@@ -210,14 +186,10 @@ public operator fun MatchResult.component1(): String = __kkMatchResultGroupValue
 
 public operator fun MatchResult.component2(): String = __kkMatchResultGroupValue(this, 1)
 
-/** The next match of the same regex in the same input, or `null` when exhausted. */
 public fun MatchResult.next(): MatchResult? = __kkMatchResultNext(this)
 
-/** Capture groups of this match, packaged for destructuring declarations. */
 public val MatchResult.destructured: MatchResult.Destructured
     get() = __kkMatchResultDestructured(this)
-
-// -- MatchResult.Destructured --
 
 public val MatchResult.Destructured.match: MatchResult
     get() = __kkDestructuredMatch(this)
