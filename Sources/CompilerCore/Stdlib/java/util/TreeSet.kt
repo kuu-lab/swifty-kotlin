@@ -1,7 +1,3 @@
-/*
- * KUU-1361: JVM java.util.TreeSet parity for the bundled stdlib.
- */
-
 package java.util
 
 import kotlin.collections.Collection
@@ -43,9 +39,6 @@ private external fun <E> __kkTreeSetContainsAll(
     elements: Collection<@UnsafeVariance E>
 ): Boolean
 
-/**
- * A sorted set backed by a runtime box — `java.util.TreeSet`.
- */
 public open class TreeSet<E> : NavigableSet<E> {
     public constructor() {
         __kkTreeSetInit(this, null)
