@@ -1,6 +1,5 @@
 
-/// Returns a canonical string key for a when-branch condition expression,
-/// used for detecting duplicate conditions (Sema) and deduplicating
+/// Used for detecting duplicate conditions (Sema) and deduplicating
 /// OR-chain comparisons (KIR).  Returns `nil` for conditions that
 /// cannot be reliably compared (e.g. arbitrary expressions).
 func whenConditionKey(
@@ -21,7 +20,6 @@ func whenConditionKey(
     )
 }
 
-/// Computes a canonical key from an already-resolved expression node.
 /// Split out to keep the switch statement in its own function so that
 /// the top-level helper stays below the cyclomatic-complexity threshold.
 private func whenConditionKeyFromExpr(
@@ -49,8 +47,6 @@ private func whenConditionKeyFromExpr(
     }
 }
 
-/// Returns a canonical key for literal expression types, or `nil` if
-/// the expression is not a literal.
 private func literalConditionKey(_ expr: Expr, interner: StringInterner) -> String? {
     switch expr {
     case .nullLiteral: "null"
@@ -130,8 +126,6 @@ private func isCheckKey(
     return "is:\(negated ? "!" : "")\(typeRefID.rawValue)"
 }
 
-/// Removes duplicate conditions from a when-branch condition list,
-/// keeping the first occurrence of each canonically-equal condition.
 func deduplicateWhenConditions(
     _ conditions: [ExprID],
     ast: ASTModule,
