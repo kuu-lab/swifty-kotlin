@@ -149,6 +149,69 @@ class F02GateTests(unittest.TestCase):
             ("producer-consumer", "O0"), ("producer-consumer", "O2"),
         ])
 
+    def test_bytestring_synthetic_constructors_have_dedicated_visibility_and_abi_probes(self):
+        case = next(case for case in matrix.scenarios()
+                    if case["id"] == "bytestring-synthetic-constructors")
+        self.assertEqual(case["reference"], "jvm")
+        self.assertEqual(case["entry"], "f02constructorconsumer.main")
+        self.assertEqual(case["jvm_class"], "f02constructorconsumer.ConsumerKt")
+        self.assertEqual(
+            case["jvm_abi_expected"],
+            "PASS descriptors=2 flags=public+synthetic static=false bridge=false masks=2,4,6\n",
+        )
+        self.assertEqual(len(case["producer"]), 1)
+        self.assertTrue(case["negative_consumer"].is_file())
+        self.assertEqual(matrix.LANES, [
+            ("source", "O0"), ("source", "O2"),
+            ("stdlib-library", "O0"), ("stdlib-library", "O2"),
+            ("producer-consumer", "O0"), ("producer-consumer", "O2"),
+        ])
+
+        positive = case["consumer"].read_text(encoding="utf-8")
+        producer = case["producer"][0].read_text(encoding="utf-8")
+        negative = case["negative_consumer"].read_text(encoding="utf-8")
+        abi = case["jvm_abi_probe"].read_text(encoding="utf-8")
+        self.assertIn("val withAllDefaults = ByteString(input)", positive)
+        self.assertIn("val withDefaultEnd = ByteString(input, 1)", positive)
+        self.assertIn("val explicitRange = ByteString(input, 1, 3)", positive)
+        self.assertIn("catch (_: IndexOutOfBoundsException)", positive)
+        self.assertIn("expectIndexOutOfBounds { ByteString(input, -1, 1) }", positive)
+        self.assertIn("expectException(\"IllegalArgumentException\")", positive)
+        self.assertIn("fun constructorWithAllDefaults", producer)
+        self.assertIn("fun constructorWithDefaultEnd", producer)
+        self.assertIn("ByteString(byteArrayOf(1), true)", negative)
+        self.assertIn('"([BLjava/lang/Object;" + MARKER + ")V"', abi)
+        self.assertIn('"([BIII" + MARKER + ")V"', abi)
+        self.assertIn("requireSyntheticPublicConstructor", abi)
+        self.assertIn("requireReflectionFlags", abi)
+        self.assertIn("owner.getDeclaredConstructor(", abi)
+        self.assertIn("masks=2,4,6", abi)
+
+        with (matrix.HERE / "api-inventory.tsv").open(encoding="utf-8", newline="") as stream:
+            rows = {row["row_id"]: row for row in csv.DictReader(stream, delimiter="\t")}
+        evidence = json.loads((matrix.HERE / "api-validation-evidence.json").read_text(encoding="utf-8"))
+        evidenced_ids = {record["row_id"] for record in evidence["records"]}
+        target_ids = {"jvm-ad6910e194951687", "jvm-d7e40c6cd1a94933"}
+        self.assertTrue(target_ids.issubset(rows))
+        for row_id in target_ids:
+            with self.subTest(row_id=row_id):
+                row = rows[row_id]
+                self.assertEqual(row["owner_issue"], "KUU-2623")
+                self.assertEqual(row["status"], "verified" if row_id in evidenced_ids else "unverified")
+                self.assertEqual(row["upstream_test_refs"], inventory_generator.NO_DIRECT_UPSTREAM_ASSERTION)
+                self.assertIn("reference JVM classfile ABI", row["scope_decision"])
+                self.assertIn("no candidate JVM classfile", row["scope_decision"])
+                for required_input in (
+                    "ByteStringSyntheticConstructorConsumer.kt",
+                    "ByteStringSyntheticConstructorNegative.kt",
+                    "ByteStringSyntheticConstructorAbiProbe.java",
+                    "generate_f01_consumers.py",
+                    "generate_f02_consumers.py",
+                    "run_f02_matrix.py",
+                    "validation-probe-executions.json",
+                ):
+                    self.assertIn(required_input, row["local_test_refs"])
+
     def test_deprecated_path_rows_have_no_unrelated_upstream_assertions(self):
         expected = {
             "jvm-23bdc46eecb769ad": (

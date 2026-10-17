@@ -2,11 +2,13 @@
 """Exercise validation evidence application with a one-row inventory fixture."""
 
 import copy
+import hashlib
 import importlib.util
 import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 HERE = Path(__file__).resolve().parent
@@ -33,6 +35,10 @@ class ValidationEvidenceTests(unittest.TestCase):
         self._write("Sources/CompilerCore/Stdlib/kotlinx/io/Foo.kt", "fun foo() = 1\n")
         self._write("Sources/Runtime/io_bridge.swift", "func kk_io_foo() {}\n")
         self._write("Tests/CompilerBackendTests/FooTests.swift", "func testFoo() {}\n")
+        self._write(
+            "Scripts/io_api_inventory/f02_consumers/ByteStringSyntheticConstructorConsumer.kt",
+            "fun main() = Unit\n",
+        )
         self._write("core/common/test/FooTest.kt", "fun testFoo() = assertEquals(1, foo())\n", self.upstream)
         self.row = {
             "row_id": "klib-fixture-foo",
@@ -91,9 +97,9 @@ class ValidationEvidenceTests(unittest.TestCase):
         other_case_id = "core/common/test/BarTest.kt#testBar"
         return {
             "reference": {f"reference-{index}": case_id for index in range(6)}
-            | {"reference-wrong": other_case_id},
+            | {"reference-wrong": other_case_id, "probe-reference": "Scripts/io_api_inventory/f02_consumers/ByteStringSyntheticConstructorConsumer.kt#main"},
             "candidate": {f"candidate-{index}": case_id for index in range(6)}
-            | {"candidate-wrong": other_case_id},
+            | {"candidate-wrong": other_case_id, "probe-candidate": "Scripts/io_api_inventory/f02_consumers/ByteStringSyntheticConstructorConsumer.kt#main"},
         }
 
     def _apply(self, records, row=None, schema_version=1):
@@ -319,6 +325,77 @@ class ValidationEvidenceTests(unittest.TestCase):
                 self.generator.validate_index_of_bridge_probe(
                     row, record, self.generator.REPO
                 )
+
+    def test_dedicated_local_probe_can_cover_a_jvm_descriptor_without_upstream_test_refs(self):
+        row = copy.deepcopy(self.row)
+        row["row_id"] = "jvm-fixture-foo"
+        row["representation"] = "JVM public ABI dump"
+        row["upstream_test_refs"] = self.generator.NO_DIRECT_UPSTREAM_ASSERTION
+        row["local_test_refs"] = "Scripts/io_api_inventory/f02_consumers/ByteStringSyntheticConstructorConsumer.kt"
+        record = self._record(row)
+        case_id = "Scripts/io_api_inventory/f02_consumers/ByteStringSyntheticConstructorConsumer.kt#main"
+        record["executions"][0].update(
+            case_id=case_id,
+            reference={"execution_id": "probe-reference", "result": "PASS", "exit_code": 0},
+            candidate={"execution_id": "probe-candidate", "result": "PASS", "exit_code": 0},
+        )
+        self.assertEqual(self._apply([record], row)["status"], "verified")
+
+    def test_local_probe_execution_catalog_uses_its_inventory_lock_hash(self):
+        reference_path = self.root / "reference-executions.json"
+        candidate_path = self.root / "candidate-executions.json"
+        probe_path = self.root / "probe-executions.json"
+        runner_lock_path = self.root / "runner-lock.json"
+        reference_bytes = b"[]\n"
+        candidate_bytes = b"[]\n"
+        probe_bytes = json.dumps({
+            "schema_version": 1,
+            "probes": [{
+                "case_id": "Scripts/io_api_inventory/f02_consumers/ByteStringSyntheticConstructorConsumer.kt#main",
+                "reference_execution_id": "probe-reference",
+                "candidate_execution_id": "probe-candidate",
+            }],
+        }, indent=2).encode("utf-8") + b"\n"
+        reference_path.write_bytes(reference_bytes)
+        candidate_path.write_bytes(candidate_bytes)
+        probe_path.write_bytes(probe_bytes)
+        runner_lock_path.write_text(json.dumps({
+            "commit": self.generator.EXPECTED_TAG_COMMIT,
+            "jvm_execution_catalog_sha256": hashlib.sha256(reference_bytes).hexdigest(),
+            "native_execution_catalog_sha256": hashlib.sha256(candidate_bytes).hexdigest(),
+        }), encoding="utf-8")
+        with (
+            patch.object(self.generator, "UPSTREAM_RUNNER_LOCK_PATH", runner_lock_path),
+            patch.object(self.generator, "REFERENCE_EXECUTIONS_PATH", reference_path),
+            patch.object(self.generator, "CANDIDATE_EXECUTIONS_PATH", candidate_path),
+            patch.object(self.generator, "VALIDATION_PROBE_EXECUTIONS_PATH", probe_path),
+        ):
+            catalogs = self.generator._load_validation_execution_catalogs({
+                "validationProbeExecutionsSha256": hashlib.sha256(probe_bytes).hexdigest(),
+            })
+            self.assertEqual(
+                catalogs["reference"]["probe-reference"],
+                "Scripts/io_api_inventory/f02_consumers/ByteStringSyntheticConstructorConsumer.kt#main",
+            )
+            self.assertEqual(
+                catalogs["candidate"]["probe-candidate"],
+                "Scripts/io_api_inventory/f02_consumers/ByteStringSyntheticConstructorConsumer.kt#main",
+            )
+            with self.assertRaises(SystemExit):
+                self.generator._load_validation_execution_catalogs({
+                    "validationProbeExecutionsSha256": "0" * 64,
+                })
+
+    def test_local_probe_cannot_replace_a_mapped_upstream_assertion(self):
+        row = copy.deepcopy(self.row)
+        record = self._record(row)
+        record["executions"][0]["case_id"] = (
+            "Scripts/io_api_inventory/f02_consumers/ByteStringSyntheticConstructorConsumer.kt#main"
+        )
+        record["executions"][0]["reference"]["execution_id"] = "probe-reference"
+        record["executions"][0]["candidate"]["execution_id"] = "probe-candidate"
+        with self.assertRaisesRegex(SystemExit, "is not mapped to row"):
+            self._apply([record], row)
 
     def test_unknown_duplicate_and_malformed_evidence_is_rejected(self):
         valid = self._record()

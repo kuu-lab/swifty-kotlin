@@ -158,6 +158,17 @@ def segment_local_probe_case_ids(lane: str) -> list[str]:
     ]
 
 
+def require_rejection(command: list[str], directory: Path, stage: str, timeout: float,
+                      environment: dict[str, str] | None = None) -> None:
+    code = execute(command, directory, stage, timeout, environment)
+    if code == 0:
+        raise RuntimeError(f"inaccessible API was accepted: {directory / stage}")
+    prefix = directory / stage
+    diagnostic = prefix.with_suffix(".stdout").read_bytes() + prefix.with_suffix(".stderr").read_bytes()
+    if not re.search(rb"private|inaccessible|cannot access|visibility", diagnostic, re.IGNORECASE):
+        raise RuntimeError(f"rejected API for an unrelated reason: {directory / stage}")
+
+
 def packaged(raw: bytes, package: str) -> bytes:
     if re.search(rb"^package\s", raw, re.MULTILINE):
         raise ValueError("only unqualified fixtures may receive a package insertion")
@@ -190,6 +201,16 @@ def scenarios() -> list[dict]:
                   "reference": "jvm"})
     base = ROOT / "Tests/CompilerBackendTests/Fixtures"
     cases += [
+        {"id": "bytestring-synthetic-constructors",
+         "producer": [HERE / "f02_consumers/ByteStringSyntheticConstructorProducer.kt"],
+         "consumer": HERE / "f02_consumers/ByteStringSyntheticConstructorConsumer.kt",
+         "negative_consumer": HERE / "f02_consumers/ByteStringSyntheticConstructorNegative.kt",
+         "expected": HERE / "f02_consumers/ByteStringSyntheticConstructor.expected",
+         "entry": "f02constructorconsumer.main",
+         "jvm_class": "f02constructorconsumer.ConsumerKt",
+         "reference": "jvm",
+         "jvm_abi_probe": HERE / "f02_consumers/ByteStringSyntheticConstructorAbiProbe.java",
+         "jvm_abi_expected": "PASS descriptors=2 flags=public+synthetic static=false bridge=false masks=2,4,6\n"},
         {"id": "buffer-boundaries", "producer": [base / "IOBuffer1729/BufferBoundaries.kt"],
          "consumer": base / "IOBuffer1729/Consumer.kt", "entry": "kuu1729consumer.main",
          "expected": base / "IOBuffer1729/reference.stdout", "reference": "pinned-JVM"},
@@ -376,6 +397,13 @@ def run_lane(case: dict, compiler: Path, stdlib: Path, expected: bytes, director
     reject_unhandled_events(observed)
     if stderr or observed != expected:
         raise RuntimeError(f"byte difference or runtime stderr: {directory}")
+    if "negative_consumer" in case:
+        require_rejection(
+            base + imports + ["--entry-point", "f02constructornegative.main",
+                              str(case["negative_consumer"]), "-o",
+                              str(directory / "negative-candidate")],
+            directory, "negative-consumer", timeout,
+        )
     if case.get("ledger"):
         check_ledger_events(stdout, json.loads((HERE / "f02_consumers/manifest.json").read_text()))
     for group in case.get("groups", []):
@@ -436,7 +464,7 @@ def main(argv: list[str] | None = None) -> int:
         summary["harness_files_sha256"] = {str(path.relative_to(ROOT)): sha(path) for path in provenance if path.is_file()}
         scenario_inputs = {path for case in selected for path in case.get("producer", []) + case.get("fixtures", [])}
         scenario_inputs |= {case[key] for case in selected for key in (
-            "consumer", "expected", "fixture", "negative_fixture", "reference_probe", "provenance", "jvm_abi_probe"
+            "consumer", "negative_consumer", "expected", "fixture", "negative_fixture", "reference_probe", "provenance", "jvm_abi_probe"
         ) if key in case}
         summary["scenario_files_sha256"] = {str(path.relative_to(ROOT)): sha(path) for path in sorted(scenario_inputs)}
         resources = next((path for path in (
@@ -550,6 +578,8 @@ def main(argv: list[str] | None = None) -> int:
                 expected = normalized_paths((directory / "reference-run.stdout").read_bytes(), directory / "reference-run-work")
                 reject_unhandled_events(expected)
                 if (directory / "reference-run.stderr").read_bytes(): raise RuntimeError("reference runtime stderr")
+                if case.get("expected") and expected != case["expected"].read_bytes():
+                    raise RuntimeError("JVM reference output differs from the pinned expected output")
                 if case.get("ledger"): check_ledger_events(expected, json.loads((HERE / "f02_consumers/manifest.json").read_text()))
                 if case["id"] == "segment-data-as-byte-array":
                     case_id = "local:Scripts/io_api_inventory/probes/segment_data_as_byte_array_jvm_abi.kt#jvm-descriptor"
@@ -565,15 +595,30 @@ def main(argv: list[str] | None = None) -> int:
                             candidate_source_metadata["status"],
                         ),
                     })
+                if "negative_consumer" in case:
+                    require_rejection(
+                        [str((args.kotlin_home / "bin/kotlinc").resolve()),
+                         str(case["negative_consumer"]), "-classpath", classpath,
+                         "-d", str(directory / "negative-reference.jar")],
+                        directory, "negative-reference-consumer", args.compile_timeout,
+                        {"JAVA_HOME": str(args.java.resolve().parent.parent)},
+                    )
                 if "jvm_abi_probe" in case:
                     probe_classes = directory / "jvm-abi-probe-classes"
                     probe_classes.mkdir()
                     javac = args.java.resolve().parent / "javac"
                     require_stage([str(javac), "-d", str(probe_classes), str(case["jvm_abi_probe"])],
                                   directory, "jvm-abi-compile", args.compile_timeout)
+                    probe_class = case.get("jvm_abi_probe_class", case["jvm_abi_probe"].stem)
                     require_stage([str(args.java.resolve()), "-cp", os.pathsep.join(
-                        map(str, [probe_classes, jar, *jars])), "SegmentReadContextAbiProbe"],
+                        map(str, [probe_classes, jar, *jars])), probe_class,
+                        *[str(path) for path in jars if "bytestring" in path.name]],
                         directory, "jvm-abi-probe", 30)
+                    if "jvm_abi_expected" in case:
+                        probe_stdout = (directory / "jvm-abi-probe.stdout").read_text(encoding="utf-8")
+                        if (probe_stdout != case["jvm_abi_expected"]
+                                or (directory / "jvm-abi-probe.stderr").read_bytes()):
+                            raise RuntimeError("JVM ABI probe output differs from its pinned result")
             else:
                 expected = case["expected"].read_bytes()
                 reject_unhandled_events(expected)
@@ -582,11 +627,13 @@ def main(argv: list[str] | None = None) -> int:
             for route, optimization in LANES:
                 record_lane(case, expected, directory / f"{route}-{optimization}", route, optimization)
         if not args.separate_cases:
+            if len(selected) != len(expectations):
+                raise RuntimeError("selected case and reference expectation counts differ")
             summary["selected_reference_kinds"] = {case["id"]: case["reference"] for case in selected}
             # The original Native test module has helper declarations in actual
             # stdlib packages. Keep that module's failures independent so its
             # duplicate declarations cannot prevent unrelated consumers running.
-            ordinary = [(case, value) for case, value in zip(selected, expectations, strict=True)
+            ordinary = [(case, value) for case, value in zip(selected, expectations)
                         if case["id"] != "apple-original25"]
             batches = []
             if ordinary:
@@ -595,7 +642,7 @@ def main(argv: list[str] | None = None) -> int:
                 expected = b"".join(b"BEGIN-CASE:" + case["id"].encode() + b"\n" + value
                     + b"END-CASE:" + case["id"].encode() + b"\n" for case, value in ordinary)
                 batches.append((batch, expected, output))
-            batches += [(case, value, output / case["id"]) for case, value in zip(selected, expectations, strict=True)
+            batches += [(case, value, output / case["id"]) for case, value in zip(selected, expectations)
                         if case["id"] == "apple-original25"]
             for case, expected, directory in batches:
                 for route, optimization in LANES:

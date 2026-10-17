@@ -344,7 +344,9 @@ def render_consumer(rows, by_source, scope):
         *imports,
         "",
     ]
-    for row, declaration in zip(selected, declarations, strict=True):
+    if len(selected) != len(declarations):
+        raise ValueError("selected API rows and source declarations must have matching counts")
+    for row, declaration in zip(selected, declarations):
         lines.extend(emit_probe(row, declaration))
         lines.append("")
     return "\n".join(lines), selected
