@@ -1,8 +1,5 @@
 import Foundation
 
-/// Serialized-IR view of a `.klib` container: the `ir/*.kn*` chunk tables
-/// bound together with per-file decoding and index resolution.
-///
 /// Layout (Kotlin `KlibIrComponentImpl`):
 /// - `ir/files.knf` — `IrFile` per serialized source file.
 /// - `ir/irDeclarations.knd` — `[file][declarationId]` → `IrDeclaration`.
@@ -17,7 +14,6 @@ import Foundation
 /// A klib without serialized IR (e.g. cinterop artifacts) has `hasIR ==
 /// false` and no files.
 package struct KlibIrModule {
-    /// `<component>/ir` entry names → table files.
     package static let irDirectory = "ir"
 
     package let container: KlibContainer
@@ -92,7 +88,6 @@ package struct KlibIrModule {
         return try KlibIrDecoding.idSignature(ProtoFields(signatures.element(row: fileIndex, column: signatureIndex)))
     }
 
-    /// Raw string-table bytes → UTF-8 string.
     package func string(_ index: Int32, fileIndex: Int) throws -> String {
         guard let strings else { throw KlibFormatError.corruptChunk("no strings table") }
         return String(decoding: try strings.element(row: fileIndex, column: Int(index)), as: UTF8.self)
@@ -111,13 +106,10 @@ package struct KlibIrModule {
         return String(decoding: try signatureDebugInfos.element(row: fileIndex, column: Int(index)), as: UTF8.self)
     }
 
-    /// Fq-name segment list → dotted string.
     package func fqName(_ segments: [Int32], fileIndex: Int) throws -> String {
         try segments.map { try string($0, fileIndex: fileIndex) }.joined(separator: ".")
     }
 
-    /// Resolves an `IdSignature` to a readable `pkg/Class.member`-style
-    /// name (indices resolved through the file's tables).
     package func signatureDescription(_ signature: KlibIdSignature, fileIndex: Int) throws -> String {
         switch signature {
         case .common(let packageFqName, let declarationFqName, let memberId, _, let debugInfo):
@@ -152,13 +144,11 @@ package struct KlibIrModule {
         }
     }
 
-    /// Resolves a symbol code to its signature description.
     package func symbolDescription(_ symbol: KlibSymbolRef, fileIndex: Int) throws -> String {
         let signature = try signature(symbol.signatureIndex, fileIndex: fileIndex)
         return "\(symbol.kind):\(try signatureDescription(signature, fileIndex: fileIndex))"
     }
 
-    /// `name_type` pair → `(name, type)` rendered for diagnostics.
     package func nameAndTypeDescription(_ nameType: KlibNameAndType, fileIndex: Int) throws -> String {
         "\(try string(nameType.nameIndex, fileIndex: fileIndex)):<t\(nameType.typeIndex)>"
     }
