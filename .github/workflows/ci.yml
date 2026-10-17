@@ -51,12 +51,10 @@ jobs:
         run: bash Scripts/check_todo_ids.sh
       - name: Check mutation fuzzer keyword set matches lexer
         run: bash Scripts/check_mutation_fuzzer_keywords.sh
-      - name: Check Swift test parallelism overrides
-        run: bash Scripts/test_swift_test_parallelism.sh
       - name: Check workflows install npm tools via npm ci only
         run: bash Scripts/check_workflow_npm_install.sh
-      - name: Verify Kotlin compiler archive integrity policy
-        run: bash Scripts/test_verify_kotlin_compiler_archive.sh
+      - name: Run script regression tests
+        run: bash Scripts/test_all.sh
       - name: Setup Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
