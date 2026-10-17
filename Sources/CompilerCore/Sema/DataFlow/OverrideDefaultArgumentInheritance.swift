@@ -1,7 +1,6 @@
 /// KUU-655: Kotlin lets an `override` omit the argument(s) for parameters
 /// whose *base* declaration carries a default value, even when the override
-/// itself declares none (re-declaring one is a separate, unenforced rule --
-/// see the diagnostic note below):
+/// itself declares none (re-declaring one is a separate, unenforced rule):
 ///
 /// ```kotlin
 /// open class A { open fun f(x: Int = 1) = "A$x" }
@@ -19,16 +18,12 @@
 /// requires a default flag to skip an unbound parameter).
 ///
 /// This pass runs once all headers and inheritance edges exist (see
-/// `Phase.runValidationPasses`) and, for every `override` function whose own
-/// declaration has no default value, walks its supertype chain for the
-/// nearest matching declaration that does, then copies that declaration's
-/// default-value flags onto the override's stored signature. It also records
-/// the *original* owning symbol in `overrideDefaultsBaseSymbol` (walking
-/// through any number of intermediate overrides that themselves lack their
-/// own defaults) so KIR call-site lowering knows which declaration's
-/// `$default` stub to route through -- the override itself never gets one,
-/// since its AST has no default expressions to evaluate. See
-/// `CallSupportLowerer.defaultStubOwnerSymbol` and
+/// `Phase.runValidationPasses`). It records the *original* owning symbol in
+/// `overrideDefaultsBaseSymbol` (walking through any number of intermediate
+/// overrides that themselves lack their own defaults) so KIR call-site
+/// lowering knows which declaration's `$default` stub to route through -- the
+/// override itself never gets one, since its AST has no default expressions
+/// to evaluate. See `CallSupportLowerer.defaultStubOwnerSymbol` and
 /// `CallSupportLowerer.generateDefaultStubFunction`'s virtual-dispatch call
 /// for the KIR side of this fix.
 ///
@@ -83,14 +78,9 @@ extension DataFlowSemaPhase {
             nearestOverriddenFunctionCandidates(of: id, symbols: symbols, types: types)
         }
 
-        // Finds the nearest ancestor declaration (by BFS over
-        // `directSupertypes`, same traversal shape as
-        // `OpenFinalOverride.findAllInheritedMembers`) that supplies this
-        // override's defaults, resolving transitively through any
-        // intermediate override that itself has none of its own. Diamond
-        // inheritance (`class C : A(), I` where both declare `f`) resolves
-        // to whichever matching candidate the BFS reaches first; Kotlin
-        // requires such a diamond to already agree on defaults (or the
+        // Diamond inheritance (`class C : A(), I` where both declare `f`)
+        // resolves to whichever matching candidate the BFS reaches first;
+        // Kotlin requires such a diamond to already agree on defaults (or the
         // override to redeclare its own), so any two matches here are
         // expected to carry the same effective flags.
         //
@@ -198,12 +188,8 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Ordered declarations matching `id`'s member (name, arity, suspend,
-    /// alpha-aligned method type parameters, bounds, and parameter types) at
-    /// the nearest supertype level that declares any — the BFS portion of the
-    /// original `resolve` walk, unchanged. Mirrors
-    /// `findAllInheritedMembers`: once a level declares the member, deeper
-    /// ancestors are earlier overrides of the same logical member, not
+    /// Mirrors `findAllInheritedMembers`: once a level declares the member,
+    /// deeper ancestors are earlier overrides of the same logical member, not
     /// independent candidates, so the BFS stops at the first level with
     /// matches.
     func nearestOverriddenFunctionCandidates(
