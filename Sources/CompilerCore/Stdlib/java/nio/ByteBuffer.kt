@@ -1,7 +1,7 @@
 package java.nio
 
-/** Native source model for byte-buffer interoperability. Views share storage;
- * position, limit and mark belong to each view. This is not a JVM classfile. */
+/** Views share storage; position, limit and mark belong to each view.
+ * This is not a JVM classfile. */
 public class ByteBuffer private constructor(
     private val bytes: ByteArray,
     private val start: Int,
