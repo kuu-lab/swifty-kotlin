@@ -8,32 +8,17 @@
 
 package kotlin.collections
 
-// KSP-633: the nominal `MutableIterable<out T>` declaration is source-backed
-// here; the compiler-side shell in
+// KSP-633: The compiler-side `MutableIterable` shell in
 // `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` remains the fallback
 // for contexts without the bundled stdlib.
 
-/**
- * Classes that inherit from this interface can be represented as a sequence of
- * elements that can be iterated over and whose iterator supports removal.
- */
 public interface MutableIterable<out T> : Iterable<T> {
     public override operator fun iterator(): MutableIterator<T>
 }
 
-/**
- * Removes all elements from this [MutableIterable] that match the given [predicate].
- *
- * @return `true` if any element was removed from this collection, or `false` when no elements were removed and collection was not modified.
- */
 @IgnorableReturnValue
 public fun <T> MutableIterable<T>.removeAll(predicate: (T) -> Boolean): Boolean = filterInPlace(predicate, true)
 
-/**
- * Retains only elements of this [MutableIterable] that match the given [predicate].
- *
- * @return `true` if any element was removed from this collection, or `false` when all elements were retained and collection was not modified.
- */
 @IgnorableReturnValue
 public fun <T> MutableIterable<T>.retainAll(predicate: (T) -> Boolean): Boolean = filterInPlace(predicate, false)
 
