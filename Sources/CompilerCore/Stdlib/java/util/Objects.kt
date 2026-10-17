@@ -6,7 +6,6 @@ import kotlin.internal.KsSymbolName
 @KsSymbolName("__kk_objects_equals")
 private external fun objectsEquals(a: Any, b: Any?): Boolean
 
-/** Java's nullable deep comparison, including primitive and nested object arrays. */
 public object Objects {
     public fun deepEquals(a: Any?, b: Any?): Boolean {
         if (a === b) return true
