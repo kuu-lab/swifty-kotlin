@@ -1,7 +1,6 @@
 
 extension KIRLoweringDriver {
 
-    /// Lowers a single constructor (primary or secondary) into KIR declarations.
     func lowerConstructor(
         ctorSymbol: SymbolID,
         ctorFQName: [InternedString],
@@ -81,7 +80,6 @@ extension KIRLoweringDriver {
         ) ?? parameterType
     }
 
-    /// Builds the constructor body instructions for a primary or secondary constructor.
     private func buildConstructorBody(
         ctorSymbol: SymbolID,
         ctorFQName: [InternedString],
@@ -161,8 +159,6 @@ extension KIRLoweringDriver {
         return body
     }
 
-    /// Emits the implicit `super(...)` call of a primary constructor.
-    ///
     /// Kotlin runs the superclass constructor before the subclass's own
     /// initializers, so the superclass's property initializers and `init`
     /// blocks — which write into the same object at the layout offsets the
@@ -486,7 +482,6 @@ extension KIRLoweringDriver {
         }
     }
 
-    /// Creates the KIR function declaration and default-argument stub for a constructor.
     private func finalizeConstructorDecl(
         ctorSymbol: SymbolID,
         classDecl: ClassDecl,
@@ -518,7 +513,6 @@ extension KIRLoweringDriver {
         return declIDs
     }
 
-    /// CLASS-008: Emits delegate field initialization for `: Interface by expr`.
     func emitClassDelegationInitializers(
         ownerSymbol: SymbolID,
         receiverID: KIRExprID,
@@ -568,10 +562,6 @@ extension KIRLoweringDriver {
     /// Emits property initializers and `init { }` blocks in the order they
     /// appear in the class body, matching Kotlin's guaranteed top-to-bottom
     /// initialization semantics.
-    ///
-    /// The order is driven by `classBodyInitOrder`, which the AST builder
-    /// populates from the declaration-order sequence of properties and
-    /// `init` blocks in the source.
     func emitClassBodyInitializers(
         classDecl: ClassDecl,
         shared: KIRLoweringSharedContext,
@@ -626,12 +616,6 @@ extension KIRLoweringDriver {
             return
         }
 
-        // Handle delegated property initialisation:
-        // lower the delegate expression and store it in
-        // the $delegate_ storage field.  If the delegate
-        // type exposes a `provideDelegate` operator, wrap
-        // the initial value in a provideDelegate call;
-        // otherwise store the delegate value directly.
         if prop.delegateExpression != nil {
             emitDelegatePropertyInitializer(
                 propertyDecl: prop,
@@ -644,7 +628,6 @@ extension KIRLoweringDriver {
             return
         }
 
-        // Kotlin 2.0 explicit backing field: initialize from field's own initializer.
         if let explicitField = prop.explicitBackingField {
             let targetSymbol = sema.symbols.backingFieldSymbol(for: propSymbol) ?? propSymbol
             let backingFieldType = sema.symbols.propertyType(for: targetSymbol) ?? sema.types.anyType
@@ -661,7 +644,6 @@ extension KIRLoweringDriver {
                     shared: shared, body: &body
                 )
             }
-            // Also initialize the property itself if it has a regular initializer.
             if let initExpr = prop.initializer {
                 let propType = sema.symbols.propertyType(for: propSymbol) ?? sema.types.anyType
                 if !isDefaultFieldInitializer(initExpr, fieldType: propType, shared: shared) {
@@ -733,9 +715,8 @@ extension KIRLoweringDriver {
         )
     }
 
-    /// Seeds each `lateinit` instance field of `classDecl` with the null
-    /// sentinel. Emitted at constructor entry, ahead of the superclass
-    /// constructor call (see `KIRLoweringDriver+LateinitSentinel.swift`).
+    /// Emitted at constructor entry, ahead of the superclass constructor call
+    /// (see `KIRLoweringDriver+LateinitSentinel.swift`).
     private func emitLateinitFieldSentinels(
         classDecl: ClassDecl,
         shared: KIRLoweringSharedContext,
@@ -756,7 +737,6 @@ extension KIRLoweringDriver {
         }
     }
 
-    /// Seeds explicit nullable null defaults before superclass construction.
     /// The corresponding initializer is elided later because this sentinel
     /// is already the default and must not overwrite a virtual superclass write.
     private func emitNullInitializerFieldSentinels(
@@ -782,9 +762,6 @@ extension KIRLoweringDriver {
         }
     }
 
-    /// Stores `value` into the storage backing `targetSymbol` on the instance
-    /// currently under construction.
-    ///
     /// Class instance properties live inside the heap-allocated object, not in
     /// a module-global slot, so the write must go through `kk_array_set` at
     /// the property's computed field offset (the same mechanism reads use in
@@ -898,12 +875,7 @@ extension KIRLoweringDriver {
         }
     }
 
-    /// Emits the delegate-expression initialization for a `by` member
-    /// property: lowers the delegate expression (or synthesizes the `LazyImpl`
-    /// construction for `lazy`), wraps it in `provideDelegate` when the
-    /// delegate type declares that operator, and stores the resulting delegate
-    /// instance into the `$delegate_<name>` field at its layout offset.
-    /// Also used by `ObjectLiteralLowerer` for object-expression members —
+    /// Used by `ObjectLiteralLowerer` for object-expression members —
     /// there is no constructor to run inside, so it is invoked inline at the
     /// construction site with the object literal as the implicit receiver.
     func emitDelegatePropertyInitializer(
@@ -1305,7 +1277,6 @@ extension KIRLoweringDriver {
             )
         }
 
-        // STDLIB-REFLECT-ABI-002: Register declared member functions and properties.
         emitMemberReflectionRegistration(
             ownerSymbol: ownerSymbol,
             kclassExpr: kclassExpr,
@@ -1345,9 +1316,6 @@ extension KIRLoweringDriver {
     }
 
 
-    /// Emits `kk_kfunction_create` / `__kk_kproperty_stub_create` calls for each
-    /// declared member and generated data-class component function, followed by
-    /// `kk_kclass_register_member` to attach them to the KClass handle.
     /// Called from `synthesizeConstructorReflectionInitializer` so that
     /// `KClass.members` returns real handles rather than count-sized placeholders.
     func emitMemberReflectionRegistration(
@@ -1386,7 +1354,7 @@ extension KIRLoweringDriver {
                 let retTypeInterned = interner.intern(returnTypeName)
                 let retTypeExpr = arena.appendExpr(.stringLiteral(retTypeInterned), type: intType)
                 body.append(.constValue(result: retTypeExpr, value: .stringLiteral(retTypeInterned)))
-                // KUU-1357: packed modifier flags — bit0=suspend, bit1=inline,
+                // Packed modifier flags — bit0=suspend, bit1=inline,
                 // bit2=operator, bit3=infix, bit4=external. Matches
                 // `RuntimeKFunctionFlags` in the runtime.
                 var functionFlags: Int64 = 0
