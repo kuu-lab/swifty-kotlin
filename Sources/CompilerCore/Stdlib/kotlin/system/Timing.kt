@@ -2,12 +2,10 @@ package kotlin.system
 
 import kotlin.internal.KsSymbolName
 
-// KSP-617
-// Public kotlin.system timing layer migrated to Kotlin source.
-// Migration source: Sources/Runtime/RuntimeSystem.swift (kk_system_getTime*),
-// now the demoted __kk_system_getTime* OS bridges. measureTime* used to be
-// expanded by a KIR special case (StdlibSpecialCallKind); they are plain
-// Kotlin inline functions here, matching kotlin-stdlib.
+// Migration source: Sources/Runtime/RuntimeSystem.swift (now the demoted
+// __kk_system_getTime* OS bridges). measureTime* used to be expanded by a KIR
+// special case (StdlibSpecialCallKind); they are plain Kotlin inline functions
+// here, matching kotlin-stdlib.
 
 // Clock getters are internal bridges, not public Kotlin API.
 // PublishedApi allows the supported public inline functions to read the clocks
