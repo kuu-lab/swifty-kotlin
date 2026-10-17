@@ -56,7 +56,6 @@ extension KIRLoweringDriver {
             shared: shared, declIDs: &declIDs
         )
 
-        // Emit explicit backing field initializer if present.
         if let explicitField = propertyDecl.explicitBackingField, !isExtensionProperty {
             lowerExplicitBackingFieldInitializer(
                 explicitField, symbol: symbol, propType: propType,
@@ -107,7 +106,6 @@ extension KIRLoweringDriver {
     }
 
 
-    /// Emits initialization instructions for an explicit backing field.
     /// The initializer expression comes from the `field = expr` declaration,
     /// not from the property's own initializer.
     private func lowerExplicitBackingFieldInitializer(
@@ -472,10 +470,9 @@ extension KIRLoweringDriver {
         )
     }
 
-    /// Looks up a bundled stdlib delegate implementation's constructor or
-    /// factory-function symbol by exact parameter count. KSP-491's stdlib
-    /// delegate kinds are never overloaded on anything but arity, so arity
-    /// alone disambiguates (e.g. `lazy`'s 1-arg vs 2-arg overload).
+    /// KSP-491's stdlib delegate kinds are never overloaded on anything but
+    /// arity, so arity alone disambiguates (e.g. `lazy`'s 1-arg vs 2-arg
+    /// overload).
     func stdlibDelegateSymbol(
         fqName: [InternedString],
         parameterCount: Int,
@@ -486,9 +483,6 @@ extension KIRLoweringDriver {
         }
     }
 
-    /// References a bundled enum entry by name as a plain value (KSP-491:
-    /// `LazyThreadSafetyMode.SYNCHRONIZED`/`.PUBLICATION`/`.NONE` for the
-    /// implicit-mode `lazy { ... }` form).
     func referenceStdlibEnumEntry(
         ownerFQName: [InternedString],
         entryName: String,
