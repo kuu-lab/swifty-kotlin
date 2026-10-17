@@ -266,9 +266,8 @@ extension CallTypeChecker {
             getterCandidates = getterCandidates.filter(implicitMemberExtensionGetters.contains)
             propertyForGetter = propertyForGetter.filter { implicitMemberExtensionGetters.contains($0.key) }
         }
-        // STDLIB-JVM-PROP-003: Fallback to short-name lookup for JVM reflection
-        // properties (e.g. KClass<T>.java). Restricted to known JVM property names
-        // to avoid accidentally resolving unrelated experimental APIs.
+        // Short-name fallback, restricted to known JVM property names to avoid
+        // accidentally resolving unrelated experimental APIs.
         let knownJvmPropertyNames: Set<String> = ["java", "javaObjectType", "javaPrimitiveType", "kotlin", "declaringJavaClass"]
         if getterCandidates.isEmpty,
            knownJvmPropertyNames.contains(ctx.interner.resolve(calleeName))
