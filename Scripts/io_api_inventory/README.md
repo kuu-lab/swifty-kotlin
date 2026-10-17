@@ -153,6 +153,10 @@ python3 Scripts/io_api_inventory/run_f02_matrix.py \
   --dependencies /path/to/locked-io-jars
 ```
 
+`--case segment-pos-accessors` directly reads and writes `Segment.pos`, checks
+that buffer reads advance the position, and reflects the pinned JVM artifact's
+`getPos()I` and `setPos(I)V` descriptors and synthetic modifiers.
+
 Every selected lane is attempted after a lane failure, and each failure retains
 its raw diagnostic or output difference. The original Apple test module is run
 separately: its test-only helpers occupy real stdlib packages and can conflict

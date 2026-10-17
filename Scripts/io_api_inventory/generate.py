@@ -237,11 +237,13 @@ TEST_HINTS = {
 
 LOCAL_IO_TEST_PREFIXES = (
     "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java",
+    "Scripts/io_api_inventory/f02_consumers/SegmentPosAbiProbe.java",
     "Scripts/io_api_inventory/probes/",
     "Scripts/diff_cases/kotlinx_io_",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+ByteString",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+KtorIOCoverage.swift",
     "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590/",
+    "Tests/CompilerBackendTests/Fixtures/IOSegmentPos2595/",
     "Tests/CompilerCoreTests/GoldenCases/Sema/kotlinx_io_",
     "Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlinx_io_",
     "Tests/CompilerCoreTests/Sema/KotlinxIO",
@@ -347,6 +349,19 @@ INDEX_OF_DEFAULT_BRIDGE_TEST_INPUTS = (
     "Scripts/kotlinx_io_upstream/run_candidate_subset.py",
     "Scripts/kotlinx_io_upstream/jvm-executions.expected.json",
     "Scripts/kotlinx_io_upstream/native-executions.expected.json",
+)
+
+SEGMENT_POS_ROW_IDS = frozenset({
+    "internal-7cbcf580b52b6ebc",
+    "jvm-bfaf74c058b12301",
+    "jvm-f77d76d2b99f69b0",
+    "klib-6af55985ca8a3f6d",
+    "klib-adb895c199d56841",
+    "klib-f7ad84e0edfb56d8",
+})
+SEGMENT_POS_LOCAL_TESTS = (
+    "Scripts/io_api_inventory/f02_consumers/SegmentPosAbiProbe.java",
+    "Tests/CompilerBackendTests/Fixtures/IOSegmentPos2595/",
 )
 
 MODIFIERS = (
@@ -1970,6 +1985,12 @@ def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
                 or path.startswith(SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS[1])):
             if row["row_id"] not in SEGMENT_READ_CONTEXT_IMPL_ROW_IDS:
                 continue
+        if (path == SEGMENT_POS_LOCAL_TESTS[0]
+                or path.startswith(SEGMENT_POS_LOCAL_TESTS[1])):
+            if row["row_id"] not in SEGMENT_POS_ROW_IDS:
+                continue
+            refs.append(path)
+            continue
         haystack = content.lower()
         if name and re.search(rf"(?<!\w){re.escape(name)}(?!\w)", haystack):
             refs.append(path)
@@ -2363,7 +2384,9 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     local_paths.extend(REPO.joinpath("Scripts/diff_cases").glob("*.kt"))
     local_paths.extend(REPO.joinpath("Scripts/io_api_inventory/probes").glob("*.kt"))
     local_paths.extend(REPO.joinpath("Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590").glob("*.kt"))
+    local_paths.extend(REPO.joinpath("Tests/CompilerBackendTests/Fixtures/IOSegmentPos2595").glob("*.kt"))
     local_paths.append(REPO / "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java")
+    local_paths.append(REPO / "Scripts/io_api_inventory/f02_consumers/SegmentPosAbiProbe.java")
     for path in sorted(local_paths):
         rel = path.relative_to(REPO).as_posix()
         if rel in {INDEX_OF_DEFAULT_BRIDGE_DIFF_CASE, INDEX_OF_DEFAULT_BRIDGE_LOCAL_TEST}:

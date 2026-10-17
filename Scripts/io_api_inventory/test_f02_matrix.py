@@ -108,6 +108,23 @@ class F02GateTests(unittest.TestCase):
             )
             self.assertFalse(matrix.visibility_rejection_passed(directory, "candidate"))
 
+    def test_segment_pos_probe_checks_read_position_and_both_jvm_accessors(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "segment-pos-accessors")
+        producer = case["producer"][0].read_text(encoding="utf-8")
+        probe = case["jvm_abi_probe"].read_text(encoding="utf-8")
+
+        self.assertEqual(case["entry"], "kuu2595consumer.main")
+        self.assertTrue(case["friend_io_artifacts"])
+        self.assertEqual(matrix.reference_friend_args(case, [Path("core.jar"), Path("bytestring.jar")]),
+                         ["-Xfriend-paths=core.jar,bytestring.jar"])
+        self.assertIn("val initialPos = segment.pos", producer)
+        self.assertIn("segment.pos = 2", producer)
+        self.assertIn("buffer.readByte()", producer)
+        self.assertIn('getDeclaredMethod("getPos")', probe)
+        self.assertIn('getDeclaredMethod("setPos", int.class)', probe)
+        self.assertIn("method.isSynthetic()", probe)
+        self.assertEqual(matrix.jvm_abi_probe_class(case), "SegmentPosAbiProbe")
+
     def test_segment_read_context_probe_is_a_dedicated_friend_consumer(self):
         case = next(case for case in matrix.scenarios() if case["id"] == "segment-read-context-impl")
         producer = case["producer"][0].read_text(encoding="utf-8")
