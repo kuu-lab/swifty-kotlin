@@ -9,10 +9,6 @@
 
 package kotlin.collections
 
-// KSP-703: split out of CollectionAliases.kt into its own 本家-named file
-// (docs/stdlib-pipeline.md §6), matching HashSet.kt/LinkedHashSet.kt's
-// KSP-704 split.
-//
 // KUU-556: promoted from a `MutableMap` typealias to a real `HashMap`
 // subclass, matching the diff oracle (`kotlinc-jvm`, where
 // `java.util.LinkedHashMap extends java.util.HashMap` as distinct classes —
