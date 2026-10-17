@@ -17,8 +17,6 @@ import kotlin.internal.KsSymbolName
 // this layer: fetchAndUpdateAt lives in atomics/AtomicArrayMigration.kt, while
 // updateAt / updateAndFetchAt are defined below (KSP-1103).
 
-// ---- AtomicIntArray ----
-
 @KsSymbolName("__kk_atomic_int_array_load")
 private external fun AtomicIntArray.__kk_load(index: Int): Int
 
@@ -102,8 +100,6 @@ public fun AtomicIntArray.updateAndFetchAt(index: Int, transform: (Int) -> Int):
         if (compareAndSetAt(index, old, newValue)) return newValue
     }
 }
-
-// ---- AtomicLongArray ----
 
 @KsSymbolName("__kk_atomic_long_array_load")
 private external fun AtomicLongArray.__kk_load(index: Int): Long
