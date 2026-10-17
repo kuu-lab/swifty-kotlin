@@ -43,7 +43,6 @@ enum GoldenHarnessSemaFormat {
         renderFunctionSignature(signature, renderType: types.renderType)
     }
 
-    /// Renders a function signature with a caller-provided type projection.
     /// The default overload above preserves the historical formatter API;
     /// GoldenHarnessStableRenderContext uses this overload so source-backed
     /// aliases and imported declarations can share the same public type
