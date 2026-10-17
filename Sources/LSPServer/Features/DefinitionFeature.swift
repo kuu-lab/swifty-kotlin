@@ -1,7 +1,5 @@
 import CompilerCore
 
-/// Resolves go-to-definition requests to the declaration site of the symbol
-/// under the cursor.
 public enum DefinitionFeature {
     public static func definition(
         for analysis: Analyzer.Analysis,
