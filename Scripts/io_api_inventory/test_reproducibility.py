@@ -99,6 +99,28 @@ class ReproducibilityTests(unittest.TestCase):
             if row["row_id"] not in row_ids:
                 self.assertFalse(probe_refs.intersection(row["local_test_refs"].split(";")))
 
+    def test_buffer_type_shape_probe_is_hashed_only_for_its_four_views(self):
+        row_ids = {
+            "jvm-586a8185b5a9d20b",
+            "jvm-9ea7377f9ea4a308",
+            "klib-02fc8b652c26a1a7",
+            "klib-3d19f06be0624572",
+        }
+        probe_refs = {
+            "Scripts/io_api_inventory/f02_consumers/BufferTypeAbiProbe.java",
+            "Scripts/io_api_inventory/f02_buffer_shape/Consumer.kt",
+            "Scripts/io_api_inventory/f02_buffer_shape/Producer.kt",
+            "Tests/CompilerCoreTests/Sema/KotlinxIOBufferAPIShapeTests.swift",
+        }
+        rows = {row["row_id"]: row for row in self.rows}
+        for row_id in row_ids:
+            row = rows[row_id]
+            self.assertEqual(row["status"], "unverified")
+            self.assertTrue(probe_refs.issubset(set(row["local_test_refs"].split(";"))))
+        for row in self.rows:
+            if row["row_id"] not in row_ids:
+                self.assertFalse(probe_refs.intersection(row["local_test_refs"].split(";")))
+
     def test_exact_overload_exception_and_abi_mapping(self):
         declaration = self.row("kotlinx.io/readByteArray|readByteArray@kotlinx.io.Source(kotlin.Int){}")
         self.assertEqual(declaration["upstream_source_refs"], "core/common/src/Sources.kt:252")

@@ -197,6 +197,10 @@ def scenarios() -> list[dict]:
          "consumer": base / "IOSegmentReadContextImpl2590/Consumer.kt", "entry": "kuu2590consumer.main",
          "jvm_class": "kuu2590consumer.ConsumerKt", "reference": "jvm", "friend_io_artifacts": True,
          "jvm_abi_probe": HERE / "f02_consumers/SegmentReadContextAbiProbe.java"},
+        {"id": "buffer-type-constructor-view", "producer": [HERE / "f02_buffer_shape/Producer.kt"],
+         "consumer": HERE / "f02_buffer_shape/Consumer.kt", "entry": "io.gate.buffer.consumer.main",
+         "jvm_class": "io.gate.buffer.consumer.ConsumerKt", "reference": "jvm",
+         "jvm_abi_probe": HERE / "f02_consumers/BufferTypeAbiProbe.java"},
         {"id": "buffering-contracts", "producer": [base / "IOBuffering1730/BufferingContracts.kt"],
          "consumer": base / "IOBuffering1730/Consumer.kt", "entry": "kuu1730consumer.main",
          "expected": base / "IOBuffering1730/reference.stdout", "reference": "pinned-JVM"},
@@ -294,6 +298,17 @@ def reference_friend_args(case: dict, io_jars: list[Path]) -> list[str]:
     if not case.get("friend_io_artifacts"):
         return []
     return ["-Xfriend-paths=" + ",".join(map(str, io_jars))]
+
+
+def jvm_abi_probe_compile_command(javac: Path, probe: Path, classes: Path, classpath: str) -> list[str]:
+    return [str(javac), "-classpath", classpath, "-d", str(classes), str(probe)]
+
+
+def jvm_abi_probe_run_command(
+    java: Path, probe: Path, classes: Path, reference_jar: Path, io_jars: list[Path]
+) -> list[str]:
+    classpath = os.pathsep.join(map(str, [classes, reference_jar, *io_jars]))
+    return [str(java), "-cp", classpath, probe.stem]
 
 
 def batch_group_stdout(stdout: bytes, identifier: str) -> bytes:
@@ -569,10 +584,13 @@ def main(argv: list[str] | None = None) -> int:
                     probe_classes = directory / "jvm-abi-probe-classes"
                     probe_classes.mkdir()
                     javac = args.java.resolve().parent / "javac"
-                    require_stage([str(javac), "-d", str(probe_classes), str(case["jvm_abi_probe"])],
+                    require_stage(jvm_abi_probe_compile_command(
+                        javac, case["jvm_abi_probe"], probe_classes, str(jar) + os.pathsep + classpath
+                    ),
                                   directory, "jvm-abi-compile", args.compile_timeout)
-                    require_stage([str(args.java.resolve()), "-cp", os.pathsep.join(
-                        map(str, [probe_classes, jar, *jars])), "SegmentReadContextAbiProbe"],
+                    require_stage(jvm_abi_probe_run_command(
+                        args.java.resolve(), case["jvm_abi_probe"], probe_classes, jar, jars
+                    ),
                         directory, "jvm-abi-probe", 30)
             else:
                 expected = case["expected"].read_bytes()
