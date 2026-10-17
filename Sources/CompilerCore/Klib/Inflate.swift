@@ -1,7 +1,5 @@
 import Foundation
 
-/// Errors raised while reading a .klib container: zip archive structure,
-/// inflate, manifest layout, or entry access.
 package enum KlibFormatError: Error, Equatable {
     case notAZipArchive
     case unsupportedCompressionMethod(UInt16)
@@ -152,14 +150,10 @@ package enum Inflater {
         }
     }
 
-    /// Canonical-Huffman decoding table: counts per code length plus the
-    /// symbols sorted by (code length, symbol order). Decoding walks lengths
-    /// 1...maxLen accumulating one bit at a time — same scheme as zlib's
-    /// simplest decoder, O(maxLen) per symbol.
+    /// Decoding walks lengths 1...maxLen accumulating one bit at a time — same
+    /// scheme as zlib's simplest decoder, O(maxLen) per symbol.
     private struct HuffmanTable {
-        /// count[length] for length in 0...maxLength
         let counts: [Int]
-        /// symbols sorted by code order
         let symbols: [Int]
         let maxLength: Int
 
@@ -176,7 +170,6 @@ package enum Inflater {
             self.counts = counts
             self.maxLength = maxLength
             var symbols = [Int](repeating: 0, count: codeLengths.count)
-            // offsets[len] = first index into symbols for codes of this length.
             // Length-0 (unused) symbols are not stored, so counts[0] must not
             // contribute to the offsets — the accumulation starts at length 2
             // (offsets[1] stays 0).
@@ -230,7 +223,6 @@ package enum Inflater {
         return try! HuffmanTable(codeLengths: lengths)
     }()
 
-    /// Dynamic block header: literal/length, distance and code-length tables.
     private static func readDynamicTables(
         reader: inout BitReader
     ) throws -> (literal: HuffmanTable, distance: HuffmanTable) {
