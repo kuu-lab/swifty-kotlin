@@ -1,5 +1,4 @@
 extension KIRLoweringDriver {
-    /// Registers the existing singleton and its guarded initializer for erased KClass queries.
     func appendKClassObjectRegistration(
         objectSymbol: SymbolID,
         objectType: TypeID,
