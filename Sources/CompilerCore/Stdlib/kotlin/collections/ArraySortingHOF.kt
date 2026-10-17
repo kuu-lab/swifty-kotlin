@@ -4,20 +4,8 @@ import kotlin.comparisons.naturalOrder
 import kotlin.comparisons.reverseOrder
 import kotlin.comparisons.compareValuesUnchecked
 
-// KSP-659
-// Array `sorted*` / `binarySearch` migrated to bundled Kotlin source.
-// The comparison core reuses the KSP-309 Comparator Kotlin implementation
-// (kotlin/comparisons/Comparators.kt) for the *With overloads and
-// kotlin.comparisons.compareValuesUnchecked for natural-order search.
-//
-// Migration source:
-//   Sources/Runtime/RuntimeArrayDequeAndUtility.swift (kk_array_sortedArray*)
-//   bundled Kotlin source (generic and primitive-array sorting/search helpers)
-//   Sources/Runtime/RuntimeArrayBasics.swift           (kk_array_binarySearch / kk_<prim>Array_binarySearch)
-//
 // The sorts are stable O(n log n) merge sorts (see StableSort.kt), matching
-// the tie-breaking of the previous runtime implementations and kotlinc's
-// `sorted*` contract.
+// kotlinc's `sorted*` contract.
 
 private fun checkBinarySearchBounds(size: Int, fromIndex: Int, toIndex: Int) {
     if (fromIndex > toIndex) {
@@ -31,14 +19,11 @@ private fun checkBinarySearchBounds(size: Int, fromIndex: Int, toIndex: Int) {
     }
 }
 
-// --- Array<T> sorted* ---------------------------------------------------------
-
 @Suppress("UNCHECKED_CAST")
 public fun <T : Comparable<T>> Array<out T>.sort() {
     (this as Array<T>).stableSortWith(naturalOrder<T>())
 }
 
-// KUU-1248: list-returning sorts preserve the input array and stable ties.
 public fun <T : Comparable<T>> Array<out T>.sorted(): List<T> = sortedWith(naturalOrder<T>())
 
 public fun <T : Comparable<T>> Array<out T>.sortedDescending(): List<T> = sortedWith(reverseOrder<T>())
@@ -88,8 +73,6 @@ public fun <T> Array<T>.sortedArrayWith(comparator: Comparator<in T>): Array<T> 
     return result
 }
 
-// --- Array<T> binarySearch ----------------------------------------------------
-
 public fun <T> Array<T>.binarySearch(element: T, fromIndex: Int = 0, toIndex: Int = this.size): Int {
     checkBinarySearchBounds(this.size, fromIndex, toIndex)
     var low = fromIndex
@@ -131,9 +114,6 @@ public fun <T> Array<T>.binarySearch(
     return -(low + 1)
 }
 
-// --- Primitive arrays: sortedArray / sortedArrayDescending / binarySearch ------
-
-// KUU-756: sorted() returns a list, leaving the primitive array unchanged.
 public fun IntArray.sorted(): List<Int> = sortedArray().toList()
 
 public fun IntArray.sortedArray(): IntArray {
