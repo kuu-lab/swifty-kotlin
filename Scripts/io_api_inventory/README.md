@@ -283,13 +283,30 @@ requires the descriptor reflection probe and local source-metadata assertion.
 The local probes' bytes and the referenced upstream tests remain part of the
 row's test input hash, so edits invalidate prior evidence.
 
-The obligations follow the ledger representation: JVM ABI rows require only
-`jvm-descriptor`. Other rows require both `native-source` and `native-bridge`.
+The obligations normally follow the ledger representation: JVM ABI rows require
+only `jvm-descriptor`. Other rows require both `native-source` and `native-bridge`.
+The Path class rows (`jvm-03f47bd77ab530ed` and `klib-6b354812fb812d2e`)
+require all three because the public class shape is checked against its JVM ABI,
+Native source declaration, and KLIB view.
 The native-source obligation covers `source-O0`, `source-O2`,
 `stdlib-library-O0`, and `stdlib-library-O2`; the native-bridge obligation
 covers `producer-consumer-O0` and `producer-consumer-O2`. A paired JVM ABI row
-does not inherit native results, and a source row does not inherit JVM
-descriptor evidence.
+for other APIs does not inherit native results, and ordinary source rows do not
+inherit JVM descriptor evidence.
+
+#### Path expect/actual type and construction boundary
+
+The Path class rows have no direct upstream value assertions; `pathParent`,
+`pathConcat`, and trimming behavior remain owned by their behavior rows. The
+dedicated public consumer checks the string factory, both vararg construction
+forms, and nullable `parent`. Negative probes require rejection of the internal
+constructor, subclassing the final class, and assigning nullable `parent` to a
+non-null type. The pinned JVM reference is checked with Java reflection and
+Kotlin/Native compiler probes. The candidate has no JVM bytecode target, so its
+JVM-facing evidence comes from an external consumer of a fresh KSwiftK KLIB;
+the Native source and six source/library/producer-consumer lanes are checked
+separately. Local probe IDs and evidence methods are registered in
+`generate.py`, and the fixture bytes are included in the two rows' input hashes.
 
 The generator rejects unknown or duplicate row IDs, malformed hashes, a
 different reference pin, stale implementation/test inputs, non-passing or

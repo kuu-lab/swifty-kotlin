@@ -272,6 +272,55 @@ class ValidationEvidenceTests(unittest.TestCase):
         self.assertEqual(record["compatibility_obligations"], ["jvm-descriptor"])
         self.assertEqual(self._apply([record], row)["status"], "verified")
 
+    def test_path_type_rows_use_dedicated_local_probes_and_both_api_views(self):
+        cases = {
+            "jvm-03f47bd77ab530ed": (
+                "JVM public ABI dump",
+                "Scripts/io_api_inventory/path_contract/PathJvmAbiProbe.java#jvm-public-shape",
+            ),
+            "klib-6b354812fb812d2e": (
+                "Kotlin source API / KLIB dump",
+                "Scripts/io_api_inventory/path_contract/PathContract.kt#public-surface",
+            ),
+        }
+        expected_obligations = ["jvm-descriptor", "native-source", "native-bridge"]
+        for row_id, (representation, local_case) in cases.items():
+            row = copy.deepcopy(self.row)
+            row.update(row_id=row_id, representation=representation,
+                       upstream_test_refs="none (no direct upstream assertion mapped)",
+                       local_test_refs=";".join(self.generator.PATH_CLASS_LOCAL_TEST_REFS))
+            self.assertEqual(self.generator.validation_obligations(row), expected_obligations)
+            self.assertIn(local_case, row["local_test_refs"].split(";"))
+            self.assertFalse(self.generator._case_id_matches_row(
+                row, "core/common/test/files/SmokeFileTest.kt#pathParent"
+            ))
+            registered = [
+                (case_id, spec)
+                for case_id, spec in self.generator.LOCAL_PROBE_EVIDENCE_CASES.items()
+                if row_id in spec["row_ids"]
+            ]
+            self.assertEqual(len(registered), 5)
+            required_lanes = set(self.generator.required_execution_lanes(expected_obligations))
+            for _, spec in registered:
+                self.assertIn(spec["path"], row["local_test_refs"].split(";"))
+                self.assertTrue(set(spec["lanes"]).issubset(required_lanes))
+
+    def test_path_local_probe_execution_ids_bind_candidate_reference_case_and_lane(self):
+        candidate_sha = "a" * 40
+        reference_commit = self.lock["commit"]
+        for case_id, spec in self.generator.LOCAL_PROBE_EVIDENCE_CASES.items():
+            if not (spec["row_ids"] & self.generator.PATH_CLASS_ROW_IDS):
+                continue
+            for lane in spec["lanes"]:
+                for subject in ("reference", "candidate"):
+                    execution_id = self.generator.local_probe_execution_id(
+                        candidate_sha, reference_commit, case_id, lane, subject
+                    )
+                    self.assertEqual(execution_id, self.generator.local_probe_execution_id(
+                        candidate_sha, reference_commit, case_id, lane, subject
+                    ))
+                    self.assertTrue(execution_id.startswith(f"local-probe-v1:{subject}:"))
+
     def test_unknown_duplicate_and_malformed_evidence_is_rejected(self):
         valid = self._record()
         unknown = copy.deepcopy(valid)
