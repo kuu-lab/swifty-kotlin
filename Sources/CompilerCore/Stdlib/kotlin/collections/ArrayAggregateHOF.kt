@@ -2,9 +2,6 @@ package kotlin.collections
 
 import kotlin.experimental.ExperimentalTypeInference
 
-// KSP-433: Array<T> fold/reduce HOFs are bundled Kotlin source. Primitive-array
-// variants are defined in PrimitiveArrayHOF.kt.
-//
 // The empty-receiver message is "Empty array can't be reduced." (verified
 // against kotlinc), distinct from the List/Iterable wording.
 
@@ -118,8 +115,6 @@ public inline fun <T> Array<out T>.sumOf(selector: (T) -> ULong): ULong {
     for (element in this) sum += selector(element)
     return sum
 }
-
-// KUU-1256: numeric and right-to-left aggregation on generic arrays.
 
 public fun Array<out Byte>.sum(): Int = asIterable().sum()
 
