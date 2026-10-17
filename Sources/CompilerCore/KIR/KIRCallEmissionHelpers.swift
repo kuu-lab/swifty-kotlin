@@ -36,17 +36,10 @@ func emitNonThrowingCall<C: RangeReplaceableCollection>(
     return result
 }
 
-/// Boxes `value` (statically typed `sourceType`) for storage in an Any-erased
-/// slot — vararg elements, array/collection elements, generateSequence seeds
-/// and next-function results, and any other "primitive going into a
-/// reference-typed slot" boundary. Resolves value classes/enums to their
-/// underlying representation first (`resolveValueClassKind`) so a value class
-/// or enum boxes via the correct callee instead of being silently skipped
-/// (`.classType` never matches `BoxingCalleeTable`'s primitive-only lookup on
-/// its own), then tags the box appropriately (`emitBoxCallWithValueClassTag`:
-/// `kk_tag_value_class_box` for value classes, `kk_enum_box_ordinal` +
-/// `$enumOrdinalToName$<encodedFqName>` for enums). Returns `value` unchanged when no
-/// boxing is needed.
+/// Resolves value classes/enums to their underlying representation first
+/// (`resolveValueClassKind`) so a value class or enum boxes via the correct
+/// callee instead of being silently skipped (`.classType` never matches
+/// `BoxingCalleeTable`'s primitive-only lookup on its own).
 func boxValueForAnySlot<C: RangeReplaceableCollection>(
     _ value: KIRExprID,
     sourceType: TypeID,
@@ -95,8 +88,7 @@ func boxValueForAnySlot<C: RangeReplaceableCollection>(
 /// sentinel-colliding ones — to hold the box (KUU-1385). Emitting a `.copy`
 /// through a `slotType`-typed temporary lets ABILoweringPass pick the
 /// always-boxing `kk_box_*` callee for a non-null source while passing
-/// existing box/sentinel content through verbatim. Returns `value` unchanged
-/// when `slotType` is not a nullable primitive.
+/// existing box/sentinel content through verbatim.
 func normalizedValueForNullablePrimitiveSlot<C: RangeReplaceableCollection>(
     _ value: KIRExprID,
     slotType: TypeID,
@@ -150,8 +142,6 @@ func emitThrowingCall<C: RangeReplaceableCollection>(
     ))
 }
 
-/// Resolve `componentN` for destructuring against `receiverType`.
-///
 /// External members lower to their runtime link name; the resolved symbol is
 /// carried along so that source-defined members (e.g. bundled `kotlin.Pair`)
 /// dispatch to the compiled function instead of a same-named runtime export,
@@ -181,11 +171,10 @@ func resolveDestructuringComponentCallee(
 }
 
 extension CallLowerer {
-    /// Emits `receiver.componentN()` for a destructuring declaration. An open
-    /// `componentN` overridden in a subclass must dispatch on the receiver's
-    /// runtime type (`val (x, y): P = Q(...)` calls `Q.component1`), so the
-    /// resolved member goes through `tryEmitVirtualDispatch` first; only a
-    /// non-virtual member falls back to the direct `symbol`/`callee` call.
+    /// An open `componentN` overridden in a subclass must dispatch on the
+    /// receiver's runtime type (`val (x, y): P = Q(...)` calls `Q.component1`),
+    /// so the resolved member goes through `tryEmitVirtualDispatch` first; only
+    /// a non-virtual member falls back to the direct `symbol`/`callee` call.
     func emitDestructuringComponentCall(
         candidate: SymbolID?,
         symbol: SymbolID?,
@@ -224,9 +213,6 @@ extension CallLowerer {
     }
 }
 
-/// Unboxes `exprID` via `kk_unbox_int` when `staticType` is a concrete
-/// (non-null) enum class, otherwise returns `exprID` unchanged.
-///
 /// Enum constants are raw ordinal Ints everywhere except when they round-trip
 /// through an Any-erased slot (e.g. an element read out of
 /// `values()`/`entries`, see `kk_enum_box_ordinal`), which leaves them as a
@@ -265,11 +251,6 @@ func unboxIfEnumTyped<C: RangeReplaceableCollection>(
     )
 }
 
-/// Emits a primitive box call (`kk_box_int`/`kk_box_long`/...), and — when
-/// `rawSourceKind` is a non-null value class — an additional
-/// `kk_tag_value_class_box` call that tags the resulting box with the value
-/// class's own stable nominal type ID.
-///
 /// Value classes are unboxed to their underlying primitive everywhere
 /// (ValueClassUnboxingPass) except at reference-type boundaries, where every
 /// boxing-callee lookup in ABILoweringPass and CollectionLiteralLoweringPass
@@ -584,16 +565,14 @@ private func appendEnumBoxItableRegistrations<C: RangeReplaceableCollection>(
     }
 }
 
-/// Registers the itable method pointers of an enum box (see
-/// `appendEnumBoxItableRegistrations`). An enum-owned implementation -- the
-/// enum class's own override, or the `$enumEntryDispatch$` helper that
-/// switches on the ordinal to reach entry-body overrides -- takes the raw
-/// ordinal as its receiver, so it is registered through an
-/// `itableBridgeSymbolForMethod` bridge that unboxes the dispatched box. An
-/// interface default body keeps the box as its receiver and is registered
-/// as-is; anything else (an abstract member with no enum-owned override, or
-/// an implementation inherited from `kotlin.Enum`) stays unregistered as
-/// before.
+/// An enum-owned implementation -- the enum class's own override, or the
+/// `$enumEntryDispatch$` helper that switches on the ordinal to reach
+/// entry-body overrides -- takes the raw ordinal as its receiver, so it is
+/// registered through an `itableBridgeSymbolForMethod` bridge that unboxes the
+/// dispatched box. An interface default body keeps the box as its receiver and
+/// is registered as-is; anything else (an abstract member with no enum-owned
+/// override, or an implementation inherited from `kotlin.Enum`) stays
+/// unregistered as before.
 private func appendEnumBoxItableMethodRegistrations<C: RangeReplaceableCollection>(
     boxedValue: KIRExprID,
     classSymbol: SymbolID,
