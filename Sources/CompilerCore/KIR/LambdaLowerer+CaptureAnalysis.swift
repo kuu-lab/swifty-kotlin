@@ -60,9 +60,6 @@ extension LambdaLowerer {
         return driver.ctx.activeImplicitReceiverExprID()
     }
 
-    /// The expression roots of an accessor body, for the capture traversals
-    /// below. A `FunctionBody` is either a block of statements or a single
-    /// expression; `.unit` (an accessor with no body of its own) has none.
     func accessorBodyRootExprs(_ body: FunctionBody) -> [ExprID] {
         switch body {
         case let .block(exprIDs, _): exprIDs
@@ -71,8 +68,6 @@ extension LambdaLowerer {
         }
     }
 
-    /// Every expression root across all of an object literal's property
-    /// accessor bodies (KSP-CAP-018).
     func objectLiteralAccessorRootExprs(_ objectDecl: ObjectDecl, ast: ASTModule) -> [ExprID] {
         var roots: [ExprID] = []
         for propertyID in objectDecl.memberProperties {
