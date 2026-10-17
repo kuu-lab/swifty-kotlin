@@ -3,10 +3,9 @@ package kotlin
 import kotlin.internal.KsSymbolName
 import kotlin.text.__charFromCode
 
-// KSP-1539: Char numeric conversions are source-backed. Char values carry
-// their UTF-16 code unit as the underlying Int representation, so the
-// conversion bodies can be expressed through Char.code and the existing
-// primitive conversion members.
+// KSP-1539: Char values carry their UTF-16 code unit as the underlying Int
+// representation, so the conversion bodies can be expressed through Char.code
+// and the existing primitive conversion members.
 
 @Deprecated(
     "Conversion of Char to Number is deprecated. Use Char.code property instead.",
@@ -37,7 +36,7 @@ public fun Char.toInt(): Int = this.code
 public fun Char.toLong(): Long = this.code.toLong()
 
 // KSP-642: rotateLeft / rotateRight は shl / ushr / or の合成だけで表現でき、
-// ランタイムブリッジを必要としない（kk_int_rotateLeft 等 4 関数を削除）。
+// ランタイムブリッジを必要としない。
 // shl / shr / ushr は Kotlin 本家と同じくシフト量を Int で 5bit・Long で 6bit に
 // マスクするため、bitCount が 0・負値・幅超過でも本家と同じ結果になる。
 
@@ -67,10 +66,9 @@ public fun Long.rotateLeft(bitCount: Int): Long =
 public fun Long.rotateRight(bitCount: Int): Long =
     (this shl (64 - bitCount)) or (this ushr bitCount)
 
-// KSP-1536: Keep the public Int conversion members in bundled Kotlin source.
-// The runtime bridges remain internal representation support: Char uses the
-// existing code-unit constructor bridge, while Double uses the IEEE payload
-// bridge required by the current primitive representation.
+// KSP-1536: The runtime bridges remain internal representation support: Char
+// uses the existing code-unit constructor bridge, while Double uses the IEEE
+// payload bridge required by the current primitive representation.
 
 @KsSymbolName("kk_int_to_double_bits")
 @PublishedApi
@@ -80,8 +78,6 @@ public inline fun Int.toChar(): Char = __charFromCode(this)
 
 public inline fun Int.toDouble(): Double = __intToDouble(this)
 
-// KSP-1537: Long.toChar() is source-backed. Long values are narrowed to the
-// low 16 bits through the existing Long.toInt() and Int.toChar() contracts.
 @Deprecated(
     "Direct conversion to Char is deprecated. Use toInt().toChar() or Char constructor instead.",
     ReplaceWith("this.toInt().toChar()")
@@ -112,10 +108,10 @@ public fun Float.toBits(): Int = __floatToBits(this)
 
 public fun Float.toRawBits(): Int = __floatToRawBits(this)
 
-// KSP-1538: keep floating-point conversion policy in the bundled Kotlin API.
-// The hidden bridges only carry the IEEE payload across the raw KIR ABI; the
-// public conversion members below own Kotlin's saturation and truncation
-// contract. Float/Double.toChar intentionally compose through toInt().
+// KSP-1538: The hidden bridges only carry the IEEE payload across the raw KIR
+// ABI; the public conversion members below own Kotlin's saturation and
+// truncation contract. Float/Double.toChar intentionally compose through
+// toInt().
 @KsSymbolName("__kk_double_to_int")
 private external fun __doubleToInt(value: Double): Int
 
@@ -147,8 +143,7 @@ public fun Float.toChar(): Char = toInt().toChar()
 
 // KSP-1544 (KUU-588): Float/Double narrowing to Byte/Short is defined by the
 // stdlib as `toInt().toByte()` / `toInt().toShort()` and deprecated at error
-// level since Kotlin 1.5. Keep the public API and its deprecation metadata in
-// bundled Kotlin; the hidden toInt bridges carry the IEEE payload.
+// level since Kotlin 1.5.
 
 @Deprecated(
     "Unclear conversion. To achieve the same result convert to Int explicitly and then to Byte.",
