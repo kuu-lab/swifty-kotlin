@@ -180,7 +180,6 @@ final class MemberLowerer {
                 allDecls.append(kirID)
             }
 
-            // Emit backing field global for properties with custom accessors.
             if !isInterfaceContext, let backingFieldSymbol = sema.symbols.backingFieldSymbol(for: symbol) {
                 let backingFieldType = sema.symbols.propertyType(for: backingFieldSymbol) ?? propType
                 let backingFieldKirID = arena.appendDecl(
@@ -189,7 +188,6 @@ final class MemberLowerer {
                 allDecls.append(backingFieldKirID)
             }
 
-            // Lower getter body as a KIR accessor function.
             if let getter = propertyDecl.getter, getter.body != .unit {
                 lowerAccessorBody(
                     accessorBody: getter.body,
@@ -206,7 +204,6 @@ final class MemberLowerer {
                 )
             }
 
-            // Lower setter body as a KIR accessor function.
             if let setter = propertyDecl.setter, setter.body != .unit {
                 lowerAccessorBody(
                     accessorBody: setter.body,
@@ -305,9 +302,6 @@ final class MemberLowerer {
                 }
             }
 
-            // Lower delegated property: emit delegate storage global and
-            // synthesise getter (and setter for var) that call getValue/setValue
-            // on the delegate instance.
             // Delegated properties in interfaces are rejected in Sema
             // (KSWIFTK-SEMA-0304); isInterfaceContext guards this as defense in
             // depth so an interface property never gets delegate storage or
@@ -346,7 +340,6 @@ final class MemberLowerer {
                 )
                 allDecls.append(delegateKirID)
 
-                // Synthesise getter: calls getValue on the delegate storage.
                 lowerDelegateAccessor(
                     propertySymbol: symbol,
                     propertyType: propType,
@@ -360,7 +353,6 @@ final class MemberLowerer {
                     allDecls: &allDecls
                 )
 
-                // Synthesise setter for var properties: calls setValue on the delegate.
                 if propertyDecl.isVar {
                     lowerDelegateAccessor(
                         propertySymbol: symbol,
@@ -520,8 +512,7 @@ final class MemberLowerer {
         return (directMembers, allDecls)
     }
 
-    /// Lowers functions, computed property accessors, and nested classes
-    /// declared in enum entry bodies. They use the ordinal-backed enum value
+    /// Members declared in enum entry bodies use the ordinal-backed enum value
     /// as their receiver and are emitted as module declarations.
     func lowerEnumEntryBodyMembers(
         classDecl: ClassDecl,
@@ -756,14 +747,6 @@ final class MemberLowerer {
         driver.ctx.setCurrentFunctionSymbol(nil)
     }
 
-    /// Synthesise a getter or setter function for a delegated property.
-    ///
-    /// Getter emits: `return $delegate_x.getValue(thisRef, KProperty("x"))`
-    /// Setter emits: `$delegate_x.setValue(thisRef, KProperty("x"), value)`
-    ///
-    /// The actual `getValue`/`setValue` calls use the delegate storage symbol
-    /// so that `PropertyLoweringPass` can later rewrite them to
-    /// `kk_property_access`.
     func lowerDelegateAccessor(
         propertySymbol: SymbolID,
         propertyType: TypeID,
@@ -794,8 +777,6 @@ final class MemberLowerer {
         )
     }
 
-    /// Lower a property getter or setter body as a synthetic KIR function.
-    ///
     /// Getter signature: `(<receiver>) -> PropertyType`
     /// Setter signature: `(<receiver>, value: PropertyType) -> Unit`
     func lowerAccessorBody(
