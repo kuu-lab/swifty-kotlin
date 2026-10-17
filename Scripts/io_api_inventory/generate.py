@@ -27,6 +27,14 @@ LEDGER_PATH = HERE / "api-inventory.tsv"
 SCOPE_PATH = HERE / "platform-scope.tsv"
 SUMMARY_PATH = HERE / "inventory-summary.md"
 VALIDATION_EVIDENCE_PATH = HERE / "api-validation-evidence.json"
+PROBE_EXECUTIONS_PATH = HERE / "api-validation-probe-executions.json"
+DELICATE_PROBE_DIR = HERE / "probes" / "delicate_io_api"
+DELICATE_PROBE_SOURCE = DELICATE_PROBE_DIR / "DelicateIoApi.kt"
+DELICATE_OPTED_IN_PROBE = DELICATE_PROBE_DIR / "OptedInConsumer.kt"
+DELICATE_UNOPTED_PROBE = DELICATE_PROBE_DIR / "UnoptedConsumer.kt"
+DELICATE_PROBE_RUNNER = DELICATE_PROBE_DIR / "run_delicate_io_api_probe.py"
+DELICATE_PROBE_CASE_ID = "Scripts/io_api_inventory/probes/delicate_io_api/DelicateIoApi.kt#contract"
+DELICATE_SEMA_TEST = REPO / "Tests/CompilerCoreTests/Sema/KotlinxIODelicateIoApiContractTests.swift"
 UPSTREAM_RUNNER = REPO / "Scripts/kotlinx_io_upstream"
 UPSTREAM_RUNNER_LOCK_PATH = UPSTREAM_RUNNER / "reference-lock.json"
 REFERENCE_EXECUTIONS_PATH = UPSTREAM_RUNNER / "jvm-executions.expected.json"
@@ -56,6 +64,10 @@ LOCAL_NATIVE_PROBE_LANES = (
     "producer-consumer-O0",
     "producer-consumer-O2",
 )
+LOCAL_PROBE_LANES = frozenset((
+    "jvm-descriptor", "source-O0", "source-O2", "stdlib-library-O0",
+    "stdlib-library-O2", "producer-consumer-O0", "producer-consumer-O2",
+))
 LOCAL_PROBE_EVIDENCE_CASES = {
     "local:Scripts/io_api_inventory/probes/segment_data_as_byte_array.kt#internal-view": {
         "path": "Scripts/io_api_inventory/probes/segment_data_as_byte_array.kt",
@@ -237,6 +249,7 @@ TEST_HINTS = {
 
 LOCAL_IO_TEST_PREFIXES = (
     "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java",
+    "Scripts/io_api_inventory/api-validation-probe-executions.json",
     "Scripts/io_api_inventory/probes/",
     "Scripts/diff_cases/kotlinx_io_",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+ByteString",
@@ -662,7 +675,7 @@ def _local_probe_case_spec(row: dict, case_id: str) -> dict | None:
     return spec
 
 
-def _load_validation_execution_catalogs() -> dict[str, dict[str, str]]:
+def _load_validation_execution_catalogs() -> dict[str, dict[str, object]]:
     try:
         lock = json.loads(UPSTREAM_RUNNER_LOCK_PATH.read_text(encoding="utf-8"))
         if lock.get("commit") != EXPECTED_TAG_COMMIT:
@@ -692,9 +705,87 @@ def _load_validation_execution_catalogs() -> dict[str, dict[str, str]]:
                     fail(f"duplicate {subject} execution ID in locked catalog: {execution_id}")
                 catalog[execution_id] = case_id
             catalogs[subject] = catalog
+        probe_receipts = _load_probe_execution_receipts(PROBE_EXECUTIONS_PATH, lock)
+        for subject, entries in probe_receipts.items():
+            for execution_id, receipt in entries.items():
+                if execution_id in catalogs[subject]:
+                    fail(f"duplicate {subject} execution ID across catalogs: {execution_id}")
+                catalogs[subject][execution_id] = receipt
         return catalogs
     except (OSError, json.JSONDecodeError, UnicodeDecodeError) as error:
         fail(f"cannot load validation execution catalogs: {error}")
+
+
+def _load_probe_execution_receipts(path: Path, lock: dict) -> dict[str, dict[str, dict]]:
+    """Load immutable receipts for direct local probes alongside upstream test IDs."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_unique_json_object)
+    except OSError as error:
+        fail(f"cannot read local probe execution receipts {path}: {error}")
+    except json.JSONDecodeError as error:
+        fail(f"invalid local probe execution receipts JSON: {error}")
+    except UnicodeDecodeError as error:
+        fail(f"local probe execution receipts are not UTF-8: {error}")
+
+    if not isinstance(data, dict) or set(data) != {"schema_version", "records"}:
+        fail("local probe execution receipts must contain only schema_version and records")
+    if type(data["schema_version"]) is not int or data["schema_version"] != 1:
+        fail("unsupported local probe execution receipts schema_version")
+    records = data["records"]
+    if not isinstance(records, list):
+        fail("local probe execution receipt records must be an array")
+
+    fields = {
+        "execution_id", "case_id", "lane", "subject", "candidate_sha",
+        "reference_version", "reference_commit", "command", "result", "exit_code",
+        "stdout", "stderr", "stdout_sha256", "stderr_sha256",
+    }
+    candidate_sha_pattern = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
+    digest_pattern = re.compile(r"^[0-9a-f]{64}$")
+    catalogs: dict[str, dict[str, dict]] = {"reference": {}, "candidate": {}}
+    for record in records:
+        if not isinstance(record, dict) or set(record) != fields:
+            fail("each local probe execution receipt must contain exactly the schema v1 fields")
+        subject = record["subject"]
+        if subject not in catalogs:
+            fail(f"invalid local probe execution subject: {subject!r}")
+        if record["case_id"] != DELICATE_PROBE_CASE_ID:
+            fail("local probe execution receipt has an unexpected case_id")
+        if not isinstance(record["lane"], str) or record["lane"] not in LOCAL_PROBE_LANES:
+            fail("local probe execution receipt has an unsupported lane")
+        if not isinstance(record["candidate_sha"], str) or not candidate_sha_pattern.fullmatch(record["candidate_sha"]):
+            fail("local probe execution receipt has a malformed candidate SHA")
+        locked_version = lock.get("tag", lock.get("kotlinx_io"))
+        if (record["reference_version"], record["reference_commit"]) != (locked_version, lock.get("commit")):
+            fail("local probe execution receipt uses a different upstream reference pin")
+        command = record["command"]
+        if (not isinstance(command, list) or not command
+                or any(not isinstance(part, str) or not part for part in command)):
+            fail("local probe execution receipt has an invalid command")
+        if record["result"] not in {"PASS", "FAIL"}:
+            fail("local probe execution receipt has an invalid result")
+        if type(record["exit_code"]) is not int:
+            fail("local probe execution receipt has a non-integer exit_code")
+        if ((record["result"] == "PASS" and record["exit_code"] != 0)
+                or (record["result"] == "FAIL" and record["exit_code"] == 0)):
+            fail("local probe execution result does not match its exit_code")
+        for output_name in ("stdout", "stderr"):
+            if not isinstance(record[output_name], str):
+                fail(f"local probe execution receipt has non-text {output_name}")
+            digest = record[f"{output_name}_sha256"]
+            if (not isinstance(digest, str) or not digest_pattern.fullmatch(digest)
+                    or hashlib.sha256(record[output_name].encode("utf-8")).hexdigest() != digest):
+                fail(f"local probe execution receipt has an invalid {output_name} hash")
+        payload = {key: value for key, value in record.items() if key != "execution_id"}
+        canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        expected_id = "probe:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        execution_id = record["execution_id"]
+        if execution_id != expected_id:
+            fail("local probe execution ID does not match its receipt contents")
+        if execution_id in catalogs[subject]:
+            fail(f"duplicate local probe execution ID: {execution_id}")
+        catalogs[subject][execution_id] = record
+    return catalogs
 
 
 def _case_id_matches_row(row: dict, case_id: str) -> bool:
@@ -708,6 +799,10 @@ def _case_id_matches_row(row: dict, case_id: str) -> bool:
             continue
         if case_name == reference_name:
             return True
+    for reference in row.get("local_test_refs", "").split(";"):
+        reference_path, marker, reference_name = reference.partition("#")
+        if marker and case_path == reference_path and case_name == reference_name:
+            return True
     return False
 
 
@@ -717,7 +812,7 @@ def apply_validation_evidence(
     evidence_path: Path = VALIDATION_EVIDENCE_PATH,
     repository: Path = REPO,
     upstream: Path = UPSTREAM,
-    execution_catalogs: dict[str, dict[str, str]] | None = None,
+    execution_catalogs: dict[str, dict[str, object]] | None = None,
 ) -> None:
     """Promote rows only when their pinned, current evidence satisfies every obligation."""
     by_id = {}
@@ -863,13 +958,7 @@ def apply_validation_evidence(
                 if (not isinstance(execution_id, str) or not execution_id.strip()
                         or execution_id != execution_id.strip()):
                     fail(f"empty {subject} execution_id for row {row_id} case {case_id}")
-                if local_case_spec is None:
-                    catalog_case_id = execution_catalogs[subject].get(execution_id)
-                    if catalog_case_id is None:
-                        fail(f"unknown {subject} execution_id for row {row_id}: {execution_id}")
-                    if catalog_case_id != case_id:
-                        fail(f"{subject} execution_id does not map to case {case_id} for row {row_id}")
-                else:
+                if local_case_spec is not None:
                     expected_execution_id = local_probe_execution_id(
                         candidate_sha, record["reference_commit"], case_id, lane, subject
                     )
@@ -877,6 +966,22 @@ def apply_validation_evidence(
                         fail(f"{subject} local execution_id does not map to case/lane for row {row_id}")
                     if result["method"] != local_case_spec["methods"][subject]:
                         fail(f"unexpected {subject} evidence method for row {row_id} case {case_id}")
+                else:
+                    catalog_entry = execution_catalogs[subject].get(execution_id)
+                    if catalog_entry is None:
+                        fail(f"unknown {subject} execution_id for row {row_id}: {execution_id}")
+                    catalog_case_id = (
+                        catalog_entry.get("case_id") if isinstance(catalog_entry, dict) else catalog_entry
+                    )
+                    if catalog_case_id != case_id:
+                        fail(f"{subject} execution_id does not map to case {case_id} for row {row_id}")
+                    if isinstance(catalog_entry, dict):
+                        if (catalog_entry.get("lane") != lane
+                                or catalog_entry.get("subject") != subject
+                                or catalog_entry.get("result") != result["result"]
+                                or catalog_entry.get("exit_code") != result["exit_code"]
+                                or catalog_entry.get("candidate_sha") != candidate_sha):
+                            fail(f"{subject} probe receipt does not match lane/result/candidate for row {row_id}")
                 execution_identity = (lane, execution_id)
                 if execution_identity in seen_execution_ids[subject]:
                     fail(f"duplicate {subject} execution_id for row {row_id}: {execution_id}")
@@ -1962,6 +2067,23 @@ def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
         return list(INDEX_OF_DEFAULT_BRIDGE_TEST_INPUTS)
     name = row["_candidate_name"].lower()
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
+    if row["_candidate_name"] == "DelicateIoApi":
+        present = {path for path, _ in local_tests}
+        references = []
+        if DELICATE_SEMA_TEST.is_file():
+            sema_test = DELICATE_SEMA_TEST.relative_to(REPO).as_posix()
+            if sema_test in present:
+                references.append(sema_test)
+        for probe_source in (DELICATE_PROBE_SOURCE, DELICATE_OPTED_IN_PROBE, DELICATE_UNOPTED_PROBE):
+            relative = probe_source.relative_to(REPO).as_posix()
+            if relative in present:
+                references.append(relative + "#contract" if probe_source == DELICATE_PROBE_SOURCE else relative)
+        for path in (DELICATE_PROBE_RUNNER, PROBE_EXECUTIONS_PATH):
+            relative = path.relative_to(REPO).as_posix()
+            if path.is_file():
+                references.append(relative)
+        return references
+
     refs = []
     for path, content in local_tests:
         if path.startswith("Scripts/io_api_inventory/probes/") and name not in LOCAL_IO_PROBE_API_NAMES:
@@ -1970,6 +2092,9 @@ def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
                 or path.startswith(SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS[1])):
             if row["row_id"] not in SEGMENT_READ_CONTEXT_IMPL_ROW_IDS:
                 continue
+        if (path == DELICATE_SEMA_TEST.relative_to(REPO).as_posix()
+                or path.startswith(DELICATE_PROBE_DIR.relative_to(REPO).as_posix() + "/")):
+            continue
         haystack = content.lower()
         if name and re.search(rf"(?<!\w){re.escape(name)}(?!\w)", haystack):
             refs.append(path)
@@ -2364,13 +2489,15 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     local_paths.extend(REPO.joinpath("Scripts/io_api_inventory/probes").glob("*.kt"))
     local_paths.extend(REPO.joinpath("Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590").glob("*.kt"))
     local_paths.append(REPO / "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java")
+    local_paths.extend(DELICATE_PROBE_DIR.glob("*.kt"))
     for path in sorted(local_paths):
         rel = path.relative_to(REPO).as_posix()
         if rel in {INDEX_OF_DEFAULT_BRIDGE_DIFF_CASE, INDEX_OF_DEFAULT_BRIDGE_LOCAL_TEST}:
             continue
         if rel.startswith(LOCAL_IO_TEST_PREFIXES):
             content = path.read_text(encoding="utf-8")
-            if "kotlinx.io" in content or "KotlinxIO" in path.name or "KtorIO" in path.name:
+            if ("kotlinx.io" in content or "DelicateIoApi" in content
+                    or "KotlinxIO" in path.name or "KtorIO" in path.name):
                 local_tests.append((rel, content))
 
     tests = {entry["path"]: entry for entry in test_index["files"]}
