@@ -10,8 +10,6 @@ extension DataFlowSemaPhase {
     ) {
         let anyType = types.anyType
 
-        // Register kotlin.reflect.KProperty<out V> interface stub so that
-        // `import kotlin.reflect.KProperty` and `KProperty<*>` type references resolve.
         let kotlinReflectPkg = ensurePackage(
             path: ["kotlin", "reflect"], symbols: symbols, interner: interner
         )
@@ -43,7 +41,6 @@ extension DataFlowSemaPhase {
         let hasSourceBackedKCallable = bundledIndex.containsNominal(fqName: kCallableFQName)
             || symbols.lookup(fqName: kCallableFQName).map(symbols.isSourceBackedSymbol) == true
 
-        // STDLIB-REFLECT-066: Register kotlin.reflect.KType and typeOf<T>() stubs
         registerSyntheticKTypeStubs(
             symbols: symbols, types: types, interner: interner,
             kotlinReflectPkg: kotlinReflectPkg, bundledIndex: bundledIndex
@@ -231,7 +228,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // Register kotlin.reflect.KFunction<out R> interface stub (STDLIB-REFLECT-063).
         // Store in TypeSystem so subtyping checks can recognise KFunction receivers.
         let kFunctionSymbol = ensureInterfaceSymbol(
             named: "KFunction", in: kotlinReflectPkg, symbols: symbols, interner: interner
@@ -291,7 +287,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    // STDLIB-REFLECT-TYPE-009: Register KMutableProperty<V> as a mutable KProperty surface.
     private func registerSyntheticKMutablePropertyStub(
         kMutablePropertySymbol: SymbolID,
         kPropertySymbol: SymbolID,
@@ -391,7 +386,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    // STDLIB-REFLECT-TYPE-015: Register KProperty0<out V> with callable surface.
     private func registerSyntheticKProperty0Stub(
         kPropertySymbol: SymbolID,
         kotlinReflectPkg: [InternedString],
@@ -479,7 +473,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    // STDLIB-REFLECT-TYPE-010: Register KMutableProperty0<V> with mutable zero-receiver surface.
     private func registerSyntheticKMutableProperty0Stub(
         kMutableProperty0Symbol: SymbolID,
         kMutablePropertySymbol: SymbolID,
@@ -556,7 +549,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    // STDLIB-REFLECT-TYPE-016: Register KProperty1<T, out V> with callable surface.
     private func registerSyntheticKProperty1Stub(
         kPropertySymbol: SymbolID,
         kotlinReflectPkg: [InternedString],
@@ -651,7 +643,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    // STDLIB-REFLECT-TYPE-011: Register KMutableProperty1<T, V> with mutable one-receiver surface.
     private func registerSyntheticKMutableProperty1Stub(
         kMutableProperty1Symbol: SymbolID,
         kMutablePropertySymbol: SymbolID,
@@ -739,7 +730,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    // STDLIB-REFLECT-070: Register KProperty2<D, E, out V> with callable surface.
     private func registerSyntheticKProperty2Stub(
         kPropertySymbol: SymbolID,
         kotlinReflectPkg: [InternedString],
@@ -892,7 +882,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    // STDLIB-REFLECT-071: Register KMutableProperty2<D, E, V> with mutable property surface.
     private func registerSyntheticKMutableProperty2Stub(
         kMutablePropertySymbol: SymbolID,
         kotlinReflectPkg: [InternedString],
@@ -1093,7 +1082,6 @@ extension DataFlowSemaPhase {
         types.setNominalDirectSupertypes(typeSupertypes, for: symbol)
     }
 
-    // STDLIB-REFLECT-066: Register the KType anchor and typeOf<T>() function stub.
     private func registerSyntheticKTypeStubs(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -1169,8 +1157,8 @@ extension DataFlowSemaPhase {
         }
     }
 
-    // STDLIB-REFLECT-072: Register the KTypeParameter interface anchor.
-    // Its abstract members are declared by the bundled KTypeParameter source.
+    // The interface's abstract members are declared by the bundled
+    // KTypeParameter source.
     private func registerSyntheticKTypeParameterStub(
         kClassifierSymbol: SymbolID,
         symbols: SymbolTable,
@@ -1189,7 +1177,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    // STDLIB-REFLECT-TYPE-013: Register KParameter interface and scalar properties.
     private func registerSyntheticKParameterStub(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -1311,7 +1298,6 @@ extension DataFlowSemaPhase {
     }
 
 
-    // STDLIB-REFLECT-073: Register KVariance enum with declaration/use-site variance entries.
     private func registerSyntheticKVarianceStub(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -1498,7 +1484,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Patches KFunction.parameters to `List<Any?>` (STDLIB-REFLECT-063).
     func patchKFunctionParametersType(
         symbols: SymbolTable,
         types: TypeSystem,
