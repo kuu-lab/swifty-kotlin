@@ -27,9 +27,6 @@ private external fun <T> interceptContinuation(
 ): Continuation<T>
 
 /**
- * Returns the intercepted runtime continuation, or this continuation unchanged
- * when it is not backed by the runtime interception mechanism.
- *
  * KSwiftK uses Swift-owned continuation handles instead of ContinuationImpl;
  * the bridge owns the representation check and dispatcher adaptation.
  */
@@ -38,7 +35,6 @@ public fun <T> Continuation<T>.intercepted(): Continuation<T> =
     interceptContinuation(this, ContinuationInterceptor.Key)
 
 /**
- * Marker returned by a coroutine that suspended before producing its result.
  * The runtime owns the singleton so the state-machine lowering can compare it
  * by identity with the value returned from the intrinsic block.
  */
@@ -47,8 +43,6 @@ public val COROUTINE_SUSPENDED: Any
     get() = coroutineSuspended()
 
 /**
- * Internal state markers used by the native coroutine implementation.
- *
  * The runtime currently represents COROUTINE_SUSPENDED with its existing ABI
  * singleton; the enum remains source-backed for the Kotlin API surface.
  */
@@ -60,10 +54,6 @@ internal enum class CoroutineSingletons {
     RESUMED
 }
 
-/**
- * Intrinsic entry point used by coroutine lowering to execute [block] with
- * the current continuation and return either its value or the suspension marker.
- */
 @SinceKotlin("1.3")
 @InlineOnly
 @OptIn(ExperimentalContracts::class)
@@ -86,11 +76,11 @@ internal fun <T> startCoroutineUninterceptedOrReturnFallback(
 }
 
 /**
- * Markers for the receiver-bearing coroutine intrinsics. They are bodiless so
- * inlining leaves the call in place; the coroutine lowering pass rewrites it
- * into the runtime entry-point ABI (a suspend function value cannot be invoked
- * through a `Function2` cast). The create marker also accepts boxed suspend
- * callables for ordinary public builders; the start marker remains link-only.
+ * The markers are bodiless so inlining leaves the call in place; the coroutine
+ * lowering pass rewrites it into the runtime entry-point ABI (a suspend
+ * function value cannot be invoked through a `Function2` cast). The create
+ * marker also accepts boxed suspend callables for ordinary public builders; the
+ * start marker remains link-only.
  */
 @KsSymbolName("kk_start_coroutine_unintercepted_or_return_with_receiver")
 @PublishedApi
