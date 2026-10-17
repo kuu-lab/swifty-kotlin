@@ -7,13 +7,10 @@
 
 package kotlin.collections
 
-// KSP-943: the nominal MutableIterator declaration is source-backed here. The
-// compiler-side shell remains the fallback for contexts without bundled stdlib
-// source, such as --no-stdlib and precompiled metadata.
+// KSP-943: The compiler-side MutableIterator shell remains the fallback for
+// contexts without bundled stdlib source, such as --no-stdlib and precompiled
+// metadata.
 
-/**
- * An iterator over a mutable collection that can remove the last returned element.
- */
 public interface MutableIterator<out T> : Iterator<T> {
     public fun remove(): Unit
 }
