@@ -1,8 +1,3 @@
-/// Compound-assignment (`+=` family) lowering used by
-/// `ExprLowerer.lowerExpr`: builtin and operator paths for
-/// local, member, and delegated targets.
-///
-/// Split out from `ExprLowerer+ControlFlowAndBlocks.swift`.
 extension ExprLowerer {
     func lowerCompoundAssign(
         op: CompoundAssignOp,
@@ -279,8 +274,7 @@ extension ExprLowerer {
         }
         if let symbol = sema.bindings.identifierSymbols[exprID] {
             // Top-level or object-member property compound assignment
-            // needs a copy to global storage. Top-level properties have
-            // nil or .package parent; object members have .object parent.
+            // needs a copy to global storage.
             // `field` inside a custom getter/setter resolves to a
             // `.backingField`-kind symbol (see typeCheckGetter/typeCheckSetter
             // in DeclTypeChecker+PropertyHelpers.swift), so it must be
@@ -349,8 +343,6 @@ extension ExprLowerer {
                       ),
                       let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
             {
-                // Enum stored `var` (`hits += 1` inside the enum body):
-                // read-modify-write through the enum property helpers.
                 let propType = sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
                 let loadedValue = arena.appendTemporary(type: propType)
                 emitNonThrowingCall(callee: getterCallee, arg: receiverExprID, result: loadedValue, into: &instructions)
@@ -790,8 +782,6 @@ extension ExprLowerer {
                         rememberIncrementDecrementResult(resultID)
                     }
                 } else {
-                    // No existing local value — create a symbol reference as lhs
-                    // so compound assignment still computes lhs op rhs.
                     let symbolType = driver.ctx.localDeclaredType(for: symbol)
                         ?? driver.lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
                     let lhsID = arena.appendExpr(.symbolRef(symbol), type: symbolType)
