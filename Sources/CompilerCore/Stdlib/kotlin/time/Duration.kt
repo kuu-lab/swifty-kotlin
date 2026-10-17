@@ -6,10 +6,8 @@ import kotlin.contracts.contract
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
-// KSP-683
-// Duration's public representation and pure operations are Kotlin source. The
-// runtime only owns parsing and platform interop; the value class payload is the
-// signed count shifted left by one, with a low-bit tag (0 = ns, 1 = ms).
+// The value class payload is the signed count shifted left by one, with a
+// low-bit tag (0 = ns, 1 = ms).
 
 @JvmInline
 public value class Duration internal constructor(internal val rawValue: Long) : Comparable<Duration> {
@@ -473,7 +471,7 @@ public fun Long.toDuration(unit: DurationUnit): Duration {
 public fun Double.toDuration(unit: DurationUnit): Duration =
     durationFromDouble(this, durationUnitScale(unit))
 
-// Companion-scoped constants and parsing entry points. These use the Companion
+// Companion-scoped constants and parsing entry points use the Companion
 // short-form dispatch fallback (CallTypeChecker+MemberCallInferenceRegularResolution)
 // so both `Duration.ZERO` and `Duration.Companion.ZERO` resolve. The __kk_duration_*
 // bridges are receiver-less package-scope functions, called without `this.`.
