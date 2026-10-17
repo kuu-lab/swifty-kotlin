@@ -200,6 +200,17 @@ def scenarios() -> list[dict]:
         {"id": "buffering-contracts", "producer": [base / "IOBuffering1730/BufferingContracts.kt"],
          "consumer": base / "IOBuffering1730/Consumer.kt", "entry": "kuu1730consumer.main",
          "expected": base / "IOBuffering1730/reference.stdout", "reference": "pinned-JVM"},
+        {"id": "discarding-sink", "api_row_ids": ["jvm-04f9c66bafd8712c", "klib-f24361849bd7cfdd"],
+         "assertion_ids": ["zero-count", "zero-remainder", "partial-count", "partial-remainder",
+                           "exact-count", "exact-remainder", "negative-count", "negative-remainder",
+                           "oversized-count", "oversized-consumption", "empty-source", "flush",
+                           "repeated-close", "write-after-close", "flush-after-close"],
+         "producer": [base / "IODiscardingSink2611/Producer.kt"],
+         "consumer": base / "IODiscardingSink2611/Consumer.kt", "entry": "kuu2611discardingsinkconsumer.main",
+         "jvm_class": "kuu2611discardingsinkconsumer.ConsumerKt", "reference": "jvm",
+         "jvm_abi": {"owner": "kotlinx.io.CoreKt", "method": "discardingSink",
+                     "signature": "public static final kotlinx.io.RawSink discardingSink();",
+                     "descriptor": "()Lkotlinx/io/RawSink;"}},
         {"id": "native-eof-contracts", "producer": [base / "IOBuffering1730/EOFExceptionContracts.kt"],
          "consumer": base / "IOBuffering1730/EOFConsumer.kt", "entry": "kuu1730eofconsumer.main",
          "expected": base / "IOBuffering1730/eof-contract.expected.stdout", "reference": "declaration-contract"},
@@ -294,6 +305,14 @@ def reference_friend_args(case: dict, io_jars: list[Path]) -> list[str]:
     if not case.get("friend_io_artifacts"):
         return []
     return ["-Xfriend-paths=" + ",".join(map(str, io_jars))]
+
+def check_jvm_abi(output: bytes, probe: dict) -> None:
+    lines = [line.strip() for line in output.decode("utf-8").splitlines()]
+    expected_descriptor = f"descriptor: {probe['descriptor']}"
+    for index, line in enumerate(lines[:-1]):
+        if line == probe["signature"] and lines[index + 1] == expected_descriptor:
+            return
+    raise RuntimeError(f"JVM ABI mismatch for {probe['owner']}.{probe['method']}: {probe['descriptor']}")
 
 
 def batch_group_stdout(stdout: bytes, identifier: str) -> bytes:
@@ -423,6 +442,7 @@ def main(argv: list[str] | None = None) -> int:
         selected = [case for case in selected if case["id"] in args.case]
     summary = {"status": "RUNNING", "selected_cases": [case["id"] for case in selected],
                "expected_case_ids": [case["id"] for case in all_scenarios], "lanes": LANES,
+               "selected_api_rows": {case["id"]: case.get("api_row_ids", []) for case in selected},
                "subset": bool(args.case), "issue_complete": False, "results": [], "compiler_sha256": sha(compiler),
                "workspace_git_sha": subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True).strip(),
                "dirty_patch_sha256": hashlib.sha256(subprocess.check_output(["git", "-C", str(ROOT), "diff", "HEAD"])).hexdigest(),
@@ -468,6 +488,10 @@ def main(argv: list[str] | None = None) -> int:
         reference_tools = [args.java.resolve()]
         if any("jvm_abi_probe" in case for case in selected):
             reference_tools.append(args.java.resolve().parent / "javac")
+        if any(case.get("jvm_abi") for case in selected):
+            javap = args.java.resolve().parent / "javap"
+            if not javap.is_file(): raise RuntimeError("JDK javap is required for selected JVM ABI probes")
+            reference_tools.append(javap)
         summary["reference_sha256"] = {str(path): sha(path) for path in [*jars, *reference_tools]}
         require_stage([str(args.java.resolve()), "-version"], output, "java-version", 30)
         if not re.search(rb'version "21[.\"]', (output / "java-version.stderr").read_bytes()):
@@ -510,7 +534,8 @@ def main(argv: list[str] | None = None) -> int:
                             candidate_result,
                         ),
                     })
-            summary["results"].append({"case": case["id"], **result})
+            summary["results"].append({"case": case["id"], "api_row_ids": case.get("api_row_ids", []),
+                                        "assertion_ids": case.get("assertion_ids", []), **result})
             save(output / "summary.json", summary)
             print(f"{result['status']} {case['id']} {route} {optimization}", flush=True)
 
@@ -544,6 +569,14 @@ def main(argv: list[str] | None = None) -> int:
                                      "-classpath", classpath, *reference_friend_args(case, jars), "-include-runtime", "-d", str(jar)]
                 require_stage(reference_command, directory, "reference-compile", args.compile_timeout,
                               {"JAVA_HOME": str(args.java.resolve().parent.parent)})
+                if case.get("jvm_abi"):
+                    probe = case["jvm_abi"]
+                    require_stage([str(args.java.resolve().parent / "javap"), "-p", "-s", "-classpath", classpath,
+                                   probe["owner"]], directory, "reference-abi", 30)
+                    check_jvm_abi((directory / "reference-abi.stdout").read_bytes(), probe)
+                    summary.setdefault("jvm_abi_probe_results", {})[case["id"]] = {
+                        **probe, "result": "PASS", "stdout_sha256": sha(directory / "reference-abi.stdout")
+                    }
                 require_stage([str(args.java.resolve()), "-Djava.io.tmpdir=" + str(directory / "reference-run-work/tmp"),
                                "-cp", str(jar) + os.pathsep + classpath,
                                case.get("reference_class", case.get("jvm_class", "f02consumer.ConsumerKt"))], directory, "reference-run", 30)
