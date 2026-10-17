@@ -1,6 +1,5 @@
 // swiftlint:disable file_length
 
-/// `RuntimeABISpec.durationFunctions` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
     static let durationParseSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
         name: "kk_duration_parse",
@@ -113,7 +112,6 @@ public extension RuntimeABISpec {
             section: "Duration",
             isThrowing: false
         ),
-        // KSP-649: TimeSource / Monotonic reading bridges and Clock factory.
         RuntimeABIFunctionSpec(
             name: "__kk_time_source_mark_now",
             parameters: [
