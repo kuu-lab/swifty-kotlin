@@ -1,8 +1,5 @@
 import Foundation
 
-/// Decoded Kotlin IR schema types (`KotlinIr.proto`), as stored in the
-/// `ir/*.kn*` chunk tables of a `.klib`.
-///
 /// Indices (`Int32` fields named `*Index` or inside list values) refer to
 /// the *file-local* tables — `types`, `signatures`, `strings`, `bodies`,
 /// `fileEntries` — resolved through ``KlibIrModule``. Every symbol `Int64`
@@ -49,10 +46,8 @@ package enum KlibSymbolKind: Int, Sendable, CustomStringConvertible {
     }
 }
 
-/// Signature-table identity: all `signatures`/`types`/`bodies`/`strings`
-/// tables are file-local, so a signature index only makes sense paired with
-/// its file index. Used as the key of the `(fileIndex, signatureIndex) →
-/// SymbolID` map that body materialization resolves symbol references with.
+/// All `signatures`/`types`/`bodies`/`strings` tables are file-local, so a
+/// signature index only makes sense paired with its file index.
 package struct KlibSignatureKey: Hashable, Sendable {
     package let fileIndex: Int
     package let signatureIndex: Int
@@ -63,7 +58,6 @@ package struct KlibSignatureKey: Hashable, Sendable {
     }
 }
 
-/// A decoded `BinarySymbolData` code referencing a signature-table entry.
 package struct KlibSymbolRef: Equatable, Sendable {
     /// Index into the file's `signatures.knt` row.
     package let signatureIndex: Int
@@ -133,13 +127,11 @@ package enum KlibBinaryEncoding {
     }
 }
 
-/// Kotlin `IdSignature` cases. Signature references are indices into the
-/// file-local `signatures` table; fq-name segment lists are `strings`
-/// table indices joined with `.`.
+/// Signature references are indices into the file-local `signatures` table;
+/// fq-name segment lists are `strings` table indices joined with `.`.
 package enum KlibIdSignature: Equatable {
     /// Top-level public signature (`CommonIdSignature`).
     case common(packageFqName: [Int32], declarationFqName: [Int32], memberId: Int64?, flags: Int64, debugInfo: Int32?)
-    /// Property accessor signature.
     case accessor(propertySignature: Int32, name: Int32, hashId: Int64, flags: Int64, debugInfo: Int32?)
     /// Private/file-local signature (`FileLocalIdSignature`).
     case fileLocal(container: Int32, localId: Int64)
@@ -277,7 +269,6 @@ package struct KlibDeclBase {
     package var annotations: [KlibAnnotation]
 }
 
-/// Decoded `name_type` pair.
 package struct KlibNameAndType: Equatable {
     package var nameIndex: Int32
     /// Index into `types` for the declared type.
@@ -300,7 +291,6 @@ package struct KlibClass {
     /// `types` indices.
     package var superTypes: [Int32]
     package var inlineClassRepresentation: KlibInlineClassRepresentation?
-    /// Symbol codes of sealed subclasses.
     package var sealedSubclasses: [KlibSymbolRef]
 }
 
@@ -344,7 +334,6 @@ package struct KlibFunctionBase {
 
 package struct KlibFunction {
     package var base: KlibFunctionBase
-    /// Overridden function symbol codes.
     package var overridden: [KlibSymbolRef]
     package var preparedInlineFileEntryId: Int32?
 }
@@ -461,8 +450,7 @@ package enum KlibVarargElement {
     case spread(expression: KlibIrExpression, globalCoordinates: KlibCoordinates?, localCoordinates: KlibCoordinates?)
 }
 
-/// `IrExpression` operation cases. `typeIndex`/`coordinates` live on the
-/// wrapper, ``KlibIrExpression``.
+/// `typeIndex`/`coordinates` live on the wrapper, ``KlibIrExpression``.
 package indirect enum KlibIrExpressionKind {
     case constNull
     case constBool(Bool)
