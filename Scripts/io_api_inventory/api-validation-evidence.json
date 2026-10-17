@@ -209,6 +209,66 @@
       "evidence_source": "local-probe"
     },
     {
+      "row_id": "jvm-6dcae71c67e2278f",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "1d01b1e86a0ac7852661b2556c0ae2aa1de76a478a91a0cd012c1a8d4bc0ecb0",
+      "test_input_sha256": "55a226b473e0a18b7ab10bbc6efb6069c34bcd5745f1155ad5d10455c854fd3b",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "local:Scripts/io_api_inventory/probe_system_temporary_directory.py#run_probe",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:4fca2ccfbcdf2202555ba79502f9e113",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-abi-reflection"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:fa430499df7ff09ac52c9766a471f72a",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "source-metadata"
+          }
+        }
+      ],
+      "evidence_source": "local-probe"
+    },
+    {
+      "row_id": "jvm-f7053c9293f03a10",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "fb80e9f124137b5acefc4e81887af5d40acc42279e9c004bd01543d03fc2ab11",
+      "test_input_sha256": "b27722a49c75bdea256bede2eecf9256efe7ce3cb7715c49771b055144fd7154",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/segment_data_as_byte_array_jvm_abi.kt#jvm-descriptor",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:637c85c911a69b9cbbba1465a6e298e6",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-abi-reflection"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:2ab41515fb124993bcdcaf784bf081a6",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "source-metadata"
+          }
+        }
+      ],
+      "evidence_source": "local-probe"
+    },
+    {
       "row_id": "klib-952eb71e7667983b",
       "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
       "reference_version": "0.9.1",
@@ -410,36 +470,6 @@
             "result": "PASS",
             "exit_code": 0,
             "method": "native-visibility-probe"
-          }
-        }
-      ],
-      "evidence_source": "local-probe"
-    },
-    {
-      "row_id": "jvm-f7053c9293f03a10",
-      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
-      "reference_version": "0.9.1",
-      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
-      "implementation_input_sha256": "fb80e9f124137b5acefc4e81887af5d40acc42279e9c004bd01543d03fc2ab11",
-      "test_input_sha256": "b27722a49c75bdea256bede2eecf9256efe7ce3cb7715c49771b055144fd7154",
-      "compatibility_obligations": [
-        "jvm-descriptor"
-      ],
-      "executions": [
-        {
-          "case_id": "local:Scripts/io_api_inventory/probes/segment_data_as_byte_array_jvm_abi.kt#jvm-descriptor",
-          "lane": "jvm-descriptor",
-          "reference": {
-            "execution_id": "local-probe-v1:reference:637c85c911a69b9cbbba1465a6e298e6",
-            "result": "PASS",
-            "exit_code": 0,
-            "method": "jvm-abi-reflection"
-          },
-          "candidate": {
-            "execution_id": "local-probe-v1:candidate:2ab41515fb124993bcdcaf784bf081a6",
-            "result": "PASS",
-            "exit_code": 0,
-            "method": "source-metadata"
           }
         }
       ],
