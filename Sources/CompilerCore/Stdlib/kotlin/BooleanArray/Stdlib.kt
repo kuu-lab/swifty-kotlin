@@ -1,8 +1,6 @@
 package kotlin
 
 /**
- * Kotlin stdlib `BooleanArray(size) { init }` constructor.
- *
  * The size-only constructor remains compiler-provided; this overload is
  * implemented as ordinary bundled Kotlin source.
  */
