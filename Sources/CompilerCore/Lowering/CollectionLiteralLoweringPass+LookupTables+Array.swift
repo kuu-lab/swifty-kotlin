@@ -1,8 +1,5 @@
 import RuntimeABI
 
-/// Array lookup names for `CollectionLiteralLookupTables`.
-///
-/// Split out from `CollectionLiteralLoweringPass+LookupTables.swift`.
 struct ArrayLookupNames {
     let arrayOfName: InternedString
     let emptyArrayName: InternedString
@@ -22,7 +19,6 @@ struct ArrayLookupNames {
     let kkArraySizeName: InternedString
     let kkArrayNewName: InternedString
     let kkArraySetName: InternedString
-    // Array conversion / utility ABI names (STDLIB-087/089)
     let kkArrayToListName: InternedString
     let kkArrayCopyOfName: InternedString
     let kkListAsSequenceName: InternedString
