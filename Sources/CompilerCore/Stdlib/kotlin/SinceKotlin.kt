@@ -7,9 +7,6 @@
 
 package kotlin
 
-/**
- * Signifies that the annotated element is available since the specified version.
- */
 @kotlin.annotation.Target(
     AnnotationTarget.CLASS,
     AnnotationTarget.PROPERTY,
