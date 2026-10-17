@@ -168,16 +168,11 @@ extension KIRLoweringDriver {
         return declIDs
     }
 
-    /// BUG-274: the lazy half of `synthesizeCompanionInitializerIfNeeded` --
-    /// the implicit super-constructor call, property initializers, and
-    /// `init` blocks in declaration order -- guarded by a `$initialized`
-    /// flag so it runs at most once, on whichever access to the companion's
-    /// state comes first. When the companion has a dispatch object, its
-    /// handle already exists (allocated eagerly by
-    /// `synthesizeCompanionInitializerIfNeeded`), so this function only
-    /// needs to `loadGlobal` it; otherwise it re-derives the same bare
-    /// `symbolRef` value the eager function used transiently for its own
-    /// (now-removed) super-constructor-call argument.
+    /// BUG-274: when the companion has a dispatch object, its handle already
+    /// exists (allocated eagerly by `synthesizeCompanionInitializerIfNeeded`),
+    /// so this function only needs to `loadGlobal` it; otherwise it re-derives
+    /// the same bare `symbolRef` value the eager function used transiently for
+    /// its own (now-removed) super-constructor-call argument.
     private func synthesizeCompanionLazyInit(
         _ companionDecl: ObjectDecl,
         companionSymbol: SymbolID,
@@ -237,7 +232,6 @@ extension KIRLoweringDriver {
             body: &body
         )
 
-        // Emit property initializers and init blocks in declaration order.
         for member in companionDecl.classBodyInitOrder {
             switch member {
             case let .property(index):
