@@ -1,5 +1,3 @@
-// Random functions (STDLIB-165, STDLIB-514, STDLIB-515).
-//
 // KSP-466: kotlin.random.Random's core API (nextInt/nextLong/nextFloat/
 // nextDouble/nextBoolean/nextBits/nextBytes, Random.Default, Random(seed)) is
 // now Kotlin source (Sources/CompilerCore/Stdlib/kotlin/random/Random.kt) with
@@ -8,8 +6,6 @@
 // PlatformRandom.kt) — a raw pointer passthrough between the two Random
 // representations stopped being safe once kotlin.random.Random became a genuine
 // compiled object instead of sharing java.util.Random's native SeededRandomBox.
-// The entries below are what remains native: the IntRange/LongRange/UIntRange/
-// Range-object overloads (KSP-457), and SecureRandom (KSP-467).
 
 public extension RuntimeABISpec {
     static let randomFunctions: [RuntimeABIFunctionSpec] = [
