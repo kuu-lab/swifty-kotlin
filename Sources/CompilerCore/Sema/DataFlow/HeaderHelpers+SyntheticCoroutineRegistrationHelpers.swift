@@ -1,9 +1,3 @@
-/// `registerSyntheticCoroutineCancellationStubs` and the private
-/// helpers used by the synthetic Coroutine stub registration
-/// (top-level functions, extension functions, members, constructors,
-/// channel factory bridges, intrinsics stubs, annotation attachment).
-///
-/// Consolidated here with the coroutine package registry for RF-STUB-005.
 extension DataFlowSemaPhase {
     func registerSyntheticCoroutineTopLevelFunction(
         named name: String,
