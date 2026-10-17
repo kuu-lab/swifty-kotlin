@@ -95,7 +95,11 @@ public struct ConstructorDecl: Codable {
 
 public struct SuperTypeEntry: Equatable, Codable {
     public let typeRef: TypeRefID
+    /// When present, this supertype (must be an interface) is implemented by
+    /// delegating to the given expression. Absent for non-delegated supertypes.
     public let delegateExpression: ExprID?
+    /// Arguments of the superclass constructor invocation in the class header.
+    /// Empty for interfaces and for `Base()`.
     public let constructorArgs: [CallArgument]
 
     public init(
@@ -112,7 +116,11 @@ public struct SuperTypeEntry: Equatable, Codable {
 /// Used to guarantee Kotlin's declaration-order execution of property
 /// initializers and `init` blocks.
 public enum ClassBodyInitMember: Equatable, Codable {
+    /// A property initializer; the associated value is the index into
+    /// `ClassDecl.memberProperties`.
     case property(Int)
+    /// An `init { }` block; the associated value is the index into
+    /// `ClassDecl.initBlocks`.
     case initBlock(Int)
 }
 
@@ -295,7 +303,8 @@ public struct FunDecl: Codable {
     public let annotations: [AnnotationNode]
     public let typeParams: [TypeParamDecl]
     public let receiverType: TypeRefID?
-    /// These stay independent of `receiverType` so a
+    /// Declaration-level `context(...)` receivers. Names are nil for unnamed
+    /// or `_:` parameters. These stay independent of `receiverType` so a
     /// member function's class `this` is not overwritten by a context type.
     public let contextReceivers: [ContextReceiverDecl]
     public var contextReceiverNames: [InternedString?] {
@@ -395,6 +404,7 @@ public struct PropertyAccessorDecl: Equatable, Codable {
     public let range: SourceRange
     public let annotations: [AnnotationNode]
     public let kind: PropertyAccessorKind
+    /// Explicit accessor visibility, or nil when it inherits the property's visibility.
     public let visibility: Visibility?
     public let isInline: Bool
     public let parameterName: InternedString?
@@ -420,6 +430,7 @@ public struct PropertyAccessorDecl: Equatable, Codable {
 }
 
 public struct ExplicitBackingField: Codable {
+    /// When `nil`, the type is inferred from the initializer expression.
     public let type: TypeRefID?
     public let initializer: ExprID
 
