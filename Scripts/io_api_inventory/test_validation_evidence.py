@@ -89,20 +89,38 @@ class ValidationEvidenceTests(unittest.TestCase):
     def _execution_catalogs(self):
         case_id = "core/common/test/FooTest.kt#testFoo"
         other_case_id = "core/common/test/BarTest.kt#testBar"
-        return {
+        catalogs = {
             "reference": {f"reference-{index}": case_id for index in range(6)}
             | {"reference-wrong": other_case_id},
             "candidate": {f"candidate-{index}": case_id for index in range(6)}
             | {"candidate-wrong": other_case_id},
         }
-
-    def _apply(self, records, row=None, schema_version=1):
-        fixture_row = copy.deepcopy(row or self.row)
-        self.evidence_path.write_text(
-            json.dumps({"schema_version": schema_version, "records": records}), encoding="utf-8"
+        method_names = (
+            "writeUtf8FromIndex",
+            "writeUtf8WithInvalidIndexes",
+            "writeCharSequenceFromIndex",
+            "writeCharSequenceWithInvalidIndexes",
         )
+        for concrete_class in ("BufferSinkTest", "RealSinkTest"):
+            for method_name in method_names:
+                upstream_id = f"core/common/test/AbstractSinkTest.kt#{method_name}"
+                reference_id = (
+                    f"[engine:junit-jupiter]/[class:kotlinx.io.{concrete_class}]"
+                    f"/[method:{method_name}()]"
+                )
+                native_id = f"kotlinx.io.{concrete_class}.{method_name}"
+                catalogs["reference"][reference_id] = upstream_id
+                catalogs["candidate"][native_id] = upstream_id
+        return catalogs
+
+    def _apply(self, records, row=None, reference_observations=None, schema_version=1, upstream=None):
+        fixture_row = copy.deepcopy(row or self.row)
+        evidence = {"schema_version": schema_version, "records": records}
+        if reference_observations is not None:
+            evidence["reference_observations"] = reference_observations
+        self.evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
         self.generator.apply_validation_evidence(
-            [fixture_row], self.lock, self.evidence_path, self.repository, self.upstream,
+            [fixture_row], self.lock, self.evidence_path, self.repository, upstream or self.upstream,
             self._execution_catalogs(),
         )
         return fixture_row
@@ -163,6 +181,130 @@ class ValidationEvidenceTests(unittest.TestCase):
             "compatibility_obligations": self.generator.validation_obligations(row),
             "evidence_source": "local-probe",
             "executions": executions,
+        }
+
+    def _sink_write_string_observation(self, is_char_sequence=False):
+        string_case = (
+            "core/common/test/AbstractSinkTest.kt#writeUtf8FromIndex",
+            "core/common/test/AbstractSinkTest.kt#writeUtf8WithInvalidIndexes",
+        )
+        char_sequence_case = (
+            "core/common/test/AbstractSinkTest.kt#writeCharSequenceFromIndex",
+            "core/common/test/AbstractSinkTest.kt#writeCharSequenceWithInvalidIndexes",
+        )
+        row_id = (
+            "jvm-804266071f0ab846" if is_char_sequence else "jvm-2a9d7e102164fbd2"
+        )
+        case_ids = char_sequence_case if is_char_sequence else string_case
+        method_names = [case_id.rsplit("#", 1)[1] for case_id in case_ids]
+        method = {
+            "name": "writeString$default",
+            "descriptor": (
+                "(Lkotlinx/io/Sink;Ljava/lang/CharSequence;IIILjava/lang/Object;)V"
+                if is_char_sequence else
+                "(Lkotlinx/io/Sink;Ljava/lang/String;IIILjava/lang/Object;)V"
+            ),
+            "flags": {"public": True, "static": True, "synthetic": True, "bridge": False},
+            "default_mask_values_when_both_indices_are_omitted": [6],
+            "marker_parameter": "java.lang.Object",
+        }
+        fixture_row = copy.deepcopy(self.row)
+        fixture_row.update({
+            "row_id": row_id,
+            "representation": "JVM public ABI dump",
+            "name": "writeString$default",
+            "signature": "public static synthetic fun writeString$default " + method["descriptor"],
+            "upstream_test_refs": ";".join(case_ids),
+            "local_candidate_refs": "Sources/CompilerCore/Stdlib/kotlinx/io/Utf8.kt:16",
+            "local_implementation_refs": "Sources/CompilerCore/Stdlib/kotlinx/io/Utf8.kt:16",
+            "owner_fqn": "kotlinx/io/Utf8Kt",
+            "_inventory_status": "unverified",
+            "_jvm_key": (
+                "core",
+                "kotlinx/io/Utf8Kt",
+                "writeString$default",
+                "(Lkotlinx/io/Sink;Ljava/lang/CharSequence;IIILjava/lang/Object;)V"
+                if is_char_sequence else
+                "(Lkotlinx/io/Sink;Ljava/lang/String;IIILjava/lang/Object;)V",
+            ),
+        })
+        self._write(
+            "Sources/CompilerCore/Stdlib/kotlinx/io/Utf8.kt",
+            "fun writeString() = Unit\n",
+        )
+        executions = []
+        for concrete_class in ("BufferSinkTest", "RealSinkTest"):
+            for method_name, case_id in zip(method_names, case_ids):
+                execution_id = (
+                    f"[engine:junit-jupiter]/[class:kotlinx.io.{concrete_class}]"
+                    f"/[method:{method_name}()]"
+                )
+                executions.append({
+                    "case_id": case_id,
+                    "lane": "jvm-descriptor",
+                    "reference": {"execution_id": execution_id, "result": "PASS", "exit_code": 0},
+                })
+        native_ids = [
+            f"kotlinx.io.{concrete_class}.{method_name}"
+            for concrete_class in ("BufferSinkTest", "RealSinkTest")
+            for method_name in method_names
+        ]
+        consumer_lanes = []
+        for lane in self.generator.REFERENCE_OBSERVATION_CONSUMER_LANES:
+            digest = "a" * 64
+            consumer_lanes.append({
+                "lane": lane,
+                "result": "PASS",
+                "exit_code": 0,
+                "reference_normalized_stdout_sha256": digest,
+                "candidate_stdout_sha256": "b" * 64,
+                "candidate_normalized_stdout_sha256": digest,
+            })
+        return fixture_row, {
+            "row_id": row_id,
+            "candidate_sha": self.generator.KUU_2634_CANDIDATE_SHA,
+            "reference_version": self.lock["tag"],
+            "reference_commit": self.lock["commit"],
+            **self.generator.validation_input_hashes(
+                fixture_row, self.repository, self.generator.UPSTREAM
+            ),
+            "compatibility_obligations": ["jvm-descriptor"],
+            "executions": executions,
+            "candidate_execution_kind": "macOS-native-direct-assertions",
+            "non_promotion_reason": "The candidate emits native code and has no JVM classfile to compare.",
+            "reference_abi_probe": {
+                "result": "PASS",
+                "artifact_coordinate": "org.jetbrains.kotlinx:kotlinx-io-core-jvm:0.9.1",
+                "artifact_sha256": "c" * 64,
+                "class": "kotlinx/io/Utf8Kt.class",
+                "class_sha256": "d" * 64,
+                "probe_sha256": "e" * 64,
+                "method": method,
+                "implementation_opt_ins_match": True,
+                "documented_exception_types": [
+                    "IndexOutOfBoundsException",
+                    "IllegalArgumentException",
+                    "IllegalStateException",
+                    "IOException",
+                ],
+            },
+            "native_assertion_runs": [
+                {
+                    "lane": lane,
+                    "result": "PASS",
+                    "execution_count": len(native_ids),
+                    "execution_ids": native_ids,
+                    "summary_sha256": "f" * 64,
+                    "compiler_sha256": "1" * 64,
+                }
+                for lane in ("native-source-O0", "native-source-O2")
+            ],
+            "targeted_consumer": {
+                "case_id": "sink-write-string-default-bridges",
+                "summary_sha256": "2" * 64,
+                "compiler_sha256": "3" * 64,
+                "lanes": consumer_lanes,
+            },
         }
 
     def test_current_reference_and_candidate_passes_promote_only_the_fixture_row(self):
@@ -271,6 +413,98 @@ class ValidationEvidenceTests(unittest.TestCase):
         record = self._record(row)
         self.assertEqual(record["compatibility_obligations"], ["jvm-descriptor"])
         self.assertEqual(self._apply([record], row)["status"], "verified")
+
+    def test_reference_observation_records_partial_evidence_without_promoting(self):
+        for is_char_sequence in (False, True):
+            with self.subTest(is_char_sequence=is_char_sequence):
+                row, observation = self._sink_write_string_observation(is_char_sequence)
+                applied = self._apply([], row, [observation], schema_version=2, upstream=self.generator.UPSTREAM)
+                self.assertEqual(applied["status"], "unverified")
+
+    def test_reference_observation_rejects_wrong_pin_or_incomplete_native_receipt(self):
+        row, valid = self._sink_write_string_observation()
+        wrong_candidate = copy.deepcopy(valid)
+        wrong_candidate["candidate_sha"] = "a" * 40
+        missing_native_case = copy.deepcopy(valid)
+        missing_native_case["native_assertion_runs"][0]["execution_ids"].pop()
+        wrong_artifact = copy.deepcopy(valid)
+        wrong_artifact["reference_abi_probe"]["artifact_coordinate"] = "other:artifact:1"
+        for observation in (wrong_candidate, missing_native_case, wrong_artifact):
+            with self.subTest(observation=observation):
+                with self.assertRaises(SystemExit):
+                    self._apply([], row, [observation], schema_version=2, upstream=self.generator.UPSTREAM)
+
+    def test_reference_observation_is_invalidated_when_local_source_changes(self):
+        row, observation = self._sink_write_string_observation()
+        source = self.repository / "Sources/CompilerCore/Stdlib/kotlinx/io/Utf8.kt"
+        source.write_text(source.read_text(encoding="utf-8") + "// changed\n", encoding="utf-8")
+        with self.assertRaisesRegex(SystemExit, "stale implementation_input_sha256"):
+            self._apply([], row, [observation], schema_version=2, upstream=self.generator.UPSTREAM)
+
+    def test_sink_write_string_bridges_have_exact_declarations_and_direct_test_refs(self):
+        expected = {
+            (
+                "core",
+                "kotlinx/io/Utf8Kt",
+                "writeString$default",
+                "(Lkotlinx/io/Sink;Ljava/lang/String;IIILjava/lang/Object;)V",
+            ): {
+                "upstream_source": "core/common/src/Utf8.kt:170",
+                "local_source": "Sources/CompilerCore/Stdlib/kotlinx/io/Utf8.kt:16",
+                "tests": (
+                    "core/common/test/AbstractSinkTest.kt#writeUtf8FromIndex",
+                    "core/common/test/AbstractSinkTest.kt#writeUtf8WithInvalidIndexes",
+                ),
+            },
+            (
+                "core",
+                "kotlinx/io/Utf8Kt",
+                "writeString$default",
+                "(Lkotlinx/io/Sink;Ljava/lang/CharSequence;IIILjava/lang/Object;)V",
+            ): {
+                "upstream_source": "core/common/src/Utf8.kt:191",
+                "local_source": "Sources/CompilerCore/Stdlib/kotlinx/io/Utf8.kt:22",
+                "tests": (
+                    "core/common/test/AbstractSinkTest.kt#writeCharSequenceFromIndex",
+                    "core/common/test/AbstractSinkTest.kt#writeCharSequenceWithInvalidIndexes",
+                ),
+            },
+        }
+        expected_local_tests = [
+            "Scripts/diff_cases/kotlinx_io_sink_write_string_default_bridges.kt",
+            "Scripts/io_api_inventory/run_f02_matrix.py",
+            "Scripts/io_api_inventory/probe_sink_write_string_jvm_abi.py",
+            "Scripts/kotlinx_io_upstream/run_jvm_reference.py",
+            "Scripts/kotlinx_io_upstream/JvmReferenceRunner.java",
+            "Scripts/kotlinx_io_upstream/run_candidate_suites.py",
+            "Scripts/kotlinx_io_upstream/prepare_candidate_catalog.py",
+            "Scripts/kotlinx_io_upstream/fixtures/sink-write-string-default-bridge-source-closure.macos.json",
+        ]
+        for key, refs in expected.items():
+            with self.subTest(key=key):
+                row = {
+                    "_jvm_key": key,
+                    "representation": "JVM public ABI dump",
+                    "module": "core",
+                    "owner_fqn": "kotlinx/io/Utf8Kt",
+                    "_candidate_name": "writeString$default",
+                }
+                self.assertEqual(self.generator.owner_for(row), "KUU-2634")
+                self.assertEqual(self.generator.upstream_test_refs(row, {}), list(refs["tests"]))
+                self.assertEqual(self.generator.local_test_refs(row, []), expected_local_tests)
+                self.assertEqual(self.generator.validation_obligations(row), ["jvm-descriptor"])
+                self.assertEqual(
+                    self.generator.SINK_WRITE_STRING_DEFAULT_BRIDGE_SOURCE_REFS[key],
+                    (refs["upstream_source"], refs["local_source"]),
+                )
+
+        unrelated_row = {
+            "_jvm_key": ("core", "kotlinx/io/Utf8Kt", "writeString", "(Lkotlinx/io/Sink;)V"),
+            "_candidate_name": "writeString",
+            "owner_fqn": "kotlinx/io/Utf8Kt",
+            "module": "core",
+        }
+        self.assertEqual(self.generator.local_test_refs(unrelated_row, []), [])
 
     def test_unknown_duplicate_and_malformed_evidence_is_rejected(self):
         valid = self._record()

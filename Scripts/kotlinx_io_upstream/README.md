@@ -94,6 +94,11 @@ python3 Scripts/kotlinx_io_upstream/run_jvm_reference.py \
   --output /tmp/kio-reference-results
 ```
 
+Use `--execution-id` repeatedly to compile the same pinned test sources but run
+only exact catalogued JUnit cases. The summary records the selected IDs and sets
+`covers_full_catalog` to false; this is suitable for an issue-scoped check and
+does not stand in for the parent issue's complete reference gate.
+
 The audited JVM catalog contains 1,403 concrete executions covering all 651
 eligible source function IDs in 50 compiled files. Discovery must match every
 execution ID in `jvm-executions.expected.json`, so losing a test or a factory
@@ -264,6 +269,10 @@ Runtime source hashes are checked; cached Runtime object bytes are outside this
 provenance proof. This also remains **assertion-only candidate execution**:
 seven-observation mappings are unfinished, paired PASS stays zero, and KUU-1727
 remains partial even if selected assertions pass.
+
+`--source-function-id path#function` or repeated `--execution-id` can narrow the
+Native catalog to exact upstream assertions. This selection remains an
+assertion-only candidate run and does not claim full catalog coverage.
 
 ### Audited Native catalog factories and cleanup
 

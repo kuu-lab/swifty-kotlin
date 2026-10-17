@@ -123,6 +123,26 @@ class F02GateTests(unittest.TestCase):
         self.assertIn("getter.isSynthetic()", probe)
         self.assertIn("getter.invoke(null)", probe)
 
+    def test_sink_write_string_defaults_are_an_independent_jvm_referenced_case(self):
+        selected = [case for case in matrix.scenarios()
+                    if case["id"] == "sink-write-string-default-bridges"]
+        self.assertEqual(len(selected), 1)
+        case = selected[0]
+        self.assertEqual(case["reference"], "jvm")
+        self.assertEqual(case["entry"], "f02corpusconsumer.main")
+        self.assertEqual([path.name for path in case["fixtures"]],
+                         ["kotlinx_io_sink_write_string_default_bridges.kt"])
+        diff_case = next(item for item in matrix.scenarios() if item["id"] == "diff-consumers")
+        self.assertNotIn(case["fixtures"][0], diff_case["fixtures"])
+        source = case["fixtures"][0].read_text()
+        for marker in ("val string: String", "val chars: CharSequence", "writeString(string)",
+                       "writeString(chars)", "string-negative-start", "charsequence-reversed-range",
+                       "string-closed-sink", "string-io-failure", "charsequence-closed-sink",
+                       "charsequence-io-failure"):
+            self.assertIn(marker, source)
+        self.assertNotIn("@OptIn", source)
+
+
     def test_generated_public_rows_and_every_full_default_call_are_required(self):
         generated = generator.generate()
         manifest = json.loads(generated["manifest.json"])

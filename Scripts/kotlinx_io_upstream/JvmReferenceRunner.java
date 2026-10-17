@@ -10,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.platform.engine.TestExecutionResult;
+import org.junit.platform.engine.DiscoverySelector;
 import org.junit.platform.engine.support.descriptor.MethodSource;
 import org.junit.platform.launcher.TestExecutionListener;
 import org.junit.platform.launcher.TestIdentifier;
@@ -17,6 +18,7 @@ import org.junit.platform.launcher.TestPlan;
 import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
 import org.junit.platform.launcher.core.LauncherFactory;
 import static org.junit.platform.engine.discovery.DiscoverySelectors.selectClasspathRoots;
+import static org.junit.platform.engine.discovery.DiscoverySelectors.selectUniqueId;
 
 /** Java 21 source-mode runner: the original test classes and assertions are unchanged. */
 class JvmReferenceRunner {
@@ -65,15 +67,21 @@ class JvmReferenceRunner {
     }
 
     public static void main(String[] args) throws Exception {
-        if (args.length != 2) throw new IllegalArgumentException("test jar and output directory required");
+        if (args.length < 2) throw new IllegalArgumentException("test jar and output directory required");
         Path output = Path.of(args[1]);
         Files.createDirectories(output);
         var launcher = LauncherFactory.create();
-        var request = LauncherDiscoveryRequestBuilder.request()
-            .selectors(selectClasspathRoots(java.util.Set.of(Path.of(args[0]))))
+        var requestBuilder = LauncherDiscoveryRequestBuilder.request()
             .filters(org.junit.platform.engine.discovery.ClassNameFilter.includeClassNamePatterns(".*"))
-            .configurationParameter("junit.jupiter.execution.parallel.enabled", "false")
-            .build();
+            .configurationParameter("junit.jupiter.execution.parallel.enabled", "false");
+        if (args.length == 2) {
+            requestBuilder.selectors(selectClasspathRoots(java.util.Set.of(Path.of(args[0]))));
+        } else {
+            var selectors = new ArrayList<DiscoverySelector>();
+            for (int index = 2; index < args.length; index++) selectors.add(selectUniqueId(args[index]));
+            requestBuilder.selectors(selectors.toArray(DiscoverySelector[]::new));
+        }
+        var request = requestBuilder.build();
         TestPlan plan = launcher.discover(request);
         var discovered = new ArrayList<Map<String, Object>>();
         plan.getRoots().forEach(root -> plan.getDescendants(root).stream()
