@@ -7,9 +7,6 @@
 
 package kotlin.collections
 
-/**
- * An iterator over a collection that supports traversing the collection in both directions.
- */
 public interface ListIterator<out T> : Iterator<T> {
     public override fun next(): T
 
