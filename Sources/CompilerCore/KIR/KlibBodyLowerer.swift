@@ -1,6 +1,3 @@
-/// Translates serialized Kotlin/Native IR bodies from an imported `.klib`
-/// module into this compilation's KIR arena.
-///
 /// Runs during ``KIRLoweringDriver.lowerModule`` after every source file has
 /// been lowered, so the consumer `SymbolTable`/`TypeSystem` already hold the
 /// materialized declarations (PR4) and their synthesized layouts. Declarations
@@ -19,8 +16,7 @@ final class KlibBodyLowerer {
     /// singleton — they run ahead of every other klib init instruction.
     private var eagerObjectInit = KIRLoweringEmitContext()
 
-    /// File index currently being translated. All serialized tables
-    /// (types/signatures/strings/bodies) are file-local.
+    /// All serialized tables (types/signatures/strings/bodies) are file-local.
     private var fileIndex = 0
 
 
@@ -29,7 +25,6 @@ final class KlibBodyLowerer {
     /// parameters map to their `.symbolRef` param expr, local `variable`s map
     /// to a temporary slot.
     private var valueExprs: [Int: KIRExprID] = [:]
-    /// Signature indexes that `return` may target in the current callable.
     private var returnTargetSignatureIndexes: Set<Int> = []
     /// The callable being translated, used to seed instance fields before a
     /// serialized constructor delegates to its superclass.
@@ -49,16 +44,14 @@ final class KlibBodyLowerer {
     /// collected before emitting the class's members so a ctor's
     /// `instanceInitializerCall` can expand them in member-declaration order.
     private var classInitBySymbol: [SymbolID: ClassInitInfo] = [:]
-    /// Globals already emitted (objects, enum entries, top-level fields).
     private var emittedGlobals: Set<SymbolID> = []
     /// Objects whose init functions were already synthesized — distinct from
     /// `emittedGlobals` since a forward reference can create the slot first.
     private var emittedObjectInits: Set<SymbolID> = []
-    /// Unsupported-form diagnostics already reported (deduplicated).
     private var reportedUnsupported: Set<String> = []
 
     private struct ClassInitInfo {
-        /// `(field symbol, initializer bodyIndex, declared type index)` in member-declaration order.
+        /// In member-declaration order.
         var fieldInitializers: [(field: SymbolID, bodyIndex: Int32, typeIndex: Int32)] = []
         /// `IrAnonymousInitializer` bodies, also in declaration order.
         var anonymousInitBodyIndices: [Int32] = []
@@ -212,9 +205,9 @@ final class KlibBodyLowerer {
         case setter
     }
 
-    /// Serialized property getter/setter → KIR function. The consumer symbol
-    /// is the synthetic accessor ID `finalizeKlibModule` registered, so call
-    /// sites and vtable slots resolve through the same key space as source.
+    /// The consumer symbol is the synthetic accessor ID `finalizeKlibModule`
+    /// registered, so call sites and vtable slots resolve through the same key
+    /// space as source.
     /// Synthetic accessor symbols have no `FunctionSignature` entry — the
     /// signature is rebuilt from the property's recorded metadata instead.
     private func emitAccessor(
@@ -328,9 +321,6 @@ final class KlibBodyLowerer {
         )
     }
 
-    /// Shared body emission for real functions and synthetic accessors:
-    /// binds serialized value-parameter signature indexes to the KIR
-    /// parameters, translates the serialized body, and appends the function.
     private func emitCallableBody(
         base: KlibFunctionBase,
         symbol: SymbolID,
@@ -576,7 +566,6 @@ final class KlibBodyLowerer {
 
         var declIDs: [KIRDeclID] = []
 
-        // ── Eager half: allocate + register, run before user initializers ──
         let eagerSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
         let eagerName = interner.intern("__klib_object_init_\(objectSymbol.rawValue)")
         var eager: KIRLoweringEmitContext = [.beginBlock]
@@ -596,7 +585,6 @@ final class KlibBodyLowerer {
             result: eagerResult, canThrow: false, thrownResult: nil
         ))
 
-        // ── Lazy half: $initialized-guarded <init> call ──
         let flagName = interner.intern("$initialized")
         let flagSymbol = symbols.define(
             kind: .field, name: flagName,
@@ -808,7 +796,6 @@ final class KlibBodyLowerer {
             )
 
         case .inlinedFunctionBlock(_, _, _, let statements, _, _, _):
-            // Already-inlined bodies: translate contents like a composite.
             return translateStatementSequence(statements, into: &body)
 
         case .return(let target, let value):
@@ -1744,9 +1731,9 @@ final class KlibBodyLowerer {
     }
 
 
-    /// Serialized `IrType` → consumer `TypeID`. Reuses the primitive-mapping
-    /// rules the declaration materializer encodes through signature text, so
-    /// `kotlin.Int` lands on `types.intType` (required for correct boxing).
+    /// Reuses the primitive-mapping rules the declaration materializer encodes
+    /// through signature text, so `kotlin.Int` lands on `types.intType`
+    /// (required for correct boxing).
     private func decodeType(_ typeIndex: Int32) -> TypeID? {
         guard typeIndex >= 0,
               let type = try? ir.type(typeIndex, fileIndex: fileIndex)
