@@ -9,9 +9,6 @@ package kotlin
 
 import kotlin.reflect.KClass
 
-/**
- * Marks the annotated declaration as throwing the specified checked exceptions.
- */
 @kotlin.annotation.Target(
     AnnotationTarget.FUNCTION,
     AnnotationTarget.PROPERTY_GETTER,
