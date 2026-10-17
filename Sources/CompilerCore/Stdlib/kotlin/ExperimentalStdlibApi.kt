@@ -14,10 +14,6 @@ package kotlin
  *
  * > Beware using the annotated API especially if you're developing a library, since your library might become binary incompatible
  * with the future versions of the standard library.
- *
- * Any usage of a declaration annotated with `@ExperimentalStdlibApi` must be accepted either by
- * annotating that usage with the [OptIn] annotation, e.g. `@OptIn(ExperimentalStdlibApi::class)`,
- * or by using the compiler argument `-opt-in=kotlin.ExperimentalStdlibApi`.
  */
 @kotlin.RequiresOptIn(level = RequiresOptIn.Level.ERROR)
 @kotlin.annotation.Retention(AnnotationRetention.BINARY)
