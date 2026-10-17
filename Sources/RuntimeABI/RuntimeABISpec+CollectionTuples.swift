@@ -1,7 +1,5 @@
-/// Pair and Triple ABI specs split out from `RuntimeABISpec+Collection.swift`.
 public extension RuntimeABISpec {
     static let collectionTupleFunctions: [RuntimeABIFunctionSpec] = [
-        // Pair (FUNC-002)
         RuntimeABIFunctionSpec(
             name: "__kk_pair_new",
             parameters: [
@@ -30,7 +28,6 @@ public extension RuntimeABISpec {
             section: "Collection",
             isThrowing: false
         ),
-        // Triple (STDLIB-120)
         RuntimeABIFunctionSpec(
             name: "__kk_triple_new",
             parameters: [
