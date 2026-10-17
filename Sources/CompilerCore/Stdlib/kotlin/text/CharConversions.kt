@@ -58,8 +58,6 @@ public fun Char.uppercase(locale: java.util.Locale): String = __charUppercaseLoc
 public fun Char.lowercase(locale: java.util.Locale): String = __charLowercaseLocale(this.code, locale)
 
 /**
- * Converts this character to title case using Unicode mapping rules of the specified [locale].
- *
  * This function supports one-to-many character mapping, thus the length of the returned
  * string can be greater than one. If this character has no title case mapping, the result
  * of `uppercase(locale)` is returned instead.
@@ -95,41 +93,23 @@ public fun Char.titlecaseChar(): Char {
     return if (mapped < 0) uppercaseChar() else __charFromCode(mapped)
 }
 
-/**
- * Converts this character to lower case using Unicode mapping rules of the invariant locale.
- *
- * Deprecated by Kotlin, but still provided for compatibility.
- */
+/** Deprecated by Kotlin, but still provided for compatibility. */
 @Deprecated("Use lowercaseChar() instead.", ReplaceWith("lowercaseChar()"))
 @DeprecatedSinceKotlin(warningSince = "1.5", errorSince = "2.1")
 public fun Char.toLowerCase(): Char = lowercaseChar()
 
-/**
- * Converts this character to upper case using Unicode mapping rules of the invariant locale.
- *
- * Deprecated by Kotlin, but still provided for compatibility.
- */
+/** Deprecated by Kotlin, but still provided for compatibility. */
 @Deprecated("Use uppercaseChar() instead.", ReplaceWith("uppercaseChar()"))
 @DeprecatedSinceKotlin(warningSince = "1.5", errorSince = "2.1")
 public fun Char.toUpperCase(): Char = uppercaseChar()
 
-/**
- * Converts this character to title case using Unicode mapping rules of the invariant locale.
- *
- * Deprecated by Kotlin, but still provided for compatibility.
- */
+/** Deprecated by Kotlin, but still provided for compatibility. */
 @Deprecated("Use titlecaseChar() instead.", ReplaceWith("titlecaseChar()"))
 @DeprecatedSinceKotlin(warningSince = "1.5", errorSince = "2.1")
 public fun Char.toTitleCase(): Char = titlecaseChar()
 
-/**
- * Returns this character incremented by one UTF-16 code unit.
- */
 public operator fun Char.inc(): Char = __charFromCode(this.code + 1)
 
-/**
- * Returns this character decremented by one UTF-16 code unit.
- */
 public operator fun Char.dec(): Char = __charFromCode(this.code - 1)
 
 public fun Char.digitToInt(): Int = digitToInt(10)
@@ -169,7 +149,6 @@ private fun charCheckRadix(radix: Int) {
     }
 }
 
-/// Returns the digit value after applying the radix bound, or -1 when invalid.
 private fun charDigitOf(char: Char, radix: Int): Int {
     charCheckRadix(radix)
     val digit = __charDigitValue(char.code)
