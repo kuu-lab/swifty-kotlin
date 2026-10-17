@@ -103,7 +103,6 @@ public extension RuntimeABISpec {
             section: "NativeRef",
             isThrowing: false,
         ),
-        // KSP-1263: kotlin.native.runtime.GC.MainThreadFinalizerProcessor bridges.
         RuntimeABIFunctionSpec(
             name: "kk_gc_main_thread_finalizer_processor_available",
             parameters: [
