@@ -1,8 +1,5 @@
-// Atomic functions (kotlin.concurrent.AtomicInt / AtomicLong / AtomicReference).
-
 public extension RuntimeABISpec {
     static let atomicFunctions: [RuntimeABIFunctionSpec] = [
-        // AtomicInt
         RuntimeABIFunctionSpec(
             name: "kk_atomic_int_create",
             parameters: [
@@ -120,7 +117,6 @@ public extension RuntimeABISpec {
             section: "Atomic",
             isThrowing: false
         ),
-        // AtomicLong
         RuntimeABIFunctionSpec(
             name: "kk_atomic_long_create",
             parameters: [
@@ -238,7 +234,6 @@ public extension RuntimeABISpec {
             section: "Atomic",
             isThrowing: false
         ),
-        // AtomicIntArray
         RuntimeABIFunctionSpec(
             name: "kk_atomic_int_array_create",
             parameters: [
@@ -324,7 +319,6 @@ public extension RuntimeABISpec {
             section: "Atomic",
             isThrowing: false
         ),
-        // AtomicLongArray
         RuntimeABIFunctionSpec(
             name: "kk_atomic_long_array_create",
             parameters: [
@@ -409,7 +403,6 @@ public extension RuntimeABISpec {
             section: "Atomic",
             isThrowing: false
         ),
-        // AtomicArray<T>
         RuntimeABIFunctionSpec(
             name: "kk_atomic_ref_array_exchangeAt",
             parameters: [
@@ -421,9 +414,7 @@ public extension RuntimeABISpec {
             section: "Atomic",
             isThrowing: false
         ),
-        // AtomicArray
 
-        // AtomicBoolean
         RuntimeABIFunctionSpec(
             name: "kk_atomic_bool_create",
             parameters: [
@@ -483,7 +474,6 @@ public extension RuntimeABISpec {
             section: "Atomic",
             isThrowing: false
         ),
-        // AtomicReference
         RuntimeABIFunctionSpec(
             name: "kk_atomic_ref_create",
             parameters: [
@@ -534,7 +524,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
 
-        // AtomicArray<T>
         RuntimeABIFunctionSpec(
             name: "kk_atomic_ref_array_compareAndSetAt",
             parameters: [
