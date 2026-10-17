@@ -94,6 +94,11 @@ python3 Scripts/kotlinx_io_upstream/run_jvm_reference.py \
   --output /tmp/kio-reference-results
 ```
 
+Use `--execution-id` repeatedly to compile the same pinned test sources but run
+only exact catalogued JUnit cases. The summary records the selected IDs and sets
+`covers_full_catalog` to false; this is suitable for an issue-scoped check and
+does not stand in for the parent issue's complete reference gate.
+
 The audited JVM catalog contains 1,403 concrete executions covering all 651
 eligible source function IDs in 50 compiled files. Discovery must match every
 execution ID in `jvm-executions.expected.json`, so losing a test or a factory
@@ -265,6 +270,10 @@ provenance proof. This also remains **assertion-only candidate execution**:
 seven-observation mappings are unfinished, paired PASS stays zero, and KUU-1727
 remains partial even if selected assertions pass.
 
+`--source-function-id path#function` or repeated `--execution-id` can narrow the
+Native catalog to exact upstream assertions. This selection remains an
+assertion-only candidate run and does not claim full catalog coverage.
+
 ### Audited Native catalog factories and cleanup
 
 Add `--native-catalog linux` or `--native-catalog macos` to use the pinned
@@ -316,4 +325,14 @@ provenance and catalog hashes. `results.json` records each execution's terminal
 state and source, port, driver, catalog-row and executable hashes. The default
 Native invocation still selects the complete target catalog. A limited
 selection reports its selected `expected_count` and cannot pass full-catalog
-count and ID validation.
+count and ID validation. `--candidate-sha` records the caller-supplied candidate
+commit in `summary.json`; callers using an extracted package root must verify its
+source provenance separately.
+
+The KUU-2634 macOS Native subset supplies
+`fixtures/sink-write-string-native-support.macos.kt` with `--support-source`.
+This adapter replaces only the test helper's inaccessible
+`SystemTemporaryDirectory.path` lookup with macOS `/tmp`; the six selected
+`AbstractSinkTest` bodies do not call `tempFileName()`. The locked common test
+sources and their assertions stay unchanged, and the adapter's content hash is
+recorded in the run receipt.

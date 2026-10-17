@@ -32,6 +32,7 @@ UPSTREAM_RUNNER_LOCK_PATH = UPSTREAM_RUNNER / "reference-lock.json"
 REFERENCE_EXECUTIONS_PATH = UPSTREAM_RUNNER / "jvm-executions.expected.json"
 CANDIDATE_EXECUTIONS_PATH = UPSTREAM_RUNNER / "native-executions.expected.json"
 EXPECTED_TAG_COMMIT = "362bdc35e159bad6da1e08101c8321792d762281"
+KUU_2634_CANDIDATE_SHA = "d610e43f3275f9f5603a41543bd5b77ab7e067b0"
 NO_DIRECT_UPSTREAM_ASSERTION_SOURCE_REFS = {
     "core/common/src/files/Paths.kt:115",
     "core/common/src/files/Paths.kt:133",
@@ -56,6 +57,7 @@ LOCAL_NATIVE_PROBE_LANES = (
     "producer-consumer-O0",
     "producer-consumer-O2",
 )
+REFERENCE_OBSERVATION_CONSUMER_LANES = LOCAL_NATIVE_PROBE_LANES
 LOCAL_PROBE_EVIDENCE_CASES = {
     "local:Scripts/io_api_inventory/probes/segment_data_as_byte_array.kt#internal-view": {
         "path": "Scripts/io_api_inventory/probes/segment_data_as_byte_array.kt",
@@ -475,6 +477,231 @@ def _case_id_matches_row(row: dict, case_id: str) -> bool:
     return False
 
 
+def _validate_reference_observations(
+    observations: list[dict],
+    rows: dict[str, dict],
+    lock: dict,
+    repository: Path,
+    upstream: Path,
+    execution_catalogs: dict[str, dict[str, str]],
+    seen_ids: set[str],
+) -> None:
+    observation_fields = {
+        "row_id",
+        "candidate_sha",
+        "reference_version",
+        "reference_commit",
+        "implementation_input_sha256",
+        "test_input_sha256",
+        "compatibility_obligations",
+        "executions",
+        "candidate_execution_kind",
+        "non_promotion_reason",
+        "reference_abi_probe",
+        "native_assertion_runs",
+        "targeted_consumer",
+    }
+    result_fields = {"execution_id", "result", "exit_code"}
+    sha256_pattern = re.compile(r"^[0-9a-f]{64}$")
+    expected_exceptions = [
+        "IndexOutOfBoundsException",
+        "IllegalArgumentException",
+        "IllegalStateException",
+        "IOException",
+    ]
+
+    def require_sha(value: object, label: str, row_id: str) -> None:
+        if not isinstance(value, str) or not sha256_pattern.fullmatch(value):
+            fail(f"malformed {label} for reference observation {row_id}")
+
+    def validate_result(
+        result: object,
+        subject: str,
+        case_id: str,
+        row_id: str,
+        lane: str,
+        seen_execution_ids: dict[str, set[str]],
+    ) -> None:
+        if not isinstance(result, dict) or set(result) != result_fields:
+            fail(f"malformed {subject} result for reference observation {row_id} case {case_id}")
+        execution_id = result["execution_id"]
+        if (not isinstance(execution_id, str) or not execution_id.strip()
+                or execution_id != execution_id.strip()):
+            fail(f"empty {subject} execution ID for reference observation {row_id} case {case_id}")
+        if execution_catalogs[subject].get(execution_id) != case_id:
+            fail(f"{subject} execution ID does not map to case {case_id} for reference observation {row_id}")
+        if execution_id in seen_execution_ids[subject]:
+            fail(f"duplicate {subject} execution ID for reference observation {row_id}: {execution_id}")
+        seen_execution_ids[subject].add(execution_id)
+        if result["result"] != "PASS" or type(result["exit_code"]) is not int or result["exit_code"] != 0:
+            fail(f"non-passing {subject} execution in reference observation {row_id} lane {lane}")
+
+    for observation in observations:
+        if not isinstance(observation, dict) or set(observation) != observation_fields:
+            fail("each reference observation must contain exactly the observation schema fields")
+        row_id = observation["row_id"]
+        if not isinstance(row_id, str) or not row_id:
+            fail("reference observation has an empty row_id")
+        if row_id in seen_ids:
+            fail(f"duplicate validation evidence row_id: {row_id}")
+        seen_ids.add(row_id)
+        row = rows.get(row_id)
+        if row is None:
+            fail(f"reference observation references unknown row_id: {row_id}")
+        if row["status"] != "unverified":
+            fail(f"reference observation cannot describe {row_id} from status {row['status']}")
+
+        candidate_sha = observation["candidate_sha"]
+        if candidate_sha != KUU_2634_CANDIDATE_SHA:
+            fail(f"reference observation for {row_id} uses a different candidate SHA")
+        if (observation["reference_version"], observation["reference_commit"]) != (
+            lock.get("tag"), lock.get("commit")
+        ):
+            fail(f"reference version mismatch for reference observation {row_id}")
+        hashes = validation_input_hashes(row, repository, upstream)
+        for field in ("implementation_input_sha256", "test_input_sha256"):
+            value = observation[field]
+            if not isinstance(value, str) or not sha256_pattern.fullmatch(value):
+                fail(f"malformed {field} for reference observation {row_id}")
+            if value != hashes[field]:
+                fail(f"stale {field} for reference observation {row_id}")
+        if observation["compatibility_obligations"] != validation_obligations(row):
+            fail(f"compatibility obligations mismatch for reference observation {row_id}")
+        if observation["compatibility_obligations"] != ["jvm-descriptor"]:
+            fail(f"unexpected compatibility obligations for reference observation {row_id}")
+        reason = observation["non_promotion_reason"]
+        if not isinstance(reason, str) or not reason.strip():
+            fail(f"reference observation {row_id} lacks a non-promotion reason")
+        if "native" not in reason.lower() or "JVM classfile" not in reason:
+            fail(f"reference observation {row_id} does not explain its JVM classfile boundary")
+        if observation["candidate_execution_kind"] != "macOS-native-direct-assertions":
+            fail(f"unexpected candidate execution kind for reference observation {row_id}")
+
+        probe = observation["reference_abi_probe"]
+        probe_fields = {
+            "result", "artifact_coordinate", "artifact_sha256", "class", "class_sha256",
+            "probe_sha256", "method", "implementation_opt_ins_match", "documented_exception_types",
+        }
+        if not isinstance(probe, dict) or set(probe) != probe_fields:
+            fail(f"malformed reference ABI probe for row {row_id}")
+        if probe["result"] != "PASS":
+            fail(f"non-passing reference ABI probe for row {row_id}")
+        for field in ("artifact_sha256", "class_sha256", "probe_sha256"):
+            require_sha(probe[field], field, row_id)
+        method = probe["method"]
+        method_fields = {
+            "name", "descriptor", "flags", "default_mask_values_when_both_indices_are_omitted",
+            "marker_parameter",
+        }
+        if not isinstance(method, dict) or set(method) != method_fields:
+            fail(f"malformed reference JVM method probe for row {row_id}")
+        if (method["name"] != row.get("name") or not isinstance(method["descriptor"], str)
+                or method["descriptor"] not in row.get("signature", "")):
+            fail(f"reference JVM method does not match API row {row_id}")
+        if probe["class"] != "kotlinx/io/Utf8Kt.class":
+            fail(f"reference JVM class does not match the Sink.writeString owner for row {row_id}")
+        if probe["artifact_coordinate"] != "org.jetbrains.kotlinx:kotlinx-io-core-jvm:0.9.1":
+            fail(f"reference artifact does not match the pinned kotlinx-io coordinate for row {row_id}")
+        if method["flags"] != {"public": True, "static": True, "synthetic": True, "bridge": False}:
+            fail(f"unexpected JVM flags for reference observation {row_id}")
+        if method["default_mask_values_when_both_indices_are_omitted"] != [6]:
+            fail(f"unexpected default mask for reference observation {row_id}")
+        if method["marker_parameter"] != "java.lang.Object":
+            fail(f"unexpected JVM marker for reference observation {row_id}")
+        if probe["implementation_opt_ins_match"] is not True:
+            fail(f"implementation opt-in comparison did not pass for reference observation {row_id}")
+        if probe["documented_exception_types"] != expected_exceptions:
+            fail(f"documented exception set mismatch for reference observation {row_id}")
+
+        executions = observation["executions"]
+        if not isinstance(executions, list) or not executions:
+            fail(f"reference observation has no direct upstream executions for {row_id}")
+        expected_case_ids = {
+            case_id for case_id in execution_catalogs["reference"].values()
+            if _case_id_matches_row(row, case_id)
+        }
+        expected_reference_ids = {
+            execution_id for execution_id, case_id in execution_catalogs["reference"].items()
+            if _case_id_matches_row(row, case_id)
+        }
+        expected_native_ids = {
+            execution_id for execution_id, case_id in execution_catalogs["candidate"].items()
+            if _case_id_matches_row(row, case_id)
+        }
+        if len(expected_case_ids) != 2 or len(expected_reference_ids) != 4 or len(expected_native_ids) != 4:
+            fail(f"locked JVM catalog does not provide the four direct cases for row {row_id}")
+        observed_reference_ids = set()
+        seen_execution_ids = set()
+        for execution in executions:
+            if not isinstance(execution, dict) or set(execution) != {"case_id", "lane", "reference"}:
+                fail(f"malformed direct execution for reference observation {row_id}")
+            case_id = execution["case_id"]
+            if not isinstance(case_id, str) or not _case_id_matches_row(row, case_id):
+                fail(f"direct case {case_id!r} is not mapped to row {row_id}")
+            if case_id not in expected_case_ids:
+                fail(f"unexpected direct case {case_id!r} for row {row_id}")
+            lane = execution["lane"]
+            if lane != "jvm-descriptor":
+                fail(f"unexpected direct observation lane {lane!r} for row {row_id}")
+            validate_result(execution["reference"], "reference", case_id, row_id, lane,
+                            {"reference": seen_execution_ids})
+            observed_reference_ids.add(execution["reference"]["execution_id"])
+        if observed_reference_ids != expected_reference_ids:
+            fail(f"reference observation omits direct JVM cases for row {row_id}")
+
+        native_runs = observation["native_assertion_runs"]
+        if (not isinstance(native_runs, list) or any(not isinstance(run, dict) for run in native_runs)
+                or [run.get("lane") for run in native_runs] != ["native-source-O0", "native-source-O2"]):
+            fail(f"reference observation lacks both native source optimization runs for {row_id}")
+        for run in native_runs:
+            if set(run) != {"lane", "result", "execution_count", "execution_ids", "summary_sha256", "compiler_sha256"}:
+                fail(f"malformed native assertion run for reference observation {row_id}")
+            if (run["result"] != "PASS" or type(run["execution_count"]) is not int
+                    or run["execution_count"] != len(expected_native_ids)):
+                fail(f"native assertion run did not pass every mapped case for reference observation {row_id}")
+            native_ids = run["execution_ids"]
+            if (not isinstance(native_ids, list) or any(not isinstance(item, str) for item in native_ids)
+                    or len(native_ids) != len(expected_native_ids) or len(set(native_ids)) != len(native_ids)):
+                fail(f"native assertion run has incomplete or duplicate execution IDs for row {row_id}")
+            native_case_ids = set()
+            for execution_id in native_ids:
+                case_id = execution_catalogs["candidate"].get(execution_id)
+                if case_id is None or not _case_id_matches_row(row, case_id):
+                    fail(f"native assertion execution ID does not map to row {row_id}: {execution_id}")
+                native_case_ids.add(case_id)
+            if native_case_ids != expected_case_ids or set(native_ids) != expected_native_ids:
+                fail(f"native assertion run omits mapped cases for row {row_id}")
+            for field in ("summary_sha256", "compiler_sha256"):
+                require_sha(run[field], field, row_id)
+
+        consumer = observation["targeted_consumer"]
+        consumer_fields = {"case_id", "summary_sha256", "compiler_sha256", "lanes"}
+        if not isinstance(consumer, dict) or set(consumer) != consumer_fields:
+            fail(f"malformed targeted consumer receipt for reference observation {row_id}")
+        if consumer["case_id"] != "sink-write-string-default-bridges":
+            fail(f"unexpected consumer case for reference observation {row_id}")
+        require_sha(consumer["summary_sha256"], "consumer summary SHA-256", row_id)
+        require_sha(consumer["compiler_sha256"], "consumer compiler SHA-256", row_id)
+        lanes = consumer["lanes"]
+        if (not isinstance(lanes, list) or any(not isinstance(lane, dict) for lane in lanes)
+                or [lane.get("lane") for lane in lanes] != list(REFERENCE_OBSERVATION_CONSUMER_LANES)):
+            fail(f"targeted consumer lanes are incomplete for reference observation {row_id}")
+        for lane in lanes:
+            if set(lane) != {
+                "lane", "result", "exit_code", "reference_normalized_stdout_sha256",
+                "candidate_stdout_sha256", "candidate_normalized_stdout_sha256",
+            }:
+                fail(f"malformed targeted consumer lane for reference observation {row_id}")
+            if lane["result"] != "PASS" or type(lane["exit_code"]) is not int or lane["exit_code"] != 0:
+                fail(f"targeted consumer lane did not pass for reference observation {row_id}")
+            for field in ("reference_normalized_stdout_sha256", "candidate_stdout_sha256",
+                          "candidate_normalized_stdout_sha256"):
+                require_sha(lane[field], field, row_id)
+            if lane["reference_normalized_stdout_sha256"] != lane["candidate_normalized_stdout_sha256"]:
+                fail(f"targeted consumer output differs from its reference for row {row_id}")
+
+
+
 def apply_validation_evidence(
     rows: list[dict],
     lock: dict,
@@ -505,18 +732,25 @@ def apply_validation_evidence(
     except UnicodeDecodeError as error:
         fail(f"validation evidence is not UTF-8: {error}")
 
-    if not isinstance(evidence, dict) or set(evidence) != {"schema_version", "records"}:
-        fail("validation evidence must contain only schema_version and records")
+    root_fields = {"schema_version", "records"}
+    if (not isinstance(evidence, dict)
+            or set(evidence) not in (root_fields, root_fields | {"reference_observations"})):
+        fail("validation evidence must contain schema_version, records, and optional reference_observations")
     schema_version = evidence["schema_version"]
     if type(schema_version) is not int or schema_version not in (1, VALIDATION_EVIDENCE_SCHEMA_VERSION):
         fail("unsupported validation evidence schema_version")
     records = evidence["records"]
     if not isinstance(records, list):
         fail("validation evidence records must be an array")
-    if records and (schema_version == 1 or any(
+    reference_observations = evidence.get("reference_observations", [])
+    if not isinstance(reference_observations, list):
+        fail("validation evidence reference_observations must be an array")
+    if reference_observations and schema_version != VALIDATION_EVIDENCE_SCHEMA_VERSION:
+        fail("reference observations require the current validation evidence schema")
+    if ((records and (schema_version == 1 or any(
         isinstance(record, dict) and record.get("evidence_source") == "upstream-catalog"
         for record in records
-    )):
+    ))) or reference_observations):
         if execution_catalogs is None:
             execution_catalogs = _load_validation_execution_catalogs()
         if set(execution_catalogs) != {"reference", "candidate"}:
@@ -672,6 +906,18 @@ def apply_validation_evidence(
             if not required_cases:
                 fail(f"row {row_id} has no registered local probe evidence cases")
         row["status"] = "verified"
+
+    if reference_observations:
+        assert execution_catalogs is not None
+        _validate_reference_observations(
+            reference_observations,
+            by_id,
+            lock,
+            repository,
+            upstream,
+            execution_catalogs,
+            seen_ids,
+        )
 
 
 def load_inputs() -> tuple[dict, dict, list[dict], list[dict]]:
@@ -1364,7 +1610,64 @@ def parse_jvm_api(path: Path, module: str, sources: list[Path]) -> list[dict]:
     return rows
 
 
+SINK_WRITE_STRING_DEFAULT_BRIDGE_TEST_REFS = {
+    (
+        "core",
+        "kotlinx/io/Utf8Kt",
+        "writeString$default",
+        "(Lkotlinx/io/Sink;Ljava/lang/String;IIILjava/lang/Object;)V",
+    ): (
+        "core/common/test/AbstractSinkTest.kt#writeUtf8FromIndex",
+        "core/common/test/AbstractSinkTest.kt#writeUtf8WithInvalidIndexes",
+    ),
+    (
+        "core",
+        "kotlinx/io/Utf8Kt",
+        "writeString$default",
+        "(Lkotlinx/io/Sink;Ljava/lang/CharSequence;IIILjava/lang/Object;)V",
+    ): (
+        "core/common/test/AbstractSinkTest.kt#writeCharSequenceFromIndex",
+        "core/common/test/AbstractSinkTest.kt#writeCharSequenceWithInvalidIndexes",
+    ),
+}
+SINK_WRITE_STRING_DEFAULT_BRIDGE_SOURCE_REFS = {
+    (
+        "core",
+        "kotlinx/io/Utf8Kt",
+        "writeString$default",
+        "(Lkotlinx/io/Sink;Ljava/lang/String;IIILjava/lang/Object;)V",
+    ): (
+        "core/common/src/Utf8.kt:170",
+        "Sources/CompilerCore/Stdlib/kotlinx/io/Utf8.kt:16",
+    ),
+    (
+        "core",
+        "kotlinx/io/Utf8Kt",
+        "writeString$default",
+        "(Lkotlinx/io/Sink;Ljava/lang/CharSequence;IIILjava/lang/Object;)V",
+    ): (
+        "core/common/src/Utf8.kt:191",
+        "Sources/CompilerCore/Stdlib/kotlinx/io/Utf8.kt:22",
+    ),
+}
+SINK_WRITE_STRING_DEFAULT_BRIDGE_RUNNER_REFS = (
+    "Scripts/kotlinx_io_upstream/run_jvm_reference.py",
+    "Scripts/kotlinx_io_upstream/JvmReferenceRunner.java",
+    "Scripts/kotlinx_io_upstream/run_candidate_suites.py",
+    "Scripts/kotlinx_io_upstream/prepare_candidate_catalog.py",
+    "Scripts/kotlinx_io_upstream/fixtures/sink-write-string-default-bridge-source-closure.macos.json",
+)
+SINK_WRITE_STRING_DEFAULT_BRIDGE_DIFF_CASE = (
+    "Scripts/diff_cases/kotlinx_io_sink_write_string_default_bridges.kt"
+)
+SINK_WRITE_STRING_DEFAULT_BRIDGE_F02_RUNNER = "Scripts/io_api_inventory/run_f02_matrix.py"
+SINK_WRITE_STRING_DEFAULT_BRIDGE_PROBE = (
+    "Scripts/io_api_inventory/probe_sink_write_string_jvm_abi.py"
+)
+
 def owner_for(row: dict) -> str:
+    if row.get("_jvm_key") in SINK_WRITE_STRING_DEFAULT_BRIDGE_TEST_REFS:
+        return "KUU-2634"
     text = " ".join(
         [row["module"], row["owner_fqn"], row["name"], row["signature"], row["upstream_source_refs"]]
     ).lower()
@@ -1648,10 +1951,19 @@ def local_contract_differences(row: dict, index: SourceIndex) -> str:
 
 
 def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
+    if row.get("_jvm_key") in SINK_WRITE_STRING_DEFAULT_BRIDGE_TEST_REFS:
+        return [
+            SINK_WRITE_STRING_DEFAULT_BRIDGE_DIFF_CASE,
+            SINK_WRITE_STRING_DEFAULT_BRIDGE_F02_RUNNER,
+            SINK_WRITE_STRING_DEFAULT_BRIDGE_PROBE,
+            *SINK_WRITE_STRING_DEFAULT_BRIDGE_RUNNER_REFS,
+        ]
     name = row["_candidate_name"].lower()
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []
     for path, content in local_tests:
+        if path == SINK_WRITE_STRING_DEFAULT_BRIDGE_DIFF_CASE:
+            continue
         if path.startswith("Scripts/io_api_inventory/probes/") and name not in LOCAL_IO_PROBE_API_NAMES:
             continue
         if (path == SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS[0]
@@ -1684,6 +1996,9 @@ def local_implementation_refs(row: dict, index: SourceIndex, runtime_symbols: di
 
 
 def upstream_test_refs(row: dict, test_index: dict) -> list[str]:
+    exact_bridge_refs = SINK_WRITE_STRING_DEFAULT_BRIDGE_TEST_REFS.get(row.get("_jvm_key"))
+    if exact_bridge_refs is not None:
+        return list(exact_bridge_refs)
     if row.get("upstream_source_refs") in NO_DIRECT_UPSTREAM_ASSERTION_SOURCE_REFS:
         # The upstream smoke cases use SystemFileSystem raw methods; they do not
         # exercise these deprecated Path extensions or assert their annotations.
@@ -2065,6 +2380,21 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
         if row["representation"] == "JVM public ABI dump" and row["source_api"] == "no":
             row["status"] = "unverified"
             row["notes"] += "; generated JVM ABI presence cannot be established from Kotlin source-name matching alone"
+            bridge_key = row.get("_jvm_key")
+            if bridge_key in SINK_WRITE_STRING_DEFAULT_BRIDGE_SOURCE_REFS:
+                upstream_source_ref, local_source_ref = SINK_WRITE_STRING_DEFAULT_BRIDGE_SOURCE_REFS[bridge_key]
+                row["upstream_source_refs"] = upstream_source_ref
+                row["local_candidate_refs"] = local_source_ref
+                row["local_implementation_refs"] = local_source_ref
+                row["notes"] = row["notes"].replace(
+                    "; generated JVM ABI presence cannot be established from Kotlin source-name matching alone",
+                    "; maps to the defaulted Kotlin declaration at " + upstream_source_ref
+                    + " and native counterpart at " + local_source_ref
+                    + "; upstream and local implementation-level DelicateIoApi opt-ins agree, and the direct consumer has no use-site opt-in"
+                    + "; the direct consumer checks IndexOutOfBoundsException, IllegalArgumentException, IllegalStateException, and IOException"
+                    + "; the JVM classfile probe checks only the pinned reference artifact; "
+                    + "KSwiftK emits native code, so native dispatch does not prove candidate JVM classfile ABI",
+                )
         row["owner_issue"] = owner_for(row)
         direct_upstream_tests = upstream_test_refs(row, test_index)
         row["upstream_test_refs"] = ";".join(direct_upstream_tests) or NO_DIRECT_UPSTREAM_ASSERTION

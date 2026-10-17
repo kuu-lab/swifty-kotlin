@@ -13,6 +13,16 @@ SPEC.loader.exec_module(RUNNER)
 
 
 class JvmReferenceTests(unittest.TestCase):
+    def test_execution_id_selection_preserves_locked_rows_and_rejects_scope_changes(self):
+        rows = [{"execution_id": identifier} for identifier in ("case-a", "case-b", "case-c")]
+        self.assertEqual(RUNNER.select_expected_executions(rows, ["case-c", "case-a"]),
+                         [rows[0], rows[2]])
+        self.assertEqual(RUNNER.select_expected_executions(rows, []), rows)
+        with self.assertRaisesRegex(ValueError, "duplicates"):
+            RUNNER.select_expected_executions(rows, ["case-a", "case-a"])
+        with self.assertRaisesRegex(ValueError, "unknown JVM execution IDs"):
+            RUNNER.select_expected_executions(rows, ["case-missing"])
+
     def test_inherited_factory_executions_remain_distinct_and_candidate_unmapped(self):
         source = {"upstream_id": "core/common/test/Source.kt#read",
             "upstream_path": "core/common/test/Source.kt", "platform": "common",

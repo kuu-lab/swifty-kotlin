@@ -160,7 +160,7 @@ class CandidateSuitesTests(unittest.TestCase):
         self.assertEqual(compiler_resource_bundle(compiler, bundle), resources)
 
     def run_library_lane(self, library_exit, selector=None, test_library=True,
-                         stdlib_from_source=False, optimization="O0"):
+                         stdlib_from_source=False, optimization="O0", candidate_sha=None):
         compiler = self.root / "kswiftc"
         compiler.write_bytes(b"compiler")
         if stdlib_from_source:
@@ -208,6 +208,8 @@ class CandidateSuitesTests(unittest.TestCase):
         args = ["--upstream", str(self.root), "--compiler", str(compiler),
                 "--package-root", str(self.root), *stdlib_args,
                 "--optimization", optimization, "--output", str(output)]
+        if candidate_sha:
+            args += ["--candidate-sha", candidate_sha]
         if test_library:
             args.append("--test-library")
         if selector:
@@ -260,6 +262,22 @@ class CandidateSuitesTests(unittest.TestCase):
         self.assertIn("--stdlib-from-source", stages[0][1])
         self.assertEqual([row["execution_id"] for row in results], [self.rows[0]["execution_id"]])
         self.assertEqual(summary["selected_source_function_count"], 1)
+
+    def test_candidate_sha_is_recorded_for_an_extracted_package_root(self):
+        candidate_sha = "a" * 40
+        exitcode, _, summary, _ = self.run_library_lane(
+            0, selector=["--execution-id", self.rows[0]["execution_id"]],
+            test_library=False, stdlib_from_source=True, candidate_sha=candidate_sha)
+        self.assertEqual(exitcode, 0)
+        self.assertEqual(summary["candidate_sha"], candidate_sha)
+
+    def test_invalid_candidate_sha_is_rejected_before_creating_output(self):
+        candidate_sha = "not-a-commit"
+        with self.assertRaises(SystemExit):
+            runner.main(["--upstream", str(self.root), "--compiler", str(self.root / "kswiftc"),
+                         "--package-root", str(self.root), "--stdlib-from-source",
+                         "--candidate-sha", candidate_sha, "--output", str(self.root / "invalid")])
+        self.assertFalse((self.root / "invalid").exists())
 
 
 if __name__ == "__main__":

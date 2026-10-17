@@ -130,6 +130,19 @@ def map_executions(discovered: list[dict], results: list[dict], lookup: dict, ex
     return mapped
 
 
+def select_expected_executions(expected: list[dict], requested: list[str]) -> list[dict]:
+    if not requested:
+        return expected
+    if len(requested) != len(set(requested)):
+        raise ValueError("execution ID selection contains duplicates")
+    expected_by_id = {row["execution_id"]: row for row in expected}
+    unknown = sorted(set(requested) - set(expected_by_id))
+    if unknown:
+        raise ValueError(f"unknown JVM execution IDs: {unknown}")
+    selected = set(requested)
+    return [row for row in expected if row["execution_id"] in selected]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--upstream", type=Path, required=True)
@@ -138,6 +151,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dependencies", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--download", action="store_true", help="download missing locked Maven jars")
+    parser.add_argument("--execution-id", action="append", default=[],
+                        help="run one locked concrete JUnit execution ID; may be repeated")
     parser.add_argument("--compile-timeout", type=float, default=180)
     parser.add_argument("--run-timeout", type=float, default=180)
     args = parser.parse_args(argv)
@@ -167,6 +182,9 @@ def main(argv: list[str] | None = None) -> int:
             if row["platform"] in {"common", "jvm"} and "Windows" not in row["upstream_path"]}
         if {row["upstream_id"] for row in expected} != eligible:
             raise ValueError("expected execution catalog does not cover every eligible upstream function ID")
+        expected = select_expected_executions(expected, args.execution_id)
+        if not expected:
+            raise ValueError("execution ID selection is empty")
         sources = sorted({row["upstream_path"] for row in seed["cases"]
             if row["platform"] in {"common", "jvm"} and "Windows" not in row["upstream_path"]}
             | {row["path"] for row in seed["inventory_only_sources"]
@@ -188,6 +206,9 @@ def main(argv: list[str] | None = None) -> int:
             "reference_lock_sha256": sha256(lock_path), "coverage_map_sha256": sha256(HERE / "coverage-map.seed.json"),
             "runner_sha256": sha256(HERE / "JvmReferenceRunner.java"), "host": platform.platform(),
             "java": str(args.java.resolve()), "source_files": sources,
+            "selection_mode": "execution-ids" if args.execution_id else "full-catalog",
+            "requested_execution_ids": args.execution_id,
+            "selected_execution_ids": [row["execution_id"] for row in expected],
             "unsupported_source_files": [row["path"] for row in lock["upstream_files"] if row["path"] not in sources],
             "sdk_files": lock["sdk_files"], "reference_artifacts": lock["jvm_artifacts"]}
         compiler_environment = {"JAVACMD": str(args.java.resolve())}
@@ -210,6 +231,7 @@ def main(argv: list[str] | None = None) -> int:
             ("kotlin-stdlib.jar", "kotlin-reflect.jar", "kotlin-test.jar", "kotlin-test-junit5.jar")]
         command = [str(args.java.resolve()), "-Xmx1024m", "-cp", os.pathsep.join(map(str, runtime_cp)),
             str(HERE / "JvmReferenceRunner.java"), str(tests_jar), str(args.output.resolve() / "junit")]
+        command += args.execution_id
         code = execute(command, args.output, "run", args.run_timeout)
         output = args.output / "junit"
         if not (output / "results.json").exists():
@@ -221,7 +243,10 @@ def main(argv: list[str] | None = None) -> int:
         summary = {"kind": "reference-only", "concrete_execution_count": len(mapped),
             "unique_upstream_function_ids": len({row["upstream_id"] for row in mapped}),
             "reference_counts": reference_counts, "candidate_counts": {"UNMAPPED": len(mapped)},
-            "paired_pass_count": 0, "source_files_compiled": len(sources)}
+            "paired_pass_count": 0, "source_files_compiled": len(sources),
+            "selection_mode": "execution-ids" if args.execution_id else "full-catalog",
+            "requested_execution_ids": args.execution_id,
+            "covers_full_catalog": not bool(args.execution_id)}
         (args.output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
         print(json.dumps(summary))
         return 0 if code == 0 and reference_counts == {"PASS": len(mapped)} else 1

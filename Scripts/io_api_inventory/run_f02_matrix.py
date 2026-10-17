@@ -24,6 +24,7 @@ from generate import LOCAL_PROBE_EVIDENCE_CASES, local_probe_execution_id
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
+PACKAGE_ROOT = ROOT
 LANES = [(route, optimization) for route in ("source", "stdlib-library", "producer-consumer")
          for optimization in ("O0", "O2")]
 # The reference compiler is pinned to Kotlin 2.3.10; KSwiftK currently emits
@@ -51,7 +52,7 @@ def execute(command: list[str], directory: Path, stage: str, timeout: float,
     temporary = workspace / "tmp"
     temporary.mkdir()
     overrides = {"TMPDIR": str(temporary) + "/", "KSWIFTK_STDLIB_CACHE_DIR": str(workspace / "stdlib-cache"),
-                 "KSWIFTK_PACKAGE_ROOT": str(ROOT), **(environment or {})}
+                 "KSWIFTK_PACKAGE_ROOT": str(PACKAGE_ROOT), **(environment or {})}
     receipt = {"command": command, "cwd": str(workspace), "environment": overrides,
                "deadline_seconds": timeout, "status": "RUNNING"}
     prefix = directory / stage
@@ -170,6 +171,7 @@ def packaged(raw: bytes, package: str) -> bytes:
 
 
 def scenarios() -> list[dict]:
+    sink_write_string_case = ROOT / "Scripts/diff_cases/kotlinx_io_sink_write_string_default_bridges.kt"
     cases = [{"id": "ledger-jvm", "producer": [HERE / "f02_consumers/Producer.kt"],
               "consumer": HERE / "f02_consumers/Consumer.kt", "entry": "f02consumer.main",
               "jvm_class": "f02consumer.ConsumerKt", "reference": "jvm", "ledger": True},
@@ -182,9 +184,13 @@ def scenarios() -> list[dict]:
                   "reference_probe": ROOT / "Scripts/io_api_inventory/probes/segment_data_as_byte_array_jvm_abi.kt",
                   "entry": "f02consumer.main", "jvm_class": "f02consumer.ConsumerKt",
                   "reference_class": "f02jvmabi.SegmentDataAsByteArrayJvmAbi", "reference": "jvm"})
-    fixtures = sorted((ROOT / "Scripts/diff_cases").glob("kotlinx_io*.kt"))
+    fixtures = sorted(path for path in (ROOT / "Scripts/diff_cases").glob("kotlinx_io*.kt")
+                      if path != sink_write_string_case)
     cases.append({"id": "diff-consumers", "fixtures": fixtures, "reference": "jvm",
                   "entry": "f02corpusconsumer.main", "jvm_class": "f02corpusconsumer.ConsumerKt"})
+    cases.append({"id": "sink-write-string-default-bridges", "fixtures": [sink_write_string_case],
+                  "reference": "jvm", "entry": "f02corpusconsumer.main",
+                  "jvm_class": "f02corpusconsumer.ConsumerKt"})
     cases.append({"id": "deprecated-path-source-sink",
                   "fixture": ROOT / "Scripts/diff_cases/kotlinx_io_file_legacy_suppressed.kt",
                   "reference": "jvm"})
@@ -406,11 +412,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--kotlin-home", type=Path, required=True)
     parser.add_argument("--java", type=Path, required=True)
     parser.add_argument("--dependencies", type=Path, required=True)
+    parser.add_argument("--package-root", type=Path, default=ROOT,
+                        help="package source root paired with the candidate compiler")
+    parser.add_argument("--candidate-sha", help="pinned candidate source commit recorded in the run summary")
     parser.add_argument("--stdlib-library", type=Path, help="explicit supplied artifact; freshness is not inferred from its path")
     parser.add_argument("--case", action="append", help="explicit subset; default is all dedicated consumers")
     parser.add_argument("--separate-cases", action="store_true", help="compile each case separately; default batches selected cases in every lane")
     parser.add_argument("--compile-timeout", type=float, default=600)
     args = parser.parse_args(argv)
+    global PACKAGE_ROOT
+    PACKAGE_ROOT = args.package_root.resolve()
+    if args.candidate_sha and not re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", args.candidate_sha):
+        parser.error("candidate SHA must be 40- or 64-character lowercase hex")
     if not math.isfinite(args.compile_timeout) or args.compile_timeout <= 0: parser.error("finite positive timeout required")
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
@@ -424,6 +437,8 @@ def main(argv: list[str] | None = None) -> int:
     summary = {"status": "RUNNING", "selected_cases": [case["id"] for case in selected],
                "expected_case_ids": [case["id"] for case in all_scenarios], "lanes": LANES,
                "subset": bool(args.case), "issue_complete": False, "results": [], "compiler_sha256": sha(compiler),
+               "candidate_sha": args.candidate_sha,
+               "candidate_package_root": str(PACKAGE_ROOT),
                "workspace_git_sha": subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True).strip(),
                "dirty_patch_sha256": hashlib.sha256(subprocess.check_output(["git", "-C", str(ROOT), "diff", "HEAD"])).hexdigest(),
                "local_probe_executions": [],
@@ -434,6 +449,8 @@ def main(argv: list[str] | None = None) -> int:
                       ROOT / "Scripts/kotlinx_io_upstream/reference-lock.json", ROOT / "Package.swift"]
         provenance += sorted((HERE / "f02_consumers").glob("*")) + sorted((HERE / "f02_boundary").glob("*.kt"))
         summary["harness_files_sha256"] = {str(path.relative_to(ROOT)): sha(path) for path in provenance if path.is_file()}
+        candidate_manifest = PACKAGE_ROOT / "Package.swift"
+        summary["candidate_package_manifest_sha256"] = sha(candidate_manifest) if candidate_manifest.is_file() else None
         scenario_inputs = {path for case in selected for path in case.get("producer", []) + case.get("fixtures", [])}
         scenario_inputs |= {case[key] for case in selected for key in (
             "consumer", "expected", "fixture", "negative_fixture", "reference_probe", "provenance", "jvm_abi_probe"
@@ -445,8 +462,9 @@ def main(argv: list[str] | None = None) -> int:
             compiler.parent / "KSwiftK_CompilerCore.resources",
         ) if (path / "Stdlib").is_dir()), None)
         if resources is None: raise RuntimeError("actual compiler resource bundle required")
-        dependencies = [resources, ROOT / "Sources/CompilerCore", ROOT / "Sources/CompilerBackend",
-                        ROOT / "Sources/KSwiftKCLI", ROOT / "Sources/Runtime", ROOT / "Sources/RuntimeABI"]
+        dependencies = [resources, PACKAGE_ROOT / "Sources/CompilerCore", PACKAGE_ROOT / "Sources/CompilerBackend",
+                        PACKAGE_ROOT / "Sources/KSwiftKCLI", PACKAGE_ROOT / "Sources/Runtime",
+                        PACKAGE_ROOT / "Sources/RuntimeABI"]
         dependencies_before = {str(path): snapshot(path) for path in dependencies}
         summary["source_and_resource_files_sha256"] = dependencies_before
         for name, contents in generate().items():

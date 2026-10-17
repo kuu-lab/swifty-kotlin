@@ -14,6 +14,7 @@ import json
 import math
 from pathlib import Path
 import platform
+import re
 import subprocess
 import sys
 
@@ -280,6 +281,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--upstream", type=Path, required=True)
     parser.add_argument("--compiler", type=Path, required=True)
     parser.add_argument("--package-root", type=Path, required=True)
+    parser.add_argument("--candidate-sha", help="candidate source commit recorded with this run")
     parser.add_argument("--compiler-resource-bundle", type=Path,
                         help="actual Bundle.module directory; defaults to the compiler's sibling resources/bundle")
     parser.add_argument("--suite", action="append", help="select a concrete suite; may be repeated")
@@ -306,6 +308,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--run-timeout", type=float, default=30)
     args = parser.parse_args(argv)
     args.output = args.output.resolve()
+    if args.candidate_sha and not re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", args.candidate_sha):
+        parser.error("candidate SHA must be 40- or 64-character lowercase hex")
     args.output.mkdir(parents=True, exist_ok=False)
     root = args.package_root.resolve()
     lock_path = HERE / "reference-lock.json"
@@ -314,6 +318,7 @@ def main(argv: list[str] | None = None) -> int:
     summary = {"kind": "candidate-assertion-direct-suites", "paired_pass_count": 0,
                "paired_disposition": "UNMAPPED", "seven_observations_exported": False,
                "host": platform.platform(), "python_version": sys.version,
+               "candidate_sha": args.candidate_sha,
                "optimization": args.optimization, "package_root": str(root),
                "stdlib_mode": "source" if args.stdlib_from_source else "library",
                "test_body_mode": "library-consumer" if args.test_library else "source",

@@ -56,7 +56,8 @@ APIs.
 
 Owner routing uses existing KUU child issues for Buffer/Segment (KUU-1729),
 buffered source/sink and lifecycle (KUU-1730), primitive/ByteArray I/O
-(KUU-1731), and UTF-8 (KUU-1733). ByteString, Filesystem, JVM interop, and
+(KUU-1731), and UTF-8 (KUU-1733). The two `Utf8Kt.writeString$default`
+String/CharSequence rows are scoped to KUU-2634. ByteString, Filesystem, JVM interop, and
 Apple-only APIs have dedicated children KUU-1760, KUU-1761, KUU-1762 and KUU-1763.
 `local_implementation_refs` records source bodies and explicit runtime bridges;
 `local_contract_differences` records parameter name, visibility and default
@@ -120,6 +121,12 @@ python3 Scripts/io_api_inventory/run_f02_matrix.py \
   --kotlin-home /path/to/kotlinc-2.3.10 --java /path/to/java21/bin/java \
   --dependencies /path/to/locked-io-jars --compile-timeout 1800
 ```
+
+For a pinned historical compiler candidate, pass `--candidate-sha` and
+`--package-root` together. The package root supplies the source/resource tree
+used by the candidate, while the F02 fixture and runner are read from the
+current checkout. `--case sink-write-string-default-bridges` selects the
+dedicated String/CharSequence overload consumer.
 
 The default selection also runs every `kotlinx_io*.kt` diff consumer in a batch,
 the existing compound Buffer/buffering/numeric/EOF fixtures, and the public Apple
@@ -302,6 +309,16 @@ references. A manual status edit is discarded when outputs are regenerated.
 evidence file without rewriting it. `--check` verifies upstream snapshots, the
 test index lock, negative guards, evidence, any execution catalogs used by
 evidence, and byte-for-byte output without modifying files.
+
+The optional `reference_observations` array stores validated, incomplete
+evidence without promoting a row. It is for cases where the pinned upstream
+artifact can be inspected and run, and the native candidate can exercise the
+source contract, but the candidate cannot produce the platform artifact needed
+to prove that ledger representation. For example, a native compiler's source
+and KLIB runs cannot prove a JVM classfile bridge. These observations keep the
+JVM ABI row `unverified`; they do not substitute native behavior for descriptor
+evidence. Each observation is pinned to the same row inputs and upstream
+catalogs, and must explain why it cannot promote the row.
 
 ```sh
 python3 Scripts/io_api_inventory/test_validation_evidence.py
