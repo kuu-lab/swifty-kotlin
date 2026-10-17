@@ -189,10 +189,9 @@ extension LambdaLowerer {
         return (callableSymbol, callableName)
     }
 
-    /// Lowers a SAM-converted callable reference (`Comparator<Int>(::myCompare)`)
-    /// into a wrapper object implementing the functional interface.  A thunk with
-    /// the lambda calling convention `(captures..., params...) -> R` is generated
-    /// so the shared SAM wrapper synthesis can delegate to the referenced callable.
+    /// A thunk with the lambda calling convention `(captures..., params...) -> R`
+    /// is generated so the shared SAM wrapper synthesis can delegate to the
+    /// referenced callable.
     private func lowerCallableRefSamWrapperValue(
         _ exprID: ExprID,
         targetSymbol: SymbolID,
@@ -603,7 +602,6 @@ extension LambdaLowerer {
         // symbol named after the property itself and the program failed to
         // link (`Undefined symbols: "_v"` for `class C(val v: Int)`). Call the
         // generated property-reference accessor instead.
-        //
         var callTargetSymbol = targetSymbol
         var callTargetName: InternedString?
         // A reference to an interface / open / abstract member function must
@@ -1012,7 +1010,6 @@ extension LambdaLowerer {
             let valueParamTypes = (functionType?.receiver.map { [$0] } ?? []) + (functionType?.params ?? [])
             let returnType = functionType?.returnType ?? sema.types.anyType
 
-            // Build wrapper params: (closureRaw, value0, ..., valueN)
             let closureParam = KIRParameter(
                 symbol: syntheticLambdaClosureParamSymbol(lambdaExprID: exprID),
                 type: sema.types.intType
@@ -1031,11 +1028,8 @@ extension LambdaLowerer {
             }
             let wrapperParams = (needsHOFWrapper ? [closureParam] : captureParams) + valueParams
 
-            // Build wrapper body: call the target function with the value params,
-            // then return its result.
             var body: [KIRInstruction] = [.beginBlock]
             var callArgExprs: [KIRExprID] = []
-            // If the callable ref has a bound receiver, pass capture args first.
             for index in captureArguments.indices {
                 let parameter = needsHOFWrapper ? closureParam : captureParams[index]
                 let captureRef = arena.appendExpr(
@@ -1510,9 +1504,6 @@ extension LambdaLowerer {
         return callableExpr
     }
 
-    /// Builds the wrapper function and REFL-003 tag for a primitive unary
-    /// callable reference (`Boolean::not`). Its body uses the same raw KIR
-    /// unary operation as the ordinary Boolean `!` expression.
     private func lowerPrimitiveUnaryOperatorCallableRef(
         _ exprID: ExprID,
         op: UnaryOp,
@@ -1608,11 +1599,9 @@ extension LambdaLowerer {
         return callableExpr
     }
 
-    /// Emits a runtime tagging call that annotates a callable reference value
-    /// with KFunction or KProperty type identity. Returns a new KIR expression
-    /// representing the tagged value.  The caller must use the returned
-    /// expression (and register it for callable-value resolution) so that the
-    /// tagged value propagates through the program.
+    /// The caller must use the returned expression (and register it for
+    /// callable-value resolution) so that the tagged value propagates through
+    /// the program.
     func emitCallableRefTypeTag(
         callableExpr: KIRExprID,
         callableType: TypeID,
@@ -1625,7 +1614,6 @@ extension LambdaLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        // Compute arity and isSuspend from the function type.
         let arity: Int64
         let isSuspendFlag: Int64
         if case let .functionType(functionType) = sema.types.kind(of: callableType) {
@@ -1638,7 +1626,6 @@ extension LambdaLowerer {
             isSuspendFlag = 0
         }
 
-        // Emit the name string literal.
         let nameExpr = arena.appendExpr(
             .stringLiteral(memberName),
             type: sema.types.stringType
@@ -1664,11 +1651,9 @@ extension LambdaLowerer {
             value: .stringLiteral(returnTypeName)
         ))
 
-        // Emit the arity literal.
         let arityExpr = arena.appendExpr(.intLiteral(arity), type: sema.types.intType)
         instructions.append(.constValue(result: arityExpr, value: .intLiteral(arity)))
 
-        // Choose the tagging callee based on callable reference kind.
         let tagCallee: String = switch refKind {
         case .functionRef:
             "kk_callable_ref_tag_kfunction"
@@ -1693,7 +1678,6 @@ extension LambdaLowerer {
             tagArguments.append(isSuspendExpr)
         }
 
-        // Emit the tagging call.
         let taggedExpr = arena.appendTemporary(type: callableType
         )
         instructions.append(.call(
