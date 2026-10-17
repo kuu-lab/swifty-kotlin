@@ -17,8 +17,6 @@ internal external fun kk_max_double(a: Double, b: Double): Double
 @PublishedApi
 internal external fun kk_min_double(a: Double, b: Double): Double
 
-// Comparable overloads
-
 public fun <T : Comparable<T>> maxOf(a: T, b: T): T =
     if (a >= b) a else b
 
@@ -50,10 +48,6 @@ public fun <T : Comparable<T>> minOf(a: T, vararg other: T): T {
     }
     return result
 }
-
-// Comparator overloads
-
-// Top-level comparator-based selections
 
 public fun <T> maxWith(comparator: Comparator<in T>, a: T, b: T): T =
     if (comparator.compare(a, b) >= 0) a else b
@@ -92,8 +86,6 @@ public fun <T> minOf(a: T, vararg other: T, comparator: Comparator<in T>): T {
     }
     return result
 }
-
-// Signed primitive overloads
 
 public inline fun maxOf(a: Byte, b: Byte): Byte = if (a >= b) a else b
 public inline fun maxOf(a: Byte, b: Byte, c: Byte): Byte = maxOf(a, maxOf(b, c))
@@ -238,8 +230,6 @@ public fun minOf(a: Double, vararg other: Double): Double {
     }
     return result
 }
-
-// Unsigned primitive overloads
 
 public inline fun maxOf(a: UByte, b: UByte): UByte = if (a >= b) a else b
 public inline fun maxOf(a: UByte, b: UByte, c: UByte): UByte = maxOf(maxOf(a, b), c)
