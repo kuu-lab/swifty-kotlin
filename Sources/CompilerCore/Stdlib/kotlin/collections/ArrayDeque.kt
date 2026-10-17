@@ -3,11 +3,9 @@ package kotlin.collections
 import kotlin.internal.KsSymbolName
 import kotlin.internal.__valuesEqual
 
-// KSP-625: ArrayDeque migrated to bundled Kotlin source.
-// `first` / `last` / `isEmpty` / `toString` and the emptiness / bounds checks
-// are Kotlin logic; allocation, construction, and ring-buffer mutation stay
-// in the runtime (`__kk_arraydeque_*`), because the element storage is a
-// runtime-managed, GC-traced buffer.
+// Allocation, construction, and ring-buffer mutation stay in the runtime
+// (`__kk_arraydeque_*`), because the element storage is a runtime-managed,
+// GC-traced buffer.
 
 @KsSymbolName("__kk_arraydeque_size")
 private external fun <E> __kkArrayDequeSize(deque: ArrayDeque<E>): Int
@@ -21,18 +19,13 @@ private external fun <E> __kkArrayDequeRemoveFirst(deque: ArrayDeque<E>): E
 @KsSymbolName("__kk_arraydeque_removeLast")
 private external fun <E> __kkArrayDequeRemoveLast(deque: ArrayDeque<E>): E
 
-/**
- * Resizable-array implementation of the deque data structure.
- */
 public class ArrayDeque<E> : AbstractMutableList<E> {
-    /** Constructs an empty deque with the specified initial capacity. */
     @KsSymbolName("__kk_arraydeque_new_with_capacity")
     public constructor(initialCapacity: Int)
 
     @KsSymbolName("__kk_arraydeque_new")
     public constructor()
 
-    /** Constructs a deque containing [elements] in iteration order. */
     @KsSymbolName("__kk_arraydeque_new_from_collection")
     public constructor(elements: Collection<E>)
 
@@ -86,7 +79,6 @@ public class ArrayDeque<E> : AbstractMutableList<E> {
 
     public fun removeLastOrNull(): E? = if (isEmpty()) null else removeLast()
 
-    // MutableList and MutableCollection surface.
     @IgnorableReturnValue
     public override fun add(element: E): Boolean {
         addLast(element)
