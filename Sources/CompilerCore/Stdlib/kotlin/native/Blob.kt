@@ -22,7 +22,6 @@ import kotlinx.cinterop.UByteVar
 @Deprecated("ImmutableBlob is deprecated. Use ByteArray instead.")
 @DeprecatedSinceKotlin(warningSince = "1.9", errorSince = "2.1")
 public final class ImmutableBlob private constructor() {
-    /** Returns the number of bytes in the blob. */
     public val size: Int
         get() = getArrayLength()
 
@@ -33,7 +32,6 @@ public final class ImmutableBlob private constructor() {
     @KsSymbolName("__kk_byteArray_size")
     private external fun getArrayLength(): Int
 
-    /** Creates an iterator over the elements of the array. */
     public operator fun iterator(): ByteIterator = ImmutableBlobIteratorImpl(this)
 }
 
@@ -49,12 +47,6 @@ private class ImmutableBlobIteratorImpl(private val blob: ImmutableBlob) : ByteI
     public override operator fun hasNext(): Boolean = index < blob.size
 }
 
-/**
- * Copies the data from this blob into a new [ByteArray].
- *
- * @param startIndex the beginning (inclusive) of the subrange to copy, 0 by default.
- * @param endIndex the end (exclusive) of the subrange to copy, size of this blob by default.
- */
 @Suppress("DEPRECATION_ERROR")
 @Deprecated("ImmutableBlob is deprecated. Use ByteArray instead.")
 @DeprecatedSinceKotlin(warningSince = "1.9", errorSince = "2.1")
@@ -69,12 +61,6 @@ public fun ImmutableBlob.toByteArray(startIndex: Int = 0, endIndex: Int = size):
     return result
 }
 
-/**
- * Copies the data from this blob into a new [UByteArray].
- *
- * @param startIndex the beginning (inclusive) of the subrange to copy, 0 by default.
- * @param endIndex the end (exclusive) of the subrange to copy, size of this blob by default.
- */
 @Suppress("DEPRECATION_ERROR")
 @Deprecated("ImmutableBlob is deprecated. Use ByteArray instead.")
 @DeprecatedSinceKotlin(warningSince = "1.9", errorSince = "2.1")
@@ -86,40 +72,12 @@ public fun ImmutableBlob.toUByteArray(startIndex: Int = 0, endIndex: Int = size)
     return UByteArray(endIndex - startIndex) { this[startIndex + it].toUByte() }
 }
 
-/**
- * Returns stable C pointer to data at certain [offset], useful as a way to pass resource
- * to C APIs.
- *
- * `ImmutableBlob` is deprecated since Kotlin 1.9. It is recommended to use `ByteArray` instead.
- * To get a stable C pointer to `ByteArray` data the array needs to be pinned first.
- * ```
- * byteArray.usePinned {
- *     val cpointer = it.addressOf(offset)
- *     // use the stable C pointer
- * }
- * ```
- * @see kotlinx.cinterop.CPointer
- */
 @Suppress("DEPRECATION_ERROR")
 @Deprecated("ImmutableBlob is deprecated. Use ByteArray instead. To get a stable C pointer to a `ByteArray`, pin it first.")
 @DeprecatedSinceKotlin(warningSince = "1.9", errorSince = "2.1")
 public fun ImmutableBlob.asCPointer(offset: Int = 0): CPointer<ByteVar> =
         __interpretCPointer<ByteVar>(asCPointerImpl(offset))!!
 
-/**
- * Returns stable C pointer to data at certain [offset], useful as a way to pass resource
- * to C APIs.
- *
- * `ImmutableBlob` is deprecated since Kotlin 1.9. It is recommended to use `ByteArray` instead.
- * To get a stable C pointer to `ByteArray` data the array needs to be pinned first.
- * ```
- * byteArray.usePinned {
- *     val cpointer = it.addressOf(offset)
- *     // use the stable C pointer
- * }
- * ```
- * @see kotlinx.cinterop.CPointer
- */
 @Suppress("DEPRECATION_ERROR")
 @Deprecated("ImmutableBlob is deprecated. Use ByteArray instead. To get a stable C pointer to a `ByteArray`, pin it first.")
 @DeprecatedSinceKotlin(warningSince = "1.9", errorSince = "2.1")
