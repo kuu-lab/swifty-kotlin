@@ -48,7 +48,6 @@ struct InlineTypeSubstitution {
         )
     }
 
-    /// Applies this expansion's substitution to an optional KIR type.
     func applying(to type: TypeID?, in ctx: KIRContext) -> TypeID? {
         guard let type, let sema = ctx.sema else {
             return type
@@ -60,8 +59,6 @@ struct InlineTypeSubstitution {
         )
     }
 
-    /// Returns the concrete type when this is the unambiguous one-variable
-    /// substitution used by the nullable `generateSequence` bridge path.
     var soleSubstitutedType: TypeID? {
         guard substitution.count == 1 else {
             return nil
