@@ -1,0 +1,12 @@
+{
+  "status": "PASS",
+  "expected": "negative-start=IndexOutOfBoundsException;reversed-range=IllegalArgumentException;closed-sink=IllegalStateException;io-failure=IOException",
+  "actual": "negative-start=IndexOutOfBoundsException;reversed-range=IllegalArgumentException;closed-sink=IllegalStateException;io-failure=IOException",
+  "event_count": 1,
+  "source_sha256": "4d1ba4780f3b4f4d37abb91d6649332d8989021ec3db41deb14fc6641b8ea869",
+  "expected_contract_sha256": "11af717d1848b0ba94f7c84b4aeec2899b42e0f4a028c2f267dc90d63f090dc4",
+  "lane": "producer-consumer",
+  "optimization": "O0",
+  "candidate_sha": "d610e43f3275f9f5603a41543bd5b77ab7e067b0",
+  "candidate_executable_sha256": "e4f35b027757572dc4f87900ffd7fea28313f1a5502b93fcbe8056cb4110462a"
+}

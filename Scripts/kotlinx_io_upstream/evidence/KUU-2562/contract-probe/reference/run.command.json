@@ -1,6 +1,6 @@
 [
   "/private/tmp/kuu-2562-jdk21/Contents/Home/bin/java",
   "-cp",
-  "/private/tmp/kuu-2562-contract-probe-reference-verified/probe.jar:/private/tmp/kuu-2562-01a1479c-jvm-reference/dependencies/kotlinx-io-core-jvm-0.9.1.jar:/private/tmp/kuu-2562-01a1479c-jvm-reference/dependencies/kotlinx-io-bytestring-jvm-0.9.1.jar",
+  "/private/tmp/kuu-2562-probe-reference-simple/probe.jar:/private/tmp/kuu-2562-01a1479c-jvm-reference/dependencies/kotlinx-io-core-jvm-0.9.1.jar:/private/tmp/kuu-2562-01a1479c-jvm-reference/dependencies/kotlinx-io-bytestring-jvm-0.9.1.jar",
   "JvmSinkContractProbeMainKt"
 ]

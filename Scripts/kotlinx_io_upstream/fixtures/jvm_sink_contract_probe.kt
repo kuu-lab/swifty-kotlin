@@ -32,7 +32,9 @@ private inline fun <reified T : Throwable> expectException(label: String, block:
     check(failure is T) {
         "$label threw ${failure::class.qualifiedName}, expected ${T::class.qualifiedName}"
     }
-    return "$label=${failure::class.qualifiedName}"
+    val typeName = failure::class.simpleName
+        ?: throw IllegalStateException("$label exception class has no simple name")
+    return "$label=$typeName"
 }
 
 private fun verifyMissingExceptionIsRejected() {

@@ -1,1 +1,1 @@
-negative-start=java.lang.IndexOutOfBoundsException;reversed-range=java.lang.IllegalArgumentException;closed-sink=java.lang.IllegalStateException;io-failure=java.io.IOException
+negative-start=IndexOutOfBoundsException;reversed-range=IllegalArgumentException;closed-sink=IllegalStateException;io-failure=IOException

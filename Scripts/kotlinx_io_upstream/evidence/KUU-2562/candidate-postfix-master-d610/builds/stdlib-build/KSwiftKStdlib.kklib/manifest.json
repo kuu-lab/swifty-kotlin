@@ -1,0 +1,16 @@
+{
+  "compilerVersion": "0.1.0",
+  "formatVersion" : 2,
+  "inlineKIRDir": "inline-kir",
+  "kotlinLanguageVersion": "2.4.20",
+  "libraryKind": "stdlib",
+  "metadata": "metadata.bin",
+  "moduleName": "KSwiftKStdlib",
+  "objects" : [
+    "objects\/KSwiftKStdlib_0.o"
+  ],
+  "sourceVarargStorageABI": "array-v1",
+  "stdlibManifestHash": "9e2859f7e0bb50ba",
+  "target": "arm64-apple-macosx",
+  "topLevelInitializerLinkName": "kk_fn___kk_library_top_level_init_KSwiftKStdlib_s70003920__13x4b53776966744b5374646c6962"
+}

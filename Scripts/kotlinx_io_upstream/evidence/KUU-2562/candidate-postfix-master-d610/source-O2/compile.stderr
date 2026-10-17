@@ -1,0 +1,69 @@
+__bundled_kotlin/Comparator.kt:17:43: warning KSWIFTK-SEMA-PLATFORM: Expression of platform type is used as non-null without a null check. This may cause a NullPointerException at runtime.
+            Comparator { a, b -> selector(a).compareTo(selector(b)) }
+                                          ^
+__bundled_kotlin/comparisons/Comparators.kt:79:51: warning KSWIFTK-SEMA-PLATFORM: Expression of platform type is used as non-null without a null check. This may cause a NullPointerException at runtime.
+    Comparator { a, b -> compareNullable(selector(a), selector(b)) }
+                                                  ^
+__bundled_kotlin/comparisons/Comparators.kt:79:64: warning KSWIFTK-SEMA-PLATFORM: Expression of platform type is used as non-null without a null check. This may cause a NullPointerException at runtime.
+    Comparator { a, b -> compareNullable(selector(a), selector(b)) }
+                                                               ^
+__bundled_kotlin/comparisons/Comparators.kt:82:54: warning KSWIFTK-SEMA-PLATFORM: Expression of platform type is used as non-null without a null check. This may cause a NullPointerException at runtime.
+    Comparator { a, b -> comparator.compare(selector(a), selector(b)) }
+                                                     ^
+__bundled_kotlin/comparisons/Comparators.kt:82:67: warning KSWIFTK-SEMA-PLATFORM: Expression of platform type is used as non-null without a null check. This may cause a NullPointerException at runtime.
+    Comparator { a, b -> comparator.compare(selector(a), selector(b)) }
+                                                                  ^
+__bundled_kotlin/comparisons/Comparators.kt:99:52: warning KSWIFTK-SEMA-PLATFORM: Expression of platform type is used as non-null without a null check. This may cause a NullPointerException at runtime.
+            val current = compareNullable(selector(a), selector(b))
+                                                   ^
+__bundled_kotlin/comparisons/Comparators.kt:99:65: warning KSWIFTK-SEMA-PLATFORM: Expression of platform type is used as non-null without a null check. This may cause a NullPointerException at runtime.
+            val current = compareNullable(selector(a), selector(b))
+                                                                ^
+__bundled_kotlin/comparisons/Comparators.kt:111:51: warning KSWIFTK-SEMA-PLATFORM: Expression of platform type is used as non-null without a null check. This may cause a NullPointerException at runtime.
+    Comparator { a, b -> compareNullable(selector(b), selector(a)) }
+                                                  ^
+__bundled_kotlin/comparisons/Comparators.kt:111:64: warning KSWIFTK-SEMA-PLATFORM: Expression of platform type is used as non-null without a null check. This may cause a NullPointerException at runtime.
+    Comparator { a, b -> compareNullable(selector(b), selector(a)) }
+                                                               ^
+__bundled_kotlin/comparisons/Comparators.kt:114:54: warning KSWIFTK-SEMA-PLATFORM: Expression of platform type is used as non-null without a null check. This may cause a NullPointerException at runtime.
+    Comparator { a, b -> comparator.compare(selector(b), selector(a)) }
+                                                     ^
+__bundled_kotlin/comparisons/Comparators.kt:114:67: warning KSWIFTK-SEMA-PLATFORM: Expression of platform type is used as non-null without a null check. This may cause a NullPointerException at runtime.
+    Comparator { a, b -> comparator.compare(selector(b), selector(a)) }
+                                                                  ^
+__bundled_kotlin/comparisons/Comparators.kt:199:53: warning KSWIFTK-SEMA-PLATFORM: Expression of platform type is used as non-null without a null check. This may cause a NullPointerException at runtime.
+        if (r != 0) r else compareNullable(selector(a), selector(b))
+                                                    ^
+__bundled_kotlin/comparisons/Comparators.kt:199:66: warning KSWIFTK-SEMA-PLATFORM: Expression of platform type is used as non-null without a null check. This may cause a NullPointerException at runtime.
+        if (r != 0) r else compareNullable(selector(a), selector(b))
+                                                                 ^
+__bundled_kotlin/comparisons/Comparators.kt:207:56: warning KSWIFTK-SEMA-PLATFORM: Expression of platform type is used as non-null without a null check. This may cause a NullPointerException at runtime.
+        if (r != 0) r else comparator.compare(selector(a), selector(b))
+                                                       ^
+__bundled_kotlin/comparisons/Comparators.kt:207:69: warning KSWIFTK-SEMA-PLATFORM: Expression of platform type is used as non-null without a null check. This may cause a NullPointerException at runtime.
+        if (r != 0) r else comparator.compare(selector(a), selector(b))
+                                                                    ^
+__bundled_kotlin/comparisons/Comparators.kt:217:53: warning KSWIFTK-SEMA-PLATFORM: Expression of platform type is used as non-null without a null check. This may cause a NullPointerException at runtime.
+        if (r != 0) r else compareNullable(selector(b), selector(a))
+                                                    ^
+__bundled_kotlin/comparisons/Comparators.kt:217:66: warning KSWIFTK-SEMA-PLATFORM: Expression of platform type is used as non-null without a null check. This may cause a NullPointerException at runtime.
+        if (r != 0) r else compareNullable(selector(b), selector(a))
+                                                                 ^
+__bundled_kotlin/comparisons/Comparators.kt:225:56: warning KSWIFTK-SEMA-PLATFORM: Expression of platform type is used as non-null without a null check. This may cause a NullPointerException at runtime.
+        if (r != 0) r else comparator.compare(selector(b), selector(a))
+                                                       ^
+__bundled_kotlin/comparisons/Comparators.kt:225:69: warning KSWIFTK-SEMA-PLATFORM: Expression of platform type is used as non-null without a null check. This may cause a NullPointerException at runtime.
+        if (r != 0) r else comparator.compare(selector(b), selector(a))
+                                                                    ^
+__bundled_kotlin/comparisons/Comparators.kt:236:33: warning KSWIFTK-SEMA-PLATFORM: Expression of platform type is used as non-null without a null check. This may cause a NullPointerException at runtime.
+            val r2 = comparator(a, b)
+                                ^
+__bundled_kotlin/comparisons/Comparators.kt:236:36: warning KSWIFTK-SEMA-PLATFORM: Expression of platform type is used as non-null without a null check. This may cause a NullPointerException at runtime.
+            val r2 = comparator(a, b)
+                                   ^
+__bundled_kotlin/comparisons/Comparators.kt:246:39: warning KSWIFTK-SEMA-PLATFORM: Expression of platform type is used as non-null without a null check. This may cause a NullPointerException at runtime.
+        if (r != 0) r else comparison(a, b)
+                                      ^
+__bundled_kotlin/comparisons/Comparators.kt:246:42: warning KSWIFTK-SEMA-PLATFORM: Expression of platform type is used as non-null without a null check. This may cause a NullPointerException at runtime.
+        if (r != 0) r else comparison(a, b)
+                                         ^

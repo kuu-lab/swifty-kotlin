@@ -1,0 +1,9 @@
+{
+  "exitcode": 0,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "fd3d194d99e499485ae5f39cecc12f4510b9575db061dae4843a7a71005342b6",
+  "stdlib_library": "run-artifacts/stdlib-build/KSwiftKStdlib.kklib",
+  "manifest_sha256": "2463b9b1962e1368448a57282e669ecd2d881ee918d9c9fe5e735bf3ccc47ee8",
+  "stdlib_tree_sha256": "6a31d1a0b648769826ae9e1b233ed717619bc9782d59f82de07e8270e6767983",
+  "file_count": 1859
+}

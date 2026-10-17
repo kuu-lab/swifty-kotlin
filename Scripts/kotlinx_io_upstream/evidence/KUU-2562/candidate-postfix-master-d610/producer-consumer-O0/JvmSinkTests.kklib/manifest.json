@@ -1,0 +1,13 @@
+{
+  "compilerVersion": "0.1.0",
+  "formatVersion" : 2,
+  "inlineKIRDir": "inline-kir",
+  "kotlinLanguageVersion": "2.4.20",
+  "metadata": "metadata.bin",
+  "moduleName": "KioJvmSinkTests",
+  "objects" : [
+    "objects\/KioJvmSinkTests_0.o"
+  ],
+  "sourceVarargStorageABI": "array-v1",
+  "target": "arm64-apple-macosx"
+}

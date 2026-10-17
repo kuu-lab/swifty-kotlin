@@ -1,0 +1,188 @@
+{
+  "candidate_sha": "d610e43f3275f9f5603a41543bd5b77ab7e067b0",
+  "compiler_sha256": "547284439d17ef2cb017e150af117b047605e50604ce96efdc3b546ab947122f",
+  "stdlib_manifest_sha256": "2463b9b1962e1368448a57282e669ecd2d881ee918d9c9fe5e735bf3ccc47ee8",
+  "candidate_catalog_sha256": "c02403e3237e18380283be3b6d1cd9b38959988d03d15f7df3debb48d48c4b98",
+  "lanes": [
+    {
+      "lane": "source",
+      "optimization": "O0",
+      "candidate_sha": "d610e43f3275f9f5603a41543bd5b77ab7e067b0",
+      "status": "PASS",
+      "selected_execution_count": 20,
+      "result_count": 20,
+      "counts": {
+        "PASS": 20
+      },
+      "test_library_compile_exitcode": null,
+      "compile_exitcode": 0,
+      "run_exitcode": 0,
+      "inputs_unchanged": true,
+      "results_sha256": "8a20ac5fca6efadbb31c6836d21780d1f7890641ef963a258dda96f140b5aa9f",
+      "summary_sha256": "4d5d58146d56640083922657bcf7aff6d8e332477fbaba27fb1a0aa34ffb52eb",
+      "contract_probe": {
+        "status": "PASS",
+        "expected": "negative-start=IndexOutOfBoundsException;reversed-range=IllegalArgumentException;closed-sink=IllegalStateException;io-failure=IOException",
+        "actual": "negative-start=IndexOutOfBoundsException;reversed-range=IllegalArgumentException;closed-sink=IllegalStateException;io-failure=IOException",
+        "event_count": 1,
+        "source_sha256": "4d1ba4780f3b4f4d37abb91d6649332d8989021ec3db41deb14fc6641b8ea869",
+        "expected_contract_sha256": "11af717d1848b0ba94f7c84b4aeec2899b42e0f4a028c2f267dc90d63f090dc4",
+        "lane": "source",
+        "optimization": "O0",
+        "candidate_sha": "d610e43f3275f9f5603a41543bd5b77ab7e067b0",
+        "candidate_executable_sha256": "4aa4f4a22de40e0098623c5478653316ed36e009bd6409add627ceb6b6b4e65f"
+      },
+      "artifact_directory": "/private/tmp/kuu-2562-master-d610/run-artifacts/candidate-normalized-source-O0"
+    },
+    {
+      "lane": "source",
+      "optimization": "O2",
+      "candidate_sha": "d610e43f3275f9f5603a41543bd5b77ab7e067b0",
+      "status": "PASS",
+      "selected_execution_count": 20,
+      "result_count": 20,
+      "counts": {
+        "PASS": 20
+      },
+      "test_library_compile_exitcode": null,
+      "compile_exitcode": 0,
+      "run_exitcode": 0,
+      "inputs_unchanged": true,
+      "results_sha256": "3df834c5ca3186cf8e9538fdffb82b49e1da14dd4109f587b14d959278d425e7",
+      "summary_sha256": "1e539be2e8fb25e89661502ad507cf2cb2bbb904c9da2b170f950cc75587100c",
+      "contract_probe": {
+        "status": "PASS",
+        "expected": "negative-start=IndexOutOfBoundsException;reversed-range=IllegalArgumentException;closed-sink=IllegalStateException;io-failure=IOException",
+        "actual": "negative-start=IndexOutOfBoundsException;reversed-range=IllegalArgumentException;closed-sink=IllegalStateException;io-failure=IOException",
+        "event_count": 1,
+        "source_sha256": "4d1ba4780f3b4f4d37abb91d6649332d8989021ec3db41deb14fc6641b8ea869",
+        "expected_contract_sha256": "11af717d1848b0ba94f7c84b4aeec2899b42e0f4a028c2f267dc90d63f090dc4",
+        "lane": "source",
+        "optimization": "O2",
+        "candidate_sha": "d610e43f3275f9f5603a41543bd5b77ab7e067b0",
+        "candidate_executable_sha256": "58752bebf5fed84147a93cc877050e26266b11176e4c22f928df3f5e93b337f8"
+      },
+      "artifact_directory": "/private/tmp/kuu-2562-master-d610/run-artifacts/candidate-normalized-source-O2"
+    },
+    {
+      "lane": "stdlib-library",
+      "optimization": "O0",
+      "candidate_sha": "d610e43f3275f9f5603a41543bd5b77ab7e067b0",
+      "status": "PASS",
+      "selected_execution_count": 20,
+      "result_count": 20,
+      "counts": {
+        "PASS": 20
+      },
+      "test_library_compile_exitcode": null,
+      "compile_exitcode": 0,
+      "run_exitcode": 0,
+      "inputs_unchanged": true,
+      "results_sha256": "a7ff125f3aa9dad2beddc4a3f97e49252bd7ed8c2925db78c75aebf0b9adc6b4",
+      "summary_sha256": "07f32b5240348768321d7263ac053985175a6de48519c71d8fd41e28770a5a09",
+      "contract_probe": {
+        "status": "PASS",
+        "expected": "negative-start=IndexOutOfBoundsException;reversed-range=IllegalArgumentException;closed-sink=IllegalStateException;io-failure=IOException",
+        "actual": "negative-start=IndexOutOfBoundsException;reversed-range=IllegalArgumentException;closed-sink=IllegalStateException;io-failure=IOException",
+        "event_count": 1,
+        "source_sha256": "4d1ba4780f3b4f4d37abb91d6649332d8989021ec3db41deb14fc6641b8ea869",
+        "expected_contract_sha256": "11af717d1848b0ba94f7c84b4aeec2899b42e0f4a028c2f267dc90d63f090dc4",
+        "lane": "stdlib-library",
+        "optimization": "O0",
+        "candidate_sha": "d610e43f3275f9f5603a41543bd5b77ab7e067b0",
+        "candidate_executable_sha256": "62b3cec09334dd40a351b0a61b51beb72cf37a6d7fd3e326d0f7ab266baf3365"
+      },
+      "artifact_directory": "/private/tmp/kuu-2562-master-d610/run-artifacts/candidate-normalized-stdlib-library-O0"
+    },
+    {
+      "lane": "stdlib-library",
+      "optimization": "O2",
+      "candidate_sha": "d610e43f3275f9f5603a41543bd5b77ab7e067b0",
+      "status": "PASS",
+      "selected_execution_count": 20,
+      "result_count": 20,
+      "counts": {
+        "PASS": 20
+      },
+      "test_library_compile_exitcode": null,
+      "compile_exitcode": 0,
+      "run_exitcode": 0,
+      "inputs_unchanged": true,
+      "results_sha256": "c9e8b60dd28560849213d6bc2a3fc0e0be7c03bcd21f11773d9c074f6ac4e6ad",
+      "summary_sha256": "718d015ea2a90a369f8838b7ae474916d007d399cfa0e29b6defecf7b483d343",
+      "contract_probe": {
+        "status": "PASS",
+        "expected": "negative-start=IndexOutOfBoundsException;reversed-range=IllegalArgumentException;closed-sink=IllegalStateException;io-failure=IOException",
+        "actual": "negative-start=IndexOutOfBoundsException;reversed-range=IllegalArgumentException;closed-sink=IllegalStateException;io-failure=IOException",
+        "event_count": 1,
+        "source_sha256": "4d1ba4780f3b4f4d37abb91d6649332d8989021ec3db41deb14fc6641b8ea869",
+        "expected_contract_sha256": "11af717d1848b0ba94f7c84b4aeec2899b42e0f4a028c2f267dc90d63f090dc4",
+        "lane": "stdlib-library",
+        "optimization": "O2",
+        "candidate_sha": "d610e43f3275f9f5603a41543bd5b77ab7e067b0",
+        "candidate_executable_sha256": "19b97643a35b67a0b9b7d7060646819f9eb70a04ef3dfc35a793081fdb702942"
+      },
+      "artifact_directory": "/private/tmp/kuu-2562-master-d610/run-artifacts/candidate-normalized-stdlib-library-O2"
+    },
+    {
+      "lane": "producer-consumer",
+      "optimization": "O0",
+      "candidate_sha": "d610e43f3275f9f5603a41543bd5b77ab7e067b0",
+      "status": "PASS",
+      "selected_execution_count": 20,
+      "result_count": 20,
+      "counts": {
+        "PASS": 20
+      },
+      "test_library_compile_exitcode": 0,
+      "compile_exitcode": 0,
+      "run_exitcode": 0,
+      "inputs_unchanged": true,
+      "results_sha256": "92f10ee4757f41f09517b6d2e89cfdd64f7dc9208ad0a4816ddcf3208373863d",
+      "summary_sha256": "1ab182d7bbe9ae47d6923f303748525a6432a59b4ab3378e4a20930b9a39faf3",
+      "contract_probe": {
+        "status": "PASS",
+        "expected": "negative-start=IndexOutOfBoundsException;reversed-range=IllegalArgumentException;closed-sink=IllegalStateException;io-failure=IOException",
+        "actual": "negative-start=IndexOutOfBoundsException;reversed-range=IllegalArgumentException;closed-sink=IllegalStateException;io-failure=IOException",
+        "event_count": 1,
+        "source_sha256": "4d1ba4780f3b4f4d37abb91d6649332d8989021ec3db41deb14fc6641b8ea869",
+        "expected_contract_sha256": "11af717d1848b0ba94f7c84b4aeec2899b42e0f4a028c2f267dc90d63f090dc4",
+        "lane": "producer-consumer",
+        "optimization": "O0",
+        "candidate_sha": "d610e43f3275f9f5603a41543bd5b77ab7e067b0",
+        "candidate_executable_sha256": "e4f35b027757572dc4f87900ffd7fea28313f1a5502b93fcbe8056cb4110462a"
+      },
+      "artifact_directory": "/private/tmp/kuu-2562-master-d610/run-artifacts/candidate-normalized-producer-consumer-O0"
+    },
+    {
+      "lane": "producer-consumer",
+      "optimization": "O2",
+      "candidate_sha": "d610e43f3275f9f5603a41543bd5b77ab7e067b0",
+      "status": "PASS",
+      "selected_execution_count": 20,
+      "result_count": 20,
+      "counts": {
+        "PASS": 20
+      },
+      "test_library_compile_exitcode": 0,
+      "compile_exitcode": 0,
+      "run_exitcode": 0,
+      "inputs_unchanged": true,
+      "results_sha256": "bab10fc215a1b8a6d49afb9095f23154df1775311114cfee65517aae6338c37b",
+      "summary_sha256": "a5a1d12be77090a8e6c423ea5783dcaf17c29ad0e2be3f79d7fea24f61841c0a",
+      "contract_probe": {
+        "status": "PASS",
+        "expected": "negative-start=IndexOutOfBoundsException;reversed-range=IllegalArgumentException;closed-sink=IllegalStateException;io-failure=IOException",
+        "actual": "negative-start=IndexOutOfBoundsException;reversed-range=IllegalArgumentException;closed-sink=IllegalStateException;io-failure=IOException",
+        "event_count": 1,
+        "source_sha256": "4d1ba4780f3b4f4d37abb91d6649332d8989021ec3db41deb14fc6641b8ea869",
+        "expected_contract_sha256": "11af717d1848b0ba94f7c84b4aeec2899b42e0f4a028c2f267dc90d63f090dc4",
+        "lane": "producer-consumer",
+        "optimization": "O2",
+        "candidate_sha": "d610e43f3275f9f5603a41543bd5b77ab7e067b0",
+        "candidate_executable_sha256": "2d10052b60e5e9c1e4e55a5dbb7e232b62ea3d7a8e851d552cf4cd86bce6eb5b"
+      },
+      "artifact_directory": "/private/tmp/kuu-2562-master-d610/run-artifacts/candidate-normalized-producer-consumer-O2"
+    }
+  ]
+}

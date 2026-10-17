@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "expected_output": "negative-start=java.lang.IndexOutOfBoundsException;reversed-range=java.lang.IllegalArgumentException;closed-sink=java.lang.IllegalStateException;io-failure=java.io.IOException",
+  "expected_output": "negative-start=IndexOutOfBoundsException;reversed-range=IllegalArgumentException;closed-sink=IllegalStateException;io-failure=IOException",
   "checks": [
     "negative character start is rejected as IndexOutOfBoundsException",
     "reversed character range is rejected as IllegalArgumentException",

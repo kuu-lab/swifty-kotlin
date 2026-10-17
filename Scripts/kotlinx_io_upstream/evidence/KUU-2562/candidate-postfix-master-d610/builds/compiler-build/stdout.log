@@ -1,0 +1,77 @@
+Building for debugging...
+[Constructing description]
+[Pre-planning 1 / 445]
+[Planning deferred tasks]
+[89 / 184] KSwiftK_CompilerCore
+[91 / 184] KSwiftK_CompilerCore
+[94 / 184]
+[96 / 185] RuntimeCAtomics
+[119 / 213] RuntimeABI
+[120 / 213]
+[122 / 213]
+[126 / 213] RuntimeABI
+[136 / 215] Runtime
+[144 / 266]
+[151 / 266]
+[156 / 266]
+[157 / 294]
+[161 / 294]
+[164 / 294]
+[169 / 294]
+[170 / 294]
+[171 / 294]
+[172 / 294]
+[187 / 294] Runtime
+[187 / 294] CompilerCore
+[190 / 294] Runtime
+[195 / 294] Runtime
+[198 / 294] Runtime
+[199 / 294] Runtime
+[200 / 294] Runtime
+[202 / 294] Runtime
+[203 / 294] Runtime
+[204 / 294] KotlinRuntime-product
+[205 / 294] Runtime
+[208 / 294] CompilerCore
+[209 / 294] CompilerCore
+[211 / 294] CompilerCore
+[211 / 294] Runtime
+[213 / 294] CompilerCore
+[214 / 294] CompilerCore
+[215 / 294] CompilerCore
+[216 / 294] CompilerCore
+[219 / 294] CompilerCore
+[220 / 294] CompilerCore
+[221 / 294] CompilerCore
+[222 / 294] CompilerCore
+[229 / 294] CompilerCore
+[230 / 295]
+[231 / 296] KotlinRuntime-product
+[233 / 297] KotlinRuntime-product
+[236 / 327] GoldenHarnessSupport
+[237 / 327] LSPServer
+[245 / 333] LSPServer
+[248 / 333] GoldenHarnessSupport
+[257 / 333] LSPServer
+[268 / 333] LSPServer
+[273 / 333] GoldenHarnessSupport
+[280 / 333] LSPServer
+[284 / 333] GoldenHarnessSupport
+[285 / 333] CompilerTestSupport
+[291 / 334] GoldenHarnessWorker-product
+[293 / 335] GoldenHarnessSupport
+[303 / 350] CompilerBackend
+[304 / 352] GoldenHarnessWorker-product
+[308 / 352] GoldenHarnessWorker-product
+[312 / 352] CompilerBackend
+[325 / 354] kswift-lsp-product
+[326 / 355]
+[326 / 355] kswiftc-product
+[329 / 358] kswiftc-product
+[335 / 362] kswift-lsp-product
+[342 / 362] CompilerBackend
+[344 / 362] CompilerBackend
+[345 / 362] CompilerCore
+[347 / 362] CompilerCore
+[356 / 362] kswift-lsp-product
+Build complete! (25.52秒)
