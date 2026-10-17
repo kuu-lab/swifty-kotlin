@@ -1,8 +1,4 @@
 
-/// Registration entry point for the atomic surfaces that still need synthetic
-/// nominal shells or compatibility members. Scalar public APIs live in bundled
-/// Kotlin source; arrays, package metadata, NativePtr, and Java compatibility
-/// remain registered through the responsibility-specific helpers.
 extension DataFlowSemaPhase {
     func registerSyntheticAtomicResidualStubs(
         symbols: SymbolTable,
