@@ -49,6 +49,7 @@ class ReproducibilityTests(unittest.TestCase):
             test_inputs.extend((REPO / "Tests/CompilerCoreTests/GoldenCases/Sema").glob("*.kt"))
             test_inputs.extend((REPO / "Scripts/diff_cases").glob("*.kt"))
             test_inputs.extend((REPO / "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590").glob("*.kt"))
+            inputs.extend(REPO / reference for reference in original.SEGMENT_LIMIT_PROBE_REFS)
             inputs.extend(
                 path for path in test_inputs
                 if path.relative_to(REPO).as_posix().startswith(original.LOCAL_IO_TEST_PREFIXES)
@@ -120,6 +121,22 @@ class ReproducibilityTests(unittest.TestCase):
                     "core/common/test/files/SmokeFileTest.kt#closeFileSourceTwice",
                 ):
                     self.assertFalse(self.generator._case_id_matches_row(row, unrelated_case))
+
+    def test_segment_limit_probe_is_pinned_to_its_six_owned_rows(self):
+        expected = set(self.generator.SEGMENT_LIMIT_PROBE_REFS)
+        row_ids = set(self.generator.VALIDATION_PROBE_TEST_REFS)
+        self.assertEqual(row_ids, {
+            "internal-11e61a31ae5fe3d2",
+            "jvm-92721bc63200d18d",
+            "jvm-98dc8444d3a4ea0f",
+            "klib-2d963e0c76f5e362",
+            "klib-b170c0f57a48a601",
+            "klib-c08a0991fed339e4",
+        })
+        for row_id in row_ids:
+            row = next(row for row in self.rows if row["row_id"] == row_id)
+            self.assertTrue(expected.issubset(set(row["local_test_refs"].split(";"))))
+            self.assertEqual(row["status"], "unverified")
 
     def test_apple_and_bytebuffer_do_not_match_other_receivers(self):
         index = self.generator.SourceIndex(HERE / "source-declarations.json", REPO, self.generator.UPSTREAM)

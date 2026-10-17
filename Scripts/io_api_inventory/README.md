@@ -169,6 +169,29 @@ declaration-derived expected-output classification, rather than being described
 as new official Native reference runs. Other boundary/resource/annotation
 contracts and the parent's full upstream execution gate remain separate checks.
 
+KUU-2587 adds the dedicated `segment-limit-internal-boundary` scenario. Its
+consumer directly reads and writes `Segment.limit`, shrinks and restores the
+readable end position, and checks the resulting buffer size and bytes. Six
+candidate lanes compare source and fresh KLIB execution at O0/O2 against the
+locked Kotlin/JVM 2.3.10 reference. The candidate KLIB record is checked for
+the internal `Int` mutable property and its `PublishedApi`/getter/setter
+`JvmSynthetic` annotations. The pinned JVM artifact is checked for both
+accessor descriptors and public/final/synthetic flags. Apple reference
+execution does not apply to this common-only property.
+
+```sh
+python3 Scripts/io_api_inventory/run_f02_matrix.py \
+  --compiler .build/debug/kswiftc --output /tmp/kuu2587-run \
+  --kotlin-home /path/to/kotlinc-2.3.10 --java /path/to/java21/bin/java \
+  --dependencies /path/to/locked-io-jars \
+  --case segment-limit-internal-boundary --separate-cases
+```
+
+The receipt records the six row IDs, per-row implementation/test input hashes,
+candidate KLIB metadata record hash, locked JVM ABI output and all six lane
+results. The rows remain `unverified` until the validation evidence gate can
+map this dedicated local probe to a promotable exact execution record.
+
 ### F02 pre-rebase acceptance snapshot, 2026-10-14
 
 KUU-1822 remains incomplete. The full pre-rebase run used retrieved master
