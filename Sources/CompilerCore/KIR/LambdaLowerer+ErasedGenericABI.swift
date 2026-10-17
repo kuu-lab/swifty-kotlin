@@ -23,7 +23,6 @@ extension LambdaLowerer {
     }
 
     /// Boxes a concrete value flowing out of an erased return position.
-    /// Value-class results retain their nominal tag at the same boundary.
     ///
     /// The box is emitted here rather than left to `ABILoweringPass` because the
     /// lambda's own declared return type stays concrete in the substituted
@@ -82,8 +81,6 @@ extension LambdaLowerer {
 }
 
 extension KIRLoweringContext {
-    /// True when the lambda literal `exprID` is a call argument whose declared
-    /// parameter type returns a type parameter.
     func lambdaReturnsErasedGeneric(
         for exprID: ExprID,
         ast: ASTModule,
