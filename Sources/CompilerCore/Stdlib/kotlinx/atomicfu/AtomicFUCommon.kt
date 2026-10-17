@@ -138,11 +138,6 @@ public inline fun AtomicLong.updateAndGet(function: (Long) -> Long): Long {
     }
 }
 
-// ==================================== AtomicIntArray ====================================
-
-/**
- * Creates a new array of AtomicInt values of the specified size, where each element is initialised with 0
- */
 @Deprecated(
     message = "Atomic array types provided by the kotlinx-atomicfu are prone to various bugs and will be removed soon. " +
             "Use AtomicIntArray type provided by the Kotlin standard library instead.",
@@ -169,11 +164,6 @@ public constructor(size: Int) {
     public operator fun get(index: Int): AtomicInt = array[index]
 }
 
-// ==================================== AtomicLongArray ====================================
-
-/**
- * Creates a new array of AtomicLong values of the specified size, where each element is initialised with 0L
- */
 @Deprecated(
     message = "Atomic array types provided by the kotlinx-atomicfu are prone to various bugs and will be removed soon. " +
             "Use AtomicLongArray type provided by the Kotlin standard library instead.",
@@ -200,11 +190,6 @@ public constructor(size: Int) {
     public operator fun get(index: Int): AtomicLong = array[index]
 }
 
-// ==================================== AtomicBooleanArray ====================================
-
-/**
- * Creates a new array of AtomicBoolean values of the specified size, where each element is initialised with false
- */
 @Suppress("DEPRECATION")
 @OptionalJsName(ATOMIC_BOOLEAN_ARRAY)
 @Deprecated(
@@ -224,8 +209,6 @@ public class AtomicBooleanArray(size: Int) {
     public operator fun get(index: Int): AtomicBoolean = array[index]
 }
 
-
-// ==================================== AtomicArray ====================================
 @Deprecated(
     message = "Atomic array types provided by the kotlinx-atomicfu are prone to various bugs and will be removed soon. " +
             "Use AtomicArray type provided by the Kotlin standard library instead.",
