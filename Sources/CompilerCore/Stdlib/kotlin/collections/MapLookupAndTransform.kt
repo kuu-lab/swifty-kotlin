@@ -3,23 +3,15 @@ package kotlin.collections
 import kotlin.internal.KsSymbolName
 import kotlin.reflect.KProperty
 
-// KSP-431
-// Map lookup and conversion members migrated to Kotlin source.
-// Migration source: Sources/Runtime/RuntimeSetAndMap.swift (kk_map_getValue,
-// kk_map_getOrDefault, kk_map_contains_key, kk_map_contains_value,
-// kk_map_to_mutable_map, kk_map_withDefault),
-// RuntimeCollectionHOF.swift (kk_map_getOrElse, kk_mutable_map_getOrPut,
-// kk_map_toList) and RuntimeCollections.swift (kk_map_orEmpty).
-//
-// Remaining bridges: Map's four runtime-backed property links and MutableMap's
-// mutation links are registered as direct residual ABI members because built-in
-// map boxes bypass itable registration (isEmpty/get use direct @KsSymbolName
+// KSP-431: Map's four runtime-backed property links and MutableMap's mutation
+// links are registered as direct residual ABI members because built-in map
+// boxes bypass itable registration (isEmpty/get use direct @KsSymbolName
 // bridges in Map/Map.kt). The residual Map.Entry shell keeps the runtime
 // key/value accessors available until nested source declarations can be
 // collected in the same pass. The entry bridge tags each entry with the
-// runtime map-entry type so `toString` prints
-// `k=v`; the `withDefault` state remains stored on the runtime map box
-// (`__kk_map_withDefault` / `__kk_map_has_default` / `__kk_map_implicit_default`).
+// runtime map-entry type so `toString` prints `k=v`; the `withDefault` state
+// remains stored on the runtime map box (`__kk_map_withDefault` /
+// `__kk_map_has_default` / `__kk_map_implicit_default`).
 
 @KsSymbolName("__kk_map_withDefault")
 private external fun <K, V> __kk_map_withDefault(map: Map<K, V>, defaultValue: (K) -> V): Map<K, V>
@@ -100,11 +92,6 @@ public inline fun <K, V> MutableMap<K, V>.getOrPut(key: K, defaultValue: () -> V
     return answer
 }
 
-/**
- * Computes a value for [key] when it is absent or currently mapped to `null`.
- *
- * If [mappingFunction] returns `null`, no mapping is added and `null` is returned.
- */
 public inline fun <K, V> MutableMap<K, V>.computeIfAbsent(key: K, mappingFunction: (K) -> V): V {
     val value = this[key]
     if (value != null) return value
@@ -113,11 +100,6 @@ public inline fun <K, V> MutableMap<K, V>.computeIfAbsent(key: K, mappingFunctio
     return computedValue
 }
 
-/**
- * Associates [value] with [key] when the key is absent or currently maps to null.
- *
- * @return the previous non-null value, or null when the key was absent or mapped to null.
- */
 public fun <K, V> MutableMap<K, V>.putIfAbsent(key: K, value: V): V? {
     val oldValue = this[key]
     if (oldValue != null) return oldValue
@@ -128,12 +110,6 @@ public inline fun <K, V> MutableMap<out K, V>.remove(key: K): V? {
     return __kk_mutable_map_remove(this, key)
 }
 
-/**
- * Removes the entry for the specified key only if it is currently
- * mapped to the specified value.
- *
- * @return `true` if the entry was removed.
- */
 @SinceKotlin("1.1")
 @IgnorableReturnValue
 @Suppress("UNCHECKED_CAST")
@@ -260,8 +236,7 @@ public fun <K, V> Map<K, V>?.orEmpty(): Map<K, V> {
     return this!!
 }
 
-// KUU-1361: JVM `Map.toSortedMap` returns `java.util.SortedMap` — the
-// concrete instance is a TreeMap ordered by natural or supplied comparator.
+// KUU-1361: JVM `Map.toSortedMap` returns `java.util.SortedMap`.
 public fun <K : Comparable<K>, V> Map<out K, V>.toSortedMap(): java.util.SortedMap<K, V> {
     val result = java.util.TreeMap<K, V>()
     result.putAll(this)
