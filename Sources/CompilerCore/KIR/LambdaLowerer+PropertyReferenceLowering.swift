@@ -32,9 +32,8 @@ extension LambdaLowerer {
         let ownerType: TypeID?
     }
 
-    /// Lowers the KProperty0/1 family to a heap object with explicit interface
-    /// registrations. KProperty2 is intentionally left on the legacy path until
-    /// its receiver/capture ABI is specified separately.
+    /// KProperty2 is intentionally left on the legacy path until its
+    /// receiver/capture ABI is specified separately.
     func lowerPropertyReferenceWrapperValue(
         _ exprID: ExprID,
         targetSymbol: SymbolID?,
@@ -344,9 +343,6 @@ extension LambdaLowerer {
         return nil
     }
 
-    /// KSP-496: the call target a property callable reference must use when it
-    /// is consumed as a plain *function* value (`val f: (C) -> Int = C::v`,
-    /// `list.map(C::v)`, or SAM conversion) rather than as a `KProperty0/1`.
     /// `lowerPropertyReferenceWrapperValue` only covers the KProperty shapes,
     /// and the property symbol itself has no emitted function behind it, so
     /// every other consumer has to fall back to the generated accessor —
@@ -881,10 +877,10 @@ extension LambdaLowerer {
     }
 
     /// `(receiver) -> value` function-value target for an interface / open /
-    /// abstract member property (`list.map(Named::label)`). The plain
-    /// accessor is the declaring type's own (possibly abstract-stub) getter,
-    /// so the function value needs a thunk that dispatches through the
-    /// itable / vtable. Returns `nil` when the property needs no dispatch.
+    /// abstract member property. The plain accessor is the declaring type's
+    /// own (possibly abstract-stub) getter, so the function value needs a
+    /// thunk that dispatches through the itable / vtable. Returns `nil` when
+    /// the property needs no dispatch.
     private func virtualPropertyGetterThunk(
         accessor: PropertyReferenceAccessor,
         sema: SemaModule,
