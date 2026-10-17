@@ -9,13 +9,10 @@ package kotlin
 
 import kotlin.internal.KsSymbolName
 
-// KSP-874: `Pair` owns its public constructor in this source-backed declaration.
-// Pair values remain runtime boxes because collection and sequence bridges create
-// the same representation; the allocating bridge is therefore intentionally kept.
+// KSP-874: Pair values remain runtime boxes because collection and sequence
+// bridges create the same representation; the allocating bridge is therefore
+// intentionally kept.
 
-/**
- * Represents a generic pair of two values.
- */
 public class Pair<out A, out B> {
     @KsSymbolName("__kk_pair_new")
     public constructor(first: A, second: B)
@@ -26,12 +23,10 @@ public class Pair<out A, out B> {
     @KsSymbolName("__kk_pair_second")
     private external fun secondComponent(): B
 
-    /** First value. */
     @KsSymbolName("__kk_pair_first")
     public val first: A
         get() = firstComponent()
 
-    /** Second value. */
     public val second: B
         get() = secondComponent()
 
@@ -46,9 +41,7 @@ public class Pair<out A, out B> {
 
     override fun hashCode(): Int = 31 * (first?.hashCode() ?: 0) + (second?.hashCode() ?: 0)
 
-    /** Returns string representation of the [Pair] including its [first] and [second] values. */
     override fun toString(): String = "($first, $second)"
 
-    /** Converts this pair into a list. */
     public fun toList(): List<Any?> = listOf(first, second)
 }
