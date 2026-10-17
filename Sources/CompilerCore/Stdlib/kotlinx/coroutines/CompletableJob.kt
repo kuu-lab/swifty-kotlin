@@ -23,8 +23,7 @@ public interface CompletableJob : Job {
 }
 
 // KUU-1386: real kotlinx shapes Job() / SupervisorJob() results as JobImpl,
-// a JobSupport subclass; the bound runtime job keeps the delegation identical
-// to the previous explicit overrides.
+// a JobSupport subclass.
 internal class CompletableJobImpl(backingJob: Job, parent: Job?) : JobImpl(parent, backingJob), CompletableJob
 
 public fun CompletableJob(parent: Job? = null): CompletableJob = Job(parent)
