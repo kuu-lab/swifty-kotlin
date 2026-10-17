@@ -111,6 +111,12 @@ def scenarios() -> list[dict]:
               "entry": "kotlinx.io.bytestring.probe.consumer.main",
               "jvm_class": "kotlinx.io.bytestring.probe.consumer.ConsumerKt",
               "jvm_friend_artifacts": ["kotlinx-io-bytestring-jvm-0.9.1.jar"],
+              "reference": "jvm"},
+             {"id": "bytestring-wrapunsafe-alias",
+              "producer": [HERE / "wrapunsafe_alias/Probe.kt"],
+              "consumer": HERE / "wrapunsafe_alias/Consumer.kt",
+              "entry": "kotlinx.io.bytestring.wrapunsafe.consumer.main",
+              "jvm_class": "kotlinx.io.bytestring.wrapunsafe.consumer.ConsumerKt",
               "reference": "jvm"}]
     fixtures = sorted((ROOT / "Scripts/diff_cases").glob("kotlinx_io*.kt"))
     cases.append({"id": "diff-consumers", "fixtures": fixtures, "reference": "jvm",

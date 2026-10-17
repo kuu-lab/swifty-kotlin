@@ -276,6 +276,27 @@ the Native reference uses the pinned `macos_arm64` KLIBs. The runner records
 the descriptor, compiler/test results, exact stdout/stderr hashes, and promotes
 the three ledger rows only when every row-specific lane passes.
 
+For KUU-2586, the dedicated `wrapUnsafe(ByteArray)` probe is scoped to the
+paired rows `jvm-f537e57626234f77` and `klib-07506d12f1446693`. It mutates the
+input array after wrapping, then reads the public `ByteString[index]` view and
+checks a copying-constructor control. Run it against the same pinned JVM and
+`macos_arm64` references:
+
+```sh
+python3 Scripts/io_api_inventory/run_wrapunsafe_alias_probe.py \
+  --candidate-sha fd01a5e98145e8295e5b299b0a7190cc8d44e3a7 \
+  --reference-root /path/to/prepared-jvm-reference \
+  --native-reference-root /path/to/prepared-macos-arm64-reference \
+  --konan-data /path/to/kotlin-native-cache \
+  --output /path/to/new-run-directory
+```
+
+The KLIB row requires source, explicit stdlib-library, producer/consumer, and
+Apple Native reference O0/O2 lanes. The JVM row has its own pinned `javap`
+descriptor check for `wrapUnsafe([B): ByteString`. The alias observation comes
+only from this direct `wrapUnsafe` case; other ByteString backing-array tests
+and suite references do not satisfy it.
+
 The generator rejects unknown or duplicate row IDs, malformed hashes, a
 different reference pin, stale implementation/test inputs, non-passing or
 unrun executions, duplicate cases, and missing or unrelated lanes. The case ID

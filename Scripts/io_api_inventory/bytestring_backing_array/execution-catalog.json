@@ -78,7 +78,7 @@
       "side": "reference",
       "result": "PASS",
       "exit_code": 0,
-      "stdout_sha256": "33437a8e438a115652a3947ca76bda824c4a114a1d8ae8495a8d22c4a1e9814e",
+      "stdout_sha256": "c5be3322722e82c68a82fe43700a8397f6b8462bf12acd242d2527e67b1202a4",
       "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
@@ -88,7 +88,7 @@
       "side": "candidate",
       "result": "PASS",
       "exit_code": 0,
-      "stdout_sha256": "110144c5529ca1ee41cf8b19414efb3433b52b1d939d62bd8d24ddb01c58e9ec",
+      "stdout_sha256": "9d15cd060f448fa4ad3feb8fa6f7444b9e6a04eb098ef056f4174a51ad5894f4",
       "stderr_sha256": "612e2551d98432d680db57aa0340512689cbabf5992ad7483ceb2061b8bde52d"
     },
     {

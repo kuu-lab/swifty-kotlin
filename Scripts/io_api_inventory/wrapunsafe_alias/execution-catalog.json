@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "executions": [
+    {
+      "execution_id": "wrapunsafe-alias:jvm:reference",
+      "case_id": "Scripts/io_api_inventory/wrapunsafe_alias/Probe.kt#wrapUnsafeByteArrayAlias",
+      "lane": "*",
+      "side": "reference",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "d27d58d262901be1da2ab806ffa1645362141f1cc06a4540c372c1329fd21f80",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "execution_id": "wrapunsafe-alias:f02:source-O0",
+      "case_id": "Scripts/io_api_inventory/wrapunsafe_alias/Probe.kt#wrapUnsafeByteArrayAlias",
+      "lane": "source-O0",
+      "side": "candidate",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "d27d58d262901be1da2ab806ffa1645362141f1cc06a4540c372c1329fd21f80",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "execution_id": "wrapunsafe-alias:f02:source-O2",
+      "case_id": "Scripts/io_api_inventory/wrapunsafe_alias/Probe.kt#wrapUnsafeByteArrayAlias",
+      "lane": "source-O2",
+      "side": "candidate",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "d27d58d262901be1da2ab806ffa1645362141f1cc06a4540c372c1329fd21f80",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "execution_id": "wrapunsafe-alias:f02:stdlib-library-O0",
+      "case_id": "Scripts/io_api_inventory/wrapunsafe_alias/Probe.kt#wrapUnsafeByteArrayAlias",
+      "lane": "stdlib-library-O0",
+      "side": "candidate",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "d27d58d262901be1da2ab806ffa1645362141f1cc06a4540c372c1329fd21f80",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "execution_id": "wrapunsafe-alias:f02:stdlib-library-O2",
+      "case_id": "Scripts/io_api_inventory/wrapunsafe_alias/Probe.kt#wrapUnsafeByteArrayAlias",
+      "lane": "stdlib-library-O2",
+      "side": "candidate",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "d27d58d262901be1da2ab806ffa1645362141f1cc06a4540c372c1329fd21f80",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "execution_id": "wrapunsafe-alias:f02:producer-consumer-O0",
+      "case_id": "Scripts/io_api_inventory/wrapunsafe_alias/Probe.kt#wrapUnsafeByteArrayAlias",
+      "lane": "producer-consumer-O0",
+      "side": "candidate",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "d27d58d262901be1da2ab806ffa1645362141f1cc06a4540c372c1329fd21f80",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "execution_id": "wrapunsafe-alias:f02:producer-consumer-O2",
+      "case_id": "Scripts/io_api_inventory/wrapunsafe_alias/Probe.kt#wrapUnsafeByteArrayAlias",
+      "lane": "producer-consumer-O2",
+      "side": "candidate",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "d27d58d262901be1da2ab806ffa1645362141f1cc06a4540c372c1329fd21f80",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "execution_id": "wrapunsafe-alias:jvm-descriptor:reference",
+      "case_id": "Scripts/io_api_inventory/wrapunsafe_alias/Probe.kt#wrapUnsafeByteArrayAlias",
+      "lane": "jvm-descriptor",
+      "side": "reference",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "e057587e0c4b144a8423ebd5f2fa04b95a12504fa328f255ea6268a6357b5772",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "execution_id": "wrapunsafe-alias:jvm-descriptor:candidate",
+      "case_id": "Scripts/io_api_inventory/wrapunsafe_alias/Probe.kt#wrapUnsafeByteArrayAlias",
+      "lane": "jvm-descriptor",
+      "side": "candidate",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "13f565d5d39e263a4c46c2113f2e10d9212c74a81d9428847ad595dc38f81269",
+      "stderr_sha256": "612e2551d98432d680db57aa0340512689cbabf5992ad7483ceb2061b8bde52d"
+    },
+    {
+      "execution_id": "wrapunsafe-alias:apple-reference:O0",
+      "case_id": "Scripts/io_api_inventory/wrapunsafe_alias/Probe.kt#wrapUnsafeByteArrayAlias",
+      "lane": "apple-native-O0",
+      "side": "reference",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "d27d58d262901be1da2ab806ffa1645362141f1cc06a4540c372c1329fd21f80",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "execution_id": "wrapunsafe-alias:apple-candidate:O0",
+      "case_id": "Scripts/io_api_inventory/wrapunsafe_alias/Probe.kt#wrapUnsafeByteArrayAlias",
+      "lane": "apple-native-O0",
+      "side": "candidate",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "d27d58d262901be1da2ab806ffa1645362141f1cc06a4540c372c1329fd21f80",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "execution_id": "wrapunsafe-alias:apple-reference:O2",
+      "case_id": "Scripts/io_api_inventory/wrapunsafe_alias/Probe.kt#wrapUnsafeByteArrayAlias",
+      "lane": "apple-native-O2",
+      "side": "reference",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "d27d58d262901be1da2ab806ffa1645362141f1cc06a4540c372c1329fd21f80",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "execution_id": "wrapunsafe-alias:apple-candidate:O2",
+      "case_id": "Scripts/io_api_inventory/wrapunsafe_alias/Probe.kt#wrapUnsafeByteArrayAlias",
+      "lane": "apple-native-O2",
+      "side": "candidate",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "d27d58d262901be1da2ab806ffa1645362141f1cc06a4540c372c1329fd21f80",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

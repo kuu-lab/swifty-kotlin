@@ -53,6 +53,13 @@ class F02GateTests(unittest.TestCase):
             "-Xfriend-paths=/locked/dependencies/kotlinx-io-bytestring-jvm-0.9.1.jar"
         ])
 
+    def test_wrapunsafe_alias_has_a_dedicated_jvm_candidate_case(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "bytestring-wrapunsafe-alias")
+        self.assertEqual([path.name for path in case["producer"]], ["Probe.kt"])
+        self.assertEqual(case["consumer"].name, "Consumer.kt")
+        self.assertEqual(case["entry"], "kotlinx.io.bytestring.wrapunsafe.consumer.main")
+        self.assertEqual(case["reference"], "jvm")
+
     def test_missing_default_call_and_duplicate_row_cannot_pass(self):
         manifest = {"paired_source_rows": ["a"], "required_call_ids": ["a:0", "a:1"]}
         complete = b"BEGIN:a\nCALL:a:0\nCALL-END:a:0\nCALL:a:1\nCALL-END:a:1\nEND:a\n"

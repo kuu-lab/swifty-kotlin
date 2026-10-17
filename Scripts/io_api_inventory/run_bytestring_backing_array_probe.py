@@ -103,6 +103,13 @@ def execution(execution_id: str, case_id: str, lane: str, side: str,
     }
 
 
+def reference_execution_for_lane(executions: list[dict], lane: str) -> dict | None:
+    exact = next((item for item in executions if item["side"] == "reference" and item["lane"] == lane), None)
+    if exact is not None:
+        return exact
+    return next((item for item in executions if item["side"] == "reference" and item["lane"] == "*"), None)
+
+
 def build_execution_records(matrix: dict, output: Path, descriptor: dict, swift_test: dict,
                             native_reference: dict) -> list[dict]:
     matrix_dir = output / "matrix"
@@ -197,8 +204,7 @@ def write_validation_evidence(generator, records: list[dict], candidate_sha: str
         lane_executions = []
         for lane in lanes_required:
             case_id = JVM_CASE if lane == "jvm-descriptor" else SOURCE_CASE
-            reference = next((item for item in executions_by_row[row_id]
-                              if item["side"] == "reference" and item["lane"] in {lane, "*"}), None)
+            reference = reference_execution_for_lane(executions_by_row[row_id], lane)
             candidate = next((item for item in executions_by_row[row_id]
                               if item["side"] == "candidate" and item["lane"] == lane), None)
             if reference is None or candidate is None:

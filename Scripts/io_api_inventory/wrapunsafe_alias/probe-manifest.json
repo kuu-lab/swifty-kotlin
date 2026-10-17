@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "probes": [
+    {
+      "case_id": "Scripts/io_api_inventory/wrapunsafe_alias/Probe.kt#wrapUnsafeByteArrayAlias",
+      "row_ids": [
+        "jvm-f537e57626234f77",
+        "klib-07506d12f1446693"
+      ],
+      "api_call": "wrapUnsafe",
+      "input_refs": [
+        "Scripts/io_api_inventory/wrapunsafe_alias/Probe.kt",
+        "Scripts/io_api_inventory/wrapunsafe_alias/Consumer.kt",
+        "Scripts/io_api_inventory/run_f02_matrix.py",
+        "Scripts/io_api_inventory/run_bytestring_backing_array_probe.py",
+        "Scripts/io_api_inventory/run_wrapunsafe_alias_probe.py",
+        "Scripts/io_api_inventory/generate.py",
+        "Scripts/io_api_inventory/test_validation_evidence.py",
+        "Scripts/io_api_inventory/test_f02_matrix.py",
+        "Scripts/io_api_inventory/test_wrapunsafe_alias_probe.py",
+        "Scripts/io_api_inventory/verify_wrapunsafe_jvm_descriptor.py",
+        "Scripts/io_api_inventory/verify_wrapunsafe_native_reference.py",
+        "Tests/CompilerCoreTests/Sema/KotlinxIOWrapUnsafeByteArrayTests.swift"
+      ],
+      "receipt_ref": "Scripts/io_api_inventory/wrapunsafe_alias/execution-catalog.json"
+    }
+  ]
+}

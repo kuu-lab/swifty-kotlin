@@ -42,6 +42,14 @@ class ValidationEvidenceTests(unittest.TestCase):
             "Scripts/io_api_inventory/bytestring_backing_array/execution-catalog.json",
             json.dumps({"schema_version": 1, "executions": []}),
         )
+        self._write(
+            "Scripts/io_api_inventory/wrapunsafe_alias/probe-manifest.json",
+            json.dumps({"schema_version": 1, "probes": []}),
+        )
+        self._write(
+            "Scripts/io_api_inventory/wrapunsafe_alias/execution-catalog.json",
+            json.dumps({"schema_version": 1, "executions": []}),
+        )
         self.row = {
             "row_id": "klib-fixture-foo",
             "representation": "Kotlin source API / KLIB dump",
@@ -199,6 +207,37 @@ class ValidationEvidenceTests(unittest.TestCase):
                 required_apple_lanes,
             )
         self.assertNotIn("apple-native-reference", self.generator.validation_obligations(jvm_row))
+
+    def test_wrapunsafe_klib_alias_requires_source_library_cross_module_and_native_lanes(self):
+        klib_row = copy.deepcopy(self.row)
+        klib_row["row_id"] = "klib-07506d12f1446693"
+        jvm_row = copy.deepcopy(self.row)
+        jvm_row["row_id"] = "jvm-f537e57626234f77"
+        jvm_row["representation"] = "JVM public ABI dump"
+        self.assertEqual(
+            self.generator.required_execution_lanes(self.generator.validation_obligations(klib_row)),
+            [
+                "source-O0", "source-O2", "stdlib-library-O0", "stdlib-library-O2",
+                "producer-consumer-O0", "producer-consumer-O2", "apple-native-O0", "apple-native-O2",
+            ],
+        )
+        self.assertEqual(
+            self.generator.required_execution_lanes(self.generator.validation_obligations(jvm_row)),
+            ["jvm-descriptor"],
+        )
+
+    def test_wrapunsafe_probe_manifest_is_limited_to_the_two_issue_rows(self):
+        manifest = json.loads(
+            (HERE / "wrapunsafe_alias/probe-manifest.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(len(manifest["probes"]), 1)
+        probe = manifest["probes"][0]
+        self.assertEqual(
+            probe["case_id"],
+            "Scripts/io_api_inventory/wrapunsafe_alias/Probe.kt#wrapUnsafeByteArrayAlias",
+        )
+        self.assertEqual(probe["api_call"], "wrapUnsafe")
+        self.assertEqual(set(probe["row_ids"]), {"jvm-f537e57626234f77", "klib-07506d12f1446693"})
 
     def test_backing_array_probe_refs_are_scoped_to_manifest_rows(self):
         probe_path = "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt"
