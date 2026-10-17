@@ -81,7 +81,6 @@ extension LocalDeclTypeChecker {
 
         let receiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
 
-        // Try to resolve operator fun get on the receiver type
         let getName = interner.intern("get")
         var getCandidates = driver.helpers.collectMemberFunctionCandidates(
             named: getName,
@@ -133,7 +132,6 @@ extension LocalDeclTypeChecker {
         }
 
         if !getCandidates.isEmpty {
-            // Resolve via operator fun get
             let resolved = ctx.resolver.resolveCall(
                 candidates: getCandidates,
                 call: getCall,
@@ -223,7 +221,6 @@ extension LocalDeclTypeChecker {
             }
         }
 
-        // Fallback: built-in array access (single Int index only)
         guard indices.count == 1 else {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
@@ -272,7 +269,6 @@ extension LocalDeclTypeChecker {
 
         let receiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
 
-        // Try to resolve operator fun set on the receiver type
         let setName = interner.intern("set")
         var setCandidates = driver.helpers.collectMemberFunctionCandidates(
             named: setName,
@@ -449,7 +445,6 @@ extension LocalDeclTypeChecker {
         }
 
         if !setCandidates.isEmpty {
-            // Resolve via operator fun set
             let resolved = ctx.resolver.resolveCall(
                 candidates: setCandidates,
                 call: setCall,
@@ -478,7 +473,6 @@ extension LocalDeclTypeChecker {
             }
         }
 
-        // Fallback: built-in array assign (single Int index only)
         guard indices.count == 1 else {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
