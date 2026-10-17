@@ -444,6 +444,34 @@
         }
       ],
       "evidence_source": "local-probe"
+    },
+    {
+      "row_id": "jvm-9996895f35860b5d",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "f38e95d335751d4196ecc570694785f3114a232d9e8b1a120422bdb2c9d271d0",
+      "test_input_sha256": "b91a6101ba5eebba67644c46f20cc4dc090f1b08f089b04c496984d7722a3ec8",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "evidence_source": "upstream-catalog",
+      "executions": [
+        {
+          "case_id": "core/jvm/test/AbstractSinkTestJVM.kt#writeStringWithCharset",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "io-api-probe:jvm-9996895f35860b5d:reference-jvm-descriptor",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-api-probe:jvm-9996895f35860b5d:native-default-source-klib-o0-o2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ]
     }
   ]
 }

@@ -188,6 +188,10 @@ def scenarios() -> list[dict]:
     cases.append({"id": "deprecated-path-source-sink",
                   "fixture": ROOT / "Scripts/diff_cases/kotlinx_io_file_legacy_suppressed.kt",
                   "reference": "jvm"})
+    cases.append({"id": "write-string-charset-default",
+                  "fixture": HERE / "probes/SinkWriteStringCharsetDefault.kt",
+                  "reference": "jvm",
+                  "jvm_abi_probe": HERE / "probes/SinkWriteStringCharsetJvmAbiProbe.java"})
     base = ROOT / "Tests/CompilerBackendTests/Fixtures"
     cases += [
         {"id": "buffer-boundaries", "producer": [base / "IOBuffer1729/BufferBoundaries.kt"],
@@ -571,8 +575,9 @@ def main(argv: list[str] | None = None) -> int:
                     javac = args.java.resolve().parent / "javac"
                     require_stage([str(javac), "-d", str(probe_classes), str(case["jvm_abi_probe"])],
                                   directory, "jvm-abi-compile", args.compile_timeout)
+                    probe_class = case.get("jvm_abi_probe_class", Path(case["jvm_abi_probe"]).stem)
                     require_stage([str(args.java.resolve()), "-cp", os.pathsep.join(
-                        map(str, [probe_classes, jar, *jars])), "SegmentReadContextAbiProbe"],
+                        map(str, [probe_classes, jar, *jars])), probe_class],
                         directory, "jvm-abi-probe", 30)
             else:
                 expected = case["expected"].read_bytes()

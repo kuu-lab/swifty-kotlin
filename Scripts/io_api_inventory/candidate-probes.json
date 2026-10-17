@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "probes": [
+    {
+      "row_id": "jvm-9996895f35860b5d",
+      "case_id": "core/jvm/test/AbstractSinkTestJVM.kt#writeStringWithCharset",
+      "reference_execution_id": "io-api-probe:jvm-9996895f35860b5d:reference-jvm-descriptor",
+      "candidate_execution_id": "io-api-probe:jvm-9996895f35860b5d:native-default-source-klib-o0-o2",
+      "reference_probe_ref": "Scripts/io_api_inventory/probes/SinkWriteStringCharsetJvmAbiProbe.java",
+      "candidate_probe_ref": "Scripts/io_api_inventory/run_f02_matrix.py",
+      "test_refs": [
+        "Scripts/io_api_inventory/candidate-probes.json",
+        "Scripts/io_api_inventory/probes/SinkWriteStringCharsetDefault.kt",
+        "Scripts/io_api_inventory/probes/SinkWriteStringCharsetJvmAbiProbe.java",
+        "Scripts/io_api_inventory/run_f02_matrix.py"
+      ]
+    }
+  ]
+}

@@ -96,14 +96,14 @@ class ValidationEvidenceTests(unittest.TestCase):
             | {"candidate-wrong": other_case_id},
         }
 
-    def _apply(self, records, row=None, schema_version=1):
+    def _apply(self, records, row=None, candidate_probes=None, schema_version=1):
         fixture_row = copy.deepcopy(row or self.row)
         self.evidence_path.write_text(
             json.dumps({"schema_version": schema_version, "records": records}), encoding="utf-8"
         )
         self.generator.apply_validation_evidence(
             [fixture_row], self.lock, self.evidence_path, self.repository, self.upstream,
-            self._execution_catalogs(),
+            self._execution_catalogs(), candidate_probes,
         )
         return fixture_row
 
@@ -182,6 +182,49 @@ class ValidationEvidenceTests(unittest.TestCase):
         record = self._record()
         record["evidence_source"] = "upstream-catalog"
         self.assertEqual(self._apply([record], schema_version=2)["status"], "verified")
+
+    def test_local_probe_ids_are_bound_to_one_row_case_subject_and_mapped_sources(self):
+        row = copy.deepcopy(self.row)
+        row.update({
+            "row_id": "jvm-fixture-foo",
+            "representation": "JVM public ABI dump",
+            "upstream_test_refs": "core/jvm/test/AbstractSinkTestJVM.kt#writeStringWithCharset",
+            "local_test_refs": (
+                "Scripts/io_api_inventory/candidate-probes.json;"
+                "Scripts/io_api_inventory/reference-probe.java;"
+                "Tests/CompilerBackendTests/CandidateProbe.swift"
+            ),
+        })
+        self._write("Scripts/io_api_inventory/candidate-probes.json", "{}\n")
+        self._write("Scripts/io_api_inventory/reference-probe.java", "class ReferenceProbe {}\n")
+        self._write("Tests/CompilerBackendTests/CandidateProbe.swift", "func testCandidateProbe() {}\n")
+        self._write("core/jvm/test/AbstractSinkTestJVM.kt", "fun writeStringWithCharset() {}\n", self.upstream)
+        case_id = "core/jvm/test/AbstractSinkTestJVM.kt#writeStringWithCharset"
+        probe = {
+            "row_id": row["row_id"],
+            "case_id": case_id,
+            "reference_execution_id": "local-reference-probe",
+            "candidate_execution_id": "local-candidate-probe",
+            "reference_probe_ref": "Scripts/io_api_inventory/reference-probe.java",
+            "candidate_probe_ref": "Tests/CompilerBackendTests/CandidateProbe.swift#testCandidateProbe",
+            "test_refs": row["local_test_refs"].split(";"),
+        }
+        record = self._record(row)
+        record["executions"][0]["case_id"] = case_id
+        record["executions"][0]["reference"]["execution_id"] = probe["reference_execution_id"]
+        record["executions"][0]["candidate"]["execution_id"] = probe["candidate_execution_id"]
+        promoted = self._apply([record], row, [probe])
+        self.assertEqual(promoted["status"], "verified")
+
+        wrong_subject = copy.deepcopy(record)
+        wrong_subject["executions"][0]["reference"]["execution_id"] = probe["candidate_execution_id"]
+        with self.assertRaisesRegex(SystemExit, "wrong subject"):
+            self._apply([wrong_subject], row, [probe])
+
+        wrong_case = copy.deepcopy(probe)
+        wrong_case["case_id"] = "core/jvm/test/AbstractSinkTestJVM.kt#writeSubstringWithCharset"
+        with self.assertRaisesRegex(SystemExit, "does not map to row"):
+            self._apply([record], row, [wrong_case])
 
     def test_registered_local_probe_evidence_promotes_only_its_row(self):
         row = self._local_probe_row()

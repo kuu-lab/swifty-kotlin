@@ -149,6 +149,32 @@ class F02GateTests(unittest.TestCase):
             ("producer-consumer", "O0"), ("producer-consumer", "O2"),
         ])
 
+    def test_sink_write_string_charset_default_bridge_has_separate_jvm_abi_and_native_lanes(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "write-string-charset-default")
+        fixture = case["fixture"].read_text(encoding="utf-8")
+        probe = case["jvm_abi_probe"].read_text(encoding="utf-8")
+
+        self.assertEqual(case["reference"], "jvm")
+        self.assertIn('writeString(string = "", charset = charset)', fixture)
+        self.assertIn('writeString(string = "x", charset = charset, endIndex = 0)', fixture)
+        self.assertIn('writeString(string = "x", charset = charset, startIndex = 1)', fixture)
+        self.assertIn('writeString(string = "x", charset = charset, startIndex = 1, endIndex = 1)', fixture)
+        self.assertIn('default startIndex did not preserve an empty range', fixture)
+        self.assertIn('default endIndex did not preserve an empty range', fixture)
+        self.assertIn("expectedDescriptor", probe)
+        self.assertIn("method.isSynthetic()", probe)
+        self.assertIn("method.isBridge()", probe)
+        self.assertIn("mask=startIndex:0x04,endIndex:0x08", probe)
+        self.assertEqual(
+            case.get("jvm_abi_probe_class", case["jvm_abi_probe"].stem),
+            "SinkWriteStringCharsetJvmAbiProbe",
+        )
+        self.assertEqual(matrix.LANES, [
+            ("source", "O0"), ("source", "O2"),
+            ("stdlib-library", "O0"), ("stdlib-library", "O2"),
+            ("producer-consumer", "O0"), ("producer-consumer", "O2"),
+        ])
+
     def test_deprecated_path_rows_have_no_unrelated_upstream_assertions(self):
         expected = {
             "jvm-23bdc46eecb769ad": (
