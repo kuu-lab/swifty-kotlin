@@ -1,6 +1,6 @@
 package kotlin
 
-// Explicit `inc()` / `dec()` member calls on numeric primitives (`5.inc()`, `x?.dec()`).
+// Explicit `inc()` / `dec()` member calls on numeric primitives.
 // The `++` / `--` operators on these types never reach these declarations: Sema keeps them
 // on the builtin compound-assign path (see `inferIncrementDecrementIfNeeded`) so hot loops
 // stay a plain add and Byte / Short / UByte / UShort results are wrapped to their width.
