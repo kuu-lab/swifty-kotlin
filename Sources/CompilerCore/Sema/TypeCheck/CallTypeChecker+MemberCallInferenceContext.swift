@@ -85,8 +85,7 @@ extension CallTypeChecker {
 
     /// Resolves a property or classifier reached through a package-qualified
     /// path before receiver inference tries to interpret the leading package
-    /// name as a value. Examples include `kotlin.math.PI` and the
-    /// `kotlin.Int` classifier in `kotlin.Int.MAX_VALUE`.
+    /// name as a value.
     func tryInferFQNQualifiedValue(
         _ request: MemberCallInferenceRequest,
         locals: LocalBindings
@@ -262,7 +261,6 @@ extension CallTypeChecker {
         return classifierType
     }
 
-    /// FQN package-qualified top-level function call: e.g. kotlin.math.abs(x).
     /// Fires before receiver inference to avoid SEMA-0022 on unresolvable package identifiers.
     func tryInferFQNPackageTopLevelCall(
         _ request: MemberCallInferenceRequest,
