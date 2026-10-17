@@ -148,7 +148,6 @@ extension MemberLowerer {
                 interner: interner,
                 body: &body
             )
-            // call: $delegate_x.getValue(thisRef, kProperty) -> PropertyType
             let resultExprID = arena.appendTemporary(
                 type: needsErasedGetterResultCast ? sema.types.anyType : propertyType
             )
@@ -198,7 +197,6 @@ extension MemberLowerer {
             let valueParamSymbol = SyntheticSymbolScheme.setterValueParameterSymbol(for: propertySymbol)
             params.append(KIRParameter(symbol: valueParamSymbol, type: propertyType))
 
-            // call: $delegate_x.setValue(thisRef, kProperty, value)
             let valueExprID = arena.appendExpr(.symbolRef(valueParamSymbol), type: propertyType)
             body.append(.constValue(result: valueExprID, value: .symbolRef(valueParamSymbol)))
             let delegateHandleExprID = loadDelegateHandle(
@@ -292,8 +290,7 @@ extension MemberLowerer {
         driver.ctx.clearImplicitReceiver()
     }
 
-    /// Builds the `getValue`/`setValue` call for a delegate access, using
-    /// itable virtual dispatch when the resolved symbol is an interface's
+    /// Uses itable virtual dispatch when the resolved symbol is an interface's
     /// abstract declaration (KSP-491: `Lazy<T>`/`ReadWriteProperty<Any?, T>`
     /// factories like `lazy`/`Delegates.observable` are declared to return
     /// the interface type, so Sema always resolves `getValue`/`setValue` to
@@ -367,9 +364,6 @@ extension MemberLowerer {
         return [dispatchReceiver] + arguments
     }
 
-    /// DEBT-KIR-008: reads the delegate handle (the `Lazy`/`ObservableProperty`/
-    /// custom-delegate instance stored in `$delegate_x`) for the current access.
-    ///
     /// Class/interface instance delegates live inside the heap-allocated object,
     /// while enum delegates use a per-entry global slot because enum values are
     /// ordinal-backed. Top-level and `object`-member delegates intentionally
@@ -473,12 +467,11 @@ extension MemberLowerer {
         ) + [valueExprID]
     }
 
-    /// Builds `(thisRef, kProperty)` args for a **local** delegated declaration's
-    /// getValue/setValue call (`fun f() { val x by Prop() }`). Unlike a member
-    /// delegate, whose `thisRef` is the enclosing instance, a local delegate is
-    /// never bound to a receiver — `thisRef` is always `null` regardless of
-    /// whether the declaration happens to sit inside a member function (where
-    /// an unrelated implicit receiver for the *enclosing class* may be active).
+    /// Unlike a member delegate, whose `thisRef` is the enclosing instance, a
+    /// local delegate is never bound to a receiver — `thisRef` is always `null`
+    /// regardless of whether the declaration happens to sit inside a member
+    /// function (where an unrelated implicit receiver for the *enclosing class*
+    /// may be active).
     ///
     /// Takes a plain `[KIRInstruction]` (rather than `KIRLoweringEmitContext`,
     /// as `buildKPropertyStub` below does) because callers here are inlining
@@ -521,8 +514,6 @@ extension MemberLowerer {
         )
     }
 
-    /// Lower a property getter or setter body as a synthetic KIR function.
-    ///
     /// Getter signature: `([dispatch,] receiver) -> PropertyType`
     /// Setter signature: `([dispatch,] receiver, value: PropertyType) -> Unit`
     func lowerAccessorBody(
@@ -587,7 +578,6 @@ extension MemberLowerer {
             dispatchReceiverBinding = (receiverSymbol, receiverExpr)
         }
 
-        // Add receiver parameter for extension properties or member properties.
         if let receiverType = extensionReceiverType {
             let receiverSymbol = driver.callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: propertySymbol)
             params.append(KIRParameter(symbol: receiverSymbol, type: receiverType))
@@ -745,8 +735,6 @@ extension MemberLowerer {
         }
         body.append(.endBlock)
 
-        // Use a synthetic symbol derived from the property symbol for the accessor.
-        // Offsets are centralized in SyntheticSymbolScheme.
         let syntheticAccessorSymbol: SymbolID = switch accessorKind {
         case .getter:
             sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
@@ -804,11 +792,10 @@ extension MemberLowerer {
         driver.ctx.clearImplicitReceiver()
     }
 
-    /// Emits a getter accessor function (`(receiver) -> PropertyType`) that
-    /// reads a stored property from its instance field. Concrete classes and
-    /// object literals need one for every property that overrides an interface
-    /// property so its getter can be registered into the interface's itable and
-    /// dispatched through an interface-typed receiver.
+    /// Concrete classes and object literals need a getter accessor for every
+    /// property that overrides an interface property so its getter can be
+    /// registered into the interface's itable and dispatched through an
+    /// interface-typed receiver.
     func synthesizeStoredPropertyGetterAccessor(
         propertySymbol: SymbolID,
         ownerSymbol: SymbolID,
@@ -902,13 +889,10 @@ extension MemberLowerer {
         allDecls.append(contentsOf: driver.ctx.drainGeneratedCallableDecls())
     }
 
-    /// BUG-227: emits a setter accessor function (`(receiver, value) -> Unit`)
-    /// that writes a stored property to its instance field. The `var`
-    /// counterpart of `synthesizeStoredPropertyGetterAccessor` above — every
-    /// class whose stored property ever needs virtual dispatch (the
-    /// open/abstract root of an override chain, or a link further down it)
-    /// needs one so a write through a base-typed reference can dispatch to it
-    /// the same way a read dispatches to the getter.
+    /// BUG-227: every class whose stored property ever needs virtual dispatch
+    /// (the open/abstract root of an override chain, or a link further down it)
+    /// needs a setter accessor so a write through a base-typed reference can
+    /// dispatch to it the same way a read dispatches to the getter.
     func synthesizeStoredPropertySetterAccessor(
         propertySymbol: SymbolID,
         ownerSymbol: SymbolID,
@@ -994,12 +978,10 @@ extension MemberLowerer {
         allDecls.append(contentsOf: driver.ctx.drainGeneratedCallableDecls())
     }
 
-    /// Emits a getter accessor stub (`(receiver) -> PropertyType`) for an
-    /// abstract interface property. The stub is never executed — interface
-    /// property reads dispatch through the itable — but it gives the dispatch
-    /// site a concrete internal function whose signature matches the registered
-    /// implementing getters, exactly as abstract interface methods emit a
-    /// unit-returning stub.
+    /// The stub is never executed — interface property reads dispatch through
+    /// the itable — but it gives the dispatch site a concrete internal function
+    /// whose signature matches the registered implementing getters, exactly as
+    /// abstract interface methods emit a unit-returning stub.
     func synthesizeInterfacePropertyGetterStub(
         propertySymbol: SymbolID,
         ownerSymbol: SymbolID,
@@ -1045,13 +1027,11 @@ extension MemberLowerer {
         allDecls.append(contentsOf: driver.ctx.drainGeneratedCallableDecls())
     }
 
-    /// Emits a setter accessor stub (`(receiver, value) -> Unit`) for an
-    /// abstract interface `var`. The `var` counterpart of
-    /// `synthesizeInterfacePropertyGetterStub` above — without it, an
-    /// abstract interface property's setter has no registered symbol at all
-    /// (its getter always gets the stub above), so anything that resolves to
-    /// it — for example a `by`-delegation forwarder whose dispatch falls back
-    /// to the interface's own declaration — links against an undefined name.
+    /// Without this stub, an abstract interface property's setter has no
+    /// registered symbol at all (its getter always gets the stub above), so
+    /// anything that resolves to it — for example a `by`-delegation forwarder
+    /// whose dispatch falls back to the interface's own declaration — links
+    /// against an undefined name.
     func synthesizeInterfacePropertySetterStub(
         propertySymbol: SymbolID,
         ownerSymbol: SymbolID,
