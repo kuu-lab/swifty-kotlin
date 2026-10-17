@@ -1,7 +1,6 @@
 extension CallTypeChecker {
-    /// Select the highest-priority applicable invoke tier for a nominal
-    /// callable property. Member operators precede receiver-scoped extensions,
-    /// which precede extensions found in the current lexical/import scope.
+    /// Member operators precede receiver-scoped extensions, which precede
+    /// extensions found in the current lexical/import scope.
     func nominalCallablePropertyInvokeCandidates(
         _ type: TypeID, request: MemberCallInferenceRequest, argTypes: [TypeID], locals: LocalBindings
     ) -> [SymbolID] {
