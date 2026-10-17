@@ -11,9 +11,9 @@ public class ClosedChannelException : java.io.IOException()
 public class NonReadableChannelException : IllegalStateException()
 public class NonWritableChannelException : IllegalStateException()
 
-/** Native sequential regular-file channel. Positional, mapped and locking APIs
- * are not represented by this source model. It supplies the original NioTest
- * producers without substituting Buffer for their FileChannel. */
+/** Positional, mapped and locking APIs are not represented by this source model.
+ * It supplies the original NioTest producers without substituting Buffer for
+ * their FileChannel. */
 public class FileChannel private constructor(
     private var descriptor: Int,
     private val readable: Boolean,
