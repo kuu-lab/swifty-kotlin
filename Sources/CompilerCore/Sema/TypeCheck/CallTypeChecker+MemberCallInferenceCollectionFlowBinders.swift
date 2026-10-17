@@ -184,9 +184,8 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         return true
     }
 
-    /// Bind a source-backed `List.binarySearch` / `binarySearchBy` overload using
-    /// the regular overload resolver so default arguments and named labels are
-    /// handled correctly.
+    /// Uses the regular overload resolver so default arguments and named labels
+    /// are handled correctly.
     @discardableResult
     func bindBundledListBinarySearchSource(elementType: TypeID, locals: inout LocalBindings) -> Bool {
         let calleeStr = interner.resolve(calleeName)
@@ -375,10 +374,9 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         return true
     }
 
-    /// KUU-542: true when the argument is typed as `kotlin.Comparator` (or a
-    /// nominal subtype). The bundled `Iterable` `*With`/`sortedWith`
-    /// overloads only take Comparator parameters, so a function-typed
-    /// argument must not bind to them.
+    /// The bundled `Iterable` `*With`/`sortedWith` overloads only take
+    /// Comparator parameters, so a function-typed argument must not bind to
+    /// them.
     func isComparatorTypedArgument(_ argExprID: ExprID, locals: inout LocalBindings) -> Bool {
         let comparatorFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Comparator")]
         guard let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName),
@@ -390,9 +388,8 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         return sema.types.isNominalSubtypeSymbol(argClassType.classSymbol, of: comparatorSymbol)
     }
 
-    /// Bind the source-backed `Iterable<T>.sum()` overload. The caller
-    /// tries the concrete `List<Int>.sum()` fast path first for List-like
-    /// receivers (BUG-256: that path only has an `Int` overload in
+    /// The caller tries the concrete `List<Int>.sum()` fast path first for
+    /// List-like receivers (BUG-256: that path only has an `Int` overload in
     /// ListCollectionOps.kt, so every other element type falls through to
     /// this function); call order, not a guard here, keeps the List fast
     /// path from being overridden when it already bound.
@@ -530,10 +527,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         return signature.returnType
     }
 
-    /// Bind one of the five source-backed `Iterable<T>.sumOf` overloads by
-    /// the selector body's actual return type. This is the target-specific
-    /// counterpart of the general collection HOF path; List and Sequence
-    /// overload resolution remains on their existing paths.
     func bindBundledIterableSumOfSource(locals: inout LocalBindings) -> TypeID? {
         guard !isSequenceReceiver,
               !isRangeReceiver,
@@ -577,8 +570,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         destinationType: TypeID? = nil,
         locals: inout LocalBindings
     ) -> Bool {
-        // KSP-974: select the Iterable receiver's overload by the lambda
-        // return type before lowering, including indexed and destination transforms.
         guard !isSequenceReceiver,
               isIterableReceiver,
               !receiverClassification.isListReceiver,
@@ -773,9 +764,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         return nil
     }
 
-    /// Bind a member call to a bundled Kotlin-source extension declared on a
-    /// collection owner interface (`Map`, `Set`, …), inferring the owner's type
-    /// arguments from the receiver and any remaining ones from lambda returns.
     @discardableResult
     func bindBundledCollectionOwnerSourceFunction(
         receiverTypeArgumentCount: Int,
@@ -1095,8 +1083,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         )
     }
 
-    // KSP-432/KSP-704: Set members are source-backed in
-    // Stdlib/kotlin/collections/Set.kt and SetHOF.kt.
     @discardableResult
     func bindBundledSetSourceFunction(locals: inout LocalBindings) -> Bool {
         guard isSetReceiver, !isSequenceReceiver, !isMapReceiver else {
@@ -1175,10 +1161,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
     }
 
 
-    /// KSP-1359: bind the bundled monomorphic `Sequence<E>.sum()`
-    /// overload whose receiver element type matches the actual
-    /// receiver's element type, and return its declared return type
-    /// (Double/Float/Long/UInt/ULong sibling of `Sequence<Int>.sum()`).
     /// The Sequence counterpart of `bindBundledIterableSumSource`,
     /// which cannot be reused here because it only scans the
     /// kotlin.collections Iterable-family declarations.
