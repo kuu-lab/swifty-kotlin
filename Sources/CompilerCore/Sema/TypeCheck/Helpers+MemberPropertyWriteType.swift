@@ -1,7 +1,4 @@
 extension TypeCheckHelpers {
-    /// Approximate the property's type from below for writes. A receiver projection
-    /// supplies an interval: `in X` has lower bound X, while `out X`/`*` have
-    /// lower bound Nothing. Lift arguments to the declaring owner before applying it.
     func memberPropertyWriteType(
         symbol: SymbolID, receiverType: TypeID, fallback: TypeID, sema: SemaModule
     ) -> TypeID {
