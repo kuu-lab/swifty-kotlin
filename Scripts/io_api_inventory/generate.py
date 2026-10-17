@@ -238,10 +238,12 @@ TEST_HINTS = {
 LOCAL_IO_TEST_PREFIXES = (
     "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java",
     "Scripts/io_api_inventory/probes/",
+    "Scripts/io_api_inventory/source_rawsource_shape/",
     "Scripts/diff_cases/kotlinx_io_",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+ByteString",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+KtorIOCoverage.swift",
     "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590/",
+    "Tests/CompilerBackendTests/Fixtures/IOSourceRawSourceShape2615/",
     "Tests/CompilerCoreTests/GoldenCases/Sema/kotlinx_io_",
     "Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlinx_io_",
     "Tests/CompilerCoreTests/Sema/KotlinxIO",
@@ -259,6 +261,35 @@ SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS = (
     "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java",
     "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590/",
 )
+SOURCE_RAWSOURCE_SHAPE_LOCAL_TESTS = frozenset({
+    "Scripts/io_api_inventory/source_rawsource_shape/SourceRawSourceJvmShapeProbe.java",
+    "Scripts/io_api_inventory/source_rawsource_shape/verify_jvm_reference.py",
+    "Tests/CompilerBackendTests/Fixtures/IOSourceRawSourceShape2615/Combined.kt",
+    "Tests/CompilerBackendTests/Fixtures/IOSourceRawSourceShape2615/Consumer.kt",
+    "Tests/CompilerBackendTests/Fixtures/IOSourceRawSourceShape2615/Producer.kt",
+    "Tests/CompilerBackendTests/Fixtures/IOSourceRawSourceShape2615/SourceBoundaryNegative.kt",
+    "Tests/CompilerBackendTests/Integration/IOSourceRawSourceShapeExecutionTests.swift",
+    "Tests/CompilerCoreTests/Sema/KotlinxIOSourceRawSourceShapeTests.swift",
+})
+SOURCE_RAWSOURCE_SHAPE_ROW_IDS = frozenset({
+    "jvm-629859a56151abf0",
+    "jvm-f8d085329509298b",
+    "klib-55dcad01b8bc6432",
+    "klib-795e5c923ef63bf3",
+})
+SOURCE_RAWSOURCE_SHAPE_EVIDENCE_PATH = (
+    HERE / "source_rawsource_shape" / "validation-evidence.json"
+)
+SOURCE_RAWSOURCE_SHAPE_REFERENCE_VERSION = "kotlinx-io 0.9.1 / Kotlin 2.3.10"
+SOURCE_RAWSOURCE_SHAPE_REFERENCE_EXECUTION_ID = "kuu-2615-jvm-reference"
+SOURCE_RAWSOURCE_SHAPE_CANDIDATE_EXECUTION_IDS = {
+    lane: f"kuu-2615-candidate-{lane}"
+    for lane in (
+        "source-O0", "source-O2", "stdlib-library-O0", "stdlib-library-O2",
+        "producer-consumer-O0", "producer-consumer-O2",
+        "source-boundary-negative-O0", "source-boundary-negative-O2",
+    )
+}
 
 MODIFIERS = (
     "public|internal|private|protected|actual|expect|inline|suspend|operator|"
@@ -672,6 +703,181 @@ def apply_validation_evidence(
             if not required_cases:
                 fail(f"row {row_id} has no registered local probe evidence cases")
         row["status"] = "verified"
+
+
+def validate_source_rawsource_shape_evidence(
+    rows: list[dict],
+    lock: dict,
+    evidence_path: Path = SOURCE_RAWSOURCE_SHAPE_EVIDENCE_PATH,
+    repository: Path = REPO,
+    upstream: Path = UPSTREAM,
+) -> None:
+    """Validate supplemental declaration-shape receipts without promoting API rows."""
+    if not evidence_path.is_file():
+        return
+    try:
+        evidence = json.loads(
+            evidence_path.read_text(encoding="utf-8"), object_pairs_hook=_unique_json_object
+        )
+    except OSError as error:
+        fail(f"cannot read Source/RawSource shape evidence {evidence_path}: {error}")
+    except json.JSONDecodeError as error:
+        fail(f"invalid Source/RawSource shape evidence JSON: {error}")
+    except UnicodeDecodeError as error:
+        fail(f"Source/RawSource shape evidence is not UTF-8: {error}")
+
+    top_fields = {"schema_version", "records", "outputs", "run_counts"}
+    if not isinstance(evidence, dict) or set(evidence) != top_fields:
+        fail("Source/RawSource shape evidence must contain only schema_version, records, outputs, and run_counts")
+    if type(evidence["schema_version"]) is not int or evidence["schema_version"] != 1:
+        fail("unsupported Source/RawSource shape evidence schema_version")
+    records = evidence["records"]
+    if not isinstance(records, list):
+        fail("Source/RawSource shape evidence records must be an array")
+    if not records:
+        if evidence["outputs"] != {} or evidence["run_counts"] != {
+            "reference_executions": 0, "candidate_lane_executions": 0, "row_attributions": 0
+        }:
+            fail("empty Source/RawSource shape evidence has non-empty outputs or run counts")
+        return
+
+    rows_by_id = {row["row_id"]: row for row in rows}
+    if set(SOURCE_RAWSOURCE_SHAPE_ROW_IDS) - rows_by_id.keys():
+        fail("Source/RawSource shape evidence rows are absent from the API inventory")
+    if len(records) != len(SOURCE_RAWSOURCE_SHAPE_ROW_IDS):
+        fail("Source/RawSource shape evidence must contain exactly one record for each of its four rows")
+
+    record_fields = {
+        "row_id", "candidate_sha", "reference_version", "reference_commit",
+        "implementation_input_sha256", "test_input_sha256",
+        "compatibility_obligations", "executions",
+    }
+    execution_fields = {"case_id", "lane", "reference", "candidate"}
+    result_fields = {"execution_id", "result", "exit_code"}
+    sha256_pattern = re.compile(r"^[0-9a-f]{64}$")
+    candidate_sha_pattern = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
+    seen_rows = set()
+    candidate_shas = set()
+    referenced_outputs = set()
+    unique_reference_ids = set()
+    unique_candidate_ids = set()
+
+    for record in records:
+        if not isinstance(record, dict) or set(record) != record_fields:
+            fail("each Source/RawSource shape record must use the KUU-2469 v1 record fields")
+        row_id = record["row_id"]
+        if not isinstance(row_id, str) or row_id not in SOURCE_RAWSOURCE_SHAPE_ROW_IDS:
+            fail(f"Source/RawSource shape evidence references an unrelated row: {row_id}")
+        if row_id in seen_rows:
+            fail(f"duplicate Source/RawSource shape evidence row_id: {row_id}")
+        seen_rows.add(row_id)
+        row = rows_by_id[row_id]
+        if row["status"] != "unverified":
+            fail(f"shape-only evidence cannot promote {row_id} from status {row['status']}")
+
+        candidate_sha = record["candidate_sha"]
+        if not isinstance(candidate_sha, str) or not candidate_sha_pattern.fullmatch(candidate_sha):
+            fail(f"malformed candidate SHA for Source/RawSource row {row_id}")
+        candidate_shas.add(candidate_sha)
+        if (record["reference_version"], record["reference_commit"]) != (
+            SOURCE_RAWSOURCE_SHAPE_REFERENCE_VERSION, lock.get("commit")
+        ):
+            fail(f"reference pin mismatch for Source/RawSource row {row_id}")
+
+        hashes = validation_input_hashes(row, repository, upstream)
+        for field in ("implementation_input_sha256", "test_input_sha256"):
+            value = record[field]
+            if not isinstance(value, str) or not sha256_pattern.fullmatch(value):
+                fail(f"malformed {field} for Source/RawSource row {row_id}")
+            if value != hashes[field]:
+                fail(f"stale {field} for Source/RawSource row {row_id}")
+
+        if row_id.startswith("jvm-"):
+            expected_obligations = ["jvm-reference-shape"]
+            expected_lanes = ["jvm-reference"]
+        else:
+            expected_obligations = ["native-declaration-shape", "native-source", "native-bridge"]
+            expected_lanes = [
+                "jvm-reference", "source-O0", "source-O2",
+                "stdlib-library-O0", "stdlib-library-O2",
+                "producer-consumer-O0", "producer-consumer-O2",
+            ]
+            if row_id == "klib-795e5c923ef63bf3":
+                expected_obligations.append("native-sealed-boundary")
+                expected_lanes.extend(["source-boundary-negative-O0", "source-boundary-negative-O2"])
+        if record["compatibility_obligations"] != expected_obligations:
+            fail(f"compatibility obligations mismatch for Source/RawSource row {row_id}")
+
+        executions = record["executions"]
+        if not isinstance(executions, list) or len(executions) != len(expected_lanes):
+            fail(f"incomplete lane evidence for Source/RawSource row {row_id}")
+        lanes = set()
+        for execution in executions:
+            if not isinstance(execution, dict) or set(execution) != execution_fields:
+                fail(f"malformed execution record for Source/RawSource row {row_id}")
+            lane = execution["lane"]
+            if not isinstance(lane, str) or lane not in expected_lanes or lane in lanes:
+                fail(f"unexpected or duplicate lane {lane!r} for Source/RawSource row {row_id}")
+            lanes.add(lane)
+            if execution["case_id"] != f"KUU-2615/{lane}":
+                fail(f"unexpected case ID for Source/RawSource row {row_id} lane {lane}")
+            expected_subject = "reference" if lane == "jvm-reference" else "candidate"
+            for subject in ("reference", "candidate"):
+                result = execution[subject]
+                if subject != expected_subject:
+                    if result is not None:
+                        fail(f"shape-only {subject} result is not available for row {row_id} lane {lane}")
+                    continue
+                if not isinstance(result, dict) or set(result) != result_fields:
+                    fail(f"malformed {subject} result for Source/RawSource row {row_id} lane {lane}")
+                if result["result"] != "PASS" or type(result["exit_code"]) is not int or result["exit_code"] != 0:
+                    fail(f"non-passing {subject} result for Source/RawSource row {row_id} lane {lane}")
+                execution_id = result["execution_id"]
+                if not isinstance(execution_id, str) or not execution_id:
+                    fail(f"empty {subject} execution_id for Source/RawSource row {row_id} lane {lane}")
+                expected_execution_id = (
+                    SOURCE_RAWSOURCE_SHAPE_REFERENCE_EXECUTION_ID
+                    if lane == "jvm-reference"
+                    else SOURCE_RAWSOURCE_SHAPE_CANDIDATE_EXECUTION_IDS[lane]
+                )
+                if execution_id != expected_execution_id:
+                    fail(f"unexpected {subject} execution_id for Source/RawSource row {row_id} lane {lane}")
+                referenced_outputs.add(execution_id)
+                if subject == "reference":
+                    unique_reference_ids.add(execution_id)
+                else:
+                    unique_candidate_ids.add(execution_id)
+
+    if seen_rows != SOURCE_RAWSOURCE_SHAPE_ROW_IDS:
+        fail("Source/RawSource shape evidence does not cover all four API rows")
+    if len(candidate_shas) != 1:
+        fail("Source/RawSource shape evidence must use one candidate SHA across all rows")
+
+    outputs = evidence["outputs"]
+    if not isinstance(outputs, dict) or set(outputs) != referenced_outputs:
+        fail("Source/RawSource shape output receipts do not match the recorded execution IDs")
+    for execution_id, output in outputs.items():
+        if not isinstance(output, dict) or set(output) != {"output_sha256", "artifact_sha256", "summary"}:
+            fail(f"malformed output receipt for Source/RawSource execution {execution_id}")
+        if any(not isinstance(output[field], str) or not sha256_pattern.fullmatch(output[field])
+               for field in ("output_sha256", "artifact_sha256")):
+            fail(f"malformed output hash for Source/RawSource execution {execution_id}")
+        if not isinstance(output["summary"], str) or not output["summary"].strip():
+            fail(f"empty output summary for Source/RawSource execution {execution_id}")
+
+    run_counts = evidence["run_counts"]
+    expected_run_counts = {
+        "reference_executions": len(unique_reference_ids),
+        "candidate_lane_executions": len(unique_candidate_ids),
+        "row_attributions": sum(len(record["executions"]) for record in records),
+    }
+    if (not isinstance(run_counts, dict)
+            or set(run_counts) != set(expected_run_counts)
+            or any(type(value) is not int for value in run_counts.values())
+            or run_counts != expected_run_counts):
+        fail("Source/RawSource shape evidence run counts do not match its execution records")
+    if len(unique_reference_ids) != 1 or len(unique_candidate_ids) != 8:
+        fail("Source/RawSource shape evidence has incomplete unique process counts")
 
 
 def load_inputs() -> tuple[dict, dict, list[dict], list[dict]]:
@@ -1648,11 +1854,28 @@ def local_contract_differences(row: dict, index: SourceIndex) -> str:
 
 
 def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
+    if row["row_id"] in SOURCE_RAWSOURCE_SHAPE_ROW_IDS:
+        refs = [
+            "Scripts/io_api_inventory/source_rawsource_shape/SourceRawSourceJvmShapeProbe.java",
+            "Scripts/io_api_inventory/source_rawsource_shape/verify_jvm_reference.py",
+            "Tests/CompilerBackendTests/Fixtures/IOSourceRawSourceShape2615/Combined.kt",
+            "Tests/CompilerBackendTests/Integration/IOSourceRawSourceShapeExecutionTests.swift",
+            "Tests/CompilerCoreTests/Sema/KotlinxIOSourceRawSourceShapeTests.swift",
+            "Tests/CompilerBackendTests/Fixtures/IOSourceRawSourceShape2615/Consumer.kt",
+        ]
+        if row["row_id"] in {"jvm-629859a56151abf0", "klib-795e5c923ef63bf3"}:
+            refs.append("Tests/CompilerBackendTests/Fixtures/IOSourceRawSourceShape2615/SourceBoundaryNegative.kt")
+        else:
+            refs.append("Tests/CompilerBackendTests/Fixtures/IOSourceRawSourceShape2615/Producer.kt")
+        return refs
+
     name = row["_candidate_name"].lower()
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []
     for path, content in local_tests:
-        if path.startswith("Scripts/io_api_inventory/probes/") and name not in LOCAL_IO_PROBE_API_NAMES:
+        if ((path.startswith("Scripts/io_api_inventory/probes/")
+                and name not in LOCAL_IO_PROBE_API_NAMES)
+                or path in SOURCE_RAWSOURCE_SHAPE_LOCAL_TESTS):
             continue
         if (path == SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS[0]
                 or path.startswith(SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS[1])):
@@ -2042,7 +2265,9 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     local_paths.extend(REPO.joinpath("Scripts/diff_cases").glob("*.kt"))
     local_paths.extend(REPO.joinpath("Scripts/io_api_inventory/probes").glob("*.kt"))
     local_paths.extend(REPO.joinpath("Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590").glob("*.kt"))
+    local_paths.extend(REPO.joinpath("Tests/CompilerBackendTests/Fixtures/IOSourceRawSourceShape2615").glob("*.kt"))
     local_paths.append(REPO / "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java")
+    local_paths.append(REPO / "Scripts/io_api_inventory/source_rawsource_shape/SourceRawSourceJvmShapeProbe.java")
     for path in sorted(local_paths):
         rel = path.relative_to(REPO).as_posix()
         if rel.startswith(LOCAL_IO_TEST_PREFIXES):
@@ -2066,7 +2291,11 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
             row["status"] = "unverified"
             row["notes"] += "; generated JVM ABI presence cannot be established from Kotlin source-name matching alone"
         row["owner_issue"] = owner_for(row)
-        direct_upstream_tests = upstream_test_refs(row, test_index)
+        direct_upstream_tests = (
+            [NO_DIRECT_UPSTREAM_ASSERTION]
+            if row["row_id"] in SOURCE_RAWSOURCE_SHAPE_ROW_IDS
+            else upstream_test_refs(row, test_index)
+        )
         row["upstream_test_refs"] = ";".join(direct_upstream_tests) or NO_DIRECT_UPSTREAM_ASSERTION
         row["local_test_refs"] = ";".join(local_test_refs(row, local_tests)) or "none"
         if row["representation"] == "JVM public ABI dump":
@@ -2084,6 +2313,7 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     pair_rows(api_rows)
     api_rows.sort(key=lambda row: (row["module"], row["representation"], row["row_id"]))
     apply_validation_evidence(api_rows, lock)
+    validate_source_rawsource_shape_evidence(api_rows, lock)
     check_negative_guards(api_rows)
     scope_rows = parse_platform_public_declarations(sources, api_rows, index)
     return lock, api_rows, scope_rows

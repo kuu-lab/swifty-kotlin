@@ -165,6 +165,87 @@ class ValidationEvidenceTests(unittest.TestCase):
             "executions": executions,
         }
 
+    def _source_rawsource_shape_evidence(self):
+        row_ids = (
+            "jvm-629859a56151abf0",
+            "jvm-f8d085329509298b",
+            "klib-55dcad01b8bc6432",
+            "klib-795e5c923ef63bf3",
+        )
+        rows = []
+        records = []
+        outputs = {}
+        reference_id = self.generator.SOURCE_RAWSOURCE_SHAPE_REFERENCE_EXECUTION_ID
+        outputs[reference_id] = {
+            "output_sha256": "c" * 64,
+            "artifact_sha256": "d" * 64,
+            "summary": "JVM reflection PASS",
+        }
+        for lane, execution_id in self.generator.SOURCE_RAWSOURCE_SHAPE_CANDIDATE_EXECUTION_IDS.items():
+            outputs[execution_id] = {
+                "output_sha256": "e" * 64,
+                "artifact_sha256": "f" * 64,
+                "summary": f"candidate {lane} PASS",
+            }
+
+        for row_id in row_ids:
+            representation = "JVM public ABI dump" if row_id.startswith("jvm-") else "Kotlin source API / KLIB dump"
+            row = {
+                "row_id": row_id,
+                "representation": representation,
+                "local_candidate_refs": "Sources/CompilerCore/Stdlib/kotlinx/io/Foo.kt:1",
+                "local_implementation_refs": "Sources/CompilerCore/Stdlib/kotlinx/io/Foo.kt:1",
+                "local_test_refs": "Tests/CompilerBackendTests/FooTests.swift",
+                "upstream_test_refs": self.generator.NO_DIRECT_UPSTREAM_ASSERTION,
+                "status": "unverified",
+            }
+            rows.append(row)
+            if row_id.startswith("jvm-"):
+                obligations = ["jvm-reference-shape"]
+                lanes = ["jvm-reference"]
+            else:
+                obligations = ["native-declaration-shape", "native-source", "native-bridge"]
+                lanes = [
+                    "jvm-reference", "source-O0", "source-O2",
+                    "stdlib-library-O0", "stdlib-library-O2",
+                    "producer-consumer-O0", "producer-consumer-O2",
+                ]
+                if row_id == "klib-795e5c923ef63bf3":
+                    obligations.append("native-sealed-boundary")
+                    lanes.extend(["source-boundary-negative-O0", "source-boundary-negative-O2"])
+            executions = []
+            for lane in lanes:
+                is_reference = lane == "jvm-reference"
+                execution_id = reference_id if is_reference else self.generator.SOURCE_RAWSOURCE_SHAPE_CANDIDATE_EXECUTION_IDS[lane]
+                result = {"execution_id": execution_id, "result": "PASS", "exit_code": 0}
+                executions.append({
+                    "case_id": f"KUU-2615/{lane}",
+                    "lane": lane,
+                    "reference": result if is_reference else None,
+                    "candidate": None if is_reference else result,
+                })
+            records.append({
+                "row_id": row_id,
+                "candidate_sha": "a" * 40,
+                "reference_version": self.generator.SOURCE_RAWSOURCE_SHAPE_REFERENCE_VERSION,
+                "reference_commit": self.lock["commit"],
+                **self.generator.validation_input_hashes(row, self.repository, self.upstream),
+                "compatibility_obligations": obligations,
+                "executions": executions,
+            })
+
+        evidence = {
+            "schema_version": 1,
+            "records": records,
+            "outputs": outputs,
+            "run_counts": {
+                "reference_executions": 1,
+                "candidate_lane_executions": 8,
+                "row_attributions": sum(len(record["executions"]) for record in records),
+            },
+        }
+        return rows, evidence
+
     def test_current_reference_and_candidate_passes_promote_only_the_fixture_row(self):
         row = self._apply([self._record()])
         self.assertEqual(row["status"], "verified")
@@ -271,6 +352,30 @@ class ValidationEvidenceTests(unittest.TestCase):
         record = self._record(row)
         self.assertEqual(record["compatibility_obligations"], ["jvm-descriptor"])
         self.assertEqual(self._apply([record], row)["status"], "verified")
+
+    def test_source_rawsource_shape_evidence_is_current_and_never_promotes(self):
+        rows, evidence = self._source_rawsource_shape_evidence()
+        self.evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+        self.generator.validate_source_rawsource_shape_evidence(
+            rows, self.lock, self.evidence_path, self.repository, self.upstream
+        )
+        self.assertTrue(all(row["status"] == "unverified" for row in rows))
+
+        stale = copy.deepcopy(evidence)
+        stale["records"][0]["test_input_sha256"] = "b" * 64
+        self.evidence_path.write_text(json.dumps(stale), encoding="utf-8")
+        with self.assertRaisesRegex(SystemExit, "stale test_input_sha256"):
+            self.generator.validate_source_rawsource_shape_evidence(
+                rows, self.lock, self.evidence_path, self.repository, self.upstream
+            )
+
+        incomplete = copy.deepcopy(evidence)
+        incomplete["records"][3]["executions"].pop()
+        self.evidence_path.write_text(json.dumps(incomplete), encoding="utf-8")
+        with self.assertRaisesRegex(SystemExit, "incomplete lane evidence"):
+            self.generator.validate_source_rawsource_shape_evidence(
+                rows, self.lock, self.evidence_path, self.repository, self.upstream
+            )
 
     def test_unknown_duplicate_and_malformed_evidence_is_rejected(self):
         valid = self._record()

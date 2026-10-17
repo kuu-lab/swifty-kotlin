@@ -69,6 +69,42 @@ The generator has negative guards for Okio-only `ByteString.hex()`,
 `Buffer.snapshot(byteCount)`, and `select`; it preserves the real zero-argument
 `Buffer.snapshot()` and kotlinx-io hex conversion functions.
 
+## Source / RawSource declaration-shape probe (KUU-2615)
+
+The four Source/RawSource rows have dedicated checks for the common KLIB parent
+types, public and sealed flags, external RawSource implementation, and the
+external Source sealed boundary. The backend execution probe builds a new
+stdlib `.kklib` and runs source-injected, stdlib-library, and producer/consumer
+lanes at O0 and O2. The pinned JVM probe checks the 0.9.1 API dumps and uses
+reflection against the SHA-locked JVM artifact to verify the Java
+`AutoCloseable` mapping and inherited methods:
+
+```sh
+python3 Scripts/io_api_inventory/source_rawsource_shape/verify_jvm_reference.py \
+  --output /tmp/kuu-2615-jvm-reference.json
+bash Scripts/swift_test.sh --filter CompilerCoreTests.KotlinxIOSourceRawSourceShapeTests
+bash Scripts/swift_test.sh --filter CompilerBackendTests.IOSourceRawSourceShapeExecutionTests
+python3 Scripts/io_api_inventory/generate.py --write
+python3 Scripts/io_api_inventory/generate.py --check
+python3 -m unittest Scripts.io_api_inventory.test_reproducibility
+```
+
+The JVM probe is reference-only because KSwiftK emits native executables and
+KLIBs, not JVM classfiles. It does not by itself promote a JVM ABI row to
+`verified`; the native KLIB assertions retain `kotlin.AutoCloseable` while the
+JVM reference independently confirms `java.lang.AutoCloseable`.
+The four declaration rows map only these dedicated shape probes; the upstream
+read-behavior tests and suite references are not treated as declaration-shape
+assertions.
+
+`source_rawsource_shape/validation-evidence.json` stores these results in the
+per-row execution-record shape introduced by KUU-2469, plus output and run
+counts. The generator checks its four row IDs, required lanes, single candidate
+SHA, pinned reference, current implementation/test input hashes, result codes,
+output hashes and counts. JVM records are reference-only and native records are
+candidate-only, so this supplemental declaration-shape evidence deliberately
+leaves all four API rows `unverified` until paired API-level verification exists.
+
 ## F01 consumer matrix
 
 KUU-1820 consumers are generated from the pinned KLIB source rows and their
