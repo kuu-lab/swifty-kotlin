@@ -8,10 +8,6 @@ package kotlin
 
 import kotlin.text.__charFromCode
 
-/**
- * Creates a Char with the specified [code], or throws an exception if the [code] is out of
- * the valid Char code range 0..0xFFFF.
- */
 public inline fun Char(code: Int): Char {
     if (code < 0 || code > 0xFFFF) {
         throw IllegalArgumentException("Invalid Char code: $code")
@@ -19,14 +15,10 @@ public inline fun Char(code: Int): Char {
     return __charFromCode(code)
 }
 
-/**
- * Creates a Char with the specified [code].
- */
 public inline fun Char(code: UShort): Char = __charFromCode(code.toInt())
 
-// KSP-771: Keep the primitive CharArray factory source-backed. KSwift's vararg
-// parameter representation is not itself a CharArray, so copy the elements
-// into the primitive array returned by the Kotlin API.
+// KSP-771: KSwift's vararg parameter representation is not itself a CharArray,
+// so copy the elements into the primitive array returned by the Kotlin API.
 public inline fun charArrayOf(vararg elements: Char): CharArray {
     val result = CharArray(elements.size)
     var index = 0
