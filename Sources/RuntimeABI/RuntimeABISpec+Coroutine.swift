@@ -1,6 +1,5 @@
 // swiftlint:disable file_length
 
-/// `RuntimeABISpec.coroutineFunctions` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
     static let coroutineSuspendedSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
         name: "kk_coroutine_suspended",
@@ -462,7 +461,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Coroutine"
         ),
-        // Dispatcher-aware launch (STDLIB-CORO-072)
         RuntimeABIFunctionSpec(
             name: "kk_kxmini_launch_with_dispatcher",
             parameters: [
@@ -485,7 +483,6 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             isThrowing: false
         ),
-        // CoroutineStart.LAZY launch (STDLIB-CORO-001)
         RuntimeABIFunctionSpec(
             name: "kk_kxmini_launch_lazy",
             parameters: [
@@ -506,7 +503,6 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             isThrowing: false
         ),
-        // CoroutineStart.UNDISPATCHED launch
         RuntimeABIFunctionSpec(
             name: "kk_kxmini_launch_undispatched",
             parameters: [
@@ -591,8 +587,6 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             isThrowing: false
         ),
-        // CoroutineExceptionHandler (STDLIB-CORO-072)
-        // Flow (P5-88)
         RuntimeABIFunctionSpec(
             name: "kk_flow_create",
             parameters: [
@@ -679,7 +673,6 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             isThrowing: false
         ),
-        // Flow terminal operators & builders (STDLIB-088 / STDLIB-FLOW-178)
         // KSP-674: kk_flow_of / kk_flow_empty / kk_flow_as_flow removed —
         // flowOf / emptyFlow / Iterable.asFlow are now Kotlin source composed
         // from kk_flow_create + kk_flow_emit.
@@ -775,7 +768,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Coroutine"
         ),
-        // Dispatchers / withContext (P5-133)
         RuntimeABIFunctionSpec(
             name: "kk_dispatcher_main",
             parameters: [],
@@ -809,7 +801,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Coroutine"
         ),
-        // STDLIB-CORO-077: CoroutineName, CoroutineExceptionHandler, CoroutineContext
         RuntimeABIFunctionSpec(
             name: "kk_coroutine_name_create",
             parameters: [
@@ -854,8 +845,6 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             isThrowing: false
         ),
-        // KUU-1405 follow-up: the CoroutineExceptionHandler.Key singleton
-        // getter was registered in Sema but missing its ABI entry.
         RuntimeABIFunctionSpec(
             name: "kk_exception_handler_key",
             parameters: [],
@@ -1028,7 +1017,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Coroutine"
         ),
-        // Channel (CORO-001)
         RuntimeABIFunctionSpec(
             name: "__kk_channel_await_close",
             parameters: [
@@ -1142,8 +1130,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Coroutine"
         ),
-        // Channel capacity/overflow-policy factory and invokeOnClose handler
-        // registration (KSP-1573).
         RuntimeABIFunctionSpec(
             name: "__kk_channel_create_with_policy",
             parameters: [
@@ -1165,9 +1151,8 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             isThrowing: false
         ),
-        // ChannelResult-boxed send/receive bridges and box accessors
-        // (KSP-1572). `kk_channel_try_send` keeps its bare-status contract;
-        // the `__kk_` variants return a `RuntimeChannelResultBox` handle.
+        // `kk_channel_try_send` keeps its bare-status contract; the `__kk_`
+        // variants return a `RuntimeChannelResultBox` handle.
         RuntimeABIFunctionSpec(
             name: "__kk_channel_try_receive",
             parameters: [
@@ -1271,7 +1256,6 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             isThrowing: false
         ),
-        // Structured Concurrency (P5-89)
         RuntimeABIFunctionSpec(
             name: "kk_coroutine_scope_async",
             parameters: [
@@ -1353,8 +1337,6 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             isThrowing: false
         ),
-        // CoroutineScope(context) / Job() / SupervisorJob() / NonCancellable / ensureActive
-        // (STDLIB-CORO-090)
         RuntimeABIFunctionSpec(
             name: "kk_coroutine_scope_new_with_context",
             parameters: [
@@ -1405,7 +1387,6 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             isThrowing: false
         ),
-        // `TestScope.currentTime` — the scope scheduler's virtual clock.
         testScopeCurrentTimeSpec,
         RuntimeABIFunctionSpec(
             name: "kk_test_scheduler_new",
@@ -1571,7 +1552,6 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             isThrowing: true
         ),
-        // CoroutineScope hierarchy / lifecycle (STDLIB-CORO-069)
         RuntimeABIFunctionSpec(
             name: "__kk_coroutine_scope_context",
             parameters: [RuntimeABIParameter(name: "handle", type: .intptr)],
@@ -1610,7 +1590,6 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             isThrowing: false
         ),
-        // Cancellation (CORO-002)
         RuntimeABIFunctionSpec(
             name: "kk_coroutine_check_cancellation",
             parameters: [
@@ -1693,7 +1672,6 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             isThrowing: false
         ),
-        // Job State Queries (STDLIB-CORO-070)
         RuntimeABIFunctionSpec(
             name: "kk_job_is_active",
             parameters: [
@@ -1887,7 +1865,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Coroutine"
         ),
-        // Mutex / Semaphore (sync primitives)
         bridgeMutexCreateSpec,
 
         mutexLockSpec,
