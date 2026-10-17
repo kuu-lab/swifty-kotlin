@@ -1,7 +1,6 @@
 import Foundation
 import RuntimeABI
 
-/// Single-character Kotlin escapes decoded by ``decodeKotlinStringEscapes``.
 private let simpleKotlinStringEscapes: [Character: Character] = [
     "n": "\n",
     "t": "\t",
@@ -112,7 +111,6 @@ internal enum KotlinStringLiteralRepresentation {
     case legacyAnnotationTokens
 }
 
-/// Unwraps a canonical Kotlin literal without interpreting its content.
 /// Raw strings retain embedded quotes and backslashes; regular literals are
 /// escape-decoded separately. Historical token text requires an explicit
 /// representation because quote counts alone cannot distinguish raw contents.
@@ -140,7 +138,6 @@ internal func extractKotlinStringLiteralContent(
 /// Compatibility decoder for pre-version-6 annotation token text. Synthetic
 /// metadata using ordinary delimiters is also accepted by the legacy format.
 private func extractLegacyAnnotationStringLiteralContent(_ value: String) -> (content: String, isRaw: Bool)? {
-    // Count optional leading dollar prefix used by multi-dollar strings.
     var index = value.startIndex
     var dollarCount = 0
     while index < value.endIndex, value[index] == "$" {
