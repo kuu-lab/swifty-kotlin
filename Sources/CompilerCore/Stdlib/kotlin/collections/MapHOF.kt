@@ -14,14 +14,8 @@ internal external fun <K, V> __kkMapIsEmpty(map: Map<out K, V>): Boolean
 // Sources/Runtime/RuntimeCollectionHOF.swift (kk_map_* HOFs)
 // Sources/Runtime/RuntimeSetAndMap.swift (kk_map_plus / kk_map_minus)
 
-/**
- * Returns `true` if this map is not empty.
- */
 public inline fun <K, V> Map<out K, V>.isNotEmpty(): Boolean = !__kkMapIsEmpty(this)
 
-/**
- * Returns `true` if this nullable map is either null or empty.
- */
 @SinceKotlin("1.3")
 @OptIn(ExperimentalContracts::class)
 public inline fun <K, V> Map<out K, V>?.isNullOrEmpty(): Boolean {
@@ -31,16 +25,10 @@ public inline fun <K, V> Map<out K, V>?.isNullOrEmpty(): Boolean {
     return this == null || __kkMapIsEmpty(this)
 }
 
-/**
- * Creates an [Iterable] instance that wraps the original map returning its entries when being iterated.
- */
 public inline fun <K, V> Map<out K, V>.asIterable(): Iterable<Map.Entry<K, V>> {
     return this.entries
 }
 
-/**
- * Creates a lazy [Sequence] instance that wraps the original map returning its entries when being iterated.
- */
 public fun <K, V> Map<out K, V>.asSequence(): Sequence<Map.Entry<K, V>> {
     val source = this
     return object : Sequence<Map.Entry<K, V>> {
@@ -48,34 +36,22 @@ public fun <K, V> Map<out K, V>.asSequence(): Sequence<Map.Entry<K, V>> {
     }
 }
 
-/**
- * Performs the given [action] on each entry.
- */
 public inline fun <K, V> Map<K, V>.forEach(action: (Map.Entry<K, V>) -> Unit) {
     for (entry in this.entries) {
         action(entry)
     }
 }
 
-/**
- * Performs the given [action] on each key and value.
- */
 public inline fun <K, V> Map<K, V>.forEach(action: (K, V) -> Unit) {
     for (entry in this.entries) {
         action(entry.key, entry.value)
     }
 }
 
-/**
- * Returns `true` if map has at least one entry.
- */
 public fun <K, V> Map<out K, V>.any(): Boolean {
     return !__kkMapIsEmpty(this)
 }
 
-/**
- * Returns `true` if at least one entry matches the given [predicate].
- */
 public inline fun <K, V> Map<K, V>.any(predicate: (Map.Entry<K, V>) -> Boolean): Boolean {
     for (entry in this.entries) {
         if (predicate(entry)) return true
@@ -83,9 +59,6 @@ public inline fun <K, V> Map<K, V>.any(predicate: (Map.Entry<K, V>) -> Boolean):
     return false
 }
 
-/**
- * Returns `true` if all entries match the given [predicate].
- */
 public inline fun <K, V> Map<K, V>.all(predicate: (Map.Entry<K, V>) -> Boolean): Boolean {
     for (entry in this.entries) {
         if (!predicate(entry)) return false
@@ -93,16 +66,10 @@ public inline fun <K, V> Map<K, V>.all(predicate: (Map.Entry<K, V>) -> Boolean):
     return true
 }
 
-/**
- * Returns `true` if the map has no entries.
- */
 public fun <K, V> Map<out K, V>.none(): Boolean {
     return __kkMapIsEmpty(this)
 }
 
-/**
- * Returns `true` if no entries match the given [predicate].
- */
 public inline fun <K, V> Map<K, V>.none(predicate: (Map.Entry<K, V>) -> Boolean): Boolean {
     for (entry in this.entries) {
         if (predicate(entry)) return false
@@ -110,17 +77,11 @@ public inline fun <K, V> Map<K, V>.none(predicate: (Map.Entry<K, V>) -> Boolean)
     return true
 }
 
-/**
- * Returns the number of entries in this map.
- */
 @kotlin.internal.InlineOnly
 public inline fun <K, V> Map<out K, V>.count(): Int {
     return size
 }
 
-/**
- * Returns the number of entries matching the given [predicate].
- */
 public inline fun <K, V> Map<K, V>.count(predicate: (Map.Entry<K, V>) -> Boolean): Int {
     var count = 0
     for (entry in this.entries) {
@@ -129,10 +90,6 @@ public inline fun <K, V> Map<K, V>.count(predicate: (Map.Entry<K, V>) -> Boolean
     return count
 }
 
-/**
- * Returns the first non-null value produced by [transform] for the entries of this map,
- * or throws [NoSuchElementException] if no non-null value was produced.
- */
 public inline fun <K, V, R : Any> Map<out K, V>.firstNotNullOf(
     transform: (Map.Entry<K, V>) -> R?
 ): R {
@@ -143,10 +100,6 @@ public inline fun <K, V, R : Any> Map<out K, V>.firstNotNullOf(
     throw NoSuchElementException("No element of the map was transformed to a non-null value.")
 }
 
-/**
- * Returns the first non-null value produced by [transform] for the entries of this map,
- * or `null` if no non-null value was produced.
- */
 public inline fun <K, V, R : Any> Map<out K, V>.firstNotNullOfOrNull(
     transform: (Map.Entry<K, V>) -> R?
 ): R? {
@@ -157,10 +110,6 @@ public inline fun <K, V, R : Any> Map<out K, V>.firstNotNullOfOrNull(
     return null
 }
 
-/**
- * Returns a list containing the results of applying the given [transform] function
- * to each entry in the original map.
- */
 public inline fun <K, V, R> Map<K, V>.map(transform: (Map.Entry<K, V>) -> R): List<R> {
     val result = mutableListOf<R>()
     for (entry in this.entries) {
@@ -169,10 +118,6 @@ public inline fun <K, V, R> Map<K, V>.map(transform: (Map.Entry<K, V>) -> R): Li
     return result
 }
 
-/**
- * Returns a list containing only the non-null results of applying the given [transform] function
- * to each entry in the original map.
- */
 public fun <K, V, R : Any> Map<K, V>.mapNotNull(transform: (Map.Entry<K, V>) -> R?): List<R> {
     val result = mutableListOf<R>()
     for (entry in this.entries) {
@@ -182,10 +127,6 @@ public fun <K, V, R : Any> Map<K, V>.mapNotNull(transform: (Map.Entry<K, V>) -> 
     return result
 }
 
-/**
- * Returns a single list of all elements yielded from results of [transform] function
- * being invoked on each entry of the original map.
- */
 public inline fun <K, V, R> Map<K, V>.flatMap(transform: (Map.Entry<K, V>) -> Iterable<R>): List<R> {
     val result = mutableListOf<R>()
     for (entry in this.entries) {
@@ -224,9 +165,6 @@ public inline fun <K, V, R, C : MutableCollection<in R>> Map<out K, V>.flatMapTo
     return destination
 }
 
-/**
- * Returns a map containing all entries matching the given [predicate].
- */
 @Suppress("UNCHECKED_CAST")
 public inline fun <K, V> Map<K, V>.filter(predicate: (Map.Entry<K, V>) -> Boolean): Map<K, V> {
     val result = mutableMapOf<K, V>()
@@ -237,9 +175,6 @@ public inline fun <K, V> Map<K, V>.filter(predicate: (Map.Entry<K, V>) -> Boolea
 }
 
 
-/**
- * Returns a map containing all entries not matching the given [predicate].
- */
 @Suppress("UNCHECKED_CAST")
 public inline fun <K, V> Map<K, V>.filterNot(predicate: (Map.Entry<K, V>) -> Boolean): Map<K, V> {
     val result = mutableMapOf<K, V>()
@@ -249,9 +184,6 @@ public inline fun <K, V> Map<K, V>.filterNot(predicate: (Map.Entry<K, V>) -> Boo
     return result as Map<K, V>
 }
 
-/**
- * Appends all entries matching the given [predicate] into the mutable map given as [destination] parameter.
- */
 @IgnorableReturnValue
 public inline fun <K, V, M : MutableMap<in K, in V>> Map<out K, V>.filterTo(
     destination: M,
@@ -265,9 +197,6 @@ public inline fun <K, V, M : MutableMap<in K, in V>> Map<out K, V>.filterTo(
     return destination
 }
 
-/**
- * Appends all entries not matching the given [predicate] into the given [destination].
- */
 @IgnorableReturnValue
 public inline fun <K, V, M : MutableMap<in K, in V>> Map<out K, V>.filterNotTo(
     destination: M,
@@ -281,9 +210,6 @@ public inline fun <K, V, M : MutableMap<in K, in V>> Map<out K, V>.filterNotTo(
     return destination
 }
 
-/**
- * Returns a map containing all entries with keys matching the given [predicate].
- */
 @Suppress("UNCHECKED_CAST")
 public inline fun <K, V> Map<K, V>.filterKeys(predicate: (K) -> Boolean): Map<K, V> {
     val result = mutableMapOf<K, V>()
@@ -293,9 +219,6 @@ public inline fun <K, V> Map<K, V>.filterKeys(predicate: (K) -> Boolean): Map<K,
     return result as Map<K, V>
 }
 
-/**
- * Returns a map containing all entries with values matching the given [predicate].
- */
 @Suppress("UNCHECKED_CAST")
 public inline fun <K, V> Map<K, V>.filterValues(predicate: (V) -> Boolean): Map<K, V> {
     val result = mutableMapOf<K, V>()
@@ -305,10 +228,6 @@ public inline fun <K, V> Map<K, V>.filterValues(predicate: (V) -> Boolean): Map<
     return result as Map<K, V>
 }
 
-/**
- * Returns a new map with entries having the keys obtained by applying the [transform] function
- * to each entry of the original map.
- */
 @Suppress("UNCHECKED_CAST")
 public inline fun <K, V, R> Map<K, V>.mapKeys(transform: (Map.Entry<K, V>) -> R): Map<R, V> {
     val result = mutableMapOf<R, V>()
@@ -318,10 +237,6 @@ public inline fun <K, V, R> Map<K, V>.mapKeys(transform: (Map.Entry<K, V>) -> R)
     return result as Map<R, V>
 }
 
-/**
- * Returns a new map with entries having the values obtained by applying the [transform] function
- * to each entry of the original map.
- */
 @Suppress("UNCHECKED_CAST")
 public inline fun <K, V, R> Map<K, V>.mapValues(transform: (Map.Entry<K, V>) -> R): Map<K, R> {
     val result = mutableMapOf<K, R>()
@@ -331,10 +246,6 @@ public inline fun <K, V, R> Map<K, V>.mapValues(transform: (Map.Entry<K, V>) -> 
     return result as Map<K, R>
 }
 
-/**
- * Populates the given [destination] map with entries having the keys obtained by applying
- * the [transform] function to each entry of the original map.
- */
 public inline fun <K, V, R, M : MutableMap<in R, in V>> Map<out K, V>.mapKeysTo(
     destination: M,
     transform: (Map.Entry<K, V>) -> R
@@ -345,10 +256,6 @@ public inline fun <K, V, R, M : MutableMap<in R, in V>> Map<out K, V>.mapKeysTo(
     return destination
 }
 
-/**
- * Populates the given [destination] map with entries having the values obtained by applying
- * the [transform] function to each entry of the original map.
- */
 public inline fun <K, V, R, M : MutableMap<in K, in R>> Map<out K, V>.mapValuesTo(
     destination: M,
     transform: (Map.Entry<K, V>) -> R
@@ -359,10 +266,6 @@ public inline fun <K, V, R, M : MutableMap<in K, in R>> Map<out K, V>.mapValuesT
     return destination
 }
 
-/**
- * Applies the given [transform] function to each entry of the original map
- * and appends the results to the given [destination].
- */
 public inline fun <K, V, R, C : MutableCollection<in R>> Map<out K, V>.mapTo(
     destination: C,
     transform: (Map.Entry<K, V>) -> R
@@ -373,10 +276,6 @@ public inline fun <K, V, R, C : MutableCollection<in R>> Map<out K, V>.mapTo(
     return destination
 }
 
-/**
- * Applies the given [transform] function to each entry of the original map
- * and appends only the non-null results to the given [destination].
- */
 public inline fun <K, V, R : Any, C : MutableCollection<in R>> Map<out K, V>.mapNotNullTo(
     destination: C,
     transform: (Map.Entry<K, V>) -> R?
@@ -389,8 +288,6 @@ public inline fun <K, V, R : Any, C : MutableCollection<in R>> Map<out K, V>.map
 }
 
 /**
- * Returns an iterator over the entries in this map.
- *
  * KSP-1011: named `__kspMapIterator` rather than `iterator` so this
  * declaration never enters the global by-simple-name candidate pool that
  * the generic `Iterable<T>.iterator()` call inside bundled source HOFs
@@ -400,9 +297,6 @@ public inline fun <K, V, R : Any, C : MutableCollection<in R>> Map<out K, V>.map
  */
 public inline fun <K, V> Map<out K, V>.__kspMapIterator(): Iterator<Map.Entry<K, V>> = this.entries.iterator()
 
-/**
- * Returns the first entry yielding the largest value of the given [selector].
- */
 @SinceKotlin("1.7")
 @kotlin.jvm.JvmName("maxByOrThrow")
 @Suppress("CONFLICTING_OVERLOADS")
@@ -426,9 +320,6 @@ public inline fun <K, V, R : Comparable<R>> Map<out K, V>.maxBy(
     return maxEntry
 }
 
-/**
- * Returns the first entry yielding the smallest value of the given [selector].
- */
 @SinceKotlin("1.7")
 @kotlin.jvm.JvmName("minByOrThrow")
 @kotlin.internal.InlineOnly
@@ -610,10 +501,6 @@ public inline fun <K, V> Map<out K, V>.maxWithOrNull(
     return maxEntry
 }
 
-/**
- * Returns the first entry yielding the largest value of the given [selector] or `null`
- * if there are no entries.
- */
 public inline fun <K, V, R : Comparable<R>> Map<K, V>.maxByOrNull(
     selector: (Map.Entry<K, V>) -> R
 ): Map.Entry<K, V>? {
@@ -632,10 +519,6 @@ public inline fun <K, V, R : Comparable<R>> Map<K, V>.maxByOrNull(
     return maxEntry
 }
 
-/**
- * Returns the first entry yielding the smallest value of the given [selector] or `null`
- * if there are no entries.
- */
 public inline fun <K, V, R : Comparable<R>> Map<K, V>.minByOrNull(
     selector: (Map.Entry<K, V>) -> R
 ): Map.Entry<K, V>? {
@@ -654,9 +537,6 @@ public inline fun <K, V, R : Comparable<R>> Map<K, V>.minByOrNull(
     return minEntry
 }
 
-/**
- * Returns the smallest value yielded by [selector].
- */
 @SinceKotlin("1.4")
 @OptIn(kotlin.experimental.ExperimentalTypeInference::class)
 @OverloadResolutionByLambdaReturnType
@@ -682,9 +562,6 @@ public inline fun <K, V> Map<out K, V>.minOf(selector: (Map.Entry<K, V>) -> Doub
     return minValue
 }
 
-/**
- * Returns the smallest value yielded by [selector].
- */
 @SinceKotlin("1.4")
 @OptIn(kotlin.experimental.ExperimentalTypeInference::class)
 @OverloadResolutionByLambdaReturnType
@@ -710,9 +587,6 @@ public inline fun <K, V> Map<out K, V>.minOf(selector: (Map.Entry<K, V>) -> Floa
     return minValue
 }
 
-/**
- * Returns the smallest value yielded by [selector].
- */
 @SinceKotlin("1.4")
 @OptIn(kotlin.experimental.ExperimentalTypeInference::class)
 @OverloadResolutionByLambdaReturnType
@@ -732,9 +606,6 @@ public inline fun <K, V, R : Comparable<R>> Map<out K, V>.minOf(
     return minValue
 }
 
-/**
- * Returns the smallest value yielded by [selector] or `null` if there are no entries.
- */
 @SinceKotlin("1.4")
 @OptIn(kotlin.experimental.ExperimentalTypeInference::class)
 @OverloadResolutionByLambdaReturnType
@@ -760,9 +631,6 @@ public inline fun <K, V> Map<out K, V>.minOfOrNull(selector: (Map.Entry<K, V>) -
     return minValue
 }
 
-/**
- * Returns the smallest value yielded by [selector] or `null` if there are no entries.
- */
 @SinceKotlin("1.4")
 @OptIn(kotlin.experimental.ExperimentalTypeInference::class)
 @OverloadResolutionByLambdaReturnType
@@ -788,9 +656,6 @@ public inline fun <K, V> Map<out K, V>.minOfOrNull(selector: (Map.Entry<K, V>) -
     return minValue
 }
 
-/**
- * Returns the smallest value yielded by [selector] or `null` if there are no entries.
- */
 @SinceKotlin("1.4")
 @OptIn(kotlin.experimental.ExperimentalTypeInference::class)
 @OverloadResolutionByLambdaReturnType
@@ -810,9 +675,6 @@ public inline fun <K, V, R : Comparable<R>> Map<out K, V>.minOfOrNull(
     return minValue
 }
 
-/**
- * Returns the smallest value according to [comparator] yielded by [selector].
- */
 @SinceKotlin("1.4")
 @OptIn(kotlin.experimental.ExperimentalTypeInference::class)
 @OverloadResolutionByLambdaReturnType
@@ -833,10 +695,6 @@ public inline fun <K, V, R> Map<out K, V>.minOfWith(
     return minValue
 }
 
-/**
- * Returns the smallest value according to [comparator] yielded by [selector],
- * or `null` if there are no entries.
- */
 @SinceKotlin("1.4")
 @OptIn(kotlin.experimental.ExperimentalTypeInference::class)
 @OverloadResolutionByLambdaReturnType
@@ -857,9 +715,6 @@ public inline fun <K, V, R> Map<out K, V>.minOfWithOrNull(
     return minValue
 }
 
-/**
- * Returns the first entry selected by [comparator] as the smallest.
- */
 @SinceKotlin("1.7")
 @kotlin.jvm.JvmName("minWithOrThrow")
 @kotlin.internal.InlineOnly
@@ -877,10 +732,6 @@ public inline fun <K, V> Map<out K, V>.minWith(
     return minEntry
 }
 
-/**
- * Returns the first entry selected by [comparator] as the smallest, or `null`
- * if there are no entries.
- */
 @SinceKotlin("1.4")
 @kotlin.internal.InlineOnly
 public inline fun <K, V> Map<out K, V>.minWithOrNull(
@@ -896,9 +747,6 @@ public inline fun <K, V> Map<out K, V>.minWithOrNull(
     return minEntry
 }
 
-/**
- * Returns a map containing all entries of the original map and the given [pair].
- */
 @Suppress("UNCHECKED_CAST")
 public inline operator fun <K, V> Map<K, V>.plus(pair: Pair<K, V>): Map<K, V> {
     val result = mutableMapOf<K, V>()
@@ -909,9 +757,6 @@ public inline operator fun <K, V> Map<K, V>.plus(pair: Pair<K, V>): Map<K, V> {
     return result as Map<K, V>
 }
 
-/**
- * Returns a map containing all entries of the original map and the given [map].
- */
 @Suppress("UNCHECKED_CAST")
 public inline operator fun <K, V> Map<K, V>.plus(map: Map<K, V>): Map<K, V> {
     val result = mutableMapOf<K, V>()
@@ -924,9 +769,6 @@ public inline operator fun <K, V> Map<K, V>.plus(map: Map<K, V>): Map<K, V> {
     return result as Map<K, V>
 }
 
-/**
- * Returns a map containing all entries of the original map and the given collection of pairs.
- */
 @Suppress("UNCHECKED_CAST")
 public operator fun <K, V> Map<out K, V>.plus(pairs: Iterable<Pair<K, V>>): Map<K, V> {
     val result = mutableMapOf<K, V>()
@@ -939,9 +781,6 @@ public operator fun <K, V> Map<out K, V>.plus(pairs: Iterable<Pair<K, V>>): Map<
     return result as Map<K, V>
 }
 
-/**
- * Returns a map containing all entries of the original map and the given sequence of pairs.
- */
 @Suppress("UNCHECKED_CAST")
 public operator fun <K, V> Map<out K, V>.plus(pairs: Sequence<Pair<K, V>>): Map<K, V> {
     val result = mutableMapOf<K, V>()
@@ -954,9 +793,6 @@ public operator fun <K, V> Map<out K, V>.plus(pairs: Sequence<Pair<K, V>>): Map<
     return result as Map<K, V>
 }
 
-/**
- * Returns a map containing all entries of the original map and the given array of pairs.
- */
 @Suppress("UNCHECKED_CAST")
 public operator fun <K, V> Map<out K, V>.plus(pairs: Array<out Pair<K, V>>): Map<K, V> {
     val result = mutableMapOf<K, V>()
@@ -969,9 +805,6 @@ public operator fun <K, V> Map<out K, V>.plus(pairs: Array<out Pair<K, V>>): Map
     return result as Map<K, V>
 }
 
-/**
- * Returns a map containing all entries of the original map except the entry with the given [key].
- */
 @Suppress("UNCHECKED_CAST")
 public inline operator fun <K, V> Map<K, V>.minus(key: K): Map<K, V> {
     val result = mutableMapOf<K, V>()
@@ -981,9 +814,6 @@ public inline operator fun <K, V> Map<K, V>.minus(key: K): Map<K, V> {
     return result as Map<K, V>
 }
 
-/**
- * Returns a map containing all entries of the original map except those with keys contained in [keys].
- */
 @Suppress("UNCHECKED_CAST")
 public inline operator fun <K, V> Map<K, V>.minus(keys: Iterable<K>): Map<K, V> {
     val keySet = mutableSetOf<K>()
@@ -995,9 +825,6 @@ public inline operator fun <K, V> Map<K, V>.minus(keys: Iterable<K>): Map<K, V> 
     return result as Map<K, V>
 }
 
-/**
- * Returns a map containing all entries of the original map except those with keys contained in [keys].
- */
 @Suppress("UNCHECKED_CAST")
 public operator fun <K, V> Map<out K, V>.minus(keys: Array<out K>): Map<K, V> {
     val result = this.toMutableMap()
@@ -1005,9 +832,6 @@ public operator fun <K, V> Map<out K, V>.minus(keys: Array<out K>): Map<K, V> {
     return result as Map<K, V>
 }
 
-/**
- * Returns a map containing all entries of the original map except those with keys contained in [keys].
- */
 @Suppress("UNCHECKED_CAST")
 public operator fun <K, V> Map<out K, V>.minus(keys: Sequence<K>): Map<K, V> {
     val result = this.toMutableMap()
