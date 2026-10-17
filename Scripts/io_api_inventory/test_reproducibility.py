@@ -58,6 +58,7 @@ class ReproducibilityTests(unittest.TestCase):
             test_inputs.extend((REPO / "Tests/CompilerCoreTests/GoldenCases/Sema").glob("*.kt"))
             test_inputs.extend((REPO / "Scripts/diff_cases").glob("*.kt"))
             test_inputs.extend((REPO / "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590").glob("*.kt"))
+            test_inputs.extend((REPO / "Tests/CompilerBackendTests/Fixtures/IOSourceRawSourceShape2615").glob("*.kt"))
             inputs.extend(
                 path for path in test_inputs
                 if path.relative_to(REPO).as_posix().startswith(original.LOCAL_IO_TEST_PREFIXES)
@@ -98,6 +99,38 @@ class ReproducibilityTests(unittest.TestCase):
         for row in self.rows:
             if row["row_id"] not in row_ids:
                 self.assertFalse(probe_refs.intersection(row["local_test_refs"].split(";")))
+
+    def test_source_rawsource_shape_probes_are_mapped_to_the_four_shape_rows(self):
+        row_ids = (
+            "jvm-629859a56151abf0",
+            "jvm-f8d085329509298b",
+            "klib-55dcad01b8bc6432",
+            "klib-795e5c923ef63bf3",
+        )
+        expected_refs = {
+            "Tests/CompilerBackendTests/Integration/IOSourceRawSourceShapeExecutionTests.swift",
+            "Tests/CompilerCoreTests/Sema/KotlinxIOSourceRawSourceShapeTests.swift",
+            "Tests/CompilerBackendTests/Fixtures/IOSourceRawSourceShape2615/Combined.kt",
+            "Scripts/io_api_inventory/source_rawsource_shape/SourceRawSourceJvmShapeProbe.java",
+            "Scripts/io_api_inventory/source_rawsource_shape/verify_jvm_reference.py",
+        }
+        rows = {row["row_id"]: row for row in self.rows}
+        for row_id in row_ids:
+            row = rows[row_id]
+            references = set(row["local_test_refs"].split(";"))
+            required_refs = set(expected_refs)
+            required_refs.add("Tests/CompilerBackendTests/Fixtures/IOSourceRawSourceShape2615/Consumer.kt")
+            if row_id in {"jvm-629859a56151abf0", "klib-795e5c923ef63bf3"}:
+                required_refs.add("Tests/CompilerBackendTests/Fixtures/IOSourceRawSourceShape2615/SourceBoundaryNegative.kt")
+            else:
+                required_refs.add("Tests/CompilerBackendTests/Fixtures/IOSourceRawSourceShape2615/Producer.kt")
+            self.assertEqual(references, required_refs, row_id)
+            self.assertEqual(row["upstream_test_refs"], self.generator.NO_DIRECT_UPSTREAM_ASSERTION)
+            self.assertEqual(row["status"], "unverified")
+        shape_refs = set().union(*(set(rows[row_id]["local_test_refs"].split(";")) for row_id in row_ids))
+        for row in self.rows:
+            if row["row_id"] not in row_ids:
+                self.assertFalse(shape_refs.intersection(row["local_test_refs"].split(";")), row["row_id"])
 
     def test_exact_overload_exception_and_abi_mapping(self):
         declaration = self.row("kotlinx.io/readByteArray|readByteArray@kotlinx.io.Source(kotlin.Int){}")
