@@ -8,8 +8,6 @@
 package kotlin.reflect
 
 /**
- * Represents a callable entity, such as a function or a property.
- *
  * The runtime supplies metadata for compiler-generated callable references.
  */
 public interface KCallable<out R> : KAnnotatedElement {
