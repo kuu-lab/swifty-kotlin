@@ -58,7 +58,6 @@ final class ObjectLiteralLowerer {
         return objectValue
     }
 
-    /// KUU-555: lowers a `class`/`object` declared as a block statement.
     /// A local `object` materializes its singleton right at the declaration
     /// site (exactly like an object literal) and binds it to the declared
     /// name's symbol; a local `class` only emits its nominal/member/`<init>`
@@ -538,16 +537,15 @@ final class ObjectLiteralLowerer {
         return objectValue
     }
 
-    /// KSP-CAP-018: emits the implicit `super(...)` call of an object
-    /// literal's superclass, e.g. `object : Base(x) { ... }`. Kotlin runs the
-    /// superclass constructor before the object literal's own initializers,
-    /// so the superclass's property initializers and `init` blocks — which
-    /// write into the same instance at the layout offsets the object literal
-    /// inherits — must execute here. Without this call an object literal
-    /// instance keeps the zeroed defaults for every inherited property (same
-    /// root cause as BUG-155/PR #5506's `emitSuperConstructorDelegation` for
-    /// named classes; object literals never went through that fix since they
-    /// have no user-written constructor of their own).
+    /// KSP-CAP-018: Kotlin runs the superclass constructor before the object
+    /// literal's own initializers, so the superclass's property initializers
+    /// and `init` blocks — which write into the same instance at the layout
+    /// offsets the object literal inherits — must execute here. Without this
+    /// call an object literal instance keeps the zeroed defaults for every
+    /// inherited property (same root cause as BUG-155/PR #5506's
+    /// `emitSuperConstructorDelegation` for named classes; object literals
+    /// never went through that fix since they have no user-written
+    /// constructor of their own).
     private func emitObjectLiteralSuperConstructorCall(
         _ objectDecl: ObjectDecl,
         objectSymbol: SymbolID,
@@ -625,16 +623,13 @@ final class ObjectLiteralLowerer {
         instructions = body.instructions
     }
 
-    /// KSP-CAP-001: re-establishes an object literal's captured outer values
-    /// and receiver inside one of its own member functions.
-    ///
-    /// Member functions are lowered as independent top-level KIR functions
-    /// (`MemberLowerer.lowerSingleMemberFunction` resets `driver.ctx`'s
+    /// KSP-CAP-001: member functions are lowered as independent top-level KIR
+    /// functions (`MemberLowerer.lowerSingleMemberFunction` resets `driver.ctx`'s
     /// scope per function, the same way `LambdaLowerer` does per lambda), so
     /// a captured symbol's KIR value from the enclosing function is not
-    /// visible here on its own, so the capture must be read back from the instance
-    /// field it was stored into at construction time (see the capture loop
-    /// in `lowerStoredObjectLiteralExpr` above), then re-registered with
+    /// visible here on its own, so the capture must be read back from the
+    /// instance field it was stored into at construction time (see the capture
+    /// loop in `lowerStoredObjectLiteralExpr` above), then re-registered with
     /// `driver.ctx` so ordinary `nameRef` lowering finds it exactly as if it
     /// were a plain local.
     func restoreObjectLiteralCaptures(
@@ -822,7 +817,6 @@ final class ObjectLiteralLowerer {
             instructions: &instructions
         )
 
-        // REFL-004: Register KClass binary metadata for this type.
         registerKClassMetadata(
             objectSymbol: objectSymbol,
             typeID: childTypeID,
@@ -833,8 +827,6 @@ final class ObjectLiteralLowerer {
         )
     }
 
-    /// Emits a call to `__kk_kclass_register_metadata` to register compile-time
-    /// metadata for a nominal type so that `KClass` instances can query it at runtime.
     private func registerKClassMetadata(
         objectSymbol: SymbolID,
         typeID: Int64,
@@ -847,7 +839,6 @@ final class ObjectLiteralLowerer {
 
         let intType = sema.types.intType
 
-        // Compute the full type token (nominalBase + payload).
         let typeToken = RuntimeTypeCheckToken.encode(
             base: RuntimeTypeCheckToken.nominalBase,
             nullable: false,
@@ -856,13 +847,11 @@ final class ObjectLiteralLowerer {
         let typeTokenExpr = arena.appendExpr(.intLiteral(typeToken), type: intType)
         instructions.append(.constValue(result: typeTokenExpr, value: .intLiteral(typeToken)))
 
-        // Qualified name (FQ name).
         let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
         let fqNameInterned = interner.intern(fqName)
         let fqNameExpr = arena.appendExpr(.stringLiteral(fqNameInterned), type: intType)
         instructions.append(.constValue(result: fqNameExpr, value: .stringLiteral(fqNameInterned)))
 
-        // Simple name.
         let simpleName = interner.resolve(symbol.name)
         let simpleNameInterned = interner.intern(simpleName)
         let simpleNameExpr = arena.appendExpr(.stringLiteral(simpleNameInterned), type: intType)
@@ -911,7 +900,6 @@ final class ObjectLiteralLowerer {
         let flagsExpr = arena.appendExpr(.intLiteral(flags), type: intType)
         instructions.append(.constValue(result: flagsExpr, value: .intLiteral(flags)))
 
-        // Field count.
         let fieldCount: Int64
         if let layout = sema.symbols.nominalLayout(for: objectSymbol) {
             fieldCount = Int64(layout.instanceFieldCount)
@@ -921,7 +909,6 @@ final class ObjectLiteralLowerer {
         let fieldCountExpr = arena.appendExpr(.intLiteral(fieldCount), type: intType)
         instructions.append(.constValue(result: fieldCountExpr, value: .intLiteral(fieldCount)))
 
-        // Member count: fields + methods.
         let memberCount: Int64
         if let layout = sema.symbols.nominalLayout(for: objectSymbol) {
             memberCount = Int64(layout.instanceFieldCount + layout.vtableSize)
@@ -937,7 +924,6 @@ final class ObjectLiteralLowerer {
         let constructorCountExpr = arena.appendExpr(.intLiteral(constructorCount), type: intType)
         instructions.append(.constValue(result: constructorCountExpr, value: .intLiteral(constructorCount)))
 
-        // Call __kk_kclass_register_metadata.
         let registerResult = arena.appendTemporary(type: intType)
         instructions.append(.call(
             symbol: nil,
@@ -956,7 +942,6 @@ final class ObjectLiteralLowerer {
             sema: sema, arena: arena, interner: interner, instructions: &instructions
         )
 
-        // STDLIB-REFLECT-065: Register annotations for this type.
         emitKClassAnnotationRegistration(
             objectSymbol: objectSymbol,
             typeTokenExpr: typeTokenExpr,
@@ -1049,8 +1034,7 @@ final class ObjectLiteralLowerer {
 
     /// BUG-141: emit accessor functions for object-literal member properties
     /// that override an interface property, so they can be dispatched through
-    /// the interface itable. Stored properties get a field-reading getter;
-    /// custom-getter properties reuse their explicit getter body.
+    /// the interface itable.
     ///
     /// KSP-CAP-018: also emits the `set` accessor for a property that declares
     /// one. The assignment path already lowered `obj.prop = v` to `call set`,
