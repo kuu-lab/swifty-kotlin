@@ -215,6 +215,28 @@ class ValidationEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "missing local probe lanes"):
             self._apply([record], row, schema_version=2)
 
+    def test_unsafe_buffer_operations_probe_cases_are_mapped_to_exact_ledger_rows(self):
+        prefix = "local:Scripts/io_api_inventory/probes/UnsafeBufferOperationsObjectShape.kt#"
+        class_case = self.generator.LOCAL_PROBE_EVIDENCE_CASES[prefix + "jvm-class-shape"]
+        field_case = self.generator.LOCAL_PROBE_EVIDENCE_CASES[prefix + "jvm-instance-field-shape"]
+        object_case = self.generator.LOCAL_PROBE_EVIDENCE_CASES[prefix + "typed-object-and-singleton-identity"]
+
+        self.assertEqual(class_case["row_ids"], {"jvm-0cf64a4acbc38a06"})
+        self.assertEqual(field_case["row_ids"], {"jvm-893b52117cdc6202"})
+        self.assertEqual(object_case["row_ids"], {"klib-0f0ae6b0e4f74922"})
+        self.assertEqual(class_case["lanes"], ("jvm-descriptor",))
+        self.assertEqual(field_case["lanes"], ("jvm-descriptor",))
+        self.assertEqual(object_case["lanes"], self.generator.LOCAL_NATIVE_PROBE_LANES)
+        self.assertEqual(class_case["methods"]["candidate"], "source-object-contract")
+        self.assertEqual(field_case["methods"]["reference"], "jvm-abi-reflection")
+        self.assertEqual(object_case["methods"]["candidate"], "native-matrix")
+
+        row = {"row_id": "klib-0f0ae6b0e4f74922", "local_test_refs": object_case["path"]}
+        self.assertEqual(
+            self.generator._local_probe_case_spec(row, prefix + "typed-object-and-singleton-identity"),
+            object_case,
+        )
+
     def test_status_text_without_evidence_does_not_promote(self):
         row = copy.deepcopy(self.row)
         row["status"] = "verified"
