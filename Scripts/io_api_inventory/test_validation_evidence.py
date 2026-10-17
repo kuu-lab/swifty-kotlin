@@ -96,14 +96,14 @@ class ValidationEvidenceTests(unittest.TestCase):
             | {"candidate-wrong": other_case_id},
         }
 
-    def _apply(self, records, row=None, schema_version=1):
+    def _apply(self, records, row=None, execution_catalogs=None, schema_version=1):
         fixture_row = copy.deepcopy(row or self.row)
         self.evidence_path.write_text(
             json.dumps({"schema_version": schema_version, "records": records}), encoding="utf-8"
         )
         self.generator.apply_validation_evidence(
             [fixture_row], self.lock, self.evidence_path, self.repository, self.upstream,
-            self._execution_catalogs(),
+            execution_catalogs or self._execution_catalogs(),
         )
         return fixture_row
 
@@ -340,6 +340,92 @@ class ValidationEvidenceTests(unittest.TestCase):
             with self.subTest(records=records):
                 with self.assertRaises(SystemExit):
                     self._apply(records)
+
+    def _probe_receipt(self):
+        payload = {
+            "case_id": "Scripts/io_api_inventory/probes/delicate_io_api/DelicateIoApi.kt#contract",
+            "lane": "source-O0",
+            "subject": "candidate",
+            "candidate_sha": "a" * 40,
+            "reference_version": self.lock["tag"],
+            "reference_commit": self.lock["commit"],
+            "command": ["kswiftc", "DelicateIoApi.kt"],
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout": "PASS\n",
+            "stderr": "",
+            "stdout_sha256": self.generator.hashlib.sha256(b"PASS\n").hexdigest(),
+            "stderr_sha256": self.generator.hashlib.sha256(b"").hexdigest(),
+        }
+        canonical = self.generator.json.dumps(
+            payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        )
+        payload["execution_id"] = "probe:" + self.generator.hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        return payload
+
+    def test_probe_receipt_content_and_hashes_are_locked(self):
+        path = self.root / "probe-executions.json"
+        receipt = self._probe_receipt()
+        path.write_text(json.dumps({"schema_version": 1, "records": [receipt]}), encoding="utf-8")
+        catalog = self.generator._load_probe_execution_receipts(path, self.lock)
+        self.assertEqual(catalog["candidate"][receipt["execution_id"]], receipt)
+
+        receipt["stdout"] = "changed\n"
+        path.write_text(json.dumps({"schema_version": 1, "records": [receipt]}), encoding="utf-8")
+        with self.assertRaisesRegex(SystemExit, "invalid stdout hash"):
+            self.generator._load_probe_execution_receipts(path, self.lock)
+
+    def test_probe_receipts_accept_runner_lock_pin_field_names(self):
+        path = self.root / "probe-executions.json"
+        receipt = self._probe_receipt()
+        path.write_text(json.dumps({"schema_version": 1, "records": [receipt]}), encoding="utf-8")
+        runner_lock = {
+            "kotlinx_io": self.lock["tag"],
+            "commit": self.lock["commit"],
+        }
+        catalog = self.generator._load_probe_execution_receipts(path, runner_lock)
+        self.assertEqual(catalog["candidate"][receipt["execution_id"]], receipt)
+
+    def test_local_probe_case_and_receipt_metadata_can_promote_the_row(self):
+        case_id = "Scripts/io_api_inventory/probes/delicate_io_api/DelicateIoApi.kt#contract"
+        source = "package delicateprobe\nfun contract() = Unit\n"
+        self._write(case_id.split("#", 1)[0], source)
+        row = copy.deepcopy(self.row)
+        row["local_test_refs"] = case_id
+        record = self._record(row)
+        catalogs = {"reference": {}, "candidate": {}}
+        for index, execution in enumerate(record["executions"]):
+            execution["case_id"] = case_id
+            lane = execution["lane"]
+            for subject in ("reference", "candidate"):
+                execution_id = f"{subject}-probe-{index}"
+                execution[subject]["execution_id"] = execution_id
+                catalogs[subject][execution_id] = {
+                    "case_id": case_id,
+                    "lane": lane,
+                    "subject": subject,
+                    "result": "PASS",
+                    "exit_code": 0,
+                    "candidate_sha": record["candidate_sha"],
+                }
+        promoted = self._apply([record], row, catalogs)
+        self.assertEqual(promoted["status"], "verified")
+
+    def test_opted_in_and_unopted_probe_sources_are_part_of_the_test_hash(self):
+        probe_dir = "Scripts/io_api_inventory/probes/delicate_io_api"
+        source = self._write(f"{probe_dir}/DelicateIoApi.kt", "fun marker() = Unit\n")
+        opted_in = self._write(f"{probe_dir}/OptedInConsumer.kt", "fun opted() = Unit\n")
+        unopted = self._write(f"{probe_dir}/UnoptedConsumer.kt", "fun unopted() = Unit\n")
+        row = copy.deepcopy(self.row)
+        row["local_test_refs"] = ";".join((
+            f"{probe_dir}/DelicateIoApi.kt#contract",
+            f"{probe_dir}/OptedInConsumer.kt",
+            f"{probe_dir}/UnoptedConsumer.kt",
+        ))
+        before = self.generator.validation_input_hashes(row, self.repository, self.upstream)
+        opted_in.write_text(opted_in.read_text(encoding="utf-8") + "// changed\n", encoding="utf-8")
+        after = self.generator.validation_input_hashes(row, self.repository, self.upstream)
+        self.assertNotEqual(before["test_input_sha256"], after["test_input_sha256"])
 
 
 if __name__ == "__main__":

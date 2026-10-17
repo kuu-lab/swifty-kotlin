@@ -100,6 +100,48 @@ combined compile. `consumer-manifest.json` records the ledger IDs and source
 scopes. Regeneration fails if a public source row is missing from the positive
 scope consumers or an invalid guard is missing from the negative consumer.
 
+## KUU-2613 DelicateIoApi declaration probe
+
+The `probes/delicate_io_api/` fixture is a direct local probe for the annotation
+declaration, its implicit constructor, binary retention, and positive/negative
+opt-in use. The focused Sema test checks symbol metadata and that only the
+unopted consumer receives the expected warning in both source and cached-library
+views. The fixture's `#contract` case is mapped only to the three
+`DelicateIoApi` ledger rows; existing suite references do not authorize it.
+
+After building `kswiftc`, run the focused Sema test and the dedicated matrix:
+
+```sh
+swift test --filter CompilerCoreTests.KotlinxIODelicateIoApiContractTests
+python3 Scripts/io_api_inventory/probes/delicate_io_api/run_delicate_io_api_probe.py \
+  --compiler /path/to/fd01a5e-kswiftk/.build/debug/kswiftc \
+  --candidate-package-root /path/to/fd01a5e-kswiftk \
+  --candidate-sha fd01a5e98145e8295e5b299b0a7190cc8d44e3a7 \
+  --reference-kotlinc /path/to/kotlinc-2.3.10 \
+  --java /path/to/java21/bin/java \
+  --javap /path/to/java21/bin/javap \
+  --output-dir /tmp/kuu-2613-probe
+```
+
+The runner checks the pinned upstream JVM API and class-file annotations, then
+executes direct candidate and Kotlin 2.3.10 reference consumers at O0/O2 for
+source, freshly produced stdlib-library, and independent producer/consumer
+views. It stores commands, exit codes, output, output hashes, source/probe hashes,
+and artifact hashes in `api-validation-probe-executions.json`; it updates the two
+KLIB row records in `api-validation-evidence.json` only when all required lanes
+pass, then regenerates and validates the inventory. Its `jvm-descriptor` receipt
+is reference-only: it checks the locked upstream API dump and class file, plus
+reference consumers. KSwiftK emits macOS binaries, not JVM class files, so this
+probe cannot verify a candidate JVM descriptor or Java reflection. The JVM ABI
+ledger row therefore remains `unverified` until a candidate-side JVM artifact
+or another valid descriptor verification path exists.
+
+If only a probe matcher changes after a complete run, `--revalidate-existing`
+rechecks the captured commands, diagnostics, run output, and artifact hashes
+without compiling again. The replacement receipts retain the prior execution
+IDs and runner hash so the corrected assessment remains traceable to the raw
+run.
+
 ## F02 executable and independent-process matrix
 
 F02 consumers turn the 235 JVM-paired common source rows into actual calls with

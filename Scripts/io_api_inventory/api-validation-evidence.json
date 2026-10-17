@@ -444,6 +444,204 @@
         }
       ],
       "evidence_source": "local-probe"
+    },
+    {
+      "row_id": "klib-9f0ca3fb595dae3d",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "9c3a19bf769a0e3ef3d62f422be3abd93e68101726891d909b7b1d285e69a28b",
+      "test_input_sha256": "74dca4195e3fcf905eca796450abfa27087289da8c97b5ff112b5d5f50aebcbb",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "executions": [
+        {
+          "case_id": "Scripts/io_api_inventory/probes/delicate_io_api/DelicateIoApi.kt#contract",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "probe:0d906270f0ea12549b52152ce667806464feec0f7fa26ab8dcba08842224c11a",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:9a20a9ded0d858f4a36c6f4eb87230d432d423f038d2e692c539546c6b1d7fce",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/delicate_io_api/DelicateIoApi.kt#contract",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "probe:ae846c97dc942964f7052ab51184706db4e557d030164145a6c8af949a029c2e",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:046dfa1516579318358a2968776d31c48f5809da5af03b82e51f4fa1773e174d",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/delicate_io_api/DelicateIoApi.kt#contract",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "probe:bdb04864240761fb9711c85916035dee89784b83dd0bad2dfc29b1671fef945f",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:e9e6d1f3d9a0c31c4f7eea67c46cdbae5c57168a7821c52b41c6e1a5238d340a",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/delicate_io_api/DelicateIoApi.kt#contract",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "probe:9fe6e89d43ca7c211f5afb615871adffd443e0357568c56b9c2cdb4575e396a3",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:d6e15e061ce7900d4116801ffa5ca15a118d4e7dbbdc53a9921a6717d8d26e22",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/delicate_io_api/DelicateIoApi.kt#contract",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "probe:913f46c4f9683f35d3a273c22d66649a73bea106339861890af498c395f0aa7e",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:8caa739ae59536ccc957fd6c127b48fa848c224bd4c4caa7e910c34c8fd9779e",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/delicate_io_api/DelicateIoApi.kt#contract",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "probe:e762ae337166dbba1adeb40b7f5ae57e3eb3ed681137468cabd74a2fb7fd6ea0",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:9700988a95cfc35b7b471c60a90e6df7c7890297190f03c78bf96137991d372d",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "evidence_source": "upstream-catalog"
+    },
+    {
+      "row_id": "klib-ca6de80d87f0db05",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "9c3a19bf769a0e3ef3d62f422be3abd93e68101726891d909b7b1d285e69a28b",
+      "test_input_sha256": "74dca4195e3fcf905eca796450abfa27087289da8c97b5ff112b5d5f50aebcbb",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "executions": [
+        {
+          "case_id": "Scripts/io_api_inventory/probes/delicate_io_api/DelicateIoApi.kt#contract",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "probe:0d906270f0ea12549b52152ce667806464feec0f7fa26ab8dcba08842224c11a",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:9a20a9ded0d858f4a36c6f4eb87230d432d423f038d2e692c539546c6b1d7fce",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/delicate_io_api/DelicateIoApi.kt#contract",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "probe:ae846c97dc942964f7052ab51184706db4e557d030164145a6c8af949a029c2e",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:046dfa1516579318358a2968776d31c48f5809da5af03b82e51f4fa1773e174d",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/delicate_io_api/DelicateIoApi.kt#contract",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "probe:bdb04864240761fb9711c85916035dee89784b83dd0bad2dfc29b1671fef945f",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:e9e6d1f3d9a0c31c4f7eea67c46cdbae5c57168a7821c52b41c6e1a5238d340a",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/delicate_io_api/DelicateIoApi.kt#contract",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "probe:9fe6e89d43ca7c211f5afb615871adffd443e0357568c56b9c2cdb4575e396a3",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:d6e15e061ce7900d4116801ffa5ca15a118d4e7dbbdc53a9921a6717d8d26e22",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/delicate_io_api/DelicateIoApi.kt#contract",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "probe:913f46c4f9683f35d3a273c22d66649a73bea106339861890af498c395f0aa7e",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:8caa739ae59536ccc957fd6c127b48fa848c224bd4c4caa7e910c34c8fd9779e",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/delicate_io_api/DelicateIoApi.kt#contract",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "probe:e762ae337166dbba1adeb40b7f5ae57e3eb3ed681137468cabd74a2fb7fd6ea0",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:9700988a95cfc35b7b471c60a90e6df7c7890297190f03c78bf96137991d372d",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "evidence_source": "upstream-catalog"
     }
   ]
 }
