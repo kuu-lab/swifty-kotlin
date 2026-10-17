@@ -8,8 +8,7 @@
 /// raw ordinal Ints everywhere outside Any-erased slots (see
 /// `emitBoxCallWithValueClassTag`, which boxes them via
 /// `kk_enum_box_ordinal` instead of the plain `kk_box_int` this resolution
-/// would otherwise imply). Non-value-class/non-enum kinds, and nullable
-/// value classes/enums, pass through unchanged.
+/// would otherwise imply).
 ///
 /// Shared as a free function (rather than an `ABILoweringPass` method) so
 /// `CollectionLiteralLoweringPass`'s `listOf`/`setOf`/array-literal boxing —
@@ -135,7 +134,6 @@ extension ABILoweringPass {
         let rawParamKind = types.kind(of: paramType)
         let paramKind = resolveValueClassKind(rawParamKind, types: types, symbols: symbols)
 
-        // Treat Any/Any?, reference types, and type parameters as boxing boundaries.
         // Type parameters are erased to Any at runtime, so primitives must be boxed.
         let isReferenceBoxingBoundary: Bool = {
             if isAnyOrNullableAny(paramKind) {
@@ -413,7 +411,6 @@ extension ABILoweringPass {
         return unboxed
     }
 
-    /// Unbox an operand to its own declared primitive type.
     /// Used for comparison operators (==, !=, <, etc.) where the result type is
     /// Boolean and cannot be used to infer the unboxing target.  If the operand's
     /// declared type is `.primitive(.int, .nonNull)` we emit `kk_unbox_int`;
@@ -448,11 +445,6 @@ extension ABILoweringPass {
         let operandKind: TypeKind? = rawOperandKind.map {
             resolveValueClassKind($0, types: types, symbols: symbols)
         }
-        // Determine the target kind:
-        //   1. Use the operand's own concrete primitive type if available.
-        //   2. Fall back to the hint (type of a sibling operand) when the
-        //      operand has no type info — this handles arithmetic results whose
-        //      Sema type was not recorded in the arena.
         let targetKind: TypeKind
         if let opKind = operandKind, case .primitive(_, .nonNull) = opKind {
             targetKind = opKind
