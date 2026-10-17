@@ -4,12 +4,9 @@ extension ExprTypeChecker {
         ctx.sema.types.displayName(of: type, symbols: ctx.sema.symbols, interner: ctx.interner)
     }
 
-    /// Whether an explicit lambda parameter annotation agrees with the parameter
-    /// type the expected type declares. Type parameters the expected type leaves
-    /// unsubstituted carry no information, so annotations always win there.
-    /// Otherwise only widening is allowed (function types are contravariant in
-    /// their parameters): `(String) -> Int = { s: Any -> ... }` is fine, while
-    /// `(Any) -> Int = { s: String -> ... }` is a mismatch.
+    /// Type parameters the expected type leaves unsubstituted carry no information,
+    /// so annotations always win there. Otherwise only widening is allowed (function
+    /// types are contravariant in their parameters).
     ///
     /// `expectedTypeIsSourceDeclared` tells the two kinds of `Any` apart: an
     /// `Any` written in source constrains the annotation, while an `Any` the
@@ -94,9 +91,6 @@ extension ExprTypeChecker {
         }
     }
 
-    /// Resolves the explicit parameter type annotations recorded for a lambda
-    /// literal (`{ a: Int, b: String -> ... }`). Returns nil when the lambda has
-    /// no annotations or the recorded arity does not match the parameter list.
     func resolveLambdaParamAnnotations(
         _ id: ExprID,
         ctx: TypeInferenceContext,
@@ -144,9 +138,6 @@ extension ExprTypeChecker {
         let sema = ctx.sema
 
         let label: InternedString? = if case let .lambdaLiteral(_, _, lbl, _) = ast.arena.expr(id) { lbl } else { nil }
-        // SAM conversion: when the expected type is a functional interface,
-        // extract the SAM method's function type so the lambda's parameters
-        // and return type can be inferred from it.
         let samConversion: Bool
         let expectedFunctionType: FunctionType?
         if let expectedType, case let .functionType(functionType) = sema.types.kind(of: expectedType) {
@@ -188,19 +179,14 @@ extension ExprTypeChecker {
             nil
         }
 
-        // Implicit `it` parameter for no-arrow lambdas with single expected param.
-        // Enhanced to support complex type inference contexts and generic types.
         let effectiveParams: [InternedString] = if params.isEmpty {
-            // Check for expected function type first
             if let expectedFunctionType, expectedFunctionType.params.count == 1 {
                 [ctx.interner.intern("it")]
             }
-            // Check for SAM conversion with single parameter method
             else if let expectedType, let samFT = driver.helpers.samFunctionType(for: expectedType, sema: sema),
                     samFT.params.count == 1 {
                 [ctx.interner.intern("it")]
             }
-            // Check for common HOF patterns (map, filter, etc.) through context
             else if inferredImplicitItType != nil {
                 [ctx.interner.intern("it")]
             } else {
@@ -254,7 +240,6 @@ extension ExprTypeChecker {
         } else if let declaredParameterTypes {
             declaredParameterTypes
         } else if effectiveParams.count == 1 && effectiveParams.contains(ctx.interner.intern("it")) {
-            // For implicit `it` parameter, try to infer type from context
             inferredImplicitItType.map { [$0] }
                 ?? Array(repeating: sema.types.anyType, count: effectiveParams.count)
         } else {
@@ -343,8 +328,6 @@ extension ExprTypeChecker {
         {
             bodyCtx.implicitReceiverStack.append((receiverType, receiverSymbol))
         }
-        // When the expected function type has a receiver (e.g. StringBuilder.() -> Unit),
-        // set the implicit receiver so that unqualified member calls resolve correctly.
         if let receiverType = expectedFunctionType?.receiver
             ?? sema.bindings.coroutineScopeLambdaReceiverTypes[id]
         {
@@ -457,9 +440,8 @@ extension ExprTypeChecker {
         let sourceLevelInferredBodyType = driver.callChecker.sourceLevelRangeArgumentType(
             body, inferredType: inferredBodyType, ctx: bodyCtx
         )
-        // STDLIB-592 definite assignment: record which outer-scope locals this
-        // lambda body unconditionally initializes, mirroring the blockExpr merge
-        // in ExprTypeChecker.swift. `locals` itself is never mutated here -- the
+        // Record which outer-scope locals this lambda body unconditionally
+        // initializes. `locals` itself is never mutated here -- the
         // lambda isn't known to run at this point -- but a caller whose contract
         // guarantees EXACTLY_ONCE/AT_LEAST_ONCE invocation (applyContractEffects)
         // can later fold this back into its own definite-assignment state.
@@ -558,7 +540,6 @@ extension ExprTypeChecker {
                 sema.bindings.bindExprType(id, type: functionType)
                 return functionType
             }
-            // Enhanced return type inference with Unit optimization
             let optimizedReturnType = expectedTypeIsHintOnly
                 ? sourceLevelInferredBodyType
                 : inferOptimizedReturnType(
@@ -686,7 +667,6 @@ extension ExprTypeChecker {
         case member(receiverType: TypeID?, calleeName: InternedString, argIndex: Int, typeArgs: [TypeRefID])
     }
 
-    /// Finds the parent call context for a lambda expression by scanning the arena.
     private func findParentCallContext(for lambdaId: ExprID, ctx: TypeInferenceContext, sema _: SemaModule) -> ParentLambdaCallContext? {
         let ast = ctx.ast
         for expr in ast.arena.exprs {
@@ -721,7 +701,6 @@ extension ExprTypeChecker {
         return nil
     }
 
-    /// Infers the type for an implicit `it` parameter based on context
     private func inferItParameterType(
         ctx: TypeInferenceContext,
         id: ExprID,
@@ -734,7 +713,6 @@ extension ExprTypeChecker {
         return nil
     }
 
-    /// Infers lambda parameter type from HOF call context
     private func inferTypeFromHOFContext(
         _ callContext: ParentLambdaCallContext,
         ctx: TypeInferenceContext,
@@ -897,9 +875,6 @@ extension ExprTypeChecker {
             : explicitType
     }
 
-    /// Refines an unresolved callback input from assignments such as
-    /// `fun <T> consume(block: (Result<T>) -> Unit) { ... }` with
-    /// `var result: Result<Int>? = null; consume { result = it }`.
     private func inferFromAssignmentContext(
         _ lambdaID: ExprID,
         expectedParameterType: TypeID,
@@ -1144,23 +1119,19 @@ extension ExprTypeChecker {
         }
     }
 
-    /// Optimizes return type inference for lambda expressions
     private func inferOptimizedReturnType(
         inferredBodyType: TypeID,
         expectedReturnType: TypeID,
         sema: SemaModule
     ) -> TypeID {
-        // Unit optimization: if expected type is Unit, always return Unit
         if expectedReturnType == sema.types.unitType {
             return sema.types.unitType
         }
 
-        // If the body is already compatible with expected type, use it
         if sema.types.isSubtype(inferredBodyType, expectedReturnType) {
             return inferredBodyType
         }
 
-        // Fall back to inferred type
         return inferredBodyType
     }
 }
