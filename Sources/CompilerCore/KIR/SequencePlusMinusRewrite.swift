@@ -28,8 +28,6 @@ enum SequencePlusMinusRewriteResult {
     case unsupportedCollectionMinus
 }
 
-/// Emits the shared Sequence plus/minus runtime rewrite used by KIR lowering
-/// and collection call rewrites.
 @discardableResult
 func emitSequencePlusMinusRewrite<C: RangeReplaceableCollection>(
     operation: SequencePlusMinusRewriteOperation,
