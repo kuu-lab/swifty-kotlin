@@ -30,9 +30,19 @@ class ValidationEvidenceTests(unittest.TestCase):
         self.repository = self.root / "checkout"
         self.upstream = self.repository / "Scripts/io_api_inventory/upstream/kotlinx-io-0.9.1"
         self.evidence_path = self.root / "evidence.json"
+        self.probe_results_path = self.root / "probe-results.json"
         self._write("Sources/CompilerCore/Stdlib/kotlinx/io/Foo.kt", "fun foo() = 1\n")
         self._write("Sources/Runtime/io_bridge.swift", "func kk_io_foo() {}\n")
         self._write("Tests/CompilerBackendTests/FooTests.swift", "func testFoo() {}\n")
+        self.probe_case_id = (
+            "Tests/CompilerBackendTests/Integration/KotlinxIOSinkRawSinkDeclarationTests.swift"
+            "#probe:KUU-2612:fixture-shape"
+        )
+        self._write(
+            "Tests/CompilerBackendTests/Integration/KotlinxIOSinkRawSinkDeclarationTests.swift",
+            "// IO_API_VALIDATION_PROBE: probe:KUU-2612:fixture-shape\n",
+        )
+        self.generator.VALIDATION_PROBE_RESULTS_PATH = self.probe_results_path
         self._write("core/common/test/FooTest.kt", "fun testFoo() = assertEquals(1, foo())\n", self.upstream)
         self.row = {
             "row_id": "klib-fixture-foo",
@@ -96,6 +106,48 @@ class ValidationEvidenceTests(unittest.TestCase):
             | {"candidate-wrong": other_case_id},
         }
 
+    def _probe_record(self):
+        row = copy.deepcopy(self.row)
+        row["local_test_refs"] += ";Tests/CompilerBackendTests/Integration/KotlinxIOSinkRawSinkDeclarationTests.swift"
+        lanes = self.generator.required_execution_lanes(self.generator.validation_obligations(row))
+        executions = []
+        probe_outputs = []
+        for lane in lanes:
+            reference_id = self.generator.validation_probe_execution_id("reference", self.probe_case_id)
+            candidate_id = self.generator.validation_probe_execution_id("candidate", self.probe_case_id)
+            executions.append({
+                "case_id": self.probe_case_id,
+                "lane": lane,
+                "reference": {"execution_id": reference_id, "result": "PASS", "exit_code": 0},
+                "candidate": {"execution_id": candidate_id, "result": "PASS", "exit_code": 0},
+            })
+            probe_outputs.append({
+                "case_id": self.probe_case_id,
+                "lane": lane,
+                "reference": {
+                    "execution_id": reference_id, "exit_code": 0,
+                    "stdout": "reference\n",
+                    "stdout_sha256": self.generator.hashlib.sha256(b"reference\n").hexdigest(),
+                    "stderr": "",
+                },
+                "candidate": {
+                    "execution_id": candidate_id, "exit_code": 0,
+                    "stdout": "candidate\n",
+                    "stdout_sha256": self.generator.hashlib.sha256(b"candidate\n").hexdigest(),
+                    "stderr": "",
+                },
+            })
+        record = {
+            "row_id": row["row_id"],
+            "candidate_sha": "a" * 40,
+            "reference_version": self.lock["tag"],
+            "reference_commit": self.lock["commit"],
+            **self.generator.validation_input_hashes(row, self.repository, self.upstream),
+            "compatibility_obligations": self.generator.validation_obligations(row),
+            "executions": executions,
+        }
+        return row, record, probe_outputs
+
     def _apply(self, records, row=None, schema_version=1):
         fixture_row = copy.deepcopy(row or self.row)
         self.evidence_path.write_text(
@@ -106,6 +158,20 @@ class ValidationEvidenceTests(unittest.TestCase):
             self._execution_catalogs(),
         )
         return fixture_row
+
+    def _apply_probe(self, row, record, probe_outputs):
+        self.evidence_path.write_text(
+            json.dumps({"schema_version": 1, "records": [record]}), encoding="utf-8"
+        )
+        self.probe_results_path.write_text(
+            json.dumps({"schema_version": 1, "executions": probe_outputs}), encoding="utf-8"
+        )
+        applied_row = copy.deepcopy(row)
+        self.generator.apply_validation_evidence(
+            [applied_row], self.lock, self.evidence_path, self.repository, self.upstream,
+            self._execution_catalogs(),
+        )
+        return applied_row
 
     def _local_probe_row(self):
         row = copy.deepcopy(self.row)
@@ -319,6 +385,46 @@ class ValidationEvidenceTests(unittest.TestCase):
                 self.generator.validate_index_of_bridge_probe(
                     row, record, self.generator.REPO
                 )
+
+    def test_declared_direct_probe_promotes_with_lane_outputs(self):
+        row, record, outputs = self._probe_record()
+        applied_row = self._apply_probe(row, record, outputs)
+        self.assertEqual(applied_row["status"], "verified")
+        self.assertEqual(len(outputs), 6)
+
+    def test_probe_requires_marker_in_a_hashed_local_test(self):
+        row, record, outputs = self._probe_record()
+        probe_path = self.repository / "Tests/CompilerBackendTests/Integration/KotlinxIOSinkRawSinkDeclarationTests.swift"
+        probe_path.write_text("// no probe marker\n", encoding="utf-8")
+        record["test_input_sha256"] = self.generator.validation_input_hashes(
+            row, self.repository, self.upstream
+        )["test_input_sha256"]
+        with self.assertRaisesRegex(SystemExit, "not mapped to row"):
+            self._apply_probe(row, record, outputs)
+
+    def test_probe_support_inputs_are_hashed(self):
+        row, record, outputs = self._probe_record()
+        support_path = "Scripts/io_api_inventory/probes/Reference.kt"
+        self._write(support_path, "fun referenceShape() = true\n")
+        row["local_test_refs"] += ";" + support_path
+        record["test_input_sha256"] = self.generator.validation_input_hashes(
+            row, self.repository, self.upstream
+        )["test_input_sha256"]
+        self._write(support_path, "fun referenceShape() = false\n")
+        with self.assertRaisesRegex(SystemExit, "stale test_input_sha256"):
+            self._apply_probe(row, record, outputs)
+
+    def test_probe_output_hash_must_match_recorded_stdout(self):
+        row, record, outputs = self._probe_record()
+        outputs[0]["candidate"]["stdout"] = "changed\n"
+        with self.assertRaisesRegex(SystemExit, "stale candidate output hash"):
+            self._apply_probe(row, record, outputs)
+
+    def test_probe_requires_one_output_per_case_and_lane(self):
+        row, record, outputs = self._probe_record()
+        outputs.pop()
+        with self.assertRaisesRegex(SystemExit, "outputs do not match evidence executions"):
+            self._apply_probe(row, record, outputs)
 
     def test_unknown_duplicate_and_malformed_evidence_is_rejected(self):
         valid = self._record()

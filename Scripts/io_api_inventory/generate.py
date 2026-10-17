@@ -27,6 +27,7 @@ LEDGER_PATH = HERE / "api-inventory.tsv"
 SCOPE_PATH = HERE / "platform-scope.tsv"
 SUMMARY_PATH = HERE / "inventory-summary.md"
 VALIDATION_EVIDENCE_PATH = HERE / "api-validation-evidence.json"
+VALIDATION_PROBE_RESULTS_PATH = HERE / "api-validation-probe-results.json"
 UPSTREAM_RUNNER = REPO / "Scripts/kotlinx_io_upstream"
 UPSTREAM_RUNNER_LOCK_PATH = UPSTREAM_RUNNER / "reference-lock.json"
 REFERENCE_EXECUTIONS_PATH = UPSTREAM_RUNNER / "jvm-executions.expected.json"
@@ -245,6 +246,8 @@ LOCAL_IO_TEST_PREFIXES = (
     "Tests/CompilerCoreTests/GoldenCases/Sema/kotlinx_io_",
     "Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlinx_io_",
     "Tests/CompilerCoreTests/Sema/KotlinxIO",
+    "Tests/CompilerBackendTests/Integration/KotlinxIOSinkRawSinkDeclarationTests.swift",
+    "Scripts/io_api_inventory/probes/",
     "Tests/RuntimeTests/RuntimeIoFileSystemTests.swift",
 )
 LOCAL_IO_PROBE_API_NAMES = {"dataasbytearray"}
@@ -347,6 +350,45 @@ INDEX_OF_DEFAULT_BRIDGE_TEST_INPUTS = (
     "Scripts/kotlinx_io_upstream/run_candidate_subset.py",
     "Scripts/kotlinx_io_upstream/jvm-executions.expected.json",
     "Scripts/kotlinx_io_upstream/native-executions.expected.json",
+)
+
+VALIDATION_PROBE_REFS = {
+    "jvm-15474da48ae3e29c": (
+        "Scripts/io_api_inventory/probes/SinkRawSinkJvmReflectionProbe.java"
+        "#probe:KUU-2612:sink-rawsink-jvm-declarations"
+    ),
+    "jvm-3cd294dd8616b98c": (
+        "Scripts/io_api_inventory/probes/SinkRawSinkJvmReflectionProbe.java"
+        "#probe:KUU-2612:sink-rawsink-jvm-declarations"
+    ),
+    "klib-0b464ce5d17138e9": (
+        "Scripts/io_api_inventory/probes/SinkRawSinkKotlinReferenceProbe.kt"
+        "#probe:KUU-2612:sink-rawsink-kotlin-reference"
+    ),
+    "klib-b8d3dfb575d2ea24": (
+        "Scripts/io_api_inventory/probes/SinkRawSinkKotlinReferenceProbe.kt"
+        "#probe:KUU-2612:sink-rawsink-kotlin-reference"
+    ),
+}
+VALIDATION_PROBE_SUPPORT_INPUTS = {
+    "jvm-15474da48ae3e29c": (
+        "Scripts/io_api_inventory/probes/SinkRawSinkKotlinReferenceProbe.kt",
+        "Tests/CompilerBackendTests/Integration/KotlinxIOSinkRawSinkDeclarationTests.swift",
+    ),
+    "jvm-3cd294dd8616b98c": (
+        "Scripts/io_api_inventory/probes/SinkRawSinkKotlinReferenceProbe.kt",
+        "Tests/CompilerBackendTests/Integration/KotlinxIOSinkRawSinkDeclarationTests.swift",
+    ),
+    "klib-0b464ce5d17138e9": (
+        "Tests/CompilerBackendTests/Integration/KotlinxIOSinkRawSinkDeclarationTests.swift",
+    ),
+    "klib-b8d3dfb575d2ea24": (
+        "Tests/CompilerBackendTests/Integration/KotlinxIOSinkRawSinkDeclarationTests.swift",
+    ),
+}
+VALIDATION_PROBE_PATHS = (
+    {reference.split("#", 1)[0] for reference in VALIDATION_PROBE_REFS.values()}
+    | {path for paths in VALIDATION_PROBE_SUPPORT_INPUTS.values() for path in paths}
 )
 
 MODIFIERS = (
@@ -697,7 +739,7 @@ def _load_validation_execution_catalogs() -> dict[str, dict[str, str]]:
         fail(f"cannot load validation execution catalogs: {error}")
 
 
-def _case_id_matches_row(row: dict, case_id: str) -> bool:
+def _case_id_matches_row(row: dict, case_id: str, repository: Path = REPO) -> bool:
     case_path, separator, case_name = case_id.partition("#")
     if not separator or not case_path or not case_name:
         return False
@@ -708,7 +750,97 @@ def _case_id_matches_row(row: dict, case_id: str) -> bool:
             continue
         if case_name == reference_name:
             return True
-    return False
+    if not case_name.startswith("probe:"):
+        return False
+    local_test_paths = {
+        reference.split("#", 1)[0]
+        for reference in row.get("local_test_refs", "").split(";")
+        if reference and reference != "none"
+    }
+    if case_path not in local_test_paths:
+        return False
+    probe_path = (repository / case_path).resolve()
+    if repository.resolve() not in probe_path.parents or not probe_path.is_file():
+        return False
+    marker = f"IO_API_VALIDATION_PROBE: {case_name}"
+    return marker in probe_path.read_text(encoding="utf-8")
+
+
+def validation_probe_execution_id(subject: str, case_id: str) -> str:
+    digest = hashlib.sha256(case_id.encode("utf-8")).hexdigest()[:20]
+    return f"probe:{subject}:{digest}"
+
+
+def _validate_probe_results(
+    evidence_records: list[dict],
+    results_path: Path = VALIDATION_PROBE_RESULTS_PATH,
+) -> None:
+    probe_executions = {
+        (execution["case_id"], execution["lane"]): execution
+        for record in evidence_records
+        for execution in record["executions"]
+        if execution["case_id"].partition("#")[2].startswith("probe:")
+    }
+    try:
+        payload = json.loads(results_path.read_text(encoding="utf-8"), object_pairs_hook=_unique_json_object)
+    except OSError as error:
+        if probe_executions:
+            fail(f"cannot read validation probe results {results_path}: {error}")
+        return
+    except json.JSONDecodeError as error:
+        fail(f"invalid validation probe results JSON: {error}")
+    except UnicodeDecodeError as error:
+        fail(f"validation probe results are not UTF-8: {error}")
+
+    if not isinstance(payload, dict) or set(payload) != {"schema_version", "executions"}:
+        fail("validation probe results must contain only schema_version and executions")
+    if type(payload["schema_version"]) is not int or payload["schema_version"] != 1:
+        fail("unsupported validation probe results schema_version")
+    executions = payload["executions"]
+    if not isinstance(executions, list):
+        fail("validation probe results executions must be an array")
+
+    result_map = {}
+    result_fields = {"execution_id", "exit_code", "stdout", "stdout_sha256", "stderr"}
+    execution_fields = {"case_id", "lane", "reference", "candidate"}
+    for execution in executions:
+        if not isinstance(execution, dict) or set(execution) != execution_fields:
+            fail("malformed validation probe result execution")
+        identity = (execution["case_id"], execution["lane"])
+        if identity in result_map:
+            fail(f"duplicate validation probe result for {identity[0]} lane {identity[1]}")
+        result_map[identity] = execution
+        for subject in ("reference", "candidate"):
+            result = execution[subject]
+            if not isinstance(result, dict) or set(result) != result_fields:
+                fail(f"malformed {subject} output for validation probe {identity[0]}")
+            if not isinstance(result["execution_id"], str) or not result["execution_id"]:
+                fail(f"empty {subject} execution ID for validation probe {identity[0]}")
+            if type(result["exit_code"]) is not int:
+                fail(f"malformed {subject} exit code for validation probe {identity[0]}")
+            if not isinstance(result["stdout"], str) or not isinstance(result["stderr"], str):
+                fail(f"malformed {subject} output text for validation probe {identity[0]}")
+            digest = result["stdout_sha256"]
+            if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+                fail(f"malformed {subject} output hash for validation probe {identity[0]}")
+            if hashlib.sha256(result["stdout"].encode("utf-8")).hexdigest() != digest:
+                fail(f"stale {subject} output hash for validation probe {identity[0]}")
+
+    if set(result_map) != set(probe_executions):
+        missing = sorted(set(probe_executions) - set(result_map))
+        orphaned = sorted(set(result_map) - set(probe_executions))
+        fail(f"validation probe outputs do not match evidence executions; missing={missing}, orphaned={orphaned}")
+    for identity, evidence_execution in probe_executions.items():
+        result_execution = result_map[identity]
+        for subject in ("reference", "candidate"):
+            evidence_result = evidence_execution[subject]
+            probe_result = result_execution[subject]
+            if probe_result["execution_id"] != evidence_result["execution_id"]:
+                fail(f"{subject} probe output ID mismatch for {identity[0]} lane {identity[1]}")
+            if probe_result["exit_code"] != evidence_result["exit_code"]:
+                fail(f"{subject} probe output exit mismatch for {identity[0]} lane {identity[1]}")
+            if evidence_result["result"] == "PASS" and probe_result["exit_code"] != 0:
+                fail(f"passing {subject} probe has a non-zero output exit for {identity[0]} lane {identity[1]}")
 
 
 def apply_validation_evidence(
@@ -836,9 +968,11 @@ def apply_validation_evidence(
             if not isinstance(case_id, str) or not case_id.strip() or case_id != case_id.strip():
                 fail(f"empty execution case_id for row {row_id}")
             local_case_spec = None
+            is_probe_case = False
             if evidence_source == "upstream-catalog":
-                if not _case_id_matches_row(row, case_id):
-                    fail(f"execution case {case_id!r} is not mapped to row {row_id}'s upstream tests")
+                is_probe_case = _case_id_matches_row(row, case_id, repository) and case_id.partition("#")[2].startswith("probe:")
+                if not _case_id_matches_row(row, case_id, repository):
+                    fail(f"execution case {case_id!r} is not mapped to row {row_id}'s upstream tests or declared probes")
             else:
                 local_case_spec = _local_probe_case_spec(row, case_id)
                 if local_case_spec is None:
@@ -865,6 +999,8 @@ def apply_validation_evidence(
                     fail(f"empty {subject} execution_id for row {row_id} case {case_id}")
                 if local_case_spec is None:
                     catalog_case_id = execution_catalogs[subject].get(execution_id)
+                    if is_probe_case and execution_id == validation_probe_execution_id(subject, case_id):
+                        catalog_case_id = case_id
                     if catalog_case_id is None:
                         fail(f"unknown {subject} execution_id for row {row_id}: {execution_id}")
                     if catalog_case_id != case_id:
@@ -909,6 +1045,8 @@ def apply_validation_evidence(
                 fail(f"row {row_id} has no registered local probe evidence cases")
         validate_index_of_bridge_probe(row, record, repository)
         row["status"] = "verified"
+
+    _validate_probe_results(records, VALIDATION_PROBE_RESULTS_PATH)
 
 
 def load_inputs() -> tuple[dict, dict, list[dict], list[dict]]:
@@ -1970,11 +2108,18 @@ def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
                 or path.startswith(SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS[1])):
             if row["row_id"] not in SEGMENT_READ_CONTEXT_IMPL_ROW_IDS:
                 continue
+        if path in VALIDATION_PROBE_PATHS:
+            continue
         haystack = content.lower()
         if name and re.search(rf"(?<!\w){re.escape(name)}(?!\w)", haystack):
             refs.append(path)
         elif owner and owner in haystack and row["module"] == "bytestring":
             refs.append(path)
+    row_id = row.get("row_id")
+    probe_ref = VALIDATION_PROBE_REFS.get(row_id)
+    if probe_ref:
+        refs.append(probe_ref)
+    refs.extend(VALIDATION_PROBE_SUPPORT_INPUTS.get(row_id, ()))
     return list(dict.fromkeys(refs))
 
 
@@ -2361,6 +2506,7 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     local_paths = list(REPO.joinpath("Tests").rglob("*.swift"))
     local_paths.extend(REPO.joinpath("Tests/CompilerCoreTests/GoldenCases/Sema").glob("*.kt"))
     local_paths.extend(REPO.joinpath("Scripts/diff_cases").glob("*.kt"))
+    local_paths.extend(REPO.joinpath("Scripts/io_api_inventory/probes").glob("*.java"))
     local_paths.extend(REPO.joinpath("Scripts/io_api_inventory/probes").glob("*.kt"))
     local_paths.extend(REPO.joinpath("Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590").glob("*.kt"))
     local_paths.append(REPO / "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java")
