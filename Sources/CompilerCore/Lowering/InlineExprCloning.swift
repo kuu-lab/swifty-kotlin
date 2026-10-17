@@ -1,6 +1,3 @@
-/// Clones a KIR expression into a fresh id, or reuses a clone already made
-/// for the same source within one inline/lambda expansion.
-///
 /// The per-expansion memo (`expandInlineCall`/`expandLambdaBody`'s
 /// `localExprMap`) stays owned by the caller alongside the parameter- and
 /// merge-slot substitutions it also records there; this type only owns the
@@ -40,14 +37,11 @@ enum InlineExprCloning {
         return cloned
     }
 
-    /// Clones `source` into a fresh expression in `arena`, keeping its
-    /// existing `KIRExprKind` payload when one is recorded. A serialized
-    /// imported-inline body can reference an id with no expression backing it,
-    /// in which case the clone falls back to a plain `.temporary` -- the same
-    /// fallback `appendTemporary` itself would allocate at this index, since
-    /// both take their id from `arena`'s expression count at the same point.
-    /// The clone's type is `substituteType` applied to `source`'s existing
-    /// type, which defaults to leaving it unchanged.
+    /// A serialized imported-inline body can reference an id with no
+    /// expression backing it, in which case the clone falls back to a plain
+    /// `.temporary` -- the same fallback `appendTemporary` itself would
+    /// allocate at this index, since both take their id from `arena`'s
+    /// expression count at the same point.
     private static func cloneExpr(
         _ source: KIRExprID,
         in arena: KIRArena,
