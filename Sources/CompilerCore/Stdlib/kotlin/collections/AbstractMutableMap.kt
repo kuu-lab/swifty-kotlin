@@ -7,9 +7,7 @@
 
 package kotlin.collections
 
-// KSP-930: the nominal AbstractMutableMap<K, V> declaration is source-backed
-// here; KSP-1038 adds the native-wasm receiver implementation. The
-// compiler-side shell remains the fallback for non-bundled contexts.
+// The compiler-side shell remains the fallback for non-bundled contexts.
 
 private class AbstractMutableMapKeys<K, V>(
     private val map: AbstractMutableMap<K, V>
@@ -63,9 +61,6 @@ private class AbstractMutableMapValues<K, V>(
     override val size: Int get() = map.entries.size
 }
 
-/**
- * Provides a skeletal implementation of the MutableMap interface.
- */
 public abstract class AbstractMutableMap<K, V> protected constructor() : AbstractMap<K, V>(), MutableMap<K, V> {
     @IgnorableReturnValue
     abstract override fun put(key: K, value: V): V?
