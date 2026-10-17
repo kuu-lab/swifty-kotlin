@@ -9,8 +9,6 @@
 package kotlin.concurrent
 
 /**
- * Marks the backing field of the annotated `var` property as volatile.
- *
  * Only backing-field operations are atomic; a getter or setter that performs
  * multiple operations is not guaranteed to be atomic as a whole.
  */
