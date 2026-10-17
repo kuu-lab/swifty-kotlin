@@ -1,5 +1,3 @@
-/// Constraint linking for generic delegate factories whose type arguments are
-/// determined by the delegated-property conventions.
 extension DeclTypeChecker {
     func inferDelegateFactoryTypeFromConventionContext(
         _ delegateExpr: ExprID,
