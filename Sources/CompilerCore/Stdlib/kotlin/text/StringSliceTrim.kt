@@ -1,6 +1,5 @@
 package kotlin.text
 
-/** Returns a subsequence without leading and trailing characters matching [predicate]. */
 public inline fun CharSequence.trim(predicate: (Char) -> Boolean): CharSequence {
     var startIndex = 0
     var endIndex = length - 1
@@ -17,7 +16,6 @@ public inline fun CharSequence.trim(predicate: (Char) -> Boolean): CharSequence 
     return this.subSequence(startIndex, endIndex + 1)
 }
 
-/** Returns a subsequence without leading characters matching [predicate]. */
 public inline fun CharSequence.trimStart(predicate: (Char) -> Boolean): CharSequence {
     val endIndex = length
     var index = 0
@@ -28,7 +26,6 @@ public inline fun CharSequence.trimStart(predicate: (Char) -> Boolean): CharSequ
     return ""
 }
 
-/** Returns a subsequence without trailing characters matching [predicate]. */
 public inline fun CharSequence.trimEnd(predicate: (Char) -> Boolean): CharSequence {
     var index = length - 1
     while (index >= 0) {
@@ -46,9 +43,6 @@ public fun CharSequence.trim(): CharSequence = trim { it.isWhitespace() }
 public fun CharSequence.trimStart(): CharSequence = trimStart { it.isWhitespace() }
 public fun CharSequence.trimEnd(): CharSequence = trimEnd { it.isWhitespace() }
 
-/**
- * Returns a string with leading and trailing whitespace removed.
- */
 public fun String.trim(): String {
     var start = 0
     var end = length
@@ -65,9 +59,6 @@ public fun String.trim(): String {
     return this.substring(start, end)
 }
 
-/**
- * Returns a string with leading and trailing characters matching [predicate] removed.
- */
 public inline fun String.trim(predicate: (Char) -> Boolean): String {
     var start = 0
     var end = length
@@ -84,9 +75,6 @@ public inline fun String.trim(predicate: (Char) -> Boolean): String {
     return this.substring(start, end)
 }
 
-/**
- * Returns a string with leading whitespace removed.
- */
 public fun String.trimStart(): String {
     var i = 0
     while (i < length) {
@@ -98,9 +86,6 @@ public fun String.trimStart(): String {
     return this.substring(i)
 }
 
-/**
- * Returns a string with leading characters matching [predicate] removed.
- */
 public inline fun String.trimStart(predicate: (Char) -> Boolean): String {
     var i = 0
     while (i < length) {
@@ -112,9 +97,6 @@ public inline fun String.trimStart(predicate: (Char) -> Boolean): String {
     return this.substring(i)
 }
 
-/**
- * Returns a string with trailing whitespace removed.
- */
 public fun String.trimEnd(): String {
     var i = length
     while (i > 0) {
@@ -126,9 +108,6 @@ public fun String.trimEnd(): String {
     return this.substring(0, i)
 }
 
-/**
- * Returns a string with trailing characters matching [predicate] removed.
- */
 public inline fun String.trimEnd(predicate: (Char) -> Boolean): String {
     var i = length
     while (i > 0) {
