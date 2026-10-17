@@ -4,17 +4,51 @@ import Foundation
 /// (simpleName, qualifiedName, supertypes, member counts, flags) at runtime
 /// without requiring the compile-time `.kklib` metadata files.
 ///
+/// ## Binary Format
+///
 /// The serialized metadata blob is emitted as per-word i64 globals because the
 /// current LLVM bindings do not expose `LLVMConstArray` for i8 arrays.
+///
+/// Globals emitted:
+/// - `<symbolPrefix>_?kk_reflection_metadata_size` (i64): total byte count of the serialized blob
+/// - `<symbolPrefix>_?kk_reflection_metadata_words` (i64): number of i64 words
+/// - `<symbolPrefix>_?kk_reflection_metadata_w{N}` (i64): each word of the blob (little-endian packed)
+///
+/// Layout:
+/// ```
+/// [4 bytes] magic: "KKRM" (0x4D524B4B)
+/// [4 bytes] version: 1 (little-endian u32)
+/// [4 bytes] record_count (little-endian u32)
+/// [4 bytes] string_table_offset (little-endian u32)
+/// For each record:
+///   [1 byte]  kind (SymbolKind ordinal)
+///   [1 byte]  flags (bit 0=dataClass, bit 1=sealedClass, bit 2=valueClass,
+///                     bit 3=suspend, bit 4=inline)
+///   [2 bytes] arity (little-endian u16)
+///   [4 bytes] fqName string table index (little-endian u32)
+///   [4 bytes] simpleName string table index (little-endian u32)
+///   [4 bytes] superFqName string table index (little-endian u32, 0xFFFFFFFF if none)
+///   [4 bytes] fieldCount (little-endian u32, 0xFFFFFFFF if unknown)
+///   [4 bytes] instanceSizeWords (little-endian u32, 0xFFFFFFFF if unknown)
+/// String table:
+///   [4 bytes] entry count (little-endian u32)
+///   For each entry:
+///     [4 bytes] length in bytes (little-endian u32)
+///     [N bytes] UTF-8 string data (NOT null-terminated)
+/// ```
 import CompilerCore
 
 struct RuntimeReflectionMetadataEmitter {
+    /// Magic bytes: "KKRM"
     static let magic: UInt32 = 0x4D52_4B4B
 
+    /// Format version
     static let version: UInt32 = 1
 
+    /// Sentinel for "no value" in u32 fields.
     static let sentinel: UInt32 = 0xFFFF_FFFF
 
+    /// Size of a single record in bytes.
     static let recordSize = 24
 
     /// Maps SymbolKind to a stable ordinal for binary encoding.
