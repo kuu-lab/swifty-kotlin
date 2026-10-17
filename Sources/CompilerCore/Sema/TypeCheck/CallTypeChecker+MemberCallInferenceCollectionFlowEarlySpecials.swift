@@ -376,7 +376,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
 
     func inferFilterIsInstanceSpecial(locals: inout LocalBindings) -> TypeID? {
 
-        // filterIsInstance<R>() — reified type parameter, returns List<R> or Sequence<R>
         if interner.resolve(calleeName) == "filterIsInstance",
            args.isEmpty,
            !isMapReceiver,
@@ -516,7 +515,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
 
     func inferFilterNotNullSpecial(locals: inout LocalBindings) -> TypeID? {
 
-        // filterNotNull() — bundled Kotlin source implementation with sequence runtime fallback.
         if interner.resolve(calleeName) == "filterNotNull",
            args.isEmpty,
            !isMapReceiver,
@@ -587,7 +585,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
 
     func inferFilterNotNullToSpecial(locals: inout LocalBindings) -> TypeID? {
 
-        // filterNotNullTo(destination) — no lambda, returns destination type (STDLIB-SEQ-021)
         if interner.resolve(calleeName) == "filterNotNullTo",
            args.count == 1,
            !isMapReceiver,
