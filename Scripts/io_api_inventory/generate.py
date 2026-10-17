@@ -27,6 +27,7 @@ LEDGER_PATH = HERE / "api-inventory.tsv"
 SCOPE_PATH = HERE / "platform-scope.tsv"
 SUMMARY_PATH = HERE / "inventory-summary.md"
 VALIDATION_EVIDENCE_PATH = HERE / "api-validation-evidence.json"
+LOCAL_VALIDATION_EXECUTIONS_PATH = HERE / "validation-probe-executions.json"
 UPSTREAM_RUNNER = REPO / "Scripts/kotlinx_io_upstream"
 UPSTREAM_RUNNER_LOCK_PATH = UPSTREAM_RUNNER / "reference-lock.json"
 REFERENCE_EXECUTIONS_PATH = UPSTREAM_RUNNER / "jvm-executions.expected.json"
@@ -74,6 +75,68 @@ LOCAL_PROBE_EVIDENCE_CASES = {
         "row_ids": {"jvm-f7053c9293f03a10"},
         "lanes": ("jvm-descriptor",),
         "methods": {"reference": "jvm-abi-reflection", "candidate": "source-metadata"},
+    },
+    "local:Tests/CompilerBackendTests/Fixtures/IOBufferHintEmit2604/BufferHintEmitConsumer.kt#verifyBufferHintEmitNonDestructive": {
+        "path": "Tests/CompilerBackendTests/Fixtures/IOBufferHintEmit2604/BufferHintEmitConsumer.kt",
+        "row_ids": {"klib-6ec3d2252d99b756"},
+        "lanes": LOCAL_NATIVE_PROBE_LANES,
+        "methods": {"reference": "jvm-and-macos-native-reference", "candidate": "native-matrix"},
+        "receipt_catalog": True,
+        "supplemental_receipts": (
+            {"subject": "reference", "lane": "reference-macos-apple", "match_lane": "source-O0",
+             "method": "kotlin-native-reference"},
+            {"subject": "candidate", "case_id": (
+                "local:Tests/CompilerCoreTests/Sema/KotlinxIOBufferHintEmitContractTests.swift#"
+                "bufferHintEmitRequiresInternalOptInForSourceAndImportedLibrary"
+            ), "lane": "sema-source-and-imported-library", "method": "swift-sema-tests"},
+        ),
+        "inputs": (
+            "Tests/CompilerBackendTests/Fixtures/IOBufferHintEmit2604/BufferHintEmitProducer.kt",
+            "Tests/CompilerBackendTests/Fixtures/IOBufferHintEmit2604/BufferHintEmitConsumer.kt",
+            "Tests/CompilerBackendTests/Fixtures/IOBufferHintEmit2604/BufferHintEmitNegativeOptIn.kt",
+            "Tests/CompilerCoreTests/Sema/KotlinxIOBufferHintEmitContractTests.swift",
+            "Scripts/io_api_inventory/run_f02_matrix.py",
+            "Scripts/io_api_inventory/generate.py",
+            "Scripts/io_api_inventory/generate_f02_consumers.py",
+            "Scripts/io_api_inventory/README.md",
+            "Scripts/io_api_inventory/test_f02_matrix.py",
+            "Scripts/io_api_inventory/test_validation_evidence.py",
+            "Scripts/io_api_inventory/probes/KUU-2604/verify_jvm_descriptor.py",
+            "Scripts/io_api_inventory/probes/KUU-2604/verify_native_reference.py",
+            "Scripts/kotlinx_io_upstream/run_jvm_reference.py",
+            "Scripts/kotlinx_io_upstream/run_native_reference.py",
+            "Scripts/io_api_inventory/validation-probe-executions.json",
+            "Scripts/kotlinx_io_upstream/reference-lock.json",
+        ),
+    },
+    "local:Scripts/io_api_inventory/probes/KUU-2604/verify_jvm_descriptor.py#jvm-descriptor": {
+        "path": "Scripts/io_api_inventory/probes/KUU-2604/verify_jvm_descriptor.py",
+        "row_ids": {"jvm-23aa7a8f63c07fd5"},
+        "lanes": ("jvm-descriptor",),
+        "methods": {"reference": "locked-jvm-descriptor", "candidate": "jvm-kklib-consumer"},
+        "receipt_catalog": True,
+        "supplemental_receipts": (
+            {"subject": "candidate", "lane": "jvm-negative-opt-in", "method": "jvm-negative-opt-in",
+             "result": "PASS", "exit_code": 1},
+        ),
+        "inputs": (
+            "Tests/CompilerBackendTests/Fixtures/IOBufferHintEmit2604/BufferHintEmitProducer.kt",
+            "Tests/CompilerBackendTests/Fixtures/IOBufferHintEmit2604/BufferHintEmitConsumer.kt",
+            "Tests/CompilerBackendTests/Fixtures/IOBufferHintEmit2604/BufferHintEmitNegativeOptIn.kt",
+            "Tests/CompilerCoreTests/Sema/KotlinxIOBufferHintEmitContractTests.swift",
+            "Scripts/io_api_inventory/run_f02_matrix.py",
+            "Scripts/io_api_inventory/generate.py",
+            "Scripts/io_api_inventory/generate_f02_consumers.py",
+            "Scripts/io_api_inventory/README.md",
+            "Scripts/io_api_inventory/test_f02_matrix.py",
+            "Scripts/io_api_inventory/test_validation_evidence.py",
+            "Scripts/io_api_inventory/probes/KUU-2604/verify_jvm_descriptor.py",
+            "Scripts/io_api_inventory/probes/KUU-2604/verify_native_reference.py",
+            "Scripts/kotlinx_io_upstream/run_jvm_reference.py",
+            "Scripts/kotlinx_io_upstream/run_native_reference.py",
+            "Scripts/io_api_inventory/validation-probe-executions.json",
+            "Scripts/kotlinx_io_upstream/reference-lock.json",
+        ),
     },
 }
 
@@ -241,10 +304,12 @@ LOCAL_IO_TEST_PREFIXES = (
     "Scripts/diff_cases/kotlinx_io_",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+ByteString",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+KtorIOCoverage.swift",
+    "Tests/CompilerBackendTests/Fixtures/IOBufferHintEmit2604/",
     "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590/",
     "Tests/CompilerCoreTests/GoldenCases/Sema/kotlinx_io_",
     "Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlinx_io_",
     "Tests/CompilerCoreTests/Sema/KotlinxIO",
+    "Tests/CompilerCoreTests/Sema/KotlinxIOBufferHintEmitContractTests.swift",
     "Tests/RuntimeTests/RuntimeIoFileSystemTests.swift",
 )
 LOCAL_IO_PROBE_API_NAMES = {"dataasbytearray"}
@@ -426,12 +491,12 @@ def _local_probe_case_spec(row: dict, case_id: str) -> dict | None:
     return spec
 
 
-def _load_validation_execution_catalogs() -> dict[str, dict[str, str]]:
+def _load_validation_execution_catalogs() -> dict[str, dict[str, object]]:
     try:
         lock = json.loads(UPSTREAM_RUNNER_LOCK_PATH.read_text(encoding="utf-8"))
         if lock.get("commit") != EXPECTED_TAG_COMMIT:
             fail("validation execution catalogs use a different upstream commit")
-        catalogs = {}
+        catalogs: dict[str, dict[str, object]] = {}
         for subject, path, lock_key in (
             ("reference", REFERENCE_EXECUTIONS_PATH, "jvm_execution_catalog_sha256"),
             ("candidate", CANDIDATE_EXECUTIONS_PATH, "native_execution_catalog_sha256"),
@@ -456,6 +521,56 @@ def _load_validation_execution_catalogs() -> dict[str, dict[str, str]]:
                     fail(f"duplicate {subject} execution ID in locked catalog: {execution_id}")
                 catalog[execution_id] = case_id
             catalogs[subject] = catalog
+        try:
+            local_execution_data = json.loads(
+                LOCAL_VALIDATION_EXECUTIONS_PATH.read_text(encoding="utf-8"),
+                object_pairs_hook=_unique_json_object,
+            )
+        except FileNotFoundError:
+            local_execution_data = None
+        if local_execution_data is not None:
+            if (not isinstance(local_execution_data, dict)
+                    or set(local_execution_data) != {"schema_version", "executions"}
+                    or local_execution_data["schema_version"] != 1
+                    or not isinstance(local_execution_data["executions"], list)):
+                fail("local validation execution catalog has an invalid schema")
+            expected_fields = {
+                "execution_id", "subject", "case_id", "lane", "result", "exit_code",
+                "candidate_sha", "reference_version", "reference_commit", "command_sha256",
+                "stdout_sha256", "stderr_sha256", "stdout_bytes", "stderr_bytes", "method",
+            }
+            candidate_sha_pattern = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
+            sha256_pattern = re.compile(r"^[0-9a-f]{64}$")
+            for entry in local_execution_data["executions"]:
+                if not isinstance(entry, dict) or set(entry) != expected_fields:
+                    fail("local validation execution catalog contains a malformed entry")
+                subject = entry["subject"]
+                if subject not in catalogs:
+                    fail("local validation execution catalog has an invalid subject")
+                for field in ("execution_id", "case_id", "lane"):
+                    if not isinstance(entry[field], str) or not entry[field].strip() or entry[field] != entry[field].strip():
+                        fail(f"local validation execution catalog has an invalid {field}")
+                if not isinstance(entry["method"], str) or not entry["method"].strip() or entry["method"] != entry["method"].strip():
+                    fail("local validation execution catalog has an invalid method")
+                if (entry["reference_version"], entry["reference_commit"]) != (
+                    "0.9.1", EXPECTED_TAG_COMMIT
+                ):
+                    fail("local validation execution catalog uses a different reference pin")
+                if not isinstance(entry["candidate_sha"], str) or not candidate_sha_pattern.fullmatch(entry["candidate_sha"]):
+                    fail("local validation execution catalog has a malformed candidate SHA")
+                if any(not isinstance(entry[field], str) or not sha256_pattern.fullmatch(entry[field])
+                       for field in ("command_sha256", "stdout_sha256", "stderr_sha256")):
+                    fail("local validation execution catalog has a malformed hash")
+                if entry["result"] not in {"PASS", "FAIL", "NOT_RUN", "TIMEOUT", "CRASH"}:
+                    fail("local validation execution catalog has an invalid result")
+                if any(type(entry[field]) is not int for field in ("exit_code", "stdout_bytes", "stderr_bytes")):
+                    fail("local validation execution catalog has a non-integer count")
+                if any(entry[field] < 0 for field in ("stdout_bytes", "stderr_bytes")):
+                    fail("local validation execution catalog has a negative byte count")
+                catalog = catalogs[subject]
+                if entry["execution_id"] in catalog:
+                    fail(f"duplicate {subject} execution ID in validation catalogs: {entry['execution_id']}")
+                catalog[entry["execution_id"]] = entry
         return catalogs
     except (OSError, json.JSONDecodeError, UnicodeDecodeError) as error:
         fail(f"cannot load validation execution catalogs: {error}")
@@ -481,7 +596,7 @@ def apply_validation_evidence(
     evidence_path: Path = VALIDATION_EVIDENCE_PATH,
     repository: Path = REPO,
     upstream: Path = UPSTREAM,
-    execution_catalogs: dict[str, dict[str, str]] | None = None,
+    execution_catalogs: dict[str, dict[str, object]] | None = None,
 ) -> None:
     """Promote rows only when their pinned, current evidence satisfies every obligation."""
     by_id = {}
@@ -513,7 +628,19 @@ def apply_validation_evidence(
     records = evidence["records"]
     if not isinstance(records, list):
         fail("validation evidence records must be an array")
-    if records and (schema_version == 1 or any(
+    requires_local_catalog = any(
+        isinstance(record, dict)
+        and isinstance(record.get("executions"), list)
+        and any(
+            isinstance(execution, dict)
+            and isinstance(execution.get("case_id"), str)
+            and (spec := LOCAL_PROBE_EVIDENCE_CASES.get(execution["case_id"])) is not None
+            and spec.get("receipt_catalog")
+            for execution in record["executions"]
+        )
+        for record in records
+    )
+    if records and (schema_version == 1 or requires_local_catalog or any(
         isinstance(record, dict) and record.get("evidence_source") == "upstream-catalog"
         for record in records
     )):
@@ -641,6 +768,18 @@ def apply_validation_evidence(
                         fail(f"{subject} local execution_id does not map to case/lane for row {row_id}")
                     if result["method"] != local_case_spec["methods"][subject]:
                         fail(f"unexpected {subject} evidence method for row {row_id} case {case_id}")
+                    if local_case_spec.get("receipt_catalog"):
+                        catalog_entry = (execution_catalogs or {}).get(subject, {}).get(execution_id)
+                        if not isinstance(catalog_entry, dict):
+                            fail(f"missing {subject} local execution receipt for row {row_id} lane {lane}")
+                        if (catalog_entry.get("case_id"), catalog_entry.get("lane")) != (case_id, lane):
+                            fail(f"{subject} local execution receipt maps to a different case or lane for row {row_id}")
+                        if catalog_entry.get("method") != result["method"]:
+                            fail(f"{subject} local execution receipt method differs for row {row_id} lane {lane}")
+                        if (catalog_entry.get("result"), catalog_entry.get("exit_code"), catalog_entry.get("candidate_sha")) != (
+                            result["result"], result["exit_code"], candidate_sha
+                        ):
+                            fail(f"{subject} local execution receipt differs from the evidence record for row {row_id}")
                 execution_identity = (lane, execution_id)
                 if execution_identity in seen_execution_ids[subject]:
                     fail(f"duplicate {subject} execution_id for row {row_id}: {execution_id}")
@@ -669,6 +808,32 @@ def apply_validation_evidence(
                         f"missing local probe lanes for row {row_id} case {case_id}: "
                         f"{', '.join(sorted(missing_case_lanes))}"
                     )
+                for supplemental in spec.get("supplemental_receipts", ()):
+                    subject = supplemental["subject"]
+                    lane = supplemental["lane"]
+                    supplemental_case_id = supplemental.get("case_id", case_id)
+                    execution_id = local_probe_execution_id(
+                        candidate_sha, record["reference_commit"], supplemental_case_id, lane, subject
+                    )
+                    receipt = (execution_catalogs or {}).get(subject, {}).get(execution_id)
+                    if not isinstance(receipt, dict):
+                        fail(f"missing {subject} supplemental local receipt for row {row_id} lane {lane}")
+                    expected_result = supplemental.get("result", "PASS")
+                    expected_exit_code = supplemental.get("exit_code", 0)
+                    if (receipt.get("case_id"), receipt.get("lane"), receipt.get("result"),
+                            receipt.get("exit_code"), receipt.get("candidate_sha"), receipt.get("method")) != (
+                        supplemental_case_id, lane, expected_result, expected_exit_code,
+                        candidate_sha, supplemental["method"],
+                    ):
+                        fail(f"invalid {subject} supplemental local receipt for row {row_id} lane {lane}")
+                    match_lane = supplemental.get("match_lane")
+                    if match_lane:
+                        matching_id = local_probe_execution_id(
+                            candidate_sha, record["reference_commit"], case_id, match_lane, subject
+                        )
+                        matching = (execution_catalogs or {}).get(subject, {}).get(matching_id)
+                        if not isinstance(matching, dict) or receipt.get("stdout_sha256") != matching.get("stdout_sha256"):
+                            fail(f"{subject} supplemental output differs from lane {match_lane} for row {row_id}")
             if not required_cases:
                 fail(f"row {row_id} has no registered local probe evidence cases")
         row["status"] = "verified"
@@ -1652,6 +1817,9 @@ def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []
     for path, content in local_tests:
+        if (path.startswith("Tests/CompilerBackendTests/Fixtures/IOBufferHintEmit2604/")
+                or path == "Tests/CompilerCoreTests/Sema/KotlinxIOBufferHintEmitContractTests.swift"):
+            continue
         if path.startswith("Scripts/io_api_inventory/probes/") and name not in LOCAL_IO_PROBE_API_NAMES:
             continue
         if (path == SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS[0]
@@ -1663,6 +1831,11 @@ def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
             refs.append(path)
         elif owner and owner in haystack and row["module"] == "bytestring":
             refs.append(path)
+    for case_id, spec in LOCAL_PROBE_EVIDENCE_CASES.items():
+        if row.get("row_id") not in spec["row_ids"]:
+            continue
+        refs.append(spec["path"])
+        refs.extend(spec.get("inputs", ()))
     return list(dict.fromkeys(refs))
 
 

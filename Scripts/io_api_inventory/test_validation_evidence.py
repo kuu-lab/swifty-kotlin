@@ -96,14 +96,14 @@ class ValidationEvidenceTests(unittest.TestCase):
             | {"candidate-wrong": other_case_id},
         }
 
-    def _apply(self, records, row=None, schema_version=1):
+    def _apply(self, records, row=None, schema_version=1, execution_catalogs=None):
         fixture_row = copy.deepcopy(row or self.row)
         self.evidence_path.write_text(
             json.dumps({"schema_version": schema_version, "records": records}), encoding="utf-8"
         )
         self.generator.apply_validation_evidence(
             [fixture_row], self.lock, self.evidence_path, self.repository, self.upstream,
-            self._execution_catalogs(),
+            execution_catalogs or self._execution_catalogs(),
         )
         return fixture_row
 
@@ -165,6 +165,65 @@ class ValidationEvidenceTests(unittest.TestCase):
             "executions": executions,
         }
 
+    def _buffer_hint_probe_row(self, row_id):
+        case_specs = [
+            (case_id, spec) for case_id, spec in self.generator.LOCAL_PROBE_EVIDENCE_CASES.items()
+            if row_id in spec["row_ids"]
+        ]
+        self.assertEqual(len(case_specs), 1)
+        case_id, spec = case_specs[0]
+        inputs = [spec["path"], *spec.get("inputs", ())]
+        local_refs = inputs
+        for relative in set(inputs):
+            self._write(relative, "fixture input\n")
+        row = copy.deepcopy(self.row)
+        row.update(
+            row_id=row_id,
+            representation=("JVM public ABI dump" if row_id.startswith("jvm-")
+                            else "Kotlin source API / KLIB dump"),
+            local_test_refs=";".join(local_refs),
+        )
+        record = self._local_probe_record(row)
+        catalogs = self._execution_catalogs()
+        for execution in record["executions"]:
+            for subject in ("reference", "candidate"):
+                receipt = {
+                    "case_id": execution["case_id"],
+                    "lane": execution["lane"],
+                    "method": execution[subject]["method"],
+                    "result": "PASS",
+                    "exit_code": 0,
+                    "candidate_sha": record["candidate_sha"],
+                    "command_sha256": "a" * 64,
+                    "stdout_sha256": "b" * 64,
+                    "stderr_sha256": "c" * 64,
+                    "stdout_bytes": 1,
+                    "stderr_bytes": 0,
+                }
+                catalogs[subject][execution[subject]["execution_id"]] = receipt
+        for case_id, spec in case_specs:
+            for supplemental in spec.get("supplemental_receipts", ()):
+                subject = supplemental["subject"]
+                supplemental_case_id = supplemental.get("case_id", case_id)
+                execution_id = self.generator.local_probe_execution_id(
+                    record["candidate_sha"], self.lock["commit"], supplemental_case_id,
+                    supplemental["lane"], subject,
+                )
+                catalogs[subject][execution_id] = {
+                    "case_id": supplemental_case_id,
+                    "lane": supplemental["lane"],
+                    "method": supplemental["method"],
+                    "result": supplemental.get("result", "PASS"),
+                    "exit_code": supplemental.get("exit_code", 0),
+                    "candidate_sha": record["candidate_sha"],
+                    "command_sha256": "d" * 64,
+                    "stdout_sha256": "b" * 64,
+                    "stderr_sha256": "c" * 64,
+                    "stdout_bytes": 1,
+                    "stderr_bytes": 0,
+                }
+        return row, record, catalogs
+
     def test_current_reference_and_candidate_passes_promote_only_the_fixture_row(self):
         row = self._apply([self._record()])
         self.assertEqual(row["status"], "verified")
@@ -187,6 +246,70 @@ class ValidationEvidenceTests(unittest.TestCase):
         row = self._local_probe_row()
         record = self._local_probe_record(row)
         self.assertEqual(self._apply([record], row, schema_version=2)["status"], "verified")
+
+    def test_buffer_hint_emit_probe_is_registered_to_the_two_owned_rows(self):
+        for row_id in ("jvm-23aa7a8f63c07fd5", "klib-6ec3d2252d99b756"):
+            with self.subTest(row_id=row_id):
+                cases = {
+                    case_id: spec for case_id, spec in self.generator.LOCAL_PROBE_EVIDENCE_CASES.items()
+                    if row_id in spec["row_ids"]
+                }
+                self.assertEqual(len(cases), 1)
+                spec = next(iter(cases.values()))
+                self.assertTrue(spec["receipt_catalog"])
+                self.assertIn("Tests/CompilerCoreTests/Sema/KotlinxIOBufferHintEmitContractTests.swift", spec["inputs"])
+        unrelated = {
+            "_candidate_name": "hintEmit",
+            "owner_fqn": "kotlinx.io/Buffer",
+            "module": "core",
+            "row_id": "klib-unrelated-buffer",
+        }
+        references = self.generator.local_test_refs(unrelated, [
+            ("Tests/CompilerBackendTests/Fixtures/IOBufferHintEmit2604/BufferHintEmitConsumer.kt", "hintEmit()"),
+            ("Tests/CompilerCoreTests/Sema/KotlinxIOBufferHintEmitContractTests.swift", "hintEmit()"),
+        ])
+        self.assertFalse(any("BufferHintEmit2604" in reference for reference in references))
+        self.assertNotIn("Tests/CompilerCoreTests/Sema/KotlinxIOBufferHintEmitContractTests.swift", references)
+
+    def test_buffer_hint_emit_evidence_requires_matching_lane_receipts(self):
+        row, record, catalogs = self._buffer_hint_probe_row("klib-6ec3d2252d99b756")
+        self.assertEqual(self._apply([record], row, schema_version=2, execution_catalogs=catalogs)["status"], "verified")
+        missing = copy.deepcopy(catalogs)
+        execution_id = record["executions"][0]["candidate"]["execution_id"]
+        missing["candidate"].pop(execution_id)
+        with self.assertRaisesRegex(SystemExit, "missing candidate local execution receipt"):
+            self._apply([record], row, schema_version=2, execution_catalogs=missing)
+        wrong_lane = copy.deepcopy(catalogs)
+        wrong_lane["candidate"][execution_id]["lane"] = "source-O2"
+        with self.assertRaisesRegex(SystemExit, "different case or lane"):
+            self._apply([record], row, schema_version=2, execution_catalogs=wrong_lane)
+        missing_native = copy.deepcopy(catalogs)
+        case_id = next(case_id for case_id, spec in self.generator.LOCAL_PROBE_EVIDENCE_CASES.items()
+                       if row["row_id"] in spec["row_ids"] and spec.get("supplemental_receipts"))
+        spec = self.generator.LOCAL_PROBE_EVIDENCE_CASES[case_id]
+        supplemental = spec["supplemental_receipts"][0]
+        native_id = self.generator.local_probe_execution_id(
+            record["candidate_sha"], self.lock["commit"], case_id,
+            supplemental["lane"], supplemental["subject"],
+        )
+        missing_native[supplemental["subject"]].pop(native_id)
+        with self.assertRaisesRegex(SystemExit, "missing reference supplemental local receipt"):
+            self._apply([record], row, schema_version=2, execution_catalogs=missing_native)
+
+    def test_buffer_hint_emit_jvm_negative_opt_in_receipt_requires_rejection(self):
+        row, record, catalogs = self._buffer_hint_probe_row("jvm-23aa7a8f63c07fd5")
+        self.assertEqual(self._apply([record], row, schema_version=2, execution_catalogs=catalogs)["status"], "verified")
+        case_id = next(case_id for case_id, spec in self.generator.LOCAL_PROBE_EVIDENCE_CASES.items()
+                       if row["row_id"] in spec["row_ids"])
+        supplemental = self.generator.LOCAL_PROBE_EVIDENCE_CASES[case_id]["supplemental_receipts"][0]
+        execution_id = self.generator.local_probe_execution_id(
+            record["candidate_sha"], self.lock["commit"], case_id,
+            supplemental["lane"], supplemental["subject"],
+        )
+        wrong_exit = copy.deepcopy(catalogs)
+        wrong_exit["candidate"][execution_id]["exit_code"] = 0
+        with self.assertRaisesRegex(SystemExit, "invalid candidate supplemental local receipt"):
+            self._apply([record], row, schema_version=2, execution_catalogs=wrong_exit)
 
     def test_local_probe_evidence_rejects_unregistered_cases_and_forged_ids(self):
         row = self._local_probe_row()

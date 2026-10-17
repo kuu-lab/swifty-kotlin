@@ -444,6 +444,147 @@
         }
       ],
       "evidence_source": "local-probe"
+    },
+    {
+      "row_id": "klib-6ec3d2252d99b756",
+      "candidate_sha": "d610e43f3275f9f5603a41543bd5b77ab7e067b0",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "41ab7a346c995538252b1c8e23304cfd365573f36e1fd294c1df4f751d6c11bf",
+      "test_input_sha256": "690faf8ace701a788b369feca291471705e0f7f230ebd9dc59fd2f6f77d5969c",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "executions": [
+        {
+          "case_id": "local:Tests/CompilerBackendTests/Fixtures/IOBufferHintEmit2604/BufferHintEmitConsumer.kt#verifyBufferHintEmitNonDestructive",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:7b75289f4cf50031d5cdec9a2a2a3d32",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-and-macos-native-reference"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:e1a35587099c90d00de236d47a1b9224",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Tests/CompilerBackendTests/Fixtures/IOBufferHintEmit2604/BufferHintEmitConsumer.kt#verifyBufferHintEmitNonDestructive",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:7e793be8fea80906085867ad66b0791f",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-and-macos-native-reference"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:371feedd95c834f186bbf81f0c4741fd",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Tests/CompilerBackendTests/Fixtures/IOBufferHintEmit2604/BufferHintEmitConsumer.kt#verifyBufferHintEmitNonDestructive",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:ae95f0c939da20305f5a62a7d101550d",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-and-macos-native-reference"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:9eac1694d08868cfdff3b0da1dc8614f",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Tests/CompilerBackendTests/Fixtures/IOBufferHintEmit2604/BufferHintEmitConsumer.kt#verifyBufferHintEmitNonDestructive",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:6e89a9b3eb531122402712bddd0b0501",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-and-macos-native-reference"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:c329bf729c0c07e3c95bb8e98470bca9",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Tests/CompilerBackendTests/Fixtures/IOBufferHintEmit2604/BufferHintEmitConsumer.kt#verifyBufferHintEmitNonDestructive",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:0f990d665935874e2994059508b7eaf9",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-and-macos-native-reference"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:4237f0b5b34ca545887eba68fea151d7",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Tests/CompilerBackendTests/Fixtures/IOBufferHintEmit2604/BufferHintEmitConsumer.kt#verifyBufferHintEmitNonDestructive",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:1ed4129ea952ef1977f0b797572f192e",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-and-macos-native-reference"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:a6d390fcb4c18df5da4a65383fca69d1",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        }
+      ],
+      "evidence_source": "local-probe"
+    },
+    {
+      "row_id": "jvm-23aa7a8f63c07fd5",
+      "candidate_sha": "d610e43f3275f9f5603a41543bd5b77ab7e067b0",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "41ab7a346c995538252b1c8e23304cfd365573f36e1fd294c1df4f751d6c11bf",
+      "test_input_sha256": "690faf8ace701a788b369feca291471705e0f7f230ebd9dc59fd2f6f77d5969c",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/KUU-2604/verify_jvm_descriptor.py#jvm-descriptor",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:788165033a3a77cfe621250b19183edd",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "locked-jvm-descriptor"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:29a611137fa87090c077343f9428bc4f",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-kklib-consumer"
+          }
+        }
+      ],
+      "evidence_source": "local-probe"
     }
   ]
 }

@@ -52,12 +52,22 @@ class ReproducibilityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="io-inventory-relocated-") as temporary:
             relocated = Path(temporary) / "checkout"
             inputs = list(HERE.rglob("*"))
+            inputs.append(REPO / "Scripts/kotlinx_io_upstream/reference-lock.json")
+            inputs.extend((
+                REPO / "Scripts/kotlinx_io_upstream/jvm-executions.expected.json",
+                REPO / "Scripts/kotlinx_io_upstream/native-executions.expected.json",
+                REPO / "Scripts/kotlinx_io_upstream/run_jvm_reference.py",
+                REPO / "Scripts/kotlinx_io_upstream/run_native_reference.py",
+            ))
             inputs.extend((REPO / "Sources/CompilerCore/Stdlib/kotlinx/io").rglob("*.kt"))
             inputs.extend((REPO / "Sources/Runtime").rglob("*.swift"))
             test_inputs = list((REPO / "Tests").rglob("*.swift"))
             test_inputs.extend((REPO / "Tests/CompilerCoreTests/GoldenCases/Sema").glob("*.kt"))
             test_inputs.extend((REPO / "Scripts/diff_cases").glob("*.kt"))
             test_inputs.extend((REPO / "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590").glob("*.kt"))
+            test_inputs.extend((REPO / "Tests/CompilerBackendTests/Fixtures/IOBufferHintEmit2604").glob("*.kt"))
+            test_inputs.extend((HERE / "probes/KUU-2604").glob("*.py"))
+            test_inputs.append(HERE / "run_f02_matrix.py")
             inputs.extend(
                 path for path in test_inputs
                 if path.relative_to(REPO).as_posix().startswith(original.LOCAL_IO_TEST_PREFIXES)
