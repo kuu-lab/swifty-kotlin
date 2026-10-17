@@ -27,6 +27,7 @@ LEDGER_PATH = HERE / "api-inventory.tsv"
 SCOPE_PATH = HERE / "platform-scope.tsv"
 SUMMARY_PATH = HERE / "inventory-summary.md"
 VALIDATION_EVIDENCE_PATH = HERE / "api-validation-evidence.json"
+SOURCE_BYTEARRAY_DEFAULT_BRIDGE_EVIDENCE_PATH = HERE / "source-bytearray-default-bridges.evidence.json"
 UPSTREAM_RUNNER = REPO / "Scripts/kotlinx_io_upstream"
 UPSTREAM_RUNNER_LOCK_PATH = UPSTREAM_RUNNER / "reference-lock.json"
 REFERENCE_EXECUTIONS_PATH = UPSTREAM_RUNNER / "jvm-executions.expected.json"
@@ -241,6 +242,7 @@ LOCAL_IO_TEST_PREFIXES = (
     "Scripts/diff_cases/kotlinx_io_",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+ByteString",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+KtorIOCoverage.swift",
+    "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+KtorIOSourceByteArrayDefaultBridges.swift",
     "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590/",
     "Tests/CompilerCoreTests/GoldenCases/Sema/kotlinx_io_",
     "Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlinx_io_",
@@ -258,6 +260,52 @@ SEGMENT_READ_CONTEXT_IMPL_ROW_IDS = frozenset({
 SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS = (
     "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java",
     "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590/",
+)
+
+SOURCE_BYTEARRAY_DEFAULT_BRIDGE_ROWS = {
+    "jvm-281a58349eb012c0": {
+        "candidate": "Sources/CompilerCore/Stdlib/kotlinx/io/Source.kt:64",
+        "implementation": "Sources/CompilerCore/Stdlib/kotlinx/io/Buffer.kt:319",
+    },
+    "jvm-d0a5256163899ef7": {
+        "candidate": "Sources/CompilerCore/Stdlib/kotlinx/io/Sources.kt:130",
+        "implementation": "Sources/CompilerCore/Stdlib/kotlinx/io/Sources.kt:130",
+    },
+}
+SOURCE_BYTEARRAY_DEFAULT_BRIDGE_UPSTREAM_TESTS = {
+    "jvm-281a58349eb012c0": (
+        "core/common/test/AbstractSourceTest.kt#readAtMostToByteArrayFromSourceWithFilledBuffer",
+        "core/common/test/AbstractSourceTest.kt#readAtMostToByteArray",
+        "core/common/test/AbstractSourceTest.kt#readAtMostToByteArrayNotEnough",
+        "core/common/test/AbstractSourceTest.kt#readAtMostToByteArrayOffsetAndCount",
+        "core/common/test/AbstractSourceTest.kt#readAtMostToByteArrayFromOffset",
+        "core/common/test/AbstractSourceTest.kt#readAtMostToByteArrayWithInvalidArguments",
+    ),
+    "jvm-d0a5256163899ef7": (
+        "core/common/test/AbstractSourceTest.kt#readToByteArray",
+        "core/common/test/AbstractSourceTest.kt#readToByteArraySubrange",
+        "core/common/test/AbstractSourceTest.kt#readToByteArrayInvalidArguments",
+        "core/common/test/AbstractSourceTest.kt#readToByteArrayTooShortThrows",
+    ),
+}
+SOURCE_BYTEARRAY_DEFAULT_BRIDGE_LOCAL_TESTS = (
+    "Scripts/io_api_inventory/f02_consumers/SourceByteArrayDefaultBridgeAbiProbe.java",
+    "Scripts/diff_cases/kotlinx_io_source_bytearray_default_bridges.kt",
+    "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+KtorIOSourceByteArrayDefaultBridges.swift",
+    "Tests/CompilerCoreTests/Sema/JVMInteropNioSourceContractsTests.swift",
+    "Scripts/kotlinx_io_upstream/jvm_interop/native-default-obligations.expected.json",
+)
+SOURCE_BYTEARRAY_DEFAULT_BRIDGE_PROBE_OUTPUT = (
+    "assertions=18\n"
+    "jvm-281a58349eb012c0=public-static-synthetic:(Lkotlinx/io/Source;[BIIILjava/lang/Object;)I\n"
+    "jvm-d0a5256163899ef7=public-static-synthetic:(Lkotlinx/io/Source;[BIIILjava/lang/Object;)V\n"
+)
+SOURCE_BYTEARRAY_DEFAULT_BRIDGE_FIXTURE_OUTPUT = (
+    "3:10,20,30,99\n-1:10,20,30,99\n3:99,99,1,2,3\n2:4,5,99,99\n7,8\n"
+    "99,99,11,12,13,14\n21,22,23,99,99\neof:41,42,0\nbounds:IndexOutOfBoundsException\n"
+    "atMostOrder:IllegalArgumentException\natMostUpper:IndexOutOfBoundsException\n"
+    "atMostLower:IndexOutOfBoundsException\nreadToOrder:IllegalArgumentException\n"
+    "readToLower:IndexOutOfBoundsException\nreadToUpper:IndexOutOfBoundsException\n"
 )
 
 MODIFIERS = (
@@ -672,6 +720,191 @@ def apply_validation_evidence(
             if not required_cases:
                 fail(f"row {row_id} has no registered local probe evidence cases")
         row["status"] = "verified"
+
+
+def validate_source_bytearray_default_bridge_evidence(rows: list[dict], lock: dict) -> None:
+    """Check supporting KUU-2632 observations without promoting JVM ABI rows."""
+    try:
+        evidence = json.loads(
+            SOURCE_BYTEARRAY_DEFAULT_BRIDGE_EVIDENCE_PATH.read_text(encoding="utf-8"),
+            object_pairs_hook=_unique_json_object,
+        )
+    except OSError as error:
+        fail(f"cannot read KUU-2632 audit evidence: {error}")
+    except json.JSONDecodeError as error:
+        fail(f"invalid KUU-2632 audit evidence JSON: {error}")
+    except UnicodeDecodeError as error:
+        fail(f"KUU-2632 audit evidence is not UTF-8: {error}")
+
+    if not isinstance(evidence, dict) or set(evidence) != {"schema_version", "unrun_scope", "records"}:
+        fail("KUU-2632 audit evidence must contain only schema_version, unrun_scope, and records")
+    if type(evidence["schema_version"]) is not int or evidence["schema_version"] != 1:
+        fail("unsupported KUU-2632 audit evidence schema_version")
+    if not isinstance(evidence["records"], list):
+        fail("KUU-2632 audit evidence records must be an array")
+    if evidence["unrun_scope"] != [
+        "Candidate JVM descriptor/classfile lane: unavailable because KSwiftK emits native binaries and .kklib artifacts.",
+        "macOS Apple-specific reference: not applicable to these common JVM ABI rows.",
+        "Full 680-function upstream suite remains owned by KUU-1826 and was not run here.",
+    ]:
+        fail("KUU-2632 unrun scope must retain the non-applicable and parent-owned lanes")
+
+    by_id = {row["row_id"]: row for row in rows}
+    expected_ids = set(SOURCE_BYTEARRAY_DEFAULT_BRIDGE_ROWS)
+    records = evidence["records"]
+    if {record.get("row_id") for record in records if isinstance(record, dict)} != expected_ids:
+        fail("KUU-2632 audit evidence must cover exactly its two ByteArray bridge rows")
+    if len(records) != len(expected_ids):
+        fail("KUU-2632 audit evidence contains duplicate or malformed rows")
+
+    record_fields = {
+        "row_id", "candidate_sha", "reference_version", "reference_commit",
+        "implementation_input_sha256", "test_input_sha256", "compatibility_obligations",
+        "audit_status", "status_reason", "reference_toolchain", "reference_artifacts",
+        "candidate_artifacts", "observations",
+    }
+    observation_fields = {
+        "case_id", "lane", "subject", "execution_id", "command", "result", "exit_code",
+        "stdout", "stdout_sha256", "output_lines", "test_case_count", "assertion_count",
+    }
+    expected_observations = {
+        ("Scripts/io_api_inventory/f02_consumers/SourceByteArrayDefaultBridgeAbiProbe.java#main", "jvm-reference-probe", "reference"),
+        ("Scripts/diff_cases/kotlinx_io_source_bytearray_default_bridges.kt#main", "jvm-reference-behavior", "reference"),
+        ("Scripts/diff_cases/kotlinx_io_source_bytearray_default_bridges.kt#main", "source-O0", "candidate"),
+        ("Scripts/diff_cases/kotlinx_io_source_bytearray_default_bridges.kt#main", "source-O2", "candidate"),
+        ("Scripts/diff_cases/kotlinx_io_source_bytearray_default_bridges.kt#main", "stdlib-library-O0", "candidate"),
+        ("Scripts/diff_cases/kotlinx_io_source_bytearray_default_bridges.kt#main", "stdlib-library-O2", "candidate"),
+        ("Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+KtorIOSourceByteArrayDefaultBridges.swift#testKtorIOSourceByteArrayDefaultBridges", "native-execution-integration", "candidate"),
+        ("Tests/CompilerCoreTests/Sema/JVMInteropNioSourceContractsTests.swift#all43NativeDefaultStubCounterpartsSurviveActualArtifact", "native-default-stub-metadata", "candidate"),
+    }
+    sha256_pattern = re.compile(r"^[0-9a-f]{64}$")
+    candidate_sha_pattern = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
+    candidate_shas = set()
+    core_jar = next((item["sha256"] for item in lock.get("mavenArtifacts", [])
+                     if item.get("coordinate") == "org.jetbrains.kotlinx:kotlinx-io-core-jvm:0.9.1"), None)
+    bytestring_jar = next((item["sha256"] for item in lock.get("mavenArtifacts", [])
+                           if item.get("coordinate") == "org.jetbrains.kotlinx:kotlinx-io-bytestring-jvm:0.9.1"), None)
+    upstream_api = next((item for item in lock.get("upstreamFiles", [])
+                         if item.get("path") == "core/api/kotlinx-io-core.api"), None)
+    upstream_test = next((item for item in lock.get("upstreamTests", [])
+                          if item.get("path") == "core/common/test/AbstractSourceTest.kt"), None)
+    probe_sha256 = hashlib.sha256(
+        (REPO / "Scripts/io_api_inventory/f02_consumers/SourceByteArrayDefaultBridgeAbiProbe.java").read_bytes()
+    ).hexdigest()
+    fixture_sha256 = hashlib.sha256(
+        (REPO / "Scripts/diff_cases/kotlinx_io_source_bytearray_default_bridges.kt").read_bytes()
+    ).hexdigest()
+
+    for record in records:
+        if not isinstance(record, dict) or set(record) != record_fields:
+            fail("malformed KUU-2632 audit evidence record")
+        row_id = record["row_id"]
+        row = by_id.get(row_id)
+        if row is None:
+            fail(f"KUU-2632 evidence references unknown row {row_id}")
+        if (record["reference_version"], record["reference_commit"]) != (
+            lock.get("tag"), lock.get("commit")
+        ):
+            fail(f"KUU-2632 evidence reference pin mismatch for {row_id}")
+        candidate_sha = record["candidate_sha"]
+        if not isinstance(candidate_sha, str) or not candidate_sha_pattern.fullmatch(candidate_sha):
+            fail(f"malformed KUU-2632 candidate SHA for {row_id}")
+        candidate_shas.add(candidate_sha)
+        if record["compatibility_obligations"] != validation_obligations(row):
+            fail(f"KUU-2632 compatibility obligations mismatch for {row_id}")
+        if record["audit_status"] != "unverified" or row["status"] != "unverified":
+            fail(f"KUU-2632 audit evidence must preserve unverified status for {row_id}")
+        reason = record["status_reason"]
+        if not isinstance(reason, str) or "no candidate JVM classfile" not in reason:
+            fail(f"KUU-2632 status reason must explain the missing candidate JVM classfile for {row_id}")
+
+        current_hashes = validation_input_hashes(row, REPO, UPSTREAM)
+        for field in ("implementation_input_sha256", "test_input_sha256"):
+            value = record[field]
+            if not isinstance(value, str) or not sha256_pattern.fullmatch(value):
+                fail(f"malformed KUU-2632 {field} for {row_id}")
+            if value != current_hashes[field]:
+                fail(f"stale KUU-2632 {field} for {row_id}")
+
+        toolchain = record["reference_toolchain"]
+        if toolchain != {
+            "kotlin_compiler_version": lock.get("kotlinCompilerVersion"),
+            "java_runtime": 'openjdk version "21.0.9" 2025-10-21',
+        }:
+            fail(f"KUU-2632 reference toolchain mismatch for {row_id}")
+        if record["reference_artifacts"] != {
+            "kotlinx_io_core_jvm_sha256": core_jar,
+            "kotlinx_io_bytestring_jvm_sha256": bytestring_jar,
+            "kotlin_stdlib_2_3_10_sha256": "f61662c6d3a2f8ef5bd34362a02d877772c39f393cd394feb259dfaf7f4d8437",
+            "upstream_core_api_git_blob_sha": upstream_api["gitBlobSha"],
+            "upstream_core_api_sha256": upstream_api["sha256"],
+            "upstream_core_api_size": upstream_api["size"],
+            "upstream_abstract_source_test_git_blob_sha": upstream_test["gitBlobSha"],
+            "upstream_abstract_source_test_size": upstream_test["size"],
+            "probe_source_sha256": probe_sha256,
+        }:
+            fail(f"KUU-2632 pinned JVM artifact hashes mismatch for {row_id}")
+        candidate_artifacts = record["candidate_artifacts"]
+        if (not isinstance(candidate_artifacts, dict)
+                or set(candidate_artifacts) != {"fresh_stdlib_library", "fixture_sha256", "stdlib_manifest_sha256"}
+                or candidate_artifacts["fresh_stdlib_library"] != ".build/kswiftk-test-stdlib-cache-df877ace3bb2ac85.kklib"
+                or candidate_artifacts["fixture_sha256"] != fixture_sha256
+                or not isinstance(candidate_artifacts["stdlib_manifest_sha256"], str)
+                or not sha256_pattern.fullmatch(candidate_artifacts["stdlib_manifest_sha256"])
+                or candidate_artifacts["stdlib_manifest_sha256"] != "ff5d1a9fd2908352ddde0cfdf2b277d95086e4c439a3613b44fb13fb1098c74d"):
+            fail(f"KUU-2632 candidate artifact hashes mismatch for {row_id}")
+
+        observations = record["observations"]
+        if not isinstance(observations, list):
+            fail(f"KUU-2632 observations must be an array for {row_id}")
+        observed_keys = set()
+        outputs = {}
+        for observation in observations:
+            if not isinstance(observation, dict) or set(observation) != observation_fields:
+                fail(f"malformed KUU-2632 observation for {row_id}")
+            key = (observation["case_id"], observation["lane"], observation["subject"])
+            if key not in expected_observations or key in observed_keys:
+                fail(f"unexpected or duplicate KUU-2632 observation for {row_id}: {key}")
+            observed_keys.add(key)
+            if observation["result"] != "PASS" or type(observation["exit_code"]) is not int or observation["exit_code"] != 0:
+                fail(f"non-passing KUU-2632 observation for {row_id}: {key}")
+            if not isinstance(observation["execution_id"], str) or not observation["execution_id"].startswith("KUU-2632/"):
+                fail(f"malformed KUU-2632 execution id for {row_id}: {key}")
+            if not isinstance(observation["command"], str) or not observation["command"].strip():
+                fail(f"missing reproducible command for {row_id}: {key}")
+            output = observation["stdout"]
+            if not isinstance(output, str) or not output.endswith("\n"):
+                fail(f"KUU-2632 output is missing or not newline-terminated for {row_id}: {key}")
+            if observation["lane"] == "jvm-reference-probe" and output != SOURCE_BYTEARRAY_DEFAULT_BRIDGE_PROBE_OUTPUT:
+                fail(f"KUU-2632 JVM probe output mismatch for {row_id}")
+            if observation["lane"] in {
+                "jvm-reference-behavior", "source-O0", "source-O2", "stdlib-library-O0", "stdlib-library-O2",
+            } and output != SOURCE_BYTEARRAY_DEFAULT_BRIDGE_FIXTURE_OUTPUT:
+                fail(f"KUU-2632 fixture output mismatch for {row_id}, lane {observation['lane']}")
+            output_sha = observation["stdout_sha256"]
+            if not isinstance(output_sha, str) or not sha256_pattern.fullmatch(output_sha):
+                fail(f"malformed KUU-2632 stdout hash for {row_id}: {key}")
+            if hashlib.sha256(output.encode("utf-8")).hexdigest() != output_sha:
+                fail(f"KUU-2632 stdout hash mismatch for {row_id}: {key}")
+            if type(observation["output_lines"]) is not int or observation["output_lines"] != len(output.splitlines()):
+                fail(f"KUU-2632 output line count mismatch for {row_id}: {key}")
+            if type(observation["test_case_count"]) is not int or observation["test_case_count"] < 1:
+                fail(f"KUU-2632 test case count is missing for {row_id}: {key}")
+            assertions = observation["assertion_count"]
+            if assertions is not None and (type(assertions) is not int or assertions < 1):
+                fail(f"KUU-2632 assertion count is malformed for {row_id}: {key}")
+            if observation["lane"] == "jvm-reference-probe" and assertions != 18:
+                fail(f"KUU-2632 JVM probe assertion count mismatch for {row_id}")
+            outputs[(observation["lane"], observation["subject"])] = output
+        if observed_keys != expected_observations:
+            fail(f"KUU-2632 evidence is missing observations for {row_id}")
+        reference_output = outputs[("jvm-reference-behavior", "reference")]
+        for lane in ("source-O0", "source-O2", "stdlib-library-O0", "stdlib-library-O2"):
+            if outputs[(lane, "candidate")] != reference_output:
+                fail(f"KUU-2632 candidate output differs from pinned JVM reference for {row_id}, lane {lane}")
+
+    if len(candidate_shas) != 1:
+        fail("KUU-2632 rows must use the same candidate SHA")
 
 
 def load_inputs() -> tuple[dict, dict, list[dict], list[dict]]:
@@ -1365,6 +1598,11 @@ def parse_jvm_api(path: Path, module: str, sources: list[Path]) -> list[dict]:
 
 
 def owner_for(row: dict) -> str:
+    if row["row_id"] in {
+        "jvm-281a58349eb012c0",
+        "jvm-d0a5256163899ef7",
+    }:
+        return "KUU-2632"
     text = " ".join(
         [row["module"], row["owner_fqn"], row["name"], row["signature"], row["upstream_source_refs"]]
     ).lower()
@@ -1420,6 +1658,9 @@ def owner_for(row: dict) -> str:
 
 
 def local_candidates(row: dict) -> list[str]:
+    bridge = SOURCE_BYTEARRAY_DEFAULT_BRIDGE_ROWS.get(row.get("row_id"))
+    if bridge:
+        return [bridge["candidate"]]
     if "_typed_local_refs" in row:
         return row["_typed_local_refs"]
     name = row["_candidate_name"]
@@ -1648,11 +1889,13 @@ def local_contract_differences(row: dict, index: SourceIndex) -> str:
 
 
 def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
+    if row.get("row_id") in SOURCE_BYTEARRAY_DEFAULT_BRIDGE_ROWS:
+        return list(SOURCE_BYTEARRAY_DEFAULT_BRIDGE_LOCAL_TESTS)
     name = row["_candidate_name"].lower()
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []
     for path, content in local_tests:
-        if path.startswith("Scripts/io_api_inventory/probes/") and name not in LOCAL_IO_PROBE_API_NAMES:
+        if (path.startswith("Scripts/io_api_inventory/probes/") and name not in LOCAL_IO_PROBE_API_NAMES) or path in SOURCE_BYTEARRAY_DEFAULT_BRIDGE_LOCAL_TESTS:
             continue
         if (path == SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS[0]
                 or path.startswith(SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS[1])):
@@ -1667,6 +1910,9 @@ def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
 
 
 def local_implementation_refs(row: dict, index: SourceIndex, runtime_symbols: dict) -> list[str]:
+    bridge = SOURCE_BYTEARRAY_DEFAULT_BRIDGE_ROWS.get(row.get("row_id"))
+    if bridge:
+        return [bridge["implementation"]]
     key = row.get("_source_key")
     if key is None:
         return []
@@ -1688,6 +1934,12 @@ def upstream_test_refs(row: dict, test_index: dict) -> list[str]:
         # The upstream smoke cases use SystemFileSystem raw methods; they do not
         # exercise these deprecated Path extensions or assert their annotations.
         return []
+    if row.get("row_id") in SOURCE_BYTEARRAY_DEFAULT_BRIDGE_UPSTREAM_TESTS:
+        available = {entry["path"]: set(entry.get("testNames", [])) for entry in test_index["files"]}
+        return [
+            case for case in SOURCE_BYTEARRAY_DEFAULT_BRIDGE_UPSTREAM_TESTS[row["row_id"]]
+            if case.partition("#")[2] in available.get(case.partition("#")[0], set())
+        ]
     source_paths = row.get("_source_paths", [])
     hints = []
     for source in source_paths:
@@ -2069,6 +2321,11 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
         direct_upstream_tests = upstream_test_refs(row, test_index)
         row["upstream_test_refs"] = ";".join(direct_upstream_tests) or NO_DIRECT_UPSTREAM_ASSERTION
         row["local_test_refs"] = ";".join(local_test_refs(row, local_tests)) or "none"
+        if row["row_id"] in SOURCE_BYTEARRAY_DEFAULT_BRIDGE_ROWS:
+            row["notes"] += (
+                "; dedicated Java probe checks the pinned JVM artifact; candidate source and .kklib "
+                "default dispatch are validated separately and do not assert a native JVM classfile"
+            )
         if row["representation"] == "JVM public ABI dump":
             row["scope_decision"] = "in-scope JVM ABI and Java interoperability"
         for test_ref in row["upstream_test_refs"].split(";"):
@@ -2084,6 +2341,7 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     pair_rows(api_rows)
     api_rows.sort(key=lambda row: (row["module"], row["representation"], row["row_id"]))
     apply_validation_evidence(api_rows, lock)
+    validate_source_bytearray_default_bridge_evidence(api_rows, lock)
     check_negative_guards(api_rows)
     scope_rows = parse_platform_public_declarations(sources, api_rows, index)
     return lock, api_rows, scope_rows

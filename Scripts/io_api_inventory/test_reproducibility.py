@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Check that the ledger survives relocation and filesystem creation order."""
 
+import csv
 import importlib.util
 import shutil
 import tempfile
@@ -58,9 +59,15 @@ class ReproducibilityTests(unittest.TestCase):
             test_inputs.extend((REPO / "Tests/CompilerCoreTests/GoldenCases/Sema").glob("*.kt"))
             test_inputs.extend((REPO / "Scripts/diff_cases").glob("*.kt"))
             test_inputs.extend((REPO / "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590").glob("*.kt"))
+            test_inputs.append(REPO / "Scripts/kotlinx_io_upstream/jvm_interop/native-default-obligations.expected.json")
+            supporting_inputs = {
+                "Tests/CompilerCoreTests/Sema/JVMInteropNioSourceContractsTests.swift",
+                "Scripts/kotlinx_io_upstream/jvm_interop/native-default-obligations.expected.json",
+            }
             inputs.extend(
                 path for path in test_inputs
-                if path.relative_to(REPO).as_posix().startswith(original.LOCAL_IO_TEST_PREFIXES)
+                if (path.relative_to(REPO).as_posix().startswith(original.LOCAL_IO_TEST_PREFIXES)
+                    or path.relative_to(REPO).as_posix() in supporting_inputs)
             )
             for source in sorted(set(inputs), reverse=True):
                 if not source.is_file() or "__pycache__" in source.parts:
@@ -98,6 +105,47 @@ class ReproducibilityTests(unittest.TestCase):
         for row in self.rows:
             if row["row_id"] not in row_ids:
                 self.assertFalse(probe_refs.intersection(row["local_test_refs"].split(";")))
+
+    def test_source_bytearray_default_bridge_rows_have_direct_scoped_evidence(self):
+        rows = {row["row_id"]: row for row in self.rows}
+        with self.generator.LEDGER_PATH.open(encoding="utf-8", newline="") as stream:
+            persisted = {row["row_id"]: row for row in csv.DictReader(stream, delimiter="\t")}
+        expected = {
+            "jvm-281a58349eb012c0": {
+                "candidate": "Sources/CompilerCore/Stdlib/kotlinx/io/Source.kt:64",
+                "implementation": "Sources/CompilerCore/Stdlib/kotlinx/io/Buffer.kt:319",
+                "upstream": set(self.generator.SOURCE_BYTEARRAY_DEFAULT_BRIDGE_UPSTREAM_TESTS[
+                    "jvm-281a58349eb012c0"
+                ]),
+            },
+            "jvm-d0a5256163899ef7": {
+                "candidate": "Sources/CompilerCore/Stdlib/kotlinx/io/Sources.kt:130",
+                "implementation": "Sources/CompilerCore/Stdlib/kotlinx/io/Sources.kt:130",
+                "upstream": set(self.generator.SOURCE_BYTEARRAY_DEFAULT_BRIDGE_UPSTREAM_TESTS[
+                    "jvm-d0a5256163899ef7"
+                ]),
+            },
+        }
+        for row_id, refs in expected.items():
+            with self.subTest(row_id=row_id):
+                row = rows[row_id]
+                self.assertEqual(row["owner_issue"], "KUU-2632")
+                self.assertEqual(row["local_candidate_refs"], refs["candidate"])
+                self.assertEqual(row["local_implementation_refs"], refs["implementation"])
+                self.assertEqual(set(row["upstream_test_refs"].split(";")), refs["upstream"])
+                self.assertNotIn("suite-reference", row["upstream_test_refs"])
+                self.assertEqual(
+                    set(row["local_test_refs"].split(";")),
+                    set(self.generator.SOURCE_BYTEARRAY_DEFAULT_BRIDGE_LOCAL_TESTS),
+                )
+                self.assertIn("pinned JVM artifact", row["notes"])
+                self.assertIn("do not assert a native JVM classfile", row["notes"])
+                self.assertEqual(row["status"], "unverified")
+                for field in (
+                    "owner_issue", "local_candidate_refs", "local_implementation_refs",
+                    "upstream_test_refs", "local_test_refs", "notes", "status",
+                ):
+                    self.assertEqual(persisted[row_id][field], row[field], field)
 
     def test_exact_overload_exception_and_abi_mapping(self):
         declaration = self.row("kotlinx.io/readByteArray|readByteArray@kotlinx.io.Source(kotlin.Int){}")
