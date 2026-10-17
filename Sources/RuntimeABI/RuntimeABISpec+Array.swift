@@ -1,6 +1,5 @@
 // swiftlint:disable file_length
 
-/// `RuntimeABISpec.arrayFunctions` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
     static let arrayFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
