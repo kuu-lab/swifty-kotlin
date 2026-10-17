@@ -1,7 +1,6 @@
 
 extension CollectionLiteralConstructionLoweringPass {
 
-    /// Rewrites simple collection member calls that do not require closure ABI expansion.
     func rewriteCollectionMemberCall(
         callee: InternedString,
         arguments: [KIRExprID],
@@ -14,7 +13,6 @@ extension CollectionLiteralConstructionLoweringPass {
         state: inout CollectionRewriteState,
         loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
-        // --- Rewrite collection member calls ---
         // Range first()/last()/endExclusive do not use the Kotlin stdlib source and
         // continue to go through their runtime helpers.
         if callee == lookup.firstName || callee == lookup.lastName
@@ -229,7 +227,6 @@ extension CollectionLiteralConstructionLoweringPass {
                     ))
                     return true
                 }
-                // STDLIB-637: UIntRange/ULongRange isEmpty
                 if state.rangeExprIDs.contains(receiverID.rawValue) {
                     if state.ulongRangeExprIDs.contains(receiverID.rawValue) {
                         // ULongRange.isEmpty() is bundled Kotlin source.
@@ -249,7 +246,6 @@ extension CollectionLiteralConstructionLoweringPass {
             }
         }
 
-        // STDLIB-637: range/list sum()
         if callee == lookup.sumName {
             if arguments.count == 1 {
                 let receiverID = arguments[0]
