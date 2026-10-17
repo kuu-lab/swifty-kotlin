@@ -1,7 +1,6 @@
 import Foundation
 
-/// `ProtoFields` → ``KlibIrModel`` decoding for every message in
-/// `KotlinIr.proto`. Field numbers follow the proto file; required fields
+/// Field numbers follow `KotlinIr.proto`; required fields
 /// that are absent surface as ``KlibFormatError/corruptProto(_:)``.
 ///
 /// `body`/`initializer`/`default_value` fields are indices into the
@@ -20,7 +19,6 @@ private enum KlibIrDecodeError {
 }
 
 private extension ProtoFields {
-    /// Required int64 symbol field → ``KlibSymbolRef``.
     func symbol(_ field: Int, name: String) throws -> KlibSymbolRef {
         guard let code = int64(field) else { throw KlibIrDecodeError.missing(name) }
         guard let ref = KlibSymbolRef(code) else { throw KlibIrDecodeError.badSymbol(name) }
@@ -40,7 +38,6 @@ private extension ProtoFields {
         }
     }
 
-    /// `name_type` lattice → ``KlibNameAndType``.
     func nameAndType(_ field: Int, name: String) throws -> KlibNameAndType {
         guard let code = int64(field) else { throw KlibIrDecodeError.missing(name) }
         let pair = KlibBinaryEncoding.decodeNameAndType(code)
@@ -57,13 +54,11 @@ private extension ProtoFields {
         return KlibBinaryEncoding.decodeCoordinates(code, usesZigZag: true)
     }
 
-    /// Optional sub-message decoded by `decode`.
     func decoded<T>(_ field: Int, _ decode: (ProtoFields) throws -> T) throws -> T? {
         guard let proto = try message(field) else { return nil }
         return try decode(proto)
     }
 
-    /// Required sub-message decoded by `decode`.
     func required<T>(_ field: Int, name: String, _ decode: (ProtoFields) throws -> T) throws -> T {
         guard let value = try decoded(field, decode) else {
             throw KlibIrDecodeError.missing(name)
@@ -71,7 +66,6 @@ private extension ProtoFields {
         return value
     }
 
-    /// Repeated sub-message field decoded by `decode`.
     func decodedList<T>(_ field: Int, _ decode: (ProtoFields) throws -> T) throws -> [T] {
         try messages(field).map(decode)
     }
@@ -87,8 +81,7 @@ private extension ProtoFields {
     }
 }
 
-/// Stateless decoder namespace; index-based fields stay raw — resolution
-/// happens in ``KlibIrModule``.
+/// Index-based fields stay raw — resolution happens in ``KlibIrModule``.
 package enum KlibIrDecoding {
 
     package static func fileEntry(_ proto: ProtoFields) throws -> KlibFileEntry {
