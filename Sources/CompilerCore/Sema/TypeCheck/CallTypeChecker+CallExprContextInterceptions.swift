@@ -1,9 +1,8 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
-/// Interceptions for the `kotlin.context` / `kotlin.contextOf` bundled-stdlib
-/// helpers: both are name-matched special cases that must run ahead of generic
-/// overload resolution from the `inferCallExpr` dispatch chain.
-/// Extracted from `CallTypeChecker+CallExprInference.swift`.
+/// The `kotlin.context` / `kotlin.contextOf` bundled-stdlib helpers are
+/// name-matched special cases that must run ahead of generic overload
+/// resolution.
 extension CallTypeChecker {
     func inferContextOfCall(
         _ id: ExprID,
@@ -90,9 +89,8 @@ extension CallTypeChecker {
         let interner = ctx.interner
 
 
-        // --- Context helper: context(with, block) (STDLIB-KOTLIN-ROOT-CTX-001) ---
-        // The helper makes the first argument available as a context receiver
-        // for the block type, but does not make it an implicit receiver.
+        // `context(with, block)` makes the first argument available as a context
+        // receiver for the block type, but does not make it an implicit receiver.
         let contextHelperName = interner.intern("context")
         if let calleeName, args.count >= 2, args.count <= 23,
            calleeName == contextHelperName,
@@ -137,8 +135,7 @@ extension CallTypeChecker {
             }
             // Refine the call result type using the lambda body's concrete type,
             // but ONLY when no expected type was provided (i.e. expected was
-            // anyType, the placeholder for "unconstrained") — mirrors the
-            // `use`/`usePinned`/`useContents` refinement above. Needed when the
+            // anyType, the placeholder for "unconstrained"). Needed when the
             // `context(...) { ... }` call itself isn't in a target-typed
             // position, e.g. as an operand of `+`:
             //   context("one") { contextOf<String>() } + context(...) { ... }
