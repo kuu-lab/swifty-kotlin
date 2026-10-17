@@ -1,6 +1,5 @@
 // swiftlint:disable file_length
 
-/// `RuntimeABISpec.memoryFunctions` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
     static let allocSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
         name: "kk_alloc",
