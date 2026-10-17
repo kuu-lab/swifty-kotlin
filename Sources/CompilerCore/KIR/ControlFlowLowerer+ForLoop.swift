@@ -16,9 +16,6 @@ extension ControlFlowLowerer {
         return interner.intern(fallback)
     }
 
-    /// Emit a member call for a for-loop iterator/hasNext/next invocation.
-    /// Uses virtual dispatch when the chosen callee is a non-external member
-    /// of an interface or class, falling back to a direct `.call` otherwise.
     private func emitForLoopMemberCall(
         callBinding: CallBinding,
         fallback: String,
@@ -278,9 +275,6 @@ extension ControlFlowLowerer {
         let isUIntRangeLike = sema.bindings.isUIntRangeExpr(iterableExpr) || nonNullIterableType == sema.types.uintType
         let isULongRangeLike = sema.bindings.isULongRangeExpr(iterableExpr) || nonNullIterableType == sema.types.ulongType
 
-        // STDLIB-OP-032: Resolve custom operator fun iterator() on the iterable type.
-        // If the iterable has a user-defined iterator(), dispatch to it instead of
-        // the built-in kk_range_iterator runtime function.
         let customIterator = resolveCustomIteratorOperator(
             iterableType: iterableType,
             sema: sema,
@@ -495,11 +489,7 @@ extension ControlFlowLowerer {
         return symbol.name == KnownCompilerNames(interner: interner).intRange
     }
 
-    /// ARCH-012: Lower a proven IntRange to an induction variable. The range
-    /// Direct `Int..Int` operands are lowered without a range object; a typed
-    /// IntRange is materialized once and its bounds are read once. The loop
-    /// body then uses only native comparison/addition instructions. The
-    /// explicit last-element flag avoids incrementing Int.MAX_VALUE and also
+    /// The explicit last-element flag avoids incrementing Int.MAX_VALUE and also
     /// makes `continue` terminate correctly on the final element.
     private func lowerBuiltInIntRangeForExpr(
         _ exprID: ExprID,
@@ -658,10 +648,9 @@ extension ControlFlowLowerer {
         return unit
     }
 
-    /// BUG-198: Lowers a proven built-in signed range directly through a small
-    /// runtime iterator. The runtime implementation follows the monotonicity and
-    /// overflow behavior of `RangeIterators.kt` without exposing that fast path to
-    /// explicit `range.iterator()` calls or dynamically typed iterables.
+    /// The runtime implementation follows the monotonicity and overflow behavior
+    /// of `RangeIterators.kt` without exposing that fast path to explicit
+    /// `range.iterator()` calls or dynamically typed iterables.
     private func lowerBuiltInSignedRangeForExpr(
         _ exprID: ExprID,
         iterableExpr: ExprID,
@@ -752,7 +741,6 @@ extension ControlFlowLowerer {
     }
 
     /// DEBT-KIR-005: Lowers `for (x in array)` to an index-based loop
-    /// (`i = 0; while (i < __kk_array_size(array)) { x = kk_array_get_inbounds(array, i); i += 1; ... }`)
     /// rather than the range-iterator intrinsics used by lowerForExpr's
     /// general path, since arrays have no real `iterator()` member for Sema
     /// to bind (see the DEBT-KIR-005 comment at the lowerForExpr call site).
@@ -925,11 +913,10 @@ extension ControlFlowLowerer {
         .contains(iterableSymbol)
     }
 
-    /// BUG-167/KSP-998: Lowers `for (x in iterable)` for an iterable whose
-    /// `iterator()` is only known at runtime. The throwing Iterable bridge keeps
-    /// iterator acquisition lazy and preserves source exceptions for the
-    /// enclosing Kotlin try/catch. `hasNext()`/`next()` go through the generic
-    /// `kk_iterator_*` intrinsics, which handle every iterator representation.
+    /// The throwing Iterable bridge keeps iterator acquisition lazy and
+    /// preserves source exceptions for the enclosing Kotlin try/catch.
+    /// `hasNext()`/`next()` go through the generic `kk_iterator_*` intrinsics,
+    /// which handle every iterator representation.
     private func lowerDynamicIteratorForExpr(
         _ exprID: ExprID,
         iterableExpr: ExprID,
@@ -1257,7 +1244,6 @@ extension ControlFlowLowerer {
             instructions: &instructions
         )
 
-        // STDLIB-OP-032: Resolve custom operator fun iterator() on the iterable type.
         let iterableType = sema.bindings.exprTypes[iterableExpr] ?? sema.types.anyType
         let customIterator = resolveCustomIteratorOperator(
             iterableType: iterableType,
@@ -1336,7 +1322,6 @@ extension ControlFlowLowerer {
         instructions.append(.constValue(result: falseID, value: .boolLiteral(false)))
         instructions.append(.jumpIfEqual(lhs: hasNextID, rhs: falseID, target: breakLabel))
 
-        // Get next element
         let nextValueID = arena.appendTemporary(type: sema.types.anyType)
         if let customIter = customIterator {
             emitForLoopMemberCall(
@@ -1365,18 +1350,16 @@ extension ControlFlowLowerer {
             ))
         }
 
-        // Destructure: call componentN on the element
-        // Determine the element type so we can resolve external link names (e.g. __kk_pair_first)
         let isRangeExpr = ControlFlowTypeChecker.isRangeExpression(iterableExpr, ast: ast)
         let elementType: TypeID = TypeCheckHelpers().iterableElementType(
             for: iterableType, isRangeExpr: isRangeExpr, sema: sema, interner: interner
         ) ?? sema.types.anyType
         let nonNullElementType = sema.types.makeNonNullable(elementType)
 
-        // Detect if iterating over a Map type. The map iterator yields keys, so
-        // for destructuring we need special handling: component1 = key (from next),
-        // component2 = kk_map_get(map, key). HashMap and LinkedHashMap are
-        // concrete MutableMap subtypes, so use the shared map path for them too.
+        // The map iterator yields keys, so for destructuring we need special
+        // handling: component1 = key (from next), component2 = kk_map_get(map, key).
+        // HashMap and LinkedHashMap are concrete MutableMap subtypes, so use the
+        // shared map path for them too.
         let isMapIteration: Bool = {
             guard let (_, sym) = resolveClassTypeSymbol(iterableType, sema: sema),
                   KnownCompilerNames(interner: interner).isMapLikeSymbol(sym)
@@ -1392,7 +1375,6 @@ extension ControlFlowLowerer {
             let componentIndex = index + 1
             let componentName = interner.intern("component\(componentIndex)")
 
-            // Look up the symbol first so we can use the per-component type
             let candidates = sema.symbols.lookupAll(fqName: [
                 interner.intern("__for_destructuring_\(exprID.rawValue)"),
                 name,
@@ -1401,10 +1383,8 @@ extension ControlFlowLowerer {
             let componentResult = arena.appendTemporary(type: componentType)
 
             if isMapIteration, componentIndex == 1 {
-                // Map destructuring component1 = key, which is the iterator next value
                 instructions.append(.copy(from: nextValueID, to: componentResult))
             } else if isMapIteration, componentIndex == 2 {
-                // Map destructuring component2 = value, obtained via __kk_map_get(map, key)
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("__kk_map_get"),
@@ -1414,7 +1394,6 @@ extension ControlFlowLowerer {
                     thrownResult: nil
                 ))
             } else {
-                // Resolve componentN to externalLinkName when available (Pair, Triple, etc.)
                 let resolved = resolveDestructuringComponentCallee(
                     componentName: componentName,
                     receiverType: nonNullElementType,
@@ -1456,7 +1435,6 @@ extension ControlFlowLowerer {
         instructions.append(.jump(continueLabel))
         instructions.append(.label(breakLabel))
 
-        // Restore previous values
         for (symbol, previous) in previousValues {
             if let previous {
                 driver.ctx.setLocalValue(previous, for: symbol)
