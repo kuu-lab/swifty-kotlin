@@ -92,10 +92,9 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         case println
     }
 
-    /// Returns the console-print kind when the instruction is a call to
-    /// `kotlin.io.print` or `kotlin.io.println`. Handles both source-backed
-    /// calls (callee name is `print`/`println`) and library-imported calls
-    /// (callee is `kk_fn_print...` but the symbol is the Kotlin function).
+    /// Handles both source-backed calls (callee name is `print`/`println`) and
+    /// library-imported calls (callee is `kk_fn_print...` but the symbol is the
+    /// Kotlin function).
     private static func consolePrintKind(
         symbol: SymbolID?,
         callee: InternedString,
@@ -213,7 +212,6 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
             let nonNullLabel = allocateLabel()
             let endLabel = allocateLabel()
 
-            // Null path: print "null" (and newline for println), then unit result.
             newBody.append(.jumpIfNotNull(value: argument, target: nonNullLabel))
             let nullString = appendStringLiteralConst("null", arena: arena, interner: interner, stringType: stringType, to: &newBody)
             appendPrintRaw(nullString, rawPrintCallee: rawPrintCallee, to: &newBody)
@@ -224,7 +222,6 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
             appendUnitResult(result, to: &newBody)
             newBody.append(.jump(endLabel))
 
-            // Non-null path.
             newBody.append(.label(nonNullLabel))
             newBody.append(contentsOf: nonNullBody)
             newBody.append(.label(endLabel))
@@ -297,10 +294,8 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         }
     }
 
-    /// Returns a string expression for a primitive or string `println`/`print`
-    /// argument, appending any needed instructions to `newBody`. Returns nil
-    /// when the argument is not a primitive or string type (callers should fall
-    /// through to class / `Any?` handling).
+    /// Returns nil when the argument is not a primitive or string type (callers
+    /// should fall through to class / `Any?` handling).
     private func primitiveToStringExpression(
         argument: KIRExprID,
         arena: KIRArena,
@@ -357,7 +352,6 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         }
     }
 
-    /// Emits `kk_any_to_string(argument, tag)` and returns the string result.
     private func appendAnyToString(
         argument: KIRExprID,
         tag: Int64,
@@ -382,8 +376,7 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         return result
     }
 
-    /// Infers a primitive (or string) type for `argument` from the instruction that
-    /// produced it when `arena.exprType` is not available, e.g. for expressions
+    /// Used when `arena.exprType` is not available, e.g. for expressions
     /// restored from an imported library's inline KIR.
     private func inferPrimitiveType(
         argument: KIRExprID,
@@ -452,9 +445,8 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         let instructions: [KIRInstruction]
     }
 
-    /// Returns a string expression for the class-typed argument, appending any
-    /// needed instructions to `body`. Returns nil when no class-specific
-    /// toString behavior is available (callers should fall back to source `println`).
+    /// Returns nil when no class-specific toString behavior is available
+    /// (callers should fall back to source `println`).
     private static func classToStringExpression(
         argument: KIRExprID,
         classSymbol: SemanticSymbol,
@@ -572,8 +564,6 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
             }
         }
 
-        // Data classes and classes with an overriding toString() have a symbol
-        // in the class hierarchy; resolve it and emit a direct or virtual call.
         let toStringName = interner.intern("toString")
         guard let toStringSym = resolveClassToStringSymbol(
             for: classSymbol.id,
