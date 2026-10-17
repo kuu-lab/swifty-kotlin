@@ -5,14 +5,10 @@ extension CallTypeChecker {
         let functionType: FunctionType
     }
 
-    /// Applies explicit type arguments to a parameter type from a given signature.
-    /// When explicit type args are provided, substitutes them into the parameter type.
-    /// - Parameter typeArgOffset: Index into `signature.typeParameterSymbols` at which the
-    ///   explicit type args begin. For constructors this is 0 (explicit args map to the class's
-    ///   own type parameters). For non-constructor member functions this should be
-    ///   `signature.classTypeParameterCount`, so that the explicit args skip the leading class
-    ///   type parameters (which are inferred from the receiver) and map only to the function's
-    ///   own type parameters.
+    /// For non-constructor member functions the explicit args begin at
+    /// `signature.classTypeParameterCount`, so that they skip the leading class
+    /// type parameters (which are inferred from the receiver) and map only to the function's
+    /// own type parameters.
     func applyExplicitTypeArgs(
         to parameterType: TypeID,
         signature: FunctionSignature,
@@ -200,10 +196,9 @@ extension CallTypeChecker {
         )
     }
 
-    /// Resolves a type-parameter receiver to the nominal upper bound used by a
-    /// generic member or extension. Keeping the bound's own arguments preserves
-    /// enclosing type-parameter identity while allowing callback expectations
-    /// to substitute the candidate's receiver type parameters.
+    /// Keeping the bound's own arguments preserves enclosing type-parameter
+    /// identity while allowing callback expectations to substitute the
+    /// candidate's receiver type parameters.
     private func receiverClassTypeFromUpperBounds(
         _ receiverType: TypeID,
         matching receiverOwner: SymbolID,
@@ -236,8 +231,7 @@ extension CallTypeChecker {
         return nil
     }
 
-    /// Substitutes the receiver type parameter of `signature` with the concrete
-    /// call-site receiver type. For extension functions like `fun <T> T.apply(block: T.() -> Unit)`,
+    /// For extension functions like `fun <T> T.apply(block: T.() -> Unit)`,
     /// the lambda's expected type `T.() -> Unit` must become `ConcreteType.() -> Unit`
     /// before the lambda body is type-checked so that unqualified member access on
     /// the implicit receiver resolves correctly.
@@ -374,7 +368,6 @@ extension CallTypeChecker {
         return result
     }
 
-    /// Shares contextual input specialization between lambdas and references.
     /// Keep unresolved output parameters intact so final call inference can
     /// learn them from the selected reference's actual return type.
     private func contextualCallableParameterType(
@@ -421,8 +414,6 @@ extension CallTypeChecker {
         )
     }
 
-    /// Maps already-inferred call arguments to declaration parameter positions
-    /// and adds explicit lambda input annotations as candidate-local constraints.
     /// Flexible constants are left for final call resolution when their parameter
     /// shares a type variable constrained by the lambda annotation.
     private func contextualInferenceInputsForLambda(
@@ -783,11 +774,9 @@ extension CallTypeChecker {
         return (sharedType, true, false, false)
     }
 
-    /// Recursively checks whether `type` (or any nested type argument / function
-    /// parameter / return type) is or mentions a type parameter. Used to keep
-    /// implicit-`it` ambiguity detection scoped to genuinely concrete, conflicting
-    /// parameter types rather than misreading distinct type-parameter symbols that
-    /// happen to represent the same generic slot as a real conflict.
+    /// Used to keep implicit-`it` ambiguity detection scoped to genuinely concrete,
+    /// conflicting parameter types rather than misreading distinct type-parameter
+    /// symbols that happen to represent the same generic slot as a real conflict.
     func typeMentionsTypeParameter(_ type: TypeID, sema: SemaModule) -> Bool {
         switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
         case .typeParam:
