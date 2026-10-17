@@ -15,12 +15,10 @@ final class KIRNominalDispatchCache {
     /// Interface → property-getter slot table, computed once per interface
     /// instead of once per property read or object registration site.
     private var interfacePropertyGetterSlotsByInterface: [SymbolID: [KIRInterfacePropertyGetterSlot]] = [:]
-    /// Interface → property → itable slot, built lazily from the slot table.
     private var interfacePropertyGetterSlotByPropertyByInterface: [SymbolID: [SymbolID: Int]] = [:]
     /// Interface → property-setter slot table, derived from the cached getter
     /// table so eligibility, ordering, and the setter base stay in sync.
     private var interfacePropertySetterSlotsByInterface: [SymbolID: [KIRInterfacePropertySetterSlot]] = [:]
-    /// Interface → property → setter itable slot, built lazily from the table.
     private var interfacePropertySetterSlotByPropertyByInterface: [SymbolID: [SymbolID: Int]] = [:]
 
     func vtableImplementations(
@@ -279,9 +277,6 @@ func appendObjectVtableMethodRegistrations<C: RangeReplaceableCollection>(
         }
     }
 
-    // BUG-227: also register property getter/setter accessor implementations
-    // into the vtable, mirroring how BUG-141 registers interface property
-    // getters alongside interface methods below.
     appendObjectVtablePropertyAccessorRegistrations(
         objectValue: objectValue,
         nominalSymbol: nominalSymbol,
@@ -411,7 +406,6 @@ private func appendObjectAnyEqualsOverrideRegistration<C: RangeReplaceableCollec
     ))
 }
 
-/// Returns a raw-string ABI bridge for a class `toString()` implementation.
 /// Runtime Any dispatch only has an `Int` receiver and an `Int` string-handle
 /// result, while Kotlin class methods use the flat String aggregate ABI.
 func anyToStringBridgeSymbolForImplementation(
@@ -1471,7 +1465,6 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
         }
     }
 
-    // BUG-141: also register interface property getters into the itable.
     appendObjectItablePropertyGetterRegistrations(
         objectValue: objectValue,
         nominalSymbol: nominalSymbol,
@@ -1482,8 +1475,8 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
         interfaceFilter: interfaceFilter,
         instructions: &instructions
     )
-    // Setter counterpart: register interface property setters into the itable
-    // so a write through an interface-typed receiver can dispatch to them.
+    // Register interface property setters into the itable so a write through
+    // an interface-typed receiver can dispatch to them.
     appendObjectItablePropertySetterRegistrations(
         objectValue: objectValue,
         nominalSymbol: nominalSymbol,
@@ -1496,8 +1489,6 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
     )
 }
 
-/// Returns the interface methods that must be registered for dynamic itable dispatch.
-///
 /// BUG-200/KSP-1070: legacy or precompiled library metadata may omit the
 /// covariant `MutableIterable.iterator(): MutableIterator<T>` entry from the
 /// `MutableIterable` vtable layout. Source-backed layouts include the member
