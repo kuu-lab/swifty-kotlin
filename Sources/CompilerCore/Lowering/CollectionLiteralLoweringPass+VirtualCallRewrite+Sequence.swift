@@ -1,7 +1,5 @@
 // swiftlint:disable file_length
 
-/// Virtual-call rewrite for `Sequence`-typed receivers.
-///
 /// Split out from `CollectionLiteralLoweringPass+VirtualCallRewrite.swift`
 /// to keep each rewrite source scoped to a single receiver kind.
 extension CollectionVirtualCallRewriteLoweringPass {
@@ -39,7 +37,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             }
         }
 
-        // requireNoNulls() on sequence -> kk_sequence_requireNoNulls
         // The bundled source iterator cannot propagate an exception thrown from
         // hasNext(), so the runtime pipeline step (which sets outThrown) is kept.
         if callee == lookup.requireNoNullsName, arguments.isEmpty,
@@ -56,7 +53,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        // asSequence() → kk_list_asSequence only when receiver is a tracked list.
         // Array receivers are handled by rewriteArrayVirtualCall (guarded by arrayExprIDs).
         // Non-tracked receivers are now classified by static type via
         // classifyReceiverByStaticType (LOWERING-001) before reaching here.
@@ -294,7 +290,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             }
         }
 
-        // constrainOnce() on sequence -> kk_sequence_constrainOnce
         if callee == lookup.constrainOnceName, arguments.isEmpty, state.contains(.sequence, receiver) {
             loweredBody.append(.call(
                 symbol: nil,
@@ -308,7 +303,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        // toSet() on sequence → kk_sequence_toSet (STDLIB-470)
         if callee == lookup.toSetName, arguments.isEmpty, state.contains(.sequence, receiver) {
             let toSetResult = module.arena.appendTemporary(type: nil
             )
@@ -327,7 +321,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        // toMap() on sequence → kk_sequence_toMap (STDLIB-470)
         if callee == lookup.toMapName, arguments.isEmpty, state.contains(.sequence, receiver) {
             let toMapResult = module.arena.appendTemporary(type: nil
             )
@@ -347,7 +340,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        // max / maxOrNull / minOrNull on sequence (STDLIB-SEQ-FN-065, STDLIB-470)
         if callee == lookup.maxName || callee == lookup.maxOrNullName || callee == lookup.minOrNullName,
            arguments.isEmpty, state.contains(.sequence, receiver)
         {
@@ -374,7 +366,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        // flatten on sequence → kk_sequence_flatten (STDLIB-470)
         if callee == lookup.flattenName, arguments.isEmpty, state.contains(.sequence, receiver) {
             loweredBody.append(.call(
                 symbol: nil,
@@ -388,7 +379,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        // runningFoldIndexed on sequence → kk_sequence_runningFoldIndexed (STDLIB-SEQ-016)
         // Args: initial, lambda (2 from Kotlin: initial + operation)
         if callee == lookup.runningFoldIndexedName, arguments.count == 2,
            state.contains(.sequence, receiver)
@@ -409,7 +399,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        // scanIndexed on sequence -> kk_sequence_scanIndexed (STDLIB-SEQ-FN-105)
         // Args: initial, lambda (2 from Kotlin: initial + operation)
         if callee == lookup.scanIndexedName, arguments.count == 2,
            state.contains(.sequence, receiver)
@@ -436,7 +425,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             ofSingle: lookup.kkSequenceOfSingleName
         )
 
-        // plus(other) on sequence → kk_sequence_plus (STDLIB-561)
         if callee == lookup.plusMemberName, arguments.count == 1, state.contains(.sequence, receiver) {
             let argID = arguments[0]
             // Only sequence/list/array are supported by kk_sequence_plus
@@ -458,7 +446,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        // plusElement(element) on sequence -> kk_sequence_plus_element (STDLIB-SEQ-013)
         if callee == lookup.plusElementName, arguments.count == 1, state.contains(.sequence, receiver) {
             loweredBody.append(.call(
                 symbol: nil,
@@ -474,7 +461,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
 
         // Iterable.minusElement(element) returns a List, even when the receiver
         // is tracked through the generic Iterable interface.
-        // minus(element)/minusElement(element) on sequence → kk_sequence_minus
         if callee == lookup.minusMemberName || callee == lookup.minusElementName,
            arguments.count == 1,
            state.contains(.sequence, receiver)
