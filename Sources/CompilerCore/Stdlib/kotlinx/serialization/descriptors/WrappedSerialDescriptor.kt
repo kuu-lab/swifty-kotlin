@@ -8,7 +8,6 @@ package kotlinx.serialization.descriptors
 
 import kotlinx.serialization.internal.toStringImpl
 
-/** Gives an existing descriptor a distinct serial name. */
 @Suppress("FunctionName")
 public fun SerialDescriptor(serialName: String, original: SerialDescriptor): SerialDescriptor {
     require(serialName.isNotBlank()) { "Blank serial names are prohibited" }
