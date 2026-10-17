@@ -1,10 +1,6 @@
 import RuntimeABI
 
-/// Common lookup names for `CollectionLiteralLookupTables`.
-///
-/// Split out from `CollectionLiteralLoweringPass+LookupTables.swift`.
 struct CommonLookupNames {
-    // Member names (STDLIB-637)
     let sumName: InternedString
     let sizeName: InternedString
     let getName: InternedString
@@ -22,7 +18,6 @@ struct CommonLookupNames {
     let endExclusiveName: InternedString
     let stepName: InternedString
     let iteratorName: InternedString
-    // Higher-order collection member names (FUNC-003)
     let mapName: InternedString
     let filterName: InternedString
     let filterNotName: InternedString
@@ -46,7 +41,6 @@ struct CommonLookupNames {
     let anyName: InternedString
     let noneName: InternedString
     let allName: InternedString
-    // Additional higher-order collection member names (STDLIB-005)
     let foldName: InternedString
     let reduceName: InternedString
     let scanName: InternedString
@@ -104,7 +98,6 @@ struct CommonLookupNames {
     let dropLastWhileName: InternedString
     let firstOrNullName: InternedString
     let lastOrNullName: InternedString
-    // FQN arrays for stdlib collection factory functions (STDLIB-410)
     let emptyListFQName: [InternedString]
     let emptyArrayFQName: [InternedString]
     let emptySetFQName: [InternedString]
@@ -124,13 +117,11 @@ struct CommonLookupNames {
     let listOfNotNullFQName: [InternedString]
     let kotlinName: InternedString
     let initName: InternedString
-    // Pair / `to` infix (FUNC-002)
     let toName: InternedString
     let pairName: InternedString
     let kkPairNewName: InternedString
     let kkPairFirstName: InternedString
     let kkPairSecondName: InternedString
-    // Triple (STDLIB-120)
     let tripleName: InternedString
     let kkTripleNewName: InternedString
 
