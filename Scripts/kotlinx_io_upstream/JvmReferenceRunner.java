@@ -9,6 +9,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.junit.platform.engine.DiscoverySelector;
 import org.junit.platform.engine.TestExecutionResult;
 import org.junit.platform.engine.support.descriptor.MethodSource;
 import org.junit.platform.launcher.TestExecutionListener;
@@ -16,6 +17,7 @@ import org.junit.platform.launcher.TestIdentifier;
 import org.junit.platform.launcher.TestPlan;
 import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
 import org.junit.platform.launcher.core.LauncherFactory;
+import static org.junit.platform.engine.discovery.DiscoverySelectors.selectMethod;
 import static org.junit.platform.engine.discovery.DiscoverySelectors.selectClasspathRoots;
 
 /** Java 21 source-mode runner: the original test classes and assertions are unchanged. */
@@ -65,13 +67,27 @@ class JvmReferenceRunner {
     }
 
     public static void main(String[] args) throws Exception {
-        if (args.length != 2) throw new IllegalArgumentException("test jar and output directory required");
+        if (args.length < 2) throw new IllegalArgumentException("test jar and output directory required");
         Path output = Path.of(args[1]);
         Files.createDirectories(output);
         var launcher = LauncherFactory.create();
-        var request = LauncherDiscoveryRequestBuilder.request()
-            .selectors(selectClasspathRoots(java.util.Set.of(Path.of(args[0]))))
-            .filters(org.junit.platform.engine.discovery.ClassNameFilter.includeClassNamePatterns(".*"))
+        var requestBuilder = LauncherDiscoveryRequestBuilder.request();
+        if (args.length == 2) {
+            requestBuilder
+                .selectors(selectClasspathRoots(java.util.Set.of(Path.of(args[0]))))
+                .filters(org.junit.platform.engine.discovery.ClassNameFilter.includeClassNamePatterns(".*"));
+        } else {
+            DiscoverySelector[] selectors = new DiscoverySelector[args.length - 2];
+            for (int index = 2; index < args.length; index++) {
+                String[] method = args[index].split("#", 2);
+                if (method.length != 2 || method[0].isBlank() || method[1].isBlank()) {
+                    throw new IllegalArgumentException("method selector must be class#method: " + args[index]);
+                }
+                selectors[index - 2] = selectMethod(method[0], method[1]);
+            }
+            requestBuilder.selectors(selectors);
+        }
+        var request = requestBuilder
             .configurationParameter("junit.jupiter.execution.parallel.enabled", "false")
             .build();
         TestPlan plan = launcher.discover(request);

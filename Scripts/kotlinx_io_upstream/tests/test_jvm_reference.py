@@ -13,6 +13,25 @@ SPEC.loader.exec_module(RUNNER)
 
 
 class JvmReferenceTests(unittest.TestCase):
+    def test_explicit_selection_preserves_factory_expansion_and_rejects_unknown_ids(self):
+        source_id = "core/common/test/Source.kt#read"
+        catalog = [
+            {"execution_id": "io.BufferSource.read", "upstream_id": source_id},
+            {"execution_id": "io.PeekSource.read", "upstream_id": source_id},
+            {"execution_id": "io.BufferSource.skip", "upstream_id": "core/common/test/Source.kt#skip"},
+        ]
+        selected = RUNNER.select_execution_rows(catalog, source_function_ids=[source_id])
+        self.assertEqual([row["execution_id"] for row in selected],
+                         ["io.BufferSource.read", "io.PeekSource.read"])
+        exact = RUNNER.select_execution_rows(catalog, execution_ids=["io.BufferSource.skip"])
+        self.assertEqual([row["execution_id"] for row in exact], ["io.BufferSource.skip"])
+        with self.assertRaisesRegex(ValueError, "unknown source function ID"):
+            RUNNER.select_execution_rows(catalog, source_function_ids=["missing.kt#missing"])
+        with self.assertRaisesRegex(ValueError, "unknown concrete execution ID"):
+            RUNNER.select_execution_rows(catalog, execution_ids=["missing.test"])
+        with self.assertRaisesRegex(ValueError, "unique"):
+            RUNNER.select_execution_rows(catalog, execution_ids=["io.BufferSource.skip"] * 2)
+
     def test_inherited_factory_executions_remain_distinct_and_candidate_unmapped(self):
         source = {"upstream_id": "core/common/test/Source.kt#read",
             "upstream_path": "core/common/test/Source.kt", "platform": "common",
