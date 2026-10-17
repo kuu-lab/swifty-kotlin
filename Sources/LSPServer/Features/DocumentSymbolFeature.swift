@@ -1,7 +1,5 @@
 import CompilerCore
 
-/// Builds a document outline (`textDocument/documentSymbol`) from the top-level
-/// declarations of the analyzed file and their members.
 public enum DocumentSymbolFeature {
     public static func documentSymbols(for analysis: Analyzer.Analysis) -> [DocumentSymbol] {
         guard
