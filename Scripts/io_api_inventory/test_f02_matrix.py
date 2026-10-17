@@ -123,6 +123,56 @@ class F02GateTests(unittest.TestCase):
         self.assertIn("getter.isSynthetic()", probe)
         self.assertIn("getter.invoke(null)", probe)
 
+    def test_buffer_head_probe_covers_internal_nullability_and_jvm_accessors(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "buffer-head-2589")
+        producer = case["producer"][0].read_text(encoding="utf-8")
+        probe = case["jvm_abi_probe"].read_text(encoding="utf-8")
+        java_negative = case["jvm_java_source_negative"].read_text(encoding="utf-8")
+        negative_ids = {item["id"] for item in case["negative_probes"]}
+        nullable_probe = next(item for item in case["negative_probes"] if item["id"] == "head-nullable")
+
+        self.assertEqual(case["case_id"],
+                         "Tests/CompilerBackendTests/Fixtures/IOBufferHead2589/Producer.kt#probeBufferHeadAccessors")
+        self.assertEqual(case["entry"], "kuu2589consumer.main")
+        self.assertTrue(case["friend_io_artifacts"])
+        self.assertEqual(negative_ids, {"head-internal", "head-internal-set", "head-nullable"})
+        self.assertIn("segment?", nullable_probe["reference_diagnostic_markers"])
+        self.assertIn("KSWIFTK-TYPE-0001", nullable_probe["candidate_diagnostic_markers"])
+        self.assertEqual(matrix.reference_friend_args(case, [Path("core.jar"), Path("bytestring.jar")]),
+                         ["-Xfriend-paths=core.jar,bytestring.jar"])
+        self.assertIn("val initial: Segment? = empty.head", producer)
+        self.assertIn("target.head = segment", producer)
+        self.assertIn("target.head = null", producer)
+        self.assertIn("Modifier.isPublic(modifiers)", probe)
+        self.assertIn("Modifier.isFinal(modifiers)", probe)
+        self.assertIn("method.isSynthetic()", probe)
+        self.assertIn('getDeclaredMethod("getHead")', probe)
+        self.assertIn('getDeclaredMethod("setHead", segmentType)', probe)
+        self.assertIn("setter.invoke(target, new Object[] {null})", probe)
+        self.assertIn("buffer.getHead()", java_negative)
+        self.assertIn("buffer.setHead(null)", java_negative)
+        self.assertEqual(case["jvm_abi_class"], "BufferHeadAbiProbe")
+        self.assertIn("headSetterAcceptsNull=true", case["jvm_abi_expected_stdout"])
+        candidate_metadata = matrix.verify_buffer_head_source_metadata()
+        self.assertEqual(candidate_metadata["property_type"], "Segment?")
+        self.assertIn("@PublishedApi", candidate_metadata["annotations"])
+        self.assertIn("@get:kotlin.jvm.JvmSynthetic", candidate_metadata["annotations"])
+        self.assertIn("@set:kotlin.jvm.JvmSynthetic", candidate_metadata["annotations"])
+
+        scoped_paths = (
+            "Scripts/io_api_inventory/f02_consumers/BufferHead",
+            "Tests/CompilerBackendTests/Fixtures/IOBufferHead2589/",
+            "Tests/CompilerCoreTests/Sema/KotlinxIOBufferHeadContractTests.swift",
+        )
+        with (matrix.HERE / "api-inventory.tsv").open(encoding="utf-8", newline="") as stream:
+            rows = list(csv.DictReader(stream, delimiter="\t"))
+        for row in rows:
+            refs = row["local_test_refs"].split(";")
+            if row["row_id"] in inventory_generator.BUFFER_HEAD_ROW_IDS:
+                self.assertTrue(any(ref.startswith(scoped_paths) for ref in refs))
+            else:
+                self.assertFalse(any(ref.startswith(scoped_paths) for ref in refs), row["row_id"])
+
     def test_generated_public_rows_and_every_full_default_call_are_required(self):
         generated = generator.generate()
         manifest = json.loads(generated["manifest.json"])

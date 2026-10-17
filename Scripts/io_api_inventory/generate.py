@@ -35,6 +35,9 @@ EXPECTED_TAG_COMMIT = "362bdc35e159bad6da1e08101c8321792d762281"
 NO_DIRECT_UPSTREAM_ASSERTION_SOURCE_REFS = {
     "core/common/src/files/Paths.kt:115",
     "core/common/src/files/Paths.kt:133",
+    # splitHead checks Buffer behavior but does not directly assert the
+    # @PublishedApi head declaration or its generated accessors.
+    "core/common/src/Buffer.kt:55",
 }
 NO_DIRECT_UPSTREAM_ASSERTION = "none (no direct upstream assertion mapped)"
 VALIDATION_EVIDENCE_SCHEMA_VERSION = 2
@@ -72,6 +75,23 @@ LOCAL_PROBE_EVIDENCE_CASES = {
     "local:Scripts/io_api_inventory/probes/segment_data_as_byte_array_jvm_abi.kt#jvm-descriptor": {
         "path": "Scripts/io_api_inventory/probes/segment_data_as_byte_array_jvm_abi.kt",
         "row_ids": {"jvm-f7053c9293f03a10"},
+        "lanes": ("jvm-descriptor",),
+        "methods": {"reference": "jvm-abi-reflection", "candidate": "source-metadata"},
+    },
+    "local:Tests/CompilerBackendTests/Fixtures/IOBufferHead2589/Producer.kt#probeBufferHeadAccessors": {
+        "path": "Tests/CompilerBackendTests/Fixtures/IOBufferHead2589/Producer.kt",
+        "row_ids": {
+            "internal-209d94d247ac1fef",
+            "klib-14217ab26bcc2a6b",
+            "klib-211ce3f5b15e3518",
+            "klib-47368e9bfba43219",
+        },
+        "lanes": LOCAL_NATIVE_PROBE_LANES,
+        "methods": {"reference": "jvm-probe", "candidate": "native-matrix"},
+    },
+    "local:Scripts/io_api_inventory/f02_consumers/BufferHeadAbiProbe.java#main": {
+        "path": "Scripts/io_api_inventory/f02_consumers/BufferHeadAbiProbe.java",
+        "row_ids": {"jvm-3512e1f33bdd47ee", "jvm-981db78a8157a797"},
         "lanes": ("jvm-descriptor",),
         "methods": {"reference": "jvm-abi-reflection", "candidate": "source-metadata"},
     },
@@ -237,14 +257,17 @@ TEST_HINTS = {
 
 LOCAL_IO_TEST_PREFIXES = (
     "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java",
+    "Scripts/io_api_inventory/f02_consumers/BufferHead",
     "Scripts/io_api_inventory/probes/",
     "Scripts/diff_cases/kotlinx_io_",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+ByteString",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+KtorIOCoverage.swift",
     "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590/",
+    "Tests/CompilerBackendTests/Fixtures/IOBufferHead2589/",
     "Tests/CompilerCoreTests/GoldenCases/Sema/kotlinx_io_",
     "Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlinx_io_",
     "Tests/CompilerCoreTests/Sema/KotlinxIO",
+    "Tests/CompilerCoreTests/Sema/KotlinxIOBufferHeadContractTests.swift",
     "Tests/RuntimeTests/RuntimeIoFileSystemTests.swift",
 )
 LOCAL_IO_PROBE_API_NAMES = {"dataasbytearray"}
@@ -259,6 +282,54 @@ SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS = (
     "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java",
     "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590/",
 )
+
+BUFFER_HEAD_ROW_IDS = frozenset({
+    "internal-209d94d247ac1fef",
+    "jvm-3512e1f33bdd47ee",
+    "jvm-981db78a8157a797",
+    "klib-14217ab26bcc2a6b",
+    "klib-211ce3f5b15e3518",
+    "klib-47368e9bfba43219",
+})
+BUFFER_HEAD_LOCAL_TEST_REFS = {
+    "internal-209d94d247ac1fef": (
+        "Tests/CompilerBackendTests/Fixtures/IOBufferHead2589/Producer.kt#probeBufferHeadAccessors",
+        "Tests/CompilerBackendTests/Fixtures/IOBufferHead2589/InternalVisibilityNegative.kt#main",
+        "Tests/CompilerBackendTests/Fixtures/IOBufferHead2589/SetterVisibilityNegative.kt#main",
+        "Tests/CompilerBackendTests/Fixtures/IOBufferHead2589/NullableGetterNegative.kt#main",
+        "Tests/CompilerCoreTests/Sema/KotlinxIOBufferHeadContractTests.swift#publishedInternalHeadKeepsNullableAccessorMetadata",
+        "Tests/CompilerCoreTests/Sema/KotlinxIOBufferHeadContractTests.swift#unprivilegedConsumerCannotReadOrWriteHead",
+    ),
+    "jvm-3512e1f33bdd47ee": (
+        "Scripts/io_api_inventory/f02_consumers/BufferHeadAbiProbe.java#main",
+        "Scripts/io_api_inventory/f02_consumers/BufferHeadJavaSourceNegative.java#main",
+    ),
+    "jvm-981db78a8157a797": (
+        "Scripts/io_api_inventory/f02_consumers/BufferHeadAbiProbe.java#main",
+        "Scripts/io_api_inventory/f02_consumers/BufferHeadJavaSourceNegative.java#main",
+    ),
+    "klib-14217ab26bcc2a6b": (
+        "Tests/CompilerBackendTests/Fixtures/IOBufferHead2589/Producer.kt#probeBufferHeadAccessors",
+        "Tests/CompilerBackendTests/Fixtures/IOBufferHead2589/InternalVisibilityNegative.kt#main",
+        "Tests/CompilerBackendTests/Fixtures/IOBufferHead2589/SetterVisibilityNegative.kt#main",
+        "Tests/CompilerCoreTests/Sema/KotlinxIOBufferHeadContractTests.swift#publishedInternalHeadKeepsNullableAccessorMetadata",
+        "Tests/CompilerCoreTests/Sema/KotlinxIOBufferHeadContractTests.swift#unprivilegedConsumerCannotReadOrWriteHead",
+    ),
+    "klib-211ce3f5b15e3518": (
+        "Tests/CompilerBackendTests/Fixtures/IOBufferHead2589/Producer.kt#probeBufferHeadAccessors",
+        "Tests/CompilerBackendTests/Fixtures/IOBufferHead2589/InternalVisibilityNegative.kt#main",
+        "Tests/CompilerBackendTests/Fixtures/IOBufferHead2589/NullableGetterNegative.kt#main",
+        "Tests/CompilerCoreTests/Sema/KotlinxIOBufferHeadContractTests.swift#publishedInternalHeadKeepsNullableAccessorMetadata",
+        "Tests/CompilerCoreTests/Sema/KotlinxIOBufferHeadContractTests.swift#unprivilegedConsumerCannotReadOrWriteHead",
+    ),
+    "klib-47368e9bfba43219": (
+        "Tests/CompilerBackendTests/Fixtures/IOBufferHead2589/Producer.kt#probeBufferHeadAccessors",
+        "Tests/CompilerBackendTests/Fixtures/IOBufferHead2589/SetterVisibilityNegative.kt#main",
+        "Tests/CompilerCoreTests/Sema/KotlinxIOBufferHeadContractTests.swift#publishedInternalHeadKeepsNullableAccessorMetadata",
+        "Tests/CompilerCoreTests/Sema/KotlinxIOBufferHeadContractTests.swift#unprivilegedConsumerCannotReadOrWriteHead",
+    ),
+}
+BUFFER_HEAD_CONTRACT_TEST = "Tests/CompilerCoreTests/Sema/KotlinxIOBufferHeadContractTests.swift"
 
 MODIFIERS = (
     "public|internal|private|protected|actual|expect|inline|suspend|operator|"
@@ -421,7 +492,8 @@ def _local_probe_case_spec(row: dict, case_id: str) -> dict | None:
     spec = LOCAL_PROBE_EVIDENCE_CASES.get(case_id)
     if spec is None or row.get("row_id") not in spec["row_ids"]:
         return None
-    if spec["path"] not in row.get("local_test_refs", "").split(";"):
+    referenced_paths = {reference.split("#", 1)[0] for reference in row.get("local_test_refs", "").split(";")}
+    if spec["path"] not in referenced_paths:
         return None
     return spec
 
@@ -654,10 +726,14 @@ def apply_validation_evidence(
         if missing_lanes:
             fail(f"missing validation lanes for row {row_id}: {', '.join(sorted(missing_lanes))}")
         if evidence_source == "local-probe":
+            local_reference_paths = {
+                reference.split("#", 1)[0]
+                for reference in row.get("local_test_refs", "").split(";")
+            }
             required_cases = {
                 case_id: spec
                 for case_id, spec in LOCAL_PROBE_EVIDENCE_CASES.items()
-                if row_id in spec["row_ids"] and spec["path"] in row.get("local_test_refs", "").split(";")
+                if row_id in spec["row_ids"] and spec["path"] in local_reference_paths
             }
             for case_id, spec in required_cases.items():
                 observed_lanes = {
@@ -1365,6 +1441,8 @@ def parse_jvm_api(path: Path, module: str, sources: list[Path]) -> list[dict]:
 
 
 def owner_for(row: dict) -> str:
+    if row.get("row_id") in BUFFER_HEAD_ROW_IDS:
+        return "KUU-2589"
     text = " ".join(
         [row["module"], row["owner_fqn"], row["name"], row["signature"], row["upstream_source_refs"]]
     ).lower()
@@ -1648,10 +1726,22 @@ def local_contract_differences(row: dict, index: SourceIndex) -> str:
 
 
 def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
+    if row.get("row_id") in BUFFER_HEAD_LOCAL_TEST_REFS:
+        available = {path for path, _ in local_tests}
+        return [
+            reference for reference in BUFFER_HEAD_LOCAL_TEST_REFS[row["row_id"]]
+            if reference.split("#", 1)[0] in available
+        ]
     name = row["_candidate_name"].lower()
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []
     for path, content in local_tests:
+        if (path.startswith(("Scripts/io_api_inventory/f02_consumers/BufferHead",
+                             "Tests/CompilerBackendTests/Fixtures/IOBufferHead2589/"))
+                and row.get("row_id") not in BUFFER_HEAD_ROW_IDS):
+            continue
+        if path == BUFFER_HEAD_CONTRACT_TEST and row.get("row_id") not in BUFFER_HEAD_ROW_IDS:
+            continue
         if path.startswith("Scripts/io_api_inventory/probes/") and name not in LOCAL_IO_PROBE_API_NAMES:
             continue
         if (path == SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS[0]
@@ -2042,7 +2132,10 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     local_paths.extend(REPO.joinpath("Scripts/diff_cases").glob("*.kt"))
     local_paths.extend(REPO.joinpath("Scripts/io_api_inventory/probes").glob("*.kt"))
     local_paths.extend(REPO.joinpath("Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590").glob("*.kt"))
+    local_paths.extend(REPO.joinpath("Tests/CompilerBackendTests/Fixtures/IOBufferHead2589").glob("*.kt"))
     local_paths.append(REPO / "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java")
+    local_paths.append(REPO / "Scripts/io_api_inventory/f02_consumers/BufferHeadAbiProbe.java")
+    local_paths.append(REPO / "Scripts/io_api_inventory/f02_consumers/BufferHeadJavaSourceNegative.java")
     for path in sorted(local_paths):
         rel = path.relative_to(REPO).as_posix()
         if rel.startswith(LOCAL_IO_TEST_PREFIXES):

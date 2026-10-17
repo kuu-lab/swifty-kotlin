@@ -264,6 +264,65 @@ class ValidationEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "is not mapped to row"):
             self._apply([self._record(row)], row)
 
+    def _buffer_head_probe_row(self):
+        row = copy.deepcopy(self.row)
+        row["row_id"] = "internal-209d94d247ac1fef"
+        row["upstream_test_refs"] = self.generator.NO_DIRECT_UPSTREAM_ASSERTION
+        case_id = "local:Tests/CompilerBackendTests/Fixtures/IOBufferHead2589/Producer.kt#probeBufferHeadAccessors"
+        row["local_test_refs"] = "Tests/CompilerBackendTests/Fixtures/IOBufferHead2589/Producer.kt#probeBufferHeadAccessors"
+        self._write("Tests/CompilerBackendTests/Fixtures/IOBufferHead2589/Producer.kt", "fun probeBufferHeadAccessors() = Unit\n")
+        return row, case_id
+
+    def _buffer_head_probe_record(self, row, case_id):
+        candidate_sha = "a" * 40
+        spec = self.generator.LOCAL_PROBE_EVIDENCE_CASES[case_id]
+        executions = []
+        for lane in spec["lanes"]:
+            executions.append({
+                "case_id": case_id,
+                "lane": lane,
+                **{
+                    subject: {
+                        "execution_id": self.generator.local_probe_execution_id(
+                            candidate_sha, self.lock["commit"], case_id, lane, subject
+                        ),
+                        "result": "PASS",
+                        "exit_code": 0,
+                        "method": spec["methods"][subject],
+                    }
+                    for subject in ("reference", "candidate")
+                },
+            })
+        return {
+            "row_id": row["row_id"],
+            "candidate_sha": candidate_sha,
+            "reference_version": self.lock["tag"],
+            "reference_commit": self.lock["commit"],
+            **self.generator.validation_input_hashes(row, self.repository, self.upstream),
+            "compatibility_obligations": self.generator.validation_obligations(row),
+            "evidence_source": "local-probe",
+            "executions": executions,
+        }
+
+    def test_buffer_head_registered_probe_evidence_promotes_its_row(self):
+        row, case_id = self._buffer_head_probe_row()
+        record = self._buffer_head_probe_record(row, case_id)
+        self.assertEqual(self._apply([record], row, schema_version=2)["status"], "verified")
+
+    def test_buffer_head_local_probe_rejects_unregistered_case_and_forged_id(self):
+        row, case_id = self._buffer_head_probe_row()
+        valid = self._buffer_head_probe_record(row, case_id)
+        wrong_case = copy.deepcopy(valid)
+        wrong_case["executions"][0]["case_id"] += "-unregistered"
+        wrong_id = copy.deepcopy(valid)
+        wrong_id["executions"][0]["candidate"]["execution_id"] = "candidate-is-not-a-probe"
+        wrong_method = copy.deepcopy(valid)
+        wrong_method["executions"][0]["candidate"]["method"] = "jvm-abi-reflection"
+        for record in (wrong_case, wrong_id, wrong_method):
+            with self.subTest(record=record):
+                with self.assertRaises(SystemExit):
+                    self._apply([record], row, schema_version=2)
+
     def test_jvm_abi_requires_only_descriptor_evidence(self):
         row = copy.deepcopy(self.row)
         row["row_id"] = "jvm-fixture-foo"

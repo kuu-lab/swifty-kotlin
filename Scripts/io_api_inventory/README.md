@@ -153,6 +153,22 @@ python3 Scripts/io_api_inventory/run_f02_matrix.py \
   --dependencies /path/to/locked-io-jars
 ```
 
+KUU-2589's `Buffer.head` probe runs independently across the six native lanes.
+It checks nullable initialization, assignment identity, assigning null, rejected
+internal getter/setter access, and the pinned JVM getter/setter descriptors and
+synthetic flags. The reference side also checks that Java source cannot call the
+synthetic accessors; the candidate side checks the Kotlin declaration metadata
+because KSwiftK emits native artifacts rather than JVM bytecode:
+
+```sh
+python3 Scripts/io_api_inventory/run_f02_matrix.py \
+  --case buffer-head-2589 \
+  --separate-cases \
+  --compiler .build/debug/kswiftc --output /tmp/kuu-2589-f02 \
+  --kotlin-home /path/to/kotlinc-2.3.10 --java /path/to/java21/bin/java \
+  --dependencies /path/to/locked-io-jars
+```
+
 Every selected lane is attempted after a lane failure, and each failure retains
 its raw diagnostic or output difference. The original Apple test module is run
 separately: its test-only helpers occupy real stdlib packages and can conflict
@@ -278,8 +294,11 @@ artifacts rather than JVM bytecode.
 
 Local evidence must cover every registered case and every lane for that row.
 For `Segment.dataAsByteArray`, native rows require both the backing-view probe
-and the cross-module visibility probe in all six native lanes; the JVM ABI row
+and the cross-module visibility probe in all six native lanes; its JVM ABI row
 requires the descriptor reflection probe and local source-metadata assertion.
+For `Buffer.head`, native rows require the nullable getter/setter behavior probe
+in all six native lanes, including its denied external-access checks; the JVM
+getter/setter rows require reflection and source-metadata assertions.
 The local probes' bytes and the referenced upstream tests remain part of the
 row's test input hash, so edits invalidate prior evidence.
 
