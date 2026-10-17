@@ -15,9 +15,9 @@ extension CallTypeChecker {
         let ast = ctx.ast
         let sema = ctx.sema
         let interner = ctx.interner
-        // --- Residual scope functions: use, usePinned, useContents (STDLIB-004) --
-        // Must intercept BEFORE eager arg inference so the lambda argument
-        // is inferred with the correct expected type (it vs. receiver this).
+        // use, usePinned and useContents must intercept BEFORE eager arg
+        // inference so the lambda argument is inferred with the correct
+        // expected type (it vs. receiver this).
         // Skip interception when the receiver type defines a real member
         // with the same name (user-defined members take precedence).
         if args.count == 1 {
@@ -46,8 +46,6 @@ extension CallTypeChecker {
 
                 switch scopeKind {
                 case .scopeUse:
-                    // use: lambda receives `it` parameter typed as T, returns R.
-                    // Semantically equivalent to `let` but wraps in try-finally { close() }.
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [nonNullReceiverType],
                         returnType: expectedType ?? sema.types.nullableAnyType
@@ -149,8 +147,6 @@ extension CallTypeChecker {
                     return finalType
 
                 case .scopeUseContents:
-                    // useContents: the lambda has T as its receiver, where the call
-                    // receiver is CValue<T>. The block result becomes the call result.
                     guard let contentType = extractCValueCStructContentType(
                         nonNullReceiverType,
                         sema: sema,
@@ -189,11 +185,9 @@ extension CallTypeChecker {
             }
         }
 
-        // --- Result member functions (STDLIB-590) ---
-        // Result<T>.onSuccess/onFailure/getOrElse/getOrDefault/map/fold/recover
-        // These require special handling because the generic type parameter T
-        // needs to be extracted from the receiver's Result<T> type and used
-        // to construct the expected lambda parameter types.
+        // Result<T> members require special handling because the generic type
+        // parameter T needs to be extracted from the receiver's Result<T> type
+        // and used to construct the expected lambda parameter types.
         if args.count >= 1, args.count <= 2 {
             let calleeStr = interner.resolve(calleeName)
             let resultMemberNames: Set = [
@@ -207,7 +201,6 @@ extension CallTypeChecker {
 
                 switch calleeStr {
                 case "onSuccess" where args.count == 1:
-                    // onSuccess(action: (T) -> Unit): Result<T>
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [resultElementType],
                         returnType: sema.types.unitType
@@ -226,7 +219,6 @@ extension CallTypeChecker {
                     return finalType
 
                 case "onFailure" where args.count == 1:
-                    // onFailure(action: (Throwable) -> Unit): Result<T>
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [throwableType],
                         returnType: sema.types.unitType
@@ -245,7 +237,6 @@ extension CallTypeChecker {
                     return finalType
 
                 case "getOrElse" where args.count == 1:
-                    // getOrElse(onFailure: (Throwable) -> T): T
                     // A Result<Nothing> has no successful value to constrain T.
                     // Infer the fallback naturally in that case, matching the
                     // bottom-type behavior of Kotlin's generic getOrElse API.
@@ -299,7 +290,6 @@ extension CallTypeChecker {
                     return finalType
 
                 case "map" where args.count == 1:
-                    // map(transform: (T) -> R): Result<R>
                     // Note: only intercept for Result receiver, not for collections
                     // expectedType is Result<R>, so extract R for the lambda return type
                     let lambdaReturnType = expectedType.flatMap { extractResultElementType($0, sema: sema, interner: interner) } ?? sema.types.anyType
@@ -327,7 +317,6 @@ extension CallTypeChecker {
                     return finalType
 
                 case "recover" where args.count == 1:
-                    // recover(transform: (Throwable) -> R): Result<R>
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [throwableType],
                         returnType: expectedType.flatMap {
@@ -358,7 +347,6 @@ extension CallTypeChecker {
                     return finalType
 
                 case "fold" where args.count == 2:
-                    // fold(onSuccess: (T) -> R, onFailure: (Throwable) -> R): R
                     let onSuccessExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [resultElementType],
                         returnType: expectedType ?? sema.types.anyType
@@ -395,9 +383,6 @@ extension CallTypeChecker {
 
 
 
-        // --- STDLIB-IO-FN-016: File.forEachBlock ---
-        // forEachBlock(action: (ByteArray, Int) -> Unit)          -- 1 arg
-        // forEachBlock(blockSize: Int, action: (ByteArray, Int) -> Unit) -- 2 args
         do {
             let calleeStr = interner.resolve(calleeName)
             if calleeStr == "forEachBlock",
@@ -432,9 +417,9 @@ extension CallTypeChecker {
             }
         }
 
-        // --- File lambda-accepting methods: forEachLine, useLines (STDLIB-322) ---
-        // These require the lambda to use the collection HOF closure ABI (closureRaw
-        // prepended), and the lambda's implicit `it` must be correctly resolved.
+        // File.forEachLine/useLines require the lambda to use the collection HOF
+        // closure ABI (closureRaw prepended), and the lambda's implicit `it` must
+        // be correctly resolved.
         // STDLIB-IO-FN-040: also handles `BufferedReader.useLines { lines -> T }`
         // because the synthetic stub registers `useLines` on `java.io.BufferedReader`
         // with the same `(List<String>) -> Any` signature.
@@ -461,12 +446,10 @@ extension CallTypeChecker {
                 let lambdaReturnType: TypeID
                 let callReturnType: TypeID
                 if calleeStr == "forEachLine" {
-                    // forEachLine { line: String -> Unit }
                     lambdaParamType = sema.types.stringType
                     lambdaReturnType = sema.types.unitType
                     callReturnType = sema.types.unitType
                 } else {
-                    // useLines { lines: List<String> -> T }
                     let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first
                     lambdaParamType = if let listSym = listSymbol {
                         sema.types.make(.classType(ClassType(
@@ -494,7 +477,6 @@ extension CallTypeChecker {
                     args[0].expr, ctx: ctx, locals: &locals,
                     expectedType: lambdaExpectedType
                 )
-                // For useLines, extract the actual return type from the lambda
                 let finalReturnType: TypeID
                 if calleeStr == "useLines" {
                     let inferredReturnType: TypeID = if case let .functionType(fnType) = sema.types.kind(of: inferredLambdaType) {
