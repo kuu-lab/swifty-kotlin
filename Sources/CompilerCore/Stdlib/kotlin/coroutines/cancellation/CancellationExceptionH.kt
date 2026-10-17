@@ -12,8 +12,8 @@ import kotlin.IllegalStateException
 import kotlin.Throwable
 import kotlin.internal.KsSymbolName
 
-// KSP-1150: source owner for the complete CancellationException constructor surface.
-// Dedicated runtime bridges preserve cancellation identity for catch and cancellation checks.
+// KSP-1150: Dedicated runtime bridges preserve cancellation identity for catch and
+// cancellation checks.
 
 public open class CancellationException : IllegalStateException {
     @KsSymbolName("__kk_cancellation_exception_new")
