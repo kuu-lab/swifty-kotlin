@@ -1,10 +1,6 @@
 
 extension CollectionLiteralConstructionLoweringPass {
 
-    /// Result-tagging and closureRaw injection for Reader/BufferedReader
-    /// runtime calls that Sema has already rewritten to a `__kk_*` callee via
-    /// externalLinkName.
-    ///
     /// CLEANUP-STUB-107 removed the parallel `java.io.File` handling this
     /// function used to perform (File(path) construction, File member
     /// dispatch): File's own Sema facade no longer exists, so those branches
@@ -24,7 +20,6 @@ extension CollectionLiteralConstructionLoweringPass {
         state: inout CollectionRewriteState,
         loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
-        // --- Append closureRaw argument for lambda-accepting methods (STDLIB-322) ---
         // STDLIB-IO-FN-040: covers `__kk_buffered_reader_useLines`, the synthetic
         // stub for `kotlin.io.Reader.useLines` (resolved against `BufferedReader`).
         // STDLIB-IO-FN-017: covers `__kk_buffered_reader_forEachLine`, the synthetic
