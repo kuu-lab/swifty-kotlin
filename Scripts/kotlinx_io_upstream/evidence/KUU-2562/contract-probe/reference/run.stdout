@@ -1,0 +1,1 @@
+negative-start=IndexOutOfBoundsException;reversed-range=IllegalArgumentException;closed-sink=IllegalStateException;io-failure=IOException

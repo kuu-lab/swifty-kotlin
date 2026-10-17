@@ -1,0 +1,17 @@
+{
+  "status": "PASS",
+  "expected": "negative-start=IndexOutOfBoundsException;reversed-range=IllegalArgumentException;closed-sink=IllegalStateException;io-failure=IOException",
+  "actual": "negative-start=IndexOutOfBoundsException;reversed-range=IllegalArgumentException;closed-sink=IllegalStateException;io-failure=IOException",
+  "checks": [
+    "negative character start is rejected as IndexOutOfBoundsException",
+    "reversed character range is rejected as IllegalArgumentException",
+    "writing to a closed sink is rejected as IllegalStateException",
+    "underlying sink IOExceptions propagate from writeString"
+  ],
+  "probe_source_sha256": "4d1ba4780f3b4f4d37abb91d6649332d8989021ec3db41deb14fc6641b8ea869",
+  "expected_contract_sha256": "11af717d1848b0ba94f7c84b4aeec2899b42e0f4a028c2f267dc90d63f090dc4",
+  "reference_artifacts": {
+    "core": "765d8851d8ca694706931331b92386844800867e041b720f1f193dbda874d370",
+    "bytestring": "8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4"
+  }
+}

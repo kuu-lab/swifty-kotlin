@@ -1,0 +1,10 @@
+[
+  "/private/tmp/kuu-2562-jdk21/Contents/Home/bin/java",
+  "-Xmx1024m",
+  "-cp",
+  "/private/tmp/kuu-2562-01a1479c-jvm-reference/dependencies/kotlinx-io-core-jvm-0.9.1.jar:/private/tmp/kuu-2562-01a1479c-jvm-reference/dependencies/kotlinx-io-bytestring-jvm-0.9.1.jar:/private/tmp/kuu-2562-01a1479c-jvm-reference/dependencies/junit-platform-console-standalone-1.12.2.jar:/private/tmp/kuu-2562-reference-target-selected/upstream-jvm-tests.jar:/private/tmp/kuu-2562-01a1479c-jvm-reference/installation/kotlinc/lib/kotlin-stdlib.jar:/private/tmp/kuu-2562-01a1479c-jvm-reference/installation/kotlinc/lib/kotlin-reflect.jar:/private/tmp/kuu-2562-01a1479c-jvm-reference/installation/kotlinc/lib/kotlin-test.jar:/private/tmp/kuu-2562-01a1479c-jvm-reference/installation/kotlinc/lib/kotlin-test-junit5.jar",
+  "/Users/kuu/.codex/worktrees/7848/swifty-kotlin/Scripts/kotlinx_io_upstream/JvmReferenceRunner.java",
+  "/private/tmp/kuu-2562-reference-target-selected/upstream-jvm-tests.jar",
+  "/private/tmp/kuu-2562-reference-target-selected/junit",
+  "/private/tmp/kuu-2562-reference-target-selected/selected-execution-ids.txt"
+]

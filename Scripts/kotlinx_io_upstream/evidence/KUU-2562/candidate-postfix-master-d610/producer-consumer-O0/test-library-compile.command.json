@@ -1,0 +1,16 @@
+[
+  "/private/tmp/kuu-2562-master-d610/.build/out/Products/Debug/kswiftc",
+  "-O0",
+  "--no-stdlib",
+  "--stdlib-library",
+  "/private/tmp/kuu-2562-master-d610/run-artifacts/stdlib-build/KSwiftKStdlib.kklib",
+  "--emit",
+  "library",
+  "-m",
+  "KioJvmSinkTests",
+  "/private/tmp/kuu-2562-master-d610/run-artifacts/candidate-normalized-producer-consumer-O0/AbstractSinkTestJVM.kt",
+  "/private/tmp/kuu-2562-master-d610/run-artifacts/candidate-normalized-producer-consumer-O0/SinkFactory.kt",
+  "/private/tmp/kuu-2562-master-d610/Scripts/kotlinx_io_upstream/fixtures/jvm_sink_test_support.kt",
+  "-o",
+  "/private/tmp/kuu-2562-master-d610/run-artifacts/candidate-normalized-producer-consumer-O0/JvmSinkTests.kklib"
+]

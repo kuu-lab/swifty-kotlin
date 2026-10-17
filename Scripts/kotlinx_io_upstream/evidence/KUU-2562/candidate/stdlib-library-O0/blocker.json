@@ -1,0 +1,7 @@
+{
+  "issue": "KUU-2652",
+  "reason": "The candidate process panicked in Buffer.writableSegment before executing the selected suite.",
+  "lane_status": "FAIL",
+  "candidate_executions_completed": 0,
+  "candidate_executions_not_run": 20
+}

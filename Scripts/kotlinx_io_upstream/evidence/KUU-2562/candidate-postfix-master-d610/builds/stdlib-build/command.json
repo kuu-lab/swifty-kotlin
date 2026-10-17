@@ -1,0 +1,12 @@
+{
+  "environment": {
+    "KSWIFTK_PACKAGE_ROOT": "/private/tmp/kuu-2562-master-d610"
+  },
+  "argv": [
+    ".build/debug/kswiftc",
+    "--stdlib-only",
+    "--no-incremental",
+    "-o",
+    "/private/tmp/kuu-2562-master-d610/run-artifacts/stdlib-build/KSwiftKStdlib.kklib"
+  ]
+}

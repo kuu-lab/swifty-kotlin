@@ -13,6 +13,20 @@ SPEC.loader.exec_module(RUNNER)
 
 
 class JvmReferenceTests(unittest.TestCase):
+    def test_source_selection_expands_every_locked_factory_execution(self):
+        expected = [
+            {"execution_id": "buffer.test", "upstream_id": "Sink.kt#write"},
+            {"execution_id": "real.test", "upstream_id": "Sink.kt#write"},
+            {"execution_id": "buffer.other", "upstream_id": "Sink.kt#flush"},
+        ]
+        selected = RUNNER.select_executions(expected, ["Sink.kt#write"], [])
+        self.assertEqual([row["execution_id"] for row in selected], ["buffer.test", "real.test"])
+        self.assertEqual(RUNNER.select_executions(expected, [], ["real.test"]), [expected[1]])
+        with self.assertRaisesRegex(ValueError, "absent"):
+            RUNNER.select_executions(expected, ["Sink.kt#close"], [])
+        with self.assertRaisesRegex(ValueError, "duplicates"):
+            RUNNER.select_executions(expected, [], ["real.test", "real.test"])
+
     def test_inherited_factory_executions_remain_distinct_and_candidate_unmapped(self):
         source = {"upstream_id": "core/common/test/Source.kt#read",
             "upstream_path": "core/common/test/Source.kt", "platform": "common",

@@ -1,0 +1,18 @@
+[
+  "/private/tmp/kuu-2562-01a1479c-jvm-reference/installation/kotlinc/bin/kotlinc",
+  "/private/tmp/kuu-2562-01a1479c-jvm-reference/upstream/core/common/test/SinkFactory.kt",
+  "/private/tmp/kuu-2562-01a1479c-jvm-reference/upstream/core/common/test/util.kt",
+  "/private/tmp/kuu-2562-01a1479c-jvm-reference/upstream/core/jvm/test/utilJVM.kt",
+  "/private/tmp/kuu-2562-01a1479c-jvm-reference/upstream/core/jvm/test/AbstractSinkTestJVM.kt",
+  "-classpath",
+  "/private/tmp/kuu-2562-01a1479c-jvm-reference/dependencies/kotlinx-io-core-jvm-0.9.1.jar:/private/tmp/kuu-2562-01a1479c-jvm-reference/dependencies/kotlinx-io-bytestring-jvm-0.9.1.jar:/private/tmp/kuu-2562-01a1479c-jvm-reference/dependencies/junit-platform-console-standalone-1.12.2.jar:/private/tmp/kuu-2562-01a1479c-jvm-reference/installation/kotlinc/lib/kotlin-test.jar:/private/tmp/kuu-2562-01a1479c-jvm-reference/installation/kotlinc/lib/kotlin-test-junit5.jar",
+  "-Xmulti-platform",
+  "-Xexpect-actual-classes",
+  "-Xcommon-sources=/private/tmp/kuu-2562-01a1479c-jvm-reference/upstream/core/common/test/SinkFactory.kt,/private/tmp/kuu-2562-01a1479c-jvm-reference/upstream/core/common/test/util.kt",
+  "-Xfriend-paths=/private/tmp/kuu-2562-01a1479c-jvm-reference/dependencies/kotlinx-io-core-jvm-0.9.1.jar,/private/tmp/kuu-2562-01a1479c-jvm-reference/dependencies/kotlinx-io-bytestring-jvm-0.9.1.jar",
+  "-opt-in=kotlinx.io.InternalIoApi",
+  "-opt-in=kotlin.ExperimentalStdlibApi",
+  "-XXLanguage:+UnnamedLocalVariables",
+  "-d",
+  "/private/tmp/kuu-2562-reference-target-selected/upstream-jvm-tests.jar"
+]

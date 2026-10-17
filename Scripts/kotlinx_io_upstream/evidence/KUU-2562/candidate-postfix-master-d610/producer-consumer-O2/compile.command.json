@@ -1,0 +1,13 @@
+[
+  "/private/tmp/kuu-2562-master-d610/.build/out/Products/Debug/kswiftc",
+  "-O2",
+  "--no-stdlib",
+  "--stdlib-library",
+  "/private/tmp/kuu-2562-master-d610/run-artifacts/stdlib-build/KSwiftKStdlib.kklib",
+  "-I",
+  "/private/tmp/kuu-2562-master-d610/run-artifacts/candidate-normalized-producer-consumer-O2/JvmSinkTests.kklib",
+  "/private/tmp/kuu-2562-master-d610/run-artifacts/candidate-normalized-producer-consumer-O2/SinkContractProbe.kt",
+  "/private/tmp/kuu-2562-master-d610/run-artifacts/candidate-normalized-producer-consumer-O2/CandidateDriver.kt",
+  "-o",
+  "/private/tmp/kuu-2562-master-d610/run-artifacts/candidate-normalized-producer-consumer-O2/candidate"
+]

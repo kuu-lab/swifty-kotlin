@@ -1,0 +1,42 @@
+{
+  "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+  "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+  "blocking_issue": "KUU-2652",
+  "lanes": {
+    "source-O0": {
+      "status": "FAIL",
+      "compile_exitcode": 0,
+      "run_exitcode": -5,
+      "candidate_executions": 0,
+      "not_run": 20
+    },
+    "source-O2": {
+      "status": "FAIL",
+      "compile_exitcode": 0,
+      "run_exitcode": -5,
+      "candidate_executions": 0,
+      "not_run": 20
+    },
+    "stdlib-library-O0": {
+      "status": "FAIL",
+      "compile_exitcode": 0,
+      "run_exitcode": -5,
+      "candidate_executions": 0,
+      "not_run": 20
+    },
+    "stdlib-library-O2": {
+      "status": "NOT_RUN",
+      "reason": "stopped after the known blocking panic; summary retained"
+    },
+    "producer-consumer-O0": {
+      "status": "NOT_RUN",
+      "reason": "not started after the known blocking panic"
+    },
+    "producer-consumer-O2": {
+      "status": "NOT_RUN",
+      "reason": "not started after the known blocking panic"
+    }
+  },
+  "candidate_execution_catalog_count": 20,
+  "verified_coverage_map_written": false
+}

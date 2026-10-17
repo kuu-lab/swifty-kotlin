@@ -1,0 +1,10 @@
+[
+  "/private/tmp/kuu-2562-01a1479c-jvm-reference/installation/kotlinc/bin/kotlinc",
+  "-classpath",
+  "/private/tmp/kuu-2562-01a1479c-jvm-reference/dependencies/kotlinx-io-core-jvm-0.9.1.jar:/private/tmp/kuu-2562-01a1479c-jvm-reference/dependencies/kotlinx-io-bytestring-jvm-0.9.1.jar",
+  "/private/tmp/kuu-2562-probe-reference-simple/jvm_sink_contract_probe.kt",
+  "/private/tmp/kuu-2562-probe-reference-simple/JvmSinkContractProbeMain.kt",
+  "-include-runtime",
+  "-d",
+  "/private/tmp/kuu-2562-probe-reference-simple/probe.jar"
+]

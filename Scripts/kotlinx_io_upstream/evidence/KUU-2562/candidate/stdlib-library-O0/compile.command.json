@@ -1,0 +1,14 @@
+[
+  "/private/tmp/kuu-2562-candidate-fd01/.build/out/Products/Debug/kswiftc",
+  "-O0",
+  "--no-stdlib",
+  "--stdlib-library",
+  "/private/tmp/kuu-2562-fd01-stdlib.kklib",
+  "/private/tmp/kuu-2562-candidate-escalated-stdlib-library-O0/AbstractSinkTestJVM.kt",
+  "/private/tmp/kuu-2562-candidate-escalated-stdlib-library-O0/SinkFactory.kt",
+  "/Users/kuu/.codex/worktrees/7848/swifty-kotlin/Scripts/kotlinx_io_upstream/fixtures/jvm_sink_test_support.kt",
+  "/private/tmp/kuu-2562-candidate-escalated-stdlib-library-O0/SinkContractProbe.kt",
+  "/private/tmp/kuu-2562-candidate-escalated-stdlib-library-O0/CandidateDriver.kt",
+  "-o",
+  "/private/tmp/kuu-2562-candidate-escalated-stdlib-library-O0/candidate"
+]

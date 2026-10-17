@@ -1,0 +1,40 @@
+/private/tmp/kuu-2562-master-d610/Sources/Runtime/RuntimeAppleFoundationBindings.swift:353:16: warning: capture of 'loop' with non-Sendable type 'RunLoop?' in a '@Sendable' closure [#SendableClosureCaptures]
+351 |     loop.perform(inModes: names.map { .init(rawValue: $0) }) { [weak loop] in
+352 |         ticket.invoke()
+353 |         if let loop { RuntimeFoundationRunLoopTickets.shared.finish(ticket, loop: loop) }
+    |                `- warning: capture of 'loop' with non-Sendable type 'RunLoop?' in a '@Sendable' closure [#SendableClosureCaptures]
+354 |     }
+355 |     return 0
+
+Swift.Optional:1:21: note: generic enum 'Optional' does not conform to the 'Sendable' protocol
+1 | @frozen public enum Optional<Wrapped> : ~Copyable, ~Escapable where Wrapped : ~Copyable, Wrapped : ~Escapable {
+  |                     `- note: generic enum 'Optional' does not conform to the 'Sendable' protocol
+2 |     case none
+3 |     case some(Wrapped)
+
+[#SendableClosureCaptures]: <https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures>
+/private/tmp/kuu-2562-master-d610/Sources/CompilerCore/Lowering/ConsolePrintLoweringPass.swift:50:67: warning: immutable value 'canThrow' was never used; consider replacing with '_' or removing it [#NoUsage]
+ 48 |                     : nil
+ 49 |                 switch instruction {
+ 50 |                 case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _):
+    |                                                                   `- warning: immutable value 'canThrow' was never used; consider replacing with '_' or removing it [#NoUsage]
+ 51 |                     if let printKind = Self.consolePrintKind(
+ 52 |                         symbol: symbol,
+
+/private/tmp/kuu-2562-master-d610/Sources/CompilerCore/Lowering/ConsolePrintLoweringPass.swift:50:77: warning: immutable value 'thrownResult' was never used; consider replacing with '_' or removing it [#NoUsage]
+ 48 |                     : nil
+ 49 |                 switch instruction {
+ 50 |                 case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _):
+    |                                                                             `- warning: immutable value 'thrownResult' was never used; consider replacing with '_' or removing it [#NoUsage]
+ 51 |                     if let printKind = Self.consolePrintKind(
+ 52 |                         symbol: symbol,
+
+/private/tmp/kuu-2562-master-d610/Sources/CompilerCore/Lowering/ConsolePrintLoweringPass.swift:50:91: warning: immutable value 'isSuperCall' was never used; consider replacing with '_' or removing it [#NoUsage]
+ 48 |                     : nil
+ 49 |                 switch instruction {
+ 50 |                 case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _):
+    |                                                                                           `- warning: immutable value 'isSuperCall' was never used; consider replacing with '_' or removing it [#NoUsage]
+ 51 |                     if let printKind = Self.consolePrintKind(
+ 52 |                         symbol: symbol,
+
+[#NoUsage]: <https://docs.swift.org/compiler/documentation/diagnostics/no-usage>

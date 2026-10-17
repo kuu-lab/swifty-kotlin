@@ -1,0 +1,7 @@
+{
+  "issue": "KUU-2652",
+  "reason": "The exact pinned candidate SHA panics while the first outputStream test writes the first byte into an empty Buffer; LLDB shows the stack in Buffer.writableSegment.",
+  "lane_status": "FAIL",
+  "candidate_executions_completed": 0,
+  "candidate_executions_not_run": 20
+}

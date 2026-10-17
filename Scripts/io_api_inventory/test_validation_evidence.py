@@ -86,6 +86,62 @@ class ValidationEvidenceTests(unittest.TestCase):
             "executions": executions,
         }
 
+    def test_jvm_only_interop_rows_use_exact_upstream_functions_and_six_lanes(self):
+        generator = self.generator
+        cases = {
+            "jvm-2963caac68a96f39": [
+                "outputStream", "outputStreamBounds", "writeToClosedOutputStream", "outputStreamClosesSink",
+            ],
+            "jvm-8592e640ea83a724": [
+                "writeNioBuffer", "writeLargeNioBufferWritesAllData", "writeNioBufferToClosedSink",
+            ],
+            "jvm-dda61f0299dd8305": [
+                "writeStringWithCharset", "writeSubstringWithCharset", "writeUtf8SubstringWithCharset",
+            ],
+        }
+        index = {"files": [{
+            "path": "core/jvm/test/AbstractSinkTestJVM.kt",
+            "testNames": [name for names in cases.values() for name in names],
+        }]}
+        for row_id, names in cases.items():
+            with self.subTest(row_id=row_id):
+                row = {"row_id": row_id, "representation": "JVM public ABI dump"}
+                self.assertEqual(generator.validation_obligations(row), ["native-jvm-interop"])
+                self.assertEqual(generator.required_execution_lanes(generator.validation_obligations(row)), [
+                    "source-O0", "source-O2", "stdlib-library-O0", "stdlib-library-O2",
+                    "producer-consumer-O0", "producer-consumer-O2",
+                ])
+                self.assertEqual(generator.upstream_test_refs(row, index), [
+                    f"core/jvm/test/AbstractSinkTestJVM.kt#{name}" for name in names
+                ])
+                self.assertEqual(generator.local_test_refs(row, []), list(
+                    generator.JVM_NATIVE_INTEROP_LOCAL_TEST_REFS
+                ))
+
+    def test_candidate_jvm_catalog_ids_are_loaded_for_api_evidence(self):
+        catalogs = self.generator._load_validation_execution_catalogs()
+        self.assertIn("reference", catalogs)
+        self.assertIn("candidate", catalogs)
+        self.assertTrue(any(identifier.startswith("[engine:kswiftk-macos-native]/")
+                            for identifier in catalogs["candidate"]))
+
+    def test_jvm_native_interop_evidence_requires_all_six_candidate_lanes(self):
+        row = copy.deepcopy(self.row)
+        row["row_id"] = "jvm-8592e640ea83a724"
+        record = self._record(row)
+        record["candidate_sha"] = self.generator.JVM_NATIVE_INTEROP_CANDIDATE_SHA
+        self.assertEqual(len(record["executions"]), 6)
+        self.assertEqual(self._apply([record], row)["status"], "verified")
+        record["executions"].pop()
+        with self.assertRaisesRegex(SystemExit, "missing validation lanes"):
+            self._apply([record], row)
+
+    def test_jvm_native_interop_evidence_rejects_a_different_candidate_sha(self):
+        row = copy.deepcopy(self.row)
+        row["row_id"] = "jvm-8592e640ea83a724"
+        with self.assertRaisesRegex(SystemExit, "candidate SHA mismatch"):
+            self._apply([self._record(row)], row)
+
     def _execution_catalogs(self):
         case_id = "core/common/test/FooTest.kt#testFoo"
         other_case_id = "core/common/test/BarTest.kt#testBar"
