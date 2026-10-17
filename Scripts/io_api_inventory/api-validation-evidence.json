@@ -2,11 +2,123 @@
   "schema_version": 1,
   "records": [
     {
-      "row_id": "internal-659f2b30aca378db",
-      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "row_id": "internal-17908c26346d6e53",
+      "candidate_sha": "6f2c7f9f73ac39dba0c283520810a9f2636e2ff3",
       "reference_version": "0.9.1",
       "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
-      "implementation_input_sha256": "e59a228d2d9af85d7c46aa101d43ce63e43d4adcc955ad3ca359982a2b6df54e",
+      "implementation_input_sha256": "ef36e02e3205851d79623fae20ee0287d2dca81cbc2fed0b5955f01955ac67c4",
+      "test_input_sha256": "0fc20fcc3715a717cf971c20badff562a5a967b104264d1aa972987a31788f12",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "executions": [
+        {
+          "case_id": "Scripts/io_api_inventory/probes/segment_write_back_data/Producer.kt#segmentWriteBackDataProbe",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "io-probe:segment-write-back-data:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-write-back-data:candidate:source-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/segment_write_back_data/Producer.kt#segmentWriteBackDataProbe",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "io-probe:segment-write-back-data:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-write-back-data:candidate:source-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/segment_write_back_data/Producer.kt#segmentWriteBackDataProbe",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "io-probe:segment-write-back-data:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-write-back-data:candidate:stdlib-library-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/segment_write_back_data/Producer.kt#segmentWriteBackDataProbe",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "io-probe:segment-write-back-data:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-write-back-data:candidate:stdlib-library-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/segment_write_back_data/Producer.kt#segmentWriteBackDataProbe",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "io-probe:segment-write-back-data:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-write-back-data:candidate:producer-consumer-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/segment_write_back_data/Producer.kt#segmentWriteBackDataProbe",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "io-probe:segment-write-back-data:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-write-back-data:candidate:producer-consumer-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/segment_write_back_data/NegativeConsumer.kt#segmentWriteBackDataMustRemainInternal",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "io-probe:segment-write-back-data:visibility:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-write-back-data:visibility:candidate",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    {
+      "row_id": "internal-659f2b30aca378db",
+      "candidate_sha": "6f2c7f9f73ac39dba0c283520810a9f2636e2ff3",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "ef36e02e3205851d79623fae20ee0287d2dca81cbc2fed0b5955f01955ac67c4",
       "test_input_sha256": "97d61bc9210862772824fa2569c5f2be4bab8eacffd169e6668c2d6d38f908a3",
       "compatibility_obligations": [
         "native-source",
@@ -96,16 +208,30 @@
             "result": "PASS",
             "exit_code": 0
           }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/segment_is_empty/NegativeConsumer.kt#segmentIsEmptyMustRemainInternal",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "io-probe:segment-is-empty:visibility:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-is-empty:visibility:candidate",
+            "result": "PASS",
+            "exit_code": 0
+          }
         }
       ]
     },
     {
       "row_id": "jvm-11b8ac13bf35acdc",
-      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "candidate_sha": "6f2c7f9f73ac39dba0c283520810a9f2636e2ff3",
       "reference_version": "0.9.1",
       "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
-      "implementation_input_sha256": "e59a228d2d9af85d7c46aa101d43ce63e43d4adcc955ad3ca359982a2b6df54e",
-      "test_input_sha256": "4d54243c18b5ae56dcfba91c35c0e8afdabddc6eb6326fbd6de998208fb34192",
+      "implementation_input_sha256": "ef36e02e3205851d79623fae20ee0287d2dca81cbc2fed0b5955f01955ac67c4",
+      "test_input_sha256": "d90824af3a1c71ec17c46744a8beab2a746bee6552130f61b25742cecde66baa",
       "compatibility_obligations": [
         "jvm-descriptor"
       ],
@@ -127,11 +253,150 @@
       ]
     },
     {
-      "row_id": "klib-fd49c613d2925d70",
-      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "row_id": "jvm-7f25e02165e30b43",
+      "candidate_sha": "6f2c7f9f73ac39dba0c283520810a9f2636e2ff3",
       "reference_version": "0.9.1",
       "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
-      "implementation_input_sha256": "e59a228d2d9af85d7c46aa101d43ce63e43d4adcc955ad3ca359982a2b6df54e",
+      "implementation_input_sha256": "ef36e02e3205851d79623fae20ee0287d2dca81cbc2fed0b5955f01955ac67c4",
+      "test_input_sha256": "62658020bbdee80fe8e64a86416393a2ffed9b7b71aa44c317c37bdaf062929d",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "Scripts/io_api_inventory/run_f02_matrix.py#check_segment_write_back_data_jvm_descriptor",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "io-probe:segment-write-back-data:jvm-descriptor:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-write-back-data:jvm-descriptor:candidate",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    {
+      "row_id": "klib-d5ac857d4e96b1ad",
+      "candidate_sha": "6f2c7f9f73ac39dba0c283520810a9f2636e2ff3",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "ef36e02e3205851d79623fae20ee0287d2dca81cbc2fed0b5955f01955ac67c4",
+      "test_input_sha256": "0fc20fcc3715a717cf971c20badff562a5a967b104264d1aa972987a31788f12",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "executions": [
+        {
+          "case_id": "Scripts/io_api_inventory/probes/segment_write_back_data/Producer.kt#segmentWriteBackDataProbe",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "io-probe:segment-write-back-data:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-write-back-data:candidate:source-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/segment_write_back_data/Producer.kt#segmentWriteBackDataProbe",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "io-probe:segment-write-back-data:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-write-back-data:candidate:source-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/segment_write_back_data/Producer.kt#segmentWriteBackDataProbe",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "io-probe:segment-write-back-data:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-write-back-data:candidate:stdlib-library-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/segment_write_back_data/Producer.kt#segmentWriteBackDataProbe",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "io-probe:segment-write-back-data:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-write-back-data:candidate:stdlib-library-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/segment_write_back_data/Producer.kt#segmentWriteBackDataProbe",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "io-probe:segment-write-back-data:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-write-back-data:candidate:producer-consumer-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/segment_write_back_data/Producer.kt#segmentWriteBackDataProbe",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "io-probe:segment-write-back-data:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-write-back-data:candidate:producer-consumer-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/segment_write_back_data/NegativeConsumer.kt#segmentWriteBackDataMustRemainInternal",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "io-probe:segment-write-back-data:visibility:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-write-back-data:visibility:candidate",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    {
+      "row_id": "klib-fd49c613d2925d70",
+      "candidate_sha": "6f2c7f9f73ac39dba0c283520810a9f2636e2ff3",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "ef36e02e3205851d79623fae20ee0287d2dca81cbc2fed0b5955f01955ac67c4",
       "test_input_sha256": "97d61bc9210862772824fa2569c5f2be4bab8eacffd169e6668c2d6d38f908a3",
       "compatibility_obligations": [
         "native-source",
@@ -218,6 +483,20 @@
           },
           "candidate": {
             "execution_id": "io-probe:segment-is-empty:candidate:producer-consumer-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/segment_is_empty/NegativeConsumer.kt#segmentIsEmptyMustRemainInternal",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "io-probe:segment-is-empty:visibility:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-is-empty:visibility:candidate",
             "result": "PASS",
             "exit_code": 0
           }

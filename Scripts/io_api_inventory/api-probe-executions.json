@@ -55,6 +55,61 @@
       "subject": "candidate",
       "execution_id": "io-probe:segment-is-empty:jvm-descriptor:candidate",
       "case_id": "Scripts/io_api_inventory/run_f02_matrix.py#check_segment_is_empty_jvm_descriptor"
+    },
+    {
+      "subject": "reference",
+      "execution_id": "io-probe:segment-write-back-data:reference",
+      "case_id": "Scripts/io_api_inventory/probes/segment_write_back_data/Producer.kt#segmentWriteBackDataProbe"
+    },
+    {
+      "subject": "candidate",
+      "execution_id": "io-probe:segment-write-back-data:candidate:source-O0",
+      "case_id": "Scripts/io_api_inventory/probes/segment_write_back_data/Producer.kt#segmentWriteBackDataProbe"
+    },
+    {
+      "subject": "candidate",
+      "execution_id": "io-probe:segment-write-back-data:candidate:source-O2",
+      "case_id": "Scripts/io_api_inventory/probes/segment_write_back_data/Producer.kt#segmentWriteBackDataProbe"
+    },
+    {
+      "subject": "candidate",
+      "execution_id": "io-probe:segment-write-back-data:candidate:stdlib-library-O0",
+      "case_id": "Scripts/io_api_inventory/probes/segment_write_back_data/Producer.kt#segmentWriteBackDataProbe"
+    },
+    {
+      "subject": "candidate",
+      "execution_id": "io-probe:segment-write-back-data:candidate:stdlib-library-O2",
+      "case_id": "Scripts/io_api_inventory/probes/segment_write_back_data/Producer.kt#segmentWriteBackDataProbe"
+    },
+    {
+      "subject": "candidate",
+      "execution_id": "io-probe:segment-write-back-data:candidate:producer-consumer-O0",
+      "case_id": "Scripts/io_api_inventory/probes/segment_write_back_data/Producer.kt#segmentWriteBackDataProbe"
+    },
+    {
+      "subject": "candidate",
+      "execution_id": "io-probe:segment-write-back-data:candidate:producer-consumer-O2",
+      "case_id": "Scripts/io_api_inventory/probes/segment_write_back_data/Producer.kt#segmentWriteBackDataProbe"
+    },
+    {
+      "subject": "reference",
+      "execution_id": "io-probe:segment-write-back-data:visibility:reference",
+      "case_id": "Scripts/io_api_inventory/probes/segment_write_back_data/NegativeConsumer.kt#segmentWriteBackDataMustRemainInternal"
+    },
+    {
+      "subject": "candidate",
+      "execution_id": "io-probe:segment-write-back-data:visibility:candidate",
+      "case_id": "Scripts/io_api_inventory/probes/segment_write_back_data/NegativeConsumer.kt#segmentWriteBackDataMustRemainInternal"
+    },
+    {
+      "subject": "reference",
+      "execution_id": "io-probe:segment-write-back-data:jvm-descriptor:reference",
+      "case_id": "Scripts/io_api_inventory/run_f02_matrix.py#check_segment_write_back_data_jvm_descriptor"
+    },
+    {
+      "subject": "candidate",
+      "execution_id": "io-probe:segment-write-back-data:jvm-descriptor:candidate",
+      "case_id": "Scripts/io_api_inventory/run_f02_matrix.py#check_segment_write_back_data_jvm_descriptor"
     }
   ]
 }
