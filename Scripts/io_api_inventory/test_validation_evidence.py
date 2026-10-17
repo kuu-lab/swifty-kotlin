@@ -135,6 +135,7 @@ class ValidationEvidenceTests(unittest.TestCase):
             case_id for case_id, spec in self.generator.LOCAL_PROBE_EVIDENCE_CASES.items()
             if row["row_id"] in spec["row_ids"]
             and spec["path"] in row["local_test_refs"].split(";")
+            and spec.get("required_paths", set()).issubset(set(row["local_test_refs"].split(";")))
         ]
         for case_id in cases:
             spec = self.generator.LOCAL_PROBE_EVIDENCE_CASES[case_id]
@@ -271,6 +272,40 @@ class ValidationEvidenceTests(unittest.TestCase):
         record = self._record(row)
         self.assertEqual(record["compatibility_obligations"], ["jvm-descriptor"])
         self.assertEqual(self._apply([record], row)["status"], "verified")
+
+    def _filesystem_shape_row(self):
+        case_id = "local:Scripts/io_api_inventory/f04_filesystem_shape/Producer.kt#declaration-shape"
+        spec = self.generator.LOCAL_PROBE_EVIDENCE_CASES[case_id]
+        row = copy.deepcopy(self.row)
+        row.update(row_id="klib-539fc5d95ef77842", local_test_refs=";".join(sorted(spec["required_paths"])))
+        for path in spec["required_paths"]:
+            self._write(path, "package f04probe\nfun filesystemShapeProbe() = check(true)\n")
+        return row, case_id
+
+    def test_filesystem_shape_local_probe_requires_all_files_and_only_the_klib_row(self):
+        row, case_id = self._filesystem_shape_row()
+        self.assertIsNotNone(self.generator._local_probe_case_spec(row, case_id))
+        self.assertIsNone(self.generator._local_probe_case_spec(
+            {**row, "row_id": "jvm-a6e20178732ee016"}, case_id
+        ))
+        incomplete = {**row, "local_test_refs": "Scripts/diff_cases/kotlinx_io_filesystem_shape.kt"}
+        self.assertIsNone(self.generator._local_probe_case_spec(incomplete, case_id))
+
+    def test_filesystem_shape_local_probe_evidence_promotes_only_the_klib_row(self):
+        row, _ = self._filesystem_shape_row()
+        record = self._local_probe_record(row)
+        self.assertEqual(len(record["executions"]), 6)
+        self.assertEqual(self._apply([record], row, schema_version=2)["status"], "verified")
+
+    def test_filesystem_shape_evidence_rejects_missing_probe_paths(self):
+        row, _ = self._filesystem_shape_row()
+        record = self._local_probe_record(row)
+        row["local_test_refs"] = "Scripts/diff_cases/kotlinx_io_filesystem_shape.kt"
+        record["test_input_sha256"] = self.generator.validation_input_hashes(
+            row, self.repository, self.upstream
+        )["test_input_sha256"]
+        with self.assertRaisesRegex(SystemExit, "not registered for row"):
+            self._apply([record], row, schema_version=2)
 
     def test_unknown_duplicate_and_malformed_evidence_is_rejected(self):
         valid = self._record()

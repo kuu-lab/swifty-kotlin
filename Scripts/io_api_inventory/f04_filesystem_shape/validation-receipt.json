@@ -1,0 +1,311 @@
+{
+  "schema_version": 1,
+  "issue": "KUU-2642",
+  "candidate": {
+    "commit_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+    "compiler_configuration": "release",
+    "compiler_sha256": "72b1ac21a6524d1463ce6cbc9111ccada1b81e4894008be0e520771855de76cf",
+    "native_target": "macOS arm64"
+  },
+  "reference": {
+    "kotlinx_io_version": "0.9.1",
+    "kotlin_version": "2.3.10",
+    "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+    "java_version": "openjdk version \"21.0.9\" 2025-10-21",
+    "kotlin_compiler_version_output": "info: kotlinc-jvm 2.3.10 (JRE 21.0.9+-14649483-b1163.86)",
+    "artifact_sha256": {
+      "kotlinx-io-core-jvm-0.9.1.jar": "765d8851d8ca694706931331b92386844800867e041b720f1f193dbda874d370",
+      "kotlinx-io-bytestring-jvm-0.9.1.jar": "8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4",
+      "java": "5584927aac2ef240f02087c5a9c9875eb1db0ba2834b805752578d235d89036b",
+      "kotlinc": "90750c977cc043dd2b05c69dd4e052c10377554925dd5a155e74ef732be28c7d",
+      "kotlin-compiler.jar": "205abc86c6b0a40bc1a318bb24a062c7eb9a99abb023ee276bf925e3732511c8",
+      "javac": "8d8bf2047878e876e4ca614831b384c222ab0069d50c164edefa9761f4241d24"
+    }
+  },
+  "fixed_upstream_inputs_sha256": {
+    "core/api/kotlinx-io-core.api": "8b48641fa461021fd2e1fd632baaf3eceeb94cbbdf3813e13aab3b02863a8df3",
+    "core/api/kotlinx-io-core.klib.api": "667b85c08144ad34edf289c593a55f39b5862623726a8bb23e4f0b7b3b4e2780",
+    "core/common/src/files/FileSystem.kt": "58189c40b6bc32e4dff95bb088a6854d8179b632245dd4407e6ffb9ff079d1bd"
+  },
+  "candidate_declaration_inputs_sha256": {
+    "Sources/CompilerCore/Stdlib/kotlinx/io/files/FileSystem.kt": "be1b7fc6531152c8ed599885c78140840adbb24d9ec97dbc35b32895cfb816e6",
+    "bundled-resource/Stdlib/kotlinx/io/files/FileSystem.kt": "be1b7fc6531152c8ed599885c78140840adbb24d9ec97dbc35b32895cfb816e6"
+  },
+  "probe_files_sha256": {
+    "Scripts/diff_cases/kotlinx_io_filesystem_shape.kt": "dba9d3a86aee8df06955244984a85a8826a409e7077b23343b066d8564bc1163",
+    "Scripts/io_api_inventory/f04_filesystem_shape/Consumer.kt": "7d93e698f384ec71562edf9e0a62491da980d4dea4fe313833962e141b3b2cf0",
+    "Scripts/io_api_inventory/f04_filesystem_shape/ExternalImplementation.kt": "b2bfd370229438ff93997799c89dae23126a15166fc4acbebe98c46db704bbd3",
+    "Scripts/io_api_inventory/f04_filesystem_shape/FileSystemJvmShapeProbe.java": "13b64031c621b4d8c6703754ec923e780d8097393388ccb7d573df07043fdb3d",
+    "Scripts/io_api_inventory/f04_filesystem_shape/Producer.kt": "d1f371b5471519ac52c39b9737e28edfecb20e2f432313d9e54ee3790658b8ec"
+  },
+  "fresh_native_stdlib_klib": {
+    "origin": "kswiftc --stdlib-only --no-incremental in a fresh process from the pinned candidate release binary",
+    "candidate_compiler_sha256": "72b1ac21a6524d1463ce6cbc9111ccada1b81e4894008be0e520771855de76cf",
+    "stage_status": "EXITED",
+    "stage_exit_code": 0,
+    "generation_seconds": 91.50330770900473,
+    "artifact_path": "/private/tmp/kuu2642-filesystem-shape-run-release/KSwiftKStdlib.kklib",
+    "file_count": 1850,
+    "tree_sha256": "e496106039a7ec434287b64fcf57495dbd3dda64c0e93ed55a142cb730d55890",
+    "metadata_sha256": "5296e1e4f35735fe956a9389c3a299e88e088f61a39b90ea826dc8d559e8a0a7",
+    "filesystem_metadata": {
+      "fq_name": "kotlinx.io.files.FileSystem",
+      "kind_id": 2,
+      "kind": "interface",
+      "sealed_flag": true,
+      "vtable_size": 9,
+      "member_records": [
+        "v2:kotlinx.io.files.FileSystem.exists#1#0#F1<RLkotlinx.io.files.FileSystem;,Lkotlinx.io.files.Path;,Z>@0",
+        "kotlinx.io.files.FileSystem.delete#2#0#F2<RLkotlinx.io.files.FileSystem;,Lkotlinx.io.files.Path;,Z,U>@1",
+        "kotlinx.io.files.FileSystem.createDirectories#2#0#F2<RLkotlinx.io.files.FileSystem;,Lkotlinx.io.files.Path;,Z,U>@2",
+        "kotlinx.io.files.FileSystem.atomicMove#2#0#F2<RLkotlinx.io.files.FileSystem;,Lkotlinx.io.files.Path;,Lkotlinx.io.files.Path;,U>@3",
+        "kotlinx.io.files.FileSystem.source#1#0#F1<RLkotlinx.io.files.FileSystem;,Lkotlinx.io.files.Path;,Lkotlinx.io.RawSource;>@4",
+        "kotlinx.io.files.FileSystem.sink#2#0#F2<RLkotlinx.io.files.FileSystem;,Lkotlinx.io.files.Path;,Z,Lkotlinx.io.RawSink;>@5",
+        "kotlinx.io.files.FileSystem.metadataOrNull#1#0#F1<RLkotlinx.io.files.FileSystem;,Lkotlinx.io.files.Path;,Q<Lkotlinx.io.files.FileMetadata;>>@6",
+        "kotlinx.io.files.FileSystem.resolve#1#0#F1<RLkotlinx.io.files.FileSystem;,Lkotlinx.io.files.Path;,Lkotlinx.io.files.Path;>@7",
+        "kotlinx.io.files.FileSystem.list#1#0#F1<RLkotlinx.io.files.FileSystem;,Lkotlinx.io.files.Path;,Lkotlin.collections.Collection<Lkotlinx.io.files.Path;>;>@8"
+      ],
+      "sealed_subclasses": "kotlinx.io.files.NativeSystemFileSystem",
+      "record_prefix_sha256": "6f5e67cdd2b3d5c3be7414c1570d853e1e24270fefc0e8f4c197b724db596f49"
+    }
+  },
+  "runtime_objects_used_for_link": {
+    "source": "completed release build for the same pinned candidate checkout",
+    "configuration": "release / arm64-apple-macosx",
+    "runtime_object_count": 150,
+    "runtime_abi_object_count": 74,
+    "manifest_sha256": "dca5e607821925739c71a50d82cf5240a219dc7b527d6f1410b8d4541eeddec3",
+    "object_set_sha256": "e2fe41341366da8e4abc50c6c054ea76358c05057eae43ca7427f69caaa58052"
+  },
+  "reference_probes": {
+    "positive_exported_consumer": {
+      "case_id": "io-gate:KUU-2642:FileSystemDeclarationShape",
+      "status": "PASS",
+      "reference_version": "2.3.10",
+      "compile_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compile_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256": "e83f0bee6d828d79827cf2ef4d31d09077062a0af50315c4fa42a498995cd2c7",
+      "normalized_stdout_sha256": "e83f0bee6d828d79827cf2ef4d31d09077062a0af50315c4fa42a498995cd2c7",
+      "stdout": "FileSystem exported consumer: ok"
+    },
+    "external_sealed_implementation": {
+      "status": "PASS",
+      "expected": "sealed-interface diagnostic",
+      "exit_code": 1,
+      "stderr_sha256": "7dee8d6540090082f97ce9149e583904d4b03448006592ccb1b118b5ead2493c",
+      "diagnostic_excerpt": "/private/tmp/kuu2642-candidate/Scripts/io_api_inventory/f04_filesystem_shape/ExternalImplementation.kt:5:28: error: extending sealed classes or interfaces from a different module is prohibited."
+    },
+    "jvm_descriptor_probe": {
+      "status": "PASS",
+      "stdout_sha256": "cce504a93beedc13a91bd422dcd81a8bf20aa4efeffe19abfcc1deb33d2edbd6",
+      "stdout": "FileSystem JVM public abstract interface and 9 member descriptors: ok; java-sealed=false",
+      "java_sealed": false,
+      "public_abstract_interface": true,
+      "abstract_member_descriptor_count": 9
+    }
+  },
+  "lane_counts": {
+    "selected_scenarios": 1,
+    "required_lanes": 6,
+    "passed_lanes": 6,
+    "failed_lanes": 0,
+    "skipped_lanes": 0
+  },
+  "lanes": [
+    {
+      "lane": "source-O0",
+      "status": "PASS",
+      "reference": {
+        "execution_id": "io-gate.kuu-2642.filesystem-shape.reference.source-O0",
+        "result": "PASS",
+        "exit_code": 0,
+        "reference_control": "single pinned Kotlin/JVM 2.3.10 compile/run; shared as the expected-output control for each native lane"
+      },
+      "candidate": {
+        "execution_id": "io-gate.kuu-2642.filesystem-shape.candidate.source-O0",
+        "result": "PASS",
+        "exit_code": 0,
+        "consumer_compile_seconds": 60.131755292008165,
+        "consumer_stdout_sha256": "e83f0bee6d828d79827cf2ef4d31d09077062a0af50315c4fa42a498995cd2c7",
+        "normalized_stdout_sha256": "e83f0bee6d828d79827cf2ef4d31d09077062a0af50315c4fa42a498995cd2c7",
+        "executable_sha256": "8f03553deaa6b53967caa64f125a661cc2aa39ca6b19dfcb3945e37c6a35d9a2",
+        "input_files_sha256": {
+          "Consumer.kt": "7d93e698f384ec71562edf9e0a62491da980d4dea4fe313833962e141b3b2cf0",
+          "P000_Producer.kt": "d1f371b5471519ac52c39b9737e28edfecb20e2f432313d9e54ee3790658b8ec",
+          "P001_kotlinx_io_filesystem_shape.kt": "dba9d3a86aee8df06955244984a85a8826a409e7077b23343b066d8564bc1163"
+        }
+      }
+    },
+    {
+      "lane": "source-O2",
+      "status": "PASS",
+      "reference": {
+        "execution_id": "io-gate.kuu-2642.filesystem-shape.reference.source-O2",
+        "result": "PASS",
+        "exit_code": 0,
+        "reference_control": "single pinned Kotlin/JVM 2.3.10 compile/run; shared as the expected-output control for each native lane"
+      },
+      "candidate": {
+        "execution_id": "io-gate.kuu-2642.filesystem-shape.candidate.source-O2",
+        "result": "PASS",
+        "exit_code": 0,
+        "consumer_compile_seconds": 98.22885854099877,
+        "consumer_stdout_sha256": "e83f0bee6d828d79827cf2ef4d31d09077062a0af50315c4fa42a498995cd2c7",
+        "normalized_stdout_sha256": "e83f0bee6d828d79827cf2ef4d31d09077062a0af50315c4fa42a498995cd2c7",
+        "executable_sha256": "3db6d3839e7f8c65a82604b9ae1618c01f025cdcd8ebb8398c58ca4530aa2c65",
+        "input_files_sha256": {
+          "Consumer.kt": "7d93e698f384ec71562edf9e0a62491da980d4dea4fe313833962e141b3b2cf0",
+          "P000_Producer.kt": "d1f371b5471519ac52c39b9737e28edfecb20e2f432313d9e54ee3790658b8ec",
+          "P001_kotlinx_io_filesystem_shape.kt": "dba9d3a86aee8df06955244984a85a8826a409e7077b23343b066d8564bc1163"
+        }
+      }
+    },
+    {
+      "lane": "stdlib-library-O0",
+      "status": "PASS",
+      "reference": {
+        "execution_id": "io-gate.kuu-2642.filesystem-shape.reference.stdlib-library-O0",
+        "result": "PASS",
+        "exit_code": 0,
+        "reference_control": "single pinned Kotlin/JVM 2.3.10 compile/run; shared as the expected-output control for each native lane"
+      },
+      "candidate": {
+        "execution_id": "io-gate.kuu-2642.filesystem-shape.candidate.stdlib-library-O0",
+        "result": "PASS",
+        "exit_code": 0,
+        "consumer_compile_seconds": 1.70731758401962,
+        "consumer_stdout_sha256": "e83f0bee6d828d79827cf2ef4d31d09077062a0af50315c4fa42a498995cd2c7",
+        "normalized_stdout_sha256": "e83f0bee6d828d79827cf2ef4d31d09077062a0af50315c4fa42a498995cd2c7",
+        "executable_sha256": "a80c8377f5c3efe5a07031d68c20140139c39598711e94f7d1d9d21ab1594d62",
+        "input_files_sha256": {
+          "Consumer.kt": "7d93e698f384ec71562edf9e0a62491da980d4dea4fe313833962e141b3b2cf0",
+          "P000_Producer.kt": "d1f371b5471519ac52c39b9737e28edfecb20e2f432313d9e54ee3790658b8ec",
+          "P001_kotlinx_io_filesystem_shape.kt": "dba9d3a86aee8df06955244984a85a8826a409e7077b23343b066d8564bc1163"
+        },
+        "external_implementation_probe": {
+          "status": "PASS",
+          "expected": "sealed-boundary diagnostic",
+          "exit_code": 1,
+          "diagnostic": "KSWIFTK-SEMA-0070",
+          "source_sha256": "b2bfd370229438ff93997799c89dae23126a15166fc4acbebe98c46db704bbd3",
+          "stderr_sha256": "74006cd2f9595450d44501114e1d4b92ae6392179d3a7e58005bed8a67c4c5f0"
+        }
+      }
+    },
+    {
+      "lane": "stdlib-library-O2",
+      "status": "PASS",
+      "reference": {
+        "execution_id": "io-gate.kuu-2642.filesystem-shape.reference.stdlib-library-O2",
+        "result": "PASS",
+        "exit_code": 0,
+        "reference_control": "single pinned Kotlin/JVM 2.3.10 compile/run; shared as the expected-output control for each native lane"
+      },
+      "candidate": {
+        "execution_id": "io-gate.kuu-2642.filesystem-shape.candidate.stdlib-library-O2",
+        "result": "PASS",
+        "exit_code": 0,
+        "consumer_compile_seconds": 1.9266648750053719,
+        "consumer_stdout_sha256": "e83f0bee6d828d79827cf2ef4d31d09077062a0af50315c4fa42a498995cd2c7",
+        "normalized_stdout_sha256": "e83f0bee6d828d79827cf2ef4d31d09077062a0af50315c4fa42a498995cd2c7",
+        "executable_sha256": "483a1583e1fd9f9e2c4d17bbe5aea32789f4de59cf4272cbd0ae421518fd02c6",
+        "input_files_sha256": {
+          "Consumer.kt": "7d93e698f384ec71562edf9e0a62491da980d4dea4fe313833962e141b3b2cf0",
+          "P000_Producer.kt": "d1f371b5471519ac52c39b9737e28edfecb20e2f432313d9e54ee3790658b8ec",
+          "P001_kotlinx_io_filesystem_shape.kt": "dba9d3a86aee8df06955244984a85a8826a409e7077b23343b066d8564bc1163"
+        },
+        "external_implementation_probe": {
+          "status": "PASS",
+          "expected": "sealed-boundary diagnostic",
+          "exit_code": 1,
+          "diagnostic": "KSWIFTK-SEMA-0070",
+          "source_sha256": "b2bfd370229438ff93997799c89dae23126a15166fc4acbebe98c46db704bbd3",
+          "stderr_sha256": "ac357c9bb110d848e18fd0b7bd8956bfba42379729e6874a3c639830f137e6e5"
+        }
+      }
+    },
+    {
+      "lane": "producer-consumer-O0",
+      "status": "PASS",
+      "reference": {
+        "execution_id": "io-gate.kuu-2642.filesystem-shape.reference.producer-consumer-O0",
+        "result": "PASS",
+        "exit_code": 0,
+        "reference_control": "single pinned Kotlin/JVM 2.3.10 compile/run; shared as the expected-output control for each native lane"
+      },
+      "candidate": {
+        "execution_id": "io-gate.kuu-2642.filesystem-shape.candidate.producer-consumer-O0",
+        "result": "PASS",
+        "exit_code": 0,
+        "consumer_compile_seconds": 1.7154267920122948,
+        "consumer_stdout_sha256": "e83f0bee6d828d79827cf2ef4d31d09077062a0af50315c4fa42a498995cd2c7",
+        "normalized_stdout_sha256": "e83f0bee6d828d79827cf2ef4d31d09077062a0af50315c4fa42a498995cd2c7",
+        "executable_sha256": "f0734330188f9074a2a3d4f5af83904fc6ad6e3992f571efc35ba7fb1b2a12f5",
+        "input_files_sha256": {
+          "Consumer.kt": "7d93e698f384ec71562edf9e0a62491da980d4dea4fe313833962e141b3b2cf0",
+          "P000_Producer.kt": "d1f371b5471519ac52c39b9737e28edfecb20e2f432313d9e54ee3790658b8ec",
+          "P001_kotlinx_io_filesystem_shape.kt": "dba9d3a86aee8df06955244984a85a8826a409e7077b23343b066d8564bc1163"
+        },
+        "producer_artifact": {
+          "file_count": 3,
+          "tree_sha256": "7a52e127c643bdc0be0b796903c8469684dca6f57fcb00e596a6d6efcdad7f69"
+        },
+        "external_implementation_probe": {
+          "status": "PASS",
+          "expected": "sealed-boundary diagnostic",
+          "exit_code": 1,
+          "diagnostic": "KSWIFTK-SEMA-0070",
+          "source_sha256": "b2bfd370229438ff93997799c89dae23126a15166fc4acbebe98c46db704bbd3",
+          "stderr_sha256": "eb45ce2f9a2994875868eb4f6e22d1d1c0fd3b16af8002c90b008d37c22a3f6b"
+        }
+      }
+    },
+    {
+      "lane": "producer-consumer-O2",
+      "status": "PASS",
+      "reference": {
+        "execution_id": "io-gate.kuu-2642.filesystem-shape.reference.producer-consumer-O2",
+        "result": "PASS",
+        "exit_code": 0,
+        "reference_control": "single pinned Kotlin/JVM 2.3.10 compile/run; shared as the expected-output control for each native lane"
+      },
+      "candidate": {
+        "execution_id": "io-gate.kuu-2642.filesystem-shape.candidate.producer-consumer-O2",
+        "result": "PASS",
+        "exit_code": 0,
+        "consumer_compile_seconds": 1.9346684579795692,
+        "consumer_stdout_sha256": "e83f0bee6d828d79827cf2ef4d31d09077062a0af50315c4fa42a498995cd2c7",
+        "normalized_stdout_sha256": "e83f0bee6d828d79827cf2ef4d31d09077062a0af50315c4fa42a498995cd2c7",
+        "executable_sha256": "c44e28ae78c36064017e33d422c7f15f46d9554a36770f7805e4c369ef32dc2f",
+        "input_files_sha256": {
+          "Consumer.kt": "7d93e698f384ec71562edf9e0a62491da980d4dea4fe313833962e141b3b2cf0",
+          "P000_Producer.kt": "d1f371b5471519ac52c39b9737e28edfecb20e2f432313d9e54ee3790658b8ec",
+          "P001_kotlinx_io_filesystem_shape.kt": "dba9d3a86aee8df06955244984a85a8826a409e7077b23343b066d8564bc1163"
+        },
+        "producer_artifact": {
+          "file_count": 3,
+          "tree_sha256": "5000feab5b3144a38d089871b77d068ff38e177c6efeb2cffa050f365876bf35"
+        },
+        "external_implementation_probe": {
+          "status": "PASS",
+          "expected": "sealed-boundary diagnostic",
+          "exit_code": 1,
+          "diagnostic": "KSWIFTK-SEMA-0070",
+          "source_sha256": "b2bfd370229438ff93997799c89dae23126a15166fc4acbebe98c46db704bbd3",
+          "stderr_sha256": "99fd464f56e49db3566df4cc0368c3de4b719ea41c4835d09f95908eb01fc1df"
+        }
+      }
+    }
+  ],
+  "row_outcomes": {
+    "klib-539fc5d95ef77842": "verified from six native source/KLIB/producer-consumer lanes",
+    "jvm-a6e20178732ee016": "unverified: the candidate compiler emits native KLIB/macOS outputs, not JVM classfiles; the pinned Kotlin/JVM reference descriptor probe passed"
+  },
+  "scope": {
+    "matrix_status": "SELECTED_MATRIX_PASS",
+    "global_f02_issue_complete": false,
+    "global_f02_matrix_run": false,
+    "full_swift_test_suite_run": false,
+    "note": "This receipt covers only the dedicated KUU-2642 scenario; it does not claim completion of the parent F02 gate."
+  }
+}

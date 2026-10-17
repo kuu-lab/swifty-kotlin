@@ -75,6 +75,19 @@ LOCAL_PROBE_EVIDENCE_CASES = {
         "lanes": ("jvm-descriptor",),
         "methods": {"reference": "jvm-abi-reflection", "candidate": "source-metadata"},
     },
+    "local:Scripts/io_api_inventory/f04_filesystem_shape/Producer.kt#declaration-shape": {
+        "path": "Scripts/io_api_inventory/f04_filesystem_shape/Producer.kt",
+        "required_paths": {
+            "Scripts/diff_cases/kotlinx_io_filesystem_shape.kt",
+            "Scripts/io_api_inventory/f04_filesystem_shape/Producer.kt",
+            "Scripts/io_api_inventory/f04_filesystem_shape/Consumer.kt",
+            "Scripts/io_api_inventory/f04_filesystem_shape/ExternalImplementation.kt",
+            "Scripts/io_api_inventory/f04_filesystem_shape/FileSystemJvmShapeProbe.java",
+        },
+        "row_ids": {"klib-539fc5d95ef77842"},
+        "lanes": LOCAL_NATIVE_PROBE_LANES,
+        "methods": {"reference": "jvm-probe", "candidate": "native-matrix"},
+    },
 }
 
 LEDGER_COLUMNS = [
@@ -238,6 +251,7 @@ TEST_HINTS = {
 LOCAL_IO_TEST_PREFIXES = (
     "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java",
     "Scripts/io_api_inventory/probes/",
+    "Scripts/io_api_inventory/f04_filesystem_shape/",
     "Scripts/diff_cases/kotlinx_io_",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+ByteString",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+KtorIOCoverage.swift",
@@ -259,6 +273,17 @@ SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS = (
     "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java",
     "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590/",
 )
+FILESYSTEM_SHAPE_ROW_IDS = frozenset({
+    "jvm-a6e20178732ee016",
+    "klib-539fc5d95ef77842",
+})
+FILESYSTEM_SHAPE_LOCAL_TEST_FILES = frozenset({
+    "Scripts/diff_cases/kotlinx_io_filesystem_shape.kt",
+    "Scripts/io_api_inventory/f04_filesystem_shape/Producer.kt",
+    "Scripts/io_api_inventory/f04_filesystem_shape/Consumer.kt",
+    "Scripts/io_api_inventory/f04_filesystem_shape/ExternalImplementation.kt",
+    "Scripts/io_api_inventory/f04_filesystem_shape/FileSystemJvmShapeProbe.java",
+})
 
 MODIFIERS = (
     "public|internal|private|protected|actual|expect|inline|suspend|operator|"
@@ -422,6 +447,8 @@ def _local_probe_case_spec(row: dict, case_id: str) -> dict | None:
     if spec is None or row.get("row_id") not in spec["row_ids"]:
         return None
     if spec["path"] not in row.get("local_test_refs", "").split(";"):
+        return None
+    if not spec.get("required_paths", set()).issubset(set(row.get("local_test_refs", "").split(";"))):
         return None
     return spec
 
@@ -657,7 +684,9 @@ def apply_validation_evidence(
             required_cases = {
                 case_id: spec
                 for case_id, spec in LOCAL_PROBE_EVIDENCE_CASES.items()
-                if row_id in spec["row_ids"] and spec["path"] in row.get("local_test_refs", "").split(";")
+                if row_id in spec["row_ids"]
+                and spec["path"] in row.get("local_test_refs", "").split(";")
+                and spec.get("required_paths", set()).issubset(set(row.get("local_test_refs", "").split(";")))
             }
             for case_id, spec in required_cases.items():
                 observed_lanes = {
@@ -1654,6 +1683,8 @@ def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
     for path, content in local_tests:
         if path.startswith("Scripts/io_api_inventory/probes/") and name not in LOCAL_IO_PROBE_API_NAMES:
             continue
+        if path in FILESYSTEM_SHAPE_LOCAL_TEST_FILES and row["row_id"] not in FILESYSTEM_SHAPE_ROW_IDS:
+            continue
         if (path == SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS[0]
                 or path.startswith(SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS[1])):
             if row["row_id"] not in SEGMENT_READ_CONTEXT_IMPL_ROW_IDS:
@@ -1684,6 +1715,10 @@ def local_implementation_refs(row: dict, index: SourceIndex, runtime_symbols: di
 
 
 def upstream_test_refs(row: dict, test_index: dict) -> list[str]:
+    if row.get("row_id") in FILESYSTEM_SHAPE_ROW_IDS:
+        # The upstream smoke case exercises SystemFileSystem operations; the
+        # interface declaration and sealed export boundary need local shape probes.
+        return []
     if row.get("upstream_source_refs") in NO_DIRECT_UPSTREAM_ASSERTION_SOURCE_REFS:
         # The upstream smoke cases use SystemFileSystem raw methods; they do not
         # exercise these deprecated Path extensions or assert their annotations.
@@ -2043,6 +2078,8 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     local_paths.extend(REPO.joinpath("Scripts/io_api_inventory/probes").glob("*.kt"))
     local_paths.extend(REPO.joinpath("Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590").glob("*.kt"))
     local_paths.append(REPO / "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java")
+    local_paths.extend(HERE.joinpath("f04_filesystem_shape").glob("*.kt"))
+    local_paths.append(HERE / "f04_filesystem_shape/FileSystemJvmShapeProbe.java")
     for path in sorted(local_paths):
         rel = path.relative_to(REPO).as_posix()
         if rel.startswith(LOCAL_IO_TEST_PREFIXES):
