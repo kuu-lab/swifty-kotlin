@@ -247,6 +247,33 @@ class F02GateTests(unittest.TestCase):
         self.assertEqual(matrix.packaged(raw, "fixture").replace(b"package fixture\n", b""), raw)
         with self.assertRaises(ValueError): matrix.packaged(b"package original\n" + raw, "fixture")
 
+    def test_discarding_sink_probe_is_a_direct_consumer_for_both_api_rows(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "discarding-sink")
+        self.assertEqual(case["api_row_ids"], ["jvm-04f9c66bafd8712c", "klib-f24361849bd7cfdd"])
+        self.assertEqual(set(case["assertion_ids"]), {
+            "zero-count", "zero-remainder", "partial-count", "partial-remainder", "exact-count",
+            "exact-remainder", "negative-count", "negative-remainder", "oversized-count",
+            "oversized-consumption", "empty-source", "flush", "repeated-close", "write-after-close",
+            "flush-after-close",
+        })
+        consumer = case["consumer"].read_text()
+        self.assertIn("val sink: RawSink = discardingSink()", consumer)
+        for assertion in ("sink.write(zero, 0L)", "sink.write(partial, 2L)", "sink.write(exact, exact.size)",
+                          "sink.write(negative, -1L)", "oversized.size + 1L", "flushSink.flush()",
+                          "closeSink.close()", "closeSink.write(afterClose, afterClose.size)",
+                          "println(zero.size)", "println(zero.readByte().toInt())", "println(partial.size)",
+                          "println(exact.size)", "println(negative.size)", "println(negative.readByte().toInt())",
+                          "println(oversized.size)", "println(afterClose.size)"):
+            self.assertIn(assertion, consumer)
+        self.assertEqual(consumer.count("println(partial.readByte().toInt())"), 4)
+
+        output = ("public final class kotlinx.io.CoreKt {\n"
+                  "  public static final kotlinx.io.RawSink discardingSink();\n"
+                  "    descriptor: ()Lkotlinx/io/RawSink;\n}\n").encode()
+        matrix.check_jvm_abi(output, case["jvm_abi"])
+        with self.assertRaises(RuntimeError):
+            matrix.check_jvm_abi(output.replace(b"public static final", b"public static"), case["jvm_abi"])
+
     def test_fixture_driver_records_unhandled_failure_and_keeps_original_bodies(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

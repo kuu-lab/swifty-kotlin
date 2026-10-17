@@ -58,6 +58,7 @@ class ReproducibilityTests(unittest.TestCase):
             test_inputs.extend((REPO / "Tests/CompilerCoreTests/GoldenCases/Sema").glob("*.kt"))
             test_inputs.extend((REPO / "Scripts/diff_cases").glob("*.kt"))
             test_inputs.extend((REPO / "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590").glob("*.kt"))
+            test_inputs.extend((REPO / "Tests/CompilerBackendTests/Fixtures/IODiscardingSink2611").glob("*.kt"))
             inputs.extend(
                 path for path in test_inputs
                 if path.relative_to(REPO).as_posix().startswith(original.LOCAL_IO_TEST_PREFIXES)
@@ -98,6 +99,22 @@ class ReproducibilityTests(unittest.TestCase):
         for row in self.rows:
             if row["row_id"] not in row_ids:
                 self.assertFalse(probe_refs.intersection(row["local_test_refs"].split(";")))
+
+    def test_discarding_sink_rows_link_the_direct_boundary_probe_and_jvm_facade(self):
+        source = self.row("kotlinx.io/discardingSink|discardingSink(){}")
+        jvm = next(row for row in self.rows if row["row_id"] == "jvm-04f9c66bafd8712c")
+        probe_ref = "Tests/CompilerBackendTests/Fixtures/IODiscardingSink2611/Consumer.kt"
+        self.assertEqual(source["row_id"], "klib-f24361849bd7cfdd")
+        self.assertEqual(source["jvm_abi_refs"], jvm["row_id"])
+        self.assertEqual(jvm["owner_fqn"], "kotlinx/io/CoreKt")
+        self.assertEqual(jvm["signature"], "public static final fun discardingSink ()Lkotlinx/io/RawSink;")
+        self.assertIn(probe_ref, source["local_test_refs"].split(";"))
+        self.assertIn(probe_ref, jvm["local_test_refs"].split(";"))
+        self.assertEqual(source["status"], "unverified")
+        self.assertEqual(jvm["status"], "unverified")
+        for row in self.rows:
+            if row["row_id"] not in {source["row_id"], jvm["row_id"]}:
+                self.assertNotIn(probe_ref, row["local_test_refs"].split(";"))
 
     def test_exact_overload_exception_and_abi_mapping(self):
         declaration = self.row("kotlinx.io/readByteArray|readByteArray@kotlinx.io.Source(kotlin.Int){}")

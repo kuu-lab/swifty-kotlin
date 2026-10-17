@@ -153,6 +153,13 @@ python3 Scripts/io_api_inventory/run_f02_matrix.py \
   --dependencies /path/to/locked-io-jars
 ```
 
+The dedicated `discarding-sink` case directly invokes `discardingSink()` as a
+`RawSink` consumer, checks source consumption and invalid-count boundaries, and
+probes flush/close behavior. Its JVM reference stage also checks the
+`CoreKt.discardingSink(): RawSink` facade descriptor with `javap`. Run only this
+case with `--case discarding-sink`; its summary links both API row IDs to each
+source, stdlib-library and producer-consumer O0/O2 result.
+
 Every selected lane is attempted after a lane failure, and each failure retains
 its raw diagnostic or output difference. The original Apple test module is run
 separately: its test-only helpers occupy real stdlib packages and can conflict
