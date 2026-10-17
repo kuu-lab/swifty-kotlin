@@ -174,6 +174,31 @@ other bytes remain exact. Reference SDK files and IO jars must match the fixed
 lock. By default the stdlib is freshly built in this run; supplying an explicit
 `--stdlib-library` records that its freshness was not inferred from its path.
 
+KUU-2597 adds the dedicated `segment-prev-internal-link` scenario. Its Kotlin
+consumer assigns and reads `Segment.prev`, checks a null predecessor, replaces
+the link, and clears it. The six candidate lanes compare source and a fresh
+stdlib KLIB at O0/O2 with the pinned Kotlin/JVM 2.3.10 reference. The candidate
+KLIB record is checked for internal visibility, nullable `Segment?` type,
+mutability, `PublishedApi` and getter/setter `JvmSynthetic` annotations, and
+whether accessor links are explicit or property-backed. The pinned JVM artifact
+is checked for both accessor descriptors and public/final/synthetic classfile
+flags. Apple reference execution does not apply to this common-only property.
+
+```sh
+python3 Scripts/io_api_inventory/generate.py --write
+python3 Scripts/io_api_inventory/run_f02_matrix.py \
+  --compiler .build/debug/kswiftc --output /private/tmp/kuu2597-run \
+  --kotlin-home /path/to/kotlinc-2.3.10 --java /path/to/java21/bin/java \
+  --dependencies /path/to/locked-io-jars \
+  --case segment-prev-internal-link --separate-cases
+```
+
+The receipt stores the six row IDs, per-row implementation/test input hashes,
+the candidate KLIB metadata hash, pinned JVM ABI output, and all six lane
+results. It records probe evidence and does not promote the rows; the fixed
+upstream test mappings remain suite references, and KUU-2469 must support a
+promotable mapping for local probe cases first.
+
 `SELECTED_MATRIX_PASS` means only the selected scenarios passed. The manifest
 retains every unpaired source/platform/internal/JVM ABI row, and `issue_complete`
 remains false: compilation, native bridge behavior and JVM bytecode descriptor

@@ -6,6 +6,7 @@ import contextlib
 import io
 from pathlib import Path
 import re
+import struct
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -107,6 +108,110 @@ class F02GateTests(unittest.TestCase):
                 json.dumps({"status": "TIMEOUT", "exitcode": 1}), encoding="utf-8"
             )
             self.assertFalse(matrix.visibility_rejection_passed(directory, "candidate"))
+
+    def test_segment_prev_probe_is_pinned_to_its_six_rows_and_jvm_accessor_shapes(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "segment-prev-internal-link")
+        self.assertTrue(case["fixture"].is_file())
+        self.assertEqual(case["row_ids"], [
+            "internal-8e1454654a39409b",
+            "jvm-06a7e274ac1fcfe4",
+            "jvm-6e0d6c8ec6bd019d",
+            "klib-103b5bb1afb58e94",
+            "klib-a8714b18bc10029f",
+            "klib-b0bea4e1717fa6e0",
+        ])
+        hashes_by_row = matrix.validation_input_hashes_for_rows(case["row_ids"])
+        self.assertEqual(set(hashes_by_row), set(case["row_ids"]))
+        self.assertTrue(all(set(hashes) == {"implementation_input_sha256", "test_input_sha256"}
+                            for hashes in hashes_by_row.values()))
+
+        output = """\
+public final class kotlinx.io.Segment {
+  public final kotlinx.io.Segment getPrev();
+    descriptor: ()Lkotlinx/io/Segment;
+    flags: (0x1011) ACC_PUBLIC, ACC_FINAL, ACC_SYNTHETIC
+
+  public final void setPrev(kotlinx.io.Segment);
+    descriptor: (Lkotlinx/io/Segment;)V
+    flags: (0x1011) ACC_PUBLIC, ACC_FINAL, ACC_SYNTHETIC
+}
+"""
+        result = matrix.check_jvm_abi(output, case["jvm_abi"])
+        self.assertEqual([method["descriptor"] for method in result["methods"]], [
+            "()Lkotlinx/io/Segment;",
+            "(Lkotlinx/io/Segment;)V",
+        ])
+        with self.assertRaisesRegex(RuntimeError, "descriptor mismatch"):
+            matrix.check_jvm_abi(output.replace("(Lkotlinx/io/Segment;)V", "()V"), case["jvm_abi"])
+        with self.assertRaisesRegex(RuntimeError, "ACC_SYNTHETIC"):
+            matrix.check_jvm_abi(output.replace("ACC_FINAL, ACC_SYNTHETIC", "ACC_FINAL", 1), case["jvm_abi"])
+
+    def test_segment_prev_candidate_klib_checks_internal_nullable_property_and_accessors(self):
+        record = (
+            "property symbol fq=kotlinx.io.Segment.prev schema=v1 visibility=internal "
+            "sig=Q<Lkotlinx.io.Segment;> mutable=1 "
+            "annotations=kotlin.PublishedApi|retention:BINARY;"
+            "kotlin.jvm.JvmSynthetic|retention:BINARY|target:get;"
+            "kotlin.jvm.JvmSynthetic|retention:BINARY|target:set\n"
+        ).encode()
+        strings = ["", "kotlinx.io.Segment.prev", "_segment_prev"]
+        string_table = b"".join(
+            struct.pack("<I", len(value.encode("utf-8"))) + value.encode("utf-8")
+            for value in strings
+        )
+
+        def metadata_with_record(
+            body_record: bytes, *, compact_visibility: int = 2, compact_mutable: bool = True,
+        ) -> bytes:
+            flags = (1 << 6) if compact_mutable else 0
+            entry = struct.pack(
+                "<QQIIII12I", 0, len(body_record), 0, flags, 9, compact_visibility,
+                1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            )
+            return (
+                b"kklib-metadata-v3\n"
+                + struct.pack("<IIII", 1, len(strings), len(string_table), 80)
+                + string_table + entry + body_record
+            )
+
+        metadata = metadata_with_record(record)
+        result = matrix.check_segment_prev_metadata(metadata)
+        self.assertEqual(result["visibility"], "internal")
+        self.assertEqual(result["signature"], "Segment?")
+        self.assertIsNone(result["getter_link"])
+        self.assertIsNone(result["setter_link"])
+        self.assertEqual(result["accessor_link_mode"], "property-backed")
+        self.assertEqual(result["compact_index"]["visibility"], "internal")
+        self.assertTrue(result["compact_index"]["mutable"])
+        self.assertTrue(result["property_record_sha256"])
+
+        with self.assertRaisesRegex(RuntimeError, "property is not internal"):
+            matrix.check_segment_prev_metadata(
+                metadata_with_record(record.replace(b"visibility=internal", b"visibility=public"))
+            )
+        with self.assertRaisesRegex(RuntimeError, "annotations mismatch"):
+            matrix.check_segment_prev_metadata(
+                metadata_with_record(record.replace(b"target:set", b"target:field"))
+            )
+        with self.assertRaisesRegex(RuntimeError, "property is not mutable"):
+            matrix.check_segment_prev_metadata(metadata_with_record(record.replace(b"mutable=1 ", b"")))
+        with self.assertRaisesRegex(RuntimeError, "compact-index visibility is not internal"):
+            matrix.check_segment_prev_metadata(metadata_with_record(record, compact_visibility=0))
+        with self.assertRaisesRegex(RuntimeError, "compact-index property is not mutable"):
+            matrix.check_segment_prev_metadata(metadata_with_record(record, compact_mutable=False))
+
+        legacy_record = (
+            "property symbol fq=kotlinx.io.Segment.prev schema=v1 visibility=internal "
+            "sig=Q<Lkotlinx.io.Segment;> getterLink=kk_segment_prev_get "
+            "setterLink=kk_segment_prev_set mutable=1 "
+            "annotations=kotlin.PublishedApi|retention:BINARY;"
+            "kotlin.jvm.JvmSynthetic|retention:BINARY|target:get;"
+            "kotlin.jvm.JvmSynthetic|retention:BINARY|target:set\n"
+        ).encode()
+        legacy_result = matrix.check_segment_prev_metadata(b"kklib-metadata-v2\nbody\n" + legacy_record)
+        self.assertEqual(legacy_result["getter_link"], "kk_segment_prev_get")
+        self.assertEqual(legacy_result["setter_link"], "kk_segment_prev_set")
+        self.assertEqual(legacy_result["accessor_link_mode"], "explicit")
 
     def test_segment_read_context_probe_is_a_dedicated_friend_consumer(self):
         case = next(case for case in matrix.scenarios() if case["id"] == "segment-read-context-impl")

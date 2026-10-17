@@ -52,12 +52,14 @@ class ReproducibilityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="io-inventory-relocated-") as temporary:
             relocated = Path(temporary) / "checkout"
             inputs = list(HERE.rglob("*"))
+            inputs.extend((REPO / "Scripts/kotlinx_io_upstream").rglob("*"))
             inputs.extend((REPO / "Sources/CompilerCore/Stdlib/kotlinx/io").rglob("*.kt"))
             inputs.extend((REPO / "Sources/Runtime").rglob("*.swift"))
             test_inputs = list((REPO / "Tests").rglob("*.swift"))
             test_inputs.extend((REPO / "Tests/CompilerCoreTests/GoldenCases/Sema").glob("*.kt"))
             test_inputs.extend((REPO / "Scripts/diff_cases").glob("*.kt"))
             test_inputs.extend((REPO / "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590").glob("*.kt"))
+            inputs.extend(REPO / reference for reference in original.SEGMENT_PREV_PROBE_REFS)
             inputs.extend(
                 path for path in test_inputs
                 if path.relative_to(REPO).as_posix().startswith(original.LOCAL_IO_TEST_PREFIXES)
@@ -98,6 +100,26 @@ class ReproducibilityTests(unittest.TestCase):
         for row in self.rows:
             if row["row_id"] not in row_ids:
                 self.assertFalse(probe_refs.intersection(row["local_test_refs"].split(";")))
+
+    def test_segment_prev_probe_is_pinned_to_its_six_owned_rows(self):
+        expected = set(self.generator.SEGMENT_PREV_PROBE_REFS)
+        row_ids = set(self.generator.VALIDATION_PROBE_TEST_REFS)
+        self.assertEqual(row_ids, {
+            "internal-8e1454654a39409b",
+            "jvm-06a7e274ac1fcfe4",
+            "jvm-6e0d6c8ec6bd019d",
+            "klib-103b5bb1afb58e94",
+            "klib-a8714b18bc10029f",
+            "klib-b0bea4e1717fa6e0",
+        })
+        for row_id in row_ids:
+            row = next(row for row in self.rows if row["row_id"] == row_id)
+            self.assertTrue(expected.issubset(set(row["local_test_refs"].split(";"))))
+            self.assertEqual(row["status"], "unverified")
+
+        for row in self.rows:
+            if row["row_id"] not in row_ids:
+                self.assertFalse(expected.intersection(row["local_test_refs"].split(";")))
 
     def test_exact_overload_exception_and_abi_mapping(self):
         declaration = self.row("kotlinx.io/readByteArray|readByteArray@kotlinx.io.Source(kotlin.Int){}")

@@ -349,6 +349,23 @@ INDEX_OF_DEFAULT_BRIDGE_TEST_INPUTS = (
     "Scripts/kotlinx_io_upstream/native-executions.expected.json",
 )
 
+SEGMENT_PREV_PROBE_REFS = (
+    "Tests/CompilerBackendTests/Fixtures/IOGate2597/SegmentPrev.kt",
+    "Scripts/io_api_inventory/run_f02_matrix.py",
+    "Scripts/io_api_inventory/test_f02_matrix.py",
+)
+VALIDATION_PROBE_TEST_REFS = {
+    row_id: SEGMENT_PREV_PROBE_REFS
+    for row_id in (
+        "internal-8e1454654a39409b",
+        "jvm-06a7e274ac1fcfe4",
+        "jvm-6e0d6c8ec6bd019d",
+        "klib-103b5bb1afb58e94",
+        "klib-a8714b18bc10029f",
+        "klib-b0bea4e1717fa6e0",
+    )
+}
+
 MODIFIERS = (
     "public|internal|private|protected|actual|expect|inline|suspend|operator|"
     "infix|tailrec|open|override|abstract|external|final|data|sealed|const|"
@@ -2392,7 +2409,8 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
         row["owner_issue"] = owner_for(row)
         direct_upstream_tests = upstream_test_refs(row, test_index)
         row["upstream_test_refs"] = ";".join(direct_upstream_tests) or NO_DIRECT_UPSTREAM_ASSERTION
-        row["local_test_refs"] = ";".join(local_test_refs(row, local_tests)) or "none"
+        test_refs = local_test_refs(row, local_tests) + list(VALIDATION_PROBE_TEST_REFS.get(row["row_id"], ()))
+        row["local_test_refs"] = ";".join(dict.fromkeys(test_refs)) or "none"
         if row["representation"] == "JVM public ABI dump":
             row["scope_decision"] = "in-scope JVM ABI and Java interoperability"
         for test_ref in row["upstream_test_refs"].split(";"):
