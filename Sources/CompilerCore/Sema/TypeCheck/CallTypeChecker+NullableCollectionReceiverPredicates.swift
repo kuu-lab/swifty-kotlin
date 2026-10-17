@@ -1,5 +1,3 @@
-/// Predicate for `isNullOrEmpty` on nullable collection receivers, consulted by
-/// the member-call inference dispatcher.
 extension CallTypeChecker {
     func isNullableCollectionIsNullOrEmptyReceiver(
         _ receiverType: TypeID,
