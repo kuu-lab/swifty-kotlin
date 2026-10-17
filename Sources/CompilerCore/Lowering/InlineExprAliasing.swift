@@ -1,9 +1,3 @@
-/// Resolves the alias chains inline expansion records when one expression
-/// stands in for another -- a parameter bound to its argument, a call result
-/// bound to an inlined lambda's return value, a branch-merge slot promoted to
-/// a retyped replacement -- and applies that resolution across an
-/// instruction's read operands.
-///
 /// The alias map itself (`expandInlineCalls`'s `aliases`,
 /// `expandInlineCall`/`expandLambdaBody`'s `localExprMap`) stays owned by the
 /// caller: those functions also write bindings directly for cases that are
@@ -11,7 +5,6 @@
 /// promotion), so this type only owns the read side and the one instruction
 /// rewrite built from it.
 enum InlineExprAliasing {
-    /// Follows `aliases` from `expr` to the value it ultimately stands for.
     /// Stops at a self-alias, or once revisiting an already-seen expression
     /// would loop forever, so a cycle resolves to the last expression reached
     /// instead of hanging.
@@ -27,11 +20,9 @@ enum InlineExprAliasing {
         return current
     }
 
-    /// Rewrites the operands `instruction` reads through `aliases`, via
-    /// `resolveAlias`. Every defined result (`result:`, `thrownResult:`) is
-    /// left as-is; `.copy` is the one case where both sides -- `from` and its
-    /// own `to` -- are resolved. Instruction kinds with no aliasable operand,
-    /// including `.loadGlobal`, pass through unchanged.
+    /// Every defined result (`result:`, `thrownResult:`) is left as-is;
+    /// `.copy` is the one case where both sides -- `from` and its own `to` --
+    /// are resolved.
     static func rewriteInstruction(_ instruction: KIRInstruction, aliases: [KIRExprID: KIRExprID]) -> KIRInstruction {
         switch instruction {
         case let .binary(op, lhs, rhs, result):
@@ -133,11 +124,11 @@ enum InlineExprAliasing {
         }
     }
 
-    /// The expression `instruction` defines, if any. Used to invalidate a
-    /// stale alias binding once its key is legitimately redefined by a later
-    /// instruction. Deliberately narrower than `KIRVerifier`'s full def
-    /// tracking (`exprIsDefined` in `InlineLoweringPass`): a `.copy`'s `to`
-    /// and a call's `thrownResult` are not counted as definitions here.
+    /// Used to invalidate a stale alias binding once its key is legitimately
+    /// redefined by a later instruction. Deliberately narrower than
+    /// `KIRVerifier`'s full def tracking (`exprIsDefined` in
+    /// `InlineLoweringPass`): a `.copy`'s `to` and a call's `thrownResult` are
+    /// not counted as definitions here.
     static func definedResult(in instruction: KIRInstruction) -> KIRExprID? {
         switch instruction {
         case let .constValue(result, _):
