@@ -4,10 +4,6 @@ import kotlin.internal.KsSymbolName
 import kotlin.reflect.KProperty
 
 /*
- * KSP-491: real Kotlin implementation of `Lazy`/`lazy`/`lazyOf`, replacing the
- * synthetic `HeaderHelpers+SyntheticPropertyDelegateStubs` shells and the
- * `kk_lazy_*` runtime bridge (RuntimeDelegates.swift/RuntimeTypes.swift).
- *
  * The `getValue` operator is declared below as the source-compatible
  * extension used by kotlin-stdlib. Property-delegate resolution admits
  * visible extension operators as well as members (KSP-CAP-020).
@@ -28,7 +24,7 @@ internal external fun __lazySyncUnlock(lock: Any): Unit
 // `initializer` is kept non-nullable (rather than nulled out after first use
 // to release the closure for GC, as a hand-written impl normally would):
 // this compiler doesn't resolve invoking a nullable function-typed value
-// through `!!`/`?.invoke()` (a compiler capability gap unrelated to KSP-491).
+// through `!!`/`?.invoke()` (a compiler capability gap).
 // `lazyOf`'s "no real initializer" case below supplies a dummy that a
 // pre-seeded `computed = true` guarantees is never reached.
 //
@@ -40,7 +36,7 @@ internal external fun __lazySyncUnlock(lock: Any): Unit
 // bundled `object` singleton loaded across that compilation-unit boundary --
 // which this compiler's library metadata/codegen does not support for a
 // zero-field `object` (its cross-module global slot is not exported; a
-// compiler capability gap unrelated to KSP-491 otherwise). A plain
+// compiler capability gap). A plain
 // caller-constructible `Boolean` sidesteps that entirely.
 internal class LazyImpl<T>(
     private val initializer: () -> T,
@@ -55,7 +51,7 @@ internal class LazyImpl<T>(
     // The cast is in its own regular function, not the `value` getter body
     // directly: this compiler doesn't resolve a class type parameter (`T`)
     // referenced from inside a property getter block body (a compiler
-    // capability gap unrelated to KSP-491) but does resolve it from an
+    // capability gap) but does resolve it from an
     // ordinary member function body.
     @Suppress("UNCHECKED_CAST")
     private fun computeValue(): T {
