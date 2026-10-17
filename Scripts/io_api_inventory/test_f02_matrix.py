@@ -2,6 +2,7 @@
 """Guard the F02 gate against reduced scope, skipped defaults and stale artifacts."""
 import csv
 import json
+import hashlib
 import contextlib
 import io
 from pathlib import Path
@@ -148,6 +149,78 @@ class F02GateTests(unittest.TestCase):
             ("stdlib-library", "O0"), ("stdlib-library", "O2"),
             ("producer-consumer", "O0"), ("producer-consumer", "O2"),
         ])
+
+    def test_filesystem_default_bridges_have_dedicated_jvm_probe_and_runtime_case(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "filesystem-default-flag-bridges")
+        self.assertEqual(
+            matrix.matrix_execution_id(case["id"], "source", "O0"),
+            "filesystem-default-flag-bridges:source-O0",
+        )
+        self.assertEqual(case["reference"], "jvm")
+        self.assertEqual(case["producer"], [matrix.HERE / "f02_consumers/FileSystemDefaultBridgeProducer.kt"])
+        self.assertEqual(case["reference_producer"], [matrix.HERE / "f02_consumers/FileSystemJvmReference.kt"])
+        self.assertEqual(case["consumer"], matrix.ROOT / "Scripts/diff_cases/kotlinx_io_file_system_default_flag_bridges.kt")
+        self.assertEqual(case["jvm_abi_probe"], matrix.HERE / "f02_consumers/FileSystemDefaultBridgeAbiProbe.java")
+        self.assertEqual(case["jvm_abi_probe_main_class"], "FileSystemDefaultBridgeAbiProbe")
+        probe = case["jvm_abi_probe"].read_text(encoding="utf-8")
+        flag_probe = (matrix.HERE / "f02_consumers/FileSystemFlagProbe.kt").read_text(encoding="utf-8")
+        producer = case["producer"][0].read_text(encoding="utf-8")
+        consumer = case["consumer"].read_text(encoding="utf-8")
+        for method in ("sink", "delete", "createDirectories"):
+            self.assertIn(f'"{method}$default"', probe)
+        self.assertIn("method.isSynthetic()", probe)
+        self.assertIn("method.isBridge()", probe)
+        self.assertIn("descriptorString()", probe)
+        self.assertIn("DEFAULT_FLAG_MASK = 0x2", probe)
+        reference = case["reference_producer"][0].read_text(encoding="utf-8")
+        self.assertIn("override fun sink(path: Path, append: Boolean)", flag_probe)
+        self.assertIn("override fun delete(path: Path, mustExist: Boolean)", flag_probe)
+        self.assertIn("override fun createDirectories(path: Path, mustCreate: Boolean)", flag_probe)
+        self.assertIn("FileNotFoundException", reference)
+        self.assertIn("fs.createDirectories(directoryPath, mustCreate = true)", reference)
+        self.assertIn("fs.sink(path)", producer)
+        self.assertIn("fs.delete(path)", producer)
+        self.assertIn("fs.createDirectories(path)", producer)
+        self.assertIn("mustExist = false", producer)
+        self.assertIn("mustCreate = true", producer)
+        self.assertIn("runDefaultFlagProbe()", consumer)
+
+    def test_filesystem_jvm_reference_is_separate_from_candidate_stdlib_probe(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "filesystem-default-flag-bridges")
+        with tempfile.TemporaryDirectory(prefix="f02-filesystem-reference-") as temporary:
+            reference = Path(temporary) / "reference"
+            candidate = Path(temporary) / "candidate"
+            reference.mkdir()
+            candidate.mkdir()
+            reference_sources, _ = matrix.prepare(case, reference, reference=True)
+            candidate_sources, _ = matrix.prepare(case, candidate)
+        self.assertTrue(any(path.name.endswith("FileSystemJvmReference.kt") for path in reference_sources))
+        self.assertFalse(any(path.name.endswith("FileSystemJvmReference.kt") for path in candidate_sources))
+        self.assertFalse(any(path.name.endswith("FileSystemFlagProbe.kt") for path in candidate_sources))
+
+    def test_filesystem_flag_probe_staging_preserves_binary_and_copies_bundle(self):
+        with tempfile.TemporaryDirectory(prefix="f02-filesystem-stage-") as temporary:
+            root = Path(temporary)
+            original_bin = root / "original"
+            original_bin.mkdir()
+            compiler = original_bin / "kswiftc"
+            compiler.write_bytes(b"compiler binary")
+            original_resources = original_bin / "KSwiftK_CompilerCore.bundle/Contents/Resources/Stdlib"
+            original_resources.mkdir(parents=True)
+            (original_resources / "marker.kt").write_text("stdlib", encoding="utf-8")
+            output = root / "output"
+            output.mkdir()
+
+            staged_compiler, probe_sha256 = matrix.stage_filesystem_flag_probe(compiler, output)
+
+            staged_resources = (output / "candidate-toolchain/KSwiftK_CompilerCore.bundle/Contents/Resources")
+            staged_probe = staged_resources / "Stdlib/kotlinx/io/files/FileSystemFlagProbe.kt"
+            expected_probe = matrix.HERE / "f02_consumers/FileSystemFlagProbe.kt"
+            self.assertEqual(staged_compiler.read_bytes(), compiler.read_bytes())
+            self.assertEqual((staged_resources / "Stdlib/marker.kt").read_text(encoding="utf-8"), "stdlib")
+            self.assertEqual(staged_probe.read_bytes(), expected_probe.read_bytes())
+            self.assertEqual(probe_sha256, hashlib.sha256(expected_probe.read_bytes()).hexdigest())
+            self.assertFalse((original_resources / "kotlinx/io/files/FileSystemFlagProbe.kt").exists())
 
     def test_deprecated_path_rows_have_no_unrelated_upstream_assertions(self):
         expected = {

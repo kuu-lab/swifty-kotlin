@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Check that the ledger survives relocation and filesystem creation order."""
 
+import csv
+import hashlib
 import importlib.util
+import json
 import shutil
 import tempfile
 import unittest
@@ -52,6 +55,7 @@ class ReproducibilityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="io-inventory-relocated-") as temporary:
             relocated = Path(temporary) / "checkout"
             inputs = list(HERE.rglob("*"))
+            inputs.extend(REPO / path for path in original.FILESYSTEM_DEFAULT_BRIDGE_LOCAL_TESTS)
             inputs.extend((REPO / "Sources/CompilerCore/Stdlib/kotlinx/io").rglob("*.kt"))
             inputs.extend((REPO / "Sources/Runtime").rglob("*.swift"))
             test_inputs = list((REPO / "Tests").rglob("*.swift"))
@@ -98,6 +102,70 @@ class ReproducibilityTests(unittest.TestCase):
         for row in self.rows:
             if row["row_id"] not in row_ids:
                 self.assertFalse(probe_refs.intersection(row["local_test_refs"].split(";")))
+
+    def test_filesystem_default_flag_bridge_rows_are_independent_and_verified(self):
+        expected = {
+            "jvm-22f55505dcae0513": (
+                "sink",
+                "core/common/test/files/SmokeFileTest.kt#appendToFile",
+                "Sources/CompilerCore/Stdlib/kotlinx/io/files/FileSystem.kt:25",
+            ),
+            "jvm-258efe69986cf1fb": (
+                "delete",
+                "core/common/test/files/SmokeFileTest.kt#deleteFile",
+                "Sources/CompilerCore/Stdlib/kotlinx/io/files/FileSystem.kt:21",
+            ),
+            "jvm-959e3de0168c91f8": (
+                "createDirectories",
+                "core/common/test/files/SmokeFileTest.kt#createDirectories",
+                "Sources/CompilerCore/Stdlib/kotlinx/io/files/FileSystem.kt:22",
+            ),
+        }
+        rows = {row["row_id"]: row for row in self.rows}
+        with (HERE / "api-inventory.tsv").open(encoding="utf-8", newline="") as source:
+            checked_in_rows = {row["row_id"]: row for row in csv.DictReader(source, delimiter="\t")}
+        for row_id, (name, upstream_ref, candidate_ref) in expected.items():
+            with self.subTest(row_id=row_id):
+                row = rows[row_id]
+                for column in self.generator.LEDGER_COLUMNS:
+                    self.assertEqual(checked_in_rows[row_id][column], str(row.get(column) or ""), column)
+                self.assertEqual(row["owner_issue"], "KUU-2630")
+                self.assertEqual(row["upstream_test_refs"], upstream_ref)
+                self.assertEqual(row["local_candidate_refs"], candidate_ref)
+                self.assertIn("FileSystemDefaultBridgeAbiProbe.java", row["local_test_refs"])
+                self.assertIn("kotlinx_io_file_system_default_flag_bridges.kt", row["local_test_refs"])
+                self.assertEqual(row["status"], "verified")
+                self.assertEqual(
+                    self.generator.upstream_test_refs(
+                        {"row_id": row_id, "_source_paths": []}, {"files": []}
+                    ),
+                    [upstream_ref],
+                )
+                self.assertIn(name, row["name"])
+
+        dedicated_refs = set(self.generator.FILESYSTEM_DEFAULT_BRIDGE_LOCAL_TESTS) - {
+            "Scripts/diff_cases/kotlinx_io_file_system_default_flag_bridges.kt"
+        }
+        for row in self.rows:
+            if row["row_id"] not in expected:
+                self.assertFalse(dedicated_refs.intersection(row["local_test_refs"].split(";")))
+
+    def test_filesystem_default_bridge_native_reference_uses_a_pinned_scoped_source_closure(self):
+        path = REPO / "Scripts/kotlinx_io_upstream/files/kuu2630-smoke-file-macos-source-closure.json"
+        closure = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(closure["schema_version"], 1)
+        self.assertEqual(closure["upstream_commit"], self.lock["commit"])
+        self.assertEqual(
+            closure["native_execution_catalog_sha256"],
+            hashlib.sha256(self.generator.CANDIDATE_EXECUTIONS_PATH.read_bytes()).hexdigest(),
+        )
+        self.assertEqual(closure["target"], "macos")
+        self.assertEqual(closure["suites"], ["kotlinx.io.files.SmokeFileTest"])
+        self.assertEqual(closure["source_paths"], [
+            "core/common/test/files/SmokeFileTest.kt",
+            "core/common/test/util.kt",
+            "core/native/test/util.kt",
+        ])
 
     def test_exact_overload_exception_and_abi_mapping(self):
         declaration = self.row("kotlinx.io/readByteArray|readByteArray@kotlinx.io.Source(kotlin.Int){}")

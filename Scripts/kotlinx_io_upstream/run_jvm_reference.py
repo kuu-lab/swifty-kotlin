@@ -130,6 +130,22 @@ def map_executions(discovered: list[dict], results: list[dict], lookup: dict, ex
     return mapped
 
 
+def select_execution_rows(expected: list[dict], requested_ids: list[str] | None) -> list[dict]:
+    requested = list(requested_ids or [])
+    if not requested:
+        return list(expected)
+    if any(not identifier or identifier != identifier.strip() for identifier in requested):
+        raise ValueError("execution IDs must be nonempty and have no surrounding whitespace")
+    if len(requested) != len(set(requested)):
+        raise ValueError("execution ID selection must be unique")
+    by_id = {row["execution_id"]: row for row in expected}
+    unknown = [identifier for identifier in requested if identifier not in by_id]
+    if unknown:
+        raise ValueError(f"unknown JVM execution ID: {unknown[0]}")
+    selected = set(requested)
+    return [row for row in expected if row["execution_id"] in selected]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--upstream", type=Path, required=True)
@@ -138,6 +154,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dependencies", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--download", action="store_true", help="download missing locked Maven jars")
+    parser.add_argument("--execution-id", action="append", default=[],
+                        help="select a concrete locked JUnit execution ID; may be repeated")
     parser.add_argument("--compile-timeout", type=float, default=180)
     parser.add_argument("--run-timeout", type=float, default=180)
     args = parser.parse_args(argv)
@@ -167,6 +185,7 @@ def main(argv: list[str] | None = None) -> int:
             if row["platform"] in {"common", "jvm"} and "Windows" not in row["upstream_path"]}
         if {row["upstream_id"] for row in expected} != eligible:
             raise ValueError("expected execution catalog does not cover every eligible upstream function ID")
+        selected_expected = select_execution_rows(expected, args.execution_id)
         sources = sorted({row["upstream_path"] for row in seed["cases"]
             if row["platform"] in {"common", "jvm"} and "Windows" not in row["upstream_path"]}
             | {row["path"] for row in seed["inventory_only_sources"]
@@ -188,6 +207,7 @@ def main(argv: list[str] | None = None) -> int:
             "reference_lock_sha256": sha256(lock_path), "coverage_map_sha256": sha256(HERE / "coverage-map.seed.json"),
             "runner_sha256": sha256(HERE / "JvmReferenceRunner.java"), "host": platform.platform(),
             "java": str(args.java.resolve()), "source_files": sources,
+            "selected_execution_ids": [row["execution_id"] for row in selected_expected],
             "unsupported_source_files": [row["path"] for row in lock["upstream_files"] if row["path"] not in sources],
             "sdk_files": lock["sdk_files"], "reference_artifacts": lock["jvm_artifacts"]}
         compiler_environment = {"JAVACMD": str(args.java.resolve())}
@@ -209,13 +229,14 @@ def main(argv: list[str] | None = None) -> int:
         runtime_cp = jars + [tests_jar] + [sdk / name for name in
             ("kotlin-stdlib.jar", "kotlin-reflect.jar", "kotlin-test.jar", "kotlin-test-junit5.jar")]
         command = [str(args.java.resolve()), "-Xmx1024m", "-cp", os.pathsep.join(map(str, runtime_cp)),
-            str(HERE / "JvmReferenceRunner.java"), str(tests_jar), str(args.output.resolve() / "junit")]
+            str(HERE / "JvmReferenceRunner.java"), str(tests_jar), str(args.output.resolve() / "junit"),
+            *([row["execution_id"] for row in selected_expected] if args.execution_id else [])]
         code = execute(command, args.output, "run", args.run_timeout)
         output = args.output / "junit"
         if not (output / "results.json").exists():
             return 1
         mapped = map_executions(json.loads((output / "discovered.json").read_text()),
-            json.loads((output / "results.json").read_text()), lookup, expected)
+            json.loads((output / "results.json").read_text()), lookup, selected_expected)
         (args.output / "execution-map.json").write_text(json.dumps(mapped, indent=2) + "\n")
         reference_counts = dict(collections.Counter(row["reference_result"]["status"] for row in mapped))
         summary = {"kind": "reference-only", "concrete_execution_count": len(mapped),

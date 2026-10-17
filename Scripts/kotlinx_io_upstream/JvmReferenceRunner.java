@@ -9,6 +9,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.junit.platform.engine.DiscoverySelector;
 import org.junit.platform.engine.TestExecutionResult;
 import org.junit.platform.engine.support.descriptor.MethodSource;
 import org.junit.platform.launcher.TestExecutionListener;
@@ -17,6 +18,7 @@ import org.junit.platform.launcher.TestPlan;
 import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
 import org.junit.platform.launcher.core.LauncherFactory;
 import static org.junit.platform.engine.discovery.DiscoverySelectors.selectClasspathRoots;
+import static org.junit.platform.engine.discovery.DiscoverySelectors.selectUniqueId;
 
 /** Java 21 source-mode runner: the original test classes and assertions are unchanged. */
 class JvmReferenceRunner {
@@ -65,12 +67,15 @@ class JvmReferenceRunner {
     }
 
     public static void main(String[] args) throws Exception {
-        if (args.length != 2) throw new IllegalArgumentException("test jar and output directory required");
+        if (args.length < 2) throw new IllegalArgumentException("test jar and output directory required");
         Path output = Path.of(args[1]);
         Files.createDirectories(output);
         var launcher = LauncherFactory.create();
+        var selectors = new ArrayList<DiscoverySelector>();
+        if (args.length == 2) selectors.addAll(selectClasspathRoots(java.util.Set.of(Path.of(args[0]))));
+        else for (int index = 2; index < args.length; index++) selectors.add(selectUniqueId(args[index]));
         var request = LauncherDiscoveryRequestBuilder.request()
-            .selectors(selectClasspathRoots(java.util.Set.of(Path.of(args[0]))))
+            .selectors(selectors.toArray(DiscoverySelector[]::new))
             .filters(org.junit.platform.engine.discovery.ClassNameFilter.includeClassNamePatterns(".*"))
             .configurationParameter("junit.jupiter.execution.parallel.enabled", "false")
             .build();

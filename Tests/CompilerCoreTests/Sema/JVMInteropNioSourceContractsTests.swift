@@ -145,6 +145,102 @@ struct JVMInteropNioSourceContractsTests {
     }
 
     @Test(arguments: [false, true])
+    func filesystemDefaultFlagRowsHaveDedicatedSourceAndArtifactChecks(library: Bool) throws {
+        let rowIDs: Set<String> = [
+            "jvm-22f55505dcae0513",
+            "jvm-258efe69986cf1fb",
+            "jvm-959e3de0168c91f8",
+        ]
+        let expectedParameterNames = [
+            "kotlinx.io.files.FileSystem.sink": ["path", "append"],
+            "kotlinx.io.files.FileSystem.delete": ["path", "mustExist"],
+            "kotlinx.io.files.FileSystem.createDirectories": ["path", "mustCreate"],
+        ]
+        var root = URL(fileURLWithPath: #filePath)
+        for _ in 0..<4 { root.deleteLastPathComponent() }
+        let index = try JSONDecoder().decode(DefaultObligations.self, from: Data(contentsOf: root.appendingPathComponent(
+            "Scripts/kotlinx_io_upstream/jvm_interop/native-default-obligations.expected.json")))
+        let rows = index.rows.filter { rowIDs.contains($0.rowID) }
+        try #require(rows.count == 3 && Set(rows.map(\.rowID)) == rowIDs)
+        for row in rows {
+            #expect(row.defaults == [false, true])
+            #expect(row.parameterTokens == ["Lkotlinx.io.files.Path;", "Z"])
+            #expect(row.visibility == "public")
+        }
+
+        let (ctx, initial) = try context("""
+        import kotlinx.io.files.FileSystem
+        import kotlinx.io.files.Path
+
+        fun probe(fs: FileSystem, path: Path) {
+            fs.sink(path)
+            fs.sink(path, append = true)
+            fs.delete(path)
+            fs.delete(path, mustExist = false)
+            fs.createDirectories(path)
+            fs.createDirectories(path, mustCreate = true)
+        }
+        """, library: library)
+        defer { unchanged(ctx, initial) }
+        try runSema(ctx)
+        try #require(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let encode: (TypeID) -> String = { type in
+            self.normalizeTypeParameterTokens(NameMangler().encodeType(type, symbols: sema.symbols, types: sema.types,
+                nameResolver: ctx.interner.resolve, unboxValueClasses: false))
+        }
+        let records: [MetadataRecord]
+        if let path = ctx.options.stdlibLibraryPath {
+            records = MetadataDecoder().decode(try Data(contentsOf: URL(fileURLWithPath: path)
+                .appendingPathComponent("metadata.bin")))
+        } else { records = [] }
+
+        var observedCallArities: [String: [Int]] = [:]
+        for index in ast.arena.exprs.indices {
+            let id = ExprID(rawValue: Int32(index))
+            guard let range = ast.arena.exprRange(id), ctx.sourceManager.origin(of: range.start.file) == .user,
+                  let binding = sema.bindings.callBinding(for: id),
+                  let symbol = sema.symbols.symbol(binding.chosenCallee) else { continue }
+            let fqName = symbol.fqName.map(ctx.interner.resolve).joined(separator: ".")
+            guard expectedParameterNames[fqName] != nil else { continue }
+            guard case let .memberCall(_, _, _, arguments, _) = ast.arena.expr(id) else {
+                Issue.record("Expected a direct FileSystem member call: \(fqName)")
+                continue
+            }
+            observedCallArities[fqName, default: []].append(arguments.count)
+        }
+
+        for row in rows {
+            let matching = sema.symbols.lookupAll(fqName: row.fqName.split(separator: ".").map { ctx.interner.intern(String($0)) })
+                .compactMap { sema.symbols.symbol($0) }.filter { symbol in
+                    guard symbol.kind == .function, !symbol.flags.contains(.extensionMemberAlias),
+                          let fn = sema.symbols.functionSignature(for: symbol.id) else { return false }
+                    return fn.parameterTypes.map(encode) == row.parameterTokens
+                }
+            try #require(matching.count == 1, "\(row.rowID): \(row.fqName) \(row.parameterTokens)")
+            let symbol = try #require(matching.first)
+            let fn = try #require(sema.symbols.functionSignature(for: symbol.id))
+            let names = expectedParameterNames[row.fqName]!
+            #expect(fn.valueParameterSymbols.compactMap { sema.symbols.symbol($0).map { ctx.interner.resolve($0.name) } } == names)
+            #expect(fn.valueParameterHasDefaultValues == row.defaults)
+            #expect(symbol.visibility == .public && symbol.flags.contains(.importedLibrary) == library)
+            #expect(sema.symbols.isSourceBackedSymbol(symbol.id))
+            #expect(observedCallArities[row.fqName]?.sorted() == [1, 2])
+
+            if library {
+                let signature = normalizeTypeParameterTokens(encodedSignature(symbol, ctx, sema))
+                let exact = records.filter { $0.kind == .function && $0.fqName == row.fqName
+                    && self.normalizeTypeParameterTokens($0.typeSignature ?? "") == signature }
+                try #require(exact.count == 1, "Actual artifact: \(row.rowID)")
+                let record = try #require(exact.first)
+                #expect(record.valueParameterNames == names && record.valueParameterHasDefaultValues == row.defaults)
+                #expect(record.defaultStubExternalLinkName?.isEmpty == false, "Actual Native default stub: \(row.rowID)")
+            }
+        }
+    }
+
+    @Test(arguments: [false, true])
     func all28OriginalNativeInteropShapesAndActualMetadata(library: Bool) throws {
         let expected = try index()
         let (ctx, initial) = try context("fun main() {}", library: library)

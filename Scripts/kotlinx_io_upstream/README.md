@@ -102,6 +102,20 @@ executions, and failed test containers cause failure. Compiler and execution
 timeouts terminate the subprocess group. Java 21 is selected explicitly for
 both the Kotlin compiler and the test runner.
 
+For a focused reference run, repeat `--execution-id` with concrete IDs from the
+locked catalog. The runner still validates the complete catalog and upstream
+source hashes, but discovers and executes only the selected tests:
+
+```sh
+python3 Scripts/kotlinx_io_upstream/run_jvm_reference.py \
+  --upstream /tmp/kio-reference-environment/upstream \
+  --kotlin-home /tmp/kio-reference-environment/installation/kotlinc \
+  --java /path/to/java21/bin/java \
+  --dependencies /tmp/kio-reference-environment/dependencies \
+  --output /tmp/kio-reference-focused \
+  --execution-id '[engine:junit-jupiter]/[class:kotlinx.io.files.SmokeFileTest]/[method:appendToFile()]'
+```
+
 Each run saves version output, exact commands, source/dependency/runner hashes,
 the discovered IDs, per-execution results and an `execution-map.json` linking
 concrete classes to their declaring method, source ID and blob hash. A local

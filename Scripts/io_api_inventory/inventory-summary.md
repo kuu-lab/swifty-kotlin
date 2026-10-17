@@ -10,8 +10,8 @@ Kotlin compiler baseline: `2.3.10`.
 - KLIB rows backed by non-public implementation declarations: **34**; these are separate from public source APIs.
 - `@PublishedApi internal` implementation ABI rows: **19**.
 - Rows marked missing because no exact owner/receiver/parameter local declaration was found: **5**.
-- Rows with exact local declarations or generated ABI entries, without semantic verification: **698**.
-- Rows promoted by current passing reference/candidate evidence: **3**.
+- Rows with exact local declarations or generated ABI entries, without semantic verification: **695**.
+- Rows promoted by current passing reference/candidate evidence: **6**.
 - Public JVM exception typealiases tracked separately: **3**.
 - Source exception contracts documented with `@throws`/`@Throws`: **241** rows.
 - Source deprecation levels found: ERROR=4
@@ -42,6 +42,7 @@ python3 Scripts/io_api_inventory/generate.py --check --verify-jars /tmp
 ## Owner routing
 
 Rows route to KUU-1729 (Buffer/Segment), KUU-1730 (source/sink lifecycle and common helpers), KUU-1731 (primitive/ByteArray I/O), KUU-1733 (UTF-8), KUU-1760 (ByteString), KUU-1761 (Filesystem), KUU-1762 (JVM interop/ABI/typealiases), or KUU-1763 (Apple). All are children of KUU-1725; missing declarations stay in scope.
+The three FileSystem `$default` flag bridges are routed separately to KUU-2630 for row-local JVM classfile and default-dispatch evidence.
 
 ## JVM ABI classification
 
