@@ -1,6 +1,5 @@
 import Foundation
 
-/// Anchor for resolving `Tests/CompilerCoreTests/GoldenCases`.
 enum GoldenHarnessPaths {
     static var goldenCasesDirectory: URL {
         let fileManager = FileManager.default
