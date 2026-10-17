@@ -274,6 +274,38 @@ catalogs used by evidence, and byte-for-byte output without modifying files.
 python3 Scripts/io_api_inventory/test_validation_evidence.py
 ```
 
+Dedicated API-shape probes that are not upstream test methods are registered in
+`api-probe-catalog.json`. Each probe case belongs to exactly one row ID and
+lists the lanes required by that row's compatibility obligations. A matching
+`api-validation-probe-results.json` receipt supplies the command, output,
+output hashes, candidate SHA and reference pin for every lane. The generator
+accepts these IDs only through the row-owned catalog and checks that the
+recorded lane, candidate and reference agree. Probe source, runner, catalog
+and receipt hashes participate in the row's test-input hash. This keeps a
+dedicated type/ABI probe from borrowing an unrelated upstream behavior test.
+
+For example, Segment's public type/construction probe is run with:
+
+```sh
+python3 Scripts/io_api_inventory/run_segment_type_probe.py \
+  --candidate-package-root /path/to/pinned-candidate-checkout \
+  --compiler .build/debug/kswiftc \
+  --kotlin-home /path/to/kotlin-2.3.10 \
+  --java /path/to/java \
+  --dependencies /path/to/locked-io-jars \
+  --output /tmp/kuu-2609-segment-probe
+```
+
+The runner builds one fresh stdlib `.kklib`, then exercises source, that artifact,
+and separate producer/consumer lanes with O0/O2 consumer compilation. It also
+compares public/final class shape and the source-level construction boundary
+against the pinned JVM artifact. For a long-running stdlib build, build the
+artifact once with the same compiler and pass it with `--fresh-stdlib-library`;
+the runner copies it into the receipt workspace and records its tree hash. It
+writes an execution receipt and records both row evidence entries only after
+every required lane passes. Regenerate and check the inventory afterwards with
+`python3 Scripts/io_api_inventory/generate.py --write` and `--check`.
+
 The relocation regression copies inputs into a different checkout root in
 reverse filesystem creation order and compares all three generated outputs.
 PublishedApi row identities use upstream-relative paths, and local references

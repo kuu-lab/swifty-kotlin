@@ -27,6 +27,9 @@ LEDGER_PATH = HERE / "api-inventory.tsv"
 SCOPE_PATH = HERE / "platform-scope.tsv"
 SUMMARY_PATH = HERE / "inventory-summary.md"
 VALIDATION_EVIDENCE_PATH = HERE / "api-validation-evidence.json"
+API_PROBE_CATALOG_PATH = HERE / "api-probe-catalog.json"
+API_PROBE_RESULTS_PATH = HERE / "api-validation-probe-results.json"
+API_PROBE_DIRECTORY = HERE / "segment_type_probe"
 UPSTREAM_RUNNER = REPO / "Scripts/kotlinx_io_upstream"
 UPSTREAM_RUNNER_LOCK_PATH = UPSTREAM_RUNNER / "reference-lock.json"
 REFERENCE_EXECUTIONS_PATH = UPSTREAM_RUNNER / "jvm-executions.expected.json"
@@ -209,6 +212,7 @@ TEST_HINTS = {
 
 LOCAL_IO_TEST_PREFIXES = (
     "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java",
+    "Scripts/io_api_inventory/segment_type_probe/",
     "Scripts/diff_cases/kotlinx_io_",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+ByteString",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+KtorIOCoverage.swift",
@@ -348,6 +352,10 @@ def validation_input_hashes(
             row.get("upstream_test_refs", ""), upstream, "upstream", locked_upstream_tests
         )
     )
+    for path in (API_PROBE_CATALOG_PATH, API_PROBE_RESULTS_PATH, HERE / "run_segment_type_probe.py"):
+        if path.is_file() and repository.resolve() == REPO.resolve():
+            relative = path.relative_to(REPO).as_posix()
+            test_files[f"repo/{relative}"] = hashlib.sha256(path.read_bytes()).hexdigest()
 
     def digest(files: dict[str, str]) -> str:
         encoded = json.dumps(files, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -370,7 +378,120 @@ def required_execution_lanes(obligations: list[str]) -> list[str]:
     return [lane for obligation in obligations for lane in VALIDATION_LANES_BY_OBLIGATION[obligation]]
 
 
-def _load_validation_execution_catalogs() -> dict[str, dict[str, str]]:
+def _load_validation_probe_catalog() -> dict[str, dict]:
+    try:
+        payload = json.loads(API_PROBE_CATALOG_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as error:
+        fail(f"cannot load API probe catalog: {error}")
+    if not isinstance(payload, dict) or set(payload) != {"schema_version", "cases"}:
+        fail("API probe catalog must contain only schema_version and cases")
+    if type(payload["schema_version"]) is not int or payload["schema_version"] != 1:
+        fail("unsupported API probe catalog schema_version")
+    if not isinstance(payload["cases"], list):
+        fail("API probe catalog cases must be an array")
+    by_row = {}
+    seen_case_ids = set()
+    for case in payload["cases"]:
+        if not isinstance(case, dict) or set(case) != {"row_id", "case_id", "lanes"}:
+            fail("each API probe catalog case must contain exactly row_id, case_id and lanes")
+        row_id, case_id, lanes = case["row_id"], case["case_id"], case["lanes"]
+        if not isinstance(row_id, str) or not row_id or row_id in by_row:
+            fail("API probe catalog has an empty or duplicate row_id")
+        if not isinstance(case_id, str) or not case_id.startswith("api-probe:") or case_id in seen_case_ids:
+            fail(f"API probe catalog has an invalid or duplicate case_id for {row_id}")
+        if (not isinstance(lanes, list) or not lanes or any(not isinstance(lane, str) for lane in lanes)
+                or len(lanes) != len(set(lanes))):
+            fail(f"API probe catalog has malformed lanes for {row_id}")
+        by_row[row_id] = case
+        seen_case_ids.add(case_id)
+    return by_row
+
+
+def _load_validation_probe_results(probe_catalog: dict[str, dict]) -> dict:
+    try:
+        payload = json.loads(API_PROBE_RESULTS_PATH.read_text(encoding="utf-8"), object_pairs_hook=_unique_json_object)
+    except OSError as error:
+        fail(f"cannot read API probe results {API_PROBE_RESULTS_PATH}: {error}")
+    except json.JSONDecodeError as error:
+        fail(f"invalid API probe results JSON: {error}")
+    except UnicodeDecodeError as error:
+        fail(f"API probe results are not UTF-8: {error}")
+    required_fields = {
+        "schema_version", "candidate_sha", "candidate_compiler_sha256", "reference_version",
+        "reference_kotlin_version", "reference_commit",
+        "probe_inputs_sha256", "summary", "executions",
+    }
+    if not isinstance(payload, dict) or set(payload) != required_fields:
+        fail("API probe results must contain exactly the schema v1 fields")
+    if type(payload["schema_version"]) is not int or payload["schema_version"] != 1:
+        fail("unsupported API probe results schema_version")
+    if not isinstance(payload["candidate_sha"], str) or not re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", payload["candidate_sha"]):
+        fail("API probe results have a malformed candidate SHA")
+    if not isinstance(payload["candidate_compiler_sha256"], str) or not re.fullmatch(r"[0-9a-f]{64}", payload["candidate_compiler_sha256"]):
+        fail("API probe results have a malformed candidate compiler hash")
+    if payload["reference_version"] != "0.9.1" or payload["reference_kotlin_version"] != "2.3.10":
+        fail("API probe results use a different kotlinx-io or Kotlin reference version")
+    if payload["reference_commit"] != EXPECTED_TAG_COMMIT:
+        fail("API probe results use a different upstream reference commit")
+    if not isinstance(payload["probe_inputs_sha256"], dict) or not payload["probe_inputs_sha256"]:
+        fail("API probe results have no probe input hashes")
+    for name, digest in payload["probe_inputs_sha256"].items():
+        if not isinstance(name, str) or not name or not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+            fail("API probe results contain a malformed probe input hash")
+        if name.startswith("repo/"):
+            path = REPO / name.removeprefix("repo/")
+            if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+                fail(f"API probe result has a stale repository input hash: {name}")
+    executions = payload["executions"]
+    if not isinstance(executions, list):
+        fail("API probe results executions must be an array")
+    expected = {
+        (row_id, case["case_id"], lane)
+        for row_id, case in probe_catalog.items()
+        for lane in case["lanes"]
+    }
+    actual = set()
+    result_fields = {"execution_id", "result", "exit_code", "command", "stdout", "stderr", "stdout_sha256", "stderr_sha256"}
+    for execution in executions:
+        if not isinstance(execution, dict) or set(execution) != {"row_id", "case_id", "lane", "reference", "candidate"}:
+            fail("API probe results contain a malformed execution")
+        identity = (execution["row_id"], execution["case_id"], execution["lane"])
+        if identity not in expected or identity in actual:
+            fail(f"API probe results contain an unknown or duplicate execution: {identity!r}")
+        actual.add(identity)
+        for subject in ("reference", "candidate"):
+            result = execution[subject]
+            if not isinstance(result, dict) or set(result) != result_fields:
+                fail(f"API probe results have a malformed {subject} result for {identity!r}")
+            if result["result"] != "PASS" or type(result["exit_code"]) is not int or result["exit_code"] != 0:
+                fail(f"API probe {subject} execution did not pass for {identity!r}")
+            if not isinstance(result["execution_id"], str) or not result["execution_id"]:
+                fail(f"API probe results have an empty {subject} execution ID for {identity!r}")
+            if not isinstance(result["command"], list) or not result["command"] or any(not isinstance(part, str) for part in result["command"]):
+                fail(f"API probe results have a malformed {subject} command for {identity!r}")
+            if not isinstance(result["stdout"], str) or not isinstance(result["stderr"], str):
+                fail(f"API probe results have malformed {subject} output for {identity!r}")
+            for digest_name in ("stdout_sha256", "stderr_sha256"):
+                if not isinstance(result[digest_name], str) or not re.fullmatch(r"[0-9a-f]{64}", result[digest_name]):
+                    fail(f"API probe results have a malformed {subject} {digest_name} for {identity!r}")
+            if hashlib.sha256(result["stdout"].encode("utf-8")).hexdigest() != result["stdout_sha256"]:
+                fail(f"API probe {subject} stdout hash mismatch for {identity!r}")
+            if hashlib.sha256(result["stderr"].encode("utf-8")).hexdigest() != result["stderr_sha256"]:
+                fail(f"API probe {subject} stderr hash mismatch for {identity!r}")
+            shared_reference = subject == "reference" and len(probe_catalog[identity[0]]["lanes"]) > 1
+            expected_id = f"{identity[0]}:shared-reference" if shared_reference else f"{identity[0]}:{identity[2]}:{subject}"
+            if result["execution_id"] != expected_id:
+                fail(f"API probe {subject} execution ID mismatch for {identity!r}")
+    if actual != expected:
+        fail(f"API probe results are missing executions: {sorted(expected - actual)!r}")
+    summary = payload["summary"]
+    if (not isinstance(summary, dict) or set(summary) != {"case_count", "lane_count", "passed", "failed"}
+            or summary != {"case_count": len(probe_catalog), "lane_count": len(expected), "passed": len(expected), "failed": 0}):
+        fail("API probe results summary does not match its passing executions")
+    return payload
+
+
+def _load_validation_execution_catalogs(probe_catalog: dict[str, dict] | None = None) -> dict[str, dict[str, object]]:
     try:
         lock = json.loads(UPSTREAM_RUNNER_LOCK_PATH.read_text(encoding="utf-8"))
         if lock.get("commit") != EXPECTED_TAG_COMMIT:
@@ -400,12 +521,28 @@ def _load_validation_execution_catalogs() -> dict[str, dict[str, str]]:
                     fail(f"duplicate {subject} execution ID in locked catalog: {execution_id}")
                 catalog[execution_id] = case_id
             catalogs[subject] = catalog
+        if API_PROBE_RESULTS_PATH.is_file():
+            probe_catalog = probe_catalog or _load_validation_probe_catalog()
+            probe_results = _load_validation_probe_results(probe_catalog)
+            for execution in probe_results["executions"]:
+                for subject in ("reference", "candidate"):
+                    result = execution[subject]
+                    catalogs[subject][result["execution_id"]] = {
+                        "case_id": execution["case_id"],
+                        "lane": "shared" if subject == "reference" and len(probe_catalog[execution["row_id"]]["lanes"]) > 1 else execution["lane"],
+                        "candidate_sha": probe_results["candidate_sha"],
+                        "reference_version": probe_results["reference_version"],
+                        "reference_commit": probe_results["reference_commit"],
+                    }
         return catalogs
     except (OSError, json.JSONDecodeError, UnicodeDecodeError) as error:
         fail(f"cannot load validation execution catalogs: {error}")
 
 
-def _case_id_matches_row(row: dict, case_id: str) -> bool:
+def _case_id_matches_row(row: dict, case_id: str, probe_catalog: dict[str, dict]) -> bool:
+    probe_case = probe_catalog.get(row.get("row_id"))
+    if probe_case and probe_case.get("case_id") == case_id:
+        return True
     case_path, separator, case_name = case_id.partition("#")
     if not separator or not case_path or not case_name:
         return False
@@ -426,6 +563,7 @@ def apply_validation_evidence(
     repository: Path = REPO,
     upstream: Path = UPSTREAM,
     execution_catalogs: dict[str, dict[str, str]] | None = None,
+    probe_catalog: dict[str, dict] | None = None,
 ) -> None:
     """Promote rows only when their pinned, current evidence satisfies every obligation."""
     by_id = {}
@@ -457,8 +595,9 @@ def apply_validation_evidence(
     if not isinstance(records, list):
         fail("validation evidence records must be an array")
     if records:
+        probe_catalog = probe_catalog or _load_validation_probe_catalog()
         if execution_catalogs is None:
-            execution_catalogs = _load_validation_execution_catalogs()
+            execution_catalogs = _load_validation_execution_catalogs(probe_catalog)
         if set(execution_catalogs) != {"reference", "candidate"}:
             fail("validation execution catalogs must include reference and candidate entries")
 
@@ -529,8 +668,15 @@ def apply_validation_evidence(
             lane = execution["lane"]
             if not isinstance(case_id, str) or not case_id.strip() or case_id != case_id.strip():
                 fail(f"empty execution case_id for row {row_id}")
-            if not _case_id_matches_row(row, case_id):
+            if not _case_id_matches_row(row, case_id, probe_catalog):
                 fail(f"execution case {case_id!r} is not mapped to row {row_id}'s upstream tests")
+            if case_id.startswith("api-probe:"):
+                probe = probe_catalog.get(row_id)
+                if probe is None or probe["case_id"] != case_id:
+                    fail(f"API probe case {case_id!r} is not owned by row {row_id}")
+                expected_lanes = required_execution_lanes(obligations)
+                if probe["lanes"] != expected_lanes:
+                    fail(f"API probe lanes do not match compatibility obligations for {row_id}")
             if not isinstance(lane, str) or lane not in required_lanes:
                 fail(f"unexpected validation lane {lane!r} for row {row_id}")
             identity = (lane, case_id)
@@ -546,9 +692,23 @@ def apply_validation_evidence(
                 if (not isinstance(execution_id, str) or not execution_id.strip()
                         or execution_id != execution_id.strip()):
                     fail(f"empty {subject} execution_id for row {row_id} case {case_id}")
-                catalog_case_id = execution_catalogs[subject].get(execution_id)
-                if catalog_case_id is None:
+                catalog_entry = execution_catalogs[subject].get(execution_id)
+                if catalog_entry is None:
                     fail(f"unknown {subject} execution_id for row {row_id}: {execution_id}")
+                if isinstance(catalog_entry, dict):
+                    catalog_case_id = catalog_entry.get("case_id")
+                    if (catalog_entry.get("lane") != lane
+                            and not (subject == "reference" and catalog_entry.get("lane") == "shared")):
+                        fail(f"{subject} execution_id is for the wrong lane for row {row_id}: {execution_id}")
+                    if case_id.startswith("api-probe:"):
+                        if catalog_entry.get("candidate_sha") != record["candidate_sha"]:
+                            fail(f"API probe candidate SHA mismatch for row {row_id}")
+                        if (record["reference_version"], record["reference_commit"]) != (
+                            catalog_entry.get("reference_version"), catalog_entry.get("reference_commit")
+                        ):
+                            fail(f"API probe reference pin mismatch for row {row_id}")
+                else:
+                    catalog_case_id = catalog_entry
                 if catalog_case_id != case_id:
                     fail(f"{subject} execution_id does not map to case {case_id} for row {row_id}")
                 execution_identity = (lane, execution_id)
@@ -1932,11 +2092,13 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     local_paths.extend(REPO.joinpath("Scripts/diff_cases").glob("*.kt"))
     local_paths.extend(REPO.joinpath("Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590").glob("*.kt"))
     local_paths.append(REPO / "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java")
+    local_paths.extend(API_PROBE_DIRECTORY.glob("*.kt"))
     for path in sorted(local_paths):
         rel = path.relative_to(REPO).as_posix()
         if rel.startswith(LOCAL_IO_TEST_PREFIXES):
             content = path.read_text(encoding="utf-8")
-            if "kotlinx.io" in content or "KotlinxIO" in path.name or "KtorIO" in path.name:
+            if (rel.startswith("Scripts/io_api_inventory/segment_type_probe/")
+                    or "kotlinx.io" in content or "KotlinxIO" in path.name or "KtorIO" in path.name):
                 local_tests.append((rel, content))
 
     tests = {entry["path"]: entry for entry in test_index["files"]}
