@@ -35,8 +35,6 @@ extension CallLowerer {
         }
     }
 
-    /// Checks whether the runtime ABI parameters (with the trailing `outThrown`
-    /// slot removed) line up with the Kotlin-level constructor signature.
     /// A `String` parameter may be lowered as a single pointer/handle or as a
     /// flat 4-word aggregate (`data`, `length`, `byteCount`, `hash`) depending on
     /// the ABI entry point; the backend has its own tables for the latter, so
@@ -103,7 +101,6 @@ extension CallLowerer {
         else {
             return false
         }
-        // Unprefixed flat-string quartet used by many single-string entry points.
         if dataParam.name == "data"
             && lengthParam.name == "length"
             && byteCountParam.name == "byteCount"
