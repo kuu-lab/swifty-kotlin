@@ -4,7 +4,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
     func inferCollectionHOFSumAndMiscCases(locals: inout LocalBindings) -> TypeID? {
         switch calleeStr {
         case "flatten":
-            // Sequence<Iterable<T>> / List<List<T>> etc.: one-level flatten → element type T
             guard args.isEmpty else {
                 sema.bindings.bindExprType(id, type: sema.types.anyType)
                 return sema.types.anyType
@@ -31,7 +30,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 }
             }
             let extractedInner = getCollectionElementType(collectionElementType, sema: sema, interner: interner)
-            // Reject when the element type is a KNOWN non-collection (e.g. Int).
             if !isSequenceReceiver && extractedInner == sema.types.anyType
                 && collectionElementType != sema.types.anyType
                 && !receiverClassifier.isCollectionLikeType(collectionElementType) {
@@ -159,7 +157,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     resultType = sema.types.anyType
                 }
             } else {
-                // zipWithNext(transform: (T, T) -> R): List<R>
                 guard args.count == 1 else {
                     sema.bindings.bindExprType(id, type: sema.types.anyType)
                     return sema.types.anyType
@@ -247,7 +244,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
             if calleeStr == "forEachIndexed" {
                 resultType = sema.types.unitType
-                // KSP-626: bind the bundled Iterable<T>.forEachIndexed source function.
                 if bindBundledIterableSourceFunction(typeArguments: [collectionElementType], locals: &locals),
                    let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
@@ -795,8 +791,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             )))]
 
         case "binarySearch":
-            // STDLIB-547: binarySearch(comparison: (T) -> Int) overload.
-            // STDLIB-COL-BSEARCH-002: binarySearch(element, comparator, fromIndex, toIndex).
             let comparatorFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Comparator")]
             let comparatorExpectedType: TypeID? = if let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName) {
                 sema.types.make(.classType(ClassType(
