@@ -182,6 +182,11 @@ def scenarios() -> list[dict]:
                   "reference_probe": ROOT / "Scripts/io_api_inventory/probes/segment_data_as_byte_array_jvm_abi.kt",
                   "entry": "f02consumer.main", "jvm_class": "f02consumer.ConsumerKt",
                   "reference_class": "f02jvmabi.SegmentDataAsByteArrayJvmAbi", "reference": "jvm"})
+    cases.append({"id": "unsafe-buffer-move-to-tail-defaults",
+                  "producer": [HERE / "f02_consumers/UnsafeBufferOperationsMoveToTailDefaultsProducer.kt"],
+                  "consumer": HERE / "f02_consumers/UnsafeBufferOperationsMoveToTailDefaultsConsumer.kt",
+                  "entry": "kuu2639consumer.main", "jvm_class": "kuu2639consumer.ConsumerKt",
+                  "reference": "jvm"})
     fixtures = sorted((ROOT / "Scripts/diff_cases").glob("kotlinx_io*.kt"))
     cases.append({"id": "diff-consumers", "fixtures": fixtures, "reference": "jvm",
                   "entry": "f02corpusconsumer.main", "jvm_class": "f02corpusconsumer.ConsumerKt"})

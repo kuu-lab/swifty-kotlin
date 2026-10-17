@@ -1,0 +1,39 @@
+{
+  "row_id": "jvm-8178a8b4ccb3fdd8",
+  "method_shape": {
+    "owner": "kotlinx.io.unsafe.UnsafeBufferOperations",
+    "name": "moveToTail$default",
+    "descriptor": "(Lkotlinx/io/unsafe/UnsafeBufferOperations;Lkotlinx/io/Buffer;[BIIILjava/lang/Object;)V",
+    "modifiers": ["public", "static", "synthetic"],
+    "parameterTypes": [
+      "kotlinx.io.unsafe.UnsafeBufferOperations",
+      "kotlinx.io.Buffer",
+      "[B",
+      "int",
+      "int",
+      "int",
+      "java.lang.Object"
+    ],
+    "returnType": "void"
+  },
+  "underlying_shape": {
+    "owner": "kotlinx.io.unsafe.UnsafeBufferOperations",
+    "name": "moveToTail",
+    "descriptor": "(Lkotlinx/io/Buffer;[BII)V",
+    "modifiers": ["public", "final"],
+    "parameterTypes": ["kotlinx.io.Buffer", "[B", "int", "int"],
+    "returnType": "void"
+  },
+  "default_masks": {"startIndex": 4, "endIndex": 8, "both": 12},
+  "observations": [
+    {"name": "all-defaults", "mask": 12, "input": [1, 2, 3, 4], "startArgument": 91, "endArgument": 92, "result": [1, 2, 3, 4]},
+    {"name": "default-start", "mask": 4, "input": [1, 2, 3, 4], "startArgument": 91, "endArgument": 3, "result": [1, 2, 3]},
+    {"name": "default-end", "mask": 8, "input": [1, 2, 3, 4], "startArgument": 2, "endArgument": 92, "result": [3, 4]},
+    {"name": "explicit-range", "mask": 0, "input": [1, 2, 3, 4], "startArgument": 1, "endArgument": 3, "result": [2, 3]},
+    {"name": "empty-default-end", "mask": 8, "input": [1, 2, 3], "startArgument": 3, "endArgument": 92, "result": []},
+    {"name": "default-start-oob", "mask": 4, "input": [1, 2, 3, 4], "startArgument": 91, "endArgument": 5, "exception": "java.lang.IndexOutOfBoundsException"},
+    {"name": "explicit-negative-start", "mask": 0, "input": [1, 2, 3, 4], "startArgument": -1, "endArgument": 1, "exception": "java.lang.IndexOutOfBoundsException"},
+    {"name": "explicit-reversed", "mask": 0, "input": [1, 2, 3, 4], "startArgument": 2, "endArgument": 1, "exception": "java.lang.IllegalArgumentException"}
+  ],
+  "result": "PASS"
+}

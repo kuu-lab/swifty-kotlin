@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+  "native_execution_catalog_sha256": "3bd3e5e45e2a86315dfb7c8a5ef171abdeeab49dbc50b6260c219155b67ac57e",
+  "target": "macos",
+  "suites": [
+    "kotlinx.io.unsafe.UnsafeBufferOperationsMoveTest"
+  ],
+  "source_paths": [
+    "core/common/test/unsafe/UnsafeBufferOperationsMoveTest.kt"
+  ]
+}

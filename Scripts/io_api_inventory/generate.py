@@ -38,6 +38,17 @@ NO_DIRECT_UPSTREAM_ASSERTION_SOURCE_REFS = {
 }
 NO_DIRECT_UPSTREAM_ASSERTION = "none (no direct upstream assertion mapped)"
 VALIDATION_EVIDENCE_SCHEMA_VERSION = 2
+KUU_2639_ROW_ID = "jvm-8178a8b4ccb3fdd8"
+KUU_2639_CASE_ID = "core/common/test/unsafe/UnsafeBufferOperationsMoveTest.kt#moveArrayFully"
+KUU_2639_CONSUMER_CASE_ID = "unsafe-buffer-move-to-tail-defaults"
+KUU_2639_NATIVE_SOURCE_CLOSURE = "Scripts/io_api_inventory/unsafe-buffer-move-to-tail-defaults.source-closure.json"
+KUU_2639_SPECIAL_EVIDENCE_POLICY = "retain-unverified-no-candidate-jvm-classfile"
+KUU_2639_PROBE_SOURCE = "Scripts/io_api_inventory/probes/UnsafeBufferOperationsMoveToTailDefaultBridgeProbe.java"
+KUU_2639_PROBE_EXPECTED = "Scripts/io_api_inventory/probes/unsafe_buffer_move_to_tail_default_bridge.expected.json"
+KUU_2639_PROBE_RUNNER = "Scripts/io_api_inventory/probes/run_unsafe_buffer_move_to_tail_default_bridge_probe.py"
+KUU_2639_CONSUMER_SOURCE = "Scripts/io_api_inventory/f02_consumers/UnsafeBufferOperationsMoveToTailDefaultsProducer.kt"
+KUU_2639_CONSUMER_DRIVER = "Scripts/io_api_inventory/f02_consumers/UnsafeBufferOperationsMoveToTailDefaultsConsumer.kt"
+KUU_2639_NATIVE_TEST_SUPPORT = "Scripts/io_api_inventory/f02_consumers/UnsafeBufferOperationsMoveToTailDefaultsTestSupport.kt"
 VALIDATION_LANES_BY_OBLIGATION = {
     "jvm-descriptor": ("jvm-descriptor",),
     "native-source": (
@@ -391,6 +402,8 @@ def validation_input_hashes(
 
 def validation_obligations(row: dict) -> list[str]:
     """Return the compatibility obligations that apply to this ledger representation."""
+    if row.get("row_id") == KUU_2639_ROW_ID:
+        return ["native-source", "native-bridge"]
     if row.get("representation") == "JVM public ABI dump":
         return ["jvm-descriptor"]
     return ["native-source", "native-bridge"]
@@ -475,6 +488,220 @@ def _case_id_matches_row(row: dict, case_id: str) -> bool:
     return False
 
 
+def canonical_json_sha256(value: object) -> str:
+    encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def validate_kuu2639_specialized_evidence(
+    row: dict,
+    record: dict,
+    specialized: object,
+    io_lock: dict,
+    repository: Path,
+    execution_catalogs: dict[str, dict[str, str]],
+) -> None:
+    sha256_pattern = re.compile(r"^[0-9a-f]{64}$")
+    if row.get("row_id") != KUU_2639_ROW_ID:
+        fail("specialized KUU-2639 evidence is attached to another row")
+    if not isinstance(specialized, dict) or set(specialized) != {
+        "policy", "upstream_jvm_case", "jvm_bridge_probe", "candidate_lane_receipts",
+        "dedicated_consumer_matrix", "native_source_closure_sha256",
+        "native_test_support_sha256",
+    }:
+        fail(f"malformed specialized evidence for row {KUU_2639_ROW_ID}")
+    if specialized["policy"] != KUU_2639_SPECIAL_EVIDENCE_POLICY:
+        fail("KUU-2639 evidence must retain the JVM ABI row as unverified")
+    source_closure_path = repository / KUU_2639_NATIVE_SOURCE_CLOSURE
+    try:
+        source_closure_bytes = source_closure_path.read_bytes()
+        source_closure = json.loads(source_closure_bytes.decode("utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        fail(f"cannot read KUU-2639 Native source closure: {error}")
+    expected_source_closure = {
+        "schema_version": 1,
+        "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+        "native_execution_catalog_sha256": "3bd3e5e45e2a86315dfb7c8a5ef171abdeeab49dbc50b6260c219155b67ac57e",
+        "target": "macos",
+        "suites": ["kotlinx.io.unsafe.UnsafeBufferOperationsMoveTest"],
+        "source_paths": ["core/common/test/unsafe/UnsafeBufferOperationsMoveTest.kt"],
+    }
+    if source_closure != expected_source_closure:
+        fail("KUU-2639 Native source closure differs from the audited one-file scope")
+    source_closure_sha256 = hashlib.sha256(source_closure_bytes).hexdigest()
+    if specialized["native_source_closure_sha256"] != source_closure_sha256:
+        fail("KUU-2639 Native source closure receipt hash mismatch")
+    support_path = repository / KUU_2639_NATIVE_TEST_SUPPORT
+    support_sha256 = hashlib.sha256(support_path.read_bytes()).hexdigest()
+    if specialized["native_test_support_sha256"] != support_sha256:
+        fail("KUU-2639 Native test support source hash mismatch")
+
+    upstream_case = specialized["upstream_jvm_case"]
+    if not isinstance(upstream_case, dict):
+        fail("KUU-2639 upstream JVM case receipt is malformed")
+    if (upstream_case.get("kind") != "locked-upstream-jvm-test"
+            or upstream_case.get("upstream_id") != KUU_2639_CASE_ID
+            or upstream_case.get("result") != "PASS"
+            or upstream_case.get("exit_code") != 0
+            or upstream_case.get("discovered_count") != 1
+            or upstream_case.get("executed_count") != 1
+            or upstream_case.get("passed_count") != 1
+            or upstream_case.get("java_runtime_major") != 21
+            or not isinstance(upstream_case.get("java_version_sha256"), str)
+            or not re.fullmatch(r"[0-9a-f]{64}", upstream_case["java_version_sha256"])):
+        fail("KUU-2639 original JVM assertion did not pass exactly once")
+    if (upstream_case.get("reference_version"), upstream_case.get("reference_commit")) != (
+        record["reference_version"], record["reference_commit"]
+    ):
+        fail("KUU-2639 JVM assertion uses a different upstream pin")
+    if execution_catalogs["reference"].get(upstream_case.get("execution_id")) != KUU_2639_CASE_ID:
+        fail("KUU-2639 JVM assertion ID does not map to the locked upstream case")
+    source_path = KUU_2639_CASE_ID.split("#", 1)[0]
+    locked_test = next((entry for entry in io_lock.get("upstreamTests", [])
+                        if entry.get("path") == source_path), None)
+    if (locked_test is None
+            or upstream_case.get("test_source_git_blob_sha") != locked_test.get("gitBlobSha")
+            or type(upstream_case.get("test_source_sha256")) is not str
+            or not re.fullmatch(r"[0-9a-f]{64}", upstream_case["test_source_sha256"])
+            or upstream_case.get("support_sources") != []
+            or any(not isinstance(upstream_case.get(field), str)
+                   or not re.fullmatch(r"[0-9a-f]{64}", upstream_case[field])
+                   for field in ("selected_method_source_sha256", "prepared_source_sha256"))):
+        fail("KUU-2639 JVM assertion source does not match the upstream test lock")
+
+    candidate_lanes = specialized["candidate_lane_receipts"]
+    if not isinstance(candidate_lanes, list):
+        fail("KUU-2639 candidate lane receipts are malformed")
+    expected_candidate_lanes = set(required_execution_lanes(["native-source", "native-bridge"]))
+    seen_candidate_lanes = set()
+    candidate_ids = execution_catalogs["candidate"]
+    for lane_receipt in candidate_lanes:
+        receipt_fields = {
+            "lane", "execution_id", "result", "exit_code", "selected_count", "passed_count",
+            "run_stdout_sha256", "run_stderr_sha256", "results_sha256", "summary_sha256",
+            "executable_sha256", "runner_inputs_sha256", "test_support_source_sha256",
+        }
+        if not isinstance(lane_receipt, dict) or set(lane_receipt) != receipt_fields:
+            fail("malformed KUU-2639 candidate lane receipt")
+        lane = lane_receipt["lane"]
+        if lane not in expected_candidate_lanes or lane in seen_candidate_lanes:
+            fail(f"unexpected or duplicate KUU-2639 candidate lane: {lane}")
+        seen_candidate_lanes.add(lane)
+        if (lane_receipt["result"] != "PASS" or lane_receipt["exit_code"] != 0
+                or lane_receipt["selected_count"] != 1 or lane_receipt["passed_count"] != 1
+                or candidate_ids.get(lane_receipt["execution_id"]) != KUU_2639_CASE_ID):
+            fail(f"KUU-2639 candidate assertion did not pass exactly once in {lane}")
+        for field in ("run_stdout_sha256", "run_stderr_sha256", "results_sha256", "summary_sha256",
+                      "executable_sha256", "runner_inputs_sha256", "test_support_source_sha256"):
+            if not isinstance(lane_receipt[field], str) or not sha256_pattern.fullmatch(lane_receipt[field]):
+                fail(f"malformed KUU-2639 candidate lane hash: {field}")
+        if lane_receipt["test_support_source_sha256"] != support_sha256:
+            fail(f"KUU-2639 candidate lane used different test support: {lane}")
+    if seen_candidate_lanes != expected_candidate_lanes:
+        fail("KUU-2639 candidate execution matrix is missing a required lane")
+
+    probe = specialized["jvm_bridge_probe"]
+    if not isinstance(probe, dict) or set(probe) != {"report_sha256", "report"}:
+        fail("KUU-2639 JVM bridge probe receipt is malformed")
+    if probe["report_sha256"] != canonical_json_sha256(probe["report"]):
+        fail("KUU-2639 JVM bridge probe report hash mismatch")
+    report = probe["report"]
+    if (not isinstance(report, dict)
+            or report.get("schema_version") != 1
+            or report.get("probe_id") != "JVMABIReflectionLedgerProbe#" + KUU_2639_ROW_ID
+            or report.get("row_id") != KUU_2639_ROW_ID
+            or report.get("candidate_sha") != record["candidate_sha"]
+            or report.get("reference_version") != record["reference_version"]
+            or report.get("reference_commit") != record["reference_commit"]
+            or report.get("java_runtime_major") != 21
+            or not isinstance(report.get("java_version_sha256"), str)
+            or not sha256_pattern.fullmatch(report["java_version_sha256"])
+            or report.get("result") != "PASS"
+            or report.get("exit_code") != 0):
+        fail("KUU-2639 JVM bridge probe did not pass for the evidence candidate and reference")
+    reference_lock_path = repository / "Scripts/kotlinx_io_upstream/reference-lock.json"
+    try:
+        reference_lock = json.loads(reference_lock_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        fail(f"cannot read KUU-2639 JVM reference lock: {error}")
+    artifact_coordinate = "org.jetbrains.kotlinx:kotlinx-io-core-jvm:0.9.1"
+    artifact = next((entry for entry in reference_lock.get("jvm_artifacts", [])
+                     if entry.get("coordinate") == artifact_coordinate), None)
+    if (artifact is None
+            or report.get("artifact_coordinate") != artifact_coordinate
+            or report.get("artifact_sha256") != artifact.get("sha256")):
+        fail("KUU-2639 JVM bridge probe does not use the pinned physical artifact")
+    pinned_jvm_artifact_hashes = {entry.get("sha256") for entry in reference_lock.get("jvm_artifacts", [])}
+    original_jvm_artifact_hashes = set(upstream_case.get("jvm_artifact_sha256", {}).values())
+    if not pinned_jvm_artifact_hashes or original_jvm_artifact_hashes != pinned_jvm_artifact_hashes:
+        fail("KUU-2639 original JVM assertion does not use every pinned JVM artifact")
+    locked_sources = {entry.get("path"): entry for entry in reference_lock.get("upstream_files", [])}
+    if source_path not in locked_sources:
+        fail("KUU-2639 original JVM assertion file is absent from the JVM reference lock")
+    for field in ("probe_stdout_sha256", "probe_stderr_sha256"):
+        if not isinstance(report.get(field), str) or not sha256_pattern.fullmatch(report[field]):
+            fail(f"malformed KUU-2639 probe receipt hash: {field}")
+    expected_path = repository / KUU_2639_PROBE_EXPECTED
+    probe_source_path = repository / KUU_2639_PROBE_SOURCE
+    try:
+        expected_contract = json.loads(expected_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        fail(f"cannot read KUU-2639 JVM bridge contract: {error}")
+    for field, path in (("probe_source_path", probe_source_path),
+                        ("expected_contract_path", expected_path)):
+        expected_relative = path.resolve().relative_to(repository.resolve()).as_posix()
+        if report.get(field) != expected_relative:
+            fail(f"KUU-2639 probe path mismatch: {field}")
+    if report.get("probe_source_sha256") != hashlib.sha256(probe_source_path.read_bytes()).hexdigest():
+        fail("stale KUU-2639 JVM bridge probe source hash")
+    if report.get("expected_contract_sha256") != hashlib.sha256(expected_path.read_bytes()).hexdigest():
+        fail("stale KUU-2639 expected JVM bridge contract hash")
+    observed = report.get("probe")
+    if (not isinstance(observed, dict)
+            or any(observed.get(key) != value for key, value in expected_contract.items())
+            or type(observed.get("assertion_count")) is not int
+            or observed["assertion_count"] < 20):
+        fail("KUU-2639 JVM bridge probe output differs from its locked contract")
+
+    consumer = specialized["dedicated_consumer_matrix"]
+    if not isinstance(consumer, dict) or set(consumer) != {"summary_sha256", "summary"}:
+        fail("KUU-2639 dedicated consumer matrix receipt is malformed")
+    summary = consumer["summary"]
+    if consumer["summary_sha256"] != canonical_json_sha256(summary):
+        fail("KUU-2639 dedicated consumer matrix summary hash mismatch")
+    if (not isinstance(summary, dict)
+            or summary.get("status") != "SELECTED_MATRIX_PASS"
+            or summary.get("workspace_git_sha") != record["candidate_sha"]
+            or summary.get("selected_cases") != [KUU_2639_CONSUMER_CASE_ID]
+            or summary.get("issue_complete") is not False):
+        fail("KUU-2639 dedicated consumer matrix is incomplete or uses a different candidate")
+    lanes = summary.get("results")
+    expected_lanes = {(route, optimization)
+                      for route in ("source", "stdlib-library", "producer-consumer")
+                      for optimization in ("O0", "O2")}
+    observed_lanes = set()
+    for lane_result in lanes if isinstance(lanes, list) else []:
+        if (not isinstance(lane_result, dict)
+                or lane_result.get("case") != KUU_2639_CONSUMER_CASE_ID
+                or lane_result.get("status") != "PASS"):
+            fail("KUU-2639 dedicated consumer lane did not pass")
+        identity = (lane_result.get("route"), lane_result.get("optimization"))
+        if identity in observed_lanes:
+            fail("duplicate KUU-2639 dedicated consumer lane")
+        observed_lanes.add(identity)
+        if any(not isinstance(lane_result.get(field), str)
+               or not sha256_pattern.fullmatch(lane_result[field])
+               for field in ("stdout_sha256", "normalized_stdout_sha256")):
+            fail("KUU-2639 dedicated consumer lane is missing stdout hashes")
+    if observed_lanes != expected_lanes:
+        fail("KUU-2639 dedicated consumer matrix is missing a required route/optimization lane")
+    for relative in (KUU_2639_CONSUMER_SOURCE, KUU_2639_CONSUMER_DRIVER):
+        if summary.get("scenario_files_sha256", {}).get(relative) != hashlib.sha256(
+            (repository / relative).read_bytes()
+        ).hexdigest():
+            fail(f"stale KUU-2639 dedicated consumer input: {relative}")
+
+
 def apply_validation_evidence(
     rows: list[dict],
     lock: dict,
@@ -544,6 +771,8 @@ def apply_validation_evidence(
             fail("each validation record must be an object")
         evidence_source = "upstream-catalog" if schema_version == 1 else record.get("evidence_source")
         record_fields = base_record_fields | ({"evidence_source"} if schema_version == 2 else set())
+        if record.get("row_id") == KUU_2639_ROW_ID:
+            record_fields |= {"specialized_evidence"}
         if set(record) != record_fields:
             fail(f"each validation record must contain exactly the schema v{schema_version} fields")
         if evidence_source not in ("upstream-catalog", "local-probe"):
@@ -671,7 +900,15 @@ def apply_validation_evidence(
                     )
             if not required_cases:
                 fail(f"row {row_id} has no registered local probe evidence cases")
-        row["status"] = "verified"
+        if row_id == KUU_2639_ROW_ID:
+            validate_kuu2639_specialized_evidence(
+                row, record, record["specialized_evidence"], lock, repository, execution_catalogs
+            )
+            row["status"] = "unverified"
+        else:
+            if record.get("specialized_evidence") is not None:
+                fail(f"unexpected specialized evidence for row {row_id}")
+            row["status"] = "verified"
 
 
 def load_inputs() -> tuple[dict, dict, list[dict], list[dict]]:
@@ -2071,6 +2308,44 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
         row["local_test_refs"] = ";".join(local_test_refs(row, local_tests)) or "none"
         if row["representation"] == "JVM public ABI dump":
             row["scope_decision"] = "in-scope JVM ABI and Java interoperability"
+        if row["row_id"] == KUU_2639_ROW_ID:
+            implementation = "Sources/CompilerCore/Stdlib/kotlinx/io/unsafe/UnsafeBufferOperations.kt:46"
+            row["owner_issue"] = "KUU-2639"
+            row["local_candidate_refs"] = implementation
+            row["local_implementation_refs"] = implementation
+            row["upstream_test_refs"] = KUU_2639_CASE_ID
+            row["local_test_refs"] = ";".join((
+                KUU_2639_CONSUMER_SOURCE,
+                KUU_2639_CONSUMER_DRIVER,
+                KUU_2639_PROBE_SOURCE,
+                KUU_2639_PROBE_EXPECTED,
+                KUU_2639_PROBE_RUNNER,
+                KUU_2639_NATIVE_SOURCE_CLOSURE,
+                KUU_2639_NATIVE_TEST_SUPPORT,
+                "Scripts/io_api_inventory/run_f02_matrix.py",
+                "Scripts/io_api_inventory/verify_unsafe_buffer_move_to_tail_default_bridge.py",
+                "Scripts/io_api_inventory/generate.py",
+                "Scripts/io_api_inventory/test_validation_evidence.py",
+                "Scripts/io_api_inventory/generate_f02_consumers.py",
+                "Scripts/io_api_inventory/generate_f01_consumers.py",
+                "Scripts/io_api_inventory/source-declarations.json",
+                "Scripts/io_api_inventory/upstream-lock.json",
+                "Scripts/kotlinx_io_upstream/reference-lock.json",
+                "Scripts/kotlinx_io_upstream/jvm-executions.expected.json",
+                "Scripts/kotlinx_io_upstream/native-executions.expected.json",
+                "Scripts/kotlinx_io_upstream/run_jvm_reference_case.py",
+                "Scripts/kotlinx_io_upstream/run_jvm_reference.py",
+                "Scripts/kotlinx_io_upstream/JvmReferenceRunner.java",
+                "Scripts/kotlinx_io_upstream/run_candidate_suites.py",
+                "Scripts/kotlinx_io_upstream/run_candidate_subset.py",
+                "Scripts/kotlinx_io_upstream/prepare_candidate_catalog.py",
+                "Scripts/kotlinx_io_upstream/candidate-declarations.json",
+            ))
+            row["notes"] = (
+                "Pinned JVM $default descriptor/flags/masks are checked against the upstream JVM artifact; "
+                "Native source and KLIB behavior are checked separately. The Native candidate does not emit "
+                "a JVM classfile, so this JVM ABI row remains unverified."
+            )
         for test_ref in row["upstream_test_refs"].split(";"):
             if test_ref == "none" or test_ref.startswith("none ("):
                 continue

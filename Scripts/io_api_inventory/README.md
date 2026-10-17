@@ -247,7 +247,7 @@ available; every downloaded artifact is SHA-256 checked before success.
 
 ### Per-row validation evidence
 
-`api-validation-evidence.json` is an independent, versioned input to the
+`api-validation-evidence.json` schema version 2 is an independent input to the
 generator. Add one record per API `row_id`; do not promote `status` by editing
 `api-inventory.tsv`. Schema v2 keeps the upstream-catalog evidence route and
 adds a registered local-probe route. Schema v1 records remain readable as
@@ -290,6 +290,32 @@ The native-source obligation covers `source-O0`, `source-O2`,
 covers `producer-consumer-O0` and `producer-consumer-O2`. A paired JVM ABI row
 does not inherit native results, and a source row does not inherit JVM
 descriptor evidence.
+
+KUU-2639 is a deliberate split-view case: KSwiftK emits Native executables, not
+JVM classfiles. Its record therefore carries the six Native source/KLIB lanes,
+the exact upstream JVM assertion receipt, a reflection probe of the pinned
+0.9.1 JVM artifact, and the dedicated external-consumer matrix. The generator
+checks those receipts but retains this JVM ABI row as `unverified`; Native
+stdout cannot establish the candidate's physical JVM descriptor.
+
+Run the complete one-row gate and write its passing evidence with:
+
+```sh
+python3 Scripts/io_api_inventory/verify_unsafe_buffer_move_to_tail_default_bridge.py \
+  --compiler .build/debug/kswiftc \
+  --upstream /path/to/kotlinx-io-0.9.1 \
+  --kotlin-home /path/to/kotlinc-2.3.10 \
+  --java /path/to/jdk-21/bin/java \
+  --dependencies /path/to/locked-jars \
+  --output /tmp/kuu-2639
+```
+
+The command selects only
+`core/common/test/unsafe/UnsafeBufferOperationsMoveTest.kt#moveArrayFully`,
+retains its assertion body, and compiles the pinned test file with the two exact
+helper bodies required to type-check its other methods. This avoids importing
+unrelated common/native test utilities across the KLIB boundary. It regenerates
+the API ledger after recording the six candidate lanes and JVM receipts.
 
 The generator rejects unknown or duplicate row IDs, malformed hashes, a
 different reference pin, stale implementation/test inputs, non-passing or

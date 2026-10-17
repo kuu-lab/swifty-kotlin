@@ -17,6 +17,7 @@ import org.junit.platform.launcher.TestPlan;
 import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
 import org.junit.platform.launcher.core.LauncherFactory;
 import static org.junit.platform.engine.discovery.DiscoverySelectors.selectClasspathRoots;
+import static org.junit.platform.engine.discovery.DiscoverySelectors.selectMethod;
 
 /** Java 21 source-mode runner: the original test classes and assertions are unchanged. */
 class JvmReferenceRunner {
@@ -65,12 +66,19 @@ class JvmReferenceRunner {
     }
 
     public static void main(String[] args) throws Exception {
-        if (args.length != 2) throw new IllegalArgumentException("test jar and output directory required");
+        if (args.length < 2 || args.length > 3) {
+            throw new IllegalArgumentException("test classes directory, output directory, and optional class#method selector required");
+        }
         Path output = Path.of(args[1]);
         Files.createDirectories(output);
         var launcher = LauncherFactory.create();
-        var request = LauncherDiscoveryRequestBuilder.request()
-            .selectors(selectClasspathRoots(java.util.Set.of(Path.of(args[0]))))
+        var builder = LauncherDiscoveryRequestBuilder.request();
+        if (args.length == 3) {
+            builder.selectors(selectMethod(args[2]));
+        } else {
+            builder.selectors(selectClasspathRoots(java.util.Set.of(Path.of(args[0]))));
+        }
+        var request = builder
             .filters(org.junit.platform.engine.discovery.ClassNameFilter.includeClassNamePatterns(".*"))
             .configurationParameter("junit.jupiter.execution.parallel.enabled", "false")
             .build();
