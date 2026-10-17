@@ -107,8 +107,6 @@ extension TypeCheckHelpers {
         }
     }
 
-    /// Variance position when walking a type for use-site projection checks.
-    ///
     /// `.invariant` represents a position that is simultaneously covariant and contravariant
     /// (e.g. an invariant class type parameter). Any use-site projection through such a slot
     /// is unsound, so both `out` and `in` projections are rejected when the position is invariant.
@@ -125,8 +123,6 @@ extension TypeCheckHelpers {
             }
         }
 
-        /// Compose this outer position with a class type parameter's declaration-site variance.
-        /// Mirrors standard variance composition: out*out=out, out*in=in, **invariant=invariant.
         func composed(with declaredVariance: TypeVariance) -> AliasVariancePosition {
             switch declaredVariance {
             case .out: self
@@ -136,10 +132,6 @@ extension TypeCheckHelpers {
         }
     }
 
-    /// Validate that use-site variance projections on a typealias instantiation are
-    /// sound with respect to occurrences of the alias type parameters in the
-    /// underlying type.
-    ///
     /// Kotlin: typealias type parameters are always invariant (declaration-site
     /// `out`/`in` are not permitted on the alias itself), but callers may apply
     /// use-site projections (`out T`, `in T`, `*`). A projection is rejected when
@@ -358,7 +350,6 @@ extension TypeCheckHelpers {
         return interner.resolve(path[0]) == "_"
     }
 
-    /// Check if an expression is a terminating expression (return/throw) for elvis guard narrowing.
     func isTerminatingExpr(_ expr: Expr) -> Bool {
         switch expr {
         case .returnExpr:
@@ -388,7 +379,6 @@ extension TypeCheckHelpers {
         case let .classType(classType):
             return classType.classSymbol
         case let .intersection(parts):
-            // For intersection types, return the first nominal part
             for part in parts {
                 if let symbol = nominalSymbol(of: part, types: types) {
                     return symbol
@@ -400,8 +390,6 @@ extension TypeCheckHelpers {
         }
     }
 
-    /// Collects all nominal symbols from a type, including all parts of an intersection.
-    /// For type parameters, follows upper bounds to discover interface symbols.
     func allNominalSymbols(
         of type: TypeID,
         types: TypeSystem,
@@ -889,8 +877,6 @@ extension TypeCheckHelpers {
         return candidates
     }
 
-    /// When `receiver.InnerClassName(...)` is called, look up the inner class
-    /// nested inside the receiver's nominal type and return its constructor(s).
     func collectInnerClassConstructorCandidates(
         named calleeName: InternedString,
         receiverType: TypeID,
@@ -911,7 +897,6 @@ extension TypeCheckHelpers {
             else {
                 continue
             }
-            // Look for a nested class with the given name whose symbol has the innerClass flag.
             let nestedFQName = ownerSymbol.fqName + [calleeName]
             for candidate in sema.symbols.lookupAll(fqName: nestedFQName) {
                 guard let sym = sema.symbols.symbol(candidate),
@@ -921,7 +906,6 @@ extension TypeCheckHelpers {
                 else {
                     continue
                 }
-                // Found the inner class – collect its constructors.
                 let initName = interner.intern("<init>")
                 let ctorFQName = nestedFQName + [initName]
                 return sema.symbols.lookupAll(fqName: ctorFQName).filter { ctorID in
@@ -935,8 +919,6 @@ extension TypeCheckHelpers {
         return []
     }
 
-    /// Resolves a visible typealias to an inner class under the supplied
-    /// receiver and carries the alias type parameters into constructor inference.
     func collectInnerClassTypeAliasConstructorCandidates(
         named aliasName: InternedString,
         receiverType: TypeID,
@@ -1019,8 +1001,7 @@ extension TypeCheckHelpers {
         return nil
     }
 
-    /// Identifies alias parameters that belong to the inner class's enclosing
-    /// type. The inner class type stores only its own type arguments.
+    /// The inner class type stores only its own type arguments.
     func innerTypeAliasOuterTypeParameters(of aliasSymbol: SymbolID, sema: SemaModule) -> [SymbolID] {
         let parameters = sema.symbols.typeAliasTypeParameters(for: aliasSymbol)
         guard !parameters.isEmpty else { return [] }
@@ -1059,8 +1040,6 @@ extension TypeCheckHelpers {
         }
     }
 
-    /// Returns the receiver type only when it can enclose the aliased inner
-    /// class, including when it is a subtype of the declaring outer class.
     func innerClassOuterReceiverType(
         for innerClassType: TypeID,
         receiverType: TypeID,
@@ -1077,9 +1056,6 @@ extension TypeCheckHelpers {
         return sema.types.makeNonNullable(receiverType)
     }
 
-    /// Look up a member property (or field) named `calleeName` on the receiver's
-    /// nominal type, walking the supertype chain. Returns the symbol and its type
-    /// if found, or `nil` otherwise.
     func lookupMemberProperty(
         named calleeName: InternedString,
         receiverType: TypeID,
@@ -1207,7 +1183,6 @@ extension TypeCheckHelpers {
         )
     }
 
-    /// Returns the source-visible value type for a stable property read.
     /// An immutable property with a synthesized getter keeps the declared
     /// property type for its API while its explicit backing field can retain a
     /// more specific initializer type for reads in the same compilation.
@@ -1236,8 +1211,7 @@ extension TypeCheckHelpers {
         return backingFieldType
     }
 
-    /// Looks up a property declared directly in the body of an enum entry.
-    /// Its entry field owns the declaration, while the receiver still has the
+    /// The entry field owns the declaration, while the receiver still has the
     /// containing enum's runtime type.
     func lookupEnumEntryMemberProperty(
         named calleeName: InternedString,
