@@ -23,11 +23,8 @@ extension CoroutineLoweringPass {
         let collectorEnvPtr: KIRExprID
         let collectorContinuationArg: KIRExprID
         if let collectorSymbol, let loweredCollector = rewrite.loweredBySymbol[collectorSymbol] {
-            // Suspend collector: its body contains a suspend call (e.g.
-            // `collect { delay(1); ... }`), so it was CPS-rewritten. Route
-            // through its suspend entry point; the runtime treats a nonzero
-            // fourth argument as the function ID used to build a new
-            // continuation for the suspend collector ABI.
+            // The runtime treats a nonzero fourth argument as the function ID
+            // used to build a new continuation for the suspend collector ABI.
             collectorEntryPoint = rewrite.module.arena.appendExpr(
                 .symbolRef(loweredCollector.symbol),
                 type: rewrite.intType
@@ -51,8 +48,7 @@ extension CoroutineLoweringPass {
             // Non-suspend collector that has already been adapted to the
             // `(closureRaw, value, outThrown) -> result` ABI used by the
             // runtime (e.g. a local `val` lambda that CallLowerer wrapped in
-            // a collection-HOF adapter). Invoke it directly and pass the
-            // packed capture environment.
+            // a collection-HOF adapter).
             collectorEntryPoint = rewrite.module.arena.appendExpr(
                 .symbolRef(collectorSymbol),
                 type: rewrite.intType
@@ -112,16 +108,12 @@ extension CoroutineLoweringPass {
         return prefixInstructions.instructions
     }
 
-    /// Threads a capturing `flow { }` builder's captured values into its emitter.
-    ///
     /// `lowerFlowExpressions` rewrites `flow { }` to `kk_flow_create(emitter, 0)`
     /// before suspend lowering exists, so the second argument is a placeholder and
     /// the emitter's captured values are dropped (the runtime invoked it with a
     /// null environment). By this point the emitter lambda has been lowered to a
     /// suspend state machine with a launcher thunk that reads its captures from a
     /// continuation's launcher-arg slots — the same mechanism `launch { }` uses.
-    /// Populate such a continuation and route `kk_flow_create` through the thunk.
-    /// Non-capturing builders keep the direct-emitter ABI and are left untouched.
     func rewriteFlowCreateCall(
         call: CallRewriteInput,
         symbolByExprRaw: [Int32: SymbolID],
@@ -199,8 +191,7 @@ extension CoroutineLoweringPass {
         return rewritten
     }
 
-    /// Threads the producer receiver and captured values into a real channel
-    /// builder. The runtime bridge uses the same launcher-continuation layout
+    /// The runtime bridge uses the same launcher-continuation layout
     /// as `produce { }`, but stores the channel handle in slot zero so the
     /// lowered `ProducerScope` receiver is reconstructed by the launcher thunk.
     func rewriteProducerFlowCreateCall(
@@ -286,10 +277,8 @@ extension CoroutineLoweringPass {
         return rewritten
     }
 
-    /// Recovers the closure-capture environment pointer for a Flow collector
-    /// lambda, matching the `(fnPtr, envPtr)` convention ordinary HOF callees
-    /// use (e.g. `kk_list_map`). Falls back to a null pointer when the lambda
-    /// captures nothing, and packs multiple captures into a closure object
+    /// Matches the `(fnPtr, envPtr)` convention ordinary HOF callees use
+    /// (e.g. `kk_list_map`); multiple captures are packed into a closure object
     /// the same way `CallLowerer.splitCallableLambdaArgument` does.
     func flowCollectorEnvironmentPointerExpr(
         for lambdaID: KIRExprID,
