@@ -10,8 +10,6 @@
 package kotlin.text
 
 /**
- * Returns a pattern that matches [literal] literally.
- *
  * This is the Kotlin/Native equivalent of `Pattern.quote`: the `\\E` sequence
  * must be closed and reopened when it occurs inside the quoted region.
  */
@@ -33,8 +31,6 @@ public fun Regex.Companion.escape(literal: String): String {
 }
 
 /**
- * Returns a replacement string that treats [literal] as literal text.
- *
  * Only backslash and dollar have replacement-language meaning, so every
  * occurrence of either character is escaped with one preceding backslash.
  */
