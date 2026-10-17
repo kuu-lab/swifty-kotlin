@@ -1,6 +1,4 @@
 
-/// Enforces Kotlin's 32-bit `Int` arithmetic semantics.
-///
 /// All runtime values in KSwiftK are stored in uniform 64-bit slots, so the
 /// integer arithmetic / bitwise / shift builtins lowered by earlier passes
 /// (`kk_op_add`, `kk_op_shl`, …) compute in 64 bits and never wrap at the
@@ -9,32 +7,15 @@
 /// and that the shift operators use only the low five bits of the shift
 /// distance (`1 shl 32 == 1`).
 ///
-/// This pass runs late (just before ``ABILoweringPass``) and, for every
-/// integer-result builtin whose result type is `Int`, restores the correct
-/// 32-bit semantics:
-///
-/// * arithmetic / bitwise / unary builtins keep their operation but have the
-///   result funneled through a `kk_int_narrow` builtin that sign-extends the
-///   low 32 bits;
-/// * the shift builtins are rewritten to width-aware variants
-///   (`kk_op_ishl` / `kk_op_ishr` / `kk_op_iushr`) that mask the shift distance
-///   and narrow the result.
-///
-/// `Long` results keep the 64-bit builtins untouched (shifts only get their
-/// distance masked). Unsigned shifts are routed through the same width-aware
-/// variants: `UInt` reuses the 32-bit `Int` variants (with `shr` mapped to the
+/// `UInt` shifts reuse the 32-bit `Int` variants (with `shr` mapped to the
 /// logical `iushr`) followed by `kk_uint_narrow`, and `ULong` reuses the
 /// 64-bit `Long` variants (again with `shr` mapped to `lushr`), because Kotlin
-/// defines unsigned `shr` as a logical shift. Floating builtins are never
-/// matched.
-/// `UByte.inv()` / `UShort.inv()` mask their result to 8 / 16 bits using
-/// the existing unsigned conversion builtins.
+/// defines unsigned `shr` as a logical shift.
 final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
     static let name = "IntegerNarrowing"
     static let requiredStage: KIRStage = .propertyLowered
     static let producedStage: KIRStage = .integerNarrowed
 
-    /// Binary / unary integer builtins whose `Int` result must wrap to 32 bits.
     /// `Long` variants (`kk_op_lmod`, `kk_op_lfloor_div`, …) are intentionally
     /// excluded because their result type is `Long` and they are already
     /// correct in 64 bits.
@@ -45,7 +26,6 @@ final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
         "kk_op_inv", "kk_op_uminus",
     ]
 
-    /// Shift builtins rewritten to width-aware variants based on the result type.
     /// `Int` results use 32-bit variants (mask 5 bits + narrow); `Long` results
     /// use 64-bit variants (mask 6 bits) so that distances >= 64 are well defined.
     private static let intShiftRenameNames: [String: String] = [
@@ -61,7 +41,6 @@ final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
     ]
 
     /// `UInt`/`ULong` only declare `shl`/`shr`, and their `shr` is logical.
-    /// `UInt` results are additionally masked back to 32 bits by `kk_uint_narrow`.
     private static let uintShiftRenameNames: [String: String] = [
         "kk_op_shl": "kk_op_ishl",
         "kk_op_shr": "kk_op_iushr",
@@ -144,8 +123,6 @@ final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
 
                 let resultKind = resultPrimitive(result)
 
-                // Re-emit the matched call with a different callee/result,
-                // forwarding every other field unchanged.
                 func appendCall(callee newCallee: InternedString, result newResult: KIRExprID?) {
                     newBody.append(.call(
                         symbol: symbol, callee: newCallee, arguments: arguments, result: newResult,
@@ -154,8 +131,6 @@ final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
                     ))
                 }
 
-                // Emit the operation into a fresh temporary, then wrap it with
-                // the narrow builtin into the original result.
                 func appendWrappedCall(opCallee: InternedString, wrapCallee: InternedString, result: KIRExprID, fallbackType: TypeID? = nil) {
                     let rawResult = arena.appendTemporary(type: arena.exprType(result) ?? fallbackType)
                     appendCall(callee: opCallee, result: rawResult)
@@ -172,9 +147,6 @@ final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
                     continue
                 }
 
-                // Shift operators: route shifts through width-aware variants that
-                // mask the shift distance (5 bits for Int/UInt, 6 bits for
-                // Long/ULong) and, for Int/UInt, narrow the result to 32 bits.
                 if let resultKind, let renamed = shiftRenameIDsByResultKind[resultKind]?[callee] {
                     appendCall(callee: renamed, result: result)
                     continue
@@ -186,20 +158,16 @@ final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
                     continue
                 }
 
-                // Arithmetic / bitwise / unary builtins: keep the operation but
-                // wrap its Int result to 32 bits via kk_int_narrow.
                 if narrowingIDs.contains(callee), let result, resultKind == .int {
                     appendWrappedCall(opCallee: callee, wrapCallee: narrowCallee, result: result, fallbackType: types.intType)
                     continue
                 }
 
-                // Char results (`Char + Int` / `Char - Int`): wrap to 16 bits.
                 if callee == charArithmeticAdd || callee == charArithmeticSub, let result, resultKind == .char {
                     appendWrappedCall(opCallee: callee, wrapCallee: charWrapCallee, result: result, fallbackType: types.charType)
                     continue
                 }
 
-                // UInt results: mask to 32 bits via kk_uint_narrow (zero-extend low 32 bits).
                 if narrowingIDs.contains(callee), let result, resultKind == .uint {
                     appendWrappedCall(opCallee: callee, wrapCallee: unarrowCallee, result: result, fallbackType: types.uintType)
                     continue
