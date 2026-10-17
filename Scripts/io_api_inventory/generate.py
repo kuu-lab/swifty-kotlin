@@ -238,6 +238,8 @@ TEST_HINTS = {
 LOCAL_IO_TEST_PREFIXES = (
     "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java",
     "Scripts/io_api_inventory/probes/",
+    "Scripts/io_api_inventory/f02_consumers/BufferTypeAbiProbe.java",
+    "Scripts/io_api_inventory/f02_buffer_shape/",
     "Scripts/diff_cases/kotlinx_io_",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+ByteString",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+KtorIOCoverage.swift",
@@ -258,6 +260,18 @@ SEGMENT_READ_CONTEXT_IMPL_ROW_IDS = frozenset({
 SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS = (
     "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java",
     "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590/",
+)
+
+BUFFER_TYPE_VIEW_ROW_IDS = frozenset({
+    "jvm-586a8185b5a9d20b",
+    "jvm-9ea7377f9ea4a308",
+    "klib-02fc8b652c26a1a7",
+    "klib-3d19f06be0624572",
+})
+BUFFER_TYPE_VIEW_LOCAL_TESTS = (
+    "Scripts/io_api_inventory/f02_consumers/BufferTypeAbiProbe.java",
+    "Scripts/io_api_inventory/f02_buffer_shape/",
+    "Tests/CompilerCoreTests/Sema/KotlinxIOBufferAPIShapeTests.swift",
 )
 
 MODIFIERS = (
@@ -1658,6 +1672,13 @@ def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
                 or path.startswith(SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS[1])):
             if row["row_id"] not in SEGMENT_READ_CONTEXT_IMPL_ROW_IDS:
                 continue
+        if (path == BUFFER_TYPE_VIEW_LOCAL_TESTS[0]
+                or path.startswith(BUFFER_TYPE_VIEW_LOCAL_TESTS[1])
+                or path == BUFFER_TYPE_VIEW_LOCAL_TESTS[2]):
+            if row["row_id"] not in BUFFER_TYPE_VIEW_ROW_IDS:
+                continue
+            refs.append(path)
+            continue
         haystack = content.lower()
         if name and re.search(rf"(?<!\w){re.escape(name)}(?!\w)", haystack):
             refs.append(path)
@@ -2043,6 +2064,8 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     local_paths.extend(REPO.joinpath("Scripts/io_api_inventory/probes").glob("*.kt"))
     local_paths.extend(REPO.joinpath("Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590").glob("*.kt"))
     local_paths.append(REPO / "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java")
+    local_paths.extend(REPO.joinpath("Scripts/io_api_inventory/f02_buffer_shape").glob("*.kt"))
+    local_paths.append(REPO / "Scripts/io_api_inventory/f02_consumers/BufferTypeAbiProbe.java")
     for path in sorted(local_paths):
         rel = path.relative_to(REPO).as_posix()
         if rel.startswith(LOCAL_IO_TEST_PREFIXES):

@@ -123,6 +123,46 @@ class F02GateTests(unittest.TestCase):
         self.assertIn("getter.isSynthetic()", probe)
         self.assertIn("getter.invoke(null)", probe)
 
+    def test_buffer_type_constructor_view_is_a_dedicated_api_shape_probe(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "buffer-type-constructor-view")
+        producer = case["producer"][0].read_text(encoding="utf-8")
+        consumer = case["consumer"].read_text(encoding="utf-8")
+        abi_probe = case["jvm_abi_probe"].read_text(encoding="utf-8")
+
+        self.assertEqual(case["entry"], "io.gate.buffer.consumer.main")
+        self.assertEqual(case["jvm_class"], "io.gate.buffer.consumer.ConsumerKt")
+        self.assertEqual(case["reference"], "jvm")
+        self.assertIn("fun newBuffer(): Buffer = Buffer()", producer)
+        self.assertIn("val sink: Sink = buffer", consumer)
+        self.assertIn("val source: Source = buffer", consumer)
+        self.assertIn("val erased: Any = buffer", consumer)
+        self.assertIn("erased is Sink", consumer)
+        self.assertIn("erased is Source", consumer)
+        self.assertIn("buffer.size == 0L", consumer)
+        self.assertIn("Modifier.isFinal", abi_probe)
+        self.assertIn("type.getInterfaces()", abi_probe)
+        self.assertIn("type.getDeclaredConstructors()", abi_probe)
+        self.assertIn("getDeclaredConstructor()", abi_probe)
+
+    def test_jvm_abi_probe_uses_the_pinned_reference_classpath_and_probe_name(self):
+        javac = Path("/jdk/bin/javac")
+        java = Path("/jdk/bin/java")
+        probe = Path("/repo/BufferTypeAbiProbe.java")
+        classes = Path("/tmp/probe-classes")
+        reference_jar = Path("/tmp/reference.jar")
+        io_jars = [Path("/tmp/core.jar"), Path("/tmp/bytestring.jar")]
+        classpath = matrix.os.pathsep.join(map(str, [reference_jar, *io_jars]))
+
+        self.assertEqual(
+            matrix.jvm_abi_probe_compile_command(javac, probe, classes, classpath),
+            [str(javac), "-classpath", classpath, "-d", str(classes), str(probe)],
+        )
+        runtime_classpath = matrix.os.pathsep.join(map(str, [classes, reference_jar, *io_jars]))
+        self.assertEqual(
+            matrix.jvm_abi_probe_run_command(java, probe, classes, reference_jar, io_jars),
+            [str(java), "-cp", runtime_classpath, "BufferTypeAbiProbe"],
+        )
+
     def test_generated_public_rows_and_every_full_default_call_are_required(self):
         generated = generator.generate()
         manifest = json.loads(generated["manifest.json"])

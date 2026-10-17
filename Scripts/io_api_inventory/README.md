@@ -153,6 +153,15 @@ python3 Scripts/io_api_inventory/run_f02_matrix.py \
   --dependencies /path/to/locked-io-jars
 ```
 
+The Buffer class/constructor view has a separate
+`--case buffer-type-constructor-view` probe. It checks the exact JVM class modifiers,
+direct interfaces and public no-argument constructor, then compiles a typed
+consumer through source, fresh `.kklib`, and independent producer/consumer
+lanes at O0/O2. `KotlinxIOBufferAPIShapeTests` checks the declared source and
+generated KSwiftK metadata, including finality and direct supertypes. The
+probe's local references are restricted to the four Buffer type/constructor
+rows in this issue.
+
 Every selected lane is attempted after a lane failure, and each failure retains
 its raw diagnostic or output difference. The original Apple test module is run
 separately: its test-only helpers occupy real stdlib packages and can conflict
