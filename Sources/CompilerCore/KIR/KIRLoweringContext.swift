@@ -1,16 +1,10 @@
 
-/// Centralises the 12 mutable instance properties that were previously scattered
-/// across `BuildKIRPhase` and its extensions. Provides structured scope management
-/// helpers (`saveScope`, `restoreScope`, `resetScopeForFunction`, `withNewScope`)
-/// so that each call site can choose the appropriate granularity.
 final class KIRLoweringContext {
     struct ContextReceiverValue {
         let type: TypeID
         let exprID: KIRExprID
     }
 
-    /// BUG-274: the lazy "ensure initialized" function and `$initialized`
-    /// flag registered for one source-backed `object`/`companion object`.
     struct ObjectLazyInit {
         let ensureInitSymbol: SymbolID
         let ensureInitName: InternedString
@@ -21,8 +15,6 @@ final class KIRLoweringContext {
     var localValuesBySymbol: [SymbolID: KIRExprID] = [:]
     var localDeclaredTypesBySymbol: [SymbolID: TypeID] = [:]
     var mutableCaptureCellsBySymbol: [SymbolID: KIRExprID] = [:]
-    /// Register holding the delegate instance for a local `by`-delegated
-    /// declaration (`val x by Prop()`), keyed by the local's own symbol.
     /// Needed so a later assignment to a `var` local delegate can re-invoke
     /// `setValue` on the same instance instead of overwriting the local's
     /// value register directly.
@@ -76,8 +68,6 @@ final class KIRLoweringContext {
     var nextLoopLabel: Int32 = 10000
 
 
-    /// Compiler-selected mode used when a local `by lazy` declaration is
-    /// lowered to the runtime-backed delegate representation.
     var lazyThreadSafetyMode: LazyDelegateThreadSafetyMode = .synchronized
 
     private var functionDefaultArgumentsBySymbol: [SymbolID: [ExprID?]] = [:]
@@ -88,8 +78,6 @@ final class KIRLoweringContext {
     var pendingGeneratedCallableDeclIDs: [KIRDeclID] = []
     var callableValueInfoByExprID: [KIRExprID: KIRCallableValueInfo] = [:]
     var syntheticLambdaSymbolsByExprID: [ExprID: SymbolID] = [:]
-    /// Callable-reference expression currently lowered as a top-level
-    /// property initializer, if the initializer is exactly that expression.
     var topLevelPropertyCallableReferenceInitializerExprID: ExprID?
     /// Lambda symbols lowered with the receiver-first coroutine-launcher ABI
     /// (source literal was marked via `markCoroutineLauncherLambdaExpr` and
@@ -218,8 +206,6 @@ final class KIRLoweringContext {
         nextLoopLabel = snapshot.nextLoopLabel
     }
 
-    /// Execute `body` in a fresh scope, restoring the previous scope on return.
-    /// Replaces the manual save/defer/restore pattern used in 6+ sites.
     func withNewScope<T>(_ body: () throws -> T) rethrows -> T {
         let snapshot = saveScope()
         defer { restoreScope(snapshot) }
@@ -367,9 +353,7 @@ final class KIRLoweringContext {
         }
     }
 
-    /// The owner a captured outer receiver is registered under that can reach
-    /// `owner` — see `capturedOuterReceiverExprID(reaching:)`. Entries are
-    /// probed in symbol order so codegen stays deterministic.
+    /// Entries are probed in symbol order so codegen stays deterministic.
     func capturedOuterReceiverOwner(reaching owner: SymbolID, sema: SemaModule) -> SymbolID? {
         for registeredOwner in capturedOuterReceiverExprsByOwner.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
             if receiverOwnerReaches(registeredOwner, target: owner, sema: sema) {
@@ -379,10 +363,6 @@ final class KIRLoweringContext {
         return nil
     }
 
-    /// Whether a receiver registered under `candidate` can reach `target`:
-    /// `candidate` is `target` or a nominal subtype of it (inherited-member
-    /// owners), or `candidate` is an inner class whose `$outer` chain climbs
-    /// to `target` or to a subtype of it.
     private func receiverOwnerReaches(_ candidate: SymbolID, target: SymbolID, sema: SemaModule) -> Bool {
         var current: SymbolID? = candidate
         var visited: Set<SymbolID> = []
@@ -505,9 +485,8 @@ final class KIRLoweringContext {
         return max(0, loopControlStack.count - 1)
     }
 
-    /// Temporarily trim the finally block stack to `depth` entries, execute
-    /// `body`, then restore the stack to its previous state.  Uses suffix
-    /// save/restore to avoid copy-on-write of the full array (CODE-001).
+    /// Uses suffix save/restore to avoid copy-on-write of the full array
+    /// (CODE-001).
     func withFinallyStackDepth<T>(_ depth: Int, _ body: () throws -> T) rethrows -> T {
         let removedSuffix = Array(finallyBlockStack[depth...])
         finallyBlockStack.removeSubrange(depth..<finallyBlockStack.count)
