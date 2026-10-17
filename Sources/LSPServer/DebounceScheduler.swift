@@ -1,12 +1,11 @@
 import Foundation
 
-/// A cancellable task returned by an LSP debounce scheduler.
 protocol LSPScheduledTask: AnyObject, Sendable {
     func cancel()
 }
 
-/// Schedules work after a delay. The abstraction keeps debounce tests
-/// deterministic without relying on wall-clock sleeps.
+/// The abstraction keeps debounce tests deterministic without relying on
+/// wall-clock sleeps.
 protocol LSPDebounceScheduler: AnyObject, Sendable {
     func schedule(
         after delay: DispatchTimeInterval,
@@ -14,7 +13,6 @@ protocol LSPDebounceScheduler: AnyObject, Sendable {
     ) -> any LSPScheduledTask
 }
 
-/// Production scheduler backed by a serial GCD queue.
 final class DispatchLSPDebounceScheduler: LSPDebounceScheduler, @unchecked Sendable {
     private let queue: DispatchQueue
 
