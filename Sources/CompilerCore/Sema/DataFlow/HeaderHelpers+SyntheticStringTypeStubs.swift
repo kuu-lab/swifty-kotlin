@@ -1,6 +1,4 @@
 extension DataFlowSemaPhase {
-    /// Build a type from an already-registered stdlib type shell.
-    ///
     /// The collection/sequence interfaces and the primitive array classes are
     /// registered by `registerSyntheticCollectionStubs` or by bundled Kotlin
     /// source before the String stubs run, so a lookup is sufficient here.
