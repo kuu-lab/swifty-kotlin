@@ -1,5 +1,4 @@
 extension DataFlowSemaPhase {
-    /// Validates declaration-site variance constraints for all classes and interfaces.
     /// Kotlin rules:
     /// - `out T` (covariant): T may only appear in out positions (return types, val property types).
     /// - `in T` (contravariant): T may only appear in in positions (function parameters).
@@ -22,11 +21,8 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Represents the expected position for variance checking.
     private enum VariancePosition: Hashable {
-        /// Covariant position: return types, val property types, out type args
         case out
-        /// Contravariant position: function parameters, in type args
         case contravariant
         case invariant
 
@@ -47,7 +43,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Bundles the immutable context needed by every variance-check helper.
     private struct VarianceCheckEnv {
         let ast: ASTModule
         let symbols: SymbolTable
