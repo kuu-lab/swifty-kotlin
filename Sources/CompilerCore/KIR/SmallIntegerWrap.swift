@@ -1,13 +1,10 @@
-/// Width restoration for Byte / Short / UByte / UShort read-modify-write arithmetic.
-///
-/// All runtime integers live in uniform 64-bit slots, and Sema types `x++` on these
-/// widths as a plain `.binary(add)`, so the result would otherwise escape the type's
-/// range (`Byte.MAX_VALUE++` -> 128). `IntegerNarrowingPass` deliberately does not
-/// narrow these result types generically: Sema types `UByte + UByte` as `UByte`
+/// All runtime integers live in uniform 64-bit slots, and Sema types `x++` on
+/// Byte / Short / UByte / UShort as a plain `.binary(add)`, so the result would otherwise
+/// escape the type's range (`Byte.MAX_VALUE++` -> 128). `IntegerNarrowingPass` deliberately
+/// does not narrow these result types generically: Sema types `UByte + UByte` as `UByte`
 /// (Kotlin: `UInt`), so a pass-level wrap would corrupt `200u.toUByte() + 200u.toUByte()`.
 /// Increment / decrement / compound-assign lowering therefore wraps at the source.
 enum SmallIntegerWrap {
-    /// Returns the wrapped temporary, or nil when `type` is not Byte/Short/UByte/UShort.
     static func append(
         _ value: KIRExprID,
         type: TypeID,
