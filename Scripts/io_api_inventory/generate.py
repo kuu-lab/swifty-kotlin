@@ -2021,6 +2021,13 @@ def upstream_test_refs(row: dict, test_index: dict) -> list[str]:
             hints = ["core/common/test/AbstractSourceTest.kt", "core/common/test/AbstractSinkTest.kt"]
     index_by_path = {entry["path"]: entry for entry in test_index["files"]}
     name = row["_candidate_name"].lower()
+    owner = row.get("owner_fqn", "").replace("/", ".")
+    if name == "setunchecked" and owner.endswith(".SegmentWriteContext"):
+        hint = "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt"
+        entry = index_by_path.get(hint)
+        if entry and "writeMultipleBytes" in entry.get("testNames", []):
+            return [f"{hint}#writeMultipleBytes"]
+        return []
     refs = []
     for hint in dict.fromkeys(hints):
         entry = index_by_path.get(hint)

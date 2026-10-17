@@ -1,0 +1,111 @@
+Classfile jar:file:///private/tmp/kuu2581-reference-jvm/dependencies/kotlinx-io-core-jvm-0.9.1.jar!/kotlinx/io/unsafe/SegmentWriteContext.class
+  Last modified 1980/02/01; size 1132 bytes
+  SHA-256 checksum bf5892a8cfb09b17009e0458bf1b6b7e11aa4308daeda127f21fe8e9fbde1ffb
+  Compiled from "UnsafeBufferOperations.kt"
+public interface kotlinx.io.unsafe.SegmentWriteContext
+  minor version: 0
+  major version: 52
+  flags: (0x0601) ACC_PUBLIC, ACC_INTERFACE, ACC_ABSTRACT
+  this_class: #2                          // kotlinx/io/unsafe/SegmentWriteContext
+  super_class: #4                         // java/lang/Object
+  interfaces: 0, fields: 0, methods: 4, attributes: 3
+Constant pool:
+   #1 = Utf8               kotlinx/io/unsafe/SegmentWriteContext
+   #2 = Class              #1             // kotlinx/io/unsafe/SegmentWriteContext
+   #3 = Utf8               java/lang/Object
+   #4 = Class              #3             // java/lang/Object
+   #5 = Utf8               setUnchecked
+   #6 = Utf8               (Lkotlinx/io/Segment;IB)V
+   #7 = Utf8               Lorg/jetbrains/annotations/NotNull;
+   #8 = Utf8               (Lkotlinx/io/Segment;IBB)V
+   #9 = Utf8               (Lkotlinx/io/Segment;IBBB)V
+  #10 = Utf8               (Lkotlinx/io/Segment;IBBBB)V
+  #11 = Utf8               Lkotlinx/io/UnsafeIoApi;
+  #12 = Utf8               Lkotlin/Metadata;
+  #13 = Utf8               mv
+  #14 = Integer            2
+  #15 = Integer            3
+  #16 = Integer            0
+  #17 = Utf8               k
+  #18 = Integer            1
+  #19 = Utf8               xi
+  #20 = Integer            48
+  #21 = Utf8               d1
+  #22 = Utf8               \u0000$\n\u0002\u0018\u0002\n\u0002\u0010\u0000\n\u0000\n\u0002\u0010\u0002\n\u0000\n\u0002\u0018\u0002\n\u0000\n\u0002\u0010\b\n\u0000\n\u0002\u0010\u0005\n\u0002\b\u0005\bg\u0018\u00002\u00020\u0001J\"\u0010\u0002\u001a\u00020\u00032\u0006\u0010\u0004\u001a\u00020\u00052\u0006\u0010\u0006\u001a\u00020\u00072\u0006\u0010\b\u001a\u00020\tH¦\u0080\u0004J*\u0010\u0002\u001a\u00020\u00032\u0006\u0010\u0004\u001a\u00020\u00052\u0006\u0010\u0006\u001a\u00020\u00072\u0006\u0010\n\u001a\u00020\t2\u0006\u0010\u000b\u001a\u00020\tH¦\u0080\u0004J2\u0010\u0002\u001a\u00020\u00032\u0006\u0010\u0004\u001a\u00020\u00052\u0006\u0010\u0006\u001a\u00020\u00072\u0006\u0010\n\u001a\u00020\t2\u0006\u0010\u000b\u001a\u00020\t2\u0006\u0010\f\u001a\u00020\tH¦\u0080\u0004J:\u0010\u0002\u001a\u00020\u00032\u0006\u0010\u0004\u001a\u00020\u00052\u0006\u0010\u0006\u001a\u00020\u00072\u0006\u0010\n\u001a\u00020\t2\u0006\u0010\u000b\u001a\u00020\t2\u0006\u0010\f\u001a\u00020\t2\u0006\u0010\r\u001a\u00020\tH¦\u0080\u0004ø\u0001\u0000\u0082\u0002\u0006\n\u0004\b!0\u0001¨\u0006\u000eÀ\u0006\u0001
+  #23 = Utf8               d2
+  #24 = Utf8               Lkotlinx/io/unsafe/SegmentWriteContext;
+  #25 = Utf8
+  #26 = Utf8               segment
+  #27 = Utf8               Lkotlinx/io/Segment;
+  #28 = Utf8               offset
+  #29 = Utf8               value
+  #30 = Utf8               b0
+  #31 = Utf8               b1
+  #32 = Utf8               b2
+  #33 = Utf8               b3
+  #34 = Utf8               kotlinx-io-core
+  #35 = Utf8               UnsafeBufferOperations.kt
+  #36 = Utf8               RuntimeInvisibleParameterAnnotations
+  #37 = Utf8               SourceFile
+  #38 = Utf8               RuntimeVisibleAnnotations
+  #39 = Utf8               RuntimeInvisibleAnnotations
+{
+  public abstract void setUnchecked(kotlinx.io.Segment, int, byte);
+    descriptor: (Lkotlinx/io/Segment;IB)V
+    flags: (0x0401) ACC_PUBLIC, ACC_ABSTRACT
+    RuntimeInvisibleParameterAnnotations:
+      parameter 0:
+        0: #7()
+          org.jetbrains.annotations.NotNull
+      parameter 1:
+      parameter 2:
+
+  public abstract void setUnchecked(kotlinx.io.Segment, int, byte, byte);
+    descriptor: (Lkotlinx/io/Segment;IBB)V
+    flags: (0x0401) ACC_PUBLIC, ACC_ABSTRACT
+    RuntimeInvisibleParameterAnnotations:
+      parameter 0:
+        0: #7()
+          org.jetbrains.annotations.NotNull
+      parameter 1:
+      parameter 2:
+      parameter 3:
+
+  public abstract void setUnchecked(kotlinx.io.Segment, int, byte, byte, byte);
+    descriptor: (Lkotlinx/io/Segment;IBBB)V
+    flags: (0x0401) ACC_PUBLIC, ACC_ABSTRACT
+    RuntimeInvisibleParameterAnnotations:
+      parameter 0:
+        0: #7()
+          org.jetbrains.annotations.NotNull
+      parameter 1:
+      parameter 2:
+      parameter 3:
+      parameter 4:
+
+  public abstract void setUnchecked(kotlinx.io.Segment, int, byte, byte, byte, byte);
+    descriptor: (Lkotlinx/io/Segment;IBBBB)V
+    flags: (0x0401) ACC_PUBLIC, ACC_ABSTRACT
+    RuntimeInvisibleParameterAnnotations:
+      parameter 0:
+        0: #7()
+          org.jetbrains.annotations.NotNull
+      parameter 1:
+      parameter 2:
+      parameter 3:
+      parameter 4:
+      parameter 5:
+}
+SourceFile: "UnsafeBufferOperations.kt"
+RuntimeVisibleAnnotations:
+  0: #12(#13=[I#14,I#15,I#16],#17=I#18,#19=I#20,#21=[s#22],#23=[s#24,s#25,s#5,s#25,s#26,s#27,s#28,s#25,s#29,s#25,s#30,s#31,s#32,s#33,s#34])
+    kotlin.Metadata(
+      mv=[2,3,0]
+      k=1
+      xi=48
+      d1=["\u0000$\n\u0002\u0018\u0002\n\u0002\u0010\u0000\n\u0000\n\u0002\u0010\u0002\n\u0000\n\u0002\u0018\u0002\n\u0000\n\u0002\u0010\b\n\u0000\n\u0002\u0010\u0005\n\u0002\b\u0005\bg\u0018\u00002\u00020\u0001J\"\u0010\u0002\u001a\u00020\u00032\u0006\u0010\u0004\u001a\u00020\u00052\u0006\u0010\u0006\u001a\u00020\u00072\u0006\u0010\b\u001a\u00020\tH¦\u0080\u0004J*\u0010\u0002\u001a\u00020\u00032\u0006\u0010\u0004\u001a\u00020\u00052\u0006\u0010\u0006\u001a\u00020\u00072\u0006\u0010\n\u001a\u00020\t2\u0006\u0010\u000b\u001a\u00020\tH¦\u0080\u0004J2\u0010\u0002\u001a\u00020\u00032\u0006\u0010\u0004\u001a\u00020\u00052\u0006\u0010\u0006\u001a\u00020\u00072\u0006\u0010\n\u001a\u00020\t2\u0006\u0010\u000b\u001a\u00020\t2\u0006\u0010\f\u001a\u00020\tH¦\u0080\u0004J:\u0010\u0002\u001a\u00020\u00032\u0006\u0010\u0004\u001a\u00020\u00052\u0006\u0010\u0006\u001a\u00020\u00072\u0006\u0010\n\u001a\u00020\t2\u0006\u0010\u000b\u001a\u00020\t2\u0006\u0010\f\u001a\u00020\t2\u0006\u0010\r\u001a\u00020\tH¦\u0080\u0004ø\u0001\u0000\u0082\u0002\u0006\n\u0004\b!0\u0001¨\u0006\u000eÀ\u0006\u0001"]
+      d2=["Lkotlinx/io/unsafe/SegmentWriteContext;","","setUnchecked","","segment","Lkotlinx/io/Segment;","offset","","value","","b0","b1","b2","b3","kotlinx-io-core"]
+    )
+RuntimeInvisibleAnnotations:
+  0: #11()
+    kotlinx.io.UnsafeIoApi

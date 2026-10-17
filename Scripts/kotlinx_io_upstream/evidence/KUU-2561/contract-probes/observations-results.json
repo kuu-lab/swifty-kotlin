@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "candidate_sha": "c7b70e8d62bfcd5c1df891ee28d3886ae419414e",
+  "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+  "source": "Scripts/kotlinx_io_upstream/evidence/KUU-2561/contract-probes/UnsafeBufferWriteObservations.kt",
+  "source_sha256": "e20b25194bb18dd2ee1ad5da6772a44a54bdd3c870395a94140bc8a9475fb28b",
+  "reference": {
+    "compiler": "Kotlin 2.3.10",
+    "runtime": "JDK 21",
+    "compile_exit_code": 0,
+    "run_exit_code": 0,
+    "artifact_sha256": "3c882b383634ff2d59be10ad8b25bd929063f818de74a3cb98120b0dda219d5f",
+    "stdout_sha256": "eb74892b8eb4db333204e06abf3524347737650d16be4e7211ffa359ba83fe37",
+    "stdout": [
+      "multi=1/10:[1, 2, 3, 4, 5, 6, 7, 8, 9, 10];overlap=1/4:[11, 10, 9, 8]",
+      "reset=1/ProbeException:true;1/ProbeException:true",
+      "short=1/8192:4:4:2880154539:true"
+    ]
+  },
+  "candidate": {
+    "compiler": "kswiftc at c7b70e8d62bfcd5c1df891ee28d3886ae419414e",
+    "optimization": "O0",
+    "stdlib_content_sha256": "c1431bbe0e329aadb5630b3cf908dfd91f3fb3ef7b5b0a83926d7b7bf68a3b35",
+    "compile_exit_code": 0,
+    "run_exit_code": 0,
+    "executable_sha256": "93c9dd1877f366ac4b361d0d7914528083f058d94fe58f2322ef4672ee8ef397",
+    "stdout_sha256": "eb74892b8eb4db333204e06abf3524347737650d16be4e7211ffa359ba83fe37",
+    "stdout": [
+      "multi=1/10:[1, 2, 3, 4, 5, 6, 7, 8, 9, 10];overlap=1/4:[11, 10, 9, 8]",
+      "reset=1/ProbeException:true;1/ProbeException:true",
+      "short=1/8192:4:4:2880154539:true"
+    ]
+  },
+  "stdout_matches": true,
+  "observations": {
+    "writeMultipleBytes": "each callback count=1; returns 10 and 4; bytes [1..10] then overlapping [11,10,9,8]",
+    "resetWriteOnException": "both callback overloads called once, propagate ProbeException, and leave buffer exhausted",
+    "returnLessBytesThanItWasActuallyWritten": "callback called once and fills 8192 bytes; returns 4; commits and consumes 4 bytes; UInt=2880154539 (0xabababab); buffer exhausted after read"
+  }
+}

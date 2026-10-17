@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "candidate_sha": "c7b70e8d62bfcd5c1df891ee28d3886ae419414e",
+  "overall_audit_status": "FAIL",
+  "overall_blocker_count": 2052,
+  "target_upstream_cases": {
+    "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#writeMultipleBytes": "verified",
+    "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#resetWriteOnException": "verified",
+    "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt#returnLessBytesThanItWasActuallyWritten": "verified"
+  },
+  "target_api_rows": {
+    "jvm-184249263a53bd1c": "verified",
+    "jvm-4c7d8cabace27adf": "verified",
+    "jvm-e648005c75c9a635": "verified",
+    "jvm-fa7bf8ebed5bf8aa": "verified",
+    "klib-122a0905894ba00e": "verified",
+    "klib-b8615ffaceb2162f": "verified",
+    "klib-f570c311693d6703": "verified",
+    "klib-fdb3da4587313f8c": "verified"
+  },
+  "target_blocker_count": 0,
+  "global_remainder": {
+    "unmapped_target_functions": 677,
+    "missing_api_rows": 5,
+    "unverified_api_rows": 693
+  },
+  "verified_mapping_sha256": "120162a60f9e79db17b76ec34ee2a0edb0096c629b16d0d542a9d2c504d31b8d",
+  "note": "Global audit remains FAIL because it covers all IO-GATE inventory rows and upstream tests; this scoped ticket has no reported blockers."
+}

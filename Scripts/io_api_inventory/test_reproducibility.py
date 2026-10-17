@@ -54,6 +54,7 @@ class ReproducibilityTests(unittest.TestCase):
             inputs = list(HERE.rglob("*"))
             inputs.extend((REPO / "Sources/CompilerCore/Stdlib/kotlinx/io").rglob("*.kt"))
             inputs.extend((REPO / "Sources/Runtime").rglob("*.swift"))
+            inputs.extend((REPO / "Scripts/kotlinx_io_upstream").rglob("*"))
             test_inputs = list((REPO / "Tests").rglob("*.swift"))
             test_inputs.extend((REPO / "Tests/CompilerCoreTests/GoldenCases/Sema").glob("*.kt"))
             test_inputs.extend((REPO / "Scripts/diff_cases").glob("*.kt"))

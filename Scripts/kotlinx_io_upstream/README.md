@@ -111,6 +111,12 @@ and zero paired passes. The upstream assertions check expected exceptions,
 byte/buffer state, callbacks and lifecycle, but the JUnit runner does not export
 those successful internal observations as a paired-run protocol object.
 
+For a scoped run, repeat `--execution-id` with each exact value from
+`jvm-executions.expected.json`. The runner compiles the same locked source
+closure, asks JUnit Platform to discover only those unique IDs, and rejects
+missing or extra discovery/results. With no selectors it retains the full-catalog
+behavior.
+
 ## Actual Native reference suite
 
 `run_native_reference.py` compiles unchanged sources to a test KLIB, then links
@@ -143,6 +149,11 @@ host are not pre-pinned here: the run records their actual content fingerprint.
 With a populated cache, `--offline` disables compiler dependency downloads.
 `TMPDIR` always points to a writable per-run directory, preserving the original
 upstream tests and assertions.
+
+Pass repeated `--execution-id` values from `native-executions.expected.json` to
+run only selected tests. The runner still checks the generated test list and
+runtime discovery against the complete target catalog, then passes the exact
+selection to the Native test runner and requires its result IDs to match it.
 
 The Native result is also **reference-only**: candidate executions are UNMAPPED
 and paired passes are zero. `.github/workflows/kotlinx-io-reference.yml` runs the

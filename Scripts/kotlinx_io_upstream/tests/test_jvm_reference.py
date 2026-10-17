@@ -13,6 +13,15 @@ SPEC.loader.exec_module(RUNNER)
 
 
 class JvmReferenceTests(unittest.TestCase):
+    def test_exact_execution_selection_rejects_unknown_and_duplicate_ids(self):
+        catalog = [{"execution_id": "one"}, {"execution_id": "two"}]
+        self.assertEqual(RUNNER.select_execution_rows(catalog, ["two"]), [catalog[1]])
+        self.assertEqual(RUNNER.select_execution_rows(catalog, []), catalog)
+        with self.assertRaisesRegex(ValueError, "unique"):
+            RUNNER.select_execution_rows(catalog, ["one", "one"])
+        with self.assertRaisesRegex(ValueError, "unknown locked execution ID"):
+            RUNNER.select_execution_rows(catalog, ["missing"])
+
     def test_inherited_factory_executions_remain_distinct_and_candidate_unmapped(self):
         source = {"upstream_id": "core/common/test/Source.kt#read",
             "upstream_path": "core/common/test/Source.kt", "platform": "common",

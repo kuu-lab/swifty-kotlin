@@ -1,14 +1,25 @@
 #!/usr/bin/env python3
 """Do not turn missing, skipped, failed, or unfinished Native tests into PASS."""
 from pathlib import Path
+import json
 import sys
+import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import run_native_reference as runner
 
 
 class NativeReferenceTests(unittest.TestCase):
+    def test_exact_execution_selection_is_catalog_bound(self):
+        catalog = [{"execution_id": "one"}, {"execution_id": "two"}]
+        self.assertEqual(runner.select_execution_rows(catalog, ["two"]), [catalog[1]])
+        with self.assertRaisesRegex(ValueError, "unique"):
+            runner.select_execution_rows(catalog, ["one", "one"])
+        with self.assertRaisesRegex(ValueError, "unknown locked execution ID"):
+            runner.select_execution_rows(catalog, ["missing"])
+
     def event(self, event, attributes):
         return f"##teamcity[{event} {attributes}]\n"
 
@@ -45,6 +56,43 @@ class NativeReferenceTests(unittest.TestCase):
             begin + self.event("testStarted", "name='read' locationHint='ktest:test://wrong'") + end):
             with self.assertRaises(ValueError):
                 runner.parse_teamcity(text)
+
+    def test_exact_native_selection_runs_each_locked_id_separately(self):
+        expected = [{"execution_id": "io.Suite.first"}, {"execution_id": "io.Suite.second"}]
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            output.mkdir(exist_ok=True)
+            commands = []
+
+            def fake_execute(command, target, stage, timeout, overrides):
+                commands.append(command)
+                identifier = command[-1].removeprefix("--ktest_filter=")
+                self.assertIn(identifier, {row["execution_id"] for row in expected})
+                target.joinpath(f"{stage}.stdout").write_text(
+                    "##teamcity[testSuiteStarted name='io.Suite']\n"
+                    f"##teamcity[testStarted name='{identifier.rsplit('.', 1)[1]}']\n"
+                    f"##teamcity[testFinished name='{identifier.rsplit('.', 1)[1]}' duration='1']\n"
+                    "##teamcity[testSuiteFinished name='io.Suite']\n"
+                )
+                target.joinpath(f"{stage}.stderr").write_text("")
+                target.joinpath(f"{stage}.result.json").write_text(json.dumps(
+                    {"exitcode": 0, "timeout": False, "seconds": 0.01}
+                ))
+                return 0
+
+            with patch.object(runner, "execute", side_effect=fake_execute):
+                code, results = runner.run_native_tests(
+                    Path("tests.kexe"), expected, output, 10, {}, exact_selection=True
+                )
+
+            self.assertEqual(code, 0)
+            self.assertEqual([row["status"] for row in results], ["PASS", "PASS"])
+            self.assertEqual(len(commands), 2)
+            self.assertEqual([command[-1] for command in commands], [
+                "--ktest_filter=io.Suite.first", "--ktest_filter=io.Suite.second",
+            ])
+            self.assertEqual(json.loads((output / "run.commands.json").read_text()), commands)
+            self.assertEqual(json.loads((output / "run.result.json").read_text())["exitcode"], 0)
 
 
 if __name__ == "__main__":

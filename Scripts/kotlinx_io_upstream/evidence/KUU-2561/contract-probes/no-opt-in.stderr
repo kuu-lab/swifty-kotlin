@@ -1,0 +1,15 @@
+/private/tmp/kuu2561-evidence/opt-in/SetUncheckedNoOptIn.kt:4:1: warning KSWIFTK-SEMA-OPT-IN: 'kotlinx.io.UnsafeIoApi' requires opt-in. Annotate the usage with '@kotlinx.io.UnsafeIoApi' or '@OptIn(kotlinx.io.UnsafeIoApi::class)'. This is an unsafe API and its use requires care. Make sure you fully understand documentation of the declaration marked as UnsafeIoApi
+fun useAllOverloads(ctx: SegmentWriteContext, segment: Segment) {
+^
+/private/tmp/kuu2561-evidence/opt-in/SetUncheckedNoOptIn.kt:5:5: warning KSWIFTK-SEMA-OPT-IN: 'kotlinx.io.UnsafeIoApi' requires opt-in. Annotate the usage with '@kotlinx.io.UnsafeIoApi' or '@OptIn(kotlinx.io.UnsafeIoApi::class)'. This is an unsafe API and its use requires care. Make sure you fully understand documentation of the declaration marked as UnsafeIoApi
+    ctx.setUnchecked(segment, 0, 1.toByte())
+    ^
+/private/tmp/kuu2561-evidence/opt-in/SetUncheckedNoOptIn.kt:6:5: warning KSWIFTK-SEMA-OPT-IN: 'kotlinx.io.UnsafeIoApi' requires opt-in. Annotate the usage with '@kotlinx.io.UnsafeIoApi' or '@OptIn(kotlinx.io.UnsafeIoApi::class)'. This is an unsafe API and its use requires care. Make sure you fully understand documentation of the declaration marked as UnsafeIoApi
+    ctx.setUnchecked(segment, 1, 1.toByte(), 2.toByte())
+    ^
+/private/tmp/kuu2561-evidence/opt-in/SetUncheckedNoOptIn.kt:7:5: warning KSWIFTK-SEMA-OPT-IN: 'kotlinx.io.UnsafeIoApi' requires opt-in. Annotate the usage with '@kotlinx.io.UnsafeIoApi' or '@OptIn(kotlinx.io.UnsafeIoApi::class)'. This is an unsafe API and its use requires care. Make sure you fully understand documentation of the declaration marked as UnsafeIoApi
+    ctx.setUnchecked(segment, 3, 1.toByte(), 2.toByte(), 3.toByte())
+    ^
+/private/tmp/kuu2561-evidence/opt-in/SetUncheckedNoOptIn.kt:8:5: warning KSWIFTK-SEMA-OPT-IN: 'kotlinx.io.UnsafeIoApi' requires opt-in. Annotate the usage with '@kotlinx.io.UnsafeIoApi' or '@OptIn(kotlinx.io.UnsafeIoApi::class)'. This is an unsafe API and its use requires care. Make sure you fully understand documentation of the declaration marked as UnsafeIoApi
+    ctx.setUnchecked(segment, 6, 1.toByte(), 2.toByte(), 3.toByte(), 4.toByte())
+    ^

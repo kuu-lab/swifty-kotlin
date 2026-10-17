@@ -1,0 +1,17 @@
+[
+  {
+    "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.writeMultipleBytes",
+    "status": "PASS",
+    "duration_ms": "4"
+  },
+  {
+    "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.resetWriteOnException",
+    "status": "PASS",
+    "duration_ms": "0"
+  },
+  {
+    "execution_id": "kotlinx.io.unsafe.UnsafeBufferOperationsWriteTest.returnLessBytesThanItWasActuallyWritten",
+    "status": "PASS",
+    "duration_ms": "0"
+  }
+]

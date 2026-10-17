@@ -1,0 +1,52 @@
+{
+  "observation_probe": {
+    "reference_compile": [
+      "/private/tmp/kuu-2562-01a1479c-jvm-reference/installation/kotlinc/bin/kotlinc",
+      "-classpath",
+      "/private/tmp/kuu-2562-01a1479c-jvm-reference/dependencies/kotlinx-io-core-jvm-0.9.1.jar:/private/tmp/kuu-2562-01a1479c-jvm-reference/dependencies/kotlinx-io-bytestring-jvm-0.9.1.jar",
+      "-include-runtime",
+      "-d",
+      "/private/tmp/kuu2561-evidence/opt-in/reference-observations.jar",
+      "Scripts/kotlinx_io_upstream/evidence/KUU-2561/contract-probes/UnsafeBufferWriteObservations.kt"
+    ],
+    "reference_run": [
+      "/private/tmp/kuu2561-jdk21/Contents/Home/bin/java",
+      "-cp",
+      "/private/tmp/kuu2561-evidence/opt-in/reference-observations.jar:/private/tmp/kuu-2562-01a1479c-jvm-reference/dependencies/kotlinx-io-core-jvm-0.9.1.jar:/private/tmp/kuu-2562-01a1479c-jvm-reference/dependencies/kotlinx-io-bytestring-jvm-0.9.1.jar",
+      "io.gate.kuu2561.UnsafeBufferWriteObservationsKt"
+    ],
+    "candidate_compile": [
+      ".build/debug/kswiftc",
+      "--stdlib-library",
+      "/private/tmp/kuu2561-evidence/candidate-c7-stdlib.kklib",
+      "-o",
+      "/private/tmp/kuu2561-evidence/opt-in/candidate-observations",
+      "Scripts/kotlinx_io_upstream/evidence/KUU-2561/contract-probes/UnsafeBufferWriteObservations.kt"
+    ],
+    "candidate_run": [
+      "/private/tmp/kuu2561-evidence/opt-in/candidate-observations"
+    ]
+  },
+  "opt_in_probe": {
+    "negative_compile": [
+      ".build/debug/kswiftc",
+      "--emit",
+      "kir",
+      "--stdlib-library",
+      "/private/tmp/kuu2561-evidence/candidate-c7-stdlib.kklib",
+      "-o",
+      "/private/tmp/kuu2561-evidence/opt-in/no-opt-in",
+      "Scripts/kotlinx_io_upstream/evidence/KUU-2561/contract-probes/SetUncheckedNoOptIn.kt"
+    ],
+    "positive_compile": [
+      ".build/debug/kswiftc",
+      "--emit",
+      "kir",
+      "--stdlib-library",
+      "/private/tmp/kuu2561-evidence/candidate-c7-stdlib.kklib",
+      "-o",
+      "/private/tmp/kuu2561-evidence/opt-in/opt-in",
+      "Scripts/kotlinx_io_upstream/evidence/KUU-2561/contract-probes/SetUncheckedOptIn.kt"
+    ]
+  }
+}

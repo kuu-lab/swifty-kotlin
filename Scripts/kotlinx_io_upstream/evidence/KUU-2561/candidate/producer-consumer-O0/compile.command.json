@@ -1,0 +1,11 @@
+[
+  "/Users/kuu/.codex/worktrees/9348/swifty-kotlin/.build/out/Products/Debug/kswiftc",
+  "-O0",
+  "--stdlib-library",
+  "/private/tmp/kuu2561-evidence/candidate-c7-stdlib.kklib",
+  "-I",
+  "/private/tmp/kuu2561-evidence/candidate-c7-producer-consumer-O0/OriginalTests.kklib",
+  "/private/tmp/kuu2561-evidence/candidate-c7-producer-consumer-O0/CombinedDriver.kt",
+  "-o",
+  "/private/tmp/kuu2561-evidence/candidate-c7-producer-consumer-O0/candidate"
+]
