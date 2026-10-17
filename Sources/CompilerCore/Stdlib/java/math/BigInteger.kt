@@ -35,7 +35,6 @@ public class BigInteger private constructor(private val decimalValue: String) {
     public override fun hashCode(): Int {
         val negative = decimalValue[0] == '-'
         var digitIndex = if (negative) 1 else 0
-        // Convert the decimal magnitude to little-endian unsigned 32-bit words.
         val words = LongArray(decimalValue.length - digitIndex)
         var wordCount = 0
         while (digitIndex < decimalValue.length) {
