@@ -1,18 +1,13 @@
 @file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
 
-import kotlinx.io.Buffer
 import kotlinx.io.Segment
 
-private fun newSegment(value: Byte): Segment {
-    val buffer = Buffer()
-    buffer.writeByte(value)
-    return checkNotNull(buffer.head)
-}
+private fun newSegment(): Segment = Segment.new()
 
 fun main() {
-    val predecessor = newSegment(0x11.toByte())
-    val segment = newSegment(0x22.toByte())
-    val replacement = newSegment(0x33.toByte())
+    val predecessor = newSegment()
+    val segment = newSegment()
+    val replacement = newSegment()
 
     val initialPrevious: Segment? = segment.prev
     check(initialPrevious == null) { "a detached segment must have a null predecessor" }
