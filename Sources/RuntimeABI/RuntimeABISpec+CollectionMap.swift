@@ -1,4 +1,3 @@
-/// Map HOF, map operator, and map iterator ABI specs split out from `RuntimeABISpec+Collection.swift`.
 public extension RuntimeABISpec {
     static let mapForEachSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
         name: stdlibMapHOFName("forEach", arity: 1, fallback: "kk_map_forEach"),
@@ -234,7 +233,6 @@ public extension RuntimeABISpec {
     }
 
     static let collectionMapFunctions: [RuntimeABIFunctionSpec] = [
-        // Map
         RuntimeABIFunctionSpec(
             name: "__kk_map_of",
             parameters: [
@@ -257,7 +255,7 @@ public extension RuntimeABISpec {
             section: "Collection",
             isThrowing: false
         ),
-        // KUU-556: nominal-tag bridge for the LinkedHashMap constructor family
+        // Nominal-tag bridge for the LinkedHashMap constructor family
         // and linkedMapOf, mirroring `__kk_linked_hash_set_of`.
         RuntimeABIFunctionSpec(
             name: "__kk_linked_hash_map_of",
@@ -300,7 +298,6 @@ public extension RuntimeABISpec {
             section: "Collection",
             isThrowing: false
         ),
-        // STDLIB-410: emptyMap
         RuntimeABIFunctionSpec(
             name: "__kk_emptyMap",
             parameters: [],
