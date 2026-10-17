@@ -1,6 +1,6 @@
 public extension RuntimeABISpec {
     /// Runtime callee names emitted by the compiler that are not yet declared in
-    /// `RuntimeABISpec.allFunctions` (RF-KIR-005 / RF-RT-005 follow-up).
+    /// `RuntimeABISpec.allFunctions`.
     ///
     /// These are treated as non-throwing alongside spec-derived names until the
     /// symbols are added to the ABI spec.
@@ -45,7 +45,6 @@ public extension RuntimeABISpec {
     /// a call to the target's link name; they resolve at final link time.
     static let compilerGeneratedLinkNamePrefix = "kk_fn_"
 
-    /// All runtime callee symbol names that do not use the `outThrown` ABI lowering path.
     static var nonThrowingRuntimeCalleeNames: Set<String> {
         let fromSpec = Set(allFunctions.lazy.filter { !$0.isThrowing }.map(\.name))
         return fromSpec.union(compilerInternalNonThrowingCalleeNames)
