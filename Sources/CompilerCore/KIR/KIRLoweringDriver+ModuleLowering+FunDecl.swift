@@ -1,6 +1,5 @@
 
 extension KIRLoweringDriver {
-    /// Lower a top-level function declaration into KIR declarations.
     func lowerTopLevelFunDecl(
         _ function: FunDecl,
         symbol: SymbolID,
