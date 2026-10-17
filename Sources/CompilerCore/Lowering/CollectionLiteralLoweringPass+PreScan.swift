@@ -8,10 +8,6 @@ extension CollectionLiteralLoweringSupport {
         interner: StringInterner,
         state: inout CollectionRewriteState
     ) {
-        // Seed tracking sets from static type information (LOWERING-001).
-        // This covers function parameters, return values, and any expression
-        // whose KIR type is a known collection class (List, MutableList, Set,
-        // MutableSet, Map, MutableMap, etc.).
         seedCollectionExprIDsFromStaticTypes(
             function: function,
             lookup: lookup,
@@ -20,8 +16,6 @@ extension CollectionLiteralLoweringSupport {
             state: &state
         )
 
-        // First pass: collect char-valued and ulong-valued expression IDs to detect
-        // char range and ULong range arguments (STDLIB-290, STDLIB-524).
         var charValuedExprIDs: Set<Int32> = []
         var ulongValuedExprIDs: Set<Int32> = []
         for instruction in function.body {
@@ -104,35 +98,29 @@ extension CollectionLiteralLoweringSupport {
             arena: arena, sema: sema, interner: interner,
             state: &state
         )
-        // Classify range factory calls
         if let result,
            callee == lookup.kkOpRangeToName || callee == lookup.kkOpRangeUntilName
            || callee == lookup.kkOpULongRangeUntilName
            || callee == lookup.kkOpDownToName || callee == lookup.kkOpStepName
         {
             state.rangeExprIDs.insert(result.rawValue)
-            // Detect CharRange: if any argument is a char-valued expression (STDLIB-290)
             if arguments.contains(where: { charValuedExprIDs.contains($0.rawValue) }) {
                 state.charRangeExprIDs.insert(result.rawValue)
             }
-            // Detect ULongRange: if any argument is a ULong-valued expression (STDLIB-524)
             if arguments.contains(where: { ulongValuedExprIDs.contains($0.rawValue) }) {
                 state.ulongRangeExprIDs.insert(result.rawValue)
             }
-            // step on a char range propagates char range
             if callee == lookup.kkOpStepName, !arguments.isEmpty,
                state.charRangeExprIDs.contains(arguments[0].rawValue)
             {
                 state.charRangeExprIDs.insert(result.rawValue)
             }
-            // step on a ULong range propagates ULong range (STDLIB-524)
             if callee == lookup.kkOpStepName, !arguments.isEmpty,
                state.ulongRangeExprIDs.contains(arguments[0].rawValue)
             {
                 state.ulongRangeExprIDs.insert(result.rawValue)
             }
         }
-        // STDLIB-189: Classify string-producing calls
         if let result, lookup.stringProducingCallees.contains(callee) {
             state.stringExprIDs.insert(result.rawValue)
         }
@@ -347,16 +335,13 @@ extension CollectionLiteralLoweringSupport {
             // withIndex returns IndexingIterable, not List — do not add to state.listExprIDs
         }
 
-        // Track range member calls that return ranges
         if state.rangeExprIDs.contains(receiverRaw) {
             if callee == lookup.reversedName {
                 if let result {
                     state.rangeExprIDs.insert(result.rawValue)
-                    // Propagate char range through reversed() (STDLIB-290)
                     if state.charRangeExprIDs.contains(receiverRaw) {
                         state.charRangeExprIDs.insert(result.rawValue)
                     }
-                    // Propagate ULong range through reversed() (STDLIB-524)
                     if state.ulongRangeExprIDs.contains(receiverRaw) {
                         state.ulongRangeExprIDs.insert(result.rawValue)
                     }
@@ -366,7 +351,6 @@ extension CollectionLiteralLoweringSupport {
             }
         }
 
-        // STDLIB-189: Track string HOF results
         if state.stringExprIDs.contains(receiverRaw) {
             if callee == lookup.mapName || callee == lookup.filterName, let result {
                 state.stringExprIDs.insert(result.rawValue)
@@ -374,10 +358,6 @@ extension CollectionLiteralLoweringSupport {
         }
     }
 
-    /// Collect expression IDs referenced in a function's body that participate
-    /// in collection-type propagation. This covers instruction kinds that
-    /// produce or consume collection-typed operands (call, virtualCall, copy,
-    /// constValue, returnValue).
     private func collectReferencedExprIDs(function: KIRFunction) -> Set<Int32> {
         var referencedExprIDs: Set<Int32> = []
         for instruction in function.body {
@@ -403,11 +383,10 @@ extension CollectionLiteralLoweringSupport {
         return referencedExprIDs
     }
 
-    /// Seed the collection tracking sets using the static type information
-    /// stored in the KIR arena's `exprTypes` map.  This handles expressions
-    /// whose concrete collection kind cannot be determined from factory/call
-    /// patterns alone, such as function parameters typed as `List<T>` or
-    /// return values from user-defined functions returning `Set<T>`.
+    /// Handles expressions whose concrete collection kind cannot be determined
+    /// from factory/call patterns alone, such as function parameters typed as
+    /// `List<T>` or return values from user-defined functions returning
+    /// `Set<T>`.
     private func seedCollectionExprIDsFromStaticTypes(
         function: KIRFunction,
         lookup: CollectionLiteralLookupTables,
@@ -419,9 +398,6 @@ extension CollectionLiteralLoweringSupport {
         let types = sema.types
         let symbols = sema.symbols
 
-        // For each expression referenced in this function's body that has
-        // a TypeID in the arena, resolve the TypeKind.  If it is a classType,
-        // check the classSymbol's simple name against known collection names.
         let referencedExprIDs = collectReferencedExprIDs(function: function)
 
         for rawID in referencedExprIDs {
