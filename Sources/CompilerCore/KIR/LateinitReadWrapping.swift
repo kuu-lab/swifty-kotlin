@@ -1,7 +1,3 @@
-/// If the symbol being read is a lateinit property, wrap the load with a
-/// `kk_lateinit_get_or_throw` call so an `UninitializedPropertyAccessException`
-/// is raised when the underlying storage is still the sentinel.
-///
 /// Shared between `ExprLowerer` (for stored-property reads) and
 /// `CallLowerer` (for member-access reads). Both callers used the same
 /// implementation; this file is the single source of truth.
