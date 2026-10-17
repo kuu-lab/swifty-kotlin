@@ -1,20 +1,3 @@
-/// Resolution and expansion of non-inline lambda bodies passed to inline
-/// functions.
-///
-/// `resolveLambdaFunction` finds the `KIRFunction` behind a call argument --
-/// either a direct `symbolRef` on the argument expression, or a temporary
-/// defined by a `constValue` carrying a `symbolRef` payload -- so lambda
-/// inlining works regardless of how the argument was materialized.
-/// `expandLambdaBody` then splices that body into the caller: leading
-/// parameters not covered by the call arguments are captures already bound
-/// at the call site, extra leading arguments are a receiver prepended to a
-/// receiver-lambda call, normal returns are merged through an exit label
-/// when the body has more than one, and `nonLocalReturn` markers pass
-/// through so the caller's `inlineTransform` can convert them. Nested
-/// `kk_function_invoke` sites inside the body recurse through the same
-/// resolve/expand pair. `appendInlinedLambdaExpansion` splices a finished
-/// expansion while routing its throws into an existing local exception
-/// slot via `InlineThrowRerouting`.
 extension InlineLoweringPass {
     func lambdaCaptureArguments(
         for callableExpr: KIRExprID,
@@ -89,13 +72,6 @@ extension InlineLoweringPass {
         }
     }
 
-    /// Resolve the lambda function for an argument expression. The argument
-    /// expression may be a direct `symbolRef` pointing to a lambda KIR function,
-    /// or it may be a temporary that was defined via a `constValue` instruction
-    /// carrying a `symbolRef` payload. Both patterns are resolved here so that
-    /// lambda inlining works regardless of how the call argument was materialized.
-    /// The lambda symbol behind an expression: a direct `symbolRef` value, or
-    /// a temporary defined by a `constValue` carrying a `symbolRef` payload.
     private func lambdaSymbolRef(
         for expr: KIRExprID,
         arena: KIRArena,
@@ -114,11 +90,6 @@ extension InlineLoweringPass {
         return nil
     }
 
-    /// Resolve the lambda function for an argument expression. The argument
-    /// expression may be a direct `symbolRef` pointing to a lambda KIR function,
-    /// or it may be a temporary that was defined via a `constValue` instruction
-    /// carrying a `symbolRef` payload. Both patterns are resolved here so that
-    /// lambda inlining works regardless of how the call argument was materialized.
     func resolveLambdaFunction(
         argExpr: KIRExprID,
         arena: KIRArena,
@@ -168,11 +139,6 @@ extension InlineLoweringPass {
         return nil
     }
 
-    /// Expand a lambda function body inline, substituting parameters with the
-    /// provided call arguments. This is analogous to `expandInlineCall` but
-    /// operates on non-inline lambda functions that are passed as arguments to
-    /// inline functions.
-    ///
     /// Returns `nil` when the expansion cannot proceed (e.g. argument/parameter
     /// count mismatch), signalling the caller to fall back to a regular call.
     func expandLambdaBody(
@@ -188,9 +154,6 @@ extension InlineLoweringPass {
         guard budget.enter(lambdaFunction, arena: module.arena) else { return nil }
         defer { budget.leave() }
         guard budget.permitsAdditional(arguments.count, outputCount: 0, arena: module.arena) else { return nil }
-        // Map lambda parameters to arguments. If the argument count does not
-        // match the parameter count, skip capture parameters at the front and
-        // map only the trailing value parameters.
         var lambdaParamValues: [SymbolID: KIRExprID] = [:]
         let paramCount = lambdaFunction.params.count
         if arguments.count == paramCount {
@@ -231,7 +194,6 @@ extension InlineLoweringPass {
         var hasNonLocalReturn = false
         var hasNormalReturn = false
 
-        // Count return instructions to decide whether we need a merge label.
         // Lambda bodies with control flow (if/else branches) can contain
         // multiple return instructions; breaking at the first one would
         // truncate the remaining branches.
@@ -247,14 +209,11 @@ extension InlineLoweringPass {
         var mergeResult: KIRExprID?
         if needsMergeLabel {
             exitLabel = labels.allocateScratchLabel()
-            // For value-returning lambdas, allocate a merge expression to
-            // hold the returned value from whichever branch executes.
             let hasValueReturn = lambdaFunction.body.contains {
                 if case .returnValue = $0 { return true }
                 return false
             }
             if hasValueReturn || ownsNonLocalReturn {
-                // Allocate a fresh merge temporary for the returned value.
                 // Uses the lambda's declared return type so later passes see
                 // a properly typed merge expression.
                 let returnType = lambdaFunction.returnType
@@ -611,7 +570,6 @@ extension InlineLoweringPass {
             }
         }
 
-        // Emit merge label so all branches converge after the inlined body.
         if needsMergeLabel {
             lowered.append(.label(exitLabel))
             if ownsNonLocalReturn { lowered.append(.endNonLocalReturnScope) }
