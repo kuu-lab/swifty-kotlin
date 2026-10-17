@@ -6,10 +6,8 @@ import RuntimeABI
 // `size`/`iterator` redeclarations there. The Swift registrations below retain
 // the claimable `size`/`iterator` members (the source decls inherit their
 // runtime links — @KsSymbolName cannot annotate a property), plus the
-// no-stdlib/precompiled fallback for List.get and the residual HOF
-// registration delegated to the dedicated helper.
+// no-stdlib/precompiled fallback for List.get.
 
-/// Synthetic List residuals retained after the KSP-700 source migration.
 extension DataFlowSemaPhase {
     func registerSyntheticListStub(
         symbols: SymbolTable,
@@ -167,7 +165,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Register the no-stdlib/precompiled fallback for `List.get`.
     /// Bundled source owns the declaration whenever the index contains it.
     private func registerListGetOperator(
         symbols: SymbolTable,
@@ -214,7 +211,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Register `kotlin.collections.AbstractList<E>` for fallback contexts.
     func registerSyntheticAbstractListStub(
         symbols: SymbolTable,
         types: TypeSystem,
