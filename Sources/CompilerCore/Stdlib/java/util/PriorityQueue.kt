@@ -1,6 +1,5 @@
 package java.util
 
-/** A binary min-heap ordered by a comparator or by the elements' natural order. */
 public open class PriorityQueue<E>(
     initialCapacity: Int,
     private val ordering: Comparator<in E>?
