@@ -12,7 +12,6 @@ extension KIRLoweringDriver {
         let arena = shared.arena
 
         var declIDs: [KIRDeclID] = []
-        // Collect nested objects including the companion object
         var allNestedObjects = classDecl.nestedObjects
         if let companionDeclID = classDecl.companionObject {
             allNestedObjects.append(companionDeclID)
@@ -105,7 +104,6 @@ extension KIRLoweringDriver {
         return declIDs
     }
 
-    /// Adds reflection initializers and enum helpers for nested classes.
     private func lowerNestedClassConstructors(
         nestedClasses: [DeclID],
         shared: KIRLoweringSharedContext,
@@ -127,7 +125,6 @@ extension KIRLoweringDriver {
                     ownerSymbol: nestedSymbol,
                     shared: shared
                 ))
-                // Recurse into further nested classes.
                 lowerNestedClassConstructors(
                     nestedClasses: nestedClass.nestedClasses,
                     shared: shared,
@@ -147,7 +144,6 @@ extension KIRLoweringDriver {
         }
     }
 
-    /// CLASS-008: Synthesize forwarding method bodies for delegated interface methods.
     func synthesizeClassDelegationForwardingMethods(
         classSymbol: SymbolID,
         shared: KIRLoweringSharedContext,
@@ -981,7 +977,6 @@ extension KIRLoweringDriver {
         }
     }
 
-    /// Emits a constructor delegation call (`this(...)` or `super(...)`).
     func emitDelegationCall(
         delegation: ConstructorDelegationCall,
         ctorFQName: [InternedString],
@@ -1069,10 +1064,6 @@ extension KIRLoweringDriver {
         )
     }
 
-    /// Emits `this(...)` / `super(...)` as an ordinary constructor call: named
-    /// arguments, the default mask and vararg packing go through the same
-    /// normalization as a call site, and an omitted-default call is routed to
-    /// `<Class>$default`.
     func emitDelegatedConstructorCall(
         target: SymbolID?,
         receiver: KIRExprID?,
