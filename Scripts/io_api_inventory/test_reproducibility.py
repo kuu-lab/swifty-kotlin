@@ -61,7 +61,10 @@ class ReproducibilityTests(unittest.TestCase):
             test_inputs.extend((REPO / "Tests/CompilerBackendTests/Fixtures/IOSourceRawSourceShape2615").glob("*.kt"))
             inputs.extend(
                 path for path in test_inputs
-                if path.relative_to(REPO).as_posix().startswith(original.LOCAL_IO_TEST_PREFIXES)
+                if (
+                    path.relative_to(REPO).as_posix().startswith(original.LOCAL_IO_TEST_PREFIXES)
+                    or path.relative_to(REPO).as_posix() in original.SOURCE_RAWSOURCE_SHAPE_LOCAL_TESTS
+                )
             )
             for source in sorted(set(inputs), reverse=True):
                 if not source.is_file() or "__pycache__" in source.parts:
