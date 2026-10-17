@@ -13,6 +13,48 @@ SPEC.loader.exec_module(RUNNER)
 
 
 class JvmReferenceTests(unittest.TestCase):
+    def test_source_function_selection_expands_all_factory_executions(self):
+        catalog = [
+            {"upstream_id": "core/jvm/test/AbstractSourceTestJVM.kt#inputStream",
+             "execution_id": f"[class:{suite}]/[method:inputStream()]", "source_set": "jvm",
+             "upstream_path": "core/jvm/test/AbstractSourceTestJVM.kt"}
+            for suite in ("kotlinx.io.BufferSourceTestJVM", "kotlinx.io.RealBufferedSourceTestJVM")
+        ]
+        selected = RUNNER.select_source_function_rows(
+            catalog, ["core/jvm/test/AbstractSourceTestJVM.kt#inputStream"]
+        )
+        self.assertEqual([row["execution_id"] for row in selected], [row["execution_id"] for row in catalog])
+
+    def test_source_function_selection_rejects_unknown_duplicate_and_empty_ids(self):
+        catalog = [{"upstream_id": "core/jvm/test/Test.kt#read", "execution_id": "jvm.read",
+                    "source_set": "jvm", "upstream_path": "core/jvm/test/Test.kt"}]
+        for requested, message in (
+            (["core/jvm/test/Test.kt#missing"], "unknown upstream source function ID"),
+            (["core/jvm/test/Test.kt#read"] * 2, "must be unique"),
+            ([""], "must be nonempty"),
+        ):
+            with self.subTest(requested=requested), self.assertRaisesRegex(ValueError, message):
+                RUNNER.select_source_function_rows(catalog, requested)
+
+    def test_source_function_without_jvm_execution_is_rejected(self):
+        catalog = [{"upstream_id": "core/native/test/Test.kt#read", "execution_id": "native.read",
+                    "source_set": "native", "upstream_path": "core/native/test/Test.kt"}]
+        with self.assertRaisesRegex(ValueError, "no JVM execution"):
+            RUNNER.select_source_function_rows(catalog, ["core/native/test/Test.kt#read"])
+
+    def test_targeted_compile_closure_must_be_locked_unique_and_include_selected_test_source(self):
+        pool = ["core/common/test/SourceFactory.kt", "core/jvm/test/AbstractSourceTestJVM.kt",
+                "core/jvm/test/utilJVM.kt"]
+        selected = RUNNER.resolve_compile_sources(
+            pool, [pool[1], pool[0]], {"core/jvm/test/AbstractSourceTestJVM.kt"})
+        self.assertEqual(selected, sorted([pool[0], pool[1]]))
+        with self.assertRaisesRegex(ValueError, "unique"):
+            RUNNER.resolve_compile_sources(pool, [pool[1], pool[1]], {pool[1]})
+        with self.assertRaisesRegex(ValueError, "outside the locked"):
+            RUNNER.resolve_compile_sources(pool, ["../unlocked.kt", pool[1]], {pool[1]})
+        with self.assertRaisesRegex(ValueError, "omit selected test sources"):
+            RUNNER.resolve_compile_sources(pool, [pool[0]], {pool[1]})
+
     def test_inherited_factory_executions_remain_distinct_and_candidate_unmapped(self):
         source = {"upstream_id": "core/common/test/Source.kt#read",
             "upstream_path": "core/common/test/Source.kt", "platform": "common",

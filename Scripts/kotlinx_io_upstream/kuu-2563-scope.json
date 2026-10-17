@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "candidate_sha": "0120dd1da71eaa14a24352ad18d9fc64082137a7",
+  "baseline_candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+  "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+  "source_path": "core/jvm/test/AbstractSourceTestJVM.kt",
+  "source_sha256": "5146615c9bd4da93913ae2fb673051be60f3a1d760920b53f955da74e4ba58d0",
+  "source_git_blob_sha": "511446d903261c0d9d8bd2e90b7723add16fa086",
+  "source_function_ids": [
+    "core/jvm/test/AbstractSourceTestJVM.kt#inputStream",
+    "core/jvm/test/AbstractSourceTestJVM.kt#inputStreamOffsetCount",
+    "core/jvm/test/AbstractSourceTestJVM.kt#inputStreamSkip",
+    "core/jvm/test/AbstractSourceTestJVM.kt#inputStreamCharByChar",
+    "core/jvm/test/AbstractSourceTestJVM.kt#inputStreamBounds",
+    "core/jvm/test/AbstractSourceTestJVM.kt#inputStreamForClosedSource",
+    "core/jvm/test/AbstractSourceTestJVM.kt#inputStreamClosesSource",
+    "core/jvm/test/AbstractSourceTestJVM.kt#inputStreamAvailable",
+    "core/jvm/test/AbstractSourceTestJVM.kt#inputStreamAvailableForClosedSource",
+    "core/jvm/test/AbstractSourceTestJVM.kt#readNioBuffer"
+  ],
+  "source_closure": [
+    {
+      "path": "core/common/test/SourceFactory.kt",
+      "sha256": "ed5966777d8cd4b4890bca670631c97499f8296e81d7fb6cc3cbb6fa65aa32e5",
+      "git_blob_sha": "554c7f74f0d89eed60c195d2caefcfb40b90c040"
+    },
+    {
+      "path": "core/common/test/util.kt",
+      "sha256": "828ba55155aa655334db84312f11e65a27eae86ef7406177984a07b031d67434",
+      "git_blob_sha": "3d15705113a2da5629722f19e4da7d6396e72d76"
+    },
+    {
+      "path": "core/jvm/test/AbstractSourceTestJVM.kt",
+      "sha256": "5146615c9bd4da93913ae2fb673051be60f3a1d760920b53f955da74e4ba58d0",
+      "git_blob_sha": "511446d903261c0d9d8bd2e90b7723add16fa086"
+    },
+    {
+      "path": "core/jvm/test/utilJVM.kt",
+      "sha256": "02b970d024139a634a4b015319a5722392d57438d8f2ce858f0429c8c5ddcca8",
+      "git_blob_sha": "5d0833deeee8b9f433eb6a715ce20b86e7a6830c"
+    }
+  ],
+  "factory_classes": [
+    "kotlinx.io.BufferSourceTestJVM",
+    "kotlinx.io.RealBufferedSourceTestJVM",
+    "kotlinx.io.OneByteAtATimeBufferedSourceTestJVM",
+    "kotlinx.io.OneByteAtATimeBufferTestJVM",
+    "kotlinx.io.PeekBufferTestJVM",
+    "kotlinx.io.PeekBufferedSourceTestJVM"
+  ],
+  "expected_jvm_execution_count": 60,
+  "expected_native_execution_count": 0,
+  "api_rows": [
+    {
+      "row_id": "jvm-5c8f62b61ce2a00a",
+      "signature": "public static final fun asInputStream (Lkotlinx/io/Source;)Ljava/io/InputStream;",
+      "source_ref": "core/jvm/src/SourcesJvm.kt:97",
+      "local_ref": "Sources/CompilerCore/Stdlib/kotlinx/io/SourcesJvm.kt:95",
+      "original_function_ids": [
+        "core/jvm/test/AbstractSourceTestJVM.kt#inputStream",
+        "core/jvm/test/AbstractSourceTestJVM.kt#inputStreamOffsetCount",
+        "core/jvm/test/AbstractSourceTestJVM.kt#inputStreamClosesSource"
+      ],
+      "contract_scope": "Source receiver, InputStream return type, byte-array read range and close propagation; the test does not measure a candidate JVM classfile descriptor."
+    },
+    {
+      "row_id": "jvm-2cd93875bc5aede4",
+      "signature": "public static final fun readAtMostTo (Lkotlinx/io/Source;Ljava/nio/ByteBuffer;)I",
+      "source_ref": "core/jvm/src/SourcesJvm.kt:143",
+      "local_ref": "Sources/CompilerCore/Stdlib/kotlinx/io/SourcesNio.kt:36",
+      "original_function_ids": [
+        "core/jvm/test/AbstractSourceTestJVM.kt#readNioBuffer"
+      ],
+      "contract_scope": "Source receiver and ByteBuffer overload returning Int, including ByteBuffer position, limit and data; the test does not measure a candidate JVM classfile descriptor."
+    }
+  ]
+}

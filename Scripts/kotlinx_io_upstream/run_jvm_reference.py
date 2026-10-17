@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 import platform
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -88,6 +89,47 @@ def source_lookup(upstream: Path, seed: dict) -> dict[tuple[str, str], dict]:
     return lookup
 
 
+def select_source_function_rows(catalog: list[dict], source_function_ids: list[str] | None) -> list[dict]:
+    if not source_function_ids:
+        return list(catalog)
+    if len(source_function_ids) > 10:
+        raise ValueError("at most ten upstream source function IDs may be selected")
+    if any(not identifier or identifier != identifier.strip() for identifier in source_function_ids):
+        raise ValueError("source function IDs must be nonempty and have no surrounding whitespace")
+    if len(source_function_ids) != len(set(source_function_ids)):
+        raise ValueError("source function IDs must be unique")
+    eligible = [row for row in catalog if row["source_set"] in {"common", "jvm"}
+                and "Windows" not in row["upstream_path"]]
+    known = {row["upstream_id"] for row in eligible}
+    all_known = {row["upstream_id"] for row in catalog}
+    for identifier in source_function_ids:
+        if identifier not in known:
+            if identifier in all_known:
+                raise ValueError(f"source function has no JVM execution: {identifier}")
+            raise ValueError(f"unknown upstream source function ID: {identifier}")
+    selected = set(source_function_ids)
+    rows = [row for row in eligible if row["upstream_id"] in selected]
+    if {row["upstream_id"] for row in rows} != selected:
+        raise ValueError("selected source function IDs do not cover the JVM catalog")
+    if len({row["execution_id"] for row in rows}) != len(rows):
+        raise ValueError("selected JVM catalog contains duplicate concrete execution IDs")
+    return rows
+
+
+def resolve_compile_sources(all_sources: list[str], requested: list[str], required: set[str]) -> list[str]:
+    if not requested:
+        return list(all_sources)
+    if len(requested) != len(set(requested)):
+        raise ValueError("compile source paths must be unique")
+    unknown = set(requested) - set(all_sources)
+    if unknown:
+        raise ValueError(f"compile source path is outside the locked JVM/common source pool: {sorted(unknown)}")
+    missing = required - set(requested)
+    if missing:
+        raise ValueError(f"compile source paths omit selected test sources: {sorted(missing)}")
+    return sorted(requested)
+
+
 def map_executions(discovered: list[dict], results: list[dict], lookup: dict, expected: list[dict]) -> list[dict]:
     expected_ids = {row["execution_id"] for row in expected}
     actual_ids = {row["execution_id"] for row in discovered}
@@ -135,9 +177,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--upstream", type=Path, required=True)
     parser.add_argument("--kotlin-home", type=Path, required=True)
     parser.add_argument("--java", type=Path, required=True)
+    parser.add_argument("--javac", type=Path,
+                        help="Java compiler used to build the small JUnit launcher with --release 21")
     parser.add_argument("--dependencies", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--download", action="store_true", help="download missing locked Maven jars")
+    parser.add_argument("--source-function-id", action="append", default=[],
+                        help="select every concrete JVM invocation for an upstream function (path#function)")
+    parser.add_argument("--compile-source-path", action="append", default=[],
+                        help="compile only this locked source path; may be repeated for a targeted reference closure")
+    parser.add_argument("--contract-probe", type=Path,
+                        help="compile and run an additional Kotlin probe function after the selected original tests")
     parser.add_argument("--compile-timeout", type=float, default=180)
     parser.add_argument("--run-timeout", type=float, default=180)
     args = parser.parse_args(argv)
@@ -162,16 +212,29 @@ def main(argv: list[str] | None = None) -> int:
         lookup = source_lookup(args.upstream, seed)
         catalog_path = HERE / "jvm-executions.expected.json"
         verify_file(catalog_path, {"sha256": lock["jvm_execution_catalog_sha256"]})
-        expected = json.loads(catalog_path.read_text())
+        catalog = json.loads(catalog_path.read_text())
+        expected = select_source_function_rows(catalog, args.source_function_id)
         eligible = {row["upstream_id"] for row in seed["cases"]
             if row["platform"] in {"common", "jvm"} and "Windows" not in row["upstream_path"]}
-        if {row["upstream_id"] for row in expected} != eligible:
+        if {row["upstream_id"] for row in catalog} != eligible:
             raise ValueError("expected execution catalog does not cover every eligible upstream function ID")
+        if args.source_function_id and {row["upstream_id"] for row in expected} != set(args.source_function_id):
+            raise ValueError("selected JVM catalog does not cover the requested source function IDs")
         sources = sorted({row["upstream_path"] for row in seed["cases"]
             if row["platform"] in {"common", "jvm"} and "Windows" not in row["upstream_path"]}
             | {row["path"] for row in seed["inventory_only_sources"]
                 if any(part in row["path"] for part in ("/common/test/", "/jvm/test/"))
                 and "Windows" not in row["path"]})
+        sources = resolve_compile_sources(sources, args.compile_source_path,
+            {row["upstream_path"] for row in expected})
+        contract_probe = args.contract_probe.resolve() if args.contract_probe else None
+        if contract_probe is not None:
+            if not contract_probe.is_file() or contract_probe.suffix != ".kt":
+                raise ValueError("contract probe must be an existing Kotlin source file")
+            if not args.source_function_id:
+                raise ValueError("contract probe requires a selected source-function run")
+            if contract_probe in {Path(args.upstream / source).resolve() for source in sources}:
+                raise ValueError("contract probe must be separate from the locked upstream source closure")
         common = [str((args.upstream / source).resolve()) for source in sources if "/common/" in source]
         tests_jar = (args.output / "upstream-jvm-tests.jar").resolve()
         sdk = args.kotlin_home.resolve() / "lib"
@@ -179,6 +242,8 @@ def main(argv: list[str] | None = None) -> int:
         compile_cp = jars + [sdk / "kotlin-test.jar", sdk / "kotlin-test-junit5.jar"]
         command = [str(args.kotlin_home.resolve() / "bin/kotlinc")]
         command += [str((args.upstream / source).resolve()) for source in sources]
+        if contract_probe is not None:
+            command.append(str(contract_probe))
         command += ["-classpath", os.pathsep.join(map(str, compile_cp)), "-Xmulti-platform",
             "-Xexpect-actual-classes", "-Xcommon-sources=" + ",".join(common),
             "-Xfriend-paths=" + ",".join(map(str, io_jars)), "-opt-in=kotlinx.io.InternalIoApi",
@@ -189,7 +254,12 @@ def main(argv: list[str] | None = None) -> int:
             "runner_sha256": sha256(HERE / "JvmReferenceRunner.java"), "host": platform.platform(),
             "java": str(args.java.resolve()), "source_files": sources,
             "unsupported_source_files": [row["path"] for row in lock["upstream_files"] if row["path"] not in sources],
-            "sdk_files": lock["sdk_files"], "reference_artifacts": lock["jvm_artifacts"]}
+            "sdk_files": lock["sdk_files"], "reference_artifacts": lock["jvm_artifacts"],
+            "selected_source_function_ids": sorted(set(args.source_function_id)),
+            "selected_execution_ids": [row["execution_id"] for row in expected],
+            "contract_probe": ({"path": str(contract_probe), "sha256": sha256(contract_probe),
+                                "probe_class": "kotlinx.io.ApiContractProbeKt",
+                                "probe_method": "runKuu2563ApiContractProbe"} if contract_probe else None)}
         compiler_environment = {"JAVACMD": str(args.java.resolve())}
         environment["compiler_environment"] = compiler_environment
         (args.output / "environment.json").write_text(json.dumps(environment, indent=2) + "\n")
@@ -206,10 +276,42 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("JVM reference requires Kotlin 2.3.10")
         if execute(command, args.output, "compile", args.compile_timeout, compiler_environment):
             return 1
+        sibling_javac = args.java.resolve().with_name("javac")
+        javac_path = args.javac.resolve() if args.javac else sibling_javac if sibling_javac.is_file() else shutil.which("javac")
+        if javac_path is None:
+            raise ValueError("a javac capable of --release 21 is required to compile the reference launcher")
+        javac = Path(javac_path)
+        if not javac.is_file():
+            raise ValueError("javac path does not name a file")
+        runner_classes = (args.output / "runner-classes").resolve()
+        runner_classes.mkdir()
+        launcher = Path(__file__).resolve().with_name("JvmReferenceRunner.java")
+        junit_jar = next(jar for jar in jars if jar.name.startswith("junit-platform-console-standalone-"))
+        launcher_command = [str(javac), "--release", "21", "-classpath", str(junit_jar),
+            "-d", str(runner_classes), str(launcher)]
+        if execute([str(javac), "-version"], args.output, "javac-version", 15):
+            return 1
+        environment["javac"] = str(javac)
+        environment["javac_version"] = ((args.output / "javac-version.stderr").read_text()
+            + (args.output / "javac-version.stdout").read_text()).strip()
+        environment["launcher_compile_command"] = launcher_command
+        (args.output / "environment.json").write_text(json.dumps(environment, indent=2) + "\n")
+        if execute(launcher_command, args.output, "launcher-compile", args.compile_timeout):
+            return 1
         runtime_cp = jars + [tests_jar] + [sdk / name for name in
             ("kotlin-stdlib.jar", "kotlin-reflect.jar", "kotlin-test.jar", "kotlin-test-junit5.jar")]
-        command = [str(args.java.resolve()), "-Xmx1024m", "-cp", os.pathsep.join(map(str, runtime_cp)),
-            str(HERE / "JvmReferenceRunner.java"), str(tests_jar), str(args.output.resolve() / "junit")]
+        selection_path = args.output / "selected-methods.tsv"
+        if args.source_function_id:
+            selection_path.write_text("".join(
+                f"{row['concrete_class']}\t{row['method_name']}\n" for row in expected
+            ), encoding="utf-8")
+        command = [str(args.java.resolve()), "-Xmx1024m", "-cp",
+            os.pathsep.join(map(str, [runner_classes] + runtime_cp)), "JvmReferenceRunner",
+            str(tests_jar), str(args.output.resolve() / "junit")]
+        if args.source_function_id:
+            command.append(str(selection_path.resolve()))
+        if contract_probe is not None:
+            command.append("kotlinx.io.ApiContractProbeKt")
         code = execute(command, args.output, "run", args.run_timeout)
         output = args.output / "junit"
         if not (output / "results.json").exists():
@@ -220,6 +322,8 @@ def main(argv: list[str] | None = None) -> int:
         reference_counts = dict(collections.Counter(row["reference_result"]["status"] for row in mapped))
         summary = {"kind": "reference-only", "concrete_execution_count": len(mapped),
             "unique_upstream_function_ids": len({row["upstream_id"] for row in mapped}),
+            "selected_source_function_ids": sorted(set(args.source_function_id)),
+            "contract_probe": (environment["contract_probe"] if contract_probe else None),
             "reference_counts": reference_counts, "candidate_counts": {"UNMAPPED": len(mapped)},
             "paired_pass_count": 0, "source_files_compiled": len(sources)}
         (args.output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")

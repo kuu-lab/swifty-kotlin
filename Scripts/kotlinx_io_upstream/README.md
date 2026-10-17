@@ -183,8 +183,77 @@ failure, stale hash, unknown ID, or duplicate ID leaves the seed case unmapped.
 New upstream cases from a regenerated seed therefore remain blockers until their
 own complete mappings are reviewed.
 
-The empty checked-in mapping file is intentional: this infrastructure change
-does not claim suite execution evidence for any upstream function.
+The checked-in mapping records the ten `AbstractSourceTestJVM` functions and
+their 60 locked JVM invocations from KUU-2563. Other upstream functions remain
+unmapped until their own complete evidence is recorded.
+
+## KUU-2563: JVM `Source.asInputStream` and `Source.readAtMostTo(ByteBuffer)`
+
+`run_kuu2563_candidate.py` selects the ten locked functions from
+`AbstractSourceTestJVM.kt`, expands the fixed catalog to all 60 inherited JVM
+factory executions, and confirms that the Native catalog contributes zero
+reference IDs. It compiles the unchanged upstream JVM tests and an additional
+typed API contract probe, then extracts the same function bodies for the
+KSwiftK macOS native bridge. Candidate execution covers source, a newly emitted
+stdlib KLIB, and a separate producer/consumer KLIB at O0 and O2. Every lane
+must pass every ID, match the pinned JVM observations, and pass the contract
+probe before coverage can be recorded.
+
+The closed-source tests retain their original early return for `Buffer` in the
+`BufferSourceTestJVM` and `OneByteAtATimeBufferTestJVM` factories. The coverage
+map records that branch as an executed original path with its guard assertion;
+it is not a skipped test. Invalid `InputStream` bounds are also probed per
+factory to confirm `IllegalArgumentException` leaves the first byte unread.
+
+The upstream `SourceFactory.kt` fixture calls the internal `kotlinx.io.minOf(Long,
+Long)` helper from a Kotlin test friend module. KSwiftK currently has no friend
+module option for a KLIB consumer, so only the KLIB lanes add a test-local copy
+of that exact helper body. The source-injection lane uses the bundled helper;
+the original upstream fixture and assertions remain unchanged. The helper hash
+is part of the recorded generated-input evidence.
+
+Example invocation using the pinned candidate checkout and saved reference
+results:
+
+```sh
+python3 Scripts/kotlinx_io_upstream/run_kuu2563_candidate.py \
+  --upstream /path/to/kotlinx-io-0.9.1 \
+  --kotlin-home /path/to/kotlin-2.3.10 \
+  --java /path/to/java-21/bin/java \
+  --dependencies /path/to/locked-jars \
+  --compiler /path/to/pinned-checkout/.build/debug/kswiftc \
+  --compiler-resource-bundle /path/to/pinned-checkout/.build/out/Products/Debug/KSwiftK_CompilerCore.bundle \
+  --package-root /path/to/pinned-checkout \
+  --output /private/tmp/kuu2563-evidence \
+  --reuse-reference-output-dir /path/to/prior-reference-results \
+  --compile-timeout 1200 --stdlib-timeout 1800 --run-timeout 60 \
+  --record-coverage
+```
+
+`--reuse-reference-output-dir` is optional. When provided, the runner rechecks
+the pinned sources, SDK/jars, runner and probe hashes, Java/Kotlin versions,
+all 60 JUnit results, and raw observation output before reuse. `--record-coverage`
+is optional and writes `evidence/kuu-2563-matrix.json` after all six candidate
+lanes have been attempted, including per-lane compile failures, crashes,
+timeouts, unobserved IDs and log hashes. It updates `coverage-map.verified.json`
+with ten passing entries only when all six lanes and both reference runners pass.
+The matrix records both the current `candidate_sha` and the original blocked
+`baseline_candidate_sha`; its initial failure evidence is retained as
+`evidence/kuu-2563-matrix-fd01a5e.json`.
+
+The two assigned API ledger rows receive direct references to
+`inputStream`, `inputStreamOffsetCount`, `inputStreamClosesSource`, and
+`readNioBuffer` as appropriate. Their API status remains `unverified`: this
+gate executes Kotlin behavior through KSwiftK's native backend and does not
+produce a candidate JVM classfile from which to verify JVM descriptors or
+flags. Behavioral and assertion mapping evidence must not be read as JVM ABI
+evidence.
+
+Exception observations canonicalize the pinned JVM `IOException` typealias and
+Kotlin standard exception names. In KLIB lanes, `KClass.qualifiedName` can be
+`Unknown`; the pinned `assertFailsWith<T>` assertion establishes the expected
+type, which is recorded by the method-specific mapping while raw run logs remain
+available and hashed.
 
 Apple tests require the macOS CI execution. The seed paired matrix includes all
 680 applicable common/Apple/JVM function IDs as unmapped until assertion-preserving

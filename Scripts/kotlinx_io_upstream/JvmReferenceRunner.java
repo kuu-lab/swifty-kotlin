@@ -10,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.platform.engine.TestExecutionResult;
+import org.junit.platform.engine.DiscoverySelector;
 import org.junit.platform.engine.support.descriptor.MethodSource;
 import org.junit.platform.launcher.TestExecutionListener;
 import org.junit.platform.launcher.TestIdentifier;
@@ -17,6 +18,7 @@ import org.junit.platform.launcher.TestPlan;
 import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
 import org.junit.platform.launcher.core.LauncherFactory;
 import static org.junit.platform.engine.discovery.DiscoverySelectors.selectClasspathRoots;
+import static org.junit.platform.engine.discovery.DiscoverySelectors.selectMethod;
 
 /** Java 21 source-mode runner: the original test classes and assertions are unchanged. */
 class JvmReferenceRunner {
@@ -65,12 +67,33 @@ class JvmReferenceRunner {
     }
 
     public static void main(String[] args) throws Exception {
-        if (args.length != 2) throw new IllegalArgumentException("test jar and output directory required");
+        if (args.length < 2 || args.length > 4) {
+            throw new IllegalArgumentException("test jar, output directory, optional selected-methods file, and optional contract-probe class required");
+        }
         Path output = Path.of(args[1]);
         Files.createDirectories(output);
         var launcher = LauncherFactory.create();
-        var request = LauncherDiscoveryRequestBuilder.request()
-            .selectors(selectClasspathRoots(java.util.Set.of(Path.of(args[0]))))
+        var requestBuilder = LauncherDiscoveryRequestBuilder.request();
+        if (args.length == 2) {
+            requestBuilder.selectors(selectClasspathRoots(java.util.Set.of(Path.of(args[0]))));
+        } else {
+            var selectors = new ArrayList<DiscoverySelector>();
+            var selectedMethods = new java.util.HashSet<String>();
+            for (String line : Files.readAllLines(Path.of(args[2]), StandardCharsets.UTF_8)) {
+                if (line.isBlank()) continue;
+                String[] parts = line.split("\\t", -1);
+                if (parts.length != 2 || parts[0].isBlank() || parts[1].isBlank()) {
+                    throw new IllegalArgumentException("selected-methods file must contain class<TAB>method rows");
+                }
+                if (!selectedMethods.add(parts[0] + "#" + parts[1])) {
+                    throw new IllegalArgumentException("duplicate selected method: " + line);
+                }
+                selectors.add(selectMethod(parts[0], parts[1]));
+            }
+            if (selectors.isEmpty()) throw new IllegalArgumentException("selected-methods file is empty");
+            requestBuilder.selectors(selectors);
+        }
+        var request = requestBuilder
             .filters(org.junit.platform.engine.discovery.ClassNameFilter.includeClassNamePatterns(".*"))
             .configurationParameter("junit.jupiter.execution.parallel.enabled", "false")
             .build();
@@ -148,5 +171,9 @@ class JvmReferenceRunner {
         long passed = results.stream().filter(row -> "PASS".equals(row.get("status"))).count();
         originalOut.println(json(Map.of("discovered", discovered.size(), "executed", results.size(), "passed", passed)));
         if (passed != discovered.size() || results.size() != discovered.size()) System.exit(1);
+        if (args.length == 4) {
+            Class<?> probe = Class.forName(args[3]);
+            probe.getMethod("runKuu2563ApiContractProbe").invoke(null);
+        }
     }
 }
