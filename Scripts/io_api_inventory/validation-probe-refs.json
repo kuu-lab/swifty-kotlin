@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "probes": [
+    {
+      "case_id": "Scripts/io_api_inventory/probes/systempathseparator/SystemPathSeparatorBindingProbe.kt#systemPathSeparatorBinding",
+      "row_ids": [
+        "klib-1cea0040ddde9cf5",
+        "klib-e375bc5c05e11b68"
+      ],
+      "input_files": [
+        "Scripts/io_api_inventory/probes/systempathseparator/SystemPathSeparatorBindingProbe.kt",
+        "Scripts/io_api_inventory/generate.py",
+        "Scripts/io_api_inventory/run_f02_matrix.py",
+        "Scripts/io_api_inventory/test_f02_matrix.py",
+        "Scripts/io_api_inventory/record_systempathseparator_validation.py",
+        "Scripts/kotlinx_io_upstream/reference-lock.json"
+      ],
+      "kind": "reference-and-candidate",
+      "candidate_not_applicable_reason": null
+    },
+    {
+      "case_id": "Scripts/io_api_inventory/probes/systempathseparator/SystemPathSeparatorJvmAbiProbe.java#main",
+      "row_ids": [
+        "jvm-a1d46eb1f6c5e933"
+      ],
+      "input_files": [
+        "Scripts/io_api_inventory/probes/systempathseparator/SystemPathSeparatorJvmAbiProbe.java",
+        "Scripts/io_api_inventory/generate.py",
+        "Scripts/io_api_inventory/run_systempathseparator_jvm_abi_probe.py",
+        "Scripts/io_api_inventory/record_systempathseparator_validation.py",
+        "Scripts/kotlinx_io_upstream/reference-lock.json"
+      ],
+      "kind": "reference-only-jvm-descriptor",
+      "candidate_not_applicable_reason": "KSwiftK Native backend does not emit JVM classfiles"
+    }
+  ]
+}

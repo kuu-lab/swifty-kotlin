@@ -27,6 +27,8 @@ LEDGER_PATH = HERE / "api-inventory.tsv"
 SCOPE_PATH = HERE / "platform-scope.tsv"
 SUMMARY_PATH = HERE / "inventory-summary.md"
 VALIDATION_EVIDENCE_PATH = HERE / "api-validation-evidence.json"
+VALIDATION_PROBE_INDEX_PATH = HERE / "validation-probe-refs.json"
+VALIDATION_PROBE_EXECUTIONS_PATH = HERE / "validation-probe-executions.json"
 UPSTREAM_RUNNER = REPO / "Scripts/kotlinx_io_upstream"
 UPSTREAM_RUNNER_LOCK_PATH = UPSTREAM_RUNNER / "reference-lock.json"
 REFERENCE_EXECUTIONS_PATH = UPSTREAM_RUNNER / "jvm-executions.expected.json"
@@ -38,6 +40,7 @@ NO_DIRECT_UPSTREAM_ASSERTION_SOURCE_REFS = {
 }
 NO_DIRECT_UPSTREAM_ASSERTION = "none (no direct upstream assertion mapped)"
 VALIDATION_EVIDENCE_SCHEMA_VERSION = 2
+JVM_NATIVE_EMISSION_NOT_APPLICABLE = "KSwiftK Native backend does not emit JVM classfiles"
 VALIDATION_LANES_BY_OBLIGATION = {
     "jvm-descriptor": ("jvm-descriptor",),
     "native-source": (
@@ -384,6 +387,91 @@ def _unique_json_object(pairs: list[tuple[str, object]]) -> dict:
     return result
 
 
+def validation_probe_index(repository: Path = REPO) -> dict:
+    """Load the exact local probe cases that may provide row-level evidence."""
+    path = repository / "Scripts/io_api_inventory/validation-probe-refs.json"
+    try:
+        index = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        fail(f"cannot read validation probe references: {error}")
+    if not isinstance(index, dict) or set(index) != {"schema_version", "probes"}:
+        fail("validation probe references must contain only schema_version and probes")
+    if type(index["schema_version"]) is not int or index["schema_version"] != 1:
+        fail("unsupported validation probe reference schema_version")
+    if not isinstance(index["probes"], list):
+        fail("validation probe references must be an array")
+
+    seen_cases = set()
+    seen_rows = set()
+    for probe in index["probes"]:
+        fields = {"case_id", "row_ids", "input_files", "kind", "candidate_not_applicable_reason"}
+        if not isinstance(probe, dict) or set(probe) != fields:
+            fail("each validation probe reference must contain exactly the schema v1 fields")
+        case_id = probe["case_id"]
+        if not isinstance(case_id, str) or case_id.count("#") != 1 or not all(case_id.split("#")):
+            fail("validation probe case IDs must be exact path#case names")
+        if case_id in seen_cases:
+            fail(f"duplicate validation probe case ID: {case_id}")
+        seen_cases.add(case_id)
+        row_ids = probe["row_ids"]
+        if (not isinstance(row_ids, list) or not row_ids
+                or any(not isinstance(row, str) or not row for row in row_ids)
+                or len(row_ids) != len(set(row_ids))):
+            fail(f"malformed row IDs for validation probe {case_id}")
+        for row_id in row_ids:
+            if row_id in seen_rows:
+                fail(f"a row may have only one direct validation probe: {row_id}")
+            seen_rows.add(row_id)
+        input_files = probe["input_files"]
+        if (not isinstance(input_files, list) or not input_files
+                or any(not isinstance(relative, str) or not relative for relative in input_files)
+                or len(input_files) != len(set(input_files))):
+            fail(f"malformed input files for validation probe {case_id}")
+        if case_id.split("#", 1)[0] not in input_files:
+            fail(f"validation probe source is not among its input files: {case_id}")
+        root = repository.resolve()
+        for relative in input_files:
+            input_path = Path(relative)
+            resolved = (repository / input_path).resolve()
+            if input_path.is_absolute() or root not in resolved.parents:
+                fail(f"unsafe validation probe input path: {relative}")
+            if not resolved.is_file():
+                fail(f"missing validation probe input file: {relative}")
+        if probe["kind"] not in {"reference-and-candidate", "reference-only-jvm-descriptor"}:
+            fail(f"unsupported validation probe kind for {case_id}")
+        reason = probe["candidate_not_applicable_reason"]
+        if probe["kind"] == "reference-only-jvm-descriptor":
+            if reason != JVM_NATIVE_EMISSION_NOT_APPLICABLE:
+                fail(f"reference-only JVM probe needs the explicit Native emitter boundary: {case_id}")
+        elif reason is not None:
+            fail(f"candidate-applicability reason is only valid for reference-only probes: {case_id}")
+    return index
+
+
+def validation_probe_for_row(row_id: str, repository: Path = REPO) -> dict | None:
+    matches = [probe for probe in validation_probe_index(repository)["probes"] if row_id in probe["row_ids"]]
+    if len(matches) > 1:
+        fail(f"multiple direct validation probes map to row {row_id}")
+    return matches[0] if matches else None
+
+
+def validation_probe_case_kind(row: dict, case_id: str, repository: Path = REPO) -> str | None:
+    """Return a method-specific upstream test or exact local probe, never a suite hint."""
+    case_path, separator, case_name = case_id.partition("#")
+    if not separator or not case_path or not case_name:
+        return None
+    for reference in row.get("upstream_test_refs", "").split(";"):
+        reference_path, marker, reference_name = reference.partition("#")
+        if marker and reference_name != "suite-reference" and case_path == reference_path and case_name == reference_name:
+            return "upstream-test"
+    probe = validation_probe_for_row(row.get("row_id", ""), repository)
+    if probe and probe["case_id"] == case_id:
+        if probe["kind"] == "reference-only-jvm-descriptor":
+            return "local-probe" if row.get("representation") == "JVM public ABI dump" else None
+        return "local-probe" if row.get("representation") != "JVM public ABI dump" else None
+    return None
+
+
 def _validation_input_files(
     references: str,
     root: Path,
@@ -467,6 +555,15 @@ def validation_input_hashes(
             row.get("upstream_test_refs", ""), upstream, "upstream", locked_upstream_tests
         )
     )
+    probe = validation_probe_for_row(row.get("row_id", ""), repository)
+    if probe:
+        test_files.update(
+            _validation_input_files(
+                ";".join(("Scripts/io_api_inventory/validation-probe-refs.json", *probe["input_files"])),
+                repository,
+                "repo",
+            )
+        )
 
     def digest(files: dict[str, str]) -> str:
         encoded = json.dumps(files, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -667,7 +764,7 @@ def _load_validation_execution_catalogs() -> dict[str, dict[str, str]]:
         lock = json.loads(UPSTREAM_RUNNER_LOCK_PATH.read_text(encoding="utf-8"))
         if lock.get("commit") != EXPECTED_TAG_COMMIT:
             fail("validation execution catalogs use a different upstream commit")
-        catalogs = {}
+        catalogs = {"probe_reference": {}, "probe_candidate": {}}
         for subject, path, lock_key in (
             ("reference", REFERENCE_EXECUTIONS_PATH, "jvm_execution_catalog_sha256"),
             ("candidate", CANDIDATE_EXECUTIONS_PATH, "native_execution_catalog_sha256"),
@@ -692,23 +789,59 @@ def _load_validation_execution_catalogs() -> dict[str, dict[str, str]]:
                     fail(f"duplicate {subject} execution ID in locked catalog: {execution_id}")
                 catalog[execution_id] = case_id
             catalogs[subject] = catalog
+        inventory_lock = json.loads(LOCK_PATH.read_text(encoding="utf-8"))
+        probe_bytes = VALIDATION_PROBE_EXECUTIONS_PATH.read_bytes()
+        if hashlib.sha256(probe_bytes).hexdigest() != inventory_lock.get("validationProbeExecutionsSha256"):
+            fail("local validation probe execution catalog does not match its lock")
+        probe_catalog = json.loads(probe_bytes.decode("utf-8"))
+        if not isinstance(probe_catalog, dict) or set(probe_catalog) != {"schema_version", "reference", "candidate"}:
+            fail("local validation probe execution catalog has an invalid shape")
+        if type(probe_catalog["schema_version"]) is not int or probe_catalog["schema_version"] != 1:
+            fail("unsupported local validation probe execution catalog schema_version")
+        probe_cases = {probe["case_id"] for probe in validation_probe_index()["probes"]}
+        digest_pattern = re.compile(r"^[0-9a-f]{64}$")
+        candidate_pattern = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
+        allowed_lanes = {lane for lanes in VALIDATION_LANES_BY_OBLIGATION.values() for lane in lanes}
+        for subject in ("reference", "candidate"):
+            entries = probe_catalog[subject]
+            if not isinstance(entries, list):
+                fail(f"local {subject} probe execution catalog must be an array")
+            for entry in entries:
+                fields = {
+                    "execution_id", "case_id", "lane", "result", "exit_code", "stdout_sha256",
+                    "normalized_stdout_sha256", "stderr_sha256", "probe_input_sha256",
+                    "candidate_sha", "reference_commit",
+                }
+                if not isinstance(entry, dict) or set(entry) != fields:
+                    fail(f"local {subject} probe execution catalog contains a malformed entry")
+                execution_id = entry["execution_id"]
+                case_id = entry["case_id"]
+                if not isinstance(execution_id, str) or not execution_id.strip() or execution_id != execution_id.strip():
+                    fail(f"local {subject} probe execution catalog has an empty execution_id")
+                if not isinstance(case_id, str) or case_id not in probe_cases:
+                    fail(f"local {subject} probe execution is not in the direct probe index: {case_id}")
+                if (not isinstance(entry["lane"], str) or entry["lane"] not in allowed_lanes
+                        or entry["result"] != "PASS" or type(entry["exit_code"]) is not int
+                        or entry["exit_code"] != 0):
+                    fail(f"local {subject} probe execution is not a passing lane: {execution_id}")
+                if any(not isinstance(entry[key], str) or not digest_pattern.fullmatch(entry[key])
+                       for key in ("stdout_sha256", "normalized_stdout_sha256", "stderr_sha256", "probe_input_sha256")):
+                    fail(f"local {subject} probe execution has malformed output hashes: {execution_id}")
+                if not isinstance(entry["candidate_sha"], str) or not candidate_pattern.fullmatch(entry["candidate_sha"]):
+                    fail(f"local {subject} probe execution has malformed candidate SHA: {execution_id}")
+                if entry["reference_commit"] != EXPECTED_TAG_COMMIT:
+                    fail(f"local {subject} probe execution uses a different upstream commit: {execution_id}")
+                if execution_id in catalogs[subject]:
+                    fail(f"duplicate {subject} execution ID in local and upstream catalogs: {execution_id}")
+                catalogs[subject][execution_id] = case_id
+                catalogs[f"probe_{subject}"][execution_id] = entry
         return catalogs
     except (OSError, json.JSONDecodeError, UnicodeDecodeError) as error:
         fail(f"cannot load validation execution catalogs: {error}")
 
 
-def _case_id_matches_row(row: dict, case_id: str) -> bool:
-    case_path, separator, case_name = case_id.partition("#")
-    if not separator or not case_path or not case_name:
-        return False
-    for reference in row.get("upstream_test_refs", "").split(";"):
-        reference_path, marker, reference_name = reference.partition("#")
-        # A suite mapping is a discovery hint, not row-level execution evidence.
-        if not marker or reference_name == "suite-reference" or case_path != reference_path:
-            continue
-        if case_name == reference_name:
-            return True
-    return False
+def _case_id_matches_row(row: dict, case_id: str, repository: Path = REPO) -> bool:
+    return validation_probe_case_kind(row, case_id, repository) is not None
 
 
 def apply_validation_evidence(
@@ -755,7 +888,8 @@ def apply_validation_evidence(
     )):
         if execution_catalogs is None:
             execution_catalogs = _load_validation_execution_catalogs()
-        if set(execution_catalogs) != {"reference", "candidate"}:
+        if (not isinstance(execution_catalogs, dict)
+                or not {"reference", "candidate"}.issubset(execution_catalogs)):
             fail("validation execution catalogs must include reference and candidate entries")
 
     base_record_fields = {
@@ -771,6 +905,7 @@ def apply_validation_evidence(
     execution_fields = {"case_id", "lane", "reference", "candidate"}
     catalog_result_fields = {"execution_id", "result", "exit_code"}
     local_result_fields = catalog_result_fields | {"method"}
+    not_applicable_result_fields = {"execution_id", "result", "exit_code", "reason"}
     seen_ids = set()
     sha256_pattern = re.compile(r"^[0-9a-f]{64}$")
     candidate_sha_pattern = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
@@ -797,6 +932,7 @@ def apply_validation_evidence(
             fail(f"validation evidence references unknown row_id: {row_id}")
         if row["status"] != "unverified":
             fail(f"validation evidence cannot promote {row_id} from status {row['status']}")
+        probe = validation_probe_for_row(row_id, repository)
 
         candidate_sha = record["candidate_sha"]
         if not isinstance(candidate_sha, str) or not candidate_sha_pattern.fullmatch(candidate_sha):
@@ -828,6 +964,7 @@ def apply_validation_evidence(
         covered_local_case_lanes = set()
         seen_cases = set()
         seen_execution_ids = {"reference": set(), "candidate": set()}
+        candidate_not_applicable_seen = False
         for execution in executions:
             if not isinstance(execution, dict) or set(execution) != execution_fields:
                 fail(f"malformed execution record for row {row_id}")
@@ -835,10 +972,11 @@ def apply_validation_evidence(
             lane = execution["lane"]
             if not isinstance(case_id, str) or not case_id.strip() or case_id != case_id.strip():
                 fail(f"empty execution case_id for row {row_id}")
+            case_kind = validation_probe_case_kind(row, case_id, repository)
             local_case_spec = None
             if evidence_source == "upstream-catalog":
-                if not _case_id_matches_row(row, case_id):
-                    fail(f"execution case {case_id!r} is not mapped to row {row_id}'s upstream tests")
+                if case_kind is None:
+                    fail(f"execution case {case_id!r} is not mapped to row {row_id} via a method-specific upstream test or direct probe")
             else:
                 local_case_spec = _local_probe_case_spec(row, case_id)
                 if local_case_spec is None:
@@ -856,6 +994,20 @@ def apply_validation_evidence(
                 covered_local_case_lanes.add((case_id, lane))
             for subject in ("reference", "candidate"):
                 result = execution[subject]
+                if (subject == "candidate" and isinstance(result, dict)
+                        and set(result) == not_applicable_result_fields
+                        and result.get("result") == "NOT_APPLICABLE"):
+                    if (row.get("representation") != "JVM public ABI dump" or lane != "jvm-descriptor"
+                            or case_kind != "local-probe" or not probe
+                            or probe["kind"] != "reference-only-jvm-descriptor"
+                            or result.get("execution_id") is not None or result.get("exit_code") is not None
+                            or result.get("reason") != probe["candidate_not_applicable_reason"]):
+                        fail(f"candidate execution is not applicable only for an unsupported JVM descriptor row: {row_id}")
+                    candidate_not_applicable_seen = True
+                    continue
+                if (subject == "candidate" and case_kind == "local-probe" and probe
+                        and probe["kind"] == "reference-only-jvm-descriptor"):
+                    fail(f"reference-only JVM probe must not claim candidate emission evidence: {row_id}")
                 result_fields = local_result_fields if local_case_spec is not None else catalog_result_fields
                 if not isinstance(result, dict) or set(result) != result_fields:
                     fail(f"malformed {subject} result for row {row_id} case {case_id}")
@@ -885,10 +1037,27 @@ def apply_validation_evidence(
                     fail(f"non-passing {subject} result for row {row_id} case {case_id}")
                 if type(result["exit_code"]) is not int or result["exit_code"] != 0:
                     fail(f"non-zero {subject} exit code for row {row_id} case {case_id}")
+                if case_kind == "local-probe":
+                    probe_catalog = execution_catalogs.get(f"probe_{subject}", {})
+                    probe_entry = probe_catalog.get(execution_id)
+                    if not isinstance(probe_entry, dict):
+                        fail(f"local probe execution lacks its pinned receipt: {execution_id}")
+                    probe_source = repository / case_id.split("#", 1)[0]
+                    probe_source_sha256 = hashlib.sha256(probe_source.read_bytes()).hexdigest()
+                    if (probe_entry.get("lane") != lane or probe_entry.get("result") != result["result"]
+                            or probe_entry.get("exit_code") != result["exit_code"]
+                            or probe_entry.get("probe_input_sha256") != probe_source_sha256
+                            or probe_entry.get("candidate_sha") != candidate_sha
+                            or probe_entry.get("reference_commit") != record["reference_commit"]):
+                        fail(f"local probe execution receipt does not match row {row_id}: {execution_id}")
 
         missing_lanes = set(required_lanes) - covered_lanes
         if missing_lanes:
             fail(f"missing validation lanes for row {row_id}: {', '.join(sorted(missing_lanes))}")
+        if candidate_not_applicable_seen and not (
+            row.get("representation") == "JVM public ABI dump" and obligations == ["jvm-descriptor"]
+        ):
+            fail(f"candidate not-applicable evidence is only valid for a JVM descriptor row: {row_id}")
         if evidence_source == "local-probe":
             required_cases = {
                 case_id: spec
@@ -908,7 +1077,8 @@ def apply_validation_evidence(
             if not required_cases:
                 fail(f"row {row_id} has no registered local probe evidence cases")
         validate_index_of_bridge_probe(row, record, repository)
-        row["status"] = "verified"
+        if not candidate_not_applicable_seen:
+            row["status"] = "verified"
 
 
 def load_inputs() -> tuple[dict, dict, list[dict], list[dict]]:
@@ -917,6 +1087,13 @@ def load_inputs() -> tuple[dict, dict, list[dict], list[dict]]:
     test_index = json.loads(test_index_bytes.decode("utf-8"))
     if lock.get("tag") != "0.9.1" or lock.get("commit") != EXPECTED_TAG_COMMIT:
         fail("the upstream tag must remain pinned to 0.9.1 at the recorded commit")
+    probe_reference_bytes = VALIDATION_PROBE_INDEX_PATH.read_bytes()
+    if hashlib.sha256(probe_reference_bytes).hexdigest() != lock.get("validationProbeRefsSha256"):
+        fail("validation probe references do not match their lock")
+    validation_probe_index()
+    probe_execution_bytes = VALIDATION_PROBE_EXECUTIONS_PATH.read_bytes()
+    if hashlib.sha256(probe_execution_bytes).hexdigest() != lock.get("validationProbeExecutionsSha256"):
+        fail("local validation probe execution catalog does not match its lock")
     if hashlib.sha256(test_index_bytes).hexdigest() != lock.get("upstreamTestsIndexSha256"):
         fail("the upstream test catalog index does not match its pinned SHA-256")
     if test_index.get("commit") != lock["commit"]:

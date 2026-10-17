@@ -139,6 +139,19 @@ class F02GateTests(unittest.TestCase):
         self.assertIn('println("committed:"', generated["Consumer.kt"])
         self.assertEqual(generator.expression("Byte", "b3"), "4.toByte()")
 
+    def test_systempathseparator_binding_has_a_dedicated_property_consumer(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "systempathseparator-binding")
+        self.assertEqual(
+            case["probe_case_id"],
+            "Scripts/io_api_inventory/probes/systempathseparator/SystemPathSeparatorBindingProbe.kt#systemPathSeparatorBinding",
+        )
+        source = case["fixture"].read_text(encoding="utf-8")
+        self.assertIn("val first: Char = SystemPathSeparator", source)
+        self.assertIn("val second: Char = SystemPathSeparator", source)
+        self.assertIn("first == second", source)
+        self.assertNotIn("SystemFileSystem", source)
+        self.assertNotIn("SystemTemporaryDirectory", source)
+
     def test_deprecated_path_consumer_is_independently_selectable_against_jvm(self):
         case = next(case for case in matrix.scenarios() if case["id"] == "deprecated-path-source-sink")
         self.assertEqual(case["reference"], "jvm")

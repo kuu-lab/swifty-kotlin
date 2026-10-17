@@ -303,15 +303,47 @@ inputs participate in the row's input hash and are checked during regeneration.
 
 The generator rejects unknown or duplicate row IDs, malformed hashes, a
 different reference pin, stale implementation/test inputs, non-passing or
-unrun executions, duplicate cases, and missing or unrelated lanes. Upstream
-case IDs must be referenced by that row's upstream tests, and both execution
-IDs must map to the same case in the locked JVM and Native execution catalogs.
-Local case IDs must match the reviewed probe registry and the row's local test
-references. A manual status edit is discarded when outputs are regenerated.
-`--write` changes only the three generated ledger output files and reads the
-evidence file without rewriting it. `--check` verifies upstream snapshots, the
-test index lock, negative guards, evidence, any execution catalogs used by
-evidence, and byte-for-byte output without modifying files.
+unrun executions, duplicate cases, and missing or unrelated lanes. The case ID
+must match a method-specific upstream test reference or an exact case in
+`validation-probe-refs.json` registered to that row. Direct probe sources and
+their harness inputs are included in the row's test-input hash;
+`#suite-reference` discovery metadata cannot authorize an arbitrary case from
+the same file. Both execution IDs must map to the same case in the locked JVM
+and Native execution catalogs, or to a local probe receipt that pins the lane,
+output hashes, probe source hash, candidate SHA, and upstream commit. Local
+case IDs must match the reviewed probe registry and the row's local test
+references. A reference-only JVM descriptor probe may record candidate
+`NOT_APPLICABLE` only for a JVM ABI row; that leaves the row `unverified` because
+the Native backend does not emit JVM classfiles. A manual status edit is discarded
+when outputs are regenerated. `--write` changes only the three generated ledger
+output files and reads the evidence file without rewriting it. `--check` verifies
+upstream snapshots, the test index lock, negative guards, evidence, local probe
+catalogs, execution catalogs used by evidence, and byte-for-byte output without
+modifying files.
+
+KUU-2641 registers a dedicated `SystemPathSeparator` consumer and a reference
+JVM ABI probe. The consumer checks the public `Char` binding and repeated reads
+against the pinned kotlinx-io 0.9.1 output in source, fresh stdlib-library, and
+independent producer/consumer O0/O2 lanes. The Java probe checks the JVM field
+owner, `C` descriptor, public/static/final flags, platform value, and absence of
+a generated getter. It is reference-only for JVM emission by KSwiftK.
+
+Run and record the focused lanes from a clean candidate commit:
+
+```sh
+python3 Scripts/io_api_inventory/run_f02_matrix.py \
+  --compiler .build/debug/kswiftc --output /tmp/kuu2641-f02 \
+  --kotlin-home /path/to/kotlinc-2.3.10 --java /path/to/java21/bin/java \
+  --dependencies /path/to/locked-io-jars \
+  --case systempathseparator-binding --separate-cases
+python3 Scripts/io_api_inventory/run_systempathseparator_jvm_abi_probe.py \
+  --java /path/to/java21/bin/java --kotlin-home /path/to/kotlinc-2.3.10 \
+  --dependencies /path/to/locked-io-jars --output /tmp/kuu2641-jvm \
+  --candidate-sha <candidate-commit-sha>
+python3 Scripts/io_api_inventory/record_systempathseparator_validation.py \
+  --matrix-output /tmp/kuu2641-f02 --jvm-abi-output /tmp/kuu2641-jvm \
+  --candidate-sha <candidate-commit-sha>
+```
 
 ```sh
 python3 Scripts/io_api_inventory/test_validation_evidence.py
