@@ -1,10 +1,6 @@
-/// `RuntimeABISpec.fileSystemExceptionFunctions` (KSP-619): storage bridges for
-/// the `kotlin.io` filesystem exception hierarchy declared in
-/// `Stdlib/kotlin/io/FileSystemException.kt`.
-///
-/// Each class gets one constructor entry point per arity so that the allocated
-/// box carries the runtime type identity catch-clause dispatch (`kk_op_is`)
-/// needs, plus shared `file` / `other` / `reason` accessors.
+/// Each `kotlin.io` filesystem exception class gets one constructor entry point
+/// per arity so that the allocated box carries the runtime type identity
+/// catch-clause dispatch (`kk_op_is`) needs.
 public extension RuntimeABISpec {
     private static let fileSystemExceptionPrefixes = [
         "file_system",
