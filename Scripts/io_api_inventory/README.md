@@ -305,7 +305,42 @@ evidence, and byte-for-byte output without modifying files.
 
 ```sh
 python3 Scripts/io_api_inventory/test_validation_evidence.py
+python3 Scripts/io_api_inventory/test_api_probe_catalog.py
 ```
+
+The ByteStringBuilder probe checks its public final class shape through source
+and imported-library consumers, rejects subclassing, and reflects the pinned
+JVM class flags. Its constructor behavior remains in the original upstream
+`testCapacity` test. The fixed reference is kotlinx-io 0.9.1 at the commit in
+`Scripts/kotlinx_io_upstream/reference-lock.json`, using Kotlin 2.3.10. The
+common declaration has no Apple-specific actual, so there is no separate Apple
+reference lane.
+
+Run the ByteStringBuilder class probes on macOS with the pinned JVM reference
+environment. The runner builds `kswiftc` in the current checkout and verifies
+the reference lock, pinned test files, and Maven artifacts:
+
+```sh
+python3 Scripts/kotlinx_io_upstream/prepare_reference.py \
+  --target jvm --output /tmp/kio-2583-jvm-reference
+python3 Scripts/io_api_inventory/run_api_probes.py \
+  --compiler .build/debug/kswiftc \
+  --kotlin-home /tmp/kio-2583-jvm-reference/installation/kotlinc \
+  --java /path/to/jdk-21/bin/java \
+  --dependencies /tmp/kio-2583-jvm-reference/dependencies \
+  --output /tmp/kio-2583-probes \
+  --record-evidence
+```
+
+The runner requires a clean committed candidate and Java 21. It builds a fresh
+`.kklib`, runs source and library consumers at O0/O2, checks independent
+producer/consumer lanes, reflects the upstream JVM class, and runs a Swift Sema
+probe against source and imported metadata. It retains commands, output streams,
+hashes, and exit codes in its output directory. After `--record-evidence`,
+`api-validation-evidence.json` contains the two KUU-2583 records and
+`api-probe-run-evidence.json` preserves the detailed run. Regeneration checks
+the summary against canonical records, lanes, reference and probe input hashes,
+counts, build stages, command output hashes, and pass markers.
 
 The relocation regression copies inputs into a different checkout root in
 reverse filesystem creation order and compares all three generated outputs.

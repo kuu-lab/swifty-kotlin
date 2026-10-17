@@ -209,6 +209,66 @@
       "evidence_source": "local-probe"
     },
     {
+      "row_id": "jvm-1d1d46e584ca16cc",
+      "candidate_sha": "c1125323b61cb1ab0f056f158654728e300a3979",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "d0ed90dc15a78b1f80a7b78d73371788fc89e3da9a4f914ed73159d50dce9d59",
+      "test_input_sha256": "83a0d795e0164c43b190c8bff88bf30f096af0d2bb7855b1cc82f3ce8204619e",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "evidence_source": "local-probe",
+      "executions": [
+        {
+          "case_id": "Scripts/io_api_inventory/probes/ByteStringBuilderJvmClassProbe.java#publicFinalClass",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:7579416994be5e42bebb08f46cdef6a0",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-abi-reflection"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:5800968230447056571637e0734e2aa2",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-class-shape-probe"
+          }
+        }
+      ]
+    },
+    {
+      "row_id": "jvm-f7053c9293f03a10",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "fb80e9f124137b5acefc4e81887af5d40acc42279e9c004bd01543d03fc2ab11",
+      "test_input_sha256": "b27722a49c75bdea256bede2eecf9256efe7ce3cb7715c49771b055144fd7154",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/segment_data_as_byte_array_jvm_abi.kt#jvm-descriptor",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:637c85c911a69b9cbbba1465a6e298e6",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-abi-reflection"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:2ab41515fb124993bcdcaf784bf081a6",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "source-metadata"
+          }
+        }
+      ],
+      "evidence_source": "local-probe"
+    },
+    {
       "row_id": "klib-952eb71e7667983b",
       "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
       "reference_version": "0.9.1",
@@ -416,34 +476,115 @@
       "evidence_source": "local-probe"
     },
     {
-      "row_id": "jvm-f7053c9293f03a10",
-      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "row_id": "klib-bb1a86c235fe5d90",
+      "candidate_sha": "c1125323b61cb1ab0f056f158654728e300a3979",
       "reference_version": "0.9.1",
       "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
-      "implementation_input_sha256": "fb80e9f124137b5acefc4e81887af5d40acc42279e9c004bd01543d03fc2ab11",
-      "test_input_sha256": "b27722a49c75bdea256bede2eecf9256efe7ce3cb7715c49771b055144fd7154",
+      "implementation_input_sha256": "d0ed90dc15a78b1f80a7b78d73371788fc89e3da9a4f914ed73159d50dce9d59",
+      "test_input_sha256": "7e8f4dbe1dc1581344662749413eacf7770ee8f6f06b1cfe7b55e5e2b5f78dc4",
       "compatibility_obligations": [
-        "jvm-descriptor"
+        "native-source",
+        "native-bridge"
       ],
+      "evidence_source": "local-probe",
       "executions": [
         {
-          "case_id": "local:Scripts/io_api_inventory/probes/segment_data_as_byte_array_jvm_abi.kt#jvm-descriptor",
-          "lane": "jvm-descriptor",
+          "case_id": "Scripts/io_api_inventory/probes/ByteStringBuilderClassShape.kt#publicFinalClass",
+          "lane": "source-O0",
           "reference": {
-            "execution_id": "local-probe-v1:reference:637c85c911a69b9cbbba1465a6e298e6",
+            "execution_id": "local-probe-v1:reference:c638dcf7e966f2cdd3e6d3158eb42032",
             "result": "PASS",
             "exit_code": 0,
-            "method": "jvm-abi-reflection"
+            "method": "jvm-probe"
           },
           "candidate": {
-            "execution_id": "local-probe-v1:candidate:2ab41515fb124993bcdcaf784bf081a6",
+            "execution_id": "local-probe-v1:candidate:52a8c0c4757d328c38e215ae2cc37b2f",
             "result": "PASS",
             "exit_code": 0,
-            "method": "source-metadata"
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/ByteStringBuilderClassShape.kt#publicFinalClass",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:97910b3e6abfc2b8701615a23935ae8b",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:cc4ad69548599fa6ad9888b8f41bb5c7",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/ByteStringBuilderClassShape.kt#publicFinalClass",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:2f8c42854118a0c1f83745d9e9951741",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:c68b112d124934b192037a08e3d151c4",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/ByteStringBuilderClassShape.kt#publicFinalClass",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:0eb15859c6c31039a311a428b0ea8095",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:d549533ff6757ddb520496cfd1a4d2f7",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/ByteStringBuilderClassShape.kt#publicFinalClass",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:80cff68fd362cf2ac2ba9869e40417b1",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:a2860b0498a54d93c19adb006553fbd1",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/ByteStringBuilderClassShape.kt#publicFinalClass",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:4701016923535b696c6ff654e3775241",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:af4528ac10656e7821477569bb5ab45a",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
           }
         }
-      ],
-      "evidence_source": "local-probe"
+      ]
     }
   ]
 }

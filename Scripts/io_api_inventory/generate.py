@@ -12,6 +12,7 @@ import sys
 import tempfile
 import urllib.request
 from collections import Counter, defaultdict
+from functools import lru_cache
 from pathlib import Path
 
 
@@ -27,6 +28,8 @@ LEDGER_PATH = HERE / "api-inventory.tsv"
 SCOPE_PATH = HERE / "platform-scope.tsv"
 SUMMARY_PATH = HERE / "inventory-summary.md"
 VALIDATION_EVIDENCE_PATH = HERE / "api-validation-evidence.json"
+PROBE_RUN_EVIDENCE_PATH = HERE / "api-probe-run-evidence.json"
+API_PROBE_CATALOG_PATH = HERE / "api-probe-catalog.json"
 UPSTREAM_RUNNER = REPO / "Scripts/kotlinx_io_upstream"
 UPSTREAM_RUNNER_LOCK_PATH = UPSTREAM_RUNNER / "reference-lock.json"
 REFERENCE_EXECUTIONS_PATH = UPSTREAM_RUNNER / "jvm-executions.expected.json"
@@ -74,6 +77,18 @@ LOCAL_PROBE_EVIDENCE_CASES = {
         "row_ids": {"jvm-f7053c9293f03a10"},
         "lanes": ("jvm-descriptor",),
         "methods": {"reference": "jvm-abi-reflection", "candidate": "source-metadata"},
+    },
+    "Scripts/io_api_inventory/probes/ByteStringBuilderClassShape.kt#publicFinalClass": {
+        "path": "Scripts/io_api_inventory/probes/ByteStringBuilderClassShape.kt",
+        "row_ids": {"klib-bb1a86c235fe5d90"},
+        "lanes": LOCAL_NATIVE_PROBE_LANES,
+        "methods": {"reference": "jvm-probe", "candidate": "native-matrix"},
+    },
+    "Scripts/io_api_inventory/probes/ByteStringBuilderJvmClassProbe.java#publicFinalClass": {
+        "path": "Scripts/io_api_inventory/probes/ByteStringBuilderJvmClassProbe.java",
+        "row_ids": {"jvm-1d1d46e584ca16cc"},
+        "lanes": ("jvm-descriptor",),
+        "methods": {"reference": "jvm-abi-reflection", "candidate": "native-class-shape-probe"},
     },
 }
 
@@ -236,6 +251,7 @@ TEST_HINTS = {
 }
 
 LOCAL_IO_TEST_PREFIXES = (
+    "Scripts/io_api_inventory/probes/",
     "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java",
     "Scripts/io_api_inventory/probes/",
     "Scripts/diff_cases/kotlinx_io_",
@@ -245,6 +261,7 @@ LOCAL_IO_TEST_PREFIXES = (
     "Tests/CompilerCoreTests/GoldenCases/Sema/kotlinx_io_",
     "Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlinx_io_",
     "Tests/CompilerCoreTests/Sema/KotlinxIO",
+    "Tests/CompilerCoreTests/Sema/ByteStringBuilderClassShapeTests.swift",
     "Tests/RuntimeTests/RuntimeIoFileSystemTests.swift",
 )
 LOCAL_IO_PROBE_API_NAMES = {"dataasbytearray"}
@@ -323,7 +340,7 @@ def _validation_input_files(
             if locked_files is not None:
                 locked = locked_files.get(relative)
                 if locked is None or len(data) != locked["size"] or git_blob_sha(data) != locked["gitBlobSha"]:
-                    fail(f"upstream test input does not match its lock: {reference}")
+                    fail(f"upstream input does not match its lock: {reference}")
             files[key] = hashlib.sha256(data).hexdigest()
         elif locked_files is not None and relative in locked_files:
             # The upstream test sources are pinned by Git blob SHA and size in the checked-in index.
@@ -336,13 +353,85 @@ def _validation_input_files(
     return files
 
 
+@lru_cache(maxsize=1)
+def load_api_probe_catalog() -> dict:
+    """Load explicit local probes that supplement absent upstream assertions."""
+    try:
+        catalog = json.loads(API_PROBE_CATALOG_PATH.read_text(encoding="utf-8"))
+    except OSError as error:
+        fail(f"cannot read API probe catalog: {error}")
+    except json.JSONDecodeError as error:
+        fail(f"invalid API probe catalog JSON: {error}")
+    if not isinstance(catalog, dict) or set(catalog) != {"schema_version", "probes"}:
+        fail("API probe catalog must contain only schema_version and probes")
+    if type(catalog["schema_version"]) is not int or catalog["schema_version"] != 1:
+        fail("unsupported API probe catalog schema_version")
+    if not isinstance(catalog["probes"], list):
+        fail("API probe catalog probes must be an array")
+
+    seen_rows = set()
+    seen_cases = set()
+    seen_execution_ids = {"reference": set(), "candidate": set()}
+    allowed_lanes = {lane for lanes in VALIDATION_LANES_BY_OBLIGATION.values() for lane in lanes}
+    for probe in catalog["probes"]:
+        if not isinstance(probe, dict) or set(probe) != {
+            "row_id", "case_id", "upstream_reference_paths", "probe_paths", "lanes"
+        }:
+            fail("each API probe must contain exactly row_id, case_id, upstream_reference_paths, probe_paths, and lanes")
+        row_id = probe["row_id"]
+        case_id = probe["case_id"]
+        if not isinstance(row_id, str) or not row_id or row_id in seen_rows:
+            fail("API probe row IDs must be nonempty and unique")
+        if not isinstance(case_id, str) or not case_id or case_id in seen_cases:
+            fail("API probe case IDs must be nonempty and unique")
+        seen_rows.add(row_id)
+        seen_cases.add(case_id)
+        case_path, separator, case_name = case_id.partition("#")
+        if not separator or not case_path or not case_name:
+            fail(f"malformed API probe case ID: {case_id!r}")
+
+        paths = probe["probe_paths"]
+        if (not isinstance(paths, list) or not paths
+                or any(not isinstance(path, str) or not path for path in paths)
+                or len(set(paths)) != len(paths) or case_path not in paths):
+            fail(f"API probe {row_id} must list unique source paths including its case file")
+        for relative in paths:
+            path = (REPO / relative).resolve()
+            if REPO.resolve() not in path.parents or not path.is_file():
+                fail(f"missing or unsafe API probe input for {row_id}: {relative}")
+
+        upstream_paths = probe["upstream_reference_paths"]
+        if (not isinstance(upstream_paths, list) or not upstream_paths
+                or any(not isinstance(path, str) or not path for path in upstream_paths)
+                or len(set(upstream_paths)) != len(upstream_paths)):
+            fail(f"API probe {row_id} must list unique pinned upstream declaration paths")
+        for relative in upstream_paths:
+            path = (UPSTREAM / relative).resolve()
+            if UPSTREAM.resolve() not in path.parents or not path.is_file():
+                fail(f"missing or unsafe pinned upstream reference for {row_id}: {relative}")
+
+        lanes = probe["lanes"]
+        if not isinstance(lanes, dict) or not lanes or set(lanes) - allowed_lanes:
+            fail(f"API probe {row_id} has an empty or invalid lane set")
+        for lane, subjects in lanes.items():
+            if not isinstance(subjects, dict) or set(subjects) != {"reference", "candidate"}:
+                fail(f"API probe {row_id} lane {lane} must name reference and candidate IDs")
+            for subject in ("reference", "candidate"):
+                execution_id = subjects[subject]
+                if (not isinstance(execution_id, str) or not execution_id.strip()
+                        or execution_id in seen_execution_ids[subject]):
+                    fail(f"API probe {row_id} has an empty or duplicate {subject} execution ID")
+                seen_execution_ids[subject].add(execution_id)
+    return catalog
+
+
 def validation_input_hashes(
     row: dict,
     repository: Path = REPO,
     upstream: Path = UPSTREAM,
 ) -> dict[str, str]:
     """Hash the implementation and test files currently mapped to one ledger row."""
-    locked_upstream_tests = None
+    locked_upstream_files = None
     if upstream.resolve() == UPSTREAM.resolve():
         try:
             lock = json.loads(LOCK_PATH.read_text(encoding="utf-8"))
@@ -353,14 +442,20 @@ def validation_input_hashes(
             lock_entries = {entry["path"]: entry for entry in lock.get("upstreamTests", [])}
             if set(lock_entries) != {entry["path"] for entry in test_index.get("files", [])}:
                 fail("upstream test index and lock file list differ while hashing validation inputs")
-            locked_upstream_tests = {}
+            locked_upstream_files = {
+                entry["path"]: {
+                    "gitBlobSha": entry["gitBlobSha"],
+                    "size": entry["size"],
+                }
+                for entry in lock.get("upstreamFiles", [])
+            }
             for entry in test_index["files"]:
                 locked = lock_entries[entry["path"]]
                 if (entry.get("gitBlobSha"), entry.get("size")) != (
                     locked.get("gitBlobSha"), locked.get("size")
                 ):
                     fail(f"upstream test input lock mismatch: {entry['path']}")
-                locked_upstream_tests[entry["path"]] = {
+                locked_upstream_files[entry["path"]] = {
                     "gitBlobSha": entry["gitBlobSha"],
                     "size": entry["size"],
                 }
@@ -375,9 +470,21 @@ def validation_input_hashes(
     test_files = _validation_input_files(row.get("local_test_refs", ""), repository, "repo")
     test_files.update(
         _validation_input_files(
-            row.get("upstream_test_refs", ""), upstream, "upstream", locked_upstream_tests
+            row.get("upstream_test_refs", ""), upstream, "upstream", locked_upstream_files
         )
     )
+    probe = next((entry for entry in load_api_probe_catalog()["probes"]
+                  if entry["row_id"] == row.get("row_id")), None)
+    if probe is not None:
+        test_files.update(_validation_input_files(
+            "Scripts/io_api_inventory/api-probe-catalog.json", repository, "repo"
+        ))
+        test_files.update(_validation_input_files(
+            ";".join(probe["upstream_reference_paths"]),
+            upstream,
+            "upstream",
+            locked_upstream_files,
+        ))
 
     def digest(files: dict[str, str]) -> str:
         encoded = json.dumps(files, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -456,12 +563,20 @@ def _load_validation_execution_catalogs() -> dict[str, dict[str, str]]:
                     fail(f"duplicate {subject} execution ID in locked catalog: {execution_id}")
                 catalog[execution_id] = case_id
             catalogs[subject] = catalog
+        for probe in load_api_probe_catalog()["probes"]:
+            case_id = probe["case_id"]
+            for lane, subjects in probe["lanes"].items():
+                for subject in ("reference", "candidate"):
+                    execution_id = subjects[subject]
+                    if execution_id in catalogs[subject]:
+                        fail(f"API probe execution ID collides with the locked {subject} catalog: {execution_id}")
+                    catalogs[subject][execution_id] = case_id
         return catalogs
     except (OSError, json.JSONDecodeError, UnicodeDecodeError) as error:
         fail(f"cannot load validation execution catalogs: {error}")
 
 
-def _case_id_matches_row(row: dict, case_id: str) -> bool:
+def _case_id_matches_row(row: dict, case_id: str, probe_catalog: dict | None = None) -> bool:
     case_path, separator, case_name = case_id.partition("#")
     if not separator or not case_path or not case_name:
         return False
@@ -472,7 +587,17 @@ def _case_id_matches_row(row: dict, case_id: str) -> bool:
             continue
         if case_name == reference_name:
             return True
-    return False
+    if probe_catalog is None:
+        probe_catalog = load_api_probe_catalog()
+    probe = next((entry for entry in probe_catalog["probes"]
+                  if entry["row_id"] == row.get("row_id")), None)
+    if probe is None or probe["case_id"] != case_id or case_path not in probe["probe_paths"]:
+        return False
+    local_test_paths = {
+        reference.split("#", 1)[0]
+        for reference in row.get("local_test_refs", "").split(";")
+    }
+    return case_path in local_test_paths
 
 
 def apply_validation_evidence(
@@ -580,6 +705,10 @@ def apply_validation_evidence(
                 fail(f"stale {field} for row {row_id}")
 
         obligations = validation_obligations(row)
+        probe = next((entry for entry in load_api_probe_catalog()["probes"]
+                      if entry["row_id"] == row_id), None)
+        if probe is not None and set(probe["lanes"]) != set(required_execution_lanes(obligations)):
+            fail(f"registered API probe lanes do not match row {row_id}'s compatibility obligations")
         recorded_obligations = record["compatibility_obligations"]
         if (not isinstance(recorded_obligations, list)
                 or recorded_obligations != obligations):
@@ -672,6 +801,317 @@ def apply_validation_evidence(
             if not required_cases:
                 fail(f"row {row_id} has no registered local probe evidence cases")
         row["status"] = "verified"
+
+    if evidence_path.resolve() == VALIDATION_EVIDENCE_PATH.resolve():
+        validate_api_probe_run_evidence(records, by_id, lock)
+
+
+def validate_api_probe_run_evidence(
+    validation_records: list[dict],
+    rows_by_id: dict[str, dict],
+    lock: dict,
+    evidence_path: Path = PROBE_RUN_EVIDENCE_PATH,
+) -> None:
+    """Check that raw probe summaries agree with the canonical row evidence."""
+    try:
+        evidence = json.loads(
+            evidence_path.read_text(encoding="utf-8"), object_pairs_hook=_unique_json_object
+        )
+    except OSError as error:
+        fail(f"cannot read API probe run evidence {evidence_path}: {error}")
+    except json.JSONDecodeError as error:
+        fail(f"invalid API probe run evidence JSON: {error}")
+    except UnicodeDecodeError as error:
+        fail(f"API probe run evidence is not UTF-8: {error}")
+
+    if not isinstance(evidence, dict) or set(evidence) != {"schema_version", "runs"}:
+        fail("API probe run evidence must contain only schema_version and runs")
+    if type(evidence["schema_version"]) is not int or evidence["schema_version"] != 1:
+        fail("unsupported API probe run evidence schema_version")
+    runs = evidence["runs"]
+    if not isinstance(runs, list):
+        fail("API probe run evidence runs must be an array")
+
+    probe_catalog = load_api_probe_catalog()
+    probes = {probe["row_id"]: probe for probe in probe_catalog["probes"]}
+    canonical = {record["row_id"]: record for record in validation_records}
+    expected_rows = set(canonical) & set(probes)
+    covered_rows = set()
+    sha256_pattern = re.compile(r"^[0-9a-f]{64}$")
+    expected_marker = "BYTESTRINGBUILDER_CLASS_SHAPE_PASS\n"
+    jvm_marker = "BYTESTRINGBUILDER_JVM_CLASS_SHAPE_PASS\n"
+    reference_lock = json.loads(UPSTREAM_RUNNER_LOCK_PATH.read_text(encoding="utf-8"))
+    if (
+        reference_lock.get("repository") != lock.get("repository")
+        or reference_lock.get("commit") != lock.get("commit")
+        or reference_lock.get("kotlinx_io") != lock.get("tag")
+        or reference_lock.get("kotlin") != lock.get("kotlinCompilerVersion")
+    ):
+        fail("JVM probe reference lock differs from the API inventory reference pin")
+    inventory_test_hashes = {
+        entry["path"]: (entry["gitBlobSha"], entry["size"])
+        for entry in lock.get("upstreamTests", [])
+    }
+    reference_test_hashes = {
+        entry["path"]: (entry["git_blob_sha"], entry["bytes"])
+        for entry in reference_lock.get("upstream_files", [])
+    }
+    if inventory_test_hashes != reference_test_hashes:
+        fail("JVM probe reference tests differ from the API inventory test lock")
+    expected_jar_hashes = {
+        entry["sha256"]
+        for entry in lock.get("mavenArtifacts", [])
+    }
+    locked_reference_inputs = {
+        entry["path"]: entry.get("sha256")
+        for entry in reference_lock.get("upstream_files", [])
+    }
+
+    def checked_input_hash(relative: str) -> str:
+        if relative.startswith("upstream/"):
+            upstream_relative = relative.removeprefix("upstream/")
+            digest = locked_reference_inputs.get(upstream_relative)
+            if not isinstance(digest, str) or not sha256_pattern.fullmatch(digest):
+                fail(f"unlocked upstream input hash in API probe run: {relative}")
+            return digest
+        path = Path(relative)
+        if path.is_absolute():
+            fail(f"absolute path in API probe run input hashes: {relative}")
+        resolved = (REPO / path).resolve()
+        if REPO.resolve() not in resolved.parents or not resolved.is_file():
+            fail(f"missing or unsafe API probe run input: {relative}")
+        return hashlib.sha256(resolved.read_bytes()).hexdigest()
+
+    for run in runs:
+        if (not isinstance(run, dict) or type(run.get("schema_version")) is not int
+                or run.get("schema_version") != 1):
+            fail("API probe run evidence contains a malformed summary")
+        if run.get("status") != "SELECTED_API_PROBES_PASS" or run.get("evidence_recorded") is not True:
+            fail("API probe run summary does not record a complete passing run")
+        candidate_sha = run.get("candidate_sha")
+        if not isinstance(candidate_sha, str) or not re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", candidate_sha):
+            fail("API probe run summary has a malformed candidate SHA")
+        if (run.get("reference_version"), run.get("reference_commit")) != (
+            lock.get("tag"), lock.get("commit")
+        ):
+            fail("API probe run summary uses a different reference pin")
+        for field in ("compiler_sha256", "kotlin_compiler_sha256", "java_sha256"):
+            if not isinstance(run.get(field), str) or not sha256_pattern.fullmatch(run[field]):
+                fail(f"API probe run summary has a malformed {field}")
+        validate_api_probe_build_stages(run, sha256_pattern)
+        jars = run.get("jvm_reference_jars_sha256")
+        if not isinstance(jars, dict) or not jars or any(
+            not isinstance(value, str) or not sha256_pattern.fullmatch(value)
+            for value in jars.values()
+        ) or set(jars.values()) != expected_jar_hashes:
+            fail("API probe run summary is missing locked JVM artifact hashes")
+        locked_kotlinc = next(
+            (entry.get("sha256") for entry in reference_lock.get("sdk_files", [])
+             if entry.get("path") == "bin/kotlinc"),
+            None,
+        )
+        if run.get("kotlin_compiler_sha256") != locked_kotlinc:
+            fail("API probe run summary does not use the pinned Kotlin compiler binary")
+        stdlib_hashes = run.get("candidate_stdlib_sha256")
+        if not isinstance(stdlib_hashes, dict) or not stdlib_hashes or any(
+            not isinstance(value, str) or not sha256_pattern.fullmatch(value)
+            for value in stdlib_hashes.values()
+        ):
+            fail("API probe run summary is missing fresh KLIB hashes")
+        not_run = run.get("unexecuted_scope")
+        if not isinstance(not_run, list) or not not_run or any(
+            not isinstance(item, str) or not item.strip() for item in not_run
+        ):
+            fail("API probe run summary must identify unexecuted scope")
+
+        input_hashes = run.get("input_files_sha256")
+        if not isinstance(input_hashes, dict) or not input_hashes:
+            fail("API probe run summary is missing input hashes")
+        for relative, digest in input_hashes.items():
+            if not isinstance(relative, str) or not isinstance(digest, str) or not sha256_pattern.fullmatch(digest):
+                fail("API probe run summary contains a malformed input hash")
+            if checked_input_hash(relative) != digest:
+                fail(f"stale API probe run input hash: {relative}")
+
+        run_rows = run.get("rows")
+        if not isinstance(run_rows, list) or not run_rows:
+            fail("API probe run summary has no selected rows")
+        run_row_ids = [row.get("row_id") for row in run_rows if isinstance(row, dict)]
+        if len(run_row_ids) != len(run_rows) or len(set(run_row_ids)) != len(run_row_ids):
+            fail("API probe run summary has malformed or duplicate rows")
+        if not set(run_row_ids).issubset(expected_rows):
+            fail("API probe run summary includes a row without current validation evidence")
+
+        for row_id in run_row_ids:
+            required_inputs = {
+                "Scripts/io_api_inventory/api-probe-catalog.json",
+                "Scripts/io_api_inventory/upstream-lock.json",
+                "Scripts/kotlinx_io_upstream/reference-lock.json",
+            }
+            row = rows_by_id.get(row_id)
+            probe = probes.get(row_id)
+            record = canonical.get(row_id)
+            if row is None or probe is None or record is None:
+                fail(f"API probe run summary references an unknown current row: {row_id}")
+            if row_id in covered_rows:
+                fail(f"duplicate raw API probe run evidence for row {row_id}")
+            if candidate_sha != record["candidate_sha"]:
+                fail(f"API probe run summary candidate SHA mismatch for row {row_id}")
+            required_inputs.update(probe["probe_paths"])
+            required_inputs.update(
+                (HERE / "upstream" / "kotlinx-io-0.9.1" / path).relative_to(REPO).as_posix()
+                for path in probe["upstream_reference_paths"]
+            )
+            for field in ("local_candidate_refs", "local_implementation_refs", "local_test_refs"):
+                for reference in row.get(field, "").split(";"):
+                    relative = reference.split("#", 1)[0]
+                    if relative and relative != "none" and not relative.startswith("none "):
+                        line_suffix = re.match(r"^(.*?):\d+(?::\d+)?$", relative)
+                        required_inputs.add(line_suffix.group(1) if line_suffix else relative)
+            for reference in row.get("upstream_source_refs", "").split(";"):
+                relative = reference.split("#", 1)[0]
+                line_suffix = re.match(r"^(.*?):\d+(?::\d+)?$", relative)
+                relative = line_suffix.group(1) if line_suffix else relative
+                if relative and relative != "none" and not relative.startswith("none "):
+                    required_inputs.add(
+                        (HERE / "upstream" / "kotlinx-io-0.9.1" / relative).relative_to(REPO).as_posix()
+                    )
+            for reference in row.get("upstream_test_refs", "").split(";"):
+                relative = reference.split("#", 1)[0]
+                line_suffix = re.match(r"^(.*?):\d+(?::\d+)?$", relative)
+                relative = line_suffix.group(1) if line_suffix else relative
+                if relative and relative != "none" and not relative.startswith("none "):
+                    required_inputs.add(f"upstream/{relative}")
+            if not required_inputs.issubset(input_hashes):
+                missing = sorted(required_inputs - set(input_hashes))
+                fail(f"API probe run summary is missing row input hashes for {row_id}: {', '.join(missing)}")
+            run_row = next(item for item in run_rows if item["row_id"] == row_id)
+            if run_row.get("case_id") != probe["case_id"]:
+                fail(f"API probe run summary case does not match row {row_id}")
+            if run_row.get("validation_record") != record:
+                fail(f"API probe run summary does not match canonical evidence for row {row_id}")
+            executions = run_row.get("executions")
+            if not isinstance(executions, list):
+                fail(f"API probe run summary has no executions for row {row_id}")
+            expected_execution_ids = {
+                (lane, subject): subjects[subject]
+                for lane, subjects in probe["lanes"].items()
+                for subject in ("reference", "candidate")
+            }
+            seen_executions = set()
+            for execution in executions:
+                if not isinstance(execution, dict):
+                    fail(f"malformed API probe execution summary for row {row_id}")
+                identity = (execution.get("lane"), execution.get("subject"))
+                if identity not in expected_execution_ids or identity in seen_executions:
+                    fail(f"unexpected or duplicate API probe execution for row {row_id}")
+                seen_executions.add(identity)
+                if execution.get("execution_id") != expected_execution_ids[identity]:
+                    fail(f"API probe execution ID mismatch for row {row_id} {identity[0]}")
+                if execution.get("status") != "PASS":
+                    fail(f"non-passing API probe run summary for row {row_id} {identity[0]}")
+                stages = execution.get("stages")
+                if not isinstance(stages, list) or not stages:
+                    fail(f"API probe execution has no stage output for row {row_id} {identity[0]}")
+                for stage in stages:
+                    if not isinstance(stage, dict) or stage.get("status") != "PASS":
+                        fail(f"API probe execution has a failing stage for row {row_id} {identity[0]}")
+                    artifact_hashes = stage.get("class_files_sha256")
+                    if artifact_hashes is not None and (
+                        not isinstance(artifact_hashes, dict) or not artifact_hashes or any(
+                            not isinstance(value, str) or not sha256_pattern.fullmatch(value)
+                            for value in artifact_hashes.values()
+                        )
+                    ):
+                        fail(f"API probe artifact hash is malformed for row {row_id} {identity[0]}")
+                    if "command" not in stage:
+                        continue
+                    if (not isinstance(stage["command"], list)
+                            or any(not isinstance(arg, str) for arg in stage["command"])):
+                        fail(f"API probe stage command is malformed for row {row_id} {identity[0]}")
+                    for stream in ("stdout", "stderr"):
+                        output = stage.get(stream)
+                        output_hash = stage.get(f"{stream}_sha256")
+                        if (not isinstance(output, str) or not isinstance(output_hash, str)
+                                or not sha256_pattern.fullmatch(output_hash)
+                                or hashlib.sha256(output.encode("utf-8")).hexdigest() != output_hash):
+                            fail(f"API probe {stream} or its hash is missing for row {row_id} {identity[0]}")
+                    if type(stage.get("exit_code")) is not int:
+                        fail(f"API probe stage exit code is missing for row {row_id} {identity[0]}")
+                    if (type(stage.get("expected_exit_code")) is not int
+                            or stage["exit_code"] != stage["expected_exit_code"]):
+                        fail(f"API probe stage exit did not match its expectation for row {row_id} {identity[0]}")
+                output_stage = next((stage for stage in stages if stage.get("stage") in {
+                    "reference-positive-run", "reference-consumer-run", "candidate-positive-run"
+                }), None)
+                if output_stage is None or output_stage.get("stdout") != expected_marker:
+                    fail(f"API probe output marker is missing for row {row_id} {identity[0]}")
+                if row_id == "jvm-1d1d46e584ca16cc" and identity == ("jvm-descriptor", "reference"):
+                    jvm_stage = next((stage for stage in stages if stage.get("stage") == "jvm-class"), None)
+                    if jvm_stage is None or jvm_stage.get("stdout") != jvm_marker:
+                        fail("JVM classfile reflection output is missing from raw probe evidence")
+            if seen_executions != set(expected_execution_ids):
+                fail(f"API probe run summary is missing lanes for row {row_id}")
+            covered_rows.add(row_id)
+
+        counts = run.get("counts")
+        expected_pairs = sum(len(probes[row_id]["lanes"]) for row_id in run_row_ids)
+        if (not isinstance(counts, dict)
+                or counts.get("rows") != len(run_row_ids)
+                or counts.get("lane_pairs") != expected_pairs
+                or counts.get("passing_lane_pairs") != expected_pairs
+                or counts.get("successful_cases") != len(run_row_ids)
+                or counts.get("reference_runs") != expected_pairs
+                or counts.get("candidate_runs") != expected_pairs
+                or counts.get("reference_passes") != expected_pairs
+                or counts.get("candidate_passes") != expected_pairs):
+            fail("API probe run summary counts do not match the complete passing lane matrix")
+
+    if covered_rows != expected_rows:
+        missing = sorted(expected_rows - covered_rows)
+        fail(f"API probe run evidence is missing raw summaries for current records: {', '.join(missing)}")
+
+
+def validate_api_probe_build_stages(run: dict, sha256_pattern: re.Pattern[str]) -> None:
+    """Require passing compiler and fresh-stdlib build records in a raw run."""
+    stages = (
+        ("candidate_compiler_build", "candidate-compiler-build", ["swift", "build", "--product", "kswiftc"]),
+        ("fresh_stdlib_build", "candidate-fresh-stdlib", None),
+    )
+    compiler_path = str((REPO / ".build/debug/kswiftc").resolve())
+    for field, stage_name, expected_command in stages:
+        stage = run.get(field)
+        if not isinstance(stage, dict) or stage.get("stage") != stage_name:
+            fail(f"API probe run summary is missing the {field} stage")
+        if stage.get("status") != "PASS":
+            fail(f"API probe run summary has a failing {field} stage")
+        command = stage.get("command")
+        if not isinstance(command, list) or any(not isinstance(arg, str) for arg in command):
+            fail(f"API probe run summary has a malformed {field} command")
+        if expected_command is not None:
+            command_matches = command == expected_command
+        else:
+            command_matches = (
+                len(command) == 5
+                and command[:4] == [
+                    compiler_path, "--stdlib-only", "--no-incremental", "-o"
+                ]
+                and Path(command[4]).is_absolute()
+                and Path(command[4]).name == "KSwiftKStdlib.kklib"
+            )
+        if not command_matches:
+            fail(f"API probe run summary has an unexpected {field} command")
+        if (type(stage.get("exit_code")) is not int or stage["exit_code"] != 0
+                or type(stage.get("expected_exit_code")) is not int
+                or stage["expected_exit_code"] != 0):
+            fail(f"API probe run summary does not record successful {field} exit")
+        for stream in ("stdout", "stderr"):
+            output = stage.get(stream)
+            digest = stage.get(f"{stream}_sha256")
+            if (not isinstance(output, str) or not isinstance(digest, str)
+                    or not sha256_pattern.fullmatch(digest)
+                    or hashlib.sha256(output.encode("utf-8")).hexdigest() != digest):
+                fail(f"API probe run summary has missing or stale {field} {stream}")
 
 
 def load_inputs() -> tuple[dict, dict, list[dict], list[dict]]:
@@ -1651,8 +2091,21 @@ def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
     name = row["_candidate_name"].lower()
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []
+    probe_catalog = load_api_probe_catalog()
+    probe = next((entry for entry in probe_catalog["probes"]
+                  if entry["row_id"] == row["row_id"]), None)
+    registered_probe_paths = {
+        path
+        for entry in probe_catalog["probes"]
+        for path in entry["probe_paths"]
+    }
+    allowed_probe_paths = set(probe["probe_paths"]) if probe is not None else set()
     for path, content in local_tests:
-        if path.startswith("Scripts/io_api_inventory/probes/") and name not in LOCAL_IO_PROBE_API_NAMES:
+        if path in registered_probe_paths and path not in allowed_probe_paths:
+            continue
+        if (path.startswith("Scripts/io_api_inventory/probes/")
+                and path not in registered_probe_paths
+                and name not in LOCAL_IO_PROBE_API_NAMES):
             continue
         if (path == SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS[0]
                 or path.startswith(SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS[1])):
@@ -2041,6 +2494,7 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     local_paths.extend(REPO.joinpath("Tests/CompilerCoreTests/GoldenCases/Sema").glob("*.kt"))
     local_paths.extend(REPO.joinpath("Scripts/diff_cases").glob("*.kt"))
     local_paths.extend(REPO.joinpath("Scripts/io_api_inventory/probes").glob("*.kt"))
+    local_paths.extend(REPO.joinpath("Scripts/io_api_inventory/probes").glob("*.java"))
     local_paths.extend(REPO.joinpath("Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590").glob("*.kt"))
     local_paths.append(REPO / "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java")
     for path in sorted(local_paths):
