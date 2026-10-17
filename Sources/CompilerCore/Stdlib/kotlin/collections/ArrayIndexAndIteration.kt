@@ -1,9 +1,5 @@
 package kotlin.collections
 
-// KUU-572: Array index and iteration APIs are ordinary Kotlin source. Array
-// storage, element access, and primitive boxing remain compiler/runtime
-// responsibilities; these declarations only compose those existing APIs.
-
 public fun <T> Array<out T>.lastIndex(): Int = this.size - 1
 
 public fun <T> Array<out T>.indices(): IntRange = 0..this.lastIndex()
