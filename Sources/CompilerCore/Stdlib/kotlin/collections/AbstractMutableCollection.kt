@@ -7,20 +7,12 @@
 
 package kotlin.collections
 
-// KSP-633: the nominal `AbstractMutableCollection<E>` declaration is
-// source-backed here; the compiler-side shell in
-// `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` remains the fallback
-// for contexts without the bundled stdlib.
+// The compiler-side shell in `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift`
+// remains the fallback for contexts without the bundled stdlib.
 
-/**
- * Provides a skeletal implementation of the [MutableCollection] interface.
- */
 public abstract class AbstractMutableCollection<E> protected constructor() : AbstractCollection<E>(), MutableCollection<E> {
     abstract override fun add(element: E): Boolean
 
-    /**
-     * Adds all of the elements of the specified collection to this collection.
-     */
     @IgnorableReturnValue
     override fun addAll(elements: Collection<E>): Boolean {
         var changed = false
@@ -30,9 +22,6 @@ public abstract class AbstractMutableCollection<E> protected constructor() : Abs
         return changed
     }
 
-    /**
-     * Removes a single instance of the specified element from this collection, if it is present.
-     */
     @IgnorableReturnValue
     @Suppress("UNCHECKED_CAST")
     override fun remove(element: E): Boolean {
@@ -46,9 +35,6 @@ public abstract class AbstractMutableCollection<E> protected constructor() : Abs
         return false
     }
 
-    /**
-     * Removes all of this collection's elements that are also contained in the specified collection.
-     */
     @IgnorableReturnValue
     @Suppress("UNCHECKED_CAST")
     override fun removeAll(elements: Collection<E>): Boolean {
@@ -63,9 +49,6 @@ public abstract class AbstractMutableCollection<E> protected constructor() : Abs
         return changed
     }
 
-    /**
-     * Retains only the elements in this collection that are contained in the specified collection.
-     */
     @IgnorableReturnValue
     @Suppress("UNCHECKED_CAST")
     override fun retainAll(elements: Collection<E>): Boolean {
@@ -80,9 +63,6 @@ public abstract class AbstractMutableCollection<E> protected constructor() : Abs
         return changed
     }
 
-    /**
-     * Removes all elements from this collection.
-     */
     @Suppress("UNCHECKED_CAST")
     override fun clear(): Unit {
         val iterator = iterator() as MutableIterator<E>
@@ -97,64 +77,40 @@ public abstract class AbstractMutableCollection<E> protected constructor() : Abs
 // separate from the nominal AbstractMutableCollection class above, matching
 // the kotlin-stdlib source ownership and preserving member dispatch.
 
-/**
- * Removes a single instance of [element] from this collection, if present.
- */
 @IgnorableReturnValue
 @Suppress("UNCHECKED_CAST")
 public inline fun <T> MutableCollection<out T>.remove(element: T): Boolean {
     return (this as MutableCollection<T>).remove(element)
 }
 
-/**
- * Removes all elements in [elements] from this collection.
- */
 @IgnorableReturnValue
 @Suppress("UNCHECKED_CAST")
 public inline fun <T> MutableCollection<out T>.removeAll(elements: Collection<T>): Boolean {
     return (this as MutableCollection<T>).removeAll(elements)
 }
 
-/**
- * Retains only elements present in [elements].
- */
 @IgnorableReturnValue
 @Suppress("UNCHECKED_CAST")
 public inline fun <T> MutableCollection<out T>.retainAll(elements: Collection<T>): Boolean {
     return (this as MutableCollection<T>).retainAll(elements)
 }
 
-/**
- * Adds [element] to this mutable collection.
- */
 public inline operator fun <T> MutableCollection<in T>.plusAssign(element: T) {
     add(element)
 }
 
-/**
- * Adds all elements from [elements] to this mutable collection.
- */
 public inline operator fun <T> MutableCollection<in T>.plusAssign(elements: Iterable<T>) {
     addAllIterable(this, elements)
 }
 
-/**
- * Adds all elements from [elements] to this mutable collection.
- */
 public inline operator fun <T> MutableCollection<in T>.plusAssign(elements: Array<T>) {
     addAllArray(this, elements)
 }
 
-/**
- * Adds all elements from [elements] to this mutable collection.
- */
 public inline operator fun <T> MutableCollection<in T>.plusAssign(elements: Sequence<T>) {
     addAllSequence(this, elements)
 }
 
-/**
- * Removes one instance of [element] from this mutable collection.
- */
 public inline operator fun <T> MutableCollection<in T>.minusAssign(element: T) {
     removeElement(this, element)
 }
@@ -164,30 +120,18 @@ internal fun <T> removeElement(destination: MutableCollection<in T>, element: T)
     destination.remove(element)
 }
 
-/**
- * Removes all elements from [elements] in this mutable collection.
- */
 public inline operator fun <T> MutableCollection<in T>.minusAssign(elements: Iterable<T>) {
     removeAllIterable(this, elements)
 }
 
-/**
- * Removes all elements from [elements] in this mutable collection.
- */
 public inline operator fun <T> MutableCollection<in T>.minusAssign(elements: Array<T>) {
     removeAllArray(this, elements)
 }
 
-/**
- * Removes all elements from [elements] in this mutable collection.
- */
 public inline operator fun <T> MutableCollection<in T>.minusAssign(elements: Sequence<T>) {
     removeAllSequence(this, elements)
 }
 
-/**
- * Adds all elements from [elements] to this mutable collection.
- */
 @IgnorableReturnValue
 public fun <T> MutableCollection<in T>.addAll(elements: Iterable<T>): Boolean {
     return addAllIterable(this, elements)
@@ -211,9 +155,6 @@ internal fun <T> addAllIterable(
     return result
 }
 
-/**
- * Adds all elements from [elements] to this mutable collection.
- */
 @IgnorableReturnValue
 public fun <T> MutableCollection<in T>.addAll(elements: Sequence<T>): Boolean {
     return addAllSequence(this, elements)
@@ -231,9 +172,6 @@ internal fun <T> addAllSequence(
     return result
 }
 
-/**
- * Adds all elements from [elements] to this mutable collection.
- */
 @IgnorableReturnValue
 public fun <T> MutableCollection<in T>.addAll(elements: Array<out T>): Boolean {
     return addAllArray(this, elements)
@@ -262,9 +200,6 @@ private fun <T> arrayToList(elements: Array<out T>): List<T> {
     return result
 }
 
-/**
- * Removes all elements in [elements] from this mutable collection.
- */
 @IgnorableReturnValue
 public fun <T> MutableCollection<in T>.removeAll(elements: Iterable<T>): Boolean {
     return removeAllIterable(this, elements)
@@ -284,9 +219,6 @@ internal fun <T> removeAllIterable(
     return removeAllCollection(destination, list)
 }
 
-/**
- * Removes all elements in [elements] from this mutable collection.
- */
 @IgnorableReturnValue
 public fun <T> MutableCollection<in T>.removeAll(elements: Sequence<T>): Boolean {
     return removeAllSequence(this, elements)
@@ -301,9 +233,6 @@ internal fun <T> removeAllSequence(
     return list.isNotEmpty() && removeAllCollection(destination, list)
 }
 
-/**
- * Removes all elements in [elements] from this mutable collection.
- */
 @IgnorableReturnValue
 public fun <T> MutableCollection<in T>.removeAll(elements: Array<out T>): Boolean {
     return removeAllArray(this, elements)
@@ -323,9 +252,6 @@ private fun <T> removeAllCollection(
     elements: Collection<T>
 ): Boolean = destination.removeAll(elements)
 
-/**
- * Retains only elements present in [elements].
- */
 @IgnorableReturnValue
 public fun <T> MutableCollection<in T>.retainAll(elements: Iterable<T>): Boolean {
     return retainAllIterable(this, elements)
@@ -344,9 +270,6 @@ private fun <T> retainAllIterable(
     return retainAllCollection(destination, list)
 }
 
-/**
- * Retains only elements present in [elements].
- */
 @IgnorableReturnValue
 public fun <T> MutableCollection<in T>.retainAll(elements: Array<out T>): Boolean {
     return retainAllArray(this, elements)
@@ -360,9 +283,6 @@ private fun <T> retainAllArray(
     return if (list.size > 0) retainAllCollection(destination, list) else retainNothing(destination)
 }
 
-/**
- * Retains only elements present in [elements].
- */
 @IgnorableReturnValue
 public fun <T> MutableCollection<in T>.retainAll(elements: Sequence<T>): Boolean {
     return retainAllSequence(this, elements)
