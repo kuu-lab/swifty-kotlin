@@ -1,0 +1,294 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "row_id": "jvm-629859a56151abf0",
+      "candidate_sha": "e290998b96234e455b8373799a6fb68115c42020",
+      "reference_version": "kotlinx-io 0.9.1 / Kotlin 2.3.10",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "cf1d85e795f0581484d1cba870c68c9289aedc2c4197736b4e213f16dd7cf636",
+      "test_input_sha256": "f255603ecaca644a7e7cd37ef504b75c64ef675443f617796006801a9e3154db",
+      "compatibility_obligations": [
+        "jvm-reference-shape"
+      ],
+      "executions": [
+        {
+          "case_id": "KUU-2615/jvm-reference",
+          "lane": "jvm-reference",
+          "reference": {
+            "execution_id": "kuu-2615-jvm-reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": null
+        }
+      ]
+    },
+    {
+      "row_id": "jvm-f8d085329509298b",
+      "candidate_sha": "e290998b96234e455b8373799a6fb68115c42020",
+      "reference_version": "kotlinx-io 0.9.1 / Kotlin 2.3.10",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "faec6b7536195051a8950fd0705164879bccc8c647b57ac832cc30efec332b47",
+      "test_input_sha256": "97f8a77c68102542aa4f1120da02e135da7930c23fea26bb02ce1f31aef06b45",
+      "compatibility_obligations": [
+        "jvm-reference-shape"
+      ],
+      "executions": [
+        {
+          "case_id": "KUU-2615/jvm-reference",
+          "lane": "jvm-reference",
+          "reference": {
+            "execution_id": "kuu-2615-jvm-reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": null
+        }
+      ]
+    },
+    {
+      "row_id": "klib-55dcad01b8bc6432",
+      "candidate_sha": "e290998b96234e455b8373799a6fb68115c42020",
+      "reference_version": "kotlinx-io 0.9.1 / Kotlin 2.3.10",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "faec6b7536195051a8950fd0705164879bccc8c647b57ac832cc30efec332b47",
+      "test_input_sha256": "97f8a77c68102542aa4f1120da02e135da7930c23fea26bb02ce1f31aef06b45",
+      "compatibility_obligations": [
+        "native-declaration-shape",
+        "native-source",
+        "native-bridge"
+      ],
+      "executions": [
+        {
+          "case_id": "KUU-2615/jvm-reference",
+          "lane": "jvm-reference",
+          "reference": {
+            "execution_id": "kuu-2615-jvm-reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": null
+        },
+        {
+          "case_id": "KUU-2615/source-O0",
+          "lane": "source-O0",
+          "reference": null,
+          "candidate": {
+            "execution_id": "kuu-2615-candidate-source-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "KUU-2615/source-O2",
+          "lane": "source-O2",
+          "reference": null,
+          "candidate": {
+            "execution_id": "kuu-2615-candidate-source-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "KUU-2615/stdlib-library-O0",
+          "lane": "stdlib-library-O0",
+          "reference": null,
+          "candidate": {
+            "execution_id": "kuu-2615-candidate-stdlib-library-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "KUU-2615/stdlib-library-O2",
+          "lane": "stdlib-library-O2",
+          "reference": null,
+          "candidate": {
+            "execution_id": "kuu-2615-candidate-stdlib-library-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "KUU-2615/producer-consumer-O0",
+          "lane": "producer-consumer-O0",
+          "reference": null,
+          "candidate": {
+            "execution_id": "kuu-2615-candidate-producer-consumer-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "KUU-2615/producer-consumer-O2",
+          "lane": "producer-consumer-O2",
+          "reference": null,
+          "candidate": {
+            "execution_id": "kuu-2615-candidate-producer-consumer-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    {
+      "row_id": "klib-795e5c923ef63bf3",
+      "candidate_sha": "e290998b96234e455b8373799a6fb68115c42020",
+      "reference_version": "kotlinx-io 0.9.1 / Kotlin 2.3.10",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "cf1d85e795f0581484d1cba870c68c9289aedc2c4197736b4e213f16dd7cf636",
+      "test_input_sha256": "f255603ecaca644a7e7cd37ef504b75c64ef675443f617796006801a9e3154db",
+      "compatibility_obligations": [
+        "native-declaration-shape",
+        "native-source",
+        "native-bridge",
+        "native-sealed-boundary"
+      ],
+      "executions": [
+        {
+          "case_id": "KUU-2615/jvm-reference",
+          "lane": "jvm-reference",
+          "reference": {
+            "execution_id": "kuu-2615-jvm-reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": null
+        },
+        {
+          "case_id": "KUU-2615/source-O0",
+          "lane": "source-O0",
+          "reference": null,
+          "candidate": {
+            "execution_id": "kuu-2615-candidate-source-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "KUU-2615/source-O2",
+          "lane": "source-O2",
+          "reference": null,
+          "candidate": {
+            "execution_id": "kuu-2615-candidate-source-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "KUU-2615/stdlib-library-O0",
+          "lane": "stdlib-library-O0",
+          "reference": null,
+          "candidate": {
+            "execution_id": "kuu-2615-candidate-stdlib-library-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "KUU-2615/stdlib-library-O2",
+          "lane": "stdlib-library-O2",
+          "reference": null,
+          "candidate": {
+            "execution_id": "kuu-2615-candidate-stdlib-library-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "KUU-2615/producer-consumer-O0",
+          "lane": "producer-consumer-O0",
+          "reference": null,
+          "candidate": {
+            "execution_id": "kuu-2615-candidate-producer-consumer-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "KUU-2615/producer-consumer-O2",
+          "lane": "producer-consumer-O2",
+          "reference": null,
+          "candidate": {
+            "execution_id": "kuu-2615-candidate-producer-consumer-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "KUU-2615/source-boundary-negative-O0",
+          "lane": "source-boundary-negative-O0",
+          "reference": null,
+          "candidate": {
+            "execution_id": "kuu-2615-candidate-source-boundary-negative-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "KUU-2615/source-boundary-negative-O2",
+          "lane": "source-boundary-negative-O2",
+          "reference": null,
+          "candidate": {
+            "execution_id": "kuu-2615-candidate-source-boundary-negative-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ]
+    }
+  ],
+  "outputs": {
+    "kuu-2615-jvm-reference": {
+      "output_sha256": "67da2f9070c29259c988fa7233fb11f7bbf62efbb4dcaf44d66f687aa9d27466",
+      "artifact_sha256": "765d8851d8ca694706931331b92386844800867e041b720f1f193dbda874d370",
+      "summary": "{\"result\":\"PASS\",\"source\":\"public abstract interface -> RawSource\",\"rawSource\":\"public abstract interface -> java.lang.AutoCloseable\",\"inherited\":[\"close()\",\"readAtMostTo(Buffer,long)\"]}"
+    },
+    "kuu-2615-candidate-source-O0": {
+      "output_sha256": "8fd6728a9c792331e1629beb72d2a25478483989fb9ca76eecdf62098b232d98",
+      "artifact_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "summary": "PASS; source-injected output source-as-raw=true, external-raw-read=-1"
+    },
+    "kuu-2615-candidate-source-O2": {
+      "output_sha256": "8fd6728a9c792331e1629beb72d2a25478483989fb9ca76eecdf62098b232d98",
+      "artifact_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "summary": "PASS; source-injected output source-as-raw=true, external-raw-read=-1"
+    },
+    "kuu-2615-candidate-stdlib-library-O0": {
+      "output_sha256": "8fd6728a9c792331e1629beb72d2a25478483989fb9ca76eecdf62098b232d98",
+      "artifact_sha256": "9ac3f3a6ad037ed3c684c0bc23fdb617b84e127c19684a4f7791fd146342a604",
+      "summary": "PASS; fresh O0 stdlib KLIB output source-as-raw=true, external-raw-read=-1"
+    },
+    "kuu-2615-candidate-stdlib-library-O2": {
+      "output_sha256": "8fd6728a9c792331e1629beb72d2a25478483989fb9ca76eecdf62098b232d98",
+      "artifact_sha256": "a783e77751381470cf7bb70b178dea20522722aca7d946c2073ce25dc276f605",
+      "summary": "PASS; fresh O2 stdlib KLIB output source-as-raw=true, external-raw-read=-1"
+    },
+    "kuu-2615-candidate-producer-consumer-O0": {
+      "output_sha256": "997f0662c8d8d39f00d0b5d1e5cb85f7fe8ab22adf73c1b93a133abdf5a9ef83",
+      "artifact_sha256": "20aed57d96af6a9dc175f13f400808a5315773135056b5671789fb1603a58edb",
+      "summary": "PASS; imported producer KLIB, inherited close, read=-1, Source is AutoCloseable"
+    },
+    "kuu-2615-candidate-producer-consumer-O2": {
+      "output_sha256": "997f0662c8d8d39f00d0b5d1e5cb85f7fe8ab22adf73c1b93a133abdf5a9ef83",
+      "artifact_sha256": "069b08f080a10d2b816690d01b17e22fdeff4e7f0fb557d7b2b746d0244c1b13",
+      "summary": "PASS; imported producer KLIB, inherited close, read=-1, Source is AutoCloseable"
+    },
+    "kuu-2615-candidate-source-boundary-negative-O0": {
+      "output_sha256": "8feb374b2f7397db1a254f3972ebc13732d684dcc80c154a6f7ebef7d67235f1",
+      "artifact_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "summary": "PASS; external Source implementation rejected with KSWIFTK-SEMA-0070 at source-boundary-negative-O0; no KLIB artifact emitted"
+    },
+    "kuu-2615-candidate-source-boundary-negative-O2": {
+      "output_sha256": "ebfdd883d7fff6faa08e515130acbc69436fd764f80c265908b0ca13e8970555",
+      "artifact_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "summary": "PASS; external Source implementation rejected with KSWIFTK-SEMA-0070 at source-boundary-negative-O2; no KLIB artifact emitted"
+    }
+  },
+  "run_counts": {
+    "reference_executions": 1,
+    "candidate_lane_executions": 8,
+    "row_attributions": 18
+  }
+}
