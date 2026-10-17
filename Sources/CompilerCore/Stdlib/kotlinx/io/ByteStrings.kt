@@ -56,7 +56,24 @@ public fun Source.readByteString(byteCount: Int): ByteString {
     return UnsafeByteStringOperations.wrapUnsafe(data)
 }
 
-/** Searches without consuming bytes, fetching more data into the buffer as needed. */
+/**
+ * Returns the index of the first match for [byteString] in the source at or after [startIndex]. This
+ * expands the source's buffer as necessary until [byteString] is found. This reads an unbounded number of
+ * bytes into the buffer. Returns `-1` if the stream is exhausted before the requested bytes are found.
+ *
+ * For empty byte strings this function returns [startIndex] if it lays within underlying buffer's bounds,
+ * `0` if [startIndex] was negative and the size of the underlying buffer if [startIndex] exceeds its size.
+ * If the [startIndex] value was greater than the underlying buffer's size, the data will be fetched and buffered
+ * despite the [byteString] is empty.
+ *
+ * @param byteString the sequence of bytes to find within the source.
+ * @param startIndex the index into the source to start searching from.
+ *
+ * @throws IllegalStateException if the source is closed.
+ * @throws IOException when some I/O error occurs.
+ *
+ * @sample kotlinx.io.samples.ByteStringSamples.indexOfByteString
+ */
 @OptIn(InternalIoApi::class, UnsafeByteStringApi::class)
 public fun Source.indexOf(byteString: ByteString, startIndex: Long = 0L): Long {
     val start = maxOf(0L, startIndex)
