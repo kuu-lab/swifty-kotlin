@@ -40,8 +40,8 @@ enum WellKnownCollectionFactory: CaseIterable, Hashable, Sendable {
     }
 }
 
-/// Compiler-owned enum entry/value intrinsics. `enumEntriesIntrinsic` is the
-/// internal source-level entry point used by the bundled enum implementation.
+/// `enumEntriesIntrinsic` is the internal source-level entry point used by the
+/// bundled enum implementation.
 enum WellKnownEnumIntrinsic: CaseIterable, Hashable, Sendable {
     case enumValues
     case enumValueOf
@@ -67,9 +67,9 @@ enum WellKnownEnumIntrinsic: CaseIterable, Hashable, Sendable {
     }
 }
 
-/// Compiler-owned reflection intrinsics. The bundled `kotlin.reflect.typeOf`
-/// declaration is expanded by the `typeOf` special-call path in the call type
-/// checker, the same way the enum intrinsics dispatch to their own lowering.
+/// The bundled `kotlin.reflect.typeOf` declaration is expanded by the `typeOf`
+/// special-call path in the call type checker, the same way the enum
+/// intrinsics dispatch to their own lowering.
 enum WellKnownReflectIntrinsic: CaseIterable, Hashable, Sendable {
     case typeOf
 
