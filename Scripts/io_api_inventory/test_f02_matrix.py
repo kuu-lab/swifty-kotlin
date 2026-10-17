@@ -5,6 +5,7 @@ import json
 import contextlib
 import io
 from pathlib import Path
+import re
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -32,6 +33,81 @@ else:
 
 
 class F02GateTests(unittest.TestCase):
+    def test_segment_data_as_byte_array_is_an_independently_selectable_jvm_paired_case(self):
+        cases = {case["id"]: case for case in matrix.scenarios()}
+        case = cases["segment-data-as-byte-array"]
+        self.assertEqual(case["fixture"], matrix.ROOT / "Scripts/io_api_inventory/probes/segment_data_as_byte_array.kt")
+        self.assertEqual(case["negative_fixture"], matrix.ROOT / "Scripts/io_api_inventory/probes/segment_data_as_byte_array_negative.kt")
+        self.assertEqual(case["reference_probe"], matrix.ROOT / "Scripts/io_api_inventory/probes/segment_data_as_byte_array_jvm_abi.kt")
+        self.assertEqual(case["reference"], "jvm")
+        self.assertEqual(case["entry"], "f02consumer.main")
+        self.assertEqual(case["reference_class"], "f02jvmabi.SegmentDataAsByteArrayJvmAbi")
+        abi_probe = case["reference_probe"].read_text(encoding="utf-8")
+        self.assertIn("!Modifier.isStatic(method.modifiers)", abi_probe)
+
+    def test_segment_data_as_byte_array_retains_published_api_and_jvm_synthetic(self):
+        paths = (
+            matrix.ROOT / "Sources/CompilerCore/Stdlib/kotlinx/io/Segment.kt",
+            matrix.ROOT / "Scripts/io_api_inventory/upstream/kotlinx-io-0.9.1/core/common/src/Segment.kt",
+        )
+        for path in paths:
+            source = path.read_text(encoding="utf-8")
+            match = re.search(
+                r"(?P<annotations>(?:^[ \t]*@[^\n]*\n)+)^[ \t]*internal fun dataAsByteArray\(",
+                source,
+                re.MULTILINE,
+            )
+            self.assertIsNotNone(match, str(path))
+            annotations = {
+                name.rsplit(".", 1)[-1]
+                for name in re.findall(r"^[ \t]*@([\w.]+)", match.group("annotations"), re.MULTILINE)
+            }
+            self.assertTrue({"PublishedApi", "JvmSynthetic"}.issubset(annotations), str(path))
+
+    def test_local_probe_evidence_ids_and_candidate_source_metadata_are_explicit(self):
+        case_id = "local:Scripts/io_api_inventory/probes/segment_data_as_byte_array.kt#internal-view"
+        lane = "source-O0"
+        candidate_sha = "a" * 40
+        reference_commit = "b" * 40
+        reference = matrix.local_probe_execution(
+            case_id, lane, candidate_sha, reference_commit, "reference", "PASS"
+        )
+        candidate = matrix.local_probe_execution(
+            case_id, lane, candidate_sha, reference_commit, "candidate", "PASS"
+        )
+        self.assertEqual(reference["method"], "jvm-probe")
+        self.assertEqual(candidate["method"], "native-matrix")
+        self.assertNotEqual(reference["execution_id"], candidate["execution_id"])
+        self.assertEqual(
+            reference["execution_id"],
+            matrix.local_probe_execution_id(candidate_sha, reference_commit, case_id, lane, "reference"),
+        )
+        metadata = matrix.verify_segment_data_as_byte_array_source_metadata()
+        self.assertEqual(metadata["status"], "PASS")
+        self.assertTrue({"PublishedApi", "JvmSynthetic"}.issubset(metadata["annotations"]))
+
+    def test_visibility_probe_result_is_independent_of_later_lane_failure(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            (directory / "candidate.json").write_text(
+                json.dumps({"status": "EXITED", "exitcode": 1}), encoding="utf-8"
+            )
+            (directory / "candidate.stderr").write_text(
+                "error KSWIFTK-SEMA-0044: Cannot access 'dataAsByteArray': it is internal\n",
+                encoding="utf-8",
+            )
+            self.assertTrue(matrix.visibility_rejection_passed(directory, "candidate"))
+
+            (directory / "candidate.json").write_text(
+                json.dumps({"status": "EXITED", "exitcode": 0}), encoding="utf-8"
+            )
+            self.assertFalse(matrix.visibility_rejection_passed(directory, "candidate"))
+
+            (directory / "candidate.json").write_text(
+                json.dumps({"status": "TIMEOUT", "exitcode": 1}), encoding="utf-8"
+            )
+            self.assertFalse(matrix.visibility_rejection_passed(directory, "candidate"))
+
     def test_segment_read_context_probe_is_a_dedicated_friend_consumer(self):
         case = next(case for case in matrix.scenarios() if case["id"] == "segment-read-context-impl")
         producer = case["producer"][0].read_text(encoding="utf-8")

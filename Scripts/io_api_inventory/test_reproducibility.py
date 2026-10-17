@@ -37,6 +37,15 @@ class ReproducibilityTests(unittest.TestCase):
     def row(self, api_id):
         return next(row for row in self.rows if row.get("_api_id") == api_id)
 
+    def test_segment_data_probe_refs_are_limited_to_its_api(self):
+        paths = sorted((HERE / "probes").glob("segment_data_as_byte_array*.kt"))
+        probes = [(path.relative_to(REPO).as_posix(), path.read_text(encoding="utf-8")) for path in paths]
+        target = {"_candidate_name": "dataAsByteArray", "owner_fqn": "kotlinx/io/Segment", "module": "core"}
+        unrelated = {"_candidate_name": "read", "owner_fqn": "kotlinx/io/Source", "module": "core"}
+
+        self.assertEqual(self.generator.local_test_refs(target, probes), [path for path, _ in probes])
+        self.assertEqual(self.generator.local_test_refs(unrelated, probes), [])
+
     def test_relocated_checkout_with_reverse_creation_order_matches(self):
         original = load_generator(HERE / "generate.py")
         expected = rendered_outputs(original)

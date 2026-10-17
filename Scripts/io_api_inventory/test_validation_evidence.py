@@ -96,14 +96,74 @@ class ValidationEvidenceTests(unittest.TestCase):
             | {"candidate-wrong": other_case_id},
         }
 
-    def _apply(self, records, row=None):
+    def _apply(self, records, row=None, schema_version=1):
         fixture_row = copy.deepcopy(row or self.row)
-        self.evidence_path.write_text(json.dumps({"schema_version": 1, "records": records}), encoding="utf-8")
+        self.evidence_path.write_text(
+            json.dumps({"schema_version": schema_version, "records": records}), encoding="utf-8"
+        )
         self.generator.apply_validation_evidence(
             [fixture_row], self.lock, self.evidence_path, self.repository, self.upstream,
             self._execution_catalogs(),
         )
         return fixture_row
+
+    def _local_probe_row(self):
+        row = copy.deepcopy(self.row)
+        row.update(
+            row_id="internal-7f39deeafb60d29d",
+            local_candidate_refs="Sources/CompilerCore/Stdlib/kotlinx/io/Foo.kt:1",
+            local_implementation_refs="Sources/CompilerCore/Stdlib/kotlinx/io/Foo.kt:1",
+            local_test_refs=(
+                "Scripts/io_api_inventory/probes/segment_data_as_byte_array.kt;"
+                "Scripts/io_api_inventory/probes/segment_data_as_byte_array_negative.kt"
+            ),
+        )
+        self._write(
+            "Scripts/io_api_inventory/probes/segment_data_as_byte_array.kt",
+            "fun main() = check(true)\n",
+        )
+        self._write(
+            "Scripts/io_api_inventory/probes/segment_data_as_byte_array_negative.kt",
+            "fun main() = check(true)\n",
+        )
+        return row
+
+    def _local_probe_record(self, row):
+        candidate_sha = "a" * 40
+        executions = []
+        cases = [
+            case_id for case_id, spec in self.generator.LOCAL_PROBE_EVIDENCE_CASES.items()
+            if row["row_id"] in spec["row_ids"]
+            and spec["path"] in row["local_test_refs"].split(";")
+        ]
+        for case_id in cases:
+            spec = self.generator.LOCAL_PROBE_EVIDENCE_CASES[case_id]
+            for lane in spec["lanes"]:
+                executions.append({
+                    "case_id": case_id,
+                    "lane": lane,
+                    **{
+                        subject: {
+                            "execution_id": self.generator.local_probe_execution_id(
+                                candidate_sha, self.lock["commit"], case_id, lane, subject
+                            ),
+                            "result": "PASS",
+                            "exit_code": 0,
+                            "method": spec["methods"][subject],
+                        }
+                        for subject in ("reference", "candidate")
+                    },
+                })
+        return {
+            "row_id": row["row_id"],
+            "candidate_sha": candidate_sha,
+            "reference_version": self.lock["tag"],
+            "reference_commit": self.lock["commit"],
+            **self.generator.validation_input_hashes(row, self.repository, self.upstream),
+            "compatibility_obligations": self.generator.validation_obligations(row),
+            "evidence_source": "local-probe",
+            "executions": executions,
+        }
 
     def test_current_reference_and_candidate_passes_promote_only_the_fixture_row(self):
         row = self._apply([self._record()])
@@ -117,6 +177,43 @@ class ValidationEvidenceTests(unittest.TestCase):
             HERE / "api-inventory.tsv", self.generator.LEDGER_COLUMNS, [repeated]
         )
         self.assertEqual(repeated_rendered, rendered)
+
+    def test_schema_v2_upstream_catalog_records_keep_the_locked_mapping(self):
+        record = self._record()
+        record["evidence_source"] = "upstream-catalog"
+        self.assertEqual(self._apply([record], schema_version=2)["status"], "verified")
+
+    def test_registered_local_probe_evidence_promotes_only_its_row(self):
+        row = self._local_probe_row()
+        record = self._local_probe_record(row)
+        self.assertEqual(self._apply([record], row, schema_version=2)["status"], "verified")
+
+    def test_local_probe_evidence_rejects_unregistered_cases_and_forged_ids(self):
+        row = self._local_probe_row()
+        valid = self._local_probe_record(row)
+        wrong_case = copy.deepcopy(valid)
+        wrong_case["executions"][0]["case_id"] = "local:core/common/test/FooTest.kt#testFoo"
+        wrong_id = copy.deepcopy(valid)
+        wrong_id["executions"][0]["candidate"]["execution_id"] = "candidate-is-not-a-probe"
+        wrong_method = copy.deepcopy(valid)
+        wrong_method["executions"][0]["candidate"]["method"] = "jvm-abi-reflection"
+        for record in (wrong_case, wrong_id, wrong_method):
+            with self.subTest(record=record):
+                with self.assertRaises(SystemExit):
+                    self._apply([record], row, schema_version=2)
+
+    def test_local_probe_evidence_requires_each_registered_case_and_lane(self):
+        row = self._local_probe_row()
+        record = self._local_probe_record(row)
+        record["executions"] = [
+            execution for execution in record["executions"]
+            if not (
+                execution["case_id"].endswith("#internal-visibility")
+                and execution["lane"] == "producer-consumer-O2"
+            )
+        ]
+        with self.assertRaisesRegex(SystemExit, "missing local probe lanes"):
+            self._apply([record], row, schema_version=2)
 
     def test_status_text_without_evidence_does_not_promote(self):
         row = copy.deepcopy(self.row)
