@@ -130,6 +130,85 @@ class ReproducibilityTests(unittest.TestCase):
                 ):
                     self.assertFalse(self.generator._case_id_matches_row(row, unrelated_case))
 
+    def test_outputstream_default_bridge_rows_map_only_direct_contracts(self):
+        rows = {row["row_id"]: row for row in self.rows}
+        copy_row = rows["jvm-6474dd39fbc52ecd"]
+        read_row = rows["jvm-7ea1f3d4aa2ff9ba"]
+        local_tests = set(self.generator.OUTPUTSTREAM_DEFAULT_LOCAL_TESTS)
+        index = self.generator.SourceIndex(
+            HERE / "source-declarations.json", REPO, self.generator.UPSTREAM
+        )
+
+        self.assertEqual(copy_row["owner_issue"], "KUU-2637")
+        self.assertEqual(copy_row["upstream_source_refs"], "core/jvm/src/BuffersJvm.kt:124")
+        self.assertEqual(copy_row["local_candidate_refs"], "Sources/CompilerCore/Stdlib/kotlinx/io/BuffersJvm.kt:122")
+        self.assertEqual(copy_row["default_parameter_count"], "2")
+        self.assertEqual(copy_row["upstream_test_refs"].split(";"), [
+            "core/jvm/test/BufferTest.kt#copyToOutputStream",
+            "core/jvm/test/BufferTest.kt#copyToOutputStreamWithStartIndex",
+            "core/jvm/test/BufferTest.kt#copyToOutputStreamWithEndIndex",
+        ])
+        self.assertIn("OptIn", copy_row["annotations"])
+        self.assertIn("IndexOutOfBoundsException", copy_row["exception_contract"])
+        self.assertIn("IllegalArgumentException", copy_row["exception_contract"])
+        self.assertEqual(set(copy_row["local_test_refs"].split(";")), local_tests)
+        copy_source_key = self.generator.OUTPUTSTREAM_DEFAULT_BRIDGES[copy_row["row_id"]]["source_key"]
+        copy_upstream = index.match("upstream", copy_source_key)
+        copy_local = index.match("local", copy_source_key)
+        self.assertEqual(len(copy_upstream), 1)
+        self.assertEqual(len(copy_local), 1)
+        self.assertEqual(
+            self.generator.default_bridge_source_contract(copy_upstream[0]),
+            self.generator.default_bridge_source_contract(copy_local[0]),
+        )
+        self.assertEqual(copy_local[0]["visibility"], "public")
+        self.assertEqual(
+            [(parameter["name"], parameter["type"], parameter["default"])
+             for parameter in copy_local[0]["parameters"]],
+            [("out", "OutputStream", None), ("startIndex", "Long", "0L"),
+             ("endIndex", "Long", "size")],
+        )
+        self.assertEqual(copy_local[0]["annotations"][0]["name"], "OptIn")
+        self.assertEqual(
+            copy_local[0]["annotations"][0]["arguments"],
+            [{"expression": "UnsafeIoApi::class", "name": None}],
+        )
+        self.assertEqual(
+            self.generator.declaration_metadata(copy_local[0])[2], copy_row["exception_contract"]
+        )
+
+        self.assertEqual(read_row["owner_issue"], "KUU-2637")
+        self.assertEqual(read_row["upstream_source_refs"], "core/jvm/src/BuffersJvm.kt:97")
+        self.assertEqual(read_row["local_candidate_refs"], "Sources/CompilerCore/Stdlib/kotlinx/io/BuffersJvm.kt:95")
+        self.assertEqual(read_row["default_parameter_count"], "1")
+        self.assertEqual(read_row["upstream_test_refs"], "core/jvm/test/BufferTest.kt#readToOutputStream")
+        self.assertIn("OptIn", read_row["annotations"])
+        self.assertIn("IllegalArgumentException", read_row["exception_contract"])
+        self.assertEqual(set(read_row["local_test_refs"].split(";")), local_tests)
+        read_source_key = self.generator.OUTPUTSTREAM_DEFAULT_BRIDGES[read_row["row_id"]]["source_key"]
+        read_upstream = index.match("upstream", read_source_key)
+        read_local = index.match("local", read_source_key)
+        self.assertEqual(len(read_upstream), 1)
+        self.assertEqual(len(read_local), 1)
+        self.assertEqual(
+            self.generator.default_bridge_source_contract(read_upstream[0]),
+            self.generator.default_bridge_source_contract(read_local[0]),
+        )
+        self.assertEqual(read_local[0]["visibility"], "public")
+        self.assertEqual(
+            [(parameter["name"], parameter["type"], parameter["default"])
+             for parameter in read_local[0]["parameters"]],
+            [("out", "OutputStream", None), ("byteCount", "Long", "size")],
+        )
+        self.assertEqual(read_local[0]["annotations"][0]["name"], "OptIn")
+        self.assertEqual(
+            read_local[0]["annotations"][0]["arguments"],
+            [{"expression": "UnsafeIoApi::class", "name": None}],
+        )
+        self.assertEqual(
+            self.generator.declaration_metadata(read_local[0])[2], read_row["exception_contract"]
+        )
+
     def test_apple_and_bytebuffer_do_not_match_other_receivers(self):
         index = self.generator.SourceIndex(HERE / "source-declarations.json", REPO, self.generator.UPSTREAM)
         for api_id in (
