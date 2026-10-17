@@ -10,9 +10,7 @@
 /// instantiation sites emit these registrations. `runtimeIsAssignable`'s BFS
 /// over `state.typeParents` (`Sources/Runtime/RuntimeHelpers.swift`) walks
 /// one edge per node, so it needs an entry at every node along the chain,
-/// not just at `rootSymbol` itself. Register one edge for every (node,
-/// direct parent) pair reachable from `rootSymbol`, keyed by each node's own
-/// stable nominal type ID.
+/// not just at `rootSymbol` itself.
 ///
 /// Registration is idempotent (`runtimeRegisterTypeEdge` inserts into a
 /// `Set`), so redundantly re-registering an edge shared by multiple
