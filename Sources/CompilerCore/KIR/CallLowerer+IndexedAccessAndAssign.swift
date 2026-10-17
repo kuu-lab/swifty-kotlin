@@ -214,8 +214,6 @@ extension CallLowerer {
         return result
     }
 
-    /// Snapshots an already-lowered operand into a fresh temporary.
-    ///
     /// A bare reference to a mutable local (`nameRef`) returns that local's
     /// persistent storage register by identity rather than a value snapshot
     /// (see the `.nameRef` case in `ExprLowerer+ControlFlowAndBlocks.swift`,
@@ -310,8 +308,6 @@ extension CallLowerer {
         }
     }
 
-    /// True when any of `exprIDs` might mutate state per
-    /// `expressionMayMutateState`.
     func anyExpressionMayMutateState<S: Sequence>(
         _ exprIDs: S,
         ast: ASTModule
@@ -474,12 +470,11 @@ extension CallLowerer {
     // NOTE: isSequenceLikeType is defined once in CallLowerer+MemberCalls.swift
     // and shared across all CallLowerer extensions.
 
-    /// True when `receiverType` is the generic `Array<T>` class specifically, as
-    /// opposed to one of the specialized primitive array types (IntArray,
-    /// CharArray, ...). Array<T>'s backing store holds boxed elements for
+    /// Array<T>'s backing store holds boxed elements for
     /// primitive T (mirroring List<T>); the primitive-specialized array types
-    /// share the same "kk_array_of"/"kk_array_get"/"kk_array_set" runtime entry
-    /// points but store raw values and must never be boxed/unboxed.
+    /// (IntArray, CharArray, ...) share the same "kk_array_of"/"kk_array_get"/
+    /// "kk_array_set" runtime entry points but store raw values and must never
+    /// be boxed/unboxed.
     func isGenericArrayReceiverType(_ receiverType: TypeID?, sema: SemaModule, interner: StringInterner) -> Bool {
         guard let receiverType,
               let (_, symbol) = resolveClassTypeSymbol(sema.types.makeNonNullable(receiverType), sema: sema)
