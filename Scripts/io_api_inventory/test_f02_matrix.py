@@ -6,6 +6,7 @@ import contextlib
 import io
 from pathlib import Path
 import re
+import struct
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -33,6 +34,42 @@ else:
 
 
 class F02GateTests(unittest.TestCase):
+    def test_compact_metadata_probe_reads_sealed_interface_and_member_surface(self):
+        magic = b"kklib-metadata-v3\n"
+        strings = ("", "kotlinx.io.files.FileSystem", "FileSystem")
+        string_data = b"".join(struct.pack("<I", len(value.encode())) + value.encode() for value in strings)
+        body = ("interface FileSystem fq=kotlinx.io.files.FileSystem vtable=9 "
+                "sealedClass=1 sealedSubs=kotlinx.io.files.SystemFileSystem\n").encode()
+        fields = [0, 1 << 10, 2, 0, 1, 2] + [0] * 10
+        entry = struct.pack("<QQ16I", 0, len(body), *fields)
+        data = (magic + struct.pack("<IIII", 1, len(strings), len(string_data), 80)
+                + string_data + entry + body)
+        with tempfile.TemporaryDirectory(prefix="compact-metadata-") as temporary:
+            path = Path(temporary) / "metadata.bin"
+            path.write_bytes(data)
+            record = matrix.compact_metadata_record(path, "kotlinx.io.files.FileSystem")
+        self.assertEqual(record["kind_id"], 2)
+        self.assertTrue(record["sealed"])
+        self.assertIn("vtable=9", record["body"])
+
+    def test_filesystem_declaration_shape_has_dedicated_reference_and_negative_probes(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "filesystem-declaration-shape")
+        self.assertEqual(case["validation_case_id"], "io-gate:KUU-2642:FileSystemDeclarationShape")
+        self.assertEqual(case["local_evidence_case_id"],
+                         "local:Scripts/io_api_inventory/f04_filesystem_shape/Producer.kt#declaration-shape")
+        self.assertEqual(case["reference"], "jvm")
+        self.assertEqual(case["negative_consumer"].name, "ExternalImplementation.kt")
+        self.assertEqual(case["jvm_abi_probe"].name, "FileSystemJvmShapeProbe.java")
+        self.assertEqual({path.name for path in case["producer"]}, {
+            "Producer.kt", "kotlinx_io_filesystem_shape.kt",
+        })
+
+    def test_filesystem_producer_exercises_exported_default_arguments(self):
+        producer = (matrix.HERE / "f04_filesystem_shape/Producer.kt").read_text(encoding="utf-8")
+        for call in ("fileSystem.delete(path)", "fileSystem.createDirectories(destination)",
+                     "fileSystem.sink(path)"):
+            self.assertIn(call, producer)
+
     def test_segment_data_as_byte_array_is_an_independently_selectable_jvm_paired_case(self):
         cases = {case["id"]: case for case in matrix.scenarios()}
         case = cases["segment-data-as-byte-array"]

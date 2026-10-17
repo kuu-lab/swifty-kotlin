@@ -444,6 +444,117 @@
         }
       ],
       "evidence_source": "local-probe"
+    },
+    {
+      "row_id": "klib-539fc5d95ef77842",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "75f942a2555ab6d98ac947e519c0d02e8cf41334ea4b655805be598db4c0568b",
+      "test_input_sha256": "48076b3621fbd126ee29880b00dc5a3fcdeffff611bbd1c84326fa839d6b12a1",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "executions": [
+        {
+          "case_id": "local:Scripts/io_api_inventory/f04_filesystem_shape/Producer.kt#declaration-shape",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:8b016b0019fbc7fbdbdbf8b40e49616f",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:6bd1c460aca5f6a4c76a695ed70b1041",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/f04_filesystem_shape/Producer.kt#declaration-shape",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:ee1919b4274b68c7dac7833cdec8b2c5",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:130223487e24204e222ebd6e5b42df4c",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/f04_filesystem_shape/Producer.kt#declaration-shape",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:b859b1ae7d08098107cb628b8f95d4f0",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:7c0e387b86c65fb9eac5de48acbb45da",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/f04_filesystem_shape/Producer.kt#declaration-shape",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:eb5e076e8f7430161cb3d01c8b88a374",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:21669b6abad8dc18d147d27c5a27724f",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/f04_filesystem_shape/Producer.kt#declaration-shape",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:869e84fbd77f2b5298f1c782c3e3267e",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:655bba0cefd3b27a544d7edd02a31177",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/f04_filesystem_shape/Producer.kt#declaration-shape",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:7537c75a33d0179aea0884bc854a828c",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:cc4d4996f2b9b44c651c8e0ced17ed79",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        }
+      ],
+      "evidence_source": "local-probe"
     }
   ]
 }

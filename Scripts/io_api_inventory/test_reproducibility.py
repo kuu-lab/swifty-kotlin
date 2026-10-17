@@ -52,6 +52,11 @@ class ReproducibilityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="io-inventory-relocated-") as temporary:
             relocated = Path(temporary) / "checkout"
             inputs = list(HERE.rglob("*"))
+            inputs.extend((REPO / "Scripts/kotlinx_io_upstream" / name) for name in (
+                "reference-lock.json",
+                "jvm-executions.expected.json",
+                "native-executions.expected.json",
+            ))
             inputs.extend((REPO / "Sources/CompilerCore/Stdlib/kotlinx/io").rglob("*.kt"))
             inputs.extend((REPO / "Sources/Runtime").rglob("*.swift"))
             test_inputs = list((REPO / "Tests").rglob("*.swift"))
@@ -98,6 +103,26 @@ class ReproducibilityTests(unittest.TestCase):
         for row in self.rows:
             if row["row_id"] not in row_ids:
                 self.assertFalse(probe_refs.intersection(row["local_test_refs"].split(";")))
+
+    def test_filesystem_shape_rows_use_only_the_dedicated_probe_as_direct_assertion(self):
+        target_ids = {
+            "jvm-a6e20178732ee016",
+            "klib-539fc5d95ef77842",
+        }
+        required = {
+            "Scripts/diff_cases/kotlinx_io_filesystem_shape.kt",
+            "Scripts/io_api_inventory/f04_filesystem_shape/Producer.kt",
+            "Scripts/io_api_inventory/f04_filesystem_shape/Consumer.kt",
+            "Scripts/io_api_inventory/f04_filesystem_shape/ExternalImplementation.kt",
+            "Scripts/io_api_inventory/f04_filesystem_shape/FileSystemJvmShapeProbe.java",
+        }
+        for row_id in target_ids:
+            row = next(item for item in self.rows if item["row_id"] == row_id)
+            self.assertEqual(row["upstream_test_refs"], self.generator.NO_DIRECT_UPSTREAM_ASSERTION)
+            self.assertTrue(required.issubset(set(row["local_test_refs"].split(";"))))
+        for row in self.rows:
+            if row["row_id"] not in target_ids:
+                self.assertTrue(required.isdisjoint(set(row["local_test_refs"].split(";"))))
 
     def test_exact_overload_exception_and_abi_mapping(self):
         declaration = self.row("kotlinx.io/readByteArray|readByteArray@kotlinx.io.Source(kotlin.Int){}")
