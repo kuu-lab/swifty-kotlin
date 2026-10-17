@@ -138,6 +138,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dependencies", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--download", action="store_true", help="download missing locked Maven jars")
+    parser.add_argument(
+        "--execution-id",
+        action="append",
+        help="run one exact locked JUnit execution ID; may be repeated",
+    )
     parser.add_argument("--compile-timeout", type=float, default=180)
     parser.add_argument("--run-timeout", type=float, default=180)
     args = parser.parse_args(argv)
@@ -162,11 +167,24 @@ def main(argv: list[str] | None = None) -> int:
         lookup = source_lookup(args.upstream, seed)
         catalog_path = HERE / "jvm-executions.expected.json"
         verify_file(catalog_path, {"sha256": lock["jvm_execution_catalog_sha256"]})
-        expected = json.loads(catalog_path.read_text())
+        expected_catalog = json.loads(catalog_path.read_text())
         eligible = {row["upstream_id"] for row in seed["cases"]
             if row["platform"] in {"common", "jvm"} and "Windows" not in row["upstream_path"]}
-        if {row["upstream_id"] for row in expected} != eligible:
+        if {row["upstream_id"] for row in expected_catalog} != eligible:
             raise ValueError("expected execution catalog does not cover every eligible upstream function ID")
+        requested_ids = args.execution_id or []
+        if len(requested_ids) != len(set(requested_ids)):
+            raise ValueError("selected execution IDs must be unique")
+        expected_by_id = {row["execution_id"]: row for row in expected_catalog}
+        if requested_ids:
+            unknown = sorted(set(requested_ids) - set(expected_by_id))
+            if unknown:
+                raise ValueError(f"unknown locked JVM execution ID: {unknown[0]}")
+            expected = [row for row in expected_catalog if row["execution_id"] in set(requested_ids)]
+            if len(expected) != len(requested_ids):
+                raise ValueError("selected JVM execution IDs do not resolve uniquely")
+        else:
+            expected = expected_catalog
         sources = sorted({row["upstream_path"] for row in seed["cases"]
             if row["platform"] in {"common", "jvm"} and "Windows" not in row["upstream_path"]}
             | {row["path"] for row in seed["inventory_only_sources"]
@@ -188,6 +206,9 @@ def main(argv: list[str] | None = None) -> int:
             "reference_lock_sha256": sha256(lock_path), "coverage_map_sha256": sha256(HERE / "coverage-map.seed.json"),
             "runner_sha256": sha256(HERE / "JvmReferenceRunner.java"), "host": platform.platform(),
             "java": str(args.java.resolve()), "source_files": sources,
+            "selected_execution_ids": [row["execution_id"] for row in expected],
+            "full_catalog_execution_count": len(expected_catalog),
+            "covers_full_catalog": len(expected) == len(expected_catalog),
             "unsupported_source_files": [row["path"] for row in lock["upstream_files"] if row["path"] not in sources],
             "sdk_files": lock["sdk_files"], "reference_artifacts": lock["jvm_artifacts"]}
         compiler_environment = {"JAVACMD": str(args.java.resolve())}
@@ -210,6 +231,7 @@ def main(argv: list[str] | None = None) -> int:
             ("kotlin-stdlib.jar", "kotlin-reflect.jar", "kotlin-test.jar", "kotlin-test-junit5.jar")]
         command = [str(args.java.resolve()), "-Xmx1024m", "-cp", os.pathsep.join(map(str, runtime_cp)),
             str(HERE / "JvmReferenceRunner.java"), str(tests_jar), str(args.output.resolve() / "junit")]
+        command += [row["execution_id"] for row in expected] if requested_ids else []
         code = execute(command, args.output, "run", args.run_timeout)
         output = args.output / "junit"
         if not (output / "results.json").exists():
@@ -220,6 +242,9 @@ def main(argv: list[str] | None = None) -> int:
         reference_counts = dict(collections.Counter(row["reference_result"]["status"] for row in mapped))
         summary = {"kind": "reference-only", "concrete_execution_count": len(mapped),
             "unique_upstream_function_ids": len({row["upstream_id"] for row in mapped}),
+            "full_catalog_execution_count": len(expected_catalog),
+            "covers_full_catalog": len(mapped) == len(expected_catalog),
+            "selected_execution_ids": [row["execution_id"] for row in expected],
             "reference_counts": reference_counts, "candidate_counts": {"UNMAPPED": len(mapped)},
             "paired_pass_count": 0, "source_files_compiled": len(sources)}
         (args.output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
