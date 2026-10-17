@@ -16,12 +16,10 @@ struct KIRVerificationFailure: Equatable {
     let message: String
 }
 
-/// Structural sanity checks on lowered KIR function bodies. The checks are
-/// deliberately flow-insensitive: a register read counts as defined when any
-/// instruction in the same function defines it, and jump targets only need a
-/// matching label somewhere in the same body.
+/// The checks are deliberately flow-insensitive: a register read counts as
+/// defined when any instruction in the same function defines it, and jump
+/// targets only need a matching label somewhere in the same body.
 struct KIRVerifier {
-    /// Default: on in DEBUG builds, off otherwise. `KSWIFTK_KIR_VERIFY=1|0` overrides.
     static var isEnabled: Bool {
         if let override = ProcessInfo.processInfo.environment["KSWIFTK_KIR_VERIFY"] {
             if override == "1" { return true }
