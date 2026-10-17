@@ -1,5 +1,3 @@
-// Uuid functions (kotlin.uuid.Uuid).
-//
 // KSP-476: only the bridges that genuinely require native support remain.
 // Parsing, formatting, bit extraction, comparison, and ByteArray packing are
 // pure Kotlin (Sources/CompilerCore/Stdlib/kotlin/uuid/Uuid.kt).
