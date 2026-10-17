@@ -170,8 +170,6 @@ extension CallTypeChecker {
         return nil
     }
 
-    /// KSP-441: pick the bundled `kotlin.sequences.flatMapIndexed` overload whose
-    /// `transform` return type matches the lambda body (`Sequence<R>` or `Iterable<R>`).
     /// Returns `nil` when the bundled source declaration is unavailable, letting the
     /// caller fall back to the synthetic runtime-backed member.
     private func sourceBackedSequenceFlatMapIndexed(
