@@ -47,9 +47,9 @@ extension CallLowerer {
                 nonNullAnyFallbackReceiverType == sema.types.anyType
             }
         }
-        // Any.toString(): String — use the member-dispatch bridge so a
-        // Throwable override remains visible after erasure to Any. Keep the
-        // tagged helper for primitive and type-parameter fallback values.
+        // Use the member-dispatch bridge so a Throwable override remains
+        // visible after erasure to Any. Keep the tagged helper for primitive
+        // and type-parameter fallback values.
         if args.isEmpty, calleeNameStr == "toString", allowsAnyFallback {
             if nonNullAnyFallbackReceiverType == sema.types.anyType {
                 instructions.append(.call(
@@ -77,7 +77,6 @@ extension CallLowerer {
             return result
         }
 
-        // Any.hashCode(): Int — via kk_any_hashCode (STDLIB-306)
         if args.isEmpty, calleeNameStr == "hashCode", allowsAnyFallback {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let hashReceiverID = boxSentinelProneHashCodeReceiver(
@@ -102,7 +101,6 @@ extension CallLowerer {
             return result
         }
 
-        // Any.equals(other: Any?): Boolean — via kk_any_equals (STDLIB-306)
         if args.count == 1, calleeNameStr == "equals", allowsAnyFallback {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let receiverTag = anyFallbackTag(for: anyFallbackReceiverType, sema: sema)
