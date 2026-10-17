@@ -1,4 +1,33 @@
 {
-  "schema_version": 1,
-  "records": []
+  "schema_version": 2,
+  "records": [
+    {
+      "row_id": "jvm-d6e171298552600b",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "test_input_sha256": "a733e68ab512b135a6a1f6e93d0b4aed1e7c595ff8a17580b699794afcc05b68",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "Scripts/io_api_inventory/probes/ByteStringCompareToObjectJvmAbiProbe.java#main",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "kuu2625-reference-jvm-descriptor",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": null,
+            "result": "NOT_APPLICABLE",
+            "exit_code": null,
+            "reason": "KSwiftK Native backend does not emit JVM classfiles"
+          }
+        }
+      ]
+    }
+  ]
 }

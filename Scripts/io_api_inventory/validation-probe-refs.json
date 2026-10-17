@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "probes": [
+    {
+      "case_id": "Scripts/io_api_inventory/probes/ByteStringCompareToObjectJvmAbiProbe.java#main",
+      "row_ids": [
+        "jvm-d6e171298552600b"
+      ],
+      "input_files": [
+        "Scripts/io_api_inventory/probes/ByteStringCompareToObjectJvmAbiProbe.java",
+        "Scripts/io_api_inventory/probes/ByteStringCompareToObjectCandidateProbe.kt",
+        "Scripts/io_api_inventory/run_bytestring_compareto_object_probe.py"
+      ],
+      "kind": "reference-only-jvm-descriptor",
+      "candidate_not_applicable_reason": "KSwiftK Native backend does not emit JVM classfiles"
+    }
+  ]
+}
