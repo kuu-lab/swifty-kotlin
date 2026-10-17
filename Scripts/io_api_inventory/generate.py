@@ -236,6 +236,7 @@ TEST_HINTS = {
 }
 
 LOCAL_IO_TEST_PREFIXES = (
+    "Scripts/io_api_inventory/test_unsafe_bytestring_operations_shape.py",
     "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java",
     "Scripts/io_api_inventory/probes/",
     "Scripts/diff_cases/kotlinx_io_",
@@ -245,6 +246,8 @@ LOCAL_IO_TEST_PREFIXES = (
     "Tests/CompilerCoreTests/GoldenCases/Sema/kotlinx_io_",
     "Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlinx_io_",
     "Tests/CompilerCoreTests/Sema/KotlinxIO",
+    "Tests/CompilerCoreTests/Sema/UnsafeByteStringOperationsShapeTests.swift",
+    "Tests/CompilerBackendTests/Integration/IOUnsafeByteStringOperationsSingletonTests.swift",
     "Tests/RuntimeTests/RuntimeIoFileSystemTests.swift",
 )
 LOCAL_IO_PROBE_API_NAMES = {"dataasbytearray"}
@@ -254,6 +257,16 @@ SEGMENT_READ_CONTEXT_IMPL_ROW_IDS = frozenset({
     "jvm-f8c529b67df6423d",
     "klib-80388c3ba30d5f55",
     "klib-bc524370ccf4a2da",
+})
+UNSAFE_BYTESTRING_OPERATIONS_SHAPE_ROW_IDS = frozenset({
+    "jvm-16874beea5466602",
+    "jvm-1aae98343452a402",
+    "klib-f6cdd7b8ec302161",
+})
+UNSAFE_BYTESTRING_OPERATIONS_SHAPE_TESTS = frozenset({
+    "Scripts/io_api_inventory/test_unsafe_bytestring_operations_shape.py",
+    "Tests/CompilerCoreTests/Sema/UnsafeByteStringOperationsShapeTests.swift",
+    "Tests/CompilerBackendTests/Integration/IOUnsafeByteStringOperationsSingletonTests.swift",
 })
 SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS = (
     "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java",
@@ -1966,6 +1979,8 @@ def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
     for path, content in local_tests:
         if path.startswith("Scripts/io_api_inventory/probes/") and name not in LOCAL_IO_PROBE_API_NAMES:
             continue
+        if path in UNSAFE_BYTESTRING_OPERATIONS_SHAPE_TESTS and row["row_id"] not in UNSAFE_BYTESTRING_OPERATIONS_SHAPE_ROW_IDS:
+            continue
         if (path == SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS[0]
                 or path.startswith(SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS[1])):
             if row["row_id"] not in SEGMENT_READ_CONTEXT_IMPL_ROW_IDS:
@@ -2049,6 +2064,29 @@ def pair_rows(rows: list[dict]) -> None:
                 other["row_id"] for other in opposite if key is not None and other.get("_source_key") == key
                 and (role is None or other.get("_accessor_role") is None or role == other["_accessor_role"])
             ))
+
+    # Kotlin object INSTANCE fields are generated JVM ABI entries, so they
+    # have no direct Kotlin source key. Pair them with the KLIB object whose
+    # qualified owner matches the JVM field owner.
+    for row in binary_rows:
+        if row.get("api_kind") != "JVM field ABI" or row.get("name") != "INSTANCE":
+            continue
+        owner_package, separator, owner_name = row.get("owner_fqn", "").rpartition("/")
+        if not separator or not owner_name:
+            continue
+        klib_owner = owner_package.replace("/", ".") + "/" + owner_name
+        matching_objects = [
+            source_row for source_row in source_rows
+            if source_row.get("api_kind") == "object" and source_row.get("owner_fqn") == klib_owner
+        ]
+        if len(matching_objects) != 1:
+            continue
+        object_row = matching_objects[0]
+        row["jvm_abi_refs"] = object_row["row_id"]
+        linked_rows = set(object_row.get("jvm_abi_refs", "").split(";"))
+        linked_rows.discard("")
+        linked_rows.add(row["row_id"])
+        object_row["jvm_abi_refs"] = ";".join(sorted(linked_rows))
 
 
 def parse_published_internals(sources: list[Path]) -> list[dict]:
@@ -2364,6 +2402,7 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     local_paths.extend(REPO.joinpath("Scripts/io_api_inventory/probes").glob("*.kt"))
     local_paths.extend(REPO.joinpath("Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590").glob("*.kt"))
     local_paths.append(REPO / "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java")
+    local_paths.append(REPO / "Scripts/io_api_inventory/test_unsafe_bytestring_operations_shape.py")
     for path in sorted(local_paths):
         rel = path.relative_to(REPO).as_posix()
         if rel in {INDEX_OF_DEFAULT_BRIDGE_DIFF_CASE, INDEX_OF_DEFAULT_BRIDGE_LOCAL_TEST}:
