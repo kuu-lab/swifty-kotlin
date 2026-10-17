@@ -248,6 +248,51 @@ class ValidationEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "missing validation lanes.*producer-consumer-O2"):
             self._apply([record])
 
+    def test_writable_segment_probes_are_registered_for_exact_rows_and_lanes(self):
+        cases = self.generator.LOCAL_PROBE_EVIDENCE_CASES
+        expected_native_rows = {
+            "internal-e9ce5d759c494cb5", "klib-ab8cfb69f8e21afb",
+        }
+        for function in (
+            "runInvalidCapacityProbe",
+            "runEmptyTailProbe",
+            "runTailReuseAndAppendProbe",
+        ):
+            case_id = (
+                "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#" + function
+            )
+            with self.subTest(case=case_id):
+                spec = cases[case_id]
+                self.assertEqual(spec["row_ids"], expected_native_rows)
+                self.assertEqual(spec["lanes"], self.generator.LOCAL_NATIVE_PROBE_LANES)
+                self.assertEqual(spec["methods"], {
+                    "reference": "jvm-probe", "candidate": "native-matrix",
+                })
+        abi_case = (
+            "local:Scripts/io_api_inventory/probes/buffer-writable-segment/JvmAbiProbe.kt#"
+            "verifyWritableSegmentJvmAbi"
+        )
+        self.assertEqual(cases[abi_case]["row_ids"], {"jvm-2ee912ef99c6a874"})
+        self.assertEqual(cases[abi_case]["lanes"], ("jvm-descriptor",))
+        self.assertEqual(cases[abi_case]["methods"], {
+            "reference": "jvm-abi-reflection", "candidate": "source-metadata",
+        })
+
+    def test_writable_segment_candidate_source_keeps_published_and_synthetic_annotations(self):
+        index = self.generator.SourceIndex(
+            HERE / "source-declarations.json",
+            self.generator.REPO,
+            self.generator.UPSTREAM,
+        )
+        key = ("function", "kotlinx.io.Buffer.writableSegment", "", ("kotlin.Int",))
+        declarations = index.match("local", key)
+        self.assertEqual(len(declarations), 1)
+        annotations = {
+            annotation["name"].rsplit(".", 1)[-1]
+            for annotation in declarations[0]["annotations"]
+        }
+        self.assertTrue({"PublishedApi", "JvmSynthetic"} <= annotations)
+
     def test_unrelated_case_and_false_positive_execution_mapping_are_rejected(self):
         unrelated_case = self._record()
         unrelated_case["executions"][0]["case_id"] = "core/common/test/BarTest.kt#testBar"

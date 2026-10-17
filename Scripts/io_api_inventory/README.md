@@ -283,6 +283,28 @@ requires the descriptor reflection probe and local source-metadata assertion.
 The local probes' bytes and the referenced upstream tests remain part of the
 row's test input hash, so edits invalidate prior evidence.
 
+For `Buffer.writableSegment`, the internal source and KLIB rows require the
+invalid-capacity, empty-tail, and tail-reuse/append probes in all six native
+lanes. The paired JVM ABI row checks the pinned JVM descriptor, visibility, and
+synthetic/`PublishedApi` flags with reflection and `javap`; its candidate side
+checks the exact local Kotlin signature and annotations because KSwiftK emits
+native artifacts rather than JVM bytecode.
+
+Run only the writable-segment cases with:
+
+```sh
+python3 Scripts/io_api_inventory/run_f02_matrix.py \
+  --compiler .build/debug/kswiftc \
+  --output /tmp/writable-segment-matrix \
+  --kotlin-home /path/to/pinned-kotlin-2.3.10 \
+  --java /path/to/java-21 \
+  --dependencies /path/to/pinned-kotlinx-io-jars \
+  --separate-cases \
+  --case writable-segment-invalid-capacity \
+  --case writable-segment-empty-tail \
+  --case writable-segment-tail-reuse-append
+```
+
 The obligations follow the ledger representation: JVM ABI rows require only
 `jvm-descriptor`. Other rows require both `native-source` and `native-bridge`.
 The native-source obligation covers `source-O0`, `source-O2`,

@@ -75,6 +75,51 @@ LOCAL_PROBE_EVIDENCE_CASES = {
         "lanes": ("jvm-descriptor",),
         "methods": {"reference": "jvm-abi-reflection", "candidate": "source-metadata"},
     },
+    "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runInvalidCapacityProbe": {
+        "path": "Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt",
+        "row_ids": {"internal-e9ce5d759c494cb5", "klib-ab8cfb69f8e21afb"},
+        "lanes": LOCAL_NATIVE_PROBE_LANES,
+        "methods": {"reference": "jvm-probe", "candidate": "native-matrix"},
+    },
+    "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runEmptyTailProbe": {
+        "path": "Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt",
+        "row_ids": {"internal-e9ce5d759c494cb5", "klib-ab8cfb69f8e21afb"},
+        "lanes": LOCAL_NATIVE_PROBE_LANES,
+        "methods": {"reference": "jvm-probe", "candidate": "native-matrix"},
+    },
+    "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runTailReuseAndAppendProbe": {
+        "path": "Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt",
+        "row_ids": {"internal-e9ce5d759c494cb5", "klib-ab8cfb69f8e21afb"},
+        "lanes": LOCAL_NATIVE_PROBE_LANES,
+        "methods": {"reference": "jvm-probe", "candidate": "native-matrix"},
+    },
+    "local:Scripts/io_api_inventory/probes/buffer-writable-segment/JvmAbiProbe.kt#verifyWritableSegmentJvmAbi": {
+        "path": "Scripts/io_api_inventory/probes/buffer-writable-segment/JvmAbiProbe.kt",
+        "row_ids": {"jvm-2ee912ef99c6a874"},
+        "lanes": ("jvm-descriptor",),
+        "methods": {"reference": "jvm-abi-reflection", "candidate": "source-metadata"},
+    },
+}
+
+WRITABLE_SEGMENT_LOCAL_TEST_REFS = {
+    "internal-e9ce5d759c494cb5": [
+        "Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt",
+        "Scripts/io_api_inventory/probes/buffer-writable-segment/InvalidCapacityConsumer.kt",
+        "Scripts/io_api_inventory/probes/buffer-writable-segment/EmptyTailConsumer.kt",
+        "Scripts/io_api_inventory/probes/buffer-writable-segment/TailReuseAndAppendConsumer.kt",
+        "Scripts/io_api_inventory/run_f02_matrix.py",
+    ],
+    "klib-ab8cfb69f8e21afb": [
+        "Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt",
+        "Scripts/io_api_inventory/probes/buffer-writable-segment/InvalidCapacityConsumer.kt",
+        "Scripts/io_api_inventory/probes/buffer-writable-segment/EmptyTailConsumer.kt",
+        "Scripts/io_api_inventory/probes/buffer-writable-segment/TailReuseAndAppendConsumer.kt",
+        "Scripts/io_api_inventory/run_f02_matrix.py",
+    ],
+    "jvm-2ee912ef99c6a874": [
+        "Scripts/io_api_inventory/probes/buffer-writable-segment/JvmAbiProbe.kt",
+        "Scripts/io_api_inventory/run_f02_matrix.py",
+    ],
 }
 
 LEDGER_COLUMNS = [
@@ -247,7 +292,7 @@ LOCAL_IO_TEST_PREFIXES = (
     "Tests/CompilerCoreTests/Sema/KotlinxIO",
     "Tests/RuntimeTests/RuntimeIoFileSystemTests.swift",
 )
-LOCAL_IO_PROBE_API_NAMES = {"dataasbytearray"}
+LOCAL_IO_PROBE_API_NAMES = {"dataasbytearray", "writablesegment"}
 
 SEGMENT_READ_CONTEXT_IMPL_ROW_IDS = frozenset({
     "internal-230a62161c7ea51a",
@@ -1663,6 +1708,7 @@ def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
             refs.append(path)
         elif owner and owner in haystack and row["module"] == "bytestring":
             refs.append(path)
+    refs.extend(WRITABLE_SEGMENT_LOCAL_TEST_REFS.get(row["row_id"], []))
     return list(dict.fromkeys(refs))
 
 

@@ -444,6 +444,642 @@
         }
       ],
       "evidence_source": "local-probe"
+    },
+    {
+      "row_id": "internal-e9ce5d759c494cb5",
+      "candidate_sha": "2555e49ac621f31c5a007f96471e1b2ee897ae28",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "41ab7a346c995538252b1c8e23304cfd365573f36e1fd294c1df4f751d6c11bf",
+      "test_input_sha256": "c41c5917370f86244dc07b2377d092b21cc5505a0591ad98ec263c2e4cb41715",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "evidence_source": "local-probe",
+      "executions": [
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runInvalidCapacityProbe",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:a249a2eb167174a9a84ee580c8620e2f",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:8dadafbe9d500e988e0b7bbe771d2b37",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runInvalidCapacityProbe",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:796933a2fc5be64c779a9345f523c9ce",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:a1f5e534214ac552d3a2109e3d46ac6f",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runInvalidCapacityProbe",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:6a1efa0011c800fdb9a917dad6eb0878",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:868b1f1aeb80170d785234c052d73749",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runInvalidCapacityProbe",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:7651fc9ea3d2efcaa472b8b7c4ce0515",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:ce0100c118dbd80dc270e44799fbea7f",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runInvalidCapacityProbe",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:6d71aca99be650e066d20c796238cd62",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:81555b2545a7c73056783db5731b9603",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runInvalidCapacityProbe",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:9c9001bb19075ff14a27f59143ea93aa",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:30b965848117957d3a569491cfbfecbe",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runEmptyTailProbe",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:739677582f931bb4e5b3ad7f9bce870a",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:509d906ee2d2c7d3bf115cb92385dead",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runEmptyTailProbe",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:857d11807c927f01c4b2bf55d430057a",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:f208e92e2936c4dcacd58333388d4ef1",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runEmptyTailProbe",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:a1156204472f1ae8f08f0d65c8932931",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:87795faf6d7b02867da4460652d56655",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runEmptyTailProbe",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:47788cbabe5257e9f20fc85de9655027",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:ca9382cd4a66fec6560a4fa46557d906",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runEmptyTailProbe",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:bb2ee41138f25d074f1f885a4d812088",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:d12e813cb7cbc0aeb0a1cf47b5f7362f",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runEmptyTailProbe",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:e7e0dd00de09d12f7037c94c10674015",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:ea1afd44678057104ef297a48e0be484",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runTailReuseAndAppendProbe",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:4de45cc5ac36569d82db8edf9255c6d8",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:c65328c4a198acbabfe27082fe20870d",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runTailReuseAndAppendProbe",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:46b21fd00f0b6031081c867e89de6e9b",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:1c3296efb8c800a89131d482f7d0187f",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runTailReuseAndAppendProbe",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:9a6bd4dce944969fb3ba076e7338ffdd",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:9a7ff47650a6a9e984cad825f5aee477",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runTailReuseAndAppendProbe",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:0407b3b0eba21249617c37b00952a2df",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:9e974a123bbb1d3b1ded5a0774d7333f",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runTailReuseAndAppendProbe",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:112dd7dc2a9f033a9d8c79e67fb7a148",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:82356954808e5b8ddeb7541df06be1aa",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runTailReuseAndAppendProbe",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:56df8a4812442b0359fa38f79ae4f9d9",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:9f4a43db9f5ab7bacd788924fee85bb4",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        }
+      ]
+    },
+    {
+      "row_id": "klib-ab8cfb69f8e21afb",
+      "candidate_sha": "2555e49ac621f31c5a007f96471e1b2ee897ae28",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "41ab7a346c995538252b1c8e23304cfd365573f36e1fd294c1df4f751d6c11bf",
+      "test_input_sha256": "c41c5917370f86244dc07b2377d092b21cc5505a0591ad98ec263c2e4cb41715",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "evidence_source": "local-probe",
+      "executions": [
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runInvalidCapacityProbe",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:a249a2eb167174a9a84ee580c8620e2f",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:8dadafbe9d500e988e0b7bbe771d2b37",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runInvalidCapacityProbe",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:796933a2fc5be64c779a9345f523c9ce",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:a1f5e534214ac552d3a2109e3d46ac6f",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runInvalidCapacityProbe",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:6a1efa0011c800fdb9a917dad6eb0878",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:868b1f1aeb80170d785234c052d73749",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runInvalidCapacityProbe",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:7651fc9ea3d2efcaa472b8b7c4ce0515",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:ce0100c118dbd80dc270e44799fbea7f",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runInvalidCapacityProbe",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:6d71aca99be650e066d20c796238cd62",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:81555b2545a7c73056783db5731b9603",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runInvalidCapacityProbe",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:9c9001bb19075ff14a27f59143ea93aa",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:30b965848117957d3a569491cfbfecbe",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runEmptyTailProbe",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:739677582f931bb4e5b3ad7f9bce870a",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:509d906ee2d2c7d3bf115cb92385dead",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runEmptyTailProbe",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:857d11807c927f01c4b2bf55d430057a",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:f208e92e2936c4dcacd58333388d4ef1",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runEmptyTailProbe",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:a1156204472f1ae8f08f0d65c8932931",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:87795faf6d7b02867da4460652d56655",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runEmptyTailProbe",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:47788cbabe5257e9f20fc85de9655027",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:ca9382cd4a66fec6560a4fa46557d906",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runEmptyTailProbe",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:bb2ee41138f25d074f1f885a4d812088",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:d12e813cb7cbc0aeb0a1cf47b5f7362f",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runEmptyTailProbe",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:e7e0dd00de09d12f7037c94c10674015",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:ea1afd44678057104ef297a48e0be484",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runTailReuseAndAppendProbe",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:4de45cc5ac36569d82db8edf9255c6d8",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:c65328c4a198acbabfe27082fe20870d",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runTailReuseAndAppendProbe",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:46b21fd00f0b6031081c867e89de6e9b",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:1c3296efb8c800a89131d482f7d0187f",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runTailReuseAndAppendProbe",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:9a6bd4dce944969fb3ba076e7338ffdd",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:9a7ff47650a6a9e984cad825f5aee477",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runTailReuseAndAppendProbe",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:0407b3b0eba21249617c37b00952a2df",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:9e974a123bbb1d3b1ded5a0774d7333f",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runTailReuseAndAppendProbe",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:112dd7dc2a9f033a9d8c79e67fb7a148",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:82356954808e5b8ddeb7541df06be1aa",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        },
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#runTailReuseAndAppendProbe",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:56df8a4812442b0359fa38f79ae4f9d9",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-probe"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:9f4a43db9f5ab7bacd788924fee85bb4",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "native-matrix"
+          }
+        }
+      ]
+    },
+    {
+      "row_id": "jvm-2ee912ef99c6a874",
+      "candidate_sha": "2555e49ac621f31c5a007f96471e1b2ee897ae28",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "41ab7a346c995538252b1c8e23304cfd365573f36e1fd294c1df4f751d6c11bf",
+      "test_input_sha256": "8b2772e781e0257a1d773871d83b1f0efb19f7a77c5102d7e80fbc4f82831e8b",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "evidence_source": "local-probe",
+      "executions": [
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/buffer-writable-segment/JvmAbiProbe.kt#verifyWritableSegmentJvmAbi",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:8281fcfd4e821678b5bbb2e9ae203058",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-abi-reflection"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:c5d797dfcc2de08cbecd434a3c2648dc",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "source-metadata"
+          }
+        }
+      ]
     }
   ]
 }

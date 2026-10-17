@@ -139,6 +139,93 @@ def verify_segment_data_as_byte_array_source_metadata() -> dict:
     }
 
 
+def verify_writable_segment_source_metadata() -> dict:
+    source = ROOT / "Sources/CompilerCore/Stdlib/kotlinx/io/Buffer.kt"
+    contents = source.read_text(encoding="utf-8")
+    declaration = re.search(
+        r"(?P<annotations>(?:^[ \t]*@[^\n]*\n)+)^[ \t]*internal fun writableSegment\("
+        r"(?P<parameters>[^)]*)\): (?P<return_type>[A-Za-z0-9_.]+)",
+        contents,
+        re.MULTILINE,
+    )
+    if declaration is None:
+        raise RuntimeError("candidate Buffer.writableSegment declaration is missing")
+    annotation_names = {
+        annotation.rsplit(".", 1)[-1]
+        for annotation in re.findall(r"^[ \t]*@([\w.]+)", declaration.group("annotations"), re.MULTILINE)
+    }
+    if (declaration.group("parameters") != "minimumCapacity: Int"
+            or declaration.group("return_type") != "Segment"
+            or not {"PublishedApi", "JvmSynthetic"}.issubset(annotation_names)):
+        raise RuntimeError("candidate Buffer.writableSegment source metadata does not match its JVM ABI row")
+    return {
+        "status": "PASS",
+        "exit_code": 0,
+        "method": "source-metadata",
+        "source_path": str(source.relative_to(ROOT)),
+        "source_sha256": sha(source),
+        "annotations": sorted(annotation_names),
+        "parameters": declaration.group("parameters"),
+        "return_type": declaration.group("return_type"),
+    }
+
+
+def run_writable_segment_jvm_abi_reference(
+    compiler: Path, java: Path, jars: list[Path], directory: Path, timeout: float,
+) -> dict:
+    """Verify the pinned upstream JVM descriptor independently of native lanes."""
+    directory.mkdir()
+    source = HERE / "probes/buffer-writable-segment/JvmAbiProbe.kt"
+    jar = directory / "writable-segment-jvm-abi.jar"
+    classpath = os.pathsep.join(map(str, jars))
+    (directory / "run-work/tmp").mkdir(parents=True)
+    require_stage(
+        [str(compiler.resolve()), str(source), "-classpath", classpath,
+         "-include-runtime", "-d", str(jar)],
+        directory, "reference-compile", timeout,
+        {"JAVA_HOME": str(java.resolve().parent.parent)},
+    )
+    require_stage(
+        [str(java.resolve()), "-Djava.io.tmpdir=" + str(directory / "run-work/tmp"),
+         "-cp", str(jar) + os.pathsep + classpath, "f02consumer.JvmAbiProbeKt"],
+        directory, "reference-run", 30,
+    )
+    expected = b"jvm-abi:public-final-synthetic-instance-writableSegment(I)Lkotlinx/io/Segment;\n"
+    stdout = (directory / "reference-run.stdout").read_bytes()
+    stderr = (directory / "reference-run.stderr").read_bytes()
+    if stdout != expected or stderr:
+        raise RuntimeError("pinned JVM writableSegment ABI probe did not match its descriptor")
+    javap = java.resolve().with_name("javap")
+    require_stage(
+        [str(javap), "-p", "-v", "-classpath", classpath, "kotlinx.io.Buffer"],
+        directory, "reference-javap", timeout,
+    )
+    classfile_dump = (directory / "reference-javap.stdout").read_text(encoding="utf-8")
+    method = re.search(
+        r"(?ms)^  public final kotlinx\.io\.Segment writableSegment\(int\);(?P<body>.*?)(?=^  (?:public|protected|private) |\Z)",
+        classfile_dump,
+    )
+    if method is None:
+        raise RuntimeError("pinned JVM class file is missing the writableSegment method")
+    method_body = method.group("body")
+    if ("descriptor: (I)Lkotlinx/io/Segment;" not in method_body
+            or "ACC_PUBLIC, ACC_FINAL, ACC_SYNTHETIC" not in method_body
+            or "kotlin.PublishedApi" not in method_body):
+        raise RuntimeError("pinned JVM class file is missing the writableSegment ABI annotations or flags")
+    return {
+        "case_id": "Scripts/io_api_inventory/probes/buffer-writable-segment/JvmAbiProbe.kt#verifyWritableSegmentJvmAbi",
+        "result": "PASS",
+        "exit_code": 0,
+        "compiler_sha256": sha(compiler.resolve()),
+        "java_sha256": sha(java.resolve()),
+        "jvm_artifacts_sha256": {str(path): sha(path) for path in jars},
+        "javap_sha256": sha(javap),
+        "classfile_dump_sha256": sha(directory / "reference-javap.stdout"),
+        "stdout_sha256": sha(directory / "reference-run.stdout"),
+        "stderr_sha256": sha(directory / "reference-run.stderr"),
+    }
+
+
 def local_probe_execution(case_id: str, lane: str, candidate_sha: str, reference_commit: str,
                           subject: str, result: str) -> dict:
     spec = LOCAL_PROBE_EVIDENCE_CASES[case_id]
@@ -156,6 +243,18 @@ def segment_local_probe_case_ids(lane: str) -> list[str]:
         for case_id, spec in LOCAL_PROBE_EVIDENCE_CASES.items()
         if case_id.endswith(("#internal-view", "#internal-visibility")) and lane in spec["lanes"]
     ]
+
+
+def writable_segment_local_probe_case_id(scenario_id: str) -> str:
+    cases = {
+        "writable-segment-invalid-capacity": "runInvalidCapacityProbe",
+        "writable-segment-empty-tail": "runEmptyTailProbe",
+        "writable-segment-tail-reuse-append": "runTailReuseAndAppendProbe",
+    }
+    return (
+        "local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#"
+        + cases[scenario_id]
+    )
 
 
 def packaged(raw: bytes, package: str) -> bytes:
@@ -182,6 +281,23 @@ def scenarios() -> list[dict]:
                   "reference_probe": ROOT / "Scripts/io_api_inventory/probes/segment_data_as_byte_array_jvm_abi.kt",
                   "entry": "f02consumer.main", "jvm_class": "f02consumer.ConsumerKt",
                   "reference_class": "f02jvmabi.SegmentDataAsByteArrayJvmAbi", "reference": "jvm"})
+    cases += [
+        {"id": "writable-segment-invalid-capacity",
+         "producer": [HERE / "probes/buffer-writable-segment/Producer.kt"],
+         "consumer": HERE / "probes/buffer-writable-segment/InvalidCapacityConsumer.kt",
+         "entry": "f02invalidcapacityconsumer.main", "jvm_class": "f02invalidcapacityconsumer.ConsumerKt",
+         "reference": "jvm"},
+        {"id": "writable-segment-empty-tail",
+         "producer": [HERE / "probes/buffer-writable-segment/Producer.kt"],
+         "consumer": HERE / "probes/buffer-writable-segment/EmptyTailConsumer.kt",
+         "entry": "f02emptytailconsumer.main", "jvm_class": "f02emptytailconsumer.ConsumerKt",
+         "reference": "jvm"},
+        {"id": "writable-segment-tail-reuse-append",
+         "producer": [HERE / "probes/buffer-writable-segment/Producer.kt"],
+         "consumer": HERE / "probes/buffer-writable-segment/TailReuseAndAppendConsumer.kt",
+         "entry": "f02tailreuseconsumer.main", "jvm_class": "f02tailreuseconsumer.ConsumerKt",
+         "reference": "jvm"},
+    ]
     fixtures = sorted((ROOT / "Scripts/diff_cases").glob("kotlinx_io*.kt"))
     cases.append({"id": "diff-consumers", "fixtures": fixtures, "reference": "jvm",
                   "entry": "f02corpusconsumer.main", "jvm_class": "f02corpusconsumer.ConsumerKt"})
@@ -457,6 +573,14 @@ def main(argv: list[str] | None = None) -> int:
         if target_probe_selected:
             candidate_source_metadata = verify_segment_data_as_byte_array_source_metadata()
             summary["candidate_source_metadata_assertion"] = candidate_source_metadata
+        writable_segment_selected = any(case["id"].startswith("writable-segment-") for case in selected)
+        writable_segment_candidate_metadata = None
+        if writable_segment_selected:
+            writable_segment_candidate_metadata = verify_writable_segment_source_metadata()
+            summary["writable_segment_candidate_source_metadata_assertion"] = writable_segment_candidate_metadata
+            abi_source = HERE / "probes/buffer-writable-segment/JvmAbiProbe.kt"
+            summary["scenario_files_sha256"][str(abi_source.relative_to(ROOT))] = sha(abi_source)
+            summary["scenario_files_sha256"] = dict(sorted(summary["scenario_files_sha256"].items()))
         for record in lock["sdk_files"]:
             if sha(args.kotlin_home / record["path"]) != record["sha256"]: raise RuntimeError("reference SDK hash mismatch")
         jars = []
@@ -472,6 +596,30 @@ def main(argv: list[str] | None = None) -> int:
         require_stage([str(args.java.resolve()), "-version"], output, "java-version", 30)
         if not re.search(rb'version "21[.\"]', (output / "java-version.stderr").read_bytes()):
             raise RuntimeError("reference requires Java 21")
+        if writable_segment_selected:
+            abi_case_id = (
+                "local:Scripts/io_api_inventory/probes/buffer-writable-segment/JvmAbiProbe.kt#"
+                "verifyWritableSegmentJvmAbi"
+            )
+            abi_execution = run_writable_segment_jvm_abi_reference(
+                args.kotlin_home / "bin/kotlinc", args.java, jars,
+                output / "writable-segment-jvm-abi-reference", args.compile_timeout,
+            )
+            summary["writable_segment_jvm_abi_reference"] = abi_execution
+            summary["local_probe_executions"].append({
+                "case_id": abi_case_id,
+                "lane": "jvm-descriptor",
+                "reference": local_probe_execution(
+                    abi_case_id, "jvm-descriptor", summary["workspace_git_sha"], lock["commit"],
+                    "reference", "PASS",
+                ),
+                "candidate": local_probe_execution(
+                    abi_case_id, "jvm-descriptor", summary["workspace_git_sha"], lock["commit"],
+                    "candidate", writable_segment_candidate_metadata["status"],
+                ),
+            })
+            save(output / "summary.json", summary)
+            print("PASS writable-segment-jvm-abi reference and source metadata", flush=True)
         stdlib = args.stdlib_library.resolve() if args.stdlib_library else output / "KSwiftKStdlib.kklib"
         if args.stdlib_library:
             summary["stdlib_origin"] = "explicit supplied artifact; source lanes compare current resource bodies independently"
@@ -510,6 +658,21 @@ def main(argv: list[str] | None = None) -> int:
                             candidate_result,
                         ),
                     })
+            if case["id"].startswith("writable-segment-"):
+                lane = f"{route}-{optimization}"
+                case_id = writable_segment_local_probe_case_id(case["id"])
+                candidate_result = result.get("status", "FAIL")
+                summary["local_probe_executions"].append({
+                    "case_id": case_id,
+                    "lane": lane,
+                    "reference": local_probe_execution(
+                        case_id, lane, summary["workspace_git_sha"], lock["commit"], "reference", "PASS"
+                    ),
+                    "candidate": local_probe_execution(
+                        case_id, lane, summary["workspace_git_sha"], lock["commit"], "candidate",
+                        candidate_result,
+                    ),
+                })
             summary["results"].append({"case": case["id"], **result})
             save(output / "summary.json", summary)
             print(f"{result['status']} {case['id']} {route} {optimization}", flush=True)
