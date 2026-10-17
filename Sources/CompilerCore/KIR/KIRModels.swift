@@ -61,7 +61,6 @@ public enum KIRExprKind: Equatable, Sendable {
     case boolLiteral(Bool)
     case stringLiteral(InternedString)
     case symbolRef(SymbolID)
-    /// Address of an extern C symbol (e.g. kk_string_case_insensitive_order_trampoline).
     case externSymbolAddress(InternedString)
     case temporary(Int32)
     case null
@@ -100,15 +99,12 @@ public enum KIRInstruction: Equatable, Sendable {
     case virtualCall(symbol: SymbolID?, callee: InternedString, receiver: KIRExprID, arguments: [KIRExprID], result: KIRExprID?, canThrow: Bool, thrownResult: KIRExprID?, dispatch: KIRDispatchKind)
     case jumpIfNotNull(value: KIRExprID, target: Int32)
     case copy(from: KIRExprID, to: KIRExprID)
-    /// Store a value into a global variable identified by its symbol.
     case storeGlobal(value: KIRExprID, symbol: SymbolID)
-    /// Load a global variable into a result expression.
     case loadGlobal(result: KIRExprID, symbol: SymbolID)
     case rethrow(value: KIRExprID)
     case returnIfEqual(lhs: KIRExprID, rhs: KIRExprID)
     case returnUnit
     case returnValue(KIRExprID)
-    /// Non-local return from a lambda passed to an inline function.
     /// The target identifies the lexical function, even after inline expansion.
     case nonLocalReturn(KIRExprID?, target: KIRReturnTarget? = nil)
     /// Lexical cleanup or function exit retained until inline expansion completes.
@@ -139,8 +135,8 @@ public struct KIRFunction: Sendable {
     /// expansion and should not be emitted as a standalone LLVM function.
     public let isInlineOnly: Bool
     public let isTailrec: Bool
-    public let sourceRange: SourceRange? // function-level source location
-    public internal(set) var instructionLocations: [SourceRange?] // per-instruction source locations, parallel to body
+    public let sourceRange: SourceRange?
+    public internal(set) var instructionLocations: [SourceRange?] // parallel to body
 
     public init(
         symbol: SymbolID, name: InternedString, params: [KIRParameter], returnType: TypeID,
@@ -509,11 +505,10 @@ public final class KIRModule {
         if !featuresScanned { scanFeatures() }
     }
 
-    /// Marks the cached `features` / `usedCallees` snapshot as stale so the
-    /// next `ensureFeaturesScanned()` re-walks the module. Lowering passes
-    /// synthesize new instructions (e.g. `DataEnumSealedSynthesisPass` emits
-    /// `kk_op_mul` / `kk_op_add` for data-class `hashCode`), so a snapshot
-    /// taken before the pass pipeline must not drive later `shouldRun` gates.
+    /// Lowering passes synthesize new instructions (e.g.
+    /// `DataEnumSealedSynthesisPass` emits `kk_op_mul` / `kk_op_add` for
+    /// data-class `hashCode`), so a snapshot taken before the pass pipeline
+    /// must not drive later `shouldRun` gates.
     public func invalidateFeatureScan() {
         featuresScanned = false
     }
@@ -601,8 +596,6 @@ public final class KIRModule {
         executedLowerings.append(name)
     }
 
-    /// Validate a lowering pass boundary before running the pass.
-    ///
     /// The exact input-stage check is intentionally debug-only: this is a
     /// development-time ordering contract, while `stage` remains available
     /// in all configurations for inspection and future pipeline consumers.
@@ -629,7 +622,6 @@ public final class KIRModule {
         #endif
     }
 
-    /// Record the stage established by a successfully completed pass.
     func advanceLoweringStage(to stage: KIRStage) {
         self.stage = stage
     }
