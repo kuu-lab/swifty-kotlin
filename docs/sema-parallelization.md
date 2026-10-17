@@ -18,9 +18,8 @@ master へ入った変更を各節へ反映した。主な追従点:
   `header-collection` / `declaration-validation` / `body-checks` は
   `collectAllHeaders` / `runValidationPasses` / `runBodyAnalysis` に改称され、
   `DataFlowSema` 配下のネスト記録になった（「[計測の再実行](#計測の再実行)」参照）。
-  `Scripts/benchmark_sema.py` の `METRICS` と `SemaPhaseTimingTests` の
-  sub-record 期待値は旧名のまま残っており、そのままでは再実行・テストとも
-  通らない。
+  `SemaPhaseTimingTests` の sub-record 期待値は旧名のまま残っており、
+  そのままではテストが通らない（`Scripts/benchmark_sema.py` は削除済み）。
 * `500ddbb7b7`（#8833、KUU-1929）: inferred return の on-demand 推論が
   推測実行 + 診断 rollback + deferred 再試行へ拡張され、inferred property にも
   on-demand 解決（`inferredPropertyDeclarations` / `pendingPropertyTypes` /
@@ -139,30 +138,12 @@ patch、file scope / scope 構築、TypeCheck 後処理
 計測を有効にしないコンパイルでは追加の時計読み取りは行わない。
 表示は既存の PhaseTimer と同じ 0.01 ms 単位であり、短い区間の評価には限界がある。
 
-なお `Scripts/benchmark_sema.py` の `METRICS` と
-`Tests/CompilerCoreTests/Sema/SemaPhaseTimingTests.swift` の sub-record
-期待値は旧名のまま残っている。現行 master で下記コマンドを再実行するには、
-期待値を上記の階層名（`Sema` 直下は `DataFlowSema` / `TypeCheckSema`、
+なお `Tests/CompilerCoreTests/Sema/SemaPhaseTimingTests.swift` の sub-record
+期待値は旧名のまま残っている。計測用の `Scripts/benchmark_sema.py` は旧名の
+`METRICS` に依存して動かなくなったため削除した。再計測が必要な場合は
+`-Xfrontend time-phases` の出力（`Sema` 直下は `DataFlowSema` / `TypeCheckSema`、
 `Sema` との比較対象は `collectAllHeaders` / `runValidationPasses` /
-`runBodyAnalysis`）へ合わせて更新する必要がある。
-
-```bash
-swift build
-python3 Scripts/benchmark_sema.py --files 10 50 100 --jobs 1 4 --runs 3 > /tmp/sema-user.tsv
-python3 Scripts/benchmark_sema.py --stdlib source --files 1 --jobs 1 4 --runs 3 > /tmp/sema-source.tsv
-# Artifact は同じコンパイラで生成した互換な .kklib を明示する。
-python3 Scripts/benchmark_sema.py --stdlib artifact --stdlib-library /path/to/stdlib.kklib \
-  --files 10 50 100 --jobs 1 4 --runs 3 > /tmp/sema-artifact.tsv
-```
-
-スクリプトはビルド済みコンパイラを使い、各構成の初回を warmup として除外し、
-jobs 構成をラウンドごとに交互に実行する。TSV は全標本を保持する。
-コンパイル失敗・timeout・計測項目不足は失敗として扱う。
-`none` は stdlib 注入を無効化し、共有 package の class/interface と、別ファイルの
-inferred property を参照する明示戻り型の関数を測る。synthetic bootstrap は残る。
-`source` / `artifact` は別条件であり、これらの結果を混ぜて集計しない。
-KIR 出力まで実行するが、TSV に報告するのは Sema の時間だけである。
-KIR/Lowering、プロセス起動、Lex/Parse/BuildAST の時間は含めない。
+`runBodyAnalysis`）を直接集計する。
 
 ## 初回の参考測定
 
@@ -267,6 +248,6 @@ Thread Sanitizer は未実行。今回は並列処理や生成コードの変更
 追記（2026-10-13、master `00c8a10f48` で確認）: #8806 の階層化により、
 上記テストの `Sema` 直下 sub-record 期待値（旧 5 区間名）は現行出力の
 `DataFlowSema` / `TypeCheckSema` と一致せず、`SemaPhaseTimingTests` は
-そのままでは失敗する。`benchmark_sema.py` も旧 `METRICS` を要求するため
-`missing Sema timings` で停止する。階層化後の出力は `--no-stdlib` の
+そのままでは失敗する。`benchmark_sema.py` も旧 `METRICS` を要求して
+`missing Sema timings` で停止したため、削除した。階層化後の出力は `--no-stdlib` の
 2 ファイル smoke で実際に確認した。
