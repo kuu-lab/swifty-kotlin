@@ -1,21 +1,8 @@
 
-/// CLSR-001: Closure object synthesis pass.
-///
 /// Lambda functions produced by `LambdaLowerer` use flat closure conversion:
 /// capture values are prepended as extra function parameters, and call sites
 /// pass them directly.  This works for direct calls but prevents lambdas from
 /// being stored, passed, or invoked polymorphically.
-///
-/// This pass rewrites the KIR so that each lambda with captures gets a stable
-/// closure object:
-///
-///  1. A synthetic `kk_closure_obj_<N>` nominal marker type is created so the
-///     runtime can identify closure boxes by class ID.
-///  2. A synthetic `kk_closure_invoke_<N>` wrapper function is created that
-///     loads captures from the object and forwards to the original lambda.
-///  3. Call sites that previously prepended capture arguments are rewritten to
-///     allocate a closure object, store captures into it, and call the invoke
-///     wrapper instead.
 ///
 /// The `<lambda>` marker calls (used by the test fixture) are still rewritten
 /// to `kk_lambda_invoke` for backward compatibility.
@@ -24,7 +11,6 @@ final class LambdaClosureConversionPass: LoweringPass {
     static let requiredStage: KIRStage = .propertyLowered
     static let producedStage: KIRStage = .propertyLowered
 
-    /// Information about a lambda function with captures.
     private struct LambdaCaptureInfo {
         let function: KIRFunction
         let captureParamCount: Int
@@ -47,10 +33,8 @@ final class LambdaClosureConversionPass: LoweringPass {
     /// Pre-computed call-site index to avoid repeated O(#functions * #instructions)
     /// scans during capture-count validation and throwing detection.
     private struct CallSiteIndex {
-        /// For each callee (by symbol or name), the observed argument counts.
         var arityBySymbol: [SymbolID: Set<Int>] = [:]
         var arityByName: [InternedString: Set<Int>] = [:]
-        /// For each callee (by symbol or name), whether any call site has canThrow == true.
         var throwingBySymbol: Set<SymbolID> = []
         var throwingByName: Set<InternedString> = []
 
@@ -135,9 +119,9 @@ final class LambdaClosureConversionPass: LoweringPass {
         let markerCallee = interner.intern("<lambda>")
         let loweredCallee = interner.intern("kk_lambda_invoke")
 
-        // Closure object synthesis (Phases 1+2) requires valid sema to derive
+        // Closure object synthesis requires valid sema to derive
         // TypeIDs for synthesized instructions.  Without sema we still rewrite
-        // <lambda> markers (Phase 3) but skip closure object creation to avoid
+        // <lambda> markers but skip closure object creation to avoid
         // emitting malformed KIR with TypeID.invalid.
         let sema = ctx.sema
 
@@ -149,12 +133,8 @@ final class LambdaClosureConversionPass: LoweringPass {
         var anyType: TypeID = TypeID.invalid
 
         if let sema {
-            // Build call-site index once for all analysis (capture-count
-            // validation and canThrow detection); reuse the one `shouldRun`
-            // already built for this module when available.
             let callSiteIndex = callSiteIndex(for: module)
 
-            // Phase 1: Identify lambda functions with captures.
             let lambdaInfos = identifyLambdasWithCaptures(
                 module: module,
                 ctx: ctx,
@@ -166,8 +146,6 @@ final class LambdaClosureConversionPass: LoweringPass {
                 captureInfoByName[info.function.name] = info
             }
 
-            // Phase 2: For each lambda with captures, synthesize a closure object
-            // and invoke wrapper.
             for info in lambdaInfos {
                 let (invokeWrapperName, invokeWrapperSymbol, newDecls) = synthesizeClosureObject(
                     lambdaInfo: info,
@@ -193,9 +171,9 @@ final class LambdaClosureConversionPass: LoweringPass {
             anyType = sema.types.anyType
         }
 
-        // Phase 3: Rewrite call sites (marker rewriting works without sema;
-        // closure-object rewriting only triggers when captureInfoBySymbol is
-        // populated, which requires sema above).
+        // Marker rewriting works without sema; closure-object rewriting only
+        // triggers when captureInfoBySymbol is populated, which requires sema
+        // above.
         module.arena.transformFunctions { function in
             // Skip invoke wrappers: they already load captures from
             // the closure object and forward to the original lambda.
@@ -306,7 +284,6 @@ final class LambdaClosureConversionPass: LoweringPass {
         return 0
     }
 
-    /// Returns true if the symbol is in the synthetic capture-param range.
     /// LambdaLowerer uses:
     ///   - Value params:   rawValue around -1_000_000 (syntheticLambdaParamSymbol)
     ///   - Capture params: rawValue around -2_000_000 (syntheticLambdaCaptureParamSymbol)
@@ -317,7 +294,6 @@ final class LambdaClosureConversionPass: LoweringPass {
         return Int64(symbol.rawValue) < boundary
     }
 
-    /// Parses lambda ExprID from names like `kk_lambda_42`.
     private func lambdaExprID(from lambdaName: InternedString, interner: StringInterner) -> Int64? {
         let rawName = interner.resolve(lambdaName)
         let prefix = "kk_lambda_"
@@ -578,9 +554,7 @@ final class LambdaClosureConversionPass: LoweringPass {
         )
     }
 
-    /// Compute the maximum temporary expression ID used within a function's body,
-    /// scanning result expressions of all instructions.  Returns 0 if no
-    /// temporaries exist, so the first synthesized temp will be 1.
+    /// Returns 0 if no temporaries exist, so the first synthesized temp will be 1.
     private static func maxTempID(in function: KIRFunction) -> Int32 {
         var maxID: Int32 = 0
         for instruction in function.body {
