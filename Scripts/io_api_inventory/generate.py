@@ -56,6 +56,23 @@ LOCAL_NATIVE_PROBE_LANES = (
     "producer-consumer-O0",
     "producer-consumer-O2",
 )
+UNSAFE_BUFFER_OPERATIONS_ROW_IDS = {
+    "jvm-0cf64a4acbc38a06",
+    "jvm-893b52117cdc6202",
+    "klib-0f0ae6b0e4f74922",
+}
+UNSAFE_BUFFER_OPERATIONS_LOCAL_TEST_REFS = (
+    "Scripts/io_api_inventory/probes/UnsafeBufferOperationsObjectShape.kt",
+    "Scripts/io_api_inventory/probes/UnsafeBufferOperationsObjectShapeProducer.kt",
+    "Scripts/io_api_inventory/probes/UnsafeBufferOperationsObjectShapeConsumer.kt",
+    "Scripts/io_api_inventory/probes/UnsafeBufferOperationsJvmShapeProbe.java",
+    "Scripts/io_api_inventory/run_f02_matrix.py",
+    "Scripts/io_api_inventory/test_f02_matrix.py",
+    "Scripts/io_api_inventory/test_validation_evidence.py",
+    "Scripts/io_api_inventory/generate.py",
+    "Scripts/kotlinx_io_upstream/buffer/unsafe-buffer-operations-object-shape.expected.json",
+    "Tests/CompilerCoreTests/Sema/UnsafeBufferOperationsShapeTests.swift",
+)
 LOCAL_PROBE_EVIDENCE_CASES = {
     "local:Scripts/io_api_inventory/probes/segment_data_as_byte_array.kt#internal-view": {
         "path": "Scripts/io_api_inventory/probes/segment_data_as_byte_array.kt",
@@ -74,6 +91,27 @@ LOCAL_PROBE_EVIDENCE_CASES = {
         "row_ids": {"jvm-f7053c9293f03a10"},
         "lanes": ("jvm-descriptor",),
         "methods": {"reference": "jvm-abi-reflection", "candidate": "source-metadata"},
+    },
+    "local:Scripts/io_api_inventory/probes/UnsafeBufferOperationsObjectShape.kt#typed-object-and-singleton-identity": {
+        "path": "Scripts/io_api_inventory/probes/UnsafeBufferOperationsObjectShape.kt",
+        "row_ids": {"klib-0f0ae6b0e4f74922"},
+        "lanes": LOCAL_NATIVE_PROBE_LANES,
+        "methods": {"reference": "jvm-object-runtime", "candidate": "native-matrix"},
+        "scenario": "unsafe-buffer-operations-object-shape",
+    },
+    "local:Scripts/io_api_inventory/probes/UnsafeBufferOperationsObjectShape.kt#jvm-class-shape": {
+        "path": "Scripts/io_api_inventory/probes/UnsafeBufferOperationsObjectShape.kt",
+        "row_ids": {"jvm-0cf64a4acbc38a06"},
+        "lanes": ("jvm-descriptor",),
+        "methods": {"reference": "jvm-abi-reflection", "candidate": "source-object-contract"},
+        "scenario": "unsafe-buffer-operations-object-shape",
+    },
+    "local:Scripts/io_api_inventory/probes/UnsafeBufferOperationsObjectShape.kt#jvm-instance-field-shape": {
+        "path": "Scripts/io_api_inventory/probes/UnsafeBufferOperationsObjectShape.kt",
+        "row_ids": {"jvm-893b52117cdc6202"},
+        "lanes": ("jvm-descriptor",),
+        "methods": {"reference": "jvm-abi-reflection", "candidate": "source-object-contract"},
+        "scenario": "unsafe-buffer-operations-object-shape",
     },
 }
 
@@ -1663,6 +1701,8 @@ def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
             refs.append(path)
         elif owner and owner in haystack and row["module"] == "bytestring":
             refs.append(path)
+    if row["row_id"] in UNSAFE_BUFFER_OPERATIONS_ROW_IDS:
+        refs.extend(UNSAFE_BUFFER_OPERATIONS_LOCAL_TEST_REFS)
     return list(dict.fromkeys(refs))
 
 
@@ -2043,6 +2083,8 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     local_paths.extend(REPO.joinpath("Scripts/io_api_inventory/probes").glob("*.kt"))
     local_paths.extend(REPO.joinpath("Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590").glob("*.kt"))
     local_paths.append(REPO / "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java")
+    local_paths.append(REPO / "Scripts/io_api_inventory/probes/UnsafeBufferOperationsJvmShapeProbe.java")
+    local_paths.append(REPO / "Scripts/kotlinx_io_upstream/buffer/unsafe-buffer-operations-object-shape.expected.json")
     for path in sorted(local_paths):
         rel = path.relative_to(REPO).as_posix()
         if rel.startswith(LOCAL_IO_TEST_PREFIXES):

@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "upstreamCommit": "362bdc35e159bad6da1e08101c8321792d762281",
+  "sourceObject": {
+    "declaration": "public object UnsafeBufferOperations {",
+    "optIn": "@OptIn(ExperimentalContracts::class)",
+    "unsafeApi": "@UnsafeIoApi",
+    "upstreamRef": "core/common/src/unsafe/UnsafeBufferOperations.kt:16"
+  },
+  "jvmClass": {
+    "rowID": "jvm-0cf64a4acbc38a06",
+    "owner": "kotlinx/io/unsafe/UnsafeBufferOperations",
+    "declaration": "public final class kotlinx/io/unsafe/UnsafeBufferOperations {",
+    "upstreamRef": "core/api/kotlinx-io-core.api:307"
+  },
+  "jvmInstanceField": {
+    "rowID": "jvm-893b52117cdc6202",
+    "owner": "kotlinx/io/unsafe/UnsafeBufferOperations",
+    "name": "INSTANCE",
+    "descriptor": "Lkotlinx/io/unsafe/UnsafeBufferOperations;",
+    "modifiers": ["public", "static", "final"],
+    "declaration": "\tpublic static final field INSTANCE Lkotlinx/io/unsafe/UnsafeBufferOperations;",
+    "upstreamRef": "core/api/kotlinx-io-core.api:308"
+  },
+  "klibObject": {
+    "rowID": "klib-0f0ae6b0e4f74922",
+    "fqName": "kotlinx.io.unsafe.UnsafeBufferOperations",
+    "declaration": "final object kotlinx.io.unsafe/UnsafeBufferOperations {",
+    "annotations": ["kotlinx.io.UnsafeIoApi", "kotlin.OptIn"],
+    "upstreamRef": "core/api/kotlinx-io-core.klib.api:210"
+  }
+}

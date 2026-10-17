@@ -86,6 +86,37 @@ class F02GateTests(unittest.TestCase):
         self.assertEqual(metadata["status"], "PASS")
         self.assertTrue({"PublishedApi", "JvmSynthetic"}.issubset(metadata["annotations"]))
 
+    def test_evidence_reference_lock_accepts_the_runner_lock_schema(self):
+        lock_path = matrix.ROOT / "Scripts/kotlinx_io_upstream/reference-lock.json"
+        lock = json.loads(lock_path.read_text(encoding="utf-8"))
+        self.assertEqual(
+            matrix.normalize_evidence_reference_lock(lock),
+            {"tag": "0.9.1", "commit": "362bdc35e159bad6da1e08101c8321792d762281"},
+        )
+
+    def test_unsafe_buffer_operations_shape_is_an_independently_selectable_case(self):
+        case = next(case for case in matrix.scenarios()
+                    if case["id"] == "unsafe-buffer-operations-object-shape")
+        self.assertEqual(case["reference"], "jvm")
+        self.assertEqual(case["entry"], "kuu2603.main")
+        self.assertEqual(case["jvm_class"], "kuu2603.ConsumerKt")
+        self.assertEqual(case["jvm_abi_class"], "UnsafeBufferOperationsJvmShapeProbe")
+        self.assertEqual(
+            [path.name for path in case["producer"]],
+            ["UnsafeBufferOperationsObjectShape.kt", "UnsafeBufferOperationsObjectShapeProducer.kt"],
+        )
+        self.assertEqual(case["consumer"].name, "UnsafeBufferOperationsObjectShapeConsumer.kt")
+        self.assertEqual(len(matrix.scenario_local_probe_case_ids(case["id"], "jvm-descriptor")), 2)
+        self.assertEqual(len(matrix.scenario_local_probe_case_ids(case["id"], "source-O0")), 1)
+        probe = case["jvm_abi_probe"].read_text(encoding="utf-8")
+        for assertion in ("Modifier.isPublic(classModifiers)", "Modifier.isFinal(classModifiers)",
+                          'getDeclaredField("INSTANCE")', "Modifier.isStatic(fieldModifiers)",
+                          "Modifier.isFinal(fieldModifiers)", "instance.get(null) == instance.get(null)"):
+            self.assertIn(assertion, probe)
+        contract = matrix.verify_unsafe_buffer_operations_source_contract()
+        self.assertEqual(contract["status"], "PASS")
+        self.assertEqual(contract["method"], "source-object-contract")
+
     def test_visibility_probe_result_is_independent_of_later_lane_failure(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)

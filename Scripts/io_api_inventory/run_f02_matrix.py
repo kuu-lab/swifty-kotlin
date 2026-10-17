@@ -7,6 +7,7 @@ immutable artifact receipts. A selected passing subset is never issue completion
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import json
 import math
@@ -20,6 +21,7 @@ import time
 from pathlib import Path
 
 from generate_f02_consumers import generate
+import generate as inventory
 from generate import LOCAL_PROBE_EVIDENCE_CASES, local_probe_execution_id
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -139,6 +141,33 @@ def verify_segment_data_as_byte_array_source_metadata() -> dict:
     }
 
 
+def verify_unsafe_buffer_operations_source_contract() -> dict:
+    source = ROOT / "Sources/CompilerCore/Stdlib/kotlinx/io/unsafe/UnsafeBufferOperations.kt"
+    contents = source.read_text(encoding="utf-8")
+    declaration = re.search(
+        r"(?P<annotations>(?:^[ \t]*@[A-Za-z0-9_.(),: ]+\n)+)"
+        r"^[ \t]*public object UnsafeBufferOperations\s*\{",
+        contents,
+        re.MULTILINE,
+    )
+    if declaration is None:
+        raise RuntimeError("candidate UnsafeBufferOperations public object declaration is missing")
+    annotation_names = {
+        name.rsplit(".", 1)[-1]
+        for name in re.findall(r"^[ \t]*@([\w.]+)", declaration.group("annotations"), re.MULTILINE)
+    }
+    if not {"UnsafeIoApi", "OptIn"}.issubset(annotation_names):
+        raise RuntimeError("candidate UnsafeBufferOperations annotations do not match the pinned object contract")
+    return {
+        "status": "PASS",
+        "exit_code": 0,
+        "method": "source-object-contract",
+        "source_path": str(source.relative_to(ROOT)),
+        "source_sha256": sha(source),
+        "annotations": sorted(annotation_names),
+    }
+
+
 def local_probe_execution(case_id: str, lane: str, candidate_sha: str, reference_commit: str,
                           subject: str, result: str) -> dict:
     spec = LOCAL_PROBE_EVIDENCE_CASES[case_id]
@@ -155,6 +184,14 @@ def segment_local_probe_case_ids(lane: str) -> list[str]:
         case_id
         for case_id, spec in LOCAL_PROBE_EVIDENCE_CASES.items()
         if case_id.endswith(("#internal-view", "#internal-visibility")) and lane in spec["lanes"]
+    ]
+
+
+def scenario_local_probe_case_ids(scenario_id: str, lane: str) -> list[str]:
+    return [
+        case_id
+        for case_id, spec in LOCAL_PROBE_EVIDENCE_CASES.items()
+        if spec.get("scenario") == scenario_id and lane in spec["lanes"]
     ]
 
 
@@ -182,6 +219,15 @@ def scenarios() -> list[dict]:
                   "reference_probe": ROOT / "Scripts/io_api_inventory/probes/segment_data_as_byte_array_jvm_abi.kt",
                   "entry": "f02consumer.main", "jvm_class": "f02consumer.ConsumerKt",
                   "reference_class": "f02jvmabi.SegmentDataAsByteArrayJvmAbi", "reference": "jvm"})
+    cases.append({"id": "unsafe-buffer-operations-object-shape",
+                  "producer": [
+                      ROOT / "Scripts/io_api_inventory/probes/UnsafeBufferOperationsObjectShape.kt",
+                      ROOT / "Scripts/io_api_inventory/probes/UnsafeBufferOperationsObjectShapeProducer.kt",
+                  ],
+                  "consumer": ROOT / "Scripts/io_api_inventory/probes/UnsafeBufferOperationsObjectShapeConsumer.kt",
+                  "entry": "kuu2603.main", "jvm_class": "kuu2603.ConsumerKt", "reference": "jvm",
+                  "jvm_abi_probe": HERE / "probes/UnsafeBufferOperationsJvmShapeProbe.java",
+                  "jvm_abi_class": "UnsafeBufferOperationsJvmShapeProbe"})
     fixtures = sorted((ROOT / "Scripts/diff_cases").glob("kotlinx_io*.kt"))
     cases.append({"id": "diff-consumers", "fixtures": fixtures, "reference": "jvm",
                   "entry": "f02corpusconsumer.main", "jvm_class": "f02corpusconsumer.ConsumerKt"})
@@ -218,6 +264,93 @@ def scenarios() -> list[dict]:
                   "expected": apple / pins["expected"], "provenance": apple / "originals-provenance.json",
                   "reference": "pinned-Native-derived-original-assertions", "host": "darwin"})
     return cases
+
+
+def normalize_evidence_reference_lock(lock: dict) -> dict[str, str]:
+    version = lock.get("tag") or lock.get("kotlinx_io")
+    commit = lock.get("commit")
+    if not isinstance(version, str) or not version or not isinstance(commit, str) or not commit:
+        raise RuntimeError("reference lock must include a kotlinx-io version and commit")
+    return {"tag": version, "commit": commit}
+
+
+def write_local_probe_evidence(summary: dict, lock: dict, output: Path) -> list[str]:
+    candidate_sha = summary["workspace_git_sha"]
+    evidence_lock = normalize_evidence_reference_lock(lock)
+    observed = summary.get("local_probe_executions", [])
+    touched_row_ids = sorted({
+        row_id
+        for execution in observed
+        for row_id in LOCAL_PROBE_EVIDENCE_CASES[execution["case_id"]]["row_ids"]
+    })
+    if not touched_row_ids:
+        raise RuntimeError("selected scenarios produced no registered local-probe executions")
+
+    with inventory.LEDGER_PATH.open(encoding="utf-8", newline="") as stream:
+        ledger_rows = list(csv.DictReader(stream, delimiter="\t"))
+    rows_by_id = {row["row_id"]: row for row in ledger_rows}
+    records = []
+    for row_id in touched_row_ids:
+        row = rows_by_id.get(row_id)
+        if row is None:
+            raise RuntimeError(f"local-probe row is missing from the generated ledger: {row_id}")
+        required = {
+            (case_id, lane)
+            for case_id, spec in LOCAL_PROBE_EVIDENCE_CASES.items()
+            if row_id in spec["row_ids"]
+            for lane in spec["lanes"]
+        }
+        executions = [
+            item for item in observed
+            if row_id in LOCAL_PROBE_EVIDENCE_CASES[item["case_id"]]["row_ids"]
+        ]
+        actual = {(item["case_id"], item["lane"]) for item in executions}
+        if actual != required:
+            missing = sorted(required - actual)
+            extra = sorted(actual - required)
+            raise RuntimeError(f"local-probe evidence coverage mismatch for {row_id}: missing={missing}; extra={extra}")
+        for item in executions:
+            spec = LOCAL_PROBE_EVIDENCE_CASES[item["case_id"]]
+            if spec["path"] not in row.get("local_test_refs", "").split(";"):
+                raise RuntimeError(f"regenerate the inventory to register local probe input for {row_id}")
+            for subject in ("reference", "candidate"):
+                result = item[subject]
+                if result["result"] != "PASS" or result["exit_code"] != 0:
+                    raise RuntimeError(f"cannot write non-passing {subject} probe evidence for {row_id}")
+
+        records.append({
+            "row_id": row_id,
+            "candidate_sha": candidate_sha,
+            "reference_version": evidence_lock["tag"],
+            "reference_commit": evidence_lock["commit"],
+            **inventory.validation_input_hashes(row, ROOT, inventory.UPSTREAM),
+            "compatibility_obligations": inventory.validation_obligations(row),
+            "evidence_source": "local-probe",
+            "executions": executions,
+        })
+
+    candidate_path = output / "validation-evidence.candidate.json"
+    save(candidate_path, {"schema_version": inventory.VALIDATION_EVIDENCE_SCHEMA_VERSION, "records": records})
+    validation_rows = [dict(rows_by_id[row_id]) for row_id in touched_row_ids]
+    inventory.apply_validation_evidence(
+        validation_rows,
+        evidence_lock,
+        candidate_path,
+        ROOT,
+        inventory.UPSTREAM,
+    )
+    if any(row["status"] != "verified" for row in validation_rows):
+        raise RuntimeError("passing local-probe executions did not verify every targeted ledger row")
+
+    existing = json.loads(inventory.VALIDATION_EVIDENCE_PATH.read_text(encoding="utf-8"))
+    if existing.get("schema_version") != inventory.VALIDATION_EVIDENCE_SCHEMA_VERSION:
+        raise RuntimeError("validation evidence file has an unexpected schema")
+    preserved = [record for record in existing["records"] if record.get("row_id") not in touched_row_ids]
+    save(inventory.VALIDATION_EVIDENCE_PATH, {
+        "schema_version": inventory.VALIDATION_EVIDENCE_SCHEMA_VERSION,
+        "records": preserved + records,
+    })
+    return touched_row_ids
 
 
 def prepare(case: dict, directory: Path) -> tuple[list[Path], Path]:
@@ -409,6 +542,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--stdlib-library", type=Path, help="explicit supplied artifact; freshness is not inferred from its path")
     parser.add_argument("--case", action="append", help="explicit subset; default is all dedicated consumers")
     parser.add_argument("--separate-cases", action="store_true", help="compile each case separately; default batches selected cases in every lane")
+    parser.add_argument("--write-evidence", action="store_true",
+                        help="replace registered local-probe records after all selected lanes pass")
     parser.add_argument("--compile-timeout", type=float, default=600)
     args = parser.parse_args(argv)
     if not math.isfinite(args.compile_timeout) or args.compile_timeout <= 0: parser.error("finite positive timeout required")
@@ -430,7 +565,7 @@ def main(argv: list[str] | None = None) -> int:
                "runtime_cache_provenance": "source and manifest-validated object hashes; not a clean Runtime rebuild"}
     try:
         provenance = [Path(__file__), HERE / "generate_f02_consumers.py", HERE / "generate_f01_consumers.py",
-                      HERE / "api-inventory.tsv", HERE / "source-declarations.json", HERE / "upstream-lock.json",
+                      HERE / "generate.py", HERE / "api-inventory.tsv", HERE / "source-declarations.json", HERE / "upstream-lock.json",
                       ROOT / "Scripts/kotlinx_io_upstream/reference-lock.json", ROOT / "Package.swift"]
         provenance += sorted((HERE / "f02_consumers").glob("*")) + sorted((HERE / "f02_boundary").glob("*.kt"))
         summary["harness_files_sha256"] = {str(path.relative_to(ROOT)): sha(path) for path in provenance if path.is_file()}
@@ -453,10 +588,15 @@ def main(argv: list[str] | None = None) -> int:
             if (HERE / "f02_consumers" / name).read_text() != contents: raise RuntimeError("regenerate F02 consumers first")
         lock = json.loads((ROOT / "Scripts/kotlinx_io_upstream/reference-lock.json").read_text())
         target_probe_selected = any(case["id"] == "segment-data-as-byte-array" for case in selected)
+        unsafe_shape_selected = any(case["id"] == "unsafe-buffer-operations-object-shape" for case in selected)
         candidate_source_metadata = None
         if target_probe_selected:
             candidate_source_metadata = verify_segment_data_as_byte_array_source_metadata()
             summary["candidate_source_metadata_assertion"] = candidate_source_metadata
+        candidate_object_contract = None
+        if unsafe_shape_selected:
+            candidate_object_contract = verify_unsafe_buffer_operations_source_contract()
+            summary["candidate_object_source_contract_assertion"] = candidate_object_contract
         for record in lock["sdk_files"]:
             if sha(args.kotlin_home / record["path"]) != record["sha256"]: raise RuntimeError("reference SDK hash mismatch")
         jars = []
@@ -490,8 +630,8 @@ def main(argv: list[str] | None = None) -> int:
             except Exception as error:
                 result = {"status": "FAIL", "route": route, "optimization": optimization,
                           "error": str(error), "evidence_directory": str(directory)}
+            lane = f"{route}-{optimization}"
             if case["id"] == "segment-data-as-byte-array":
-                lane = f"{route}-{optimization}"
                 for case_id in segment_local_probe_case_ids(lane):
                     candidate_result = result.get("status", "FAIL")
                     if case_id.endswith("#internal-visibility"):
@@ -510,6 +650,19 @@ def main(argv: list[str] | None = None) -> int:
                             candidate_result,
                         ),
                     })
+            for case_id in scenario_local_probe_case_ids(case["id"], lane):
+                candidate_result = result.get("status", "FAIL")
+                summary["local_probe_executions"].append({
+                    "case_id": case_id,
+                    "lane": lane,
+                    "reference": local_probe_execution(
+                        case_id, lane, summary["workspace_git_sha"], lock["commit"], "reference", "PASS"
+                    ),
+                    "candidate": local_probe_execution(
+                        case_id, lane, summary["workspace_git_sha"], lock["commit"], "candidate",
+                        candidate_result,
+                    ),
+                })
             summary["results"].append({"case": case["id"], **result})
             save(output / "summary.json", summary)
             print(f"{result['status']} {case['id']} {route} {optimization}", flush=True)
@@ -572,8 +725,23 @@ def main(argv: list[str] | None = None) -> int:
                     require_stage([str(javac), "-d", str(probe_classes), str(case["jvm_abi_probe"])],
                                   directory, "jvm-abi-compile", args.compile_timeout)
                     require_stage([str(args.java.resolve()), "-cp", os.pathsep.join(
-                        map(str, [probe_classes, jar, *jars])), "SegmentReadContextAbiProbe"],
+                        map(str, [probe_classes, jar, *jars])),
+                                  case.get("jvm_abi_class", "SegmentReadContextAbiProbe")],
                         directory, "jvm-abi-probe", 30)
+                    if case["id"] == "unsafe-buffer-operations-object-shape":
+                        lane = "jvm-descriptor"
+                        for case_id in scenario_local_probe_case_ids(case["id"], lane):
+                            summary["local_probe_executions"].append({
+                                "case_id": case_id,
+                                "lane": lane,
+                                "reference": local_probe_execution(
+                                    case_id, lane, summary["workspace_git_sha"], lock["commit"], "reference", "PASS"
+                                ),
+                                "candidate": local_probe_execution(
+                                    case_id, lane, summary["workspace_git_sha"], lock["commit"], "candidate",
+                                    candidate_object_contract["status"],
+                                ),
+                            })
             else:
                 expected = case["expected"].read_bytes()
                 reject_unhandled_events(expected)
@@ -613,6 +781,11 @@ def main(argv: list[str] | None = None) -> int:
         failures = [result for result in summary["results"] if result["status"] != "PASS"]
         summary["status"] = "FAILED_OR_INCOMPLETE" if failures else "SELECTED_MATRIX_PASS"
         if failures: summary["error"] = f"{len(failures)} selected lanes failed; raw evidence retained"
+        if args.write_evidence:
+            if summary["status"] != "SELECTED_MATRIX_PASS":
+                raise RuntimeError("cannot write validation evidence unless every selected lane passes")
+            write_local_probe_evidence(summary, lock, output)
+            summary["validation_evidence_written"] = str(inventory.VALIDATION_EVIDENCE_PATH)
     except Exception as error:
         summary.update(status="FAILED_OR_INCOMPLETE", error=str(error))
         print(str(error), file=sys.stderr)

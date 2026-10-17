@@ -303,6 +303,45 @@ evidence file without rewriting it. `--check` verifies upstream snapshots, the
 test index lock, negative guards, evidence, any execution catalogs used by
 evidence, and byte-for-byte output without modifying files.
 
+Dedicated local API-shape probes are the only exception to the upstream-case
+mapping rule. `generate.py` registers each synthetic case ID against exact
+ledger rows, local test references, evidence methods, and required lanes. The
+evidence loader rejects unregistered cases, methods, lanes, and execution IDs.
+For KUU-2603, pinned JVM reflection checks the public final object class and its
+public static final `INSTANCE` field. The candidate JVM-side evidence is an
+explicit source-object contract assertion because KSwiftK emits native
+artifacts. The KLIB row uses the pinned JVM runtime as reference and checks a
+typed object view, singleton identity, bundled-library metadata, and an
+independent producer/consumer `.kklib` at O0/O2. Focused Sema tests check the
+source and prepared library metadata.
+
+To reproduce KUU-2603 after building the compiler:
+
+```sh
+python3 Scripts/kotlinx_io_upstream/prepare_reference.py \
+  --target jvm --output /private/tmp/kio-2603-jvm-reference
+python3 Scripts/io_api_inventory/refresh_source_index.py \
+  --kotlin-home /private/tmp/kio-2603-jvm-reference/installation/kotlinc \
+  --jars-dir /private/tmp/kio-2603-jvm-reference/dependencies --check
+python3 Scripts/io_api_inventory/generate.py --write
+bash Scripts/swift_test.sh --no-parallel \
+  --filter CompilerCoreTests.UnsafeBufferOperationsShapeTests
+python3 Scripts/io_api_inventory/run_f02_matrix.py \
+  --case unsafe-buffer-operations-object-shape --separate-cases \
+  --compiler .build/debug/kswiftc --output /private/tmp/kio-2603-f02 \
+  --kotlin-home /private/tmp/kio-2603-jvm-reference/installation/kotlinc \
+  --java /path/to/java21/bin/java \
+  --dependencies /private/tmp/kio-2603-jvm-reference/dependencies --write-evidence
+python3 Scripts/io_api_inventory/generate.py --write
+python3 Scripts/io_api_inventory/generate.py --check
+```
+
+The matrix run preserves raw commands, stdout/stderr, hashes, artifact hashes,
+and all lane receipts under its output directory. `--write-evidence` writes the
+three row records only after every selected lane passes and the evidence
+validator accepts their registered case/lane coverage; regenerate and check
+the inventory afterwards.
+
 ```sh
 python3 Scripts/io_api_inventory/test_validation_evidence.py
 ```
