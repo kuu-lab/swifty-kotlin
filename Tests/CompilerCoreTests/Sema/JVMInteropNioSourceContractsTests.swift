@@ -81,6 +81,10 @@ struct JVMInteropNioSourceContractsTests {
             let fqName: String
             let parameterTokens: [String]
             let defaults: [Bool]
+            let semanticReturnTypeToken: String?
+            let semanticParameterNames: [String]?
+            let optInAnnotations: [String]?
+            let semanticReceiverToken: String?
             let extensionReceiverToken: String?
             let visibility: String
         }
@@ -131,6 +135,22 @@ struct JVMInteropNioSourceContractsTests {
             #expect(symbol.visibility == (row.visibility == "public" ? .public : .internal))
             #expect(symbol.flags.contains(.importedLibrary) == library)
             #expect(sema.symbols.isSourceBackedSymbol(symbol.id))
+            if let returnType = row.semanticReturnTypeToken,
+               let parameterNames = row.semanticParameterNames,
+               let optInAnnotations = row.optInAnnotations,
+               let receiverType = row.semanticReceiverToken {
+                #expect(fn.receiverType.map(encode) == receiverType, "\(row.rowID) semantic receiver")
+                #expect(!symbol.flags.contains(.memberExtension), "\(row.rowID) member extension")
+                #expect(encode(fn.returnType) == returnType, "\(row.rowID) return type")
+                #expect(fn.valueParameterSymbols.compactMap { sema.symbols.symbol($0).map { ctx.interner.resolve($0.name) } } == parameterNames,
+                    "\(row.rowID) parameter names")
+                #expect(fn.valueParameterIsVararg == Array(repeating: false, count: parameterNames.count), "\(row.rowID) varargs")
+                #expect(fn.typeParameterSymbols.isEmpty && !fn.isSuspend, "\(row.rowID) generic/suspend shape")
+                let actualOptIns = sema.symbols.annotations(for: symbol.id)
+                    .filter { $0.annotationFQName == "kotlin.OptIn" }
+                    .map(\.annotationFQName)
+                #expect(Set(actualOptIns) == Set(optInAnnotations), "\(row.rowID) opt-in annotations")
+            }
             if library {
                 let signature = normalizeTypeParameterTokens(encodedSignature(symbol, ctx, sema))
                 let exact = records.filter { $0.kind == .function && $0.fqName == row.fqName

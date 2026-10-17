@@ -303,6 +303,60 @@ evidence file without rewriting it. `--check` verifies upstream snapshots, the
 test index lock, negative guards, evidence, any execution catalogs used by
 evidence, and byte-for-byte output without modifying files.
 
+#### Source ByteArray default bridges
+
+KUU-2632's `Source.readAtMostTo$default` and `SourcesKt.readTo$default` are
+separate rows. `f02_consumers/SourceByteArrayDefaultBridgeAbiProbe.java` inspects
+the pinned JVM artifact's physical descriptors, visibility/static/synthetic
+flags, default-mask behavior and EOF exception. This is JVM-reference evidence;
+it does not claim that the native executable has a JVM classfile. The KSwiftK
+consumer in `Scripts/diff_cases/kotlinx_io_source_bytearray_default_bridges.kt`
+is also executed through source and the shared `.kklib` at O0/O2, while
+`native-default-obligations.expected.json` checks the corresponding native
+source declarations and actual default-stub links.
+
+`source-bytearray-default-bridges.evidence.json` records the two rows with the
+KUU-2469 row identifiers, candidate SHA, reference pin, implementation/test
+input hashes, exact commands, lane results, stdout hashes/counts, and pinned
+artifact hashes. The generator checks that record on every `--check` and
+`--write`. These observations do not promote the rows: the JVM probe examines
+the pinned reference artifact, and KSwiftK does not emit a candidate JVM
+classfile for the `jvm-descriptor` obligation. The file records the candidate
+source/`.kklib` lanes separately and retains the rows as `unverified`.
+
+Prepare the locked Kotlin 2.3.10 JVM reference environment, then run the probe
+with Java 21:
+
+```sh
+REF_DIR=/private/tmp/kuu2632-jvm-reference
+python3 Scripts/kotlinx_io_upstream/prepare_reference.py --target jvm --output "$REF_DIR"
+JVM_CLASSPATH="$REF_DIR/installation/kotlinc/lib/kotlin-stdlib.jar:$REF_DIR/dependencies/kotlinx-io-core-jvm-0.9.1.jar:$REF_DIR/dependencies/kotlinx-io-bytestring-jvm-0.9.1.jar"
+mkdir -p "$REF_DIR/probe-classes"
+javac -classpath "$JVM_CLASSPATH" -d "$REF_DIR/probe-classes" \
+  Scripts/io_api_inventory/f02_consumers/SourceByteArrayDefaultBridgeAbiProbe.java
+java -classpath "$REF_DIR/probe-classes:$JVM_CLASSPATH" SourceByteArrayDefaultBridgeAbiProbe
+"$REF_DIR/installation/kotlinc/bin/kotlinc" -classpath \
+  "$REF_DIR/dependencies/kotlinx-io-core-jvm-0.9.1.jar:$REF_DIR/dependencies/kotlinx-io-bytestring-jvm-0.9.1.jar" \
+  Scripts/diff_cases/kotlinx_io_source_bytearray_default_bridges.kt \
+  -d "$REF_DIR/SourceByteArrayBridges.jar"
+java -classpath "$REF_DIR/SourceByteArrayBridges.jar:$JVM_CLASSPATH" \
+  Kotlinx_io_source_bytearray_default_bridgesKt
+```
+
+Run the candidate's four executable lanes and the existing source/`.kklib`
+metadata check with the focused Swift filters:
+
+```sh
+bash Scripts/swift_test.sh --disable-sandbox --no-parallel \
+  --filter testKtorIOSourceByteArrayDefaultBridges
+bash Scripts/swift_test.sh --disable-sandbox --no-parallel \
+  --filter JVMInteropNioSourceContractsTests.all43NativeDefaultStubCounterpartsSurviveActualArtifact
+```
+
+The row input hashes include the Java probe, fixture, both focused Swift tests,
+native obligation index, and mapped upstream assertions. Changing any of them
+invalidates the supplemental audit evidence.
+
 ```sh
 python3 Scripts/io_api_inventory/test_validation_evidence.py
 ```

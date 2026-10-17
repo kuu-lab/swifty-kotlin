@@ -670,7 +670,15 @@
       "originalJVMDescriptor": "(Lkotlinx/io/Source;[BIIILjava/lang/Object;)I",
       "underlyingRegularJVMDescriptor": "([BII)I",
       "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
-      "Native_status": "NOT_RUN"
+      "Native_status": "NOT_RUN",
+      "semanticReturnTypeToken": "I",
+      "semanticParameterNames": [
+        "sink",
+        "startIndex",
+        "endIndex"
+      ],
+      "optInAnnotations": [],
+      "semanticReceiverToken": "Lkotlinx.io.Source;"
     },
     {
       "rowID": "jvm-29a01d1deaf3b966",
@@ -1008,7 +1016,15 @@
       "originalJVMDescriptor": "(Lkotlinx/io/Source;[BIIILjava/lang/Object;)V",
       "underlyingRegularJVMDescriptor": "(Lkotlinx/io/Source;[BII)V",
       "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
-      "Native_status": "NOT_RUN"
+      "Native_status": "NOT_RUN",
+      "semanticReturnTypeToken": "U",
+      "semanticParameterNames": [
+        "sink",
+        "startIndex",
+        "endIndex"
+      ],
+      "optInAnnotations": [],
+      "semanticReceiverToken": "Lkotlinx.io.Source;"
     },
     {
       "rowID": "jvm-ff3de7f8d455d172",
