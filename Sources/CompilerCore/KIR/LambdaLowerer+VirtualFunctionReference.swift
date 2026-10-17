@@ -1,7 +1,6 @@
 extension LambdaLowerer {
     /// `(receiver, args...) -> result` call target for a callable reference
-    /// to an interface / open / abstract member function (`t::apply` with
-    /// `t: Transformer<Int, Int>`, `Base::foo`).
+    /// to an interface / open / abstract member function.
     ///
     /// The reference's target symbol is the *declaring* member, which for an
     /// interface or abstract method is a body-less stub; calling it directly
