@@ -37,7 +37,7 @@ NO_DIRECT_UPSTREAM_ASSERTION_SOURCE_REFS = {
     "core/common/src/files/Paths.kt:133",
 }
 NO_DIRECT_UPSTREAM_ASSERTION = "none (no direct upstream assertion mapped)"
-VALIDATION_EVIDENCE_SCHEMA_VERSION = 1
+VALIDATION_EVIDENCE_SCHEMA_VERSION = 2
 VALIDATION_LANES_BY_OBLIGATION = {
     "jvm-descriptor": ("jvm-descriptor",),
     "native-source": (
@@ -47,6 +47,34 @@ VALIDATION_LANES_BY_OBLIGATION = {
         "stdlib-library-O2",
     ),
     "native-bridge": ("producer-consumer-O0", "producer-consumer-O2"),
+}
+LOCAL_NATIVE_PROBE_LANES = (
+    "source-O0",
+    "source-O2",
+    "stdlib-library-O0",
+    "stdlib-library-O2",
+    "producer-consumer-O0",
+    "producer-consumer-O2",
+)
+LOCAL_PROBE_EVIDENCE_CASES = {
+    "local:Scripts/io_api_inventory/probes/segment_data_as_byte_array.kt#internal-view": {
+        "path": "Scripts/io_api_inventory/probes/segment_data_as_byte_array.kt",
+        "row_ids": {"internal-7f39deeafb60d29d", "klib-952eb71e7667983b"},
+        "lanes": LOCAL_NATIVE_PROBE_LANES,
+        "methods": {"reference": "jvm-probe", "candidate": "native-matrix"},
+    },
+    "local:Scripts/io_api_inventory/probes/segment_data_as_byte_array_negative.kt#internal-visibility": {
+        "path": "Scripts/io_api_inventory/probes/segment_data_as_byte_array_negative.kt",
+        "row_ids": {"internal-7f39deeafb60d29d", "klib-952eb71e7667983b"},
+        "lanes": LOCAL_NATIVE_PROBE_LANES,
+        "methods": {"reference": "jvm-visibility-probe", "candidate": "native-visibility-probe"},
+    },
+    "local:Scripts/io_api_inventory/probes/segment_data_as_byte_array_jvm_abi.kt#jvm-descriptor": {
+        "path": "Scripts/io_api_inventory/probes/segment_data_as_byte_array_jvm_abi.kt",
+        "row_ids": {"jvm-f7053c9293f03a10"},
+        "lanes": ("jvm-descriptor",),
+        "methods": {"reference": "jvm-abi-reflection", "candidate": "source-metadata"},
+    },
 }
 
 LEDGER_COLUMNS = [
@@ -209,6 +237,7 @@ TEST_HINTS = {
 
 LOCAL_IO_TEST_PREFIXES = (
     "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java",
+    "Scripts/io_api_inventory/probes/",
     "Scripts/diff_cases/kotlinx_io_",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+ByteString",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+KtorIOCoverage.swift",
@@ -218,6 +247,7 @@ LOCAL_IO_TEST_PREFIXES = (
     "Tests/CompilerCoreTests/Sema/KotlinxIO",
     "Tests/RuntimeTests/RuntimeIoFileSystemTests.swift",
 )
+LOCAL_IO_PROBE_API_NAMES = {"dataasbytearray"}
 
 SEGMENT_READ_CONTEXT_IMPL_ROW_IDS = frozenset({
     "internal-230a62161c7ea51a",
@@ -370,6 +400,32 @@ def required_execution_lanes(obligations: list[str]) -> list[str]:
     return [lane for obligation in obligations for lane in VALIDATION_LANES_BY_OBLIGATION[obligation]]
 
 
+def local_probe_execution_id(
+    candidate_sha: str,
+    reference_commit: str,
+    case_id: str,
+    lane: str,
+    subject: str,
+) -> str:
+    """Return a stable identity for one registered local probe and validation lane."""
+    if subject not in ("reference", "candidate"):
+        fail(f"unknown local probe evidence subject: {subject}")
+    digest = hashlib.sha256(
+        "|".join(("io-api-local-probe-v1", candidate_sha, reference_commit, case_id, lane, subject))
+        .encode("utf-8")
+    ).hexdigest()[:32]
+    return f"local-probe-v1:{subject}:{digest}"
+
+
+def _local_probe_case_spec(row: dict, case_id: str) -> dict | None:
+    spec = LOCAL_PROBE_EVIDENCE_CASES.get(case_id)
+    if spec is None or row.get("row_id") not in spec["row_ids"]:
+        return None
+    if spec["path"] not in row.get("local_test_refs", "").split(";"):
+        return None
+    return spec
+
+
 def _load_validation_execution_catalogs() -> dict[str, dict[str, str]]:
     try:
         lock = json.loads(UPSTREAM_RUNNER_LOCK_PATH.read_text(encoding="utf-8"))
@@ -451,18 +507,22 @@ def apply_validation_evidence(
 
     if not isinstance(evidence, dict) or set(evidence) != {"schema_version", "records"}:
         fail("validation evidence must contain only schema_version and records")
-    if type(evidence["schema_version"]) is not int or evidence["schema_version"] != VALIDATION_EVIDENCE_SCHEMA_VERSION:
+    schema_version = evidence["schema_version"]
+    if type(schema_version) is not int or schema_version not in (1, VALIDATION_EVIDENCE_SCHEMA_VERSION):
         fail("unsupported validation evidence schema_version")
     records = evidence["records"]
     if not isinstance(records, list):
         fail("validation evidence records must be an array")
-    if records:
+    if records and (schema_version == 1 or any(
+        isinstance(record, dict) and record.get("evidence_source") == "upstream-catalog"
+        for record in records
+    )):
         if execution_catalogs is None:
             execution_catalogs = _load_validation_execution_catalogs()
         if set(execution_catalogs) != {"reference", "candidate"}:
             fail("validation execution catalogs must include reference and candidate entries")
 
-    record_fields = {
+    base_record_fields = {
         "row_id",
         "candidate_sha",
         "reference_version",
@@ -473,14 +533,23 @@ def apply_validation_evidence(
         "executions",
     }
     execution_fields = {"case_id", "lane", "reference", "candidate"}
-    result_fields = {"execution_id", "result", "exit_code"}
+    catalog_result_fields = {"execution_id", "result", "exit_code"}
+    local_result_fields = catalog_result_fields | {"method"}
     seen_ids = set()
     sha256_pattern = re.compile(r"^[0-9a-f]{64}$")
     candidate_sha_pattern = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 
     for record in records:
-        if not isinstance(record, dict) or set(record) != record_fields:
-            fail("each validation record must contain exactly the schema v1 fields")
+        if not isinstance(record, dict):
+            fail("each validation record must be an object")
+        evidence_source = "upstream-catalog" if schema_version == 1 else record.get("evidence_source")
+        record_fields = base_record_fields | ({"evidence_source"} if schema_version == 2 else set())
+        if set(record) != record_fields:
+            fail(f"each validation record must contain exactly the schema v{schema_version} fields")
+        if evidence_source not in ("upstream-catalog", "local-probe"):
+            fail(f"unknown evidence_source for schema v{schema_version}")
+        if evidence_source == "upstream-catalog" and execution_catalogs is None:
+            execution_catalogs = _load_validation_execution_catalogs()
         row_id = record["row_id"]
         if not isinstance(row_id, str) or not row_id:
             fail("validation record has an empty row_id")
@@ -520,6 +589,7 @@ def apply_validation_evidence(
             fail(f"validation evidence has no executed cases for row {row_id}")
         required_lanes = required_execution_lanes(obligations)
         covered_lanes = set()
+        covered_local_case_lanes = set()
         seen_cases = set()
         seen_execution_ids = {"reference": set(), "candidate": set()}
         for execution in executions:
@@ -529,28 +599,48 @@ def apply_validation_evidence(
             lane = execution["lane"]
             if not isinstance(case_id, str) or not case_id.strip() or case_id != case_id.strip():
                 fail(f"empty execution case_id for row {row_id}")
-            if not _case_id_matches_row(row, case_id):
-                fail(f"execution case {case_id!r} is not mapped to row {row_id}'s upstream tests")
+            local_case_spec = None
+            if evidence_source == "upstream-catalog":
+                if not _case_id_matches_row(row, case_id):
+                    fail(f"execution case {case_id!r} is not mapped to row {row_id}'s upstream tests")
+            else:
+                local_case_spec = _local_probe_case_spec(row, case_id)
+                if local_case_spec is None:
+                    fail(f"local probe case {case_id!r} is not registered for row {row_id}")
             if not isinstance(lane, str) or lane not in required_lanes:
                 fail(f"unexpected validation lane {lane!r} for row {row_id}")
+            if local_case_spec is not None and lane not in local_case_spec["lanes"]:
+                fail(f"unexpected local probe lane {lane!r} for row {row_id} case {case_id}")
             identity = (lane, case_id)
             if identity in seen_cases:
                 fail(f"duplicate execution case {case_id!r} in lane {lane!r} for row {row_id}")
             seen_cases.add(identity)
             covered_lanes.add(lane)
+            if local_case_spec is not None:
+                covered_local_case_lanes.add((case_id, lane))
             for subject in ("reference", "candidate"):
                 result = execution[subject]
+                result_fields = local_result_fields if local_case_spec is not None else catalog_result_fields
                 if not isinstance(result, dict) or set(result) != result_fields:
                     fail(f"malformed {subject} result for row {row_id} case {case_id}")
                 execution_id = result["execution_id"]
                 if (not isinstance(execution_id, str) or not execution_id.strip()
                         or execution_id != execution_id.strip()):
                     fail(f"empty {subject} execution_id for row {row_id} case {case_id}")
-                catalog_case_id = execution_catalogs[subject].get(execution_id)
-                if catalog_case_id is None:
-                    fail(f"unknown {subject} execution_id for row {row_id}: {execution_id}")
-                if catalog_case_id != case_id:
-                    fail(f"{subject} execution_id does not map to case {case_id} for row {row_id}")
+                if local_case_spec is None:
+                    catalog_case_id = execution_catalogs[subject].get(execution_id)
+                    if catalog_case_id is None:
+                        fail(f"unknown {subject} execution_id for row {row_id}: {execution_id}")
+                    if catalog_case_id != case_id:
+                        fail(f"{subject} execution_id does not map to case {case_id} for row {row_id}")
+                else:
+                    expected_execution_id = local_probe_execution_id(
+                        candidate_sha, record["reference_commit"], case_id, lane, subject
+                    )
+                    if execution_id != expected_execution_id:
+                        fail(f"{subject} local execution_id does not map to case/lane for row {row_id}")
+                    if result["method"] != local_case_spec["methods"][subject]:
+                        fail(f"unexpected {subject} evidence method for row {row_id} case {case_id}")
                 execution_identity = (lane, execution_id)
                 if execution_identity in seen_execution_ids[subject]:
                     fail(f"duplicate {subject} execution_id for row {row_id}: {execution_id}")
@@ -563,6 +653,24 @@ def apply_validation_evidence(
         missing_lanes = set(required_lanes) - covered_lanes
         if missing_lanes:
             fail(f"missing validation lanes for row {row_id}: {', '.join(sorted(missing_lanes))}")
+        if evidence_source == "local-probe":
+            required_cases = {
+                case_id: spec
+                for case_id, spec in LOCAL_PROBE_EVIDENCE_CASES.items()
+                if row_id in spec["row_ids"] and spec["path"] in row.get("local_test_refs", "").split(";")
+            }
+            for case_id, spec in required_cases.items():
+                observed_lanes = {
+                    lane for observed_case, lane in covered_local_case_lanes if observed_case == case_id
+                }
+                missing_case_lanes = set(spec["lanes"]) - observed_lanes
+                if missing_case_lanes:
+                    fail(
+                        f"missing local probe lanes for row {row_id} case {case_id}: "
+                        f"{', '.join(sorted(missing_case_lanes))}"
+                    )
+            if not required_cases:
+                fail(f"row {row_id} has no registered local probe evidence cases")
         row["status"] = "verified"
 
 
@@ -1544,6 +1652,8 @@ def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []
     for path, content in local_tests:
+        if path.startswith("Scripts/io_api_inventory/probes/") and name not in LOCAL_IO_PROBE_API_NAMES:
+            continue
         if (path == SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS[0]
                 or path.startswith(SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS[1])):
             if row["row_id"] not in SEGMENT_READ_CONTEXT_IMPL_ROW_IDS:
@@ -1930,6 +2040,7 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     local_paths = list(REPO.joinpath("Tests").rglob("*.swift"))
     local_paths.extend(REPO.joinpath("Tests/CompilerCoreTests/GoldenCases/Sema").glob("*.kt"))
     local_paths.extend(REPO.joinpath("Scripts/diff_cases").glob("*.kt"))
+    local_paths.extend(REPO.joinpath("Scripts/io_api_inventory/probes").glob("*.kt"))
     local_paths.extend(REPO.joinpath("Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590").glob("*.kt"))
     local_paths.append(REPO / "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java")
     for path in sorted(local_paths):
