@@ -16,10 +16,8 @@ import kotlin.coroutines.cancellation.CancellationException
 // operations stay external — the runtime channel handle is the receiver
 // itself, so each member bridges straight to a `kk_channel_*` entry point.
 //
-// `trySend` returns the bundled `ChannelResult`, an opaque runtime box
-// produced by `__kk_channel_try_send`; `close(cause)` bridges to
-// `__kk_channel_close_cause`, which retains the first close cause in the
-// runtime handle.
+// `close(cause)` bridges to `__kk_channel_close_cause`, which retains the
+// first close cause in the runtime handle.
 
 public interface SendChannel<in E> {
     @KsSymbolName("kk_channel_send")
@@ -35,9 +33,9 @@ public interface SendChannel<in E> {
     public external fun close(cause: Throwable?): Boolean
 }
 
-// ---- Residual runtime bridges for `Channel` receivers (the synthetic
-// `Channel` class does not declare the `SendChannel` supertype here, so the
-// `Channel`-receiver surface is provided through extensions below).
+// The synthetic `Channel` class does not declare the `SendChannel` supertype
+// here, so the `Channel`-receiver surface is provided through extensions
+// below.
 
 @KsSymbolName("__kk_channel_try_send")
 private external fun Channel<*>.__kkChannelTrySend(element: Any?): ChannelResult<Unit>
@@ -54,61 +52,31 @@ private external fun SendChannel<*>.__kkSendChannelIsClosedForSend(): Int
 @KsSymbolName("kk_channel_is_empty")
 private external fun Channel<*>.__kkChannelIsEmpty(): Int
 
-// ---- trySend on Channel receivers. `SendChannel.trySend` is an `external`
-// member (see the interface above); a `Channel`-receiver extension provides
-// the same surface.
-
-/**
- * Sends the specified [element] to this channel without suspending, returning
- * a [ChannelResult] that indicates whether the operation succeeded.
- */
 public fun <E> Channel<E>.trySend(element: E): ChannelResult<Unit> =
     this.__kkChannelTrySend(element)
 
-// ---- close(cause) on Channel receivers (SendChannel variant is a member).
-
-/**
- * Closes this channel with an optional [cause], matching upstream
- * `SendChannel.close(cause: Throwable?): Boolean`. The cause is retained by
- * the runtime and surfaced through [ChannelResult.exceptionOrNull].
- */
 public fun Channel<*>.close(cause: Throwable?): Boolean =
     this.__kkChannelCloseCause(cause) != 0
 
-// ---- Closed-state queries
-
-/**
- * Whether this channel was closed for sending. Extension properties use a
- * star-projected receiver because the parser does not accept type parameters
- * on extension properties.
- */
 public val SendChannel<*>.isClosedForSend: Boolean
     get() = this.__kkSendChannelIsClosedForSend() != 0
 
 /**
  * Whether the channel currently has no receivable element (empty buffer and
- * no suspended sender). Matches upstream `ReceiveChannel.isEmpty`; the
- * `Channel<*>` receiver covers `ReceiveChannel` through its type alias.
+ * no suspended sender). The `Channel<*>` receiver covers `ReceiveChannel`
+ * through its type alias.
  */
 public val Channel<*>.isEmpty: Boolean
     get() = this.__kkChannelIsEmpty() != 0
 
-// ---- cancel / consume
-
 /**
- * Cancels this channel with an optional [cause]. Matches upstream
- * `ReceiveChannel.cancel`: closes the channel for new elements, discards
- * buffered elements, and substitutes a default `CancellationException` when
- * no cause is given.
+ * Closes the channel for new elements, discards buffered elements, and
+ * substitutes a default `CancellationException` when no cause is given.
  */
 public fun Channel<*>.cancel(cause: CancellationException? = null): Unit {
     this.__kkChannelCancel(cause ?: CancellationException("Channel was cancelled"))
 }
 
-/**
- * Executes the given [block] and [cancels][cancel] the channel afterward.
- * Mirrors upstream `ReceiveChannel.consume`.
- */
 public fun <E, R> Channel<E>.consume(block: Channel<E>.() -> R): R {
     var cause: Throwable? = null
     try {
@@ -121,10 +89,6 @@ public fun <E, R> Channel<E>.consume(block: Channel<E>.() -> R): R {
     }
 }
 
-/**
- * Performs the given [action] for each received element and cancels the
- * channel afterward. Mirrors upstream `ReceiveChannel.consumeEach`.
- */
 public suspend fun <E> Channel<E>.consumeEach(action: (E) -> Unit) {
     consume {
         for (element in this) {
@@ -133,11 +97,6 @@ public suspend fun <E> Channel<E>.consumeEach(action: (E) -> Unit) {
     }
 }
 
-/**
- * Internal helper: cancels the channel after a [consume] block finished,
- * wrapping a consumer failure in a `CancellationException` like upstream's
- * `cancelConsumed`.
- */
 internal fun Channel<*>.cancelConsumed(cause: Throwable?) {
     this.cancel(
         if (cause == null) null
@@ -146,17 +105,12 @@ internal fun Channel<*>.cancelConsumed(cause: Throwable?) {
     )
 }
 
-// ---- Terminal exceptions (upstream: bottom of Channel.kt)
-
-// KSP-1573: capacity semantics for Channel.
-//
 // `Channel.Factory` capacity constants (RENDEZVOUS / UNLIMITED / CONFLATED /
 // BUFFERED / OPTIONAL_CHANNEL) live as extension properties on the synthetic
-// `Channel.Factory` companion anchor registered in
-// HeaderHelpers+SyntheticCoroutineRegistry.swift. The two-argument factory
-// overload below forwards both the capacity and the overflow policy to the
-// runtime through `__kk_channel_create_with_policy` so a single constructor
-// call can express every kotlinx Channel(capacity, onBufferOverflow) shape.
+// `Channel.Factory` companion anchor. The two-argument factory overload below
+// forwards both the capacity and the overflow policy to the runtime through
+// `__kk_channel_create_with_policy` so a single constructor call can express
+// every kotlinx Channel(capacity, onBufferOverflow) shape.
 
 @KsSymbolName("__kk_channel_create_with_policy")
 private external fun <T> __kkChannelCreateWithPolicy(capacity: Int, onBufferOverflow: Int): Channel<T>
@@ -203,10 +157,9 @@ public fun Channel<*>.invokeOnClose(handler: (cause: Throwable?) -> Unit) {
     __kkChannelInvokeOnClose(this, handler)
 }
 
-// KSP-1572: non-blocking and catching receive surface. Both bridges return a
-// `ChannelResult` box; `__kk_channel_receive_catching` performs the same
-// blocking receive as `receive()` so `receiveCatching`/`receiveOrNull` keep
-// proper suspend semantics instead of polling `tryReceive`.
+// `__kk_channel_receive_catching` performs the same blocking receive as
+// `receive()` so `receiveCatching`/`receiveOrNull` keep proper suspend
+// semantics instead of polling `tryReceive`.
 
 @KsSymbolName("__kk_channel_try_receive")
 private external fun <E> __kkChannelTryReceive(channel: Channel<E>): ChannelResult<E>
