@@ -1,5 +1,4 @@
 public extension RuntimeABISpec {
-    /// StringBuilder mutable-buffer bridge.
     static let stringBuilderFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
             name: "__kk_string_builder_capacity",
