@@ -1,6 +1,4 @@
 
-/// Classifies a type for runtime type checking token encoding.
-/// Each case maps to one of the base-type constants in `RuntimeTypeCheckToken`.
 enum RuntimeTypeCategory {
     case unknown
     case any
@@ -15,18 +13,13 @@ enum RuntimeTypeCategory {
     case ushort
     case byte
     case short
-    // REFL-002: Additional primitive categories for precise ::class tokens.
     case long
     case double
     case float
     case char
-    // STDLIB-REFLECT-ABI-001: Unit::class token.
     case unit
-    // KUU-1084: Function types (`() -> Unit`, receiver/context/suspend
-    // variants) and the `kotlin.FunctionN` interfaces they normalize to.
     case function(arity: Int, isSuspend: Bool)
 
-    /// The base constant used in the runtime token encoding.
     var base: Int64 {
         switch self {
         case .unknown:  RuntimeTypeCheckToken.unknownBase
@@ -78,17 +71,11 @@ enum RuntimeTypeCategory {
     }
 }
 
-/// Result of classifying a `TypeID` for runtime type checking.
 struct RuntimeTypeDescriptor {
     let category: RuntimeTypeCategory
     let nullable: Bool
 }
 
-/// Shared runtime token encoding used by:
-/// - reified hidden type token arguments
-/// - `is`/`!is` runtime checks
-/// - catch clause type matching
-///
 /// Keep these values in sync with Runtime's `kk_op_is` implementation.
 enum RuntimeTypeCheckToken {
     static let unknownBase: Int64 = 0
@@ -104,14 +91,12 @@ enum RuntimeTypeCheckToken {
     static let ushortBase: Int64 = 10
     static let byteBase: Int64 = 16
     static let shortBase: Int64 = 17
-    // REFL-002: Additional primitive bases for Long, Double, Float, Char.
     static let longBase: Int64 = 11
     static let doubleBase: Int64 = 12
     static let floatBase: Int64 = 13
     static let charBase: Int64 = 14
-    // STDLIB-REFLECT-ABI-001: Unit::class token base.
     static let unitBase: Int64 = 15
-    // KUU-1084: Function-type token base. Payload packs the FunctionN arity in
+    // Function-type token base. Payload packs the FunctionN arity in
     // bits 0-7 and the suspend flag in bit 8.
     static let functionBase: Int64 = 18
 
@@ -130,7 +115,6 @@ enum RuntimeTypeCheckToken {
         return token
     }
 
-    /// Classifies a resolved `TypeID` into a `RuntimeTypeDescriptor`.
     static func classify(type: TypeID, sema: SemaModule) -> RuntimeTypeDescriptor {
         let nullable = sema.types.nullability(of: type) == .nullable
         let category: RuntimeTypeCategory
@@ -213,7 +197,6 @@ enum RuntimeTypeCheckToken {
             encode(base: shortBase, nullable: nullable)
         case builtinNames.boolean:
             encode(base: booleanBase, nullable: nullable)
-        // REFL-002: Encode additional primitive builtin names.
         case builtinNames.long:
             encode(base: longBase, nullable: nullable)
         case builtinNames.double:
@@ -316,15 +299,11 @@ enum RuntimeTypeCheckToken {
         return Int(name.dropFirst("Function".count))
     }
 
-    /// Returns the simple (unqualified) type name for a given `TypeID`, or `nil`
-    /// when the type is not representable as a Kotlin class name.
     static func simpleName(of type: TypeID, sema: SemaModule, interner: StringInterner) -> String? {
         let descriptor = classify(type: type, sema: sema)
         if let name = descriptor.category.simpleName {
             return name
         }
-        // Handle nominal types that need symbol resolution and any
-        // primitives not yet covered by RuntimeTypeCategory.
         switch sema.types.kind(of: type) {
         case .nothing:
             return "Void"
@@ -353,8 +332,6 @@ enum RuntimeTypeCheckToken {
         }
     }
 
-    /// Returns the fully-qualified Kotlin name for a given `TypeID`, or `nil`
-    /// when the type cannot be represented as a class-like name.
     static func qualifiedName(of type: TypeID, sema: SemaModule, interner: StringInterner) -> String? {
         let descriptor = classify(type: type, sema: sema)
         switch descriptor.category {
