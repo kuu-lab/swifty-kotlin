@@ -75,7 +75,53 @@ LOCAL_PROBE_EVIDENCE_CASES = {
         "lanes": ("jvm-descriptor",),
         "methods": {"reference": "jvm-abi-reflection", "candidate": "source-metadata"},
     },
+    "local:Scripts/io_api_inventory/f02_segment_read_context/Consumer.kt#jvm-interface-shape": {
+        "path": "Scripts/io_api_inventory/f02_segment_read_context/Consumer.kt",
+        "row_ids": {"jvm-b98e822f37597b93"},
+        "lanes": ("jvm-descriptor",),
+        "methods": {"reference": "javap-interface-shape", "candidate": "source-klib-shape-tests"},
+    },
+    "local:Scripts/io_api_inventory/f02_segment_read_context/Consumer.kt#native-interface-shape": {
+        "path": "Scripts/io_api_inventory/f02_segment_read_context/Consumer.kt",
+        "row_ids": {"klib-f6fe9eab2b16817b"},
+        "lanes": LOCAL_NATIVE_PROBE_LANES,
+        "methods": {"reference": "pinned-jvm-consumer", "candidate": "native-matrix"},
+    },
 }
+SEGMENT_READ_CONTEXT_SHAPE_PROBE_ID = "segment-read-context-shape"
+SEGMENT_READ_CONTEXT_SHAPE_ROWS = {
+    "jvm-b98e822f37597b93",
+    "klib-f6fe9eab2b16817b",
+}
+SEGMENT_READ_CONTEXT_SHAPE_PROBE_FILES_BY_ROW = {
+    row_id: [
+        "Scripts/io_api_inventory/f02_segment_read_context/Producer.kt",
+        "Scripts/io_api_inventory/f02_segment_read_context/Consumer.kt",
+        "Tests/CompilerCoreTests/Sema/SegmentReadContextShapeTests.swift",
+    ]
+    for row_id in SEGMENT_READ_CONTEXT_SHAPE_ROWS
+}
+SEGMENT_READ_CONTEXT_SHAPE_RECEIPT_PATH = (
+    "Scripts/io_api_inventory/probe-receipts/segment-read-context-shape.json"
+)
+LOCAL_PROBE_ID_BY_ROW = {
+    row_id: SEGMENT_READ_CONTEXT_SHAPE_PROBE_ID
+    for row_id in SEGMENT_READ_CONTEXT_SHAPE_ROWS
+}
+LOCAL_PROBE_CANDIDATE_SHA_BY_ID = {
+    SEGMENT_READ_CONTEXT_SHAPE_PROBE_ID: "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+}
+LOCAL_PROBE_RECEIPT_PATH_BY_ID = {
+    SEGMENT_READ_CONTEXT_SHAPE_PROBE_ID: SEGMENT_READ_CONTEXT_SHAPE_RECEIPT_PATH,
+}
+LOCAL_PROBE_REFERENCE_FILES_BY_ID = {
+    SEGMENT_READ_CONTEXT_SHAPE_PROBE_ID: [
+        "core/common/src/unsafe/UnsafeBufferOperations.kt",
+        "core/api/kotlinx-io-core.api",
+        "core/api/kotlinx-io-core.klib.api",
+    ],
+}
+LOCAL_PROBE_FILES_BY_ROW = SEGMENT_READ_CONTEXT_SHAPE_PROBE_FILES_BY_ROW
 
 LEDGER_COLUMNS = [
     "row_id",
@@ -475,6 +521,240 @@ def _case_id_matches_row(row: dict, case_id: str) -> bool:
     return False
 
 
+def _validate_segment_read_context_receipt(
+    record: dict,
+    row: dict,
+    repository: Path,
+    upstream: Path,
+    lock: dict,
+    obligations: list[str],
+) -> None:
+    row_id = row["row_id"]
+    probe_id = LOCAL_PROBE_ID_BY_ROW.get(row_id)
+    if probe_id is None:
+        fail(f"local shape receipt is not mapped to row {row_id}")
+    if record["candidate_sha"] != LOCAL_PROBE_CANDIDATE_SHA_BY_ID[probe_id]:
+        fail(f"local shape receipt candidate SHA mismatch for row {row_id}")
+    receipt_path = LOCAL_PROBE_RECEIPT_PATH_BY_ID[probe_id]
+    receipt_file = repository / receipt_path
+    try:
+        receipt_bytes = receipt_file.read_bytes()
+        receipt = json.loads(receipt_bytes.decode("utf-8"), object_pairs_hook=_unique_json_object)
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as error:
+        fail(f"cannot read local probe receipt for row {row_id}: {error}")
+    if not isinstance(receipt, dict) or set(receipt) != {
+        "schema_version", "probe_id", "candidate_sha", "reference_version", "reference_commit",
+        "probe_inputs_sha256", "reference_inputs_sha256", "reference_artifacts_sha256",
+        "stdlib_generation", "matrix", "lanes", "jvm_descriptor", "shape_tests",
+    }:
+        fail(f"malformed local probe receipt for row {row_id}")
+    if type(receipt["schema_version"]) is not int or receipt["schema_version"] != 1:
+        fail(f"unsupported local probe receipt schema for row {row_id}")
+    if (receipt["probe_id"], receipt["candidate_sha"], receipt["reference_version"], receipt["reference_commit"]) != (
+        probe_id, record["candidate_sha"], lock.get("tag"), lock.get("commit")
+    ):
+        fail(f"local probe receipt pin mismatch for row {row_id}")
+
+    expected_inputs = {}
+    for path in LOCAL_PROBE_FILES_BY_ROW[row_id]:
+        input_path = repository / path
+        if not input_path.is_file():
+            fail(f"missing local probe input for row {row_id}: {path}")
+        expected_inputs[path] = hashlib.sha256(input_path.read_bytes()).hexdigest()
+    if receipt["probe_inputs_sha256"] != expected_inputs:
+        fail(f"stale local probe files for row {row_id}")
+
+    expected_reference_inputs = {}
+    upstream_lock = {entry["path"]: entry for entry in lock.get("upstreamFiles", [])}
+    for path in LOCAL_PROBE_REFERENCE_FILES_BY_ID[probe_id]:
+        reference_path = upstream / path
+        if not reference_path.is_file():
+            fail(f"missing pinned local probe reference input for row {row_id}: {path}")
+        digest = hashlib.sha256(reference_path.read_bytes()).hexdigest()
+        pinned = upstream_lock.get(path)
+        if pinned is not None and digest != pinned.get("sha256"):
+            fail(f"pinned local probe reference input changed for row {row_id}: {path}")
+        expected_reference_inputs[path] = digest
+    if receipt["reference_inputs_sha256"] != expected_reference_inputs:
+        fail(f"stale upstream assertion inputs for row {row_id}")
+    reference_artifacts = receipt["reference_artifacts_sha256"]
+    if (not isinstance(reference_artifacts, dict) or len(reference_artifacts) != 3
+            or any(not isinstance(path, str) or not path for path in reference_artifacts)
+            or any(not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest)
+                   for digest in reference_artifacts.values())
+            or not any(path.endswith("kotlinx-io-core-jvm-0.9.1.jar") for path in reference_artifacts)
+            or not any(path.endswith("kotlinx-io-bytestring-jvm-0.9.1.jar") for path in reference_artifacts)
+            or not any(path.endswith("/bin/java") for path in reference_artifacts)):
+        fail(f"malformed pinned JVM reference artifact hashes for row {row_id}")
+    for coordinate, artifact_name in (
+        ("org.jetbrains.kotlinx:kotlinx-io-core-jvm:0.9.1", "kotlinx-io-core-jvm-0.9.1.jar"),
+        ("org.jetbrains.kotlinx:kotlinx-io-bytestring-jvm:0.9.1", "kotlinx-io-bytestring-jvm-0.9.1.jar"),
+    ):
+        pinned = next((item for item in lock.get("mavenArtifacts", [])
+                       if item.get("coordinate") == coordinate), None)
+        recorded = next((digest for path, digest in reference_artifacts.items()
+                         if path.endswith(artifact_name)), None)
+        if pinned is None or recorded != pinned.get("sha256"):
+            fail(f"JVM reference artifact does not match locked Maven artifact {coordinate} for row {row_id}")
+
+    matrix = receipt["matrix"]
+    matrix_fields = {
+        "workspace_git_sha", "dirty_patch_sha256", "compiler_sha256", "harness_sha256",
+        "summary_sha256", "stdlib_origin", "stdlib_files_sha256", "status", "selected_cases",
+        "issue_complete", "expected_stdout", "expected_stdout_sha256", "reference",
+    }
+    if not isinstance(matrix, dict) or set(matrix) != matrix_fields:
+        fail(f"malformed local probe matrix receipt for row {row_id}")
+    sha256_pattern = re.compile(r"^[0-9a-f]{64}$")
+    for field in (
+        "dirty_patch_sha256", "compiler_sha256", "harness_sha256", "summary_sha256",
+        "expected_stdout_sha256",
+    ):
+        if not isinstance(matrix[field], str) or not sha256_pattern.fullmatch(matrix[field]):
+            fail(f"malformed {field} in local probe receipt for row {row_id}")
+    native_required = any(obligation in obligations for obligation in ("native-source", "native-bridge"))
+    if (matrix["workspace_git_sha"] != record["candidate_sha"]
+            or matrix["status"] != "SELECTED_MATRIX_PASS"
+            or matrix["selected_cases"] != [probe_id]
+            or matrix["stdlib_origin"] != "explicit supplied artifact; source lanes compare current resource bodies independently"
+            or matrix["issue_complete"] is not False
+            or not isinstance(matrix["expected_stdout"], str)
+            or hashlib.sha256(matrix["expected_stdout"].encode("utf-8")).hexdigest() != matrix["expected_stdout_sha256"]):
+        fail(f"local probe matrix does not match its pinned isolated case for row {row_id}")
+    stdlib_files = matrix["stdlib_files_sha256"]
+    if (not isinstance(stdlib_files, dict) or not stdlib_files
+            or any(not isinstance(path, str) or not path or not isinstance(digest, str)
+                   or not sha256_pattern.fullmatch(digest) for path, digest in stdlib_files.items())):
+        fail(f"malformed generated stdlib KLIB hashes for row {row_id}")
+    generation = receipt["stdlib_generation"]
+    if not isinstance(generation, dict) or set(generation) != {
+        "candidate_sha", "workspace_git_sha", "command", "status", "exit_code", "seconds",
+        "stdout_sha256", "stderr_sha256", "artifact_files_sha256",
+    }:
+        fail(f"malformed fresh stdlib generation receipt for row {row_id}")
+    if (generation["candidate_sha"] != record["candidate_sha"]
+            or generation["workspace_git_sha"] != record["candidate_sha"]
+            or generation["command"] != ["kswiftc", "--stdlib-only", "--no-incremental", "-o", "KSwiftKStdlib.kklib"]
+            or generation["status"] != "EXITED"
+            or type(generation["exit_code"]) is not int or generation["exit_code"] != 0
+            or not isinstance(generation["seconds"], (int, float)) or generation["seconds"] <= 0
+            or any(not isinstance(generation[field], str) or not sha256_pattern.fullmatch(generation[field])
+                   for field in ("stdout_sha256", "stderr_sha256"))
+            or generation["artifact_files_sha256"] != stdlib_files):
+        fail(f"fresh stdlib KLIB was not generated successfully by this candidate for row {row_id}")
+    if matrix["status"] != "SELECTED_MATRIX_PASS":
+        fail(f"native source/bridge matrix did not pass for row {row_id}")
+    reference = matrix["reference"]
+    if not isinstance(reference, dict) or set(reference) != {
+        "status", "exit_code", "stdout_sha256", "stderr_sha256", "normalized_stdout_sha256",
+    }:
+        fail(f"malformed reference result in local probe matrix for row {row_id}")
+    if (reference["status"] not in {"PASS", "FAIL", "TIMEOUT", "CRASH", "NOT_RUN"}
+            or type(reference["exit_code"]) is not int
+            or any(not isinstance(reference[field], str) or not sha256_pattern.fullmatch(reference[field])
+                   for field in ("stdout_sha256", "stderr_sha256", "normalized_stdout_sha256"))):
+        fail(f"malformed pinned JVM reference result for row {row_id}")
+    if native_required and (reference["status"] != "PASS" or reference["exit_code"] != 0
+                            or reference["normalized_stdout_sha256"] != matrix["expected_stdout_sha256"]):
+        fail(f"pinned JVM reference did not pass for row {row_id}")
+
+    allowed_probe_lanes = {"jvm-descriptor", *required_execution_lanes(["native-source", "native-bridge"])}
+    lanes = receipt["lanes"]
+    if not isinstance(lanes, list):
+        fail(f"local probe lanes must be an array for row {row_id}")
+    lane_map = {}
+    result_fields = {"status", "exit_code", "stdout_sha256", "stderr_sha256", "normalized_stdout_sha256"}
+    for execution in lanes:
+        if not isinstance(execution, dict) or set(execution) != {"lane", "case_id", "reference", "candidate"}:
+            fail(f"malformed local probe lane for row {row_id}")
+        lane = execution["lane"]
+        if not isinstance(lane, str) or lane not in allowed_probe_lanes or lane in lane_map:
+            fail(f"unexpected or duplicate local probe lane {lane!r} for row {row_id}")
+        expected_case = probe_id if lane != "jvm-descriptor" else probe_id + "#jvm-descriptor"
+        if execution["case_id"] != expected_case:
+            fail(f"local probe lane case mismatch for row {row_id}: {lane}")
+        for subject in ("reference", "candidate"):
+            result = execution[subject]
+            if not isinstance(result, dict) or set(result) != result_fields:
+                fail(f"malformed {subject} result for local probe lane {lane} on row {row_id}")
+            if (result["status"] not in {"PASS", "FAIL", "TIMEOUT", "CRASH", "NOT_RUN"}
+                    or type(result["exit_code"]) is not int
+                    or any(not isinstance(result[field], str) or not sha256_pattern.fullmatch(result[field])
+                           for field in ("stdout_sha256", "stderr_sha256", "normalized_stdout_sha256"))):
+                fail(f"malformed {subject} result for local probe lane {lane} on row {row_id}")
+            if result["status"] != "PASS" or result["exit_code"] != 0:
+                fail(f"non-passing {subject} local probe lane {lane} for row {row_id}")
+            if (lane != "jvm-descriptor"
+                    and result["normalized_stdout_sha256"] != matrix["expected_stdout_sha256"]):
+                fail(f"output mismatch in {subject} local probe lane {lane} for row {row_id}")
+        lane_map[lane] = execution
+    if not set(allowed_probe_lanes).issubset(lane_map):
+        missing = set(allowed_probe_lanes) - set(lane_map)
+        fail(f"missing local probe lanes for row {row_id}: {', '.join(sorted(missing))}")
+
+    if "jvm-descriptor" in obligations:
+        descriptor = receipt["jvm_descriptor"]
+        if not isinstance(descriptor, dict) or set(descriptor) != {"reference", "candidate"}:
+            fail(f"malformed JVM descriptor evidence for row {row_id}")
+        descriptor_reference = descriptor["reference"]
+        if not isinstance(descriptor_reference, dict) or set(descriptor_reference) != {
+            "tool", "status", "exit_code", "stdout_sha256", "interface", "interface_flags",
+            "method_name", "method_descriptor", "method_flags", "method_count", "annotation",
+            "declares_exceptions", "exception_contract",
+        }:
+            fail(f"malformed pinned JVM descriptor for row {row_id}")
+        if (descriptor_reference["tool"] != "javap -v"
+                or descriptor_reference["status"] != "PASS"
+                or type(descriptor_reference["exit_code"]) is not int or descriptor_reference["exit_code"] != 0
+                or not isinstance(descriptor_reference["stdout_sha256"], str)
+                or not sha256_pattern.fullmatch(descriptor_reference["stdout_sha256"])
+                or descriptor_reference["interface"] != "kotlinx.io.unsafe.SegmentReadContext"
+                or descriptor_reference["interface_flags"] != ["ACC_PUBLIC", "ACC_INTERFACE", "ACC_ABSTRACT"]
+                or descriptor_reference["method_name"] != "getUnchecked"
+                or descriptor_reference["method_descriptor"] != "(Lkotlinx/io/Segment;I)B"
+                or descriptor_reference["method_flags"] != ["ACC_PUBLIC", "ACC_ABSTRACT"]
+                or type(descriptor_reference["method_count"]) is not int or descriptor_reference["method_count"] != 1
+                or descriptor_reference["annotation"] != "kotlinx.io.UnsafeIoApi"
+                or descriptor_reference["declares_exceptions"] is not False
+                or descriptor_reference["exception_contract"] != "not-declared-in-source"):
+            fail(f"pinned JVM descriptor shape mismatch for row {row_id}")
+        descriptor_candidate = descriptor["candidate"]
+        if not isinstance(descriptor_candidate, dict) or set(descriptor_candidate) != {
+            "kind", "status", "exit_code", "test_case_count", "stdout_sha256", "stderr_sha256",
+        }:
+            fail(f"malformed candidate interface-shape assertions for row {row_id}")
+        if (descriptor_candidate["kind"] != "AST source and imported-KLIB metadata"
+                or descriptor_candidate["status"] != "PASS"
+                or type(descriptor_candidate["exit_code"]) is not int or descriptor_candidate["exit_code"] != 0
+                or descriptor_candidate["test_case_count"] != 2
+                or any(not isinstance(descriptor_candidate[field], str) or not sha256_pattern.fullmatch(descriptor_candidate[field])
+                       for field in ("stdout_sha256", "stderr_sha256"))):
+            fail(f"candidate interface-shape assertions did not pass for row {row_id}")
+        if lane_map["jvm-descriptor"]["reference"]["stdout_sha256"] != descriptor_reference["stdout_sha256"]:
+            fail(f"pinned JVM descriptor output hash does not match its lane for row {row_id}")
+        if lane_map["jvm-descriptor"]["candidate"]["stdout_sha256"] != descriptor_candidate["stdout_sha256"]:
+            fail(f"candidate shape-test output hash does not match its descriptor lane for row {row_id}")
+    shape_tests = receipt["shape_tests"]
+    if not isinstance(shape_tests, dict) or set(shape_tests) != {
+        "status", "exit_code", "test_case_count", "source_and_klib_case_count", "stdout_sha256",
+        "stderr_sha256", "output_capture", "imported_klib_files_sha256",
+    }:
+        fail(f"malformed local shape-test receipt for row {row_id}")
+    if (shape_tests["status"] != "PASS" or type(shape_tests["exit_code"]) is not int or shape_tests["exit_code"] != 0
+            or type(shape_tests["test_case_count"]) is not int or shape_tests["test_case_count"] != 3
+            or type(shape_tests["source_and_klib_case_count"]) is not int or shape_tests["source_and_klib_case_count"] != 2
+            or shape_tests["output_capture"] != "swift_test.sh child stdout/stderr merged on stdout"
+            or any(not isinstance(shape_tests[field], str) or not sha256_pattern.fullmatch(shape_tests[field])
+                   for field in ("stdout_sha256", "stderr_sha256"))
+            or not isinstance(shape_tests["imported_klib_files_sha256"], dict)
+            or not shape_tests["imported_klib_files_sha256"]
+            or any(not isinstance(name, str) or not name or not isinstance(digest, str)
+                   or not sha256_pattern.fullmatch(digest)
+                   for name, digest in shape_tests["imported_klib_files_sha256"].items())):
+        fail(f"source AST/imported-KLIB metadata shape check did not pass for row {row_id}")
+
+
+
 def apply_validation_evidence(
     rows: list[dict],
     lock: dict,
@@ -671,6 +951,8 @@ def apply_validation_evidence(
                     )
             if not required_cases:
                 fail(f"row {row_id} has no registered local probe evidence cases")
+        if row_id in LOCAL_PROBE_ID_BY_ROW:
+            _validate_segment_read_context_receipt(record, row, repository, upstream, lock, obligations)
         row["status"] = "verified"
 
 
@@ -1650,6 +1932,11 @@ def local_contract_differences(row: dict, index: SourceIndex) -> str:
 def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
     name = row["_candidate_name"].lower()
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
+    if row.get("row_id") in SEGMENT_READ_CONTEXT_SHAPE_ROWS:
+        return [
+            *SEGMENT_READ_CONTEXT_SHAPE_PROBE_FILES_BY_ROW[row["row_id"]],
+            SEGMENT_READ_CONTEXT_SHAPE_RECEIPT_PATH,
+        ]
     refs = []
     for path, content in local_tests:
         if path.startswith("Scripts/io_api_inventory/probes/") and name not in LOCAL_IO_PROBE_API_NAMES:
@@ -2045,6 +2332,8 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     local_paths.append(REPO / "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java")
     for path in sorted(local_paths):
         rel = path.relative_to(REPO).as_posix()
+        if rel == "Tests/CompilerCoreTests/Sema/SegmentReadContextShapeTests.swift":
+            continue
         if rel.startswith(LOCAL_IO_TEST_PREFIXES):
             content = path.read_text(encoding="utf-8")
             if "kotlinx.io" in content or "KotlinxIO" in path.name or "KtorIO" in path.name:

@@ -96,16 +96,84 @@ class ValidationEvidenceTests(unittest.TestCase):
             | {"candidate-wrong": other_case_id},
         }
 
-    def _apply(self, records, row=None, schema_version=1):
+    def _apply(self, records, row=None, schema_version=1, lock=None):
         fixture_row = copy.deepcopy(row or self.row)
         self.evidence_path.write_text(
             json.dumps({"schema_version": schema_version, "records": records}), encoding="utf-8"
         )
         self.generator.apply_validation_evidence(
-            [fixture_row], self.lock, self.evidence_path, self.repository, self.upstream,
+            [fixture_row], lock or self.lock, self.evidence_path, self.repository, self.upstream,
             self._execution_catalogs(),
         )
         return fixture_row
+
+    def _segment_read_context_probe_row(self, row_id):
+        row = copy.deepcopy(self.row)
+        row.update(
+            row_id=row_id,
+            representation=(
+                "JVM public ABI dump" if row_id == "jvm-b98e822f37597b93"
+                else "Kotlin source API / KLIB dump"
+            ),
+            local_candidate_refs="Sources/CompilerCore/Stdlib/kotlinx/io/Foo.kt:1",
+            local_implementation_refs="Sources/CompilerCore/Stdlib/kotlinx/io/Foo.kt:1",
+            local_test_refs=";".join((
+                *self.generator.SEGMENT_READ_CONTEXT_SHAPE_PROBE_FILES_BY_ROW[row_id],
+                self.generator.SEGMENT_READ_CONTEXT_SHAPE_RECEIPT_PATH,
+            )),
+        )
+        for relative in (
+            *self.generator.SEGMENT_READ_CONTEXT_SHAPE_PROBE_FILES_BY_ROW[row_id],
+            self.generator.SEGMENT_READ_CONTEXT_SHAPE_RECEIPT_PATH,
+        ):
+            source = self.generator.REPO / relative
+            destination = self.repository / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(source.read_bytes())
+        for relative in self.generator.LOCAL_PROBE_REFERENCE_FILES_BY_ID[
+            self.generator.SEGMENT_READ_CONTEXT_SHAPE_PROBE_ID
+        ]:
+            source = self.generator.UPSTREAM / relative
+            destination = self.upstream / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(source.read_bytes())
+        return row
+
+    def _segment_read_context_probe_record(self, row, lock):
+        candidate_sha = self.generator.LOCAL_PROBE_CANDIDATE_SHA_BY_ID[
+            self.generator.SEGMENT_READ_CONTEXT_SHAPE_PROBE_ID
+        ]
+        executions = []
+        references = row["local_test_refs"].split(";")
+        for case_id, spec in self.generator.LOCAL_PROBE_EVIDENCE_CASES.items():
+            if row["row_id"] not in spec["row_ids"] or spec["path"] not in references:
+                continue
+            for lane in spec["lanes"]:
+                executions.append({
+                    "case_id": case_id,
+                    "lane": lane,
+                    **{
+                        subject: {
+                            "execution_id": self.generator.local_probe_execution_id(
+                                candidate_sha, lock["commit"], case_id, lane, subject
+                            ),
+                            "result": "PASS",
+                            "exit_code": 0,
+                            "method": spec["methods"][subject],
+                        }
+                        for subject in ("reference", "candidate")
+                    },
+                })
+        return {
+            "row_id": row["row_id"],
+            "candidate_sha": candidate_sha,
+            "reference_version": lock["tag"],
+            "reference_commit": lock["commit"],
+            **self.generator.validation_input_hashes(row, self.repository, self.upstream),
+            "compatibility_obligations": self.generator.validation_obligations(row),
+            "evidence_source": "local-probe",
+            "executions": executions,
+        }
 
     def _local_probe_row(self):
         row = copy.deepcopy(self.row)
@@ -187,6 +255,26 @@ class ValidationEvidenceTests(unittest.TestCase):
         row = self._local_probe_row()
         record = self._local_probe_record(row)
         self.assertEqual(self._apply([record], row, schema_version=2)["status"], "verified")
+
+    def test_segment_read_context_receipt_is_hashed_and_requires_all_shape_lanes(self):
+        lock = json.loads(self.generator.LOCK_PATH.read_text(encoding="utf-8"))
+        jvm_row = self._segment_read_context_probe_row("jvm-b98e822f37597b93")
+        jvm_record = self._segment_read_context_probe_record(jvm_row, lock)
+        self.assertEqual(self._apply([jvm_record], jvm_row, schema_version=2, lock=lock)["status"], "verified")
+
+        row = self._segment_read_context_probe_row("klib-f6fe9eab2b16817b")
+        record = self._segment_read_context_probe_record(row, lock)
+        self.assertEqual(self._apply([record], row, schema_version=2, lock=lock)["status"], "verified")
+
+        receipt_path = self.repository / self.generator.SEGMENT_READ_CONTEXT_SHAPE_RECEIPT_PATH
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipt["lanes"] = receipt["lanes"][:-1]
+        receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+        record["test_input_sha256"] = self.generator.validation_input_hashes(
+            row, self.repository, self.upstream
+        )["test_input_sha256"]
+        with self.assertRaisesRegex(SystemExit, "missing local probe lanes"):
+            self._apply([record], row, schema_version=2, lock=lock)
 
     def test_local_probe_evidence_rejects_unregistered_cases_and_forged_ids(self):
         row = self._local_probe_row()
