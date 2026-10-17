@@ -1,5 +1,3 @@
-/// `RuntimeABISpec.fileIOFunctions` (STDLIB-320/321/322/323) extracted from
-/// `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
     static let fileIOFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
@@ -33,7 +31,6 @@ public extension RuntimeABISpec {
             section: "FileIO",
             isThrowing: false
         ),
-        // STDLIB-IO-087: File(parent, child) constructor
         RuntimeABIFunctionSpec(
             name: "__kk_file_new_parent_child",
             parameters: [
@@ -63,7 +60,6 @@ public extension RuntimeABISpec {
             section: "FileIO",
             isThrowing: false
         ),
-        // STDLIB-567: File.bufferedReader()
         RuntimeABIFunctionSpec(
             name: "__kk_buffered_reader_readLine",
             parameters: [
@@ -91,7 +87,6 @@ public extension RuntimeABISpec {
             section: "FileIO",
             isThrowing: false
         ),
-        // STDLIB-IO-091: BufferedReader.read() / ready()
         RuntimeABIFunctionSpec(
             name: "__kk_buffered_reader_read",
             parameters: [
@@ -110,7 +105,6 @@ public extension RuntimeABISpec {
             section: "FileIO",
             isThrowing: false
         ),
-        // STDLIB-IO-FN-022: BufferedReader.iterator() -> Iterator<String>
         RuntimeABIFunctionSpec(
             name: "__kk_buffered_reader_iterator",
             parameters: [
@@ -120,7 +114,6 @@ public extension RuntimeABISpec {
             section: "FileIO",
             isThrowing: false
         ),
-        // STDLIB-IO-FN-040: Reader.useLines { lines -> T }
         RuntimeABIFunctionSpec(
             name: "__kk_buffered_reader_useLines",
             parameters: [
@@ -132,7 +125,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "FileIO"
         ),
-        // STDLIB-IO-FN-017: Reader.forEachLine { line -> Unit }
         RuntimeABIFunctionSpec(
             name: "__kk_buffered_reader_forEachLine",
             parameters: [
@@ -144,7 +136,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "FileIO"
         ),
-        // STDLIB-IO-FN-033: Reader.readText() -> String
         RuntimeABIFunctionSpec(
             name: "__kk_reader_readText",
             parameters: [
@@ -153,7 +144,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "FileIO"
         ),
-        // STDLIB-IO-091/093: BufferedWriter
         RuntimeABIFunctionSpec(
             name: "__kk_buffered_writer_write",
             parameters: [
@@ -199,7 +189,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "FileIO"
         ),
-        // STDLIB-IO-FN-006: Writer.buffered
         RuntimeABIFunctionSpec(
             name: "__kk_writer_buffered_default",
             parameters: [
@@ -228,7 +217,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "FileIO"
         ),
-        // STDLIB-IO-FN-020: ByteArray.inputStream()
         RuntimeABIFunctionSpec(
             name: "__kk_bytearray_inputStream",
             parameters: [
@@ -238,7 +226,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "FileIO"
         ),
-        // STDLIB-IO-FN-021: ByteArray.inputStream(offset: Int, length: Int)
         RuntimeABIFunctionSpec(
             name: "__kk_bytearray_inputStream_range",
             parameters: [
@@ -250,7 +237,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "FileIO"
         ),
-        // STDLIB-IO-FN-011: String.byteInputStream()
         RuntimeABIFunctionSpec(
             name: "__kk_string_byteInputStream_flat",
             parameters: [
@@ -263,7 +249,6 @@ public extension RuntimeABISpec {
             section: "FileIO",
             isThrowing: false
         ),
-        // STDLIB-IO-FN-011: String.byteInputStream(charset: Charset)
         RuntimeABIFunctionSpec(
             name: "__kk_string_byteInputStream_charset_flat",
             parameters: [
@@ -314,7 +299,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "FileIO"
         ),
-        // STDLIB-IO-FN-029: InputStream.readBytes() -> ByteArray (drains the stream)
         RuntimeABIFunctionSpec(
             name: "__kk_input_stream_readAllBytes",
             parameters: [
@@ -332,7 +316,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "FileIO"
         ),
-        // STDLIB-IO-FN-003: InputStream.buffered(bufferSize) returning BufferedInputStream
         RuntimeABIFunctionSpec(
             name: "__kk_input_stream_buffered_default",
             parameters: [
@@ -352,7 +335,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "FileIO"
         ),
-        // STDLIB-IO-FN-013: InputStream.copyTo(out, bufferSize) -> Long
         RuntimeABIFunctionSpec(
             name: "__kk_input_stream_copyTo",
             parameters: [
@@ -364,7 +346,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "FileIO"
         ),
-        // STDLIB-IO-FN-007: kotlin.io.InputStream.bufferedReader(charset)
         RuntimeABIFunctionSpec(
             name: "__kk_input_stream_bufferedReader",
             parameters: [
@@ -412,7 +393,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "FileIO"
         ),
-        // STDLIB-IO-FN-009: OutputStream.bufferedWriter(charset)
         RuntimeABIFunctionSpec(
             name: "__kk_output_stream_bufferedWriter",
             parameters: [
@@ -422,7 +402,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "FileIO"
         ),
-        // STDLIB-IO-FN-004: OutputStream.buffered() / buffered(bufferSize)
         RuntimeABIFunctionSpec(
             name: "__kk_output_stream_buffered",
             parameters: [
@@ -431,7 +410,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "FileIO"
         ),
-        // STDLIB-IO-FN-014: Reader.copyTo(out: Writer, bufferSize: Int) -> Long
         RuntimeABIFunctionSpec(
             name: "__kk_reader_copyTo",
             parameters: [
