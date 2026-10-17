@@ -167,6 +167,18 @@ class ValidationEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "is not mapped to row"):
             self._apply([self._record(row)], row)
 
+    def test_dedicated_probe_case_is_allowlisted_only_for_its_klib_rows(self):
+        case_id, case = next(iter(self.generator.load_probe_case_catalog().items()))
+        for row_id in case["row_ids"]:
+            row = {"row_id": row_id, "upstream_test_refs": "core/common/test/FooTest.kt#suite-reference"}
+            self.assertTrue(self.generator._case_id_matches_row(row, case_id))
+        unrelated = {"row_id": "jvm-608413ae3cc45466", "upstream_test_refs": ""}
+        self.assertFalse(self.generator._case_id_matches_row(unrelated, case_id))
+        self.assertFalse(self.generator._case_id_matches_row(
+            {"row_id": case["row_ids"][0], "upstream_test_refs": ""},
+            "probe:internal-io-api#arbitrary-case",
+        ))
+
     def test_jvm_abi_requires_only_descriptor_evidence(self):
         row = copy.deepcopy(self.row)
         row["row_id"] = "jvm-fixture-foo"

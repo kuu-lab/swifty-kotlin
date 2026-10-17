@@ -260,15 +260,28 @@ descriptor evidence.
 
 The generator rejects unknown or duplicate row IDs, malformed hashes, a
 different reference pin, stale implementation/test inputs, non-passing or
-unrun executions, duplicate cases, and missing or unrelated lanes. The case ID
-must match a method-specific upstream test reference for that row;
-`#suite-reference` discovery metadata cannot authorize an arbitrary case from
-the same file. Both execution IDs must map to the same case in the locked JVM
-and Native execution catalogs. A manual status edit is discarded when outputs
-are regenerated. `--write` changes only the three generated ledger output files
-and reads the evidence file without rewriting it. `--check` verifies upstream
-snapshots, the test index lock, negative guards, evidence, any execution
-catalogs used by evidence, and byte-for-byte output without modifying files.
+unrun executions, duplicate cases, and missing or unrelated lanes. An upstream
+case ID must match a method-specific test reference; `#suite-reference` cannot
+authorize an arbitrary case from the same file. A dedicated probe ID is
+accepted only when `probe-case-catalog.json` maps that exact ID to the exact
+row IDs. The catalog, upstream declaration source, and every probe fixture and
+test are included in the row's test-input hash. Probe execution IDs are bound
+to the declared case and lane.
+
+`api-probe-receipts.json` records byte counts and stdout hashes for each
+reference/candidate lane, the fresh candidate KLIB's module/version and
+manifest/metadata/tree hashes, pinned Kotlin/JVM artifacts, the Java 21
+executable version/hash, and the direct local assertion counts. It also records a
+`javap -v` inspection of the pinned JVM class. `generate.py --write` and
+`--check` validate those receipts against the
+catalog and the API-row evidence. Reference-only JVM inspection does not
+satisfy the candidate JVM descriptor obligation; the JVM ABI row remains
+unverified until candidate descriptor evidence exists. A manual status edit is
+discarded when outputs are regenerated. `--write` changes the three generated
+ledger output files and reads evidence without rewriting it. `--check` verifies
+upstream snapshots, the test index lock, negative guards, evidence, probe
+receipts, any execution catalogs used by evidence, and byte-for-byte output
+without modifying files.
 
 ```sh
 python3 Scripts/io_api_inventory/test_validation_evidence.py

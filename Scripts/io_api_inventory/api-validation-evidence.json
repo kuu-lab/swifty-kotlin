@@ -1,4 +1,201 @@
 {
   "schema_version": 1,
-  "records": []
+  "records": [
+    {
+      "row_id": "klib-09c8df007d615f43",
+      "candidate_sha": "cf9aec1198f40d41d24a57f997b7bca5578778b8",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "9c3a19bf769a0e3ef3d62f422be3abd93e68101726891d909b7b1d285e69a28b",
+      "test_input_sha256": "3d18c933bc019e8e3facf6cb90460a68c75d0b2275773e90e0b846d666e1fa9b",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "executions": [
+        {
+          "case_id": "probe:internal-io-api#declaration-and-consumer",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "probe:internal-io-api#declaration-and-consumer:reference:source-O0",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:internal-io-api#declaration-and-consumer:candidate:source-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "probe:internal-io-api#declaration-and-consumer",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "probe:internal-io-api#declaration-and-consumer:reference:source-O2",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:internal-io-api#declaration-and-consumer:candidate:source-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "probe:internal-io-api#declaration-and-consumer",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "probe:internal-io-api#declaration-and-consumer:reference:stdlib-library-O0",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:internal-io-api#declaration-and-consumer:candidate:stdlib-library-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "probe:internal-io-api#declaration-and-consumer",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "probe:internal-io-api#declaration-and-consumer:reference:stdlib-library-O2",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:internal-io-api#declaration-and-consumer:candidate:stdlib-library-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "probe:internal-io-api#declaration-and-consumer",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "probe:internal-io-api#declaration-and-consumer:reference:producer-consumer-O0",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:internal-io-api#declaration-and-consumer:candidate:producer-consumer-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "probe:internal-io-api#declaration-and-consumer",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "probe:internal-io-api#declaration-and-consumer:reference:producer-consumer-O2",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:internal-io-api#declaration-and-consumer:candidate:producer-consumer-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    {
+      "row_id": "klib-724db815089ce6a0",
+      "candidate_sha": "cf9aec1198f40d41d24a57f997b7bca5578778b8",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "9c3a19bf769a0e3ef3d62f422be3abd93e68101726891d909b7b1d285e69a28b",
+      "test_input_sha256": "3d18c933bc019e8e3facf6cb90460a68c75d0b2275773e90e0b846d666e1fa9b",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "executions": [
+        {
+          "case_id": "probe:internal-io-api#declaration-and-consumer",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "probe:internal-io-api#declaration-and-consumer:reference:source-O0",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:internal-io-api#declaration-and-consumer:candidate:source-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "probe:internal-io-api#declaration-and-consumer",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "probe:internal-io-api#declaration-and-consumer:reference:source-O2",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:internal-io-api#declaration-and-consumer:candidate:source-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "probe:internal-io-api#declaration-and-consumer",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "probe:internal-io-api#declaration-and-consumer:reference:stdlib-library-O0",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:internal-io-api#declaration-and-consumer:candidate:stdlib-library-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "probe:internal-io-api#declaration-and-consumer",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "probe:internal-io-api#declaration-and-consumer:reference:stdlib-library-O2",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:internal-io-api#declaration-and-consumer:candidate:stdlib-library-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "probe:internal-io-api#declaration-and-consumer",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "probe:internal-io-api#declaration-and-consumer:reference:producer-consumer-O0",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:internal-io-api#declaration-and-consumer:candidate:producer-consumer-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "probe:internal-io-api#declaration-and-consumer",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "probe:internal-io-api#declaration-and-consumer:reference:producer-consumer-O2",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:internal-io-api#declaration-and-consumer:candidate:producer-consumer-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ]
+    }
+  ]
 }

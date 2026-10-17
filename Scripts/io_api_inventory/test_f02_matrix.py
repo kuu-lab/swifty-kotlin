@@ -47,6 +47,17 @@ class F02GateTests(unittest.TestCase):
         self.assertIn("getter.isSynthetic()", probe)
         self.assertIn("getter.invoke(null)", probe)
 
+    def test_internal_io_api_has_a_dedicated_opted_in_artifact_boundary_case(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "internal-io-api")
+        self.assertEqual(len(case["producer"]), 1)
+        producer = case["producer"][0].read_text()
+        consumer = case["consumer"].read_text()
+        self.assertIn("@InternalIoApi", producer)
+        self.assertIn("@OptIn(InternalIoApi::class)", producer)
+        self.assertIn("@OptIn(InternalIoApi::class)", consumer)
+        self.assertIn("internalIoApiValue()", consumer)
+        self.assertEqual(case["entry"], "kuu2614consumer.main")
+
     def test_generated_public_rows_and_every_full_default_call_are_required(self):
         generated = generator.generate()
         manifest = json.loads(generated["manifest.json"])
