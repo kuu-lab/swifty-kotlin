@@ -1,8 +1,3 @@
-/// Unary-operator and type-check/cast lowering used by
-/// `ExprLowerer.lowerExpr`: unary plus/minus/not, `is`/`!is`
-/// checks, and `as`/`as?` casts.
-///
-/// Split out from `ExprLowerer+ControlFlowAndBlocks.swift`.
 extension ExprLowerer {
     func lowerUnaryExpr(
         op: UnaryOp,
