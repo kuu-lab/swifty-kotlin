@@ -1,4 +1,3 @@
-/// Sequence terminal conversions plus list/range transform rewrites.
 extension CollectionLiteralConstructionLoweringPass {
     func rewriteSequenceTerminalCall(
         symbol: SymbolID?,
@@ -23,7 +22,6 @@ extension CollectionLiteralConstructionLoweringPass {
            state.sequenceRuntimeRepresentation(of: receiverID) != .runtimeBox {
             return false
         }
-    // toSet() on sequence → kk_sequence_toSet (STDLIB-470)
     if callee == lookup.toSetName, arguments.count == 1 {
         let receiverID = arguments[0]
         if state.sequenceExprIDs.contains(receiverID.rawValue) {
@@ -42,7 +40,6 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
-    // toMap() on sequence → kk_sequence_toMap (STDLIB-470)
     if callee == lookup.toMapName, arguments.count == 1 {
         let receiverID = arguments[0]
         if state.sequenceExprIDs.contains(receiverID.rawValue) {
@@ -62,7 +59,6 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
-    // max / maxOrNull / minOrNull on sequence (STDLIB-SEQ-FN-065, STDLIB-470)
     if callee == lookup.maxName || callee == lookup.maxOrNullName || callee == lookup.minOrNullName {
         if arguments.count == 1 {
             let receiverID = arguments[0]
@@ -93,7 +89,6 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
-    // flatten on sequence → kk_sequence_flatten (STDLIB-470)
     if callee == lookup.flattenName, arguments.count == 1 {
         let receiverID = arguments[0]
         if state.sequenceExprIDs.contains(receiverID.rawValue) {
@@ -144,7 +139,6 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
-    // toList() on sequence → kk_sequence_to_list
     if callee == lookup.toListName, arguments.count == 1 {
         let receiverID = arguments[0]
         if state.sequenceExprIDs.contains(receiverID.rawValue),
@@ -184,7 +178,6 @@ extension CollectionLiteralConstructionLoweringPass {
             }
             let toListResult = module.arena.appendTemporary(type: nil
             )
-            // Use the char range variant if applicable (STDLIB-290).
             // KSP-1523/1524: unsigned range toList() is bundled Kotlin source.
             let rangeToListCallee: InternedString
             if state.charRangeExprIDs.contains(receiverID.rawValue) {
