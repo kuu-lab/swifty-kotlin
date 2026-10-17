@@ -15,9 +15,6 @@ extension CallTypeChecker {
         })
     }
 
-    /// Resolve the singleton that supplies the dispatch receiver for an
-    /// explicitly imported object member, including a member declared by one
-    /// of that object's supertypes.
     func importedObjectDispatchReceiverOwners(
         named name: InternedString?,
         candidates: [SymbolID],
@@ -1155,8 +1152,7 @@ extension CallTypeChecker {
         return narrowed.isEmpty ? candidates : narrowed
     }
 
-    /// Whether the call-site receiver can ever satisfy the candidate's declared
-    /// receiver. Used only to keep the lambda expected-type candidate set free
+    /// Used only to keep the lambda expected-type candidate set free
     /// of same-named overloads that final resolution could never select.
     private func receiverConstraintIsFeasible(
         signature: FunctionSignature,
@@ -1267,8 +1263,6 @@ extension CallTypeChecker {
         return !declared.params.contains { typeMentionsTypeParameter($0, sema: sema) }
     }
 
-    /// Whether `type` can be passed where a function type is expected, covering
-    /// both plain function types and SAM-convertible interfaces.
     private func isFunctionTypeLike(_ type: TypeID, sema: SemaModule) -> Bool {
         if case .functionType = sema.types.kind(of: sema.types.makeNonNullable(type)) {
             return true
@@ -1356,7 +1350,6 @@ extension CallTypeChecker {
         )
     }
 
-    /// Share the known call-result evidence between lambdas and references.
     private func contextualCallableArgumentType(
         _ expectation: TypeID?, callResultType: TypeID?, candidates: [SymbolID], sema: SemaModule
     ) -> TypeID? {
