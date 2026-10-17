@@ -130,6 +130,38 @@ def map_executions(discovered: list[dict], results: list[dict], lookup: dict, ex
     return mapped
 
 
+def select_expected_executions(expected: list[dict], upstream_ids: list[str],
+                               execution_ids: list[str]) -> list[dict]:
+    if len(upstream_ids) > 10 or len(execution_ids) > 10:
+        raise ValueError("at most ten upstream IDs or execution IDs may be selected")
+    if len(upstream_ids) != len(set(upstream_ids)) or len(execution_ids) != len(set(execution_ids)):
+        raise ValueError("selected upstream and execution IDs must be unique")
+    if any(not value or value != value.strip() for value in upstream_ids + execution_ids):
+        raise ValueError("selected IDs must be nonempty and have no surrounding whitespace")
+    if not upstream_ids and not execution_ids:
+        return list(expected)
+
+    by_upstream_id: dict[str, list[dict]] = collections.defaultdict(list)
+    by_execution_id = {}
+    for row in expected:
+        by_upstream_id[row["upstream_id"]].append(row)
+        by_execution_id[row["execution_id"]] = row
+
+    selected: dict[str, dict] = {}
+    for upstream_id in upstream_ids:
+        matches = by_upstream_id.get(upstream_id, [])
+        if not matches:
+            raise ValueError(f"unknown upstream function ID: {upstream_id}")
+        for row in matches:
+            selected[row["execution_id"]] = row
+    for execution_id in execution_ids:
+        row = by_execution_id.get(execution_id)
+        if row is None:
+            raise ValueError(f"unknown JVM execution ID: {execution_id}")
+        selected[execution_id] = row
+    return [row for row in expected if row["execution_id"] in selected]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--upstream", type=Path, required=True)
@@ -137,6 +169,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--java", type=Path, required=True)
     parser.add_argument("--dependencies", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--upstream-id", action="append", default=[],
+                        help="select concrete executions for a locked upstream source function ID")
+    parser.add_argument("--execution-id", action="append", default=[],
+                        help="select one locked JUnit execution ID; may be repeated")
     parser.add_argument("--download", action="store_true", help="download missing locked Maven jars")
     parser.add_argument("--compile-timeout", type=float, default=180)
     parser.add_argument("--run-timeout", type=float, default=180)
@@ -167,6 +203,7 @@ def main(argv: list[str] | None = None) -> int:
             if row["platform"] in {"common", "jvm"} and "Windows" not in row["upstream_path"]}
         if {row["upstream_id"] for row in expected} != eligible:
             raise ValueError("expected execution catalog does not cover every eligible upstream function ID")
+        expected = select_expected_executions(expected, args.upstream_id, args.execution_id)
         sources = sorted({row["upstream_path"] for row in seed["cases"]
             if row["platform"] in {"common", "jvm"} and "Windows" not in row["upstream_path"]}
             | {row["path"] for row in seed["inventory_only_sources"]
@@ -188,6 +225,8 @@ def main(argv: list[str] | None = None) -> int:
             "reference_lock_sha256": sha256(lock_path), "coverage_map_sha256": sha256(HERE / "coverage-map.seed.json"),
             "runner_sha256": sha256(HERE / "JvmReferenceRunner.java"), "host": platform.platform(),
             "java": str(args.java.resolve()), "source_files": sources,
+            "selected_execution_ids": [row["execution_id"] for row in expected],
+            "selected_upstream_ids": sorted({row["upstream_id"] for row in expected}),
             "unsupported_source_files": [row["path"] for row in lock["upstream_files"] if row["path"] not in sources],
             "sdk_files": lock["sdk_files"], "reference_artifacts": lock["jvm_artifacts"]}
         compiler_environment = {"JAVACMD": str(args.java.resolve())}
@@ -210,6 +249,8 @@ def main(argv: list[str] | None = None) -> int:
             ("kotlin-stdlib.jar", "kotlin-reflect.jar", "kotlin-test.jar", "kotlin-test-junit5.jar")]
         command = [str(args.java.resolve()), "-Xmx1024m", "-cp", os.pathsep.join(map(str, runtime_cp)),
             str(HERE / "JvmReferenceRunner.java"), str(tests_jar), str(args.output.resolve() / "junit")]
+        if len(expected) != len(json.loads(catalog_path.read_text())):
+            command.extend(row["execution_id"] for row in expected)
         code = execute(command, args.output, "run", args.run_timeout)
         output = args.output / "junit"
         if not (output / "results.json").exists():
@@ -220,6 +261,7 @@ def main(argv: list[str] | None = None) -> int:
         reference_counts = dict(collections.Counter(row["reference_result"]["status"] for row in mapped))
         summary = {"kind": "reference-only", "concrete_execution_count": len(mapped),
             "unique_upstream_function_ids": len({row["upstream_id"] for row in mapped}),
+            "selected_execution_ids": [row["execution_id"] for row in mapped],
             "reference_counts": reference_counts, "candidate_counts": {"UNMAPPED": len(mapped)},
             "paired_pass_count": 0, "source_files_compiled": len(sources)}
         (args.output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")

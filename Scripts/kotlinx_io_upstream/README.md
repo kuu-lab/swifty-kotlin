@@ -111,6 +111,13 @@ and zero paired passes. The upstream assertions check expected exceptions,
 byte/buffer state, callbacks and lifecycle, but the JUnit runner does not export
 those successful internal observations as a paired-run protocol object.
 
+`run_jvm_reference.py` also accepts repeated `--upstream-id path#function` and
+`--execution-id <JUnit unique ID>` selectors. It validates the complete locked
+catalog, compiles the locked sources, then asks JUnit to discover and execute
+only the selected concrete IDs. The resulting summary, execution map and JUnit
+results record the selected count and IDs. With no selectors, the reference
+runner keeps its full-catalog behavior.
+
 ## Actual Native reference suite
 
 `run_native_reference.py` compiles unchanged sources to a test KLIB, then links
@@ -317,3 +324,16 @@ state and source, port, driver, catalog-row and executable hashes. The default
 Native invocation still selects the complete target catalog. A limited
 selection reports its selected `expected_count` and cannot pass full-catalog
 count and ID validation.
+
+`--jvm-test-on-native` runs selected original JVM test bodies on the KSwiftK
+Native candidate using explicit `--support-source` bridges. The bridge runner
+selects from the locked JVM catalog, keeps the JUnit execution ID as reference
+provenance, and emits a separate `ConcreteClass.method` candidate ID. This does
+not add a Native reference execution to the locked catalog. A JVM-only mapping
+must record both the Native candidate platform and candidate ID.
+
+For example, `RefCounteringCopyTrackerTest.stateTransition` has no Java or NIO
+calls in its original test body. Its test-only Native bridge replaces the JVM
+`AtomicIntegerFieldUpdater` with a sequential counter because the locked method
+asserts sequential state transitions only. It makes no claim about concurrent
+atomicity or about `SegmentPool.tracker()` on Native.

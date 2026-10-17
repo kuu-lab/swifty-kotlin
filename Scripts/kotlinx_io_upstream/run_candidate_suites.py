@@ -12,6 +12,7 @@ import collections
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import platform
 import subprocess
@@ -95,6 +96,23 @@ def select_catalog_rows(catalog: list[dict], suites: list[str] | None, target: s
     if not selected:
         raise ValueError("selection resolved to no concrete executions")
     return selected
+
+
+def map_jvm_rows_to_native_candidate(rows: list[dict]) -> list[dict]:
+    """Give JVM-only source tests explicit candidate IDs for a Native bridge run."""
+    if not rows:
+        raise ValueError("JVM-to-Native candidate selection is empty")
+    mapped = []
+    for row in rows:
+        if row.get("source_set") != "jvm":
+            raise ValueError("JVM-to-Native bridge mode only accepts JVM source-set executions")
+        candidate_id = row["concrete_class"] + "." + row["method_name"]
+        mapped.append({**row, "reference_execution_id": row["execution_id"],
+                       "execution_id": candidate_id, "candidate_platform": "native"})
+    candidate_ids = [row["execution_id"] for row in mapped]
+    if len(candidate_ids) != len(set(candidate_ids)):
+        raise ValueError("JVM-to-Native candidate IDs are not unique")
+    return mapped
 
 
 def make_selection_manifest(catalog: list[dict], selected_rows: list[dict], target: str | None,
@@ -269,6 +287,9 @@ def add_execution_provenance(results: list[dict], selected_rows: list[dict],
             "candidate_executable_sha256": executable_sha256,
             "catalog_row_sha256": canonical_sha256(row),
         })
+        if row.get("reference_execution_id"):
+            result["reference_execution_id"] = row["reference_execution_id"]
+            result["candidate_platform"] = row["candidate_platform"]
         results_by_id[result["execution_id"]] = result
     if len(results_by_id) != len(results) or set(results_by_id) != set(selected_by_id):
         raise ValueError("result execution IDs do not match the selected catalog IDs")
@@ -289,6 +310,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="select one concrete catalog execution ID; may be repeated")
     parser.add_argument("--native-catalog", choices=["linux", "macos"],
                         help="use the audited factory/lifecycle driver; without suite or ID selectors runs the full target catalog")
+    parser.add_argument("--jvm-test-on-native", action="store_true",
+                        help="run selected original JVM test bodies on KSwiftK Native with explicit test support bridges")
     parser.add_argument("--source-closure-index", type=Path,
                         help="explicit audited source closure for selected Native suites; never full catalog coverage")
     parser.add_argument("--isolated-filesystem", action="store_true",
@@ -309,7 +332,8 @@ def main(argv: list[str] | None = None) -> int:
     args.output.mkdir(parents=True, exist_ok=False)
     root = args.package_root.resolve()
     lock_path = HERE / "reference-lock.json"
-    catalog_path = HERE / "native-executions.expected.json"
+    catalog_path = HERE / ("jvm-executions.expected.json" if args.jvm_test_on_native
+                           else "native-executions.expected.json")
     declaration_path = HERE / "candidate-declarations.json"
     summary = {"kind": "candidate-assertion-direct-suites", "paired_pass_count": 0,
                "paired_disposition": "UNMAPPED", "seven_observations_exported": False,
@@ -318,8 +342,17 @@ def main(argv: list[str] | None = None) -> int:
                "stdlib_mode": "source" if args.stdlib_from_source else "library",
                "test_body_mode": "library-consumer" if args.test_library else "source",
                "runtime_cache_provenance": "Runtime source hashes only; cached object bytes are outside this proof",
-               "native_catalog_target": args.native_catalog}
+               "native_catalog_target": args.native_catalog,
+               "candidate_platform": "native" if args.jvm_test_on_native else args.native_catalog}
     try:
+        if args.jvm_test_on_native and args.native_catalog:
+            raise ValueError("JVM-to-Native bridge mode cannot be combined with a Native reference catalog")
+        if args.jvm_test_on_native and args.source_closure_index:
+            raise ValueError("JVM-to-Native bridge mode does not use a Native catalog source closure")
+        if args.jvm_test_on_native and not (args.source_function_id or args.execution_id):
+            raise ValueError("JVM-to-Native bridge mode requires explicit JVM source or execution IDs")
+        if args.jvm_test_on_native and not args.support_source:
+            raise ValueError("JVM-to-Native bridge mode requires an explicit candidate support bridge")
         if not args.native_catalog and not args.suite and not (args.source_function_id or args.execution_id):
             raise ValueError("direct mode requires --suite or an explicit ID selection")
         if args.native_catalog and platform.system() != {"linux": "Linux", "macos": "Darwin"}[args.native_catalog]:
@@ -340,7 +373,8 @@ def main(argv: list[str] | None = None) -> int:
         lock = json.loads(lock_path.read_text())
         for record in lock["upstream_files"]:
             verify_file(args.upstream / record["path"], record)
-        verify_file(catalog_path, {"sha256": lock["native_execution_catalog_sha256"]})
+        catalog_hash_key = "jvm_execution_catalog_sha256" if args.jvm_test_on_native else "native_execution_catalog_sha256"
+        verify_file(catalog_path, {"sha256": lock[catalog_hash_key]})
         catalog = json.loads(catalog_path.read_text())
         if args.source_closure_index and not args.native_catalog:
             raise ValueError("scoped source closure requires the Native catalog lifecycle driver")
@@ -349,6 +383,9 @@ def main(argv: list[str] | None = None) -> int:
             catalog, args.suite, args.native_catalog,
             source_function_ids=args.source_function_id,
             execution_ids=args.execution_id)
+        reference_rows = selected_rows
+        if args.jvm_test_on_native:
+            selected_rows = map_jvm_rows_to_native_candidate(selected_rows)
         selected_ids = [row["execution_id"] for row in selected_rows]
         selected_suites = sorted({row["concrete_class"] for row in selected_rows})
         if args.source_function_id or args.execution_id:
@@ -362,6 +399,15 @@ def main(argv: list[str] | None = None) -> int:
             args.source_function_id, args.execution_id, sha256(catalog_path),
             source_file_sha256={row["path"]: row["sha256"] for row in lock["upstream_files"]},
             upstream_commit=lock["commit"], reference_lock_sha256=sha256(lock_path))
+        if args.jvm_test_on_native:
+            selection["target"] = "native-test-bridge"
+            selection["candidate_platform"] = "native"
+            selection["reference_execution_ids"] = [row["execution_id"] for row in reference_rows]
+            for record, row in zip(selection["selected_execution_records"], selected_rows):
+                record["reference_execution_id"] = row["reference_execution_id"]
+                record["candidate_platform"] = row["candidate_platform"]
+            summary["kind"] = "candidate-assertion-jvm-tests-on-native"
+            summary["reference_execution_ids"] = selection["reference_execution_ids"]
         if args.native_catalog:
             suites_for_catalog = args.suite
             if suites_for_catalog is None and selection_mode == "explicit-ids":
@@ -374,7 +420,7 @@ def main(argv: list[str] | None = None) -> int:
                                 else "candidate-assertion-native-catalog")
         else:
             suites_for_direct = args.suite if args.suite is not None else selected_suites
-            ports = prepare_suites(args.upstream, catalog, lock, suites_for_direct, args.output,
+            ports = prepare_suites(args.upstream, selected_rows, lock, suites_for_direct, args.output,
                                    execution_ids=selected_ids)
         prepared_ids = [identifier for port in ports for identifier in port["execution_ids"]]
         if len(prepared_ids) != len(set(prepared_ids)) or set(prepared_ids) != set(selected_ids):
@@ -429,7 +475,8 @@ def main(argv: list[str] | None = None) -> int:
                         "selected_execution_count": selection["selected_execution_count"],
                         "selected_source_function_count": len(selection["selected_source_function_ids"]),
                         "covers_full_catalog": selection["covers_full_catalog"],
-                        "selection_mode": selection_mode})
+                        "selection_mode": selection_mode,
+                        "reference_execution_count": len(reference_rows) if args.jvm_test_on_native else None})
         before = inputs()
         count = len(selected_ids)
         summary.update({"workspace_git_sha": before["workspace_git_sha"],
@@ -437,6 +484,9 @@ def main(argv: list[str] | None = None) -> int:
         base = [str(args.compiler.resolve()), "-" + args.optimization]
         base += ["--stdlib-from-source"] if args.stdlib_from_source else ["--stdlib-library", str(args.stdlib_library.resolve())]
         environment = {"KSWIFTK_PACKAGE_ROOT": str(root)}
+        if os.environ.get("KSWIFTK_STDLIB_CACHE_DIR"):
+            environment["KSWIFTK_STDLIB_CACHE_DIR"] = os.environ["KSWIFTK_STDLIB_CACHE_DIR"]
+            summary["stdlib_cache_directory"] = os.environ["KSWIFTK_STDLIB_CACHE_DIR"]
         binary = args.output / "candidate"
         sources = source_paths + [str(path) for path in support_sources]
         results = [{"execution_id": identifier, "status": "NOT_RUN"}

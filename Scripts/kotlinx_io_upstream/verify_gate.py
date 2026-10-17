@@ -236,6 +236,13 @@ def compose_verified_coverage(
         if not isinstance(execution_rows, list) or not execution_rows:
             errors.append("concrete execution mappings are missing")
             execution_rows = []
+        expected_case_pairs = set(expected_by_id.get(identifier_text, {}))
+        jvm_only_case = (
+            isinstance(seed_case, dict)
+            and seed_case.get("platform") == "jvm"
+            and bool(expected_case_pairs)
+            and all(platform_name == "jvm" for platform_name, _ in expected_case_pairs)
+        )
         mapped_pairs: set[tuple[str, str]] = set()
         mapped_assertions: set[str] = set()
         for execution_index, execution in enumerate(execution_rows):
@@ -270,6 +277,27 @@ def compose_verified_coverage(
                             errors.append(f"{label} locked execution catalog is missing {field}")
                         elif field not in invocation or invocation.get(field) != expected[field]:
                             errors.append(f"{label}.invocation.{field} differs from the locked execution catalog")
+
+            candidate_platform = execution.get("candidate_platform")
+            candidate_execution_id = execution.get("candidate_execution_id")
+            if jvm_only_case:
+                if candidate_platform != "native":
+                    errors.append(f"{label} must explicitly map the JVM-only reference to a Native candidate")
+                if not isinstance(candidate_execution_id, str) or not candidate_execution_id.strip():
+                    errors.append(f"{label}.candidate_execution_id is required for a JVM-only reference")
+                candidate_mapping = execution.get("candidate")
+                if not isinstance(candidate_mapping, dict):
+                    errors.append(f"{label}.candidate must identify the Native candidate execution")
+                else:
+                    if candidate_mapping.get("target_platform") != "native":
+                        errors.append(f"{label}.candidate.target_platform must be native for a JVM-only reference")
+                    if candidate_mapping.get("execution_id") != candidate_execution_id:
+                        errors.append(f"{label}.candidate.execution_id must match candidate_execution_id")
+            elif candidate_platform is not None or candidate_execution_id is not None:
+                if candidate_platform not in {"jvm", "native"}:
+                    errors.append(f"{label}.candidate_platform must be jvm or native")
+                if not isinstance(candidate_execution_id, str) or not candidate_execution_id.strip():
+                    errors.append(f"{label}.candidate_execution_id must accompany candidate_platform")
 
             mapped_assertion_ids = execution.get("assertion_ids")
             if (not isinstance(mapped_assertion_ids, list) or not mapped_assertion_ids
@@ -308,7 +336,7 @@ def compose_verified_coverage(
                             f"{label}.{side} is missing required observations for {assertion_id}: {sorted(missing)}"
                         )
 
-        expected_pairs = set(expected_by_id.get(identifier_text, {}))
+        expected_pairs = expected_case_pairs
         if not expected_pairs and identifier_text in target_ids:
             errors.append("upstream function has no concrete execution in either locked catalog")
         for platform_name, execution_id in sorted(expected_pairs - mapped_pairs):

@@ -1,0 +1,1984 @@
+{
+  "schema_version": 1,
+  "issue": "KUU-2572",
+  "candidate_commit": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+  "candidate_platform": "native",
+  "candidate_execution_id": "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition",
+  "upstream_id": "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition",
+  "expected_count_per_lane": 1,
+  "status": "PASS",
+  "lane_count": 6,
+  "pass_count": 6,
+  "lanes": [
+    {
+      "lane": "source-O0",
+      "optimization": "O0",
+      "stdlib_mode": "source",
+      "test_body_mode": "source",
+      "status": "PASS",
+      "expected_count": 1,
+      "counts": {
+        "PASS": 1
+      },
+      "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+      "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+      "stdlib_content_sha256": null,
+      "test_library_sha256": null,
+      "candidate_executable_sha256": "8d95f6ea92e93a8ccf87a038486079b751290177990a5e00b93b11fd08653ac1",
+      "candidate_result": {
+        "execution_id": "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition",
+        "status": "PASS",
+        "stdout": "",
+        "exception_type": null,
+        "source_function_id": "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition",
+        "concrete_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+        "declaring_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+        "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+        "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+        "source_git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+        "candidate_port_sha256": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42",
+        "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+        "suite_driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+        "candidate_executable_sha256": "8d95f6ea92e93a8ccf87a038486079b751290177990a5e00b93b11fd08653ac1",
+        "catalog_row_sha256": "e8e4e099b8c6b9cf6bbdb89fbb06f813bf0150b928d4f9dda93ca8cfd4590294",
+        "reference_execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]",
+        "candidate_platform": "native"
+      },
+      "raw_artifact_sha256": {
+        "summary.json": "5ec51777485d5a7d4b9985b4e8e2a3caa6796d9aae979211994c80b2d67ed05c",
+        "results.json": "6474d92367e542f1a774e7466cec3059139f57dbd2e694385447f8e9e162dd0f",
+        "selection.json": "502743d1943f78d56ee40d0607a09b7bde6d6942a856d48f21f85e37d543cc6a",
+        "compile.command.json": "3c39a8e5b627f238aaa89b22139862c70bf2d348c0993d650f738cc366d458e6",
+        "compile.result.json": "fff7b5d51bebda2251e243f9515c776703d003c56b7df915da8550f38e0a7216",
+        "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "run.command.json": "a940b65b068e41b202561c00da3a10f6e5f91db3a0fd311c93896b640c098f49",
+        "run.result.json": "dd0c9dc718185f7d699fb6219737909ebaf8a53b91cad99d237875d7efcf48b8",
+        "run.stdout": "59668ab3d7ec1c19c82fe3ffadc0210f960c97de3a3ad2bea9da3ce1bdc6eb3e",
+        "run.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "summary": {
+        "kind": "candidate-assertion-jvm-tests-on-native",
+        "paired_pass_count": 0,
+        "paired_disposition": "UNMAPPED",
+        "seven_observations_exported": false,
+        "host": "macOS-27.0-arm64-arm-64bit-Mach-O",
+        "python_version": "3.14.8 (main, Sep 30 2026, 17:55:09) [Clang 21.0.0 (clang-2100.3.34.2)]",
+        "optimization": "O0",
+        "package_root": "/private/tmp/kio-candidate-kuu2572",
+        "stdlib_mode": "source",
+        "test_body_mode": "source",
+        "runtime_cache_provenance": "Runtime source hashes only; cached object bytes are outside this proof",
+        "native_catalog_target": null,
+        "candidate_platform": "native",
+        "compiler_resource_bundle": "/private/tmp/kio-candidate-kuu2572/.build/out/Products/Release/KSwiftK_CompilerCore.bundle/Contents/Resources",
+        "compiler_resource_bundle_provenance": "explicit caller-selected Bundle.module directory",
+        "reference_execution_ids": [
+          "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+        ],
+        "selection": {
+          "schema_version": 1,
+          "selection_mode": "explicit-ids",
+          "target": "native-test-bridge",
+          "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+          "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+          "reference_lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+          "catalog_execution_count": 1403,
+          "target_catalog_execution_count": 1403,
+          "target_catalog_execution_ids_sha256": "a73cadd98f883ccb408a0aefb6adafd36a6ddd823721fa24c9b6b528ccde2f24",
+          "requested_source_function_ids": [],
+          "requested_execution_ids": [
+            "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+          ],
+          "selected_source_function_ids": [
+            "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition"
+          ],
+          "selected_concrete_classes": [
+            "kotlinx.io.RefCounteringCopyTrackerTest"
+          ],
+          "selected_execution_count": 1,
+          "selected_execution_ids": [
+            "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition"
+          ],
+          "selected_execution_records": [
+            {
+              "execution_id": "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition",
+              "upstream_id": "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition",
+              "concrete_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+              "declaring_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+              "method_name": "stateTransition",
+              "parameter_types": "",
+              "upstream_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+              "git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+              "source_set": "jvm",
+              "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+              "reference_execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]",
+              "candidate_platform": "native"
+            }
+          ],
+          "selected_execution_records_sha256": "f720d26c21d2d486fd6a01f9af8891a6659d8dd1f0714e55f7d6a36fd1388bb7",
+          "covers_full_catalog": false,
+          "candidate_platform": "native",
+          "reference_execution_ids": [
+            "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+          ],
+          "input_hashes": {
+            "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+            "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+            "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+            "stdlib_content_sha256": null,
+            "stdlib_sources_sha256": "613722d4e26ac34800f46128568f2114628df8d0a5d0f9124164d84d7bdd9b9d",
+            "runtime_sources_sha256": "3e128e5ac5a164c7c3cda1ee8859595fc12da2a8a229e999a9291f1b419b3f83",
+            "runtime_abi_sources_sha256": "5e62bb524c8d55d62fceca1f9f2583e1c2728bbb08923074767dd91c34597b39",
+            "package_manifest_sha256": "d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1",
+            "lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+            "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+            "runner_sha256": "796f1fd88b8e3c529b021a10993b38d559ada64c65bcc8b3e22e0a0dda5c082f",
+            "direct_runner_sha256": "e790f203b6c9673804607660fb3bbbad5566594d1213405f5a77678cbc8ab0df",
+            "helper_sha256": "f244f6c02e39d97c28a5b4de8b3166ffa05409a47a2d397217db1c1a03f248aa",
+            "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+            "support_source_sha256": {
+              "/Users/kuu/.codex/worktrees/98b0/swifty-kotlin/Scripts/kotlinx_io_upstream/native_bridges/RefCountingCopyTracker.kt": "4bf93133fa7d4b5b46a37975e621ef460471969d26bfd17f8bcf048376518aa0"
+            },
+            "source_closure_index_sha256": null,
+            "port_sha256": {
+              "/private/tmp/kio-candidate-source-O0-kuu2572-release-escalated/suite-000/RefCounteringCopyTrackerTest.kt": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42"
+            },
+            "catalog_preparer_sha256": null,
+            "declaration_index_sha256": null
+          }
+        },
+        "selection_manifest": "/private/tmp/kio-candidate-source-O0-kuu2572-release-escalated/selection.json",
+        "selection_manifest_sha256": "502743d1943f78d56ee40d0607a09b7bde6d6942a856d48f21f85e37d543cc6a",
+        "catalog_execution_count": 1403,
+        "target_catalog_execution_count": 1403,
+        "selected_execution_count": 1,
+        "selected_source_function_count": 1,
+        "covers_full_catalog": false,
+        "selection_mode": "explicit-ids",
+        "reference_execution_count": 1,
+        "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+        "ports": [
+          {
+            "suite": "kotlinx.io.RefCounteringCopyTrackerTest",
+            "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+            "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+            "source_git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+            "prefix_bytes": 59,
+            "original_bytes_preserved_as_suffix": true,
+            "assertions_parameters_constructors_changed": false,
+            "constructor_policy": "fresh original class instance per test",
+            "port_path": "/private/tmp/kio-candidate-source-O0-kuu2572-release-escalated/suite-000/RefCounteringCopyTrackerTest.kt",
+            "port_sha256": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42",
+            "driver_path": "/private/tmp/kio-candidate-source-O0-kuu2572-release-escalated/suite-000/CandidateDriver.kt",
+            "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+            "execution_ids": [
+              "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition"
+            ],
+            "event_token": "KIO_329e13469a4cf42e0cb08d8c"
+          }
+        ],
+        "inputs": {
+          "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+          "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+          "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+          "stdlib_content_sha256": null,
+          "stdlib_sources_sha256": "613722d4e26ac34800f46128568f2114628df8d0a5d0f9124164d84d7bdd9b9d",
+          "runtime_sources_sha256": "3e128e5ac5a164c7c3cda1ee8859595fc12da2a8a229e999a9291f1b419b3f83",
+          "runtime_abi_sources_sha256": "5e62bb524c8d55d62fceca1f9f2583e1c2728bbb08923074767dd91c34597b39",
+          "package_manifest_sha256": "d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1",
+          "lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+          "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+          "runner_sha256": "796f1fd88b8e3c529b021a10993b38d559ada64c65bcc8b3e22e0a0dda5c082f",
+          "direct_runner_sha256": "e790f203b6c9673804607660fb3bbbad5566594d1213405f5a77678cbc8ab0df",
+          "helper_sha256": "f244f6c02e39d97c28a5b4de8b3166ffa05409a47a2d397217db1c1a03f248aa",
+          "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+          "support_source_sha256": {
+            "/Users/kuu/.codex/worktrees/98b0/swifty-kotlin/Scripts/kotlinx_io_upstream/native_bridges/RefCountingCopyTracker.kt": "4bf93133fa7d4b5b46a37975e621ef460471969d26bfd17f8bcf048376518aa0"
+          },
+          "source_closure_index_sha256": null,
+          "port_sha256": {
+            "/private/tmp/kio-candidate-source-O0-kuu2572-release-escalated/suite-000/RefCounteringCopyTrackerTest.kt": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42"
+          },
+          "catalog_preparer_sha256": null,
+          "declaration_index_sha256": null,
+          "selection_manifest_sha256": "502743d1943f78d56ee40d0607a09b7bde6d6942a856d48f21f85e37d543cc6a"
+        },
+        "expected_count": 1,
+        "compile_exitcode": 0,
+        "executable_sha256": "8d95f6ea92e93a8ccf87a038486079b751290177990a5e00b93b11fd08653ac1",
+        "run_exitcode": 0,
+        "counts": {
+          "PASS": 1
+        },
+        "inputs_unchanged": true,
+        "candidate_executions": 1,
+        "result_execution_ids": [
+          "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition"
+        ],
+        "full_catalog_validation": {
+          "status": "NOT_REQUIRED"
+        },
+        "status": "PASS"
+      },
+      "results": [
+        {
+          "execution_id": "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition",
+          "status": "PASS",
+          "stdout": "",
+          "exception_type": null,
+          "source_function_id": "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition",
+          "concrete_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+          "declaring_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+          "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+          "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+          "source_git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+          "candidate_port_sha256": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42",
+          "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+          "suite_driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+          "candidate_executable_sha256": "8d95f6ea92e93a8ccf87a038486079b751290177990a5e00b93b11fd08653ac1",
+          "catalog_row_sha256": "e8e4e099b8c6b9cf6bbdb89fbb06f813bf0150b928d4f9dda93ca8cfd4590294",
+          "reference_execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]",
+          "candidate_platform": "native"
+        }
+      ],
+      "selection": {
+        "schema_version": 1,
+        "selection_mode": "explicit-ids",
+        "target": "native-test-bridge",
+        "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+        "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+        "reference_lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+        "catalog_execution_count": 1403,
+        "target_catalog_execution_count": 1403,
+        "target_catalog_execution_ids_sha256": "a73cadd98f883ccb408a0aefb6adafd36a6ddd823721fa24c9b6b528ccde2f24",
+        "requested_source_function_ids": [],
+        "requested_execution_ids": [
+          "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+        ],
+        "selected_source_function_ids": [
+          "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition"
+        ],
+        "selected_concrete_classes": [
+          "kotlinx.io.RefCounteringCopyTrackerTest"
+        ],
+        "selected_execution_count": 1,
+        "selected_execution_ids": [
+          "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition"
+        ],
+        "selected_execution_records": [
+          {
+            "execution_id": "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition",
+            "upstream_id": "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition",
+            "concrete_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+            "declaring_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+            "method_name": "stateTransition",
+            "parameter_types": "",
+            "upstream_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+            "git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+            "source_set": "jvm",
+            "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+            "reference_execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]",
+            "candidate_platform": "native"
+          }
+        ],
+        "selected_execution_records_sha256": "f720d26c21d2d486fd6a01f9af8891a6659d8dd1f0714e55f7d6a36fd1388bb7",
+        "covers_full_catalog": false,
+        "candidate_platform": "native",
+        "reference_execution_ids": [
+          "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+        ],
+        "input_hashes": {
+          "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+          "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+          "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+          "stdlib_content_sha256": null,
+          "stdlib_sources_sha256": "613722d4e26ac34800f46128568f2114628df8d0a5d0f9124164d84d7bdd9b9d",
+          "runtime_sources_sha256": "3e128e5ac5a164c7c3cda1ee8859595fc12da2a8a229e999a9291f1b419b3f83",
+          "runtime_abi_sources_sha256": "5e62bb524c8d55d62fceca1f9f2583e1c2728bbb08923074767dd91c34597b39",
+          "package_manifest_sha256": "d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1",
+          "lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+          "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+          "runner_sha256": "796f1fd88b8e3c529b021a10993b38d559ada64c65bcc8b3e22e0a0dda5c082f",
+          "direct_runner_sha256": "e790f203b6c9673804607660fb3bbbad5566594d1213405f5a77678cbc8ab0df",
+          "helper_sha256": "f244f6c02e39d97c28a5b4de8b3166ffa05409a47a2d397217db1c1a03f248aa",
+          "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+          "support_source_sha256": {
+            "/Users/kuu/.codex/worktrees/98b0/swifty-kotlin/Scripts/kotlinx_io_upstream/native_bridges/RefCountingCopyTracker.kt": "4bf93133fa7d4b5b46a37975e621ef460471969d26bfd17f8bcf048376518aa0"
+          },
+          "source_closure_index_sha256": null,
+          "port_sha256": {
+            "/private/tmp/kio-candidate-source-O0-kuu2572-release-escalated/suite-000/RefCounteringCopyTrackerTest.kt": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42"
+          },
+          "catalog_preparer_sha256": null,
+          "declaration_index_sha256": null
+        }
+      },
+      "commands": {
+        "compile": [
+          "/private/tmp/kio-candidate-kuu2572/.build/out/Products/Release/kswiftc",
+          "-O0",
+          "--stdlib-from-source",
+          "/private/tmp/kio-candidate-source-O0-kuu2572-release-escalated/suite-000/RefCounteringCopyTrackerTest.kt",
+          "/Users/kuu/.codex/worktrees/98b0/swifty-kotlin/Scripts/kotlinx_io_upstream/native_bridges/RefCountingCopyTracker.kt",
+          "/private/tmp/kio-candidate-source-O0-kuu2572-release-escalated/CombinedDriver.kt",
+          "-o",
+          "/private/tmp/kio-candidate-source-O0-kuu2572-release-escalated/candidate"
+        ],
+        "run": [
+          "/private/tmp/kio-candidate-source-O0-kuu2572-release-escalated/candidate"
+        ]
+      }
+    },
+    {
+      "lane": "source-O2",
+      "optimization": "O2",
+      "stdlib_mode": "source",
+      "test_body_mode": "source",
+      "status": "PASS",
+      "expected_count": 1,
+      "counts": {
+        "PASS": 1
+      },
+      "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+      "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+      "stdlib_content_sha256": null,
+      "test_library_sha256": null,
+      "candidate_executable_sha256": "db0296e1741a642c89321409a787fd129f3af8c7df7c4ecdb2cb6e1a376b3c03",
+      "candidate_result": {
+        "execution_id": "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition",
+        "status": "PASS",
+        "stdout": "",
+        "exception_type": null,
+        "source_function_id": "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition",
+        "concrete_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+        "declaring_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+        "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+        "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+        "source_git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+        "candidate_port_sha256": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42",
+        "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+        "suite_driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+        "candidate_executable_sha256": "db0296e1741a642c89321409a787fd129f3af8c7df7c4ecdb2cb6e1a376b3c03",
+        "catalog_row_sha256": "e8e4e099b8c6b9cf6bbdb89fbb06f813bf0150b928d4f9dda93ca8cfd4590294",
+        "reference_execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]",
+        "candidate_platform": "native"
+      },
+      "raw_artifact_sha256": {
+        "summary.json": "86135233d7b3113975870619bcdaafa4938bc012e37e0642c4656af938b825b4",
+        "results.json": "3a4d9fc9b904b0816ce70968ac69d7f4ed6f013eb07e25bfccb4b3225f753180",
+        "selection.json": "08528272fba3c605c1e2f561c9a1baa39a1744f050c5acdc539106e04928119a",
+        "compile.command.json": "11750227a71d46e75d97a0dbc57ef5d5b1d3ca40e12e3ea6b249908199a4b837",
+        "compile.result.json": "4cb3f65a5443362dd570575cf37573aad03d746dc91578f1be929bd804453133",
+        "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "run.command.json": "fdbadb2a13a72b2fce13bfecb66165848f06206593a73f7627f0190d55eb177d",
+        "run.result.json": "ba76645621bf4f278fc22311857db36810a7390fe605b8315d57e2c9f7a98cb9",
+        "run.stdout": "59668ab3d7ec1c19c82fe3ffadc0210f960c97de3a3ad2bea9da3ce1bdc6eb3e",
+        "run.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "summary": {
+        "kind": "candidate-assertion-jvm-tests-on-native",
+        "paired_pass_count": 0,
+        "paired_disposition": "UNMAPPED",
+        "seven_observations_exported": false,
+        "host": "macOS-27.0-arm64-arm-64bit-Mach-O",
+        "python_version": "3.14.8 (main, Sep 30 2026, 17:55:09) [Clang 21.0.0 (clang-2100.3.34.2)]",
+        "optimization": "O2",
+        "package_root": "/private/tmp/kio-candidate-kuu2572",
+        "stdlib_mode": "source",
+        "test_body_mode": "source",
+        "runtime_cache_provenance": "Runtime source hashes only; cached object bytes are outside this proof",
+        "native_catalog_target": null,
+        "candidate_platform": "native",
+        "compiler_resource_bundle": "/private/tmp/kio-candidate-kuu2572/.build/out/Products/Release/KSwiftK_CompilerCore.bundle/Contents/Resources",
+        "compiler_resource_bundle_provenance": "explicit caller-selected Bundle.module directory",
+        "reference_execution_ids": [
+          "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+        ],
+        "selection": {
+          "schema_version": 1,
+          "selection_mode": "explicit-ids",
+          "target": "native-test-bridge",
+          "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+          "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+          "reference_lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+          "catalog_execution_count": 1403,
+          "target_catalog_execution_count": 1403,
+          "target_catalog_execution_ids_sha256": "a73cadd98f883ccb408a0aefb6adafd36a6ddd823721fa24c9b6b528ccde2f24",
+          "requested_source_function_ids": [],
+          "requested_execution_ids": [
+            "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+          ],
+          "selected_source_function_ids": [
+            "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition"
+          ],
+          "selected_concrete_classes": [
+            "kotlinx.io.RefCounteringCopyTrackerTest"
+          ],
+          "selected_execution_count": 1,
+          "selected_execution_ids": [
+            "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition"
+          ],
+          "selected_execution_records": [
+            {
+              "execution_id": "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition",
+              "upstream_id": "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition",
+              "concrete_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+              "declaring_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+              "method_name": "stateTransition",
+              "parameter_types": "",
+              "upstream_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+              "git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+              "source_set": "jvm",
+              "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+              "reference_execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]",
+              "candidate_platform": "native"
+            }
+          ],
+          "selected_execution_records_sha256": "f720d26c21d2d486fd6a01f9af8891a6659d8dd1f0714e55f7d6a36fd1388bb7",
+          "covers_full_catalog": false,
+          "candidate_platform": "native",
+          "reference_execution_ids": [
+            "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+          ],
+          "input_hashes": {
+            "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+            "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+            "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+            "stdlib_content_sha256": null,
+            "stdlib_sources_sha256": "613722d4e26ac34800f46128568f2114628df8d0a5d0f9124164d84d7bdd9b9d",
+            "runtime_sources_sha256": "3e128e5ac5a164c7c3cda1ee8859595fc12da2a8a229e999a9291f1b419b3f83",
+            "runtime_abi_sources_sha256": "5e62bb524c8d55d62fceca1f9f2583e1c2728bbb08923074767dd91c34597b39",
+            "package_manifest_sha256": "d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1",
+            "lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+            "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+            "runner_sha256": "796f1fd88b8e3c529b021a10993b38d559ada64c65bcc8b3e22e0a0dda5c082f",
+            "direct_runner_sha256": "e790f203b6c9673804607660fb3bbbad5566594d1213405f5a77678cbc8ab0df",
+            "helper_sha256": "f244f6c02e39d97c28a5b4de8b3166ffa05409a47a2d397217db1c1a03f248aa",
+            "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+            "support_source_sha256": {
+              "/Users/kuu/.codex/worktrees/98b0/swifty-kotlin/Scripts/kotlinx_io_upstream/native_bridges/RefCountingCopyTracker.kt": "4bf93133fa7d4b5b46a37975e621ef460471969d26bfd17f8bcf048376518aa0"
+            },
+            "source_closure_index_sha256": null,
+            "port_sha256": {
+              "/private/tmp/kio-candidate-source-O2-kuu2572-release-escalated/suite-000/RefCounteringCopyTrackerTest.kt": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42"
+            },
+            "catalog_preparer_sha256": null,
+            "declaration_index_sha256": null
+          }
+        },
+        "selection_manifest": "/private/tmp/kio-candidate-source-O2-kuu2572-release-escalated/selection.json",
+        "selection_manifest_sha256": "08528272fba3c605c1e2f561c9a1baa39a1744f050c5acdc539106e04928119a",
+        "catalog_execution_count": 1403,
+        "target_catalog_execution_count": 1403,
+        "selected_execution_count": 1,
+        "selected_source_function_count": 1,
+        "covers_full_catalog": false,
+        "selection_mode": "explicit-ids",
+        "reference_execution_count": 1,
+        "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+        "ports": [
+          {
+            "suite": "kotlinx.io.RefCounteringCopyTrackerTest",
+            "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+            "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+            "source_git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+            "prefix_bytes": 59,
+            "original_bytes_preserved_as_suffix": true,
+            "assertions_parameters_constructors_changed": false,
+            "constructor_policy": "fresh original class instance per test",
+            "port_path": "/private/tmp/kio-candidate-source-O2-kuu2572-release-escalated/suite-000/RefCounteringCopyTrackerTest.kt",
+            "port_sha256": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42",
+            "driver_path": "/private/tmp/kio-candidate-source-O2-kuu2572-release-escalated/suite-000/CandidateDriver.kt",
+            "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+            "execution_ids": [
+              "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition"
+            ],
+            "event_token": "KIO_329e13469a4cf42e0cb08d8c"
+          }
+        ],
+        "inputs": {
+          "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+          "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+          "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+          "stdlib_content_sha256": null,
+          "stdlib_sources_sha256": "613722d4e26ac34800f46128568f2114628df8d0a5d0f9124164d84d7bdd9b9d",
+          "runtime_sources_sha256": "3e128e5ac5a164c7c3cda1ee8859595fc12da2a8a229e999a9291f1b419b3f83",
+          "runtime_abi_sources_sha256": "5e62bb524c8d55d62fceca1f9f2583e1c2728bbb08923074767dd91c34597b39",
+          "package_manifest_sha256": "d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1",
+          "lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+          "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+          "runner_sha256": "796f1fd88b8e3c529b021a10993b38d559ada64c65bcc8b3e22e0a0dda5c082f",
+          "direct_runner_sha256": "e790f203b6c9673804607660fb3bbbad5566594d1213405f5a77678cbc8ab0df",
+          "helper_sha256": "f244f6c02e39d97c28a5b4de8b3166ffa05409a47a2d397217db1c1a03f248aa",
+          "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+          "support_source_sha256": {
+            "/Users/kuu/.codex/worktrees/98b0/swifty-kotlin/Scripts/kotlinx_io_upstream/native_bridges/RefCountingCopyTracker.kt": "4bf93133fa7d4b5b46a37975e621ef460471969d26bfd17f8bcf048376518aa0"
+          },
+          "source_closure_index_sha256": null,
+          "port_sha256": {
+            "/private/tmp/kio-candidate-source-O2-kuu2572-release-escalated/suite-000/RefCounteringCopyTrackerTest.kt": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42"
+          },
+          "catalog_preparer_sha256": null,
+          "declaration_index_sha256": null,
+          "selection_manifest_sha256": "08528272fba3c605c1e2f561c9a1baa39a1744f050c5acdc539106e04928119a"
+        },
+        "expected_count": 1,
+        "compile_exitcode": 0,
+        "executable_sha256": "db0296e1741a642c89321409a787fd129f3af8c7df7c4ecdb2cb6e1a376b3c03",
+        "run_exitcode": 0,
+        "counts": {
+          "PASS": 1
+        },
+        "inputs_unchanged": true,
+        "candidate_executions": 1,
+        "result_execution_ids": [
+          "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition"
+        ],
+        "full_catalog_validation": {
+          "status": "NOT_REQUIRED"
+        },
+        "status": "PASS"
+      },
+      "results": [
+        {
+          "execution_id": "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition",
+          "status": "PASS",
+          "stdout": "",
+          "exception_type": null,
+          "source_function_id": "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition",
+          "concrete_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+          "declaring_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+          "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+          "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+          "source_git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+          "candidate_port_sha256": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42",
+          "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+          "suite_driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+          "candidate_executable_sha256": "db0296e1741a642c89321409a787fd129f3af8c7df7c4ecdb2cb6e1a376b3c03",
+          "catalog_row_sha256": "e8e4e099b8c6b9cf6bbdb89fbb06f813bf0150b928d4f9dda93ca8cfd4590294",
+          "reference_execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]",
+          "candidate_platform": "native"
+        }
+      ],
+      "selection": {
+        "schema_version": 1,
+        "selection_mode": "explicit-ids",
+        "target": "native-test-bridge",
+        "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+        "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+        "reference_lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+        "catalog_execution_count": 1403,
+        "target_catalog_execution_count": 1403,
+        "target_catalog_execution_ids_sha256": "a73cadd98f883ccb408a0aefb6adafd36a6ddd823721fa24c9b6b528ccde2f24",
+        "requested_source_function_ids": [],
+        "requested_execution_ids": [
+          "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+        ],
+        "selected_source_function_ids": [
+          "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition"
+        ],
+        "selected_concrete_classes": [
+          "kotlinx.io.RefCounteringCopyTrackerTest"
+        ],
+        "selected_execution_count": 1,
+        "selected_execution_ids": [
+          "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition"
+        ],
+        "selected_execution_records": [
+          {
+            "execution_id": "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition",
+            "upstream_id": "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition",
+            "concrete_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+            "declaring_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+            "method_name": "stateTransition",
+            "parameter_types": "",
+            "upstream_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+            "git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+            "source_set": "jvm",
+            "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+            "reference_execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]",
+            "candidate_platform": "native"
+          }
+        ],
+        "selected_execution_records_sha256": "f720d26c21d2d486fd6a01f9af8891a6659d8dd1f0714e55f7d6a36fd1388bb7",
+        "covers_full_catalog": false,
+        "candidate_platform": "native",
+        "reference_execution_ids": [
+          "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+        ],
+        "input_hashes": {
+          "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+          "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+          "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+          "stdlib_content_sha256": null,
+          "stdlib_sources_sha256": "613722d4e26ac34800f46128568f2114628df8d0a5d0f9124164d84d7bdd9b9d",
+          "runtime_sources_sha256": "3e128e5ac5a164c7c3cda1ee8859595fc12da2a8a229e999a9291f1b419b3f83",
+          "runtime_abi_sources_sha256": "5e62bb524c8d55d62fceca1f9f2583e1c2728bbb08923074767dd91c34597b39",
+          "package_manifest_sha256": "d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1",
+          "lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+          "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+          "runner_sha256": "796f1fd88b8e3c529b021a10993b38d559ada64c65bcc8b3e22e0a0dda5c082f",
+          "direct_runner_sha256": "e790f203b6c9673804607660fb3bbbad5566594d1213405f5a77678cbc8ab0df",
+          "helper_sha256": "f244f6c02e39d97c28a5b4de8b3166ffa05409a47a2d397217db1c1a03f248aa",
+          "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+          "support_source_sha256": {
+            "/Users/kuu/.codex/worktrees/98b0/swifty-kotlin/Scripts/kotlinx_io_upstream/native_bridges/RefCountingCopyTracker.kt": "4bf93133fa7d4b5b46a37975e621ef460471969d26bfd17f8bcf048376518aa0"
+          },
+          "source_closure_index_sha256": null,
+          "port_sha256": {
+            "/private/tmp/kio-candidate-source-O2-kuu2572-release-escalated/suite-000/RefCounteringCopyTrackerTest.kt": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42"
+          },
+          "catalog_preparer_sha256": null,
+          "declaration_index_sha256": null
+        }
+      },
+      "commands": {
+        "compile": [
+          "/private/tmp/kio-candidate-kuu2572/.build/out/Products/Release/kswiftc",
+          "-O2",
+          "--stdlib-from-source",
+          "/private/tmp/kio-candidate-source-O2-kuu2572-release-escalated/suite-000/RefCounteringCopyTrackerTest.kt",
+          "/Users/kuu/.codex/worktrees/98b0/swifty-kotlin/Scripts/kotlinx_io_upstream/native_bridges/RefCountingCopyTracker.kt",
+          "/private/tmp/kio-candidate-source-O2-kuu2572-release-escalated/CombinedDriver.kt",
+          "-o",
+          "/private/tmp/kio-candidate-source-O2-kuu2572-release-escalated/candidate"
+        ],
+        "run": [
+          "/private/tmp/kio-candidate-source-O2-kuu2572-release-escalated/candidate"
+        ]
+      }
+    },
+    {
+      "lane": "stdlib-library-O0",
+      "optimization": "O0",
+      "stdlib_mode": "library",
+      "test_body_mode": "source",
+      "status": "PASS",
+      "expected_count": 1,
+      "counts": {
+        "PASS": 1
+      },
+      "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+      "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+      "stdlib_content_sha256": "de6113c1f46ab08f6b36c13bffd35bb1003b59d42660b23ab9a95cf90118a672",
+      "test_library_sha256": null,
+      "candidate_executable_sha256": "285acb2780d4c867ea69dde545617c8c68c0524e7c2fc4b42c2196fcfc56ed6b",
+      "candidate_result": {
+        "execution_id": "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition",
+        "status": "PASS",
+        "stdout": "",
+        "exception_type": null,
+        "source_function_id": "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition",
+        "concrete_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+        "declaring_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+        "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+        "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+        "source_git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+        "candidate_port_sha256": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42",
+        "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+        "suite_driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+        "candidate_executable_sha256": "285acb2780d4c867ea69dde545617c8c68c0524e7c2fc4b42c2196fcfc56ed6b",
+        "catalog_row_sha256": "e8e4e099b8c6b9cf6bbdb89fbb06f813bf0150b928d4f9dda93ca8cfd4590294",
+        "reference_execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]",
+        "candidate_platform": "native"
+      },
+      "raw_artifact_sha256": {
+        "summary.json": "c2f9aa34ae7f4fdfb8dd663989aba05d071d8978c21056c59ab7bb71f02eab28",
+        "results.json": "577b6d2ec258d2f34da2a7bc154a3c4b1ee982f45b815366ee57e71d95c7dda9",
+        "selection.json": "c65a3f3e8327c98d553ae9ada6eea2984a63cab9872d1072be753a7cd386c4a8",
+        "compile.command.json": "62fc43d4576138fd967af3a591a38f852cfd18957b837e9fc42f13c75d854e16",
+        "compile.result.json": "94e09ba95a8ac538ea0fb7787de79899c26f44f48e002ef16d6823702532d393",
+        "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "run.command.json": "7b67438cf1cd695098304dd9f6818827bff458c942cca86b8021e1a02058ce66",
+        "run.result.json": "ea6bd59f717c7faa44c17138bb01b8ac17908470cb914ab6c6eb3286f529a653",
+        "run.stdout": "59668ab3d7ec1c19c82fe3ffadc0210f960c97de3a3ad2bea9da3ce1bdc6eb3e",
+        "run.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "summary": {
+        "kind": "candidate-assertion-jvm-tests-on-native",
+        "paired_pass_count": 0,
+        "paired_disposition": "UNMAPPED",
+        "seven_observations_exported": false,
+        "host": "macOS-27.0-arm64-arm-64bit-Mach-O",
+        "python_version": "3.14.8 (main, Sep 30 2026, 17:55:09) [Clang 21.0.0 (clang-2100.3.34.2)]",
+        "optimization": "O0",
+        "package_root": "/private/tmp/kio-candidate-kuu2572",
+        "stdlib_mode": "library",
+        "test_body_mode": "source",
+        "runtime_cache_provenance": "Runtime source hashes only; cached object bytes are outside this proof",
+        "native_catalog_target": null,
+        "candidate_platform": "native",
+        "compiler_resource_bundle": "/private/tmp/kio-candidate-kuu2572/.build/out/Products/Release/KSwiftK_CompilerCore.bundle/Contents/Resources",
+        "compiler_resource_bundle_provenance": "explicit caller-selected Bundle.module directory",
+        "reference_execution_ids": [
+          "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+        ],
+        "selection": {
+          "schema_version": 1,
+          "selection_mode": "explicit-ids",
+          "target": "native-test-bridge",
+          "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+          "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+          "reference_lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+          "catalog_execution_count": 1403,
+          "target_catalog_execution_count": 1403,
+          "target_catalog_execution_ids_sha256": "a73cadd98f883ccb408a0aefb6adafd36a6ddd823721fa24c9b6b528ccde2f24",
+          "requested_source_function_ids": [],
+          "requested_execution_ids": [
+            "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+          ],
+          "selected_source_function_ids": [
+            "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition"
+          ],
+          "selected_concrete_classes": [
+            "kotlinx.io.RefCounteringCopyTrackerTest"
+          ],
+          "selected_execution_count": 1,
+          "selected_execution_ids": [
+            "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition"
+          ],
+          "selected_execution_records": [
+            {
+              "execution_id": "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition",
+              "upstream_id": "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition",
+              "concrete_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+              "declaring_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+              "method_name": "stateTransition",
+              "parameter_types": "",
+              "upstream_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+              "git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+              "source_set": "jvm",
+              "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+              "reference_execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]",
+              "candidate_platform": "native"
+            }
+          ],
+          "selected_execution_records_sha256": "f720d26c21d2d486fd6a01f9af8891a6659d8dd1f0714e55f7d6a36fd1388bb7",
+          "covers_full_catalog": false,
+          "candidate_platform": "native",
+          "reference_execution_ids": [
+            "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+          ],
+          "input_hashes": {
+            "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+            "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+            "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+            "stdlib_content_sha256": "de6113c1f46ab08f6b36c13bffd35bb1003b59d42660b23ab9a95cf90118a672",
+            "stdlib_sources_sha256": "613722d4e26ac34800f46128568f2114628df8d0a5d0f9124164d84d7bdd9b9d",
+            "runtime_sources_sha256": "3e128e5ac5a164c7c3cda1ee8859595fc12da2a8a229e999a9291f1b419b3f83",
+            "runtime_abi_sources_sha256": "5e62bb524c8d55d62fceca1f9f2583e1c2728bbb08923074767dd91c34597b39",
+            "package_manifest_sha256": "d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1",
+            "lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+            "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+            "runner_sha256": "796f1fd88b8e3c529b021a10993b38d559ada64c65bcc8b3e22e0a0dda5c082f",
+            "direct_runner_sha256": "e790f203b6c9673804607660fb3bbbad5566594d1213405f5a77678cbc8ab0df",
+            "helper_sha256": "f244f6c02e39d97c28a5b4de8b3166ffa05409a47a2d397217db1c1a03f248aa",
+            "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+            "support_source_sha256": {
+              "/Users/kuu/.codex/worktrees/98b0/swifty-kotlin/Scripts/kotlinx_io_upstream/native_bridges/RefCountingCopyTracker.kt": "4bf93133fa7d4b5b46a37975e621ef460471969d26bfd17f8bcf048376518aa0"
+            },
+            "source_closure_index_sha256": null,
+            "port_sha256": {
+              "/private/tmp/kio-candidate-stdlib-library-O0-kuu2572/suite-000/RefCounteringCopyTrackerTest.kt": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42"
+            },
+            "catalog_preparer_sha256": null,
+            "declaration_index_sha256": null
+          }
+        },
+        "selection_manifest": "/private/tmp/kio-candidate-stdlib-library-O0-kuu2572/selection.json",
+        "selection_manifest_sha256": "c65a3f3e8327c98d553ae9ada6eea2984a63cab9872d1072be753a7cd386c4a8",
+        "catalog_execution_count": 1403,
+        "target_catalog_execution_count": 1403,
+        "selected_execution_count": 1,
+        "selected_source_function_count": 1,
+        "covers_full_catalog": false,
+        "selection_mode": "explicit-ids",
+        "reference_execution_count": 1,
+        "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+        "ports": [
+          {
+            "suite": "kotlinx.io.RefCounteringCopyTrackerTest",
+            "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+            "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+            "source_git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+            "prefix_bytes": 59,
+            "original_bytes_preserved_as_suffix": true,
+            "assertions_parameters_constructors_changed": false,
+            "constructor_policy": "fresh original class instance per test",
+            "port_path": "/private/tmp/kio-candidate-stdlib-library-O0-kuu2572/suite-000/RefCounteringCopyTrackerTest.kt",
+            "port_sha256": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42",
+            "driver_path": "/private/tmp/kio-candidate-stdlib-library-O0-kuu2572/suite-000/CandidateDriver.kt",
+            "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+            "execution_ids": [
+              "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition"
+            ],
+            "event_token": "KIO_329e13469a4cf42e0cb08d8c"
+          }
+        ],
+        "inputs": {
+          "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+          "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+          "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+          "stdlib_content_sha256": "de6113c1f46ab08f6b36c13bffd35bb1003b59d42660b23ab9a95cf90118a672",
+          "stdlib_sources_sha256": "613722d4e26ac34800f46128568f2114628df8d0a5d0f9124164d84d7bdd9b9d",
+          "runtime_sources_sha256": "3e128e5ac5a164c7c3cda1ee8859595fc12da2a8a229e999a9291f1b419b3f83",
+          "runtime_abi_sources_sha256": "5e62bb524c8d55d62fceca1f9f2583e1c2728bbb08923074767dd91c34597b39",
+          "package_manifest_sha256": "d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1",
+          "lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+          "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+          "runner_sha256": "796f1fd88b8e3c529b021a10993b38d559ada64c65bcc8b3e22e0a0dda5c082f",
+          "direct_runner_sha256": "e790f203b6c9673804607660fb3bbbad5566594d1213405f5a77678cbc8ab0df",
+          "helper_sha256": "f244f6c02e39d97c28a5b4de8b3166ffa05409a47a2d397217db1c1a03f248aa",
+          "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+          "support_source_sha256": {
+            "/Users/kuu/.codex/worktrees/98b0/swifty-kotlin/Scripts/kotlinx_io_upstream/native_bridges/RefCountingCopyTracker.kt": "4bf93133fa7d4b5b46a37975e621ef460471969d26bfd17f8bcf048376518aa0"
+          },
+          "source_closure_index_sha256": null,
+          "port_sha256": {
+            "/private/tmp/kio-candidate-stdlib-library-O0-kuu2572/suite-000/RefCounteringCopyTrackerTest.kt": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42"
+          },
+          "catalog_preparer_sha256": null,
+          "declaration_index_sha256": null,
+          "selection_manifest_sha256": "c65a3f3e8327c98d553ae9ada6eea2984a63cab9872d1072be753a7cd386c4a8"
+        },
+        "expected_count": 1,
+        "compile_exitcode": 0,
+        "executable_sha256": "285acb2780d4c867ea69dde545617c8c68c0524e7c2fc4b42c2196fcfc56ed6b",
+        "run_exitcode": 0,
+        "counts": {
+          "PASS": 1
+        },
+        "inputs_unchanged": true,
+        "candidate_executions": 1,
+        "result_execution_ids": [
+          "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition"
+        ],
+        "full_catalog_validation": {
+          "status": "NOT_REQUIRED"
+        },
+        "status": "PASS"
+      },
+      "results": [
+        {
+          "execution_id": "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition",
+          "status": "PASS",
+          "stdout": "",
+          "exception_type": null,
+          "source_function_id": "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition",
+          "concrete_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+          "declaring_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+          "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+          "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+          "source_git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+          "candidate_port_sha256": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42",
+          "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+          "suite_driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+          "candidate_executable_sha256": "285acb2780d4c867ea69dde545617c8c68c0524e7c2fc4b42c2196fcfc56ed6b",
+          "catalog_row_sha256": "e8e4e099b8c6b9cf6bbdb89fbb06f813bf0150b928d4f9dda93ca8cfd4590294",
+          "reference_execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]",
+          "candidate_platform": "native"
+        }
+      ],
+      "selection": {
+        "schema_version": 1,
+        "selection_mode": "explicit-ids",
+        "target": "native-test-bridge",
+        "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+        "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+        "reference_lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+        "catalog_execution_count": 1403,
+        "target_catalog_execution_count": 1403,
+        "target_catalog_execution_ids_sha256": "a73cadd98f883ccb408a0aefb6adafd36a6ddd823721fa24c9b6b528ccde2f24",
+        "requested_source_function_ids": [],
+        "requested_execution_ids": [
+          "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+        ],
+        "selected_source_function_ids": [
+          "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition"
+        ],
+        "selected_concrete_classes": [
+          "kotlinx.io.RefCounteringCopyTrackerTest"
+        ],
+        "selected_execution_count": 1,
+        "selected_execution_ids": [
+          "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition"
+        ],
+        "selected_execution_records": [
+          {
+            "execution_id": "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition",
+            "upstream_id": "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition",
+            "concrete_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+            "declaring_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+            "method_name": "stateTransition",
+            "parameter_types": "",
+            "upstream_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+            "git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+            "source_set": "jvm",
+            "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+            "reference_execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]",
+            "candidate_platform": "native"
+          }
+        ],
+        "selected_execution_records_sha256": "f720d26c21d2d486fd6a01f9af8891a6659d8dd1f0714e55f7d6a36fd1388bb7",
+        "covers_full_catalog": false,
+        "candidate_platform": "native",
+        "reference_execution_ids": [
+          "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+        ],
+        "input_hashes": {
+          "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+          "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+          "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+          "stdlib_content_sha256": "de6113c1f46ab08f6b36c13bffd35bb1003b59d42660b23ab9a95cf90118a672",
+          "stdlib_sources_sha256": "613722d4e26ac34800f46128568f2114628df8d0a5d0f9124164d84d7bdd9b9d",
+          "runtime_sources_sha256": "3e128e5ac5a164c7c3cda1ee8859595fc12da2a8a229e999a9291f1b419b3f83",
+          "runtime_abi_sources_sha256": "5e62bb524c8d55d62fceca1f9f2583e1c2728bbb08923074767dd91c34597b39",
+          "package_manifest_sha256": "d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1",
+          "lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+          "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+          "runner_sha256": "796f1fd88b8e3c529b021a10993b38d559ada64c65bcc8b3e22e0a0dda5c082f",
+          "direct_runner_sha256": "e790f203b6c9673804607660fb3bbbad5566594d1213405f5a77678cbc8ab0df",
+          "helper_sha256": "f244f6c02e39d97c28a5b4de8b3166ffa05409a47a2d397217db1c1a03f248aa",
+          "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+          "support_source_sha256": {
+            "/Users/kuu/.codex/worktrees/98b0/swifty-kotlin/Scripts/kotlinx_io_upstream/native_bridges/RefCountingCopyTracker.kt": "4bf93133fa7d4b5b46a37975e621ef460471969d26bfd17f8bcf048376518aa0"
+          },
+          "source_closure_index_sha256": null,
+          "port_sha256": {
+            "/private/tmp/kio-candidate-stdlib-library-O0-kuu2572/suite-000/RefCounteringCopyTrackerTest.kt": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42"
+          },
+          "catalog_preparer_sha256": null,
+          "declaration_index_sha256": null
+        }
+      },
+      "commands": {
+        "compile": [
+          "/private/tmp/kio-candidate-kuu2572/.build/out/Products/Release/kswiftc",
+          "-O0",
+          "--stdlib-library",
+          "/private/tmp/kio-stdlib-fd01-release/KSwiftKStdlib.kklib",
+          "/private/tmp/kio-candidate-stdlib-library-O0-kuu2572/suite-000/RefCounteringCopyTrackerTest.kt",
+          "/Users/kuu/.codex/worktrees/98b0/swifty-kotlin/Scripts/kotlinx_io_upstream/native_bridges/RefCountingCopyTracker.kt",
+          "/private/tmp/kio-candidate-stdlib-library-O0-kuu2572/CombinedDriver.kt",
+          "-o",
+          "/private/tmp/kio-candidate-stdlib-library-O0-kuu2572/candidate"
+        ],
+        "run": [
+          "/private/tmp/kio-candidate-stdlib-library-O0-kuu2572/candidate"
+        ]
+      }
+    },
+    {
+      "lane": "stdlib-library-O2",
+      "optimization": "O2",
+      "stdlib_mode": "library",
+      "test_body_mode": "source",
+      "status": "PASS",
+      "expected_count": 1,
+      "counts": {
+        "PASS": 1
+      },
+      "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+      "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+      "stdlib_content_sha256": "de6113c1f46ab08f6b36c13bffd35bb1003b59d42660b23ab9a95cf90118a672",
+      "test_library_sha256": null,
+      "candidate_executable_sha256": "6899e7c05163c45bc2141dca35f85e8999dad9e34d9c3ca796e657772d48926a",
+      "candidate_result": {
+        "execution_id": "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition",
+        "status": "PASS",
+        "stdout": "",
+        "exception_type": null,
+        "source_function_id": "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition",
+        "concrete_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+        "declaring_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+        "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+        "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+        "source_git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+        "candidate_port_sha256": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42",
+        "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+        "suite_driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+        "candidate_executable_sha256": "6899e7c05163c45bc2141dca35f85e8999dad9e34d9c3ca796e657772d48926a",
+        "catalog_row_sha256": "e8e4e099b8c6b9cf6bbdb89fbb06f813bf0150b928d4f9dda93ca8cfd4590294",
+        "reference_execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]",
+        "candidate_platform": "native"
+      },
+      "raw_artifact_sha256": {
+        "summary.json": "8a938f88dfab9288e38fb2d91e79f7f13785706646787b77b15bd395ec0f7558",
+        "results.json": "42142a28aa9d5ea63853bad4d0fee5c1f51cf490c2e0ab94bb8868deecd3d195",
+        "selection.json": "4a3fd1d8c890890d334ed13e5a2885711f24ac1801f43fba3e8686fbe57c47b7",
+        "compile.command.json": "4c5af47bb083f49cf0bcd06cff9a41a603bc0591a0deaad5f1838c08a59c1d63",
+        "compile.result.json": "4c38edb431d38e8eae441b2a0528a29c23bb00b1b833116411aa92faa7b3a0e7",
+        "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "run.command.json": "8977bfc659dec56eb956acfcf110432e0f73673e67fd0ea5d5edee8d75a1e1c5",
+        "run.result.json": "5db1aee0f2ffc61919184d4ca3846a315a0927419fc72e5b2f17f8b6a7f560c8",
+        "run.stdout": "59668ab3d7ec1c19c82fe3ffadc0210f960c97de3a3ad2bea9da3ce1bdc6eb3e",
+        "run.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "summary": {
+        "kind": "candidate-assertion-jvm-tests-on-native",
+        "paired_pass_count": 0,
+        "paired_disposition": "UNMAPPED",
+        "seven_observations_exported": false,
+        "host": "macOS-27.0-arm64-arm-64bit-Mach-O",
+        "python_version": "3.14.8 (main, Sep 30 2026, 17:55:09) [Clang 21.0.0 (clang-2100.3.34.2)]",
+        "optimization": "O2",
+        "package_root": "/private/tmp/kio-candidate-kuu2572",
+        "stdlib_mode": "library",
+        "test_body_mode": "source",
+        "runtime_cache_provenance": "Runtime source hashes only; cached object bytes are outside this proof",
+        "native_catalog_target": null,
+        "candidate_platform": "native",
+        "compiler_resource_bundle": "/private/tmp/kio-candidate-kuu2572/.build/out/Products/Release/KSwiftK_CompilerCore.bundle/Contents/Resources",
+        "compiler_resource_bundle_provenance": "explicit caller-selected Bundle.module directory",
+        "reference_execution_ids": [
+          "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+        ],
+        "selection": {
+          "schema_version": 1,
+          "selection_mode": "explicit-ids",
+          "target": "native-test-bridge",
+          "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+          "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+          "reference_lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+          "catalog_execution_count": 1403,
+          "target_catalog_execution_count": 1403,
+          "target_catalog_execution_ids_sha256": "a73cadd98f883ccb408a0aefb6adafd36a6ddd823721fa24c9b6b528ccde2f24",
+          "requested_source_function_ids": [],
+          "requested_execution_ids": [
+            "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+          ],
+          "selected_source_function_ids": [
+            "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition"
+          ],
+          "selected_concrete_classes": [
+            "kotlinx.io.RefCounteringCopyTrackerTest"
+          ],
+          "selected_execution_count": 1,
+          "selected_execution_ids": [
+            "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition"
+          ],
+          "selected_execution_records": [
+            {
+              "execution_id": "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition",
+              "upstream_id": "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition",
+              "concrete_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+              "declaring_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+              "method_name": "stateTransition",
+              "parameter_types": "",
+              "upstream_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+              "git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+              "source_set": "jvm",
+              "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+              "reference_execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]",
+              "candidate_platform": "native"
+            }
+          ],
+          "selected_execution_records_sha256": "f720d26c21d2d486fd6a01f9af8891a6659d8dd1f0714e55f7d6a36fd1388bb7",
+          "covers_full_catalog": false,
+          "candidate_platform": "native",
+          "reference_execution_ids": [
+            "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+          ],
+          "input_hashes": {
+            "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+            "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+            "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+            "stdlib_content_sha256": "de6113c1f46ab08f6b36c13bffd35bb1003b59d42660b23ab9a95cf90118a672",
+            "stdlib_sources_sha256": "613722d4e26ac34800f46128568f2114628df8d0a5d0f9124164d84d7bdd9b9d",
+            "runtime_sources_sha256": "3e128e5ac5a164c7c3cda1ee8859595fc12da2a8a229e999a9291f1b419b3f83",
+            "runtime_abi_sources_sha256": "5e62bb524c8d55d62fceca1f9f2583e1c2728bbb08923074767dd91c34597b39",
+            "package_manifest_sha256": "d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1",
+            "lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+            "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+            "runner_sha256": "796f1fd88b8e3c529b021a10993b38d559ada64c65bcc8b3e22e0a0dda5c082f",
+            "direct_runner_sha256": "e790f203b6c9673804607660fb3bbbad5566594d1213405f5a77678cbc8ab0df",
+            "helper_sha256": "f244f6c02e39d97c28a5b4de8b3166ffa05409a47a2d397217db1c1a03f248aa",
+            "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+            "support_source_sha256": {
+              "/Users/kuu/.codex/worktrees/98b0/swifty-kotlin/Scripts/kotlinx_io_upstream/native_bridges/RefCountingCopyTracker.kt": "4bf93133fa7d4b5b46a37975e621ef460471969d26bfd17f8bcf048376518aa0"
+            },
+            "source_closure_index_sha256": null,
+            "port_sha256": {
+              "/private/tmp/kio-candidate-stdlib-library-O2-kuu2572/suite-000/RefCounteringCopyTrackerTest.kt": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42"
+            },
+            "catalog_preparer_sha256": null,
+            "declaration_index_sha256": null
+          }
+        },
+        "selection_manifest": "/private/tmp/kio-candidate-stdlib-library-O2-kuu2572/selection.json",
+        "selection_manifest_sha256": "4a3fd1d8c890890d334ed13e5a2885711f24ac1801f43fba3e8686fbe57c47b7",
+        "catalog_execution_count": 1403,
+        "target_catalog_execution_count": 1403,
+        "selected_execution_count": 1,
+        "selected_source_function_count": 1,
+        "covers_full_catalog": false,
+        "selection_mode": "explicit-ids",
+        "reference_execution_count": 1,
+        "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+        "ports": [
+          {
+            "suite": "kotlinx.io.RefCounteringCopyTrackerTest",
+            "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+            "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+            "source_git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+            "prefix_bytes": 59,
+            "original_bytes_preserved_as_suffix": true,
+            "assertions_parameters_constructors_changed": false,
+            "constructor_policy": "fresh original class instance per test",
+            "port_path": "/private/tmp/kio-candidate-stdlib-library-O2-kuu2572/suite-000/RefCounteringCopyTrackerTest.kt",
+            "port_sha256": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42",
+            "driver_path": "/private/tmp/kio-candidate-stdlib-library-O2-kuu2572/suite-000/CandidateDriver.kt",
+            "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+            "execution_ids": [
+              "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition"
+            ],
+            "event_token": "KIO_329e13469a4cf42e0cb08d8c"
+          }
+        ],
+        "inputs": {
+          "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+          "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+          "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+          "stdlib_content_sha256": "de6113c1f46ab08f6b36c13bffd35bb1003b59d42660b23ab9a95cf90118a672",
+          "stdlib_sources_sha256": "613722d4e26ac34800f46128568f2114628df8d0a5d0f9124164d84d7bdd9b9d",
+          "runtime_sources_sha256": "3e128e5ac5a164c7c3cda1ee8859595fc12da2a8a229e999a9291f1b419b3f83",
+          "runtime_abi_sources_sha256": "5e62bb524c8d55d62fceca1f9f2583e1c2728bbb08923074767dd91c34597b39",
+          "package_manifest_sha256": "d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1",
+          "lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+          "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+          "runner_sha256": "796f1fd88b8e3c529b021a10993b38d559ada64c65bcc8b3e22e0a0dda5c082f",
+          "direct_runner_sha256": "e790f203b6c9673804607660fb3bbbad5566594d1213405f5a77678cbc8ab0df",
+          "helper_sha256": "f244f6c02e39d97c28a5b4de8b3166ffa05409a47a2d397217db1c1a03f248aa",
+          "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+          "support_source_sha256": {
+            "/Users/kuu/.codex/worktrees/98b0/swifty-kotlin/Scripts/kotlinx_io_upstream/native_bridges/RefCountingCopyTracker.kt": "4bf93133fa7d4b5b46a37975e621ef460471969d26bfd17f8bcf048376518aa0"
+          },
+          "source_closure_index_sha256": null,
+          "port_sha256": {
+            "/private/tmp/kio-candidate-stdlib-library-O2-kuu2572/suite-000/RefCounteringCopyTrackerTest.kt": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42"
+          },
+          "catalog_preparer_sha256": null,
+          "declaration_index_sha256": null,
+          "selection_manifest_sha256": "4a3fd1d8c890890d334ed13e5a2885711f24ac1801f43fba3e8686fbe57c47b7"
+        },
+        "expected_count": 1,
+        "compile_exitcode": 0,
+        "executable_sha256": "6899e7c05163c45bc2141dca35f85e8999dad9e34d9c3ca796e657772d48926a",
+        "run_exitcode": 0,
+        "counts": {
+          "PASS": 1
+        },
+        "inputs_unchanged": true,
+        "candidate_executions": 1,
+        "result_execution_ids": [
+          "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition"
+        ],
+        "full_catalog_validation": {
+          "status": "NOT_REQUIRED"
+        },
+        "status": "PASS"
+      },
+      "results": [
+        {
+          "execution_id": "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition",
+          "status": "PASS",
+          "stdout": "",
+          "exception_type": null,
+          "source_function_id": "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition",
+          "concrete_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+          "declaring_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+          "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+          "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+          "source_git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+          "candidate_port_sha256": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42",
+          "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+          "suite_driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+          "candidate_executable_sha256": "6899e7c05163c45bc2141dca35f85e8999dad9e34d9c3ca796e657772d48926a",
+          "catalog_row_sha256": "e8e4e099b8c6b9cf6bbdb89fbb06f813bf0150b928d4f9dda93ca8cfd4590294",
+          "reference_execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]",
+          "candidate_platform": "native"
+        }
+      ],
+      "selection": {
+        "schema_version": 1,
+        "selection_mode": "explicit-ids",
+        "target": "native-test-bridge",
+        "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+        "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+        "reference_lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+        "catalog_execution_count": 1403,
+        "target_catalog_execution_count": 1403,
+        "target_catalog_execution_ids_sha256": "a73cadd98f883ccb408a0aefb6adafd36a6ddd823721fa24c9b6b528ccde2f24",
+        "requested_source_function_ids": [],
+        "requested_execution_ids": [
+          "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+        ],
+        "selected_source_function_ids": [
+          "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition"
+        ],
+        "selected_concrete_classes": [
+          "kotlinx.io.RefCounteringCopyTrackerTest"
+        ],
+        "selected_execution_count": 1,
+        "selected_execution_ids": [
+          "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition"
+        ],
+        "selected_execution_records": [
+          {
+            "execution_id": "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition",
+            "upstream_id": "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition",
+            "concrete_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+            "declaring_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+            "method_name": "stateTransition",
+            "parameter_types": "",
+            "upstream_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+            "git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+            "source_set": "jvm",
+            "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+            "reference_execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]",
+            "candidate_platform": "native"
+          }
+        ],
+        "selected_execution_records_sha256": "f720d26c21d2d486fd6a01f9af8891a6659d8dd1f0714e55f7d6a36fd1388bb7",
+        "covers_full_catalog": false,
+        "candidate_platform": "native",
+        "reference_execution_ids": [
+          "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+        ],
+        "input_hashes": {
+          "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+          "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+          "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+          "stdlib_content_sha256": "de6113c1f46ab08f6b36c13bffd35bb1003b59d42660b23ab9a95cf90118a672",
+          "stdlib_sources_sha256": "613722d4e26ac34800f46128568f2114628df8d0a5d0f9124164d84d7bdd9b9d",
+          "runtime_sources_sha256": "3e128e5ac5a164c7c3cda1ee8859595fc12da2a8a229e999a9291f1b419b3f83",
+          "runtime_abi_sources_sha256": "5e62bb524c8d55d62fceca1f9f2583e1c2728bbb08923074767dd91c34597b39",
+          "package_manifest_sha256": "d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1",
+          "lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+          "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+          "runner_sha256": "796f1fd88b8e3c529b021a10993b38d559ada64c65bcc8b3e22e0a0dda5c082f",
+          "direct_runner_sha256": "e790f203b6c9673804607660fb3bbbad5566594d1213405f5a77678cbc8ab0df",
+          "helper_sha256": "f244f6c02e39d97c28a5b4de8b3166ffa05409a47a2d397217db1c1a03f248aa",
+          "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+          "support_source_sha256": {
+            "/Users/kuu/.codex/worktrees/98b0/swifty-kotlin/Scripts/kotlinx_io_upstream/native_bridges/RefCountingCopyTracker.kt": "4bf93133fa7d4b5b46a37975e621ef460471969d26bfd17f8bcf048376518aa0"
+          },
+          "source_closure_index_sha256": null,
+          "port_sha256": {
+            "/private/tmp/kio-candidate-stdlib-library-O2-kuu2572/suite-000/RefCounteringCopyTrackerTest.kt": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42"
+          },
+          "catalog_preparer_sha256": null,
+          "declaration_index_sha256": null
+        }
+      },
+      "commands": {
+        "compile": [
+          "/private/tmp/kio-candidate-kuu2572/.build/out/Products/Release/kswiftc",
+          "-O2",
+          "--stdlib-library",
+          "/private/tmp/kio-stdlib-fd01-release/KSwiftKStdlib.kklib",
+          "/private/tmp/kio-candidate-stdlib-library-O2-kuu2572/suite-000/RefCounteringCopyTrackerTest.kt",
+          "/Users/kuu/.codex/worktrees/98b0/swifty-kotlin/Scripts/kotlinx_io_upstream/native_bridges/RefCountingCopyTracker.kt",
+          "/private/tmp/kio-candidate-stdlib-library-O2-kuu2572/CombinedDriver.kt",
+          "-o",
+          "/private/tmp/kio-candidate-stdlib-library-O2-kuu2572/candidate"
+        ],
+        "run": [
+          "/private/tmp/kio-candidate-stdlib-library-O2-kuu2572/candidate"
+        ]
+      }
+    },
+    {
+      "lane": "producer-consumer-O0",
+      "optimization": "O0",
+      "stdlib_mode": "library",
+      "test_body_mode": "library-consumer",
+      "status": "PASS",
+      "expected_count": 1,
+      "counts": {
+        "PASS": 1
+      },
+      "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+      "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+      "stdlib_content_sha256": "de6113c1f46ab08f6b36c13bffd35bb1003b59d42660b23ab9a95cf90118a672",
+      "test_library_sha256": "8213ad1b91d25210e69da8c2b37906b37037c3687d8f288897f36b5182ca1d09",
+      "candidate_executable_sha256": "42dee056e56a8e27d0745535df4559a8b1ee1f7ed5825458923baa813f8dbdd1",
+      "candidate_result": {
+        "execution_id": "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition",
+        "status": "PASS",
+        "stdout": "",
+        "exception_type": null,
+        "source_function_id": "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition",
+        "concrete_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+        "declaring_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+        "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+        "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+        "source_git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+        "candidate_port_sha256": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42",
+        "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+        "suite_driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+        "candidate_executable_sha256": "42dee056e56a8e27d0745535df4559a8b1ee1f7ed5825458923baa813f8dbdd1",
+        "catalog_row_sha256": "e8e4e099b8c6b9cf6bbdb89fbb06f813bf0150b928d4f9dda93ca8cfd4590294",
+        "reference_execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]",
+        "candidate_platform": "native"
+      },
+      "raw_artifact_sha256": {
+        "summary.json": "1fa49e2f432da91bd1d3ab3b3c657a0b2eb4f79245b45f449c73cd959c92d148",
+        "results.json": "b8949316c2770da17df137c1755ed3c201df02716b0a7b1c71c37c502f0bfd9d",
+        "selection.json": "c8e10d35b9db14d1011e0b09a059d2bc529eca4de6301c7438c658d8168847d7",
+        "compile.command.json": "3a5a6770bb660df6272e04fac4fc1b78f13063baa29317ce0631a699235196cd",
+        "compile.result.json": "d5d8f27ac5783f43de4dcc1283eb5164803af53c3e83de71479c23c9289998eb",
+        "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "run.command.json": "735e4304b8e4250a015337c1d1613c2836472e080453147faba4ffc68c607762",
+        "run.result.json": "b38900bddb554993bb315d4e61827d2a5de60a70639df5ca986bc00e426942ae",
+        "run.stdout": "59668ab3d7ec1c19c82fe3ffadc0210f960c97de3a3ad2bea9da3ce1bdc6eb3e",
+        "run.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "library-compile.command.json": "0866d30a6aaf5868ddf2a58bdc00cf773d863e28e09464ebfaac683a1a5b7417",
+        "library-compile.result.json": "792ef6c806b1b03d407ca103e0478bc9b5b043727eee710f7faf83a285f976f2",
+        "library-compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "library-compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "summary": {
+        "kind": "candidate-assertion-jvm-tests-on-native",
+        "paired_pass_count": 0,
+        "paired_disposition": "UNMAPPED",
+        "seven_observations_exported": false,
+        "host": "macOS-27.0-arm64-arm-64bit-Mach-O",
+        "python_version": "3.14.8 (main, Sep 30 2026, 17:55:09) [Clang 21.0.0 (clang-2100.3.34.2)]",
+        "optimization": "O0",
+        "package_root": "/private/tmp/kio-candidate-kuu2572",
+        "stdlib_mode": "library",
+        "test_body_mode": "library-consumer",
+        "runtime_cache_provenance": "Runtime source hashes only; cached object bytes are outside this proof",
+        "native_catalog_target": null,
+        "candidate_platform": "native",
+        "compiler_resource_bundle": "/private/tmp/kio-candidate-kuu2572/.build/out/Products/Release/KSwiftK_CompilerCore.bundle/Contents/Resources",
+        "compiler_resource_bundle_provenance": "explicit caller-selected Bundle.module directory",
+        "reference_execution_ids": [
+          "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+        ],
+        "selection": {
+          "schema_version": 1,
+          "selection_mode": "explicit-ids",
+          "target": "native-test-bridge",
+          "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+          "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+          "reference_lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+          "catalog_execution_count": 1403,
+          "target_catalog_execution_count": 1403,
+          "target_catalog_execution_ids_sha256": "a73cadd98f883ccb408a0aefb6adafd36a6ddd823721fa24c9b6b528ccde2f24",
+          "requested_source_function_ids": [],
+          "requested_execution_ids": [
+            "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+          ],
+          "selected_source_function_ids": [
+            "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition"
+          ],
+          "selected_concrete_classes": [
+            "kotlinx.io.RefCounteringCopyTrackerTest"
+          ],
+          "selected_execution_count": 1,
+          "selected_execution_ids": [
+            "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition"
+          ],
+          "selected_execution_records": [
+            {
+              "execution_id": "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition",
+              "upstream_id": "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition",
+              "concrete_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+              "declaring_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+              "method_name": "stateTransition",
+              "parameter_types": "",
+              "upstream_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+              "git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+              "source_set": "jvm",
+              "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+              "reference_execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]",
+              "candidate_platform": "native"
+            }
+          ],
+          "selected_execution_records_sha256": "f720d26c21d2d486fd6a01f9af8891a6659d8dd1f0714e55f7d6a36fd1388bb7",
+          "covers_full_catalog": false,
+          "candidate_platform": "native",
+          "reference_execution_ids": [
+            "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+          ],
+          "input_hashes": {
+            "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+            "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+            "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+            "stdlib_content_sha256": "de6113c1f46ab08f6b36c13bffd35bb1003b59d42660b23ab9a95cf90118a672",
+            "stdlib_sources_sha256": "613722d4e26ac34800f46128568f2114628df8d0a5d0f9124164d84d7bdd9b9d",
+            "runtime_sources_sha256": "3e128e5ac5a164c7c3cda1ee8859595fc12da2a8a229e999a9291f1b419b3f83",
+            "runtime_abi_sources_sha256": "5e62bb524c8d55d62fceca1f9f2583e1c2728bbb08923074767dd91c34597b39",
+            "package_manifest_sha256": "d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1",
+            "lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+            "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+            "runner_sha256": "796f1fd88b8e3c529b021a10993b38d559ada64c65bcc8b3e22e0a0dda5c082f",
+            "direct_runner_sha256": "e790f203b6c9673804607660fb3bbbad5566594d1213405f5a77678cbc8ab0df",
+            "helper_sha256": "f244f6c02e39d97c28a5b4de8b3166ffa05409a47a2d397217db1c1a03f248aa",
+            "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+            "support_source_sha256": {
+              "/Users/kuu/.codex/worktrees/98b0/swifty-kotlin/Scripts/kotlinx_io_upstream/native_bridges/RefCountingCopyTracker.kt": "4bf93133fa7d4b5b46a37975e621ef460471969d26bfd17f8bcf048376518aa0"
+            },
+            "source_closure_index_sha256": null,
+            "port_sha256": {
+              "/private/tmp/kio-candidate-producer-consumer-O0-kuu2572/suite-000/RefCounteringCopyTrackerTest.kt": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42"
+            },
+            "catalog_preparer_sha256": null,
+            "declaration_index_sha256": null
+          }
+        },
+        "selection_manifest": "/private/tmp/kio-candidate-producer-consumer-O0-kuu2572/selection.json",
+        "selection_manifest_sha256": "c8e10d35b9db14d1011e0b09a059d2bc529eca4de6301c7438c658d8168847d7",
+        "catalog_execution_count": 1403,
+        "target_catalog_execution_count": 1403,
+        "selected_execution_count": 1,
+        "selected_source_function_count": 1,
+        "covers_full_catalog": false,
+        "selection_mode": "explicit-ids",
+        "reference_execution_count": 1,
+        "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+        "ports": [
+          {
+            "suite": "kotlinx.io.RefCounteringCopyTrackerTest",
+            "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+            "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+            "source_git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+            "prefix_bytes": 59,
+            "original_bytes_preserved_as_suffix": true,
+            "assertions_parameters_constructors_changed": false,
+            "constructor_policy": "fresh original class instance per test",
+            "port_path": "/private/tmp/kio-candidate-producer-consumer-O0-kuu2572/suite-000/RefCounteringCopyTrackerTest.kt",
+            "port_sha256": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42",
+            "driver_path": "/private/tmp/kio-candidate-producer-consumer-O0-kuu2572/suite-000/CandidateDriver.kt",
+            "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+            "execution_ids": [
+              "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition"
+            ],
+            "event_token": "KIO_329e13469a4cf42e0cb08d8c"
+          }
+        ],
+        "inputs": {
+          "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+          "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+          "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+          "stdlib_content_sha256": "de6113c1f46ab08f6b36c13bffd35bb1003b59d42660b23ab9a95cf90118a672",
+          "stdlib_sources_sha256": "613722d4e26ac34800f46128568f2114628df8d0a5d0f9124164d84d7bdd9b9d",
+          "runtime_sources_sha256": "3e128e5ac5a164c7c3cda1ee8859595fc12da2a8a229e999a9291f1b419b3f83",
+          "runtime_abi_sources_sha256": "5e62bb524c8d55d62fceca1f9f2583e1c2728bbb08923074767dd91c34597b39",
+          "package_manifest_sha256": "d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1",
+          "lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+          "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+          "runner_sha256": "796f1fd88b8e3c529b021a10993b38d559ada64c65bcc8b3e22e0a0dda5c082f",
+          "direct_runner_sha256": "e790f203b6c9673804607660fb3bbbad5566594d1213405f5a77678cbc8ab0df",
+          "helper_sha256": "f244f6c02e39d97c28a5b4de8b3166ffa05409a47a2d397217db1c1a03f248aa",
+          "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+          "support_source_sha256": {
+            "/Users/kuu/.codex/worktrees/98b0/swifty-kotlin/Scripts/kotlinx_io_upstream/native_bridges/RefCountingCopyTracker.kt": "4bf93133fa7d4b5b46a37975e621ef460471969d26bfd17f8bcf048376518aa0"
+          },
+          "source_closure_index_sha256": null,
+          "port_sha256": {
+            "/private/tmp/kio-candidate-producer-consumer-O0-kuu2572/suite-000/RefCounteringCopyTrackerTest.kt": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42"
+          },
+          "catalog_preparer_sha256": null,
+          "declaration_index_sha256": null,
+          "selection_manifest_sha256": "c8e10d35b9db14d1011e0b09a059d2bc529eca4de6301c7438c658d8168847d7"
+        },
+        "expected_count": 1,
+        "library_compile_exitcode": 0,
+        "test_library_sha256": "8213ad1b91d25210e69da8c2b37906b37037c3687d8f288897f36b5182ca1d09",
+        "compile_exitcode": 0,
+        "executable_sha256": "42dee056e56a8e27d0745535df4559a8b1ee1f7ed5825458923baa813f8dbdd1",
+        "run_exitcode": 0,
+        "counts": {
+          "PASS": 1
+        },
+        "inputs_unchanged": true,
+        "candidate_executions": 1,
+        "result_execution_ids": [
+          "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition"
+        ],
+        "full_catalog_validation": {
+          "status": "NOT_REQUIRED"
+        },
+        "status": "PASS"
+      },
+      "results": [
+        {
+          "execution_id": "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition",
+          "status": "PASS",
+          "stdout": "",
+          "exception_type": null,
+          "source_function_id": "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition",
+          "concrete_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+          "declaring_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+          "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+          "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+          "source_git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+          "candidate_port_sha256": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42",
+          "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+          "suite_driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+          "candidate_executable_sha256": "42dee056e56a8e27d0745535df4559a8b1ee1f7ed5825458923baa813f8dbdd1",
+          "catalog_row_sha256": "e8e4e099b8c6b9cf6bbdb89fbb06f813bf0150b928d4f9dda93ca8cfd4590294",
+          "reference_execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]",
+          "candidate_platform": "native"
+        }
+      ],
+      "selection": {
+        "schema_version": 1,
+        "selection_mode": "explicit-ids",
+        "target": "native-test-bridge",
+        "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+        "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+        "reference_lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+        "catalog_execution_count": 1403,
+        "target_catalog_execution_count": 1403,
+        "target_catalog_execution_ids_sha256": "a73cadd98f883ccb408a0aefb6adafd36a6ddd823721fa24c9b6b528ccde2f24",
+        "requested_source_function_ids": [],
+        "requested_execution_ids": [
+          "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+        ],
+        "selected_source_function_ids": [
+          "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition"
+        ],
+        "selected_concrete_classes": [
+          "kotlinx.io.RefCounteringCopyTrackerTest"
+        ],
+        "selected_execution_count": 1,
+        "selected_execution_ids": [
+          "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition"
+        ],
+        "selected_execution_records": [
+          {
+            "execution_id": "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition",
+            "upstream_id": "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition",
+            "concrete_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+            "declaring_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+            "method_name": "stateTransition",
+            "parameter_types": "",
+            "upstream_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+            "git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+            "source_set": "jvm",
+            "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+            "reference_execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]",
+            "candidate_platform": "native"
+          }
+        ],
+        "selected_execution_records_sha256": "f720d26c21d2d486fd6a01f9af8891a6659d8dd1f0714e55f7d6a36fd1388bb7",
+        "covers_full_catalog": false,
+        "candidate_platform": "native",
+        "reference_execution_ids": [
+          "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+        ],
+        "input_hashes": {
+          "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+          "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+          "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+          "stdlib_content_sha256": "de6113c1f46ab08f6b36c13bffd35bb1003b59d42660b23ab9a95cf90118a672",
+          "stdlib_sources_sha256": "613722d4e26ac34800f46128568f2114628df8d0a5d0f9124164d84d7bdd9b9d",
+          "runtime_sources_sha256": "3e128e5ac5a164c7c3cda1ee8859595fc12da2a8a229e999a9291f1b419b3f83",
+          "runtime_abi_sources_sha256": "5e62bb524c8d55d62fceca1f9f2583e1c2728bbb08923074767dd91c34597b39",
+          "package_manifest_sha256": "d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1",
+          "lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+          "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+          "runner_sha256": "796f1fd88b8e3c529b021a10993b38d559ada64c65bcc8b3e22e0a0dda5c082f",
+          "direct_runner_sha256": "e790f203b6c9673804607660fb3bbbad5566594d1213405f5a77678cbc8ab0df",
+          "helper_sha256": "f244f6c02e39d97c28a5b4de8b3166ffa05409a47a2d397217db1c1a03f248aa",
+          "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+          "support_source_sha256": {
+            "/Users/kuu/.codex/worktrees/98b0/swifty-kotlin/Scripts/kotlinx_io_upstream/native_bridges/RefCountingCopyTracker.kt": "4bf93133fa7d4b5b46a37975e621ef460471969d26bfd17f8bcf048376518aa0"
+          },
+          "source_closure_index_sha256": null,
+          "port_sha256": {
+            "/private/tmp/kio-candidate-producer-consumer-O0-kuu2572/suite-000/RefCounteringCopyTrackerTest.kt": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42"
+          },
+          "catalog_preparer_sha256": null,
+          "declaration_index_sha256": null
+        }
+      },
+      "commands": {
+        "compile": [
+          "/private/tmp/kio-candidate-kuu2572/.build/out/Products/Release/kswiftc",
+          "-O0",
+          "--stdlib-library",
+          "/private/tmp/kio-stdlib-fd01-release/KSwiftKStdlib.kklib",
+          "-I",
+          "/private/tmp/kio-candidate-producer-consumer-O0-kuu2572/OriginalTests.kklib",
+          "/private/tmp/kio-candidate-producer-consumer-O0-kuu2572/CombinedDriver.kt",
+          "-o",
+          "/private/tmp/kio-candidate-producer-consumer-O0-kuu2572/candidate"
+        ],
+        "run": [
+          "/private/tmp/kio-candidate-producer-consumer-O0-kuu2572/candidate"
+        ],
+        "library_compile": [
+          "/private/tmp/kio-candidate-kuu2572/.build/out/Products/Release/kswiftc",
+          "-O0",
+          "--stdlib-library",
+          "/private/tmp/kio-stdlib-fd01-release/KSwiftKStdlib.kklib",
+          "--emit",
+          "library",
+          "-m",
+          "KioOriginalTests",
+          "/private/tmp/kio-candidate-producer-consumer-O0-kuu2572/suite-000/RefCounteringCopyTrackerTest.kt",
+          "/Users/kuu/.codex/worktrees/98b0/swifty-kotlin/Scripts/kotlinx_io_upstream/native_bridges/RefCountingCopyTracker.kt",
+          "-o",
+          "/private/tmp/kio-candidate-producer-consumer-O0-kuu2572/OriginalTests.kklib"
+        ]
+      }
+    },
+    {
+      "lane": "producer-consumer-O2",
+      "optimization": "O2",
+      "stdlib_mode": "library",
+      "test_body_mode": "library-consumer",
+      "status": "PASS",
+      "expected_count": 1,
+      "counts": {
+        "PASS": 1
+      },
+      "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+      "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+      "stdlib_content_sha256": "de6113c1f46ab08f6b36c13bffd35bb1003b59d42660b23ab9a95cf90118a672",
+      "test_library_sha256": "862e2bcf0afeffc3907b67d6a00dd8ad65e6426f2dced35585cf6cc0a7deae4f",
+      "candidate_executable_sha256": "66f4459b284ca05097eabf13ec1bc280b75199e02924c49fe7f26c514f73ebdd",
+      "candidate_result": {
+        "execution_id": "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition",
+        "status": "PASS",
+        "stdout": "",
+        "exception_type": null,
+        "source_function_id": "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition",
+        "concrete_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+        "declaring_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+        "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+        "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+        "source_git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+        "candidate_port_sha256": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42",
+        "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+        "suite_driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+        "candidate_executable_sha256": "66f4459b284ca05097eabf13ec1bc280b75199e02924c49fe7f26c514f73ebdd",
+        "catalog_row_sha256": "e8e4e099b8c6b9cf6bbdb89fbb06f813bf0150b928d4f9dda93ca8cfd4590294",
+        "reference_execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]",
+        "candidate_platform": "native"
+      },
+      "raw_artifact_sha256": {
+        "summary.json": "54690407d07dd50c78823c6a02c17df9b338912aebec6d4579e6b35c4f1a32fb",
+        "results.json": "5a11520554d1d4b17f7089c7fbb6b93e98984e21e1f749d8b8f8b023f8e1602c",
+        "selection.json": "0209eab033ae07899431102358ee87261ae7f74cb27d3fe2f628146250339ce1",
+        "compile.command.json": "dafc12db40b4ed297f9a77650998f03579fb37f5d9948d334845a6f167876c58",
+        "compile.result.json": "bc91f8ea672259546600847e1e1f33c3fa9cedf83bd6405300fa68cf4da9687e",
+        "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "run.command.json": "51c633101b0e42226670483c37520552ff1e4753af7f3163c86f3c6a4534b5b4",
+        "run.result.json": "6f5ba6d85752b8b421ace32b4fbb46c24783f0eac6107f67490f934ab089591a",
+        "run.stdout": "59668ab3d7ec1c19c82fe3ffadc0210f960c97de3a3ad2bea9da3ce1bdc6eb3e",
+        "run.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "library-compile.command.json": "246d405e7c63fe2de640e84fd842e817da4997926b7b3143f59ebc7484062fc0",
+        "library-compile.result.json": "716757c51be17b3112f293c4a66284af596a128d7d483b6d6e7aeeeb80407337",
+        "library-compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "library-compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "summary": {
+        "kind": "candidate-assertion-jvm-tests-on-native",
+        "paired_pass_count": 0,
+        "paired_disposition": "UNMAPPED",
+        "seven_observations_exported": false,
+        "host": "macOS-27.0-arm64-arm-64bit-Mach-O",
+        "python_version": "3.14.8 (main, Sep 30 2026, 17:55:09) [Clang 21.0.0 (clang-2100.3.34.2)]",
+        "optimization": "O2",
+        "package_root": "/private/tmp/kio-candidate-kuu2572",
+        "stdlib_mode": "library",
+        "test_body_mode": "library-consumer",
+        "runtime_cache_provenance": "Runtime source hashes only; cached object bytes are outside this proof",
+        "native_catalog_target": null,
+        "candidate_platform": "native",
+        "compiler_resource_bundle": "/private/tmp/kio-candidate-kuu2572/.build/out/Products/Release/KSwiftK_CompilerCore.bundle/Contents/Resources",
+        "compiler_resource_bundle_provenance": "explicit caller-selected Bundle.module directory",
+        "reference_execution_ids": [
+          "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+        ],
+        "selection": {
+          "schema_version": 1,
+          "selection_mode": "explicit-ids",
+          "target": "native-test-bridge",
+          "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+          "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+          "reference_lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+          "catalog_execution_count": 1403,
+          "target_catalog_execution_count": 1403,
+          "target_catalog_execution_ids_sha256": "a73cadd98f883ccb408a0aefb6adafd36a6ddd823721fa24c9b6b528ccde2f24",
+          "requested_source_function_ids": [],
+          "requested_execution_ids": [
+            "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+          ],
+          "selected_source_function_ids": [
+            "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition"
+          ],
+          "selected_concrete_classes": [
+            "kotlinx.io.RefCounteringCopyTrackerTest"
+          ],
+          "selected_execution_count": 1,
+          "selected_execution_ids": [
+            "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition"
+          ],
+          "selected_execution_records": [
+            {
+              "execution_id": "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition",
+              "upstream_id": "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition",
+              "concrete_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+              "declaring_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+              "method_name": "stateTransition",
+              "parameter_types": "",
+              "upstream_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+              "git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+              "source_set": "jvm",
+              "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+              "reference_execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]",
+              "candidate_platform": "native"
+            }
+          ],
+          "selected_execution_records_sha256": "f720d26c21d2d486fd6a01f9af8891a6659d8dd1f0714e55f7d6a36fd1388bb7",
+          "covers_full_catalog": false,
+          "candidate_platform": "native",
+          "reference_execution_ids": [
+            "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+          ],
+          "input_hashes": {
+            "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+            "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+            "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+            "stdlib_content_sha256": "de6113c1f46ab08f6b36c13bffd35bb1003b59d42660b23ab9a95cf90118a672",
+            "stdlib_sources_sha256": "613722d4e26ac34800f46128568f2114628df8d0a5d0f9124164d84d7bdd9b9d",
+            "runtime_sources_sha256": "3e128e5ac5a164c7c3cda1ee8859595fc12da2a8a229e999a9291f1b419b3f83",
+            "runtime_abi_sources_sha256": "5e62bb524c8d55d62fceca1f9f2583e1c2728bbb08923074767dd91c34597b39",
+            "package_manifest_sha256": "d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1",
+            "lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+            "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+            "runner_sha256": "796f1fd88b8e3c529b021a10993b38d559ada64c65bcc8b3e22e0a0dda5c082f",
+            "direct_runner_sha256": "e790f203b6c9673804607660fb3bbbad5566594d1213405f5a77678cbc8ab0df",
+            "helper_sha256": "f244f6c02e39d97c28a5b4de8b3166ffa05409a47a2d397217db1c1a03f248aa",
+            "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+            "support_source_sha256": {
+              "/Users/kuu/.codex/worktrees/98b0/swifty-kotlin/Scripts/kotlinx_io_upstream/native_bridges/RefCountingCopyTracker.kt": "4bf93133fa7d4b5b46a37975e621ef460471969d26bfd17f8bcf048376518aa0"
+            },
+            "source_closure_index_sha256": null,
+            "port_sha256": {
+              "/private/tmp/kio-candidate-producer-consumer-O2-kuu2572/suite-000/RefCounteringCopyTrackerTest.kt": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42"
+            },
+            "catalog_preparer_sha256": null,
+            "declaration_index_sha256": null
+          }
+        },
+        "selection_manifest": "/private/tmp/kio-candidate-producer-consumer-O2-kuu2572/selection.json",
+        "selection_manifest_sha256": "0209eab033ae07899431102358ee87261ae7f74cb27d3fe2f628146250339ce1",
+        "catalog_execution_count": 1403,
+        "target_catalog_execution_count": 1403,
+        "selected_execution_count": 1,
+        "selected_source_function_count": 1,
+        "covers_full_catalog": false,
+        "selection_mode": "explicit-ids",
+        "reference_execution_count": 1,
+        "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+        "ports": [
+          {
+            "suite": "kotlinx.io.RefCounteringCopyTrackerTest",
+            "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+            "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+            "source_git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+            "prefix_bytes": 59,
+            "original_bytes_preserved_as_suffix": true,
+            "assertions_parameters_constructors_changed": false,
+            "constructor_policy": "fresh original class instance per test",
+            "port_path": "/private/tmp/kio-candidate-producer-consumer-O2-kuu2572/suite-000/RefCounteringCopyTrackerTest.kt",
+            "port_sha256": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42",
+            "driver_path": "/private/tmp/kio-candidate-producer-consumer-O2-kuu2572/suite-000/CandidateDriver.kt",
+            "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+            "execution_ids": [
+              "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition"
+            ],
+            "event_token": "KIO_329e13469a4cf42e0cb08d8c"
+          }
+        ],
+        "inputs": {
+          "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+          "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+          "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+          "stdlib_content_sha256": "de6113c1f46ab08f6b36c13bffd35bb1003b59d42660b23ab9a95cf90118a672",
+          "stdlib_sources_sha256": "613722d4e26ac34800f46128568f2114628df8d0a5d0f9124164d84d7bdd9b9d",
+          "runtime_sources_sha256": "3e128e5ac5a164c7c3cda1ee8859595fc12da2a8a229e999a9291f1b419b3f83",
+          "runtime_abi_sources_sha256": "5e62bb524c8d55d62fceca1f9f2583e1c2728bbb08923074767dd91c34597b39",
+          "package_manifest_sha256": "d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1",
+          "lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+          "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+          "runner_sha256": "796f1fd88b8e3c529b021a10993b38d559ada64c65bcc8b3e22e0a0dda5c082f",
+          "direct_runner_sha256": "e790f203b6c9673804607660fb3bbbad5566594d1213405f5a77678cbc8ab0df",
+          "helper_sha256": "f244f6c02e39d97c28a5b4de8b3166ffa05409a47a2d397217db1c1a03f248aa",
+          "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+          "support_source_sha256": {
+            "/Users/kuu/.codex/worktrees/98b0/swifty-kotlin/Scripts/kotlinx_io_upstream/native_bridges/RefCountingCopyTracker.kt": "4bf93133fa7d4b5b46a37975e621ef460471969d26bfd17f8bcf048376518aa0"
+          },
+          "source_closure_index_sha256": null,
+          "port_sha256": {
+            "/private/tmp/kio-candidate-producer-consumer-O2-kuu2572/suite-000/RefCounteringCopyTrackerTest.kt": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42"
+          },
+          "catalog_preparer_sha256": null,
+          "declaration_index_sha256": null,
+          "selection_manifest_sha256": "0209eab033ae07899431102358ee87261ae7f74cb27d3fe2f628146250339ce1"
+        },
+        "expected_count": 1,
+        "library_compile_exitcode": 0,
+        "test_library_sha256": "862e2bcf0afeffc3907b67d6a00dd8ad65e6426f2dced35585cf6cc0a7deae4f",
+        "compile_exitcode": 0,
+        "executable_sha256": "66f4459b284ca05097eabf13ec1bc280b75199e02924c49fe7f26c514f73ebdd",
+        "run_exitcode": 0,
+        "counts": {
+          "PASS": 1
+        },
+        "inputs_unchanged": true,
+        "candidate_executions": 1,
+        "result_execution_ids": [
+          "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition"
+        ],
+        "full_catalog_validation": {
+          "status": "NOT_REQUIRED"
+        },
+        "status": "PASS"
+      },
+      "results": [
+        {
+          "execution_id": "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition",
+          "status": "PASS",
+          "stdout": "",
+          "exception_type": null,
+          "source_function_id": "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition",
+          "concrete_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+          "declaring_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+          "source_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+          "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+          "source_git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+          "candidate_port_sha256": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42",
+          "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+          "suite_driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+          "candidate_executable_sha256": "66f4459b284ca05097eabf13ec1bc280b75199e02924c49fe7f26c514f73ebdd",
+          "catalog_row_sha256": "e8e4e099b8c6b9cf6bbdb89fbb06f813bf0150b928d4f9dda93ca8cfd4590294",
+          "reference_execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]",
+          "candidate_platform": "native"
+        }
+      ],
+      "selection": {
+        "schema_version": 1,
+        "selection_mode": "explicit-ids",
+        "target": "native-test-bridge",
+        "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+        "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+        "reference_lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+        "catalog_execution_count": 1403,
+        "target_catalog_execution_count": 1403,
+        "target_catalog_execution_ids_sha256": "a73cadd98f883ccb408a0aefb6adafd36a6ddd823721fa24c9b6b528ccde2f24",
+        "requested_source_function_ids": [],
+        "requested_execution_ids": [
+          "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+        ],
+        "selected_source_function_ids": [
+          "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition"
+        ],
+        "selected_concrete_classes": [
+          "kotlinx.io.RefCounteringCopyTrackerTest"
+        ],
+        "selected_execution_count": 1,
+        "selected_execution_ids": [
+          "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition"
+        ],
+        "selected_execution_records": [
+          {
+            "execution_id": "kotlinx.io.RefCounteringCopyTrackerTest.stateTransition",
+            "upstream_id": "core/jvm/test/RefCounteringCopyTrackerTest.kt#stateTransition",
+            "concrete_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+            "declaring_class": "kotlinx.io.RefCounteringCopyTrackerTest",
+            "method_name": "stateTransition",
+            "parameter_types": "",
+            "upstream_path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+            "git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+            "source_set": "jvm",
+            "source_sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+            "reference_execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]",
+            "candidate_platform": "native"
+          }
+        ],
+        "selected_execution_records_sha256": "f720d26c21d2d486fd6a01f9af8891a6659d8dd1f0714e55f7d6a36fd1388bb7",
+        "covers_full_catalog": false,
+        "candidate_platform": "native",
+        "reference_execution_ids": [
+          "[engine:junit-jupiter]/[class:kotlinx.io.RefCounteringCopyTrackerTest]/[method:stateTransition()]"
+        ],
+        "input_hashes": {
+          "workspace_git_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+          "compiler_sha256": "9a686d60be910523147a5fb32ab047fab699cc86e355c975e5055d0979be317b",
+          "compiler_resource_bundle_sha256": "1d5d5da29510ed9408cc0cc13652f12131e780546c377920f0c02ebdc1f99ca9",
+          "stdlib_content_sha256": "de6113c1f46ab08f6b36c13bffd35bb1003b59d42660b23ab9a95cf90118a672",
+          "stdlib_sources_sha256": "613722d4e26ac34800f46128568f2114628df8d0a5d0f9124164d84d7bdd9b9d",
+          "runtime_sources_sha256": "3e128e5ac5a164c7c3cda1ee8859595fc12da2a8a229e999a9291f1b419b3f83",
+          "runtime_abi_sources_sha256": "5e62bb524c8d55d62fceca1f9f2583e1c2728bbb08923074767dd91c34597b39",
+          "package_manifest_sha256": "d7b521c59b76db770612034e402299e1e39d4d3b3b816152fa45414078b462f1",
+          "lock_sha256": "1b3125d75813cb6f50812d0fa1a0d0fb35b0f008aa0c810a4edcf56748dfe014",
+          "catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+          "runner_sha256": "796f1fd88b8e3c529b021a10993b38d559ada64c65bcc8b3e22e0a0dda5c082f",
+          "direct_runner_sha256": "e790f203b6c9673804607660fb3bbbad5566594d1213405f5a77678cbc8ab0df",
+          "helper_sha256": "f244f6c02e39d97c28a5b4de8b3166ffa05409a47a2d397217db1c1a03f248aa",
+          "driver_sha256": "4407aec4a915e012df1b943d24ac59b92944617761c57182a4387f2a712cc3f0",
+          "support_source_sha256": {
+            "/Users/kuu/.codex/worktrees/98b0/swifty-kotlin/Scripts/kotlinx_io_upstream/native_bridges/RefCountingCopyTracker.kt": "4bf93133fa7d4b5b46a37975e621ef460471969d26bfd17f8bcf048376518aa0"
+          },
+          "source_closure_index_sha256": null,
+          "port_sha256": {
+            "/private/tmp/kio-candidate-producer-consumer-O2-kuu2572/suite-000/RefCounteringCopyTrackerTest.kt": "ebd36e300171af68390db9bae2400ce2ed629531cb4ed5285151d2e25dcd0a42"
+          },
+          "catalog_preparer_sha256": null,
+          "declaration_index_sha256": null
+        }
+      },
+      "commands": {
+        "compile": [
+          "/private/tmp/kio-candidate-kuu2572/.build/out/Products/Release/kswiftc",
+          "-O2",
+          "--stdlib-library",
+          "/private/tmp/kio-stdlib-fd01-release/KSwiftKStdlib.kklib",
+          "-I",
+          "/private/tmp/kio-candidate-producer-consumer-O2-kuu2572/OriginalTests.kklib",
+          "/private/tmp/kio-candidate-producer-consumer-O2-kuu2572/CombinedDriver.kt",
+          "-o",
+          "/private/tmp/kio-candidate-producer-consumer-O2-kuu2572/candidate"
+        ],
+        "run": [
+          "/private/tmp/kio-candidate-producer-consumer-O2-kuu2572/candidate"
+        ],
+        "library_compile": [
+          "/private/tmp/kio-candidate-kuu2572/.build/out/Products/Release/kswiftc",
+          "-O2",
+          "--stdlib-library",
+          "/private/tmp/kio-stdlib-fd01-release/KSwiftKStdlib.kklib",
+          "--emit",
+          "library",
+          "-m",
+          "KioOriginalTests",
+          "/private/tmp/kio-candidate-producer-consumer-O2-kuu2572/suite-000/RefCounteringCopyTrackerTest.kt",
+          "/Users/kuu/.codex/worktrees/98b0/swifty-kotlin/Scripts/kotlinx_io_upstream/native_bridges/RefCountingCopyTracker.kt",
+          "-o",
+          "/private/tmp/kio-candidate-producer-consumer-O2-kuu2572/OriginalTests.kklib"
+        ]
+      }
+    }
+  ]
+}
