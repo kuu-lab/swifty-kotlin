@@ -46,7 +46,6 @@ extension KIRLoweringDriver {
             sema: sema
         ))
 
-        // Collect all top-level property init instructions (regular + delegate) in declaration order.
         // Using a single array ensures Kotlin's strict declaration-order initialization guarantee.
         var allTopLevelInitInstructions: KIRLoweringEmitContext = []
 
@@ -179,9 +178,6 @@ extension KIRLoweringDriver {
         return module
     }
 
-    /// Synthesizes `$enumConstructorProperty$` helpers for bundled stdlib enum
-    /// classes whose files were skipped from output but whose
-    /// constructor-property placeholders were emitted into lowered bodies.
     private func synthesizeSkippedBundledEnumConstructorPropertyHelpers(
         skippedFiles: [ASTFile],
         files: inout [KIRFile],
@@ -420,9 +416,6 @@ extension KIRLoweringDriver {
         let globalID = arena.appendDecl(.global(KIRGlobal(symbol: symbol, type: objectType)))
         declIDs.append(globalID)
 
-        // Synthesise an initializer for the top-level object so that
-        // property initializers and init blocks run during module init
-        // (property initializers first, then init blocks).
         declIDs.append(contentsOf: synthesizeObjectInitializer(
             objectDecl,
             objectSymbol: symbol,
