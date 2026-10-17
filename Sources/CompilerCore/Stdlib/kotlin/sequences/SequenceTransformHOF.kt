@@ -3,7 +3,6 @@ package kotlin.sequences
 import kotlin.collections.IndexedValue
 
 // MIGRATION-SEQ-002 / KSP-441
-// Core higher-order transform functions for source-backed Sequence pipelines.
 
 public fun <T, R> Sequence<T>.map(transform: (T) -> R): Sequence<R> {
     val source = this
