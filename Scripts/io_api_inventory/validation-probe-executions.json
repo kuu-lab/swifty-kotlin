@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "probes": [
+    {
+      "case_id": "Scripts/io_api_inventory/f02_consumers/ByteStringSyntheticConstructorConsumer.kt#main",
+      "reference_execution_id": "KUU-2623-jvm-reference-byte-string-synthetic-constructors",
+      "candidate_execution_id": "KUU-2623-native-source-klib-byte-string-synthetic-constructors"
+    }
+  ]
+}

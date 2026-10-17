@@ -444,6 +444,62 @@
         }
       ],
       "evidence_source": "local-probe"
+    },
+    {
+      "row_id": "jvm-ad6910e194951687",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "b3de6c106236f0ab52307cb69b8954be657b4d6e0207b6c1f312d858a1de2d5f",
+      "test_input_sha256": "b6ebb700e0b34536e73f79556a90cf00b4481add4e77757b892ade92f5d2ab4b",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "Scripts/io_api_inventory/f02_consumers/ByteStringSyntheticConstructorConsumer.kt#main",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "KUU-2623-jvm-reference-byte-string-synthetic-constructors",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "KUU-2623-native-source-klib-byte-string-synthetic-constructors",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "evidence_source": "upstream-catalog"
+    },
+    {
+      "row_id": "jvm-d7e40c6cd1a94933",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "b3de6c106236f0ab52307cb69b8954be657b4d6e0207b6c1f312d858a1de2d5f",
+      "test_input_sha256": "b6ebb700e0b34536e73f79556a90cf00b4481add4e77757b892ade92f5d2ab4b",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "Scripts/io_api_inventory/f02_consumers/ByteStringSyntheticConstructorConsumer.kt#main",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "KUU-2623-jvm-reference-byte-string-synthetic-constructors",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "KUU-2623-native-source-klib-byte-string-synthetic-constructors",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "evidence_source": "upstream-catalog"
     }
   ]
 }

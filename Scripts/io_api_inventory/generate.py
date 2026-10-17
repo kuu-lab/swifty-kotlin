@@ -27,6 +27,7 @@ LEDGER_PATH = HERE / "api-inventory.tsv"
 SCOPE_PATH = HERE / "platform-scope.tsv"
 SUMMARY_PATH = HERE / "inventory-summary.md"
 VALIDATION_EVIDENCE_PATH = HERE / "api-validation-evidence.json"
+VALIDATION_PROBE_EXECUTIONS_PATH = HERE / "validation-probe-executions.json"
 UPSTREAM_RUNNER = REPO / "Scripts/kotlinx_io_upstream"
 UPSTREAM_RUNNER_LOCK_PATH = UPSTREAM_RUNNER / "reference-lock.json"
 REFERENCE_EXECUTIONS_PATH = UPSTREAM_RUNNER / "jvm-executions.expected.json"
@@ -37,6 +38,33 @@ NO_DIRECT_UPSTREAM_ASSERTION_SOURCE_REFS = {
     "core/common/src/files/Paths.kt:133",
 }
 NO_DIRECT_UPSTREAM_ASSERTION = "none (no direct upstream assertion mapped)"
+BYTESTRING_SYNTHETIC_CONSTRUCTORS = {
+    "jvm-ad6910e194951687": {
+        "descriptor": "([BLjava/lang/Object;Lkotlin/jvm/internal/DefaultConstructorMarker;)V",
+        "upstream_line": 79,
+        "local_line": 10,
+    },
+    "jvm-d7e40c6cd1a94933": {
+        "descriptor": "([BIIILkotlin/jvm/internal/DefaultConstructorMarker;)V",
+        "upstream_line": 95,
+        "local_line": 11,
+    },
+}
+BYTESTRING_CONSTRUCTOR_PROBE_INPUTS = [
+    "Scripts/io_api_inventory/f02_consumers/ByteStringSyntheticConstructorProducer.kt",
+    "Scripts/io_api_inventory/f02_consumers/ByteStringSyntheticConstructorConsumer.kt",
+    "Scripts/io_api_inventory/f02_consumers/ByteStringSyntheticConstructorNegative.kt",
+    "Scripts/io_api_inventory/f02_consumers/ByteStringSyntheticConstructor.expected",
+    "Scripts/io_api_inventory/f02_consumers/ByteStringSyntheticConstructorAbiProbe.java",
+    "Scripts/io_api_inventory/generate_f01_consumers.py",
+    "Scripts/io_api_inventory/generate_f02_consumers.py",
+    "Scripts/io_api_inventory/run_f02_matrix.py",
+    "Scripts/io_api_inventory/test_f02_matrix.py",
+    "Scripts/io_api_inventory/test_validation_evidence.py",
+    "Scripts/io_api_inventory/upstream-lock.json",
+    "Scripts/io_api_inventory/validation-probe-executions.json",
+    "Scripts/kotlinx_io_upstream/reference-lock.json",
+]
 VALIDATION_EVIDENCE_SCHEMA_VERSION = 2
 VALIDATION_LANES_BY_OBLIGATION = {
     "jvm-descriptor": ("jvm-descriptor",),
@@ -662,7 +690,11 @@ def _local_probe_case_spec(row: dict, case_id: str) -> dict | None:
     return spec
 
 
-def _load_validation_execution_catalogs() -> dict[str, dict[str, str]]:
+def is_bytestring_synthetic_constructor(row: dict) -> bool:
+    return row.get("row_id") in BYTESTRING_SYNTHETIC_CONSTRUCTORS
+
+
+def _load_validation_execution_catalogs(probe_lock: dict | None = None) -> dict[str, dict[str, str]]:
     try:
         lock = json.loads(UPSTREAM_RUNNER_LOCK_PATH.read_text(encoding="utf-8"))
         if lock.get("commit") != EXPECTED_TAG_COMMIT:
@@ -692,6 +724,32 @@ def _load_validation_execution_catalogs() -> dict[str, dict[str, str]]:
                     fail(f"duplicate {subject} execution ID in locked catalog: {execution_id}")
                 catalog[execution_id] = case_id
             catalogs[subject] = catalog
+        if probe_lock is not None:
+            probe_bytes = VALIDATION_PROBE_EXECUTIONS_PATH.read_bytes()
+            if hashlib.sha256(probe_bytes).hexdigest() != probe_lock.get("validationProbeExecutionsSha256"):
+                fail("validation probe execution catalog does not match its lock")
+            probe_data = json.loads(probe_bytes.decode("utf-8"))
+            if (not isinstance(probe_data, dict)
+                    or set(probe_data) != {"schema_version", "probes"}
+                    or type(probe_data["schema_version"]) is not int
+                    or probe_data["schema_version"] != 1
+                    or not isinstance(probe_data["probes"], list)):
+                fail("validation probe execution catalog has an invalid schema")
+            for probe in probe_data["probes"]:
+                if not isinstance(probe, dict) or set(probe) != {
+                    "case_id", "reference_execution_id", "candidate_execution_id"
+                }:
+                    fail("validation probe catalog contains a malformed entry")
+                case_id = probe["case_id"]
+                if not isinstance(case_id, str) or not case_id:
+                    fail("validation probe catalog has an empty case_id")
+                for subject in ("reference", "candidate"):
+                    execution_id = probe[subject + "_execution_id"]
+                    if not isinstance(execution_id, str) or not execution_id:
+                        fail(f"validation probe catalog has an empty {subject} execution_id")
+                    if execution_id in catalogs[subject]:
+                        fail(f"duplicate {subject} execution ID in validation probe catalog: {execution_id}")
+                    catalogs[subject][execution_id] = case_id
         return catalogs
     except (OSError, json.JSONDecodeError, UnicodeDecodeError) as error:
         fail(f"cannot load validation execution catalogs: {error}")
@@ -701,7 +759,14 @@ def _case_id_matches_row(row: dict, case_id: str) -> bool:
     case_path, separator, case_name = case_id.partition("#")
     if not separator or not case_path or not case_name:
         return False
-    for reference in row.get("upstream_test_refs", "").split(";"):
+    upstream_refs = row.get("upstream_test_refs", "")
+    if not upstream_refs or upstream_refs.startswith("none ("):
+        return any(
+            case_path == reference.strip().split("#", 1)[0]
+            for reference in row.get("local_test_refs", "").split(";")
+            if reference.strip() and not reference.strip().startswith("none")
+        )
+    for reference in upstream_refs.split(";"):
         reference_path, marker, reference_name = reference.partition("#")
         # A suite mapping is a discovery hint, not row-level execution evidence.
         if not marker or reference_name == "suite-reference" or case_path != reference_path:
@@ -754,7 +819,7 @@ def apply_validation_evidence(
         for record in records
     )):
         if execution_catalogs is None:
-            execution_catalogs = _load_validation_execution_catalogs()
+            execution_catalogs = _load_validation_execution_catalogs(lock)
         if set(execution_catalogs) != {"reference", "candidate"}:
             fail("validation execution catalogs must include reference and candidate entries")
 
@@ -785,7 +850,7 @@ def apply_validation_evidence(
         if evidence_source not in ("upstream-catalog", "local-probe"):
             fail(f"unknown evidence_source for schema v{schema_version}")
         if evidence_source == "upstream-catalog" and execution_catalogs is None:
-            execution_catalogs = _load_validation_execution_catalogs()
+            execution_catalogs = _load_validation_execution_catalogs(lock)
         row_id = record["row_id"]
         if not isinstance(row_id, str) or not row_id:
             fail("validation record has an empty row_id")
@@ -1604,6 +1669,8 @@ def parse_jvm_api(path: Path, module: str, sources: list[Path]) -> list[dict]:
 def owner_for(row: dict) -> str:
     if row.get("_jvm_key") in INDEX_OF_DEFAULT_BRIDGES:
         return "KUU-2618"
+    if is_bytestring_synthetic_constructor(row):
+        return "KUU-2623"
     text = " ".join(
         [row["module"], row["owner_fqn"], row["name"], row["signature"], row["upstream_source_refs"]]
     ).lower()
@@ -1874,6 +1941,87 @@ def apply_jvm_correspondence(rows: list[dict], index: SourceIndex, lock: dict) -
         row["notes"] = "Exact Kotlin metadata JVM signature: " + repr(row["_jvm_key"]) + "; Kotlin source key: " + repr(key) + "; visibility: " + declaration["visibility"]
 
 
+def apply_bytestring_synthetic_constructor_correspondence(rows: list[dict], index: SourceIndex) -> None:
+    declarations = {
+        (entry["origin"], entry["path"], entry["line"]): entry
+        for entry in index.declarations
+        if entry["kind"] == "constructor"
+    }
+    for row in rows:
+        mapping = BYTESTRING_SYNTHETIC_CONSTRUCTORS.get(row["row_id"])
+        if mapping is None:
+            continue
+        upstream = declarations.get((
+            "upstream", "bytestring/common/src/ByteString.kt", mapping["upstream_line"]
+        ))
+        local = declarations.get((
+            "local", "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteString.kt", mapping["local_line"]
+        ))
+        if upstream is None or local is None:
+            fail(f"missing ByteString constructor mapping for {row['row_id']}")
+
+        row["_source_declarations"] = [upstream]
+        row["_source_paths"] = [UPSTREAM / upstream["path"]]
+        row["_source_key"] = upstream["_key"]
+        row["_typed_local_refs"] = [f"{local['path']}:{local['line']}"]
+        row["_candidate_declarations"] = [local]
+        row["upstream_source_refs"] = f"{upstream['path']}:{upstream['line']}"
+        row["local_candidate_refs"] = f"{local['path']}:{local['line']}"
+        row["local_implementation_refs"] = f"{local['path']}:{local['line']}"
+        row["annotations"], row["deprecation"], row["exception_contract"] = declaration_metadata(upstream)
+        row["default_parameter_count"] = str(sum(parameter["default"] is not None for parameter in upstream["parameters"]))
+
+        metadata = []
+        for origin, declaration in (("upstream", upstream), ("candidate", local)):
+            annotations, deprecation, exceptions = declaration_metadata(declaration)
+            metadata.append({
+                "reference": f"{declaration['path']}:{declaration['line']}",
+                "origin": origin,
+                "visibility": declaration["visibility"],
+                "annotations": declaration["annotations"],
+                "deprecation": deprecation,
+                "exceptionContract": exceptions,
+                "defaults": {
+                    parameter["name"]: parameter["default"]
+                    for parameter in declaration["parameters"]
+                    if parameter["default"] is not None
+                },
+                "parameters": [
+                    {
+                        "name": parameter["name"],
+                        "type": parameter["type"],
+                        "annotations": parameter["annotations"],
+                    }
+                    for parameter in declaration["parameters"]
+                ],
+            })
+        row["platform_metadata"] = json.dumps(metadata, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+        differences = []
+        if upstream["visibility"] != local["visibility"]:
+            differences.append({"visibility": {"upstream": upstream["visibility"], "candidate": local["visibility"]}})
+        for expected, candidate in zip(upstream["parameters"], local["parameters"]):
+            parameter_differences = {}
+            if expected["name"] != candidate["name"]:
+                parameter_differences["name"] = {"upstream": expected["name"], "candidate": candidate["name"]}
+            if expected["type"] != candidate["type"]:
+                parameter_differences["type"] = {"upstream": expected["type"], "candidate": candidate["type"]}
+            if expected["default"] != candidate["default"]:
+                parameter_differences["default"] = {"upstream": expected["default"], "candidate": candidate["default"]}
+            if parameter_differences:
+                differences.append({"parameter": expected["name"], **parameter_differences})
+        row["local_contract_differences"] = (
+            json.dumps(differences, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+            if differences else "none detected (semantics unverified)"
+        )
+        row["notes"] = (
+            f"Generated JVM descriptor {mapping['descriptor']} maps to upstream constructor "
+            f"{upstream['path']}:{upstream['line']} and native candidate constructor "
+            f"{local['path']}:{local['line']}; physical JVM classfile ABI is reference-only, "
+            "while the candidate probe validates Kotlin visibility/default behavior and fresh KLIB dispatch."
+        )
+
+
 def typed_published_internals(index: SourceIndex) -> list[dict]:
     rows = []
     for declaration in index.declarations:
@@ -1960,6 +2108,8 @@ def local_contract_differences(row: dict, index: SourceIndex) -> str:
 def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
     if row.get("_jvm_key") in INDEX_OF_DEFAULT_BRIDGES:
         return list(INDEX_OF_DEFAULT_BRIDGE_TEST_INPUTS)
+    if is_bytestring_synthetic_constructor(row):
+        return BYTESTRING_CONSTRUCTOR_PROBE_INPUTS
     name = row["_candidate_name"].lower()
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []
@@ -2004,6 +2154,10 @@ def upstream_test_refs(row: dict, test_index: dict) -> list[str]:
         if entry is None or case_name not in entry.get("testNames", []):
             fail(f"locked upstream test is missing for ByteString.indexOf bridge: {case_name}")
         return [f"{path}#{case_name}"]
+    if is_bytestring_synthetic_constructor(row):
+        # ByteString operation tests only use this class in setup or as a receiver;
+        # none asserts either synthetic constructor descriptor or its visibility.
+        return []
     if row.get("upstream_source_refs") in NO_DIRECT_UPSTREAM_ASSERTION_SOURCE_REFS:
         # The upstream smoke cases use SystemFileSystem raw methods; they do not
         # exercise these deprecated Path extensions or assert their annotations.
@@ -2356,6 +2510,7 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     api_rows.extend(platform_typealiases(index))
     apply_jvm_correspondence(api_rows, index, lock)
     apply_index_of_default_bridge_mappings(api_rows, index)
+    apply_bytestring_synthetic_constructor_correspondence(api_rows, index)
 
     local_tests = []
     local_paths = list(REPO.joinpath("Tests").rglob("*.swift"))
@@ -2382,8 +2537,16 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     for row in api_rows:
         candidates = local_candidates(row)
         row["local_candidate_refs"] = ";".join(candidates) or "none"
-        row["local_implementation_refs"] = ";".join(local_implementation_refs(row, index, runtime_symbols)) or "none (interface/abstract/generated or no implementation mapped)"
-        row["local_contract_differences"] = local_contract_differences(row, index)
+        if is_bytestring_synthetic_constructor(row):
+            row["local_implementation_refs"] = ";".join(
+                f"{declaration['path']}:{declaration['line']}"
+                for declaration in row.get("_candidate_declarations", [])
+                if declaration["hasBody"]
+            ) or "none (generated constructor mapping unavailable)"
+        else:
+            row["local_implementation_refs"] = ";".join(local_implementation_refs(row, index, runtime_symbols)) or "none (interface/abstract/generated or no implementation mapped)"
+        if not is_bytestring_synthetic_constructor(row):
+            row["local_contract_differences"] = local_contract_differences(row, index)
         row["status"] = "unverified" if candidates else "missing"
         if row["representation"] == "JVM public ABI dump" and row["source_api"] == "no":
             row["status"] = "unverified"
@@ -2394,7 +2557,11 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
         row["upstream_test_refs"] = ";".join(direct_upstream_tests) or NO_DIRECT_UPSTREAM_ASSERTION
         row["local_test_refs"] = ";".join(local_test_refs(row, local_tests)) or "none"
         if row["representation"] == "JVM public ABI dump":
-            row["scope_decision"] = "in-scope JVM ABI and Java interoperability"
+            row["scope_decision"] = (
+                "reference JVM classfile ABI; candidate native visibility/default behavior; no candidate JVM classfile"
+                if is_bytestring_synthetic_constructor(row)
+                else "in-scope JVM ABI and Java interoperability"
+            )
         for test_ref in row["upstream_test_refs"].split(";"):
             if test_ref == "none" or test_ref.startswith("none ("):
                 continue

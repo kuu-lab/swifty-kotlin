@@ -182,6 +182,36 @@ declaration-derived expected-output classification, rather than being described
 as new official Native reference runs. Other boundary/resource/annotation
 contracts and the parent's full upstream execution gate remain separate checks.
 
+### ByteString synthetic constructor probes (KUU-2623)
+
+The two ByteString JVM ABI rows have no direct upstream test assertion. Their
+`upstream_test_refs` therefore stay `none (no direct upstream assertion mapped)`;
+ByteString operation tests are not credited for constructor visibility or ABI.
+The dedicated `bytestring-synthetic-constructors` case checks public constructor
+defaults and documented range exceptions in source, bundled-stdlib, and fresh
+producer/consumer executions at O0/O2. It also verifies that an external Kotlin
+consumer cannot call the private primary constructor. The JVM reference probe
+reads the exact constructors from the locked 0.9.1 JAR, checks descriptors and
+classfile flags, and invokes both synthetic constructors including their mask
+and marker arguments.
+
+Run this case independently with the same pinned compiler/JDK/JAR arguments as
+the matrix command above:
+
+```sh
+python3 Scripts/io_api_inventory/run_f02_matrix.py \
+  --compiler .build/debug/kswiftc --output /tmp/kuu-2623-byte-string-constructors \
+  --kotlin-home /path/to/kotlinc-2.3.10 --java /path/to/java21/bin/java \
+  --dependencies /path/to/locked-io-jars \
+  --case bytestring-synthetic-constructors --separate-cases
+```
+
+The JVM descriptors describe the pinned JVM reference artifact. KSwiftK emits a
+native artifact, so the candidate lanes verify Kotlin visibility/default
+dispatch and imported `.kklib` behavior; they do not claim that a KSwiftK
+classfile contains those JVM descriptors. The generated evidence records this
+local probe case separately from the upstream test index.
+
 ### F02 pre-rebase acceptance snapshot, 2026-10-14
 
 KUU-1822 remains incomplete. The full pre-rebase run used retrieved master
