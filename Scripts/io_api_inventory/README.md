@@ -182,6 +182,74 @@ declaration-derived expected-output classification, rather than being described
 as new official Native reference runs. Other boundary/resource/annotation
 contracts and the parent's full upstream execution gate remain separate checks.
 
+### KUU-2604 `Buffer.hintEmit()` and `InternalIoApi`
+
+`Tests/CompilerBackendTests/Fixtures/IOBufferHintEmit2604` is a dedicated
+producer/consumer probe. The consumer checks empty and non-empty buffers,
+repeated `hintEmit()` calls, preserved size, and the exact bytes read afterward.
+`KotlinxIOBufferHintEmitContractTests` checks positive and negative
+`InternalIoApi` cases for source and imported-stdlib views. The JVM descriptor
+probe checks public `()V`, the binary `InternalIoApi` marker, the absence of a
+default bridge, and opted-in and un-opted candidate consumers. The macOS Native
+reference probe runs the same behavioral consumer against the locked kotlinx-io
+0.9.1 artifact. The Sema suite covers source and imported-library opt-in, and
+the JVM negative consumer confirms the marker is enforced without opt-in.
+
+The row `klib-6ec3d2252d99b756` requires source, freshly generated stdlib, and
+independent producer/consumer lanes at O0/O2. The JVM ABI row
+`jvm-23aa7a8f63c07fd5` requires its pinned JVM descriptor and candidate KLIB
+consumer. Reference and candidate lane receipts, hashes, byte counts, and
+candidate SHA live in `validation-probe-executions.json` and are checked against
+`api-validation-evidence.json`; `generate.py --check` rejects mismatched or
+missing receipts. The KLIB receipt also requires a separate
+`reference-macos-apple` result whose output matches the JVM reference bytes,
+and the source/imported-library Sema receipt. The JVM row requires a separate
+negative-opt-in receipt (expected compiler exit 1).
+
+Validated against candidate `d610e43f3275f9f5603a41543bd5b77ab7e067b0`
+(Kotlin 2.4.20) and the locked kotlinx-io 0.9.1 reference at
+`362bdc35e159bad6da1e08101c8321792d762281`:
+
+- All six KLIB source / freshly generated stdlib / producer-consumer O0/O2
+  lanes passed and matched JVM stdout SHA-256
+  `f110b766285f9aae06e05a0af6084af4e703812a714e922795539b795481b4fb`.
+- The macOS arm64 Kotlin/Native reference matched those bytes and rejected the
+  consumer without opt-in.
+- The public JVM `()V` descriptor retained `InternalIoApi`, had no default
+  bridge, and candidate positive and negative consumers behaved as expected.
+  The focused Sema suite passed both source and imported-library cases.
+- Both target ledger rows are `verified`; per-lane command/output hashes,
+  byte counts, candidate SHA, and method are recorded in the local receipt
+  catalog and checked against the evidence records.
+
+For a candidate checkout separate from this harness checkout, pass its root so
+the matrix fingerprints the compiler/runtime sources that produced the binary:
+
+```sh
+python3.12 Scripts/io_api_inventory/run_f02_matrix.py \
+  --compiler /path/to/candidate/.build/debug/kswiftc \
+  --package-root /path/to/candidate \
+  --output /tmp/kuu2604-f02 \
+  --kotlin-home /path/to/kotlinc-2.3.10 \
+  --java /path/to/java21/bin/java \
+  --dependencies /path/to/locked-io-jars \
+  --case buffer-hint-emit --separate-cases --compile-timeout 1800
+python3.12 Scripts/io_api_inventory/probes/KUU-2604/verify_jvm_descriptor.py \
+  --compiler /path/to/candidate/.build/debug/kswiftc \
+  --stdlib-library /tmp/kuu2604-f02/KSwiftKStdlib.kklib \
+  --dependencies /path/to/locked-io-jars \
+  --java /path/to/java21/bin/java \
+  --expected /tmp/kuu2604-f02/buffer-hint-emit/reference-run.stdout \
+  --candidate-sha <full-git-sha> --output /tmp/kuu2604-jvm-descriptor
+python3.12 Scripts/io_api_inventory/probes/KUU-2604/verify_native_reference.py \
+  --target macos_arm64 --kotlin-home /path/to/kotlin-native-2.3.10 \
+  --compiler-archive /path/to/locked-native-compiler.zip \
+  --dependencies /path/to/locked-io-artifacts \
+  --java /path/to/java21/bin/java --konan-data /tmp/kuu2604-konan \
+  --expected /tmp/kuu2604-f02/buffer-hint-emit/reference-run.stdout \
+  --candidate-sha <full-git-sha> --output /tmp/kuu2604-native-reference
+```
+
 ### F02 pre-rebase acceptance snapshot, 2026-10-14
 
 KUU-1822 remains incomplete. The full pre-rebase run used retrieved master

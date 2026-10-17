@@ -6,6 +6,7 @@ import contextlib
 import io
 from pathlib import Path
 import re
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -148,6 +149,35 @@ class F02GateTests(unittest.TestCase):
             ("stdlib-library", "O0"), ("stdlib-library", "O2"),
             ("producer-consumer", "O0"), ("producer-consumer", "O2"),
         ])
+
+    def test_buffer_hint_emit_has_a_dedicated_non_destructive_probe(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "buffer-hint-emit")
+        producer = case["producer"][0].read_text()
+        consumer = case["consumer"].read_text()
+        self.assertEqual(case["reference"], "jvm")
+        self.assertEqual(case["entry"], "kuu2604.main")
+        self.assertIn("producerBoundaryMarker()", producer)
+        self.assertGreaterEqual(consumer.count("hintEmit()"), 4)
+        self.assertIn("nonEmpty.writeByte(18.toByte())", consumer)
+        self.assertIn("nonEmpty.size == 4L", consumer)
+        self.assertIn("nonEmpty.readByte().toInt()", consumer)
+        self.assertIn("first == 18 && second == 52 && third == -1 && fourth == 0", consumer)
+        self.assertNotIn("contentEquals", consumer)
+        self.assertIn("verifyBufferHintEmitNonDestructive()", consumer)
+
+    def test_candidate_package_root_is_passed_to_compiler_process(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            candidate_sources = root / "candidate"
+            candidate_sources.mkdir()
+            with patch.object(matrix, "PACKAGE_ROOT", candidate_sources):
+                self.assertEqual(matrix.execute(
+                    [sys.executable, "-c", "import os; print(os.environ['KSWIFTK_PACKAGE_ROOT'])"],
+                    root, "package-root", 5,
+                ), 0)
+            self.assertEqual((root / "package-root.stdout").read_text().strip(), str(candidate_sources))
+            receipt = json.loads((root / "package-root.json").read_text())
+            self.assertEqual(receipt["environment"]["KSWIFTK_PACKAGE_ROOT"], str(candidate_sources))
 
     def test_deprecated_path_rows_have_no_unrelated_upstream_assertions(self):
         expected = {
