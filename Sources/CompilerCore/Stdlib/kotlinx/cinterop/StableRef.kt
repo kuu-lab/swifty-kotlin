@@ -18,13 +18,7 @@ internal external fun __stableRefDeref(pointer: COpaquePointer): Any?
 @KsSymbolName("kk_stable_ref_dispose")
 internal external fun __stableRefDispose(pointer: COpaquePointer): Unit
 
-/**
- * This class provides a way to create a stable handle to any Kotlin object.
- * After converting to CPointer it can be safely passed to native code e.g. to be received
- * in a Kotlin callback.
- *
- * Any StableRef should be manually disposed.
- */
+/** Any StableRef should be manually disposed. */
 @Suppress("NON_PUBLIC_PRIMARY_CONSTRUCTOR_OF_INLINE_CLASS")
 @ExperimentalForeignApi
 public value class StableRef<out T : Any> internal constructor(
@@ -32,11 +26,9 @@ public value class StableRef<out T : Any> internal constructor(
 ) {
 
     public companion object {
-        /** Creates a handle for given object. */
         public fun <T : Any> create(any: T): StableRef<T> = StableRef(__stableRefCreate(any))
     }
 
-    /** Converts the handle to C pointer. */
     public fun asCPointer(): COpaquePointer = stablePtr
 
     /** Disposes the handle. It must not be used after that. */
@@ -44,7 +36,6 @@ public value class StableRef<out T : Any> internal constructor(
         __stableRefDispose(stablePtr)
     }
 
-    /** Returns the object this handle was created for. */
     @Suppress("UNCHECKED_CAST")
     public fun get(): T = __stableRefDeref(stablePtr) as T
 }
