@@ -76,8 +76,6 @@ extension ControlFlowTypeChecker {
         }
     }
 
-    /// An exactly-once or at-least-once inline lambda that always returns from
-    /// its enclosing function makes the call itself non-completing.
     private func hasGuaranteedNonCompletingInlineLambda(
         _ call: ExprID,
         arguments: [CallArgument],
