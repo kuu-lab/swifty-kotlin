@@ -1,6 +1,5 @@
 // swiftlint:disable file_length
 
-/// `RuntimeABISpec.systemFunctions` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
     static let dynamicIteratorSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
         name: "kk_dynamic_iterator",
@@ -12,7 +11,6 @@ public extension RuntimeABISpec {
     )
 
     static let systemFunctions: [RuntimeABIFunctionSpec] = [
-        // KUU-2017: syscall bridge to a native standard-input stream object.
         RuntimeABIFunctionSpec(
             name: "__kk_system_in",
             parameters: [],
