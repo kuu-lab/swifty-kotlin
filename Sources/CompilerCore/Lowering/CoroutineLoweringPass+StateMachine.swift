@@ -1,6 +1,5 @@
 
-/// Label base for coroutine state machine dispatch labels, chosen to avoid
-/// collision with user labels and tailrec loop-head labels.
+/// Chosen to avoid collision with user labels and tailrec loop-head labels.
 let coroutineDispatchLabelBase: Int32 = 1000
 
 struct StateMachineTypeContext {
