@@ -291,6 +291,23 @@ covers `producer-consumer-O0` and `producer-consumer-O2`. A paired JVM ABI row
 does not inherit native results, and a source row does not inherit JVM
 descriptor evidence.
 
+Schema v2 adds row-specific supplemental evidence for the three
+`FileSystem.$default` rows owned by KUU-2630. Promotion requires the exact
+physical JVM probe result, its pinned artifact and source hashes, and all six
+F02 source/KLIB/producer-consumer O0/O2 results in addition to the ordinary
+`jvm-descriptor` execution pair. Native output alone cannot satisfy the JVM
+probe requirement.
+
+The Native F02 fixture records the arguments received by a test implementation
+of `FileSystem` for omitted and explicit flags. Because `FileSystem` is sealed,
+the runner copies the selected compiler and resource bundle into its output
+directory and adds `FileSystemFlagProbe.kt` to that private stdlib copy so the
+implementation belongs to the same module. The JVM reference uses real
+`SystemFileSystem` operations, while the Java probe checks the physical
+`$default` descriptors and mask behavior. The Native probe observes dispatch
+arguments without entering platform file I/O, so its result does not claim
+Native filesystem operation coverage.
+
 The generator rejects unknown or duplicate row IDs, malformed hashes, a
 different reference pin, stale implementation/test inputs, non-passing or
 unrun executions, duplicate cases, and missing or unrelated lanes. Upstream

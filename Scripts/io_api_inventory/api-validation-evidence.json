@@ -444,6 +444,372 @@
         }
       ],
       "evidence_source": "local-probe"
+    },
+    {
+      "row_id": "jvm-22f55505dcae0513",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "75f942a2555ab6d98ac947e519c0d02e8cf41334ea4b655805be598db4c0568b",
+      "test_input_sha256": "3701f823ebb18535e3be4aebae57a4f8f375b2d313f523e4afa8e902d784cfc7",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "core/common/test/files/SmokeFileTest.kt#appendToFile",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.files.SmokeFileTest]/[method:appendToFile()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "filesystem-default-flag-bridges:source-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "jvm_abi_probe": {
+        "execution_id": "filesystem-default-flag-bridges:jvm-abi-probe",
+        "result": "PASS",
+        "exit_code": 0,
+        "probe_source_sha256": "91e82d8d4037ad9e281bded8d5e30aec6f4f20e0f077e1a9ba12fc7616e048e2",
+        "reference_artifact_sha256": {
+          "kotlinx-io-core-jvm": "765d8851d8ca694706931331b92386844800867e041b720f1f193dbda874d370",
+          "kotlinx-io-bytestring-jvm": "8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4"
+        },
+        "descriptors": {
+          "jvm-22f55505dcae0513": "(Lkotlinx/io/files/FileSystem;Lkotlinx/io/files/Path;ZILjava/lang/Object;)Lkotlinx/io/RawSink;",
+          "jvm-258efe69986cf1fb": "(Lkotlinx/io/files/FileSystem;Lkotlinx/io/files/Path;ZILjava/lang/Object;)V",
+          "jvm-959e3de0168c91f8": "(Lkotlinx/io/files/FileSystem;Lkotlinx/io/files/Path;ZILjava/lang/Object;)V"
+        },
+        "method_count": 3,
+        "mask": 2,
+        "marker": "java.lang.Object",
+        "public": true,
+        "static": true,
+        "synthetic": true,
+        "bridge": false,
+        "defaults": {
+          "jvm-22f55505dcae0513": false,
+          "jvm-258efe69986cf1fb": true,
+          "jvm-959e3de0168c91f8": false
+        },
+        "stdout": "FileSystem default bridge ABI PASS: owner=kotlinx.io.files.FileSystem\nmethods=3 flags=public,static,synthetic bridge=false mask=0x2 marker=java.lang.Object\nmask behavior PASS: sink.append=false delete.mustExist=true createDirectories.mustCreate=false\n",
+        "stdout_sha256": "84208a5bce9843d6447592a895b75e65f89c9c70d12092aa85570c6018bfa3de"
+      },
+      "native_matrix": {
+        "case_id": "filesystem-default-flag-bridges",
+        "execution_ids": [
+          "filesystem-default-flag-bridges:source-O0",
+          "filesystem-default-flag-bridges:source-O2",
+          "filesystem-default-flag-bridges:stdlib-library-O0",
+          "filesystem-default-flag-bridges:stdlib-library-O2",
+          "filesystem-default-flag-bridges:producer-consumer-O0",
+          "filesystem-default-flag-bridges:producer-consumer-O2"
+        ],
+        "fixture_sha256": "b94cc92e11985199f1547d31c88922a713857724af07262ee774dba90b123b20",
+        "candidate_compiler_sha256": "ac1bc013e3038b5f71df116c44e3f65c1bf7c6ed2a743c687e4e755e81f43354",
+        "reference_stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+        "summary_sha256": "f3ef10ff4368c9f4046a09dab515e9938e0ebf24129c45c339a901c7b3ed37b1",
+        "lanes": [
+          {
+            "lane": "source-O0",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "normalized_stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "executable_sha256": "3021b228e75f6463c344fe65e93a5f28e3af2b179ea664f948c781d38a471e04"
+          },
+          {
+            "lane": "source-O2",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "normalized_stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "executable_sha256": "1802f4df4c2d2d856d6527a8284f7a34647c0adb8cbb0ccc6c9e2e747f580933"
+          },
+          {
+            "lane": "stdlib-library-O0",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "normalized_stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "executable_sha256": "46a984367d1622765b6eae41ce0b5f79f4aacbd3fde1cc0e46bed7f8eaf4ab38"
+          },
+          {
+            "lane": "stdlib-library-O2",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "normalized_stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "executable_sha256": "3bf05dc2f1b7699909a17f3158fa16375f30952ad2cbfe30bd0e86814e058060"
+          },
+          {
+            "lane": "producer-consumer-O0",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "normalized_stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "executable_sha256": "29876a4a7fc0a2603a381856520f8e6a94faf3f65dd0db51b31cdd271c672bd5"
+          },
+          {
+            "lane": "producer-consumer-O2",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "normalized_stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "executable_sha256": "2430eb0f620c97dd5598e41fcb7eb6c9d3959d0484530776c99038a4a32cd1ad"
+          }
+        ]
+      },
+      "evidence_source": "upstream-catalog"
+    },
+    {
+      "row_id": "jvm-258efe69986cf1fb",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "75f942a2555ab6d98ac947e519c0d02e8cf41334ea4b655805be598db4c0568b",
+      "test_input_sha256": "3701f823ebb18535e3be4aebae57a4f8f375b2d313f523e4afa8e902d784cfc7",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "core/common/test/files/SmokeFileTest.kt#deleteFile",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.files.SmokeFileTest]/[method:deleteFile()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "filesystem-default-flag-bridges:source-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "jvm_abi_probe": {
+        "execution_id": "filesystem-default-flag-bridges:jvm-abi-probe",
+        "result": "PASS",
+        "exit_code": 0,
+        "probe_source_sha256": "91e82d8d4037ad9e281bded8d5e30aec6f4f20e0f077e1a9ba12fc7616e048e2",
+        "reference_artifact_sha256": {
+          "kotlinx-io-core-jvm": "765d8851d8ca694706931331b92386844800867e041b720f1f193dbda874d370",
+          "kotlinx-io-bytestring-jvm": "8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4"
+        },
+        "descriptors": {
+          "jvm-22f55505dcae0513": "(Lkotlinx/io/files/FileSystem;Lkotlinx/io/files/Path;ZILjava/lang/Object;)Lkotlinx/io/RawSink;",
+          "jvm-258efe69986cf1fb": "(Lkotlinx/io/files/FileSystem;Lkotlinx/io/files/Path;ZILjava/lang/Object;)V",
+          "jvm-959e3de0168c91f8": "(Lkotlinx/io/files/FileSystem;Lkotlinx/io/files/Path;ZILjava/lang/Object;)V"
+        },
+        "method_count": 3,
+        "mask": 2,
+        "marker": "java.lang.Object",
+        "public": true,
+        "static": true,
+        "synthetic": true,
+        "bridge": false,
+        "defaults": {
+          "jvm-22f55505dcae0513": false,
+          "jvm-258efe69986cf1fb": true,
+          "jvm-959e3de0168c91f8": false
+        },
+        "stdout": "FileSystem default bridge ABI PASS: owner=kotlinx.io.files.FileSystem\nmethods=3 flags=public,static,synthetic bridge=false mask=0x2 marker=java.lang.Object\nmask behavior PASS: sink.append=false delete.mustExist=true createDirectories.mustCreate=false\n",
+        "stdout_sha256": "84208a5bce9843d6447592a895b75e65f89c9c70d12092aa85570c6018bfa3de"
+      },
+      "native_matrix": {
+        "case_id": "filesystem-default-flag-bridges",
+        "execution_ids": [
+          "filesystem-default-flag-bridges:source-O0",
+          "filesystem-default-flag-bridges:source-O2",
+          "filesystem-default-flag-bridges:stdlib-library-O0",
+          "filesystem-default-flag-bridges:stdlib-library-O2",
+          "filesystem-default-flag-bridges:producer-consumer-O0",
+          "filesystem-default-flag-bridges:producer-consumer-O2"
+        ],
+        "fixture_sha256": "b94cc92e11985199f1547d31c88922a713857724af07262ee774dba90b123b20",
+        "candidate_compiler_sha256": "ac1bc013e3038b5f71df116c44e3f65c1bf7c6ed2a743c687e4e755e81f43354",
+        "reference_stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+        "summary_sha256": "f3ef10ff4368c9f4046a09dab515e9938e0ebf24129c45c339a901c7b3ed37b1",
+        "lanes": [
+          {
+            "lane": "source-O0",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "normalized_stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "executable_sha256": "3021b228e75f6463c344fe65e93a5f28e3af2b179ea664f948c781d38a471e04"
+          },
+          {
+            "lane": "source-O2",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "normalized_stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "executable_sha256": "1802f4df4c2d2d856d6527a8284f7a34647c0adb8cbb0ccc6c9e2e747f580933"
+          },
+          {
+            "lane": "stdlib-library-O0",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "normalized_stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "executable_sha256": "46a984367d1622765b6eae41ce0b5f79f4aacbd3fde1cc0e46bed7f8eaf4ab38"
+          },
+          {
+            "lane": "stdlib-library-O2",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "normalized_stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "executable_sha256": "3bf05dc2f1b7699909a17f3158fa16375f30952ad2cbfe30bd0e86814e058060"
+          },
+          {
+            "lane": "producer-consumer-O0",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "normalized_stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "executable_sha256": "29876a4a7fc0a2603a381856520f8e6a94faf3f65dd0db51b31cdd271c672bd5"
+          },
+          {
+            "lane": "producer-consumer-O2",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "normalized_stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "executable_sha256": "2430eb0f620c97dd5598e41fcb7eb6c9d3959d0484530776c99038a4a32cd1ad"
+          }
+        ]
+      },
+      "evidence_source": "upstream-catalog"
+    },
+    {
+      "row_id": "jvm-959e3de0168c91f8",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "75f942a2555ab6d98ac947e519c0d02e8cf41334ea4b655805be598db4c0568b",
+      "test_input_sha256": "3701f823ebb18535e3be4aebae57a4f8f375b2d313f523e4afa8e902d784cfc7",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "core/common/test/files/SmokeFileTest.kt#createDirectories",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.files.SmokeFileTest]/[method:createDirectories()]",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "filesystem-default-flag-bridges:source-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "jvm_abi_probe": {
+        "execution_id": "filesystem-default-flag-bridges:jvm-abi-probe",
+        "result": "PASS",
+        "exit_code": 0,
+        "probe_source_sha256": "91e82d8d4037ad9e281bded8d5e30aec6f4f20e0f077e1a9ba12fc7616e048e2",
+        "reference_artifact_sha256": {
+          "kotlinx-io-core-jvm": "765d8851d8ca694706931331b92386844800867e041b720f1f193dbda874d370",
+          "kotlinx-io-bytestring-jvm": "8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4"
+        },
+        "descriptors": {
+          "jvm-22f55505dcae0513": "(Lkotlinx/io/files/FileSystem;Lkotlinx/io/files/Path;ZILjava/lang/Object;)Lkotlinx/io/RawSink;",
+          "jvm-258efe69986cf1fb": "(Lkotlinx/io/files/FileSystem;Lkotlinx/io/files/Path;ZILjava/lang/Object;)V",
+          "jvm-959e3de0168c91f8": "(Lkotlinx/io/files/FileSystem;Lkotlinx/io/files/Path;ZILjava/lang/Object;)V"
+        },
+        "method_count": 3,
+        "mask": 2,
+        "marker": "java.lang.Object",
+        "public": true,
+        "static": true,
+        "synthetic": true,
+        "bridge": false,
+        "defaults": {
+          "jvm-22f55505dcae0513": false,
+          "jvm-258efe69986cf1fb": true,
+          "jvm-959e3de0168c91f8": false
+        },
+        "stdout": "FileSystem default bridge ABI PASS: owner=kotlinx.io.files.FileSystem\nmethods=3 flags=public,static,synthetic bridge=false mask=0x2 marker=java.lang.Object\nmask behavior PASS: sink.append=false delete.mustExist=true createDirectories.mustCreate=false\n",
+        "stdout_sha256": "84208a5bce9843d6447592a895b75e65f89c9c70d12092aa85570c6018bfa3de"
+      },
+      "native_matrix": {
+        "case_id": "filesystem-default-flag-bridges",
+        "execution_ids": [
+          "filesystem-default-flag-bridges:source-O0",
+          "filesystem-default-flag-bridges:source-O2",
+          "filesystem-default-flag-bridges:stdlib-library-O0",
+          "filesystem-default-flag-bridges:stdlib-library-O2",
+          "filesystem-default-flag-bridges:producer-consumer-O0",
+          "filesystem-default-flag-bridges:producer-consumer-O2"
+        ],
+        "fixture_sha256": "b94cc92e11985199f1547d31c88922a713857724af07262ee774dba90b123b20",
+        "candidate_compiler_sha256": "ac1bc013e3038b5f71df116c44e3f65c1bf7c6ed2a743c687e4e755e81f43354",
+        "reference_stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+        "summary_sha256": "f3ef10ff4368c9f4046a09dab515e9938e0ebf24129c45c339a901c7b3ed37b1",
+        "lanes": [
+          {
+            "lane": "source-O0",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "normalized_stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "executable_sha256": "3021b228e75f6463c344fe65e93a5f28e3af2b179ea664f948c781d38a471e04"
+          },
+          {
+            "lane": "source-O2",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "normalized_stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "executable_sha256": "1802f4df4c2d2d856d6527a8284f7a34647c0adb8cbb0ccc6c9e2e747f580933"
+          },
+          {
+            "lane": "stdlib-library-O0",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "normalized_stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "executable_sha256": "46a984367d1622765b6eae41ce0b5f79f4aacbd3fde1cc0e46bed7f8eaf4ab38"
+          },
+          {
+            "lane": "stdlib-library-O2",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "normalized_stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "executable_sha256": "3bf05dc2f1b7699909a17f3158fa16375f30952ad2cbfe30bd0e86814e058060"
+          },
+          {
+            "lane": "producer-consumer-O0",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "normalized_stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "executable_sha256": "29876a4a7fc0a2603a381856520f8e6a94faf3f65dd0db51b31cdd271c672bd5"
+          },
+          {
+            "lane": "producer-consumer-O2",
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "normalized_stdout_sha256": "8ebc08e58359efa38c55d3dee46b9f1a04a86267b9ff1aada6d675489f73a0fb",
+            "executable_sha256": "2430eb0f620c97dd5598e41fcb7eb6c9d3959d0484530776c99038a4a32cd1ad"
+          }
+        ]
+      },
+      "evidence_source": "upstream-catalog"
     }
   ]
 }

@@ -12,6 +12,7 @@ import json
 import math
 import os
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -24,6 +25,7 @@ from generate import LOCAL_PROBE_EVIDENCE_CASES, local_probe_execution_id
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
+PACKAGE_ROOT = ROOT
 LANES = [(route, optimization) for route in ("source", "stdlib-library", "producer-consumer")
          for optimization in ("O0", "O2")]
 # The reference compiler is pinned to Kotlin 2.3.10; KSwiftK currently emits
@@ -35,9 +37,51 @@ def sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def matrix_execution_id(case_id: str, route: str, optimization: str) -> str:
+    return f"{case_id}:{route}-{optimization}"
+
+
 def snapshot(path: Path) -> dict[str, str]:
     return {str(item.relative_to(path)): sha(item) for item in sorted(path.rglob("*"))
             if item.is_file() and "__pycache__" not in item.parts}
+
+
+def compiler_resource_root(compiler: Path) -> Path | None:
+    return next((path for path in (
+        compiler.parent / "KSwiftK_CompilerCore.bundle/Contents/Resources",
+        compiler.parent / "KSwiftK_CompilerCore.bundle",
+        compiler.parent / "KSwiftK_CompilerCore.resources",
+    ) if (path / "Stdlib").is_dir()), None)
+
+
+def stage_filesystem_flag_probe(compiler: Path, output: Path) -> tuple[Path, str]:
+    """Copy the compiler tool bundle and add the sealed-interface probe to its stdlib."""
+    resource_root = compiler_resource_root(compiler)
+    if resource_root is None:
+        raise RuntimeError("compiler resource bundle required to stage FileSystem flag probe")
+    relative_resource_root = resource_root.relative_to(compiler.parent)
+    bundle_name = relative_resource_root.parts[0]
+    source_bundle = compiler.parent / bundle_name
+    if not source_bundle.is_dir():
+        raise RuntimeError(f"compiler resource bundle root is missing: {source_bundle}")
+
+    toolchain = output / "candidate-toolchain"
+    toolchain.mkdir()
+    staged_compiler = toolchain / compiler.name
+    shutil.copy2(compiler, staged_compiler)
+    shutil.copytree(source_bundle, toolchain / bundle_name, symlinks=True)
+
+    probe_source = HERE / "f02_consumers/FileSystemFlagProbe.kt"
+    staged_resources = toolchain / relative_resource_root
+    staged_probe = staged_resources / "Stdlib/kotlinx/io/files/FileSystemFlagProbe.kt"
+    staged_probe.parent.mkdir(parents=True, exist_ok=True)
+    probe_bytes = probe_source.read_bytes()
+    if staged_probe.exists():
+        if staged_probe.read_bytes() != probe_bytes:
+            raise RuntimeError("compiler resource bundle already contains a different FileSystem flag probe")
+    else:
+        staged_probe.write_bytes(probe_bytes)
+    return staged_compiler, hashlib.sha256(probe_bytes).hexdigest()
 
 
 def save(path: Path, value: object) -> None:
@@ -51,7 +95,7 @@ def execute(command: list[str], directory: Path, stage: str, timeout: float,
     temporary = workspace / "tmp"
     temporary.mkdir()
     overrides = {"TMPDIR": str(temporary) + "/", "KSWIFTK_STDLIB_CACHE_DIR": str(workspace / "stdlib-cache"),
-                 "KSWIFTK_PACKAGE_ROOT": str(ROOT), **(environment or {})}
+                 "KSWIFTK_PACKAGE_ROOT": str(PACKAGE_ROOT), **(environment or {})}
     receipt = {"command": command, "cwd": str(workspace), "environment": overrides,
                "deadline_seconds": timeout, "status": "RUNNING"}
     prefix = directory / stage
@@ -188,6 +232,13 @@ def scenarios() -> list[dict]:
     cases.append({"id": "deprecated-path-source-sink",
                   "fixture": ROOT / "Scripts/diff_cases/kotlinx_io_file_legacy_suppressed.kt",
                   "reference": "jvm"})
+    cases.append({"id": "filesystem-default-flag-bridges",
+                  "producer": [HERE / "f02_consumers/FileSystemDefaultBridgeProducer.kt"],
+                  "reference_producer": [HERE / "f02_consumers/FileSystemJvmReference.kt"],
+                  "consumer": ROOT / "Scripts/diff_cases/kotlinx_io_file_system_default_flag_bridges.kt",
+                  "reference": "jvm",
+                  "jvm_abi_probe": HERE / "f02_consumers/FileSystemDefaultBridgeAbiProbe.java",
+                  "jvm_abi_probe_main_class": "FileSystemDefaultBridgeAbiProbe"})
     base = ROOT / "Tests/CompilerBackendTests/Fixtures"
     cases += [
         {"id": "buffer-boundaries", "producer": [base / "IOBuffer1729/BufferBoundaries.kt"],
@@ -196,7 +247,8 @@ def scenarios() -> list[dict]:
         {"id": "segment-read-context-impl", "producer": [base / "IOSegmentReadContextImpl2590/Producer.kt"],
          "consumer": base / "IOSegmentReadContextImpl2590/Consumer.kt", "entry": "kuu2590consumer.main",
          "jvm_class": "kuu2590consumer.ConsumerKt", "reference": "jvm", "friend_io_artifacts": True,
-         "jvm_abi_probe": HERE / "f02_consumers/SegmentReadContextAbiProbe.java"},
+         "jvm_abi_probe": HERE / "f02_consumers/SegmentReadContextAbiProbe.java",
+         "jvm_abi_probe_main_class": "SegmentReadContextAbiProbe"},
         {"id": "buffering-contracts", "producer": [base / "IOBuffering1730/BufferingContracts.kt"],
          "consumer": base / "IOBuffering1730/Consumer.kt", "entry": "kuu1730consumer.main",
          "expected": base / "IOBuffering1730/reference.stdout", "reference": "pinned-JVM"},
@@ -220,7 +272,7 @@ def scenarios() -> list[dict]:
     return cases
 
 
-def prepare(case: dict, directory: Path) -> tuple[list[Path], Path]:
+def prepare(case: dict, directory: Path, *, reference: bool = False) -> tuple[list[Path], Path]:
     sources = directory / "inputs"
     sources.mkdir()
     if "groups" in case:
@@ -273,7 +325,9 @@ def prepare(case: dict, directory: Path) -> tuple[list[Path], Path]:
         consumer.write_text("package f02consumer\nfun main() { f02fixture.main() }\n")
         return [producer], consumer
     producers = []
-    for index, source in enumerate(case["producer"]):
+    source_files = list(case.get("reference_producer", []) if reference and "reference_producer" in case
+                        else case.get("producer", []))
+    for index, source in enumerate(source_files):
         destination = sources / f"P{index:03d}_{source.name}"
         destination.write_bytes(source.read_bytes())
         producers.append(destination)
@@ -402,6 +456,8 @@ def run_lane(case: dict, compiler: Path, stdlib: Path, expected: bytes, director
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--compiler", type=Path, required=True)
+    parser.add_argument("--package-root", type=Path, default=ROOT,
+                        help="package source root matching the selected compiler; defaults to this checkout")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--kotlin-home", type=Path, required=True)
     parser.add_argument("--java", type=Path, required=True)
@@ -412,41 +468,47 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--compile-timeout", type=float, default=600)
     args = parser.parse_args(argv)
     if not math.isfinite(args.compile_timeout) or args.compile_timeout <= 0: parser.error("finite positive timeout required")
+    global PACKAGE_ROOT
+    PACKAGE_ROOT = args.package_root.resolve()
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
-    compiler = args.compiler.resolve()
+    compiler_input = args.compiler.resolve()
     all_scenarios = scenarios()
     selected = all_scenarios
     if args.case:
         identifiers = {case["id"] for case in selected}
         if len(set(args.case)) != len(args.case) or set(args.case) - identifiers: parser.error("unknown/duplicate case")
         selected = [case for case in selected if case["id"] in args.case]
+    resource_probe_sha256 = None
+    compiler = compiler_input
+    if any(case["id"] == "filesystem-default-flag-bridges" for case in selected):
+        compiler, resource_probe_sha256 = stage_filesystem_flag_probe(compiler_input, output)
     summary = {"status": "RUNNING", "selected_cases": [case["id"] for case in selected],
                "expected_case_ids": [case["id"] for case in all_scenarios], "lanes": LANES,
                "subset": bool(args.case), "issue_complete": False, "results": [], "compiler_sha256": sha(compiler),
+               "compiler_input_path": str(compiler_input),
+               "compiler_resource_probe_sha256": resource_probe_sha256,
+               "package_root": str(PACKAGE_ROOT),
                "workspace_git_sha": subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True).strip(),
                "dirty_patch_sha256": hashlib.sha256(subprocess.check_output(["git", "-C", str(ROOT), "diff", "HEAD"])).hexdigest(),
                "local_probe_executions": [],
                "runtime_cache_provenance": "source and manifest-validated object hashes; not a clean Runtime rebuild"}
     try:
         provenance = [Path(__file__), HERE / "generate_f02_consumers.py", HERE / "generate_f01_consumers.py",
-                      HERE / "api-inventory.tsv", HERE / "source-declarations.json", HERE / "upstream-lock.json",
+                      HERE / "source-declarations.json", HERE / "upstream-lock.json",
                       ROOT / "Scripts/kotlinx_io_upstream/reference-lock.json", ROOT / "Package.swift"]
         provenance += sorted((HERE / "f02_consumers").glob("*")) + sorted((HERE / "f02_boundary").glob("*.kt"))
         summary["harness_files_sha256"] = {str(path.relative_to(ROOT)): sha(path) for path in provenance if path.is_file()}
-        scenario_inputs = {path for case in selected for path in case.get("producer", []) + case.get("fixtures", [])}
+        scenario_inputs = {path for case in selected for path in case.get("producer", [])
+                           + case.get("reference_producer", []) + case.get("fixtures", [])}
         scenario_inputs |= {case[key] for case in selected for key in (
             "consumer", "expected", "fixture", "negative_fixture", "reference_probe", "provenance", "jvm_abi_probe"
         ) if key in case}
         summary["scenario_files_sha256"] = {str(path.relative_to(ROOT)): sha(path) for path in sorted(scenario_inputs)}
-        resources = next((path for path in (
-            compiler.parent / "KSwiftK_CompilerCore.bundle/Contents/Resources",
-            compiler.parent / "KSwiftK_CompilerCore.bundle",
-            compiler.parent / "KSwiftK_CompilerCore.resources",
-        ) if (path / "Stdlib").is_dir()), None)
+        resources = compiler_resource_root(compiler)
         if resources is None: raise RuntimeError("actual compiler resource bundle required")
-        dependencies = [resources, ROOT / "Sources/CompilerCore", ROOT / "Sources/CompilerBackend",
-                        ROOT / "Sources/KSwiftKCLI", ROOT / "Sources/Runtime", ROOT / "Sources/RuntimeABI"]
+        dependencies = [resources, PACKAGE_ROOT / "Sources/CompilerCore", PACKAGE_ROOT / "Sources/CompilerBackend",
+                        PACKAGE_ROOT / "Sources/KSwiftKCLI", PACKAGE_ROOT / "Sources/Runtime", PACKAGE_ROOT / "Sources/RuntimeABI"]
         dependencies_before = {str(path): snapshot(path) for path in dependencies}
         summary["source_and_resource_files_sha256"] = dependencies_before
         for name, contents in generate().items():
@@ -510,7 +572,9 @@ def main(argv: list[str] | None = None) -> int:
                             candidate_result,
                         ),
                     })
-            summary["results"].append({"case": case["id"], **result})
+            summary["results"].append({"case": case["id"],
+                                       "execution_id": matrix_execution_id(case["id"], route, optimization),
+                                       **result})
             save(output / "summary.json", summary)
             print(f"{result['status']} {case['id']} {route} {optimization}", flush=True)
 
@@ -525,7 +589,7 @@ def main(argv: list[str] | None = None) -> int:
             directory = output / case["id"]
             directory.mkdir()
             if case["reference"] == "jvm":
-                producers, consumer = prepare(case, directory)
+                producers, consumer = prepare(case, directory, reference=True)
                 jar = directory / "reference.jar"
                 classpath = os.pathsep.join(map(str, jars))
                 if case.get("negative_fixture"):
@@ -572,7 +636,7 @@ def main(argv: list[str] | None = None) -> int:
                     require_stage([str(javac), "-d", str(probe_classes), str(case["jvm_abi_probe"])],
                                   directory, "jvm-abi-compile", args.compile_timeout)
                     require_stage([str(args.java.resolve()), "-cp", os.pathsep.join(
-                        map(str, [probe_classes, jar, *jars])), "SegmentReadContextAbiProbe"],
+                        map(str, [probe_classes, jar, *jars])), case["jvm_abi_probe_main_class"]],
                         directory, "jvm-abi-probe", 30)
             else:
                 expected = case["expected"].read_bytes()
@@ -608,8 +672,8 @@ def main(argv: list[str] | None = None) -> int:
                 raise RuntimeError("harness or scenario inputs changed between matrix lanes")
         if {str(path): snapshot(path) for path in dependencies} != dependencies_before:
             raise RuntimeError("compiler resources or runtime/stdlib source inputs changed")
-        summary["runtime_object_sha256"] = {str(path.relative_to(ROOT)): sha(path)
-            for path in sorted((ROOT / ".runtime-build").rglob("*.o")) if path.is_file()}
+        summary["runtime_object_sha256"] = {str(path.relative_to(PACKAGE_ROOT)): sha(path)
+            for path in sorted((PACKAGE_ROOT / ".runtime-build").rglob("*.o")) if path.is_file()}
         failures = [result for result in summary["results"] if result["status"] != "PASS"]
         summary["status"] = "FAILED_OR_INCOMPLETE" if failures else "SELECTED_MATRIX_PASS"
         if failures: summary["error"] = f"{len(failures)} selected lanes failed; raw evidence retained"

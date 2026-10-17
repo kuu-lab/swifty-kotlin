@@ -13,6 +13,20 @@ SPEC.loader.exec_module(RUNNER)
 
 
 class JvmReferenceTests(unittest.TestCase):
+    def test_exact_execution_selection_is_locked_unique_and_deterministic(self):
+        expected = [
+            {"execution_id": "first", "upstream_id": "Smoke.kt#first"},
+            {"execution_id": "second", "upstream_id": "Smoke.kt#second"},
+        ]
+        self.assertEqual(RUNNER.select_execution_rows(expected, ["second"]), [expected[1]])
+        self.assertEqual(RUNNER.select_execution_rows(expected, []), expected)
+        with self.assertRaisesRegex(ValueError, "unknown JVM execution ID"):
+            RUNNER.select_execution_rows(expected, ["missing"])
+        with self.assertRaisesRegex(ValueError, "must be unique"):
+            RUNNER.select_execution_rows(expected, ["first", "first"])
+        with self.assertRaisesRegex(ValueError, "surrounding whitespace"):
+            RUNNER.select_execution_rows(expected, [" first"])
+
     def test_inherited_factory_executions_remain_distinct_and_candidate_unmapped(self):
         source = {"upstream_id": "core/common/test/Source.kt#read",
             "upstream_path": "core/common/test/Source.kt", "platform": "common",

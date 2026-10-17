@@ -249,6 +249,67 @@ LOCAL_IO_TEST_PREFIXES = (
 )
 LOCAL_IO_PROBE_API_NAMES = {"dataasbytearray"}
 
+FILESYSTEM_DEFAULT_BRIDGE_ROWS = {
+    "jvm-22f55505dcae0513": {
+        "name": "sink",
+        "upstream_test": "core/common/test/files/SmokeFileTest.kt#appendToFile",
+        "descriptor": "(Lkotlinx/io/files/FileSystem;Lkotlinx/io/files/Path;ZILjava/lang/Object;)Lkotlinx/io/RawSink;",
+        "default": False,
+    },
+    "jvm-258efe69986cf1fb": {
+        "name": "delete",
+        "upstream_test": "core/common/test/files/SmokeFileTest.kt#deleteFile",
+        "descriptor": "(Lkotlinx/io/files/FileSystem;Lkotlinx/io/files/Path;ZILjava/lang/Object;)V",
+        "default": True,
+    },
+    "jvm-959e3de0168c91f8": {
+        "name": "createDirectories",
+        "upstream_test": "core/common/test/files/SmokeFileTest.kt#createDirectories",
+        "descriptor": "(Lkotlinx/io/files/FileSystem;Lkotlinx/io/files/Path;ZILjava/lang/Object;)V",
+        "default": False,
+    },
+}
+FILESYSTEM_DEFAULT_BRIDGE_F02_LANES = (
+    "source-O0",
+    "source-O2",
+    "stdlib-library-O0",
+    "stdlib-library-O2",
+    "producer-consumer-O0",
+    "producer-consumer-O2",
+)
+FILESYSTEM_DEFAULT_BRIDGE_PROBE_EXECUTION_ID = "filesystem-default-flag-bridges:jvm-abi-probe"
+FILESYSTEM_DEFAULT_BRIDGE_CANDIDATE_EXECUTION_ID = "filesystem-default-flag-bridges:source-O0"
+FILESYSTEM_DEFAULT_BRIDGE_PROBE_STDOUT = (
+    "FileSystem default bridge ABI PASS: owner=kotlinx.io.files.FileSystem\n"
+    "methods=3 flags=public,static,synthetic bridge=false mask=0x2 marker=java.lang.Object\n"
+    "mask behavior PASS: sink.append=false delete.mustExist=true createDirectories.mustCreate=false\n"
+)
+FILESYSTEM_DEFAULT_BRIDGE_LOCAL_TESTS = (
+    "Scripts/diff_cases/kotlinx_io_file_system_default_flag_bridges.kt",
+    "Scripts/io_api_inventory/f02_consumers/FileSystemFlagProbe.kt",
+    "Scripts/io_api_inventory/f02_consumers/FileSystemDefaultBridgeProducer.kt",
+    "Scripts/io_api_inventory/f02_consumers/FileSystemJvmReference.kt",
+    "Scripts/io_api_inventory/f02_consumers/FileSystemDefaultBridgeAbiProbe.java",
+    "Scripts/io_api_inventory/run_f02_matrix.py",
+    "Scripts/io_api_inventory/test_f02_matrix.py",
+    "Scripts/io_api_inventory/generate.py",
+    "Scripts/io_api_inventory/test_reproducibility.py",
+    "Scripts/io_api_inventory/test_validation_evidence.py",
+    "Scripts/io_api_inventory/source-declarations.json",
+    "Scripts/io_api_inventory/source_index.py",
+    "Scripts/io_api_inventory/refresh_source_index.py",
+    "Tests/CompilerCoreTests/Sema/JVMInteropNioSourceContractsTests.swift",
+    "Scripts/kotlinx_io_upstream/run_jvm_reference.py",
+    "Scripts/kotlinx_io_upstream/JvmReferenceRunner.java",
+    "Scripts/kotlinx_io_upstream/tests/test_jvm_reference.py",
+    "Scripts/kotlinx_io_upstream/run_candidate_suites.py",
+    "Scripts/kotlinx_io_upstream/files/kuu2630-smoke-file-macos-source-closure.json",
+    "Scripts/kotlinx_io_upstream/reference-lock.json",
+    "Scripts/kotlinx_io_upstream/jvm-executions.expected.json",
+    "Scripts/kotlinx_io_upstream/native-executions.expected.json",
+    "Scripts/kotlinx_io_upstream/jvm_interop/native-default-obligations.expected.json",
+)
+
 SEGMENT_READ_CONTEXT_IMPL_ROW_IDS = frozenset({
     "internal-230a62161c7ea51a",
     "jvm-f8c529b67df6423d",
@@ -426,6 +487,130 @@ def _local_probe_case_spec(row: dict, case_id: str) -> dict | None:
     return spec
 
 
+def validate_filesystem_default_bridge_supplemental_evidence(
+    row_id: str,
+    probe: dict,
+    matrix: dict,
+    repository: Path,
+    sha256_pattern: re.Pattern,
+) -> None:
+    """Require the physical JVM probe and six Native lanes before promoting bridge rows."""
+    probe_fields = {
+        "execution_id",
+        "result",
+        "exit_code",
+        "probe_source_sha256",
+        "reference_artifact_sha256",
+        "descriptors",
+        "method_count",
+        "mask",
+        "marker",
+        "public",
+        "static",
+        "synthetic",
+        "bridge",
+        "defaults",
+        "stdout",
+        "stdout_sha256",
+    }
+    if not isinstance(probe, dict) or set(probe) != probe_fields:
+        fail(f"malformed physical JVM ABI probe evidence for row {row_id}")
+    probe_path = repository / "Scripts/io_api_inventory/f02_consumers/FileSystemDefaultBridgeAbiProbe.java"
+    try:
+        probe_bytes = probe_path.read_bytes()
+    except OSError as error:
+        fail(f"cannot read physical JVM ABI probe source: {error}")
+    probe_sha256 = hashlib.sha256(probe_bytes).hexdigest()
+    if probe.get("probe_source_sha256") != probe_sha256:
+        fail(f"stale physical JVM ABI probe source hash for row {row_id}")
+
+    expected_descriptors = {
+        key: details["descriptor"] for key, details in FILESYSTEM_DEFAULT_BRIDGE_ROWS.items()
+    }
+    expected_defaults = {
+        key: details["default"] for key, details in FILESYSTEM_DEFAULT_BRIDGE_ROWS.items()
+    }
+    if probe.get("execution_id") != FILESYSTEM_DEFAULT_BRIDGE_PROBE_EXECUTION_ID:
+        fail(f"unexpected physical JVM ABI probe execution for row {row_id}")
+    if probe.get("result") != "PASS" or type(probe.get("exit_code")) is not int or probe["exit_code"] != 0:
+        fail(f"non-passing physical JVM ABI probe for row {row_id}")
+    if probe.get("method_count") != 3 or probe.get("mask") != 2:
+        fail(f"physical JVM ABI probe has the wrong method count or mask for row {row_id}")
+    if (probe.get("marker") != "java.lang.Object" or probe.get("public") is not True
+            or probe.get("static") is not True or probe.get("synthetic") is not True
+            or probe.get("bridge") is not False):
+        fail(f"physical JVM ABI probe flags or marker mismatch for row {row_id}")
+    if probe.get("descriptors") != expected_descriptors or probe.get("defaults") != expected_defaults:
+        fail(f"physical JVM ABI probe descriptors/defaults mismatch for row {row_id}")
+    expected_stdout = FILESYSTEM_DEFAULT_BRIDGE_PROBE_STDOUT
+    stdout = probe.get("stdout")
+    if not isinstance(stdout, str) or stdout != expected_stdout:
+        fail(f"physical JVM ABI probe output mismatch for row {row_id}")
+    stdout_sha256 = hashlib.sha256(stdout.encode("utf-8")).hexdigest()
+    if probe.get("stdout_sha256") != stdout_sha256:
+        fail(f"physical JVM ABI probe output hash mismatch for row {row_id}")
+
+    runner_lock = json.loads(UPSTREAM_RUNNER_LOCK_PATH.read_text(encoding="utf-8"))
+    artifacts = {
+        artifact["coordinate"].split(":")[1]: artifact["sha256"]
+        for artifact in runner_lock["jvm_artifacts"]
+        if artifact["coordinate"].startswith("org.jetbrains.kotlinx:kotlinx-io-")
+    }
+    expected_artifacts = {
+        "kotlinx-io-core-jvm": artifacts["kotlinx-io-core-jvm"],
+        "kotlinx-io-bytestring-jvm": artifacts["kotlinx-io-bytestring-jvm"],
+    }
+    if probe.get("reference_artifact_sha256") != expected_artifacts:
+        fail(f"physical JVM ABI probe reference artifact hash mismatch for row {row_id}")
+
+    matrix_fields = {
+        "case_id",
+        "execution_ids",
+        "fixture_sha256",
+        "candidate_compiler_sha256",
+        "reference_stdout_sha256",
+        "summary_sha256",
+        "lanes",
+    }
+    if not isinstance(matrix, dict) or set(matrix) != matrix_fields:
+        fail(f"malformed F02 matrix evidence for row {row_id}")
+    if matrix.get("case_id") != "filesystem-default-flag-bridges":
+        fail(f"unexpected F02 case ID for row {row_id}")
+    expected_execution_ids = [
+        f"filesystem-default-flag-bridges:{lane}" for lane in FILESYSTEM_DEFAULT_BRIDGE_F02_LANES
+    ]
+    if matrix.get("execution_ids") != expected_execution_ids:
+        fail(f"F02 execution ID list mismatch for row {row_id}")
+    fixture_path = repository / "Scripts/diff_cases/kotlinx_io_file_system_default_flag_bridges.kt"
+    try:
+        fixture_sha256 = hashlib.sha256(fixture_path.read_bytes()).hexdigest()
+    except OSError as error:
+        fail(f"cannot read F02 matrix fixture: {error}")
+    if matrix.get("fixture_sha256") != fixture_sha256:
+        fail(f"stale F02 matrix fixture hash for row {row_id}")
+    for field in ("candidate_compiler_sha256", "reference_stdout_sha256", "summary_sha256"):
+        if not isinstance(matrix.get(field), str) or not sha256_pattern.fullmatch(matrix[field]):
+            fail(f"malformed {field} for row {row_id}")
+    lanes = matrix.get("lanes")
+    if not isinstance(lanes, list) or len(lanes) != len(FILESYSTEM_DEFAULT_BRIDGE_F02_LANES):
+        fail(f"F02 matrix lane count mismatch for row {row_id}")
+    lane_fields = {"lane", "result", "exit_code", "stdout_sha256", "normalized_stdout_sha256", "executable_sha256"}
+    observed_lanes = set()
+    for lane in lanes:
+        if not isinstance(lane, dict) or set(lane) != lane_fields:
+            fail(f"malformed F02 matrix lane for row {row_id}")
+        lane_name = lane.get("lane")
+        if lane_name not in FILESYSTEM_DEFAULT_BRIDGE_F02_LANES or lane_name in observed_lanes:
+            fail(f"unexpected or duplicate F02 matrix lane for row {row_id}: {lane_name!r}")
+        observed_lanes.add(lane_name)
+        if lane.get("result") != "PASS" or type(lane.get("exit_code")) is not int or lane["exit_code"] != 0:
+            fail(f"non-passing F02 matrix lane {lane_name} for row {row_id}")
+        for field in ("stdout_sha256", "normalized_stdout_sha256", "executable_sha256"):
+            if not isinstance(lane.get(field), str) or not sha256_pattern.fullmatch(lane[field]):
+                fail(f"malformed F02 {field} for lane {lane_name} row {row_id}")
+    if observed_lanes != set(FILESYSTEM_DEFAULT_BRIDGE_F02_LANES):
+        fail(f"missing F02 matrix lanes for row {row_id}")
+
 def _load_validation_execution_catalogs() -> dict[str, dict[str, str]]:
     try:
         lock = json.loads(UPSTREAM_RUNNER_LOCK_PATH.read_text(encoding="utf-8"))
@@ -508,8 +693,8 @@ def apply_validation_evidence(
     if not isinstance(evidence, dict) or set(evidence) != {"schema_version", "records"}:
         fail("validation evidence must contain only schema_version and records")
     schema_version = evidence["schema_version"]
-    if type(schema_version) is not int or schema_version not in (1, VALIDATION_EVIDENCE_SCHEMA_VERSION):
-        fail("unsupported validation evidence schema_version")
+    if type(schema_version) is not int or schema_version not in (1, VALIDATION_EVIDENCE_SCHEMA_VERSION):        fail("unsupported validation evidence schema_version")
+    schema_version = evidence["schema_version"]
     records = evidence["records"]
     if not isinstance(records, list):
         fail("validation evidence records must be an array")
@@ -544,8 +729,8 @@ def apply_validation_evidence(
             fail("each validation record must be an object")
         evidence_source = "upstream-catalog" if schema_version == 1 else record.get("evidence_source")
         record_fields = base_record_fields | ({"evidence_source"} if schema_version == 2 else set())
-        if set(record) != record_fields:
-            fail(f"each validation record must contain exactly the schema v{schema_version} fields")
+        if not record_fields.issubset(record):
+            fail(f"each validation record is missing required schema v{schema_version} fields")
         if evidence_source not in ("upstream-catalog", "local-probe"):
             fail(f"unknown evidence_source for schema v{schema_version}")
         if evidence_source == "upstream-catalog" and execution_catalogs is None:
@@ -553,6 +738,13 @@ def apply_validation_evidence(
         row_id = record["row_id"]
         if not isinstance(row_id, str) or not row_id:
             fail("validation record has an empty row_id")
+        if row_id in FILESYSTEM_DEFAULT_BRIDGE_ROWS and schema_version < 2:
+            fail(f"{row_id} requires schema v2 physical ABI and Native matrix evidence")
+        expected_record_fields = set(record_fields)
+        if schema_version >= 2 and row_id in FILESYSTEM_DEFAULT_BRIDGE_ROWS:
+            expected_record_fields.update({"jvm_abi_probe", "native_matrix"})
+        if set(record) != expected_record_fields:
+            fail(f"validation record for {row_id} has fields that do not match schema v{schema_version}")
         if row_id in seen_ids:
             fail(f"duplicate validation evidence row_id: {row_id}")
         seen_ids.add(row_id)
@@ -628,7 +820,12 @@ def apply_validation_evidence(
                         or execution_id != execution_id.strip()):
                     fail(f"empty {subject} execution_id for row {row_id} case {case_id}")
                 if local_case_spec is None:
-                    catalog_case_id = execution_catalogs[subject].get(execution_id)
+                    if row_id in FILESYSTEM_DEFAULT_BRIDGE_ROWS and subject == "candidate":
+                        if execution_id != FILESYSTEM_DEFAULT_BRIDGE_CANDIDATE_EXECUTION_ID:
+                            fail(f"unexpected F02 candidate execution for row {row_id}: {execution_id}")
+                        catalog_case_id = case_id
+                    else:
+                        catalog_case_id = execution_catalogs[subject].get(execution_id)
                     if catalog_case_id is None:
                         fail(f"unknown {subject} execution_id for row {row_id}: {execution_id}")
                     if catalog_case_id != case_id:
@@ -671,6 +868,17 @@ def apply_validation_evidence(
                     )
             if not required_cases:
                 fail(f"row {row_id} has no registered local probe evidence cases")
+
+        if row_id in FILESYSTEM_DEFAULT_BRIDGE_ROWS:
+            if FILESYSTEM_DEFAULT_BRIDGE_ROWS[row_id]["descriptor"] not in row.get("signature", ""):
+                fail(f"physical JVM ABI probe descriptor does not match ledger row {row_id}")
+            validate_filesystem_default_bridge_supplemental_evidence(
+                row_id,
+                record["jvm_abi_probe"],
+                record["native_matrix"],
+                repository,
+                sha256_pattern,
+            )
         row["status"] = "verified"
 
 
@@ -1365,6 +1573,8 @@ def parse_jvm_api(path: Path, module: str, sources: list[Path]) -> list[dict]:
 
 
 def owner_for(row: dict) -> str:
+    if row.get("row_id") in FILESYSTEM_DEFAULT_BRIDGE_ROWS:
+        return "KUU-2630"
     text = " ".join(
         [row["module"], row["owner_fqn"], row["name"], row["signature"], row["upstream_source_refs"]]
     ).lower()
@@ -1420,6 +1630,11 @@ def owner_for(row: dict) -> str:
 
 
 def local_candidates(row: dict) -> list[str]:
+    filesystem_name = FILESYSTEM_DEFAULT_BRIDGE_ROWS.get(row.get("row_id"), {}).get("name")
+    if filesystem_name:
+        path = REPO / "Sources/CompilerCore/Stdlib/kotlinx/io/files/FileSystem.kt"
+        matches = declaration_lines(path, "function", filesystem_name)
+        return [f"{path.relative_to(REPO).as_posix()}:{line}" for line, text in matches if text.startswith("public fun ")]
     if "_typed_local_refs" in row:
         return row["_typed_local_refs"]
     name = row["_candidate_name"]
@@ -1648,6 +1863,8 @@ def local_contract_differences(row: dict, index: SourceIndex) -> str:
 
 
 def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
+    if row.get("row_id") in FILESYSTEM_DEFAULT_BRIDGE_ROWS:
+        return list(FILESYSTEM_DEFAULT_BRIDGE_LOCAL_TESTS)
     name = row["_candidate_name"].lower()
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []
@@ -1684,6 +1901,9 @@ def local_implementation_refs(row: dict, index: SourceIndex, runtime_symbols: di
 
 
 def upstream_test_refs(row: dict, test_index: dict) -> list[str]:
+    filesystem_test = FILESYSTEM_DEFAULT_BRIDGE_ROWS.get(row.get("row_id"), {}).get("upstream_test")
+    if filesystem_test:
+        return [filesystem_test]
     if row.get("upstream_source_refs") in NO_DIRECT_UPSTREAM_ASSERTION_SOURCE_REFS:
         # The upstream smoke cases use SystemFileSystem raw methods; they do not
         # exercise these deprecated Path extensions or assert their annotations.
@@ -1964,6 +2184,7 @@ def make_summary(lock: dict, rows: list[dict], scope_rows: list[dict]) -> str:
         "## Owner routing",
         "",
         "Rows route to KUU-1729 (Buffer/Segment), KUU-1730 (source/sink lifecycle and common helpers), KUU-1731 (primitive/ByteArray I/O), KUU-1733 (UTF-8), KUU-1760 (ByteString), KUU-1761 (Filesystem), KUU-1762 (JVM interop/ABI/typealiases), or KUU-1763 (Apple). All are children of KUU-1725; missing declarations stay in scope.",
+        "The three FileSystem `$default` flag bridges are routed separately to KUU-2630 for row-local JVM classfile and default-dispatch evidence.",
         "",
         "## JVM ABI classification",
         "",
