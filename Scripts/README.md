@@ -517,23 +517,6 @@ bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/RuntimeTests \
   --target-prefix RuntimeTests
 ```
 
-## Sema interval benchmark
-
-Build `kswiftc`, then measure Sema independently of the earlier frontend phases:
-
-```bash
-python3 Scripts/benchmark_sema.py --files 10 50 100 --jobs 1 4 --runs 3 > /tmp/sema-user.tsv
-python3 Scripts/benchmark_sema.py --stdlib source --files 1 --jobs 1 4 --runs 3 > /tmp/sema-source.tsv
-```
-
-Each configuration gets one unreported warmup. TSV rows retain all measured
-samples for Sema and its setup, header collection, declaration validation, body checks,
-and type checking intervals. Sema currently runs serially for every jobs value;
-these measurements are a baseline, not evidence of parallel Sema speedup.
-Use `--stdlib artifact --stdlib-library <path>` to measure a compatible artifact
-separately. See [the parallelization audit](../docs/sema-parallelization.md) for
-interval boundaries, shared-state constraints, and the proposed implementation gates.
-
 ## Refactoring guard metrics
 
 `loc_report.sh` emits the metrics used as the RF-series refactor gate,
