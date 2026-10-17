@@ -2,7 +2,6 @@ package java.util.regex
 
 import kotlin.text.Regex
 
-/** A Kotlin-backed subset of `java.util.regex.Pattern`. */
 public class Pattern internal constructor(private val regex: Regex) {
     public fun matcher(input: CharSequence): Matcher = Matcher(regex, input.toString())
 
