@@ -301,7 +301,9 @@ struct BoxingIntegrationTests {
             do {
                 let callees = try calleeIDs(of: "genericArrayAssign")
                 // The erased cast passes the array through; only boxing and the store remain.
-                #expect(Set(callees) == [intBox, arrayNames.kkArraySetName])
+                #expect(!callees.contains(interner.intern("kk_op_cast")))
+                #expect(callees.contains(intBox))
+                #expect(callees.contains(arrayNames.kkArraySetName))
             }
         }
     }

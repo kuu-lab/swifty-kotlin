@@ -105,7 +105,8 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 diagnostics: diagnostics,
-                interner: interner
+                interner: interner,
+                sourceManager: ctx.sourceManager
             )
 
             // Nested class/object headers must be collected before the primary
@@ -543,7 +544,8 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 diagnostics: diagnostics,
-                interner: interner
+                interner: interner,
+                sourceManager: ctx.sourceManager
             )
             collectMemberHeaders(
                 members: MemberDeclarations(
@@ -612,7 +614,8 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 diagnostics: diagnostics,
-                interner: interner
+                interner: interner,
+                sourceManager: ctx.sourceManager
             )
             collectMemberHeaders(
                 members: MemberDeclarations(

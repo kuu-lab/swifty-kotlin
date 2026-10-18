@@ -108,6 +108,10 @@ func methodIdentityParameterTypesMatch(
     }
 }
 
+private func methodIdentityNullabilityMatches(_ lhs: Nullability, _ rhs: Nullability) -> Bool {
+    lhs == rhs || lhs == .platformType || rhs == .platformType
+}
+
 private func methodIdentityTypesMatch(
     _ candidate: TypeID, _ interface: TypeID, types: TypeSystem, allowTypeParameterWildcards: Bool
 ) -> Bool {
@@ -117,8 +121,22 @@ private func methodIdentityTypesMatch(
         if case .typeParam = types.kind(of: interface) { return true }
     }
     switch (types.kind(of: candidate), types.kind(of: interface)) {
+    case let (.primitive(lhsPrim, lhsNull), .primitive(rhsPrim, rhsNull)):
+        return lhsPrim == rhsPrim && methodIdentityNullabilityMatches(lhsNull, rhsNull)
+    case let (.any(lhsNull), .any(rhsNull)),
+         let (.nothing(lhsNull), .nothing(rhsNull)),
+         let (.stringStruct(lhsNull), .stringStruct(rhsNull)):
+        return methodIdentityNullabilityMatches(lhsNull, rhsNull)
+    case (.unit, .platformUnit), (.platformUnit, .unit),
+         (.nullableUnit, .platformUnit), (.platformUnit, .nullableUnit):
+        return true
+    case let (.typeParam(lhs), .typeParam(rhs)):
+        return lhs.symbol == rhs.symbol
+            && lhs.capture == rhs.capture
+            && methodIdentityNullabilityMatches(lhs.nullability, rhs.nullability)
     case let (.functionType(lhs), .functionType(rhs)):
-        guard lhs.isSuspend == rhs.isSuspend, lhs.nullability == rhs.nullability,
+        guard lhs.isSuspend == rhs.isSuspend,
+              methodIdentityNullabilityMatches(lhs.nullability, rhs.nullability),
               (lhs.receiver == nil) == (rhs.receiver == nil)
         else { return false }
         return methodIdentityParameterTypesMatch(
@@ -134,7 +152,8 @@ private func methodIdentityTypesMatch(
                 candidateParameterTypes: lhs.throws, interfaceParameterTypes: rhs.throws, types: types, allowTypeParameterWildcards: allowTypeParameterWildcards
             )
     case let (.classType(lhs), .classType(rhs)):
-        guard lhs.classSymbol == rhs.classSymbol, lhs.nullability == rhs.nullability,
+        guard lhs.classSymbol == rhs.classSymbol,
+              methodIdentityNullabilityMatches(lhs.nullability, rhs.nullability),
               lhs.args.count == rhs.args.count
         else { return false }
         let variances = types.normalizedNominalVariances(
@@ -160,7 +179,7 @@ private func methodIdentityTypesMatch(
             }
         }
     case let (.kClassType(lhs), .kClassType(rhs)):
-        return lhs.nullability == rhs.nullability
+        return methodIdentityNullabilityMatches(lhs.nullability, rhs.nullability)
             && methodIdentityTypesMatch(lhs.argument, rhs.argument, types: types, allowTypeParameterWildcards: allowTypeParameterWildcards)
     default:
         return false

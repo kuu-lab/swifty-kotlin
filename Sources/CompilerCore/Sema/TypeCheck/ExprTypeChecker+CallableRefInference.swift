@@ -237,6 +237,8 @@ extension ExprTypeChecker {
                 // `Char::titlecase` in kotlin.text.
                 if let primitive = driver.builtinTypeNamesCache.primitiveType(for: sym.name) {
                     unboundClassType = sema.types.make(.primitive(primitive, .nonNull))
+                } else if let builtin = driver.builtinTypeNamesCache.resolveBuiltinType(sym.name, types: sema.types) {
+                    unboundClassType = builtin
                 } else {
                     unboundClassType = sema.types.make(
                         .classType(ClassType(classSymbol: sym.id, args: [], nullability: .nonNull))
@@ -245,12 +247,14 @@ extension ExprTypeChecker {
                 break
             }
 
-            if unboundClassType == nil,
-               let primitive = driver.builtinTypeNamesCache.primitiveType(for: receiverName)
-            {
-                // Builtin primitive classes may not be present in the lexical scope,
-                // but their callable references still use the primitive receiver path.
-                unboundClassType = sema.types.make(.primitive(primitive, .nonNull))
+            if unboundClassType == nil {
+                if let primitive = driver.builtinTypeNamesCache.primitiveType(for: receiverName) {
+                    // Builtin primitive classes may not be present in the lexical scope,
+                    // but their callable references still use the primitive receiver path.
+                    unboundClassType = sema.types.make(.primitive(primitive, .nonNull))
+                } else if let builtin = driver.builtinTypeNamesCache.resolveBuiltinType(receiverName, types: sema.types) {
+                    unboundClassType = builtin
+                }
             }
         }
 

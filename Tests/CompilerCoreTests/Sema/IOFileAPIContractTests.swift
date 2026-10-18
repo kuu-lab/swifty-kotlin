@@ -161,7 +161,11 @@ struct IOFileAPIContractTests {
                 let record = try #require(emitted.first)
                 try checkAnnotations(record.annotations, expected: row.annotations)
                 if row.kind == "property" {
-                    #expect(record.propertyGetterExternalLinkName?.isEmpty == false)
+                    if symbols.propertyHasCustomGetter(for: symbol.id) {
+                        #expect(record.propertyGetterExternalLinkName?.isEmpty == false)
+                    } else {
+                        #expect(record.propertyGetterExternalLinkName == nil)
+                    }
                     #expect(record.propertySetterExternalLinkName == nil && record.propertyReceiverTypeSignature == nil)
                     #expect(record.constValueLiteral == nil)
                 }
