@@ -48,7 +48,12 @@ PSI parses declaration ownership, receiver/parameter types, visibility, defaults
 annotations and KDoc. JVM Kotlin metadata links each exact owner/name/descriptor
 to its source declaration, including `@JvmName`, getter/setter and field roles.
 The declaration catalogs pin all upstream/local Kotlin inputs, runtime sources,
-extractor hashes and compiler/metadata jar hashes. Test names are linked to pinned upstream
+extractor hashes and compiler/metadata jar hashes. Local Kotlin inputs are pinned
+by the SHA-256 of their bytes and carry extracted declaration lines and KDoc, so
+editing them needs a catalog refresh. `Sources/Runtime/*.swift` is pinned by
+`code-sha256-v1` (`code_digest.py`): the SHA-256 of the code with comments removed
+and whitespace runs collapsed, so comment-only edits do not require a refresh while
+any code or string-literal change does. Test names are linked to pinned upstream
 test-file hashes. Suite references are explicitly labelled when no test name
 could be matched. `@PublishedApi`/internal declarations that appear in the
 KLIB dump have their own representation and are not counted as public source

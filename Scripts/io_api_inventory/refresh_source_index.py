@@ -9,6 +9,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from code_digest import DIGEST_ALGORITHM, code_sha256
+
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
@@ -55,8 +57,9 @@ def main():
                 "ExtractJvmDeclarationsKt"
             ] + jvm_inputs, check=True, capture_output=True, text=True)
     catalog = json.loads(execution.stdout)
+    catalog["runtimeFilesDigest"] = DIGEST_ALGORITHM
     catalog["runtimeFiles"] = [
-        {"path": path.relative_to(REPO).as_posix(), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+        {"path": path.relative_to(REPO).as_posix(), "sha256": code_sha256(path.read_bytes(), "swift")}
         for path in sorted((REPO / "Sources/Runtime").rglob("*.swift"))
     ]
     catalog["toolchain"] = {
