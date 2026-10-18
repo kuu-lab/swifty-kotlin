@@ -1,7 +1,6 @@
 package kotlin
 
-// KSP-791: Keep the ULong primitive-array factory source-backed while
-// preserving copy semantics for spread arguments.
+// KSP-791: Preserve copy semantics for spread arguments.
 @ExperimentalUnsignedTypes
 public inline fun ulongArrayOf(vararg elements: ULong): ULongArray {
     val result = ULongArray(elements.size)
