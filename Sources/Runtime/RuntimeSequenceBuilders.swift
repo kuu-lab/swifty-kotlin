@@ -1,12 +1,7 @@
 import Foundation
 
-// `sequence { yield(...) }` / `iterator { yield(...) }` builders
-// (STDLIB-331/553/564).
-//
-// Split out from `RuntimeSequence.swift`.
 
 
-/// Resolve a raw handle to a RuntimeSequenceCoroutineBuilderProxy, or nil.
 private func runtimeCoroutineBuilderProxy(from rawValue: Int) -> RuntimeSequenceCoroutineBuilderProxy? {
     resolveRuntimeHandle(rawValue, as: RuntimeSequenceCoroutineBuilderProxy.self)
 }
@@ -53,7 +48,6 @@ private func runtimeSequenceBuilderYieldAllIterator(
 
 @_cdecl("__kk_sequence_builder_yield")
 public func __kk_sequence_builder_yield(_ builderRaw: Int, _ value: Int) -> Int {
-    // STDLIB-563: If the handle is a coroutine builder proxy, yield lazily.
     if let proxy = runtimeCoroutineBuilderProxy(from: builderRaw) {
         return proxy.coroutine.yieldValue(value)
     }
@@ -148,7 +142,6 @@ public func __kk_sequence_builder_yieldAll(_ builderRaw: Int, _ collectionRaw: I
     guard let builder = runtimeSequenceBuilderBox(from: builderRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_sequence_builder_yieldAll received invalid builder handle")
     }
-    // Accept List, Array, Set, Sequence, or Iterator as the iterable source.
     if let elements = runtimeSequenceSourceElements(from: collectionRaw) {
         builder.elements.append(contentsOf: elements)
     } else if let set = runtimeSetBox(from: collectionRaw) {
@@ -272,8 +265,6 @@ public func __kk_iterator_builder_next(_ iterRaw: Int) -> Int {
 //     and re-enter after the coroutine is resumed; the resumed value carries the
 //     1 / 0 boolean result.
 
-/// Suspend-capable hasNext for coroutine callers.
-///
 /// `continuationRaw` must be the raw handle of the CURRENT caller continuation
 /// (i.e. the value of the `continuation` parameter passed into the enclosing
 /// suspend entry point).  When 0, falls back to the blocking path.
@@ -293,8 +284,6 @@ public func __kk_iterator_builder_hasNext_coro(_ iterRaw: Int, _ continuationRaw
     return iter.probeHasNext() ? 1 : 0
 }
 
-/// Consume the current element after a successful hasNext.
-///
 /// This variant mirrors `__kk_iterator_builder_next` but is named separately so
 /// the compiler can emit it alongside `__kk_iterator_builder_hasNext_coro`
 /// without confusion.  The consumer-side read is always synchronous (state is
