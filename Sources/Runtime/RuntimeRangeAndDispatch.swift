@@ -278,9 +278,6 @@ func runtimeSignedRangeIsEmpty(_ range: RuntimeRangeBox) -> Bool {
     return true
 }
 
-/// Membership test for `element in range`: 1 when the element is a
-/// member of the stepped range, 0 otherwise. Shared by `kk_op_contains` and
-/// `kk_collection_containsAll`.
 func runtimeRangeContains(_ range: RuntimeRangeBox, _ element: Int) -> Int {
     switch range.kind {
     case .uintRange, .uintProgression, .ulongRange, .ulongProgression:
@@ -1133,7 +1130,6 @@ public func kk_range_last(_ rangeRaw: Int) -> Int {
     return range.last
 }
 
-/// `IntProgression`/`LongProgression`/`CharProgression.first()` — throws on empty.
 @_cdecl("__kk_range_first_orThrow")
 public func kk_range_first_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeRangeFirstOrLastOrThrow(
@@ -1145,7 +1141,6 @@ public func kk_range_first_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMutablePo
     )
 }
 
-/// `IntProgression`/`LongProgression`/`CharProgression.last()` — throws on empty.
 @_cdecl("__kk_range_last_orThrow")
 public func kk_range_last_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeRangeFirstOrLastOrThrow(
@@ -1560,7 +1555,6 @@ func runtimeUnsignedProgressionLast(start: Int, end: Int, step: Int) -> Int {
 public func __kk_int_progression_fromClosedRange(_ receiverRaw: Int, _ rangeStart: Int, _ rangeEnd: Int, _ step: Int,
                                                _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     _ = receiverRaw
-    // Validate step constraints
     guard step != 0 else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be non-zero.")
         return 0
@@ -1583,7 +1577,6 @@ public func __kk_long_progression_fromClosedRange(_ receiverRaw: Int, _ rangeSta
                                                 _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     _ = receiverRaw
     // For LongProgression, we use the same RuntimeRangeBox but treat values as Long
-    // Validate step constraints
     guard step != 0 else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be non-zero.")
         return 0

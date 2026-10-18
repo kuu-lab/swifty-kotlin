@@ -83,7 +83,6 @@ public func __kk_kclass_get_annotations(_ kclassRaw: Int) -> Int {
     guard let kclass = runtimeKClassBox(from: kclassRaw),
           let metadata = kclass.metadata
     else {
-        // Return empty list.
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
 
@@ -203,7 +202,6 @@ public func __kk_kcallable_register_annotation_factory(
     return 0
 }
 
-/// Attaches declaration annotation metadata to a compiler-generated callable.
 @_cdecl("__kk_kcallable_register_single_annotation")
 public func __kk_kcallable_register_single_annotation(
     _ callableRaw: Int, _ fqNameRaw: Int, _ argsEncodedRaw: Int, _ argCount: Int
@@ -240,7 +238,6 @@ public func __kk_kclass_find_annotation_typed(
     return runtimeNullSentinelInt
 }
 
-/// Looks up the associated object bound by an annotation key on a KClass.
 /// The current metadata pipeline records annotation arguments as strings, so
 /// this returns null unless a future emitter stores a runtime object handle.
 @_cdecl("__kk_kclass_find_associated_object")
@@ -273,7 +270,6 @@ private func runtimeAssociatedObjectHandle(from arguments: [String]) -> Int {
     return runtimeNullSentinelInt
 }
 
-/// Registers a single annotation for a KClass identified by typeToken.
 /// Called during module initialization (once per annotation) to attach compile-time
 /// annotation data to the already-registered metadata entry.
 /// - Parameters:
@@ -326,7 +322,6 @@ private func runtimeKFunctionBox(from raw: Int) -> RuntimeKFunctionBox? {
 }
 
 
-/// Creates and registers a KParameter box.
 /// - Parameters:
 ///   - index: 0-based parameter index.
 ///   - nameRaw: KKString for the parameter name (0 if unnamed).
@@ -427,7 +422,6 @@ public func __kk_kparameter_get_kind(_ raw: Int) -> Int {
 }
 
 
-/// Creates and registers a KFunction box.
 /// - Parameters:
 ///   - nameRaw: Opaque pointer to the KKString for the function name.
 ///   - arity: Number of parameters (excluding receiver for member functions).
@@ -458,7 +452,6 @@ public func __kk_kfunction_create(
     return registerRuntimeObject(box, typeID: kFunctionRuntimeTypeID)
 }
 
-/// Extended factory that also attaches parameter metadata and type string.
 /// - Parameters:
 ///   - nameRaw: KKString for the function name.
 ///   - arity: Number of value parameters.
@@ -550,7 +543,6 @@ public func __kk_kfunction_is_external(_ kfunctionRaw: Int) -> Int {
     (runtimeKFunctionFlags(for: kfunctionRaw) & RuntimeKFunctionFlags.`external`) != 0 ? 1 : 0
 }
 
-/// Returns the list of all KParameter handles for this function.
 @_cdecl("__kk_kfunction_get_parameters")
 public func __kk_kfunction_get_parameters(_ kfunctionRaw: Int) -> Int {
     guard let box = runtimeKFunctionBox(from: kfunctionRaw) else {
@@ -559,7 +551,6 @@ public func __kk_kfunction_get_parameters(_ kfunctionRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: box.parameterRaws))
 }
 
-/// Returns only the VALUE parameters (kind == 2), excluding INSTANCE and EXTENSION_RECEIVER.
 @_cdecl("__kk_kfunction_get_value_parameters")
 public func __kk_kfunction_get_value_parameters(_ kfunctionRaw: Int) -> Int {
     guard let box = runtimeKFunctionBox(from: kfunctionRaw) else {
@@ -572,7 +563,6 @@ public func __kk_kfunction_get_value_parameters(_ kfunctionRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: valueParams))
 }
 
-/// Returns a human-readable function type string, e.g. "(Int, Int) -> Int".
 @_cdecl("__kk_kfunction_get_type")
 public func __kk_kfunction_get_type(_ kfunctionRaw: Int) -> Int {
     guard let box = runtimeKFunctionBox(from: kfunctionRaw) else {
@@ -581,7 +571,6 @@ public func __kk_kfunction_get_type(_ kfunctionRaw: Int) -> Int {
     if box.typeStringRaw != 0, box.typeStringRaw != runtimeNullSentinelInt {
         return box.typeStringRaw
     }
-    // Fallback: synthesize from return type if available.
     if box.returnTypeRaw != 0, box.returnTypeRaw != runtimeNullSentinelInt {
         return box.returnTypeRaw
     }
@@ -715,7 +704,6 @@ public func __kk_kfunction_call_3(
 }
 
 
-/// Dispatches to the appropriate arity overload by unpacking a runtime List.
 @_cdecl("__kk_kfunction_call_vararg")
 public func __kk_kfunction_call_vararg(
     _ kfunctionRaw: Int,
@@ -727,7 +715,6 @@ public func __kk_kfunction_call_vararg(
             message: "Invalid KFunction handle.")
         return runtimeNullSentinelInt
     }
-    // Unpack the argument list.
     var args: [Int] = []
     if argsListRaw != 0, argsListRaw != runtimeNullSentinelInt {
         let isValidPtr = runtimeStorage.withGCLock { state in
@@ -859,7 +846,6 @@ private func runtimeQualifiedTypeName(_ name: String) -> String {
     }
 }
 
-/// Internal helper to render a KTypeBox as a human-readable string.
 func runtimeKTypeToString(_ box: RuntimeKTypeBox) -> String {
     if box.typeNameRaw != 0,
        box.typeNameRaw != runtimeNullSentinelInt,
@@ -900,7 +886,6 @@ func runtimeKTypeToString(_ box: RuntimeKTypeBox) -> String {
 }
 
 
-/// Creates and registers a KConstructor box.
 /// - Parameters:
 ///   - nameRaw: Opaque pointer to the KKString for the constructor name (typically "<init>").
 ///   - arity: Number of parameters.

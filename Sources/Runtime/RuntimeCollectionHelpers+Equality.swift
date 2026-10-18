@@ -51,11 +51,10 @@ func runtimeMapNotNullResultValue(_ raw: Int) -> Int? {
     return raw
 }
 
-/// IEEE754 bit pattern of a boxed `Double`/`Float`, or nil when `raw` is not
-/// one of those boxes. Unlike `maybeUnbox`, which leaves floating-point boxes
-/// as pointers, this exposes the payload so a box can be compared against a
-/// raw (never-boxed) floating-point word — the representation a `Double`
-/// argument still has when it reaches a generic `T` parameter.
+/// Unlike `maybeUnbox`, which leaves floating-point boxes as pointers, this
+/// exposes the payload so a box can be compared against a raw (never-boxed)
+/// floating-point word — the representation a `Double` argument still has when
+/// it reaches a generic `T` parameter.
 func runtimeFloatingBoxBitPattern(_ raw: Int) -> Int? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return nil
@@ -141,8 +140,6 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     return runtimeNonNullValuesEqual(lhs, rhs)
 }
 
-/// The comparison body of `runtimeValuesEqual`, minus its two callers-facing
-/// shortcuts (bit-identical fast path, and the sentinel-implies-null guess).
 /// Callers that have already established — via means other than guessing
 /// from the raw bits, e.g. `kk_nullable_primitive_eq`'s object-pointer-registry
 /// check — that neither operand is genuinely null should call this directly:
@@ -371,8 +368,6 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
             lhsLocale.country == rhsLocale.country &&
             lhsLocale.variant == rhsLocale.variant
     }
-    // Nominal objects follow Any.equals: a user `equals` override wins, data
-    // classes compare structurally, and plain classes compare by identity.
     if let lhsObj = tryCast(lhsPtr, to: RuntimeObjectBox.self),
        let rhsObj = tryCast(rhsPtr, to: RuntimeObjectBox.self)
     {
@@ -400,7 +395,6 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     return lhs == rhs
 }
 
-/// Kotlin stdlib bridge for structural equality of raw runtime values.
 @_cdecl("__kk_values_equal")
 public func __kk_values_equal(_ lhs: Int, _ rhs: Int) -> Int {
     kk_box_bool(runtimeValuesEqual(lhs, rhs) ? 1 : 0)
@@ -436,7 +430,6 @@ public func __kk_objects_equals(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutab
     return kk_box_bool((runtimeAnyObjectEquality(lhs, rhs) ?? runtimeValuesEqual(lhs, rhs)) ? 1 : 0)
 }
 
-/// Calls the user `Any.equals` override registered for `lhs`, if any.
 func runtimeObjectEqualsOverride(
     _ lhs: Int,
     _ rhs: Int,
@@ -456,7 +449,6 @@ func runtimeObjectEqualsOverride(
     return equals(lhs, rhs, outThrown) != 0
 }
 
-/// Calls the user `Any.hashCode` override registered for `value`, if any.
 func runtimeObjectHashCodeOverride(_ value: Int) -> Int? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: value),
           let functionRaw = runtimeStorage.withMetadataLock({ state in
@@ -472,10 +464,6 @@ func runtimeObjectHashCodeOverride(_ value: Int) -> Int? {
     return Int(Int32(truncatingIfNeeded: hashCode(value, nil)))
 }
 
-/// Applies Kotlin's reference-equality default to RuntimeObjectBox values while
-/// retaining structural equality for data classes and collection/value boxes.
-/// Returns nil when either operand is not a nominal runtime object, allowing
-/// callers to fall back to `runtimeValuesEqual` for the other runtime types.
 func runtimeAnyObjectEquality(_ lhs: Int, _ rhs: Int) -> Bool? {
     guard let lhsPtr = UnsafeMutableRawPointer(bitPattern: lhs)
     else {
@@ -547,15 +535,11 @@ func runtimeValuesEqual(_ lhs: RuntimeValue, _ rhs: RuntimeValue) -> Bool {
     return runtimeValuesEqual(lhs.legacyRawValue, rhs.legacyRawValue)
 }
 
-/// Equality for `==` on runtime reference values.
-/// Collection/value boxes remain structural, while ordinary nominal objects use Any.equals semantics.
-/// Returns a boxed Bool (via kk_box_bool) so it matches the ABI of other kk_op_* functions.
 @_cdecl("kk_structural_eq")
 public func kk_structural_eq(_ lhs: Int, _ rhs: Int) -> Int {
     (runtimeAnyObjectEquality(lhs, rhs) ?? runtimeValuesEqual(lhs, rhs)) ? 1 : 0
 }
 
-/// Inequality for `!=` on runtime reference values.
 @_cdecl("kk_structural_ne")
 public func kk_structural_ne(_ lhs: Int, _ rhs: Int) -> Int {
     (runtimeAnyObjectEquality(lhs, rhs) ?? runtimeValuesEqual(lhs, rhs)) ? 0 : 1

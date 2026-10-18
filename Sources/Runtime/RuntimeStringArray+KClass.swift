@@ -1,11 +1,6 @@
 import Foundation
 import RuntimeABI
 
-/// Returns the simple name of the type encoded in the given type token as a
-/// runtime string pointer.  For builtin types the name is derived from the
-/// token base; for nominal types the compiler supplies a `nameHint` string
-/// pointer that is returned directly (the hint carries the simple name that
-/// was known at compile-time after inline expansion).
 @_cdecl("__kk_type_token_simple_name")
 public func __kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> Int {
     let token = Int64(truncatingIfNeeded: typeToken)
@@ -56,7 +51,6 @@ public func __kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> In
         "Short"
     case RuntimeTypeTokenEncoding.booleanBase:
         "Boolean"
-    // REFL-002: Additional primitive bases for accurate simpleName.
     case RuntimeTypeTokenEncoding.longBase:
         "Long"
     case RuntimeTypeTokenEncoding.doubleBase:
@@ -84,16 +78,12 @@ private func runtimeKClassQualifiedName(_ name: String) -> String {
     name == "kotlin.RuntimeException" ? "java.lang.RuntimeException" : name
 }
 
-/// Returns the qualified name of the type encoded in the given type token.
-/// For built-in Kotlin stdlib types (Any, String, Int, Boolean, etc.) this
-/// returns the fully-qualified "kotlin.X" name as Kotlin reflection specifies.
 /// For nominal (user-defined) types registered metadata takes precedence over
 /// the compiler-supplied qualified name hint.
 @_cdecl("__kk_type_token_qualified_name")
 public func __kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) -> Int {
     let token = Int64(truncatingIfNeeded: typeToken)
     let base = token & RuntimeTypeTokenEncoding.baseMask
-    // Built-in stdlib types always live in the `kotlin` package.
     let payload = (token >> RuntimeTypeTokenEncoding.payloadShift) & RuntimeTypeTokenEncoding.payloadMask
     let (functionArity, isSuspendFunction) = RuntimeTypeTokenEncoding.functionPayloadParts(payload)
     let qualifiedName: String? = switch base {
@@ -146,14 +136,9 @@ func runtimeKClassBox(from raw: Int) -> RuntimeKClassBox? {
     resolveRuntimeHandle(raw, as: RuntimeKClassBox.self)
 }
 
-/// Creates a `KClass<T>` metadata object from a type token and name hint.
-/// Returns an opaque pointer to a `RuntimeKClassBox`.
-///
 /// KClass boxes are interned: repeated calls with the same `typeToken`
 /// return the same pointer without allocating a new box. This avoids
-/// unbounded memory growth when `T::class` is evaluated in a loop. The boxes
-/// are tracked in `runtimeStorage.kClassBoxCache` and are cleared on
-/// `resetRuntimeLocked` (e.g. between test runs).
+/// unbounded memory growth when `T::class` is evaluated in a loop.
 @_cdecl("__kk_kclass_create")
 public func __kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
     let cacheKey = KClassCacheKey(typeToken: typeToken)
@@ -176,7 +161,6 @@ public func __kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
     return winner
 }
 
-// Metadata / memory representation: bound literals inspect the boxed value's classifier.
 @_cdecl("__kk_kclass_of")
 public func __kk_kclass_of(_ value: Int, _ fallbackToken: Int, _ nameHint: Int) -> Int {
     if let ptr = UnsafeMutableRawPointer(bitPattern: value),
@@ -255,7 +239,6 @@ public func __kk_kclass_of(_ value: Int, _ fallbackToken: Int, _ nameHint: Int) 
     return __kk_kclass_create(fallbackToken, nameHint)
 }
 
-//
 // Unlike `__kk_type_token_simple_name`/`__kk_type_token_qualified_name` (which take
 // a bare type token + name hint known at the `T::class` call site), these take
 // the KClass box handle itself so the Kotlin-source `simpleName`/`qualifiedName`
@@ -293,7 +276,6 @@ public func __kk_kclass_qualified_name(_ kclassRaw: Int) -> Int {
 }
 
 
-/// Registers runtime reflection metadata for a type identified by `typeToken`.
 /// Called during module initialization to populate the global metadata registry
 /// from the binary metadata blob emitted by `RuntimeReflectionMetadataEmitter`.
 ///
@@ -325,13 +307,12 @@ public func __kk_kclass_register_metadata(
     )
 }
 
-/// STDLIB-REFLECT-060: Extended metadata registration with visibility and type parameter count.
 /// - visibilityRaw: Runtime string pointer for visibility ("PUBLIC", "INTERNAL", etc.), 0 if unknown.
 /// - typeParameterCount: Number of type parameters on the class.
 /// Flags bit layout: bit 0=dataClass, bit 1=sealedClass, bit 2=valueClass,
 ///   bit 3=interface, bit 4=object, bit 5=enumClass, bit 6=annotationClass,
 ///   bit 7=abstract, bit 8=final, bit 9=open,
-///   bit 10=inner, bit 11=companion, bit 12=funInterface. (STDLIB-REFLECT-067)
+///   bit 10=inner, bit 11=companion, bit 12=funInterface.
 @_cdecl("__kk_kclass_register_metadata_v2")
 public func __kk_kclass_register_metadata_v2(
     _ typeToken: Int,
@@ -404,7 +385,6 @@ public func __kk_kclass_register_display_name(_ typeToken: Int, _ displayNameRaw
     return 0
 }
 
-/// Returns 1 if the KClass represents a data class, 0 otherwise.
 @_cdecl("__kk_kclass_is_data")
 public func __kk_kclass_is_data(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
@@ -414,7 +394,6 @@ public func __kk_kclass_is_data(_ kclassRaw: Int) -> Int {
     return metadata.isDataClass ? 1 : 0
 }
 
-/// Returns 1 if the KClass represents a sealed class, 0 otherwise.
 @_cdecl("__kk_kclass_is_sealed")
 public func __kk_kclass_is_sealed(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
@@ -424,7 +403,6 @@ public func __kk_kclass_is_sealed(_ kclassRaw: Int) -> Int {
     return metadata.isSealedClass ? 1 : 0
 }
 
-/// Returns 1 if the KClass represents a value (inline) class, 0 otherwise.
 @_cdecl("__kk_kclass_is_value")
 public func __kk_kclass_is_value(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
@@ -434,7 +412,6 @@ public func __kk_kclass_is_value(_ kclassRaw: Int) -> Int {
     return metadata.isValueClass ? 1 : 0
 }
 
-/// Returns 1 if the KClass represents an interface, 0 otherwise.
 @_cdecl("__kk_kclass_is_interface")
 public func __kk_kclass_is_interface(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
@@ -444,7 +421,6 @@ public func __kk_kclass_is_interface(_ kclassRaw: Int) -> Int {
     return metadata.isInterface ? 1 : 0
 }
 
-/// Returns 1 if the KClass represents an object declaration, 0 otherwise.
 @_cdecl("__kk_kclass_is_object")
 public func __kk_kclass_is_object(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
@@ -454,7 +430,6 @@ public func __kk_kclass_is_object(_ kclassRaw: Int) -> Int {
     return metadata.isObject ? 1 : 0
 }
 
-/// Returns 1 if the KClass represents an enum class, 0 otherwise.
 @_cdecl("__kk_kclass_is_enum")
 public func __kk_kclass_is_enum(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
@@ -465,7 +440,6 @@ public func __kk_kclass_is_enum(_ kclassRaw: Int) -> Int {
 }
 
 
-/// Returns 1 if the KClass represents an inner class, 0 otherwise.
 @_cdecl("__kk_kclass_is_inner")
 public func __kk_kclass_is_inner(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
@@ -475,7 +449,6 @@ public func __kk_kclass_is_inner(_ kclassRaw: Int) -> Int {
     return metadata.isInner ? 1 : 0
 }
 
-/// Returns 1 if the KClass represents a companion object, 0 otherwise.
 @_cdecl("__kk_kclass_is_companion")
 public func __kk_kclass_is_companion(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
@@ -485,7 +458,6 @@ public func __kk_kclass_is_companion(_ kclassRaw: Int) -> Int {
     return metadata.isCompanion ? 1 : 0
 }
 
-/// Returns 1 if the KClass represents a functional interface (fun interface), 0 otherwise.
 @_cdecl("__kk_kclass_is_fun")
 public func __kk_kclass_is_fun(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
@@ -495,7 +467,6 @@ public func __kk_kclass_is_fun(_ kclassRaw: Int) -> Int {
     return metadata.isFunInterface ? 1 : 0
 }
 
-/// Returns 1 if the KClass represents an abstract class, 0 otherwise.
 @_cdecl("__kk_kclass_is_abstract")
 public func __kk_kclass_is_abstract(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
@@ -506,7 +477,6 @@ public func __kk_kclass_is_abstract(_ kclassRaw: Int) -> Int {
 }
 
 
-/// Returns 1 if the KClass represents a final class, 0 otherwise.
 /// A class is final if it is not abstract, not open, and not an interface.
 @_cdecl("__kk_kclass_is_final")
 public func __kk_kclass_is_final(_ kclassRaw: Int) -> Int {
@@ -517,7 +487,6 @@ public func __kk_kclass_is_final(_ kclassRaw: Int) -> Int {
     return metadata.isFinal ? 1 : 0
 }
 
-/// Returns 1 if the KClass represents an open class, 0 otherwise.
 @_cdecl("__kk_kclass_is_open")
 public func __kk_kclass_is_open(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),

@@ -14,8 +14,6 @@ private func resultBoxFromRaw(_ raw: Int) -> RuntimeResultBox? {
     resolveRuntimeHandle(raw, as: RuntimeResultBox.self)
 }
 
-/// `resultBoxFromRaw` variant for the throwing entry points below: sets the
-/// "Result is null" throwable through `outThrown` and returns nil instead.
 private func resultBoxFromRawOrThrow(
     _ resultRaw: Int,
     outThrown: UnsafeMutablePointer<Int>?
@@ -35,7 +33,6 @@ func runtimeResultFailure(_ exception: Int) -> Int {
     registerRuntimeObject(RuntimeResultBox(isSuccess: false, value: 0, exception: exception), typeID: runtimeStableNominalTypeID(fqName: "kotlin.Result"))
 }
 
-/// Kotlin `Result.toString()`: `Success(value)` / `Failure(throwable)`.
 func runtimeResultToString(_ box: RuntimeResultBox, render: (Int) -> String) -> String {
     box.isSuccess ? "Success(\(render(box.value)))" : "Failure(\(render(box.exception)))"
 }

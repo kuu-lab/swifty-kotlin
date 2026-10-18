@@ -4,8 +4,8 @@ KUU-1740 adds the complete `SerialDescriptor.kt` source from serialization 1.10.
 commit `370c4e3780066b82f746cf38e4733cbe62c94f74`. The provenance manifest records
 its Git blob and upstream/local SHA-256. Only two imports used in documentation
 are removed; interface members, default getters, iterable implementations,
-annotations and copyright are retained. The pinned Apache license is in
-`Scripts/serialization_reference`.
+annotations and copyright are retained. The Apache license text is in
+`docs/licenses/kotlinx-serialization-LICENSE.txt`.
 
 The interface describes name, kind, nullability, inline status, element count,
 class annotations, element names/indices/annotations/descriptors and optionality.

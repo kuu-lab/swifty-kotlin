@@ -1,6 +1,3 @@
-// Shared HOF implementations for signed (Int/Long) and unsigned (UInt/ULong) ranges.
-// The @_cdecl entry points in the type-specific files are thin wrappers over these.
-
 private typealias RuntimeRangeUnaryLambda = @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int
 private typealias RuntimeRangeIndexedLambda = @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 private typealias RuntimeRangeFoldLambda = @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int

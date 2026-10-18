@@ -29,9 +29,6 @@ final class RuntimeRegexBox {
         self.optionOrdinals = optionOrdinals
     }
 
-    /// Anchored `\A(?:pattern)\z` variant of `regex` used by `matches` /
-    /// `matchEntire`, compiled once on first use.
-    ///
     /// Wrapping the effective compiled pattern makes alternation backtrack when an
     /// earlier branch only matches a prefix (for example, `a|ab` against `ab`).
     /// `.anchorsMatchLines` and `.ignoreMetacharacters` are stripped so the
@@ -60,9 +57,6 @@ final class RuntimeRegexBox {
         return names
     }
 
-    /// Returns the input string NFC-normalized if `canonEq` is enabled,
-    /// otherwise returns it unchanged.
-    ///
     /// **Limitation**: When `canonEq` is true, operations that return substrings
     /// of the input (replace, split, find, findAll, matchEntire) will operate on
     /// the NFC-normalized form. This means the returned strings may differ from
@@ -118,7 +112,6 @@ final class RuntimeMatchResultBox {
     }
 }
 
-/// Runtime box for `kotlin.text.MatchGroup`.
 /// Stores the matched value and the range as (start, endInclusive) indices.
 final class RuntimeMatchGroupBox {
     let value: String
@@ -188,9 +181,6 @@ private func matchResultBoxFromRaw(_ raw: Int) -> RuntimeMatchResultBox? {
     return tryCast(pointer, to: RuntimeMatchResultBox.self)
 }
 
-/// Compiles `pattern` with NSRegularExpression, substituting a valid
-/// equivalent for the empty pattern.
-///
 /// Kotlin's `Regex("")` is a legal pattern that matches the empty string at
 /// every position. `NSRegularExpression` rejects an empty pattern string, so
 /// the equivalent non-capturing empty group `(?:)` is compiled instead.
@@ -252,8 +242,6 @@ private enum RegexNamedGroupDetector {
     )
 }
 
-/// Extracts named capture group names from a regex pattern string.
-/// Matches `(?<name>...)` syntax used by both Kotlin and NSRegularExpression.
 private func extractNamedGroupNames(from pattern: String) -> [String] {
     guard let detector = RegexNamedGroupDetector.expression else {
         return []
@@ -379,8 +367,6 @@ private func propagateRegexReplacementTemplateError(
     return 0
 }
 
-/// Maps each named capture group declared by `regexBox` to its numeric group
-/// index in `result`, by matching the named range to a numbered group range.
 private func namedCaptureGroupIndexMap(
     from result: NSTextCheckingResult,
     regexBox: RuntimeRegexBox
@@ -481,7 +467,6 @@ private func makeMatchResult(from result: NSTextCheckingResult, in str: String, 
         }
     }
 
-    // Build named group mapping
     var namedGroups: [String: Int] = [:]
     var namedGroupNames: Set<String> = []
     if let regexBox = regexBox {
@@ -489,7 +474,6 @@ private func makeMatchResult(from result: NSTextCheckingResult, in str: String, 
         namedGroups = namedCaptureGroupIndexMap(from: result, regexBox: regexBox)
     }
 
-    // UTF-16 offset of the match end position for next() iteration
     let matchEnd = result.range.location + result.range.length
 
     return RuntimeMatchResultBox(
@@ -871,8 +855,6 @@ private func runtimeRegexMatchEntire(_ regexRaw: Int, input rawStr: String) -> I
 private let kRegexOptionOrdinalLiteral  = 2
 private let kRegexOptionOrdinalCanonEq  = 6
 
-/// Maps a Kotlin `RegexOption` enum ordinal to `NSRegularExpression.Options`.
-///
 /// **Coupling note**: The ordinal values here must stay in sync with the
 /// enum entry declaration order in
 /// `Sources/CompilerCore/Stdlib/kotlin/text/Regex.kt`.
@@ -896,7 +878,6 @@ private func nsRegexOption(fromOrdinal ordinal: Int) -> NSRegularExpression.Opti
     }
 }
 
-/// Applies LITERAL escaping and CANON_EQ normalization and compiles the pattern.
 /// Returns `nil` and sets `outThrown` to an `IllegalArgumentException` on compile failure.
 private func createRegexBox(
     pattern: String,
@@ -968,8 +949,6 @@ private func runtimeRegexCreateWithOption(pattern: String, optionRaw: Int, outTh
 
 
 /// Creates a Regex from a pattern and a `Set<RegexOption>`.
-/// Iterates the set elements, unboxes each as an ordinal, and combines the
-/// corresponding `NSRegularExpression.Options`.
 @_cdecl("__kk_regex_create_with_options_flat")
 public func kk_regex_create_with_options_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -1156,8 +1135,6 @@ private func matchResultGroup(_ matchRaw: Int, _ index: Int) -> RuntimeMatchGrou
     return matchResult.groups[index]
 }
 
-/// MatchResult.next() — returns the next MatchResult in the input, or null.
-///
 /// Continues on the original input from the previous match's exclusive UTF-16
 /// end (one unit later after a zero-length match), including a zero-width
 /// search at end of string so `$` and empty patterns can still match there.
@@ -1187,8 +1164,6 @@ public func __kk_match_result_next(_ matchRaw: Int) -> Int {
 }
 
 
-/// Regex.Companion.fromLiteral(literal: String) -> Regex
-///
 /// Kotlin's `fromLiteral` is `Regex(literal, RegexOption.LITERAL)`: keep the
 /// original literal as `.pattern` / `toString()`, and escape only when compiling
 /// the Foundation matcher. The first argument is the Companion receiver
@@ -1223,8 +1198,6 @@ private func runtimeRegexFromLiteral(_ literal: String) -> Int {
     return registerRuntimeObject(box)
 }
 
-/// String.replaceFirst(regex: Regex, replacement: String) -> String
-/// Replaces only the first match of the regex in the string.
 @_cdecl("__kk_string_replaceFirst_regex")
 public func kk_string_replaceFirst_regex(
     _ strRaw: Int,
@@ -1269,9 +1242,6 @@ public func kk_string_replaceFirst_regex(
 }
 
 
-/// Regex.matches(input): Boolean
-/// Returns true if the entire input string is matched by this regex.
-///
 /// Uses the compiled effective pattern from `regexBox.regex.pattern` (which is
 /// already escaped for LITERAL regexes) wrapped in `\A(?:...)\z` to force a
 /// full-string match. This correctly handles:
@@ -1317,14 +1287,12 @@ private func runtimeRegexMatches(_ regexRaw: Int, input rawInput: String) -> Int
 // so it is represented by the MatchResult object itself. `component1()`..
 // `component9()` are derived in Kotlin from the raw group values above.
 
-/// MatchResult.destructured: MatchResult.Destructured
 @_cdecl("__kk_match_result_destructured")
 public func __kk_match_result_destructured(_ matchRaw: Int) -> Int {
     guard matchResultBoxFromRaw(matchRaw) != nil else { return runtimeNullSentinelInt }
     return matchRaw
 }
 
-/// MatchResult.Destructured.match: MatchResult
 @_cdecl("__kk_match_result_destructured_match")
 public func __kk_match_result_destructured_match(_ destructuredRaw: Int) -> Int {
     guard matchResultBoxFromRaw(destructuredRaw) != nil else { return runtimeNullSentinelInt }

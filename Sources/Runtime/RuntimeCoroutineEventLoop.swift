@@ -1,8 +1,5 @@
 import Foundation
 
-/// A single-threaded FIFO run queue ("event loop") owned by a `runBlocking`
-/// invocation.
-///
 /// `kotlinx.coroutines`' `runBlocking` installs a `BlockingEventLoop` as the
 /// dispatcher for its own body and for every child launched into it, then
 /// drains that loop on the thread that called `runBlocking`. Resumptions
@@ -21,23 +18,19 @@ import Foundation
 /// context, `coroutineScope`'s wait for its children -- drains the queue
 /// instead of parking the only thread that can make the awaited work progress.
 final class RuntimeEventLoop: @unchecked Sendable {
-    /// How long an idle drain parks before re-checking its completion
-    /// predicate. Completion normally arrives via `enqueue`/`wake` (both
-    /// broadcast), so this bound only matters for a wait satisfied by a
-    /// third party that never signals us: it turns a potential hang into a
-    /// poll.
+    /// Completion normally arrives via `enqueue`/`wake` (both broadcast), so
+    /// this bound only matters for a wait satisfied by a third party that
+    /// never signals us: it turns a potential hang into a poll.
     private static let idleWaitSeconds: TimeInterval = 0.005
 
     private let condition = NSCondition()
     private var pending: [@Sendable () -> Void] = []
-    /// Index of the next task to run. Popping by index avoids the O(n) shift
-    /// that `Array.removeFirst()` would cost on a busy queue.
+    /// Popping by index avoids the O(n) shift that `Array.removeFirst()`
+    /// would cost on a busy queue.
     private var nextIndex = 0
 
-    /// KUU-1395: the `ContinuationInterceptor` element a loop-bound
-    /// coroutine's `coroutineContext` reports — the runtime analogue of
-    /// kotlinx's `BlockingEventLoop`. Minted lazily so every read of the
-    /// context resolves to the same element object.
+    /// Minted lazily so every read of the context resolves to the same
+    /// element object.
     private var cachedElementRaw = 0
 
     /// The runBlocking event-loop context element, as a registered object.
@@ -78,7 +71,6 @@ final class RuntimeEventLoop: @unchecked Sendable {
         set { pthreadSetValue(pthreadKey, newValue) }
     }
 
-    /// Append `work` to the tail of the queue and wake a draining thread.
     func enqueue(_ work: @escaping @Sendable () -> Void) {
         condition.lock()
         pending.append(work)
@@ -86,8 +78,6 @@ final class RuntimeEventLoop: @unchecked Sendable {
         condition.unlock()
     }
 
-    /// Append a dispatch work item to the tail of the queue.
-    ///
     /// `DispatchWorkItem` is not `Sendable`, so it travels inside a box. That is
     /// safe here for the same reason it is safe in `RuntimePendingLaunchQueue`:
     /// the loop runs exactly one task at a time and never hands the item to a
@@ -97,8 +87,6 @@ final class RuntimeEventLoop: @unchecked Sendable {
         enqueue { box.performUnlessCancelled() }
     }
 
-    /// Wake every draining thread so it re-evaluates its completion predicate.
-    ///
     /// Used when a wait is satisfied by something that is not a queued task --
     /// a job completing on a GCD thread, a dispatcher-bound block finishing --
     /// so the drain does not have to wait out `idleWaitSeconds`.
@@ -108,8 +96,6 @@ final class RuntimeEventLoop: @unchecked Sendable {
         condition.unlock()
     }
 
-    /// Run work that is already queued without waiting for new work.
-    ///
     /// `TestCoroutineScheduler` uses this after releasing virtual-time
     /// continuations so child coroutines make progress before the scheduler
     /// reports itself idle. This is also safe when called re-entrantly from a
@@ -127,7 +113,7 @@ final class RuntimeEventLoop: @unchecked Sendable {
         }
     }
 
-    /// Pop the head of the queue. Caller must hold `condition`.
+    /// Caller must hold `condition`.
     private func popLocked() -> (@Sendable () -> Void)? {
         guard nextIndex < pending.count else {
             if !pending.isEmpty {
@@ -148,9 +134,6 @@ final class RuntimeEventLoop: @unchecked Sendable {
         return work
     }
 
-    /// Hand every task queued right now to the concurrent global dispatch pool,
-    /// removing it from this queue.
-    ///
     /// The escape hatch for a thread that is about to block on something that is
     /// not a suspension point (see `runtimeWaitDrainingEventLoop`). Running a
     /// queued coroutine inline there would nest it on the blocking thread's own
@@ -173,8 +156,6 @@ final class RuntimeEventLoop: @unchecked Sendable {
         }
     }
 
-    /// Drain tasks until `isDone()` reports completion, or `deadline` passes.
-    ///
     /// Returns whether `isDone()` was satisfied. `isDone` is never called while
     /// `condition` is held: completion predicates read their own locks (a job's
     /// state lock, say) and a task-completing thread takes those locks before
@@ -227,7 +208,6 @@ final class RuntimeCompletionFlag: @unchecked Sendable {
     }
 }
 
-/// Carries a `DispatchWorkItem` into a `RuntimeEventLoop` task.
 final class RuntimeWorkItemBox: @unchecked Sendable {
     private let workItem: DispatchWorkItem
 
@@ -243,8 +223,6 @@ final class RuntimeWorkItemBox: @unchecked Sendable {
     }
 }
 
-/// Waits on `semaphore` from a thread that might be draining an event loop.
-///
 /// Several runtime waits are still plain blocking waits rather than real
 /// suspension points: a channel `send`/`receive` rendezvous, and acquiring a
 /// `Mutex`/`Semaphore` from a non-suspend context. Parking the loop thread on

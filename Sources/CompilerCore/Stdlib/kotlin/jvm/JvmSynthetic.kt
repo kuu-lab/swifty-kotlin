@@ -5,7 +5,7 @@
  */
 package kotlin.jvm
 
-/** Records the common declaration's JVM synthetic intent; it does not emit Java bytecode here. */
+/** Does not emit Java bytecode here. */
 @Target(
     AnnotationTarget.FILE,
     AnnotationTarget.FUNCTION,

@@ -20,12 +20,6 @@ private external fun __atomicSyncLock(lock: Any): Unit
 @KsSymbolName("__kk_lazy_sync_unlock")
 private external fun __atomicSyncUnlock(lock: Any): Unit
 
-/**
- * A deprecated atomic wrapper around an integer.
- *
- * This declaration owns the top-level constructor only. Its storage and
- * receiver operations reuse the shared atomic runtime box.
- */
 @Deprecated(
     "Use kotlin.concurrent.atomics.AtomicInt instead.",
     ReplaceWith("kotlin.concurrent.atomics.AtomicInt"),
@@ -66,30 +60,24 @@ private external fun AtomicInt.__kkAtomicIntIncrementAndFetch(): Int
 @KsSymbolName("__kk_atomic_int_decrementAndFetch")
 private external fun AtomicInt.__kkAtomicIntDecrementAndFetch(): Int
 
-/** The atomically stored value of the legacy native atomic wrapper. */
 public var AtomicInt.value: Int
     get() = __kkAtomicIntLoad()
     set(value) {
         __kkAtomicIntStore(value)
     }
 
-/** Atomically swaps [expected] for [newValue] and returns the old value. */
 public fun AtomicInt.compareAndSwap(expected: Int, newValue: Int): Int =
     __kkAtomicIntCompareAndExchange(expected, newValue)
 
-/** Atomically adds [delta] and returns the value before the update. */
 public fun AtomicInt.getAndAdd(delta: Int): Int =
     __kkAtomicIntFetchAndAdd(delta)
 
-/** Atomically decrements and returns the value before the update. */
 public fun AtomicInt.getAndDecrement(): Int =
     __kkAtomicIntFetchAndDecrement()
 
-/** Atomically increments and returns the value before the update. */
 public fun AtomicInt.getAndIncrement(): Int =
     __kkAtomicIntFetchAndIncrement()
 
-/** Atomically increments the value by one. */
 @Deprecated(
     "Use incrementAndGet() or getAndIncrement() instead.",
     ReplaceWith("this.incrementAndGet()"),
@@ -99,7 +87,6 @@ public fun AtomicInt.increment(): Unit {
     __kkAtomicIntIncrementAndFetch()
 }
 
-/** Atomically decrements the value by one. */
 @Deprecated(
     "Use decrementAndGet() or getAndDecrement() instead.",
     ReplaceWith("this.decrementAndGet()"),
@@ -130,12 +117,6 @@ private external fun AtomicLong.__kkFetchAndDecrement(): Long
 @KsSymbolName("__kk_atomic_long_addAndFetch")
 private external fun AtomicLong.__kkAddAndFetch(delta: Long): Long
 
-/**
- * A [Long] value that is always updated atomically.
- *
- * This is the legacy Kotlin/Native atomic API. Use
- * `kotlin.concurrent.atomics.AtomicLong` instead.
- */
 @Deprecated(
     "Use kotlin.concurrent.atomics.AtomicLong instead.",
     ReplaceWith("kotlin.concurrent.atomics.AtomicLong"),
@@ -177,13 +158,11 @@ public class AtomicLong {
     public override fun toString(): String = value.toString()
 }
 
-// KSP-1224/KSP-1225: Keep the legacy native AtomicNativePtr API source-backed.
 @Deprecated("Use kotlin.concurrent.atomics.AtomicNativePtr instead.", ReplaceWith("kotlin.concurrent.atomics.AtomicNativePtr"), DeprecationLevel.ERROR)
 public class AtomicNativePtr(value: NativePtr) {
     @Volatile
     public var value: NativePtr = value
 
-    /** Atomically replaces the value and returns the value observed before the replacement. */
     public fun getAndSet(newValue: NativePtr): NativePtr {
         val oldValue = value
         value = newValue
@@ -200,7 +179,6 @@ public class AtomicNativePtr(value: NativePtr) {
         return false
     }
 
-    /** Atomically replaces the value when it matches [expected] and returns the observed value. */
     public fun compareAndSwap(expected: NativePtr, newValue: NativePtr): NativePtr {
         val oldValue = value
         if (oldValue == expected) {
@@ -209,11 +187,9 @@ public class AtomicNativePtr(value: NativePtr) {
         return oldValue
     }
 
-    /** Returns the string representation of the current atomic value. */
     public override fun toString(): String = value.toString()
 }
 
-// KSP-1226/KSP-1227: Keep the legacy native AtomicReference API source-backed.
 @Deprecated(
     "Use kotlin.concurrent.atomics.AtomicReference instead.",
     ReplaceWith("kotlin.concurrent.atomics.AtomicReference"),
@@ -223,7 +199,6 @@ public class AtomicReference<T>(value: T) {
     @Volatile
     public var value: T = value
 
-    /** Atomically replaces the value and returns the value observed before the replacement. */
     public fun getAndSet(newValue: T): T {
         __atomicSyncLock(this)
         try {
@@ -263,8 +238,6 @@ private fun debugString(value: Any?): String {
     return "${value}: ${idString(value)}"
 }
 
-// KSP-1236/KSP-1237: Keep the legacy FreezableAtomicReference API
-// source-backed.
 @Deprecated(
     "Use kotlin.concurrent.atomics.AtomicReference instead.",
     ReplaceWith("kotlin.concurrent.atomics.AtomicReference"),

@@ -19,8 +19,6 @@ internal external fun __nativeConcurrentAttachObjectGraph(stable: NativePtr): An
 @KsSymbolName("__kk_native_concurrent_consume_future")
 internal external fun __nativeConcurrentConsumeFuture(id: Int): Any?
 
-// Backs both WorkerBoundReference.worker (KSP-1253) and the public
-// Worker.Companion.current surface wired up in Worker.kt (KSP-1251).
 @KsSymbolName("__kk_native_concurrent_current_worker")
 internal external fun __nativeConcurrentCurrentWorker(): Worker
 

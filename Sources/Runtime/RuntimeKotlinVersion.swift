@@ -1,8 +1,4 @@
 
-// KSP-610: `KotlinVersion` itself lives in bundled Kotlin source
-// (Sources/CompilerCore/Stdlib/kotlin/KotlinVersion.kt). The only residual native
-// bridge is the build-time constant injection of the targeted Kotlin version.
-//
 // The target version must stay in sync with the rest of the toolchain
 // (`kotlinLanguageVersion` in CodegenPhase / LibraryDiscovery, README, AGENTS.md,
 // and `KOTLIN_VERSION` in .github/workflows/nightly-full.yml).

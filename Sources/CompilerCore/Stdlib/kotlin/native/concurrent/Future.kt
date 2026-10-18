@@ -32,9 +32,6 @@ private external fun __kkFutureGetState(id: Int): Int
 private fun sameFuture(id: Int, other: Any?): Boolean =
     other is Future<*> && id == other.id
 
-/**
- * Class representing abstract computation, whose result may become available in the future.
- */
 @Suppress("NON_PUBLIC_PRIMARY_CONSTRUCTOR_OF_INLINE_CLASS")
 @ObsoleteWorkersApi
 public value class Future<T> @PublishedApi internal constructor(public val id: Int) {
@@ -64,7 +61,6 @@ public value class Future<T> @PublishedApi internal constructor(public val id: I
     public val result: T
         get() = consumeValue()
 
-    /** Returns the current state of this future. */
     public val state: FutureState
         get() = FutureState.values()[__kkFutureGetState(id)]
 

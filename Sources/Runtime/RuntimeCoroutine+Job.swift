@@ -34,8 +34,6 @@ private enum RuntimeJobState: Equatable, Sendable {
     }
 }
 
-/// Per-task key for the current job handle. Mirrors the scope task-key bridge.
-
 /// Per-thread holder of the current task key. The key itself is a plain value;
 /// this box only provides pthread-TLS storage for it.
 private final class RuntimeTaskKeyBox {
@@ -139,7 +137,6 @@ enum RuntimePendingLaunchQueue {
         currentBox().items.append((job, workItem))
     }
 
-    /// Dispatch every work item queued on this thread since the last flush.
     /// Jobs already cancelled while pending are dropped instead of dispatched --
     /// equivalent to `DispatchWorkItem.cancel()` winning before the block runs.
     static func flush() {
@@ -153,8 +150,6 @@ enum RuntimePendingLaunchQueue {
     }
 }
 
-/// A job handle representing a launched coroutine. Supports join, cancellation,
-/// explicit completion, and parent-child propagation.
 final class RuntimeJobHandle: @unchecked Sendable {
     var associatedHandle: Int = 0
     var identityHandle: Int {
@@ -248,8 +243,6 @@ final class RuntimeJobHandle: @unchecked Sendable {
     }
     private var completionHandlers: [CompletionHandlerEntry] = []
     private var nextCompletionHandlerID = 1
-    /// STDLIB-CORO-001: Closure that dispatches the body for CoroutineStart.LAZY.
-    /// Set when `kk_kxmini_launch_lazy` returns; `startIfNeeded()` runs it once.
     private var lazyStartBody: (@Sendable () -> Void)?
 
     var defaultCancellationMessage: String {
@@ -315,7 +308,6 @@ final class RuntimeJobHandle: @unchecked Sendable {
         lock.unlock()
     }
 
-    /// STDLIB-CORO-001: Capture the deferred-start action for a LAZY job.
     func installLazyStartBody(_ body: @escaping @Sendable () -> Void) {
         lock.lock()
         if state == .new {
@@ -324,7 +316,6 @@ final class RuntimeJobHandle: @unchecked Sendable {
         lock.unlock()
     }
 
-    /// STDLIB-CORO-001: Start a LAZY job by dispatching its body exactly once.
     @discardableResult
     func startIfNeeded() -> Bool {
         lock.lock()
@@ -382,8 +373,6 @@ final class RuntimeJobHandle: @unchecked Sendable {
         lock.unlock()
     }
 
-    /// KUU-1386: `ChildHandle.dispose()` backing — drop the child registration
-    /// and clear the child's recorded parent when it points back here.
     func detachChild(_ childHandle: Int) {
         let childJob = runtimeJobHandle(from: childHandle) ?? runtimeAsyncTask(from: childHandle)?.completionJob
         childJob?.clearParentIfMatches(self)
@@ -681,7 +670,6 @@ final class RuntimeJobHandle: @unchecked Sendable {
             lock.unlock()
             return false
         case .cancelling:
-            // Already cancelling, just update cause if not set
             if cancelCause == 0 {
                 cancelCause = resolvedCause
             }
@@ -751,11 +739,10 @@ final class RuntimeJobHandle: @unchecked Sendable {
         return true
     }
 
-    /// Blocking wait for job completion. Suspend-aware joining (which avoids blocking
-    /// a GCD thread) is handled by `kk_job_join` via `addJoinResumer` (CORO-004); this
-    /// method is the synchronous fallback for non-suspend contexts.
+    /// Suspend-aware joining (which avoids blocking a GCD thread) is handled by
+    /// `kk_job_join` via `addJoinResumer` (CORO-004); this method is the
+    /// synchronous fallback for non-suspend contexts.
     func join() -> Int {
-        // STDLIB-CORO-001: Start a LAZY job on demand before joining.
         startIfNeeded()
         // BUG-041: this (or a sibling launched on the same thread) may still be
         // sitting undispatched in RuntimePendingLaunchQueue -- flush before any
@@ -828,7 +815,6 @@ final class RuntimeJobHandle: @unchecked Sendable {
         return (cause, message)
     }
 
-    /// Thread-safe snapshot of the cancellation flag.
     func cancellationSnapshot() -> Bool {
         lock.lock()
         defer { lock.unlock() }
@@ -841,14 +827,12 @@ final class RuntimeJobHandle: @unchecked Sendable {
         return producerCompletionPending
     }
 
-    /// Thread-safe snapshot of the completion flag.
     func completedSnapshot() -> Bool {
         lock.lock()
         defer { lock.unlock() }
         return state.isCompleted && !producerCompletionPending
     }
 
-    /// Thread-safe snapshot of the active state.
     func isActiveSnapshot() -> Bool {
         lock.lock()
         defer { lock.unlock() }
@@ -941,7 +925,6 @@ private func runtimeBindJobSupportWrapperIfNeeded(_ wrapper: RuntimeObjectBox) -
 enum RuntimeCoroutineScopeTaskKey {
     private static let pthreadKey: pthread_key_t = makePthreadKey()
 
-    /// Get-or-create a task key for the current thread.
     static var currentTaskKey: RuntimeTaskKey {
         if let existing: RuntimeTaskKeyBox = pthreadGetValue(pthreadKey) {
             return existing.key
@@ -951,8 +934,6 @@ enum RuntimeCoroutineScopeTaskKey {
         return box.key
     }
 
-    /// Reinstall a previously observed task key on this thread.
-    ///
     /// Needed by `CoroutineStart.UNDISPATCHED`, which runs a child's body
     /// inline on the caller's thread: the child's suspend-entry loop installs
     /// its own fresh key and removes it on the way out, which would otherwise
@@ -962,8 +943,6 @@ enum RuntimeCoroutineScopeTaskKey {
         pthreadSetValue(pthreadKey, RuntimeTaskKeyBox(key: key))
     }
 
-    /// Install a fresh task key for this thread and return it.
-    /// Called at the top of each suspend-entry loop invocation.
     static func installFreshKey() -> RuntimeTaskKey {
         let box = RuntimeTaskKeyBox(key: .makeUnique())
         pthreadSetValue(pthreadKey, box)
@@ -983,13 +962,10 @@ enum RuntimeCoroutineScopeTaskKey {
         return box?.key
     }
 
-    /// Remove the task key for this thread.
     static func removeKey() {
         pthreadSetValue(pthreadKey, nil as RuntimeTaskKeyBox?)
     }
 
-    /// Restore `key` — captured via `installedKey` before a nested suspend-entry
-    /// loop minted its own — or remove the key entirely when there was none.
     static func restoreKey(_ key: RuntimeTaskKey?) {
         if let key {
             pthreadSetValue(pthreadKey, RuntimeTaskKeyBox(key: key))

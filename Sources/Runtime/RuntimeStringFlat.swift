@@ -1,5 +1,3 @@
-// Flat String ABI wrappers.
-
 import Foundation
 import RuntimeABI
 
@@ -23,9 +21,9 @@ func runtimeRegisterFlatStringResult(
     )
 }
 
-/// Single-index code-unit read for the flat string ABI. Runtime-registered
-/// strings share the cached unit array on their storage; other buffers decode
-/// scalars until the target index without materializing the whole array.
+/// Runtime-registered strings share the cached unit array on their storage;
+/// other buffers decode scalars until the target index without materializing
+/// the whole array.
 /// `unit` is nil exactly when `index` is out of bounds, and `utf16Length` then
 /// carries the authoritative length for the bounds-error message.
 func runtimeFlatStringCodeUnit(
@@ -48,11 +46,11 @@ func runtimeFlatStringCodeUnit(
     return (nil, runtimeKotlinStringUTF16Length(source))
 }
 
-/// Boundary code-unit reads for the flat string ABI. Registered strings share
-/// the cached unit array; other buffers read only the leading and trailing
-/// UTF-16 units of the decoded string (surrogate markers mapped exactly like
-/// `runtimeKotlinStringUTF16CodeUnits`) plus whether a second unit exists,
-/// never materializing the whole code-unit array.
+/// Registered strings share the cached unit array; other buffers read only
+/// the leading and trailing UTF-16 units of the decoded string (surrogate
+/// markers mapped exactly like `runtimeKotlinStringUTF16CodeUnits`) plus
+/// whether a second unit exists, never materializing the whole code-unit
+/// array.
 func runtimeFlatStringBoundaryCodeUnits(
     data: UnsafePointer<UInt8>?,
     length: Int,
