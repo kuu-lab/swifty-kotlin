@@ -28,9 +28,6 @@ private func runtimeTakeObjectForRelease(_ rawValue: Int) -> UnsafeMutableRawPoi
         guard state.pinnedObjectCounts[key] == nil, state.stableRefCounts[key] == nil else {
             return false
         }
-        // Drop the seeded-Random tag together with the registration so a
-        // later box reusing this address is not misread as a SeededRandomBox.
-        state.seededRandomPointers.remove(key)
         state.retainedAtomicReferenceHandles.remove(key)
         return state.objectPointers.remove(key) != nil
     }
