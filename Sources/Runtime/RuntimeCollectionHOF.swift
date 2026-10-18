@@ -54,7 +54,7 @@ func invalidContainerPanic(_ caller: StaticString, _ kind: StaticString) -> Neve
     fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(caller) received invalid \(kind) handle")
 }
 
-/// Inserts or updates an integer-keyed map entry for legacy test shims.
+/// Used by legacy test shims.
 @discardableResult
 func mapInsertOrUpdate(
     dest: RuntimeMapBox,
@@ -260,11 +260,6 @@ public func kk_iterable_all(_ iterableRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
 
 
 
-/// Builds a key-index dictionary from existing map keys for O(1) lookups.
-/// Shared helper to avoid duplicating key-index precomputation across *To functions.
-
-/// Inserts or updates a key-value pair in a destination map, maintaining the key index.
-/// Returns the updated key index.
 @discardableResult
 
 
