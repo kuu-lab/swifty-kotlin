@@ -1,10 +1,5 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
-/// Implicit-receiver fallback paths for `inferCallExpr`: the `emit` member
-/// guard, kx-mini coroutine builtins, builder-DSL member shortcuts, and the
-/// implicit-receiver member-call fallback (including the range/progression
-/// operator members).
-/// Extracted from `CallTypeChecker+CallExprInference.swift`.
 extension CallTypeChecker {
     func inferImplicitReceiverFallbackCall(
         _ id: ExprID,
@@ -91,9 +86,6 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: builtinType)
             return builtinType
         }
-        // Builder DSL member functions (STDLIB-002).
-        // Inside builder lambdas, unqualified `append`/`add`/`put` resolve as
-        // implicit-receiver member calls that return Unit.
         if let calleeName, ctx.isBuilderLambdaScope, let activeBuilderKind = ctx.builderKind {
             let name = interner.resolve(calleeName)
             let isBuilderMember: Bool = switch activeBuilderKind {
@@ -110,8 +102,6 @@ extension CallTypeChecker {
                 return sema.types.unitType
             }
         }
-        // STDLIB-004: Inside receiver lambdas (run/apply/with), unqualified
-        // function calls resolve as member calls on the implicit receiver.
         if let calleeName, let receiverType = ctx.implicitReceiverType {
             let nonNullReceiver = sema.types.makeNonNullable(receiverType)
             let name = interner.resolve(calleeName)
@@ -128,7 +118,6 @@ extension CallTypeChecker {
                 return resultType
             }
 
-            // Boolean.not() / Boolean.and(other) / Boolean.or(other) / Boolean.xor(other) (STDLIB-308)
             if sema.types.isSubtype(nonNullReceiver, sema.types.booleanType) {
                 let resultType = sema.types.booleanType
                 let finalType = receiverType == nonNullReceiver
@@ -162,7 +151,6 @@ extension CallTypeChecker {
                 return resultType
             }
 
-            // General member function lookup via implicit receiver
             var memberCandidates = driver.helpers.collectMemberFunctionCandidates(
                 named: calleeName,
                 receiverType: nonNullReceiver,
@@ -328,7 +316,6 @@ extension CallTypeChecker {
                             return result
                         }
                     } else {
-                        // Preserve the existing fallback for non-generic members.
                         let mapping = Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
                         sema.bindings.bindCall(id, binding: CallBinding(
                             chosenCallee: bestCandidate, substitutedTypeArguments: [], parameterMapping: mapping
