@@ -5,8 +5,6 @@ package kotlin.concurrent.atomics
 import kotlin.internal.KsSymbolName
 
 /**
- * An array of references in which elements may be updated atomically.
- *
  * The atomic storage stays in the runtime `kk_atomic_ref_array_*` box and CAS
  * uses identity semantics. These members add the bounds checks the stdlib
  * contract requires and bridge through `private external` members so `T` stays
@@ -16,61 +14,34 @@ import kotlin.internal.KsSymbolName
 @SinceKotlin("2.1")
 @ExperimentalAtomicApi
 public class AtomicArray<T> private constructor() {
-    /**
-     * Atomically stores the [newValue] into the element of this [AtomicArray]
-     * at the given [index] if the current value equals the [expectedValue]
-     * and returns the old value of the element.
-     */
     public fun compareAndExchangeAt(index: Int, expectedValue: T, newValue: T): T {
         checkIndex(index)
         return __kkAtomicRefArrayCompareAndExchangeAt(index, expectedValue, newValue)
     }
 
-    /**
-     * Atomically stores the [newValue] into the element of this [AtomicArray]
-     * at the given [index] if the current value equals the [expectedValue]
-     * and returns true if the operation was successful.
-     */
     public fun compareAndSetAt(index: Int, expectedValue: T, newValue: T): Boolean {
         checkIndex(index)
         return __kkAtomicRefArrayCompareAndSetAt(index, expectedValue, newValue)
     }
 
-    /**
-     * Atomically stores the [newValue] into the element of this [AtomicArray]
-     * at the given [index] and returns the old value of the element.
-     */
     public fun exchangeAt(index: Int, newValue: T): T {
         checkIndex(index)
         return __kkAtomicRefArrayExchangeAt(index, newValue)
     }
 
-    /**
-     * Returns the element of this [AtomicArray] at the given [index].
-     */
     public fun loadAt(index: Int): T {
         checkIndex(index)
         return __kkAtomicRefArrayLoadAt(index)
     }
 
-    /**
-     * Atomically stores the [value] into the element of this [AtomicArray]
-     * at the given [index].
-     */
     public fun storeAt(index: Int, value: T): Unit {
         checkIndex(index)
         __kkAtomicRefArrayStoreAt(index, value)
     }
 
-    /**
-     * Returns the number of elements in the array.
-     */
     public val size: Int
         get() = __kkAtomicRefArraySize()
 
-    /**
-     * Returns a string representation of this array.
-     */
     public override fun toString(): String {
         val builder = StringBuilder()
         builder.append("[")
