@@ -38,9 +38,11 @@ struct RuntimeProcessArgumentsCallByTests {
         return __kk_process_args_from_argv(Int32(strings.count), UnsafeRawPointer(argv))
     }
 
-    @Test(arguments: [false, true])
-    func cliArgumentsAreAcceptedAsTheWholeStringVarargArray(nonempty: Bool) throws {
-        let expected = nonempty ? ["", "日本語😀"] : []
+    @Test(arguments: [
+        [String](),
+        ["", "日本語😀"],
+    ])
+    func cliArgumentsAreAcceptedAsTheWholeStringVarargArray(expected: [String]) throws {
         // The foreign argv buffers have been freed before callBy uses the array.
         let array = arguments(expected)
         let box = try #require(runtimeArrayBox(from: array))
