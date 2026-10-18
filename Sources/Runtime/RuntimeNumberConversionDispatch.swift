@@ -1,9 +1,3 @@
-// Number.toDouble()/toFloat()/toLong()/toInt()/toShort()/toByte()/toChar()
-// dispatch for an erased/abstract receiver (a `Number`-typed variable, or a
-// `T : Number` type parameter) — see KSP-1540 / DEBT-DIFF-008 and
-// CallLowerer+NumberConversionMemberCalls.swift for the KIR-side lowering
-// that routes calls here.
-
 /// Mirrors `CallLowerer.NumberConversionTargetKind` (KIR side) by raw value —
 /// the two enums live in separate modules linked only through the C ABI, so
 /// they must be kept in sync manually.
@@ -17,14 +11,10 @@ private enum RuntimeNumberConversionTargetKind: Int32 {
     case char = 6
 }
 
-/// Runtime dispatch for `Number.to*()` called through an erased/abstract
-/// receiver. None of the built-in primitive types (Int/Long/Double/Float/
+/// None of the built-in primitive types (Int/Long/Double/Float/
 /// Short/Byte) register a real overriding *class* in the symbol table (they
 /// conform to `Number` only via a hardcoded subtyping rule), so a boxed
 /// primitive reaching this call has no vtable slot to dispatch through.
-/// Recognize the box directly and perform the native conversion, reusing the
-/// exact intrinsics the statically-typed fast path already uses (see
-/// CallLowerer+LegacyMemberLikeCalls.swift's primitive conversion switch).
 /// BigDecimal also has a dedicated runtime box rather than a compiler-
 /// synthesized class vtable, so route that box to its decimal conversions.
 /// A receiver that isn't one of those boxes is a genuine user-defined
@@ -61,8 +51,6 @@ public func kk_number_to_primitive(_ receiver: Int, _ slot: Int, _ targetKindRaw
         }
     }
 
-    // Not a recognized primitive box: a real Number subclass instance.
-    // Dispatch through its own vtable slot instead.
     let fnPtrRaw = kk_vtable_lookup(receiver, slot)
     guard let fnPtr = UnsafeRawPointer(bitPattern: fnPtrRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: Number.to*() has no vtable entry for slot \(slot)")
