@@ -1,15 +1,7 @@
 
-// ArrayDeque runtime (STDLIB-240) plus generic Array utility functions
-// (STDLIB-089).
-//
-// Split out from `RuntimeCollections.swift`.
-
-//
 // `first` / `last` / `isEmpty` / `toString` and the emptiness checks that guard
 // `removeFirst` / `removeLast` now live in
-// `Sources/CompilerCore/Stdlib/kotlin/collections/ArrayDeque.kt`; only the
-// allocation, construction, and element-storage mutation primitives remain
-// here.
+// `Sources/CompilerCore/Stdlib/kotlin/collections/ArrayDeque.kt`.
 
 @_cdecl("__kk_arraydeque_new")
 public func __kk_arraydeque_new() -> Int {
@@ -156,7 +148,6 @@ private func runtimePlainArrayBox(from rawValue: Int) -> RuntimeArrayBox? {
     return box
 }
 
-/// Renders one element of a tagged primitive array as its Kotlin value.
 /// Elements are raw machine words — IEEE 754 bit patterns for Double/Float,
 /// UTF-16 code units for Char, 0/1 for Boolean — so they must be decoded
 /// with the array's declared element kind instead of going through the
@@ -208,7 +199,6 @@ private func runtimeCanonicalFloatBits(_ raw: Int) -> UInt32 {
     return value.isNaN ? 0x7FC0_0000 : value.bitPattern
 }
 
-/// `Arrays.hashCode(x[])` element hash for a primitive element word.
 /// Unsigned arrays hash their signed storage value (e.g. UByte(-56) -> -56),
 /// matching the JVM's signed primitive storage, while toString renders the
 /// unsigned value.
@@ -236,7 +226,6 @@ private func runtimePrimitiveArrayElementHash(
     }
 }
 
-/// `Arrays.equals(x[], x[])` element equality for a primitive element word.
 /// Narrow integer elements compare their storage-width bits, so signed and
 /// unsigned machine-word encodings of the same view element agree.
 /// Floating-point elements compare canonical-NaN bitwise so different NaN
