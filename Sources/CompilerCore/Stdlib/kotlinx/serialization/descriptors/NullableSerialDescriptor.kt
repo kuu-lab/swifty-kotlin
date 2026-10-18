@@ -6,10 +6,6 @@ package kotlinx.serialization.descriptors
 import kotlinx.serialization.*
 import kotlinx.serialization.internal.SerialDescriptorForNullable
 
-/**
- * Returns new serial descriptor for the same type with [isNullable][SerialDescriptor.isNullable]
- * property set to `true`.
- */
 @OptIn(ExperimentalSerializationApi::class)
 public val SerialDescriptor.nullable: SerialDescriptor
     get() {
@@ -25,9 +21,6 @@ public val SerialDescriptor.nullable: SerialDescriptor
  *
  * It may return a nullable descriptor
  * if `this` descriptor has been created manually as nullable by directly implementing SerialDescriptor interface.
- *
- * @see SerialDescriptor.nullable
- * @see KSerializer.nullable
  */
 @ExperimentalSerializationApi
 public val SerialDescriptor.nonNullOriginal: SerialDescriptor
