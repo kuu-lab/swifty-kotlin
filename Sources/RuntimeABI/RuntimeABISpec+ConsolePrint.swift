@@ -1,6 +1,5 @@
 // swiftlint:disable file_length
 
-/// `RuntimeABISpec.consolePrintFunctions` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
     static let bridgePrintRawSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
         name: "__kk_print_raw",
