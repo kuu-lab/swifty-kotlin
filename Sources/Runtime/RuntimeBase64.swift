@@ -12,8 +12,6 @@ private func base64StringFromRaw(_ raw: Int) -> String? {
     return extractString(from: ptr)
 }
 
-/// A `RuntimeOutputStreamSink` that base64-encodes all written data and
-/// forwards the result to a downstream `RuntimeOutputStreamBox`.
 final class RuntimeBase64EncodingOutputStreamSink: RuntimeOutputStreamSink {
     private let downstream: RuntimeOutputStreamBox
     private let alphabet: [UInt8]
@@ -90,7 +88,6 @@ private func makeBase64EncodingOutputStream(
     return RuntimeOutputStreamBox(sink: sink)
 }
 
-/// ABI entry for `kotlin.io.encoding.encodingWith(base64: Base64): OutputStream`.
 /// The alphabet and padding decision are computed Kotlin-side (from the
 /// `Base64` instance's `alphabetChars`) and passed as primitives, since the
 /// `Base64` instance itself is now a plain Kotlin object with no Swift-side
