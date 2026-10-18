@@ -120,6 +120,55 @@ struct DataClassComponentNTests {
     }
 
     @Test
+    func testDataClassDestructuringReportsMissingComponents() throws {
+        let source = """
+        interface TestIterator<E> {
+            operator fun hasNext(): Boolean
+            operator fun next(): E
+        }
+
+        interface TestIterable<E> {
+            operator fun iterator(): TestIterator<E>
+        }
+
+        data class C(val first: Int, val second: Int)
+
+        fun parenthesizedForLoop(items: TestIterable<C>) {
+            for ((x, _, z) in items) {}
+        }
+
+        fun bracketedForLoop(items: TestIterable<C>) {
+            for ([x, _, z] in items) {}
+        }
+
+        fun destructuringDeclaration(value: C) {
+            val (x, _, z) = value
+        }
+        """
+
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+
+            let errors = diagnosticsForPath(paths[0], in: ctx).filter { $0.severity == .error }
+            let missingComponentErrors = errors.filter { $0.message.contains("component3()") }
+
+            #expect(
+                missingComponentErrors.count == 3,
+                "Expected a missing component3 diagnostic for both for-loop delimiters and a local declaration, got: \(errors.map { "\($0.code): \($0.message)" })"
+            )
+            #expect(
+                errors.filter { $0.code == "KSWIFTK-SEMA-0087" }.count == 2,
+                "Expected both for-loop forms to report KSWIFTK-SEMA-0087, got: \(errors.map { "\($0.code): \($0.message)" })"
+            )
+            #expect(
+                errors.filter { $0.code == "KSWIFTK-SEMA-0086" }.count == 1,
+                "Expected the local destructuring declaration to report KSWIFTK-SEMA-0086, got: \(errors.map { "\($0.code): \($0.message)" })"
+            )
+        }
+    }
+
+    @Test
     func testForLoopDestructuringBracketSyntaxWithArrayListPairs() throws {
         let source = """
         interface ArrayListIterator<E> {

@@ -73,7 +73,6 @@ public struct FileFingerprint: Equatable, Codable {
         var h6: UInt32 = 0x1F83_D9AB
         var h7: UInt32 = 0x5BE0_CD19
 
-        // Pre-processing: pad the message
         var message = input
         let originalLength = message.count
         message.append(0x80)

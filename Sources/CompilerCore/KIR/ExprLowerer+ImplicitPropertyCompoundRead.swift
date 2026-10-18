@@ -1,5 +1,4 @@
 extension ExprLowerer {
-    /// Reads a bare member before its compound assignment invokes a setter.
     /// A custom setter does not require a custom getter: stored reads keep
     /// using the backing-field slot, while delegated/custom reads use get.
     func lowerImplicitPropertyCompoundRead(

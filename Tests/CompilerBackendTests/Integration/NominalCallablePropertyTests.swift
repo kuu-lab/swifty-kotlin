@@ -71,7 +71,7 @@ struct NominalCallablePropertyTests {
         )))
         let execution = try CommandRunner.run(executable: output, arguments: [])
         #expect(execution.exitCode == 0, "\(execution.stderr)")
-        #expect(execution.stdout == "extension\nmember\nspecific-extension\nnull\nextension\nextension\nextension\nOK\nextension\ngetters:1\n")
+        #expect(execution.stdout == "extension\nmember\nspecific-extension\nnull\nextension\nextension\nextension\nOK\ndispatch-extension\nextension\ngetters:1\n")
     }
 
     @Test(arguments: [false, true], [0, 2])
@@ -239,6 +239,27 @@ struct NominalCallablePropertyTests {
         if ["ambiguousLambdaReturn", "ambiguousNumericOverload"].contains(mode) {
             #expect(context.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0003" })
         }
+    }
+
+    @Test(arguments: ["ambiguousLambda", "inapplicableArgument"])
+    func extensionInvokeDiagnosticsRemainOverloadDiagnostics(_ mode: String) throws {
+        let api = "/virtual/api.kt"
+        let input = "/virtual/consumer.kt"
+        let invokes = mode == "ambiguousLambda" ? """
+        @kotlin.jvm.JvmName("invokeInt") operator fun I.invoke(block: () -> Int): String = "int"
+        @kotlin.jvm.JvmName("invokeString") operator fun I.invoke(block: () -> String): String = "string"
+        """ : "operator fun I.invoke(value: Int): String = value.toString()"
+        let call = mode == "ambiguousLambda" ? "H.value { 42 }" : "H.value(\"bad\")"
+        let expectedCode = mode == "ambiguousLambda" ? "KSWIFTK-SEMA-0003" : "KSWIFTK-SEMA-0002"
+        let context = CompilerDriver().runFrontend(options: CompilerOptions(
+            moduleName: "ExtensionInvokeDiagnostics", inputs: [api, input], outputPath: "/tmp/extension-invoke-diagnostics",
+            emit: .executable, target: defaultTargetTriple(), stdlibLibraryPath: try testStdlibArtifactPath()
+        ), inMemorySources: [
+            api: Data(("interface I\nclass C : I\nobject H { val value = C() }\n" + invokes).utf8),
+            input: Data(("fun main() { println(\(call)) }").utf8)
+        ]).context
+        #expect(context.diagnostics.diagnostics.contains { $0.code == expectedCode }, "\(mode): \(context.diagnostics.diagnostics)")
+        #expect(!context.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0024" })
     }
 
     @Test(arguments: ["ambiguous", "inapplicable"])

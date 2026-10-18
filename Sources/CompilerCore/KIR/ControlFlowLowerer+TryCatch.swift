@@ -420,7 +420,6 @@ extension ControlFlowLowerer {
 
                 instructions.append(.label(finallyAfterLabel))
             } else {
-                // No throwable calls — append the finally body directly.
                 instructions.append(contentsOf: finallyInstructions)
             }
         }
@@ -452,20 +451,10 @@ extension ControlFlowLowerer {
         return tryResult
     }
 
-    /// Emits instructions to check whether a caught exception matches a specific catch clause type.
-    ///
     /// This first performs a fast integer comparison against the encoded catch type token.
     /// When the exact token comparison misses, it falls back to `kk_op_is`, because a
     /// known thrown subtype token can still match a catch clause for one of its supertypes.
     /// The runtime fallback also handles UNKNOWN (0) tokens from external/runtime calls.
-    ///
-    /// Generated control flow:
-    /// ```
-    ///   typeMatches = (exceptionTypeSlot == catchTypeToken)
-    ///   if typeMatches -> matchResult = true
-    ///   typeUnknown = (exceptionTypeSlot == 0)
-    ///   matchResult = kk_op_is(exceptionSlot, catchTypeToken)  // subtype/unknown fallback
-    /// ```
     ///
     /// Shared boolean/int constants (`unknownTypeToken`, `trueValue`, `falseValue`) are
     /// created once per try/catch block by the caller and passed in to avoid emitting
@@ -495,7 +484,6 @@ extension ControlFlowLowerer {
 
         instructions.append(.constValue(result: tokenExpr, value: .intLiteral(encodedToken)))
 
-        // Fast path: exact token match (exception type is known and matches)
         instructions.append(.binary(
             op: .equal,
             lhs: exceptionTypeSlot,
@@ -513,7 +501,6 @@ extension ControlFlowLowerer {
             result: typeUnknown
         ))
 
-        // Runtime fallback: handles UNKNOWN tokens and known subtype/supertype matches.
         let runtimeResult = arena.appendTemporary(type: boolType)
         instructions.append(.call(
             symbol: nil,
@@ -526,7 +513,6 @@ extension ControlFlowLowerer {
         instructions.append(.copy(from: runtimeResult, to: matchResult))
         instructions.append(.jump(doneLabel))
 
-        // Exact match: set matchResult = true
         instructions.append(.label(exactMatchLabel))
         instructions.append(.copy(from: trueValue, to: matchResult))
         instructions.append(.jump(doneLabel))
@@ -560,7 +546,6 @@ extension ControlFlowLowerer {
                 instructions.append(instruction)
                 continue
             }
-            // Inside a finally guard region: pass through verbatim.
             if finallyGuardDepth > 0 {
                 if case let .rethrow(value) = instruction {
                     // A rethrow leaves the guarded local handler. Let the

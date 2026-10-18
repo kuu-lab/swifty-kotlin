@@ -1,11 +1,5 @@
 // swiftlint:disable file_length
 
-/// Name-reference lowering used by `ExprLowerer.lowerExpr`: lambda
-/// params, implicit-receiver member reads, enum-entry and
-/// constructor-property reads, mutable-capture cells, and the
-/// generic symbol-reference fallback.
-///
-/// Split out from `ExprLowerer+ControlFlowAndBlocks.swift`.
 extension ExprLowerer {
     func lowerNameRefExpr(
         name: InternedString,
@@ -19,11 +13,10 @@ extension ExprLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         let thisID = interner.intern("this")
-        // Resolve lambda params by name when Sema has no local value for
-        // its binding. Receiver-function lambdas can bind implicit `it` to
-        // a semantic parameter symbol that differs from the synthetic KIR
-        // parameter symbol. Inlined lambdas that do not register their own
-        // params still resolve an outer `it` through its semantic symbol.
+        // Receiver-function lambdas can bind implicit `it` to a semantic
+        // parameter symbol that differs from the synthetic KIR parameter
+        // symbol. Inlined lambdas that do not register their own params
+        // still resolve an outer `it` through its semantic symbol.
         if let paramSymbol = driver.ctx.lambdaParamSymbol(named: name),
            sema.bindings.identifierSymbols[exprID].map({
                guard $0 != paramSymbol,
@@ -223,8 +216,6 @@ extension ExprLowerer {
                 return result
             }
         }
-        // STDLIB-004: Implicit receiver member access (e.g. `length` inside
-        // `run { length }` resolves as `this.length`).
         if let memberName = sema.bindings.implicitReceiverMemberNames[exprID],
            let activeReceiverExprID = driver.ctx.activeImplicitReceiverExprID()
         {
@@ -360,7 +351,6 @@ extension ExprLowerer {
                 return result
             }
 
-            // String properties
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
                 if memberStr == "length" {
                     emitNonThrowingCall(
@@ -549,9 +539,6 @@ extension ExprLowerer {
                 )
             }
 
-            // Native stub properties with externalLinkName: call native function
-            // directly via the implicit receiver (e.g. kk_duration_inWholeNanoseconds
-            // accessed inside a bundled Kotlin source extension getter body).
             if let symbol = sema.bindings.identifierSymbols[exprID],
                let sym = sema.symbols.symbol(symbol),
                sym.kind == .property,
@@ -689,7 +676,6 @@ extension ExprLowerer {
                 )
             }
 
-            // General fallback: try to find a getter symbol for the property
             if let symbol = sema.bindings.identifierSymbols[exprID],
                !driver.ctx.isMutableCaptureBoxed(symbol)
             {
@@ -1162,8 +1148,6 @@ extension ExprLowerer {
                 ))
                 return result
             }
-            // For top-level or object-member property symbols, emit loadGlobal so the
-            // backend reads the current value from the global slot.
             if let sym = sema.symbols.symbol(symbol),
                sym.kind == .property || sym.kind == .field,
                {

@@ -1,10 +1,5 @@
 import Foundation
 
-/// Tracks symbol-level dependencies between source files for incremental compilation.
-///
-/// Each file *provides* (defines) a set of symbol names and *depends on* (references)
-/// a set of symbol names.  When a file changes, every other file that depends on any
-/// symbol provided by the changed file is added to the recompilation set.
 public final class DependencyGraph: Codable {
 
     private var providedSymbols: [String: Set<String>] = [:]
@@ -15,7 +10,6 @@ public final class DependencyGraph: Codable {
     /// invalidated without treating every package as a dependency.
     private var providedPackages: [String: String] = [:]
 
-    /// Package names imported with `*`, keyed by importing file.
     private var wildcardImportedPackages: [String: Set<String>] = [:]
 
     public init() {}
@@ -47,7 +41,6 @@ public final class DependencyGraph: Codable {
         providedSymbols[filePath] = symbols
     }
 
-    /// Records the symbols and package provided by a source file.
     public func recordProvided(filePath: String, symbols: Set<String>, package: String) {
         recordProvided(filePath: filePath, symbols: symbols)
         providedPackages[filePath] = package
@@ -57,16 +50,10 @@ public final class DependencyGraph: Codable {
         dependedSymbols[filePath] = symbols
     }
 
-    /// Records a package wildcard import such as `import example.api.*`.
     public func recordWildcardImport(filePath: String, package: String) {
         wildcardImportedPackages[filePath, default: []].insert(package)
     }
 
-    /// Given a set of files that changed, compute the full set of files that need
-    /// recompilation.  This includes:
-    /// 1. The changed files themselves.
-    /// 2. Any file that depends on a symbol provided by a changed file (transitively).
-    ///
     /// The result is deterministic (sorted).
     public func recompilationSet(changedFiles: Set<String>, allFiles: [String]) -> [String] {
         if changedFiles.isEmpty {
@@ -108,8 +95,6 @@ public final class DependencyGraph: Codable {
             pendingFiles.append(filePath)
         }
 
-        // Worklist propagation: each symbol/package expands its dependents once,
-        // and each newly-affected file contributes its provided symbols once.
         while !pendingFiles.isEmpty || !pendingSymbols.isEmpty || !pendingPackages.isEmpty {
             if let filePath = pendingFiles.popLast() {
                 guard affected.insert(filePath).inserted else { continue }

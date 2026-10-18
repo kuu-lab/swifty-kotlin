@@ -188,6 +188,7 @@ extension LLVMCAPIBindings {
         name.withCString { buildURemFn(builder, lhs, rhs, $0) }
     }
 
+    /// LLVM ICmp predicate: 34=UGT, 35=UGE, 36=ULT, 37=ULE
     func buildICmpUnsignedLessThan(_ builder: LLVMBuilderRef?, lhs: LLVMValueRef?, rhs: LLVMValueRef?, name: String) -> LLVMValueRef? {
         name.withCString { buildICmpFn(builder, 36, lhs, rhs, $0) }
     }

@@ -1,5 +1,3 @@
-/// Shared helpers for `inner class`'s enclosing-instance (`$outer`) link.
-///
 /// KIR has no first-class notion of "inner class" beyond the `.innerClass`
 /// symbol flag: every inner class reserves a synthetic `$outer` field (the
 /// first own field slot, see `HeaderCollection`'s `collectNestedClassOrInterfaceHeader`)
@@ -117,17 +115,13 @@ func resolveOuterChainValue(
 
 /// Allocates a fresh heap object for the class `chosen` (a resolved
 /// constructor symbol) constructs via `kk_object_new`, and performs every
-/// registration a constructor call needs before its `<init>` body runs:
-/// supertype type edges, itable/vtable method registration, KClass
-/// reflection metadata, data-class registration, Throwable stack-trace
-/// capture, and -- when the constructed class is an `inner class` -- storing
-/// the `$outer` enclosing-instance link resolved from `outerReceiver` (the
+/// registration a constructor call needs before its `<init>` body runs.
+/// When the constructed class is an `inner class`, the `$outer`
+/// enclosing-instance link is resolved from `outerReceiver` (the
 /// lowered explicit receiver for `outer.Inner(...)`, or the active implicit
-/// receiver for a bare `Inner(...)` call from within `Outer`). Returns the
-/// allocated object's KIR value, ready to prepend as the constructor's own
-/// `this` argument. Shared by the bare/implicit constructor call path
-/// (`CallLowerer.lowerResolvedCallBody`) and the explicit-outer-receiver
-/// inner-class constructor call path (`CallLowerer+InnerClassConstructors.swift`).
+/// receiver for a bare `Inner(...)` call from within `Outer`) and stored.
+/// Returns the allocated object's KIR value, ready to prepend as the
+/// constructor's own `this` argument.
 func allocateAndRegisterConstructedObject(
     chosen: SymbolID,
     boundType: TypeID?,
@@ -327,12 +321,9 @@ func allocateAndRegisterConstructedObject(
     return allocatedObj
 }
 
-/// Emits the `$outer` field store for a freshly allocated `innerClassSymbol`
-/// instance, resolving the outer value from `outerReceiver` (the lowered
-/// explicit or implicit receiver at the construction site) by walking up to
-/// `innerClassSymbol`'s declared enclosing class. A no-op when
-/// `innerClassSymbol` isn't actually an `inner class`, or when no outer
-/// value could be resolved (should not happen for code Sema accepted).
+/// A no-op when `innerClassSymbol` isn't actually an `inner class`, or when
+/// no outer value could be resolved (should not happen for code Sema
+/// accepted).
 func storeOuterInstanceLinkIfNeeded(
     allocatedObject: KIRExprID,
     innerClassSymbol: SymbolID,
@@ -371,8 +362,7 @@ func storeOuterInstanceLinkIfNeeded(
 }
 
 extension CallLowerer {
-    /// Lowers `outer.Inner(args)`: an inner class constructed via an
-    /// explicit outer-instance receiver. Allocates a genuine new `Inner`
+    /// Lowers `outer.Inner(args)`. Allocates a genuine new `Inner`
     /// object (via `allocateAndRegisterConstructedObject`, which also
     /// stores the resolved `outer` value into the new object's `$outer`
     /// field) instead of treating the lowered receiver as if it already

@@ -21,6 +21,7 @@ extension CallTypeChecker {
         isClassNameReceiver: Bool,
         classNameReceiverNominalSymbol: SymbolID?,
         isSuperCall: Bool,
+        typeAliasConstructor: TypeAliasConstructorContext? = nil,
         locals: inout LocalBindings
     ) -> TypeID? {
         let id = request.id
@@ -254,6 +255,7 @@ extension CallTypeChecker {
         isClassNameReceiver: Bool,
         classNameReceiverNominalSymbol: SymbolID?,
         isSuperCall: Bool,
+        typeAliasConstructor: TypeAliasConstructorContext? = nil,
         locals: inout LocalBindings
     ) -> TypeID {
         let id = request.id
@@ -348,6 +350,7 @@ extension CallTypeChecker {
         )
         driver.helpers.checkOptIn(
             for: chosen,
+            constructorTypeAlias: typeAliasConstructor?.typeAliasSymbol,
             ctx: ctx,
             range: range,
             diagnostics: ctx.sema.diagnostics
