@@ -11,10 +11,6 @@ package kotlin.properties
 
 import kotlin.reflect.KProperty
 
-/**
- * Base class for `by`-delegated properties that veto/observe value changes,
- * as returned by [Delegates.observable] and [Delegates.vetoable].
- */
 public abstract class ObservableProperty<V>(initialValue: V) : ReadWriteProperty<Any?, V> {
     private var value: V = initialValue
 
