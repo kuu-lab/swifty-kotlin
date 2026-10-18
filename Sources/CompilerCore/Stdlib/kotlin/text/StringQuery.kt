@@ -26,9 +26,6 @@ private external fun String.__kk_string_singleOrNull(): Char?
 @KsSymbolName("__kk_string_getOrNull_flat")
 private external fun String.__kk_string_getOrNull(index: Int): Char?
 
-// KSP-402
-// String query helpers migrated from Swift runtime entry points.
-
 public fun String.first(): Char {
     return this.__kk_string_first()
 }
@@ -99,9 +96,8 @@ public inline fun String.lastOrNull(predicate: (Char) -> Boolean): Char? {
     return null
 }
 
-// KSP-1384: CharSequence last-family APIs are source-backed. Keep the
-// String-specific bridge overloads above because unrelated String callers
-// still use their runtime-backed no-predicate implementations.
+// KSP-1384: Keep the String-specific bridge overloads above because unrelated
+// String callers still use their runtime-backed no-predicate implementations.
 public fun CharSequence.last(): Char {
     if (isEmpty())
         throw NoSuchElementException("Char sequence is empty.")
