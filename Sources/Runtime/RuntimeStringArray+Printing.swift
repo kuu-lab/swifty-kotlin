@@ -21,9 +21,9 @@ public func __kk_printStderr(_ messageRaw: Int) -> Int {
 }
 
 /// KSP-615: single low-level console input bridge behind `kotlin.io.readLine` /
-/// `readln` / `readlnOrNull`. Reads a line from stdin. Returns a pointer to a
-/// runtime string on success, or `runtimeNullSentinelInt` on EOF; nullability
-/// and the `readln` EOF throw live in `Stdlib/kotlin/io/Console.kt`.
+/// `readln` / `readlnOrNull`. Returns a pointer to a runtime string on success,
+/// or `runtimeNullSentinelInt` on EOF; nullability and the `readln` EOF throw
+/// live in `Stdlib/kotlin/io/Console.kt`.
 @_cdecl("__kk_readline_raw")
 public func __kk_readline_raw() -> Int {
     guard let line = readLine() else {
@@ -156,7 +156,6 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     if let ktypeProjectionBox = tryCast(raw, to: RuntimeKTypeProjectionBox.self) {
         return runtimeKTypeProjectionToString(ktypeProjectionBox)
     }
-    // STDLIB-REFLECT-066: KType rendering
     if let ktypeBox = tryCast(raw, to: RuntimeKTypeBox.self) {
         return runtimeKTypeToString(ktypeBox)
     }
@@ -166,8 +165,6 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     if let resultBox = tryCast(raw, to: RuntimeResultBox.self) {
         return runtimeResultToString(resultBox, render: runtimeRenderAnyForPrint)
     }
-    // KUU-1352: a bound Job wrapper box (Job()/SupervisorJob()/
-    // CompletableDeferred/JobSupport subclass) renders Name{State}@hex.
     if let rendered = runtimeJobWrapperDebugString(value) {
         return rendered
     }
@@ -265,9 +262,8 @@ private func runtimeScientificString(fromFixed rendered: String) -> String {
     return "\(sign)\(firstDigit).\(mantissaFraction)E\(exponent)"
 }
 
-/// Applies Kotlin's decimal/scientific notation rules to an already-rendered
-/// shortest-round-trip string. Kotlin (matching java.lang.Double/Float.toString)
-/// uses scientific notation when the magnitude is >= 1e7 or < 1e-3.
+/// Kotlin (matching java.lang.Double/Float.toString) uses scientific notation
+/// when the magnitude is >= 1e7 or < 1e-3.
 private func runtimeFinishFloatingPointFormat(rendered: String, useScientific: Bool) -> String {
     if rendered.contains("e") || rendered.contains("E") {
         return runtimeNormalizeScientificExponent(rendered)
