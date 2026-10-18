@@ -1,7 +1,6 @@
 
 public func kk_sequence_chunked(_ seqRaw: Int, _ size: Int) -> Int {
     let chunkSize = max(1, size)
-    // Lazily traverse upstream to build chunks on the fly
     var chunks: [Int] = []
     var currentChunk: [Int] = []
     if let seq = runtimeSequenceBox(from: seqRaw) {
@@ -57,7 +56,6 @@ public func kk_sequence_windowed(_ seqRaw: Int, _ size: Int, _ step: Int, _ part
     let clampedSize = max(1, size)
     let clampedStep = max(1, step)
     let includePartial = partialWindows != 0
-    // Lazily traverse upstream to build windows on the fly
     var buffer: [Int] = []
     var windows: [Int] = []
     var elementIndex = 0
@@ -66,7 +64,6 @@ public func kk_sequence_windowed(_ seqRaw: Int, _ size: Int, _ step: Int, _ part
         runtimeTraverseSequence(seq, outThrown: nil) { elem in
             buffer.append(elem)
             elementIndex += 1
-            // Emit windows whose start position we've passed
             while nextWindowStart <= elementIndex - clampedSize {
                 let window = Array(buffer[nextWindowStart..<(nextWindowStart + clampedSize)])
                 let windowList = RuntimeListBox(elements: window)
@@ -88,7 +85,6 @@ public func kk_sequence_windowed(_ seqRaw: Int, _ size: Int, _ step: Int, _ part
             nextWindowStart = overflow ? Int.max : advancedStart
         }
     }
-    // Handle partial windows at the end
     if includePartial {
         while nextWindowStart < elementIndex {
             let end = nextWindowStart + min(clampedSize, elementIndex - nextWindowStart)
@@ -301,7 +297,6 @@ public func kk_sequence_maxOrNull(_ seqRaw: Int) -> Int {
     return best ?? runtimeNullSentinelInt
 }
 
-/// Sequence<T : Comparable>.max(): T (throws NoSuchElementException if empty)
 @_cdecl("kk_sequence_max")
 public func kk_sequence_max(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let result = kk_sequence_maxOrNull(seqRaw)
