@@ -1,4 +1,3 @@
-/// `RuntimeABISpec.generateCHeader()` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
     static func generateCHeader() -> String {
         var lines: [String] = []
