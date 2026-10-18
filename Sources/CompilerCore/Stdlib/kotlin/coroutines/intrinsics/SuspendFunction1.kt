@@ -10,7 +10,6 @@ package kotlin.coroutines.intrinsics
 import kotlin.coroutines.Continuation
 import kotlin.internal.InlineOnly
 
-/** Creates an unintercepted coroutine, which begins when the returned continuation is resumed. */
 @SinceKotlin("1.3")
 @InlineOnly
 public inline fun <R, T> (suspend R.() -> T).createCoroutineUnintercepted(
@@ -18,7 +17,6 @@ public inline fun <R, T> (suspend R.() -> T).createCoroutineUnintercepted(
     completion: Continuation<T>
 ): Continuation<Unit> = createCoroutineUninterceptedWithReceiver(this, receiver, completion)
 
-/** Runs the receiver-bearing suspend function until its first suspension. */
 @SinceKotlin("1.3")
 @InlineOnly
 public inline fun <R, T> (suspend R.() -> T).startCoroutineUninterceptedOrReturn(
