@@ -7,7 +7,6 @@
 
 package kotlin.text
 
-/** Unicode typography constants exposed by the Kotlin text stdlib. */
 public object Typography {
     public const val almostEqual: Char = '\u2248'
     public const val amp: Char = '&'
