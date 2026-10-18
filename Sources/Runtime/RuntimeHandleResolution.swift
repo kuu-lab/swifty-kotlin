@@ -1,8 +1,4 @@
 
-/// Resolve a raw integer handle to a registered runtime object of the given type.
-/// Returns nil if the handle is zero/null, not a registered object pointer, or
-/// points to an object of a different type.
-///
 /// This is the canonical shape for `runtime*Box(from:)` lookups across the
 /// Runtime module — most box resolvers can delegate to this helper directly.
 /// Exceptions (e.g. `runtimeThreadLocalBox` querying a different storage set,
