@@ -1,6 +1,5 @@
 // swiftlint:disable file_length
 
-/// `RuntimeABISpec.booleanFunctions` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
     static let booleanFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
