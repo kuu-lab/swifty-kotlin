@@ -33,8 +33,7 @@ public suspend fun ProducerScope<*>.awaitClose(block: () -> Unit = {}) {
 // launch itself is a runtime entry point: it registers the child job on the
 // ambient coroutine scope, binds the channel as the block's `this` (the same
 // launcherArgs[0] convention the synthetic kk_produce path used), and closes
-// the channel when the block finishes. `produce` returns the channel itself
-// as the ReceiveChannel.
+// the channel when the block finishes.
 
 @KsSymbolName("__kk_produce_launch")
 private external fun <E> __kkProduceLaunch(
