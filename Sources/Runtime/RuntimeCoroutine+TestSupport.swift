@@ -2,7 +2,6 @@ import Dispatch
 import Foundation
 
 
-/// Virtual-clock backing for `kotlinx.coroutines.test.TestCoroutineScheduler`.
 final class RuntimeTestScheduler: @unchecked Sendable {
     private struct ScheduledTask {
         let timeMillis: Int64
@@ -140,14 +139,11 @@ final class RuntimeTestScheduler: @unchecked Sendable {
     }
 }
 
-/// Standalone `TestCoroutineScheduler()` construction (e.g. for the
-/// `StandardTestDispatcher(scheduler:)` factory's default).
 @_cdecl("kk_test_scheduler_new")
 public func kk_test_scheduler_new() -> Int {
     return runtimeRegisterObject(RuntimeTestScheduler())
 }
 
-/// Lazily minted per-scope scheduler handle backing `TestScope.testScheduler`.
 @_cdecl("kk_test_scope_scheduler")
 public func kk_test_scope_scheduler(_ scopeHandle: Int) -> Int {
     guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
@@ -156,8 +152,6 @@ public func kk_test_scope_scheduler(_ scopeHandle: Int) -> Int {
     return scope.schedulerForTest()
 }
 
-/// `TestScope.currentTime`: the scope's scheduler's virtual clock, lazily
-/// minting the scheduler on first read.
 @_cdecl("kk_test_scope_current_time")
 public func kk_test_scope_current_time(_ scopeHandle: Int) -> Int {
     guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
@@ -177,7 +171,6 @@ public func kk_test_scheduler_current_time(_ schedulerHandle: Int) -> Int {
     return Int(scheduler.currentTimeMillis)
 }
 
-/// Advances virtual time and resumes tasks scheduled before the target time.
 @_cdecl("kk_test_scheduler_advance_time_by")
 public func kk_test_scheduler_advance_time_by(_ schedulerHandle: Int, _ delayTimeMillis: Int) -> Int {
     guard let scheduler = resolveLiveRuntimeHandle(schedulerHandle, as: RuntimeTestScheduler.self) else {
