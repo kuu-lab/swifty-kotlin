@@ -30,7 +30,6 @@ struct GCState {
     /// Existing retained reference cells are external owners, not swept boxes.
     /// Trace their direct kk_alloc payloads until replacement or owner release.
     var retainedAtomicReferenceHandles: Set<UInt> = []
-    var seededRandomPointers: Set<UInt> = []
     /// Borrowed pointers in `objectPointers` whose lifetime is owned by a
     /// singleton or a dedicated runtime registry rather than passRetained.
     var borrowedObjectPointers: Set<UInt> = []
@@ -702,7 +701,6 @@ private func releaseRegisteredRuntimeBoxes(_ pointers: [UnsafeMutableRawPointer]
             let key = UInt(bitPattern: pointer)
             state.objectPointers.remove(key)
             state.retainedAtomicReferenceHandles.remove(key)
-            state.seededRandomPointers.remove(key)
         }
     }
     for pointer in pointers {
