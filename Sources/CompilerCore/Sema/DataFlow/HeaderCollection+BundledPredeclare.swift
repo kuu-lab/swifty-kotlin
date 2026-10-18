@@ -57,9 +57,7 @@ extension DataFlowSemaPhase {
     /// Configurations with neither bundled stdlib source nor a merged library
     /// import (e.g. `--no-stdlib`) never get a real declaration for `Pair`/
     /// `Triple` at all, so a bare synthetic shell is defined as a fallback for
-    /// whichever of the two names is still unresolved afterward -- matching
-    /// what the deleted `HeaderHelpers+SyntheticPairTripleAnchors.swift` did
-    /// unconditionally, but only as a last resort now.
+    /// whichever of the two names is still unresolved afterward.
     func predeclareBundledTupleHeaders(
         ast: ASTModule,
         fileScopes: [Int32: FileScope],
@@ -294,9 +292,7 @@ extension DataFlowSemaPhase {
     /// Configurations with neither bundled stdlib source nor a merged
     /// library import (e.g. `--no-stdlib`) never get a real declaration for
     /// these names at all, so a bare synthetic shell is defined as a
-    /// fallback for whichever name is still unresolved afterward -- matching
-    /// what the deleted `HeaderHelpers+SyntheticArrayStubs.swift` did
-    /// unconditionally, but only as a last resort now.
+    /// fallback for whichever name is still unresolved afterward.
     func predeclareBundledArrayHeaders(
         ast: ASTModule,
         fileScopes: [Int32: FileScope],
