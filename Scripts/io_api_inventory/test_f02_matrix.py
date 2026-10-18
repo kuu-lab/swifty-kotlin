@@ -33,6 +33,15 @@ else:
 
 
 class F02GateTests(unittest.TestCase):
+    def test_buffer_seek_case_entry_matches_generated_consumer(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "buffer-seek")
+        with tempfile.TemporaryDirectory() as temporary:
+            producers, consumer = matrix.prepare(case, Path(temporary))
+            self.assertEqual(case["entry"], "f02consumer.main")
+            self.assertIn("package f02consumer", consumer.read_text())
+            self.assertIn("fun main() { f02fixture.main() }", consumer.read_text())
+            self.assertEqual(len(producers), 1)
+
     def test_segment_data_as_byte_array_is_an_independently_selectable_jvm_paired_case(self):
         cases = {case["id"]: case for case in matrix.scenarios()}
         case = cases["segment-data-as-byte-array"]
