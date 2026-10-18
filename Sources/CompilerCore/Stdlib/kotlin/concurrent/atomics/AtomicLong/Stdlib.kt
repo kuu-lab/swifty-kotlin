@@ -11,8 +11,6 @@ package kotlin.concurrent.atomics
 import kotlin.internal.KsSymbolName
 
 /**
- * Creates an atomic Long value through the canonical atomics-package API.
- *
  * `AtomicLong` is now a real class in this package, so the factory binds
  * directly to the runtime-backed allocation (`kk_atomic_long_create`) instead
  * of delegating through `kotlin.concurrent.AtomicLong`.
