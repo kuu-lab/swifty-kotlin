@@ -1,5 +1,3 @@
-// Shared materialized higher-order-function helpers for collection and sequence runtime paths.
-
 @inline(__always)
 func runtimeApplyMapElement(
     _ element: Int,
