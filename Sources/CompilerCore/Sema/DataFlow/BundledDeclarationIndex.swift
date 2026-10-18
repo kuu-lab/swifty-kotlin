@@ -1,14 +1,11 @@
 import Foundation
 
-/// Key for a bundled stdlib member declaration. The same shape is used by
-/// KSP-002 skip guards and KSP-003 duplicate-definition warnings.
 struct BundledMemberKey: Hashable, Sendable {
     let ownerFQName: [InternedString]
     let name: InternedString
     let arity: Int
 }
 
-/// Index of member declarations originating from bundled stdlib virtual sources (`__bundled_*.kt`).
 struct BundledDeclarationIndex: Sendable {
     static let empty = BundledDeclarationIndex(keys: [], nominalFQNames: [])
 
@@ -89,7 +86,6 @@ struct BundledDeclarationIndex: Sendable {
         )
     }
 
-    /// Build from SymbolTable symbols whose `declSite` is in bundled virtual files.
     static func build(sourceManager: SourceManager, symbols: SymbolTable, types: TypeSystem) -> BundledDeclarationIndex {
         buildFromSymbols(
             symbols: symbols,
@@ -364,11 +360,11 @@ struct BundledDeclarationIndex: Sendable {
         }
     }
 
-    /// Returns true when `symbolID` is a synthetic `joinTo` / `joinToString`
-    /// transform overload. These overloads intentionally share arity with the
-    /// non-transform default, so the arity-only bundled index would otherwise
-    /// emit a false-positive KSWIFTK-SEMA-0102 warning when the default is
-    /// correctly suppressed and the transform overload is retained.
+    /// Synthetic `joinTo` / `joinToString` transform overloads intentionally
+    /// share arity with the non-transform default, so the arity-only bundled
+    /// index would otherwise emit a false-positive KSWIFTK-SEMA-0102 warning
+    /// when the default is correctly suppressed and the transform overload is
+    /// retained.
     private static func isSyntheticJoinToTransformOverload(
         _ symbolID: SymbolID,
         key: BundledMemberKey,
@@ -1297,14 +1293,10 @@ struct BundledDeclarationIndex: Sendable {
         }
     }
 
-    /// Builds a map from single-segment type names to the default-import package
-    /// that owns them. This lets extension declarations in one package (e.g.
-    /// `kotlin.text.StringSplitJoin.kt` declaring `List<T>.joinToString`) be keyed
-    /// by the receiver's real owner package (`kotlin.collections`) instead of the
-    /// declaring package. The map merges names discovered from bundled source files
-    /// with a seed of compiler-provided synthetic stdlib types (which do not appear
-    /// in bundled sources but are default-imported, such as `List`, `Sequence`,
-    /// `Array`, and `Comparator`). Source-defined names take precedence.
+    /// Lets extension declarations in one package (e.g.
+    /// `kotlin.text.StringSplitJoin.kt` declaring `List<T>.joinToString`) be
+    /// keyed by the receiver's real owner package (`kotlin.collections`)
+    /// instead of the declaring package.
     private static func defaultImportMap(
         topLevelNominalNamesByPackage: [[InternedString]: Set<InternedString>],
         interner: StringInterner
@@ -1376,7 +1368,6 @@ struct BundledDeclarationIndex: Sendable {
 
         var map: [InternedString: [InternedString]] = [:]
 
-        // Seed compiler-provided synthetic types first.
         for (pkg, names) in synthesizedNamesByPackage {
             for name in names {
                 let interned = interner.intern(name)

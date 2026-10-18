@@ -1,7 +1,6 @@
 struct InlineExpansion {
     let instructions: [KIRInstruction]
     let returnedExpr: KIRExprID?
-    /// True when the expansion contains returns to a lexical enclosing function.
     let hasNonLocalReturn: Bool
     /// True when the expansion contains normal return terminators (returnValue/returnUnit)
     /// that need to be converted to exit-label jumps in the NLR path.
@@ -59,9 +58,6 @@ final class InlineLoweringPass: LoweringPass {
             }
         })
         let unitType = ctx.sema?.types.unitType
-        // The expansion-target index snapshots every body the pass can
-        // splice: module declarations (regular, `inline`, lambda bodies) and
-        // imported inline metadata, classified per symbol.
         let index = InlineExpansionIndex(
             module: module,
             importedInlineFunctions: ctx.sema?.importedInlineFunctions ?? ImportedInlineFunctionStore(),
@@ -362,8 +358,6 @@ final class InlineLoweringPass: LoweringPass {
             var callIndex = 0
 
             if expansion.hasNonLocalReturn {
-                // The expansion contains non-local returns from lambdas.
-                // Rewrite each nonLocalReturn into a real return from the caller.
                 // If there is a potential fallthrough path (i.e., the expansion has
                 // any normal return terminator), emit an exit label and jump to it
                 // so normal control flow continues past the expansion site.
@@ -371,8 +365,6 @@ final class InlineLoweringPass: LoweringPass {
                 let hasFallthroughPath = expansion.hasNormalReturn
                 let exitLabel: Int32? = hasFallthroughPath ? labels.allocateCallerLabel() : nil
 
-                // Track whether we just emitted a terminator so we can skip
-                // unreachable instructions until the next label.
                 var afterTerminator = false
 
                 for expandedInstruction in reroutedInstructions {
@@ -383,8 +375,6 @@ final class InlineLoweringPass: LoweringPass {
                     } else {
                         callPath = nil
                     }
-                    // Skip unreachable instructions after a terminator until
-                    // the next label starts a new block.
                     if afterTerminator {
                         switch expandedInstruction {
                         case .beginNonLocalReturnScope, .endNonLocalReturnScope,
@@ -410,7 +400,6 @@ final class InlineLoweringPass: LoweringPass {
                         loweredBody.append(expandedInstruction)
                         afterTerminator = true
                     case .label:
-                        // A label starts a new block, so we are no longer after a terminator.
                         loweredBody.append(expandedInstruction)
                     case .returnValue, .returnUnit:
                         // The inline body's own return: jump to exit label instead,
