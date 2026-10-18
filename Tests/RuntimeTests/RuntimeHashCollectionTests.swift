@@ -132,13 +132,7 @@ struct RuntimeHashCollectionTests {
             value += 997
         }
 
-        var expectedChecksum = 0
-        value = 0
-        while value < count {
-            expectedChecksum += value * 3
-            value += 997
-        }
-        #expect(checksum == expectedChecksum)
+        #expect(checksum == 15_104_550)
     }
 
     @Test
