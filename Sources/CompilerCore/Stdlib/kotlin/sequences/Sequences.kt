@@ -1,7 +1,6 @@
 package kotlin.sequences
 
 // MIGRATION-SEQ-001 / KSP-441〜447
-// Lightweight lazy pipeline building blocks.
 
 internal fun requireOrThrow(value: Boolean, lazyMessage: () -> String) {
     if (!value) throw IllegalArgumentException(lazyMessage())
@@ -23,7 +22,6 @@ public fun <T> Iterable<T>.asSequence(): Sequence<T> {
     }
 }
 
-// KSP-631: preserve the original iterator and expose it as a one-shot lazy sequence.
 public fun <T> Iterator<T>.asSequence(): Sequence<T> {
     val source = this
     var used = false
