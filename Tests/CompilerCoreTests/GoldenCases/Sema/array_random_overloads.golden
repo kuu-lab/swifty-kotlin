@@ -300,3 +300,6 @@ expr e@78:23 name(uShortArray) type=kotlin.UShortArray ref=__local_59.uShortArra
 expr e@78:48 name(seeded) type=kotlin.random.Random ref=golden.sema.unsignedArrayRandom.$2.seeded[kind=vparam;origin=fixture]
 expr e@78:23#1 memberCall recv=e@78:23 callee=randomOrNull args=[_:e@78:48] type=UShort? call=kotlin.collections.randomOrNull[kind=fun;recv=kotlin.UShortArray;params=kotlin.random.Random;ret=UShort?;names=[random]]
 expr e@78:5 localDecl l4 mutable=0 type=UShort? init=e@78:23#1 type=Unit ref=__local_63.l4[kind=local;type=UShort?;origin=fixture]
+expr e@57:8 name(ExperimentalUnsignedTypes) type=Any ref=kotlin.ExperimentalUnsignedTypes[kind=anno]
+expr e@57:8#1 callableRef recv=e@57:8 member=class type=KClass<kotlin.ExperimentalUnsignedTypes>
+expr e@57:2 call callee=e@57:2#1 args=[_:e@57:8#1] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]

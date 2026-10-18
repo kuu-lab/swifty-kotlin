@@ -24,3 +24,6 @@ expr e@16:79 name(value) type=Any? ref=golden.sema.safeCastVia.$2.value[kind=vpa
 expr e@16:64#1 memberCall recv=e@16:64 callee=safeCast args=[_:e@16:79] type=golden.sema.safeCastVia.$2.T? call=kotlin.reflect.safeCast[kind=fun;recv=kclass{T0};params=Any?;ret=T0?;gen=1;bounds=[Any];names=[value]] targs=[golden.sema.safeCastVia.$2.T]
 expr e@19:44 name(kclass) type=kotlin.reflect.KClass<*> ref=golden.sema.findBinding.$1.kclass[kind=vparam;origin=fixture]
 expr e@19:44#1 memberCall recv=e@19:44 callee=findAssociatedObject args=[] type=Any? call=kotlin.reflect.findAssociatedObject[kind=fun;recv=kotlin.reflect.KClass<*>;params=;ret=Any?;gen=1;bounds=[kotlin.Annotation];reified=[0]] targs=[golden.sema.Binding]
+expr e@18:8 name(ExperimentalAssociatedObjects) type=Any ref=kotlin.reflect.ExperimentalAssociatedObjects[kind=anno]
+expr e@18:8#1 callableRef recv=e@18:8 member=class type=KClass<kotlin.reflect.ExperimentalAssociatedObjects>
+expr e@18:2 call callee=e@18:2#1 args=[_:e@18:8#1] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]

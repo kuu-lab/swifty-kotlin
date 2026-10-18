@@ -56,7 +56,7 @@ expr e@17:48 name(it) type=Char ref=s-2
 expr e@17:41 return value=e@17:48 type=Nothing ref=golden.sema.safeNonLocal[kind=fun;params=kotlin.CharSequence?,Char;ret=Char;names=[source,target];origin=fixture]
 expr e@17:23 if cond=e@17:27#1 then=e@17:41 else=_ type=Unit
 expr e@17:21 lambda params=[] body=e@17:23 label=forEach type=(Char) -> Unit
-expr e@17:5#1 safeMemberCall recv=e@17:5 callee=forEach args=[_:e@17:21] type=Unit call=kotlin.text.forEach[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=Unit};ret=Unit;names=[action]]
+expr e@17:5#1 safeMemberCall recv=e@17:5 callee=forEach args=[_:e@17:21] type=Unit? call=kotlin.text.forEach[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=Unit};ret=Unit;names=[action]]
 expr e@18:12 char(63) type=Char
 expr e@18:5 return value=e@18:12 type=Nothing
 expr e@22:20 name(target) type=Char ref=golden.sema.capturedNonLocal.$0.target[kind=vparam;origin=fixture]

@@ -41,3 +41,12 @@ expr e@32:5 localDecl timed mutable=0 type=TimedValue<String> init=e@32:37 type=
 expr e@33:42 call callee=e@33:42#1 args=[] type=DoubleProbe call=DoubleProbe.<init>[kind=ctor;recv=DoubleProbe;params=;ret=DoubleProbe;origin=fixture]
 expr e@33:42#2 memberCall recv=e@33:42 callee=markNow args=[] type=kotlin.time.ComparableTimeMark call=kotlin.time.AbstractDoubleTimeSource.markNow[kind=fun;recv=kotlin.time.AbstractDoubleTimeSource;params=;ret=kotlin.time.ComparableTimeMark]
 expr e@33:5 localDecl doubleMark mutable=0 type=ComparableTimeMark init=e@33:42#2 type=Unit ref=__local_5.doubleMark[kind=local;type=kotlin.time.ComparableTimeMark;origin=fixture]
+expr e@16:8 name(ExperimentalTime) type=Any ref=kotlin.time.ExperimentalTime[kind=anno]
+expr e@16:8#1 callableRef recv=e@16:8 member=class type=KClass<kotlin.time.ExperimentalTime>
+expr e@16:2 call callee=e@16:2#1 args=[_:e@16:8#1] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]
+expr e@21:8 name(ExperimentalTime) type=Any ref=kotlin.time.ExperimentalTime[kind=anno]
+expr e@21:8#1 callableRef recv=e@21:8 member=class type=KClass<kotlin.time.ExperimentalTime>
+expr e@21:2 call callee=e@21:2#1 args=[_:e@21:8#1] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]
+expr e@26:8 name(ExperimentalTime) type=Any ref=kotlin.time.ExperimentalTime[kind=anno]
+expr e@26:8#1 callableRef recv=e@26:8 member=class type=KClass<kotlin.time.ExperimentalTime>
+expr e@26:2 call callee=e@26:2#1 args=[_:e@26:8#1] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]

@@ -19,3 +19,4 @@ expr e@11:5 call callee=e@11:5#1 args=[] type=kotlin.MustUseReturnValues call=go
 expr e@12:20 name(null) type=Nothing?
 expr e@12:13 call callee=e@12:13#1 args=[_:e@12:20] type=Int call=golden.sema.marker[kind=fun;params=kotlin.MustUseReturnValues?;ret=Int;names=[value];origin=fixture]
 expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@3:2 call callee=e@3:2#1 args=[] type=kotlin.MustUseReturnValues call=kotlin.MustUseReturnValues.<init>[kind=ctor;recv=kotlin.MustUseReturnValues;params=;ret=kotlin.MustUseReturnValues]

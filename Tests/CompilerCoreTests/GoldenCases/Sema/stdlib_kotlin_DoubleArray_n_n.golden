@@ -23,9 +23,9 @@ expr e@7:13#1 memberCall recv=e@7:13 callee=size args=[] type=Int call=kotlin.co
 expr e@7:5 call callee=e@7:5#1 args=[_:e@7:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@8:13 name(zeros) type=kotlin.DoubleArray ref=__local_1.zeros[kind=local;type=kotlin.DoubleArray;origin=fixture]
 expr e@8:19 int(0) type=Int
-expr e@8:13#1 indexedAccess receiver=e@8:13 indices=[e@8:19] type=Double
+expr e@8:13#1 indexedAccess receiver=e@8:13 indices=[e@8:19] type=Double call=kotlin.DoubleArray.get[kind=fun;recv=kotlin.DoubleArray;params=Int;ret=Double;names=[index]]
 expr e@8:5 call callee=e@8:5#1 args=[_:e@8:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@9:13 name(values) type=kotlin.DoubleArray ref=__local_2.values[kind=local;type=kotlin.DoubleArray;origin=fixture]
 expr e@9:20 int(3) type=Int
-expr e@9:13#1 indexedAccess receiver=e@9:13 indices=[e@9:20] type=Double
+expr e@9:13#1 indexedAccess receiver=e@9:13 indices=[e@9:20] type=Double call=kotlin.DoubleArray.get[kind=fun;recv=kotlin.DoubleArray;params=Int;ret=Double;names=[index]]
 expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]

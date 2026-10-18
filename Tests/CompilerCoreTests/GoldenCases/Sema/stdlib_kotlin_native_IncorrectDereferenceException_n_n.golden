@@ -48,3 +48,4 @@ expr e@32:30 string(caught) type=String
 expr e@32:9#2 binary(elvis) lhs=e@32:9#1 rhs=e@32:30 type=String
 expr e@31:36 blockExpr stmts=[] trailing=e@32:9#2 type=String ref=__try_1_catch_0.exception[kind=local;type=kotlin.Throwable;origin=fixture]
 expr e@29:5 try body=e@29:9 catches=[e@31:36] finally=_ type=String
+diagnostic severity=error code=KSWIFTK-SEMA-0415 at=19:5 msg=check for instance is always 'false'.

@@ -38,16 +38,16 @@ expr e@11:13#1 memberCall recv=e@11:13 callee=size args=[] type=Int call=kotlin.
 expr e@11:5 call callee=e@11:5#1 args=[_:e@11:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@12:13 name(values) type=kotlin.UShortArray ref=__local_3.values[kind=local;type=kotlin.UShortArray;origin=fixture]
 expr e@12:20 int(0) type=Int
-expr e@12:13#1 indexedAccess receiver=e@12:13 indices=[e@12:20] type=UShort
+expr e@12:13#1 indexedAccess receiver=e@12:13 indices=[e@12:20] type=UShort call=kotlin.UShortArray.get[kind=fun;recv=kotlin.UShortArray;params=Int;ret=UShort;names=[index]]
 expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@13:13 name(values) type=kotlin.UShortArray ref=__local_3.values[kind=local;type=kotlin.UShortArray;origin=fixture]
 expr e@13:20 int(1) type=Int
-expr e@13:13#1 indexedAccess receiver=e@13:13 indices=[e@13:20] type=UShort
+expr e@13:13#1 indexedAccess receiver=e@13:13 indices=[e@13:20] type=UShort call=kotlin.UShortArray.get[kind=fun;recv=kotlin.UShortArray;params=Int;ret=UShort;names=[index]]
 expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@14:13 name(spread) type=kotlin.UShortArray ref=__local_5.spread[kind=local;type=kotlin.UShortArray;origin=fixture]
 expr e@14:13#1 memberCall recv=e@14:13 callee=size args=[] type=Int call=kotlin.collections.size.$get[kind=fun;recv=kotlin.UShortArray;params=;ret=Int]
 expr e@14:5 call callee=e@14:5#1 args=[_:e@14:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@15:13 name(spread) type=kotlin.UShortArray ref=__local_5.spread[kind=local;type=kotlin.UShortArray;origin=fixture]
 expr e@15:20 int(1) type=Int
-expr e@15:13#1 indexedAccess receiver=e@15:13 indices=[e@15:20] type=UShort
+expr e@15:13#1 indexedAccess receiver=e@15:13 indices=[e@15:20] type=UShort call=kotlin.UShortArray.get[kind=fun;recv=kotlin.UShortArray;params=Int;ret=UShort;names=[index]]
 expr e@15:5 call callee=e@15:5#1 args=[_:e@15:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]

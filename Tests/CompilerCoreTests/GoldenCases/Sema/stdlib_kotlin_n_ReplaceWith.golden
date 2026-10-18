@@ -4,3 +4,7 @@ file fstdlib_kotlin_n_ReplaceWith package=golden.sema
   decl golden.sema.OldName[kind=class;origin=fixture] class OldName sym=golden.sema.OldName[kind=class;origin=fixture]
   decl golden.sema.useReplaceWithType[kind=fun;params=;ret=kotlin.ReplaceWith?;origin=fixture] fun useReplaceWithType sym=golden.sema.useReplaceWithType[kind=fun;params=;ret=kotlin.ReplaceWith?;origin=fixture]
 expr e@6:49 name(null) type=Nothing?
+expr e@3:13 string(Use NewName) type=String
+expr e@3:40 string(NewName) type=String
+expr e@3:28 call callee=e@3:28#1 args=[_:e@3:40] type=kotlin.ReplaceWith call=kotlin.ReplaceWith.<init>[kind=ctor;recv=kotlin.ReplaceWith;params=String,*String;ret=kotlin.ReplaceWith;vararg=[0,1];names=[expression,imports]]
+expr e@3:2 call callee=e@3:2#1 args=[_:e@3:13,_:e@3:28] type=kotlin.Deprecated call=kotlin.Deprecated.<init>[kind=ctor;recv=kotlin.Deprecated;params=String,kotlin.ReplaceWith,kotlin.DeprecationLevel;ret=kotlin.Deprecated;defaults=[0,1,1];names=[message,replaceWith,level]]

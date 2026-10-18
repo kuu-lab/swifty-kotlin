@@ -1,4 +1,4 @@
-symbol fq=__local_0.items[kind=local;type=kotlin.collections.List<out String>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.List<out String>
+symbol fq=__local_0.items[kind=local;type=kotlin.collections.List<String>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.List<String>
 symbol fq=__local_1.hs[kind=local;type=kotlin.collections.MutableSet<String>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.MutableSet<String>
 symbol fq=main[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fto_hash_set package=_
@@ -6,9 +6,9 @@ file fto_hash_set package=_
 expr e@2:24 string(a) type=String
 expr e@2:29 string(b) type=String
 expr e@2:34 string(c) type=String
-expr e@2:17 call callee=e@2:17#1 args=[_:e@2:24,_:e@2:29,_:e@2:34] type=kotlin.collections.List<out String> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[String]
-expr e@2:5 localDecl items mutable=0 type=_ init=e@2:17 type=Unit ref=__local_0.items[kind=local;type=kotlin.collections.List<out String>;origin=fixture]
-expr e@3:34 name(items) type=kotlin.collections.List<out String> ref=__local_0.items[kind=local;type=kotlin.collections.List<out String>;origin=fixture]
+expr e@2:17 call callee=e@2:17#1 args=[_:e@2:24,_:e@2:29,_:e@2:34] type=kotlin.collections.List<String> call=kotlin.collections.listOf[kind=fun;params=*T0;ret=kotlin.collections.List<T0>;gen=1;vararg=[1];names=[elements]] targs=[String]
+expr e@2:5 localDecl items mutable=0 type=_ init=e@2:17 type=Unit ref=__local_0.items[kind=local;type=kotlin.collections.List<String>;origin=fixture]
+expr e@3:34 name(items) type=kotlin.collections.List<String> ref=__local_0.items[kind=local;type=kotlin.collections.List<String>;origin=fixture]
 expr e@3:34#1 memberCall recv=e@3:34 callee=toHashSet args=[] type=kotlin.collections.HashSet<String> call=kotlin.collections.toHashSet[kind=fun;recv=kotlin.collections.Iterable<T0>;params=;ret=kotlin.collections.HashSet<T0>;gen=1] targs=[String]
 expr e@3:5 localDecl hs mutable=0 type=MutableSet<String> init=e@3:34#1 type=Unit ref=__local_1.hs[kind=local;type=kotlin.collections.MutableSet<String>;origin=fixture]
 expr e@4:5 name(hs) type=kotlin.collections.MutableSet<String> ref=__local_1.hs[kind=local;type=kotlin.collections.MutableSet<String>;origin=fixture]

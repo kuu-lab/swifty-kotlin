@@ -45,7 +45,7 @@ expr e@21:17 long(1) type=Long
 expr e@21:17#1 memberCall recv=e@21:17 callee=days args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.days.$get[kind=fun;recv=Long;params=;ret=kotlin.time.Duration]
 expr e@21:26 double(1.5) type=Double
 expr e@21:26#1 memberCall recv=e@21:26 callee=days args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.days.$get[kind=fun;recv=Double;params=;ret=kotlin.time.Duration]
-expr e@14:34 call callee=e@14:34#1 args=[_:e@15:9#1,_:e@15:24#1,_:e@15:40#1,_:e@16:9#1,_:e@16:25#1,_:e@16:42#1,_:e@17:9#1,_:e@17:25#1,_:e@17:42#1,_:e@18:9#1,_:e@18:20#1,_:e@18:32#1,_:e@19:9#1,_:e@19:20#1,_:e@19:32#1,_:e@20:9#1,_:e@20:18#1,_:e@20:28#1,_:e@21:9#1,_:e@21:17#1,_:e@21:26#1] type=kotlin.collections.List<kotlin.time.Duration> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[kotlin.time.Duration]
+expr e@14:34 call callee=e@14:34#1 args=[_:e@15:9#1,_:e@15:24#1,_:e@15:40#1,_:e@16:9#1,_:e@16:25#1,_:e@16:42#1,_:e@17:9#1,_:e@17:25#1,_:e@17:42#1,_:e@18:9#1,_:e@18:20#1,_:e@18:32#1,_:e@19:9#1,_:e@19:20#1,_:e@19:32#1,_:e@20:9#1,_:e@20:18#1,_:e@20:28#1,_:e@21:9#1,_:e@21:17#1,_:e@21:26#1] type=kotlin.collections.List<kotlin.time.Duration> call=kotlin.collections.listOf[kind=fun;params=*T0;ret=kotlin.collections.List<T0>;gen=1;vararg=[1];names=[elements]] targs=[kotlin.time.Duration]
 expr e@14:5 localDecl values mutable=0 type=List<Duration> init=e@14:34 type=Unit ref=__local_0.values[kind=local;type=kotlin.collections.List<kotlin.time.Duration>;origin=fixture]
 expr e@23:29 name(Duration) type=kotlin.time.Duration ref=kotlin.time.Duration[kind=class]
 expr e@23:29#1 memberCall recv=e@23:29 callee=Companion args=[] type=kotlin.time.Duration.Companion ref=kotlin.time.Duration.Companion[kind=obj]
@@ -56,3 +56,6 @@ expr e@23:83 name(DurationUnit) type=kotlin.time.DurationUnit ref=kotlin.time.Du
 expr e@23:83#1 memberCall recv=e@23:83 callee=MILLISECONDS args=[] type=kotlin.time.DurationUnit ref=kotlin.time.DurationUnit.MILLISECONDS[kind=field;type=kotlin.time.DurationUnit]
 expr e@23:29#2 memberCall recv=e@23:29#1 callee=convert args=[_:e@23:56,_:e@23:61#1,_:e@23:83#1] type=Double call=kotlin.time.Duration.Companion.convert[kind=fun;recv=kotlin.time.Duration.Companion;params=Double,kotlin.time.DurationUnit,kotlin.time.DurationUnit;ret=Double;names=[value,sourceUnit,targetUnit]]
 expr e@23:5 localDecl converted mutable=0 type=Double init=e@23:29#2 type=Unit ref=__local_1.converted[kind=local;type=Double;origin=fixture]
+expr e@12:8 memberCall recv=e@12:8#1 callee=ExperimentalTime args=[] type=kotlin.time.ExperimentalTime ref=kotlin.time.ExperimentalTime[kind=anno]
+expr e@12:8#2 callableRef recv=e@12:8 member=class type=KClass<kotlin.time.ExperimentalTime>
+expr e@12:2 call callee=e@12:2#1 args=[_:e@12:8#2] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]

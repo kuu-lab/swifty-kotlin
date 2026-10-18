@@ -8,3 +8,6 @@ expr e@5:55 int(3) type=Int
 expr e@5:44 call callee=e@5:44#1 args=[_:e@5:55] type=kotlin.ULongArray
 expr e@7:65 name(source) type=kotlin.LongArray ref=golden.sema.makeULongArrayFromLongView.$0.source[kind=vparam;origin=fixture]
 expr e@7:65#1 memberCall recv=e@7:65 callee=asULongArray args=[] type=kotlin.ULongArray call=kotlin.collections.asULongArray[kind=fun;recv=kotlin.LongArray;params=;ret=kotlin.ULongArray]
+expr e@3:8 name(ExperimentalUnsignedTypes) type=Any ref=kotlin.ExperimentalUnsignedTypes[kind=anno]
+expr e@3:8#1 callableRef recv=e@3:8 member=class type=KClass<kotlin.ExperimentalUnsignedTypes>
+expr e@3:2 call callee=e@3:2#1 args=[_:e@3:8#1] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]

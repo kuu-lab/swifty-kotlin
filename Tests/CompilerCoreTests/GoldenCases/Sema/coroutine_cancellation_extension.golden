@@ -1,7 +1,5 @@
 symbol fq=__local_0.job[kind=local;type=kotlinx.coroutines.Job;origin=fixture] kind=local vis=private flags=_ type=kotlinx.coroutines.Job
 symbol fq=golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-symbol fq=kotlinx.coroutines.runBlocking.block[kind=vparam;origin=unknown] kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlinx.coroutines.runBlocking[kind=fun;params=fn{su;r=kotlinx.coroutines.CoroutineScope;p=;ret=Any?};ret=Any;names=[block];origin=unknown] kind=function vis=public flags=synthetic sig=recv=_ params=[suspend kotlinx.coroutines.CoroutineScope.() -> Any?] ret=Any
 file fcoroutine_cancellation_extension package=golden.sema
   decl golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture]
 expr e@8:15 int(10) type=Int
@@ -15,4 +13,4 @@ expr e@11:5 name(job) type=kotlinx.coroutines.Job ref=__local_0.job[kind=local;t
 expr e@11:5#1 memberCall recv=e@11:5 callee=join args=[] type=Unit call=kotlinx.coroutines.Job.join[kind=fun;recv=kotlinx.coroutines.Job;params=;ret=Unit;susp]
 expr e@7:5#1 blockExpr stmts=[e@7:5,e@10:5#1] trailing=e@11:5#1 type=Unit
 expr e@6:26 lambda params=[] body=e@7:5#1 label=runBlocking type=suspend kotlinx.coroutines.CoroutineScope.() -> Unit
-expr e@6:14 call callee=e@6:14#1 args=[_:e@6:26] type=Unit call=kotlinx.coroutines.runBlocking[kind=fun;params=fn{su;r=kotlinx.coroutines.CoroutineScope;p=;ret=Any?};ret=Any;names=[block];origin=unknown]
+expr e@6:14 call callee=e@6:14#1 args=[_:e@6:26] type=Unit call=kotlinx.coroutines.runBlocking[kind=fun;params=kotlin.coroutines.CoroutineContext,fn{su;r=kotlinx.coroutines.CoroutineScope;p=;ret=T0};ret=T0;gen=1;defaults=[1,0];nonlocal=[0,0];names=[context,block]] targs=[Unit]

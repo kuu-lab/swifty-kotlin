@@ -12,3 +12,6 @@ expr e@15:5 call callee=e@15:5#1 args=[] type=golden.sema.BaseKey call=golden.se
 expr e@16:18 name(element) type=kotlin.coroutines.CoroutineContext.Element ref=s-0
 expr e@16:18#1 asCast? expr=e@16:18 type=golden.sema.DerivedElement type=golden.sema.DerivedElement?
 expr e@16:5 lambda params=[element] body=e@16:18#1 type=(kotlin.coroutines.CoroutineContext.Element) -> golden.sema.DerivedElement?
+expr e@13:8 name(ExperimentalStdlibApi) type=Any ref=kotlin.ExperimentalStdlibApi[kind=anno]
+expr e@13:8#1 callableRef recv=e@13:8 member=class type=KClass<kotlin.ExperimentalStdlibApi>
+expr e@13:2 call callee=e@13:2#1 args=[_:e@13:8#1] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]

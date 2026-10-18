@@ -19,13 +19,13 @@ expr e@7:13#1 memberCall recv=e@7:13 callee=size args=[] type=Int call=kotlin.co
 expr e@7:5 call callee=e@7:5#1 args=[_:e@7:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@8:13 name(values) type=kotlin.LongArray ref=__local_1.values[kind=local;type=kotlin.LongArray;origin=fixture]
 expr e@8:20 int(0) type=Int
-expr e@8:13#1 indexedAccess receiver=e@8:13 indices=[e@8:20] type=Long
+expr e@8:13#1 indexedAccess receiver=e@8:13 indices=[e@8:20] type=Long call=kotlin.LongArray.get[kind=fun;recv=kotlin.LongArray;params=Int;ret=Long;names=[index]]
 expr e@8:5 call callee=e@8:5#1 args=[_:e@8:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@9:13 name(values) type=kotlin.LongArray ref=__local_1.values[kind=local;type=kotlin.LongArray;origin=fixture]
 expr e@9:20 int(1) type=Int
-expr e@9:13#1 indexedAccess receiver=e@9:13 indices=[e@9:20] type=Long
+expr e@9:13#1 indexedAccess receiver=e@9:13 indices=[e@9:20] type=Long call=kotlin.LongArray.get[kind=fun;recv=kotlin.LongArray;params=Int;ret=Long;names=[index]]
 expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@10:13 name(values) type=kotlin.LongArray ref=__local_1.values[kind=local;type=kotlin.LongArray;origin=fixture]
 expr e@10:20 int(2) type=Int
-expr e@10:13#1 indexedAccess receiver=e@10:13 indices=[e@10:20] type=Long
+expr e@10:13#1 indexedAccess receiver=e@10:13 indices=[e@10:20] type=Long call=kotlin.LongArray.get[kind=fun;recv=kotlin.LongArray;params=Int;ret=Long;names=[index]]
 expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]

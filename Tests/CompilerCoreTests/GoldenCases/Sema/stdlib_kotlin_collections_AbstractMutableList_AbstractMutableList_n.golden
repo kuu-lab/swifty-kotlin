@@ -28,7 +28,7 @@ expr e@26:5#1 memberCall recv=e@26:5 callee=add args=[_:e@26:16,_:e@26:19] type=
 expr e@27:5 name(values) type=golden.sema.Probe ref=golden.sema.exercise.$1.values[kind=vparam;origin=fixture]
 expr e@27:19 int(0) type=Int
 expr e@27:29 int(1) type=Int
-expr e@27:22 call callee=e@27:22#1 args=[_:e@27:29] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
+expr e@27:22 call callee=e@27:22#1 args=[_:e@27:29] type=kotlin.collections.List<Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
 expr e@27:5#1 memberCall recv=e@27:5 callee=addAll args=[_:e@27:19,_:e@27:22] type=Boolean call=kotlin.collections.AbstractMutableList.addAll[kind=fun;recv=kotlin.collections.AbstractMutableList<T0>;params=Int,kotlin.collections.Collection<T0>;ret=Boolean;gen=1;classGen=1;names=[index,elements]] targs=[Int]
 expr e@28:5 name(values) type=golden.sema.Probe ref=golden.sema.exercise.$1.values[kind=vparam;origin=fixture]
 expr e@28:5#1 memberCall recv=e@28:5 callee=clear args=[] type=Unit call=kotlin.collections.AbstractMutableList.clear[kind=fun;recv=kotlin.collections.AbstractMutableList<T0>;params=;ret=Unit;gen=1;classGen=1] targs=[Int]
@@ -50,11 +50,11 @@ expr e@34:25 int(0) type=Int
 expr e@34:5#1 memberCall recv=e@34:5 callee=listIterator args=[_:e@34:25] type=kotlin.collections.MutableListIterator<Int> call=kotlin.collections.AbstractMutableList.listIterator[kind=fun;recv=kotlin.collections.AbstractMutableList<T0>;params=Int;ret=kotlin.collections.MutableListIterator<T0>;gen=1;classGen=1;names=[index]] targs=[Int]
 expr e@35:5 name(values) type=golden.sema.Probe ref=golden.sema.exercise.$1.values[kind=vparam;origin=fixture]
 expr e@35:29 int(1) type=Int
-expr e@35:22 call callee=e@35:22#1 args=[_:e@35:29] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
+expr e@35:22 call callee=e@35:22#1 args=[_:e@35:29] type=kotlin.collections.List<Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
 expr e@35:5#1 memberCall recv=e@35:5 callee=removeAll args=[_:e@35:22] type=Boolean call=kotlin.collections.AbstractMutableList.removeAll[kind=fun;recv=kotlin.collections.AbstractMutableList<T0>;params=kotlin.collections.Collection<T0>;ret=Boolean;gen=1;classGen=1;names=[elements]] targs=[Int]
 expr e@36:5 name(values) type=golden.sema.Probe ref=golden.sema.exercise.$1.values[kind=vparam;origin=fixture]
 expr e@36:29 int(1) type=Int
-expr e@36:22 call callee=e@36:22#1 args=[_:e@36:29] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
+expr e@36:22 call callee=e@36:22#1 args=[_:e@36:29] type=kotlin.collections.List<Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
 expr e@36:5#1 memberCall recv=e@36:5 callee=retainAll args=[_:e@36:22] type=Boolean call=kotlin.collections.AbstractMutableList.retainAll[kind=fun;recv=kotlin.collections.AbstractMutableList<T0>;params=kotlin.collections.Collection<T0>;ret=Boolean;gen=1;classGen=1;names=[elements]] targs=[Int]
 expr e@37:5 name(values) type=golden.sema.Probe ref=golden.sema.exercise.$1.values[kind=vparam;origin=fixture]
 expr e@37:20 int(0) type=Int

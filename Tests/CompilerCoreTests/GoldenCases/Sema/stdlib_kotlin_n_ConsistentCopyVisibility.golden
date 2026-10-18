@@ -22,3 +22,5 @@ expr e@11:5 localDecl p2 mutable=0 type=_ init=e@11:14#1 type=Unit ref=__local_1
 expr e@12:13 name(p2) type=golden.sema.PrivateCopy ref=__local_1.p2[kind=local;type=golden.sema.PrivateCopy;origin=fixture]
 expr e@12:13#1 memberCall recv=e@12:13 callee=value args=[] type=Int ref=golden.sema.PrivateCopy.value[kind=prop;type=Int;origin=fixture]
 expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@3:2 call callee=e@3:2#1 args=[] type=kotlin.ConsistentCopyVisibility call=kotlin.ConsistentCopyVisibility.<init>[kind=ctor;recv=kotlin.ConsistentCopyVisibility;params=;ret=kotlin.ConsistentCopyVisibility]
+expr e@6:2 call callee=e@6:2#1 args=[] type=kotlin.ConsistentCopyVisibility call=kotlin.ConsistentCopyVisibility.<init>[kind=ctor;recv=kotlin.ConsistentCopyVisibility;params=;ret=kotlin.ConsistentCopyVisibility]

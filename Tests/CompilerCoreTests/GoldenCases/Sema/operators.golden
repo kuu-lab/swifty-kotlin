@@ -106,10 +106,10 @@ expr e@46:5 localDecl arr mutable=1 type=_ init=e@46:15 type=Unit ref=__local_5.
 expr e@47:5 name(arr) type=kotlin.IntArray ref=__local_5.arr[kind=local;type=kotlin.IntArray;mutable;origin=fixture]
 expr e@47:9 int(0) type=Int
 expr e@47:14 int(42) type=Int
-expr e@47:5#1 indexedAssign receiver=e@47:5 indices=[e@47:9] value=e@47:14 type=Unit
+expr e@47:5#1 indexedAssign receiver=e@47:5 indices=[e@47:9] value=e@47:14 type=Unit call=kotlin.IntArray.set[kind=fun;recv=kotlin.IntArray;params=Int,Int;ret=Unit;names=[index,value]]
 expr e@48:12 name(arr) type=kotlin.IntArray ref=__local_5.arr[kind=local;type=kotlin.IntArray;mutable;origin=fixture]
 expr e@48:16 int(0) type=Int
-expr e@48:12#1 indexedAccess receiver=e@48:12 indices=[e@48:16] type=Int
+expr e@48:12#1 indexedAccess receiver=e@48:12 indices=[e@48:16] type=Int call=kotlin.IntArray.get[kind=fun;recv=kotlin.IntArray;params=Int;ret=Int;names=[index]]
 expr e@48:5 return value=e@48:12#1 type=Nothing
 expr e@54:5 name(c) type=Counter ref=memberCompoundAdd.$6.c[kind=vparam;origin=fixture]
 expr e@54:16 int(10) type=Int

@@ -5,3 +5,4 @@ file fstdlib_kotlin_native_concurrent_ThreadLocal_n_n package=_
   decl constructThreadLocal[kind=fun;params=;ret=Any?;origin=fixture] fun constructThreadLocal sym=constructThreadLocal[kind=fun;params=;ret=Any?;origin=fixture]
 expr e@4:24 int(0) type=Int
 expr e@6:36 call callee=e@6:36#1 args=[] type=kotlin.native.concurrent.ThreadLocal call=kotlin.native.concurrent.ThreadLocal.<init>[kind=ctor;recv=kotlin.native.concurrent.ThreadLocal;params=;ret=kotlin.native.concurrent.ThreadLocal]
+expr e@3:2 call callee=e@3:2#1 args=[] type=kotlin.native.concurrent.ThreadLocal call=kotlin.native.concurrent.ThreadLocal.<init>[kind=ctor;recv=kotlin.native.concurrent.ThreadLocal;params=;ret=kotlin.native.concurrent.ThreadLocal]

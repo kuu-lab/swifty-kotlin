@@ -21,7 +21,7 @@ expr e@14:5 name(buffer) type=kotlinx.io.Buffer ref=probe.$0.buffer[kind=vparam;
 expr e@14:30 int(1) type=Byte
 expr e@14:33 int(2) type=Byte
 expr e@14:18 call callee=e@14:18#1 args=[_:e@14:30,_:e@14:33] type=kotlin.ByteArray call=kotlin.byteArrayOf[kind=fun;params=*Byte;ret=kotlin.ByteArray;vararg=[1];names=[elements]]
-expr e@14:5#1 memberCall recv=e@14:5 callee=write args=[_:e@14:18] type=Unit call=kotlinx.io.Buffer.write[kind=fun;recv=kotlinx.io.Buffer;params=kotlin.ByteArray;ret=Unit;names=[source]]
+expr e@14:5#1 memberCall recv=e@14:5 callee=write args=[_:e@14:18] type=Unit call=kotlinx.io.Buffer.write[kind=fun;recv=kotlinx.io.Buffer;params=kotlin.ByteArray,Int,Int;ret=Unit;defaults=[0,1,1];names=[source,startIndex,endIndex]]
 expr e@15:5 name(source) type=kotlinx.io.Source ref=probe.$0.source[kind=vparam;origin=fixture]
 expr e@15:5#1 memberCall recv=e@15:5 callee=readByteString args=[] type=kotlinx.io.bytestring.ByteString call=kotlinx.io.readByteString[kind=fun;recv=kotlinx.io.Source;params=;ret=kotlinx.io.bytestring.ByteString]
 expr e@16:5 name(source) type=kotlinx.io.Source ref=probe.$0.source[kind=vparam;origin=fixture]

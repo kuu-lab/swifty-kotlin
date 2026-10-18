@@ -178,6 +178,14 @@ git diff -- Tests/CompilerCoreTests/GoldenCases
 UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6
 ```
 
+   The Golden tests run `GoldenHarnessWorker` from `./.build/debug/` of the
+   current directory (or `$GOLDEN_HARNESS_WORKER`), **not** from a
+   `--scratch-path` build. When you build into a separate scratch path, point
+   `GOLDEN_HARNESS_WORKER` at that build's worker; otherwise the stale worker
+   cannot read the freshly built stdlib artifact, silently falls back to
+   source mode, and `UPDATE_GOLDEN=1` rewrites hundreds of goldens with broken
+   output.
+
 4. Re-review fixture changes and ensure only intended files changed:
 
 ```bash

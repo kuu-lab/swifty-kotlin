@@ -10,11 +10,11 @@ expr e@5:5 localDecl values mutable=0 type=Array<String?> init=e@5:34 type=Unit 
 expr e@6:5 name(values) type=kotlin.Array<String?> ref=__local_0.values[kind=local;type=kotlin.Array<String?>;origin=fixture]
 expr e@6:12 int(0) type=Int
 expr e@6:17 string(ready) type=String
-expr e@6:5#1 indexedAssign receiver=e@6:5 indices=[e@6:12] value=e@6:17 type=Unit
+expr e@6:5#1 indexedAssign receiver=e@6:5 indices=[e@6:12] value=e@6:17 type=Unit call=kotlin.Array.set[kind=fun;recv=kotlin.Array<T0>;params=Int,T0;ret=Unit;gen=1;classGen=1;names=[index,value]] targs=[String?]
 expr e@7:5 name(values) type=kotlin.Array<String?> ref=__local_0.values[kind=local;type=kotlin.Array<String?>;origin=fixture]
 expr e@7:12 int(1) type=Int
 expr e@7:17 name(null) type=Nothing?
-expr e@7:5#1 indexedAssign receiver=e@7:5 indices=[e@7:12] value=e@7:17 type=Unit
+expr e@7:5#1 indexedAssign receiver=e@7:5 indices=[e@7:12] value=e@7:17 type=Unit call=kotlin.Array.set[kind=fun;recv=kotlin.Array<T0>;params=Int,T0;ret=Unit;gen=1;classGen=1;names=[index,value]] targs=[String?]
 expr e@8:13 name(values) type=kotlin.Array<String?> ref=__local_0.values[kind=local;type=kotlin.Array<String?>;origin=fixture]
 expr e@8:13#1 memberCall recv=e@8:13 callee=size args=[] type=Int call=kotlin.collections.size.$get[kind=fun;recv=kotlin.Array<*>;params=;ret=Int]
 expr e@8:5 call callee=e@8:5#1 args=[_:e@8:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]

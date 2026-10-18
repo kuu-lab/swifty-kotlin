@@ -20,3 +20,13 @@ expr e@14:58 call callee=e@14:58#1 args=[] type=Int call=golden.sema.oldWithRepl
 expr e@14:21#3 binary(add) lhs=e@14:21#2 rhs=e@14:58 type=Int
 expr e@14:77 call callee=e@14:77#1 args=[] type=Int call=golden.sema.newApi[kind=fun;params=;ret=Int;origin=fixture]
 expr e@14:21#4 binary(add) lhs=e@14:21#3 rhs=e@14:77 type=Int
+expr e@3:13 string(Use new instead) type=String
+expr e@3:40 name(DeprecationLevel) type=kotlin.DeprecationLevel ref=kotlin.DeprecationLevel[kind=enum]
+expr e@3:40#1 memberCall recv=e@3:40 callee=WARNING args=[] type=kotlin.DeprecationLevel ref=kotlin.DeprecationLevel.WARNING[kind=field;type=kotlin.DeprecationLevel]
+expr e@3:2 call callee=e@3:2#1 args=[_:e@3:13,level:e@3:40#1] type=kotlin.Deprecated call=kotlin.Deprecated.<init>[kind=ctor;recv=kotlin.Deprecated;params=String,kotlin.ReplaceWith,kotlin.DeprecationLevel;ret=kotlin.Deprecated;defaults=[0,1,1];names=[message,replaceWith,level]]
+expr e@6:13 string(Use new instead) type=String
+expr e@6:2 call callee=e@6:2#1 args=[_:e@6:13] type=kotlin.Deprecated call=kotlin.Deprecated.<init>[kind=ctor;recv=kotlin.Deprecated;params=String,kotlin.ReplaceWith,kotlin.DeprecationLevel;ret=kotlin.Deprecated;defaults=[0,1,1];names=[message,replaceWith,level]]
+expr e@9:13 string(Use replacement) type=String
+expr e@9:58 string(newApi()) type=String
+expr e@9:46 call callee=e@9:46#1 args=[_:e@9:58] type=kotlin.ReplaceWith call=kotlin.ReplaceWith.<init>[kind=ctor;recv=kotlin.ReplaceWith;params=String,*String;ret=kotlin.ReplaceWith;vararg=[0,1];names=[expression,imports]]
+expr e@9:2 call callee=e@9:2#1 args=[_:e@9:13,replaceWith:e@9:46] type=kotlin.Deprecated call=kotlin.Deprecated.<init>[kind=ctor;recv=kotlin.Deprecated;params=String,kotlin.ReplaceWith,kotlin.DeprecationLevel;ret=kotlin.Deprecated;defaults=[0,1,1];names=[message,replaceWith,level]]

@@ -12,3 +12,7 @@ expr e@11:40 string(s) type=String
 expr e@13:25 int(42) type=Int
 expr e@13:23 lambda params=[] body=e@13:25 label=foo type=() -> Int
 expr e@13:19 call callee=e@13:19#1 args=[_:e@13:23] type=Int call=golden.sema.foo[kind=fun;params=fn{p=;ret=Int};ret=Int;names=[block];origin=fixture]
+expr e@7:8 name(ExperimentalTypeInference) type=Any ref=kotlin.experimental.ExperimentalTypeInference[kind=anno]
+expr e@7:8#1 callableRef recv=e@7:8 member=class type=KClass<kotlin.experimental.ExperimentalTypeInference>
+expr e@7:2 call callee=e@7:2#1 args=[_:e@7:8#1] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]
+expr e@8:2 call callee=e@8:2#1 args=[] type=kotlin.OverloadResolutionByLambdaReturnType call=kotlin.OverloadResolutionByLambdaReturnType.<init>[kind=ctor;recv=kotlin.OverloadResolutionByLambdaReturnType;params=;ret=kotlin.OverloadResolutionByLambdaReturnType]

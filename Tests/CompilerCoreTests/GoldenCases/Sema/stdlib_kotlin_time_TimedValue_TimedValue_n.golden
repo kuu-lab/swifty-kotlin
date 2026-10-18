@@ -58,7 +58,7 @@ expr e@21:13#1 memberCall recv=e@21:13 callee=equals args=[_:e@21:23] type=Boole
 expr e@21:5 call callee=e@21:5#1 args=[_:e@21:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@22:13 name(copied) type=kotlin.time.TimedValue<String> ref=__local_1.copied[kind=local;type=kotlin.time.TimedValue<String>;origin=fixture]
 expr e@22:23 name(tv) type=kotlin.time.TimedValue<String> ref=__local_0.tv[kind=local;type=kotlin.time.TimedValue<String>;origin=fixture]
-expr e@22:13#1 binary(equal) lhs=e@22:13 rhs=e@22:23 type=Boolean
+expr e@22:13#1 binary(equal) lhs=e@22:13 rhs=e@22:23 type=Boolean call=kotlin.time.TimedValue.equals[kind=fun;recv=kotlin.time.TimedValue<T0>;params=Any?;ret=Boolean;gen=1;classGen=1;names=[other]] targs=[String]
 expr e@22:5 call callee=e@22:5#1 args=[_:e@22:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@23:13 name(copied) type=kotlin.time.TimedValue<String> ref=__local_1.copied[kind=local;type=kotlin.time.TimedValue<String>;origin=fixture]
 expr e@23:13#1 memberCall recv=e@23:13 callee=hashCode args=[] type=Int call=kotlin.time.TimedValue.hashCode[kind=fun;recv=kotlin.time.TimedValue<T0>;params=;ret=Int;gen=1;classGen=1] targs=[String]
@@ -70,7 +70,7 @@ expr e@24:13 name(valueChanged) type=kotlin.time.TimedValue<String> ref=__local_
 expr e@24:5 call callee=e@24:5#1 args=[_:e@24:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@25:13 name(valueChanged) type=kotlin.time.TimedValue<String> ref=__local_2.valueChanged[kind=local;type=kotlin.time.TimedValue<String>;origin=fixture]
 expr e@25:29 name(tv) type=kotlin.time.TimedValue<String> ref=__local_0.tv[kind=local;type=kotlin.time.TimedValue<String>;origin=fixture]
-expr e@25:13#1 binary(equal) lhs=e@25:13 rhs=e@25:29 type=Boolean
+expr e@25:13#1 binary(equal) lhs=e@25:13 rhs=e@25:29 type=Boolean call=kotlin.time.TimedValue.equals[kind=fun;recv=kotlin.time.TimedValue<T0>;params=Any?;ret=Boolean;gen=1;classGen=1;names=[other]] targs=[String]
 expr e@25:5 call callee=e@25:5#1 args=[_:e@25:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@26:13 name(durationChanged) type=kotlin.time.TimedValue<String> ref=__local_3.durationChanged[kind=local;type=kotlin.time.TimedValue<String>;origin=fixture]
 expr e@26:5 call callee=e@26:5#1 args=[_:e@26:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]

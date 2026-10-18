@@ -22,3 +22,6 @@ expr e@10:53#2 memberCall recv=e@10:53 callee=label args=[] type=String ref=gold
 expr e@10:51 lambda params=[] body=e@10:53#2 label=context type=context(Int, Int, Int, Int, Int, golden.sema.ContextTag) () -> String
 expr e@10:9 call callee=e@10:9#1 args=[_:e@10:17,_:e@10:20,_:e@10:23,_:e@10:26,_:e@10:29,_:e@10:32,_:e@10:51] type=String call=kotlin.context[kind=fun;params=T0,T1,T2,T3,T4,T5,fn{ctx=T0,T1,T2,T3,T4,T5;p=;ret=T6};ret=T6;gen=7;names=[a,b,c,d,e,f,block]] targs=[Int,Int,Int,Int,Int,golden.sema.ContextTag,String]
 expr e@9:5#2 binary(add) lhs=e@9:5 rhs=e@10:9 type=String
+expr e@7:8 name(ExperimentalContextParameters) type=Any ref=kotlin.ExperimentalContextParameters[kind=anno]
+expr e@7:8#1 callableRef recv=e@7:8 member=class type=KClass<kotlin.ExperimentalContextParameters>
+expr e@7:2 call callee=e@7:2#1 args=[_:e@7:8#1] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]

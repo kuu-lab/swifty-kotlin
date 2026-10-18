@@ -4,3 +4,7 @@ file fstdlib_kotlin_n_PublishedApi package=golden.sema
   decl golden.sema.InternalBox[kind=class;origin=fixture] class InternalBox sym=golden.sema.InternalBox[kind=class;origin=fixture]
 expr e@6:31 int(0) type=Int
 expr e@9:36 name(value) type=Int ref=golden.sema.InternalBox.value[kind=prop;type=Int;origin=fixture]
+expr e@3:2 call callee=e@3:2#1 args=[] type=kotlin.PublishedApi call=kotlin.PublishedApi.<init>[kind=ctor;recv=kotlin.PublishedApi;params=;ret=kotlin.PublishedApi]
+expr e@5:6 call callee=e@5:6#1 args=[] type=kotlin.PublishedApi call=kotlin.PublishedApi.<init>[kind=ctor;recv=kotlin.PublishedApi;params=;ret=kotlin.PublishedApi]
+expr e@8:6 call callee=e@8:6#1 args=[] type=kotlin.PublishedApi call=kotlin.PublishedApi.<init>[kind=ctor;recv=kotlin.PublishedApi;params=;ret=kotlin.PublishedApi]
+expr e@8:6#2 call callee=e@8:6#3 args=[] type=kotlin.PublishedApi call=kotlin.PublishedApi.<init>[kind=ctor;recv=kotlin.PublishedApi;params=;ret=kotlin.PublishedApi]
