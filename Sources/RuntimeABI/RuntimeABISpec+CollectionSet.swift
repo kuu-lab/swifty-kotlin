@@ -1,7 +1,5 @@
-/// Set, LinkedHashSet, and toMutableList/toMutableSet ABI specs split out from `RuntimeABISpec+Collection.swift`.
 public extension RuntimeABISpec {
     static let collectionSetFunctions: [RuntimeABIFunctionSpec] = [
-        // Metadata conversion for the source-backed EnumSet factory.
         RuntimeABIFunctionSpec(
             name: "__kk_enum_set_class",
             parameters: [RuntimeABIParameter(name: "classRaw", type: .intptr)],
@@ -9,7 +7,6 @@ public extension RuntimeABISpec {
             section: "Enum",
             isThrowing: false
         ),
-        // Set
         RuntimeABIFunctionSpec(
             name: "__kk_set_of",
             parameters: [
@@ -41,7 +38,7 @@ public extension RuntimeABISpec {
             section: "Collection",
             isThrowing: true
         ),
-        // BUG-254: nominal-tag bridge for the mutable set factories and the
+        // Nominal-tag bridge for the mutable set factories and the
         // LinkedHashSet constructors, mirroring `__kk_hash_set_of`.
         RuntimeABIFunctionSpec(
             name: "__kk_linked_hash_set_of",
@@ -53,14 +50,13 @@ public extension RuntimeABISpec {
             section: "Collection",
             isThrowing: false
         ),
-        // STDLIB-410: emptySet
         RuntimeABIFunctionSpec(
             name: "__kk_emptySet",
             parameters: [],
             returnType: .intptr,
             section: "Collection"
         ),
-        // BUG-196: Attach runtime-backed storage to source-allocated
+        // Attach runtime-backed storage to source-allocated
         // LinkedHashSet instances, including user subclasses.
         RuntimeABIFunctionSpec(
             name: "__kk_linked_hash_set_init",
@@ -118,7 +114,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection"
         ),
-        // STDLIB-021: Collection<T>.toMutableList()
         RuntimeABIFunctionSpec(
             name: "__kk_collection_toMutableList",
             parameters: [
@@ -174,7 +169,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection"
         ),
-        // STDLIB-021: Iterable<T>.toMutableSet()
         RuntimeABIFunctionSpec(
             name: "__kk_iterable_toMutableSet",
             parameters: [
