@@ -12,16 +12,12 @@ import kswiftk.internal.*
 private external fun String.__kkStringLowercase(): String
 
 /**
- * Returns a copy of this string converted to lower case using Unicode case mapping.
- *
  * Multi-character mappings such as Latin capital I with dot are preserved, and a
  * capital sigma at the end of a word maps to final sigma.
  */
 public fun String.lowercase(): String = this.__kkStringLowercase()
 
 /**
- * Returns a copy of this string converted to upper case using Unicode case mapping.
- *
  * Each character is converted through [Char.uppercase], so multi-character mappings
  * such as sharp-s to "SS" are preserved.
  */
@@ -36,27 +32,15 @@ public fun String.uppercase(): String {
     return sb.toString()
 }
 
-/**
- * Returns a copy of this string converted to lower case using Unicode case mapping.
- *
- * Deprecated by Kotlin, but still provided for compatibility.
- */
 @Deprecated("Use lowercase() instead.", ReplaceWith("lowercase()"))
 @DeprecatedSinceKotlin(warningSince = "1.5", errorSince = "2.1")
 public fun String.toLowerCase(): String = lowercase()
 
-/**
- * Returns a copy of this string converted to upper case using Unicode case mapping.
- *
- * Deprecated by Kotlin, but still provided for compatibility.
- */
 @Deprecated("Use uppercase() instead.", ReplaceWith("uppercase()"))
 @DeprecatedSinceKotlin(warningSince = "1.5", errorSince = "2.1")
 public fun String.toUpperCase(): String = uppercase()
 
 /**
- * Returns a copy of this string with the first character title-cased if it is lower case.
- *
  * Deprecated by Kotlin, but still provided for compatibility.
  */
 public fun String.capitalize(): String {
@@ -79,11 +63,6 @@ public fun String.capitalize(): String {
     return sb.toString()
 }
 
-/**
- * Returns a copy of this string with the first character lower-cased.
- *
- * Deprecated by Kotlin, but still provided for compatibility.
- */
 @Deprecated(
     "Use replaceFirstChar instead.",
     ReplaceWith("replaceFirstChar { it.lowercase() }")
@@ -104,9 +83,6 @@ public fun String.decapitalize(): String {
     return sb.toString()
 }
 
-/**
- * Returns a copy of this string having its first character replaced with the result of [transform].
- */
 @SinceKotlin("1.5")
 @OptIn(kotlin.experimental.ExperimentalTypeInference::class)
 @OverloadResolutionByLambdaReturnType
@@ -122,9 +98,6 @@ public fun String.replaceFirstChar(transform: (Char) -> Char): String {
     return sb.toString()
 }
 
-/**
- * Returns a copy of this string having its first character replaced with the result of [transform].
- */
 @SinceKotlin("1.5")
 @OptIn(kotlin.experimental.ExperimentalTypeInference::class)
 @OverloadResolutionByLambdaReturnType
@@ -140,14 +113,8 @@ public fun String.replaceFirstChar(transform: (Char) -> CharSequence): String {
     return sb.toString()
 }
 
-/**
- * Returns a copy of this string converted to lower case using [locale].
- */
 public fun String.lowercase(locale: java.util.Locale): String =
     this.__kk_lowercase_locale(locale)
 
-/**
- * Returns a copy of this string converted to upper case using [locale].
- */
 public fun String.uppercase(locale: java.util.Locale): String =
     this.__kk_uppercase_locale(locale)
