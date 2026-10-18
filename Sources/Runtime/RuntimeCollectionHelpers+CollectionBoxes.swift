@@ -288,9 +288,8 @@ func runtimeCollectionOrArrayElements(from rawValue: Int) -> [Int]? {
     if let elements = runtimeCollectionElements(from: rawValue) {
         return elements
     }
-    // runtimeSequenceSourceElements covers RuntimeSequenceBox, source Sequence
-    // objects (RuntimeObjectBox), List, Set, and arrays, while excluding
-    // RuntimeObjectBox instances that are not actually arrays.
+    // runtimeSequenceSourceElements excludes RuntimeObjectBox instances that
+    // are not actually arrays.
     if let elements = runtimeSequenceSourceElements(from: rawValue) {
         return elements
     }
@@ -318,8 +317,7 @@ func runtimeIterableValues(from rawValue: Int) -> [RuntimeValue]? {
             RuntimeValue(raw: runtimeIndexedValueNew(index: index, value: element))
         }
     }
-    // runtimeSequenceSourceValues handles RuntimeSequenceBox, source Sequence
-    // objects, List, Set, and arrays without misclassifying RuntimeObjectBox.
+    // runtimeSequenceSourceValues does not misclassify RuntimeObjectBox.
     if let values = runtimeSequenceSourceValues(from: rawValue) {
         return values
     }
