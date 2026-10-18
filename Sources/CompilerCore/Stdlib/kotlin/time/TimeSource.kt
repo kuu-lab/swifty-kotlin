@@ -1,15 +1,5 @@
 package kotlin.time
 
-// KSP-649
-// TimeSource / TimeSource.WithComparableMarks / TimeSource.Monotonic and the new
-// TimeSource.Monotonic.ValueTimeMark value class.
-//
-// The monotonic clock reading stays native: __kk_time_source_monotonic_mark_now
-// samples the monotonic clock, and the Kotlin source wraps the reading in a
-// ValueTimeMark. __kk_time_source_as_clock builds a Clock backed by a time source.
-//
-// TimeMark and ComparableTimeMark operations dispatch through source members.
-
 import kotlin.internal.KsSymbolName
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
@@ -83,9 +73,6 @@ public interface TimeSource {
     }
 }
 
-// KSP-1475
-// Measure an interval with the receiver's time source. The mark is captured
-// before invoking the block so the result includes the complete block body.
 @OptIn(ExperimentalContracts::class)
 public inline fun TimeSource.measureTime(block: () -> Unit): Duration {
     contract {
@@ -96,10 +83,6 @@ public inline fun TimeSource.measureTime(block: () -> Unit): Duration {
     return mark.elapsedNow()
 }
 
-// KSP-1475
-// Preserve the value produced by the block while measuring against the same
-// receiver mark. TimedValue's synthetic constructor supplies the existing
-// runtime allocation ABI without adding a new bridge for this source API.
 @OptIn(ExperimentalContracts::class)
 public inline fun <T> TimeSource.measureTimedValue(block: () -> T): TimedValue<T> {
     contract {
