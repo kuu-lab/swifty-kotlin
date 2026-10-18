@@ -1,8 +1,6 @@
 package kotlinx.coroutines
 
 
-// Small await/join helpers from kotlinx-coroutines Await.kt.
-
 // `awaitCancellation()` lives in the compiler's synthetic registry
 // (externalLinkName `kk_await_cancellation`): calls lower to a suspend point
 // that parks a cancellable continuation linked to the caller's Job.

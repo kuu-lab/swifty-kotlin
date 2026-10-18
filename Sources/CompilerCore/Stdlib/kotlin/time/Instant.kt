@@ -2,20 +2,14 @@ package kotlin.time
 
 import kotlin.internal.KsSymbolName
 
-// KSP-472
-// Instant member accessors, arithmetic, comparison, and elapsed().
 // Migration source: Sources/Runtime/RuntimeInstant.swift
 //   kk_instant_epoch_seconds, kk_instant_nano_of_second,
 //   kk_instant_is_distant_past, kk_instant_is_distant_future,
 //   kk_instant_plus_duration, kk_instant_minus_duration, kk_instant_compare,
 //   kk_instant_until
 //
-// All operations delegate to __kk_instant_* bridges backed by kk_* ABI
-// functions. Bridge stubs are registered in
+// The __kk_instant_* bridge stubs are registered in
 // HeaderHelpers+SyntheticInstantStubs.swift.
-//
-// Instant.now() / Instant.fromEpochMilliseconds() are now Kotlin-source
-// companion-object extensions that delegate to __kk_instant_* bridges.
 
 // KSP-1472: the runtime stores Instant values in an opaque native box. The
 // source declaration supplies the public nominal type and Companion while the
@@ -55,8 +49,6 @@ public operator fun Instant.minus(other: Instant): Duration =
 
 public fun Instant.elapsed(): Duration =
     Duration(this.__kk_instant_until(Instant.now()))
-
-// KSP-1489: value semantics, epoch conversion, and ISO formatting.
 
 public fun Instant.equals(other: Any?): Boolean =
     this == other
@@ -194,8 +186,6 @@ private fun instantFloorDiv(value: Long, divisor: Long): Long {
     val remainder = value % divisor
     return if (remainder < 0L) quotient - 1L else quotient
 }
-
-// KSP-472: companion factories
 
 @KsSymbolName("kk_instant_now")
 private external fun __kk_instant_now(): Instant

@@ -7,13 +7,6 @@
 
 package kotlin.uuid
 
-/**
- * This annotation marks the experimental Kotlin Uuid API.
- *
- * Any usage of a declaration annotated with `@ExperimentalUuidApi` must be accepted either
- * by annotating that usage with the [OptIn] annotation, e.g. `@OptIn(ExperimentalUuidApi::class)`,
- * or by using the compiler argument `-opt-in=kotlin.uuid.ExperimentalUuidApi`.
- */
 @kotlin.RequiresOptIn(level = RequiresOptIn.Level.ERROR)
 @kotlin.annotation.Target(
     AnnotationTarget.CLASS,

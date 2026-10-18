@@ -2,15 +2,10 @@ package kotlin.time
 
 import kotlin.time.Duration.Companion.nanoseconds
 
-// KSP-472
-// measureTime / measureTimedValue.
 // Migration source: Sources/Runtime/RuntimeDuration.swift
-//   kk_measureTime, kk_measureTimedValue
 //
-// Both functions are ordinary inline functions here; the monotonic clock
-// (syscall) is the only piece that stays native, reached through the
-// __kk_* bridge below. TimedValue allocation is an ordinary data class
-// constructor call.
+// The monotonic clock (syscall) is the only piece that stays native, reached
+// through the __kk_* bridge below.
 
 import kotlin.internal.KsSymbolName
 

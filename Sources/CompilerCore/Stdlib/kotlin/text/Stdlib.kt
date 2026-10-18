@@ -7,23 +7,12 @@
 
 package kotlin.text
 
-// KSP-1362: kotlin.text top-level APIs that were missing from the bundled
-// sources. Appendable / CharCategory / MatchResult / MatchGroupCollection /
-// MatchNamedGroupCollection / Typography and the buildString overloads already
-// live in their topic files; this file carries the remaining package-level
-// functions.
-
-/**
- * Converts the characters in the specified array to a string.
- */
 @Deprecated("Use CharArray.concatToString() instead", ReplaceWith("chars.concatToString()"))
 @DeprecatedSinceKotlin(warningSince = "1.4", errorSince = "1.5")
 public fun String(chars: CharArray): String =
     StringBuilder().append(chars).toString()
 
 /**
- * Converts the characters from a portion of the specified array to a string.
- *
  * @throws IndexOutOfBoundsException if either [offset] or [length] are less than zero
  * or `offset + length` is out of [chars] array bounds.
  */
@@ -32,9 +21,6 @@ public fun String(chars: CharArray): String =
 public fun String(chars: CharArray, offset: Int, length: Int): String =
     StringBuilder().append(chars, offset, length).toString()
 
-/**
- * Appends all arguments to this [Appendable].
- */
 public fun <T : Appendable> T.append(vararg value: CharSequence?): T {
     var index = 0
     while (index < value.size) {
@@ -44,24 +30,14 @@ public fun <T : Appendable> T.append(vararg value: CharSequence?): T {
     return this
 }
 
-/**
- * Appends a subsequence of [value] to this [Appendable] and returns this instance.
- */
 public fun <T : Appendable> T.appendRange(value: CharSequence, startIndex: Int, endIndex: Int): T {
     this.append(value, startIndex, endIndex)
     return this
 }
 
-/**
- * Builds a [HexFormat] with the given [builderAction].
- */
 public inline fun HexFormat(builderAction: HexFormat.Builder.() -> Unit): HexFormat =
     HexFormat.Builder().apply(builderAction).build()
 
-/**
- * Checks whether the given [radix] is a valid radix for string to number and
- * number to string conversion.
- */
 @PublishedApi
 internal fun checkRadix(radix: Int): Int {
     if (radix < Char.MIN_RADIX || radix > Char.MAX_RADIX) {

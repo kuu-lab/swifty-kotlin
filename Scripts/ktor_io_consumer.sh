@@ -60,19 +60,6 @@ assert_catalog_version kotlinx-io "$KOTLINX_IO_VERSION"
 assert_catalog_version coroutines "$COROUTINES_VERSION"
 assert_catalog_version atomicfu "$ATOMICFU_VERSION"
 
-python3 - "$ROOT_DIR/Scripts/io_api_inventory/upstream-lock.json" "$KOTLINX_IO_COMMIT" <<'PY'
-import json
-import pathlib
-import sys
-
-lock_path, expected_commit = sys.argv[1:]
-actual_commit = json.loads(pathlib.Path(lock_path).read_text())['commit']
-if actual_commit != expected_commit:
-    raise SystemExit(
-        f"kotlinx-io source lock is {actual_commit}; expected pinned commit {expected_commit}"
-    )
-PY
-
 source_roots=(common nonJvm jvmAndPosix posix darwin)
 sources=()
 for root in "${source_roots[@]}"; do

@@ -7,8 +7,6 @@
 
 package kotlin.test
 
-// KUU-1693 adds the Kotlin 2.4 experimental testing APIs to the supported target.
-/** Marks experimental kotlin.test APIs that require explicit opt-in. */
 @SinceKotlin("2.4")
 @RequiresOptIn(level = RequiresOptIn.Level.ERROR)
 @Retention(AnnotationRetention.BINARY)

@@ -20,9 +20,6 @@ internal external fun __kk_string_codePointCount_from(cs: CharSequence, startInd
 @KsSymbolName("__kk_string_codePointCount_range")
 internal external fun __kk_string_codePointCount_range(cs: CharSequence, startIndex: Int, endIndex: Int): Int
 
-// STDLIB-TEXT-FN-140/141/026: String's compiler/runtime primitives are kept
-// as private source-level bridges.  The public surface below is ordinary
-// bundled Kotlin, so Sema no longer needs to synthesize these members.
 @KsSymbolName("__kk_string_get_flat")
 private external fun String.__kkStringGet(index: Int): Char
 

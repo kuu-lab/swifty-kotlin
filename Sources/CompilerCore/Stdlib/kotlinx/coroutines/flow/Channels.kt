@@ -22,8 +22,6 @@ public fun <T> ReceiveChannel<T>.receiveAsFlow(): Flow<T> {
     }
 }
 
-// ReceiveChannel is a Channel alias here and has no cancellation API. Close
-// in finally for cleanup; unlike receiveAsFlow, allow only one collection.
 @Suppress("UNCHECKED_CAST")
 public fun <T> ReceiveChannel<T>.consumeAsFlow(): Flow<T> {
     val channel = this

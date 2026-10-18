@@ -40,72 +40,38 @@ private const val KK_CHANNEL_RESULT_STATUS_CLOSED: Int = 1
 private const val KK_CHANNEL_RESULT_STATUS_CANCELLED: Int = 2
 private const val KK_CHANNEL_RESULT_STATUS_FAILED: Int = 3
 
-/**
- * Result of a channel operation that either succeeded with a value or failed
- * with an optional close cause. Mirrors upstream `ChannelResult`.
- */
 public class ChannelResult<out T> private constructor() {
 
-    /**
-     * Whether the operation succeeded. See upstream docs for details.
-     */
     public val isSuccess: Boolean
         get() = __kkChannelResultStatus(this) == KK_CHANNEL_RESULT_STATUS_SUCCESS
 
-    /**
-     * Whether the operation failed. A shorthand for `!isSuccess`.
-     */
     public val isFailure: Boolean
         get() = !isSuccess
 
-    /**
-     * Whether the operation failed because the channel was closed.
-     */
     public val isClosed: Boolean
         get() {
             val status = __kkChannelResultStatus(this)
             return status == KK_CHANNEL_RESULT_STATUS_CLOSED || status == KK_CHANNEL_RESULT_STATUS_CANCELLED
         }
 
-    /**
-     * Returns the encapsulated [T] if the operation succeeded, or throws the
-     * encapsulated exception if it failed.
-     */
     public fun getOrThrow(): T =
         __kkChannelResultGetOrThrow(this)
 
-    /**
-     * Returns the encapsulated [T] if the operation succeeded, or `null` if it
-     * failed.
-     */
     public fun getOrNull(): T? =
         __kkChannelResultValueOrNull(this)
 
-    /**
-     * Returns the exception with which the channel was closed, or `null` if
-     * the channel was not closed or was closed without a cause.
-     */
     public fun exceptionOrNull(): Throwable? =
         __kkChannelResultCause(this)
 
     public companion object {
-        /**
-         * Wraps [value] in a successful result.
-         */
         @InternalCoroutinesApi
         public fun <T> success(value: T): ChannelResult<T> =
             __kkChannelResultCreate(KK_CHANNEL_RESULT_STATUS_SUCCESS, value, null)
 
-        /**
-         * A failure without a close cause.
-         */
         @InternalCoroutinesApi
         public fun <T> failure(): ChannelResult<T> =
             __kkChannelResultCreate(KK_CHANNEL_RESULT_STATUS_FAILED, null, null)
 
-        /**
-         * A failure caused by channel closure with an optional [cause].
-         */
         @InternalCoroutinesApi
         public fun <T> closed(cause: Throwable?): ChannelResult<T> =
             __kkChannelResultCreate(KK_CHANNEL_RESULT_STATUS_CLOSED, null, cause)
@@ -124,48 +90,28 @@ public class ChannelResult<out T> private constructor() {
     }
 }
 
-/**
- * Returns the encapsulated value if the operation succeeded, or the result of
- * [onFailure] for [ChannelResult.exceptionOrNull] otherwise.
- */
 public inline fun <T> ChannelResult<T>.getOrElse(onFailure: (exception: Throwable?) -> T): T {
     return if (isSuccess) getOrThrow() else onFailure(exceptionOrNull())
 }
 
-/**
- * Performs the given [action] on the encapsulated value if the operation
- * succeeded. Returns the original `ChannelResult` unchanged.
- */
 public inline fun <T> ChannelResult<T>.onSuccess(action: (value: T) -> Unit): ChannelResult<T> {
     if (isSuccess) action(getOrThrow())
     return this
 }
 
-/**
- * Performs the given [action] if the operation failed. The result of
- * [ChannelResult.exceptionOrNull] is passed to the [action] parameter.
- * Returns the original `ChannelResult` unchanged.
- */
 public inline fun <T> ChannelResult<T>.onFailure(action: (exception: Throwable?) -> Unit): ChannelResult<T> {
     if (isFailure) action(exceptionOrNull())
     return this
 }
 
-/**
- * Performs the given [action] if the operation failed because the channel was
- * closed for that operation. The result of [ChannelResult.exceptionOrNull] is
- * passed to the [action] parameter. Returns the original `ChannelResult`
- * unchanged.
- */
 public inline fun <T> ChannelResult<T>.onClosed(action: (exception: Throwable?) -> Unit): ChannelResult<T> {
     if (isClosed) action(exceptionOrNull())
     return this
 }
 
 /**
- * Internal predicate used by channel machinery: `true` when this result wraps
- * an actual value (mirrors upstream `holdsValue`, which is `holder === success`
- * on the JVM — a success result in the box model).
+ * Mirrors upstream `holdsValue`, which is `holder === success` on the JVM — a
+ * success result in the box model.
  */
 internal val ChannelResult<*>.holdsValue: Boolean
     get() = isSuccess

@@ -4,11 +4,6 @@ import kotlin.internal.KsSymbolName
 import kotlin.sequences.emptySequence
 import kotlin.sequences.generateSequence
 
-// KSP-487
-// Regex public API layer migrated from synthetic Swift stubs.
-// RegexOption, Regex constructors, members, and companion object live here;
-// engine entry points are demoted to the __kk_* runtime bridges.
-
 public enum class RegexOption {
     IGNORE_CASE,
     MULTILINE,

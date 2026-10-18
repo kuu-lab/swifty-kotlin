@@ -18,8 +18,6 @@ internal external fun <T> __kkRunBlockingContext(
     block: suspend CoroutineScope.() -> T
 ): T
 
-// Matches the JVM signature: the block runs with the receiver scope as `this`
-// and its result type feeds `Deferred<T>`.
 @KsSymbolName("kk_coroutine_scope_async")
 public external fun <T> CoroutineScope.async(
     context: CoroutineContext = EmptyCoroutineContext,
@@ -27,7 +25,6 @@ public external fun <T> CoroutineScope.async(
     block: suspend CoroutineScope.() -> T
 ): Deferred<T>
 
-// The block receives the child scope; context and start match kotlinx.coroutines.
 @KsSymbolName("__kk_coroutine_scope_launch_context")
 public external fun CoroutineScope.launch(
     context: CoroutineContext = EmptyCoroutineContext,
