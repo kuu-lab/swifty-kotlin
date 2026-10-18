@@ -1,7 +1,3 @@
-// String-to-type conversion functions (toInt, toDouble, toLong, toFloat,
-// toByte, toShort, toBoolean, toBigDecimal, and their variants).
-// Split out from `RuntimeStringStdlib.swift`.
-
 import Foundation
 
 /// `Character.digit(ch, radix)` for a single UTF-16 code unit: ASCII and
@@ -94,8 +90,6 @@ func runtimeParseNarrowKotlinInteger<T: FixedWidthInteger & SignedInteger>(
     return Int(value)
 }
 
-/// Shared `String.to<Int>OrNull()` body: parses the source as decimal and
-/// returns `box(value)`, or the null sentinel when the input is unparsable.
 private func runtimeStringIntegerOrNull<T: FixedWidthInteger>(
     _ strRaw: Int,
     as _: T.Type,
@@ -109,8 +103,6 @@ private func runtimeStringIntegerOrNull<T: FixedWidthInteger>(
     return box(value)
 }
 
-/// Shared `String.to<Int>OrNull(radix:)` body: validates radix 2..36 through
-/// `outThrown`, then parses and boxes like `runtimeStringIntegerOrNull`.
 private func runtimeStringIntegerOrNullRadix<T: FixedWidthInteger>(
     _ strRaw: Int,
     _ radix: Int,
@@ -180,8 +172,6 @@ public func __kk_string_toIntOrNull_radix(
 ) -> Int {
     runtimeStringIntegerOrNullRadix(strRaw, radix, as: Int32.self, caller: #function, outThrown) { Int($0) }
 }
-
-// SPEC-NUM-0007: String.toUByteOrNull() / toUShortOrNull() / toUIntOrNull() / toULongOrNull() — no-arg (radix 10)
 
 @_cdecl("__kk_string_toUByteOrNull")
 public func __kk_string_toUByteOrNull(_ strRaw: Int) -> Int {
@@ -365,7 +355,6 @@ public func __kk_string_toDoubleOrNull_flat(
 #error("Long conversion assumes 64-bit Int")
 #endif
 
-/// Parse a trimmed string using the same Kotlin/Java floating-literal grammar as Double.
 private func runtimeParseFloat(_ trimmed: String) -> Float? {
     switch trimmed {
     case "NaN", "+NaN", "-NaN":
@@ -386,7 +375,6 @@ private func runtimeParseFloat(_ trimmed: String) -> Float? {
     return Float(runtimeDroppingFloatingTypeSuffix(trimmed))
 }
 
-/// Convert a Float's bit pattern to Int in an architecture-safe manner.
 private func runtimeFloatBitsToInt(_ f: Float) -> Int {
     Int(bitPattern: UInt(f.bitPattern))
 }
@@ -483,8 +471,6 @@ public func __kk_string_toFloatOrNull(_ strRaw: Int) -> Int {
 
 @_cdecl("__kk_string_toBoolean")
 public func __kk_string_toBoolean(_ strRaw: Int) -> Int {
-    // Kotlin spec: `public actual fun String?.toBoolean(): Boolean` returns false
-    // when the receiver is null, otherwise true iff content equals "true" ignoring case.
     if strRaw == runtimeNullSentinelInt {
         return kk_box_bool(0)
     }
@@ -570,7 +556,6 @@ public func __kk_string_toByteOrNull(_ strRaw: Int) -> Int {
 }
 
 /// BigDecimal is represented as a boxed string in KSwiftK.
-/// The runtime validates the format and stores the string representation.
 final class RuntimeBigNumberBox {
     let value: String
     let kind: BigNumberKind
@@ -593,12 +578,10 @@ final class RuntimeBigNumberBox {
 private func isValidBigDecimalFormat(_ s: String) -> Bool {
     var i = s.startIndex
     guard i < s.endIndex else { return false }
-    // Optional leading sign
     if s[i] == "+" || s[i] == "-" {
         i = s.index(after: i)
         guard i < s.endIndex else { return false }
     }
-    // Must have at least one digit before or after the decimal point
     let digitStart = i
     while i < s.endIndex, s[i] >= "0", s[i] <= "9" { i = s.index(after: i) }
     let hasIntPart = i > digitStart
@@ -610,7 +593,6 @@ private func isValidBigDecimalFormat(_ s: String) -> Bool {
         hasFracPart = i > fracStart
     }
     guard hasIntPart || hasFracPart else { return false }
-    // Optional exponent
     if i < s.endIndex, s[i] == "e" || s[i] == "E" {
         i = s.index(after: i)
         guard i < s.endIndex else { return false }
@@ -785,7 +767,6 @@ public func __kk_bignum_toByte(_ numRaw: Int) -> Int {
     return Int(Int8(bitPattern: UInt8(truncatingIfNeeded: bits)))
 }
 
-/// Dispatch a BigDecimal conversion when the value is viewed through Number.
 /// BigDecimal uses a runtime box instead of a compiler-generated class vtable.
 func runtimeBigDecimalNumberConversion(_ numRaw: Int, targetKind: Int32) -> Int? {
     guard let pointer = UnsafeMutableRawPointer(bitPattern: numRaw),
@@ -807,7 +788,6 @@ func runtimeBigDecimalNumberConversion(_ numRaw: Int, targetKind: Int32) -> Int?
     }
 }
 
-/// BigDecimal.compareTo: exact comparison of two validated decimal strings.
 /// Unlike `equals`, Java/Kotlin BigDecimal comparison ignores scale
 /// (1.0 == 1.00) and treats any zero as equal regardless of sign.
 private struct BigDecimalParts {
