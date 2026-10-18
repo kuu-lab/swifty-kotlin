@@ -1,7 +1,3 @@
-/// Legacy range/progression member reads (`start`, `endInclusive`,
-/// `end`, `endExclusive`, `first`, `last`, `step`) lowered directly to
-/// the runtime range getters.
-
 extension CallLowerer {
 
     func lowerLegacyRangeMemberRead(

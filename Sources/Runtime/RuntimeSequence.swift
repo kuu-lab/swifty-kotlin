@@ -1265,11 +1265,55 @@ func runtimeTraverseSequenceSource(
     if runtimeTraverseSourceSequenceObject(rawValue, outThrown: outThrown, yield: yield) {
         return nil
     }
+    if runtimeTraverseRangeSource(rawValue, outThrown: outThrown, yield: yield) {
+        return nil
+    }
     for elem in runtimeSequenceSourceElementsOrPanic(from: rawValue, caller: caller) {
         // swiftlint:disable:next for_where
         if !yield(elem) { break }
     }
     return nil
+}
+
+/// Traverses a runtime-backed range through its registered iterator handle.
+/// Generic Iterable calls can reach Sequence compatibility entry points with a
+/// range handle, even though that handle is neither a RuntimeSequenceBox nor a
+/// source-implemented Sequence object.
+private func runtimeTraverseRangeSource(
+    _ rawValue: Int,
+    outThrown: UnsafeMutablePointer<Int>?,
+    yield: (Int) -> Bool
+) -> Bool {
+    guard runtimeRangeBox(from: rawValue) != nil else {
+        return false
+    }
+
+    let iteratorRaw = kk_range_iterator(rawValue, outThrown)
+    if let outThrown, outThrown.pointee != 0 {
+        return true
+    }
+    guard runtimeRangeIteratorBox(from: iteratorRaw) != nil else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: range iterator bridge returned an invalid handle")
+    }
+
+    while true {
+        let hasNext = kk_iterator_hasNext(iteratorRaw, outThrown)
+        if let outThrown, outThrown.pointee != 0 {
+            return true
+        }
+        if hasNext == 0 {
+            break
+        }
+
+        let element = kk_iterator_next(iteratorRaw, outThrown)
+        if let outThrown, outThrown.pointee != 0 {
+            return true
+        }
+        if !yield(element) {
+            break
+        }
+    }
+    return true
 }
 
 /// Extracts source elements from a sequence step, if applicable.

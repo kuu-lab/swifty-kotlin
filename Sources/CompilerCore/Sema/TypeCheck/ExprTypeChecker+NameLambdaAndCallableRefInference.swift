@@ -67,10 +67,13 @@ extension ExprTypeChecker {
         }
         // An uninvoked function is not a qualified receiver. Keep values in
         // the lookup so properties still shadow imported classifiers.
-        let allCandidateIDs = ctx.cachedScopeLookup(name).filter { symbolID in
-            guard isQualifier else { return true }
-            guard let symbol = ctx.cachedSymbol(symbolID) else { return false }
-            return symbol.kind != .function && symbol.kind != .constructor
+        let allCandidateIDs: [SymbolID] = if isQualifier {
+            ctx.cachedScopeLookup(name).filter { symbolID in
+                guard let symbol = ctx.cachedSymbol(symbolID) else { return false }
+                return symbol.kind != .function && symbol.kind != .constructor
+            }
+        } else {
+            ctx.cachedScopeLookup(name)
         }
         // @DslMarker restriction: filter out candidates from outer receivers
         // that share a DslMarker annotation with the current implicit receiver.

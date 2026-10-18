@@ -14,6 +14,7 @@ import json
 import math
 from pathlib import Path
 import platform
+import subprocess
 import sys
 
 from run_candidate_subset import parse_events, prepare_port, tree_hash
@@ -379,15 +380,6 @@ def main(argv: list[str] | None = None) -> int:
         if len(prepared_ids) != len(set(prepared_ids)) or set(prepared_ids) != set(selected_ids):
             raise ValueError("prepared candidate IDs do not match the selected catalog IDs")
         selection_path = args.output / "selection.json"
-        selection_path.write_text(json.dumps(selection, indent=2, ensure_ascii=False) + "\n")
-        summary.update({"selection_manifest": str(selection_path),
-                        "selection_manifest_sha256": sha256(selection_path),
-                        "catalog_execution_count": selection["catalog_execution_count"],
-                        "target_catalog_execution_count": selection["target_catalog_execution_count"],
-                        "selected_execution_count": selection["selected_execution_count"],
-                        "selected_source_function_count": len(selection["selected_source_function_ids"]),
-                        "covers_full_catalog": selection["covers_full_catalog"],
-                        "selection_mode": selection_mode})
         driver = args.output / "CombinedDriver.kt"
         source_paths = [path for port in ports for path in port.get("source_ports", [port.get("port_path")])]
         if len(set(source_paths)) != len(source_paths):
@@ -401,8 +393,11 @@ def main(argv: list[str] | None = None) -> int:
         if set(support_sources) & {Path(path).resolve() for path in source_paths}:
             raise ValueError("test support must not replace an original source")
 
-        def inputs() -> dict:
-            return {
+        def inputs(include_selection_manifest: bool = True) -> dict:
+            revision = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"],
+                                      capture_output=True, text=True, check=False)
+            values = {
+                "workspace_git_sha": revision.stdout.strip() if revision.returncode == 0 else None,
                 "compiler_sha256": sha256(args.compiler),
                 "compiler_resource_bundle_sha256": tree_hash(resources) if resources else None,
                 "stdlib_content_sha256": tree_hash(args.stdlib_library) if args.stdlib_library else None,
@@ -411,7 +406,6 @@ def main(argv: list[str] | None = None) -> int:
                 "runtime_abi_sources_sha256": tree_hash(root / "Sources" / "RuntimeABI"),
                 "package_manifest_sha256": sha256(root / "Package.swift"),
                 "lock_sha256": sha256(lock_path), "catalog_sha256": sha256(catalog_path),
-                "selection_manifest_sha256": sha256(selection_path),
                 "runner_sha256": sha256(Path(__file__)),
                 "direct_runner_sha256": sha256(HERE / "run_candidate_subset.py"),
                 "helper_sha256": sha256(HERE / "run_jvm_reference.py"),
@@ -422,10 +416,24 @@ def main(argv: list[str] | None = None) -> int:
                 "catalog_preparer_sha256": sha256(HERE / "prepare_candidate_catalog.py") if args.native_catalog else None,
                 "declaration_index_sha256": sha256(declaration_path) if args.native_catalog else None,
             }
+            if include_selection_manifest:
+                values["selection_manifest_sha256"] = sha256(selection_path)
+            return values
 
+        selection["input_hashes"] = inputs(include_selection_manifest=False)
+        selection_path.write_text(json.dumps(selection, indent=2, ensure_ascii=False) + "\n")
+        summary.update({"selection": selection, "selection_manifest": str(selection_path),
+                        "selection_manifest_sha256": sha256(selection_path),
+                        "catalog_execution_count": selection["catalog_execution_count"],
+                        "target_catalog_execution_count": selection["target_catalog_execution_count"],
+                        "selected_execution_count": selection["selected_execution_count"],
+                        "selected_source_function_count": len(selection["selected_source_function_ids"]),
+                        "covers_full_catalog": selection["covers_full_catalog"],
+                        "selection_mode": selection_mode})
         before = inputs()
         count = len(selected_ids)
-        summary.update({"ports": ports, "inputs": before, "expected_count": count})
+        summary.update({"workspace_git_sha": before["workspace_git_sha"],
+                        "ports": ports, "inputs": before, "expected_count": count})
         base = [str(args.compiler.resolve()), "-" + args.optimization]
         base += ["--stdlib-from-source"] if args.stdlib_from_source else ["--stdlib-library", str(args.stdlib_library.resolve())]
         environment = {"KSWIFTK_PACKAGE_ROOT": str(root)}
