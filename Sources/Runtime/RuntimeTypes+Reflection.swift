@@ -1,8 +1,5 @@
 import Foundation
 
-/// Runtime reflection metadata record stored in the global registry.
-/// Populated from the binary metadata blob emitted by `RuntimeReflectionMetadataEmitter`.
-/// Each entry corresponds to a type or declaration that can be queried via `KClass` at runtime.
 struct RuntimeKClassMetadataEntry {
     /// JVM binary name used only when rendering KClass handles.
     var displayName: String? = nil
@@ -24,24 +21,18 @@ struct RuntimeKClassMetadataEntry {
     let fieldCount: Int
     let memberCount: Int
     let constructorCount: Int
-    // STDLIB-REFLECT-060: additional KClass basic reflection fields
     let isFinal: Bool
     let isOpen: Bool
     let visibility: String
     let typeParameterCount: Int
-    // STDLIB-REFLECT-067: additional type-kind introspection flags
     var isInner: Bool = false
     var isCompanion: Bool = false
     var isFunInterface: Bool = false
-    /// Runtime annotations attached to this type (STDLIB-REFLECT-065).
     var annotations: [RuntimeAnnotationRecord] = []
 }
 
-/// Runtime representation of an annotation attached to a declaration (STDLIB-REFLECT-065).
 struct RuntimeAnnotationRecord {
-    /// Fully-qualified name of the annotation class (e.g. "MyLabel").
     let annotationFQName: String
-    /// Argument values serialized as strings (e.g. ["hello"]).
     let arguments: [String]
     let factory: Int
 
@@ -67,8 +58,6 @@ func runtimeAppendAnnotationRecord(_ annotation: RuntimeAnnotationRecord, to rec
     records.append(annotation)
 }
 
-/// Global registry mapping type tokens to runtime metadata entries.
-/// Populated during module initialization via `__kk_kclass_register_metadata`.
 final class RuntimeKClassMetadataRegistry: @unchecked Sendable {
     private let lock = NSLock()
     private var entries: [Int: RuntimeKClassMetadataEntry] = [:]
@@ -136,7 +125,6 @@ final class RuntimeKClassMetadataRegistry: @unchecked Sendable {
 
 let runtimeKClassMetadataRegistry = RuntimeKClassMetadataRegistry()
 
-/// Global registry mapping a `KClass` raw handle to constructor reflection handles.
 final class RuntimeKConstructorRegistry: @unchecked Sendable {
     private let lock = NSLock()
     private var constructorsByClassRaw: [Int: [Int]] = [:]
@@ -183,9 +171,6 @@ final class RuntimeKConstructorRegistry: @unchecked Sendable {
 
 let runtimeKConstructorRegistry = RuntimeKConstructorRegistry()
 
-/// Global registry mapping a `KClass` raw handle to its member callable handles.
-/// Members are registered during module initialization via `__kk_kclass_register_member`.
-/// Each entry is a KFunction or KPropertyStub raw handle (STDLIB-REFLECT-ABI-002).
 final class RuntimeKMemberRegistry: @unchecked Sendable {
     private let lock = NSLock()
     private var membersByClassRaw: [Int: [Int]] = [:]
@@ -246,9 +231,6 @@ final class RuntimeKMemberRegistry: @unchecked Sendable {
 
 let runtimeKMemberRegistry = RuntimeKMemberRegistry()
 
-/// Global registry mapping a class's type token to its companion object's
-/// type token and name-hint string raw handle, populated by
-/// `__kk_kclass_register_companion` (KUU-1357).
 final class RuntimeKCompanionRegistry: @unchecked Sendable {
     private let lock = NSLock()
     private var entries: [Int: (token: Int, nameRaw: Int)] = [:]
@@ -304,12 +286,6 @@ final class RuntimeKNestedClassRegistry: @unchecked Sendable {
 
 let runtimeKNestedClassRegistry = RuntimeKNestedClassRegistry()
 
-/// Runtime box for `KClass<T>` metadata references produced by `T::class`.
-/// Stores the type token and an optional name-hint pointer so that
-/// `.simpleName` / `.qualifiedName` can be resolved at runtime.
-/// When metadata has been registered via `__kk_kclass_register_metadata`,
-/// additional properties (isData, isSealed, qualifiedName, etc.) are
-/// available through the global metadata registry.
 final class RuntimeKClassBox {
     let typeToken: Int
     let nameHint: Int
@@ -319,20 +295,16 @@ final class RuntimeKClassBox {
         self.nameHint = nameHint
     }
 
-    /// Looks up the associated metadata entry from the global registry.
     var metadata: RuntimeKClassMetadataEntry? {
         runtimeKClassMetadataRegistry.lookup(typeToken: typeToken)
     }
 }
 
-/// Runtime box for `kotlin.reflect.KType`.
-/// Represents a Kotlin type at runtime, as returned by `typeOf<T>()`.
 final class RuntimeKTypeBox {
     /// The classifier — typically a `KClass` raw handle.
     let classifierRaw: Int
     /// Type arguments as `RuntimeKTypeProjectionBox` raw handles.
     let argumentRaws: [Int]
-    /// Whether the type is marked nullable (`T?`).
     let isMarkedNullable: Bool
     /// Optional compact type descriptor used by callable reflection metadata.
     let typeNameRaw: Int
@@ -350,7 +322,6 @@ final class RuntimeKTypeBox {
     }
 }
 
-/// Runtime representation of `kotlin.reflect.KVariance`.
 /// Matches the Kotlin enum ordinals: IN=0, OUT=1, INVARIANT=2.
 enum RuntimeKVariance: Int {
     case `in` = 0
@@ -358,8 +329,6 @@ enum RuntimeKVariance: Int {
     case invariant = 2
 }
 
-/// Runtime box for `kotlin.reflect.KTypeProjection`.
-/// Represents a type argument with optional variance.
 final class RuntimeKTypeProjectionBox {
     /// The projected type as a `RuntimeKTypeBox` raw handle, or 0 for star projection.
     let typeRaw: Int
@@ -379,8 +348,6 @@ enum RuntimeKParameterFlags {
     static let isVararg: Int = 1 << 1
 }
 
-/// Runtime box for `kotlin.reflect.KParameter`.
-/// Represents a single parameter of a KFunction or KConstructor.
 final class RuntimeKParameterBox {
     var typeToken: Int?
     var arrayComponentType: Int?
@@ -392,9 +359,7 @@ final class RuntimeKParameterBox {
     let nameRaw: Int
     /// Parameter type as a KKString raw handle describing the type name.
     let typeRaw: Int
-    /// Whether this parameter is optional (has a default value).
     let isOptional: Bool
-    /// Whether this parameter is declared `vararg`.
     let isVararg: Bool
     /// Parameter kind in the runtime's own ordering: 0 = INSTANCE,
     /// 1 = EXTENSION_RECEIVER, 2 = VALUE. The Kotlin 2.3.10
@@ -423,8 +388,6 @@ enum RuntimeKFunctionFlags {
     static let `external`: Int = 1 << 4
 }
 
-/// Runtime box for `kotlin.reflect.KFunction<T>`.
-/// Represents a constructor or function member with full reflection metadata (STDLIB-REFLECT-063).
 final class RuntimeKFunctionBox {
     /// Interned KKString raw pointer for the function name.
     let nameRaw: Int
@@ -443,7 +406,6 @@ final class RuntimeKFunctionBox {
     /// Function type string as a KKString raw handle (e.g. "(Int, Int) -> Int").
     let typeStringRaw: Int
 
-    /// Whether this function is declared `suspend`.
     var isSuspend: Bool { (flags & RuntimeKFunctionFlags.suspend) != 0 }
 
     init(
@@ -467,16 +429,12 @@ final class RuntimeKFunctionBox {
     }
 }
 
-/// Runtime box for `kotlin.reflect.KFunction<T>` representing a constructor.
-/// Extends the basic KFunction box with constructor-specific metadata:
-/// isPrimary, visibility, and the declaring class reference.
 final class RuntimeKConstructorBox {
     let nameRaw: Int
     let arity: Int
     let returnTypeRaw: Int
     /// C function pointer for the underlying constructor implementation (0 if unavailable).
     let fnPtr: Int
-    /// Whether this is the primary constructor of the class.
     let isPrimary: Bool
     /// Visibility as a KKString raw handle (e.g. "PUBLIC", "PRIVATE", "PROTECTED", "INTERNAL").
     let visibilityRaw: Int
@@ -519,13 +477,8 @@ final class RuntimeKConstructorBox {
     }
 }
 
-/// Runtime box for a Kotlin annotation instance.
-/// Represents a single annotation applied to a declaration, with its class
-/// name and argument values accessible at runtime.
 final class RuntimeAnnotationBox {
-    /// Fully-qualified name of the annotation class.
     let annotationFQName: String
-    /// Argument values serialized as strings.
     let arguments: [String]
     /// Raw KClass handle for the annotation class (0 if not available).
     let annotationClassRaw: Int
