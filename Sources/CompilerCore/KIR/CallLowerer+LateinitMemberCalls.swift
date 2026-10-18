@@ -1,5 +1,4 @@
 
-/// Lowering for `lateinit` property initialization checks.
 extension CallLowerer {
     func tryLowerLateinitIsInitialized(
         _ exprID: ExprID,

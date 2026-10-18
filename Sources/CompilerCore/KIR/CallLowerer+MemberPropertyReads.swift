@@ -1,7 +1,3 @@
-/// Member-property read helpers (object members, object-literal stored
-/// properties, generic stored properties, enum entry properties, external
-/// members, class-name member values, const-folding) split out of
-/// `CallLowerer+MemberCalls.swift`.
 extension CallLowerer {
     func appendPropertyGetterCall(
         getterSymbol: SymbolID,
@@ -101,9 +97,8 @@ extension CallLowerer {
         return result
     }
 
-    /// Bridge the canonical scope context property across runtime handles and
-    /// source objects. The helper's source-object branch performs the actual
-    /// interface getter read, so it must bypass this redirection itself.
+    /// The helper's source-object branch performs the actual interface getter
+    /// read, so it must bypass this redirection itself.
     func tryLowerCoroutineScopeContextRead(
         propertySymbol: SymbolID,
         loweredReceiverID: KIRExprID,
@@ -285,7 +280,6 @@ extension CallLowerer {
             objectSymbol: parent, arena: arena, sema: sema, interner: interner, instructions: &instructions
         )
         let knownNames = KnownCompilerNames(interner: interner)
-        // STDLIB-581: Charsets.UTF_8 / ISO_8859_1 / US_ASCII / UTF_16 / ...
         if let parentInfo = sema.symbols.symbol(parent),
            parentInfo.name == knownNames.charsets,
            parentInfo.fqName.map(interner.resolve) == ["kotlin", "text", "Charsets"],
@@ -557,8 +551,7 @@ extension CallLowerer {
     /// derives the symbol and result type from a zero-argument member-access
     /// expression) and the callable-property invocation path in
     /// `lowerMemberCallExpr`, which reads `receiver.prop` to obtain the
-    /// function value before invoking it (KUU-482/BUG-250). The caller
-    /// supplies the property symbol and the desired result type explicitly.
+    /// function value before invoking it (KUU-482/BUG-250).
     func lowerStoredMemberPropertyReadValue(
         propertySymbol: SymbolID,
         callExprID: ExprID? = nil,
@@ -1551,9 +1544,7 @@ extension CallLowerer {
         ) != nil
     }
 
-    /// Whether an object-literal property is read by calling its `get`
-    /// accessor rather than by loading its instance field directly. Shared by
-    /// the explicit-receiver read (`tryLowerObjectLiteralStoredPropertyRead`)
+    /// Shared by the explicit-receiver read (`tryLowerObjectLiteralStoredPropertyRead`)
     /// and the implicit-receiver one (`ExprLowerer+ControlFlowAndBlocks.swift`)
     /// so the two cannot disagree: a `call get` that
     /// `ObjectLiteralLowerer.lowerObjectLiteralPropertyAccessors` never emits

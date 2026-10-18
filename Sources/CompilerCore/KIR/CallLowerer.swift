@@ -43,9 +43,9 @@ final class CallLowerer {
         self.driver = driver
     }
 
-    /// Returns whether a direct lambda argument may use a label-free return to
-    /// leave the caller. Kotlin permits this only for function-type parameters
-    /// of inline functions that are neither `crossinline` nor `noinline`.
+    /// Kotlin permits a direct lambda argument to use a label-free return to
+    /// leave the caller only for function-type parameters of inline functions
+    /// that are neither `crossinline` nor `noinline`.
     func allowsNonLocalReturn(
         argumentExpr: ExprID,
         argumentIndex: Int,

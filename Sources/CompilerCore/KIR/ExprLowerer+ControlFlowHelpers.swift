@@ -1,9 +1,3 @@
-/// Helpers used by `ExprLowerer.lowerExpr`:
-/// mutable-capture cell ensure/load/store, finally-block inlining
-/// (for return / break / continue), and the lateinit-read wrapping
-/// helper.
-///
-/// Split out from `ExprLowerer+ControlFlowAndBlocks.swift`.
 extension ExprLowerer {
     func ensureMutableCaptureCell(
         for symbol: SymbolID,
@@ -92,8 +86,6 @@ extension ExprLowerer {
         return true
     }
 
-    /// Inline enclosing finally blocks before a control-flow transfer.
-    ///
     /// For `return`, all enclosing finally blocks are inlined (a return always
     /// exits every enclosing try scope).  For `break`/`continue`, use
     /// `inlineFinallyBlocksForBreakOrContinue` instead, which only inlines
@@ -120,8 +112,7 @@ extension ExprLowerer {
         instructions: inout [KIRInstruction]
     ) {
         let blocks = driver.ctx.enclosingFinallyBlocks()
-        // For `return`, all enclosing finally blocks are inlined.  The blocks
-        // array corresponds 1:1 to finallyBlockStack, so stackIndex == array index.
+        // The blocks array corresponds 1:1 to finallyBlockStack, so stackIndex == array index.
         let indexedBlocks = blocks.enumerated().map { (exprID: $0.element, stackIndex: $0.offset) }
         inlineFinallyBlocks(
             indexedBlocks,
@@ -131,9 +122,6 @@ extension ExprLowerer {
         )
     }
 
-    /// Inline only the finally blocks whose try scope is exited by a
-    /// `break` or `continue` targeting the given loop label.
-    ///
     /// A finally block is skipped when the target loop was pushed *after*
     /// the try-finally scope was entered (meaning the loop is nested inside
     /// the try body and the break/continue stays within the try scope).
@@ -156,8 +144,6 @@ extension ExprLowerer {
         )
     }
 
-    /// Core finally-inlining logic shared by return and break/continue paths.
-    ///
     /// Each entry in `blocks` contains a `stackIndex` — the original position
     /// of the finally block in `finallyBlockStack`.  This is used with
     /// `withFinallyStackDepth` to trim the stack to the correct depth so that
@@ -260,14 +246,12 @@ extension ExprLowerer {
                 )
                 instructions.append(.jump(afterRethrowLabel))
 
-                // Rethrow block: propagates the exception outward.
                 instructions.append(.label(rethrowLabel))
                 instructions.append(.rethrow(value: exSlot))
 
                 instructions.append(.label(afterRethrowLabel))
                 instructions.append(.endFinallyGuard)
             } else {
-                // No throwable calls — append the finally body directly.
                 instructions.append(contentsOf: finallyInstructions)
             }
             instructions.append(.endFinallyCleanup)

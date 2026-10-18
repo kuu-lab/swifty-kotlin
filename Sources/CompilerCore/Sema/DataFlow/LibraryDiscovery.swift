@@ -248,6 +248,7 @@ extension DataFlowSemaPhase {
             isValid = false
         }
 
+        // moduleName: required, must be non-empty String
         if let moduleName = manifest.moduleName {
             if moduleName.isEmpty {
                 diagnostics.error(
@@ -266,6 +267,7 @@ extension DataFlowSemaPhase {
             isValid = false
         }
 
+        // kotlinLanguageVersion: optional but validated when present
         // Accept the prior target so libraries built before the 2.4.20 upgrade remain importable.
         let supportedLanguageVersions: Set = ["2.3.10", "2.4.20"]
         if let langVersion = manifest.kotlinLanguageVersion {
@@ -285,6 +287,7 @@ extension DataFlowSemaPhase {
             )
         }
 
+        // target: required for stdlib artifacts, optional otherwise
         if let targetString = manifest.target, !targetString.isEmpty {
             let currentTargetString = "\(currentTarget.arch)-\(currentTarget.vendor)-\(currentTarget.os)"
             if targetString != currentTargetString {
@@ -339,6 +342,7 @@ extension DataFlowSemaPhase {
             }
         }
 
+        // compilerVersion: informational, warn if empty
         if let compilerVersion = manifest.compilerVersion, compilerVersion.isEmpty {
             diagnostics.warning(
                 "KSWIFTK-LIB-0017",

@@ -358,6 +358,7 @@ public class Segment {
      * container eventually changes from ByteArray to something else.
      */
     @PublishedApi
+    @kotlin.jvm.JvmSynthetic
     @Suppress("UNUSED_PARAMETER")
     internal fun dataAsByteArray(readOnly: Boolean): ByteArray = data
 

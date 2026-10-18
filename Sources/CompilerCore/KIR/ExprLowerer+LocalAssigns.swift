@@ -1,8 +1,3 @@
-/// Local-assignment lowering used by `ExprLowerer.lowerExpr`:
-/// reassignment of local variables, including mutable-capture
-/// cell stores and delegate `setValue` writes.
-///
-/// Split out from `ExprLowerer+ControlFlowAndBlocks.swift`.
 extension ExprLowerer {
     func lowerLocalAssign(
         valueExpr: ExprID,
@@ -27,8 +22,6 @@ extension ExprLowerer {
             // Check if this is a top-level or object-member property assignment.
             // These need a copy to global storage rather than just updating
             // localValuesBySymbol (which wouldn't persist across function calls).
-            // Top-level properties have nil or .package parent.
-            // Object member properties have .object parent.
             if let delegateStorageID = driver.ctx.localDelegateStorage(for: symbol),
                let setValueSymbol = sema.symbols.delegateSetValueSymbol(for: symbol)
             {
@@ -182,8 +175,6 @@ extension ExprLowerer {
                     instructions.append(.copy(from: valueID, to: globalRef))
                 }
             } else if let slotSymbol = driver.ctx.enumEntryStorageSlots[symbol] {
-                // Inside an enum entry's construction (`init { x = ... }`),
-                // including a `val` initialized there: write the slot.
                 let propType = sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
                 let slotRef = arena.appendExpr(.symbolRef(slotSymbol), type: propType)
                 instructions.append(.constValue(result: slotRef, value: .symbolRef(slotSymbol)))
@@ -195,8 +186,6 @@ extension ExprLowerer {
                       ),
                       let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
             {
-                // Enum stored `var` assigned by bare name inside the enum
-                // body: per-entry storage behind the setter helper.
                 instructions.append(.call(
                     symbol: nil,
                     callee: setterCallee,

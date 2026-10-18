@@ -1,6 +1,5 @@
 import Foundation
 
-/// Provenance of a file managed by `SourceManager`.
 /// Used to decide bundled-stdlib-specific behavior without parsing paths.
 public enum SourceOrigin: String, Equatable, Sendable, Codable {
     case user

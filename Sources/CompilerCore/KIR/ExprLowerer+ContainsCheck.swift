@@ -1,11 +1,4 @@
-/// `in` / `!in` contains-check lowering: `lowerContainsCheck` plus its
-/// private call-emission and floating-point-range fast-path helpers. Reused by
-/// `ControlFlowLowerer+WhenExpr.swift` when-branch conditions so a subject with
-/// side effects is lowered only once.
-///
-/// Split out from `ExprLowerer+ControlFlowAndBlocks.swift`.
 extension ExprLowerer {
-    /// Lowers `lhs in rhs` / `lhs !in rhs` given an already-lowered `lhsID`.
     /// `when` branch conditions (`ControlFlowLowerer+WhenExpr.swift`) reuse the
     /// subject's single lowering here instead of re-lowering `lhsExpr`, which
     /// would re-evaluate a side-effecting subject once per `in`/`!in` branch.
@@ -112,8 +105,6 @@ extension ExprLowerer {
         return result
     }
 
-    /// Emits a contains call instruction, dispatching to a user-defined operator fun contains
-    /// if sema recorded a CallBinding, or falling back to the kk_op_contains runtime stub.
     private func appendContainsCall(
         exprID: ExprID,
         elementID: KIRExprID,
@@ -125,9 +116,6 @@ extension ExprLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) {
-        // Dispatch to a source-backed operator fun contains when available
-        // (including range/progression members, STDLIB-OP-032), otherwise use the
-        // generic kk_op_contains runtime stub.
         if
            let callBinding = sema.bindings.callBindings[exprID],
            callBinding.chosenCallee != .invalid,

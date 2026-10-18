@@ -6,8 +6,6 @@ import Darwin
 import Glibc
 #endif
 
-/// Manages the on-disk cache for incremental compilation.
-///
 /// The primary cache files used by this type are:
 /// ```
 /// <cachePath>/
@@ -35,15 +33,12 @@ public final class IncrementalCompilationCache {
     private var previousBuildConfigurationHash: String?
     private var previousOutputArtifact: CachedOutputArtifact?
 
-    /// Authenticated digests of the cache files, loaded from `integrity.json`.
     /// Nil until `loadPreviousState` (or `saveState`) authenticates the cache.
     private var trustedFileDigests: [String: String]?
 
-    /// Dependency graph from the *previous* successful compilation.
     /// `nil` means no valid dependency graph was loaded (deps.json missing or corrupt).
     private var previousDependencyGraph: DependencyGraph?
 
-    /// Fingerprints computed for the *current* compilation inputs.
     private var currentFingerprints: [String: FileFingerprint] = [:]
 
     /// Test hook: when set, the compiler-managed default cache root moves to
@@ -72,16 +67,14 @@ public final class IncrementalCompilationCache {
         return caches.path + "/kswiftk"
     }
 
-    /// Directory isolating this workspace and build: namespaced by repository
-    /// identity, compiler build, and the resolved input set so caches from
-    /// other projects or toolchains never collide.
+    /// Namespaced by repository identity, compiler build, and the resolved
+    /// input set so caches from other projects or toolchains never collide.
     public static func defaultCachePath(for options: CompilerOptions) -> String? {
         userPrivateCacheBase().map { $0 + "/incremental/" + namespace(for: options) }
     }
 
-    /// Cache for the compiler-managed default location, or nil when no
-    /// per-user caches directory is available (incremental then compiles
-    /// uncached rather than falling back to a workspace directory).
+    /// Nil when no per-user caches directory is available (incremental then
+    /// compiles uncached rather than falling back to a workspace directory).
     public static func makeDefault(for options: CompilerOptions) -> IncrementalCompilationCache? {
         guard let base = userPrivateCacheBase() else {
             return nil
@@ -92,8 +85,6 @@ public final class IncrementalCompilationCache {
         )
     }
 
-    /// Stable identifier for the cache namespace: repository root (or output
-    /// parent outside a worktree), compiler build, and resolved input paths.
     public static func namespace(for options: CompilerOptions) -> String {
         let fm = FileManager.default
         let outputParent = URL(fileURLWithPath: options.outputPath)
@@ -127,11 +118,10 @@ public final class IncrementalCompilationCache {
 
     private static let supportedManifestVersion = 1
 
-    /// Loads the manifest and dependency graph from the cache directory.
-    /// The location must pass trust validation and every file read must match
-    /// the authenticated integrity index; a cache that fails either check —
-    /// including one committed inside a workspace — is ignored so the build
-    /// starts fresh.
+    /// The cache location must pass trust validation and every file read must
+    /// match the authenticated integrity index; a cache that fails either
+    /// check — including one committed inside a workspace — is ignored so the
+    /// build starts fresh.
     public func loadPreviousState() {
         let fm = FileManager.default
         switch IncrementalCacheTrust.validateLocation(
@@ -214,12 +204,10 @@ public final class IncrementalCompilationCache {
         let allPathsSet = Set(allPaths)
         for path in allPaths {
             guard let current = currentFingerprints[path] else {
-                // File could not be fingerprinted — treat as changed.
                 changed.insert(path)
                 continue
             }
             guard let previous = previousFingerprints[path] else {
-                // New file — treat as changed.
                 changed.insert(path)
                 continue
             }
@@ -236,12 +224,10 @@ public final class IncrementalCompilationCache {
         return changed
     }
 
-    /// Computes the full recompilation set using the dependency graph.
     /// Returns `nil` if no cache is available (full build needed), including
     /// when the dependency graph is missing or corrupt.
     public func recompilationSet(allPaths: [String], options: CompilerOptions? = nil) -> Set<String>? {
         if previousFingerprints.isEmpty {
-            // No previous build — full build needed.
             return nil
         }
 
@@ -252,7 +238,6 @@ public final class IncrementalCompilationCache {
         }
 
         guard let depGraph = previousDependencyGraph else {
-            // Dependency graph missing or corrupt — full build needed.
             return nil
         }
 
@@ -369,7 +354,6 @@ public final class IncrementalCompilationCache {
     }
 
 
-    /// Saves the current fingerprints and the updated dependency graph to disk.
     public func saveState(
         dependencyGraph: DependencyGraph,
         options: CompilerOptions? = nil,
@@ -658,16 +642,12 @@ private struct IncrementalTargetTriple: Encodable {
 
 
 enum CacheSecurity {
-    /// Checks whether the file attributes correspond to ownership by the current effective user
-    /// and that neither group-write nor other-write permissions are set.
     static func isOwnerAndModeSecure(st: stat) -> Bool {
         guard st.st_uid == geteuid() else { return false }
         guard (st.st_mode & (mode_t(S_IWGRP) | mode_t(S_IWOTH))) == 0 else { return false }
         return true
     }
 
-    /// Securely verifies and opens the cache root directory descriptor.
-    /// Rejects symlinks, unowned directories, and group/other-writable directories.
     static func openSafeDirectory(at path: String, allowCreate: Bool) -> Int32? {
         let fm = FileManager.default
         if !fm.fileExists(atPath: path) {
@@ -710,8 +690,6 @@ enum CacheSecurity {
         return fd
     }
 
-    /// Opens a subdirectory inside parentFD with O_NOFOLLOW.
-    /// Rejects symlinks, unowned directories, and group/other-writable directories.
     static func openSubdirectory(in parentFD: Int32, name: String, allowCreate: Bool) -> Int32? {
         guard !name.isEmpty, name != ".", name != "..", !name.contains("/") else {
             return nil
@@ -744,7 +722,6 @@ enum CacheSecurity {
     }
 
 
-    /// Writes data atomically into parentFD using a temporary file and renameat.
     static func writeAtomicFile(in parentFD: Int32, filename: String, data: Data) -> Bool {
         guard !filename.isEmpty, filename != ".", filename != "..", !filename.contains("/") else {
             return false
@@ -782,8 +759,6 @@ enum CacheSecurity {
         return true
     }
 
-    /// Verifies that a directory and all its contents recursively contain no symlinks,
-    /// and are owned by the current process euid with no group/other-writable permissions.
     static func verifyNoSymlinksRecursively(dirFD: Int32) -> Bool {
         let dupFD = dup(dirFD)
         guard dupFD >= 0 else { return false }
@@ -825,7 +800,6 @@ enum CacheSecurity {
         return true
     }
 
-    /// Removes an entry (file, symlink, or directory) safely without following symlinks.
     static func removeEntryIfPresent(in parentFD: Int32, name: String) {
         var st = stat()
         guard fstatat(parentFD, name, &st, AT_SYMLINK_NOFOLLOW) == 0 else {
@@ -879,10 +853,6 @@ enum CacheSecurity {
         }
     }
 
-    /// Validates that `relativePath` is fully contained within `cacheRootFD`, traverses intermediate
-    /// directories with `O_NOFOLLOW`, rejects any intermediate or final symlinks, verifies owner/mode,
-    /// and ensures the actual filesystem kind matches `expectedKind`.
-    /// Returns the verified canonical source path if valid, or `nil` if rejected.
     static func validateContainedArtifactPath(
         cacheRootFD: Int32,
         cachePath: String,
@@ -906,7 +876,6 @@ enum CacheSecurity {
             }
         }
 
-        // Traverse intermediate directories with O_NOFOLLOW
         if components.count > 1 {
             for comp in components.dropLast() {
                 let nextFD = openat(currentFD, comp, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
@@ -927,7 +896,6 @@ enum CacheSecurity {
         guard fstatat(currentFD, lastComp, &st, AT_SYMLINK_NOFOLLOW) == 0 else {
             return nil
         }
-        // Reject any symlink
         guard (st.st_mode & mode_t(S_IFMT)) != mode_t(S_IFLNK) else {
             return nil
         }

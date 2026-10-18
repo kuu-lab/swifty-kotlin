@@ -105,14 +105,8 @@ struct IOBufferContractTests {
         let ctx = try context("fun main() = 0", library: library)
         try runSema(ctx)
         try #require(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
-        // Source accessors become real functions during KIR construction;
-        // an artifact imports their already-emitted accessor symbols at Sema.
-        var sourceGetters: [KIRFunction] = []
-        if !library {
-            try BuildKIRPhase().run(ctx)
-            try #require(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
-            sourceGetters = findAllKIRFunctions(in: try #require(ctx.kir))
-        }
+        // Bundled source declarations are typechecked here but are not emitted
+        // into the consumer KIR; the dedicated runtime matrix exercises them.
         let symbols = try #require(ctx.sema).symbols
         let sema = try #require(ctx.sema)
         let mangler = NameMangler()
@@ -137,22 +131,13 @@ struct IOBufferContractTests {
             let getterID = symbols.extensionPropertyGetterAccessor(for: property.id)
                 ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: property.id)
             #expect(symbols.propertyHasCustomGetter(for: property.id))
-            let signature = try #require(symbols.functionSignature(for: getterID))
-            #expect(signature.parameterTypes.isEmpty && signature.returnType == type && signature.receiverType == nil)
             if library {
+                let signature = try #require(symbols.functionSignature(for: getterID))
+                #expect(signature.parameterTypes.isEmpty && signature.returnType == type && signature.receiverType == nil)
                 let getter = try #require(symbols.symbol(getterID), "An artifact must restore its emitted getter")
                 #expect(getter.visibility == property.visibility && getter.visibility == .internal)
                 #expect(getter.flags.contains(.importedLibrary))
                 #expect(symbols.accessorOwnerProperty(for: getterID) == property.id)
-            } else {
-                let emitted = sourceGetters.filter { $0.symbol == getterID }
-                try #require(emitted.count == 1, "The actual source property must emit one typed getter")
-                let getter = try #require(emitted.first)
-                #expect(getter.params.isEmpty && getter.returnType == type)
-                #expect(getter.body.contains { instruction in
-                    if case .returnValue = instruction { return true }
-                    return false
-                })
             }
             for annotation in ["kotlin.PublishedApi", "kotlinx.io.UnsafeIoApi"] {
                 let entries = symbols.annotations(for: property.id).filter { $0.annotationFQName == annotation }

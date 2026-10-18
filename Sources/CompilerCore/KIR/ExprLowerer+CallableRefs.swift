@@ -1,8 +1,3 @@
-/// Callable-reference lowering used by `ExprLowerer.lowerExpr`:
-/// bound and unbound member references, including class literal
-/// (`KClass`) targets.
-///
-/// Split out from `ExprLowerer+ControlFlowAndBlocks.swift`.
 extension ExprLowerer {
     func lowerCallableRefExpr(
         receiverExpr: ExprID?,
@@ -16,7 +11,6 @@ extension ExprLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        // T::class  — emit a KClass metadata object via kk_kclass_create.
         // When used as `T::class.simpleName`, the memberCall lowerer
         // intercepts and emits a direct kk_type_token_simple_name call
         // instead.  For standalone `T::class` (assigned to a variable,
@@ -39,7 +33,6 @@ extension ExprLowerer {
             }
             let intType = sema.types.make(.primitive(.int, .nonNull))
 
-            // 1. Emit the type token.
             let tokenExpr: KIRExprID
             if boundReceiver == nil,
                case let .typeParam(typeParam) = sema.types.kind(of: classRefTargetType) {
@@ -52,7 +45,6 @@ extension ExprLowerer {
                 instructions.append(.constValue(result: tokenExpr, value: .intLiteral(encoded)))
             }
 
-            // 2. Emit the name-hint.
             // kk_kclass_create ABI expects (Int, Int) — both parameters are
             // intptr_t.  The name hint is either a runtime string pointer
             // (passed as an int-typed string literal that codegen materialises
@@ -69,7 +61,6 @@ extension ExprLowerer {
                 instructions.append(.constValue(result: nameHintExpr, value: .intLiteral(0)))
             }
 
-            // 3. Call kk_kclass_create to produce a KClass metadata object.
             // Prefer the sema-bound KClass<T> type and fall back to
             // KClass<classRefTargetType> so the result always carries the
             // precise generic parameter instead of degrading to Any.

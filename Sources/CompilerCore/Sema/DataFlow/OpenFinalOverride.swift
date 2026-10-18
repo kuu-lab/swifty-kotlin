@@ -1228,6 +1228,7 @@ extension DataFlowSemaPhase {
                       candidate.fqName == owner.fqName + [candidate.name],
                       candidate.kind == .function,
                       candidate.name == memberName,
+                      isInheritedMember(candidate, from: owner),
                       !candidate.flags.contains(.extensionMemberAlias)
                 else { continue }
 
@@ -1605,6 +1606,10 @@ extension DataFlowSemaPhase {
         let ownerIsInterface: Bool
     }
 
+    private func isInheritedMember(_ member: SemanticSymbol, from owner: SemanticSymbol) -> Bool {
+        owner.kind != .interface || member.visibility != .private
+    }
+
     private func findInheritedMember(
         named memberName: InternedString,
         for classSymbol: SymbolID,
@@ -1625,6 +1630,7 @@ extension DataFlowSemaPhase {
                 }
                 guard child.fqName == sym.fqName + [child.name] else { continue }
                 guard !child.flags.contains(.extensionMemberAlias) else { continue }
+                guard isInheritedMember(child, from: sym) else { continue }
                 let isMatch = child.kind == .function
                     || child.kind == .property
                 guard isMatch, child.name == memberName else {
@@ -1700,6 +1706,7 @@ extension DataFlowSemaPhase {
             var foundAtThisLevel = false
             for childID in symbols.children(ofFQName: sym.fqName) {
                 guard let child = symbols.symbol(childID) else { continue }
+                guard isInheritedMember(child, from: sym) else { continue }
                 let isMatch = child.kind == .function || child.kind == .property
                 if isMatch, child.name == memberName {
                     results.append(OFOInheritedMember(
