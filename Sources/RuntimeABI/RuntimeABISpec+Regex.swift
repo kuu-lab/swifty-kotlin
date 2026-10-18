@@ -1,6 +1,5 @@
 // swiftlint:disable file_length
 
-/// `RuntimeABISpec.regexFunctions` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
     static let regexFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
@@ -91,7 +90,6 @@ public extension RuntimeABISpec {
             section: "Regex",
             isThrowing: false
         ),
-        // STDLIB-TEXT-FN-105: String.toRegex(option) / String.toRegex(options)
         RuntimeABIFunctionSpec(
             name: "__kk_string_toRegex_with_option_flat",
             parameters: [
@@ -130,7 +128,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Regex"
         ),
-        // KSP-486: raw regex data bridges backing the Kotlin Regex accessors.
         RuntimeABIFunctionSpec(
             name: "__kk_regex_pattern",
             parameters: [
@@ -149,7 +146,6 @@ public extension RuntimeABISpec {
             section: "Regex",
             isThrowing: false
         ),
-        // STDLIB-351: Regex.replace lambda / STDLIB-350: Regex.matchEntire
         RuntimeABIFunctionSpec(
             name: "__kk_regex_replace_lambda",
             parameters: [
@@ -175,7 +171,6 @@ public extension RuntimeABISpec {
             section: "Regex",
             isThrowing: false
         ),
-        // STDLIB-480: Regex(pattern, option) constructor
         RuntimeABIFunctionSpec(
             name: "__kk_regex_create_with_option_flat",
             parameters: [
@@ -189,7 +184,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Regex"
         ),
-        // STDLIB-480: Regex(pattern, options: Set<RegexOption>) constructor
         RuntimeABIFunctionSpec(
             name: "__kk_regex_create_with_options_flat",
             parameters: [
@@ -203,7 +197,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Regex"
         ),
-        // STDLIB-480: Regex.containsMatchIn(input)
         RuntimeABIFunctionSpec(
             name: "__kk_regex_containsMatchIn_flat",
             parameters: [
@@ -230,7 +223,6 @@ public extension RuntimeABISpec {
             section: "Regex",
             isThrowing: false
         ),
-        // KSP-486: raw match data bridges backing the Kotlin MatchResult layer.
         RuntimeABIFunctionSpec(
             name: "__kk_match_result_group_count",
             parameters: [
@@ -303,8 +295,6 @@ public extension RuntimeABISpec {
             section: "Regex",
             isThrowing: false
         ),
-        // STDLIB-REGEX-094: Regex.matches(input)
-        // STDLIB-REGEX-094: Regex.fromLiteral
         // First param is the Companion object receiver (ignored at runtime).
         RuntimeABIFunctionSpec(
             name: "__kk_regex_from_literal_flat",
@@ -319,7 +309,6 @@ public extension RuntimeABISpec {
             section: "Regex",
             isThrowing: false
         ),
-        // STDLIB-REGEX-094: String.replaceFirst(Regex, replacement)
         RuntimeABIFunctionSpec(
             name: "__kk_string_replaceFirst_regex",
             parameters: [
@@ -331,7 +320,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Regex"
         ),
-        // STDLIB-317: String.asSequence / asIterable
         RuntimeABIFunctionSpec(
             name: "kk_string_asSequence_flat",
             parameters: [
