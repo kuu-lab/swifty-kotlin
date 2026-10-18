@@ -62,6 +62,7 @@ class ReproducibilityTests(unittest.TestCase):
                 path for path in test_inputs
                 if path.relative_to(REPO).as_posix().startswith(original.LOCAL_IO_TEST_PREFIXES)
             )
+            inputs.append(REPO / "Tests/CompilerCoreTests/Sema/SegmentReadContextShapeTests.swift")
             for source in sorted(set(inputs), reverse=True):
                 if not source.is_file() or "__pycache__" in source.parts:
                     continue
