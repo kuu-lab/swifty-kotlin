@@ -37,8 +37,26 @@ private func asyncCancellationBody(_ continuation: Int, _ thrown: UnsafeMutableP
 struct RuntimeAsyncCancellationTests {
     private typealias Entry = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
 
-    @Test(arguments: ["default", "lazy", "atomic", "scopeDefault", "scopeLazy", "scopeAtomic"], [false, true])
-    func cancelBeforeDispatch(mode: String, withContinuation: Bool) throws {
+    @Test(
+        arguments: [
+            ("default", false, 0),
+            ("default", true, 0),
+            ("lazy", false, 0),
+            ("lazy", true, 0),
+            ("atomic", false, 1),
+            ("atomic", true, 1),
+            ("scopeDefault", false, 0),
+            ("scopeDefault", true, 0),
+            ("scopeLazy", false, 0),
+            ("scopeLazy", true, 0),
+            ("scopeAtomic", false, 1),
+            ("scopeAtomic", true, 1),
+        ]
+    )
+    func cancelBeforeDispatch(
+        testCase: (mode: String, withContinuation: Bool, expectedCancellationCount: Int)
+    ) throws {
+        let (mode, withContinuation, expectedCancellationCount) = testCase
         let savedLoop = RuntimeEventLoop.current
         let loop = RuntimeEventLoop()
         RuntimeEventLoop.current = loop
@@ -62,14 +80,14 @@ struct RuntimeAsyncCancellationTests {
         // Exercise cancellation after a LAZY start has enqueued work, too.
         if withContinuation { task.startIfNeeded() }
         _ = kk_job_cancel(handle)
-        let atomic = mode == "atomic" || mode == "scopeAtomic"
-        #expect(task.isCompletedSnapshot() == !atomic)
+        let expectedCompletedBeforeDrain = expectedCancellationCount == 0
+        #expect(task.isCompletedSnapshot() == expectedCompletedBeforeDrain)
         #expect(kk_job_join(handle, 0) == 0)
         let drained = RuntimeCompletionFlag()
         loop.enqueue { drained.set() }
         let didDrain = loop.run(until: { drained.isSet }, deadline: Date().addingTimeInterval(2))
         #expect(didDrain)
-        #expect(asyncCancellationCounter.snapshot() == (atomic ? 1 : 0))
+        #expect(asyncCancellationCounter.snapshot() == expectedCancellationCount)
         #expect(kk_job_is_completed(handle) == 1)
         #expect(kk_job_is_cancelled(handle) == 1)
         let caller = kk_coroutine_continuation_new(9701)
