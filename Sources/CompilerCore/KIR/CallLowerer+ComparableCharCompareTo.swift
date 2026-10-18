@@ -9,9 +9,7 @@
 /// `kk_char_compareTo` reproduces that without changing how the local is
 /// stored (the runtime helper unboxes either representation).
 extension CallLowerer {
-    /// Whether `exprID` reads a non-escaping `Comparable<Char>` local —
-    /// a `nameRef` bound to a member of the escape-analysis set, optionally
-    /// wrapped in `!!` (the null check itself is a non-escaping read).
+    /// Optionally wrapped in `!!` (the null check itself is a non-escaping read).
     private func comparableCharReceiverSymbol(
         _ exprID: ExprID,
         ast: ASTModule,
@@ -84,9 +82,6 @@ extension CallLowerer {
         return result
     }
 
-    /// The `?.compareTo` counterpart of `tryLowerComparableCharCompareTo`:
-    /// emits the same null-guard scaffold the generic safe-call path builds,
-    /// but dispatches the non-null branch through `kk_char_compareTo`.
     /// `loweredReceiverID` must already hold the lowered receiver.
     func tryLowerComparableCharCompareToSafeCall(
         _ exprID: ExprID,

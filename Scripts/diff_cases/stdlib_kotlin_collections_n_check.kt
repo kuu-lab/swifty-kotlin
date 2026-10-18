@@ -1,15 +1,6 @@
-// DIFF_CANDIDATE_ONLY_FROM_SOURCE: JVM kotlinc cannot call these @PublishedApi internal functions
-// from an ordinary consumer module. Compare candidate stdout to this oracle.
-// EXPECT-STDOUT: index:-2147483648 -> ArithmeticException:Index overflow has happened.
-// EXPECT-STDOUT: count:-2147483648 -> ArithmeticException:Count overflow has happened.
-// EXPECT-STDOUT: index:-1 -> ArithmeticException:Index overflow has happened.
-// EXPECT-STDOUT: count:-1 -> ArithmeticException:Count overflow has happened.
-// EXPECT-STDOUT: index:0 -> value:0
-// EXPECT-STDOUT: count:0 -> value:0
-// EXPECT-STDOUT: index:1 -> value:1
-// EXPECT-STDOUT: count:1 -> value:1
-// EXPECT-STDOUT: index:2147483647 -> value:2147483647
-// EXPECT-STDOUT: count:2147483647 -> value:2147483647
+// DIFF_CANDIDATE_ONLY: JVM kotlinc cannot call these @PublishedApi internal functions from an ordinary consumer module.
+// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: stdlib_kotlin_collections_n_check.expected
+// Keep this on the prebuilt stdlib path; source mode re-optimizes the full bundled stdlib for every case.
 @file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
 
 fun main() {

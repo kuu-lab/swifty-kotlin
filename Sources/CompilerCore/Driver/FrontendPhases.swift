@@ -309,8 +309,8 @@ public final class BuildASTPhase: CompilerPhase {
         let allDecls: [DeclID]
     }
 
-    /// Per-arena cache for `collectTokens(from:in:)`.  Cleared between files
-    /// because different `SyntaxArena`s reuse the same `NodeID` space.
+    /// Cleared between files because different `SyntaxArena`s reuse the same
+    /// `NodeID` space.
     var tokenCache: [NodeID: [Token]] = [:]
 
     let diagnostics: DiagnosticEngine?

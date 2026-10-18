@@ -112,11 +112,10 @@ public final class CompilerDriver {
         return options.frontendFlags.contains("incremental")
     }
 
-    /// Cache to use for this run. An explicitly configured path is used as-is
-    /// (it is leaf-validated and integrity-authenticated at load); without one
-    /// the cache lives in the compiler-managed per-user location outside the
-    /// workspace, never next to the output where a repository could ship a
-    /// poisoned `.kswiftk-cache`.
+    /// An explicitly configured path is used as-is (it is leaf-validated and
+    /// integrity-authenticated at load); without one the cache lives in the
+    /// compiler-managed per-user location outside the workspace, never next to
+    /// the output where a repository could ship a poisoned `.kswiftk-cache`.
     private func resolveIncrementalCache(options: CompilerOptions) -> IncrementalCompilationCache? {
         if let explicit = options.incrementalCachePath {
             return IncrementalCompilationCache(cachePath: explicit)
@@ -124,8 +123,6 @@ public final class CompilerDriver {
         return IncrementalCompilationCache.makeDefault(for: options)
     }
 
-    /// Computes fingerprints for loaded sources, determines the incremental
-    /// recompilation set, and restores the cached output for exact no-op builds.
     /// Returns `true` when the rest of the pipeline can be skipped.
     private func prepareIncrementalPipeline(ctx: CompilationContext) -> Bool {
         guard let cache = ctx.incrementalCache else { return false }
@@ -260,7 +257,6 @@ public final class CompilerDriver {
         }
     }
 
-    /// Builds a dependency graph from the current compilation state.
     private func buildDependencyGraph(ctx: CompilationContext) -> DependencyGraph {
         let graph = DependencyGraph()
         guard let sema = ctx.sema, let ast = ctx.ast else {
@@ -366,7 +362,6 @@ public final class CompilerDriver {
         return depended
     }
 
-    /// Extracts the declaration name as a String, if available.
     private func extractDeclName(_ decl: Decl, interner: StringInterner) -> String? {
         switch decl {
         case let .classDecl(d):
@@ -386,7 +381,6 @@ public final class CompilerDriver {
         }
     }
 
-    /// Recursively collects symbol names referenced by a declaration.
     private func collectDeclDependencies(
         declID: DeclID,
         ast: ASTModule,
@@ -1026,7 +1020,6 @@ public final class CompilerDriver {
         }
     }
 
-    /// Collects type reference dependencies.
     private func collectTypeRefDependencies(
         typeRefID: TypeRefID,
         ast: ASTModule,

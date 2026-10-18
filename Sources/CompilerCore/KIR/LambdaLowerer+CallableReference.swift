@@ -167,7 +167,7 @@ extension LambdaLowerer {
                 sourceArgExprsOverride: [],
                 explicitReceiverOverride: receiverOverride,
                 outerReceiverOverride: constructorOuterReceiver,
-                leadingArguments: Array(captureRefs.prefix(localCaptureCount))
+                localFunctionCaptureArguments: Array(captureRefs.prefix(localCaptureCount))
             )
         }
         switch sema.types.kind(of: functionType.returnType) {

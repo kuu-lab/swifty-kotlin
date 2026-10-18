@@ -156,9 +156,9 @@ failure. A local Linux success does not establish Apple or macOS success.
 source files, plus seven inventory-only helpers. A source function ID is distinct
 from a concrete execution ID: inherited factories expand one source function
 into multiple executions, while loops retain all their original parameter values
-inside the unchanged test body. The JVM execution catalog records this expansion.
-The seed map's local test references remain unverified and cannot be counted as
-paired passes. Regenerate it with:
+inside the unchanged test body. The JVM and Native execution catalogs record this
+expansion. The seed map is generated inventory only; its local test references
+remain unverified and cannot be counted as paired passes. Regenerate it with:
 
 ```sh
 python3 Scripts/kotlinx_io_upstream/import_inventory.py \
@@ -167,6 +167,24 @@ python3 Scripts/kotlinx_io_upstream/import_inventory.py \
   --upstream-lock /path/to/io_api_inventory/upstream-lock.json \
   --output Scripts/kotlinx_io_upstream/coverage-map.seed.json
 ```
+
+Reviewed mappings live separately in `coverage-map.verified.json`, so regenerating
+the seed cannot erase verification work. The gate treats every target seed row as
+unmapped until a current verified-map entry promotes it. Each mapping pins the
+upstream commit, source SHA-256 and Git blob ID, lists the original assertions with source lines
+and required observations, and maps every locked JVM/Native execution ID to its
+invocation metadata plus reference and candidate runner results. Required
+observations can include exception type, bytes consumed, Buffer/ByteBuffer state,
+close/flush events, and resource lifecycle. `verify_gate.py audit` overlays a
+mapping only when every expected concrete execution is present exactly once,
+both results are PASS, all assertion and observation links are present, and the
+commit/source hashes still match the lock. A missing invocation, SKIP, expected
+failure, stale hash, unknown ID, or duplicate ID leaves the seed case unmapped.
+New upstream cases from a regenerated seed therefore remain blockers until their
+own complete mappings are reviewed.
+
+The empty checked-in mapping file is intentional: this infrastructure change
+does not claim suite execution evidence for any upstream function.
 
 Apple tests require the macOS CI execution. The seed paired matrix includes all
 680 applicable common/Apple/JVM function IDs as unmapped until assertion-preserving

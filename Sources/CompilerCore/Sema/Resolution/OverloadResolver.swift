@@ -58,11 +58,27 @@ public struct TypeAliasConstructorContext {
     /// Optional source-level result type when an expect declaration gives the
     /// alias a distinct nominal type from its expanded constructor target.
     public let resultType: TypeID?
+    /// The source alias, used for call-site annotations such as opt-in markers.
+    public let typeAliasSymbol: SymbolID?
+    /// The enclosing instance supplied to a member-style inner constructor call.
+    public let innerOuterReceiverType: TypeID?
+    /// Alias parameters that map to the enclosing class's type parameters.
+    public let outerTypeParameterSymbols: [SymbolID]
 
-    public init(typeParameterSymbols: [SymbolID], expandedType: TypeID, resultType: TypeID? = nil) {
+    public init(
+        typeParameterSymbols: [SymbolID],
+        expandedType: TypeID,
+        resultType: TypeID? = nil,
+        typeAliasSymbol: SymbolID? = nil,
+        innerOuterReceiverType: TypeID? = nil,
+        outerTypeParameterSymbols: [SymbolID] = []
+    ) {
         self.typeParameterSymbols = typeParameterSymbols
         self.expandedType = expandedType
         self.resultType = resultType
+        self.typeAliasSymbol = typeAliasSymbol
+        self.innerOuterReceiverType = innerOuterReceiverType
+        self.outerTypeParameterSymbols = outerTypeParameterSymbols
     }
 }
 
@@ -77,8 +93,8 @@ public struct CallExpr {
     /// Explicit member calls must retain their actual receiver type.
     public let boundObjectDispatchReceiverCandidates: Set<SymbolID>
     public let typeAliasConstructor: TypeAliasConstructorContext?
-    /// The surrounding Elvis result type may guide generic inference for its LHS,
-    /// without requiring the nullable call result itself to match that type.
+    /// An Elvis branch's peer or enclosing type may guide generic inference
+    /// without requiring the call result to be a subtype of that type.
     public let elvisLhsExpectedTypeHint: Bool
     /// A non-null Elvis LHS type may fill unresolved RHS call type variables,
     /// without constraining variables already inferred from call inputs.

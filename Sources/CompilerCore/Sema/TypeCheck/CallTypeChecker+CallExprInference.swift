@@ -529,6 +529,36 @@ extension CallTypeChecker {
             locals: locals
         )
 
+        var argumentContextCandidates = candidates
+        var argumentContextReceiverType = callImplicitReceiverType
+        var preInferredCallableCalleeType: TypeID?
+        let isCallChainValueCallee: Bool
+        if let calleeExpr {
+            switch calleeExpr {
+            case .call, .indexedAccess:
+                isCallChainValueCallee = true
+            default:
+                isCallChainValueCallee = false
+            }
+        } else {
+            isCallChainValueCallee = false
+        }
+        // A call whose callee is another call or indexed access can be an
+        // implicit `invoke` chain. Resolve its receiver type before checking
+        // trailing lambdas so the selected operator's parameter supplies their
+        // expected type (including a receiver function type's `this`). Keep
+        // named calls on the ordinary candidate path so constructor and
+        // companion `invoke` precedence remains unchanged.
+        if candidates.isEmpty, calleeName == nil, isCallChainValueCallee {
+            let calleeType = driver.inferExpr(calleeID, ctx: ctx, locals: &locals)
+            let invokeCandidates = implicitInvokeOperatorCandidates(for: calleeType, ctx: ctx)
+            if !invokeCandidates.isEmpty {
+                argumentContextCandidates = invokeCandidates
+                argumentContextReceiverType = calleeType
+                preInferredCallableCalleeType = calleeType
+            }
+        }
+
         var expectedTypeOverrides: [Int: TypeID] = [:]
         var lambdaContextOverrides: [Int: TypeInferenceContext] = [:]
         let argumentDiagnosticsCheckpoint = sema.diagnostics.checkpoint()
@@ -545,7 +575,7 @@ extension CallTypeChecker {
             expectedType: expectedType,
             explicitTypeArgs: argumentContextTypeArgs,
             calleeName: calleeName,
-            candidates: candidates,
+            candidates: argumentContextCandidates,
             withContextExpectedLambdaType: withContextExpectedLambdaType,
             expectedTypeOverrides: &expectedTypeOverrides,
             lambdaContextOverrides: &lambdaContextOverrides
@@ -570,13 +600,13 @@ extension CallTypeChecker {
         let preparedArgs = prepareCallArguments(
             args: args,
             callRange: range,
-            candidates: candidates,
+            candidates: argumentContextCandidates,
             expectedTypeOverrides: expectedTypeOverrides,
             expectedTypeHintIndices: expectedTypeHintIndices,
             contextualCallResultType: ctx.isCallResultDiscarded && ctx.isUnitCoercionContext
                 ? sema.types.unitType : expectedType,
             explicitTypeArgs: argumentContextTypeArgs,
-            receiverType: callImplicitReceiverType,
+            receiverType: argumentContextReceiverType,
             boundObjectDispatchReceiverCandidates: importedObjectDispatchReceiverCandidates(
                 named: calleeName, candidates: candidates, ctx: ctx
             ).union(typeNameCompanionInvokeCandidates),
@@ -645,6 +675,7 @@ extension CallTypeChecker {
         if let inferred = inferCallableValueCall(
             id,
             calleeID: calleeID,
+            preInferredCalleeType: preInferredCallableCalleeType,
             args: args,
             range: range,
             ctx: ctx,

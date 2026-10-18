@@ -189,6 +189,75 @@ struct ConstPropertyEvaluationTests {
     }
 
     @Test
+    func foldsPrimitiveMemberCallsAndAliasedStringConcatenation() throws {
+        let ctx = makeContextFromSources([
+            """
+            package memberConstants.source
+            const val TRUE = true
+            const val TEXT = "source"
+            const val LONG = 5L
+            """,
+            """
+            package memberConstants.consumer
+            import memberConstants.source.TRUE as importedTrue
+            import memberConstants.source.TEXT as importedText
+            import memberConstants.source.LONG as importedLong
+            const val NOT = importedTrue.not()
+            const val AND = importedTrue.and(true)
+            const val OR = false.or(importedTrue)
+            const val XOR = importedTrue.xor(false)
+            const val CHAR_PLUS = 'A'.plus(2)
+            const val CHAR_MINUS = 'z'.minus('a')
+            const val BYTE_PLUS = 120.toByte().plus(10.toByte())
+            const val LONG_PLUS = importedLong.plus(3L)
+            const val LONG_REM = importedLong.rem(3L)
+            const val INT_FLOOR_DIV = (-7).floorDiv(3)
+            const val INT_FLOOR_MOD = (-7).mod(3)
+            const val DOUBLE_FLOOR_MOD = (-7.0).mod(3.0)
+            const val DOUBLE_MOD_ZERO = 1.0.mod(0.0)
+            const val STRING_MEMBER_PLUS = importedText.plus("!")
+            const val STRING_MIXED_MEMBER_PLUS = importedText.plus(5)
+            const val STRING_BINARY_PLUS = importedText + "?"
+            """,
+        ])
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.diagnostics.filter { $0.severity == .error }.isEmpty)
+        let sema = try #require(ctx.sema)
+        let expected: [String: KIRExprKind] = [
+            "NOT": .boolLiteral(false),
+            "AND": .boolLiteral(true),
+            "OR": .boolLiteral(true),
+            "XOR": .boolLiteral(true),
+            "CHAR_PLUS": .charLiteral(67),
+            "CHAR_MINUS": .intLiteral(25),
+            "BYTE_PLUS": .intLiteral(130),
+            "LONG_PLUS": .longLiteral(8),
+            "LONG_REM": .longLiteral(2),
+            "INT_FLOOR_DIV": .intLiteral(-3),
+            "INT_FLOOR_MOD": .intLiteral(2),
+            "DOUBLE_FLOOR_MOD": .doubleLiteral(2),
+            "STRING_MEMBER_PLUS": .stringLiteral(ctx.interner.intern("source!")),
+            "STRING_MIXED_MEMBER_PLUS": .stringLiteral(ctx.interner.intern("source5")),
+            "STRING_BINARY_PLUS": .stringLiteral(ctx.interner.intern("source?")),
+        ]
+        for (name, value) in expected {
+            let symbol = try #require(sema.symbols.lookup(
+                fqName: ["memberConstants", "consumer", name].map { ctx.interner.intern($0) }
+            ))
+            #expect(sema.symbols.constValueExprKind(for: symbol) == value, "Incorrect constant for \(name)")
+        }
+        let zeroDivisorMod = try #require(sema.symbols.lookup(
+            fqName: ["memberConstants", "consumer", "DOUBLE_MOD_ZERO"].map { ctx.interner.intern($0) }
+        ))
+        guard case let .doubleLiteral(doubleModZeroValue) = sema.symbols.constValueExprKind(for: zeroDivisorMod) else {
+            Issue.record("Missing Double modulo-by-zero constant")
+            return
+        }
+        #expect(doubleModZeroValue.isNaN)
+    }
+
+    @Test
     func foldsMixedTypeStringConcatenationConstInitializers() throws {
         let ctx = makeContextFromSource("""
         package mixedStringConstants

@@ -38,7 +38,6 @@ public final class DiagnosticEngine: @unchecked Sendable {
     /// primary range share one bucket keyed by `FileID.invalid`.
     public static let defaultMaxDiagnosticsPerFile = 1_000
 
-    /// Diagnostic code attached to the truncation notice.
     private static let truncationNoticeCode = "KSWIFTK-PIPELINE-0005"
 
     private let lock = NSLock()
@@ -46,7 +45,6 @@ public final class DiagnosticEngine: @unchecked Sendable {
     /// Companion set to `_diagnostics` for O(1) duplicate detection in `emit`.
     /// Holds exactly the same elements; the array preserves emission order.
     private var _emittedDiagnostics: Set<Diagnostic> = []
-    /// Diagnostic codes suppressed at specific source ranges via `@Suppress` annotations.
     /// Key = diagnostic code, Value = set of source ranges where the code is suppressed.
     /// `severity` is nil for names that suppress at any severity; some names
     /// (DEPRECATION vs DEPRECATION_ERROR) only suppress one severity like kotlinc.
@@ -103,16 +101,14 @@ public final class DiagnosticEngine: @unchecked Sendable {
         } == true
     }
 
-    /// Marks the current diagnostic count for `rollback(to:)`.
     public func checkpoint() -> Int {
         lock.lock()
         defer { lock.unlock() }
         return _diagnostics.count
     }
 
-    /// Drops diagnostics emitted after `checkpoint`, for speculative paths
-    /// that re-infer an expression and keep the original diagnostic when the
-    /// retry fails.
+    /// For speculative paths that re-infer an expression and keep the original
+    /// diagnostic when the retry fails.
     public func rollback(to checkpoint: Int) {
         truncate(to: checkpoint)
     }
@@ -120,13 +116,12 @@ public final class DiagnosticEngine: @unchecked Sendable {
     public func emit(_ diagnostic: Diagnostic) {
         lock.lock()
         defer { lock.unlock() }
-        // Check if this diagnostic is suppressed by a @Suppress annotation.
         if let entries = suppressions[diagnostic.code], let diagRange = diagnostic.primaryRange {
             for entry in entries
             where entry.range.contains(diagRange)
                 && (entry.severity == nil || entry.severity == diagnostic.severity)
             {
-                return // Suppressed — do not emit.
+                return
             }
         }
         guard _emittedDiagnostics.insert(diagnostic).inserted else {
@@ -142,16 +137,13 @@ public final class DiagnosticEngine: @unchecked Sendable {
         _diagnosticCountByFile[bucket, default: 0] += 1
     }
 
-    /// Bucket key for the per-file diagnostic limit. Diagnostics without a
-    /// primary range share the `FileID.invalid` bucket.
     private func fileBucket(for diagnostic: Diagnostic) -> FileID {
         diagnostic.primaryRange?.start.file ?? .invalid
     }
 
-    /// Handles a diagnostic dropped because its file bucket hit the limit:
-    /// appends the bucket's single truncation notice, or escalates an existing
-    /// softer notice to `.error` once an error diagnostic is dropped, so a
-    /// compile that lost error diagnostics cannot report success.
+    /// Escalates an existing softer notice to `.error` once an error diagnostic
+    /// is dropped, so a compile that lost error diagnostics cannot report
+    /// success.
     private func recordOverflow(in bucket: FileID, dropping dropped: Diagnostic) {
         if let existing = _truncationNoticeByFile[bucket] {
             guard dropped.severity == .error, existing.severity != .error else {
@@ -244,14 +236,12 @@ public final class DiagnosticEngine: @unchecked Sendable {
     public var noteCount: Int { countDiagnostics { $0.severity == .note } }
     public var infoCount: Int { countDiagnostics { $0.severity == .info } }
 
-    /// Snapshot index for rolling back speculatively emitted diagnostics.
     public var count: Int {
         lock.lock()
         defer { lock.unlock() }
         return _diagnostics.count
     }
 
-    /// Rolls back diagnostics emitted after the snapshot at `snapshotCount`.
     public func truncate(to count: Int) {
         lock.lock()
         defer { lock.unlock() }
@@ -364,9 +354,8 @@ public final class DiagnosticEngine: @unchecked Sendable {
         return rendered
     }
 
-    /// Human-readable label attached to secondary ranges. `Diagnostic` stores
-    /// bare ranges without per-range messages, so the label is derived from the
-    /// diagnostic code.
+    /// `Diagnostic` stores bare ranges without per-range messages, so the label
+    /// is derived from the diagnostic code.
     private func secondaryRangeLabel(for code: String) -> String {
         switch code {
         case "KSWIFTK-SEMA-0003":
@@ -378,7 +367,6 @@ public final class DiagnosticEngine: @unchecked Sendable {
         }
     }
 
-    /// Returns the source line and a caret pointing at the diagnostic start.
     private func sourceSnippet(for location: SourceLocation, sourceManager: SourceManager) -> String? {
         guard !sourceManager.path(of: location.file).isEmpty else {
             return nil
@@ -527,7 +515,6 @@ public final class DiagnosticEngine: @unchecked Sendable {
         """
     }
 
-    /// Prints diagnostics in JSON format to the given output.
     public func printDiagnosticsJSON(to stderr: Bool = true, from sourceManager: SourceManager) {
         let output = renderJSON(sourceManager)
         if stderr {
@@ -560,8 +547,6 @@ public final class DiagnosticEngine: @unchecked Sendable {
             endChar = endLC.column - 1
         }
 
-        // Merge code actions: explicit ones on the diagnostic first, then
-        // fall back to registry defaults.
         var actions = diagnostic.codeActions
         if actions.isEmpty, let descriptor = DiagnosticRegistry.lookup(diagnostic.code) {
             actions = descriptor.codeActions
@@ -580,8 +565,6 @@ public final class DiagnosticEngine: @unchecked Sendable {
             return header + ", \"edits\": [\(editsJSON)] }"
         }.joined(separator: ", ")
 
-        // LSP `relatedInformation` entries for secondary ranges (e.g. overload
-        // candidates or the expected type's declaration site).
         let relatedJSON = diagnostic.secondaryRanges.map { relatedRange in
             let relatedStart = sourceManager.lspPosition(of: relatedRange.start)
             let relatedEnd = sourceManager.lspPosition(of: relatedRange.end)

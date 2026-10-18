@@ -7,19 +7,12 @@ func runFrontendSyntaxPhases(_ context: CompilationContext) throws {
     try BuildASTPhase().run(context)
 }
 
-/// Controls how a frontend-only run responds to diagnostics from intermediate
-/// phases.
 public enum FrontendContinuationPolicy: Sendable {
-    /// Stop after the first phase that emits an error diagnostic.
     case stopOnError
 
-    /// Continue through BuildAST and Sema when Parse emits recoverable errors.
     case continueAfterParseError
 }
 
-/// Result of a frontend-only compilation run used by IDE / language-server
-/// scenarios. Holds the populated `CompilationContext` (AST, Sema, diagnostics)
-/// together with a snapshot of the collected diagnostics.
 public struct FrontendResult {
     public let context: CompilationContext
     public let diagnostics: [Diagnostic]
@@ -31,25 +24,16 @@ public struct FrontendResult {
 }
 
 public extension CompilerDriver {
-    /// Runs only the frontend phases
-    /// (`LoadSources → Lex → Parse → BuildAST → Sema`) without code generation
-    /// or linking. Intended for language-server / editor integrations that need
+    /// Intended for language-server / editor integrations that need
     /// diagnostics and semantic information for open buffers.
     ///
-    /// The returned `CompilationContext` exposes `ast`, `sema`, `sourceManager`
-    /// and `interner`, enabling position-based queries (hover, definition,
-    /// document symbols) on top of the collected diagnostics.
-    ///
     /// - Parameters:
-    ///   - options: Compiler options; `options.inputs` lists the files to analyze.
     ///   - inMemorySources: Optional map of file path → source bytes for unsaved
     ///     editor buffers. Each entry is pre-seeded into the `SourceManager`, so
     ///     `LoadSourcesPhase` (which skips already-registered paths) uses the
     ///     in-memory contents instead of reading from disk.
-    ///   - continuationPolicy: Controls whether recoverable Parse diagnostics
-    ///     still allow BuildAST and Sema to run. The default preserves the
-    ///     fail-fast frontend behavior.
-    /// - Returns: A `FrontendResult` with the populated context and diagnostics.
+    ///   - continuationPolicy: The default preserves the fail-fast frontend
+    ///     behavior.
     func runFrontend(
         options: CompilerOptions,
         inMemorySources: [String: Data] = [:],

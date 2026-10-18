@@ -1,4 +1,3 @@
-/// Pre-interned Kotlin builtin type name strings.
 /// Use this instead of comparing `interner.resolve(x) == "Int"` etc.
 /// Comparison becomes `x == builtinNames.int` which is Int32 == Int32.
 struct BuiltinTypeNames {
@@ -48,7 +47,6 @@ struct BuiltinTypeNames {
         self.null = interner.intern("null")
     }
 
-    /// Resolve an InternedString to a PrimitiveType, or nil if not a primitive.
     func primitiveType(for name: InternedString) -> PrimitiveType? {
         if name == int { return .int }
         if name == long { return .long }
@@ -65,7 +63,6 @@ struct BuiltinTypeNames {
         return nil
     }
 
-    /// Resolve an InternedString to a builtin TypeID (including Any/Unit/Nothing), or nil.
     func resolveBuiltinType(
         _ name: InternedString,
         nullability: Nullability = .nonNull,

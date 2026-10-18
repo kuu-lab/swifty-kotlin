@@ -1,12 +1,28 @@
 extension ControlFlowTypeChecker {
     /// A try expression keeps its try/catch LUB even when finally prevents completion.
     func canCompleteNormally(_ id: ExprID, ctx: TypeInferenceContext) -> Bool {
+        canCompleteNormally(id, inlinedLambda: nil, ctx: ctx)
+    }
+
+    private func canCompleteNormally(
+        _ id: ExprID,
+        inlinedLambda: ExprID?,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        guard let expr = ctx.ast.arena.expr(id) else { return true }
+        if let inlinedLambda, case .returnExpr = expr {
+            if ctx.sema.bindings.functionReturnLambdaPaths[id]?.contains(inlinedLambda) == true {
+                return false
+            }
+            if ctx.sema.bindings.lambdaReturnTargets[id] != nil {
+                return true
+            }
+        }
         if ctx.sema.bindings.exprType(for: id) == ctx.sema.types.nothingType {
             return false
         }
-        guard let expr = ctx.ast.arena.expr(id) else { return true }
         func completes(_ child: ExprID) -> Bool {
-            canCompleteNormally(child, ctx: ctx)
+            canCompleteNormally(child, inlinedLambda: inlinedLambda, ctx: ctx)
         }
         switch expr {
         case let .tryExpr(body, catchClauses, finallyExpr, _):
@@ -32,9 +48,13 @@ extension ControlFlowTypeChecker {
              let .indexedCompoundAssign(_, receiver, indices, value, _):
             return completes(receiver) && indices.allSatisfy(completes) && completes(value)
         case let .call(callee, _, args, _):
-            return completes(callee) && args.allSatisfy { completes($0.expr) }
+            return completes(callee)
+                && args.allSatisfy { completes($0.expr) }
+                && !hasGuaranteedNonCompletingInlineLambda(id, arguments: args, ctx: ctx)
         case let .memberCall(receiver, _, _, args, _):
-            return completes(receiver) && args.allSatisfy { completes($0.expr) }
+            return completes(receiver)
+                && args.allSatisfy { completes($0.expr) }
+                && !hasGuaranteedNonCompletingInlineLambda(id, arguments: args, ctx: ctx)
         case let .safeMemberCall(receiver, _, _, _, _):
             return completes(receiver)
         case let .indexedAccess(receiver, indices, _):
@@ -54,5 +74,41 @@ extension ControlFlowTypeChecker {
         default:
             return true
         }
+    }
+
+    /// An exactly-once or at-least-once inline lambda that always returns from
+    /// its enclosing function makes the call itself non-completing.
+    private func hasGuaranteedNonCompletingInlineLambda(
+        _ call: ExprID,
+        arguments: [CallArgument],
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        guard let binding = ctx.sema.bindings.callBindings[call],
+              let callee = ctx.sema.symbols.symbol(binding.chosenCallee),
+              callee.flags.contains(.inlineFunction),
+              let signature = ctx.sema.symbols.functionSignature(for: binding.chosenCallee)
+        else {
+            return false
+        }
+
+        let invocationEffects = ctx.sema.symbols.contractCallsInPlaceEffects(for: binding.chosenCallee)
+        for (argumentIndex, argument) in arguments.enumerated() {
+            let parameterIndex = binding.parameterMapping[argumentIndex] ?? argumentIndex
+            guard signature.valueParameterSymbols.indices.contains(parameterIndex),
+                  !signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
+                    || signature.valueParameterAllowsNonLocalReturn[parameterIndex],
+                  invocationEffects.contains(where: { effect in
+                      effect.parameterSymbol == signature.valueParameterSymbols[parameterIndex]
+                          && (effect.kind == .exactlyOnce || effect.kind == .atLeastOnce)
+                  }),
+                  case let .lambdaLiteral(_, body, _, _) = ctx.ast.arena.expr(argument.expr)
+            else {
+                continue
+            }
+            if !canCompleteNormally(body, inlinedLambda: argument.expr, ctx: ctx) {
+                return true
+            }
+        }
+        return false
     }
 }

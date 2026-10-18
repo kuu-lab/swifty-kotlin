@@ -36,9 +36,9 @@ struct TypeInferenceContext: CustomStringConvertible {
     let dataFlow: DataFlowAnalyzer
     let interner: StringInterner
     var scope: Scope
-    /// The Elvis LHS call may use an enclosing result type to infer its generic
-    /// return type without checking the call's nullable result against it.
-    var isElvisLhsExpectedTypeHint = false
+    /// An Elvis branch call may use its peer's type to infer generic return
+    /// arguments without requiring the call result to be a subtype of that type.
+    var isElvisBranchExpectedTypeHint = false
     /// A direct generic call on the Elvis RHS may use the LHS's non-null type
     /// to fill type variables that its inputs did not determine.
     var elvisRhsCallResultTypeHint: TypeID?

@@ -134,6 +134,25 @@ preserves other fixture mains. Producer source paths are retired before the
 consumer process starts; producer/consumer cwd, temporary directories and
 incremental/stdlib caches are distinct.
 
+The deprecated `Path.source()` / `Path.sink()` compatibility consumer is
+available independently as `--case deprecated-path-source-sink`. It compares
+the pinned JVM output against source, fresh bundled-stdlib, and independent
+producer/consumer lanes at O0/O2, including explicit return typing, pending
+sink writes, source read-ahead, and the documented file-error types.
+
+KUU-2596's internal `Segment.dataAsByteArray` probe runs only its six lanes,
+checks unsuppressed Kotlin internal visibility on both compilers, and checks
+the pinned JVM method's `(Z)[B` descriptor and public/final/synthetic flags:
+
+```sh
+python3 Scripts/io_api_inventory/run_f02_matrix.py \
+  --case segment-data-as-byte-array \
+  --separate-cases \
+  --compiler .build/debug/kswiftc --output /tmp/kuu-2596-f02 \
+  --kotlin-home /path/to/kotlinc-2.3.10 --java /path/to/java21/bin/java \
+  --dependencies /path/to/locked-io-jars
+```
+
 Every selected lane is attempted after a lane failure, and each failure retains
 its raw diagnostic or output difference. The original Apple test module is run
 separately: its test-only helpers occupy real stdlib packages and can conflict
@@ -256,8 +275,10 @@ available; every downloaded artifact is SHA-256 checked before success.
 
 `api-validation-evidence.json` is an independent, versioned input to the
 generator. Add one record per API `row_id`; do not promote `status` by editing
-`api-inventory.tsv`. To get the current implementation/test hashes, required
-obligations, and exact execution lanes for a row, run:
+`api-inventory.tsv`. Schema v2 keeps the upstream-catalog evidence route and
+adds a registered local-probe route. Schema v1 records remain readable as
+upstream-catalog records. To get the current implementation/test hashes,
+required obligations, and exact execution lanes for a row, run:
 
 ```sh
 python3 Scripts/io_api_inventory/generate.py --show-input-hashes klib-4d280feb368bb149
@@ -270,25 +291,53 @@ reference/candidate `execution_id`, `result`, and `exit_code`. A row is rendered
 as `verified` only if every required lane has a passing reference and candidate
 result with exit code zero.
 
-The obligations follow the ledger representation: JVM ABI rows require only
-`jvm-descriptor`. Other rows require both `native-source` and `native-bridge`.
-The native-source obligation covers `source-O0`, `source-O2`,
-`stdlib-library-O0`, and `stdlib-library-O2`; the native-bridge obligation
-covers `producer-consumer-O0` and `producer-consumer-O2`. A paired JVM ABI row
-does not inherit native results, and a source row does not inherit JVM
-descriptor evidence.
+Schema v2 records set `evidence_source` to `upstream-catalog` or `local-probe`.
+The upstream route retains the locked JVM/Native execution catalog checks. The
+local route accepts only case IDs registered in `generate.py`, mapped to that
+row's exact `local_test_refs`, allowed evidence methods, and required lanes.
+Local results also state their `method`; their deterministic execution IDs bind
+the candidate SHA, pinned reference commit, case ID, lane, and side. The F02
+summary includes these records under `local_probe_executions`. For the JVM ABI
+row, the pinned reference is checked by JVM reflection and the candidate side
+checks the local declaration's source metadata, since KSwiftK emits native
+artifacts rather than JVM bytecode.
+
+Local evidence must cover every registered case and every lane for that row.
+For `Segment.dataAsByteArray`, native rows require both the backing-view probe
+and the cross-module visibility probe in all six native lanes; the JVM ABI row
+requires the descriptor reflection probe and local source-metadata assertion.
+The local probes' bytes and the referenced upstream tests remain part of the
+row's test input hash, so edits invalidate prior evidence.
+
+The obligations follow the ledger representation: JVM ABI rows require
+`jvm-descriptor`, except the three ByteString `indexOf$default` bridge rows,
+which also require `native-source`. Other rows require both `native-source`
+and `native-bridge`. The native-source obligation covers `source-O0`,
+`source-O2`, `stdlib-library-O0`, and `stdlib-library-O2`; the native-bridge
+obligation covers `producer-consumer-O0` and `producer-consumer-O2`. A paired
+JVM ABI row does not inherit native results, and a source row does not inherit
+JVM descriptor evidence.
+
+For the three `indexOf$default` rows, the native lanes verify the candidate's
+underlying defaulted operation. The report
+`probe-results/kuu-2618-indexof-jvm-abi.json` independently checks the pinned
+JVM reference classfile's exact overload descriptors, flags, mask, marker, and
+mapping to the Kotlin source declaration. KSwiftK currently emits native code;
+the reference classfile probe therefore does not claim candidate JVM classfile
+ABI. The report, probe, source metadata, upstream test index, and focused test
+inputs participate in the row's input hash and are checked during regeneration.
 
 The generator rejects unknown or duplicate row IDs, malformed hashes, a
 different reference pin, stale implementation/test inputs, non-passing or
-unrun executions, duplicate cases, and missing or unrelated lanes. The case ID
-must match a method-specific upstream test reference for that row;
-`#suite-reference` discovery metadata cannot authorize an arbitrary case from
-the same file. Both execution IDs must map to the same case in the locked JVM
-and Native execution catalogs. A manual status edit is discarded when outputs
-are regenerated. `--write` changes only the three generated ledger output files
-and reads the evidence file without rewriting it. `--check` verifies upstream
-snapshots, the test index lock, negative guards, evidence, any execution
-catalogs used by evidence, and byte-for-byte output without modifying files.
+unrun executions, duplicate cases, and missing or unrelated lanes. Upstream
+case IDs must be referenced by that row's upstream tests, and both execution
+IDs must map to the same case in the locked JVM and Native execution catalogs.
+Local case IDs must match the reviewed probe registry and the row's local test
+references. A manual status edit is discarded when outputs are regenerated.
+`--write` changes only the three generated ledger output files and reads the
+evidence file without rewriting it. `--check` verifies upstream snapshots, the
+test index lock, negative guards, evidence, any execution catalogs used by
+evidence, and byte-for-byte output without modifying files.
 
 ```sh
 python3 Scripts/io_api_inventory/test_validation_evidence.py

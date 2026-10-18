@@ -1,10 +1,5 @@
-/// `typeOf<T>()` lowering plus KClass / annotation metadata
-/// registration emit-time helpers.
-///
-/// Split out from `CallLowerer.swift`.
 extension CallLowerer {
     /// Lowers `typeOf<T>()` calls to `kk_typeof(typeToken, nameHint, argsRaw, isNullable)`.
-    /// Returns nil if the expression is not a typeOf call.
     func lowerTypeOfCallExpr(
         _ exprID: ExprID,
         calleeExpr: ExprID,
@@ -26,13 +21,11 @@ extension CallLowerer {
         case let .nameRef(name, _):
             guard name == knownNames.typeOf else { return nil }
         case let .memberCall(_, member, _, _, _):
-            // Fully-qualified `kotlin.reflect.typeOf<T>()` (KSP-1323).
             guard member == knownNames.typeOf else { return nil }
         default:
             return nil
         }
 
-        // Resolve the type argument from the call binding.
         let callBinding = sema.bindings.callBindings[exprID]
         let typeArg: TypeID
         if let binding = callBinding,
@@ -40,7 +33,6 @@ extension CallLowerer {
         {
             typeArg = binding.substitutedTypeArguments[0]
         } else {
-            // Fallback: typeOf<T>() with no resolved type argument defaults to Any.
             typeArg = sema.types.anyType
         }
 
@@ -241,8 +233,6 @@ extension CallLowerer {
         return result
     }
 
-    /// Emits a `__kk_kclass_register_metadata` call so that `KClass` reflection
-    /// queries (`.members`, `.constructors`, etc.) return correct data.
     /// This mirrors `ObjectLiteralLowerer.registerKClassMetadata` but is used
     /// for regular class constructor invocations.
     func emitKClassMetadataRegistration(
@@ -356,7 +346,6 @@ extension CallLowerer {
             sema: sema, arena: arena, interner: interner, instructions: &instructions
         )
 
-        // STDLIB-REFLECT-065: Register annotations for this type.
         emitKClassAnnotationRegistration(
             objectSymbol: objectSymbol,
             typeTokenExpr: typeTokenExpr,
