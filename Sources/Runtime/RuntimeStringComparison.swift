@@ -1,6 +1,3 @@
-// Generic value comparison (kk_compare_any) and its helpers.
-// Split out from `RuntimeStringStdlib.swift`.
-
 import RuntimeABI
 
 @_cdecl("kk_compare_any")
