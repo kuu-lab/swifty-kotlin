@@ -19,34 +19,6 @@ internal external fun kk_max_double(a: Double, b: Double): Double
 // now parsed correctly, so the upstream stdlib's documentation-only labels
 // (`acc:`, `index:`) are restored below.
 //
-// BUG-175: none of the functions here return a bare, unbounded generic `R`
-// inferred from a nullable-returning (`R?`) lambda body shaped like
-// `{ x -> if (cond) y else null }` without an explicit type argument or
-// expected type at the call site — mapNotNull/firstNotNullOf/
-// firstNotNullOfOrNull hit "Type constraint could not be satisfied" with
-// that exact (very common) call shape and stay Swift-side too. The
-// already-shipped `List<T>.mapNotNull` (two type parameters, `T` fixed from
-// the receiver) is unaffected, so this looks specific to inferring a *lone*
-// type parameter purely from a nullable lambda return. See TODO.md BUG-175
-// for the minimal repro.
-//
-// BUG-176: map/mapIndexed stay Swift-side (RuntimeStringHOF.swift) — NOT
-// because of BUG-174, but because a bundled function of shape
-// `fun <R> X.f(transform: (Char) -> R): List<R>` silently returns the WRONG
-// VALUES (raw unboxed scalars instead of boxed elements, e.g.
-// `"abc".map { it }` prints `[97, 98, 99]` instead of `[a, b, c]`) whenever
-// `R` resolves concretely to `Char` or `Boolean` (confirmed both by
-// inference and by explicit `<Char>` type argument; `<Any>` at the same
-// call site is unaffected). The bug reproduces with ANY receiver type
-// (String, CharArray — not String-specific) and is isolated to storing the
-// transform's result into a `List<R>`: the identical accumulator shape
-// (`fold`/`reduce`, where `R` is returned bare rather than stored in a
-// list) is unaffected. This is silent data corruption, not a compile/link
-// failure, so unlike BUG-174 it cannot be avoided by a source-level
-// workaround in this file (the bad unbox is baked into the lambda's own
-// compiled body by ABI lowering, before `map` ever sees the value). See
-// TODO.md BUG-176 for the minimal repro.
-//
 // CharSequence-receiver functions read the interface property directly. The
 // compiler preserves the receiver's runtime representation at the interface
 // boundary and dispatches `length` through the CharSequence itable, so the
@@ -54,9 +26,6 @@ internal external fun kk_max_double(a: Double, b: Double): Double
 // CharSequence classes. Other CharSequence operations retain their own
 // runtime/itable contracts.
 
-/**
- * Returns the range of valid character indices for this char sequence.
- */
 public val CharSequence.indices: IntRange
     get() = 0..length - 1
 
@@ -74,9 +43,6 @@ private class CharSequenceCharIterator(
     }
 }
 
-/**
- * Returns an iterator over the characters of this char sequence.
- */
 public operator fun CharSequence.iterator(): CharIterator = CharSequenceCharIterator(this)
 
 // KSP-1395: Regex's runtime bridge currently accepts String input. Materialize
@@ -95,18 +61,10 @@ internal fun charSequenceRegexInputForReplace(value: CharSequence): String {
     return StringBuilder().append(chars).toString()
 }
 
-/**
- * Returns a new string obtained by replacing all matches of [regex] in this
- * char sequence with [replacement].
- */
 @kotlin.internal.InlineOnly
 public inline fun CharSequence.replace(regex: Regex, replacement: String): String =
     regex.replace(charSequenceRegexInputForReplace(this), replacement)
 
-/**
- * Returns a new string obtained by replacing all matches of [regex] in this
- * char sequence with the value returned by [replacement].
- */
 @kotlin.internal.InlineOnly
 public inline fun CharSequence.replace(
     regex: Regex,
@@ -129,18 +87,10 @@ public inline fun CharSequence.replace(
     return result.toString()
 }
 
-/**
- * Returns a new string with the first match of [regex] replaced by
- * [replacement].
- */
 @kotlin.internal.InlineOnly
 public inline fun CharSequence.replaceFirst(regex: Regex, replacement: String): String =
     regex.replaceFirst(charSequenceRegexInputForReplace(this), replacement)
 
-/**
- * Returns a copy of this char sequence with the specified index range
- * replaced by [replacement]. The end index is exclusive.
- */
 public fun CharSequence.replaceRange(
     startIndex: Int,
     endIndex: Int,
@@ -162,10 +112,6 @@ public fun CharSequence.replaceRange(
     return result
 }
 
-/**
- * Returns a copy of this char sequence with the specified inclusive range
- * replaced by [replacement].
- */
 public fun CharSequence.replaceRange(range: IntRange, replacement: CharSequence): CharSequence =
     replaceRange(range.start, range.endInclusive + 1, replacement)
 
@@ -378,17 +324,10 @@ public inline fun <R, C : MutableCollection<in R>> CharSequence.mapTo(
     return destination
 }
 
-/**
- * Returns a single list of all elements yielded from results of [transform] function being invoked on each character of original char sequence.
- */
 public inline fun <R> CharSequence.flatMap(transform: (Char) -> Iterable<R>): List<R> {
     return flatMapTo(ArrayList<R>(), transform)
 }
 
-/**
- * Returns a single list of all elements yielded from results of [transform] function being invoked on each character
- * and its index in the original char sequence.
- */
 @SinceKotlin("1.4")
 @OptIn(kotlin.experimental.ExperimentalTypeInference::class)
 @OverloadResolutionByLambdaReturnType
@@ -398,10 +337,6 @@ public inline fun <R> CharSequence.flatMapIndexed(transform: (index: Int, Char) 
     return flatMapIndexedTo(ArrayList<R>(), transform)
 }
 
-/**
- * Appends all elements yielded from results of [transform] function being invoked on each character
- * and its index in the original char sequence, to the given [destination].
- */
 @SinceKotlin("1.4")
 @OptIn(kotlin.experimental.ExperimentalTypeInference::class)
 @OverloadResolutionByLambdaReturnType
@@ -422,9 +357,6 @@ public inline fun <R, C : MutableCollection<in R>> CharSequence.flatMapIndexedTo
     return destination
 }
 
-/**
- * Appends all elements yielded from results of [transform] function being invoked on each character of original char sequence, to the given [destination].
- */
 @IgnorableReturnValue
 public inline fun <R, C : MutableCollection<in R>> CharSequence.flatMapTo(
     destination: C,
@@ -440,9 +372,9 @@ public inline fun <R, C : MutableCollection<in R>> CharSequence.flatMapTo(
     return destination
 }
 
-// KSP-1378: CharSequence indexed default accessors are source-backed. Keep
-// the bounds check and indexed interface dispatch in the inline body so
-// custom CharSequence implementations observe the Kotlin contract.
+// KSP-1378: Keep the bounds check and indexed interface dispatch in the
+// inline body so custom CharSequence implementations observe the Kotlin
+// contract.
 @kotlin.internal.InlineOnly
 @OptIn(ExperimentalContracts::class)
 public inline fun CharSequence.getOrElse(index: Int, defaultValue: (Int) -> Char): Char {
@@ -585,9 +517,6 @@ public fun CharSequence.none(predicate: (Char) -> Boolean): Boolean {
     return true
 }
 
-/**
- * Returns the length of this char sequence.
- */
 @kotlin.internal.InlineOnly
 public inline fun CharSequence.count(): Int {
     return length
@@ -889,9 +818,8 @@ public inline fun <R> CharSequence.foldRightIndexed(initial: R, operation: (inde
     return accumulator
 }
 
-// KSP-1387: CharSequence max-family APIs are source-backed. Keep the
-// floating-point overloads on the shared numeric helpers so NaN and signed-zero
-// ordering stays aligned with Kotlin's maxOf semantics.
+// KSP-1387: Keep the floating-point overloads on the shared numeric helpers so
+// NaN and signed-zero ordering stays aligned with Kotlin's maxOf semantics.
 @SinceKotlin("1.7")
 @kotlin.jvm.JvmName("maxOrThrow")
 @Suppress("CONFLICTING_OVERLOADS")
@@ -1127,9 +1055,9 @@ public inline fun CharSequence.forEachIndexed(action: (index: Int, Char) -> Unit
     }
 }
 
-// KSP-1388: CharSequence min-family APIs are source-backed. Keep the indexed
-// walk in Kotlin so String, StringBuilder, and user-defined CharSequence
-// implementations use the interface's length/get contract.
+// KSP-1388: Keep the indexed walk in Kotlin so String, StringBuilder, and
+// user-defined CharSequence implementations use the interface's length/get
+// contract.
 @SinceKotlin("1.7")
 @kotlin.jvm.JvmName("minOrThrow")
 @Suppress("CONFLICTING_OVERLOADS")
@@ -1433,10 +1361,9 @@ public inline fun <R> CharSequence.scanIndexed(initial: R, operation: (index: In
     return runningFoldIndexed(initial, operation)
 }
 
-// KSP-1366: CharSequence association functions are source-backed. The
-// explicit index walk keeps CharSequence receiver dispatch and the source
-// implementation visible to the compiler while matching the standard map
-// capacity and dynamic length behavior.
+// KSP-1366: The explicit index walk keeps CharSequence receiver dispatch and
+// the source implementation visible to the compiler while matching the
+// standard map capacity and dynamic length behavior.
 @Suppress("UNCHECKED_CAST")
 public inline fun <K, V> CharSequence.associate(transform: (Char) -> Pair<K, V>): Map<K, V> {
     val result = LinkedHashMap<K, V>(mapCapacity(this.length).coerceAtLeast(16))
@@ -1551,9 +1478,8 @@ public inline fun <V, M : MutableMap<in Char, in V>> CharSequence.associateWithT
     return destination
 }
 
-// KSP-1379: CharSequence grouping functions are source-backed. The explicit
-// index walk preserves the source receiver contract while avoiding iterator
-// inference gaps in the bundled compiler.
+// KSP-1379: The explicit index walk preserves the source receiver contract
+// while avoiding iterator inference gaps in the bundled compiler.
 @Suppress("UNCHECKED_CAST")
 public inline fun <K> CharSequence.groupBy(keySelector: (Char) -> K): Map<K, List<Char>> {
     val result = mutableMapOf<K, MutableList<Char>>()
@@ -1642,8 +1568,6 @@ public inline fun <K, V, M : MutableMap<in K, MutableList<V>>> CharSequence.grou
     return destination
 }
 
-// KSP-1380: CharSequence.groupingBy is source-backed. Mirrors the upstream
-// object-expression Grouping adapter over CharSequence.iterator().
 @SinceKotlin("1.1")
 public inline fun <K> CharSequence.groupingBy(crossinline keySelector: (Char) -> K): Grouping<Char, K> {
     val source = this
