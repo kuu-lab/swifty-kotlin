@@ -1,11 +1,8 @@
 package kotlin.text
 
-// CharSequence.chunked(size, transform) / .windowed(size, step, partialWindows, transform) —
-// the List<R>-returning overloads, as opposed to the already-migrated chunkedSequence /
-// windowedSequence — are bundled Kotlin source rather than native ABI bridges. The public
-// chunked overload is self-contained because forwarding its function parameter to another
-// generic bundled-source function currently has a KIR reachability gap. The windowed trailing-
-// lambda path retains a uniquely named helper while that legacy route remains.
+// The public chunked overload is self-contained because forwarding its function parameter to
+// another generic bundled-source function currently has a KIR reachability gap. The windowed
+// trailing-lambda path retains a uniquely named helper while that legacy route remains.
 // Indices use the CharSequence.length interface property so that String and other
 // CharSequence implementations observe their character count without materializing the
 // receiver.
@@ -47,9 +44,8 @@ internal fun <R> CharSequence.kswiftkWindowedTransform(
     return result
 }
 
-// CharSequence chunked/windowed/zip APIs are implemented in bundled Kotlin
-// source. Character indices use the receiver's length and indexed access so
-// that UTF-8 storage details do not leak into the public Kotlin behavior.
+// Character indices use the receiver's length and indexed access so that UTF-8
+// storage details do not leak into the public Kotlin behavior.
 
 private fun charSequenceWindow(source: CharSequence, start: Int, end: Int): String =
     source.subSequence(start, end).toString()
