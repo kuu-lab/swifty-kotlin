@@ -92,7 +92,6 @@ public func kk_job_start(_ jobHandle: Int) -> Int {
     return 0
 }
 
-/// Waits for completion, except for the always-active NonCancellable singleton.
 @_cdecl("kk_job_join")
 public func kk_job_join(
     _ jobHandle: Int,
@@ -131,9 +130,6 @@ private func runtimeJoinJob(_ jobHandle: Int, _ continuation: Int) -> Int {
         break
     }
 
-    // CORO-004: suspend-aware join. Register a resumer and suspend when the job/task is
-    // still running.
-    //
     // NOTE: `join()`/`await()` must NOT release the handle's original passRetained here.
     // Kotlin code routinely keeps using a Job/Deferred reference after joining it (e.g.
     // `job.join(); println(job.isCancelled)`), so treating join as "the final use" and
@@ -187,7 +183,6 @@ private func runtimeJoinJob(_ jobHandle: Int, _ continuation: Int) -> Int {
     return result
 }
 
-/// Await job completion using the same wait path as join().
 @_cdecl("kk_job_await_completion")
 public func kk_job_await_completion(
     _ jobHandle: Int,
@@ -198,7 +193,6 @@ public func kk_job_await_completion(
 }
 
 
-/// Cancel a child handle (RuntimeJobHandle or RuntimeAsyncTask).
 func runtimeCancelChild(_ handle: Int) {
     // Completed children can have been released by their scope while an
     // ancestor still holds the raw hierarchy entry. Resolve liveness first.
@@ -209,7 +203,6 @@ func runtimeCancelChild(_ handle: Int) {
     }
 }
 
-/// Join a child handle (RuntimeJobHandle or RuntimeAsyncTask). Returns the result.
 func runtimeJoinChild(_ handle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
         return 0
@@ -226,7 +219,6 @@ func runtimeJoinChild(_ handle: Int) -> Int {
 }
 
 
-/// Cancel a job handle from user code (e.g. `job.cancel()`).
 @_cdecl("kk_job_cancel")
 public func kk_job_cancel(_ jobHandle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle) else {
@@ -251,7 +243,6 @@ public func kk_job_cancel(_ jobHandle: Int) -> Int {
     return 0
 }
 
-/// Cancel a job with an explicit cause.
 @_cdecl("kk_job_cancel_with_cause")
 public func kk_job_cancel_with_cause(_ jobHandle: Int, _ cause: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle) else {
@@ -271,7 +262,6 @@ public func kk_job_cancel_with_cause(_ jobHandle: Int, _ cause: Int) -> Int {
     return 0
 }
 
-/// Cancel any `CoroutineContext`-like raw value by finding its Job and cancelling it.
 /// The optional cause is accepted for API compatibility, but the current runtime
 /// cancellation model is flag-based and does not preserve a custom cause.
 @_cdecl("kk_context_cancel")
@@ -285,13 +275,12 @@ public func kk_context_cancel(_ contextRaw: Int, _ causeRaw: Int) -> Int {
     return 0
 }
 
-/// Convenience overload for `CoroutineContext.cancel()` calls that omit a cause.
 @_cdecl("kk_context_cancel_no_cause")
 public func kk_context_cancel_no_cause(_ contextRaw: Int) -> Int {
     kk_context_cancel(contextRaw, 0)
 }
 
-/// Mark a job as completed with a result. Returns 1 if the transition succeeded.
+/// Returns 1 if the transition succeeded.
 @_cdecl("kk_job_complete")
 public func kk_job_complete(_ jobHandle: Int, _ value: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle) else {
@@ -314,7 +303,7 @@ public func kk_job_complete_unit(_ jobHandle: Int) -> Int {
     kk_job_complete(jobHandle, 0)
 }
 
-/// Mark a job as failed with an exception cause. Returns 1 if the transition succeeded.
+/// Returns 1 if the transition succeeded.
 @_cdecl("kk_job_complete_exceptionally")
 public func kk_job_complete_exceptionally(_ jobHandle: Int, _ exception: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle) else {
@@ -333,9 +322,6 @@ public func kk_job_complete_exceptionally(_ jobHandle: Int, _ exception: Int) ->
 }
 
 
-/// Returns 1 if the job is active (started but not yet completed and not cancelled).
-/// A job is active when it has been launched and neither completed nor cancelled.
-/// ABI backing for `job.isActive` in Kotlin.
 @_cdecl("kk_job_is_active")
 public func kk_job_is_active(_ jobHandle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle) else {
@@ -399,8 +385,6 @@ public func kk_coroutine_current_scope() -> Int {
     return Int(bitPattern: UnsafeMutableRawPointer(Unmanaged.passUnretained(scope).toOpaque()))
 }
 
-/// Returns 1 if the job has completed (either normally or by cancellation).
-/// ABI backing for `job.isCompleted` in Kotlin.
 @_cdecl("kk_job_is_completed")
 public func kk_job_is_completed(_ jobHandle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle) else {
@@ -417,8 +401,6 @@ public func kk_job_is_completed(_ jobHandle: Int) -> Int {
     }
 }
 
-/// Returns 1 if the job has been cancelled.
-/// ABI backing for `job.isCancelled` in Kotlin.
 @_cdecl("kk_job_is_cancelled")
 public func kk_job_is_cancelled(_ jobHandle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle) else {
@@ -435,8 +417,6 @@ public func kk_job_is_cancelled(_ jobHandle: Int) -> Int {
     }
 }
 
-/// Returns 1 if the job has failed with an exception.
-/// ABI backing for `job.isFailed` in Kotlin (kswiftc extension).
 public func kk_job_is_failed(_ jobHandle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle) else {
         return 0 // invalid handle → treat as not failed
@@ -452,10 +432,7 @@ public func kk_job_is_failed(_ jobHandle: Int) -> Int {
     }
 }
 
-/// KUU-CORO-101: ABI backing for `Job.getCancellationException()`
-/// (`__kk_job_get_cancellation_exception` in `Job.kt`, wrapped there into the
-/// public `getCancellationException()` extension). Returns the
-/// `CancellationException` this job was (or would be) cancelled with.
+/// Returns the `CancellationException` this job was (or would be) cancelled with.
 /// `RuntimeJobHandle` and task-backed launch/Deferred handles share the
 /// same cancellation state through the task's completion Job.
 @_cdecl("kk_job_get_cancellation_exception")
@@ -522,8 +499,6 @@ public func __kk_job_invoke_on_completion(
     }
 }
 
-/// KUU-CORO-101: ABI backing for the `DisposableHandle` returned by
-/// `Job.invokeOnCompletion` (via `__kk_job_dispose_handle`).
 @_cdecl("__kk_job_dispose_handle")
 public func __kk_job_dispose_handle(_ jobHandle: Int, _ handlerID: Int) {
     let job = runtimeJobHandle(from: jobHandle) ?? runtimeAsyncTask(from: jobHandle)?.completionJob
@@ -549,8 +524,6 @@ public func __kk_job_parent(_ jobHandle: Int) -> Int {
 }
 
 
-/// Runtime box behind `Job.attachChild`'s ChildHandle result: a parent job +
-/// the raw child handle that `dispose()` un-registers.
 final class RuntimeChildHandleBox: @unchecked Sendable {
     /// nil parent == kotlinx's NonDisposableHandle (attachChild /
     /// invokeOnCompletion on a completed job): `parent` reads null, dispose()
@@ -984,7 +957,6 @@ public func kk_coroutine_check_cancellation(_ continuation: Int, _ outThrown: Un
     return 0
 }
 
-/// Directly cancel a continuation (sets isCancelled on its linked job handle).
 public func kk_coroutine_cancel(_ continuation: Int) {
     guard let state = runtimeContinuationState(from: continuation),
           let job = state.jobHandle
@@ -994,7 +966,6 @@ public func kk_coroutine_cancel(_ continuation: Int) {
     _ = job.cancel()
 }
 
-/// Cancel the currently running coroutine without requiring a continuation handle.
 @_cdecl("kk_coroutine_cancel_current")
 public func kk_coroutine_cancel_current(_ message: Int, _ causeRaw: Int) -> Int {
     let text = extractString(from: UnsafeMutableRawPointer(bitPattern: message)) ?? "CancellationException"
@@ -1010,7 +981,6 @@ public func kk_coroutine_cancel_current(_ message: Int, _ causeRaw: Int) -> Int 
     return 0
 }
 
-/// Returns 1 if the given throwable raw pointer is a CancellationException, 0 otherwise.
 @_cdecl("kk_is_cancellation_exception")
 public func kk_is_cancellation_exception(_ throwableRaw: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw) else {
@@ -1032,7 +1002,6 @@ public func kk_is_cancellation_exception(_ throwableRaw: Int) -> Int {
     ) ? 1 : 0
 }
 
-/// Throws a CancellationException if the ambient job/scope has been cancelled.
 /// Lowering target for the bare (no-receiver) `kotlinx.coroutines.ensureActive()`.
 /// Mirrors `kk_coroutine_check_cancellation`'s two checks (job, then scope fallback),
 /// but reads the ambient current job/scope directly since this call carries no
