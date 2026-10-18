@@ -1,2 +1,0 @@
-# Preserve immutable upstream blobs, including their final empty lines.
-upstream/** -text whitespace=-blank-at-eof
