@@ -22,3 +22,6 @@ firebase-debug.log
 .windsurf/
 .kswiftk-cache/
 /docs/diff-skip-inventory.md
+
+# compiler build outputs (accidentally committed in #9136)
+*.kklib/
