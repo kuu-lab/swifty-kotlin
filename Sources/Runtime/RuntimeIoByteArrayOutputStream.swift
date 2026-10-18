@@ -1,8 +1,7 @@
 import Foundation
 
-/// Foreign OutputStream storage for the JDK in-memory producer used by the
-/// unchanged upstream stream suites. Snapshots never share mutable storage;
-/// close/flush are no-ops as specified for ByteArrayOutputStream.
+/// Snapshots never share mutable storage; close/flush are no-ops as specified
+/// for ByteArrayOutputStream.
 final class RuntimeByteArrayOutputStreamSink: RuntimeOutputStreamSink {
     private(set) var bytes = Data()
     init(capacity: Int) { bytes.reserveCapacity(capacity) }
