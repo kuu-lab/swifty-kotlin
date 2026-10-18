@@ -2,8 +2,6 @@ import Dispatch
 import Foundation
 
 
-/// Cooperatively yields the current coroutine, allowing other coroutines to run.
-/// This is the lowering target for `kotlinx.coroutines.yield()`.
 @_cdecl("kk_coroutine_yield")
 public func kk_coroutine_yield(_ continuation: Int) -> Int {
     guard let state = runtimeContinuationState(from: continuation) else {
@@ -33,9 +31,6 @@ public func kk_coroutine_yield(_ continuation: Int) -> Int {
 }
 
 
-/// Runs a timeout block on a deadline, preserving its result or failure unless
-/// this deadline expires first.
-///
 /// BUG-190: the block runs on its own *child* continuation seeded from the caller,
 /// never on the caller's continuation. When the deadline expires the block's entry
 /// loop is abandoned while still suspended (e.g. inside `delay()`); sharing the
@@ -119,10 +114,9 @@ private func runTimeoutBlock(
     return (false, thrown == 0 ? resultBox.value : 0, thrown)
 }
 
-/// Runs the given block with a timeout. If the block does not complete within
-/// `timeoutMillis`, a `TimeoutCancellationException` is reported through the
-/// `outThrown` ABI channel so enclosing Kotlin `try`/`catch` can observe it.
-/// Used as the lowering target for `withTimeout(timeMillis) { }`.
+/// If the block does not complete within `timeoutMillis`, a
+/// `TimeoutCancellationException` is reported through the `outThrown` ABI
+/// channel so enclosing Kotlin `try`/`catch` can observe it.
 ///
 /// This used to `runtimeStructuredPanic` on expiry, which made the timeout an
 /// uncatchable trap: `catch (e: TimeoutCancellationException)` (and even
@@ -340,22 +334,10 @@ func runSuspendEntryLoopWithContinuation(
     // level (the completion gate) and install a non-blocking continuation
     // closure for each internal suspend point.
     //
-    // Flow:
-    //   1. The loop runs the entry point.
-    //   2. If it returns COROUTINE_SUSPENDED, install a continuation closure
-    //      on the RuntimeContinuationState.  This closure will re-enter the
-    //      loop when signalResume() fires (from a timer, cancellation, etc.).
-    //      The current GCD thread is released — no blocking.
-    //   3. When the resume closure fires, it repeats from step 1.
-    //   4. When the entry point returns a concrete value (not suspended) or
-    //      throws, signal the completion gate (sync path) or invoke onCompletion
-    //      (async path) so the caller is unblocked / notified.
-    //
     // The completion gate semaphore is only used by the synchronous path
     // (runBlocking, join, await).  The async path (onCompletion != nil) never
     // blocks any GCD thread — the completion callback is invoked instead.
 
-    // Sync path only: gate and result box.
     let completionGate: DispatchSemaphore? = onCompletion == nil ? DispatchSemaphore(value: 0) : nil
     // Companion to `completionGate` for the case where the *caller* is draining
     // a runBlocking event loop: parking on the semaphore there would stall the
@@ -541,10 +523,6 @@ func runSuspendEntryLoopWithContinuation(
         // the order kotlinx.coroutines produces. Installing first inverted it.
         RuntimeCoroutineBurstDepth.exit()
         RuntimePendingLaunchQueue.flush()
-        // CORO-004: Install a continuation closure instead of blocking.
-        // When signalResume() fires, this closure is queued on the bound event
-        // loop (or dispatched to a GCD global queue when unbound), re-entering
-        // the loop without blocking any thread.
         // A pool can deliver the pending resume immediately after install.
         // Capture this burst's displaced TLS before the callback can mutate
         // TaskKeyBox for the resumed burst on a different thread.
@@ -586,14 +564,11 @@ func runSuspendEntryLoopWithContinuation(
             RuntimeCoroutineScopeTaskKey.restoreKey(burstOuterKey)
             RuntimeJobHandle.current = burstOuterJob
         }
-        // The current thread is released here — no blocking.
     }
 
-    // Kick off the first iteration synchronously on the current thread.
     loopBodyBox.body?()
 
     if let gate = completionGate {
-        // Sync path: wait until the coroutine completes.
         if let loop = callerEventLoop {
             // The caller is draining a runBlocking event loop. Blocking it here
             // would deadlock whenever this coroutine's progress depends on work
@@ -622,8 +597,6 @@ func runSuspendEntryLoopWithContinuation(
 }
 
 
-/// Invoke a suspend function with 0 arguments using continuation-passing style.
-/// This is the runtime implementation for `kk_suspend_function_invoke_0`.
 @_silgen_name("kk_suspend_function_invoke_0")
 public func kk_suspend_function_invoke_0(
     _ functionRaw: Int,
@@ -633,8 +606,6 @@ public func kk_suspend_function_invoke_0(
     runtimeInvokeSuspendFunction(functionRaw, arguments: [], continuation: continuation, outThrown: outThrown)
 }
 
-/// Invoke a suspend function with 1 argument using continuation-passing style.
-/// This is the runtime implementation for `kk_suspend_function_invoke`.
 @_silgen_name("kk_suspend_function_invoke")
 public func kk_suspend_function_invoke(
     _ functionRaw: Int,
@@ -645,7 +616,6 @@ public func kk_suspend_function_invoke(
     runtimeInvokeSuspendFunction(functionRaw, arguments: [arg], continuation: continuation, outThrown: outThrown)
 }
 
-/// Invoke a suspend function with 2 arguments using the function-value ABI.
 @_silgen_name("kk_suspend_function_invoke_2")
 public func kk_suspend_function_invoke_2(
     _ functionRaw: Int,
