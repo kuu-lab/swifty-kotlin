@@ -555,6 +555,44 @@ struct ExplicitImportResolutionTests {
         }
     }
 
+    /// `useContents` is a real Kotlin/Native top-level extension that user code
+    /// imports by name, even though the compiler handles the call through
+    /// scope-function interception rather than a declaration: the import must
+    /// still resolve (it used to report KSWIFTK-SEMA-UNRESOLVED-IMPORT) and the
+    /// intercepted call must keep type-checking.
+    @Test(arguments: [false, true])
+    func cinteropUseContentsImportResolves(useArtifact: Bool) throws {
+        let source = """
+        import kotlinx.cinterop.CStructVar
+        import kotlinx.cinterop.CValue
+        import kotlinx.cinterop.ExperimentalForeignApi
+        import kotlinx.cinterop.useContents
+
+        @ExperimentalForeignApi
+        fun <T : CStructVar> expose(value: CValue<T>): T {
+            return value.useContents { this }
+        }
+        """
+        let ctx = try context(source: source, useArtifact: useArtifact)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test(arguments: [false, true])
+    func cinteropUseContentsAliasImportResolves(useArtifact: Bool) throws {
+        let source = """
+        import kotlinx.cinterop.useContents as contents
+
+        fun unrelated(): Int = 1
+        """
+        let ctx = try context(source: source, useArtifact: useArtifact)
+        try runSema(ctx)
+
+        let unresolvedImports = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-UNRESOLVED-IMPORT" }
+        #expect(unresolvedImports.isEmpty, "Aliased useContents import must resolve: \(unresolvedImports)")
+    }
+
     @Test
     func wildcardImportResolvesPrecompiledLibraryPackage() throws {
         let source = """
