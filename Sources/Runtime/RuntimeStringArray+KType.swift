@@ -63,13 +63,11 @@ private func runtimeKTypeCreate(_ classifierRaw: Int, _ argsRaw: Int, _ isNullab
     return registerRuntimeObject(box)
 }
 
-/// KUU-1377: backs `KClassifier.createType` / `starProjectedType`.
 @_cdecl("__kk_ktype_create")
 public func __kk_ktype_create(_ classifierRaw: Int, _ argsRaw: Int, _ isNullable: Int) -> Int {
     runtimeKTypeCreate(classifierRaw, argsRaw, isNullable)
 }
 
-/// Returns the classifier (KClass) raw handle from a KType, or null sentinel.
 @_cdecl("__kk_ktype_classifier")
 public func __kk_ktype_classifier(_ ktypeRaw: Int) -> Int {
     guard let box = runtimeKTypeBox(from: ktypeRaw) else {
@@ -78,7 +76,6 @@ public func __kk_ktype_classifier(_ ktypeRaw: Int) -> Int {
     return box.classifierRaw
 }
 
-/// Returns the list of type arguments (KTypeProjection handles) from a KType.
 @_cdecl("__kk_ktype_arguments")
 public func __kk_ktype_arguments(_ ktypeRaw: Int) -> Int {
     guard let box = runtimeKTypeBox(from: ktypeRaw) else {
@@ -87,7 +84,6 @@ public func __kk_ktype_arguments(_ ktypeRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: box.argumentRaws))
 }
 
-/// Returns 1 if the KType is marked nullable, 0 otherwise.
 @_cdecl("__kk_ktype_isMarkedNullable")
 public func __kk_ktype_isMarkedNullable(_ ktypeRaw: Int) -> Int {
     guard let box = runtimeKTypeBox(from: ktypeRaw) else {
@@ -96,13 +92,12 @@ public func __kk_ktype_isMarkedNullable(_ ktypeRaw: Int) -> Int {
     return box.isMarkedNullable ? 1 : 0
 }
 
-/// Creates a KTypeProjection from a KType raw handle and variance ordinal.
 /// variance: 0=IN, 1=OUT, 2=INVARIANT, -1=STAR (type is ignored for STAR)
 @_cdecl("__kk_ktypeprojection_create")
 public func __kk_ktypeprojection_create(_ typeRaw: Int, _ varianceOrdinal: Int) -> Int {
     let variance: RuntimeKVariance?
     if varianceOrdinal == -1 {
-        variance = nil // STAR projection
+        variance = nil
     } else {
         variance = RuntimeKVariance(rawValue: varianceOrdinal) ?? .invariant
     }
@@ -140,7 +135,6 @@ private func runtimeKTypeProjectionStar() -> Int {
     return winner
 }
 
-/// Returns the canonical star projection used by the companion and `typeOf`.
 @_cdecl("__kk_ktypeprojection_star")
 public func __kk_ktypeprojection_star() -> Int {
     runtimeKTypeProjectionStar()
@@ -212,7 +206,6 @@ public func __kk_ktypeprojection_get_variance(_ projectionRaw: Int) -> Int {
     }
 }
 
-/// Returns the projected KType handle, or null for a star projection.
 @_cdecl("__kk_ktypeprojection_get_type")
 public func __kk_ktypeprojection_get_type(_ projectionRaw: Int) -> Int {
     guard let box = runtimeKTypeProjectionBox(from: projectionRaw), box.typeRaw != 0 else {
@@ -221,9 +214,7 @@ public func __kk_ktypeprojection_get_type(_ projectionRaw: Int) -> Int {
     return box.typeRaw
 }
 
-/// Implements `typeOf<T>()` — creates a KType for the given type token.
-/// This is the reified inline function entry point. The compiler emits the
-/// type token and nullability at the call site.
+/// The compiler emits the type token and nullability at the call site.
 @_cdecl("kk_typeof")
 public func kk_typeof(_ typeToken: Int, _ nameHint: Int, _ argsRaw: Int, _ isNullable: Int) -> Int {
     let classifierRaw = __kk_kclass_create(typeToken, nameHint)
