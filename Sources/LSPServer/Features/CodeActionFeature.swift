@@ -1,6 +1,5 @@
 import CompilerCore
 
-/// Builds LSP quick-fixes from compiler diagnostics with source-backed edits.
 public enum CodeActionFeature {
     public static func codeActions(
         for analysis: Analyzer.Analysis,
