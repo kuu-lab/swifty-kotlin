@@ -1,5 +1,3 @@
-// Sequence ABI specs (STDLIB-003)
-
 public extension RuntimeABISpec {
     static let sequenceContainsSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
         name: "kk_sequence_contains",
@@ -132,10 +130,7 @@ public extension RuntimeABISpec {
         )
     }
 
-    /// Sequence functions for lazy evaluation chains.
     static let sequenceFunctions: [RuntimeABIFunctionSpec] = [
-        // Sequence from List (asSequence)
-        // Intermediate operations (lazy)
         RuntimeABIFunctionSpec(
             name: stdlibSequenceHOFName("map", arity: 1, fallback: "kk_sequence_map"),
             parameters: [
@@ -179,7 +174,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Sequence"
         ),
-        // Terminal operations
         RuntimeABIFunctionSpec(
             name: "kk_sequence_to_list",
             parameters: [
@@ -198,7 +192,6 @@ public extension RuntimeABISpec {
             section: "Sequence",
             isThrowing: false
         ),
-        // Sequence builder
         RuntimeABIFunctionSpec(
             name: "__kk_sequence_builder_yield",
             parameters: [
@@ -209,7 +202,6 @@ public extension RuntimeABISpec {
             section: "Sequence",
             isThrowing: false
         ),
-        // STDLIB-553: yieldAll(iterable)
         RuntimeABIFunctionSpec(
             name: "__kk_sequence_builder_yieldAll_checked",
             parameters: [
@@ -250,7 +242,6 @@ public extension RuntimeABISpec {
             section: "Sequence",
             isThrowing: false
         ),
-        // Iterator builder (STDLIB-331/564)
         RuntimeABIFunctionSpec(
             name: "__kk_iterator_builder_build",
             parameters: [
@@ -297,7 +288,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Sequence"
         ),
-        // CORO-004 Phase 2: suspension-aware consumer API
         RuntimeABIFunctionSpec(
             name: "__kk_iterator_builder_hasNext_coro",
             parameters: [
@@ -322,7 +312,6 @@ public extension RuntimeABISpec {
             section: "Sequence",
             isThrowing: false
         ),
-        // Factory functions (STDLIB-097)
         RuntimeABIFunctionSpec(
             name: "__kk_sequence_of",
             parameters: [
@@ -352,7 +341,6 @@ public extension RuntimeABISpec {
             section: "Sequence",
             isThrowing: false
         ),
-        // STDLIB-SEQ-002: 1-arg form generateSequence(nextFunction: () -> T?)
         RuntimeABIFunctionSpec(
             name: "__kk_sequence_generate_noarg",
             parameters: [
@@ -363,7 +351,6 @@ public extension RuntimeABISpec {
             section: "Sequence",
             isThrowing: false
         ),
-        // Terminal operations (STDLIB-095) are source-backed in bundled Kotlin.
         RuntimeABIFunctionSpec(
             name: stdlibSequenceHOFName("flatMap", arity: 1, fallback: "kk_sequence_flatMap"),
             parameters: [
@@ -386,8 +373,6 @@ public extension RuntimeABISpec {
             section: "Sequence",
             isThrowing: false
         ),
-        // Intermediate operations (STDLIB-096)
-        // Sorting operations (STDLIB-272)
         RuntimeABIFunctionSpec(
             name: "kk_sequence_sorted",
             parameters: [
@@ -428,7 +413,6 @@ public extension RuntimeABISpec {
             section: "Sequence",
             isThrowing: false
         ),
-        // STDLIB-SEQ-019: shuffled / shuffled(random)
         RuntimeABIFunctionSpec(
             name: "kk_sequence_shuffled",
             parameters: [
@@ -448,7 +432,6 @@ public extension RuntimeABISpec {
             section: "Sequence",
             isThrowing: false
         ),
-        // Higher-order operations (STDLIB-271)
         RuntimeABIFunctionSpec(
             name: stdlibSequenceHOFName("mapNotNull", arity: 1, fallback: "kk_sequence_mapNotNull"),
             parameters: [
@@ -566,9 +549,6 @@ public extension RuntimeABISpec {
             section: "Sequence",
             isThrowing: false
         ),
-        // STDLIB-275: joinTo/joinToString, sumOf, associate, associateBy
-        // STDLIB-276: windowed, onEach
-        // STDLIB-277: emptySequence / ifEmpty
         RuntimeABIFunctionSpec(
             name: "__kk_empty_sequence",
             parameters: [],
@@ -598,7 +578,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Sequence"
         ),
-        // Terminal operations (STDLIB-273)
         RuntimeABIFunctionSpec(
             name: "kk_sequence_first",
             parameters: [
@@ -806,13 +785,10 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Sequence"
         ),
-        // STDLIB-558, 559, 560: scan, runningFold, runningReduce
         sequenceScanSpec,
         sequenceRunningFoldSpec,
         sequenceRunningReduceSpec,
-        // STDLIB-SEQ-017: runningReduceIndexed
         sequenceRunningReduceIndexedSpec,
-        // STDLIB-470: toSet, toMap, groupBy, maxOrNull, minOrNull, flatten
         RuntimeABIFunctionSpec(
             name: "kk_sequence_toSet",
             parameters: [
@@ -896,14 +872,10 @@ public extension RuntimeABISpec {
             section: "Sequence",
             isThrowing: false
         ),
-        // STDLIB-SEQ-016: runningFoldIndexed, scanIndexed
         sequenceRunningFoldIndexedSpec,
         sequenceScanIndexedSpec,
-        // STDLIB-556: reduceIndexed
         sequenceReduceIndexedSpec,
-        // STDLIB-SEQ-015: reduceIndexedOrNull
         sequenceReduceIndexedOrNullSpec,
-        // STDLIB-SEQ-FN-091: reduce
         RuntimeABIFunctionSpec(
             name: "kk_sequence_reduce",
             parameters: [
@@ -915,7 +887,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Sequence"
         ),
-        // STDLIB-SEQ-FN-093: reduceOrNull
         RuntimeABIFunctionSpec(
             name: "kk_sequence_reduceOrNull",
             parameters: [
@@ -927,7 +898,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Sequence"
         ),
-        // STDLIB-SEQ-FN-094: reduceRight
         RuntimeABIFunctionSpec(
             name: "kk_sequence_reduceRight",
             parameters: [
@@ -939,7 +909,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Sequence"
         ),
-        // STDLIB-SEQ-FN-095: reduceRightIndexed
         RuntimeABIFunctionSpec(
             name: "kk_sequence_reduceRightIndexed",
             parameters: [
@@ -951,7 +920,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Sequence"
         ),
-        // STDLIB-SEQ-FN-096: reduceRightIndexedOrNull
         RuntimeABIFunctionSpec(
             name: "kk_sequence_reduceRightIndexedOrNull",
             parameters: [
@@ -963,7 +931,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Sequence"
         ),
-        // STDLIB-SEQ-FN-097: reduceRightOrNull
         RuntimeABIFunctionSpec(
             name: "kk_sequence_reduceRightOrNull",
             parameters: [
@@ -975,7 +942,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Sequence"
         ),
-        // STDLIB-561: Sequence.plus(other)
         RuntimeABIFunctionSpec(
             name: "kk_sequence_plus",
             parameters: [
@@ -986,7 +952,6 @@ public extension RuntimeABISpec {
             section: "Sequence",
             isThrowing: false
         ),
-        // STDLIB-SEQ-013: Sequence.plus(element) / plusElement(element)
         RuntimeABIFunctionSpec(
             name: "kk_sequence_plus_element",
             parameters: [
@@ -997,7 +962,6 @@ public extension RuntimeABISpec {
             section: "Sequence",
             isThrowing: false
         ),
-        // STDLIB-562: Sequence.minus(element)
         RuntimeABIFunctionSpec(
             name: "kk_sequence_minus",
             parameters: [
@@ -1008,7 +972,6 @@ public extension RuntimeABISpec {
             section: "Sequence",
             isThrowing: false
         ),
-        // STDLIB-SEQ-007: any/all/none/find with short-circuit semantics
         RuntimeABIFunctionSpec(
             name: "kk_sequence_any",
             parameters: [
@@ -1042,7 +1005,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Sequence"
         ),
-        // Runtime-backed Sequence / Iterator itable bridges (STDLIB-ARTIFACT-019)
         RuntimeABIFunctionSpec(
             name: "kk_sequence_box_iterator",
             parameters: [
