@@ -6,8 +6,7 @@ public interface CompletableDeferred<T> : Deferred<T> {
 }
 
 // KUU-1386: kotlinx's CompletableDeferredImpl is a JobSupport subclass, so
-// `cd is JobSupport`/`cd is ChildJob`/`cd is ParentJob` must hold. The bound
-// runtime job keeps the same delegation as the removed explicit overrides.
+// `cd is JobSupport`/`cd is ChildJob`/`cd is ParentJob` must hold.
 internal class CompletableDeferredImpl<T>(parent: Job?) : JobSupport(true), CompletableDeferred<T> {
     private val job: Job = __kkJobBindWrapper(this, __kkJobNew(), parent)
 
