@@ -1,7 +1,9 @@
+import contextlib
 import hashlib
 import io
 import json
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -13,7 +15,6 @@ class ReferenceIntegrityTests(unittest.TestCase):
     def test_pinned_inventory_preserves_targets_and_all_modules(self):
         manifest = reference.read_manifest()
         reference.verify_files(reference.ROOT, manifest)
-        reference.verify_index(reference.ROOT, manifest)
         rows = reference.declarations(reference.ROOT, manifest)["declarations"]
         self.assertEqual({row["module"] for row in rows},
                          {"core", "json", "cbor", "protobuf", "properties", "json-io", "json-okio", "hocon"})
@@ -62,7 +63,7 @@ final class sample/Common {}
             ["linuxX64"], ["linuxX64"], ["js", "linuxX64"],
         ])
 
-    def test_modified_upstream_and_stale_index_are_rejected(self):
+    def test_modified_upstream_is_rejected(self):
         data = b"original\n"
         blob = hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
         manifest = {"files": [{"path": "source.api", "sha256": reference.sha256(data), "git_blob": blob}]}
@@ -73,9 +74,15 @@ final class sample/Common {}
             (root / "source.api").write_bytes(data + b"tampered")
             with self.assertRaisesRegex(ValueError, "Upstream hash mismatch"):
                 reference.verify_files(root, manifest)
-            (root / "declarations.json").write_text("{}\n")
-            with self.assertRaisesRegex(ValueError, "index is stale"):
-                reference.verify_index(root, {"commit": "fixture", "files": []})
+
+    def test_index_action_writes_the_inventory_to_the_output_directory(self):
+        rows = reference.declarations(reference.ROOT, reference.read_manifest())["declarations"]
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(sys, "argv", ["reference.py", "index", "--output", directory]), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                reference.main()
+            written = json.loads((Path(directory) / "declarations.json").read_text())
+        self.assertEqual(written["declarations"], rows)
 
     def test_corrupt_or_missing_artifacts_fail_before_execution(self):
         data = b"fixture artifact"

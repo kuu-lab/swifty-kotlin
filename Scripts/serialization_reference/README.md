@@ -21,7 +21,9 @@ artifacts, not a build of that snapshot setting.
 The scoped Git attributes retain upstream bytes and their final empty lines;
 upstream blob/hash checks still require exact copies.
 
-`declarations.json` retains 3,067 JVM/KLIB dump declarations separately, including
+The declaration inventory is not checked in: `reference.py` rebuilds it from the
+pinned dumps on every run, and `reference.py index --output DIR` writes it to
+`DIR/declarations.json` for inspection. It retains 3,067 JVM/KLIB dump declarations separately, including
 owners, original line numbers, raw signatures, ABI IDs, target sets, and simple
 ABI classifications. A target annotation applies to its declaration and children;
 it does not restrict later siblings. Target-specific alternative declarations
@@ -76,8 +78,8 @@ python3 Scripts/serialization_reference/reference.py run --case nullable-descrip
 ```
 
 `fetch` requires network access to Maven Central. `verify` and `run` are offline
-after the required toolchain/artifacts are present. Rebuild a changed index with
-`reference.py index`; upstream hashes must pass before it can be regenerated.
+after the required toolchain/artifacts are present. `reference.py index --output DIR`
+writes the inventory only after upstream hashes pass.
 
 The Kotlin fixture uses a plugin-generated `@Serializable` model and checks its
 descriptor, field names and default values. It checks JSON round-trip/defaults/tree

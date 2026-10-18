@@ -89,13 +89,14 @@ only the actual Trace factory/named/default-format declarations point to Native
 ## Regeneration and independent checks
 
 ```bash
-python3 Scripts/generate_atomicfu_api_index.py --write
 python3 Scripts/check_atomicfu_api_reference.py
 python3 Tests/Scripts/test_atomicfu_api_index.py
+python3 Scripts/generate_atomicfu_api_index.py --output /tmp/atomicfu-index.json
 ```
 
-The checker SHA-verifies source bytes and compares indexed facts with annotations
-read from the pinned declarations before checking deterministic JSON freshness.
+The index is not checked in; each consumer builds it from `atomicfu.klib.api`,
+and `--output` writes a copy for inspection. The checker SHA-verifies source bytes
+and compares the generated facts with annotations read from the pinned declarations.
 It independently rejects incorrect object kinds, source path sets, visibility,
 annotation arguments, callable arity, atomic factory overload types and extension
 receiver substitutions. Regression tests fix concrete upstream source facts and

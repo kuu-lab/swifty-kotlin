@@ -98,11 +98,6 @@ def index_text(root, manifest):
     return header + ',\n  "declarations": [\n' + rows + "\n  ]\n}\n"
 
 
-def verify_index(root, manifest):
-    if (root / "declarations.json").read_text() != index_text(root, manifest):
-        raise ValueError("Declaration index is stale; regenerate with the index command")
-
-
 def verify_implementations(root, manifest):
     path = root / "implementations.json"
     if not path.exists():
@@ -236,9 +231,12 @@ def main():
     manifest = read_manifest()
     verify_files(ROOT, manifest)
     if args.action == "index":
-        (ROOT / "declarations.json").write_text(index_text(ROOT, manifest))
+        args.output.mkdir(parents=True, exist_ok=True)
+        (args.output / "declarations.json").write_text(index_text(ROOT, manifest))
     else:
-        verify_index(ROOT, manifest)
+        # Building the inventory rejects duplicate declaration identities even
+        # when no implementation overlay exists to trigger it.
+        declarations(ROOT, manifest)
         verify_implementations(ROOT, manifest)
         if args.action == "fetch":
             fetch_artifacts(args.cache, manifest)
