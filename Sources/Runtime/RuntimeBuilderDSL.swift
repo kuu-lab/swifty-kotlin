@@ -1,5 +1,3 @@
-// Source-backed collection builders allocate a mutable builder, run the
-// receiver lambda, and freeze that same box before returning it as read-only.
 // The capacity is a reservation hint; the Kotlin layer validates negatives.
 
 // A frozen builder still implements MutableSet and rejects writes at runtime.
@@ -46,10 +44,3 @@ public func __kk_builder_map_freeze(_ raw: Int) -> Int {
     runtimeMapBox(from: raw)?.freeze()
     return raw
 }
-
-// The `__kk_build_list` / `__kk_build_set` / `__kk_build_map` entry points (and
-// their `_with_capacity` variants) were removed together with their lowering
-// rewrites: RF-LOWER-CALL-004 (list), -005 (set), -006 (map).  `buildList` /
-// `buildSet` / `buildMap` are implemented in `CollectionBuilders.kt` on top of
-// the `__kk_builder_*_new` / `__kk_builder_*_freeze` bridges above, which own
-// the capacity validation (`require(capacity >= 0)`) the removed helpers had.
