@@ -1,9 +1,6 @@
 import Foundation
 
-/// Conversion helpers between LSP document URIs and filesystem paths.
 public enum DocumentURI {
-    /// Returns the filesystem path for a `file://` URI, or `nil` for other
-    /// schemes.
     public static func path(fromURI uri: String) -> String? {
         if let url = URL(string: uri), url.isFileURL {
             return url.path
@@ -15,13 +12,11 @@ public enum DocumentURI {
         return nil
     }
 
-    /// Returns a `file://` URI for a filesystem path.
     public static func uri(fromPath path: String) -> String {
         URL(fileURLWithPath: path).absoluteString
     }
 }
 
-/// In-memory store of the documents currently open in the editor.
 public final class DocumentStore {
     public struct Document {
         public var uri: String
