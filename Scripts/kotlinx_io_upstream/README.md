@@ -5,39 +5,6 @@ This directory contains a strict paired-run harness for cases from the pinned
 `Scripts/diff_kotlinc.sh`, whose cases are compiler-authored programs rather
 than upstream test IDs.
 
-## Integrated CI gate (KUU-1826)
-
-`.github/workflows/kotlinx-io-gate.yml` runs on manual dispatch and nightly on
-the selected commit. It audits all API rows and upstream function IDs, runs the
-locked JVM and macOS Native reference catalogs, the six F02
-source/library/producer-consumer lanes, the complete macOS Native candidate
-catalog at O0/O2, the pinned Ktor IO consumer, every `kotlinx_io*.kt` diff case
-at O0/O2, and the Sema golden suite containing the IO fixtures. Each diff job
-runs only its selected optimization, so O0/O2 are each executed once. The gate stays
-scoped to kotlinx-io and does not repeat the repository-wide suite on each small
-API PR; regular CI and `nightly-full.yml` keep their existing roles.
-
-Every job checks out `github.sha`, writes a receipt only after verifying the
-actual checkout SHA, and uploads results even after failure. The final job
-rejects missing or duplicate receipts, summaries, mappings, a different SHA,
-failed jobs, and any recorded summary that is not all-PASS. The API artifact
-contains `api-gate-summary.json` with API and upstream test counts, plus
-`api-coverage-mapping.json`, which joins each API row to its local and upstream
-test references and lists concrete JVM/Native execution IDs for every source
-test. Each job publishes its raw logs and result maps as artifacts; the final
-summary artifact records the SHA, job conclusions, counts, and evidence paths.
-
-At the current inventory snapshot the audit intentionally fails: 5 API rows
-are `missing`, 701 are `unverified`, and 680 of 684 upstream function IDs are
-unmapped. The API ledger and source-declaration catalog must remain fresh;
-`generate.py --check` runs as part of the gate. Completing the implementation
-and verified mappings is required before a full run can become green. Run the
-local failure-injection tests with:
-
-```sh
-python3 -m unittest discover -s Scripts/kotlinx_io_upstream/tests -p 'test_verify_gate.py' -v
-```
-
 ## Runner contract
 
 `run_matrix.py` takes a JSON manifest. Each `run` case has one reference and
@@ -157,34 +124,7 @@ source files, plus seven inventory-only helpers. A source function ID is distinc
 from a concrete execution ID: inherited factories expand one source function
 into multiple executions, while loops retain all their original parameter values
 inside the unchanged test body. The JVM and Native execution catalogs record this
-expansion. The seed map is generated inventory only; its local test references
-remain unverified and cannot be counted as paired passes. Regenerate it with:
-
-```sh
-python3 Scripts/kotlinx_io_upstream/import_inventory.py \
-  --test-index /path/to/io_api_inventory/upstream-tests-index.json \
-  --api-inventory /path/to/io_api_inventory/api-inventory.tsv \
-  --upstream-lock /path/to/io_api_inventory/upstream-lock.json \
-  --output Scripts/kotlinx_io_upstream/coverage-map.seed.json
-```
-
-Reviewed mappings live separately in `coverage-map.verified.json`, so regenerating
-the seed cannot erase verification work. The gate treats every target seed row as
-unmapped until a current verified-map entry promotes it. Each mapping pins the
-upstream commit, source SHA-256 and Git blob ID, lists the original assertions with source lines
-and required observations, and maps every locked JVM/Native execution ID to its
-invocation metadata plus reference and candidate runner results. Required
-observations can include exception type, bytes consumed, Buffer/ByteBuffer state,
-close/flush events, and resource lifecycle. `verify_gate.py audit` overlays a
-mapping only when every expected concrete execution is present exactly once,
-both results are PASS, all assertion and observation links are present, and the
-commit/source hashes still match the lock. A missing invocation, SKIP, expected
-failure, stale hash, unknown ID, or duplicate ID leaves the seed case unmapped.
-New upstream cases from a regenerated seed therefore remain blockers until their
-own complete mappings are reviewed.
-
-The empty checked-in mapping file is intentional: this infrastructure change
-does not claim suite execution evidence for any upstream function.
+expansion. The seed map is inventory only; its local test references remain unverified and cannot be counted as paired passes. The former ledger/gate (`import_inventory.py`, `verify_gate.py`, `coverage-map.verified.json`) was retired: kotlinx-io compatibility is checked by comparing against kotlinc output via `Scripts/diff_kotlinc.sh` and `Scripts/diff_cases/kotlinx_io_*.kt`, and differences are fixed as ordinary implementation PRs.
 
 Apple tests require the macOS CI execution. The seed paired matrix includes all
 680 applicable common/Apple/JVM function IDs as unmapped until assertion-preserving
