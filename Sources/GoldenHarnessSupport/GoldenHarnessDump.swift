@@ -2,7 +2,6 @@
 import Foundation
 
 /// Golden dumps are intended to run in a dedicated worker process.
-/// Each dump uses a fresh `CompilationContext` from `makeCompilationContext`.
 
 enum GoldenHarnessDumpError: Error, CustomStringConvertible {
     case missingSourceFile
@@ -141,12 +140,11 @@ enum GoldenHarnessDump {
         )
     }
 
-    /// Maps a spec's `stdlib-profile` onto the `includeStdlib` /
-    /// `stdlibLibraryPath` options (RF-GOLDEN-012). A spec-free case keeps the
-    /// historical implicit behavior: artifact path when the environment
-    /// provides one, bundled-source injection otherwise. `.artifact` requires
-    /// the path to be present — falling back to source injection would compile
-    /// a different stdlib surface than the spec's golden records.
+    /// A spec-free case keeps the historical implicit behavior: artifact path
+    /// when the environment provides one, bundled-source injection otherwise.
+    /// `.artifact` requires the path to be present — falling back to source
+    /// injection would compile a different stdlib surface than the spec's
+    /// golden records.
     static func resolveStdlibMode(
         spec: GoldenHarnessCaseSpec?,
         stdlibLibraryPath: String?
@@ -185,7 +183,7 @@ enum GoldenHarnessDump {
             contract: renderingContract
         )
 
-        // 1. Render body lines (files, decls, exprs) first to track referenced symbols
+        // Render body lines first to track referenced symbols
         var bodyLines: [String] = []
 
         if let file = ast.file(for: sourceFileID) {
@@ -203,10 +201,9 @@ enum GoldenHarnessDump {
             bodyLines.append(renderExpression(expr, id: exprID, ctx: ctx))
         }
 
-        // 2. Transitively expand required symbols
         ctx.expandRequiredSymbols()
 
-        // 3. Render only required symbol lines, sorted by FQ name for stability.
+        // Sorted by FQ name for stability.
         // Synthetic scope names (__local_N, __for_N, .$classN, ...) embed a raw,
         // unpadded arena-ordinal suffix, so a plain string comparison sorts
         // "__local_10002" before "__local_9874" once the ordinal crosses a
