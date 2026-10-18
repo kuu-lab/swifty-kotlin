@@ -2,8 +2,6 @@ import Dispatch
 import Foundation
 
 
-/// Launch a coroutine without starting it immediately (CoroutineStart.LAZY).
-/// The body is dispatched the first time `join()` or `startIfNeeded()` is called.
 @_cdecl("kk_kxmini_launch_lazy")
 public func kk_kxmini_launch_lazy(_ entryPointRaw: Int, _ functionID: Int) -> Int {
     let job = RuntimeJobHandle()
@@ -18,7 +16,6 @@ public func kk_kxmini_launch_lazy(_ entryPointRaw: Int, _ functionID: Int) -> In
         state.jobHandle = job
     }
 
-    // CORO-003: Capture caller's scope from context (not TLS) and register child
     let callerScope = RuntimeCoroutineScope.current
     if let callerScope {
         callerScope.registerChild(Int(bitPattern: jobPtr))
@@ -27,7 +24,6 @@ public func kk_kxmini_launch_lazy(_ entryPointRaw: Int, _ functionID: Int) -> In
     if let callerJob {
         callerJob.registerChild(Int(bitPattern: jobPtr))
     }
-    // Propagate caller's scope to child continuation context
     if let contState = runtimeContinuationState(from: continuation) {
         contState.scope = callerScope
     }
@@ -61,8 +57,6 @@ public func kk_kxmini_launch_lazy(_ entryPointRaw: Int, _ functionID: Int) -> In
     return Int(bitPattern: jobPtr)
 }
 
-/// Variant of kk_kxmini_launch_lazy that accepts a pre-built continuation
-/// (for lambda arguments that capture outer variables).
 @_cdecl("kk_kxmini_launch_lazy_with_cont")
 public func kk_kxmini_launch_lazy_with_cont(_ entryPointRaw: Int, _ continuation: Int) -> Int {
     let job = RuntimeJobHandle()
@@ -76,7 +70,6 @@ public func kk_kxmini_launch_lazy_with_cont(_ entryPointRaw: Int, _ continuation
         state.jobHandle = job
     }
 
-    // CORO-003: Capture caller's scope from context (not TLS) and register child
     let callerScope = RuntimeCoroutineScope.current
     if let callerScope {
         callerScope.registerChild(Int(bitPattern: jobPtr))
@@ -119,13 +112,6 @@ public func kk_kxmini_launch_lazy_with_cont(_ entryPointRaw: Int, _ continuation
 }
 
 
-/// Launch a coroutine that begins executing immediately on the calling thread
-/// and runs there until its first suspension point (`CoroutineStart.UNDISPATCHED`).
-///
-/// Unlike `kk_kxmini_launch`, nothing is queued before the body runs: the
-/// statements that follow `launch(start = CoroutineStart.UNDISPATCHED) { }`
-/// observe whatever the body did before suspending. Everything after that first
-/// suspension is ordinary queued work on the inherited event loop.
 @_cdecl("kk_kxmini_launch_undispatched")
 public func kk_kxmini_launch_undispatched(_ entryPointRaw: Int, _ functionID: Int) -> Int {
     runtimeLaunchUndispatched(
@@ -134,8 +120,6 @@ public func kk_kxmini_launch_undispatched(_ entryPointRaw: Int, _ functionID: In
     )
 }
 
-/// Variant of `kk_kxmini_launch_undispatched` that accepts a pre-built
-/// continuation carrying the launched lambda's captured outer variables.
 @_cdecl("kk_kxmini_launch_undispatched_with_cont")
 public func kk_kxmini_launch_undispatched_with_cont(_ entryPointRaw: Int, _ continuation: Int) -> Int {
     runtimeLaunchUndispatched(entryPointRaw: entryPointRaw, continuation: continuation)
@@ -153,7 +137,6 @@ private func runtimeLaunchUndispatched(entryPointRaw: Int, continuation: Int) ->
         state.jobHandle = job
     }
 
-    // Same parent bookkeeping as kk_kxmini_launch.
     let callerScope = RuntimeCoroutineScope.current
     if let callerScope {
         callerScope.registerChild(Int(bitPattern: jobPtr))
@@ -330,13 +313,11 @@ public func kk_kxmini_launch_with_cont(_ entryPointRaw: Int, _ continuation: Int
         state.objectPointers.insert(UInt(bitPattern: jobPtr))
     }
 
-    // Link job to continuation state
     if let contState = runtimeContinuationState(from: continuation) {
         job.continuationState = contState
         contState.jobHandle = job
     }
 
-    // CORO-003: Capture caller's scope from context and register child
     let callerScope = RuntimeCoroutineScope.current
     if let callerScope {
         callerScope.registerChild(Int(bitPattern: jobPtr))
@@ -345,7 +326,6 @@ public func kk_kxmini_launch_with_cont(_ entryPointRaw: Int, _ continuation: Int
     if let callerJob {
         callerJob.registerChild(Int(bitPattern: jobPtr))
     }
-    // Propagate caller's scope to child continuation context
     if let contState = runtimeContinuationState(from: continuation) {
         contState.scope = callerScope
     }
@@ -441,8 +421,6 @@ private func runtimeRegisterAsyncChild(
     return callerScope
 }
 
-/// The completion handler every `async` entry point installs.
-///
 /// STDLIB-CORO-BUG-05: the thrown exception is reported alongside the result,
 /// so `await()` re-throws instead of silently resuming with 0 (the synchronous
 /// path forces the result to 0 on a throw and would otherwise drop it).
@@ -458,10 +436,6 @@ func runtimeAsyncTaskCompletion(
     }
 }
 
-/// `async(start = CoroutineStart.LAZY)`: create the `Deferred` without
-/// scheduling its body. The body is dispatched the first time something demands
-/// the result -- `await()`, or the enclosing scope joining its children -- via
-/// `RuntimeAsyncTask.startIfNeeded()`.
 @_cdecl("kk_kxmini_async_lazy")
 public func kk_kxmini_async_lazy(_ entryPointRaw: Int, _ functionID: Int) -> Int {
     runtimeAsyncLazy(
@@ -470,8 +444,6 @@ public func kk_kxmini_async_lazy(_ entryPointRaw: Int, _ functionID: Int) -> Int
     )
 }
 
-/// Variant of `kk_kxmini_async_lazy` that accepts a pre-built continuation
-/// carrying the block's captured outer variables.
 @_cdecl("kk_kxmini_async_lazy_with_cont")
 public func kk_kxmini_async_lazy_with_cont(_ entryPointRaw: Int, _ continuation: Int) -> Int {
     runtimeAsyncLazy(entryPointRaw: entryPointRaw, continuation: continuation)
@@ -501,11 +473,6 @@ private func runtimeAsyncLazy(entryPointRaw: Int, continuation: Int) -> Int {
     return Int(bitPattern: taskPtr)
 }
 
-/// `async(start = CoroutineStart.UNDISPATCHED)`: the body begins executing
-/// immediately on the calling thread and runs there until its first suspension
-/// point, so the statements following the `async` observe whatever it did
-/// before suspending. Everything after that suspension is ordinary queued work
-/// on the inherited event loop.
 @_cdecl("kk_kxmini_async_undispatched")
 public func kk_kxmini_async_undispatched(_ entryPointRaw: Int, _ functionID: Int) -> Int {
     runtimeAsyncUndispatched(
@@ -514,8 +481,6 @@ public func kk_kxmini_async_undispatched(_ entryPointRaw: Int, _ functionID: Int
     )
 }
 
-/// Variant of `kk_kxmini_async_undispatched` that accepts a pre-built
-/// continuation carrying the block's captured outer variables.
 @_cdecl("kk_kxmini_async_undispatched_with_cont")
 public func kk_kxmini_async_undispatched_with_cont(_ entryPointRaw: Int, _ continuation: Int) -> Int {
     runtimeAsyncUndispatched(entryPointRaw: entryPointRaw, continuation: continuation)
@@ -639,7 +604,6 @@ private func runtimeProducerContext(
     )
 }
 
-/// Launch a producer on a channel with the requested buffering policy.
 /// `channelFlow` and `callbackFlow` use the Kotlin buffered default, while
 /// `produce` retains its rendezvous behavior through the public wrapper below.
 func runtimeKxMiniProduceWithCont(
@@ -748,7 +712,6 @@ public func kk_kxmini_produce_with_cont(_ entryPointRaw: Int, _ continuation: In
 }
 
 
-/// Launch a coroutine on a specific dispatcher (fire-and-forget).
 /// dispatcherRaw is a dispatcher tag (kk_dispatcher_default/io/main).
 /// Returns an opaque job handle (RuntimeJobHandle*).
 @_cdecl("kk_kxmini_launch_with_dispatcher")
@@ -815,7 +778,6 @@ public func kk_kxmini_launch_with_dispatcher(_ entryPointRaw: Int, _ functionID:
     return Int(bitPattern: jobPtr)
 }
 
-/// Variant of kk_kxmini_launch_with_dispatcher that accepts a pre-built continuation.
 @_cdecl("kk_kxmini_launch_with_dispatcher_and_cont")
 public func kk_kxmini_launch_with_dispatcher_and_cont(_ entryPointRaw: Int, _ continuation: Int, _ dispatcherRaw: Int) -> Int {
     let job = RuntimeJobHandle()
