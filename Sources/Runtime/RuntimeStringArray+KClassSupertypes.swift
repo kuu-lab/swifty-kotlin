@@ -143,9 +143,6 @@ private func runtimeReflectionStringRaw(_ string: String) -> Int {
     }
 }
 
-/// Splits a display name such as "kotlin.Comparable<kotlin.Int>" into its
-/// classifier base name and top-level type-argument display names. Returns nil
-/// when the angle brackets are unbalanced.
 private func runtimeSplitTypeDisplayName(_ display: String) -> (base: String, args: [String])? {
     var trimmed = display.trimmingCharacters(in: .whitespaces)
     if trimmed.hasSuffix("?") {
@@ -195,9 +192,7 @@ private func runtimeSplitTypeDisplayName(_ display: String) -> (base: String, ar
     return (base, args)
 }
 
-/// Builds a `RuntimeKTypeBox` for a supertype display name: an interned
-/// KClass handle for the base classifier plus parsed type-argument
-/// projections (invariant). Type-parameter display names like `E` produce a
+/// Type-parameter display names like `E` produce a
 /// nominal classifier placeholder — there is no KTypeParameter box yet.
 private func runtimeKTypeForSupertypeDisplayName(_ display: String) -> Int {
     guard let (base, argDisplays) = runtimeSplitTypeDisplayName(display) else {
@@ -222,9 +217,6 @@ private func runtimeKTypeForSupertypeDisplayName(_ display: String) -> Int {
     return registerRuntimeObject(box)
 }
 
-/// Returns the supertypes of this KClass as a runtime list of `KType` handles.
-/// Builtin types are answered from the JVM-parity table; user-defined types
-/// read the '|'-joined display list registered by the compiler.
 @_cdecl("__kk_kclass_supertypes")
 public func __kk_kclass_supertypes(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw) else {
