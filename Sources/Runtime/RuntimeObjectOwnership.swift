@@ -1,7 +1,5 @@
 import Foundation
 
-/// Takes `rawValue` out of the runtime-owned retained box registry.
-///
 /// `objectPointers` also contains borrowed singleton and flow handles for
 /// historical ABI reasons. Those handles have their own lifecycle and must not
 /// be passed to `Unmanaged.release()` here.
@@ -41,8 +39,6 @@ private func runtimeTakeObjectForRelease(_ rawValue: Int) -> UnsafeMutableRawPoi
     return pointer
 }
 
-/// Releases the retain acquired by a runtime box allocator.
-///
 /// The registry entry is removed before ARC is released, so concurrent handle
 /// resolution cannot observe a freed object. The operation is idempotent: a
 /// stale or already-released handle returns `false` and performs no release.
@@ -66,8 +62,6 @@ func runtimeReleaseObject(_ rawValue: Int) -> Bool {
     return true
 }
 
-/// Explicit release owner for a retained box handle.
-///
 /// Returns `1` when the retained allocation was released and `0` when the
 /// handle was null, stale, borrowed, pinned, or already released.
 public func kk_object_release(_ objectRaw: Int) -> Int {
