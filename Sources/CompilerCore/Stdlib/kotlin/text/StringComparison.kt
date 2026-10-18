@@ -14,14 +14,6 @@ public fun String.equals(other: String?): Boolean = __kkStringEquals(other)
 // String comparison functions migrated from Swift Runtime
 // MIGRATION-TEXT-009
 
-/**
- * Returns the longest common prefix of this string and the specified [other] string,
- * without splitting a surrogate pair at the boundary.
- *
- * @param other The string to compare with.
- * @param ignoreCase `true` to ignore character case when comparing. By default `false`.
- * @return The longest common prefix.
- */
 public fun String.commonPrefixWith(other: String, ignoreCase: Boolean = false): String {
     val shortestLength = comparisonMinOf(this.length, other.length)
     var i = 0
@@ -37,14 +29,6 @@ public fun String.commonPrefixWith(other: String, ignoreCase: Boolean = false): 
     return this.substring(0, i)
 }
 
-/**
- * Returns the longest common suffix of this string and the specified [other] string,
- * without splitting a surrogate pair at the boundary.
- *
- * @param other The string to compare with.
- * @param ignoreCase `true` to ignore character case when comparing. By default `false`.
- * @return The longest common suffix.
- */
 public fun String.commonSuffixWith(other: String, ignoreCase: Boolean = false): String {
     val shortestLength = comparisonMinOf(this.length, other.length)
     var i = 0
@@ -62,12 +46,6 @@ public fun String.commonSuffixWith(other: String, ignoreCase: Boolean = false): 
     return this.substring(this.length - i)
 }
 
-/**
- * Returns the longest common prefix of this char sequence and [other], without splitting a
- * surrogate pair at the boundary.
- *
- * @param ignoreCase `true` to ignore character case when matching a character. By default `false`.
- */
 public fun CharSequence.commonPrefixWith(other: CharSequence, ignoreCase: Boolean = false): String {
     val shortestLength = comparisonMinOf(this.length, other.length)
     var i = 0
@@ -80,12 +58,6 @@ public fun CharSequence.commonPrefixWith(other: CharSequence, ignoreCase: Boolea
     return __kkCharSequenceRange(this, 0, i)
 }
 
-/**
- * Returns the longest common suffix of this char sequence and [other], without splitting a
- * surrogate pair at the boundary.
- *
- * @param ignoreCase `true` to ignore character case when matching a character. By default `false`.
- */
 public fun CharSequence.commonSuffixWith(other: CharSequence, ignoreCase: Boolean = false): String {
     val thisLength = this.length
     val otherLength = other.length
@@ -121,12 +93,7 @@ private fun __kkCharSequenceRange(value: CharSequence, startIndex: Int, endIndex
     return result.toString()
 }
 
-// KSP-413: compareTo(ignoreCase) / contentEquals / equals(ignoreCase) moved off the
-// Swift runtime.
-//
 // String indexing and comparison use UTF-16 code units, matching Kotlin/JVM.
-// Character traversal goes through `toString().toList()` (see
-// StringPrefixSuffix.kt).
 //
 // Case folding follows the two-step rule of `String.compareToIgnoreCase` and
 // `Char.equals(other, ignoreCase = true)`: compare the upper-cased characters
@@ -198,15 +165,6 @@ private fun __kkRegionMatches(
     return true
 }
 
-/**
- * Returns whether the specified ranges of this and [other] contain equal characters.
- *
- * @param thisOffset the start offset in this char sequence.
- * @param other the char sequence whose range is compared.
- * @param otherOffset the start offset in [other].
- * @param length the number of characters to compare.
- * @param ignoreCase whether character case should be ignored.
- */
 public fun CharSequence.regionMatches(
     thisOffset: Int,
     other: CharSequence,
@@ -227,12 +185,6 @@ private fun __kkContentEquals(self: List<Char>, other: List<Char>, ignoreCase: B
     return true
 }
 
-/**
- * Compares two strings lexicographically, optionally ignoring character case.
- *
- * Returns a negative number, zero or a positive number when this string sorts
- * before, equal to or after [other] respectively.
- */
 public fun String.compareTo(other: String, ignoreCase: Boolean): Int {
     val selfChars = this.toList()
     val otherChars = other.toList()
@@ -251,10 +203,6 @@ public fun String.compareTo(other: String, ignoreCase: Boolean): Int {
     return selfChars.size - otherChars.size
 }
 
-/**
- * Returns `true` if this char sequence and [other] contain the same characters
- * in the same order, or if both are `null`.
- */
 public fun CharSequence?.contentEquals(other: CharSequence?): Boolean {
     val value = this
     if (value == null) return other == null
@@ -262,12 +210,6 @@ public fun CharSequence?.contentEquals(other: CharSequence?): Boolean {
     return __kkContentEquals(value!!.toString().toList(), other!!.toString().toList(), false)
 }
 
-/**
- * Returns `true` if this char sequence and [other] contain the same characters
- * in the same order, or if both are `null`.
- *
- * @param ignoreCase `true` to ignore character case when comparing characters.
- */
 public fun CharSequence?.contentEquals(other: CharSequence?, ignoreCase: Boolean): Boolean {
     val value = this
     if (value == null) return other == null
@@ -275,9 +217,6 @@ public fun CharSequence?.contentEquals(other: CharSequence?, ignoreCase: Boolean
     return __kkContentEquals(value!!.toString().toList(), other!!.toString().toList(), ignoreCase)
 }
 
-/**
- * Returns `true` if this string is equal to [other], optionally ignoring character case.
- */
 public fun String?.equals(other: String?, ignoreCase: Boolean): Boolean {
     val value = this
     if (value == null) return other == null
@@ -286,10 +225,5 @@ public fun String?.equals(other: String?, ignoreCase: Boolean): Boolean {
     return __kkContentEquals(value!!.toList(), other!!.toList(), true)
 }
 
-/**
- * Compares this string with [other] using the collation rules of [locale].
- *
- * Locale-aware collation stays in the runtime (`__kk_string_compareTo_locale`).
- */
 public fun String.compareTo(other: String, locale: java.util.Locale): Int =
     this.__kk_string_compareTo_locale(other, locale)
