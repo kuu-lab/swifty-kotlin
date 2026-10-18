@@ -23,20 +23,11 @@ package kotlin.ranges
 // `emitRuntimeFloatingPointEndpointFastPath`), while user-defined
 // implementations dispatch through the itable to these bodies/overrides.
 
-/**
- * Represents a range of floating point numbers.
- * Extends [ClosedRange] interface providing custom operation [lessThanOrEquals]
- * for comparing values of range domain type.
- */
 public interface ClosedFloatingPointRange<T : Comparable<T>> : ClosedRange<T> {
     public override operator fun contains(value: T): Boolean =
         lessThanOrEquals(start, value) && lessThanOrEquals(value, endInclusive)
 
     public override fun isEmpty(): Boolean = !lessThanOrEquals(start, endInclusive)
 
-    /**
-     * Compares two values of range domain type and returns true if first is
-     * less than or equal to second.
-     */
     public fun lessThanOrEquals(a: T, b: T): Boolean
 }
