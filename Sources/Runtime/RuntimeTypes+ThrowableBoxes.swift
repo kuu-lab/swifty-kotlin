@@ -6,7 +6,6 @@ class RuntimeThrowableBox {
     var stackTraceAddresses: [Int]
     var suppressionEnabled = true
     var writableStackTrace = true
-    /// Suppressed exceptions (STDLIB-EXCEPT-105).
     /// Stores raw Int pointers to other RuntimeThrowableBox instances.
     var suppressed: [Int] = []
 
@@ -93,9 +92,6 @@ class RuntimeCancellationBox: RuntimeThrowableBox {
     }
 }
 
-/// `kotlinx.coroutines.TimeoutCancellationException` -- thrown when a
-/// `withTimeout` deadline expires (CORO-002 / spec.md J17).
-///
 /// A *subclass* of `RuntimeCancellationBox`, mirroring kotlinx.coroutines, so
 /// `catch (e: CancellationException)` catches a timeout while
 /// `catch (e: TimeoutCancellationException)` stays narrow: the latter is matched

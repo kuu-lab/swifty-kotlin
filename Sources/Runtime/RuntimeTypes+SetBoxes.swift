@@ -1,11 +1,6 @@
 import Foundation
 
-/// Runtime box for `setOf(...)` / `mutableSetOf(...)`.
-/// Stores unique elements in insertion order as runtime values.
 final class RuntimeSetBox {
-    /// Distinguishes the two live map-backed views this box can present.
-    /// `.entries` materializes `MutableMap.MutableEntry` pair boxes on
-    /// demand; `.keys` exposes the map's raw key values directly.
     enum MapViewKind {
         case entries
         case keys
@@ -19,9 +14,6 @@ final class RuntimeSetBox {
     /// materializing a disconnected snapshot.
     private let backingMapRaw: Int?
     private let backingMapViewKind: MapViewKind
-    /// KUU-1361: `NavigableSet.descendingSet()` shares a parent box —
-    /// reads and mutations forward to it while iteration presents the
-    /// elements reversed.
     private let viewParent: RuntimeSetBox?
     /// KUU-1361: java.util.TreeSet ordering — `sorted` selects comparator
     /// order over insertion order, `comparatorRaw` holds the user
@@ -45,18 +37,12 @@ final class RuntimeSetBox {
         return directModCount
     }
 
-    /// Marks the box as comparator-ordered (java.util.TreeSet). A `0` or
-    /// `null`-sentinel comparator selects natural `Comparable` order;
-    /// `invertCompare` flips the order for descending views.
     func enableSorted(comparatorRaw: Int, invertCompare: Bool = false) {
         sorted = true
         self.comparatorRaw = comparatorRaw == runtimeNullSentinelInt ? 0 : comparatorRaw
         self.invertCompare = invertCompare
     }
 
-    /// Ordering used by sorted boxes: the stored `Comparator` object when
-    /// one was supplied, else `Comparable` natural order. Descending views
-    /// flip the sign.
     func sortedCompare(_ lhs: Int, _ rhs: Int) -> Int {
         let base = comparatorRaw != 0
             ? runtimeInvokeComparator(comparatorRaw, lhs, rhs)
@@ -64,8 +50,6 @@ final class RuntimeSetBox {
         return invertCompare ? -base : base
     }
 
-    /// Binary search over sorted storage — the element's position when
-    /// `found`, else the insertion index preserving comparator order.
     private func sortedSearch(for rawValue: Int) -> (found: Bool, index: Int) {
         var low = 0
         var high = storage.count - 1
@@ -175,9 +159,6 @@ final class RuntimeSetBox {
         self.invertCompare = false
     }
 
-    /// `descendingSet()` view — delegates to the parent box while presenting
-    /// elements reversed. Mutations write through, so the view and parent
-    /// share contents.
     init(descendingViewOf parent: RuntimeSetBox) {
         self.storage = []
         self.index = [:]
@@ -215,7 +196,6 @@ final class RuntimeSetBox {
         0..<count
     }
 
-    /// O(1) indexed access for the insertion-ordered set storage.
     subscript(index: Int) -> Int {
         guard let value = rawValue(at: index) else {
             preconditionFailure("RuntimeSetBox index out of bounds: \(index)")

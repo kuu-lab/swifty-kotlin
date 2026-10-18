@@ -53,7 +53,6 @@ public func __kk_sequence_of(_ arrayRaw: Int) -> Int {
     return registerRuntimeObject(seq)
 }
 
-/// Wrap a single element value in a one-element sequence.
 /// Used by the compiler to ensure `Sequence + element` always passes a
 /// collection handle to `kk_sequence_plus`, avoiding the ambiguity where
 /// a raw element value could collide with a live runtime object handle.
@@ -69,8 +68,6 @@ public func __kk_sequence_generate(_ seed: Int, _ fnPtr: Int, _ closureRaw: Int)
     return registerRuntimeObject(seq)
 }
 
-/// STDLIB-SEQ-002: 1-arg form `generateSequence(nextFunction: () -> T?)`.
-/// Calls `nextFunction` (no-arg closure) repeatedly; stops when null is returned.
 @_cdecl("__kk_sequence_generate_noarg")
 public func __kk_sequence_generate_noarg(_ fnPtr: Int, _ closureRaw: Int) -> Int {
     let seq = RuntimeSequenceBox(steps: [.nullableGenerator(fnPtr: fnPtr, closureRaw: closureRaw)])

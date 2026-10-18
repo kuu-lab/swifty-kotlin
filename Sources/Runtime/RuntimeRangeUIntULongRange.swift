@@ -1,12 +1,5 @@
 // swiftlint:disable file_length
 
-// UIntProgression / UIntRange / ULongProgression / ULongRange
-// runtime entry points (STDLIB-RANGE-036/037/039, STDLIB-524).
-//
-// HOF logic and range-handle validation live in RuntimeRangeSharedHOF.swift.
-// These @_cdecl functions are thin ABI entry points.
-
-
 @_cdecl("__kk_uint_rangeTo")
 public func __kk_uint_rangeTo(_ lhs: Int, _ rhs: Int) -> Int {
     registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: 1, kind: .uintRange))

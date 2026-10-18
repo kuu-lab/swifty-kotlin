@@ -1,7 +1,3 @@
-// String query and predicate functions (first/last/single,
-// flat ifBlank/ifEmpty wrappers, get, compareTo, contentEquals, lines).
-// Split out from `RuntimeStringStdlib.swift`.
-
 import Foundation
 
 // CharSequence.get occupies method slot 0, CharSequence.subSequence occupies

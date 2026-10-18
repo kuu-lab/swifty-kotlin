@@ -1,6 +1,3 @@
-// String ↔ ByteArray encoding/decoding and Charset constants.
-// Split out from `RuntimeStringStdlib.swift`.
-
 import Foundation
 import RuntimeABI
 
@@ -87,7 +84,6 @@ public func __kk_charset_name(_ charsetTag: Int) -> Int {
     return runtimeMakeStringRaw(name)
 }
 
-// STDLIB-581: String.toByteArray(charset: Charset)
 // java.lang.String charset encoding replaces each malformed UTF-16 unit;
 // valid surrogate pairs represent one scalar, including one replacement byte
 // for charsets that cannot encode that scalar. This private byte codec keeps
@@ -176,7 +172,6 @@ public func __kk_string_encodeToByteArray_flat(
     __kk_string_toByteArray_flat(data, length, byteCount, hash)
 }
 
-// STDLIB-573: String.encodeToByteArray(startIndex, endIndex)
 // Slices by UTF-16 code unit range to match Kotlin String indexing semantics.
 @_cdecl("__kk_string_encodeToByteArray_range_flat")
 public func __kk_string_encodeToByteArray_range_flat(
@@ -192,7 +187,6 @@ public func __kk_string_encodeToByteArray_range_flat(
     return runtimeMakeEncodedByteArray(KotlinStringSurrogateEncoding.unicodeString(slice).utf8.map { Int(Int8(bitPattern: $0)) })
 }
 
-// STDLIB-573: String.encodeToByteArray(charset) — charset-aware overload.
 // Sema types this as ByteArray — must return ArrayBox.
 // __kk_string_toByteArray_charset returns ListBox (Sema: List<Int>), so we
 // convert the elements here rather than delegating directly.
@@ -276,7 +270,6 @@ private func runtimeDecodeByteArrayRange(
     )
 }
 
-// STDLIB-574: ByteArray.decodeToString()
 @_cdecl("__kk_bytearray_decodeToString")
 public func __kk_bytearray_decodeToString(_ arrRaw: Int) -> Int {
     guard let elements = runtimeByteArrayElements(from: arrRaw) else {
@@ -291,7 +284,6 @@ public func __kk_bytearray_decodeToString(_ arrRaw: Int) -> Int {
     return runtimeMakeStringRaw(KotlinStringSurrogateEncoding.encode(decoded))
 }
 
-// STDLIB-TEXT-EDGE-006: ByteArray.decodeToString(startIndex, endIndex)
 @_cdecl("__kk_bytearray_decodeToString_range")
 public func __kk_bytearray_decodeToString_range(
     _ arrRaw: Int,
@@ -309,7 +301,6 @@ public func __kk_bytearray_decodeToString_range(
     )
 }
 
-// STDLIB-TEXT-EDGE-006: ByteArray.decodeToString(startIndex, endIndex, throwOnInvalidSequence)
 @_cdecl("__kk_bytearray_decodeToString_range_throw")
 public func __kk_bytearray_decodeToString_range_throw(
     _ arrRaw: Int,
@@ -328,7 +319,6 @@ public func __kk_bytearray_decodeToString_range_throw(
     )
 }
 
-// STDLIB-CINTEROP-FN-029: kotlinx.cinterop.ByteArray.toKString(startIndex, endIndex, throwOnInvalidSequence)
 // Same UTF-8 decode semantics as decodeToString — toKString is cinterop's
 // historical name for the identical operation.
 @_cdecl("__kk_byteArray_toKString")
@@ -391,7 +381,6 @@ private func runtimeDecodeJavaCharsetUTF8(_ bytes: [UInt8]) -> String {
     return String(decoding: units, as: UTF16.self)
 }
 
-// STDLIB-574: ByteArray.decodeToString(charset)
 // Charset IDs follow CharsetTag: UTF-8, Latin-1, ASCII, and endian-aware UTF-16/32.
 @_cdecl("__kk_bytearray_decodeToString_charset")
 public func __kk_bytearray_decodeToString_charset(_ arrRaw: Int, _ charsetId: Int) -> Int {
@@ -404,10 +393,8 @@ public func __kk_bytearray_decodeToString_charset(_ arrRaw: Int, _ charsetId: In
     case 0: // Charsets.UTF_8, JDK replacement grouping
         decoded = runtimeDecodeJavaCharsetUTF8(bytes)
     case 1: // Charsets.ISO_8859_1 (Latin-1)
-        // ISO-8859-1: each byte maps directly to its Unicode code point (0x00..0xFF)
         decoded = String(bytes.map { Character(Unicode.Scalar($0)) })
     case 2: // Charsets.US_ASCII
-        // ASCII: bytes > 127 become replacement character U+FFFD
         decoded = String(bytes.map { $0 <= 127 ? Character(Unicode.Scalar($0)) : "\u{FFFD}" })
     case 3, 4, 5: // UTF-16, UTF-16BE, UTF-16LE
         var littleEndian = charsetId == 5

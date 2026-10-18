@@ -1,9 +1,5 @@
 
 
-/// A deterministic PRNG using the xorshift64* algorithm.
-/// Each `Random(seed)` call creates a new instance whose state evolves
-/// independently so that two instances with the same seed produce identical
-/// sequences.
 final class SeededRandomBox {
     /// Internal PRNG state (xorshift64*).
     var state: UInt64
@@ -23,7 +19,6 @@ final class SeededRandomBox {
         self.state = s
     }
 
-    /// Returns the next pseudo-random UInt64.
     func nextBits() -> UInt64 {
         var s = state
         s ^= s >> 12
@@ -33,7 +28,6 @@ final class SeededRandomBox {
         return s &* 0x2545F4914F6CDD1D
     }
 
-    /// Returns a random Int (full range).
     func nextFullInt() -> Int {
         Int(bitPattern: UInt(truncatingIfNeeded: nextBits()))
     }

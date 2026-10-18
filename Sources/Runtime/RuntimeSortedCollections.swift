@@ -82,7 +82,6 @@ public func kk_tree_set_new_collection(_ collectionRaw: Int) -> Int {
     return registerRuntimeObject(box, typeID: treeSetRuntimeTypeID)
 }
 
-/// `java.util.TreeSet(SortedSet)` — inherits the source comparator.
 @_cdecl("__kk_tree_set_new_sorted_set")
 public func kk_tree_set_new_sorted_set(_ setRaw: Int) -> Int {
     let box = runtimeSortedSetBoxCreate(comparatorRaw: runtimeSortedSetComparatorRaw(setRaw))
@@ -143,7 +142,6 @@ public func kk_sorted_set_last(_ setRaw: Int, _ outThrown: UnsafeMutablePointer<
     return last.legacyRawValue
 }
 
-/// `NavigableSet.lower(e)` — greatest element strictly below `e`.
 @_cdecl("__kk_sorted_set_lower")
 public func kk_sorted_set_lower(_ setRaw: Int, _ element: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw),
@@ -153,7 +151,6 @@ public func kk_sorted_set_lower(_ setRaw: Int, _ element: Int) -> Int {
     return bound
 }
 
-/// `NavigableSet.floor(e)` — greatest element at or below `e`.
 @_cdecl("__kk_sorted_set_floor")
 public func kk_sorted_set_floor(_ setRaw: Int, _ element: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw),
@@ -163,7 +160,6 @@ public func kk_sorted_set_floor(_ setRaw: Int, _ element: Int) -> Int {
     return bound
 }
 
-/// `NavigableSet.ceiling(e)` — least element at or above `e`.
 @_cdecl("__kk_sorted_set_ceiling")
 public func kk_sorted_set_ceiling(_ setRaw: Int, _ element: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw),
@@ -173,7 +169,6 @@ public func kk_sorted_set_ceiling(_ setRaw: Int, _ element: Int) -> Int {
     return bound
 }
 
-/// `NavigableSet.higher(e)` — least element strictly above `e`.
 @_cdecl("__kk_sorted_set_higher")
 public func kk_sorted_set_higher(_ setRaw: Int, _ element: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw),
@@ -183,8 +178,6 @@ public func kk_sorted_set_higher(_ setRaw: Int, _ element: Int) -> Int {
     return bound
 }
 
-/// `NavigableSet.pollFirst()` — removes and returns the least element, or
-/// null on empty.
 @_cdecl("__kk_sorted_set_poll_first")
 public func kk_sorted_set_poll_first(_ setRaw: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw), let first = set.values.first else {
@@ -194,8 +187,6 @@ public func kk_sorted_set_poll_first(_ setRaw: Int) -> Int {
     return first.legacyRawValue
 }
 
-/// `NavigableSet.pollLast()` — removes and returns the greatest element, or
-/// null on empty.
 @_cdecl("__kk_sorted_set_poll_last")
 public func kk_sorted_set_poll_last(_ setRaw: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw), let last = set.values.last else {
@@ -307,13 +298,11 @@ private func runtimeSortedMapBound(
 }
 
 
-/// `java.util.TreeMap(comparator)` / `java.util.TreeMap()`.
 @_cdecl("__kk_tree_map_new")
 public func kk_tree_map_new(_ comparatorRaw: Int) -> Int {
     registerRuntimeObject(runtimeSortedMapBoxCreate(comparatorRaw: comparatorRaw), typeID: treeMapRuntimeTypeID)
 }
 
-/// `java.util.TreeMap(Map)` — natural key order.
 @_cdecl("__kk_tree_map_new_map")
 public func kk_tree_map_new_map(_ mapRaw: Int) -> Int {
     let box = runtimeSortedMapBoxCreate(comparatorRaw: 0)
@@ -321,7 +310,6 @@ public func kk_tree_map_new_map(_ mapRaw: Int) -> Int {
     return registerRuntimeObject(box, typeID: treeMapRuntimeTypeID)
 }
 
-/// `java.util.TreeMap(SortedMap)` — inherits the source comparator.
 @_cdecl("__kk_tree_map_new_sorted_map")
 public func kk_tree_map_new_sorted_map(_ mapRaw: Int) -> Int {
     let box = runtimeSortedMapBoxCreate(comparatorRaw: runtimeSortedMapComparatorRaw(mapRaw))
@@ -329,7 +317,6 @@ public func kk_tree_map_new_sorted_map(_ mapRaw: Int) -> Int {
     return registerRuntimeObject(box, typeID: treeMapRuntimeTypeID)
 }
 
-/// Attach a sorted backing box to a source-allocated TreeMap instance.
 @_cdecl("__kk_tree_map_init")
 public func kk_tree_map_init(_ mapRaw: Int, _ comparatorRaw: Int) -> Int {
     guard let pointer = UnsafeMutableRawPointer(bitPattern: mapRaw),
@@ -341,7 +328,6 @@ public func kk_tree_map_init(_ mapRaw: Int, _ comparatorRaw: Int) -> Int {
 }
 
 
-/// `SortedMap.comparator()` — the stored comparator object, or null.
 @_cdecl("__kk_sorted_map_comparator")
 public func kk_sorted_map_comparator(_ mapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw), map.sorted, map.comparatorRaw != 0 else {
@@ -375,7 +361,6 @@ public func kk_sorted_map_last_key(_ mapRaw: Int, _ outThrown: UnsafeMutablePoin
     return last
 }
 
-/// `NavigableMap.lowerKey(k)` — greatest key strictly below `k`.
 @_cdecl("__kk_sorted_map_lower_key")
 public func kk_sorted_map_lower_key(_ mapRaw: Int, _ key: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw),
@@ -385,7 +370,6 @@ public func kk_sorted_map_lower_key(_ mapRaw: Int, _ key: Int) -> Int {
     return bound
 }
 
-/// `NavigableMap.floorKey(k)` — greatest key at or below `k`.
 @_cdecl("__kk_sorted_map_floor_key")
 public func kk_sorted_map_floor_key(_ mapRaw: Int, _ key: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw),
@@ -395,7 +379,6 @@ public func kk_sorted_map_floor_key(_ mapRaw: Int, _ key: Int) -> Int {
     return bound
 }
 
-/// `NavigableMap.ceilingKey(k)` — least key at or above `k`.
 @_cdecl("__kk_sorted_map_ceiling_key")
 public func kk_sorted_map_ceiling_key(_ mapRaw: Int, _ key: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw),
@@ -405,7 +388,6 @@ public func kk_sorted_map_ceiling_key(_ mapRaw: Int, _ key: Int) -> Int {
     return bound
 }
 
-/// `NavigableMap.higherKey(k)` — least key strictly above `k`.
 @_cdecl("__kk_sorted_map_higher_key")
 public func kk_sorted_map_higher_key(_ mapRaw: Int, _ key: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw),

@@ -1,10 +1,3 @@
-// LongRange runtime entry points (STDLIB-RANGE-035) plus IntRange
-// `toIntArray` (STDLIB-RANGE-034) and ULongRange iterator/forEach/map.
-//
-// HOF logic and range-handle validation live in RuntimeRangeSharedHOF.swift.
-// These @_cdecl functions are thin ABI entry points.
-
-
 @_cdecl("__kk_long_rangeTo")
 public func kk_long_rangeTo(_ lhs: Int, _ rhs: Int) -> Int {
     registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: 1, kind: .longRange))

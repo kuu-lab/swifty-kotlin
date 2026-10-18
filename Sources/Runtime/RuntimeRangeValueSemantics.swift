@@ -66,11 +66,10 @@ enum RuntimeRangeKind: Int32, CaseIterable {
     }
 }
 
-/// Builds the box for `first until exclusiveEnd`. Mirrors Kotlin's
-/// `until`: the result is always a step-1 range `first..(end - 1)`, except when
-/// the end is at or below the type's minimum, where `(end - 1)` would wrap and
-/// Kotlin returns the canonical `EMPTY` range: `1..0` for signed kinds and
-/// `MAX_VALUE..0` for the unsigned ones.
+/// Mirrors Kotlin's `until`: the result is always a step-1 range
+/// `first..(end - 1)`, except when the end is at or below the type's minimum,
+/// where `(end - 1)` would wrap and Kotlin returns the canonical `EMPTY` range:
+/// `1..0` for signed kinds and `MAX_VALUE..0` for the unsigned ones.
 func runtimeUntilRange(first: Int, exclusiveEnd: Int, kind: RuntimeRangeKind, endAtOrBelowMinimum: Bool) -> Int {
     if endAtOrBelowMinimum {
         let emptyFirst: Int = switch kind {

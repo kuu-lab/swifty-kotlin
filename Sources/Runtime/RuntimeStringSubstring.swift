@@ -1,6 +1,3 @@
-// replaceFirst, replaceRange, and removeRange runtime primitives.
-// Split out from `RuntimeStringStdlib.swift`.
-//
 // KSP-407: substringBefore/After/BeforeLast/AfterLast and replaceBefore/After/
 // BeforeLast/AfterLast (String and Char delimiter variants) were migrated to
 // bundled Kotlin source (`Stdlib/kotlin/text/StringSearchReplace.kt`), built

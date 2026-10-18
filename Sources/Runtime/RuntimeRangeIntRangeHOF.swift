@@ -1,10 +1,3 @@
-// IntRange higher-order / aggregation / search / partitioning
-// runtime entry points (STDLIB-091, STDLIB-RANGE-038).
-//
-// HOF logic and range-handle validation live in RuntimeRangeSharedHOF.swift.
-// These @_cdecl functions are thin ABI entry points.
-
-
 @_cdecl("kk_range_toList")
 public func kk_range_toList(_ rangeRaw: Int) -> Int {
     runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_range_toList") { range in

@@ -50,9 +50,6 @@ public fun Char.isUpperCase(): Boolean = __charIsUpperCase(this.code)
 
 public fun Char.isLowerCase(): Boolean = __charIsLowerCase(this.code)
 
-/**
- * Returns `true` if this character is a title case letter.
- */
 public fun Char.isTitleCase(): Boolean = __charUnicodeCategory(this.code) == CATEGORY_TITLECASE_LETTER
 
 public fun Char.isDefined(): Boolean = __charUnicodeCategory(this.code) != CATEGORY_UNASSIGNED

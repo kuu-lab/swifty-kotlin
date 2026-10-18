@@ -1,7 +1,5 @@
 import Foundation
 
-/// Runtime box for `listOf(...)` / `mutableListOf(...)`.
-/// Stores elements directly or as a lightweight view over another list/array.
 final class RuntimeListBox {
     private final class DirectStorage {
         var values: [RuntimeValue]
@@ -158,7 +156,6 @@ final class RuntimeListBox {
         }
     }
 
-    /// Structural-modification counter (Java/Kotlin `modCount` equivalent).
     /// View storages forward to the backing list's own counter, so an
     /// iterator over a `subList`/reversed view still detects a structural
     /// change made through the root list.
@@ -325,7 +322,6 @@ final class RuntimeListBox {
         }
     }
 
-    /// True when this list is the live view returned by `MutableMap.values`.
     var isMapValuesView: Bool {
         if case .mapValuesViewOf = storage { return true }
         return false
@@ -398,8 +394,6 @@ private final class RuntimeListSlice {
     }
 }
 
-/// Runtime box for `ArrayDeque<T>`.
-///
 /// Elements live in a ring buffer so that both ends mutate in place: `head` is
 /// the buffer slot of the logical first element and `count` the number of live
 /// elements. Growth doubles the buffer and re-linearizes it.
@@ -532,8 +526,8 @@ final class RuntimeIndexingIterableBox {
     }
 }
 
-/// Iterator for `withIndex()` result. Each call to `next()` yields an
-/// `IndexedValue<E>` pair (index, element) represented as `RuntimePairBox`.
+/// Each call to `next()` yields an `IndexedValue<E>` pair (index, element)
+/// represented as `RuntimePairBox`.
 final class RuntimeIndexingIteratorBox {
     let values: [RuntimeValue]
     var index: Int
@@ -544,7 +538,6 @@ final class RuntimeIndexingIteratorBox {
     }
 }
 
-/// Iterator box for `List` iteration via `for (x in list)`.
 final class RuntimeListIteratorBox {
     var values: [RuntimeValue]
     var elements: [Int] {
@@ -642,9 +635,6 @@ final class RuntimeListIteratorBox {
         return true
     }
 
-    /// `MutableListIterator.set`: replaces the element most recently returned
-    /// by `next()`/`previous()`, at the same position `removeLastReturned()`
-    /// targets.
     func setLastReturned(_ value: RuntimeValue) -> Bool {
         guard lastReturnedIndex >= 0, lastReturnedIndex < values.count else {
             return false

@@ -1,14 +1,11 @@
 import Foundation
 
-/// Byte operations needed by the native character decoder.
 protocol RuntimeReaderInputStream: AnyObject {
     func readByte() -> Int
     func available() -> Int
     func close()
 }
 
-/// Native character-reader box shared by InputStreamReader and BufferedReader.
-/// Supports file, byte-stream, and reader-delegation backends.
 final class RuntimeBufferedReaderBox {
     private var inputStream: (any RuntimeReaderInputStream)?
     private var upstreamReader: RuntimeBufferedReaderBox?
@@ -24,12 +21,10 @@ final class RuntimeBufferedReaderBox {
     private var reachedEOF: Bool
     private let chunkSize: Int
 
-    /// Index of the first unconsumed byte in `pendingData`.
     private var pendingStartIndex: Data.Index {
         pendingData.index(pendingData.startIndex, offsetBy: readOffset)
     }
 
-    /// Bytes buffered but not yet consumed.
     private var pendingByteCount: Int {
         pendingData.count - readOffset
     }
@@ -43,7 +38,6 @@ final class RuntimeBufferedReaderBox {
         self.chunkSize = max(1, chunkSize)
     }
 
-    /// Creates a `BufferedReader` backed by an already-loaded `Data` buffer.
     /// Used by `InputStream.bufferedReader()` (STDLIB-IO-FN-007) where the
     /// underlying `InputStream` is in-memory (`ByteArrayInputStream`) — no
     /// `FileHandle` is involved, so the buffer is treated as already at EOF.
@@ -71,7 +65,6 @@ final class RuntimeBufferedReaderBox {
         self.upstreamReader = reader
     }
 
-    /// Returns the next line, or `nil` when all lines have been consumed.
     func readLine() -> String? {
         guard !closed else { return nil }
         if let upstreamReader { return upstreamReader.readLine() }
@@ -98,7 +91,6 @@ final class RuntimeBufferedReaderBox {
         }
     }
 
-    /// Returns all remaining lines as an array.
     func readLines() -> [String] {
         guard !closed else { return [] }
         var remaining: [String] = []
@@ -108,13 +100,8 @@ final class RuntimeBufferedReaderBox {
         return remaining
     }
 
-    /// Reads the remaining content of the reader into a single `String`
-    /// (STDLIB-IO-FN-033). Mirrors `kotlin.io.readText()`: drains any buffered
-    /// bytes and then reads the underlying stream to EOF, decoding the
-    /// accumulated bytes as UTF-8. Returns an empty string if the reader is
-    /// already closed or has nothing left to read. Does NOT close the reader,
-    /// matching Kotlin's `Reader.readText()` contract (callers wrap in `use`
-    /// to release the underlying file handle).
+    /// Does NOT close the reader, matching Kotlin's `Reader.readText()`
+    /// contract (callers wrap in `use` to release the underlying file handle).
     func readText() -> String {
         guard !closed else { return "" }
         if let upstreamReader { return upstreamReader.readText() }
@@ -141,11 +128,9 @@ final class RuntimeBufferedReaderBox {
             if pendingByteCount > 0 {
                 let byte = pendingData[pendingStartIndex]
                 readOffset += 1
-                // Fast path: ASCII byte
                 if byte & 0x80 == 0 {
                     return Int(byte)
                 }
-                // Multi-byte UTF-8: put back and decode
                 var codePoint: UInt32 = 0
                 let totalBytes: Int
                 if byte & 0xE0 == 0xC0 {
@@ -161,7 +146,6 @@ final class RuntimeBufferedReaderBox {
                     // Continuation byte or invalid — return as-is
                     return Int(byte)
                 }
-                // Ensure we have enough continuation bytes
                 while pendingByteCount < totalBytes - 1 {
                     if reachedEOF { return Int(byte) }
                     if !readNextChunk() { reachedEOF = true }
@@ -180,7 +164,6 @@ final class RuntimeBufferedReaderBox {
         }
     }
 
-    /// Returns true if data is available to be read without blocking (buffered bytes exist or not EOF).
     func ready() -> Bool {
         guard !closed else { return false }
         if let upstreamReader { return upstreamReader.ready() }
@@ -351,7 +334,6 @@ class RuntimeInputStreamBox: RuntimeChildReferenceProviding, RuntimeReaderInputS
     func drainRemaining() -> Data { Data(readAllBytes().map { UInt8(truncatingIfNeeded: $0) }) }
 }
 
-/// Runtime box for `java.io.SequenceInputStream` — chains two InputStreams.
 final class RuntimeSequenceInputStreamBox: RuntimeChildReferenceProviding, RuntimeReaderInputStream {
     private var current: Int?
     private var remaining: Int?
@@ -438,9 +420,6 @@ final class RuntimeSequenceInputStreamBox: RuntimeChildReferenceProviding, Runti
     }
 }
 
-/// Pluggable back-end for `RuntimeOutputStreamBox`.  Concrete implementations
-/// may wrap a real `FileHandle` (normal file-backed streams) or provide a
-/// transforming layer such as the Base64-encoding stream.
 protocol RuntimeOutputStreamSink: AnyObject {
     func write(_ data: Data) throws
     func flush() throws
@@ -452,7 +431,6 @@ extension RuntimeOutputStreamSink {
     func closeThrowing() throws { close() }
 }
 
-/// Concrete `RuntimeOutputStreamSink` backed by a `FileHandle`.
 final class RuntimeFileHandleOutputStreamSink: RuntimeOutputStreamSink {
     private let fileHandle: FileHandle
     private var closed: Bool
@@ -496,9 +474,6 @@ struct RuntimeKotlinThrownError: Error {
     let thrownRaw: Int
 }
 
-/// `RuntimeOutputStreamSink` that forwards write/flush/close into Kotlin
-/// lambdas captured by `kotlinx.io.Sink.asOutputStream()` (KSP-1553).
-///
 /// Each callback is a KSwiftK closure stored as a (fnPtr, closureRaw) pair:
 /// `write: (ByteArray) -> Unit` is invoked through the collection-HOF
 /// entry-point convention and `flush`/`close: () -> Unit` through the closure
@@ -623,7 +598,6 @@ final class RuntimeOutputStreamBox: RuntimeChildReferenceProviding {
         (sink as? RuntimeFileHandleOutputStreamSink)?.underlyingFileHandle
     }
 
-    /// Creates a `RuntimeBufferedWriterBox` wrapping the underlying file handle.
     /// Returns `nil` when the sink is not file-handle backed (e.g. an encoding
     /// stream).  STDLIB-IO-FN-009.
     func makeBufferedWriter(encoding: String.Encoding) -> RuntimeBufferedWriterBox? {
@@ -635,8 +609,6 @@ final class RuntimeOutputStreamBox: RuntimeChildReferenceProviding {
     }
 }
 
-/// Runtime box for `java.io.BufferedWriter` returned by `File.bufferedWriter()`.
-/// Wraps a streaming file writer, supporting `write()`, `newLine()`, `flush()`, and `close()`.
 final class RuntimeBufferedWriterBox {
     private let fileHandle: FileHandle?
     private let stream: RuntimeOutputStreamBox?
@@ -666,7 +638,6 @@ final class RuntimeBufferedWriterBox {
         self.closed = false
     }
 
-    /// Writes a string to the buffer, flushing when full.
     func write(_ text: String) throws {
         guard !closed else { throw RuntimeKotlinThrownError(thrownRaw: runtimeAllocateIOException(message: "Stream closed")) }
         let data: Data
@@ -682,12 +653,10 @@ final class RuntimeBufferedWriterBox {
         }
     }
 
-    /// Writes a system line separator.
     func newLine() throws {
         try write("\n")
     }
 
-    /// Flushes buffered data to the file.
     func flush() throws {
         guard !closed else { throw RuntimeKotlinThrownError(thrownRaw: runtimeAllocateIOException(message: "Stream closed")) }
         try flushBuffer()

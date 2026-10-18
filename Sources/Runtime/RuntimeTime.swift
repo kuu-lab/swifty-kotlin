@@ -239,9 +239,6 @@ public func __kk_time_mark_from_reading_nanos(_ readingNanos: Int) -> Int {
     registerRuntimeObject(RuntimeTimeMarkBox(uptimeNanoseconds: Int64(readingNanos)))
 }
 
-/// Converts a kotlin.time.Instant to a Foundation.Date (Native/macOS bridge).
-///
-/// Kotlin/Native: instant.toNSDate()
 public func kk_instant_to_foundation_date(_ instantRaw: Int) -> Int {
     guard let instant = runtimeKotlinInstantBox(from: instantRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_instant_to_foundation_date received invalid Instant handle")
@@ -251,9 +248,6 @@ public func kk_instant_to_foundation_date(_ instantRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeJSDateBox(epochMilliseconds: timeInterval * 1_000))
 }
 
-/// Converts a Foundation.Date (represented as epoch-millisecond JS box) to a kotlin.time.Instant.
-///
-/// Kotlin/Native: nsDate.toKotlinInstant()
 public func kk_foundation_date_to_kotlin_instant(_ dateRaw: Int) -> Int {
     guard let jsDate = runtimeJSDateBox(from: dateRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_foundation_date_to_kotlin_instant received invalid NSDate handle")
@@ -261,9 +255,6 @@ public func kk_foundation_date_to_kotlin_instant(_ dateRaw: Int) -> Int {
     return registerRuntimeObject(runtimeInstantFromEpochMilliseconds(jsDate.epochMilliseconds))
 }
 
-/// Returns monotonic time in nanoseconds using POSIX clock_gettime(CLOCK_MONOTONIC).
-///
-/// Kotlin/Native: TimeSource.Monotonic.markNow() lower-level primitive.
 public func kk_clock_gettime_monotonic_ns() -> Int {
     var ts = timespec()
     clock_gettime(CLOCK_MONOTONIC, &ts)
@@ -271,15 +262,11 @@ public func kk_clock_gettime_monotonic_ns() -> Int {
         saturatingMultiply(Int64(ts.tv_sec), 1_000_000_000),
         Int64(ts.tv_nsec)
     )
-    // Clamp to Int range (platform word size).
     if ns > Int64(Int.max) { return Int.max }
     if ns < Int64(Int.min) { return Int.min }
     return Int(ns)
 }
 
-/// Returns a TimeMark backed by POSIX CLOCK_MONOTONIC instead of DispatchTime.
-///
-/// Kotlin/Native: TimeSource.Monotonic.markNow() (native clock variant)
 public func kk_clock_monotonic_mark_now() -> Int {
     var ts = timespec()
     clock_gettime(CLOCK_MONOTONIC, &ts)
@@ -290,9 +277,6 @@ public func kk_clock_monotonic_mark_now() -> Int {
     return registerRuntimeObject(RuntimeTimeMarkBox(uptimeNanoseconds: ns))
 }
 
-/// Returns the epoch-millisecond representation of a kotlin.time.Instant as a Long.
-///
-/// Kotlin: instant.toEpochMilliseconds()
 public func kk_instant_to_epoch_millis(_ instantRaw: Int) -> Int {
     guard let instant = runtimeKotlinInstantBox(from: instantRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_instant_to_epoch_millis received invalid Instant handle")
@@ -301,9 +285,6 @@ public func kk_instant_to_epoch_millis(_ instantRaw: Int) -> Int {
     return Int(millis)
 }
 
-/// Creates a kotlin.time.Instant from separate epoch-seconds and nanoOfSecond components.
-///
-/// Kotlin: Instant.fromEpochSeconds(epochSeconds, nanoOfSecond)
 @_cdecl("kk_instant_from_epoch_seconds")
 public func kk_instant_from_epoch_seconds(_ epochSeconds: Int, _ nanoOfSecond: Int) -> Int {
     return registerRuntimeObject(

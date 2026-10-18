@@ -1,7 +1,5 @@
 package kotlin.text
 
-// KSP-1417: CharCategory's public enum API is backed by bundled Kotlin source.
-
 public enum class CharCategory {
     UNASSIGNED,
     UPPERCASE_LETTER,

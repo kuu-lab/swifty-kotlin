@@ -1,6 +1,5 @@
 import Foundation
 
-/// Internal box holding a UUID value as two 64-bit integers (most significant, least significant).
 final class RuntimeUuidBox {
     let mostSignificantBits: Int64
     let leastSignificantBits: Int64
@@ -109,7 +108,6 @@ public func __kk_uuid_lexicalOrder() -> Int {
     return raw
 }
 
-/// Extract a RuntimeUuidBox from a raw receiver value.
 private func runtimeUuidBox(from rawValue: Int) -> RuntimeUuidBox? {
     if let legacyBox = resolveRuntimeHandle(rawValue, as: RuntimeUuidBox.self) {
         return legacyBox
@@ -162,7 +160,6 @@ private func runtimeUuidObjectRaw(mostSignificantBits: Int64, leastSignificantBi
 
 @_cdecl("__kk_uuid_random")
 public func __kk_uuid_random() -> Int {
-    // Generate a version-4 (random) UUID
     var rng = SystemRandomNumberGenerator()
     var msb = Int64(bitPattern: rng.next() as UInt64)
     var lsb = Int64(bitPattern: rng.next() as UInt64)
@@ -195,8 +192,6 @@ func kk_uuid_toKotlinUuid(_ receiver: Int) -> Int {
     )
 }
 
-// Keep the private bridge name used by the Kotlin source implementation and
-// ABI inventory while retaining the public compatibility entry point above.
 @_cdecl("__kk_uuid_toKotlinUuid")
 func __kk_uuid_toKotlinUuid(_ receiver: Int) -> Int {
     kk_uuid_toKotlinUuid(receiver)

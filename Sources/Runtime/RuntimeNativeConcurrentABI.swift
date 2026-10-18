@@ -1,30 +1,6 @@
 import Dispatch
 import Foundation
 
-//
-// Implements the runtime entry-points required by the Kotlin/Native
-// concurrent standard library:
-//
-//   ABI-001  Worker.id              — kk_worker_id
-//   ABI-002  Future<T>              — kk_future_new / kk_future_complete /
-//                                     kk_future_result / kk_future_consume /
-//                                     kk_future_is_ready / kk_future_getState /
-//                                     kk_future_invoke
-//   ABI-003  TransferMode           — kk_transfer_object  (SAFE freezes; UNSAFE is pass-through)
-//   ABI-005  Worker.executeAfter    — kk_worker_execute_after
-//   ABI-006  Worker receiver helpers — kk_worker_process_queue / kk_worker_park /
-//                                      kk_worker_platform_thread_id /
-//                                      kk_worker_as_cpointer
-//
-// Deferred / known limitations:
-//   • TransferMode SAFE: full cycle-detection DFS over the managed object graph
-//     is not yet implemented.  The current implementation freezes the root
-//     object (consistent with Kotlin/Native semantics) but does not recursively
-//     walk reachable references.  A future pass can add that once the type-info
-//     system exposes field offsets.
-
-
-/// Global monotonic counter for Worker IDs.
 private let workerIDCounter = WorkerIDCounter()
 
 private final class WorkerIDCounter: @unchecked Sendable {
@@ -98,7 +74,6 @@ private final class ActiveWorkerRegistry: @unchecked Sendable {
     }
 }
 
-/// Registers `handle` under the worker ID derived from `workerIDRegistry`.
 /// Called by every entry point that materializes a `RuntimeWorkerBox`.
 func registerActiveWorker(handle: Int) {
     guard let pointer = UnsafeMutableRawPointer(bitPattern: handle) else { return }
@@ -106,16 +81,12 @@ func registerActiveWorker(handle: Int) {
     activeWorkerRegistry.register(id: workerID, handle: handle)
 }
 
-/// Removes `handle` from the active-worker registry after termination.
 func unregisterActiveWorker(handle: Int) {
     guard let pointer = UnsafeMutableRawPointer(bitPattern: handle) else { return }
     let workerID = workerIDRegistry.id(for: UInt(bitPattern: pointer))
     activeWorkerRegistry.unregister(id: workerID)
 }
 
-/// Returns the monotonic integer ID for a Worker.
-///
-/// - Parameter workerHandle: opaque handle produced by `kk_worker_new`.
 /// - Returns: A positive integer (≥ 1) that is stable across calls, or −1 for an invalid handle.
 @_cdecl("kk_worker_id")
 public func kk_worker_id(_ workerHandle: Int) -> Int {
@@ -124,7 +95,6 @@ public func kk_worker_id(_ workerHandle: Int) -> Int {
     else {
         return -1
     }
-    // Confirm the handle actually points to a RuntimeWorkerBox.
     guard tryCast(ptr, to: RuntimeWorkerBox.self) != nil else {
         return -1
     }
@@ -132,8 +102,6 @@ public func kk_worker_id(_ workerHandle: Int) -> Int {
 }
 
 
-/// Runtime backing for `kotlin.native.concurrent.Future<T>`.
-///
 /// A Future is a single-assignment promise: one producer calls `complete`,
 /// after which any number of consumers may call `result` (blocking until ready)
 /// or `consume` (one-shot retrieval that nulls out the stored value).
@@ -218,7 +186,6 @@ final class RuntimeFutureBox: @unchecked Sendable {
         return _ready ? 2 : 1 // FutureState.COMPUTED : FutureState.SCHEDULED
     }
 
-    /// Non-consuming read.  Blocks until a value is available.
     func result() -> Int {
         blockUntilReady()
         lock.lock()
@@ -226,7 +193,6 @@ final class RuntimeFutureBox: @unchecked Sendable {
         return _ready ? _resultRaw : 0
     }
 
-    /// One-shot retrieval.  Returns the value and zeroes the stored reference.
     func consume() -> Int {
         blockUntilReady()
         lock.lock()
@@ -239,13 +205,12 @@ final class RuntimeFutureBox: @unchecked Sendable {
     }
 }
 
-/// Allocate a new, unresolved Future.
 @_cdecl("kk_future_new")
 public func kk_future_new() -> Int {
     return registerRuntimeObject(RuntimeFutureBox())
 }
 
-/// Resolve the Future with `valueRaw`.  Must be called exactly once.
+/// Must be called exactly once.
 @discardableResult
 @_cdecl("kk_future_complete")
 public func kk_future_complete(_ futureHandle: Int, _ valueRaw: Int) -> Int {
@@ -258,7 +223,6 @@ public func kk_future_complete(_ futureHandle: Int, _ valueRaw: Int) -> Int {
     return 0
 }
 
-/// Returns 1 if the Future has been resolved, 0 otherwise.
 public func kk_future_is_ready(_ futureHandle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: futureHandle),
           let box = tryCast(ptr, to: RuntimeFutureBox.self)
@@ -268,7 +232,6 @@ public func kk_future_is_ready(_ futureHandle: Int) -> Int {
     return box.isReady ? 1 : 0
 }
 
-/// Returns the FutureState ordinal for a valid runtime Future handle.
 @_cdecl("kk_future_getState")
 public func kk_future_getState(_ futureHandle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: futureHandle),
@@ -279,7 +242,6 @@ public func kk_future_getState(_ futureHandle: Int) -> Int {
     return box.stateRaw
 }
 
-/// Invoke a Future.consume callback through the function-value ABI.
 @_cdecl("kk_future_invoke")
 public func kk_future_invoke(
     _ fnPtr: Int,
@@ -295,7 +257,6 @@ public func kk_future_invoke(
     )
 }
 
-/// Blocking, non-consuming read of the resolved value.
 @_cdecl("kk_future_result")
 public func kk_future_result(_ futureHandle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: futureHandle),
@@ -306,7 +267,7 @@ public func kk_future_result(_ futureHandle: Int) -> Int {
     return box.result()
 }
 
-/// Blocking, one-shot consume.  Second call returns 0.
+/// Second call returns 0.
 @_cdecl("kk_future_consume")
 public func kk_future_consume(_ futureHandle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: futureHandle),
@@ -326,19 +287,16 @@ public func __kk_native_concurrent_detach_object_graph(_ modeRaw: Int, _ valueRa
     return valueRaw
 }
 
-/// Reattaches the opaque token produced by detachObjectGraphInternal.
 @_cdecl("__kk_native_concurrent_attach_object_graph")
 public func __kk_native_concurrent_attach_object_graph(_ stableRaw: Int) -> Int {
     stableRaw
 }
 
-/// Consumes a Future through the source-backed package helper.
 @_cdecl("__kk_native_concurrent_consume_future")
 public func __kk_native_concurrent_consume_future(_ futureHandle: Int) -> Int {
     kk_future_consume(futureHandle)
 }
 
-/// Runtime-owned thread scheduling for the source-backed executeImpl wrapper.
 @_cdecl("__kk_native_concurrent_execute_impl")
 public func __kk_native_concurrent_execute_impl(
     _ workerHandle: Int,
@@ -402,7 +360,6 @@ private func nativeConcurrentReadyFutureHandles(
     return ready
 }
 
-/// Waits until at least one Future can be consumed or the timeout expires.
 @_cdecl("__kk_native_concurrent_wait_for_multiple_futures")
 public func __kk_native_concurrent_wait_for_multiple_futures(
     _ futuresHandle: Int,
@@ -452,7 +409,6 @@ public func __kk_native_concurrent_start_worker(_ errorReportingRaw: Int, _ name
     return kk_worker_new(nameRaw)
 }
 
-/// Terminates and joins a worker used by withWorker.
 @_cdecl("__kk_native_concurrent_terminate_worker")
 public func __kk_native_concurrent_terminate_worker(_ workerHandle: Int) -> Int {
     let futureHandle = kk_worker_request_termination(workerHandle, 1)
@@ -462,7 +418,6 @@ public func __kk_native_concurrent_terminate_worker(_ workerHandle: Int) -> Int 
     return 0
 }
 
-/// Blocks until a previously requested worker termination becomes visible.
 @_cdecl("__kk_native_concurrent_wait_worker_termination")
 public func __kk_native_concurrent_wait_worker_termination(_ workerHandle: Int) -> Int {
     guard let pointer = UnsafeMutableRawPointer(bitPattern: workerHandle),
@@ -474,19 +429,17 @@ public func __kk_native_concurrent_wait_worker_termination(_ workerHandle: Int) 
     return 0
 }
 
-/// Returns the worker bound to the calling thread. Backs both
-/// `WorkerBoundReference.worker` (KSP-1253) and the public
+/// Backs both `WorkerBoundReference.worker` (KSP-1253) and the public
 /// `Worker.Companion.current` surface (KSP-1251).
 @_cdecl("__kk_native_concurrent_current_worker")
 public func __kk_native_concurrent_current_worker() -> Int {
     runtimeCurrentWorkerHandle()
 }
 
-/// Returns the live workers tracked by `activeWorkerRegistry`, ordered by
-/// worker ID for a deterministic list. Backs `Worker.Companion.activeWorkers`
-/// (KSP-1251). The calling thread's worker is resolved first so the lazily
-/// materialized main worker is always listed, matching the upstream contract
-/// that `activeWorkers` covers the current worker.
+/// Backs `Worker.Companion.activeWorkers` (KSP-1251). The calling thread's
+/// worker is resolved first so the lazily materialized main worker is always
+/// listed, matching the upstream contract that `activeWorkers` covers the
+/// current worker.
 @_cdecl("__kk_native_concurrent_active_workers")
 public func __kk_native_concurrent_active_workers() -> Int {
     _ = runtimeCurrentWorkerHandle()
@@ -518,11 +471,6 @@ public func __kk_native_concurrent_worker_from_cpointer(_ pointerHandle: Int) ->
 //   SAFE   = 0  — freeze the object before transfer; enforce immutability
 //   UNSAFE = 1  — skip freeze; caller takes responsibility for thread safety
 
-/// Transfer `objectRaw` to another thread under the specified `TransferMode`.
-///
-/// SAFE mode: freezes the object so it becomes safely shareable.
-/// UNSAFE mode: passes the handle through without modification.
-///
 /// - Returns: the original `objectRaw` handle, or 0 for a null handle.
 @discardableResult
 // DEAD-CDECL-TEST-HOOK: CONCURRENCY-TRANSFER - Runtime tests exercise object transfer ownership.
@@ -532,15 +480,12 @@ public func kk_transfer_object(_ objectRaw: Int, _ modeRaw: Int) -> Int {
         return 0
     }
     if modeRaw == 0 {
-        // SAFE: freeze before handing off.
         _ = kk_freeze_object(objectRaw)
     }
-    // UNSAFE: pass through — caller is responsible for safety.
     return objectRaw
 }
 
 
-/// Process jobs already queued for a Worker.
 @_cdecl("kk_worker_process_queue")
 public func kk_worker_process_queue(_ workerHandle: Int) -> Int {
     guard workerHandle != 0,
@@ -552,7 +497,6 @@ public func kk_worker_process_queue(_ workerHandle: Int) -> Int {
     return worker.processQueue() ? 1 : 0
 }
 
-/// Park the current Worker thread for a timeout in microseconds.
 @_cdecl("kk_worker_park")
 public func kk_worker_park(
     _ workerHandle: Int,
@@ -571,7 +515,6 @@ public func kk_worker_park(
     ) ? 1 : 0
 }
 
-/// Return the platform thread ID servicing the Worker queue.
 @_cdecl("kk_worker_platform_thread_id")
 public func kk_worker_platform_thread_id(_ workerHandle: Int) -> Int {
     guard workerHandle != 0,
@@ -594,9 +537,6 @@ public func kk_worker_as_cpointer(_ workerHandle: Int) -> Int {
 }
 
 
-/// Schedule a closure to run on a Worker after `afterMicroseconds` microseconds.
-///
-/// Uses `DispatchQueue.asyncAfter` on the Worker's underlying serial queue.
 /// The closure is represented by the standard closure-thunk `(fnPtr, closureRaw)`
 /// ABI (`KKClosureThunkEntryPoint`): `fnPtr` takes `(closureRaw, outThrown)` and
 /// returns an (unused, for a `Unit`-returning operation) `Int`.

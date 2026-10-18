@@ -1,17 +1,3 @@
-// Core string operations (trim, case, normalize, split, replace, substring,
-// collection conversions, asIterable/asSequence, withIndex, replaceFirstChar,
-// take/drop, removePrefix/removeSuffix, startsWith/endsWith, contains).
-// Other string functions have been split into dedicated files:
-//   RuntimeStringHelpers.swift    — shared internal helpers
-//   RuntimeStringConversion.swift — toInt, toDouble, toLong, etc.
-//   RuntimeStringSearch.swift     — indexOf, lastIndexOf, findAnyOf, etc.
-//   RuntimeStringQuery.swift      — first/last, isEmpty/isBlank, compareTo, etc.
-//   RuntimeStringSubstring.swift  — substringBefore/After, replaceFirst, etc.
-//   RuntimeStringEncoding.swift   — charset constants, toByteArray, encode/decode
-//   RuntimeStringFormat.swift     — String.format, indent operations
-//   RuntimeStringHOF.swift        — iterator, filter/map/count, chunked/windowed/zip
-//   RuntimeStringComparison.swift — kk_compare_any
-
 import Foundation
 
 func runtimeStringTrimWhitespace(_ strRaw: Int, trimLeading: Bool, trimTrailing: Bool) -> Int {
@@ -429,8 +415,6 @@ public func kk_chararray_concatToString(_ arrRaw: Int) -> Int {
     let units = box.elements.map { UInt16(truncatingIfNeeded: kk_unbox_char($0)) }
     return runtimeMakeStringRaw(runtimeKotlinStringFromUTF16CodeUnits(units))
 }
-
-// KSP-405: take/takeLast/drop/dropLast are bundled Kotlin source
 
 // KSP-405: take/takeLast/drop/dropLast are bundled Kotlin source
 // (StringTakeDrop.kt); their runtime bridges were removed.
