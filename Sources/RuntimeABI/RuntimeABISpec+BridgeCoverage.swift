@@ -283,9 +283,6 @@ public extension RuntimeABISpec {
             isThrowing: false),
             bridgeSpec("kk_time_source_as_clock", section: "System", params: ["sourceRaw", "originRaw"],
             isThrowing: false),
-            // STDLIB-TIME-181: Native Foundation Date bridge
-            // STDLIB-TIME-181: Native clock_gettime bridge
-            // STDLIB-TIME-181: Type-safe epoch conversion helpers
             bridgeSpec("kk_instant_from_epoch_seconds", section: "System", params: ["epochSeconds", "nanoOfSecond"]),
             bridgeSpec("kk_platform_memoryModel", section: "System", params: ["platformRaw"],
             isThrowing: false),
@@ -354,7 +351,6 @@ public extension RuntimeABISpec {
             isThrowing: false),
             bridgeSpec("kk_native_byteArray_setDoubleAt", section: "Native", params: ["arrayRaw", "index", "value"],
             isThrowing: false),
-            // KSP-1192: ImmutableBlob.asCPointer/asUCPointer private impl bridge.
             bridgeSpec("__kk_immutable_blob_as_cpointer", section: "Native", params: ["blobRaw", "offset"],
             isThrowing: false),
             bridgeSpec("kk_platform_isDebugBinary", section: "System", params: ["platformRaw"],
