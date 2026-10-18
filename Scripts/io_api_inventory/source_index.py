@@ -9,6 +9,8 @@ import json
 import re
 from collections import defaultdict
 
+from code_digest import DIGEST_ALGORITHM, code_sha256
+
 
 BUILTINS = {
     name: "kotlin." + name for name in (
@@ -71,8 +73,10 @@ class SourceIndex:
         }
         if actual != set(self.files):
             raise ValueError("Source catalog file set changed; refresh it")
+        if catalog.get("runtimeFilesDigest") != DIGEST_ALGORITHM:
+            raise ValueError("Runtime implementation catalog digest algorithm changed; refresh it")
         expected_runtime = {entry["path"]: entry["sha256"] for entry in catalog["runtimeFiles"]}
-        actual_runtime = {source.relative_to(repository).as_posix(): hashlib.sha256(source.read_bytes()).hexdigest()
+        actual_runtime = {source.relative_to(repository).as_posix(): code_sha256(source.read_bytes(), "swift")
                           for source in (repository / "Sources/Runtime").rglob("*.swift")}
         if expected_runtime != actual_runtime:
             raise ValueError("Runtime implementation catalog inputs changed; refresh it")
