@@ -1,15 +1,3 @@
-/// Expansion of a regular (non-lambda) `inline` function body into its caller.
-///
-/// `expandInlineCall` lowers the callee's instructions into caller-scoped
-/// expressions: call-site arguments bind the parameter symbols, reified type
-/// parameters become token expressions via `InlineReifiedTypeTokens`, generic
-/// types are substituted through `InlineTypeSubstitution`, expression cloning
-/// goes through `InlineExprCloning`, erased-ABI argument/result adjustments
-/// through `InlineErasedLambdaABI`, and calls to function-typed parameters or
-/// direct `kk_function_invoke` sites delegate to the lambda expansion
-/// machinery still hosted on `InlineLoweringPass` (`resolveLambdaFunction` /
-/// `expandLambdaBody` / `appendInlinedLambdaExpansion`). Throw rerouting of
-/// the spliced body stays with the caller via `InlineThrowRerouting`.
 extension InlineLoweringPass {
     func expandInlineCall(
         inlineTarget: KIRFunction,
@@ -52,8 +40,6 @@ extension InlineLoweringPass {
             in: ctx
         ) ?? inlineTarget.returnType
 
-        // Build a set of parameter symbols that have function types so we can
-        // detect calls to lambda parameters inside the inline body.
         let lambdaParamSymbols: Set<SymbolID> = {
             guard let sema = ctx.sema else { return [] }
             var result: Set<SymbolID> = []
@@ -258,7 +244,6 @@ extension InlineLoweringPass {
                     outputCount: lowered.instructions.count, arena: module.arena
                 ) else { return nil }
                 let calleeStr = ctx.interner.resolve(callee)
-                // Attempt to inline a lambda argument passed to this inline function.
                 let resolvedLambdaParamSymbol: SymbolID? = if let symbol, lambdaParamSymbols.contains(symbol) {
                     symbol
                 } else if symbol == nil, let matched = lambdaParamByCalleeName[callee] {
@@ -737,7 +722,6 @@ extension InlineLoweringPass {
         return false
     }
 
-    /// Expressions `body` writes from more than one instruction.
     private func multiplyWrittenExprs(in body: [KIRInstruction]) -> Set<KIRExprID> {
         var writeCounts: [KIRExprID: Int] = [:]
         for instruction in body {

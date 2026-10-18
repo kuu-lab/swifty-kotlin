@@ -1,0 +1,162 @@
+{
+  "artifact_coordinate": "org.jetbrains.kotlinx:kotlinx-io-bytestring-jvm:0.9.1",
+  "artifact_sha256": "8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4",
+  "candidate_boundary": "Reference classfile shape only. KSwiftK emits native code; candidate native default-dispatch execution is separate evidence and does not establish candidate JVM classfile ABI.",
+  "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+  "class": "kotlinx/io/bytestring/ByteStringKt.class",
+  "class_sha256": "50042bc59e274cc3cf89679fee5aac1c0952e25470243004175eda29a657fa54",
+  "execution_count": 3,
+  "methods": [
+    {
+      "api_reference": "bytestring/api/kotlinx-io-bytestring.api:90",
+      "bridge_descriptor": "(Lkotlinx/io/bytestring/ByteString;BIILjava/lang/Object;)I",
+      "candidate_execution_id": "kotlinx.io.bytestring.ByteStringTest.indexOfByte",
+      "candidate_source": "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteString.kt:142",
+      "case_id": "bytestring/common/test/ByteStringTest.kt#indexOfByte",
+      "flags": {
+        "bridge": false,
+        "public": true,
+        "static": true,
+        "synthetic": true
+      },
+      "marker_parameter": "java.lang.Object",
+      "mask_values_when_defaults_are_omitted": [
+        2
+      ],
+      "result": "PASS",
+      "row_id": "jvm-d49996f4a43448e9",
+      "source_contract": {
+        "annotations": [],
+        "deprecation": "none",
+        "exception_contract": "not-declared-in-source",
+        "parameters": [
+          {
+            "default": null,
+            "name": "byte",
+            "type": "Byte"
+          },
+          {
+            "default": "0",
+            "name": "startIndex",
+            "type": "Int"
+          }
+        ],
+        "receiver": "kotlinx.io.bytestring.ByteString",
+        "return_type": "kotlin.Int",
+        "visibility": "public"
+      },
+      "underlying_descriptor": "(Lkotlinx/io/bytestring/ByteString;BI)I",
+      "underlying_flags": {
+        "bridge": false,
+        "public": true,
+        "static": true,
+        "synthetic": false
+      },
+      "upstream_execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.bytestring.ByteStringTest]/[method:indexOfByte()]",
+      "upstream_source": "bytestring/common/src/ByteString.kt:305"
+    },
+    {
+      "api_reference": "bytestring/api/kotlinx-io-bytestring.api:91",
+      "bridge_descriptor": "(Lkotlinx/io/bytestring/ByteString;Lkotlinx/io/bytestring/ByteString;IILjava/lang/Object;)I",
+      "candidate_execution_id": "kotlinx.io.bytestring.ByteStringTest.indexOfByteString",
+      "candidate_source": "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteString.kt:151",
+      "case_id": "bytestring/common/test/ByteStringTest.kt#indexOfByteString",
+      "flags": {
+        "bridge": false,
+        "public": true,
+        "static": true,
+        "synthetic": true
+      },
+      "marker_parameter": "java.lang.Object",
+      "mask_values_when_defaults_are_omitted": [
+        2
+      ],
+      "result": "PASS",
+      "row_id": "jvm-f0c73d7133f5a588",
+      "source_contract": {
+        "annotations": [],
+        "deprecation": "none",
+        "exception_contract": "not-declared-in-source",
+        "parameters": [
+          {
+            "default": null,
+            "name": "byteString",
+            "type": "ByteString"
+          },
+          {
+            "default": "0",
+            "name": "startIndex",
+            "type": "Int"
+          }
+        ],
+        "receiver": "kotlinx.io.bytestring.ByteString",
+        "return_type": "kotlin.Int",
+        "visibility": "public"
+      },
+      "underlying_descriptor": "(Lkotlinx/io/bytestring/ByteString;Lkotlinx/io/bytestring/ByteString;I)I",
+      "underlying_flags": {
+        "bridge": false,
+        "public": true,
+        "static": true,
+        "synthetic": false
+      },
+      "upstream_execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.bytestring.ByteStringTest]/[method:indexOfByteString()]",
+      "upstream_source": "bytestring/common/src/ByteString.kt:327"
+    },
+    {
+      "api_reference": "bytestring/api/kotlinx-io-bytestring.api:92",
+      "bridge_descriptor": "(Lkotlinx/io/bytestring/ByteString;[BIILjava/lang/Object;)I",
+      "candidate_execution_id": "kotlinx.io.bytestring.ByteStringTest.indexOfByteArray",
+      "candidate_source": "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteString.kt:154",
+      "case_id": "bytestring/common/test/ByteStringTest.kt#indexOfByteArray",
+      "flags": {
+        "bridge": false,
+        "public": true,
+        "static": true,
+        "synthetic": true
+      },
+      "marker_parameter": "java.lang.Object",
+      "mask_values_when_defaults_are_omitted": [
+        2
+      ],
+      "result": "PASS",
+      "row_id": "jvm-0a5972de7cfbf1ce",
+      "source_contract": {
+        "annotations": [],
+        "deprecation": "none",
+        "exception_contract": "not-declared-in-source",
+        "parameters": [
+          {
+            "default": null,
+            "name": "byteArray",
+            "type": "ByteArray"
+          },
+          {
+            "default": "0",
+            "name": "startIndex",
+            "type": "Int"
+          }
+        ],
+        "receiver": "kotlinx.io.bytestring.ByteString",
+        "return_type": "kotlin.Int",
+        "visibility": "public"
+      },
+      "underlying_descriptor": "(Lkotlinx/io/bytestring/ByteString;[BI)I",
+      "underlying_flags": {
+        "bridge": false,
+        "public": true,
+        "static": true,
+        "synthetic": false
+      },
+      "upstream_execution_id": "[engine:junit-jupiter]/[class:kotlinx.io.bytestring.ByteStringTest]/[method:indexOfByteArray()]",
+      "upstream_source": "bytestring/common/src/ByteString.kt:351"
+    }
+  ],
+  "passed_count": 3,
+  "probe_inputs_sha256": "266119eafd5656b38109393ff0a887d92c3b648a294a994b7cbec964fa2aee7b",
+  "probe_sha256": "cb53b08873cbaec8d8aa5bc71f0e30d165be97adfe42cd64b8a1c1088e0e531a",
+  "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+  "reference_version": "0.9.1",
+  "result": "PASS",
+  "schema_version": 1
+}
