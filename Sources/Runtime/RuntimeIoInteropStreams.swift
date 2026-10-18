@@ -1,6 +1,5 @@
 import Foundation
 
-/// Foreign InputStream storage whose operations delegate into Kotlin Source.
 /// Construction performs no read and owns no independent closed flag.
 final class RuntimeKotlinInputStreamBox: RuntimeChildReferenceProviding {
     let readFn: Int

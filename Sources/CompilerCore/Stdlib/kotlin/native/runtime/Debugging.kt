@@ -26,30 +26,17 @@ private external fun __debuggingSetForceCheckedShutdown(value: Int): Unit
 @KsSymbolName("__kk_debugging_dump_memory")
 private external fun __debuggingDumpMemory(fd: Long): Int
 
-/**
- * Namespace for various debugging-related functionality provided by the
- * Kotlin/Native runtime.
- */
 @NativeRuntimeApi
 @SinceKotlin("1.9")
 public object Debugging {
-    /** `true` if the current thread state is runnable, `false` if it's native. */
     public val isThreadStateRunnable: Boolean
         get() = __debuggingIsThreadStateRunnable() != 0
 
-    /**
-     * When set to `true`, forces the runtime to run its full checked shutdown
-     * sequence even in contexts that would otherwise skip it.
-     */
     public var forceCheckedShutdown: Boolean
         get() = __debuggingGetForceCheckedShutdown() != 0
         set(value) {
             __debuggingSetForceCheckedShutdown(if (value) 1 else 0)
         }
 
-    /**
-     * Dumps a snapshot of the current native heap allocations into [fd].
-     * Returns `true` on success.
-     */
     public fun dumpMemory(fd: Long): Boolean = __debuggingDumpMemory(fd) != 0
 }

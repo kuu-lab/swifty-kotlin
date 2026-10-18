@@ -1,4 +1,4 @@
-public enum RuntimeABICType: String, Equatable, Sendable {
+public enum RuntimeABICType: String, CaseIterable, Equatable, Sendable {
     case void
     case uint32 = "uint32_t"
     case uint64 = "uint64_t"

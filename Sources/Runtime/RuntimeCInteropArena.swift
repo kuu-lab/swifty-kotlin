@@ -1,5 +1,4 @@
 //
-// Runtime backing for the Kotlin/Native-style `kotlinx.cinterop` FFI surface.
 // All C memory here is real `malloc`'d unmanaged memory: `memScoped`/`Arena`
 // allocations are owned by a `RuntimeCInteropArenaBox` and freed in bulk by
 // `kk_arena_clear`, `nativeHeap` allocations are individually owned and freed
@@ -15,9 +14,8 @@ import Darwin
 import Glibc
 #endif
 
-/// Value shape stored behind a `CVariable` handle. Nominal typeID payloads in
-/// the encoded type token select the kind; `aggregate` covers struct vars
-/// (CPointerVar-like opaque pointees) where a machine word is stored.
+/// `aggregate` covers struct vars (CPointerVar-like opaque pointees) where a
+/// machine word is stored.
 enum RuntimeCInteropVarKind: Equatable {
     case boolean, int8, uint8, int16, uint16, int32, uint32
     case int64, uint64, float32, float64, char16
@@ -41,9 +39,6 @@ enum RuntimeCInteropVarKind: Equatable {
     }
 }
 
-/// Maps the encoded reified-type token passed by `appendReifiedTypeTokens` to a
-/// storage kind. Nominal payloads resolve against the `kotlinx.cinterop`
-/// `*Var` / `*VarOf` class IDs; primitive tokens map directly.
 func runtimeCInteropVarKind(forTypeToken token: Int) -> RuntimeCInteropVarKind? {
     let wide = Int64(truncatingIfNeeded: token)
     let base = wide & RuntimeTypeTokenEncoding.baseMask
@@ -68,7 +63,6 @@ func runtimeCInteropVarKind(forTypeToken token: Int) -> RuntimeCInteropVarKind? 
     }
 }
 
-/// Nominal typeID → storage kind for every `kotlinx.cinterop` variable class.
 /// Both the `FooVar` typealias target spelling and the generic `FooVarOf`
 /// class resolve to the same kind so `alloc<IntVar>()` and
 /// `alloc<IntVarOf<Int>>()` allocate identically.
@@ -97,7 +91,6 @@ func runtimeCInteropVarKind(forNominalTypeID typeID: Int64) -> RuntimeCInteropVa
     return nil
 }
 
-/// Nominal typeID for `pointed`/`reinterpret` bookkeeping on CPointer boxes.
 /// Returns the raw payload when the token is nominal, else 0 (opaque).
 func runtimeCInteropNominalTypeID(forTypeToken token: Int) -> Int64 {
     let wide = Int64(truncatingIfNeeded: token)
@@ -108,11 +101,8 @@ func runtimeCInteropNominalTypeID(forTypeToken token: Int) -> Int64 {
 }
 
 
-/// Runtime backing for `MemScope` / `Arena`: a C allocation arena whose
-/// outstanding `malloc` blocks and `defer` callbacks are released by `clear()`.
 final class RuntimeCInteropArenaBox: @unchecked Sendable {
     private let lock = NSLock()
-    /// Raw `malloc` addresses owned by this arena.
     private var allocations: [UInt] = []
     /// `() -> Unit` Kotlin block handles registered via `defer`, run LIFO.
     private var deferredBlocks: [Int] = []
@@ -125,8 +115,6 @@ final class RuntimeCInteropArenaBox: @unchecked Sendable {
         self.nominalTypeID = nominalTypeID
     }
 
-    /// `DeferScope.defer` — appends a `() -> Unit` block handle, run LIFO by
-    /// `clear()`.
     func addDeferred(_ block: Int) {
         lock.lock()
         defer { lock.unlock() }
@@ -173,9 +161,6 @@ final class RuntimeCInteropArenaBox: @unchecked Sendable {
         return true
     }
 
-    /// Run deferred blocks LIFO and free every outstanding allocation.
-    /// Deferred blocks are invoked via `kk_function_invoke_0`; a throwing
-    /// block aborts the remaining cleanups and propagates via `outThrown`.
     func clear(outThrown: UnsafeMutablePointer<Int>?) {
         lock.lock()
         if cleared {
@@ -210,9 +195,6 @@ final class RuntimeCInteropArenaBox: @unchecked Sendable {
     }
 }
 
-/// Runtime backing for `kotlinx.cinterop.NativePlacement`-shaped
-/// `nativeHeap`: malloc'd blocks are individually owned and `free` releases a
-/// single address without touching the rest.
 final class RuntimeCInteropNativeHeapBox: @unchecked Sendable {
     private let lock = NSLock()
     var allocations: Set<UInt> = []
@@ -250,7 +232,6 @@ final class RuntimeCInteropNativeHeapBox: @unchecked Sendable {
     }
 }
 
-/// Runtime backing for `kotlinx.cinterop.NativePtr` — a raw machine word.
 final class RuntimeCInteropNativePtrBox: @unchecked Sendable {
     let address: UInt
     init(address: UInt) {
@@ -258,7 +239,6 @@ final class RuntimeCInteropNativePtrBox: @unchecked Sendable {
     }
 }
 
-/// Runtime backing for `CVariable` values (`IntVar`, `CPointerVar`, ...).
 /// `owner` keeps the arena alive while any var aliasing its memory survives.
 final class RuntimeCInteropVarBox: @unchecked Sendable {
     let address: UInt
@@ -384,8 +364,6 @@ func resolveCInteropNativePtrBox(from handle: Int) -> RuntimeCInteropNativePtrBo
     return tryCast(ptr, to: RuntimeCInteropNativePtrBox.self)
 }
 
-/// Resolves a `COpaquePointer` handle — the opaque-pointer counterpart of
-/// `resolveCPointerBox`.
 func resolveCOpaquePointerBox(from handle: Int) -> RuntimeCOpaquePointerBox? {
     guard handle != 0, handle != runtimeNullSentinelInt,
           let ptr = UnsafeMutableRawPointer(bitPattern: handle),
@@ -408,7 +386,6 @@ public func kk_memscope_new() -> Int {
     )
 }
 
-/// `Arena()` — same allocation semantics as MemScope but registered as Arena.
 @_cdecl("kk_arena_new")
 public func kk_arena_new() -> Int {
     registerCInteropRuntimeTypeMetadata()
@@ -418,7 +395,6 @@ public func kk_arena_new() -> Int {
     )
 }
 
-/// `nativeHeap` singleton accessor.
 @_cdecl("kk_native_heap_get")
 public func kk_native_heap_get() -> Int {
     registerCInteropRuntimeTypeMetadata()
@@ -429,9 +405,8 @@ public func kk_native_heap_get() -> Int {
 }
 
 
-/// Shared NativePlacement.allocRaw(size, align) dispatch for arena and
-/// nativeHeap. Returns a `NativePtr` box. `size` arrives as a boxed Long,
-/// `align` as a boxed Int (unboxers pass raw ints through unchanged).
+/// Returns a `NativePtr` box. `size` arrives as a boxed Long, `align` as a
+/// boxed Int (unboxers pass raw ints through unchanged).
 @_cdecl("kk_arena_alloc_raw")
 public func kk_arena_alloc_raw(_ scope: Int, _ size: Int, _ align: Int) -> Int {
     let byteCount = kk_unbox_long(size)
@@ -451,8 +426,6 @@ public func kk_arena_alloc_raw(_ scope: Int, _ size: Int, _ align: Int) -> Int {
     )
 }
 
-/// `alloc<T>()` — allocate one CVariable of T's kind inside the scope and box
-/// it. The reified token selects the C layout.
 @_cdecl("kk_arena_alloc_var")
 public func kk_arena_alloc_var(_ scope: Int, _ typeToken: Int) -> Int {
     guard let kind = runtimeCInteropVarKind(forTypeToken: typeToken) else {
@@ -478,8 +451,6 @@ public func kk_arena_alloc_var(_ scope: Int, _ typeToken: Int) -> Int {
     )
 }
 
-/// `allocArray<T>(count)` — a contiguous run of `count` element slots; the
-/// returned handle is a `CPointer<T>` pointing at element zero.
 @_cdecl("kk_arena_alloc_array")
 public func kk_arena_alloc_array(_ scope: Int, _ count: Int, _ typeToken: Int) -> Int {
     let elementCount = kk_unbox_long(count)
@@ -504,8 +475,6 @@ public func kk_arena_alloc_array(_ scope: Int, _ count: Int, _ typeToken: Int) -
     )
 }
 
-/// `NativeFreeablePlacement.free(ptr)` — releases a single allocation. Arena
-/// scopes free the block immediately and untrack it.
 @_cdecl("kk_native_placement_free")
 public func kk_native_placement_free(_ scope: Int, _ pointerHandle: Int) -> Int {
     let address: UInt
@@ -528,8 +497,6 @@ public func kk_native_placement_free(_ scope: Int, _ pointerHandle: Int) -> Int 
     return 0
 }
 
-/// `DeferScope.defer { }` — registers a `() -> Unit` block on the scope, run
-/// LIFO by `clear()`.
 @_cdecl("kk_defer_scope_defer")
 public func kk_defer_scope_defer(_ scope: Int, _ block: Int) -> Int {
     guard let arena = resolveCInteropArenaBox(from: scope) else { return 0 }
@@ -537,8 +504,8 @@ public func kk_defer_scope_defer(_ scope: Int, _ block: Int) -> Int {
     return 0
 }
 
-/// `AutofreeScope.clear()` / `memScoped` cleanup. Propagates the first deferred
-/// block exception through `outThrown` after freeing all allocations.
+/// Propagates the first deferred block exception through `outThrown` after
+/// freeing all allocations.
 @_cdecl("kk_arena_clear")
 public func kk_arena_clear(_ scope: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -548,8 +515,6 @@ public func kk_arena_clear(_ scope: Int, _ outThrown: UnsafeMutablePointer<Int>?
 }
 
 
-/// `CVariable.ptr` — a CPointer handle over the variable's address carrying
-/// its declared pointee type.
 @_cdecl("kk_cvar_ptr")
 public func kk_cvar_ptr(_ varHandle: Int) -> Int {
     guard let box = resolveCInteropVarBox(from: varHandle) else { return 0 }
@@ -559,7 +524,6 @@ public func kk_cvar_ptr(_ varHandle: Int) -> Int {
     )
 }
 
-/// `CVariable.rawPtr` — the bare NativePtr over the same address.
 @_cdecl("kk_cvar_raw_ptr")
 public func kk_cvar_raw_ptr(_ varHandle: Int) -> Int {
     guard let box = resolveCInteropVarBox(from: varHandle) else { return 0 }
@@ -769,7 +733,6 @@ public func kk_cvar_cpointer_store(_ varHandle: Int, _ value: Int) -> Int {
 }
 
 
-/// `CPointer.pointed` — a CVariable view over the pointed-at address.
 @_cdecl("kk_cpointer_pointed")
 public func kk_cpointer_pointed(_ handle: Int) -> Int {
     guard let box = resolveCPointerBox(from: handle) else { return 0 }
@@ -782,8 +745,7 @@ public func kk_cpointer_pointed(_ handle: Int) -> Int {
     )
 }
 
-/// `CPointer.get(index)` — element access at `index * pointeeSize`. `index`
-/// arrives as a boxed Int.
+/// `index` arrives as a boxed Int.
 @_cdecl("kk_cpointer_get")
 public func kk_cpointer_get(_ handle: Int, _ index: Int) -> Int {
     guard let box = resolveCPointerBox(from: handle) else { return 0 }
@@ -800,7 +762,6 @@ public func kk_cpointer_get(_ handle: Int, _ index: Int) -> Int {
     )
 }
 
-/// `CPointer.reinterpret<R>()` — same address, different pointee nominal.
 @_cdecl("kk_cpointer_reinterpret")
 public func kk_cpointer_reinterpret(_ handle: Int, _ typeToken: Int) -> Int {
     guard let box = resolveCPointerBox(from: handle) else { return 0 }
@@ -811,7 +772,6 @@ public func kk_cpointer_reinterpret(_ handle: Int, _ typeToken: Int) -> Int {
     )
 }
 
-/// `interpretCPointer(rawValue)` — wraps a NativePtr in a CPointer<T>.
 @_cdecl("kk_interpret_cpointer")
 public func kk_interpret_cpointer(_ nativePtrHandle: Int, _ typeToken: Int) -> Int {
     guard let box = resolveCInteropNativePtrBox(from: nativePtrHandle), box.address != 0 else {
@@ -842,7 +802,6 @@ public func kk_long_to_cpointer(_ value: Int, _ typeToken: Int) -> Int {
     )
 }
 
-/// `CPointer<ByteVar>.toKString()` — UTF-8 NUL-terminated decode.
 @_cdecl("kk_cpointer_toKString")
 public func kk_cpointer_toKString(_ handle: Int) -> Int {
     guard let box = resolveCPointerBox(from: handle),
@@ -861,8 +820,6 @@ public func kk_cpointer_toKString(_ handle: Int) -> Int {
 }
 
 
-/// `String.cstr` (member extension on the MemScope family) — copies the
-/// string's UTF-8 bytes plus a NUL terminator into scope-owned memory.
 @_cdecl("kk_string_to_cptr")
 public func kk_string_to_cptr(_ scope: Int, _ stringHandle: Int) -> Int {
     guard let swiftString = extractString(from: UnsafeMutableRawPointer(bitPattern: stringHandle))
@@ -884,7 +841,6 @@ public func kk_string_to_cptr(_ scope: Int, _ stringHandle: Int) -> Int {
             dst.copyMemory(from: base, byteCount: bytes.count)
         }
     }
-    // The returned handle is CPointer<ByteVar> (a C `char *`).
     return registerRuntimeObject(
         RuntimeCPointerBox(address: address, pointeeTypeID: cinteropByteVarTypeID),
         typeID: cinteropCPointerTypeID
@@ -927,7 +883,6 @@ public func kk_native_ptr_toLong(_ handle: Int) -> Int {
     return Int(bitPattern: box.address)
 }
 
-/// `nativeNullPtr` — the zero NativePtr.
 @_cdecl("kk_native_null_ptr")
 public func kk_native_null_ptr() -> Int {
     registerRuntimeObject(
@@ -937,14 +892,13 @@ public func kk_native_null_ptr() -> Int {
 }
 
 
-/// `sizeOf<T>()` / `alloc` sizing — C layout size of T's storage kind.
 /// Returns a raw Long.
 @_cdecl("kk_cinterop_sizeof")
 public func kk_cinterop_sizeof(_ typeToken: Int) -> Int {
     runtimeCInteropVarKind(forTypeToken: typeToken)?.size ?? 0
 }
 
-/// `alignOf<T>()` — C alignment of T's storage kind. Returns a raw Long.
+/// Returns a raw Long.
 @_cdecl("kk_cinterop_alignof")
 public func kk_cinterop_alignof(_ typeToken: Int) -> Int {
     runtimeCInteropVarKind(forTypeToken: typeToken)?.align ?? 0

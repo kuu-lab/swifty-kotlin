@@ -10,11 +10,6 @@ package kotlin.reflect
 import kotlin.js.ExperimentalJsReflectionCreateInstance
 import kotlin.reflect.full.createInstance as createInstanceFromFull
 
-/**
- * Creates an instance by calling the single constructor that has no parameters or only parameters
- * with default values. Throws an exception when no such constructor or multiple such constructors
- * exist.
- */
 @ExperimentalJsReflectionCreateInstance
 @SinceKotlin("1.9")
 public fun <T : Any> KClass<T>.createInstance(): T = this.createInstanceFromFull()

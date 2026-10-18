@@ -32,8 +32,8 @@ enum RuntimeLiveHandles {
     private static let lock = NSLock()
     nonisolated(unsafe) private static var entries: [UInt: WeakEntry] = [:]
 
-    /// Weak box tying a registered address to its object. Loading `object`
-    /// takes a strong reference atomically with respect to deallocation.
+    /// Loading `object` takes a strong reference atomically with respect to
+    /// deallocation.
     private final class WeakEntry {
         weak var object: AnyObject?
 
@@ -42,7 +42,7 @@ enum RuntimeLiveHandles {
         }
     }
 
-    /// Record `object`'s address as live. Call from the designated initializer.
+    /// Call from the designated initializer.
     static func register(_ object: AnyObject) {
         let key = address(of: object)
         lock.lock()
@@ -50,7 +50,7 @@ enum RuntimeLiveHandles {
         lock.unlock()
     }
 
-    /// Drop `object`'s address. Call from `deinit`, before the memory is reused.
+    /// Call from `deinit`, before the memory is reused.
     /// The entry is removed unconditionally: until `deinit` finishes the memory
     /// cannot be recycled, so no other object's entry can live at this address.
     static func unregister(_ object: AnyObject) {
@@ -77,7 +77,6 @@ enum RuntimeLiveHandles {
     }
 }
 
-/// Resolve a raw handle to a live coroutine runtime object of the given type.
 /// Returns nil when the handle is zero, refers to an object that has already
 /// been deallocated, or refers to a live object of a different type.
 func resolveLiveRuntimeHandle<T: AnyObject>(_ rawValue: Int, as _: T.Type) -> T? {

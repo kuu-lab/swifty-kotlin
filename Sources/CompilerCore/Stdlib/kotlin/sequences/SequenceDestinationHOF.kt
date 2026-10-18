@@ -1,8 +1,5 @@
 package kotlin.sequences
 
-// KSP-446
-// Sequence destination-collection higher-order functions migrated to Kotlin source.
-
 public inline fun <T, C : MutableCollection<in T>> Sequence<T>.filterTo(
     destination: C,
     predicate: (T) -> Boolean

@@ -31,14 +31,12 @@ internal external fun <T> startCoroutineUninterceptedOrReturnNoReceiver(
     completion: Continuation<T>
 ): Any?
 
-/** Creates a fresh continuation without applying the completion's interceptor. */
 @SinceKotlin("1.3")
 @InlineOnly
 public inline fun <T> (suspend () -> T).createCoroutineUnintercepted(
     completion: Continuation<T>
 ): Continuation<Unit> = createCoroutineUninterceptedNoReceiver(this, completion)
 
-/** Runs until the first suspension, returning the result or suspended marker. */
 @SinceKotlin("1.3")
 @InlineOnly
 public inline fun <T> (suspend () -> T).startCoroutineUninterceptedOrReturn(

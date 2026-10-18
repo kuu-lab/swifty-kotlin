@@ -1,9 +1,5 @@
 
 
-/// A deterministic PRNG using the xorshift64* algorithm.
-/// Each `Random(seed)` call creates a new instance whose state evolves
-/// independently so that two instances with the same seed produce identical
-/// sequences.
 final class SeededRandomBox {
     /// Internal PRNG state (xorshift64*).
     var state: UInt64
@@ -23,7 +19,6 @@ final class SeededRandomBox {
         self.state = s
     }
 
-    /// Returns the next pseudo-random UInt64.
     func nextBits() -> UInt64 {
         var s = state
         s ^= s >> 12
@@ -33,7 +28,6 @@ final class SeededRandomBox {
         return s &* 0x2545F4914F6CDD1D
     }
 
-    /// Returns a random Int (full range).
     func nextFullInt() -> Int {
         Int(bitPattern: UInt(truncatingIfNeeded: nextBits()))
     }
@@ -171,7 +165,6 @@ final class SecureRandomBox {
     }
 }
 
-/// Extract a SeededRandomBox from a raw receiver value.
 /// Returns `nil` when the receiver is 0 (= Random.Default / companion object)
 /// or when the handle belongs to a normal compiled Kotlin object.
 private func seededBox(from raw: Int) -> SeededRandomBox? {
@@ -455,10 +448,8 @@ private func runtimeRandomUByte(receiver: Int) -> Int {
 
 public func kk_random_nextBytes(_ receiver: Int, _ arrayRaw: Int) -> Int {
     guard let list = runtimeListBox(from: arrayRaw) else {
-        // If the argument is not a valid list, return an empty list.
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
-    // Fill each element with a random byte in [-128, 127] (Kotlin's Byte range).
     var filled: [Int] = []
     filled.reserveCapacity(list.count)
     for _ in 0..<list.count {
@@ -585,8 +576,6 @@ public func kk_random_nextBits(_ receiver: Int, _ bitCount: Int, _ outThrown: Un
         var rng = SystemRandomNumberGenerator()
         raw = rng.next()
     }
-    // Keep only the lower `bitCount` bits as an unsigned value, then
-    // reinterpret as a signed Int so the result fits Kotlin's Int type.
     let mask: UInt64 = bitCount == 32 ? 0xFFFFFFFF : (1 << bitCount) - 1
     return Int(Int32(bitPattern: UInt32(raw & mask)))
 }

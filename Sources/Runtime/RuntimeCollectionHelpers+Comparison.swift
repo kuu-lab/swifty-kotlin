@@ -140,12 +140,10 @@ func runtimeCompareComparableValues(lhs: Int, rhs: Int) -> Int? {
     return maybeUnbox(result)
 }
 
-/// KUU-1361: dynamic `Comparator.compare(a, b)` invocation for sorted
-/// collections — same itable mechanism as `runtimeCompareComparableValues`,
-/// with `compare` occupying slot 0 of the `kotlin.Comparator` itable. Falls
-/// back to natural ordering for objects without a registered Comparator
-/// itable (e.g. raw closure boxes), and `comparatorRaw == 0` means no
-/// comparator was supplied at all.
+/// `compare` occupies slot 0 of the `kotlin.Comparator` itable. Falls back to
+/// natural ordering for objects without a registered Comparator itable (e.g.
+/// raw closure boxes), and `comparatorRaw == 0` means no comparator was
+/// supplied at all.
 func runtimeInvokeComparator(_ comparatorRaw: Int, _ lhs: Int, _ rhs: Int) -> Int {
     guard comparatorRaw != 0 else { return runtimeCompareValues(lhs, rhs) }
     let compareFnPtr = kk_itable_lookup_dynamic(comparatorRaw, Int(comparatorRuntimeTypeID), 0)
@@ -239,7 +237,6 @@ private func runtimeComparableScalarValue(from raw: Int) -> RuntimeComparableSca
     return nil
 }
 
-/// Compares two raw values that both decode to boxed numeric scalars.
 /// Returns nil when either side is not a numeric scalar so callers can fall
 /// through to `Comparable` dispatch or identity ordering. Shared by
 /// `runtimeCompareValues` and `kk_compare_any`.

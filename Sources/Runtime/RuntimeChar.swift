@@ -37,8 +37,6 @@ func runtimeSimpleLowercaseValue(_ value: UInt32) -> UInt32? {
     return value == 0x130 ? 0x69 : nil
 }
 
-/// `Char.equals(other, ignoreCase = true)`: equal, or equal after uppercasing,
-/// or equal after lowercasing the uppercased forms.
 func runtimeCharsEqualIgnoringCase(_ lhs: UInt16, _ rhs: UInt16) -> Bool {
     if lhs == rhs { return true }
     let upperLhs = runtimeSimpleUppercaseValue(UInt32(lhs)) ?? UInt32(lhs)
@@ -66,10 +64,6 @@ private func charScalarIsIdentifierIgnorable(_ scalar: UnicodeScalar) -> Bool {
     }
     return scalar.properties.generalCategory == .format
 }
-
-// KSP-661: Char 判定系 (isDigit/isLetter/isLetterOrDigit/isWhitespace/isUpperCase/
-// isLowerCase/isDefined) は kotlin.text の純 Kotlin 実装へ移行済み。ここには
-// Unicode テーブル参照だけを行う 1 行ブリッジ (__kk_char_*) を残す。
 
 /// Kotlin `Char.category` の序数 (kotlin.text.CharCategory の ordinal) を返す。
 /// サロゲート符号単位は有効な Kotlin `Char` だが `UnicodeScalar` は拒否するため、
@@ -105,10 +99,6 @@ public func __kk_char_is_lowercase(_ code: Int) -> Int {
     return kk_box_bool(scalar.properties.isLowercase ? 1 : 0)
 }
 
-// KSP-662: Char conversions now live in bundled Kotlin. Retain only the __kk_char_*
-// bridges that provide Unicode case-mapping data and locale-aware conversions.
-
-/// Full Unicode uppercase mapping, including multi-scalar mappings such as ß -> "SS".
 @_cdecl("__kk_char_uppercase_string")
 public func __kk_char_uppercase_string(_ code: Int) -> Int {
     if let surrogate = charRuntimeIdentityStringForSurrogate(code) { return surrogate }
@@ -118,7 +108,6 @@ public func __kk_char_uppercase_string(_ code: Int) -> Int {
     return runtimeMakeUTF8StringRaw(String(scalar).uppercased())
 }
 
-/// Full Unicode lowercase mapping.
 @_cdecl("__kk_char_lowercase_string")
 public func __kk_char_lowercase_string(_ code: Int) -> Int {
     if let surrogate = charRuntimeIdentityStringForSurrogate(code) { return surrogate }
@@ -128,7 +117,6 @@ public func __kk_char_lowercase_string(_ code: Int) -> Int {
     return runtimeMakeUTF8StringRaw(String(scalar).lowercased())
 }
 
-/// Full Unicode titlecase mapping.
 @_cdecl("__kk_char_titlecase_string")
 public func __kk_char_titlecase_string(_ code: Int) -> Int {
     if let surrogate = charRuntimeIdentityStringForSurrogate(code) { return surrogate }
@@ -193,17 +181,12 @@ public func __kk_char_digit_value(_ code: Int) -> Int {
     charDigitValueForRadix(code)
 }
 
-// Char arithmetic operators
-
-/// operator fun Char.minus(other: Char): Int
-/// Returns the difference of the Unicode code points of two Char values.
 public func kk_char_minus(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     let lhs = kk_unbox_char(lhsRaw)
     let rhs = kk_unbox_char(rhsRaw)
     return lhs - rhs
 }
 
-/// operator fun Char.compareTo(other: Char): Int
 @_cdecl("kk_char_compareTo")
 public func kk_char_compareTo(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     let lhs = kk_unbox_char(lhsRaw)
@@ -212,10 +195,9 @@ public func kk_char_compareTo(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     return lhs < rhs ? -1 : 1
 }
 
-// New numeric conversion functions
 @_cdecl("kk_char_toInt")
 public func kk_char_toInt(_ value: Int) -> Int {
-    // Return Unicode code point (deprecated but for compatibility)
+    // Deprecated but kept for compatibility.
     return value
 }
 
@@ -246,7 +228,6 @@ public func kk_char_toDoubleOrNull(_ value: Int) -> Int {
     return kk_box_double_nonnull(kk_double_to_bits(Double(digitValue)))
 }
 
-// Code point and Unicode properties
 @_cdecl("kk_char_code")
 public func kk_char_code(_ value: Int) -> Int {
     kk_unbox_char(value)
@@ -257,7 +238,6 @@ public func kk_char_category(_ value: Int) -> Int {
     guard let scalar = runtimeUnicodeScalar(value) else {
         return -1 // Invalid character
     }
-    // Map Unicode general category to enum values
     let category = scalar.properties.generalCategory
     return charCategoryToInt(category)
 }
@@ -282,10 +262,7 @@ public func kk_char_isTitleCase(_ value: Int) -> Int {
 }
 
 
-/// Returns true if this character may be part of a Java/Kotlin identifier as other than the first character.
-/// Matches java.lang.Character.isJavaIdentifierPart: letters, digits, currency symbols,
-/// connecting punctuation (e.g. '_'), combining marks, non-spacing marks, numeric letters,
-/// and identifier-ignorable control/format characters.
+/// Matches java.lang.Character.isJavaIdentifierPart.
 @_cdecl("kk_char_isJavaIdentifierPart")
 public func kk_char_isJavaIdentifierPart(_ value: Int) -> Int {
     // Surrogate code units are not identifier parts in Java.
@@ -294,18 +271,18 @@ public func kk_char_isJavaIdentifierPart(_ value: Int) -> Int {
     }
     let category = scalar.properties.generalCategory
     switch category {
-    case .uppercaseLetter,      // Lu
-         .lowercaseLetter,      // Ll
-         .titlecaseLetter,      // Lt
-         .modifierLetter,       // Lm
-         .otherLetter,          // Lo
-         .letterNumber,         // Nl
-         .decimalNumber,        // Nd
-         .nonspacingMark,       // Mn
-         .spacingMark,          // Mc
-         .enclosingMark,        // Me
-         .connectorPunctuation, // Pc (includes '_')
-         .currencySymbol:       // Sc
+    case .uppercaseLetter,
+         .lowercaseLetter,
+         .titlecaseLetter,
+         .modifierLetter,
+         .otherLetter,
+         .letterNumber,
+         .decimalNumber,
+         .nonspacingMark,
+         .spacingMark,
+         .enclosingMark,
+         .connectorPunctuation,
+         .currencySymbol:
         return kk_box_bool(1)
     default:
         return kk_box_bool(charScalarIsIdentifierIgnorable(scalar) ? 1 : 0)
@@ -325,11 +302,7 @@ public func kk_char_isIdentifierIgnorable(_ value: Int) -> Int {
     return kk_box_bool(charScalarIsIdentifierIgnorable(scalar) ? 1 : 0)
 }
 
-// STDLIB-TEXT-PROP-017: Char.isUnicodeIdentifierPart
-// Mirrors Java's Character.isUnicodeIdentifierPart semantics:
-// letters, combining marks, digits, connecting punctuation, non-spacing marks,
-// numeric letters, identifier-ignorable code points, and Unicode Other_ID_*
-// characters are all valid identifier-part characters.
+// Mirrors Java's Character.isUnicodeIdentifierPart semantics.
 public func kk_char_isUnicodeIdentifierPart(_ value: Int) -> Int {
     guard let scalar = runtimeUnicodeScalar(value) else { return kk_box_bool(0) }
     let props = scalar.properties
@@ -354,11 +327,7 @@ public func kk_char_isUnicodeIdentifierPart(_ value: Int) -> Int {
 }
 
 
-/// fun Char.isJavaIdentifierStart(): Boolean
-/// Returns true if this character is permissible as the first character of a
-/// Java identifier.  Mirrors Java's `Character.isJavaIdentifierStart(char)`:
-/// letters (Unicode categories Lu, Ll, Lt, Lm, Lo), currency symbols (Sc),
-/// and connecting punctuation (Pc, i.e. '_' and similar) all qualify.
+/// Mirrors Java's `Character.isJavaIdentifierStart(char)`.
 @_cdecl("kk_char_isJavaIdentifierStart")
 public func kk_char_isJavaIdentifierStart(_ value: Int) -> Int {
     guard let scalar = runtimeUnicodeScalar(value) else {

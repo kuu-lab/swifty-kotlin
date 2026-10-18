@@ -12,11 +12,6 @@ package kotlin.coroutines
 import kotlin.coroutines.CoroutineContext.Element
 import kotlin.coroutines.CoroutineContext.Key
 
-/**
- * Base class for [CoroutineContext.Element] implementations.
- *
- * The key is retained by the source-backed property (KSP-1137).
- */
 @SinceKotlin("1.3")
 public abstract class AbstractCoroutineContextElement(public override val key: Key<*>) : Element
 

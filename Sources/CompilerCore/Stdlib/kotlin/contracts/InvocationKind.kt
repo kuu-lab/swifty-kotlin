@@ -1,6 +1,5 @@
 package kotlin
 
-// KSP-1129: source-backed enum helper API for InvocationKind.
 @Suppress("KSWIFTK-SEMA-OPT-IN")
 public val kotlin.contracts.InvocationKind.entries: kotlin.enums.EnumEntries<kotlin.contracts.InvocationKind>
     get() = enumEntries<kotlin.contracts.InvocationKind>()

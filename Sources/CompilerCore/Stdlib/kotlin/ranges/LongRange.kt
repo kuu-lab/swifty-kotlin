@@ -7,10 +7,9 @@ package kotlin.ranges
 
 import kotlin.internal.KsSymbolName
 
-// KSP-708: The typed range shell is source-backed; construction retains only
-// the hidden runtime factory for the range handle.
-// KSP-1309: equals/hashCode/toString are source-backed member overrides on the
-// class body so `==` and virtual dispatch resolve to the range members.
+// Construction retains only the hidden runtime factory for the range handle.
+// KSP-1309: equals/hashCode/toString are member overrides on the class body so
+// `==` and virtual dispatch resolve to the range members.
 public class LongRange @KsSymbolName("__kk_long_rangeTo") constructor(
     start: Long,
     endInclusive: Long,

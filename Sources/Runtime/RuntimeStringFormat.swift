@@ -1,6 +1,3 @@
-// String formatting (String.format).
-// Split out from `RuntimeStringStdlib.swift`.
-
 import Foundation
 
 private struct RuntimeFormatSpecifier {
@@ -23,7 +20,6 @@ private struct RuntimeFormatSpecifier {
         flags.contains(",")
     }
 
-    /// Java `Formatter` `<` flag: reuse the argument of the previous specifier.
     var reusesPreviousArgument: Bool {
         flags.contains("<")
     }

@@ -1,6 +1,5 @@
 package kotlin.js
 
-/** Requires opt-in for Kotlin/JS collection view APIs. */
 @RequiresOptIn(level = RequiresOptIn.Level.WARNING)
 @MustBeDocumented
 @Target(AnnotationTarget.CLASS, AnnotationTarget.FUNCTION)

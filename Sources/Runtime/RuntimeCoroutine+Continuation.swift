@@ -191,10 +191,8 @@ public func kk_create_coroutine_unintercepted_no_receiver(
     createCoroutineFromFunctionValue(functionRaw, arguments: [], completion: completionContinuation)
 }
 
-/// Receiver-less `startCoroutineUninterceptedOrReturn` over a boxed suspend
-/// callable. Coroutine lowering rewrites calls whose function is a known
-/// entry point; dynamic function values fall through to this entry, which
-/// creates the coroutine from the callable box and starts it unintercepted.
+/// Coroutine lowering rewrites calls whose function is a known entry point;
+/// dynamic function values fall through to this entry.
 @_cdecl("kk_start_coroutine_unintercepted_or_return_no_receiver")
 public func kk_start_coroutine_unintercepted_or_return_no_receiver(
     _ functionRaw: Int,
@@ -218,7 +216,6 @@ public func kk_start_coroutine_unintercepted_or_return_no_receiver(
     )
 }
 
-/// Receiver-bearing variant of the boxed suspend callable builder.
 @_cdecl("kk_create_coroutine_unintercepted_with_receiver")
 public func kk_create_coroutine_unintercepted_with_receiver(
     _ functionRaw: Int,
@@ -229,8 +226,6 @@ public func kk_create_coroutine_unintercepted_with_receiver(
     createCoroutineFromFunctionValue(functionRaw, arguments: [receiverRaw], completion: completionContinuation)
 }
 
-/// Receiver-bearing `startCoroutineUninterceptedOrReturn` over a boxed suspend
-/// callable; see the receiver-less variant above.
 @_cdecl("kk_start_coroutine_unintercepted_or_return_with_receiver")
 public func kk_start_coroutine_unintercepted_or_return_with_receiver(
     _ functionRaw: Int,
@@ -705,7 +700,6 @@ public func kk_kxmini_launch(_ entryPointRaw: Int, _ functionID: Int) -> Int {
     if let callerJob {
         callerJob.registerChild(Int(bitPattern: jobPtr))
     }
-    // Propagate caller's scope to child continuation context
     if let contState = runtimeContinuationState(from: continuation) {
         contState.scope = callerScope
     }
