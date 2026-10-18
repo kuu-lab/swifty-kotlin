@@ -883,7 +883,7 @@ extension ExprLowerer {
             // KSP-CAP-001: a bare read of this kind resolved via plain scope
             // lookup rather than `resolveImplicitReceiverMember` (see
             // `inferNameRefExpr`), so it never set `implicitReceiverMemberNames`
-            // and skipped the STDLIB-004 branch above, which is the only other
+            // and skipped the `implicitReceiverMemberNames` branch above, which is the only other
             // place that calls `implicitReceiverExprID(forProperty:)`. Without
             // it here too, an object-literal member function reading an
             // enclosing class's mutable property would use its own `this`
