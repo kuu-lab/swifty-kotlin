@@ -3,15 +3,6 @@ import Foundation
 
 // swiftlint:disable file_length
 
-// Flow runtime (STDLIB-088 cold/lazy stream semantics) plus Flow
-// terminal operators, Flow builders, and SharedFlow / StateFlow
-// runtime entry points.
-//
-// Split out from `RuntimeCoroutine.swift` to keep each runtime source
-// scoped to a single coroutine concern.
-
-
-/// CORO-003: pthread key for the flow collect stack (replaces threadDictionary).
 private let runtimeFlowCollectStackPthreadKey: pthread_key_t = makePthreadKey()
 
 /// Wrapper class so the flow collect stack can be stored as a single AnyObject
@@ -56,7 +47,6 @@ private struct RuntimeFlowOp {
     let argument: Int
 }
 
-/// Factory for the channel used by one `channelFlow`/`callbackFlow` collect.
 /// The template continuation is kept alive only to retain captured values;
 /// every collection receives a fresh continuation and channel.
 private final class RuntimeChannelProducer {
@@ -94,7 +84,6 @@ private final class RuntimeChannelProducer {
     }
 }
 
-/// Settle the producer before leaving collect, including early termination.
 /// A normal manual close can precede a body failure, so the Job's terminal
 /// exception is authoritative even when the channel's first close had no cause.
 private func runtimeFlowFinishChannelProducer(
@@ -177,12 +166,6 @@ private struct RuntimeFlowExecutionResult {
     var failure: Int?
 }
 
-/// Collect context tracks the lazy pipeline state for a single collect call.
-/// Each emitted value passes through the operator chain one at a time (lazy).
-/// `cancelled` is reserved for future use by cancellation-aware operators
-/// (e.g. coroutine-based emitters that check for cooperative cancellation).
-/// Currently, short-circuiting is handled by `runtimeFlowTakeExhausted` after
-/// each element delivery rather than through this flag.
 final class RuntimeFlowCollectContext {
     // A resumed selector can emit on a worker with no thread-local collect
     // stack. Retain the enclosing builder so collector forwarding still
@@ -205,10 +188,8 @@ final class RuntimeFlowCollectContext {
     }
 }
 
-/// Opaque flow handle. Immutable operation chain; source emitter is re-executed
+/// Immutable operation chain; source emitter is re-executed
 /// for every collect to guarantee cold-stream semantics.
-/// When `fixedValues` is non-nil, the flow is backed by flowOf and the emitter
-/// function pointer is ignored.
 private final class RuntimeFlowHandle {
     let source: RuntimeFlowSource
     let opChain: [RuntimeFlowOp]
@@ -259,8 +240,6 @@ private final class RuntimeFlowHandle {
     }
 }
 
-/// Invoke a flow builder emitter, honoring the closure-capture ABI.
-///
 /// A capturing `flow { }` builder is lowered to a launcher thunk plus a
 /// continuation whose launcher-arg slots hold the captured values; the runtime
 /// seeds a fresh continuation for each invocation so the emitter receives its
@@ -366,10 +345,9 @@ private func runtimeFlowWithContinuationContext<T>(
     return body()
 }
 
-/// Select the context that owns the current emitter call. A flow collector
-/// can collect a nested source, so the top stack frame may belong to the
-/// source being consumed rather than to the builder that is currently
-/// executing `emit`.
+/// A flow collector can collect a nested source, so the top stack frame may
+/// belong to the source being consumed rather than to the builder that is
+/// currently executing `emit`.
 private func runtimeFlowCurrentEmitContext() -> RuntimeFlowCollectContext? {
     if let context = runtimeFlowCollectStackBox().stack.reversed().first(where: { !$0.invokingCollector }) {
         return context
@@ -501,15 +479,10 @@ private func runtimeFlowMaybeUnbox(_ value: Int) -> Int {
     return value
 }
 
-/// Result of processing a single value through the operator chain.
 private enum FlowOpResult {
-    /// Value passed all ops and should be delivered to the collector.
     case emit(Int)
-    /// Value was filtered out; skip delivery.
     case filtered
-    /// An exception was thrown during an operator; abort the flow.
     case thrown(Int)
-    /// A short-circuiting op (e.g. take) signalled that collection is done.
     case done
 }
 
@@ -546,7 +519,6 @@ private func runtimeFlowBuildStages(_ ops: [RuntimeFlowOp]) -> [RuntimeFlowStage
     return stages
 }
 
-/// Apply the operator chain to a single emitted value (lazy, per-element).
 /// `takeCounters` tracks remaining elements for each take op index and is
 /// mutated across successive calls within a single collect invocation.
 private func runtimeFlowApplyOpsLazy(
@@ -620,7 +592,6 @@ private func runtimeFlowApplyOpsLazy(
             if thrown != 0 {
                 return .thrown(thrown)
             }
-            // onEach does not transform the value; pass it through.
 
         case .distinctUntilChanged:
             if let last = lastValues[index], last == current {
@@ -654,8 +625,7 @@ private func runtimeFlowApplyOpsLazy(
             }
             // Use the first emitted value as `current` for the remainder of
             // the op chain.  Additional values are lost in this single-element
-            // path; the multi-value case is handled by
-            // runtimeFlowCollectStreamingWithTransform.
+            // path.
             guard let first = transformedValues.first else {
                 return .filtered
             }
@@ -709,8 +679,7 @@ private func runtimeFlowApplyOpsLazy(
     return .emit(current)
 }
 
-/// Check whether a take op has exhausted its counter, signalling the flow
-/// should stop. Called after delivering each element.
+/// Called after delivering each element.
 private func runtimeFlowTakeExhausted(
     ops: [RuntimeFlowOp],
     takeCounters: [Int: Int]
@@ -878,7 +847,6 @@ private func runtimeFlowHasErrorHandlers(_ ops: [RuntimeFlowOp]) -> Bool {
     ops.contains { runtimeFlowErrorHandler(for: $0) != nil || $0.kind == .onCompletion }
 }
 
-/// Invoke all onCompletion handlers in the op chain.
 /// `failure`: nil on success, non-zero exception pointer on error.
 /// Returns the first exception thrown by a handler, or nil if all handlers completed normally.
 @discardableResult
@@ -1060,16 +1028,13 @@ private func runtimeFlowEvaluate(flow: RuntimeFlowHandle) -> RuntimeFlowExecutio
     runtimeFlowExecuteStages(flow: flow, stages: runtimeFlowBuildStages(flow.opChain))
 }
 
-/// Returns true when `flow` uses an advanced source type that requires the
-/// evaluate path (flatMapConcat, flatMapMerge, flatMapLatest, merge, zip,
-/// combine).  Simple `.emitter` and `.fixed` sources can use the faster
-/// streaming path; advanced sources must go through runtimeFlowEvaluate.
+/// Simple `.emitter` and `.fixed` sources can use the faster streaming path;
+/// advanced sources must go through runtimeFlowEvaluate.
 private func runtimeFlowHasAdvancedSource(_ flow: RuntimeFlowHandle) -> Bool {
     switch flow.source {
     case .emitter, .channelProducer, .fixed:
         return false
     default:
-        // .flatMapConcat, .flatMapMerge, .flatMapLatest, .merge, .zip, .combine
         return true
     }
 }
@@ -1339,8 +1304,6 @@ private func runtimeFlowCollectChannelProducer(
     return delivery.failure
 }
 
-/// Cold-stream collect: re-execute the source emitter, apply the operator chain,
-/// then deliver the resulting values to the collector.
 private func runtimeFlowCollectLazy(
     _ flow: RuntimeFlowHandle,
     collectorFnPtr: Int,
@@ -1597,7 +1560,6 @@ private func runtimeFlowCollectStreaming(
 
     context.emitHandler = { rawValue in
         if hasTransformOp {
-            // Locate the first transform op and split the chain.
             guard let transformIdx = ops.firstIndex(where: { $0.kind == .transform }) else {
                 return rawValue
             }
@@ -1605,7 +1567,6 @@ private func runtimeFlowCollectStreaming(
             let postOps = Array(ops[(transformIdx + 1)...])
             let transformFnPtr = ops[transformIdx].argument
 
-            // Apply ops before the transform to filter/map the raw value.
             var preTakeCounters = runtimeFlowInitTakeCounters(preOps)
             var preLastValues: [Int: Int] = [:]
             let preResult = runtimeFlowApplyOpsLazy(
@@ -1648,7 +1609,6 @@ private func runtimeFlowCollectStreaming(
                 return runtimeFlowStopSentinel
             }
 
-            // Apply post-transform ops to each emitted value and deliver.
             var stop = false
             for tv in transformedValues {
                 let result = runtimeFlowApplyOpsLazy(
@@ -1720,8 +1680,8 @@ private func runtimeFlowCollectStreaming(
     return outThrown != 0 ? outThrown : context.failure
 }
 
-/// Deliver a single value to the collector. Returns true on success, false if
-/// the collector threw (signalling the flow should stop).
+/// Returns true on success, false if the collector threw (signalling the flow
+/// should stop).
 private func runtimeFlowDeliverValue(
     _ value: Int,
     collectorFnPtr: Int,
@@ -1789,8 +1749,6 @@ public func kk_flow_create(_ emitterFnPtr: Int, _ emitterContinuation: Int) -> I
     )
 }
 
-/// Create a cold Flow backed by a fresh runtime channel and a ProducerScope
-/// receiver for each collection.
 @_cdecl("kk_channel_flow_create")
 public func kk_channel_flow_create(_ emitterFnPtr: Int, _ emitterContinuation: Int) -> Int {
     return runtimeRegisterFlowHandle(
@@ -1894,10 +1852,6 @@ public func kk_flow_collect(_ flowHandle: Int, _ collectorFnPtr: Int, _ collecto
         return 0
     }
 
-    // Cold-stream semantics: re-execute source emitter and lazily push each
-    // emitted value through the operator chain on every collect call.
-    // For flowOf-backed flows (fixedValues != nil), the fixed values are used
-    // directly without running an emitter function.
     let callerState = RuntimeContinuationState.current
     let failure = runtimeFlowCollectLazy(flow, collectorFnPtr: collectorFnPtr, collectorEnvPtr: collectorEnvPtr, continuation: continuation)
     if outThrown == nil {
@@ -1958,7 +1912,6 @@ public func __kk_flow_release(_ flowHandle: Int) -> Int {
     return 0
 }
 
-/// Prepare take counters for the given op chain.
 private func runtimeFlowInitTakeCounters(_ ops: [RuntimeFlowOp]) -> [Int: Int] {
     var takeCounters: [Int: Int] = [:]
     for (index, op) in ops.enumerated() where op.kind == .take {
@@ -1967,7 +1920,6 @@ private func runtimeFlowInitTakeCounters(_ ops: [RuntimeFlowOp]) -> [Int: Int] {
     return takeCounters
 }
 
-/// Collect all emitted values into a list and return the list handle.
 @_cdecl("__kk_flow_to_list")
 public func __kk_flow_to_list(_ flowHandle: Int, _: Int) -> Int {
     guard let flow = runtimeFlowHandle(from: flowHandle) else {
@@ -1978,7 +1930,6 @@ public func __kk_flow_to_list(_ flowHandle: Int, _: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: result.values))
 }
 
-/// Return the first emitted value after applying the operator chain, or 0 if empty.
 @_cdecl("__kk_flow_first")
 public func __kk_flow_first(_ flowHandle: Int, _: Int) -> Int {
     guard let flow = runtimeFlowHandle(from: flowHandle) else {
@@ -2009,7 +1960,6 @@ public func __kk_flow_single(_ flowHandle: Int, _: Int, _ outThrown: UnsafeMutab
     return result.values[0]
 }
 
-/// Count the number of elements emitted after applying the operator chain.
 public func __kk_flow_count(_ flowHandle: Int, _: Int) -> Int {
     guard let flow = runtimeFlowHandle(from: flowHandle) else {
         return 0
@@ -2019,7 +1969,6 @@ public func __kk_flow_count(_ flowHandle: Int, _: Int) -> Int {
     return result.values.count
 }
 
-/// Fold: accumulate values with an initial value and an operation.
 /// operation ABI: (closureRaw, accumulator, value, outThrown) -> newAccumulator
 public func __kk_flow_fold(_ flowHandle: Int, _ initial: Int, _ operationFnPtr: Int, _: Int) -> Int {
     guard let flow = runtimeFlowHandle(from: flowHandle) else {
@@ -2048,7 +1997,6 @@ public func __kk_flow_fold(_ flowHandle: Int, _ initial: Int, _ operationFnPtr: 
     return accumulator
 }
 
-/// Reduce: like fold but uses the first element as the initial accumulator.
 /// operation ABI: (closureRaw, accumulator, value, outThrown) -> newAccumulator
 public func __kk_flow_reduce(_ flowHandle: Int, _ operationFnPtr: Int, _: Int) -> Int {
     guard let flow = runtimeFlowHandle(from: flowHandle) else {
@@ -2259,7 +2207,6 @@ private func runtimeFlowEvaluateCombine(
     return runtimeFlowRunNormalStage(RuntimeFlowExecutionResult(values: all, failure: nil), ops: ops)
 }
 
-/// Create a flow that represents flatMapConcat applied to an existing flow.
 /// mapperFnPtr: (closureRaw, value, outThrown) -> innerFlowHandle
 @_cdecl("__kk_flow_flat_map_concat")
 public func __kk_flow_flat_map_concat(_ flowHandle: Int, _ mapperFnPtr: Int, _: Int) -> Int {
@@ -2270,7 +2217,6 @@ public func __kk_flow_flat_map_concat(_ flowHandle: Int, _ mapperFnPtr: Int, _: 
     return runtimeRegisterFlowHandle(derived)
 }
 
-/// Create a flow that represents flatMapMerge applied to an existing flow.
 @_cdecl("__kk_flow_flat_map_merge")
 public func __kk_flow_flat_map_merge(_ flowHandle: Int, _ mapperFnPtr: Int, _: Int) -> Int {
     let derived = RuntimeFlowHandle(
@@ -2280,7 +2226,6 @@ public func __kk_flow_flat_map_merge(_ flowHandle: Int, _ mapperFnPtr: Int, _: I
     return runtimeRegisterFlowHandle(derived)
 }
 
-/// Create a flow that represents flatMapLatest applied to an existing flow.
 @_cdecl("__kk_flow_flat_map_latest")
 public func __kk_flow_flat_map_latest(_ flowHandle: Int, _ mapperFnPtr: Int, _: Int) -> Int {
     let derived = RuntimeFlowHandle(
@@ -2290,7 +2235,6 @@ public func __kk_flow_flat_map_latest(_ flowHandle: Int, _ mapperFnPtr: Int, _: 
     return runtimeRegisterFlowHandle(derived)
 }
 
-/// Create a flow that merges N independent flows.
 /// flowArrayHandle: handle to an array of flow handles; count: element count.
 @_cdecl("__kk_flow_merge")
 public func __kk_flow_merge(_ flowArrayHandle: Int, _ count: Int, _: Int) -> Int {
@@ -2307,7 +2251,6 @@ public func __kk_flow_merge(_ flowArrayHandle: Int, _ count: Int, _: Int) -> Int
     return runtimeRegisterFlowHandle(derived)
 }
 
-/// zip two flows together with a combining function.
 /// combinerFnPtr: (closureRaw, lhs, rhs, outThrown) -> result
 @_cdecl("__kk_flow_zip")
 public func __kk_flow_zip(_ leftHandle: Int, _ rightHandle: Int, _ combinerFnPtr: Int, _: Int) -> Int {
@@ -2318,7 +2261,6 @@ public func __kk_flow_zip(_ leftHandle: Int, _ rightHandle: Int, _ combinerFnPtr
     return runtimeRegisterFlowHandle(derived)
 }
 
-/// combine two flows with a combining function.
 /// combinerFnPtr: (closureRaw, lhs, rhs, outThrown) -> result
 @_cdecl("__kk_flow_combine")
 public func __kk_flow_combine(_ leftHandle: Int, _ rightHandle: Int, _ combinerFnPtr: Int, _: Int) -> Int {
