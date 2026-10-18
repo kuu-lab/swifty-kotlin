@@ -1,7 +1,5 @@
 
-/// Rewrites (valueOf result).name to $enumOrdinalToName(ordinal) and
-/// (valueOf result).ordinal to kk_unbox_int(ordinal). Runs after
-/// DataEnumSealedSynthesisPass which creates the $enumOrdinalToName helper.
+/// Runs after DataEnumSealedSynthesisPass which creates the $enumOrdinalToName helper.
 ///
 /// `name` and `ordinal` are source-backed properties on the shared kotlin.Enum
 /// base class. Their representation is still compiler-owned, so this pass
@@ -224,10 +222,6 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
         )]
     }
 
-    /// Rewrites a placeholder call emitted by `tryLowerStoredMemberPropertyRead`
-    /// for an enum class constructor property (`enum class Status(val code: Int)`)
-    /// into a real call to the per-enum, per-property `$enumConstructorProperty$`
-    /// helper synthesized by `KIRLoweringDriver`.
     private func rewriteEnumConstructorPropertyCall(
         instruction: KIRInstruction,
         sema: SemaModule,

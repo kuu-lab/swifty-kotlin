@@ -75,7 +75,6 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         )
 
         guard let types, let resultType = arena.exprType(result) else {
-            // No type information available; keep the raw not-null result.
             newBody.append(.copy(from: notNullResult, to: result))
             return
         }
@@ -365,8 +364,6 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         nullablePrimitiveKind(exprID, arena: arena, types: types) != nil
     }
 
-    /// The expression's static primitive kind, if its type is a nullable
-    /// primitive (`Boolean?`, `Int?`, `Char?`, `Long?`, ...); `nil` otherwise.
     private func nullablePrimitiveKind(_ exprID: KIRExprID, arena: KIRArena, types: TypeSystem?) -> PrimitiveType? {
         guard let types, let typeID = arena.exprType(exprID) else { return nil }
         if case let .primitive(primitiveType, .nullable) = types.kind(of: typeID) {
@@ -389,8 +386,6 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         return primitive.rawValueCollidesWithNullSentinel
     }
 
-    /// The expression's static primitive kind, if its type is a non-null
-    /// primitive (`Double`, `Float`, `Long`, ...); `nil` otherwise.
     private func nonNullPrimitiveKind(_ exprID: KIRExprID, arena: KIRArena, types: TypeSystem?) -> PrimitiveType? {
         guard let types, let typeID = arena.exprType(exprID) else { return nil }
         if case let .primitive(primitiveType, .nonNull) = types.kind(of: typeID) {
@@ -410,8 +405,6 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         return types.nullability(of: typeID) != .nonNull
     }
 
-    /// Returns true when the expression is a reference type that requires structural
-    /// equality (e.g. List, Set, Map, String, function values, Any, class instances).
     /// String is a compiler aggregate, so pointer comparison is insufficient.
     private func isReferenceType(_ exprID: KIRExprID, arena: KIRArena, types: TypeSystem?) -> Bool {
         guard let types, let typeID = arena.exprType(exprID) else { return false }
@@ -431,7 +424,6 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         }
     }
 
-    /// STDLIB-CORO-077: Detect CoroutineContext-family types for `+` operator rewriting.
     private func isCoroutineContextType(_ exprID: KIRExprID, arena: KIRArena, types: TypeSystem?, interner: StringInterner) -> Bool {
         guard let types, let typeID = arena.exprType(exprID) else { return false }
         switch types.kind(of: typeID) {
@@ -471,11 +463,9 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         }
     }
 
-    /// The primitive type a rank-0/1 operand is converted to when widened to
-    /// match the other operand's rank (see `primitiveRank`). Used as the KIR
-    /// type of the conversion call's result -- must not be the comparison's
-    /// own Boolean result type, or later ABI lowering misreads the widened
-    /// numeric value as a boxed Boolean needing its own unboxing.
+    /// Used as the KIR type of the conversion call's result -- must not be the
+    /// comparison's own Boolean result type, or later ABI lowering misreads the
+    /// widened numeric value as a boxed Boolean needing its own unboxing.
     private func widenedPrimitiveType(rank: Int, types: TypeSystem?) -> TypeID? {
         guard let types else { return nil }
         switch rank {

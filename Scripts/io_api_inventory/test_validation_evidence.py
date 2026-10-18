@@ -331,6 +331,54 @@ class ValidationEvidenceTests(unittest.TestCase):
         self.assertEqual(record["compatibility_obligations"], ["jvm-descriptor"])
         self.assertEqual(self._apply([record], row)["status"], "verified")
 
+    def test_indexof_default_bridges_require_reference_and_native_source_lanes(self):
+        for jvm_key in self.generator.INDEX_OF_DEFAULT_BRIDGES:
+            with self.subTest(jvm_key=jvm_key):
+                row = {
+                    "row_id": self.generator.INDEX_OF_DEFAULT_BRIDGES[jvm_key]["row_id"],
+                    "representation": "JVM public ABI dump",
+                    "_jvm_key": jvm_key,
+                }
+                obligations = self.generator.validation_obligations(row)
+                self.assertEqual(obligations, ["jvm-descriptor", "native-source"])
+                self.assertEqual(
+                    self.generator.required_execution_lanes(obligations),
+                    [
+                        "jvm-descriptor",
+                        "source-O0",
+                        "source-O2",
+                        "stdlib-library-O0",
+                        "stdlib-library-O2",
+                    ],
+                )
+
+    def test_indexof_default_bridge_obligations_restore_from_tsv_row_id(self):
+        for jvm_key, spec in self.generator.INDEX_OF_DEFAULT_BRIDGES.items():
+            with self.subTest(row_id=spec["row_id"]):
+                row = self.generator.restore_hidden_jvm_key({"row_id": spec["row_id"]})
+                self.assertEqual(row["_jvm_key"], jvm_key)
+                self.assertEqual(
+                    self.generator.required_execution_lanes(
+                        self.generator.validation_obligations(row)
+                    ),
+                    [
+                        "jvm-descriptor",
+                        "source-O0",
+                        "source-O2",
+                        "stdlib-library-O0",
+                        "stdlib-library-O2",
+                    ],
+                )
+
+    def test_indexof_default_bridge_probe_report_is_current_and_passed(self):
+        for jvm_key, spec in self.generator.INDEX_OF_DEFAULT_BRIDGES.items():
+            with self.subTest(row_id=spec["row_id"]):
+                row = {"row_id": spec["row_id"], "_jvm_key": jvm_key}
+                record = {"candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7"}
+                self.generator.validate_index_of_bridge_probe(
+                    row, record, self.generator.REPO
+                )
+
     def test_unknown_duplicate_and_malformed_evidence_is_rejected(self):
         valid = self._record()
         unknown = copy.deepcopy(valid)
