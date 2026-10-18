@@ -116,8 +116,37 @@ import Testing
         assertHasDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
     }
 
-    @Test(arguments: [false, true])
-    func sameArityOverloadsRetainSeparateForwarders(hasOverride: Bool) throws {
+    @Test func sameArityOverloadsRetainAllForwardersWhenNotOverridden() throws {
+        let ctx = makeContextFromSource("""
+        interface Parent<T> { fun echo(value: T): T; fun echo(value: String): String }
+        interface Child<T> : Parent<T>
+        class Impl : Child<Int> {
+            override fun echo(value: Int): Int = value
+            override fun echo(value: String): String = value
+        }
+        fun main() {
+            val o = object : Child<Int> by Impl() {}
+            val number: Int = o.echo(1)
+            val text: String = o.echo("x")
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let declID = try #require(ast.arena.exprs.compactMap { expr -> DeclID? in
+            guard case let .objectLiteral(_, declID, _) = expr else { return nil }
+            return declID
+        }.first)
+        let owner = try #require(sema.bindings.declSymbols[declID])
+        let methods = sema.symbols.classDelegationForwardingMethodSymbols(forClass: owner)
+        #expect(methods.count == 2)
+        let parameters = methods.compactMap { sema.symbols.functionSignature(for: $0)?.parameterTypes }
+        #expect(parameters.contains([sema.types.stringType]))
+        #expect(parameters.contains([sema.types.intType]))
+    }
+
+    @Test func sameArityOverloadsOmitForwarderForLocallyOverriddenMethod() throws {
         let ctx = makeContextFromSource("""
         interface Parent<T> { fun echo(value: T): T; fun echo(value: String): String }
         interface Child<T> : Parent<T>
@@ -127,7 +156,7 @@ import Testing
         }
         fun main() {
             val o = object : Child<Int> by Impl() {
-                \(hasOverride ? "override fun echo(value: Int): Int = value + 1" : "")
+                override fun echo(value: Int): Int = value + 1
             }
             val number: Int = o.echo(1)
             val text: String = o.echo("x")
@@ -143,10 +172,10 @@ import Testing
         }.first)
         let owner = try #require(sema.bindings.declSymbols[declID])
         let methods = sema.symbols.classDelegationForwardingMethodSymbols(forClass: owner)
-        #expect(methods.count == (hasOverride ? 1 : 2))
+        #expect(methods.count == 1)
         let parameters = methods.compactMap { sema.symbols.functionSignature(for: $0)?.parameterTypes }
         #expect(parameters.contains([sema.types.stringType]))
-        #expect(parameters.contains([sema.types.intType]) == !hasOverride)
+        #expect(!parameters.contains([sema.types.intType]))
     }
 
     @Test func comparisonInDelegateDoesNotConsumeOtherSupertypesOrMembers() throws {
