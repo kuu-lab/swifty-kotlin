@@ -210,11 +210,11 @@
     },
     {
       "row_id": "jvm-6dcae71c67e2278f",
-      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "candidate_sha": "df46df8eaaa8a4a017a36416ec95aea92e57ad1a",
       "reference_version": "0.9.1",
       "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
       "implementation_input_sha256": "1d01b1e86a0ac7852661b2556c0ae2aa1de76a478a91a0cd012c1a8d4bc0ecb0",
-      "test_input_sha256": "55a226b473e0a18b7ab10bbc6efb6069c34bcd5745f1155ad5d10455c854fd3b",
+      "test_input_sha256": "a2213e92a3c6784ff343d355b232b219a276aa0c053e232d823c57115529a981",
       "compatibility_obligations": [
         "jvm-descriptor"
       ],
@@ -223,13 +223,13 @@
           "case_id": "local:Scripts/io_api_inventory/probe_system_temporary_directory.py#run_probe",
           "lane": "jvm-descriptor",
           "reference": {
-            "execution_id": "local-probe-v1:reference:4fca2ccfbcdf2202555ba79502f9e113",
+            "execution_id": "local-probe-v1:reference:054b634f25b905178e835ec797088191",
             "result": "PASS",
             "exit_code": 0,
             "method": "jvm-abi-reflection"
           },
           "candidate": {
-            "execution_id": "local-probe-v1:candidate:fa430499df7ff09ac52c9766a471f72a",
+            "execution_id": "local-probe-v1:candidate:1aede07a31eaf0bff12ba4d2a0134206",
             "result": "PASS",
             "exit_code": 0,
             "method": "source-metadata"
