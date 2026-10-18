@@ -272,7 +272,6 @@ public func kk_unbox_int(_ obj: Int) -> Int {
 
 @_cdecl("kk_unbox_bool")
 public func kk_unbox_bool(_ obj: Int) -> Int {
-    // NOTE: keep the null sentinel — see kk_unbox_int.
     if obj == runtimeNullSentinelInt {
         return obj
     }
