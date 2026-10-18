@@ -35,7 +35,6 @@ private func i18nStringFromFlat(
 
 /// Normalizes a locale identifier from Kotlin/Java format (e.g. "en_US") to the IETF BCP 47
 /// format expected by Apple APIs (e.g. "en-US") by replacing underscores with hyphens.
-/// Used wherever locale identifiers are processed in the runtime (I18N, DateFormat, etc.).
 func normalizeLocaleIdentifier(_ identifier: String) -> String {
     identifier.replacingOccurrences(of: "_", with: "-")
 }
@@ -82,7 +81,6 @@ func runtimeLocaleToString(_ box: RuntimeLocaleBox) -> String {
     return result
 }
 
-// Memory representation bridge: Locale's fields live in a runtime-owned box.
 @_cdecl("__kk_locale_toString_flat")
 public func __kk_locale_toString_flat(
     _ localeRaw: Int,
