@@ -24,7 +24,6 @@ func makePthreadKey() -> pthread_key_t {
     #endif
     return key
 }
-/// Read the object stored under `key` for the current thread.
 func pthreadGetValue<T: AnyObject>(_ key: pthread_key_t) -> T? {
     guard let raw = pthread_getspecific(key) else { return nil }
     return Unmanaged<T>.fromOpaque(raw).takeUnretainedValue()
@@ -32,7 +31,6 @@ func pthreadGetValue<T: AnyObject>(_ key: pthread_key_t) -> T? {
 
 /// Store `value` under `key` for the current thread, releasing any previous value.
 func pthreadSetValue<T: AnyObject>(_ key: pthread_key_t, _ value: T?) {
-    // Release previous value if present.
     if let prev = pthread_getspecific(key) {
         Unmanaged<AnyObject>.fromOpaque(prev).release()
     }
@@ -79,9 +77,6 @@ struct RuntimeTaskKey: Hashable, Sendable {
 // inherently synchronous wait points.
 //
 // Remaining DispatchSemaphore.wait() sites and migration status:
-//
-// [DONE] runSuspendEntryLoopWithContinuation: internal suspend points use
-//        installResumeContinuation; only completionGate blocks (outermost).
 //
 // [DONE] RuntimeAsyncTask.awaitResult() and RuntimeJobHandle.join() (CORO-004,
 //        Phase 2): suspend-aware via kk_kxmini_async_await / kk_job_join /
