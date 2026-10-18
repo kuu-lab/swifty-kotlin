@@ -4,7 +4,6 @@ enum GoldenHarnessExprFormat {
     static func renderExpr(_ expr: Expr, id: ExprID, ctx: StableRenderContext) -> String {
         let interner = ctx.interner
         switch expr {
-        // Literals
         case .nullLiteral:
             // Preserve the established golden spelling for null literals.
             return "name(null)"
@@ -29,7 +28,6 @@ enum GoldenHarnessExprFormat {
         case let .nameRef(name, _):
             return "name(\(interner.resolve(name)))"
 
-        // Control flow
         case let .forExpr(loopVariable, iterable, body, label, _):
             return renderLoopExpr(loopVariable, iterable, body, label, ctx)
         case let .whileExpr(condition, body, label, _):
@@ -41,7 +39,6 @@ enum GoldenHarnessExprFormat {
         case let .continueExpr(label, _):
             return renderJumpExpr("continue", label, ctx)
 
-        // Declarations and assignments
         case let .localDecl(name, isMutable, typeAnnotation, initializer, isDelegated, isLateinit, _):
             return renderLocalDecl(name, isMutable, typeAnnotation, initializer, isDelegated, isLateinit, ctx)
         case let .localAssign(name, value, _):
@@ -49,7 +46,6 @@ enum GoldenHarnessExprFormat {
         case let .indexedAssign(receiver, indices, value, _):
             return "indexedAssign receiver=\(ctx.exprKey(receiver)) \(renderIndexList(indices, ctx)) value=\(ctx.exprKey(value))"
 
-        // Calls and member access
         case let .call(callee, _, args, _):
             return renderCall("call", callee: callee, args: args, ctx: ctx)
         case let .memberCall(receiver, callee, _, args, _):
@@ -59,13 +55,11 @@ enum GoldenHarnessExprFormat {
         case let .indexedAccess(receiver, indices, _):
             return "indexedAccess receiver=\(ctx.exprKey(receiver)) \(renderIndexList(indices, ctx))"
 
-        // Binary and unary operations
         case let .binary(oper, lhs, rhs, _):
             return "binary(\(oper)) lhs=\(ctx.exprKey(lhs)) rhs=\(ctx.exprKey(rhs))"
         case let .unaryExpr(oper, operand, _):
             return "unary(\(oper)) operand=\(ctx.exprKey(operand))"
 
-        // Type operations
         case let .isCheck(expr, type, negated, _):
             let typeStr = ctx.sema.bindings.isCheckTargetTypes[id].map { ctx.ordinaryType($0) } ?? ctx.renderTypeRef(type)
             return "isCheck\(negated ? "!" : "") expr=\(ctx.exprKey(expr)) type=\(typeStr)"
@@ -75,7 +69,6 @@ enum GoldenHarnessExprFormat {
         case let .nullAssert(expr, _):
             return "nullAssert expr=\(ctx.exprKey(expr))"
 
-        // Control expressions
         case let .whenExpr(subject, branches, elseExpr, _):
             return renderWhenExpr(subject: subject, branches: branches, elseExpr: elseExpr, ctx: ctx)
         case let .returnExpr(value, label, _):
