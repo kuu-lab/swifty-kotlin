@@ -243,9 +243,6 @@ private func runtimeOriginKey(_ url: URL?) -> String? {
     return "\(scheme)://\(host):\(port)"
 }
 
-/// URLSession delegate that enforces a client's redirect policy, prevents
-/// caller-supplied headers from leaking across origins on redirects, and
-/// guards against memory exhaustion by enforcing body size limits.
 private final class RuntimeHTTPSessionDelegate: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     /// Headers re-applied on an untrusted cross-origin redirect. They carry
     /// request semantics (representation metadata, content negotiation,
