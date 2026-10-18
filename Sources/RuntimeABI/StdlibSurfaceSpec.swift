@@ -74,8 +74,6 @@ public struct StdlibSurfaceSpec: Equatable, Hashable, Sendable {
     public let returnStrategy: StdlibSurfaceReturnStrategy
     public let lambdaExpectation: StdlibSurfaceLambdaExpectation
 
-    /// All HOF surface members across owner kinds.
-    ///
     /// The per-ownerKind sub-arrays live in dedicated files
     /// (`StdlibSurfaceSpec+ListHOF.swift`, `+SetHOF.swift`,
     /// `+MapHOF.swift`, `+SequenceHOF.swift`) so that parallel branches
