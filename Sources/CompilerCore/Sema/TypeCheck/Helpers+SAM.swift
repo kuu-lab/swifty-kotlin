@@ -172,12 +172,16 @@ extension TypeCheckHelpers {
                 }
             }
         }
-        let substitute = { (type: TypeID) in
-            sema.types.substituteTypeParameters(
+        let substitute = { (type: TypeID) -> TypeID in
+            let substituted = sema.types.substituteTypeParameters(
                 in: type,
                 substitution: substitution,
                 typeVarBySymbol: typeVarBySymbol
             )
+            if sema.types.nullability(of: substituted) == .platformType {
+                return sema.types.makeNonNullable(substituted)
+            }
+            return substituted
         }
         return FunctionType(
             contextReceivers: signature.contextReceiverTypes.map(substitute),

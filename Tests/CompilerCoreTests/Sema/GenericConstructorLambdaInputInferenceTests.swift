@@ -7,7 +7,7 @@ struct GenericConstructorLambdaInputInferenceTests {
     // Keep the Sema gate focused; source/artifact compilation is covered by the CLI case.
     private func checkSources(_ sources: [String]) throws -> CompilationContext {
         var result: CompilationContext?
-        try withTemporaryFiles(contents: sources + ["package kotlin\nobject Unit"]) { paths in
+        try withTemporaryFiles(contents: sources + ["package kotlin\nobject Unit\nabstract class Number\ninterface CharSequence"]) { paths in
             let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
             try runSema(ctx)
             result = ctx
@@ -144,16 +144,16 @@ struct GenericConstructorLambdaInputInferenceTests {
         """,
         """
         class Holder<T : Number>(val action: (T) -> Unit)
-        fun sample() { val holder = Holder { input: String -> Unit } }
+        fun sample() { val holder = Holder { input: Int -> Unit } }
         """,
         """
         class Holder<T>(val action: (T) -> Unit)
         fun <T : Number> factory(action: (T) -> Unit): Holder<T> = Holder(action)
-        fun sample() { val holder = factory { input: String -> Unit } }
+        fun sample() { val holder = factory { input: Int -> Unit } }
         """,
         """
         class Factory<R> { fun <T : Number> make(action: (T) -> R) {} }
-        fun sample() { Factory<Unit>().make { input: String -> Unit } }
+        fun sample() { Factory<Unit>().make { input: Int -> Unit } }
         """,
         """
         class Holder<T>(val first: (T) -> Unit, val second: (T) -> Unit)

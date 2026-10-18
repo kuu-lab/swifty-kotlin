@@ -531,6 +531,9 @@ extension ExprTypeChecker {
                     range: range
                 )
             }
+            if let cachedValue = ctx.ast.arena.incrementDecrementCachedValue(for: id) {
+                validateExpressionAnnotationVisibility(cachedValue, ctx: ctx)
+            }
             if let resolvedType = inferIncrementDecrementIfNeeded(
                 exprID: id,
                 op: op,
