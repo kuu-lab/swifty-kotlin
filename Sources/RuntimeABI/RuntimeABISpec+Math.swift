@@ -1,5 +1,3 @@
-// Math functions (STDLIB-052).
-
 public extension RuntimeABISpec {
     static let mathFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
@@ -21,7 +19,6 @@ public extension RuntimeABISpec {
             section: "Math",
             isThrowing: false
         ),
-        // STDLIB-MATH-007: remaining official floating-point overloads.
         RuntimeABIFunctionSpec(
             name: "__kk_math_pow_float",
             parameters: [
@@ -119,7 +116,6 @@ public extension RuntimeABISpec {
             section: "Math",
             isThrowing: false
         ),
-        // Trigonometric functions (STDLIB-430)
         // Note: Each trig entry is spelled out individually rather than generated
         // programmatically. This repetition is intentional — the ABI spec must be
         // a plain, auditable list so that any ABI-breaking change is visible in
@@ -188,7 +184,6 @@ public extension RuntimeABISpec {
             section: "Math",
             isThrowing: false
         ),
-        // STDLIB-431: exp/ln/log functions
         RuntimeABIFunctionSpec(
             name: "__kk_math_exp",
             parameters: [
@@ -253,7 +248,6 @@ public extension RuntimeABISpec {
             section: "Math",
             isThrowing: false
         ),
-        // STDLIB-432: hypot
         RuntimeABIFunctionSpec(
             name: "__kk_math_hypot",
             parameters: [
@@ -264,7 +258,6 @@ public extension RuntimeABISpec {
             section: "Math",
             isThrowing: false
         ),
-        // STDLIB-500~509: Float overloads
         RuntimeABIFunctionSpec(
             name: "__kk_math_sin_float",
             parameters: [
@@ -365,7 +358,6 @@ public extension RuntimeABISpec {
             section: "Math",
             isThrowing: false
         ),
-        // STDLIB-430: additional Float overloads (exp, expm1, ln, ln1p, log2, log10, log, hypot)
         RuntimeABIFunctionSpec(
             name: "__kk_math_exp_float",
             parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
@@ -428,7 +420,6 @@ public extension RuntimeABISpec {
             section: "Math",
             isThrowing: false
         ),
-        // STDLIB-510~511: roundToInt / roundToLong
         // Throwing callees: NaN receiver throws IllegalArgumentException, so the
         // ABI carries the trailing outThrown pointer (see RuntimeNumericCompat).
         RuntimeABIFunctionSpec(
@@ -467,7 +458,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Math"
         ),
-        // STDLIB-512~513: ulp / nextUp / nextDown
         RuntimeABIFunctionSpec(
             name: "__kk_double_ulp",
             parameters: [
@@ -522,7 +512,6 @@ public extension RuntimeABISpec {
             section: "Math",
             isThrowing: false
         ),
-        // STDLIB-514: truncate
         RuntimeABIFunctionSpec(
             name: "__kk_math_truncate",
             parameters: [
@@ -539,7 +528,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Math"
         ),
-        // STDLIB-MATH-113: Inverse hyperbolic functions
         RuntimeABIFunctionSpec(
             name: "__kk_math_acosh",
             parameters: [
@@ -588,7 +576,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Math"
         ),
-        // STDLIB-MATH-109: Hyperbolic functions and cbrt
         RuntimeABIFunctionSpec(
             name: "__kk_math_sinh",
             parameters: [
@@ -661,6 +648,5 @@ public extension RuntimeABISpec {
             section: "Math",
             isThrowing: false
         ),
-        // STDLIB-MATH-112: numeric constants — Double special values
     ]
 }
