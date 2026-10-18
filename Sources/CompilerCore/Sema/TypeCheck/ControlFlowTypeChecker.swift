@@ -1173,7 +1173,7 @@ final class ControlFlowTypeChecker {
             // KUU-1407: catch parameters must be subtypes of Throwable.
             ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0413",
-                "throwable type mismatch: actual type is '\(sema.types.renderType(resolved))'.",
+                "throwable type mismatch: actual type is '\(sema.types.displayName(of: resolved, symbols: sema.symbols, interner: ctx.interner))'.",
                 range: range
             )
         }
