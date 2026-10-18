@@ -1,6 +1,5 @@
 
 protocol LoweringPass: KIRPass {
-    /// Stage that must hold before this pass is allowed to run.
     static var requiredStage: KIRStage { get }
 
     /// Stage established after this pass completes, whether it ran or was
