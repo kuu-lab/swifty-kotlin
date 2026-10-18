@@ -1,9 +1,5 @@
 // swiftlint:disable file_length
 
-/// `RuntimeABISpec.stringFunctions` extracted from `RuntimeABISpec.swift`.
-///
-/// Mirrors the existing per-section split convention used elsewhere in
-/// `Sources/RuntimeABI/` (`+Collection.swift`, `+Sequence.swift`, etc.).
 public extension RuntimeABISpec {
     static let stringFromUtf8Spec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
         name: "kk_string_from_utf8",
@@ -665,7 +661,6 @@ public extension RuntimeABISpec {
         ),
         bridgeStringFormatFlatSpec,
         bridgeStringFormatLocaleFlatSpec,
-        // STDLIB-TEXT-FN-012: CharSequence.contains(other, ignoreCase)
         stringReplaceCharFlatSpec,
         stringReplaceIgnoreCaseFlatSpec,
         stringReplaceCharIgnoreCaseFlatSpec,
@@ -838,7 +833,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
-        // SPEC-NUM-0007: no-arg unsigned parsers
         RuntimeABIFunctionSpec(
             name: "__kk_string_toUByteOrNull",
             parameters: [
@@ -1012,8 +1006,6 @@ public extension RuntimeABISpec {
             section: "String",
             isThrowing: false
         ),
-        // STDLIB-TEXT-FN-020: CharSequence.indexOf(Char, startIndex, ignoreCase)
-        // STDLIB-TEXT-EDGE-003: indexOf / lastIndexOf with ignoreCase
         RuntimeABIFunctionSpec(
             name: "__kk_string_toIntOrNull_flat",
             parameters: [
@@ -1026,7 +1018,6 @@ public extension RuntimeABISpec {
             section: "String",
             isThrowing: false
         ),
-        // STDLIB-TEXT-FN-034: CharSequence.lastIndexOf(Char, startIndex, ignoreCase)
         RuntimeABIFunctionSpec(
             name: "__kk_string_toIntOrNull_radix_flat",
             parameters: [
@@ -1181,7 +1172,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
-        // STDLIB-141: String.compareTo
         RuntimeABIFunctionSpec(
             name: "kk_enum_valueOf_throw",
             parameters: [
@@ -1191,7 +1181,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Exception"
         ),
-        // STDLIB-171: enumValues<T>() / T.values() — returns Array<T>
         RuntimeABIFunctionSpec(
             name: "kk_enum_make_values_array",
             parameters: [
@@ -1223,7 +1212,6 @@ public extension RuntimeABISpec {
             section: "Enum",
             isThrowing: false
         ),
-        // ENUM-002: T.entries — returns EnumEntries<T> (List)
         RuntimeABIFunctionSpec(
             name: "kk_enum_make_entries_list",
             parameters: [
@@ -1280,7 +1268,6 @@ public extension RuntimeABISpec {
             section: "Enum",
             isThrowing: false
         ),
-        // STDLIB-142: String.toBoolean
         RuntimeABIFunctionSpec(
             name: "__kk_string_toBoolean_flat",
             parameters: [
@@ -1305,10 +1292,8 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
-        // STDLIB-144: String.trimStart/trimEnd
         stringTrimStartPredicateFlatSpec,
         stringTrimEndPredicateFlatSpec,
-        // STDLIB-145: String.toByteArray
         RuntimeABIFunctionSpec(
             name: "__kk_string_toByteArray_flat",
             parameters: [
@@ -1321,7 +1306,6 @@ public extension RuntimeABISpec {
             section: "String",
             isThrowing: false
         ),
-        // STDLIB-581: String.toByteArray(charset: Charset)
         RuntimeABIFunctionSpec(
             name: "__kk_string_toByteArray_charset_flat",
             parameters: [
@@ -1405,7 +1389,6 @@ public extension RuntimeABISpec {
             section: "String",
             isThrowing: false
         ),
-        // STDLIB-573: String.encodeToByteArray
         RuntimeABIFunctionSpec(
             name: "__kk_string_encodeToByteArray_flat",
             parameters: [
@@ -1418,7 +1401,6 @@ public extension RuntimeABISpec {
             section: "String",
             isThrowing: false
         ),
-        // STDLIB-573: String.encodeToByteArray(startIndex, endIndex)
         RuntimeABIFunctionSpec(
             name: "__kk_string_encodeToByteArray_range_flat",
             parameters: [
@@ -1433,7 +1415,6 @@ public extension RuntimeABISpec {
             section: "String",
             isThrowing: false
         ),
-        // STDLIB-573: String.encodeToByteArray(charset)
         RuntimeABIFunctionSpec(
             name: "__kk_string_encodeToByteArray_charset_flat",
             parameters: [
@@ -1447,7 +1428,6 @@ public extension RuntimeABISpec {
             section: "String",
             isThrowing: false
         ),
-        // STDLIB-574: ByteArray.decodeToString
         RuntimeABIFunctionSpec(
             name: "__kk_bytearray_decodeToString",
             parameters: [
@@ -1457,7 +1437,6 @@ public extension RuntimeABISpec {
             section: "ByteArray",
             isThrowing: false
         ),
-        // STDLIB-574: ByteArray.decodeToString(charset)
         RuntimeABIFunctionSpec(
             name: "__kk_bytearray_decodeToString_charset",
             parameters: [
@@ -1468,7 +1447,6 @@ public extension RuntimeABISpec {
             section: "ByteArray",
             isThrowing: false
         ),
-        // STDLIB-TEXT-EDGE-006: ByteArray.decodeToString(startIndex, endIndex, ...)
         RuntimeABIFunctionSpec(
             name: "__kk_bytearray_decodeToString_range",
             parameters: [
@@ -1578,7 +1556,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
-        // STDLIB-TEXT-PROP-009: Char.isJavaIdentifierPart
         RuntimeABIFunctionSpec(
             name: "kk_char_isJavaIdentifierPart",
             parameters: [
@@ -1587,7 +1564,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
-        // STDLIB-TEXT-PROP-010: Char.isJavaIdentifierStart
         RuntimeABIFunctionSpec(
             name: "kk_char_isJavaIdentifierStart",
             parameters: [
@@ -1596,7 +1572,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
-        // STDLIB-640: CharArray.concatToString()
         RuntimeABIFunctionSpec(
             name: "kk_chararray_concatToString",
             parameters: [
@@ -1608,10 +1583,7 @@ public extension RuntimeABISpec {
         ),
         // KSP-404: removePrefix/removeSuffix/removeSurrounding flat bridges removed;
         // implemented in bundled Kotlin source (StringPrefixSuffix.kt).
-        // STDLIB-191
-        // STDLIB-192
-        // STDLIB-190
-        // STDLIB-187
+
         // Source-backed declarations retain flat compatibility lowering for
         // aggregate String receivers.
         stringIfBlankFlatSpec,
@@ -1721,10 +1693,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
-        // STDLIB-TEXT-FN-077: String.substringBeforeLast(delimiter, missingDelimiterValue)
-        // STDLIB-TEXT-FN-075: String.substringAfterLast(delimiter, missingDelimiterValue)
-        // STDLIB-TEXT-PROP-017: Char.isUnicodeIdentifierPart
-        // STDLIB-534: String?.orEmpty()
         RuntimeABIFunctionSpec(
             name: "kk_string_orEmpty_flat",
             parameters: [
