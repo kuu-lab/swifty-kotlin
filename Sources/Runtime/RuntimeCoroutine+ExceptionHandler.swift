@@ -13,11 +13,9 @@ final class RuntimeExceptionHandlerBox: @unchecked Sendable {
     }
 }
 
-/// Create a CoroutineExceptionHandler that prints the exception message.
 /// Returns an opaque handle to a RuntimeExceptionHandlerBox.
 public func kk_exception_handler_new() -> Int {
     let box = RuntimeExceptionHandlerBox { _, throwableRaw in
-        // Default handler: print the exception to stderr
         var message = "Unknown exception"
         if throwableRaw != 0, let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw) {
             if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
@@ -87,7 +85,6 @@ func runtimeHandleUncaughtCoroutineException(
     FileHandle.standardError.write(Data(text.utf8))
 }
 
-/// Public kotlinx.coroutines entry point for reporting an unhandled failure.
 @_cdecl("kk_handle_coroutine_exception")
 public func kk_handle_coroutine_exception(_ contextRaw: Int, _ exceptionRaw: Int) -> Int {
     runtimeHandleUncaughtCoroutineException(
@@ -168,8 +165,6 @@ func runtimeScopeAbsorbsChildFailure(_ scope: RuntimeCoroutineScope) -> Bool {
     return runtimeJobAbsorbsChildFailure(job)
 }
 
-/// Complete a fire-and-forget `launch` job exceptionally, then emit the
-/// JVM-style uncaught report when no registered parent absorbed the failure.
 /// `parentJob`/`parentScope` are the job and scope linkages the launch
 /// registered into; a failure is absorbed when a non-supervisor parent exists
 /// on either axis (it re-surfaces through that parent's wait instead).
@@ -191,8 +186,6 @@ func runtimeCompleteLaunchJobExceptionally(
     _ = job.completeExceptionally(with: exception)
 }
 
-/// Launch a coroutine with a CoroutineExceptionHandler.
-/// If the coroutine throws an uncaught exception, the handler is invoked.
 /// handlerRaw is an opaque RuntimeExceptionHandlerBox handle (or 0 for no handler).
 public func kk_kxmini_launch_with_exception_handler(_ entryPointRaw: Int, _ functionID: Int, _ handlerRaw: Int) -> Int {
     let job = RuntimeJobHandle()
@@ -320,7 +313,6 @@ public func kk_kxmini_async_await(_ handle: Int, _ continuation: Int) -> Int {
     // Kotlin code may still read the Deferred (e.g. `d.await(); println(d.isActive)`)
     // after this call, and releasing here would leave that reference dangling.
 
-    // CORO-004: suspend-aware await via `awaitResult(callerState:)`.
     if continuation != 0, let callerState = runtimeContinuationState(from: continuation) {
         switch task.awaitResult(callerState: callerState, afterResume: {}) {
         case .suspended:
