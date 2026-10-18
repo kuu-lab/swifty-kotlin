@@ -7,6 +7,5 @@
 
 package kotlin
 
-// KSP-787: Build a suspend function value from a suspend lambda without adding
-// a runtime bridge. The inline identity body preserves the lambda's suspend type.
+// Adds no runtime bridge; the inline identity body preserves the lambda's suspend type.
 public inline fun <R> suspend(noinline block: suspend () -> R): suspend () -> R = block
