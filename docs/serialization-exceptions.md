@@ -6,7 +6,7 @@ serialization 1.10.0, immutable commit
 `serialization-exceptions-provenance.json` records the source Git blob, upstream
 SHA-256 and local SHA-256. Only documentation-only imports and the resulting redundant blank line
 are removed; the declarations, implementations, annotations and copyright remain.
-The pinned upstream Apache license is in `Scripts/serialization_reference`.
+The upstream Apache license text is in `docs/licenses/kotlinx-serialization-LICENSE.txt`.
 
 `SerializationException` remains an open `IllegalArgumentException` subclass with
 four constructors. Its message and cause follow the underlying exception contract.

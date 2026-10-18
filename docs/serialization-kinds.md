@@ -20,8 +20,8 @@ not descriptors, encoders/decoders, serializers or any wire format.
 SHA-256 and local source hashes at immutable commit
 `370c4e3780066b82f746cf38e4733cbe62c94f74`. Adaptations remove unused imports used
 only by documentation links and trim a final empty line. Copyright headers remain;
-the upstream Apache license and public JVM/KLIB dumps are pinned in
-`Scripts/serialization_reference`.
+the upstream Apache license text is in
+`docs/licenses/kotlinx-serialization-LICENSE.txt`.
 
 `Scripts/reference_cases/serialization_kinds.kt` exercises every kind's output,
 stable hash, singleton identity, alias/FQN access, and hierarchy dispatch. Its
