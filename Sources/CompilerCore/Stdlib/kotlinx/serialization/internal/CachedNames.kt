@@ -13,8 +13,5 @@ import kotlinx.serialization.descriptors.*
  */
 internal interface CachedNames {
 
-    /**
-     * A set of all names retrieved from [SerialDescriptor.getElementName]
-     */
     public val serialNames: Set<String>
 }
