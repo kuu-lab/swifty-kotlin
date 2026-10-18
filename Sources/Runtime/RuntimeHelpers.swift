@@ -31,10 +31,10 @@ func runtimePrimitiveBoxBasePointer(from rawValue: Int) -> UnsafeMutableRawPoint
     return UnsafeMutableRawPointer(bitPattern: baseBits)
 }
 
-/// Registers `box` under its tagged primitive-box handle. The caller must
-/// already hold the GC lock and passes its `GCState` as `state` — this helper
-/// never acquires `withGCLock` itself, so it can run inside a larger critical
-/// section (e.g. `runtimeStaticBox`'s probe-and-register fast path).
+/// The caller must already hold the GC lock and passes its `GCState` as
+/// `state` — this helper never acquires `withGCLock` itself, so it can run
+/// inside a larger critical section (e.g. `runtimeStaticBox`'s
+/// probe-and-register fast path).
 @inline(__always)
 func registerTaggedPrimitiveBox(_ box: AnyObject, inLockedState state: inout GCState) -> Int {
     let pointer = Unmanaged.passRetained(box).toOpaque()
@@ -63,9 +63,8 @@ func runtimePrimitiveIdentityCacheKey(domain: Int64, value: Int, range: Range<In
     return (domain << 32) | Int64(UInt32(bitPattern: Int32(truncatingIfNeeded: value)))
 }
 
-/// Allocates a same-type/same-payload copy of the primitive box behind a
-/// tagged handle. Used when a shared identity-cache box would otherwise be
-/// mutated in place (e.g. nominal type tagging for a value class).
+/// Used when a shared identity-cache box would otherwise be mutated in place
+/// (e.g. nominal type tagging for a value class).
 func runtimeClonePrimitiveBox(_ raw: Int) -> AnyObject? {
     guard let ptr = runtimePrimitiveBoxBasePointer(from: raw) else {
         return nil
@@ -139,8 +138,6 @@ func suspendEntryPoint(from rawValue: Int) -> KKSuspendEntryPoint? {
     return unsafeBitCast(rawValue, to: KKSuspendEntryPoint.self)
 }
 
-/// FIFO queue with amortized O(1) `enqueue`/`dequeue`.
-///
 /// Elements are stored in an array behind a head index: `dequeue` advances the
 /// head (releasing the slot) instead of shifting every element like
 /// `Array.removeFirst()`.  Once the dead prefix grows past a threshold the
@@ -174,7 +171,6 @@ struct RuntimeFIFOQueue<Element> {
         return element
     }
 
-    /// Removes all queued elements and returns them in FIFO order.
     mutating func drain() -> [Element] {
         let queued = elements[head...].compactMap { $0 }
         elements.removeAll(keepingCapacity: true)
@@ -182,7 +178,6 @@ struct RuntimeFIFOQueue<Element> {
         return queued
     }
 
-    /// Remove one suspended operation without disturbing the other waiters.
     /// Cancellation is rare; ordinary enqueue/dequeue remain amortized O(1).
     mutating func removeFirst(where matches: (Element) -> Bool) -> Bool {
         guard let index = elements.indices.dropFirst(head).first(where: {
@@ -301,8 +296,6 @@ func runtimeIsDataClass(classID: Int64) -> Bool {
     }
 }
 
-/// Registers a nominal class whose generated equality is structural.
-///
 /// The compiler emits this immediately after allocating a data-class instance,
 /// before an Any-erased equality call can observe it. Plain classes deliberately
 /// remain unregistered so their inherited Any.equals implementation can use
@@ -449,7 +442,6 @@ func runtimeThrowableMatchesNominalTypeID(_ throwable: RuntimeThrowableBox, targ
     }
 }
 
-/// Allocates a CancellationException as a RuntimeCancellationBox (CORO-002 / spec.md J17).
 /// The returned opaque pointer can be stored in `outThrown` and later detected via
 /// `kk_is_cancellation_exception`.
 func runtimeAllocateCancellationException(
@@ -460,9 +452,8 @@ func runtimeAllocateCancellationException(
     return runtimeRegisterThrowable(exception)
 }
 
-/// Allocates a `kotlinx.coroutines.TimeoutCancellationException` for an expired
-/// `withTimeout` deadline. The message matches kotlinx.coroutines verbatim so
-/// `e.message` agrees with Kotlin/JVM.
+/// The message matches kotlinx.coroutines verbatim so `e.message` agrees with
+/// Kotlin/JVM.
 func runtimeAllocateTimeoutCancellationException(timeoutMillis: Int) -> Int {
     runtimeRegisterThrowable(RuntimeTimeoutCancellationBox(
         message: "Timed out waiting for \(timeoutMillis) ms"
@@ -476,20 +467,11 @@ func tryCast<T: AnyObject>(_ ptr: UnsafeMutableRawPointer, to _: T.Type) -> T? {
     return anyObject as? T
 }
 
-/// Extracts a substring from `source` using UTF-16 code unit indices,
-/// approximating Kotlin's `CharSequence.subSequence(startIndex, endIndex)` semantics.
-///
 /// Kotlin `StringBuilder.appendRange` and `CharSequence` use UTF-16 code unit indexing.
 /// Swift `String.Index` is based on `Character` (extended grapheme clusters) by default,
 /// which differs for non-BMP characters (emoji, surrogate pairs). This helper bridges the
 /// gap by operating on a Kotlin UTF-16 code-unit buffer and restoring isolated
 /// surrogates through the compiler/runtime marker representation.
-///
-/// - Parameters:
-///   - source: The Swift string to slice.
-///   - startIndex: Start offset in UTF-16 code units (inclusive).
-///   - endIndex: End offset in UTF-16 code units (exclusive).
-/// - Returns: The substring, or triggers `fatalError` on out-of-bounds.
 func runtimeUTF16Substring(_ source: String, startIndex: Int, endIndex: Int) -> String {
     let utf16 = runtimeKotlinStringUTF16CodeUnits(source)
     let length = utf16.count
@@ -523,9 +505,6 @@ func runtimeStringBox(fromRaw raw: Int) -> RuntimeStringBox? {
     return extractStringBox(from: UnsafeMutableRawPointer(bitPattern: raw))
 }
 
-/// Text of a value whose static type is `CharSequence`: either a String box or
-/// a StringBuilder box, or a source-defined CharSequence implementation with
-/// a registered itable. Returns nil for null sentinels and unrelated handles.
 private let runtimeCharSequenceInterfaceTypeID =
     runtimeStableNominalTypeID(fqName: "kotlin.CharSequence")
 private typealias RuntimeCharSequenceGet = @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int
@@ -556,9 +535,6 @@ func runtimeStringOrBuilderUTF16Units(from raw: Int) -> [UInt16]? {
     return nil
 }
 
-/// Kotlin UTF-16 code units of a value whose static type is `CharSequence`:
-/// cached on String boxes, the live buffer on StringBuilder boxes, or
-/// materialized through the itable for source-defined implementations.
 func runtimeCharSequenceUTF16Units(from raw: Int) -> [UInt16]? {
     if let units = runtimeStringOrBuilderUTF16Units(from: raw) {
         return units
