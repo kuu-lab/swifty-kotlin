@@ -7,8 +7,7 @@ package kotlin.ranges
 
 import kotlin.internal.KsSymbolName
 
-// KSP-708: Keep the typed range shell in bundled Kotlin source. The signed
-// range operator still uses the shared operator-core ABI.
+// The signed range operator still uses the shared operator-core ABI.
 // KSP-1303: equals/hashCode/toString are members so `==` and erased virtual
 // dispatch use the range value rather than Any's identity behavior.
 public class IntRange @KsSymbolName("kk_op_rangeTo") constructor(
