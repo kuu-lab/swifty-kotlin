@@ -1,5 +1,3 @@
-/// String-to-number/boolean parsing functions not already covered by `stringFunctions`.
-///
 /// `__kk_string_toInt`/`toInt_radix`/`toIntOrNull`/`toIntOrNull_radix`/`toUByteOrNull`/
 /// `toUShortOrNull`/`toUIntOrNull`/`toULongOrNull` (and their `_radix` variants)/`toDouble`/
 /// `toDoubleOrNull`/`toLong`/`toLongOrNull`/`toFloat`/`toFloatOrNull`/`__kk_bignum_toString`
@@ -16,7 +14,6 @@ public extension RuntimeABISpec {
             section: "String",
             isThrowing: false
         ),
-        // STDLIB-TEXT-FN-091: String.toByteOrNull()
         RuntimeABIFunctionSpec(
             name: "__kk_string_toByteOrNull",
             parameters: [
@@ -26,7 +23,6 @@ public extension RuntimeABISpec {
             section: "String",
             isThrowing: false
         ),
-        // STDLIB-142: String.toBoolean
         RuntimeABIFunctionSpec(
             name: "__kk_string_toBoolean",
             parameters: [
