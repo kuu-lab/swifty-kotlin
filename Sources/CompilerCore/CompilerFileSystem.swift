@@ -1,8 +1,6 @@
 import Foundation
 
-/// Filesystem checks shared by compiler modules.
 package enum CompilerFileSystem {
-    /// Returns a canonical path beneath `rootURL`, rejecting empty and escaping paths.
     package static func containedURL(relativePath: String, under rootURL: URL) -> URL? {
         guard !relativePath.isEmpty else { return nil }
         let candidate = rootURL.appendingPathComponent(relativePath)
@@ -12,7 +10,6 @@ package enum CompilerFileSystem {
         return candidate
     }
 
-    /// Checks containment after resolving symlinks and normalizing both paths.
     package static func isContained(
         _ candidate: URL,
         in root: URL,
@@ -26,7 +23,6 @@ package enum CompilerFileSystem {
         return canonicalCandidate.path.hasPrefix(rootPath)
     }
 
-    /// Returns whether `url` names an existing regular file.
     package static func isRegularFile(
         at url: URL,
         fileManager: FileManager = .default

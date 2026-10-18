@@ -1,8 +1,3 @@
-/// Closure-argument synthesis and callable-adapter helpers for
-/// CallLowerer: `appendClosureArgumentsIfNeeded`,
-/// `makeCollectionHOFCallableAdapter`, `makeClosureThunkCallableAdapter`.
-///
-/// Split out from `CallLowerer.swift`.
 extension CallLowerer {
     func adaptCoroutineLauncherBlock(
         chosenCallee: SymbolID?,
@@ -744,9 +739,6 @@ extension CallLowerer {
         }
     }
 
-    /// KSP-500: Wrap a generateSequence nextFunction closure so its returned
-    /// primitive is boxed before the runtime stores it as a sequence element.
-    ///
     /// Unlike sequenceOf(...)/listOf(...), which box each element explicitly at
     /// the call site, generateSequence's elements are produced lazily by
     /// repeatedly invoking the closure at runtime — there's no fixed set of
@@ -861,11 +853,6 @@ extension CallLowerer {
         )
     }
 
-    /// KSP-500: expand a generateSequence nextFunction closure to (fnPtr, closureRaw),
-    /// boxing its returned primitive via a synthesized adapter when the element
-    /// type needs it (returns the original closure's fnPtr unchanged otherwise,
-    /// e.g. for String/class element types).
-    ///
     /// Not private: also called from CallLowerer.swift's three generateSequence
     /// early-return special cases, none of which go through
     /// appendClosureArgumentsIfNeeded (each constructs its `.call` directly —
@@ -970,12 +957,12 @@ extension CallLowerer {
             fnPtr = adapterExpr
             callableInfo = adapterInfo
         }
-        // KSP-500 + master's multi-capture fix: route through the shared
-        // helper instead of reading captureArguments.first directly — a
-        // nextFunction closure with 2+ captures needs them packed into a
-        // boxed closure object here (see makeClosureRawOrBoxedArgument's
-        // doc comment), otherwise the closure body's kk_array_get_inbounds
-        // unpacking misreads a single raw capture value as that object.
+        // Route through the shared helper instead of reading
+        // captureArguments.first directly — a nextFunction closure with 2+
+        // captures needs them packed into a boxed closure object here (see
+        // makeClosureRawOrBoxedArgument's doc comment), otherwise the closure
+        // body's kk_array_get_inbounds unpacking misreads a single raw capture
+        // value as that object.
         let closureRaw = makeClosureRawOrBoxedArgument(
             callableInfo: callableInfo,
             sema: sema,
@@ -1106,7 +1093,6 @@ extension CallLowerer {
             )
         }
 
-        // STDLIB-SEQ-002: 1-arg generateSequence(nextFunction) uses the private bridge.
         if externalLinkName == "__kk_sequence_generate_noarg", loweredArguments.count == 1 {
             let expanded = expandGenerateSequenceNextFunction(
                 loweredArgID: loweredArguments[0],
@@ -1120,10 +1106,9 @@ extension CallLowerer {
             return [expanded.fnPtr, expanded.closureRaw]
         }
 
-        // sequence { ... } / iterator { ... } builders: expand the receiver
-        // lambda to (fnPtr, closureRaw). Capturing builder lambdas need the
-        // same closure-aware adapter shape as collection HOFs so the runtime
-        // can call (closureRaw, builderRaw, outThrown).
+        // Capturing builder lambdas need the same closure-aware adapter shape
+        // as collection HOFs so the runtime can call
+        // (closureRaw, builderRaw, outThrown).
         if externalLinkName == "__kk_sequence_builder_build"
             || externalLinkName == "__kk_iterator_builder_build",
            loweredArguments.count == 1
@@ -1252,8 +1237,8 @@ extension CallLowerer {
             return result
         }
 
-        // STDLIB-590 / STDLIB-KOTLIN-ROOT-CLOSE-001: Function0 runtime entry
-        // points receive lambda arguments as (fnPtr, closureRaw).
+        // Function0 runtime entry points receive lambda arguments as
+        // (fnPtr, closureRaw).
         let function0RuntimeNames: Set<String> = [
             "__kk_auto_closeable_create",
             // Atomicfu TLS factory uses (closureRaw, outThrown), including raw Function0 literals.
@@ -1272,9 +1257,8 @@ extension CallLowerer {
             )
         }
 
-        // STDLIB-325 / KSP-618: __kkSynchronized(lock, block) — expand the block
-        // argument to (lock, fnPtr, closureRaw) while preserving the runtime
-        // outThrown slot.
+        // __kkSynchronized(lock, block) — expand the block argument to
+        // (lock, fnPtr, closureRaw) while preserving the runtime outThrown slot.
         if externalLinkName == "__kk_synchronized", loweredArguments.count == 2 {
             return makeClosureThunkExpandedArguments(
                 prefixArguments: [loweredArguments[0]],

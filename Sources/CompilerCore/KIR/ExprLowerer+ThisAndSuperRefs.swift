@@ -1,8 +1,3 @@
-/// `this` / `super` reference lowering used by
-/// `ExprLowerer.lowerExpr`: implicit and labeled receiver
-/// resolution through the active-receiver and outer-class chains.
-///
-/// Split out from `ExprLowerer+ControlFlowAndBlocks.swift`.
 extension ExprLowerer {
     func lowerSuperRefExpr(
         exprID: ExprID,

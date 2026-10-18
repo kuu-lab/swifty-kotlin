@@ -116,10 +116,15 @@ final class LLVMCAPIBindings {
         UInt32,
         LLVMBool
     ) -> LLVMValueRef?
+    // LLVMConstStringInContext(Context, Str, Length, DontNullTerminate) -> [N x i8] constant
     typealias LLVMConstStringInContextFn = @convention(c) (LLVMContextRef?, UnsafePointer<CChar>?, UInt32, LLVMBool) -> LLVMValueRef?
+    // LLVMArrayType(ElementType, ElementCount) -> [N x ElementType]
     typealias LLVMArrayTypeFn = @convention(c) (LLVMTypeRef?, UInt32) -> LLVMTypeRef?
+    // LLVMSetGlobalConstant(GlobalVar, IsConstant)
     typealias LLVMSetGlobalConstantFn = @convention(c) (LLVMValueRef?, LLVMBool) -> Void
+    // LLVMSetUnnamedAddr(Global, HasUnnamedAddr)
     typealias LLVMSetUnnamedAddrFn = @convention(c) (LLVMValueRef?, LLVMBool) -> Void
+    // LLVMBuildInBoundsGEP2(Builder, Ty, Pointer, Indices, NumIndices, Name) -> GEP value
     typealias LLVMBuildInBoundsGEP2Fn = @convention(c) (LLVMBuilderRef?, LLVMTypeRef?, LLVMValueRef?, UnsafeMutablePointer<LLVMValueRef?>?, UInt32, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMGetDefaultTargetTripleFn = @convention(c) () -> UnsafeMutablePointer<CChar>?
     typealias LLVMGetTargetFromTripleFn = @convention(c) (
@@ -209,6 +214,9 @@ final class LLVMCAPIBindings {
         UnsafePointer<CChar>?, Int,
         UInt64, UInt32, UInt32
     ) -> LLVMMetadataRef?
+    /// LLVMDIBuilderCreateParameterVariable(
+    ///   Builder, Scope, Name, NameLen, ArgNo, File, LineNo, Ty,
+    ///   AlwaysPreserve, Flags)
     typealias LLVMDIBuilderCreateParameterVariableFn = @convention(c) (
         LLVMDIBuilderRef?,
         LLVMMetadataRef?,
@@ -219,6 +227,9 @@ final class LLVMCAPIBindings {
         LLVMMetadataRef?,
         Int32, UInt32
     ) -> LLVMMetadataRef?
+    /// LLVMDIBuilderCreateAutoVariable(
+    ///   Builder, Scope, Name, NameLen, File, LineNo, Ty,
+    ///   AlwaysPreserve, Flags, AlignInBits)
     typealias LLVMDIBuilderCreateAutoVariableFn = @convention(c) (
         LLVMDIBuilderRef?,
         LLVMMetadataRef?,

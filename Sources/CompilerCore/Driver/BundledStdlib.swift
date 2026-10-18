@@ -1,29 +1,11 @@
 import Foundation
 
-/// Bundled stdlib source manifest and resource loading.
-///
 /// `.kt` files under `Sources/CompilerCore/Stdlib/` are copied into the
 /// `CompilerCore` resource bundle and injected as virtual `__bundled_*.kt`
 /// source files before compilation. This type enumerates those resources and
 /// computes a stable manifest hash used by incremental builds and stdlib
 /// artifact validation.
 package enum BundledStdlib {
-    // Legacy empty inline source markers. The actual implementations have been
-    // migrated to bundled `.kt` files under `Sources/CompilerCore/Stdlib/`.
-    // count / any / all / none / contains / containsAll / lastIndexOf have been
-    // migrated to ListSearchHOF.kt. sumOf has been migrated to ListAggregateHOF.kt
-    // (KSP-501), and list sorting/extrema HOFs are in ListSortingHOF.kt and
-    // ListExtremaHOF.kt. The remaining collection HOFs (filter, set) are in
-    // ListFilterHOF.kt and SetHOF.kt respectively.
-
-    // repeat / reversed / padStart / padEnd have been migrated to StringBasics.kt.
-    // toByteArray / encodeToByteArray / decodeToString / Charsets have been migrated to
-    // StringEncoding.kt (delegating to the __kk_-prefixed bridges in RuntimeStringEncoding.swift);
-    // kotlinx.cinterop.ByteArray.toKString has been migrated to CInteropExtensions.kt.
-    // indent / trimIndent / trimMargin / prependIndent / replaceIndent(ByMargin) have been
-    // migrated to StringIndentFormat.kt. The case-conversion functions (lowercase, uppercase,
-    // capitalize, replaceFirstChar, locale variants) have been migrated to StringCaseConversion.kt.
-
     /// Errors that can occur while loading bundled stdlib sources from the
     /// resource bundle. These are converted to `KSWIFTK-SOURCE-0101`/`0102`
     /// diagnostics by `LoadSourcesPhase.injectBundledStdlib`.
@@ -47,9 +29,6 @@ package enum BundledStdlib {
         }
     }
 
-    /// Collects bundled stdlib `.kt` sources from `resourcePath/Stdlib`.
-    /// Throws `LoadError` when the resource path is missing, the `Stdlib`
-    /// directory cannot be enumerated, or a `.kt` file cannot be read.
     internal static func collectBundledStdlibSources(
         resourcePath: String? = Bundle.module.resourcePath
     ) throws -> [(path: String, contents: Data)] {
@@ -109,7 +88,6 @@ package enum BundledStdlib {
         ]
     )
 
-    /// Returns a stable hash of the bundled stdlib manifest.
     package static func manifestHash() -> String {
         _manifestHash
     }

@@ -1,6 +1,5 @@
 // swiftlint:disable file_length
 
-/// Name-based fallback resolution for unresolved synthetic and collection members.
 extension CallLowerer {
     /// ULongRange and ULongProgression instances are runtime range boxes, not
     /// Kotlin objects with vtables. Keep source-backed Any overrides and
@@ -870,9 +869,6 @@ extension CallLowerer {
         return nil
     }
 
-    /// Resolves collection-level members (`size`, `isEmpty`, `iterator`) to
-    /// their concrete runtime callee by mapping receiver kind to the
-    /// corresponding runtime symbol (e.g. `.list` -> `kk_list_size`).
     func unresolvedCollectionMemberCallee(
         memberName: String,
         receiverType: TypeID,

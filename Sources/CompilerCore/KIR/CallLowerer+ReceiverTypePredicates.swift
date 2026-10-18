@@ -1,9 +1,3 @@
-/// Receiver-type predicate helpers used by CallLowerer to dispatch
-/// member-call lowerings (Regex / StringBuilder / Sequence / Iterable /
-/// Collection / Map / Set / Array / Grouping etc.).
-///
-/// Split out from `CallLowerer+MemberCalls.swift` so that the dispatcher
-/// file stays focused on lowering control flow.
 extension CallLowerer {
     func isRegexLikeType(
         _ receiverType: TypeID,
@@ -13,10 +7,8 @@ extension CallLowerer {
         ReceiverClassifier(sema: sema, interner: interner).isRegexLikeType(receiverType)
     }
 
-    /// Check whether a type is Sequence-like (for member-call and operator
-    /// lowering decisions).  Shared across `CallLowerer+MemberCalls` and
-    /// `CallLowerer+Operators`; kept `internal` to avoid exposing it beyond
-    /// the `CallLowerer` extensions.
+    /// Shared across `CallLowerer+MemberCalls` and `CallLowerer+Operators`;
+    /// kept `internal` to avoid exposing it beyond the `CallLowerer` extensions.
     func isSequenceLikeType(
         _ receiverType: TypeID,
         sema: SemaModule,

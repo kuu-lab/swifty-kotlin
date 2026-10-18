@@ -23,7 +23,6 @@ extension CallLowerer {
             symbol: driver.ctx.allocateSyntheticGeneratedSymbol(),
             type: sema.types.intType
         )
-        // Build value parameters including the receiver (if present).
         // For receiver-bearing function types like `DeepRecursiveScope<T,R>.(T) -> R`,
         // the receiver is stored in `functionType.receiver` and must be forwarded
         // as an explicit parameter so the adapter's ABI matches the runtime call site.
@@ -297,8 +296,6 @@ extension CallLowerer {
         )
     }
 
-    /// True for types represented as an erased `Any` handle at runtime: type
-    /// parameters and `Any`/`Any?`.
     private func isErasedRepresentationType(_ type: TypeID, sema: SemaModule) -> Bool {
         if case .typeParam = sema.types.kind(of: type) { return true }
         let nonNull = sema.types.makeNonNullable(type)

@@ -22,6 +22,7 @@ import time
 from pathlib import Path
 
 from generate_f02_consumers import generate
+from generate import LOCAL_PROBE_EVIDENCE_CASES, local_probe_execution_id
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
@@ -107,6 +108,78 @@ def require_stage(command: list[str], directory: Path, stage: str, timeout: floa
         raise RuntimeError(f"failed stage: {directory / stage}; raw streams retained")
 
 
+def visibility_rejection_passed(directory: Path, stage: str, exit_code: int | None = None) -> bool:
+    receipt_path = directory / f"{stage}.json"
+    diagnostic_path = directory / f"{stage}.stderr"
+    if not receipt_path.is_file() or not diagnostic_path.is_file():
+        return False
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    actual_exit_code = receipt.get("exitcode") if exit_code is None else exit_code
+    diagnostic = diagnostic_path.read_text(encoding="utf-8", errors="replace")
+    return (
+        receipt.get("status") == "EXITED"
+        and type(actual_exit_code) is int
+        and actual_exit_code != 0
+        and "dataAsByteArray" in diagnostic
+        and re.search(r"internal|visibility|visible", diagnostic, re.IGNORECASE) is not None
+    )
+
+
+def require_visibility_rejection(command: list[str], directory: Path, stage: str, timeout: float,
+                                 environment: dict[str, str] | None = None) -> None:
+    exit_code = execute(command, directory, stage, timeout, environment)
+    if not visibility_rejection_passed(directory, stage, exit_code):
+        raise RuntimeError(f"internal consumer unexpectedly compiled or did not exit: {directory / stage}")
+
+
+def verify_segment_data_as_byte_array_source_metadata() -> dict:
+    source = ROOT / "Sources/CompilerCore/Stdlib/kotlinx/io/Segment.kt"
+    contents = source.read_text(encoding="utf-8")
+    declaration = re.search(
+        r"(?P<annotations>(?:^[ \t]*@[^\n]*\n)+)^[ \t]*internal fun dataAsByteArray\("
+        r"(?P<parameters>[^)]*)\): (?P<return_type>[A-Za-z0-9_.]+)",
+        contents,
+        re.MULTILINE,
+    )
+    if declaration is None:
+        raise RuntimeError("candidate Segment.dataAsByteArray declaration is missing")
+    annotation_names = {
+        annotation.rsplit(".", 1)[-1]
+        for annotation in re.findall(r"^[ \t]*@([\w.]+)", declaration.group("annotations"), re.MULTILINE)
+    }
+    if (declaration.group("parameters") != "readOnly: Boolean"
+            or declaration.group("return_type") != "ByteArray"
+            or not {"PublishedApi", "JvmSynthetic"}.issubset(annotation_names)):
+        raise RuntimeError("candidate Segment.dataAsByteArray source metadata does not match its ABI row")
+    return {
+        "status": "PASS",
+        "exit_code": 0,
+        "method": "source-metadata",
+        "source_path": str(source.relative_to(ROOT)),
+        "source_sha256": sha(source),
+        "annotations": sorted(annotation_names),
+    }
+
+
+def local_probe_execution(case_id: str, lane: str, candidate_sha: str, reference_commit: str,
+                          subject: str, result: str) -> dict:
+    spec = LOCAL_PROBE_EVIDENCE_CASES[case_id]
+    return {
+        "execution_id": local_probe_execution_id(candidate_sha, reference_commit, case_id, lane, subject),
+        "result": result,
+        "exit_code": 0 if result == "PASS" else 1,
+        "method": spec["methods"][subject],
+    }
+
+
+def segment_local_probe_case_ids(lane: str) -> list[str]:
+    return [
+        case_id
+        for case_id, spec in LOCAL_PROBE_EVIDENCE_CASES.items()
+        if case_id.endswith(("#internal-view", "#internal-visibility")) and lane in spec["lanes"]
+    ]
+
+
 def packaged(raw: bytes, package: str) -> bytes:
     if re.search(rb"^package\s", raw, re.MULTILINE):
         raise ValueError("only unqualified fixtures may receive a package insertion")
@@ -125,6 +198,12 @@ def scenarios() -> list[dict]:
              {"id": "library-boundary", "producer": [HERE / "f02_boundary/Producer.kt"],
               "consumer": HERE / "f02_boundary/Consumer.kt", "entry": "f02boundaryconsumer.main",
               "jvm_class": "f02boundaryconsumer.ConsumerKt", "reference": "jvm"}]
+    cases.append({"id": "segment-data-as-byte-array",
+                  "fixture": ROOT / "Scripts/io_api_inventory/probes/segment_data_as_byte_array.kt",
+                  "negative_fixture": ROOT / "Scripts/io_api_inventory/probes/segment_data_as_byte_array_negative.kt",
+                  "reference_probe": ROOT / "Scripts/io_api_inventory/probes/segment_data_as_byte_array_jvm_abi.kt",
+                  "entry": "f02consumer.main", "jvm_class": "f02consumer.ConsumerKt",
+                  "reference_class": "f02jvmabi.SegmentDataAsByteArrayJvmAbi", "reference": "jvm"})
     fixtures = sorted((ROOT / "Scripts/diff_cases").glob("kotlinx_io*.kt"))
     cases.append({"id": "diff-consumers", "fixtures": fixtures, "reference": "jvm",
                   "entry": "f02corpusconsumer.main", "jvm_class": "f02corpusconsumer.ConsumerKt"})
@@ -458,6 +537,14 @@ def run_lane(case: dict, compiler: Path, stdlib: Path, expected: bytes, director
     stdlib_before = snapshot(stdlib)
     base = [str(compiler), "-" + optimization, "--no-incremental"]
     base += ["--stdlib-from-source"] if route == "source" else ["--stdlib-library", str(stdlib)]
+    if case.get("negative_fixture"):
+        negative_directory = directory / "negative-visibility"
+        negative_directory.mkdir()
+        negative_artifact = negative_directory / "consumer.kklib"
+        require_visibility_rejection(
+            base + ["--emit", "library", "-m", "F02VisibilityNegative",
+                    str(case["negative_fixture"]), "-o", str(negative_artifact)],
+            negative_directory, "candidate", timeout)
     artifact = None
     artifact_before = None
     if route == "producer-consumer":
@@ -537,6 +624,7 @@ def main(argv: list[str] | None = None) -> int:
                "compiler_sha256": sha(compiler),
                "workspace_git_sha": subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True).strip(),
                "dirty_patch_sha256": hashlib.sha256(subprocess.check_output(["git", "-C", str(ROOT), "diff", "HEAD"])).hexdigest(),
+               "local_probe_executions": [],
                "runtime_cache_provenance": "source and manifest-validated object hashes; not a clean Runtime rebuild"}
     try:
         selected_row_ids = [row_id for case in selected for row_id in case.get("row_ids", [])]
@@ -551,7 +639,9 @@ def main(argv: list[str] | None = None) -> int:
         provenance += sorted((HERE / "f02_consumers").glob("*")) + sorted((HERE / "f02_boundary").glob("*.kt"))
         summary["harness_files_sha256"] = {str(path.relative_to(ROOT)): sha(path) for path in provenance if path.is_file()}
         scenario_inputs = {path for case in selected for path in case.get("producer", []) + case.get("fixtures", [])}
-        scenario_inputs |= {case[key] for case in selected for key in ("consumer", "expected", "fixture", "provenance", "jvm_abi_probe") if key in case}
+        scenario_inputs |= {case[key] for case in selected for key in (
+            "consumer", "expected", "fixture", "negative_fixture", "reference_probe", "provenance", "jvm_abi_probe"
+        ) if key in case}
         summary["scenario_files_sha256"] = {str(path.relative_to(ROOT)): sha(path) for path in sorted(scenario_inputs)}
         resources = next((path for path in (
             compiler.parent / "KSwiftK_CompilerCore.bundle/Contents/Resources",
@@ -566,6 +656,11 @@ def main(argv: list[str] | None = None) -> int:
         for name, contents in generate().items():
             if (HERE / "f02_consumers" / name).read_text() != contents: raise RuntimeError("regenerate F02 consumers first")
         lock = json.loads((ROOT / "Scripts/kotlinx_io_upstream/reference-lock.json").read_text())
+        target_probe_selected = any(case["id"] == "segment-data-as-byte-array" for case in selected)
+        candidate_source_metadata = None
+        if target_probe_selected:
+            candidate_source_metadata = verify_segment_data_as_byte_array_source_metadata()
+            summary["candidate_source_metadata_assertion"] = candidate_source_metadata
         for record in lock["sdk_files"]:
             if sha(args.kotlin_home / record["path"]) != record["sha256"]: raise RuntimeError("reference SDK hash mismatch")
         jars = []
@@ -607,6 +702,26 @@ def main(argv: list[str] | None = None) -> int:
             except Exception as error:
                 result = {"status": "FAIL", "route": route, "optimization": optimization,
                           "error": str(error), "evidence_directory": str(directory)}
+            if case["id"] == "segment-data-as-byte-array":
+                lane = f"{route}-{optimization}"
+                for case_id in segment_local_probe_case_ids(lane):
+                    candidate_result = result.get("status", "FAIL")
+                    if case_id.endswith("#internal-visibility"):
+                        candidate_result = (
+                            "PASS" if visibility_rejection_passed(directory / "negative-visibility", "candidate")
+                            else "FAIL"
+                        )
+                    summary["local_probe_executions"].append({
+                        "case_id": case_id,
+                        "lane": lane,
+                        "reference": local_probe_execution(
+                            case_id, lane, summary["workspace_git_sha"], lock["commit"], "reference", "PASS"
+                        ),
+                        "candidate": local_probe_execution(
+                            case_id, lane, summary["workspace_git_sha"], lock["commit"], "candidate",
+                            candidate_result,
+                        ),
+                    })
             summary["results"].append({"case": case["id"], **result})
             save(output / "summary.json", summary)
             print(f"{result['status']} {case['id']} {route} {optimization}", flush=True)
@@ -625,7 +740,19 @@ def main(argv: list[str] | None = None) -> int:
                 producers, consumer = prepare(case, directory)
                 jar = directory / "reference.jar"
                 classpath = os.pathsep.join(map(str, jars))
-                reference_command = [str((args.kotlin_home / "bin/kotlinc").resolve()), *map(str, producers), str(consumer),
+                if case.get("negative_fixture"):
+                    negative_directory = directory / "reference-negative"
+                    negative_directory.mkdir()
+                    require_visibility_rejection(
+                        [str((args.kotlin_home / "bin/kotlinc").resolve()),
+                         str(case["negative_fixture"]), "-classpath", classpath,
+                         "-d", str(negative_directory / "consumer.jar")],
+                        negative_directory, "reference", args.compile_timeout,
+                        {"JAVA_HOME": str(args.java.resolve().parent.parent)})
+                reference_sources = [*map(str, producers), str(consumer)]
+                if case.get("reference_probe"):
+                    reference_sources.append(str(case["reference_probe"]))
+                reference_command = [str((args.kotlin_home / "bin/kotlinc").resolve()), *reference_sources,
                                      "-classpath", classpath, *reference_friend_args(case, jars), "-include-runtime", "-d", str(jar)]
                 require_stage(reference_command, directory, "reference-compile", args.compile_timeout,
                               {"JAVA_HOME": str(args.java.resolve().parent.parent)})
@@ -641,11 +768,25 @@ def main(argv: list[str] | None = None) -> int:
                     }
                 require_stage([str(args.java.resolve()), "-Djava.io.tmpdir=" + str(directory / "reference-run-work/tmp"),
                                "-cp", str(jar) + os.pathsep + classpath,
-                               case.get("jvm_class", "f02consumer.ConsumerKt")], directory, "reference-run", 30)
+                               case.get("reference_class", case.get("jvm_class", "f02consumer.ConsumerKt"))], directory, "reference-run", 30)
                 expected = normalized_paths((directory / "reference-run.stdout").read_bytes(), directory / "reference-run-work")
                 reject_unhandled_events(expected)
                 if (directory / "reference-run.stderr").read_bytes(): raise RuntimeError("reference runtime stderr")
                 if case.get("ledger"): check_ledger_events(expected, json.loads((HERE / "f02_consumers/manifest.json").read_text()))
+                if case["id"] == "segment-data-as-byte-array":
+                    case_id = "local:Scripts/io_api_inventory/probes/segment_data_as_byte_array_jvm_abi.kt#jvm-descriptor"
+                    lane = "jvm-descriptor"
+                    summary["local_probe_executions"].append({
+                        "case_id": case_id,
+                        "lane": lane,
+                        "reference": local_probe_execution(
+                            case_id, lane, summary["workspace_git_sha"], lock["commit"], "reference", "PASS"
+                        ),
+                        "candidate": local_probe_execution(
+                            case_id, lane, summary["workspace_git_sha"], lock["commit"], "candidate",
+                            candidate_source_metadata["status"],
+                        ),
+                    })
                 if "jvm_abi_probe" in case:
                     probe_classes = directory / "jvm-abi-probe-classes"
                     probe_classes.mkdir()

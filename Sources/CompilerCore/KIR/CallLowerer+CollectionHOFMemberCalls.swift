@@ -1,6 +1,5 @@
 // swiftlint:disable file_length
 
-/// Collection HOF argument adaptation and comparator trampoline helpers.
 extension CallLowerer {
     func isCollectionHOFCallee(
         _ calleeName: InternedString,

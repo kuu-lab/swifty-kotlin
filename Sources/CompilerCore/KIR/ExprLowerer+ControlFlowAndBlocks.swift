@@ -1,8 +1,3 @@
-/// `ExprLowerer.lowerExpr`: the main expression-lowering dispatch. Each
-/// `Expr` case delegates to a responsibility-grouped helper in the sibling
-/// `ExprLowerer+*` files; control-flow and block cases stay here.
-///
-/// Split out from `ExprLowerer+ControlFlowAndBlocks.swift`.
 extension ExprLowerer {
     func lowerExpr(
         _ exprID: ExprID,
@@ -222,8 +217,6 @@ extension ExprLowerer {
             return unit
 
         case let .continueExpr(label, _):
-            // CODE-001: Inline only finally blocks whose try scope is exited
-            // by this continue.
             inlineFinallyBlocksForBreakOrContinue(
                 label: label,
                 ast: ast, sema: sema, arena: arena, interner: interner,
@@ -712,7 +705,6 @@ extension ExprLowerer {
                     propertyConstantInitializers: propertyConstantInitializers,
                     instructions: &instructions
                 )
-                // If the statement is a terminator (return/throw), stop lowering
                 if driver.controlFlowLowerer.isTerminatedExpr(loweredStmt, arena: arena, sema: sema) {
                     return loweredStmt
                 }
@@ -808,8 +800,6 @@ extension ExprLowerer {
             )
 
         case let .forDestructuringExpr(names, iterableExpr, bodyExpr, _):
-            // Lower as a regular for-loop, but inside the body, destructure the element
-            // Delegate to control flow lowerer for loop structure
             return driver.controlFlowLowerer.lowerForDestructuringExpr(
                 exprID,
                 names: names,

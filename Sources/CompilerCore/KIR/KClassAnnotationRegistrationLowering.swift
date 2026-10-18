@@ -1,5 +1,3 @@
-/// Emits calls to register annotation metadata for a reflection value.
-///
 /// This shared helper keeps KClass annotation registration identical across
 /// metadata, class-reference, and object-literal lowering paths.
 func emitKClassAnnotationRegistration(
@@ -25,8 +23,6 @@ func emitKClassAnnotationRegistration(
     )
 }
 
-/// Emits registration calls for runtime-retained annotation values attached to
-/// an arbitrary runtime reflection key.
 func emitRuntimeAnnotationRegistration(
     annotations: [MetadataAnnotationRecord],
     keyArguments: [KIRExprID],
