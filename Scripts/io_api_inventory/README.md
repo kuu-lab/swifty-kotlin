@@ -303,15 +303,22 @@ inputs participate in the row's input hash and are checked during regeneration.
 
 The generator rejects unknown or duplicate row IDs, malformed hashes, a
 different reference pin, stale implementation/test inputs, non-passing or
-unrun executions, duplicate cases, and missing or unrelated lanes. Upstream
-case IDs must be referenced by that row's upstream tests, and both execution
-IDs must map to the same case in the locked JVM and Native execution catalogs.
-Local case IDs must match the reviewed probe registry and the row's local test
-references. A manual status edit is discarded when outputs are regenerated.
-`--write` changes only the three generated ledger output files and reads the
-evidence file without rewriting it. `--check` verifies upstream snapshots, the
-test index lock, negative guards, evidence, any execution catalogs used by
-evidence, and byte-for-byte output without modifying files.
+unrun executions, duplicate cases, and missing or unrelated lanes. Ordinary
+case IDs must match a method-specific upstream test reference for that row;
+`#suite-reference` discovery metadata cannot authorize an arbitrary case from
+the same file. Local case IDs must match the reviewed probe registry and the row's
+local test references. A declaration-level probe may instead use an explicit
+`#probe:<ticket>:<name>` reference whose marker is present in the hashed local
+test input. Such runs use deterministic `probe:<subject>:<hash>` execution IDs
+and store the captured reference/candidate stdout, stderr, exit code, and
+stdout hash in `api-validation-probe-results.json`; the generator checks that
+this output sidecar matches the evidence records. Ordinary upstream executions
+still resolve through the locked JVM and Native execution catalogs. A manual
+status edit is discarded when outputs are regenerated. `--write` changes only
+the three generated ledger output files and reads the evidence files without
+rewriting them. `--check` verifies upstream snapshots, the test index lock,
+negative guards, evidence, probe output sidecars, any execution catalogs used
+by evidence, and byte-for-byte output without modifying files.
 
 ```sh
 python3 Scripts/io_api_inventory/test_validation_evidence.py

@@ -209,6 +209,191 @@
       "evidence_source": "local-probe"
     },
     {
+      "row_id": "jvm-15474da48ae3e29c",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "d90a2801c43e277c0b87a96ce91a988bc8a9465c3340a4bd297ff80911fe3d4c",
+      "test_input_sha256": "83999958418fea219d368be209259ae3700fa565ba2e42e1a66702b6abf96687",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "Scripts/io_api_inventory/probes/SinkRawSinkJvmReflectionProbe.java#probe:KUU-2612:sink-rawsink-jvm-declarations",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "probe:reference:125775f005cc712c0a15",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:candidate:125775f005cc712c0a15",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "evidence_source": "upstream-catalog"
+    },
+    {
+      "row_id": "jvm-3cd294dd8616b98c",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "b925f9c59e47db700a0db4878053e260fd76ba0ad81de3dcc31ae0b81a1641c1",
+      "test_input_sha256": "f5740910a24bbe7d4980e867a45925db96d9f4e94a9c08784f6c483bbc1d43a3",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "Scripts/io_api_inventory/probes/SinkRawSinkJvmReflectionProbe.java#probe:KUU-2612:sink-rawsink-jvm-declarations",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "probe:reference:125775f005cc712c0a15",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:candidate:125775f005cc712c0a15",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "evidence_source": "upstream-catalog"
+    },
+    {
+      "row_id": "jvm-f7053c9293f03a10",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "fb80e9f124137b5acefc4e81887af5d40acc42279e9c004bd01543d03fc2ab11",
+      "test_input_sha256": "b27722a49c75bdea256bede2eecf9256efe7ce3cb7715c49771b055144fd7154",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "local:Scripts/io_api_inventory/probes/segment_data_as_byte_array_jvm_abi.kt#jvm-descriptor",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "local-probe-v1:reference:637c85c911a69b9cbbba1465a6e298e6",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "jvm-abi-reflection"
+          },
+          "candidate": {
+            "execution_id": "local-probe-v1:candidate:2ab41515fb124993bcdcaf784bf081a6",
+            "result": "PASS",
+            "exit_code": 0,
+            "method": "source-metadata"
+          }
+        }
+      ],
+      "evidence_source": "local-probe"
+    },
+    {
+      "row_id": "klib-0b464ce5d17138e9",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "d90a2801c43e277c0b87a96ce91a988bc8a9465c3340a4bd297ff80911fe3d4c",
+      "test_input_sha256": "281bb3a420b566c4238e41ec752028886e6d871a06716d1aaa48419ba4a0cd6d",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "executions": [
+        {
+          "case_id": "Scripts/io_api_inventory/probes/SinkRawSinkKotlinReferenceProbe.kt#probe:KUU-2612:sink-rawsink-kotlin-reference",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "probe:reference:3fec0095273c22cd84ed",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:candidate:3fec0095273c22cd84ed",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/SinkRawSinkKotlinReferenceProbe.kt#probe:KUU-2612:sink-rawsink-kotlin-reference",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "probe:reference:3fec0095273c22cd84ed",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:candidate:3fec0095273c22cd84ed",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/SinkRawSinkKotlinReferenceProbe.kt#probe:KUU-2612:sink-rawsink-kotlin-reference",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "probe:reference:3fec0095273c22cd84ed",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:candidate:3fec0095273c22cd84ed",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/SinkRawSinkKotlinReferenceProbe.kt#probe:KUU-2612:sink-rawsink-kotlin-reference",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "probe:reference:3fec0095273c22cd84ed",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:candidate:3fec0095273c22cd84ed",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/SinkRawSinkKotlinReferenceProbe.kt#probe:KUU-2612:sink-rawsink-kotlin-reference",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "probe:reference:3fec0095273c22cd84ed",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:candidate:3fec0095273c22cd84ed",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/SinkRawSinkKotlinReferenceProbe.kt#probe:KUU-2612:sink-rawsink-kotlin-reference",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "probe:reference:3fec0095273c22cd84ed",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:candidate:3fec0095273c22cd84ed",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "evidence_source": "upstream-catalog"
+    },
+    {
       "row_id": "klib-952eb71e7667983b",
       "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
       "reference_version": "0.9.1",
@@ -416,34 +601,103 @@
       "evidence_source": "local-probe"
     },
     {
-      "row_id": "jvm-f7053c9293f03a10",
+      "row_id": "klib-b8d3dfb575d2ea24",
       "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
       "reference_version": "0.9.1",
       "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
-      "implementation_input_sha256": "fb80e9f124137b5acefc4e81887af5d40acc42279e9c004bd01543d03fc2ab11",
-      "test_input_sha256": "b27722a49c75bdea256bede2eecf9256efe7ce3cb7715c49771b055144fd7154",
+      "implementation_input_sha256": "b925f9c59e47db700a0db4878053e260fd76ba0ad81de3dcc31ae0b81a1641c1",
+      "test_input_sha256": "c1306f39f9c2b7509bb42a48ff861f4991a4b047b0d7e7b68c25dd149dd96f6f",
       "compatibility_obligations": [
-        "jvm-descriptor"
+        "native-source",
+        "native-bridge"
       ],
       "executions": [
         {
-          "case_id": "local:Scripts/io_api_inventory/probes/segment_data_as_byte_array_jvm_abi.kt#jvm-descriptor",
-          "lane": "jvm-descriptor",
+          "case_id": "Scripts/io_api_inventory/probes/SinkRawSinkKotlinReferenceProbe.kt#probe:KUU-2612:sink-rawsink-kotlin-reference",
+          "lane": "source-O0",
           "reference": {
-            "execution_id": "local-probe-v1:reference:637c85c911a69b9cbbba1465a6e298e6",
+            "execution_id": "probe:reference:3fec0095273c22cd84ed",
             "result": "PASS",
-            "exit_code": 0,
-            "method": "jvm-abi-reflection"
+            "exit_code": 0
           },
           "candidate": {
-            "execution_id": "local-probe-v1:candidate:2ab41515fb124993bcdcaf784bf081a6",
+            "execution_id": "probe:candidate:3fec0095273c22cd84ed",
             "result": "PASS",
-            "exit_code": 0,
-            "method": "source-metadata"
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/SinkRawSinkKotlinReferenceProbe.kt#probe:KUU-2612:sink-rawsink-kotlin-reference",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "probe:reference:3fec0095273c22cd84ed",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:candidate:3fec0095273c22cd84ed",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/SinkRawSinkKotlinReferenceProbe.kt#probe:KUU-2612:sink-rawsink-kotlin-reference",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "probe:reference:3fec0095273c22cd84ed",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:candidate:3fec0095273c22cd84ed",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/SinkRawSinkKotlinReferenceProbe.kt#probe:KUU-2612:sink-rawsink-kotlin-reference",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "probe:reference:3fec0095273c22cd84ed",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:candidate:3fec0095273c22cd84ed",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/SinkRawSinkKotlinReferenceProbe.kt#probe:KUU-2612:sink-rawsink-kotlin-reference",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "probe:reference:3fec0095273c22cd84ed",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:candidate:3fec0095273c22cd84ed",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/SinkRawSinkKotlinReferenceProbe.kt#probe:KUU-2612:sink-rawsink-kotlin-reference",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "probe:reference:3fec0095273c22cd84ed",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "probe:candidate:3fec0095273c22cd84ed",
+            "result": "PASS",
+            "exit_code": 0
           }
         }
       ],
-      "evidence_source": "local-probe"
+      "evidence_source": "upstream-catalog"
     }
   ]
 }
