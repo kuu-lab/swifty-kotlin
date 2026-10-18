@@ -6,11 +6,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.platform.engine.TestExecutionResult;
+import org.junit.platform.engine.FilterResult;
 import org.junit.platform.engine.support.descriptor.MethodSource;
+import org.junit.platform.launcher.PostDiscoveryFilter;
 import org.junit.platform.launcher.TestExecutionListener;
 import org.junit.platform.launcher.TestIdentifier;
 import org.junit.platform.launcher.TestPlan;
@@ -65,20 +69,38 @@ class JvmReferenceRunner {
     }
 
     public static void main(String[] args) throws Exception {
-        if (args.length != 2) throw new IllegalArgumentException("test jar and output directory required");
+        if (args.length < 2) throw new IllegalArgumentException("test jar and output directory required");
         Path output = Path.of(args[1]);
         Files.createDirectories(output);
+        Set<String> selectedExecutionIds = new HashSet<>(List.of(args).subList(2, args.length));
         var launcher = LauncherFactory.create();
-        var request = LauncherDiscoveryRequestBuilder.request()
+        var classFilter = org.junit.platform.engine.discovery.ClassNameFilter.includeClassNamePatterns(".*");
+        var requestBuilder = LauncherDiscoveryRequestBuilder.request()
             .selectors(selectClasspathRoots(java.util.Set.of(Path.of(args[0]))))
-            .filters(org.junit.platform.engine.discovery.ClassNameFilter.includeClassNamePatterns(".*"))
-            .configurationParameter("junit.jupiter.execution.parallel.enabled", "false")
-            .build();
+            .configurationParameter("junit.jupiter.execution.parallel.enabled", "false");
+        if (!selectedExecutionIds.isEmpty()) {
+            PostDiscoveryFilter selectionFilter = descriptor -> {
+                if (!descriptor.isTest()) return FilterResult.included("retain test container");
+                String executionId = descriptor.getUniqueId().toString();
+                return selectedExecutionIds.contains(executionId)
+                    ? FilterResult.included("selected exact execution ID")
+                    : FilterResult.excluded("not selected for this focused run");
+            };
+            requestBuilder.filters(classFilter, selectionFilter);
+        } else {
+            requestBuilder.filters(classFilter);
+        }
+        var request = requestBuilder.build();
         TestPlan plan = launcher.discover(request);
         var discovered = new ArrayList<Map<String, Object>>();
         plan.getRoots().forEach(root -> plan.getDescendants(root).stream()
             .filter(TestIdentifier::isTest).forEach(test -> discovered.add(describe(test))));
         discovered.sort(Comparator.comparing(row -> row.get("execution_id").toString()));
+        Set<String> discoveredIds = new HashSet<>();
+        discovered.forEach(row -> discoveredIds.add(row.get("execution_id").toString()));
+        if (!selectedExecutionIds.isEmpty() && !selectedExecutionIds.equals(discoveredIds)) {
+            throw new IllegalStateException("focused discovery did not match the exact requested execution IDs");
+        }
         Files.writeString(output.resolve("discovered.json"), json(discovered) + "\n");
         if (discovered.isEmpty()) throw new IllegalStateException("no upstream tests discovered");
 

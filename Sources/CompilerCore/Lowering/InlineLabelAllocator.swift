@@ -1,7 +1,3 @@
-/// Owns every control-flow label ID that inline expansion introduces into one
-/// caller function body, and moves finished expansions into that body's label
-/// namespace.
-///
 /// Inline expansion numbers labels twice, on purpose, and the two numbering
 /// spaces have different jobs:
 ///
@@ -41,7 +37,6 @@ struct InlineLabelAllocator {
     private var nextScratchLabel: Int32
     private var nextCallerLabel: Int32
 
-    /// Starts both cursors above the labels `callerBody` already uses.
     init(callerBody: some Sequence<KIRInstruction>) {
         var highestDefined: Int32 = Self.scratchFloor - 1
         var highestReferenced: Int32 = -1
@@ -63,8 +58,6 @@ struct InlineLabelAllocator {
         }
     }
 
-    /// A label ID for a merge or exit point inside an expansion that is still
-    /// being assembled. `relocate(_:)` renumbers it on the way out.
     mutating func allocateScratchLabel() -> Int32 {
         if nextScratchLabel == Int32.max {
             hasOverflowed = true
@@ -74,8 +67,6 @@ struct InlineLabelAllocator {
         return nextScratchLabel
     }
 
-    /// A label ID emitted straight into the caller body (the throw-dispatch
-    /// label, the non-local-return exit label).
     mutating func allocateCallerLabel() -> Int32 {
         if nextCallerLabel == Int32.max {
             hasOverflowed = true
@@ -85,9 +76,6 @@ struct InlineLabelAllocator {
         return nextCallerLabel
     }
 
-    /// Returns `instructions` with every label definition and jump target
-    /// renumbered into the caller's namespace, preserving their relative
-    /// order. Instructions carrying no label are returned as they are.
     mutating func relocate(_ instructions: [KIRInstruction]) -> [KIRInstruction] {
         var labelIDs: Set<Int32> = []
         let locallyDefinedLabels = Set(instructions.compactMap { instruction -> Int32? in
