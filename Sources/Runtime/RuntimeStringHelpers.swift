@@ -1,6 +1,3 @@
-// Shared helper functions for RuntimeStringStdlib and its split-out files.
-// Split out from `RuntimeStringStdlib.swift`.
-
 import Foundation
 import RuntimeABI
 
