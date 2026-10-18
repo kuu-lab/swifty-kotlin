@@ -6,7 +6,6 @@ import kotlin.internal.KsSymbolName
 import kotlin.random.Random
 
 // MIGRATION-COL-006
-// List sorting/comparison HOFs migrated to Kotlin source.
 // Migration source:
 //   Sources/Runtime/RuntimeCollectionHOF.swift
 //   Sources/Runtime/RuntimeCollectionHOFMaxMin.swift
@@ -100,7 +99,6 @@ public fun <T> List<T>.shuffled(random: Random): List<T> {
     return result
 }
 
-// KSP-1021: MutableList collection APIs migrated to Kotlin source.
 // A separate bridge preserves the mutable view identity at runtime.
 @KsSymbolName("__kk_mutable_list_as_reversed")
 private external fun <T> __kk_mutable_list_as_reversed(list: MutableList<T>): MutableList<T>
