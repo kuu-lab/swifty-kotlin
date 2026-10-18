@@ -548,7 +548,8 @@ bash Scripts/loc_report.sh > after.tsv
 ## Dead-code audit
 
 `dead_code_audit.sh` lists `@_cdecl kk_*` runtime symbols that no compiler
-path can emit (see `docs/dead-code-audit.md` for the exclusion pipeline):
+path can emit (run with `--help` for the exclusion pipeline; retained symbols and
+their reason codes are tracked in `docs/dead-code-audit.md`):
 
 ```bash
 bash Scripts/dead_code_audit.sh --verbose
