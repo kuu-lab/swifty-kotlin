@@ -196,11 +196,16 @@ extension RuntimeSequenceTests {
             : __kk_sequence_builder_build(unsafeBitCast(legacy, to: Int.self))
         var thrown = 0
         let iterator = kk_sequence_box_iterator(sequence, &thrown)
-        for probe in 0..<3 {
+        #expect(kk_sequence_iterator_hasNext(iterator, &thrown) == 0)
+        let initialFailure = try #require(resolveRuntimeHandle(thrown, as: RuntimeThrowableBox.self))
+        #expect(initialFailure.exceptionFQName == "kotlin.IllegalArgumentException")
+        #expect(initialFailure.message == "sequence boom")
+
+        for _ in 1..<3 {
             #expect(kk_sequence_iterator_hasNext(iterator, &thrown) == 0)
-            let failure = try #require(resolveRuntimeHandle(thrown, as: RuntimeThrowableBox.self))
-            #expect(failure.exceptionFQName == (probe == 0 ? "kotlin.IllegalArgumentException" : "kotlin.IllegalStateException"))
-            #expect(failure.message == (probe == 0 ? "sequence boom" : "Iterator has failed."))
+            let subsequentFailure = try #require(resolveRuntimeHandle(thrown, as: RuntimeThrowableBox.self))
+            #expect(subsequentFailure.exceptionFQName == "kotlin.IllegalStateException")
+            #expect(subsequentFailure.message == "Iterator has failed.")
         }
         _ = kk_sequence_iterator_next(iterator, &thrown)
         let failure = try #require(resolveRuntimeHandle(thrown, as: RuntimeThrowableBox.self))
@@ -247,14 +252,17 @@ extension RuntimeSequenceTests {
         #expect(sequenceElements(seqHandle) == [7, 11])
     }
 
-    @Test(arguments: [1, 4])
-    func testSequenceBuilderYieldAllRange(start: Int) {
+    @Test(arguments: [
+        (1, [1, 2, 3]),
+        (4, []),
+    ])
+    func testSequenceBuilderYieldAllRange(start: Int, expectedValues: [Int]) {
         let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { start, builder, thrown in
             __kk_sequence_builder_yieldAll_checked(builder, kk_op_rangeTo(start, 3), thrown)
         }
         let sequence = __kk_sequence_builder_build(unsafeBitCast(thunk, to: Int.self), start)
         let values = sequenceElements(sequence).map { kk_unbox_int($0) }
-        #expect(values == (start == 1 ? [1, 2, 3] : []))
+        #expect(values == expectedValues)
     }
 
     @Test
