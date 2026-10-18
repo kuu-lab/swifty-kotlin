@@ -3,6 +3,9 @@
 .runtime-build/
 .swiftpm/
 a.out
+# kswiftc without -o emits a.out.kklib/ into the cwd; .kklib libraries are build output.
+*.kklib/
+a.out.kklib/
 *.o
 firebase-debug.log
 .DS_Store
