@@ -1,9 +1,0 @@
-version=2
-nameB64=VUludA==
-params=1
-paramSymbols=5224
-suspend=false
-body:
-const result=71542 value=symbol:5224
-call symbol=_ calleeB64=a2tfaW50X3RvX3VpbnQ= args=[71542] result=71543 canThrow=0 thrownResult=_ isSuperCall=0 qualifiedSuperType=_
-returnValue value=71543

@@ -1,9 +1,0 @@
-version=2
-nameB64=Y29tcG9uZW50Mg==
-params=1
-paramSymbols=-77446
-suspend=false
-body:
-const result=108939 value=symbol:-77446
-virtualCall symbol=-92414 calleeB64=Z2V0 receiver=108939 args=[] result=108941 canThrow=1 thrownResult=_ dispatch=itableDynamic:19905474965001705:1 linkB64=a2tfZm5fZ2V0X3M5MjQxNF9fMTN4NGI1Mzc3Njk2Njc0NGI1Mzc0NjQ2YzY5NjI=
-returnValue value=108941
