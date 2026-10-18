@@ -263,6 +263,22 @@ SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS = (
     "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java",
     "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590/",
 )
+SEGMENT_LIMIT_PROBE_REFS = (
+    "Tests/CompilerBackendTests/Fixtures/IOGate2587/SegmentLimit.kt",
+    "Scripts/io_api_inventory/run_f02_matrix.py",
+    "Scripts/io_api_inventory/test_f02_matrix.py",
+)
+VALIDATION_PROBE_TEST_REFS = {
+    row_id: SEGMENT_LIMIT_PROBE_REFS
+    for row_id in (
+        "internal-11e61a31ae5fe3d2",
+        "jvm-92721bc63200d18d",
+        "jvm-98dc8444d3a4ea0f",
+        "klib-2d963e0c76f5e362",
+        "klib-b170c0f57a48a601",
+        "klib-c08a0991fed339e4",
+    )
+}
 
 INDEX_OF_DEFAULT_BRIDGES = {
     (
@@ -2561,7 +2577,8 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
         row["owner_issue"] = owner_for(row)
         direct_upstream_tests = upstream_test_refs(row, test_index)
         row["upstream_test_refs"] = ";".join(direct_upstream_tests) or NO_DIRECT_UPSTREAM_ASSERTION
-        row["local_test_refs"] = ";".join(local_test_refs(row, local_tests)) or "none"
+        test_refs = local_test_refs(row, local_tests) + list(VALIDATION_PROBE_TEST_REFS.get(row["row_id"], ()))
+        row["local_test_refs"] = ";".join(dict.fromkeys(test_refs)) or "none"
         if row["representation"] == "JVM public ABI dump":
             row["scope_decision"] = "in-scope JVM ABI and Java interoperability"
         for test_ref in row["upstream_test_refs"].split(";"):
