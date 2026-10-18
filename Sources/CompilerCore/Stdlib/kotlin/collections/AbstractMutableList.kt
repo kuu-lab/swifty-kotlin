@@ -24,7 +24,9 @@ public abstract class AbstractMutableList<E> protected constructor() : AbstractM
 
     // These storage primitives are redeclared by the platform implementation
     // because concrete mutable list implementations must provide them.
-    abstract override fun get(index: Int): E
+    // `operator` is spelled out because bundled stdlib overrides do not inherit
+    // it, and user subclasses inherit it only from this declaration.
+    abstract override operator fun get(index: Int): E
     abstract override fun add(index: Int, element: E)
 
     @IgnorableReturnValue
