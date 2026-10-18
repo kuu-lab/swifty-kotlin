@@ -9,10 +9,9 @@ import Glibc
 public struct GoldenHarnessCase: Sendable {
     public let sourcePath: String
     public let basename: String
-    /// Parsed `<name>.golden-spec` when present (RF-GOLDEN-011/012). Nil when
-    /// the case has no spec — or when the spec failed to parse, in which case
-    /// `specErrorDescription` carries the reason so verification can fail
-    /// loudly instead of silently rendering legacy output.
+    /// Nil when the case has no spec — or when the spec failed to parse, in
+    /// which case `specErrorDescription` carries the reason so verification
+    /// can fail loudly instead of silently rendering legacy output.
     public let spec: GoldenHarnessCaseSpec?
     public let specErrorDescription: String?
 }
@@ -95,10 +94,9 @@ public enum GoldenHarness {
         }
     }
 
-    /// Renders and normalizes suite output for one source file. Normalizing here
-    /// (rather than only at comparison/persistence time) means every caller —
-    /// including a `GoldenHarnessWorker` invocation run directly from the
-    /// command line — gets output that is already a fixed point of
+    /// Normalizing here (rather than only at comparison/persistence time) means
+    /// every caller — including a `GoldenHarnessWorker` invocation run directly
+    /// from the command line — gets output that is already a fixed point of
     /// `normalizedForComparison`, so a `.golden` file can never be committed
     /// with process-local ordinals (symbol namespace counters, expression
     /// occurrence indices) baked in.
@@ -288,13 +286,11 @@ public enum GoldenHarness {
             while process.isRunning, Date() < terminateDeadline {
                 Thread.sleep(forTimeInterval: processPollIntervalSeconds)
             }
-            // If process is still running, send SIGKILL
             if process.isRunning {
                 // Note: There's a race condition between this check and the kill() call where the process
                 // could exit and the PID could be reused. This is a fundamental limitation of the kill() API.
                 let killResult = kill(process.processIdentifier, SIGKILL)
                 if killResult != 0 && errno != ESRCH {
-                    // kill() failed with error other than ESRCH (no such process)
                     // ESRCH is expected if process exited between isRunning check and kill call
                     // Other errors are unusual but we continue anyway
                 }
@@ -313,7 +309,6 @@ public enum GoldenHarness {
             throw GoldenHarnessAPIError.workerTimedOut(errorMessage)
         }
 
-        // Process terminated normally; wait for readers to finish collecting all data.
         ioGroup.wait()
 
         let stdoutData = stdoutAccumulator.snapshot()
@@ -415,7 +410,6 @@ public enum GoldenHarness {
         let fileManager = FileManager.default
         let workerName = "GoldenHarnessWorker"
 
-        // Check environment override first
         if let overridePath = ProcessInfo.processInfo.environment["GOLDEN_HARNESS_WORKER"],
            fileManager.isExecutableFile(atPath: overridePath) {
             return URL(fileURLWithPath: overridePath)
@@ -423,7 +417,6 @@ public enum GoldenHarness {
 
         let cwd = URL(fileURLWithPath: fileManager.currentDirectoryPath)
 
-        // Check common build directories with platform-specific paths
         var candidates: [URL] = []
 
         #if os(Linux)
@@ -440,7 +433,6 @@ public enum GoldenHarness {
         ])
         #endif
 
-        // Add the directory of the current executable as fallback
         if let currentExecutable = Bundle.main.executablePath {
             candidates.append(URL(fileURLWithPath: currentExecutable).deletingLastPathComponent().appendingPathComponent(workerName))
         }
@@ -452,7 +444,6 @@ public enum GoldenHarness {
             }
         }
 
-        // Search in .build directory as last resort
         let buildRoot = cwd.appendingPathComponent(".build")
         if let enumerator = fileManager.enumerator(
             at: buildRoot,
@@ -467,7 +458,6 @@ public enum GoldenHarness {
             }
         }
 
-        // Provide detailed error information for debugging
         let searchedPaths = candidates.map { $0.path }.joined(separator: ", ")
         throw GoldenHarnessAPIError.workerExecutableNotFound("\(workerName) (searched: \(searchedPaths))")
     }
@@ -576,7 +566,6 @@ private enum GoldenHarnessSemaComparisonNormalizer {
         var normalized = output
         normalized = rewriteExpressionIDs(in: normalized)
         normalized = rewriteOrdinalMatches(in: normalized, regex: semaFileIDRegex)
-        // Scope prefix ordinals
         normalized = rewriteOrdinalMatches(in: normalized, regex: classScopeOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: ifaceScopeOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: secScopeOrdinalRegex)
