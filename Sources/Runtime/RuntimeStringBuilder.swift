@@ -117,7 +117,6 @@ public func __kk_string_builder_new_from_char_sequence(_ valueRaw: Int) -> Int {
     return runtimeStringBuilderNew(initial: runtimeElementToString(valueRaw))
 }
 
-// StringBuilder construction is entirely native, including capacity validation.
 @_cdecl("__kk_string_builder_new_capacity_checked")
 public func __kk_string_builder_new_capacity_checked(
     _ capacity: Int,
