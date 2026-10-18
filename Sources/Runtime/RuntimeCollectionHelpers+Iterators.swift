@@ -137,7 +137,6 @@ private let runtimeIterableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(f
 private let runtimeMutableIterableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableIterable")
 private let runtimeSequenceInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.sequences.Sequence")
 
-/// Register the `kotlin.collections.Iterator` itable on a raw object handle.
 func registerIteratorItable(
     raw: Int,
     hasNext: @convention(c) @escaping (Int, UnsafeMutablePointer<Int>?) -> Int,
@@ -161,7 +160,6 @@ func registerIteratorItable(
     }
 }
 
-/// Register the six `ListIterator` methods on a runtime-backed list iterator.
 /// KSP-1064: `next`/`hasNext` are now declared directly on `ListIterator`
 /// (rather than purely inherited from `Iterator`), so member calls through a
 /// `ListIterator`/`MutableListIterator`-typed receiver resolve them as
@@ -186,16 +184,11 @@ func registerListIteratorItable(raw: Int) {
     _ = kk_object_register_itable_method(raw, 1, 5, previousIndexPtr)
 }
 
-/// Register the `MutableListIterator.set`/`.add` methods on a runtime-backed
-/// mutable list iterator. A separate function (rather than folding this into
-/// `registerListIteratorItable` or the `RuntimeListIteratorBox` overload of
-/// `registerRuntimeObject` above) so it can be called only where the box
+/// A separate function (rather than folding this into
+/// `registerListIteratorItable`) so it can be called only where the box
 /// actually carries `setAction`/`addAction` (`kk_list_iterator`'s
-/// `List`/`MutableList` branch and `kk_list_iterator_at`), without touching
-/// either of those two call/registration sites. Slot 3 is free: 0=Iterator,
-/// 1=ListIterator, and MutableIterator additionally claims 1 by default on
-/// this same object (a pre-existing, separately-tracked itable slot
-/// collision) — 2 and 3 are the first indices neither one uses.
+/// `List`/`MutableList` branch and `kk_list_iterator_at`). Slot 3 is free:
+/// 0=Iterator, 1=ListIterator, 2=MutableIterator.
 func registerMutableListIteratorItable(raw: Int) {
     _ = kk_object_register_itable_iface(raw, Int(runtimeMutableListIteratorInterfaceTypeID), 3)
     let setPtr = unsafeBitCast(runtimeListIteratorSetThunk, to: Int.self)
@@ -238,7 +231,6 @@ private let runtimeListIteratorPreviousIndexThunk: @convention(c) (Int, UnsafeMu
     return kk_list_iterator_previousIndex(raw)
 }
 
-/// Register the `kotlin.collections.MutableIterator` itable on a raw object handle.
 private func registerMutableIteratorItable(
     raw: Int,
     remove: @convention(c) @escaping (Int, UnsafeMutablePointer<Int>?) -> Int,
@@ -249,21 +241,18 @@ private func registerMutableIteratorItable(
     _ = kk_object_register_itable_method(raw, ifaceSlot, 0, removePtr)
 }
 
-/// Register the `kotlin.collections.Iterable` itable on a raw object handle.
 private func registerIterableItable(raw: Int, ifaceSlot: Int = 0) {
     _ = kk_object_register_itable_iface(raw, Int(runtimeIterableInterfaceTypeID), ifaceSlot)
     let iteratorPtr = unsafeBitCast(runtimeIterableIteratorThunk, to: Int.self)
     _ = kk_object_register_itable_method(raw, ifaceSlot, 0, iteratorPtr)
 }
 
-/// Register the `kotlin.collections.MutableIterable` itable on a raw object handle.
 private func registerMutableIterableItable(raw: Int, ifaceSlot: Int = 2) {
     _ = kk_object_register_itable_iface(raw, Int(runtimeMutableIterableInterfaceTypeID), ifaceSlot)
     let iteratorPtr = unsafeBitCast(runtimeIterableIteratorThunk, to: Int.self)
     _ = kk_object_register_itable_method(raw, ifaceSlot, 0, iteratorPtr)
 }
 
-/// Register the `kotlin.sequences.Sequence` itable on a raw object handle.
 private func registerSequenceItable(raw: Int, ifaceSlot: Int = 1) {
     _ = kk_object_register_itable_iface(raw, Int(runtimeSequenceInterfaceTypeID), ifaceSlot)
     let iteratorPtr = unsafeBitCast(runtimeIterableIteratorThunk, to: Int.self)
