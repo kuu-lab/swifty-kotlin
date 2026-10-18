@@ -1,11 +1,5 @@
-/// Lowerings for the residual `use` / `usePinned` / `useContents`
-/// scope-function family.
-///
-/// Split out from `CallLowerer+MemberCalls.swift`.
 extension CallLowerer {
 
-    /// Attempts to lower a residual scope function call (use/usePinned/useContents).
-    /// Returns nil if the expression is not a scope function call.
     func tryScopeFunctionLowering(
         _ exprID: ExprID,
         receiverExpr: ExprID,
@@ -34,7 +28,6 @@ extension CallLowerer {
         )
         defer { driver.ctx.pendingLambdaNonLocalReturnAllowance = previousLambdaAllowance }
 
-        // Lower the receiver expression (or use precomputed one for safe calls).
         let loweredReceiverID = precomputedReceiver ?? driver.lowerExpr(
             receiverExpr,
             ast: ast, sema: sema, arena: arena, interner: interner,
@@ -44,7 +37,6 @@ extension CallLowerer {
 
         switch scopeKind {
         case .scopeUseContents:
-            // useContents: lambda has the contained C variable as implicit receiver.
             let contentType: TypeID? = sema.bindings.exprTypes[args[0].expr].flatMap { lambdaType in
                 if case let .functionType(functionType) = sema.types.kind(of: lambdaType) {
                     return functionType.receiver
@@ -103,9 +95,6 @@ extension CallLowerer {
             return result
 
         case .scopeUse:
-            // use: like `let`, lambda takes `it` as explicit parameter,
-            // but receiver.close() is called in a finally block (try-finally semantics).
-            // If the block throws, close() is still called before the exception propagates.
             let loweredLambdaID = driver.lowerExpr(
                 args[0].expr,
                 ast: ast, sema: sema, arena: arena, interner: interner,
@@ -120,7 +109,6 @@ extension CallLowerer {
 
             let intType = sema.types.make(.primitive(.int, .nonNull))
 
-            // Exception tracking slots for try-finally.
             let exceptionSlot = arena.appendTemporary(type: sema.types.nullableAnyType)
             let exceptionTypeSlot = arena.appendTemporary(type: intType)
             let nullExceptionValue = arena.appendExpr(.null, type: sema.types.nullableAnyType)
@@ -134,7 +122,6 @@ extension CallLowerer {
             let rethrowLabel = driver.ctx.makeLoopLabel()
             let endLabel = driver.ctx.makeLoopLabel()
 
-            // try: invoke the block lambda.
             // Collection-HOF-marked lambdas take a leading closureRaw argument:
             // no captures -> 0, one capture -> the raw capture value, two or more
             // -> a packed closure object built by makeBoxedCallableCaptureArguments.
@@ -174,8 +161,6 @@ extension CallLowerer {
                 thrownResult: nil
             ))
 
-            // Wrap block call with throw-aware instructions so exceptions are
-            // captured into exceptionSlot and control jumps to finallyLabel.
             // CODE-001: the beginFinallyGuard/endFinallyGuard pair prevents
             // an outer try/catch/use from re-wrapping this already-routed
             // call if this `use` is itself nested inside one — otherwise the
@@ -304,7 +289,6 @@ extension CallLowerer {
                 instructions.append(.label(closeEndLabel))
             }
 
-            // After finally: rethrow if an exception was caught, otherwise continue.
             instructions.append(.jumpIfNotNull(value: exceptionSlot, target: rethrowLabel))
             instructions.append(.jump(endLabel))
 
@@ -315,8 +299,6 @@ extension CallLowerer {
             return result
 
         case .scopeUsePinned:
-            // usePinned (STDLIB-CINTEROP-FN-042): pin() the receiver, invoke
-            // block(pinned) inside a try, then unpin() in a finally block.
             // Shaped like scopeUse's try-finally, but: (a) the call that produces
             // the value handed to the lambda is pin() itself, not the receiver, and
             // (b) cleanup is a concrete call to Pinned<T>.unpin(), not a virtual
@@ -398,7 +380,6 @@ extension CallLowerer {
 
             let intType = sema.types.make(.primitive(.int, .nonNull))
 
-            // Exception tracking slots for try-finally.
             let exceptionSlot = arena.appendTemporary(type: sema.types.nullableAnyType)
             let exceptionTypeSlot = arena.appendTemporary(type: intType)
             let nullExceptionValue = arena.appendExpr(.null, type: sema.types.nullableAnyType)
@@ -412,7 +393,6 @@ extension CallLowerer {
             let rethrowLabel = driver.ctx.makeLoopLabel()
             let endLabel = driver.ctx.makeLoopLabel()
 
-            // try: invoke the block lambda with the pinned handle.
             // Inline expansion must route a non-local return through unpin,
             // then resume it through any enclosing try/finally scopes.
             let nonLocalReturnLabel = driver.ctx.makeLoopLabel()
@@ -496,7 +476,6 @@ extension CallLowerer {
                 thrownResult: nil
             ))
 
-            // After finally: rethrow if an exception was caught, otherwise continue.
             instructions.append(.jumpIfNotNull(value: exceptionSlot, target: rethrowLabel))
             instructions.append(.jump(endLabel))
 
@@ -515,13 +494,6 @@ extension CallLowerer {
         }
     }
 
-    /// Lowers `kotlinx.cinterop.memScoped { }` (KUU-1375).
-    ///
-    /// Shape (mirroring `.scopeUsePinned`):
-    ///   scope := kk_memscope_new()
-    ///   try { result := block(scope) }   // block is `MemScope.() -> R`
-    ///   finally { kk_arena_clear(scope) }  // runs defer blocks + frees allocs
-    ///   rethrow the captured block exception
     /// A throwing deferred block propagates out of `kk_arena_clear` like a
     /// Kotlin finally failure (superseding the captured block exception).
     func lowerMemScopedCallExpr(
@@ -557,7 +529,6 @@ extension CallLowerer {
             instructions: &instructions
         )
 
-        // scope := kk_memscope_new()
         let memScopeType: TypeID = sema.symbols.lookup(fqName: [
             interner.intern("kotlinx"), interner.intern("cinterop"), interner.intern("MemScope"),
         ]).map { memScopeSymbol in
@@ -578,7 +549,6 @@ extension CallLowerer {
         let result = arena.appendTemporary(type: boundType)
         let intType = sema.types.make(.primitive(.int, .nonNull))
 
-        // Exception tracking slots for try-finally.
         let exceptionSlot = arena.appendTemporary(type: sema.types.nullableAnyType)
         let exceptionTypeSlot = arena.appendTemporary(type: intType)
         let nullExceptionValue = arena.appendExpr(.null, type: sema.types.nullableAnyType)
@@ -592,7 +562,6 @@ extension CallLowerer {
         let rethrowLabel = driver.ctx.makeLoopLabel()
         let endLabel = driver.ctx.makeLoopLabel()
 
-        // try: invoke the block lambda with the new scope as its receiver.
         var blockInstructions: [KIRInstruction] = []
         if let info = driver.ctx.callableValueInfo(for: loweredLambdaID) {
             // Collection-HOF-marked lambdas take a leading closureRaw argument
@@ -668,7 +637,6 @@ extension CallLowerer {
             thrownResult: nil
         ))
 
-        // After finally: rethrow if an exception was caught, otherwise continue.
         instructions.append(.jumpIfNotNull(value: exceptionSlot, target: rethrowLabel))
         instructions.append(.jump(endLabel))
 

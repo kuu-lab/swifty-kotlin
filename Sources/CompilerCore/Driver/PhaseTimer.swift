@@ -1,26 +1,20 @@
 import Foundation
 
-/// Records wall-clock timing for each compiler phase and optionally prints
-/// a summary table when the `time-phases` frontend flag is active.
 public final class PhaseTimer {
-    /// A single recorded phase timing.
     public struct PhaseRecord {
         public let name: String
         public let startTime: UInt64
         public let endTime: UInt64
-        /// Sub-phase records (e.g. individual subprocess invocations).
         public let subRecords: [PhaseRecord]
 
         /// Sum of disjoint invocation durations for an accumulated record.
         /// Its timestamps span the first through last invocation, including gaps.
         public let accumulatedDurationNanos: UInt64?
 
-        /// Measured duration in nanoseconds, excluding gaps for accumulated records.
         public var durationNanos: UInt64 {
             accumulatedDurationNanos ?? (endTime - startTime)
         }
 
-        /// Duration in milliseconds (floating point).
         public var durationMs: Double {
             Double(durationNanos) / 1_000_000.0
         }
@@ -54,7 +48,6 @@ public final class PhaseTimer {
 
     public init() {}
 
-    /// Mark the beginning of a phase.
     public func beginPhase(_ name: String) {
         currentPhaseName = name
         currentPhaseStart = DispatchTime.now().uptimeNanoseconds
@@ -64,7 +57,6 @@ public final class PhaseTimer {
         activeAccumulations = []
     }
 
-    /// Mark the end of the current phase.
     public func endPhase() {
         guard let name = currentPhaseName else { return }
         let endTime = DispatchTime.now().uptimeNanoseconds
@@ -79,9 +71,6 @@ public final class PhaseTimer {
         accumulatedRecords = []
     }
 
-    /// Record a sub-phase timing within the current phase.
-    /// Typically used to measure individual subprocess invocations
-    /// (e.g. clang calls during Codegen or Link).
     public func recordSubPhase(_ name: String, startTime: UInt64, endTime: UInt64) {
         appendSubRecord(PhaseRecord(name: name, startTime: startTime, endTime: endTime))
     }
@@ -168,17 +157,14 @@ public final class PhaseTimer {
         return try body()
     }
 
-    /// All recorded phase timings.
     public var phaseRecords: [PhaseRecord] {
         records
     }
 
-    /// Total wall-clock duration across all phases in nanoseconds.
     public var totalNanos: UInt64 {
         records.reduce(0) { $0 + $1.durationNanos }
     }
 
-    /// Total wall-clock duration across all phases in milliseconds.
     public var totalMs: Double {
         Double(totalNanos) / 1_000_000.0
     }
@@ -189,7 +175,6 @@ public final class PhaseTimer {
         text + String(repeating: " ", count: max(0, width - text.count))
     }
 
-    /// Print a human-readable timing summary to stderr.
     public func printSummary() {
         FileHandle.standardError.write(Data(summary().utf8))
     }

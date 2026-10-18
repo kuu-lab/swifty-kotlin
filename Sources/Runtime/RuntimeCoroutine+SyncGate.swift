@@ -114,11 +114,19 @@ final class RuntimeContinuationState: @unchecked Sendable {
     var builderContext: RuntimeCoroutineContext?
     private var uninterceptedEntryPointRaw: Int = 0
     private var uninterceptedCompletionContinuation: Int = 0
+    /// Continuation whose context this state delegates to. Direct suspend calls
+    /// use their caller as the completion continuation, while unintercepted
+    /// coroutine builders set the same source explicitly.
+    private var contextContinuationRaw: Int = 0
     private var hasStartedUninterceptedCoroutine = false
     // Cancellation must wake the innermost call and let it unwind before its caller.
     private var suspendedCallChild: RuntimeContinuationState?
     private let interceptionLock = NSRecursiveLock()
     private var generatedContextRaw: Int?
+    /// The exact continuation context inherited by a directly-called suspend
+    /// function. This is kept separate from `generatedContextRaw`, which is
+    /// owned by this state's completion continuation.
+    private var inheritedContextRaw: Int?
     private var interceptedContinuationRaw: Int?
     private var continuationInterceptorRaw: Int = 0
     private var interceptionReleased = false
@@ -227,6 +235,18 @@ final class RuntimeContinuationState: @unchecked Sendable {
         self.uninterceptedCompletionContinuation = completionContinuation
         self.hasStartedUninterceptedCoroutine = false
         stateLock.unlock()
+
+        interceptionLock.lock()
+        contextContinuationRaw = completionContinuation
+        generatedContextRaw = nil
+        interceptionLock.unlock()
+    }
+
+    func inheritContinuationContext(from completionContinuation: Int) {
+        interceptionLock.lock()
+        contextContinuationRaw = completionContinuation
+        generatedContextRaw = nil
+        interceptionLock.unlock()
     }
 
     func takeUninterceptedCoroutineStart() -> (entryPointRaw: Int, completionContinuation: Int)? {
@@ -245,19 +265,55 @@ final class RuntimeContinuationState: @unchecked Sendable {
     func generatedCoroutineContext(outThrown: UnsafeMutablePointer<Int>?) -> Int? {
         interceptionLock.lock()
         defer { interceptionLock.unlock() }
-        guard uninterceptedCompletionContinuation != 0 else {
+        guard contextContinuationRaw != 0 else {
             return nil
         }
         if let generatedContextRaw {
             return generatedContextRaw
         }
         var thrown = 0
-        let context = __kk_coroutine_continuation_context(uninterceptedCompletionContinuation, &thrown)
+        let context = __kk_coroutine_continuation_context(contextContinuationRaw, &thrown)
         outThrown?.pointee = thrown
         if thrown == 0 {
             generatedContextRaw = context
         }
         return context
+    }
+
+    /// Return the original context object when no runtime elements have been
+    /// added to this continuation. Kotlin's `coroutineContext` property returns
+    /// the continuation's context object itself, so reconstructing an equal
+    /// runtime context would break identity checks against EmptyCoroutineContext
+    /// and user-provided context elements.
+    func unmodifiedCoroutineContextRaw() -> Int? {
+        guard scope == nil, jobHandle == nil, builderContext == nil, eventLoop == nil else {
+            return nil
+        }
+        interceptionLock.lock()
+        defer { interceptionLock.unlock() }
+        return generatedContextRaw ?? inheritedContextRaw
+    }
+
+    /// Propagate a caller's exact continuation context to a direct suspend
+    /// child, but only when that context has no runtime-added elements.
+    func inheritCoroutineContext(from caller: RuntimeContinuationState) {
+        guard let contextRaw = caller.unmodifiedCoroutineContextRaw() else { return }
+        interceptionLock.lock()
+        inheritedContextRaw = contextRaw
+        interceptionLock.unlock()
+    }
+
+    /// Keep the source continuation's context object when its contents still
+    /// match the ambient context after runtime scope and job elements are merged.
+    func generatedCoroutineContextIfMatching(_ context: RuntimeCoroutineContext) -> Int? {
+        guard let sourceContextRaw = generatedCoroutineContext(outThrown: nil),
+              runtimeCoroutineContextsHaveSameContent(
+                  resolveToCoroutineContext(sourceContextRaw), context
+              )
+        else {
+            return nil
+        }
+        return sourceContextRaw
     }
 
     func intercepted(continuationRaw: Int, interceptorKey: Int, outThrown: UnsafeMutablePointer<Int>?) -> Int {

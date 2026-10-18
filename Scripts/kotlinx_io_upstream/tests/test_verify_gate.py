@@ -3,9 +3,11 @@
 
 from __future__ import annotations
 
-import importlib.util
+import copy
 import hashlib
+import importlib.util
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -16,6 +18,7 @@ SPEC = importlib.util.spec_from_file_location("verify_gate", SCRIPT)
 verify_gate = importlib.util.module_from_spec(SPEC)
 assert SPEC and SPEC.loader
 SPEC.loader.exec_module(verify_gate)
+FIXTURE = Path(__file__).parent / "fixtures/verified-coverage-map.complete.json"
 
 
 def write_json(path: Path, value: object) -> None:
@@ -24,6 +27,11 @@ def write_json(path: Path, value: object) -> None:
 
 
 def minimal_root(root: Path) -> None:
+    verified_map = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    case_id = "core/common/test/One.kt#read"
+    source_path = "core/common/test/One.kt"
+    source_sha256 = verified_map["mappings"][0]["source_sha256"]
+    source_git_blob_sha = verified_map["mappings"][0]["source_git_blob_sha"]
     inventory = root / "Scripts/io_api_inventory/api-inventory.tsv"
     inventory.parent.mkdir(parents=True)
     inventory.write_text(
@@ -33,36 +41,43 @@ def minimal_root(root: Path) -> None:
         "KUU-1\ttest.kt#read\tTests/read.swift\tSources/read.kt\tnone\n",
         encoding="utf-8",
     )
-    test_id = "core/common/test/One.kt#read"
     write_json(root / "Scripts/io_api_inventory/upstream-tests-index.json", {
-        "commit": "abc123", "files": [{"path": "core/common/test/One.kt", "testNames": ["read"]}],
+        "commit": "abc123", "files": [{"path": source_path, "testNames": ["read"]}],
     })
     write_json(root / "Scripts/io_api_inventory/upstream-lock.json", {"commit": "abc123"})
     write_json(root / "Scripts/kotlinx_io_upstream/coverage-map.seed.json", {
         "catalog": {"commit": "abc123"},
-        "cases": [{"id": test_id, "upstream_id": test_id, "upstream_path": "core/common/test/One.kt",
-                   "platform": "common", "disposition": "paired", "mapping": {
-                       "status": "verified", "verified_assertion_mapping": True,
-                   }}],
+        "cases": [{"id": case_id, "upstream_id": case_id, "upstream_path": source_path,
+                   "platform": "common", "disposition": "unmapped", "mapping": {
+                       "status": "unmapped", "verified_assertion_mapping": False,
+                   }, "upstream_metadata": {"git_blob_sha": source_git_blob_sha}}],
     })
-    jvm_catalog = [
-        {"execution_id": "jvm.One.read", "upstream_id": test_id},
-    ]
-    native_catalog = [
-        {"execution_id": "native.One.read", "upstream_id": test_id},
-    ]
+    jvm_catalog = []
+    native_catalog = []
+    for mapping in verified_map["mappings"]:
+        for execution in mapping["executions"]:
+            row = {
+                "execution_id": execution["execution_id"],
+                "upstream_id": case_id,
+                "upstream_path": source_path,
+                "git_blob_sha": source_git_blob_sha,
+                "source_set": "common",
+                **execution["invocation"],
+            }
+            (jvm_catalog if execution["platform"] == "jvm" else native_catalog).append(row)
     jvm_path = root / "Scripts/kotlinx_io_upstream/jvm-executions.expected.json"
     native_path = root / "Scripts/kotlinx_io_upstream/native-executions.expected.json"
     write_json(jvm_path, jvm_catalog)
     write_json(native_path, native_catalog)
     write_json(root / "Scripts/kotlinx_io_upstream/reference-lock.json", {
         "commit": "abc123",
+        "upstream_files": [{
+            "path": source_path, "sha256": source_sha256, "git_blob_sha": source_git_blob_sha,
+        }],
         "jvm_execution_catalog_sha256": hashlib.sha256(jvm_path.read_bytes()).hexdigest(),
         "native_execution_catalog_sha256": hashlib.sha256(native_path.read_bytes()).hexdigest(),
     })
-    write_json(root / "Scripts/kotlinx_io_upstream/native-executions.expected.json", [
-        {"execution_id": "native.One.read", "upstream_id": test_id},
-    ])
+    write_json(root / "Scripts/kotlinx_io_upstream/coverage-map.verified.json", verified_map)
 
 
 def complete_f02_summary() -> dict:
@@ -117,11 +132,21 @@ class VerifyGateTests(unittest.TestCase):
             self.assertEqual(report["status"], "PASS")
             self.assertEqual(report["api"]["row_count"], 1)
             self.assertEqual(report["upstream_tests"]["coverage_case_count"], 1)
-            self.assertEqual(report["upstream_tests"]["jvm_concrete_execution_count"], 1)
+            self.assertEqual(report["upstream_tests"]["jvm_concrete_execution_count"], 2)
+            self.assertEqual(report["upstream_tests"]["native_concrete_execution_count"], 2)
+            self.assertEqual(report["upstream_tests"]["verified_source_function_count"], 1)
+            self.assertEqual(report["upstream_tests"]["missing_source_function_count"], 0)
             self.assertEqual(len(mapping["api_rows"]), 1)
             self.assertEqual(len(mapping["execution_coverage"]), 1)
-            self.assertEqual(mapping["execution_coverage"][0]["jvm_execution_ids"], ["jvm.One.read"])
-            self.assertEqual(mapping["execution_coverage"][0]["native_execution_ids"], ["native.One.read"])
+            execution_coverage = mapping["execution_coverage"][0]
+            self.assertEqual(execution_coverage["disposition"], "paired")
+            self.assertEqual(len(execution_coverage["jvm_execution_ids"]), 2)
+            self.assertEqual(len(execution_coverage["native_execution_ids"]), 2)
+            self.assertEqual(len(execution_coverage["verified_execution_mappings"]), 4)
+            self.assertEqual(
+                execution_coverage["verified_execution_mappings"][0]["candidate"]["observations"]["bytes_consumed"],
+                2,
+            )
 
     def test_static_audit_fails_missing_unverified_and_unmapped_rows(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -130,17 +155,103 @@ class VerifyGateTests(unittest.TestCase):
             inventory = root / "Scripts/io_api_inventory/api-inventory.tsv"
             inventory.write_text(inventory.read_text().replace("\tverified\t", "\tunverified\t"),
                                  encoding="utf-8")
-            coverage_path = root / "Scripts/kotlinx_io_upstream/coverage-map.seed.json"
-            coverage = verify_gate.read_json(coverage_path)
-            coverage["cases"][0]["disposition"] = "unmapped"
-            coverage["cases"][0]["mapping"] = {"status": "candidate-unverified"}
-            write_json(coverage_path, coverage)
+            verified_path = root / "Scripts/kotlinx_io_upstream/coverage-map.verified.json"
+            verified = verify_gate.read_json(verified_path)
+            verified["mappings"] = []
+            write_json(verified_path, verified)
             report, _ = verify_gate.audit_static(root)
             self.assertEqual(report["status"], "FAIL")
             self.assertTrue(any(row["kind"] == "api-status" and row["reason"] == "unverified"
                                 for row in report["blockers"]))
             self.assertTrue(any(row["kind"] == "test-mapping" and row["reason"] == "unmapped"
                                 for row in report["blockers"]))
+
+    def test_seed_disposition_cannot_promote_a_function_without_verified_mapping(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            minimal_root(root)
+            seed_path = root / "Scripts/kotlinx_io_upstream/coverage-map.seed.json"
+            seed = verify_gate.read_json(seed_path)
+            seed["cases"][0]["disposition"] = "paired"
+            seed["cases"][0]["mapping"] = {"status": "verified", "verified_assertion_mapping": True}
+            write_json(seed_path, seed)
+            verified_path = root / "Scripts/kotlinx_io_upstream/coverage-map.verified.json"
+            verified = verify_gate.read_json(verified_path)
+            verified["mappings"] = []
+            write_json(verified_path, verified)
+
+            report, mapping = verify_gate.audit_static(root)
+            self.assertEqual(report["status"], "FAIL")
+            self.assertEqual(mapping["execution_coverage"][0]["disposition"], "unmapped")
+
+    def test_verified_mapping_rejects_missing_parameter_and_does_not_promote_partial_function(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            minimal_root(root)
+            verified_path = root / "Scripts/kotlinx_io_upstream/coverage-map.verified.json"
+            verified = verify_gate.read_json(verified_path)
+            verified["mappings"][0]["executions"].pop(1)
+            write_json(verified_path, verified)
+
+            report, mapping = verify_gate.audit_static(root)
+            self.assertEqual(report["status"], "FAIL")
+            self.assertEqual(report["upstream_tests"]["missing_source_function_count"], 1)
+            self.assertTrue(any(
+                row["id"] == "core/common/test/One.kt#read"
+                and "missing concrete execution mapping jvm:"
+                in row["reason"]
+                for row in report["blockers"]
+            ))
+            self.assertEqual(mapping["execution_coverage"][0]["disposition"], "unmapped")
+            self.assertEqual(mapping["execution_coverage"][0]["verified_execution_mappings"], [])
+
+    def test_verified_mapping_rejects_duplicate_unknown_stale_and_unfinished_evidence(self):
+        mutations = {
+            "duplicate upstream ID": lambda data: data["mappings"].append(copy.deepcopy(data["mappings"][0])),
+            "unknown upstream ID": lambda data: data["mappings"].append({**copy.deepcopy(data["mappings"][0]), "upstream_id": "missing.kt#unknown"}),
+            "source hash mismatch": lambda data: data["mappings"][0].update({"source_sha256": "0" * 64}),
+            "commit mismatch": lambda data: data.update({"upstream_commit": "different-commit"}),
+            "skipped parameter": lambda data: data["mappings"][0]["executions"][1]["candidate"]["result"].update({"status": "SKIP"}),
+            "expected failure": lambda data: data["mappings"][0]["executions"][1]["reference"]["result"].update({"status": "EXPECTED_FAILURE"}),
+            "missing byte observation": lambda data: data["mappings"][0]["executions"][1]["candidate"]["observations"].pop("bytes_consumed"),
+        }
+        for label, mutate in mutations.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                minimal_root(root)
+                verified_path = root / "Scripts/kotlinx_io_upstream/coverage-map.verified.json"
+                verified = verify_gate.read_json(verified_path)
+                mutate(verified)
+                write_json(verified_path, verified)
+                report, mapping = verify_gate.audit_static(root)
+                self.assertEqual(report["status"], "FAIL")
+                if label != "unknown upstream ID":
+                    self.assertEqual(mapping["execution_coverage"][0]["disposition"], "unmapped")
+                self.assertTrue(report["blockers"], label)
+
+    def test_seed_regeneration_keeps_verified_mapping_file_separate(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            seed_path = root / "coverage-map.seed.json"
+            verified_path = root / "coverage-map.verified.json"
+            index_path = root / "upstream-tests-index.json"
+            verified = json.loads(FIXTURE.read_text(encoding="utf-8"))
+            write_json(verified_path, verified)
+            original_verified_bytes = verified_path.read_bytes()
+            write_json(index_path, {
+                "tag": "0.9.1",
+                "commit": "362bdc35e159bad6da1e08101c8321792d762281",
+                "files": [{"path": "core/common/test/One.kt", "testNames": ["read"]}],
+            })
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT.parent / "import_inventory.py"),
+                 "--test-index", str(index_path), "--output", str(seed_path)],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(verified_path.read_bytes(), original_verified_bytes)
+            regenerated = verify_gate.read_json(seed_path)
+            self.assertEqual(regenerated["cases"][0]["disposition"], "unmapped")
 
     def test_static_audit_rejects_each_incomplete_api_state(self):
         for status in ("missing", "stub", "unverified"):
@@ -226,6 +337,69 @@ class VerifyGateTests(unittest.TestCase):
         )
         self.assertTrue(any("full Native catalog" in problem for problem in problems))
 
+    def test_candidate_matrix_rejects_a_selected_manifest_with_missing_execution_ids(self):
+        selection = {
+            "selection_mode": "explicit-ids", "target_catalog_execution_count": 4,
+            "selected_execution_count": 3, "requested_source_function_ids": ["source#one"],
+            "requested_execution_ids": [],
+            "selected_execution_ids": ["native.one", "native.two", "native.three"],
+            "input_hashes": {
+                "workspace_git_sha": "abc123", "compiler_sha256": "a" * 64,
+                "runtime_sources_sha256": "b" * 64, "catalog_sha256": "c" * 64,
+                "runner_sha256": "d" * 64, "driver_sha256": "e" * 64,
+            },
+        }
+        summary = {
+            "status": "PASS", "optimization": "O2", "stdlib_mode": "library",
+            "test_body_mode": "source", "workspace_git_sha": "abc123",
+            "expected_count": 3, "counts": {"PASS": 3}, "selection": selection,
+            "selection_manifest_sha256": "f" * 64,
+        }
+        problems = verify_gate.validate_summary(
+            summary, "artifact/candidate/stdlib-library-O2/summary.json", "abc123", 4,
+            expected_native_execution_ids={"native.one", "native.two", "native.three", "native.four"},
+        )
+        self.assertTrue(any("selection mode" in problem for problem in problems))
+        self.assertTrue(any("candidate execution count" in problem for problem in problems))
+        self.assertTrue(any("selected execution IDs do not cover" in problem for problem in problems))
+
+    def test_candidate_artifacts_reject_partial_results_and_a_different_locked_catalog(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            summary_path = Path(temporary) / "summary.json"
+            selected_ids = ["native.One.read", "native.Two.read"]
+            selection = {
+                "schema_version": 1, "selection_mode": "full-target-catalog", "target": "macos",
+                "upstream_commit": "pinned", "catalog_sha256": "a" * 64,
+                "catalog_execution_count": 2, "target_catalog_execution_count": 2,
+                "covers_full_catalog": True, "selected_execution_count": 2,
+                "requested_source_function_ids": [], "requested_execution_ids": [],
+                "selected_execution_ids": selected_ids,
+                "selected_source_function_ids": ["core/common/test/One.kt#read"],
+                "input_hashes": {
+                    "workspace_git_sha": "pinned", "compiler_sha256": "a" * 64,
+                    "runtime_sources_sha256": "b" * 64, "catalog_sha256": "b" * 64,
+                    "runner_sha256": "d" * 64, "driver_sha256": "e" * 64,
+                },
+            }
+            manifest_path = summary_path.with_name("selection.json")
+            write_json(manifest_path, selection)
+            write_json(summary_path.with_name("results.json"), [
+                {"execution_id": selected_ids[0], "status": "PASS"},
+            ])
+            summary = {
+                "selection": selection,
+                "selection_manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+                "inputs": {**selection["input_hashes"],
+                           "selection_manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest()},
+            }
+            problems = verify_gate.validate_candidate_artifacts(
+                summary, summary_path, "candidate/source-O0/summary.json",
+                set(selected_ids), {"core/common/test/One.kt#read"}, "c" * 64, "pinned",
+            )
+            self.assertTrue(any("candidate Native catalog hash" in problem for problem in problems))
+            self.assertTrue(any("candidate input Native catalog hash" in problem for problem in problems))
+            self.assertTrue(any("result IDs differ" in problem for problem in problems))
+
     def test_finalizer_rejects_receipts_from_another_workflow_attempt(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -263,14 +437,19 @@ class VerifyGateTests(unittest.TestCase):
 
             api_artifact = evidence / "kotlinx-io-gate-api-42-1"
             write_json(api_artifact / "api-gate-summary.json", {
-                "status": "PASS", "commit": "abc123", "api": {"row_count": 1},
+                "status": "PASS", "commit": "abc123", "upstream_commit": "abc123",
+                "api": {"row_count": 1},
                 "upstream_tests": {
                     "coverage_case_count": 1,
                     "jvm_concrete_execution_count": 1,
                     "native_concrete_execution_count": 1,
+                    "native_source_function_count": 1,
+                    "native_execution_catalog_sha256": "c" * 64,
                 },
             })
             write_json(api_artifact / "api-coverage-mapping.json", {
+                "upstream_commit": "abc123",
+                "execution_catalog_sha256": {"native": "c" * 64},
                 "api_rows": [{}],
                 "upstream_test_cases": [{"upstream_id": "core/common/test/One.kt#read"}],
                 "execution_coverage": [{
@@ -292,11 +471,34 @@ class VerifyGateTests(unittest.TestCase):
             for route in ("source", "stdlib-library", "producer-consumer"):
                 for optimization in ("O0", "O2"):
                     lane = f"{route}-{optimization}"
-                    write_json(evidence / f"kotlinx-io-gate-candidate-{lane}-42-1/candidate/{lane}/summary.json", {
+                    summary_path = evidence / f"kotlinx-io-gate-candidate-{lane}-42-1/candidate/{lane}/summary.json"
+                    selection = {
+                        "schema_version": 1, "selection_mode": "full-target-catalog", "target": "macos",
+                        "upstream_commit": "abc123", "catalog_sha256": "c" * 64,
+                        "catalog_execution_count": 1, "target_catalog_execution_count": 1,
+                        "covers_full_catalog": True, "selected_execution_count": 1,
+                        "requested_source_function_ids": [], "requested_execution_ids": [],
+                        "selected_execution_ids": ["native.One.read"],
+                        "selected_source_function_ids": ["core/common/test/One.kt#read"],
+                        "input_hashes": {
+                            "workspace_git_sha": "abc123", "compiler_sha256": "a" * 64,
+                            "runtime_sources_sha256": "b" * 64, "catalog_sha256": "c" * 64,
+                            "runner_sha256": "d" * 64, "driver_sha256": "e" * 64,
+                        },
+                    }
+                    manifest_path = summary_path.with_name("selection.json")
+                    write_json(manifest_path, selection)
+                    write_json(summary_path.with_name("results.json"), [
+                        {"execution_id": "native.One.read", "status": "PASS"},
+                    ])
+                    write_json(summary_path, {
                         "status": "PASS", "workspace_git_sha": "abc123", "optimization": optimization,
                         "stdlib_mode": "source" if route == "source" else "library",
                         "test_body_mode": "library-consumer" if route == "producer-consumer" else "source",
-                        "expected_count": 1, "counts": {"PASS": 1},
+                        "expected_count": 1, "counts": {"PASS": 1}, "selection": selection,
+                        "inputs": {**selection["input_hashes"],
+                                   "selection_manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest()},
+                        "selection_manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
                     })
 
             write_json(evidence / "kotlinx-io-gate-ktor-42-1/ktor/summary.json", {

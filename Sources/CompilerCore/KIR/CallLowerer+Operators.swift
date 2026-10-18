@@ -92,9 +92,6 @@ extension CallLowerer {
         // KUU-1385: a `+` whose result is String and whose operands are all
         // compile-time constants is itself a compile-time constant on the
         // JVM — folded and interned, so `("ab" + "c") === "abc"` is true.
-        // Emit the pooled string literal directly instead of the runtime
-        // concat. Anything non-constant (a var, a plain `val`, a call)
-        // falls through to `__kk_string_concat_flat` unchanged.
         // A `+` Sema bound to a callee that is not Kotlin's built-in string
         // concatenation — e.g. `operator fun Int.plus(s: String)` — must keep
         // that call instead of folding as `"2" + "x"` text.
@@ -423,16 +420,12 @@ extension CallLowerer {
         let isStringAdd = op == .add
             && sema.bindings.exprTypes[exprID] == stringType
             && ConstantCollector.isBuiltinStringPlusCallee(exprID, sema: sema, interner: interner)
-        // Detect whether this is a compareTo-desugared comparison operator.
-        // If so, the call binding targets compareTo (returns Int) and we must
-        // wrap the result with a comparison against 0 to produce Bool.
         let isCompareToDesugaring: Bool = switch op {
         case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
             sema.bindings.callBindings[exprID] != nil
         default:
             false
         }
-        // STDLIB-OP-031: Detect != desugaring to equals() call + negation.
         let isEqualsDesugaring: Bool = op == .notEqual
             && sema.bindings.callBindings[exprID] != nil
         if let callBinding = sema.bindings.callBindings[exprID],
@@ -589,7 +582,6 @@ extension CallLowerer {
                         ))
                     }
                 }
-                // compareTo desugaring: emit `compareTo(a,b) <op> 0` to produce Bool
                 if isCompareToDesugaring {
                     let zeroExpr = arena.appendExpr(.intLiteral(0), type: intType)
                     instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
@@ -603,14 +595,12 @@ extension CallLowerer {
                     }
                     instructions.append(.binary(op: cmpOp, lhs: callResult, rhs: zeroExpr, result: result))
                 }
-                // STDLIB-OP-031: != desugaring: negate the equals() result
                 if isEqualsDesugaring {
                     instructions.append(.unary(op: .not, operand: callResult, result: result))
                 }
                 return result
             }
         }
-        // STDLIB-561/562: Sequence plus/minus operators.
         if isSequenceLikeType(sema.bindings.exprTypes[lhs] ?? sema.types.anyType, sema: sema, interner: interner) {
             let callees = SequencePlusMinusRuntimeCallees(interner: interner)
             if op == .add {
@@ -666,7 +656,6 @@ extension CallLowerer {
                     instructions: &instructions
                 )
             }
-            // Similarly coerce LHS if it is not a String (e.g. Any + String).
             let lhsExprType = sema.bindings.exprTypes[lhs]
             let effectiveLHS: KIRExprID
             if lhsExprType == stringType {
@@ -875,8 +864,8 @@ extension CallLowerer {
         default:
             break
         }
-        // KSP-466 / PEC-NUM-0002: Unsigned-aware path for UInt/ULong/UByte/UShort
-        // division and remainder. The kk_op_div/kk_op_mod path below (reached via
+        // Unsigned-aware path for UInt/ULong/UByte/UShort division and
+        // remainder. The kk_op_div/kk_op_mod path below (reached via
         // the .divide/.modulo cases further down) performs plain signed Int64
         // division, which is wrong for ULong once the value's high bit is set
         // (any ULong >= 2^63) — e.g. 17663719463477156090uL / 2uL would divide the
@@ -1128,13 +1117,6 @@ extension CallLowerer {
         return result
     }
 
-    /// Lowers `&&`/`||` with proper short-circuit control flow.
-    ///
-    /// `lhs && rhs` behaves like `if (lhs) rhs else false`; `lhs || rhs`
-    /// behaves like `if (lhs) true else rhs`. Either way, rhs is only lowered
-    /// (and its instructions only emitted) behind a branch that is skipped
-    /// once lhs already equals `shortCircuitsOn` (false for `&&`, true for
-    /// `||`), matching the desugarings above.
     private func lowerShortCircuitLogicalExpr(
         op: BinaryOp,
         lhs: ExprID,
@@ -1182,11 +1164,7 @@ extension CallLowerer {
         return result
     }
 
-    /// Lowers `?:` with proper short-circuit control flow.
-    ///
-    /// `lhs ?: rhs` behaves like `if (lhs != null) lhs else rhs`, so rhs is
-    /// only lowered behind a branch that is skipped when lhs is non-null. The
-    /// previous strict lowering handed both operands to `kk_op_elvis`, which
+    /// The previous strict lowering handed both operands to `kk_op_elvis`, which
     /// evaluated the fallback unconditionally: `x ?: return -1` always
     /// returned, `x ?: throw e` always threw, and any fallback with side
     /// effects always ran (BUG-206).

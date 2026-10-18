@@ -148,9 +148,6 @@ extension CallLowerer {
         }
     }
 
-    /// Lowers the vararg / generic `maxOf` and `minOf` overloads that are not
-    /// covered by the fixed-arity primitive special-call kinds. `isMin` selects
-    /// the comparison direction (`<` for `minOf`, `>` for `maxOf`).
     private func lowerRemainingComparisonCallExpr(
         _ exprID: ExprID,
         args: [CallArgument],
@@ -175,8 +172,6 @@ extension CallLowerer {
             ?? sema.types.anyType
         let boolType = sema.types.booleanType
         let intType = sema.types.intType
-        // The element comparison: pick the candidate when it is strictly less
-        // (minOf) / greater (maxOf) than the running result.
         let primitiveOp: KIRBinaryOp = isMin ? .lessThan : .greaterThan
 
         let isComparatorOverload = signature.parameterTypes.contains(where: { paramType in
@@ -378,10 +373,9 @@ extension CallLowerer {
         return symbol.name == KnownCompilerNames(interner: interner).comparator
     }
 
-    /// True when every value parameter of the signature is the same type
-    /// parameter. This captures generic `maxOf`/`minOf` overloads whose upper
-    /// bounds were lost during metadata round-trip but are still known to be
-    /// `Comparable<T>` by the stdlib contract.
+    /// Captures generic `maxOf`/`minOf` overloads whose upper bounds were lost
+    /// during metadata round-trip but are still known to be `Comparable<T>` by
+    /// the stdlib contract.
     private func isUniformTypeParameterOverload(
         _ signature: FunctionSignature,
         sema: SemaModule
@@ -406,8 +400,6 @@ extension CallLowerer {
         }
     }
 
-    /// True for the numeric primitive types whose ordering can be lowered to a
-    /// direct `<` / `>` comparison: all signed and unsigned primitive types.
     /// Used by the vararg `minOf` / `maxOf` lowering to fold the arguments
     /// inline without widening Byte or Short.
     private func isPrimitiveComparisonType(
@@ -450,7 +442,6 @@ extension CallLowerer {
         }
     }
 
-    /// Lowers maxOf(a, b) / minOf(a, b) as: if (a > b) a else b
     /// When `floatingPointRuntimeCallee` is set (Float/Double overloads), the
     /// comparison instead dispatches to a `kk_min_float`/`kk_max_float`/
     /// `kk_min_double`/`kk_max_double` runtime call, which implements NaN

@@ -39,6 +39,15 @@ class ReproducibilityTests(unittest.TestCase):
     def row(self, api_id):
         return next(row for row in self.rows if row.get("_api_id") == api_id)
 
+    def test_segment_data_probe_refs_are_limited_to_its_api(self):
+        paths = sorted((HERE / "probes").glob("segment_data_as_byte_array*.kt"))
+        probes = [(path.relative_to(REPO).as_posix(), path.read_text(encoding="utf-8")) for path in paths]
+        target = {"_candidate_name": "dataAsByteArray", "owner_fqn": "kotlinx/io/Segment", "module": "core"}
+        unrelated = {"_candidate_name": "read", "owner_fqn": "kotlinx/io/Source", "module": "core"}
+
+        self.assertEqual(self.generator.local_test_refs(target, probes), [path for path, _ in probes])
+        self.assertEqual(self.generator.local_test_refs(unrelated, probes), [])
+
     def test_relocated_checkout_with_reverse_creation_order_matches(self):
         original = load_generator(HERE / "generate.py")
         expected = rendered_outputs(original)
@@ -50,6 +59,7 @@ class ReproducibilityTests(unittest.TestCase):
             test_inputs = list((REPO / "Tests").rglob("*.swift"))
             test_inputs.extend((REPO / "Tests/CompilerCoreTests/GoldenCases/Sema").glob("*.kt"))
             test_inputs.extend((REPO / "Scripts/diff_cases").glob("*.kt"))
+            test_inputs.extend((REPO / "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590").glob("*.kt"))
             inputs.extend(
                 path for path in test_inputs
                 if path.relative_to(REPO).as_posix().startswith(original.LOCAL_IO_TEST_PREFIXES)
@@ -69,6 +79,28 @@ class ReproducibilityTests(unittest.TestCase):
         self.assertIn("Tests/CompilerCoreTests/GoldenCases/Sema/kotlinx_io_sources_surface.kt", references)
         self.assertIn("Scripts/diff_cases/kotlinx_io_sources_arrays.kt", references)
 
+    def test_segment_read_context_probe_is_hashed_without_promoting_rows(self):
+        row_ids = (
+            "internal-230a62161c7ea51a",
+            "jvm-f8c529b67df6423d",
+            "klib-80388c3ba30d5f55",
+            "klib-bc524370ccf4a2da",
+        )
+        for row_id in row_ids:
+            row = next(row for row in self.rows if row["row_id"] == row_id)
+            references = row["local_test_refs"].split(";")
+            self.assertIn("Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590/Producer.kt", references)
+            self.assertIn("Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java", references)
+            self.assertEqual(row["status"], "unverified")
+
+        probe_refs = {
+            "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590/Producer.kt",
+            "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java",
+        }
+        for row in self.rows:
+            if row["row_id"] not in row_ids:
+                self.assertFalse(probe_refs.intersection(row["local_test_refs"].split(";")))
+
     def test_exact_overload_exception_and_abi_mapping(self):
         declaration = self.row("kotlinx.io/readByteArray|readByteArray@kotlinx.io.Source(kotlin.Int){}")
         self.assertEqual(declaration["upstream_source_refs"], "core/common/src/Sources.kt:252")
@@ -78,6 +110,27 @@ class ReproducibilityTests(unittest.TestCase):
         paired = [row for row in self.rows if row["row_id"] in refs]
         self.assertTrue(paired)
         self.assertTrue(all(row["_source_key"] == declaration["_source_key"] for row in paired))
+
+    def test_deprecated_path_rows_do_not_claim_unrelated_upstream_assertions(self):
+        rows = {row["row_id"]: row for row in self.rows}
+        for row_id in (
+            "jvm-23bdc46eecb769ad",
+            "jvm-4a6ead57ff31eb51",
+            "klib-91d3efd901de8c9b",
+            "klib-ec16724d485f26fc",
+        ):
+            with self.subTest(row_id=row_id):
+                row = rows[row_id]
+                self.assertEqual(row["upstream_test_refs"], self.generator.NO_DIRECT_UPSTREAM_ASSERTION)
+                self.assertEqual(row["status"], "unverified")
+                self.assertIn("Scripts/diff_cases/kotlinx_io_file_legacy_suppressed.kt", row["local_test_refs"])
+                self.assertIn("Tests/CompilerCoreTests/Sema/KotlinxIOF01ContractTests.swift", row["local_test_refs"])
+                for unrelated_case in (
+                    "core/common/test/files/SmokeFileTest.kt#createAnEmptyFileUsingSink",
+                    "core/common/test/files/SmokeFileTest.kt#closeFileSinkTwice",
+                    "core/common/test/files/SmokeFileTest.kt#closeFileSourceTwice",
+                ):
+                    self.assertFalse(self.generator._case_id_matches_row(row, unrelated_case))
 
     def test_apple_and_bytebuffer_do_not_match_other_receivers(self):
         index = self.generator.SourceIndex(HERE / "source-declarations.json", REPO, self.generator.UPSTREAM)

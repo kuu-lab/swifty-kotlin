@@ -1315,14 +1315,20 @@ extension TypeSystem {
         let isSuspend = suspendFunctionNArity(of: classType.classSymbol) != nil
         guard let arity = functionInterfaceArity(of: classType.classSymbol, isSuspend: isSuspend),
               classType.args.count == arity + 1 else { return nil }
-        let arguments = classType.args.enumerated().compactMap { index, argument -> TypeID? in
+        let projectedArguments = substitutingCovariantStarUpperBounds(
+            classType.args,
+            for: classType.classSymbol
+        )
+        var arguments: [TypeID] = []
+        arguments.reserveCapacity(projectedArguments.count)
+        for (index, argument) in projectedArguments.enumerated() {
             switch argument {
             case let .invariant(type):
-                return type
+                arguments.append(type)
             case let .in(type) where index < arity:
-                return type
+                arguments.append(type)
             case let .out(type) where index == arity:
-                return type
+                arguments.append(type)
             default:
                 return nil
             }

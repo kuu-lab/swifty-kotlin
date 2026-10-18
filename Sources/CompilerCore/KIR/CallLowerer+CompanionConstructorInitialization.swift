@@ -1,5 +1,4 @@
 extension CallLowerer {
-    /// Runs a class companion's clinit-equivalent before a constructor call evaluates its arguments.
     func emitCompanionInitializationBeforeConstructorArguments(
         exprID: ExprID,
         sema: SemaModule,

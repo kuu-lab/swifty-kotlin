@@ -10,6 +10,15 @@ private fun builder(block: suspend () -> Unit) {
     block.startCoroutine(completion)
 }
 
+private inline fun inlineContextBlock(block: () -> Unit) {
+    block()
+}
+
+private suspend fun useInlinedContext(): Boolean {
+    inlineContextBlock { return coroutineContext === EmptyCoroutineContext }
+    return false
+}
+
 private suspend fun suspendHere(): String {
     var value = "fail1"
     suspendCoroutineUninterceptedOrReturn<Unit> { continuation ->
@@ -192,4 +201,18 @@ fun main() {
     println("defaultParameter:$defaultResult")
 
     println("crossInline:${runCrossInline()}")
+
+    var inlineContext = "FAIL 1"
+    builder {
+        if (useInlinedContext()) inlineContext = "OK"
+    }
+    println("coroutineContextInlineReturn:$inlineContext")
+
+    inlineContext = "FAIL 2"
+    builder {
+        inlineContextBlock {
+            inlineContext = if (coroutineContext === EmptyCoroutineContext) "OK" else "FAIL 3"
+        }
+    }
+    println("coroutineContextInlineRead:$inlineContext")
 }

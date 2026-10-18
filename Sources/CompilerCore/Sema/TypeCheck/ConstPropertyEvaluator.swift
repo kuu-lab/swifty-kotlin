@@ -116,17 +116,67 @@ final class ConstPropertyEvaluator {
     private func canFoldMemberCall(_ expr: ExprID) -> Bool {
         guard case let .memberCall(receiver, callee, _, args, _) = ast.arena.expr(expr) else { return false }
         let name = interner.resolve(callee)
-        if name == "inv" {
-            guard args.isEmpty, let receiverType = sema.bindings.exprType(for: receiver) else { return false }
-            return receiverType == sema.types.intType || receiverType == sema.types.longType
+        guard let receiverType = sema.bindings.exprType(for: receiver) else { return false }
+        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+
+        if name == "plus", nonNullReceiverType == sema.types.stringType {
+            return args.count == 1
+                && ConstantCollector.isBuiltinStringPlusCallee(expr, sema: sema, interner: interner)
         }
-        guard ["and", "or", "xor", "shl", "shr", "ushr"].contains(name) else { return true }
-        guard args.count == 1,
-              let receiverType = sema.bindings.exprType(for: receiver),
-              receiverType == sema.types.intType || receiverType == sema.types.longType,
-              let argumentType = sema.bindings.exprType(for: args[0].expr)
-        else { return false }
-        return argumentType == (["shl", "shr", "ushr"].contains(name) ? sema.types.intType : receiverType)
+        guard !isSourceBackedMemberExtensionCall(expr) else { return false }
+        if name == "not" {
+            return args.isEmpty && nonNullReceiverType == sema.types.booleanType
+        }
+        if name == "inv" {
+            return args.isEmpty
+                && (nonNullReceiverType == sema.types.intType || nonNullReceiverType == sema.types.longType)
+        }
+        if ["and", "or", "xor"].contains(name) {
+            guard args.count == 1, let argumentType = sema.bindings.exprType(for: args[0].expr) else { return false }
+            let nonNullArgumentType = sema.types.makeNonNullable(argumentType)
+            if nonNullReceiverType == sema.types.booleanType {
+                return nonNullArgumentType == sema.types.booleanType
+            }
+            return (nonNullReceiverType == sema.types.intType || nonNullReceiverType == sema.types.longType)
+                && nonNullArgumentType == nonNullReceiverType
+        }
+        if ["shl", "shr", "ushr"].contains(name) {
+            guard args.count == 1,
+                  nonNullReceiverType == sema.types.intType || nonNullReceiverType == sema.types.longType,
+                  let argumentType = sema.bindings.exprType(for: args[0].expr)
+            else { return false }
+            return sema.types.makeNonNullable(argumentType) == sema.types.intType
+        }
+        if ["plus", "minus", "times", "div", "rem", "mod", "floorDiv"].contains(name) {
+            guard args.count == 1, isNumericPrimitiveType(nonNullReceiverType),
+                  let argumentType = sema.bindings.exprType(for: args[0].expr)
+            else { return false }
+            return isNumericPrimitiveType(argumentType)
+        }
+        if ["toByte", "toShort", "toInt", "toLong", "toChar"].contains(name) {
+            return args.isEmpty && isNumericPrimitiveType(nonNullReceiverType)
+        }
+        if name == "code" {
+            return args.isEmpty && nonNullReceiverType == sema.types.charType
+        }
+        return false
+    }
+
+    private func isNumericPrimitiveType(_ type: TypeID) -> Bool {
+        guard case let .primitive(primitive, _) = sema.types.kind(of: sema.types.makeNonNullable(type)) else {
+            return false
+        }
+        return primitive != .boolean
+    }
+
+    private func isSourceBackedMemberExtensionCall(_ expr: ExprID) -> Bool {
+        guard let callee = sema.bindings.callBinding(for: expr)?.chosenCallee,
+              sema.symbols.isSourceBackedSymbol(callee),
+              sema.symbols.functionSignature(for: callee)?.receiverType != nil
+        else {
+            return false
+        }
+        return true
     }
 
     // Kotlin's primitive companion constants remain compile-time constants

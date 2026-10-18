@@ -1,10 +1,6 @@
-/// Rebind expression IDs from imported inline KIR bodies to the consumer arena.
-///
 /// Inline KIR artifacts intentionally do not serialize expression kinds or
 /// types.  The importer therefore shifts their IDs out of the consumer arena,
-/// which keeps accidental ID aliasing from changing semantics.  Before
-/// inlining, give every imported body ID a fresh consumer expression while
-/// recovering the concrete non-null primitive results callback invokes need.
+/// which keeps accidental ID aliasing from changing semantics.
 enum ImportedInlineKIRMaterializer {
     private static let callbackInvokeNames: Set<String> = Set([
         "kk_function_invoke",
@@ -40,10 +36,9 @@ enum ImportedInlineKIRMaterializer {
         }
     }
 
-    /// Rebinds one imported body's expression IDs into `arena`, recovering
-    /// the concrete non-null primitive invoke-result types callback invokes
-    /// need so the erased boxed result can be unboxed where a primitive slot
-    /// consumes it.
+    /// Recovers the concrete non-null primitive invoke-result types callback
+    /// invokes need so the erased boxed result can be unboxed where a
+    /// primitive slot consumes it.
     static func materializeOne(
         _ function: KIRFunction,
         arena: KIRArena,

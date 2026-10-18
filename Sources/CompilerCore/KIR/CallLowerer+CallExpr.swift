@@ -1,5 +1,4 @@
 extension CallLowerer {
-    /// True when the call resolved to the stdlib `kotlin.contextOf` intrinsic.
     /// A user-declared `contextOf()` resolves to its own symbol and must keep
     /// normal call lowering instead of being replaced by a context receiver.
     private func isStdlibContextOfCall(
@@ -45,13 +44,11 @@ extension CallLowerer {
             instructions: &instructions
         )
 
-        // SAM constructor calls: `Transformer { ... }` — the single lambda
-        // argument is already marked as a SAM conversion and no call binding
-        // exists for the constructor (the callee name is the fun interface itself).
-        // Lower the lambda directly; the SAM wrapper is produced by LambdaLowerer.
-        // A regular function call with a single SAM-converted argument (e.g.
-        // `useOp(::myCompare)`) must still call the function, so require the
-        // absence of a call binding here.
+        // No call binding exists for a SAM constructor call (the callee name is
+        // the fun interface itself); the SAM wrapper is produced by
+        // LambdaLowerer. A regular function call with a single SAM-converted
+        // argument (e.g. `useOp(::myCompare)`) must still call the function, so
+        // require the absence of a call binding here.
         if args.count == 1,
            sema.bindings.isSamConversion(args[0].expr),
            sema.bindings.callBinding(for: exprID) == nil
@@ -67,8 +64,6 @@ extension CallLowerer {
             )
         }
 
-        // Invoke operator calls are lowered as member calls: the callee expr
-        // becomes the receiver and the invoke method is the callee.
         if sema.bindings.isInvokeOperatorCall(exprID) {
             let invokeName = interner.intern("invoke")
             return lowerMemberCallExpr(
@@ -185,7 +180,6 @@ extension CallLowerer {
             return loweredEnumValueOf
         }
 
-        // REFL-005: typeOf<T>() — reified inline function returning KType
         if let loweredTypeOf = lowerTypeOfCallExpr(
             exprID,
             calleeExpr: calleeExpr,
@@ -226,7 +220,6 @@ extension CallLowerer {
             return fallback
         }
 
-        // --- Context helper: context(with, block) (STDLIB-KOTLIN-ROOT-CTX-001) ---
         if let scopeKind = sema.bindings.scopeFunctionKind(for: exprID),
            scopeKind == .scopeContext,
            args.count >= 2,
@@ -296,7 +289,6 @@ extension CallLowerer {
             return result
         }
 
-        // --- kotlinx.cinterop.memScoped { } (KUU-1375) ---
         if let loweredMemScoped = lowerMemScopedCallExpr(
             exprID,
             args: args,
@@ -475,9 +467,8 @@ extension CallLowerer {
         )
     }
 
-    /// Resolves the concrete class a runtime collection factory result claims
-    /// to be, or nil for interface-typed results (those dispatch through the
-    /// itable, not the class vtable).
+    /// Nil for interface-typed results (those dispatch through the itable, not
+    /// the class vtable).
     private func collectionFactoryResultClassSymbol(
         result: KIRExprID,
         boundType: TypeID?,

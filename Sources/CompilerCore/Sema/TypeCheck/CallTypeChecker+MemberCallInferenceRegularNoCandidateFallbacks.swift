@@ -141,16 +141,9 @@ extension CallTypeChecker {
 
             // Property value call through `operator fun invoke(...)`.
             let invokeName = interner.intern("invoke")
-            let invokeCandidates = driver.helpers.collectMemberFunctionCandidates(
-                named: invokeName,
-                receiverType: propResult.type,
-                sema: sema,
-                interner: interner
-            ).filter { candidateID in
-                guard let sym = sema.symbols.symbol(candidateID) else { return false }
-                return sym.flags.contains(.operatorFunction)
-                    && ctx.visibilityChecker.isAccessible(sym, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol)
-            }
+            let invokeCandidates = nominalCallablePropertyInvokeCandidates(
+                propResult.type, request: request, argTypes: argTypes, locals: invocationLocals
+            )
 
             if !invokeCandidates.isEmpty {
                 let prepared = prepareCallArguments(

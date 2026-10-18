@@ -1,6 +1,3 @@
-/// KUU-1357: shared helpers for KClass reflection metadata emission —
-/// multi-supertype display names plus companion / nested-class registration.
-///
 /// The runtime splits the '|'-joined `supertypeNameRaw` slot back into one
 /// `KType` per entry, so `KClass.supertypes` can return class + interface
 /// supertypes instead of the previous single class-name string.
@@ -81,8 +78,6 @@ func kclassSupertypeDisplayNamesJoined(
     return entries.map(\.display).joined(separator: "|")
 }
 
-/// Renders one direct supertype as `fq.Name<arg, …>`, using the type
-/// arguments the child passes to a generic supertype when Sema tracks them.
 private func kclassSupertypeDisplayName(
     child: SymbolID,
     superSymbol: SemanticSymbol,
@@ -104,10 +99,6 @@ private func kclassSupertypeDisplayName(
     return "\(superFQName)<\(rendered.joined(separator: ", "))>"
 }
 
-/// Emits `__kk_kclass_register_companion` (when the class declares a
-/// companion object) and `__kk_kclass_register_nested_class` for every
-/// non-synthetic nested nominal child, keyed by the parent class's type
-/// token (KUU-1357).
 func emitKClassCompanionAndNestedRegistration(
     classSymbol: SymbolID,
     typeTokenExpr: KIRExprID,

@@ -102,7 +102,6 @@ enum InlineErasedLambdaABI {
         return boxed
     }
 
-    /// Counterpart of `boxSubstitutedErasedArguments` for the invoke's result.
     static func substitutedErasedResultUnboxingCallee(
         originalResult: KIRExprID,
         loweredResult: KIRExprID,
@@ -214,9 +213,9 @@ enum InlineErasedLambdaABI {
         return primitive
     }
 
-    /// Normalize arguments before expanding a lambda body. Erased function
-    /// values arrive boxed, and a nullable primitive can also be narrowed by a
-    /// surrounding safe call before it reaches a non-null lambda parameter.
+    /// Erased function values arrive boxed, and a nullable primitive can also be
+    /// narrowed by a surrounding safe call before it reaches a non-null lambda
+    /// parameter.
     static func unboxErasedLambdaArguments(
         arguments: [KIRExprID],
         lambdaFunction: KIRFunction,

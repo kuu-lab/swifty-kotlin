@@ -606,8 +606,13 @@ extension DataFlowSemaPhase {
             receiverType: functionType.receiver,
             contextReceiverTypes: functionType.contextReceivers,
             contextParameterTypes: functionType.contextReceivers,
-            parameterTypes: isStdlibArtifact ? javaCollectionsParameterTypes(
-                functionType.params, fqName: record.fqName, types: types, interner: interner
+            parameterTypes: isStdlibArtifact ? javaComparatorParameterTypes(
+                javaCollectionsParameterTypes(
+                    functionType.params, fqName: record.fqName, types: types, interner: interner
+                ),
+                fqName: record.fqName,
+                types: types,
+                interner: interner
             ) : functionType.params,
             returnType: isStdlibArtifact ? javaCollectionsReturnType(
                 javaThreadLocalReturnType(

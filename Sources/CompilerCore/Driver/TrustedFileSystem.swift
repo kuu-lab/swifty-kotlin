@@ -18,7 +18,6 @@ import Glibc
 /// cannot be inspected is treated as untrusted.
 package enum TrustedFileSystem {
 
-    /// The outcome of an `inspectLoadableFile` check.
     package enum LoadableFileInspection: Sendable, Equatable {
         /// The canonical absolute path of a file that passed every check.
         case trusted(String)
@@ -27,21 +26,14 @@ package enum TrustedFileSystem {
         case rejected(component: String, reason: RejectionReason)
     }
 
-    /// Why a loadable-file candidate was rejected.
     package enum RejectionReason: Sendable, Equatable {
-        /// The path was not absolute; relative paths resolve against the
-        /// process's CWD, which another local user may influence.
+        /// Relative paths resolve against the process's CWD, which another
+        /// local user may influence.
         case notAbsolutePath
-        /// No file exists at the path.
         case missing
-        /// The path exists but is a directory.
         case notRegularFile
-        /// The path is owned by an untrusted user, or writable by others or
-        /// by a non-administrative group.
         case unsafeOwnershipOrPermissions
 
-        /// Human-facing explanation for diagnostics (e.g. stderr lines emitted
-        /// when a libLLVM candidate is skipped).
         package var diagnosticDetail: String {
             switch self {
             case .notAbsolutePath:
@@ -81,10 +73,6 @@ package enum TrustedFileSystem {
         return hasTrustedOwnershipAndPermissions(at: resolvedPath, fileManager: fileManager)
     }
 
-    /// Returns the canonical absolute path of a regular file that may be loaded
-    /// into the process (for example via `dlopen`), or `nil` when the file is
-    /// missing or unsafe to load. See `inspectLoadableFile` for the checks
-    /// applied.
     package static func trustedLoadableFile(
         _ path: String,
         fileManager: FileManager = .default
@@ -138,10 +126,6 @@ package enum TrustedFileSystem {
         return .trusted(resolvedPath)
     }
 
-    /// Ownership and permission check shared by files and directories: not
-    /// writable by others, writable by the owning group only when that group
-    /// is administrative, and owned by `root` or the current user.
-    /// Fails closed when the attributes cannot be determined.
     private static func hasTrustedOwnershipAndPermissions(
         at path: String,
         fileManager: FileManager

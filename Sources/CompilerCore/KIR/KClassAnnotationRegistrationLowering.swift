@@ -1,5 +1,3 @@
-/// Emits calls to register annotation metadata for a reflection value.
-///
 /// This shared helper keeps KClass annotation registration identical across
 /// metadata, class-reference, and object-literal lowering paths.
 func emitKClassAnnotationRegistration(
@@ -20,12 +18,11 @@ func emitKClassAnnotationRegistration(
         arena: arena,
         interner: interner,
         instructions: &instructions,
-        registrationCallee: registrationCallee
+        registrationCallee: registrationCallee,
+        registerJavaInheritedAnnotations: true
     )
 }
 
-/// Emits registration calls for runtime-retained annotation values attached to
-/// an arbitrary runtime reflection key.
 func emitRuntimeAnnotationRegistration(
     annotations: [MetadataAnnotationRecord],
     keyArguments: [KIRExprID],
@@ -34,7 +31,8 @@ func emitRuntimeAnnotationRegistration(
     interner: StringInterner,
     instructions: inout [KIRInstruction],
     registrationCallee: String,
-    factoryRegistrationCallee: String? = nil
+    factoryRegistrationCallee: String? = nil,
+    registerJavaInheritedAnnotations: Bool = false
 ) {
     let annotations = annotations.filter {
         resolvedAnnotationRetention($0, symbols: sema.symbols, interner: interner) == .runtime
@@ -89,5 +87,31 @@ func emitRuntimeAnnotationRegistration(
             canThrow: false,
             thrownResult: nil
         ))
+
+        if registerJavaInheritedAnnotations,
+           annotationTypeIsJavaInherited(annotation, sema: sema, interner: interner)
+        {
+            let inheritedResult = arena.appendTemporary(type: intType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("__kk_java_class_register_inherited_annotation"),
+                arguments: [nameExpr],
+                result: inheritedResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
+    }
+}
+
+private func annotationTypeIsJavaInherited(
+    _ annotation: MetadataAnnotationRecord,
+    sema: SemaModule,
+    interner: StringInterner
+) -> Bool {
+    let fqName = annotation.annotationFQName.split(separator: ".").map { interner.intern(String($0)) }
+    guard let annotationSymbol = sema.symbols.lookup(fqName: fqName) else { return false }
+    return sema.symbols.annotations(for: annotationSymbol).contains {
+        $0.annotationFQName == "java.lang.annotation.Inherited"
     }
 }

@@ -80,7 +80,6 @@ extension ControlFlowLowerer {
         return true
     }
 
-    /// Resolved custom iterator operator chain: iterator(), hasNext(), next().
     struct CustomIteratorResolution {
         let iteratorSymbol: SymbolID
         let iteratorType: TypeID
@@ -203,9 +202,6 @@ extension ControlFlowLowerer {
         )
     }
 
-    /// Resolves user-defined `operator fun iterator()` on the iterable type,
-    /// then resolves `hasNext()` and `next()` on the iterator return type.
-    /// Returns nil if no custom iterator operator is defined.
     func resolveCustomIteratorOperator(
         iterableType: TypeID,
         sema: SemaModule,

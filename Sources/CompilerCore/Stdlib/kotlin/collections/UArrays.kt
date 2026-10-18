@@ -225,9 +225,21 @@ public val UIntArray.size: Int get() = __kkUIntArraySize(this)
 public val ULongArray.size: Int get() = __kkULongArraySize(this)
 
 @ExperimentalUnsignedTypes
+public val UByteArray.lastIndex: Int get() = this.size - 1
+@ExperimentalUnsignedTypes
+public val UByteArray.indices: IntRange get() = 0..this.lastIndex
+@ExperimentalUnsignedTypes
+public val UShortArray.lastIndex: Int get() = this.size - 1
+@ExperimentalUnsignedTypes
+public val UShortArray.indices: IntRange get() = 0..this.lastIndex
+@ExperimentalUnsignedTypes
 public val UIntArray.lastIndex: Int get() = this.size - 1
 @ExperimentalUnsignedTypes
 public val UIntArray.indices: IntRange get() = 0..this.lastIndex
+@ExperimentalUnsignedTypes
+public val ULongArray.lastIndex: Int get() = this.size - 1
+@ExperimentalUnsignedTypes
+public val ULongArray.indices: IntRange get() = 0..this.lastIndex
 
 @ExperimentalUnsignedTypes
 public fun UByteArray.toList(): List<UByte> = __kkUByteArrayToList(this)

@@ -13,6 +13,66 @@ struct NominalCallablePropertyTests {
             .deletingLastPathComponent().deletingLastPathComponent()
         return try String(contentsOf: repository.appendingPathComponent("Scripts/diff_cases/nominal_callable_property_invocation.kt"), encoding: .utf8)
     }
+    private func diffCase(_ name: String) throws -> String {
+        let repository = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        return try String(contentsOf: repository.appendingPathComponent("Scripts/diff_cases/\(name)"), encoding: .utf8)
+    }
+
+    @Test(arguments: [false, true], [0, 2])
+    func upstreamObjectPropertyExtensionInvokeCompilesAndRuns(fromSource: Bool, optimization: Int) throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let input = directory.appendingPathComponent("consumer.kt").path
+        let output = directory.appendingPathComponent("consumer").path
+        try (diffCase("kt24209.kt") + "\nfun main() { print(box()) }\n")
+            .write(toFile: input, atomically: true, encoding: .utf8)
+        try assertCompilationSucceeded(makeTestDriver().runForTesting(options: CompilerOptions(
+            moduleName: "Kt24209", inputs: [input], outputPath: output, emit: .executable,
+            target: defaultTargetTriple(), optLevel: try #require(OptimizationLevel(rawValue: optimization)),
+            stdlibLibraryPath: fromSource ? nil : try testStdlibArtifactPath(), allowDefaultStdlibLibrary: !fromSource
+        )))
+        let execution = try CommandRunner.run(executable: output, arguments: [])
+        #expect(execution.exitCode == 0, "\(execution.stderr)")
+        #expect(execution.stdout == "OK")
+    }
+
+    @Test(arguments: [false, true], [0, 2])
+    func minimalObjectPropertyExtensionInvokeCompilesAndRuns(fromSource: Bool, optimization: Int) throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let input = directory.appendingPathComponent("consumer.kt").path
+        let output = directory.appendingPathComponent("consumer").path
+        try diffCase("object_property_extension_invoke.kt").write(toFile: input, atomically: true, encoding: .utf8)
+        try assertCompilationSucceeded(makeTestDriver().runForTesting(options: CompilerOptions(
+            moduleName: "ObjectPropertyExtensionInvoke", inputs: [input], outputPath: output, emit: .executable,
+            target: defaultTargetTriple(), optLevel: try #require(OptimizationLevel(rawValue: optimization)),
+            stdlibLibraryPath: fromSource ? nil : try testStdlibArtifactPath(), allowDefaultStdlibLibrary: !fromSource
+        )))
+        let execution = try CommandRunner.run(executable: output, arguments: [])
+        #expect(execution.exitCode == 0, "\(execution.stderr)")
+        #expect(execution.stdout == "OK")
+    }
+
+    @Test(arguments: [false, true], [0, 2])
+    func nominalPropertyExtensionInvokePreservesResolutionAndEvaluation(fromSource: Bool, optimization: Int) throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let input = directory.appendingPathComponent("consumer.kt").path
+        let output = directory.appendingPathComponent("consumer").path
+        try diffCase("nominal_property_extension_invoke.kt").write(toFile: input, atomically: true, encoding: .utf8)
+        try assertCompilationSucceeded(makeTestDriver().runForTesting(options: CompilerOptions(
+            moduleName: "NominalPropertyExtensionInvoke", inputs: [input], outputPath: output, emit: .executable,
+            target: defaultTargetTriple(), optLevel: try #require(OptimizationLevel(rawValue: optimization)),
+            stdlibLibraryPath: fromSource ? nil : try testStdlibArtifactPath(), allowDefaultStdlibLibrary: !fromSource
+        )))
+        let execution = try CommandRunner.run(executable: output, arguments: [])
+        #expect(execution.exitCode == 0, "\(execution.stderr)")
+        #expect(execution.stdout == "extension\nmember\nspecific-extension\nnull\nextension\nextension\nextension\nOK\ndispatch-extension\nextension\ngetters:1\n")
+    }
 
     @Test(arguments: [false, true], [0, 2])
     func nominalPropertyInvocationMatchesJVM(fromSource: Bool, optimization: Int) throws {
@@ -177,6 +237,61 @@ struct NominalCallablePropertyTests {
         ]).context
         #expect(context.diagnostics.hasError, "\(mode): \(context.diagnostics.diagnostics)")
         if ["ambiguousLambdaReturn", "ambiguousNumericOverload"].contains(mode) {
+            #expect(context.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0003" })
+        }
+    }
+
+    @Test(arguments: ["ambiguousLambda", "inapplicableArgument"])
+    func extensionInvokeDiagnosticsRemainOverloadDiagnostics(_ mode: String) throws {
+        let api = "/virtual/api.kt"
+        let input = "/virtual/consumer.kt"
+        let invokes = mode == "ambiguousLambda" ? """
+        @kotlin.jvm.JvmName("invokeInt") operator fun I.invoke(block: () -> Int): String = "int"
+        @kotlin.jvm.JvmName("invokeString") operator fun I.invoke(block: () -> String): String = "string"
+        """ : "operator fun I.invoke(value: Int): String = value.toString()"
+        let call = mode == "ambiguousLambda" ? "H.value { 42 }" : "H.value(\"bad\")"
+        let expectedCode = mode == "ambiguousLambda" ? "KSWIFTK-SEMA-0003" : "KSWIFTK-SEMA-0002"
+        let context = CompilerDriver().runFrontend(options: CompilerOptions(
+            moduleName: "ExtensionInvokeDiagnostics", inputs: [api, input], outputPath: "/tmp/extension-invoke-diagnostics",
+            emit: .executable, target: defaultTargetTriple(), stdlibLibraryPath: try testStdlibArtifactPath()
+        ), inMemorySources: [
+            api: Data(("interface I\nclass C : I\nobject H { val value = C() }\n" + invokes).utf8),
+            input: Data(("fun main() { println(\(call)) }").utf8)
+        ]).context
+        #expect(context.diagnostics.diagnostics.contains { $0.code == expectedCode }, "\(mode): \(context.diagnostics.diagnostics)")
+        #expect(!context.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0024" })
+    }
+
+    @Test(arguments: ["ambiguous", "inapplicable"])
+    func extensionInvokeCandidatesKeepTheirDiagnostics(_ mode: String) throws {
+        let source: String = switch mode {
+        case "ambiguous":
+            """
+            interface Left
+            interface Right
+            class Both : Left, Right
+            operator fun Left.invoke(): Int = 1
+            operator fun Right.invoke(): Int = 2
+            class Holder(val value: Both)
+            fun main() { Holder(Both()).value() }
+            """
+        default:
+            """
+            interface Action
+            class Target : Action
+            operator fun Action.invoke(value: Int): Int = value
+            class Holder(val value: Target)
+            fun main() { Holder(Target()).value() }
+            """
+        }
+        let context = CompilerDriver().runFrontend(options: CompilerOptions(
+            moduleName: "InvalidPropertyExtensionInvoke", inputs: ["/virtual/main.kt"],
+            outputPath: "/tmp/invalid-property-extension-invoke", emit: .executable,
+            target: defaultTargetTriple(), stdlibLibraryPath: try testStdlibArtifactPath()
+        ), inMemorySources: ["/virtual/main.kt": Data(source.utf8)]).context
+        #expect(context.diagnostics.hasError, "\(mode): \(context.diagnostics.diagnostics)")
+        #expect(!context.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0024" })
+        if mode == "ambiguous" {
             #expect(context.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0003" })
         }
     }

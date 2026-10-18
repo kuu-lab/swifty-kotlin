@@ -590,6 +590,34 @@ struct InlineNonLocalReturnTypeTests {
         )
     }
 
+    @Test(arguments: [false, true])
+    func exactOnceApplyNonLocalReturnTerminatesTheEnclosingFunction(allowDefaultStdlibLibrary: Bool) throws {
+        if allowDefaultStdlibLibrary {
+            TestStdlibCache.shared.prepare()
+            _ = try #require(CompilerOptions.defaultStdlibLibraryPath)
+        }
+        let ctx = makeContextFromSource("""
+        class A { var x: String = "Fail" }
+        class C { var A.y: String by A::x }
+
+        fun simpleApply(): String {
+            "receiver".apply { return "OK" }
+        }
+
+        fun delegatedMemberExtensionApply(): String {
+            val a = A()
+            C().apply {
+                a.y = "OK"
+                return a.y
+            }
+        }
+        """, emit: allowDefaultStdlibLibrary ? .executable : .kirDump,
+        allowDefaultStdlibLibrary: allowDefaultStdlibLibrary)
+
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, Comment(rawValue: diagnosticSummary(in: ctx)))
+    }
+
     @Test func wrongEnclosingReturnTypeIsRejected() throws {
         let ctx = makeContextFromSource("""
         fun wrongOuterReturnType(source: CharSequence): Char {

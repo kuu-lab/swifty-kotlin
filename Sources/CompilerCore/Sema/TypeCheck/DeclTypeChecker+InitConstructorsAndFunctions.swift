@@ -231,6 +231,7 @@ extension DeclTypeChecker {
         ctx: TypeInferenceContext,
         locals: inout LocalBindings
     ) -> ResolvedCall {
+        let sema = ctx.sema
         let typeArguments: [TypeID]
         if let targetType, case let .classType(classType) = ctx.sema.types.kind(of: targetType) {
             typeArguments = classType.args.map { arg in
@@ -250,9 +251,29 @@ extension DeclTypeChecker {
             ctx: ctx,
             locals: &locals
         )
-        func resolveArguments(_ argTypes: [TypeID]) -> ResolvedCall {
-            driver.callChecker.resolveCallRespectingLambdaReturnType(
-                candidates: candidates,
+        var selectedThisReceiversByCandidate: [SymbolID: [Int: (type: TypeID, symbol: SymbolID?)]] = [:]
+        func resolveArguments(_ argTypes: [TypeID], candidates candidateSubset: [SymbolID]? = nil) -> ResolvedCall {
+            let candidatesToResolve = candidateSubset ?? candidates
+            selectedThisReceiversByCandidate = contextualConstructorThisArgumentReceivers(
+                args: args,
+                argTypes: argTypes,
+                candidates: candidatesToResolve,
+                targetType: targetType,
+                callRange: range,
+                ctx: ctx,
+                locals: locals
+            )
+            let candidateArgumentTypes = selectedThisReceiversByCandidate.mapValues { receivers in
+                Dictionary<Int, TypeID>(uniqueKeysWithValues: receivers.compactMap {
+                    argumentIndex, receiver -> (Int, TypeID)? in
+                    guard argTypes.indices.contains(argumentIndex),
+                          argTypes[argumentIndex] != receiver.type
+                    else { return nil }
+                    return (argumentIndex, receiver.type)
+                })
+            }
+            return driver.callChecker.resolveCallRespectingLambdaReturnType(
+                candidates: candidatesToResolve,
                 args: args,
                 argTypes: argTypes,
                 range: range,
@@ -260,6 +281,7 @@ extension DeclTypeChecker {
                 explicitTypeArgs: typeArguments,
                 expectedType: targetType,
                 implicitReceiverType: nil,
+                candidateArgumentTypes: candidateArgumentTypes,
                 lambdaLiteralIndices: prepared.lambdaLiteralIndices,
                 inputOnlyLambdaIndices: prepared.inputOnlyLambdaIndices,
                 blockedLambdaRefinement: prepared.blockedLambdaRefinement,
@@ -282,6 +304,33 @@ extension DeclTypeChecker {
            )
         {
             resolved = resolveArguments(callArgs.map(\.type))
+        }
+        if resolved.diagnostic != nil {
+            let contextualCandidates = selectedThisReceiversByCandidate.keys.filter { candidate in
+                guard let selectedReceivers = selectedThisReceiversByCandidate[candidate] else { return false }
+                return selectedReceivers.contains { argumentIndex, receiver in
+                    guard args.indices.contains(argumentIndex), callArgs.indices.contains(argumentIndex) else {
+                        return false
+                    }
+                    return callArgs[argumentIndex].type != receiver.type
+                }
+            }
+            if !contextualCandidates.isEmpty {
+                let contextualResolved = resolveArguments(callArgs.map(\.type), candidates: contextualCandidates)
+                if contextualResolved.diagnostic == nil {
+                    resolved = contextualResolved
+                }
+            }
+        }
+        if let chosenCallee = resolved.chosenCallee {
+            for (argumentIndex, receiver) in selectedThisReceiversByCandidate[chosenCallee] ?? [:]
+            where args.indices.contains(argumentIndex) {
+                let expression = args[argumentIndex].expr
+                if let receiverSymbol = receiver.symbol {
+                    sema.bindings.bindIdentifier(expression, symbol: receiverSymbol)
+                }
+                sema.bindings.bindExprType(expression, type: receiver.type)
+            }
         }
         if let diagnostic = resolved.diagnostic {
             ctx.sema.diagnostics.emit(diagnostic)

@@ -431,8 +431,13 @@ extension DataFlowSemaPhase {
                     contextParameterSymbols: contextParams.paramSymbols,
                     contextParameterTypes: contextParams.paramTypes,
                     parameterTypes: sourceManager.origin(of: sourceFileID)?.isBundledStdlib == true
-                        ? javaCollectionsParameterTypes(
-                            params.paramTypes, fqName: memberFQName, types: types, interner: interner
+                        ? javaComparatorParameterTypes(
+                            javaCollectionsParameterTypes(
+                                params.paramTypes, fqName: memberFQName, types: types, interner: interner
+                            ),
+                            fqName: memberFQName,
+                            types: types,
+                            interner: interner
                         ) : params.paramTypes,
                     returnType: callableReturnType,
                     isSuspend: funDecl.isSuspend,

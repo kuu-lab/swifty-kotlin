@@ -1,8 +1,7 @@
 import Foundation
 
-/// A source edit that can be applied by a diagnostic code action.
 public struct DiagnosticTextEdit: Hashable, Sendable {
-    /// The source range to replace. An empty range represents insertion.
+    /// An empty range represents insertion.
     public let range: SourceRange
     /// The replacement text, or an empty string for deletion.
     public let newText: String
@@ -13,13 +12,10 @@ public struct DiagnosticTextEdit: Hashable, Sendable {
     }
 }
 
-/// Describes a single code action (quick-fix) that an LSP client can offer to the user.
 public struct DiagnosticCodeAction: Hashable, Sendable {
-    /// Human-readable title shown in the editor UI.
     public let title: String
     /// LSP code action kind (e.g. "quickfix", "refactor").
     public let kind: String
-    /// Edits that make this action applicable to the diagnostic's source.
     public let edits: [DiagnosticTextEdit]
 
     public init(
@@ -33,17 +29,11 @@ public struct DiagnosticCodeAction: Hashable, Sendable {
     }
 }
 
-/// Metadata describing a registered diagnostic code.
 struct DiagnosticDescriptor: Equatable, Sendable, CustomStringConvertible {
-    /// The canonical code string (e.g. "KSWIFTK-SEMA-0014").
     let code: String
-    /// Which compiler pass this diagnostic originates from.
     let pass: String
-    /// Default severity for this diagnostic.
     let defaultSeverity: DiagnosticSeverity
-    /// Short human-readable summary of what the diagnostic means.
     let summary: String
-    /// Default code actions (quick-fixes) available for this diagnostic.
     let codeActions: [DiagnosticCodeAction]
 
     var description: String {
@@ -65,8 +55,6 @@ struct DiagnosticDescriptor: Equatable, Sendable, CustomStringConvertible {
     }
 }
 
-/// Central registry of all diagnostic codes emitted by the KSwiftK compiler.
-///
 /// Every diagnostic follows the `KSWIFTK-{PASS}-{CODE}` naming convention where
 /// `{PASS}` identifies the compiler pass (LEX, PARSE, SEMA, TYPE, LIB, KIR,
 /// CORO, BACKEND, LINK, PIPELINE, ICE) and `{CODE}` is a numeric or mnemonic
@@ -80,13 +68,10 @@ enum DiagnosticRegistry {
         return map
     }()
 
-    /// Look up a descriptor by its diagnostic code.
     static func lookup(_ code: String) -> DiagnosticDescriptor? {
         descriptors[code]
     }
 
-    /// Expands a user-facing suppression key (e.g. `UNCHECKED_CAST`) into one
-    /// or more internal diagnostic codes.
     static func suppressionCodes(for requestedCode: String) -> [String] {
         let normalized = requestedCode.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else {

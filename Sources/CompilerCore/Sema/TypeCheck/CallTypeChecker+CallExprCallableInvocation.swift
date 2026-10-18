@@ -55,6 +55,7 @@ extension CallTypeChecker {
     func inferCallableValueCall(
         _ id: ExprID,
         calleeID: ExprID,
+        preInferredCalleeType: TypeID?,
         args: [CallArgument],
         range: SourceRange,
         ctx: TypeInferenceContext,
@@ -155,12 +156,16 @@ extension CallTypeChecker {
             } else {
                 contextualCalleeType = nil
             }
-            callableCalleeType = driver.inferExpr(
-                calleeID,
-                ctx: ctx,
-                locals: &locals,
-                expectedType: contextualCalleeType
-            )
+            if let preInferredCalleeType {
+                callableCalleeType = preInferredCalleeType
+            } else {
+                callableCalleeType = driver.inferExpr(
+                    calleeID,
+                    ctx: ctx,
+                    locals: &locals,
+                    expectedType: contextualCalleeType
+                )
+            }
             callableTarget = driver.helpers.callableTargetForCalleeExpr(calleeID, sema: sema)
         }
 
@@ -194,51 +199,7 @@ extension CallTypeChecker {
         // its type has an `operator fun invoke(...)` member and resolve through
         // the overload resolver as a member call.
         if let callableCalleeType {
-            let invokeName = interner.intern("invoke")
-            var invokeCandidates = driver.helpers.collectMemberFunctionCandidates(
-                named: invokeName,
-                receiverType: callableCalleeType,
-                sema: sema,
-                interner: interner
-            ).filter { candidateID in
-                guard let sym = sema.symbols.symbol(candidateID) else { return false }
-                return sym.flags.contains(.operatorFunction)
-            }
-            // `select { channel.onReceive { } }` — a clause value carries no
-            // own `invoke`; the enclosing builder's member extension does.
-            // It outranks top-level `invoke` extensions in scope.
-            if invokeCandidates.isEmpty {
-                invokeCandidates = collectDispatchReceiverMemberExtensionCandidates(
-                    named: invokeName,
-                    extensionReceiverType: sema.types.makeNonNullable(callableCalleeType),
-                    ctx: ctx
-                ).filter { candidateID in
-                    sema.symbols.symbol(candidateID)?.flags.contains(.operatorFunction) == true
-                }
-            }
-            // `collectMemberFunctionCandidates` only walks the callee type's
-            // nominal member/supertype surface, so a user-declared extension
-            // (e.g. `operator fun String.invoke(n: Int)`) is invisible to it.
-            // Only when no member `invoke` applies, fall back to a scope-based
-            // extension lookup so the callable-value call syntax also finds
-            // extension `operator fun invoke`, mirroring the member-wins
-            // ordering ordinary dotted extension calls use.
-            if invokeCandidates.isEmpty {
-                let nonNullCalleeType = sema.types.makeNonNullable(callableCalleeType)
-                invokeCandidates = ctx.cachedScopeLookup(invokeName).filter { candidateID in
-                    guard let symbol = ctx.cachedSymbol(candidateID),
-                          symbol.kind == .function,
-                          symbol.flags.contains(.operatorFunction),
-                          let signature = sema.symbols.functionSignature(for: candidateID),
-                          let declaredReceiver = signature.receiverType
-                    else { return false }
-                    return extensionSyntheticFallbackReceiverMatches(
-                        callSiteReceiver: nonNullCalleeType,
-                        declaredReceiver: declaredReceiver,
-                        sema: sema
-                    )
-                }
-            }
+            let invokeCandidates = implicitInvokeOperatorCandidates(for: callableCalleeType, ctx: ctx)
             if !invokeCandidates.isEmpty {
                 let resolvedArgs = zip(args, argTypes).map { argument, type in
                     CallArg.source(argument, type: type, callRange: range, ast: ctx.ast)
@@ -247,7 +208,7 @@ extension CallTypeChecker {
                     candidates: invokeCandidates,
                     call: CallExpr(
                         range: range,
-                        calleeName: invokeName,
+                        calleeName: interner.intern("invoke"),
                         args: resolvedArgs,
                         explicitTypeArgs: explicitTypeArgs,
                         dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
@@ -278,6 +239,56 @@ extension CallTypeChecker {
         }
 
         return nil
+    }
+
+    /// Collects the same implicit `invoke` candidates used both to type a
+    /// call-chain lambda and to bind the completed callable-value call.
+    func implicitInvokeOperatorCandidates(
+        for calleeType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> [SymbolID] {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        let invokeName = interner.intern("invoke")
+        var invokeCandidates = driver.helpers.collectMemberFunctionCandidates(
+            named: invokeName,
+            receiverType: calleeType,
+            sema: sema,
+            interner: interner
+        ).filter { candidateID in
+            sema.symbols.symbol(candidateID)?.flags.contains(.operatorFunction) == true
+        }
+        // A clause value may rely on an enclosing builder's member extension.
+        // It outranks top-level `invoke` extensions in scope.
+        if invokeCandidates.isEmpty {
+            invokeCandidates = collectDispatchReceiverMemberExtensionCandidates(
+                named: invokeName,
+                extensionReceiverType: sema.types.makeNonNullable(calleeType),
+                ctx: ctx
+            ).filter { candidateID in
+                sema.symbols.symbol(candidateID)?.flags.contains(.operatorFunction) == true
+            }
+        }
+        // Nominal lookup does not see a user-declared extension such as
+        // `operator fun String.invoke(n: Int)`, so use a scope fallback only
+        // when neither members nor dispatch-receiver extensions were found.
+        if invokeCandidates.isEmpty {
+            let nonNullCalleeType = sema.types.makeNonNullable(calleeType)
+            invokeCandidates = ctx.cachedScopeLookup(invokeName).filter { candidateID in
+                guard let symbol = ctx.cachedSymbol(candidateID),
+                      symbol.kind == .function,
+                      symbol.flags.contains(.operatorFunction),
+                      let signature = sema.symbols.functionSignature(for: candidateID),
+                      let declaredReceiver = signature.receiverType
+                else { return false }
+                return extensionSyntheticFallbackReceiverMatches(
+                    callSiteReceiver: nonNullCalleeType,
+                    declaredReceiver: declaredReceiver,
+                    sema: sema
+                )
+            }
+        }
+        return invokeCandidates
     }
 
     /// Finds the first implicit-receiver property that name lookup would read.

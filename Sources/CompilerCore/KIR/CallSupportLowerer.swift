@@ -4,7 +4,6 @@ struct NormalizedCallResult {
     let defaultMask: Int64
 }
 
-/// A captured value forwarded by the `$default` stub of a local function.
 struct DefaultStubCapture {
     let capturedSymbol: SymbolID
     let param: KIRParameter
@@ -51,7 +50,6 @@ final class CallSupportLowerer {
                 mapping[symbol] = defaults
             }
         case let .classDecl(classDecl):
-            // Collect default arguments for primary constructor parameters.
             collectConstructorDefaults(classDecl, ast: ast, sema: sema, mapping: &mapping)
             for item in classDecl.memberFunctions + classDecl.nestedClasses + classDecl.nestedObjects {
                 collectFunctionDefaults(item, ast: ast, sema: sema, mapping: &mapping)
@@ -87,7 +85,6 @@ final class CallSupportLowerer {
         sema: SemaModule,
         mapping: inout [SymbolID: [ExprID?]]
     ) {
-        // Primary constructor default arguments.
         let primaryDefaults = classDecl.primaryConstructorParams.map(\.defaultValue)
         if primaryDefaults.contains(where: { $0 != nil }) {
             let ctorSymbols = sema.symbols.symbols(atDeclSite: classDecl.range).compactMap { sema.symbols.symbol($0) }.filter {
@@ -97,7 +94,6 @@ final class CallSupportLowerer {
                 mapping[primaryCtorSymbol.id] = primaryDefaults
             }
         }
-        // Secondary constructor default arguments.
         for secondaryCtor in classDecl.secondaryConstructors {
             let secDefaults = secondaryCtor.valueParams.map(\.defaultValue)
             if secDefaults.contains(where: { $0 != nil }) {
@@ -119,12 +115,11 @@ final class CallSupportLowerer {
         SyntheticSymbolScheme.defaultMaskSymbol(for: originalSymbol)
     }
 
-    /// KUU-655: resolves the symbol whose `$default` stub a call site must
-    /// actually route through. An `override` that inherits its defaults from
-    /// an overridden declaration (`OverrideDefaultArgumentInheritance`) never
-    /// gets a stub generated for itself -- its own AST has no default value
-    /// expressions to evaluate -- only the overridden declaration that
-    /// actually owns them does. Every call-site consumer of
+    /// An `override` that inherits its defaults from an overridden
+    /// declaration (`OverrideDefaultArgumentInheritance`) never gets a stub
+    /// generated for itself -- its own AST has no default value expressions
+    /// to evaluate -- only the overridden declaration that actually owns them
+    /// does. Every call-site consumer of
     /// `defaultStubSymbol(for:)`/`externalLinkName(for:)` must resolve
     /// through this first, or it looks up a stub that was never emitted.
     func defaultStubOwnerSymbol(for symbol: SymbolID, sema: SemaModule, callBinding: CallBinding? = nil) -> SymbolID {
@@ -426,9 +421,13 @@ final class CallSupportLowerer {
         }
 
         let result = arena.appendTemporary(type: signature.returnType)
+        // The expect declaration owns the default expressions and therefore
+        // this stub, but its paired actual owns the implementation to call.
+        let implementationSymbol = sema.symbols.actualSymbol(for: originalSymbol) ?? originalSymbol
+        let implementationName = sema.symbols.symbol(implementationSymbol)?.name ?? originalName
         let directCallInstruction = KIRInstruction.call(
-            symbol: originalSymbol,
-            callee: originalName,
+            symbol: implementationSymbol,
+            callee: implementationName,
             arguments: callArgs,
             result: result,
             canThrow: false,
@@ -459,8 +458,8 @@ final class CallSupportLowerer {
         // Int64-mask scheme.
         if let receiverExprForCall, signature.receiverType != nil,
            let virtualInstruction = driver.callLowerer.tryEmitVirtualDispatch(
-               chosenCallee: originalSymbol,
-               calleeName: originalName,
+               chosenCallee: implementationSymbol,
+               calleeName: implementationName,
                receiverExpr: nil,
                // Member extensions dispatch on the enclosing owner (the
                // leading `callArgs` entry), not the extension receiver —

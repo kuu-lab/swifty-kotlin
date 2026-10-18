@@ -23,7 +23,8 @@ extension CallTypeChecker {
         isULongProgressionFirstLastMember: Bool,
         isLongRangeLiteralContainsCall: Bool,
         callableReferenceFunctionType: TypeID?,
-        locals: LocalBindings
+        locals: LocalBindings,
+        typeAliasConstructor: inout TypeAliasConstructorContext?
     ) -> (allCandidates: [SymbolID], companionReceiverType: TypeID?, earlyReturnType: TypeID?) {
         let id = request.id
         let receiverID = request.receiverID
@@ -48,11 +49,14 @@ extension CallTypeChecker {
             // inherited members are included without exposing owner instances.
             let classNameReceiverCompanionSymbol: SymbolID? = {
                 guard let ownerNominal = classNameReceiverNominalSymbol else { return nil }
-                if let companion = sema.symbols.companionObjectSymbol(for: ownerNominal) {
+                // In a platform module, resolve through the implementation companion
+                // so member calls bind to actual declarations with emitted symbols.
+                if let actualOwner = sema.symbols.actualSymbol(for: ownerNominal),
+                   let companion = sema.symbols.companionObjectSymbol(for: actualOwner)
+                {
                     return companion
                 }
-                guard let actualOwner = sema.symbols.actualSymbol(for: ownerNominal) else { return nil }
-                return sema.symbols.companionObjectSymbol(for: actualOwner)
+                return sema.symbols.companionObjectSymbol(for: ownerNominal)
             }()
             if let companionSymbol = classNameReceiverCompanionSymbol {
                 let companionTypeForExtensionLookup = sema.types.make(.classType(ClassType(classSymbol: companionSymbol, args: [], nullability: .nonNull)))
@@ -560,6 +564,15 @@ extension CallTypeChecker {
                 )
                 if !innerCtorCandidates.isEmpty {
                     allCandidates = innerCtorCandidates
+                } else if let aliasConstructors = driver.helpers.collectInnerClassTypeAliasConstructorCandidates(
+                    named: calleeName,
+                    receiverType: memberLookupType,
+                    explicitTypeArgs: request.explicitTypeArgs,
+                    ctx: ctx,
+                    interner: interner
+                ) {
+                    allCandidates = aliasConstructors.candidates
+                    typeAliasConstructor = aliasConstructors.typeAliasConstructor
                 } else {
                     if let callableReferenceFunctionType {
                         // A callable reference is both a reflective KFunction and an

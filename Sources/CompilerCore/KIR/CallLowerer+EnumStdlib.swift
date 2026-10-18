@@ -236,7 +236,6 @@ func emitEnumEntryCollection(
         ))
     }
 
-    // Look up Color$enumValuesCount or fallback to the enum field count.
     let enumName = interner.resolve(nominalSymbol.name)
     let countHelperName = interner.intern("\(enumName)$enumValuesCount")
     let countHelperFQName = nominalSymbol.fqName + [countHelperName]
@@ -255,7 +254,6 @@ func emitEnumEntryCollection(
         ))
         countExpr = countResult
     } else {
-        // Fallback: use entries count from children
         let countLiteral = arena.appendExpr(.intLiteral(Int64(entries.count)), type: intType)
         instructions.append(.constValue(result: countLiteral, value: .intLiteral(Int64(entries.count))))
         countExpr = countLiteral

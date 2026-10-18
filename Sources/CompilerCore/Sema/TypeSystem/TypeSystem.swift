@@ -698,9 +698,10 @@ public final class TypeSystem {
         return nil
     }
 
-    /// Uses a covariant parameter's readable upper bound when lifting an inherited
-    /// supertype. Invariant and contravariant positions retain the existing projection.
-    private func substitutingCovariantStarUpperBounds(_ args: [TypeArg], for owner: SymbolID) -> [TypeArg] {
+    /// Replaces readable covariant star projections with their effective upper
+    /// bounds. Non-covariant projections stay unchanged, and bounds that depend
+    /// on unresolved projected parameters do not narrow the result.
+    func substitutingCovariantStarUpperBounds(_ args: [TypeArg], for owner: SymbolID) -> [TypeArg] {
         guard args.contains(where: { if case .star = $0 { true } else { false } }) else {
             return args
         }

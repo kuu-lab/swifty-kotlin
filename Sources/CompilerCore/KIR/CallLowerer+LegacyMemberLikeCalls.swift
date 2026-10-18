@@ -36,8 +36,6 @@ extension CallLowerer {
         "groupBy", "groupByTo",
     ]
 
-    /// String members whose public declarations live in bundled Kotlin source
-    /// (see `isSourceBackedMemberCall` below).
     static let sourceBackedStringMemberNames: Set<String> = [
         "split", "replace", "replaceFirst",
         "get", "compareTo", "intern", "equals",
@@ -54,8 +52,6 @@ extension CallLowerer {
         "count", "binarySearch", "binarySearchBy",
     ]
 
-    /// Array/primitive-array class names whose bundled conversion extensions
-    /// (`toList`, `toMutableList`) stay on their source declarations.
     static let sourceBackedArrayNames: Set<String> = [
         "IntArray", "LongArray", "ShortArray", "ByteArray",
         "CharArray", "BooleanArray", "DoubleArray", "FloatArray",
@@ -63,7 +59,6 @@ extension CallLowerer {
     ]
 
     // swiftlint:disable cyclomatic_complexity function_body_length
-    /// This shared lowering path still centralizes legacy stdlib/member special cases.
     func lowerMemberLikeCallExpr(
         _ exprID: ExprID,
         receiverExpr: ExprID,
