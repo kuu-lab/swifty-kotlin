@@ -189,7 +189,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "length", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
-            returnType: .void,
+            returnType: .intptr,
             section: "System"
         ),
         RuntimeABIFunctionSpec(
