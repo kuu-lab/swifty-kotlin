@@ -1,8 +1,0 @@
-version=2
-nameB64=YXNJdGVyYWJsZQ==
-params=1
-paramSymbols=-79561
-suspend=false
-body:
-const result=113644 value=symbol:-79561
-returnValue value=113644
