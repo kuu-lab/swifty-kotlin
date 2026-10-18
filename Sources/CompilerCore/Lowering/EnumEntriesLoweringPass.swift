@@ -1,5 +1,4 @@
 
-/// Rewrites `Color.entries` property accesses to `entries$get()` getter calls.
 /// Runs after DataEnumSealedSynthesisPass which creates the `entries$get` helper.
 final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "EnumEntriesLowering"
@@ -20,8 +19,6 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
                 newBody.currentSourceRange = index < function.instructionLocations.count
                     ? function.instructionLocations[index]
                     : nil
-                // Match call/virtualCall where callee is "entries" or symbol is
-                // a property named "entries" owned by an enum class.
                 if let rewritten = self.rewriteEntriesAccess(
                     instruction: instruction,
                     sema: sema,
@@ -32,8 +29,6 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
                     newBody.append(rewritten)
                     continue
                 }
-                // Rewrite constValue(.symbolRef(entriesPropSym)) patterns
-                // emitted by BuildKIR for property references.
                 if let rewritten = self.rewriteEntriesConstValue(
                     instruction: instruction,
                     sema: sema,
@@ -44,9 +39,6 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
                     newBody.append(rewritten)
                     continue
                 }
-                // Rewrite loadGlobal(result, entriesPropSym) patterns emitted
-                // when the enum companion's `entries` property is read as a
-                // top-level/object-level global instead of a getter call.
                 if let rewritten = self.rewriteEntriesLoadGlobal(
                     instruction: instruction,
                     sema: sema,
@@ -66,9 +58,6 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
         module.recordLowering(Self.name)
     }
 
-    /// Rewrites `.call(symbol: entriesPropSym, callee: "entries", ...)` or
-    /// `.call(symbol: entriesPropSym, callee: "get", ...)` to a call to the
-    /// synthesized `entries$get` function.
     private func rewriteEntriesAccess(
         instruction: KIRInstruction,
         sema: SemaModule,
@@ -106,9 +95,8 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
         )
     }
 
-    /// Rewrites `constValue(result, .symbolRef(entriesPropSym))` to an
-    /// `entries$get()` call. BuildKIR may emit this pattern for property
-    /// references in some code paths.
+    /// BuildKIR may emit `constValue(result, .symbolRef(entriesPropSym))` for
+    /// property references in some code paths.
     private func rewriteEntriesConstValue(
         instruction: KIRInstruction,
         sema: SemaModule,
@@ -142,9 +130,9 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
         )
     }
 
-    /// Rewrites `loadGlobal(result, entriesPropSym)` to an `entries$get()` call.
-    /// BuildKIR emits this pattern when the companion's `entries` property is
-    /// accessed as a global variable load instead of a getter call.
+    /// BuildKIR emits `loadGlobal(result, entriesPropSym)` when the companion's
+    /// `entries` property is accessed as a global variable load instead of a
+    /// getter call.
     private func rewriteEntriesLoadGlobal(
         instruction: KIRInstruction,
         sema: SemaModule,
@@ -181,10 +169,8 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
         )
     }
 
-    /// Resolves the synthesized `entries$get` function for the enum class
-    /// that owns `propertySymbol` (the property may live on the enum class or
-    /// on its companion object). The helper may be registered under either the
-    /// enum class's or the companion's fqName, so both are tried in that order.
+    /// The helper may be registered under either the enum class's or the
+    /// companion's fqName, so both are tried in that order.
     private func entriesGetFunctionSymbol(
         forPropertySymbol propertySymbol: SymbolID,
         sema: SemaModule,
@@ -222,7 +208,6 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
         return result
     }
 
-    /// Walk up the parent chain to find the enum class that owns this property.
     /// The property may be directly on the enum class, or on its companion object.
     private func findOwnerEnumClass(for symbol: SymbolID, sema: SemaModule) -> SymbolID? {
         var current: SymbolID? = symbol

@@ -1,7 +1,3 @@
-/// Rewires throw-producing instructions inside an inline/lambda expansion so a
-/// throw that relied on the callee's function-level auto-propagation reaches
-/// the caller's enclosing try instead.
-///
 /// Codegen's fallback for an unrouted throw is "store into the *current*
 /// function's own out-parameter and return early". While a body compiles
 /// standalone that fallback is correct; once the body is spliced into a
@@ -16,10 +12,6 @@
 /// still reaches the caller's catch dispatch -- the pre-existing instructions
 /// immediately following this splice point in the caller body.
 enum InlineThrowRerouting {
-    /// Redirects every throw producer in `instructions` that is not already
-    /// routed to a local exception slot so it lands on `callerThrownResult`
-    /// and jumps to the returned dispatch label.
-    ///
     /// - `callerThrownResult`: the caller's exception slot -- the same slot the
     ///   original call site's throw-aware wrapping feeds the catch dispatch
     ///   from. `nil` means the call site is unprotected: the expansion passes
@@ -55,10 +47,9 @@ enum InlineThrowRerouting {
         )
     }
 
-    /// Routes unprotected throw producers to `thrownSlot` without emitting
-    /// per-instruction dispatch jumps. Use when splicing a lambda in place of
-    /// a call that already has throw-aware follow-up instructions (for example
-    /// `jumpIfNotNull` into the inline function's own catch handler).
+    /// Use when splicing a lambda in place of a call that already has
+    /// throw-aware follow-up instructions (for example `jumpIfNotNull` into
+    /// the inline function's own catch handler).
     static func routeUnprotectedThrowsToSlot(
         in instructions: [KIRInstruction],
         thrownSlot: KIRExprID?
@@ -107,10 +98,6 @@ enum InlineThrowRerouting {
         return result
     }
 
-    /// The routed replacement for one unrouted throw producer, or `nil` when
-    /// `instruction` is not a throw producer this boundary owns -- a non-throw
-    /// instruction, or a call already routed to a callee-local slot.
-    ///
     /// A call's own `canThrow` flag is not a reliable "can the callee ever
     /// throw" predicate for ordinary (non-synthetic) functions -- it defaults
     /// to `false` and is only ever explicitly set to `true` for synthetic

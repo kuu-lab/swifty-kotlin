@@ -286,13 +286,23 @@ for the pinned field owner, descriptor, flags, value, and singleton identity.
 The local probes' bytes and the referenced upstream tests remain part of the
 row's test input hash, so edits invalidate prior evidence.
 
-The obligations follow the ledger representation: JVM ABI rows require only
-`jvm-descriptor`. Other rows require both `native-source` and `native-bridge`.
-The native-source obligation covers `source-O0`, `source-O2`,
-`stdlib-library-O0`, and `stdlib-library-O2`; the native-bridge obligation
-covers `producer-consumer-O0` and `producer-consumer-O2`. A paired JVM ABI row
-does not inherit native results, and a source row does not inherit JVM
-descriptor evidence.
+The obligations follow the ledger representation: JVM ABI rows require
+`jvm-descriptor`, except the three ByteString `indexOf$default` bridge rows,
+which also require `native-source`. Other rows require both `native-source`
+and `native-bridge`. The native-source obligation covers `source-O0`,
+`source-O2`, `stdlib-library-O0`, and `stdlib-library-O2`; the native-bridge
+obligation covers `producer-consumer-O0` and `producer-consumer-O2`. A paired
+JVM ABI row does not inherit native results, and a source row does not inherit
+JVM descriptor evidence.
+
+For the three `indexOf$default` rows, the native lanes verify the candidate's
+underlying defaulted operation. The report
+`probe-results/kuu-2618-indexof-jvm-abi.json` independently checks the pinned
+JVM reference classfile's exact overload descriptors, flags, mask, marker, and
+mapping to the Kotlin source declaration. KSwiftK currently emits native code;
+the reference classfile probe therefore does not claim candidate JVM classfile
+ABI. The report, probe, source metadata, upstream test index, and focused test
+inputs participate in the row's input hash and are checked during regeneration.
 
 The generator rejects unknown or duplicate row IDs, malformed hashes, a
 different reference pin, stale implementation/test inputs, non-passing or

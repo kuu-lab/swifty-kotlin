@@ -1,6 +1,4 @@
 extension BundledDeclarationIndex {
-    /// Resolves the nominal owner symbol for a bundled extension receiver.
-    ///
     /// `KClass<T>` has a dedicated type representation, so it does not carry
     /// the interface symbol in the type itself. Map it back to the registered
     /// synthetic interface before attaching source-backed extensions.

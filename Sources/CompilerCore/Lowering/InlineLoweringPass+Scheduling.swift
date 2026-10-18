@@ -1,4 +1,3 @@
-/// Dependency scheduling for snapshots and bounded re-scanning of callers.
 extension InlineLoweringPass {
     /// Visit frozen snapshots in callee-before-caller order, including bodies
     /// reached through lambda arguments. Each original is transformed at most
