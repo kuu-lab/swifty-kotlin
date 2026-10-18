@@ -1,13 +1,7 @@
-/// How a call site's callee resolved, as far as source-backed preservation is
-/// concerned.
 enum SourceBackedCalleeResolution: Equatable {
-    /// No usable callee binding was available.
     case unresolved
-    /// A callee symbol id was not present in the symbol table.
     case unknownSymbol
-    /// The resolved declaration has a source-backed implementation.
     case sourceBacked
-    /// The resolved declaration is an external or synthetic runtime bridge.
     case externalBridge
 }
 

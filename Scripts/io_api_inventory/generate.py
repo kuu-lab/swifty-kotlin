@@ -308,6 +308,95 @@ SOURCE_BYTEARRAY_DEFAULT_BRIDGE_FIXTURE_OUTPUT = (
     "readToLower:IndexOutOfBoundsException\nreadToUpper:IndexOutOfBoundsException\n"
 )
 
+INDEX_OF_DEFAULT_BRIDGES = {
+    (
+        "bytestring",
+        "kotlinx/io/bytestring/ByteStringKt",
+        "indexOf$default",
+        "(Lkotlinx/io/bytestring/ByteString;[BIILjava/lang/Object;)I",
+    ): {
+        "row_id": "jvm-0a5972de7cfbf1ce",
+        "needle_type": "kotlin.ByteArray",
+        "source_parameter": "byteArray",
+        "upstream_source_line": 351,
+        "local_source_line": 154,
+        "api_line": 92,
+        "case_name": "indexOfByteArray",
+        "candidate_execution_id": "kotlinx.io.bytestring.ByteStringTest.indexOfByteArray",
+        "base_descriptor": "(Lkotlinx/io/bytestring/ByteString;[BI)I",
+    },
+    (
+        "bytestring",
+        "kotlinx/io/bytestring/ByteStringKt",
+        "indexOf$default",
+        "(Lkotlinx/io/bytestring/ByteString;BIILjava/lang/Object;)I",
+    ): {
+        "row_id": "jvm-d49996f4a43448e9",
+        "needle_type": "kotlin.Byte",
+        "source_parameter": "byte",
+        "upstream_source_line": 305,
+        "local_source_line": 142,
+        "api_line": 90,
+        "case_name": "indexOfByte",
+        "candidate_execution_id": "kotlinx.io.bytestring.ByteStringTest.indexOfByte",
+        "base_descriptor": "(Lkotlinx/io/bytestring/ByteString;BI)I",
+    },
+    (
+        "bytestring",
+        "kotlinx/io/bytestring/ByteStringKt",
+        "indexOf$default",
+        "(Lkotlinx/io/bytestring/ByteString;Lkotlinx/io/bytestring/ByteString;IILjava/lang/Object;)I",
+    ): {
+        "row_id": "jvm-f0c73d7133f5a588",
+        "needle_type": "kotlinx.io.bytestring.ByteString",
+        "source_parameter": "byteString",
+        "upstream_source_line": 327,
+        "local_source_line": 151,
+        "api_line": 91,
+        "case_name": "indexOfByteString",
+        "candidate_execution_id": "kotlinx.io.bytestring.ByteStringTest.indexOfByteString",
+        "base_descriptor": (
+            "(Lkotlinx/io/bytestring/ByteString;"
+            "Lkotlinx/io/bytestring/ByteString;I)I"
+        ),
+    },
+}
+INDEX_OF_DEFAULT_BRIDGE_DIFF_CASE = (
+    "Scripts/diff_cases/kotlinx_io_bytestring_indexof_default_bridges.kt"
+)
+INDEX_OF_DEFAULT_BRIDGE_LOCAL_TEST = (
+    "Tests/CompilerBackendTests/Integration/"
+    "BundledStdlibExecutionTests+ByteStringIndexOfDefaults.swift"
+)
+INDEX_OF_DEFAULT_BRIDGE_PROBE = (
+    "Scripts/io_api_inventory/probe_bytestring_indexof_jvm_abi.py"
+)
+INDEX_OF_DEFAULT_BRIDGE_PROBE_REPORT = (
+    "Scripts/io_api_inventory/probe-results/kuu-2618-indexof-jvm-abi.json"
+)
+INDEX_OF_DEFAULT_BRIDGE_PROBE_INPUTS = (
+    "Scripts/io_api_inventory/source-declarations.json",
+    "Scripts/io_api_inventory/jvm-declarations.json",
+    "Scripts/io_api_inventory/upstream-lock.json",
+    "Scripts/io_api_inventory/upstream-tests-index.json",
+    "Scripts/io_api_inventory/upstream/kotlinx-io-0.9.1/bytestring/api/kotlinx-io-bytestring.api",
+    "Scripts/io_api_inventory/upstream/kotlinx-io-0.9.1/bytestring/common/src/ByteString.kt",
+    INDEX_OF_DEFAULT_BRIDGE_PROBE,
+)
+INDEX_OF_DEFAULT_BRIDGE_TEST_INPUTS = (
+    INDEX_OF_DEFAULT_BRIDGE_DIFF_CASE,
+    INDEX_OF_DEFAULT_BRIDGE_LOCAL_TEST,
+    INDEX_OF_DEFAULT_BRIDGE_PROBE_REPORT,
+    *INDEX_OF_DEFAULT_BRIDGE_PROBE_INPUTS,
+    "Scripts/kotlinx_io_upstream/reference-lock.json",
+    "Scripts/kotlinx_io_upstream/JvmReferenceRunner.java",
+    "Scripts/kotlinx_io_upstream/run_jvm_reference.py",
+    "Scripts/kotlinx_io_upstream/run_candidate_suites.py",
+    "Scripts/kotlinx_io_upstream/run_candidate_subset.py",
+    "Scripts/kotlinx_io_upstream/jvm-executions.expected.json",
+    "Scripts/kotlinx_io_upstream/native-executions.expected.json",
+)
+
 MODIFIERS = (
     "public|internal|private|protected|actual|expect|inline|suspend|operator|"
     "infix|tailrec|open|override|abstract|external|final|data|sealed|const|"
@@ -439,9 +528,156 @@ def validation_input_hashes(
 
 def validation_obligations(row: dict) -> list[str]:
     """Return the compatibility obligations that apply to this ledger representation."""
+    if row.get("_jvm_key") in INDEX_OF_DEFAULT_BRIDGES:
+        # These rows describe generated JVM bridges, but the compiler under test
+        # emits native code. Require both the pinned JVM reference and the
+        # candidate's native implementation lanes, with the classfile probe
+        # recorded separately so native output cannot stand in for JVM ABI.
+        return ["jvm-descriptor", "native-source"]
     if row.get("representation") == "JVM public ABI dump":
         return ["jvm-descriptor"]
     return ["native-source", "native-bridge"]
+
+
+def restore_hidden_jvm_key(row: dict) -> dict:
+    """Restore the non-rendered JVM signature key from a stable ledger row ID."""
+    for jvm_key, spec in INDEX_OF_DEFAULT_BRIDGES.items():
+        if spec["row_id"] == row.get("row_id"):
+            row["_jvm_key"] = jvm_key
+            break
+    return row
+
+
+def validate_index_of_bridge_probe(
+    row: dict,
+    record: dict,
+    repository: Path = REPO,
+) -> None:
+    """Require a passing reference classfile probe for each mapped default bridge."""
+    spec = INDEX_OF_DEFAULT_BRIDGES.get(row.get("_jvm_key"))
+    if spec is None:
+        return
+    if row.get("row_id") != spec["row_id"]:
+        fail(f"ByteString.indexOf bridge row identity changed: {row.get('row_id')}")
+    report_path = repository / INDEX_OF_DEFAULT_BRIDGE_PROBE_REPORT
+    try:
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as error:
+        fail(f"cannot read ByteString.indexOf JVM ABI probe report: {error}")
+    if report.get("schema_version") != 1 or report.get("result") != "PASS":
+        fail(f"ByteString.indexOf JVM ABI probe did not pass for {row['row_id']}")
+    if report.get("candidate_sha") != record.get("candidate_sha"):
+        fail(f"ByteString.indexOf JVM ABI probe candidate SHA mismatch for {row['row_id']}")
+    if (report.get("reference_version"), report.get("reference_commit")) != (
+        "0.9.1",
+        EXPECTED_TAG_COMMIT,
+    ):
+        fail(f"ByteString.indexOf JVM ABI probe reference pin mismatch for {row['row_id']}")
+    probe_path = repository / INDEX_OF_DEFAULT_BRIDGE_PROBE
+    if report.get("probe_sha256") != hashlib.sha256(probe_path.read_bytes()).hexdigest():
+        fail(f"stale ByteString.indexOf JVM ABI probe hash for {row['row_id']}")
+    if report.get("execution_count") != 3 or report.get("passed_count") != 3:
+        fail("ByteString.indexOf JVM ABI probe must pass all three mapped methods")
+    expected_artifact = next(
+        (
+            item
+            for item in json.loads(LOCK_PATH.read_text(encoding="utf-8"))["mavenArtifacts"]
+            if item["coordinate"]
+            == "org.jetbrains.kotlinx:kotlinx-io-bytestring-jvm:0.9.1"
+        ),
+        None,
+    )
+    if expected_artifact is None or report.get("artifact_sha256") != expected_artifact["sha256"]:
+        fail(f"ByteString.indexOf JVM ABI probe artifact hash mismatch for {row['row_id']}")
+    if report.get("artifact_coordinate") != expected_artifact["coordinate"]:
+        fail(f"ByteString.indexOf JVM ABI probe artifact coordinate mismatch for {row['row_id']}")
+    probe_inputs = {
+        "probe": hashlib.sha256((repository / INDEX_OF_DEFAULT_BRIDGE_PROBE).read_bytes()).hexdigest(),
+        "api": hashlib.sha256((repository / INDEX_OF_DEFAULT_BRIDGE_PROBE_INPUTS[4]).read_bytes()).hexdigest(),
+        "upstream_source": hashlib.sha256((repository / INDEX_OF_DEFAULT_BRIDGE_PROBE_INPUTS[5]).read_bytes()).hexdigest(),
+        "candidate_source": hashlib.sha256(
+            (repository / "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteString.kt").read_bytes()
+        ).hexdigest(),
+        "source_declarations": hashlib.sha256(
+            (repository / INDEX_OF_DEFAULT_BRIDGE_PROBE_INPUTS[0]).read_bytes()
+        ).hexdigest(),
+        "jvm_declarations": hashlib.sha256(
+            (repository / INDEX_OF_DEFAULT_BRIDGE_PROBE_INPUTS[1]).read_bytes()
+        ).hexdigest(),
+        "upstream_lock": hashlib.sha256(
+            (repository / INDEX_OF_DEFAULT_BRIDGE_PROBE_INPUTS[2]).read_bytes()
+        ).hexdigest(),
+        "upstream_tests_index": hashlib.sha256(
+            (repository / INDEX_OF_DEFAULT_BRIDGE_PROBE_INPUTS[3]).read_bytes()
+        ).hexdigest(),
+        "reference_artifact": expected_artifact["sha256"],
+    }
+    expected_probe_inputs_sha = hashlib.sha256(
+        json.dumps(probe_inputs, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    if report.get("probe_inputs_sha256") != expected_probe_inputs_sha:
+        fail(f"stale ByteString.indexOf JVM ABI probe inputs for {row['row_id']}")
+    if report.get("candidate_boundary") != (
+        "Reference classfile shape only. KSwiftK emits native code; candidate native "
+        "default-dispatch execution is separate evidence and does not establish candidate "
+        "JVM classfile ABI."
+    ):
+        fail("ByteString.indexOf JVM ABI probe boundary statement changed")
+    methods = report.get("methods")
+    if not isinstance(methods, list) or len(methods) != 3:
+        fail("ByteString.indexOf JVM ABI probe report must contain exactly three methods")
+    matches = [method for method in methods if method.get("row_id") == row["row_id"]]
+    if len(matches) != 1:
+        fail(f"ByteString.indexOf JVM ABI probe omitted {row['row_id']}")
+    method = matches[0]
+    expected_bridge = row["_jvm_key"][3]
+    expected_flags = {"public": True, "static": True, "synthetic": True, "bridge": False}
+    if (
+        method.get("result") != "PASS"
+        or method.get("bridge_descriptor") != expected_bridge
+        or method.get("flags") != expected_flags
+        or method.get("mask_values_when_defaults_are_omitted") != [2]
+        or method.get("marker_parameter") != "java.lang.Object"
+        or method.get("underlying_descriptor") != spec["base_descriptor"]
+        or method.get("underlying_flags")
+        != {"public": True, "static": True, "synthetic": False, "bridge": False}
+    ):
+        fail(f"ByteString.indexOf JVM ABI probe details mismatch for {row['row_id']}")
+    if method.get("case_id") != f"bytestring/common/test/ByteStringTest.kt#{spec['case_name']}":
+        fail(f"ByteString.indexOf JVM ABI probe case mismatch for {row['row_id']}")
+    if method.get("api_reference") != (
+        "bytestring/api/kotlinx-io-bytestring.api:" + str(spec["api_line"])
+    ):
+        fail(f"ByteString.indexOf JVM ABI probe API reference mismatch for {row['row_id']}")
+    if method.get("upstream_source") != f"bytestring/common/src/ByteString.kt:{spec['upstream_source_line']}":
+        fail(f"ByteString.indexOf JVM ABI probe upstream source mismatch for {row['row_id']}")
+    if method.get("candidate_source") != (
+        "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteString.kt:"
+        f"{spec['local_source_line']}"
+    ):
+        fail(f"ByteString.indexOf JVM ABI probe candidate source mismatch for {row['row_id']}")
+    if method.get("candidate_execution_id") != spec["candidate_execution_id"]:
+        fail(f"ByteString.indexOf JVM ABI probe candidate case mismatch for {row['row_id']}")
+    expected_reference_execution_id = (
+        "[engine:junit-jupiter]/[class:kotlinx.io.bytestring.ByteStringTest]/"
+        f"[method:{spec['case_name']}()]"
+    )
+    if method.get("upstream_execution_id") != expected_reference_execution_id:
+        fail(f"ByteString.indexOf JVM ABI probe reference case mismatch for {row['row_id']}")
+    expected_source_type = spec["needle_type"].rsplit(".", 1)[-1]
+    if method.get("source_contract") != {
+        "visibility": "public",
+        "receiver": "kotlinx.io.bytestring.ByteString",
+        "parameters": [
+            {"name": spec["source_parameter"], "type": expected_source_type, "default": None},
+            {"name": "startIndex", "type": "Int", "default": "0"},
+        ],
+        "return_type": "kotlin.Int",
+        "annotations": [],
+        "deprecation": "none",
+        "exception_contract": "not-declared-in-source",
+    }:
+        fail(f"ByteString.indexOf JVM ABI probe source contract mismatch for {row['row_id']}")
 
 
 def required_execution_lanes(obligations: list[str]) -> list[str]:
@@ -719,6 +955,7 @@ def apply_validation_evidence(
                     )
             if not required_cases:
                 fail(f"row {row_id} has no registered local probe evidence cases")
+        validate_index_of_bridge_probe(row, record, repository)
         row["status"] = "verified"
 
 
@@ -1603,6 +1840,8 @@ def owner_for(row: dict) -> str:
         "jvm-d0a5256163899ef7",
     }:
         return "KUU-2632"
+    if row.get("_jvm_key") in INDEX_OF_DEFAULT_BRIDGES:
+        return "KUU-2618"
     text = " ".join(
         [row["module"], row["owner_fqn"], row["name"], row["signature"], row["upstream_source_refs"]]
     ).lower()
@@ -1655,6 +1894,77 @@ def owner_for(row: dict) -> str:
     ):
         return "KUU-1731"
     return "KUU-1730"
+
+
+def apply_index_of_default_bridge_mappings(rows: list[dict], index: SourceIndex) -> None:
+    """Map generated indexOf bridges to the exact defaulted Kotlin overloads."""
+    source_path = "bytestring/common/src/ByteString.kt"
+    local_path = "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteString.kt"
+    for row in rows:
+        spec = INDEX_OF_DEFAULT_BRIDGES.get(row.get("_jvm_key"))
+        if spec is None:
+            continue
+        if row.get("row_id") != spec["row_id"]:
+            fail(f"ByteString.indexOf bridge row identity changed: {row.get('row_id')}")
+        source_key = (
+            "function",
+            "kotlinx.io.bytestring.indexOf",
+            "kotlinx.io.bytestring.ByteString",
+            (spec["needle_type"], "kotlin.Int"),
+        )
+        upstream = index.match("upstream", source_key)
+        local = index.match("local", source_key)
+        if len(upstream) != 1 or len(local) != 1:
+            fail(
+                f"expected one upstream and local indexOf declaration for {row['row_id']}"
+            )
+        upstream_declaration = upstream[0]
+        local_declaration = local[0]
+        expected_parameters = [
+            (spec["source_parameter"], spec["needle_type"].rsplit(".", 1)[-1], None),
+            ("startIndex", "Int", "0"),
+        ]
+        for origin, declaration, expected_path, expected_line in (
+            ("upstream", upstream_declaration, source_path, spec["upstream_source_line"]),
+            ("local", local_declaration, local_path, spec["local_source_line"]),
+        ):
+            actual_parameters = [
+                (parameter["name"], parameter["type"], parameter["default"])
+                for parameter in declaration["parameters"]
+            ]
+            if (
+                declaration["path"] != expected_path
+                or declaration["line"] != expected_line
+                or declaration["visibility"] != "public"
+                or declaration["receiver"] != "ByteString"
+                or declaration["returnType"] != "Int"
+                or not declaration["hasBody"]
+                or declaration["annotations"]
+                or actual_parameters != expected_parameters
+            ):
+                fail(f"unexpected {origin} indexOf source contract for {row['row_id']}")
+        row["_source_key"] = source_key
+        row["_source_declarations"] = [upstream_declaration]
+        row["_source_paths"] = [UPSTREAM / source_path]
+        row["_typed_local_refs"] = [f"{local_path}:{spec['local_source_line']}"]
+        row["_candidate_kind"] = "function"
+        row["_candidate_name"] = "indexOf"
+        row["upstream_source_refs"] = f"{source_path}:{spec['upstream_source_line']}"
+        row["jvm_abi_refs"] = (
+            "bytestring/api/kotlinx-io-bytestring.api:" + str(spec["api_line"])
+        )
+        row["annotations"], row["deprecation"], row["exception_contract"] = (
+            declaration_metadata(upstream_declaration)
+        )
+        row["notes"] = (
+            f"Generated JVM default bridge maps to {source_path}:{spec['upstream_source_line']} "
+            f"and {local_path}:{spec['local_source_line']}; source contract is public, "
+            f"JVM API dump entry is bytestring/api/kotlinx-io-bytestring.api:{spec['api_line']}; "
+            "startIndex defaults to 0, and no opt-in, deprecation, or throws annotation is "
+            "declared. The fixed JVM artifact probe verifies the reference classfile shape; "
+            "Candidate native default-dispatch execution is tracked separately and does "
+            "not establish candidate JVM classfile ABI."
+        )
 
 
 def local_candidates(row: dict) -> list[str]:
@@ -1891,6 +2201,8 @@ def local_contract_differences(row: dict, index: SourceIndex) -> str:
 def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
     if row.get("row_id") in SOURCE_BYTEARRAY_DEFAULT_BRIDGE_ROWS:
         return list(SOURCE_BYTEARRAY_DEFAULT_BRIDGE_LOCAL_TESTS)
+    if row.get("_jvm_key") in INDEX_OF_DEFAULT_BRIDGES:
+        return list(INDEX_OF_DEFAULT_BRIDGE_TEST_INPUTS)
     name = row["_candidate_name"].lower()
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []
@@ -1930,6 +2242,14 @@ def local_implementation_refs(row: dict, index: SourceIndex, runtime_symbols: di
 
 
 def upstream_test_refs(row: dict, test_index: dict) -> list[str]:
+    indexof_bridge = INDEX_OF_DEFAULT_BRIDGES.get(row.get("_jvm_key"))
+    if indexof_bridge is not None:
+        path = "bytestring/common/test/ByteStringTest.kt"
+        entry = next((item for item in test_index["files"] if item["path"] == path), None)
+        case_name = indexof_bridge["case_name"]
+        if entry is None or case_name not in entry.get("testNames", []):
+            fail(f"locked upstream test is missing for ByteString.indexOf bridge: {case_name}")
+        return [f"{path}#{case_name}"]
     if row.get("upstream_source_refs") in NO_DIRECT_UPSTREAM_ASSERTION_SOURCE_REFS:
         # The upstream smoke cases use SystemFileSystem raw methods; they do not
         # exercise these deprecated Path extensions or assert their annotations.
@@ -2287,6 +2607,7 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     api_rows.extend(typed_published_internals(index))
     api_rows.extend(platform_typealiases(index))
     apply_jvm_correspondence(api_rows, index, lock)
+    apply_index_of_default_bridge_mappings(api_rows, index)
 
     local_tests = []
     local_paths = list(REPO.joinpath("Tests").rglob("*.swift"))
@@ -2297,6 +2618,8 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     local_paths.append(REPO / "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java")
     for path in sorted(local_paths):
         rel = path.relative_to(REPO).as_posix()
+        if rel in {INDEX_OF_DEFAULT_BRIDGE_DIFF_CASE, INDEX_OF_DEFAULT_BRIDGE_LOCAL_TEST}:
+            continue
         if rel.startswith(LOCAL_IO_TEST_PREFIXES):
             content = path.read_text(encoding="utf-8")
             if "kotlinx.io" in content or "KotlinxIO" in path.name or "KtorIO" in path.name:
@@ -2316,7 +2639,8 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
         row["status"] = "unverified" if candidates else "missing"
         if row["representation"] == "JVM public ABI dump" and row["source_api"] == "no":
             row["status"] = "unverified"
-            row["notes"] += "; generated JVM ABI presence cannot be established from Kotlin source-name matching alone"
+            if row.get("_jvm_key") not in INDEX_OF_DEFAULT_BRIDGES:
+                row["notes"] += "; generated JVM ABI presence cannot be established from Kotlin source-name matching alone"
         row["owner_issue"] = owner_for(row)
         direct_upstream_tests = upstream_test_refs(row, test_index)
         row["upstream_test_refs"] = ";".join(direct_upstream_tests) or NO_DIRECT_UPSTREAM_ASSERTION
@@ -2365,6 +2689,9 @@ def main() -> int:
                        if row.get("row_id") == args.show_input_hashes]
         if len(matches) != 1:
             fail(f"expected exactly one ledger row with row_id {args.show_input_hashes!r}; found {len(matches)}")
+        # Hidden JVM keys are reconstructed from the row identity because they
+        # are intentionally not part of the TSV schema.
+        restore_hidden_jvm_key(matches[0])
         hashes = validation_input_hashes(matches[0])
         lock = json.loads(LOCK_PATH.read_text(encoding="utf-8"))
         print(json.dumps({
