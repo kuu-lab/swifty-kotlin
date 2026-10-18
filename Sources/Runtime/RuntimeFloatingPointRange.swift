@@ -1,4 +1,3 @@
-/// Opaque runtime storage for floating-point ranges with a `Double` element.
 final class RuntimeDoubleRangeBox {
     let first: Double
     let last: Double
@@ -11,7 +10,6 @@ final class RuntimeDoubleRangeBox {
     }
 }
 
-/// Opaque runtime storage for floating-point ranges with a `Float` element.
 final class RuntimeFloatRangeBox {
     let first: Float
     let last: Float
@@ -117,8 +115,6 @@ public func __kk_floating_range_contains_or_null(_ rangeRaw: Int, _ valueBits: I
     return runtimeNullSentinelInt
 }
 
-/// KUU-763: boxed `isEmpty` for a native floating-point range, or
-/// `runtimeNullSentinelInt` for non-box receivers.
 @_cdecl("__kk_floating_range_isEmpty_or_null")
 public func __kk_floating_range_isEmpty_or_null(_ rangeRaw: Int) -> Int {
     if let range = runtimeDoubleRangeBox(from: rangeRaw) {
@@ -130,10 +126,8 @@ public func __kk_floating_range_isEmpty_or_null(_ rangeRaw: Int) -> Int {
     return runtimeNullSentinelInt
 }
 
-/// KUU-763: boxed `lessThanOrEquals` for a native floating-point range, or
-/// `runtimeNullSentinelInt` for non-box receivers. The comparison itself is
-/// receiver-independent (`a <= b` under IEEE-754), so the box check only
-/// decides dispatch.
+/// The comparison itself is receiver-independent (`a <= b` under IEEE-754), so
+/// the box check only decides dispatch.
 @_cdecl("__kk_floating_range_lessThanOrEquals_or_null")
 public func __kk_floating_range_lessThanOrEquals_or_null(
     _ rangeRaw: Int,
