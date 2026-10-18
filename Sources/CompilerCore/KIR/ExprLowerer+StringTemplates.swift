@@ -1,7 +1,3 @@
-/// String-template lowering used by `ExprLowerer.lowerExpr`: part
-/// lowering, Any-to-String conversion, and flat concatenation.
-///
-/// Split out from `ExprLowerer+ControlFlowAndBlocks.swift`.
 extension ExprLowerer {
     func lowerStringTemplateExpr(
         parts: [StringTemplatePart],

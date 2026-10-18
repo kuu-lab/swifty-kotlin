@@ -404,6 +404,7 @@ struct ExpectActualCompatibilityTests {
                 BIG_ENDIAN, LITTLE_ENDIAN;
                 actual companion object { actual fun nativeOrder(): ByteOrder = LITTLE_ENDIAN }
             }
+            fun useNativeOrder(): ByteOrder = ByteOrder.nativeOrder()
             """,
         ])
         try runSema(ctx)
@@ -427,6 +428,10 @@ struct ExpectActualCompatibilityTests {
         #expect(sema.symbols.parentSymbol(for: expectNativeOrder.id) == expectCompanion)
         #expect(sema.symbols.parentSymbol(for: actualNativeOrder.id) == actualCompanion)
         #expect(sema.symbols.actualSymbol(for: expectNativeOrder.id) == actualNativeOrder.id)
+        #expect(
+            sema.bindings.callBindings.values.contains { $0.chosenCallee == actualNativeOrder.id },
+            "A class-name call on an expect/actual enum must bind to the actual companion member"
+        )
 
         for entryName in ["BIG_ENDIAN", "LITTLE_ENDIAN"] {
             let entrySymbols = sema.symbols.lookupAll(fqName: enumFQName + [ctx.interner.intern(entryName)])

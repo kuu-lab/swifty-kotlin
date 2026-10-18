@@ -1,10 +1,6 @@
 // swiftlint:disable file_length
 
-/// Default-argument materialization and runtime callee resolution helpers.
 extension CallLowerer {
-    /// Returns the default mask for the five optional parameters of the
-    /// source-backed Iterable.joinToString overload.
-    ///
     /// Safe-call collection fallback can lose the declaration's default-value
     /// metadata, so the generic argument normalizer may leave raw null
     /// sentinels in the call. Recover the omitted parameters from the source
@@ -182,8 +178,6 @@ extension CallLowerer {
         arguments[2] = sizeExpr
     }
 
-    /// Resolve inherited Iterator methods through their real interface owner when
-    /// the receiver is statically typed as a source-backed ListIterator.
     func listIteratorInheritedDispatchCallee(
         receiverType: TypeID?,
         calleeName: InternedString,

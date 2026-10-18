@@ -21,6 +21,8 @@ final class KotlinParser {
         arena = SyntaxArena()
     }
 
+    /// Enters one recursive grammar production. The caller must pair success
+    /// with `leaveNesting()` using `defer`.
     func enterNesting() -> Bool {
         nestingDepth += 1
         guard nestingDepth <= Self.maxNestingDepth else {

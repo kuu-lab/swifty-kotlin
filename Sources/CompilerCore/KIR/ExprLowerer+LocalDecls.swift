@@ -1,8 +1,3 @@
-/// Local-declaration lowering used by `ExprLowerer.lowerExpr`:
-/// local function declarations, `val`/`var` declarations, and
-/// destructuring declarations.
-///
-/// Split out from `ExprLowerer+ControlFlowAndBlocks.swift`.
 extension ExprLowerer {
     func lowerLocalFunDecl(
         name localFunName: InternedString,
@@ -37,7 +32,6 @@ extension ExprLowerer {
 
             let localFunCalleeName = driver.lambdaLowerer.callableTargetName(for: symbol, sema: sema, interner: interner)
 
-            // Emit the local function body as a KIRFunction declaration.
             let localFunValueParamList: [KIRParameter]
             let localFunContextParamList = sig.map { signature in
                 zip(signature.contextParameterSymbols, signature.contextParameterTypes).map { symbol, type in
@@ -68,9 +62,6 @@ extension ExprLowerer {
                 localFunReturnType = sema.types.unitType
             }
 
-            // Compute capture symbols by collecting referenced identifiers
-            // from the local function body, filtering to those available in
-            // the current scope (analogous to lambda capture analysis).
             var captureBodyExprIDs: [ExprID] = []
             switch localFunBody {
             case let .block(bodyExprIDs, _):
@@ -223,7 +214,6 @@ extension ExprLowerer {
 
             var localFunBodyInstructions: [KIRInstruction] = [.beginBlock]
 
-            // Bind capture parameters so body references resolve correctly.
             for capture in captureBindings {
                 let captureExpr = arena.appendExpr(.symbolRef(capture.param.symbol), type: capture.param.type)
                 localFunBodyInstructions.append(.constValue(result: captureExpr, value: .symbolRef(capture.param.symbol)))
@@ -375,7 +365,6 @@ extension ExprLowerer {
                         propertyConstantInitializers: propertyConstantInitializers,
                         instructions: &localFunBodyInstructions
                     )
-                    // Detect nested termination (e.g., if/when/try with return in all branches)
                     if let lastValue, driver.controlFlowLowerer.isTerminatedExpr(lastValue, arena: arena, sema: sema) {
                         terminatedByReturn = true
                         break
@@ -717,7 +706,6 @@ extension ExprLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        // Lower: val (a, b) = expr  →  tmp = expr; a = tmp.component1(); b = tmp.component2()
         let rhsID = lowerExpr(
             initializer, ast: ast, sema: sema, arena: arena, interner: interner,
             propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions
@@ -726,13 +714,11 @@ extension ExprLowerer {
         let nonNullRhsType = sema.types.makeNonNullable(rhsType)
         for (index, name) in names.enumerated() {
             guard let name else {
-                // Underscore — skip
                 continue
             }
             let componentIndex = index + 1
             let componentName = interner.intern("component\(componentIndex)")
 
-            // Resolve componentN to externalLinkName when available (Pair, Triple, List, etc.)
             let memberCandidates = TypeCheckHelpers().collectMemberFunctionCandidates(
                 named: componentName,
                 receiverType: nonNullRhsType,
@@ -779,7 +765,6 @@ extension ExprLowerer {
                 instructions: &instructions
             )
 
-            // Bind the destructured variable to the component result
             if let symbol = candidates.first {
                 driver.ctx.setLocalValue(componentResult, for: symbol)
             }

@@ -1,3 +1,21 @@
+Iterable-element. Iterable elements differ at index 1. Expected element <b>, actual element <c>.
+Iterable-size. Iterable lengths differ. Expected length is bigger than 1, actual length is 1.
+Iterable-size-actual. Iterable lengths differ. Expected length is 1, actual length is bigger than 1.
+Iterable-null. Expected non-null Iterable <[a, b]>, actual <null>.
+Iterable-null-expected. Expected <null> Iterable, actual <[a, b]>.
+Iterable-lazy. Iterable elements differ at index 1. Expected element <b>, actual element <c>.
+Set-element. Iterable elements differ at index 1. Expected element <b>, actual element <c>.
+Set-size. Iterable lengths differ. Expected length is bigger than 1, actual length is 1.
+Set-size-actual. Iterable lengths differ. Expected length is 1, actual length is bigger than 1.
+Set-null. Expected non-null Iterable <[a, b]>, actual <null>.
+Set-null-expected. Expected <null> Iterable, actual <[a, b]>.
+Set-lazy. Iterable elements differ at index 1. Expected element <b>, actual element <c>.
+Sequence-element. Sequence elements differ at index 1. Expected element <b>, actual element <c>.
+Sequence-size. Sequence lengths differ. Expected length is bigger than 1, actual length is 1.
+Sequence-size-actual. Sequence lengths differ. Expected length is 1, actual length is bigger than 1.
+Sequence-null:true
+Sequence-null-expected:true
+Sequence-lazy. Sequence elements differ at index 1. Expected element <b>, actual element <c>.
 Array-size. Array sizes differ. Expected size is 2, actual size is 1.
 Expected <[a, null]>, actual <[a]>.
 Array-element. Array elements differ at index 0. Expected element <a>, actual element <b>.

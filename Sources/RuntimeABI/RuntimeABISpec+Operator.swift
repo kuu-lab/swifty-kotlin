@@ -451,6 +451,25 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_java_class_get_annotations_typed",
+            parameters: [
+                RuntimeABIParameter(name: "classRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Reflection",
+            isThrowing: true
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_java_class_register_inherited_annotation",
+            parameters: [
+                RuntimeABIParameter(name: "annotationNameRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Reflection",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_java_class_get_name",
             parameters: [
                 RuntimeABIParameter(name: "classRaw", type: .intptr),

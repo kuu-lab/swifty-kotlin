@@ -17,8 +17,6 @@
 /// `properties` also remains here: unlike its `member`/`declaredMember`
 /// siblings, it is not a real kotlin-stdlib name, and diff cases rely on
 /// being able to freely shadow it with a real user-declared extension.
-///
-/// Split out from `CallLowerer+MemberCalls.swift`.
 extension CallLowerer {
 
     func lowerKClassReifiedTypeNameHint(
@@ -37,9 +35,6 @@ extension CallLowerer {
         )
     }
 
-    /// Renders a reified type argument (or `nil`) as a runtime name-hint string
-    /// literal, preferring the fully-qualified name, then the simple name, then
-    /// a rendered fallback, then an empty string when no type is available.
     func lowerReifiedTypeNameHint(
         typeArg: TypeID?,
         sema: SemaModule,
@@ -57,10 +52,6 @@ extension CallLowerer {
         return result
     }
 
-    /// Lowers `T::class.findAnnotation<A>()` / `T::class.findAssociatedObject<A>()`.
-    ///
-    /// These functions operate on the KClass box, so we first create the KClass
-    /// via `__kk_kclass_create` and then call the appropriate runtime function.
     func lowerKClassReflectMemberCall(
         _ exprID: ExprID,
         classRefTargetType: TypeID,
@@ -75,7 +66,6 @@ extension CallLowerer {
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let stringType = sema.types.stringType
 
-        // 1. Create the KClass box via __kk_kclass_create.
         let tokenExpr: KIRExprID
         if case let .typeParam(typeParam) = sema.types.kind(of: classRefTargetType) {
             let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: typeParam.symbol)
@@ -246,7 +236,6 @@ extension CallLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        // Lower the receiver expression to get the KClass box.
         let kclassExpr = driver.lowerExpr(
             receiverExpr,
             ast: ast, sema: sema, arena: arena, interner: interner,
@@ -649,10 +638,6 @@ extension CallLowerer {
         }
     }
 
-    /// KUU-1448: emits the full `emitClassLiteralMetadataRegistrationImpl`
-    /// block for every direct nominal supertype of `classSymbol`, recursing
-    /// through their own supertypes via the shared `visitedClassSymbols` set.
-    ///
     /// Only nominal-token classifiers participate: builtin bases
     /// (`kotlin.Any`, `kotlin.String`, primitives, `FunctionN`) are answered
     /// by the runtime's builtin tables and never carry registry metadata.

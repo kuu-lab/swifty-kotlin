@@ -1,8 +1,3 @@
-/// Legacy member-call spellings of primitive operations: `inv`/`not`,
-/// Boolean `and`/`or`/`xor`, floating `mod`, Char/Float/Double operator
-/// members, integral arithmetic infix members, `toString`, the numeric
-/// `toX()` conversion table, and `Char.code`.
-
 extension CallLowerer {
 
     func lowerLegacyPrimitiveMemberOperatorCall(
@@ -22,7 +17,6 @@ extension CallLowerer {
         result: KIRExprID,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        // Primitive member function: Int/Long.inv() → kk_op_inv (P5-103)
         if calleeName == interner.intern("inv"),
            args.isEmpty,
            sema.bindings.callBinding(for: exprID) == nil,
@@ -42,7 +36,6 @@ extension CallLowerer {
         // KSP-642: Int/Long rotateLeft / rotateRight are lowered as ordinary calls to
         // the bundled Kotlin declarations in `Stdlib/kotlin/Numbers.kt`.
 
-        // Boolean.not() → kk_op_not (STDLIB-308)
         if calleeName == interner.intern("not"),
            args.isEmpty
         {
@@ -61,7 +54,6 @@ extension CallLowerer {
             }
         }
 
-        // Boolean.and(other) / Boolean.or(other) / Boolean.xor(other) (STDLIB-308)
         if args.count == 1 {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
@@ -164,9 +156,9 @@ extension CallLowerer {
         }
 
         // Explicit `Char.plus/minus` and `Float`/`Double` arithmetic member calls
-        // (`'A'.plus(2)`, `2.0.times(4)`) behave exactly like the operator syntax, so
-        // emit the same `.binary` node and let the operator/narrowing passes type it.
-        // The integer-receiver fast path below only knows `kk_op_*` on integral slots.
+        // behave exactly like the operator syntax, so emit the same `.binary` node
+        // and let the operator/narrowing passes type it. The integer-receiver fast
+        // path below only knows `kk_op_*` on integral slots.
         if !isSourceArithmeticExtension, args.count == 1,
            let binaryOp = explicitFloatingOrCharArithmeticOp(calleeNameStr),
            isNumericPrimitiveOperand(args[0].expr, sema: sema),
@@ -182,7 +174,6 @@ extension CallLowerer {
             }
         }
 
-        // Primitive arithmetic/infix member functions on numeric receivers.
         // Direct range expressions are typed with their scalar element type, but
         // `plus`/`minus` must keep the selected Iterable extension at this stage.
         let isRangePlusMinusReceiver = ["plus", "minus"].contains(calleeNameStr)
@@ -268,8 +259,7 @@ extension CallLowerer {
         result: KIRExprID,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        // Primitive member function: Int/Long.toString() → kk_any_to_string
-        // (STDLIB-306). Int/Long.toString(radix: Int) is bundled Kotlin source
+        // Int/Long.toString(radix: Int) is bundled Kotlin source
         // (Stdlib/kotlin/text/StringNumberConversions.kt, KSP-717) and falls
         // through to the normal resolved-symbol call lowering below.
         if calleeName == interner.intern("toString"),
@@ -328,8 +318,6 @@ extension CallLowerer {
         result: KIRExprID,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        // Primitive conversion: toInt(), toUInt(), toLong(), toULong(),
-        // toFloat(), toByte(), toShort() (TYPE-005)
         if args.isEmpty {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let longType = sema.types.make(.primitive(.long, .nonNull))
@@ -355,17 +343,17 @@ extension CallLowerer {
             case ("toInt", doubleType, intType): interner.intern("__kk_double_to_int")
             case ("toInt", floatType, intType): interner.intern("__kk_float_to_int")
             case ("toInt", longType, intType): interner.intern("kk_long_to_int")
-            case ("toInt", charType, intType): nil // identity (Char is stored as Int)
-            case ("toInt", byteType, intType): nil // identity
-            case ("toInt", shortType, intType): nil // identity
-            case ("toInt", intType, intType): nil // identity
+            case ("toInt", charType, intType): nil // Char is stored as Int
+            case ("toInt", byteType, intType): nil
+            case ("toInt", shortType, intType): nil
+            case ("toInt", intType, intType): nil
             case ("toUInt", intType, uintType): interner.intern("kk_int_to_uint")
             case ("toUInt", longType, uintType): interner.intern("kk_long_to_uint")
             case ("toUInt", ubyteType, uintType): interner.intern("kk_ubyte_to_uint")
             case ("toUInt", ushortType, uintType): interner.intern("kk_ushort_to_uint")
             case ("toUInt", byteType, uintType): interner.intern("kk_int_to_uint")
             case ("toUInt", shortType, uintType): interner.intern("kk_int_to_uint")
-            case ("toUInt", uintType, uintType): nil // identity
+            case ("toUInt", uintType, uintType): nil
             // KSP-1533: ULong.toUInt() narrows 64 bits to 32 and must mask the
             // high bits away (kk_ulong_to_uint has no dedicated symbol; reuse
             // kk_long_to_uint, which already truncates via UInt32(truncatingIfNeeded:)
@@ -378,9 +366,9 @@ extension CallLowerer {
             case ("toLong", ushortType, longType): interner.intern("kk_ushort_to_long")
             case ("toLong", doubleType, longType): interner.intern("__kk_double_to_long")
             case ("toLong", floatType, longType): interner.intern("__kk_float_to_long")
-            case ("toLong", byteType, longType): nil // identity
-            case ("toLong", shortType, longType): nil // identity
-            case ("toLong", longType, longType), ("toLong", ulongType, longType): nil // identity
+            case ("toLong", byteType, longType): nil
+            case ("toLong", shortType, longType): nil
+            case ("toLong", longType, longType), ("toLong", ulongType, longType): nil
             case ("toULong", intType, ulongType): interner.intern("kk_int_to_ulong")
             case ("toULong", longType, ulongType): interner.intern("kk_long_to_ulong")
             case ("toULong", uintType, ulongType): interner.intern("kk_uint_to_ulong")
@@ -388,7 +376,7 @@ extension CallLowerer {
             case ("toULong", ushortType, ulongType): interner.intern("kk_ushort_to_ulong")
             case ("toULong", byteType, ulongType): interner.intern("kk_int_to_ulong")
             case ("toULong", shortType, ulongType): interner.intern("kk_int_to_ulong")
-            case ("toULong", ulongType, ulongType): nil // identity
+            case ("toULong", ulongType, ulongType): nil
             case ("toFloat", intType, floatType): interner.intern("kk_int_to_float")
             case ("toFloat", longType, floatType): interner.intern("kk_long_to_float")
             case ("toFloat", uintType, floatType): interner.intern("kk_uint_to_float")
@@ -398,7 +386,7 @@ extension CallLowerer {
             case ("toFloat", byteType, floatType): interner.intern("kk_int_to_float")
             case ("toFloat", shortType, floatType): interner.intern("kk_int_to_float")
             case ("toFloat", doubleType, floatType): interner.intern("kk_double_to_float")
-            case ("toFloat", floatType, floatType): nil // identity
+            case ("toFloat", floatType, floatType): nil
             case ("toDouble", uintType, doubleType): interner.intern("kk_uint_to_double")
             case ("toDouble", ulongType, doubleType): interner.intern("kk_ulong_to_double")
             case ("toDouble", ubyteType, doubleType): interner.intern("kk_ubyte_to_double")
@@ -407,14 +395,14 @@ extension CallLowerer {
             case ("toDouble", shortType, doubleType): interner.intern("kk_int_to_double_bits")
             case ("toDouble", longType, doubleType): interner.intern("kk_long_to_double")
             case ("toDouble", floatType, doubleType): interner.intern("__kk_float_to_double_bits")
-            case ("toDouble", doubleType, doubleType): nil // identity
+            case ("toDouble", doubleType, doubleType): nil
             case ("toByte", intType, byteType): interner.intern("kk_int_to_byte")
             case ("toByte", longType, byteType): interner.intern("kk_long_to_byte")
             case ("toByte", uintType, byteType): interner.intern("kk_uint_to_byte")
             case ("toByte", ulongType, byteType): interner.intern("kk_ulong_to_byte")
             case ("toByte", ubyteType, byteType): interner.intern("kk_ubyte_to_byte")
             case ("toByte", ushortType, byteType): interner.intern("kk_ushort_to_byte")
-            case ("toByte", byteType, byteType): nil // identity
+            case ("toByte", byteType, byteType): nil
             case ("toByte", shortType, byteType): interner.intern("kk_int_to_byte")
             case ("toShort", intType, shortType): interner.intern("kk_int_to_short")
             case ("toShort", longType, shortType): interner.intern("kk_long_to_short")
@@ -422,13 +410,13 @@ extension CallLowerer {
             case ("toShort", ulongType, shortType): interner.intern("kk_ulong_to_short")
             case ("toShort", ubyteType, shortType): interner.intern("kk_ubyte_to_short")
             case ("toShort", ushortType, shortType): interner.intern("kk_ushort_to_short")
-            case ("toShort", byteType, shortType): nil // identity
-            case ("toShort", shortType, shortType): nil // identity
+            case ("toShort", byteType, shortType): nil
+            case ("toShort", shortType, shortType): nil
             case ("toUByte", intType, ubyteType): interner.intern("kk_int_to_ubyte")
             case ("toUByte", longType, ubyteType): interner.intern("kk_long_to_ubyte")
             case ("toUByte", uintType, ubyteType): interner.intern("kk_uint_to_ubyte")
             case ("toUByte", ulongType, ubyteType): interner.intern("kk_ulong_to_ubyte")
-            case ("toUByte", ubyteType, ubyteType): nil // identity
+            case ("toUByte", ubyteType, ubyteType): nil
             case ("toUByte", ushortType, ubyteType): interner.intern("kk_ushort_to_ubyte")
             case ("toUByte", byteType, ubyteType): interner.intern("kk_byte_to_ubyte")
             case ("toUByte", shortType, ubyteType): interner.intern("kk_short_to_ubyte")
@@ -438,7 +426,7 @@ extension CallLowerer {
             case ("toUShort", longType, ushortType): interner.intern("kk_long_to_ushort")
             case ("toUShort", uintType, ushortType): interner.intern("kk_uint_to_ushort")
             case ("toUShort", ulongType, ushortType): interner.intern("kk_ulong_to_ushort")
-            case ("toChar", charType, charType): nil // identity
+            case ("toChar", charType, charType): nil
             default: nil
             }
             if let callee = conversionCallee {
@@ -488,7 +476,6 @@ extension CallLowerer {
         result: KIRExprID,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        // Char.code → unboxed UTF-16 code unit (STDLIB-305)
         // KSP-662: bundled Kotlin (kotlin.text.CharConversions) resolves
         // digitToInt / digitToIntOrNull, so no lowering special case is needed.
         if args.isEmpty, calleeNameStr == "code" {
@@ -508,8 +495,6 @@ extension CallLowerer {
         return nil
     }
 
-    /// Arithmetic member names that share the operator syntax's `.binary` lowering
-    /// for Char / Float / Double receivers.
     func explicitFloatingOrCharArithmeticOp(_ name: String) -> KIRBinaryOp? {
         switch name {
         case "plus": .add

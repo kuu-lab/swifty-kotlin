@@ -171,7 +171,6 @@ extension ControlFlowLowerer {
             instructions.append(.copy(from: unitVal, to: result))
         }
         instructions.append(.label(endLabel))
-        // If both branches terminate, propagate Nothing type to the result
         if thenTerminated, elseTerminated {
             arena.setExprType(sema.types.nothingType, for: result)
         }

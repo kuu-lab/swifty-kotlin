@@ -31,7 +31,6 @@ extension CallLowerer {
             return lateinitStatus
         }
 
-        // Scope functions with safe call: ?.run, ?.apply, ?.use, etc. (STDLIB-004)
         if sema.bindings.scopeFunctionKind(for: exprID) != nil {
             let scopeBoundType = boundType ?? sema.types.anyType
             let nullableResultType = sema.types.makeNullable(scopeBoundType)
@@ -117,8 +116,6 @@ extension CallLowerer {
             return numberConversionResult
         }
 
-        // Non-escaping Comparable<Char> local: `v?.compareTo(x)` → kk_char_compareTo
-        // behind the same null guard the generic path would build (KUU-1211).
         if let comparableCharResult = tryLowerComparableCharCompareToSafeCall(
             exprID,
             receiverExpr: receiverExpr,
@@ -245,7 +242,6 @@ extension CallLowerer {
             }
         }
 
-        // Primitive member function: Int/Long/UInt/ULong/UByte/UShort.inv() → kk_op_inv (P5-103, TYPE-005)
         if calleeStr == "inv",
            args.isEmpty,
            sema.bindings.callBinding(for: exprID) == nil
@@ -408,7 +404,6 @@ extension CallLowerer {
             }
         }
 
-        // Primitive arithmetic/infix member functions on numeric receivers.
         if args.count == 1 {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let longType = sema.types.make(.primitive(.long, .nonNull))
@@ -502,8 +497,7 @@ extension CallLowerer {
         // that `receiver?.f(sideEffect())` does not evaluate sideEffect()
         // when receiver is null.
 
-        // Primitive member function: Int/Long.toString() → kk_any_to_string
-        // (STDLIB-306). Int/Long.toString(radix: Int) is bundled Kotlin source
+        // Int/Long.toString(radix: Int) is bundled Kotlin source
         // (Stdlib/kotlin/text/StringNumberConversions.kt, KSP-717) and falls
         // through to the general safe-call lowering below.
         if calleeStr == "toString",
@@ -559,7 +553,6 @@ extension CallLowerer {
                 nonNullAnyFallbackReceiverType == sema.types.anyType
             }
         }
-        // Any.toString(): String — no-arg fallback via kk_any_to_string (STDLIB-306)
         if args.isEmpty, calleeStr == "toString", allowsAnyFallback {
             let tag = anyFallbackTag(for: anyFallbackReceiverType, sema: sema)
             let intType = sema.types.make(.primitive(.int, .nonNull))
@@ -585,7 +578,6 @@ extension CallLowerer {
             return result
         }
 
-        // Any.hashCode(): Int — via kk_any_hashCode (STDLIB-306)
         if args.isEmpty, calleeStr == "hashCode", allowsAnyFallback {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let callLabel = driver.ctx.makeLoopLabel()
@@ -619,7 +611,6 @@ extension CallLowerer {
             return result
         }
 
-        // Any.equals(other: Any?): Boolean — via kk_any_equals (STDLIB-306)
         if args.count == 1, calleeStr == "equals", allowsAnyFallback {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let callLabel = driver.ctx.makeLoopLabel()
@@ -653,7 +644,6 @@ extension CallLowerer {
             return result
         }
 
-        // Primitive conversion: toInt(), toUInt(), toLong(), toULong(), toFloat(), toDouble(), toByte(), toShort() (TYPE-005, STDLIB-151)
         if args.isEmpty {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let longType = sema.types.make(.primitive(.long, .nonNull))
@@ -870,10 +860,9 @@ extension CallLowerer {
             return result
         }
 
-        // Explicit `.invoke(...)` on a receiver whose own type is a function
-        // type (e.g. `fs["dbl"]?.invoke(4)`). Mirrors the non-safe-call arm
-        // in `lowerMemberCallExpr` and goes through `lowerResolvedCallBody`
-        // so positional-receiver / default-arg shapes stay consistent.
+        // Mirrors the non-safe-call arm in `lowerMemberCallExpr` and goes
+        // through `lowerResolvedCallBody` so positional-receiver / default-arg
+        // shapes stay consistent.
         if let invokeResult = tryLowerFunctionTypeInvokeMemberCall(
             exprID,
             calleeName: effectiveCalleeName,
@@ -891,11 +880,8 @@ extension CallLowerer {
             return result
         }
 
-        // Callable-value invocation through a safe call (KUU-644):
-        // `h?.f(args)` on a function-typed member property. The receiver is
-        // already known non-null here; emit the property read / invoke on the
-        // non-null path and copy into the nullable result like the other
-        // safe-call arms. Explicit `x?.invoke(args)` is handled above.
+        // The receiver is already known non-null here. Explicit
+        // `x?.invoke(args)` is handled above.
         if let callableBinding = sema.bindings.callableValueCalls[exprID],
            case let .functionType(fnType) = sema.types.kind(of: callableBinding.functionType),
            let invokeCallee = runtimeCallableInvokeCallee(
@@ -981,9 +967,7 @@ extension CallLowerer {
             }
         }
 
-        // KCallable metadata properties are shared by KFunction, KConstructor,
-        // and KProperty.
-        // boxes. Handle the safe-call form here after the receiver null check;
+        // Handle the safe-call form here after the receiver null check;
         // otherwise the generic fallback emits an undefined `name` symbol.
         if tryLowerKCallableNameAccess(
             propertySymbol: sema.bindings.identifierSymbol(for: exprID),
@@ -1052,11 +1036,6 @@ extension CallLowerer {
             return result
         }
 
-        // External member property read (e.g. Duration?.inWholeNanoseconds →
-        // kk_duration_inWholeNanoseconds).
-        // When the expr is bound via identifierSymbol (set by lookupMemberProperty in sema)
-        // to a property with an externalLinkName, emit the runtime call directly.
-        // This mirrors tryLowerExternalMemberPropertyRead used by lowerMemberLikeCallExpr.
         if args.isEmpty,
            let propSym = sema.bindings.identifierSymbol(for: exprID),
            let extLink = sema.symbols.externalLinkName(for: propSym),
@@ -1561,10 +1540,6 @@ extension CallLowerer {
         return true
     }
 
-    /// Determine if a callee method requires virtual dispatch.
-    /// Returns `.vtable(slot:)` for class methods or `.itable(slot:)` for interface methods,
-    /// or `nil` if the call should use direct (static) dispatch.
-    ///
     /// Thin wrapper over the free `resolveVirtualDispatchKind` (below, outside
     /// this extension) so existing `CallLowerer`-qualified call sites (and the
     /// unit tests that exercise this by name) are unaffected; the free function
@@ -1583,7 +1558,6 @@ extension CallLowerer {
     }
 }
 
-/// Determine if a callee method requires virtual dispatch.
 /// Returns `.vtable(slot:)` for class methods or `.itable(slot:)` for interface methods,
 /// or `nil` if the call should use direct (static) dispatch.
 ///
@@ -1745,12 +1719,25 @@ private func resolveItableDispatchKind(
         guard let receiverClassSym = sema.symbols.symbol(receiverClassSymID) else { return nil }
 
         if receiverClassSym.kind == .class {
+            let hasSubtypes = !sema.symbols.directSubtypes(of: receiverClassSymID).isEmpty
+            let needsAbstractInterfaceDispatch = sema.symbols.symbol(callee)?.flags.contains(.abstractType) == true
             // If the receiver is a concrete class with no subtypes, use direct
-            // dispatch.  Kotlin classes are final by default, so this is safe and
-            // avoids the itable path which requires runtime typeInfo support.
-            if sema.symbols.directSubtypes(of: receiverClassSymID).isEmpty { return nil }
-            guard let receiverLayout = sema.symbols.nominalLayout(for: receiverClassSymID) else { return nil }
-            let interfaceSlot = receiverLayout.itableSlots[parentID] ?? 0
+            // dispatch when the selected method has a concrete body. An
+            // abstract interface declaration still needs the implementing
+            // class's itable, even when this final class cannot have subtypes.
+            guard hasSubtypes || needsAbstractInterfaceDispatch,
+                  let receiverLayout = sema.symbols.nominalLayout(for: receiverClassSymID)
+            else { return nil }
+            let interfaceSlot: Int
+            if let registeredSlot = receiverLayout.itableSlots[parentID] {
+                interfaceSlot = registeredSlot
+            } else if hasSubtypes {
+                // Preserve the established fallback for a class whose subtype
+                // metadata is incomplete in this compilation unit.
+                interfaceSlot = 0
+            } else {
+                return nil
+            }
             return .itable(interfaceSlot: interfaceSlot, methodSlot: methodSlot)
         }
 

@@ -422,6 +422,20 @@ struct RuntimeRangeHOFTests {
     }
 
     @Test
+    func testSequenceCompatibilityReduceIndexedTraversesRangeHandle() {
+        let range = kk_op_rangeTo(1, 4)
+        var thrown = 0
+        let result = kk_sequence_reduceIndexed(
+            range,
+            unsafeBitCast(rangeReduceIndexedAccPlusIndexPlusValue, to: Int.self),
+            0,
+            &thrown
+        )
+        #expect(thrown == 0)
+        #expect(result == 16)
+    }
+
+    @Test
     func testRangeReduceIndexedOnSingleElement() {
         let range = kk_op_rangeTo(5, 5)
         let result = kk_range_reduceIndexed(range, unsafeBitCast(rangeReduceIndexedAccPlusIndexPlusValue, to: Int.self), 0, nil)

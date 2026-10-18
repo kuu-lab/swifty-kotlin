@@ -5,12 +5,8 @@ extension ExprLowerer {
         shared: KIRLoweringSharedContext,
         emit instructions: inout KIRLoweringEmitContext
     ) -> KIRExprID {
-        // Capture the instruction count before lowering so we can associate
-        // source locations with all newly emitted instructions afterwards.
         let beforeCount = instructions.instructions.count
 
-        // Look up the source range for this expression from the AST arena,
-        // which already provides a range-extraction helper for all Expr cases.
         let exprRange = shared.ast.arena.exprRange(exprID)
 
         let result = lowerExpr(
@@ -23,9 +19,6 @@ extension ExprLowerer {
             instructions: &instructions.instructions
         )
 
-        // Pad instructionLocations to match the new instruction count,
-        // recording the expression's source range for every instruction
-        // that was emitted during this lowerExpr call.
         let afterCount = instructions.instructions.count
         while instructions.instructionLocations.count < beforeCount {
             instructions.instructionLocations.append(nil)

@@ -282,6 +282,69 @@ public func __kk_java_field_get_annotations_typed(
     return runtimeAnnotationArray(field.metadata.annotations, outThrown: outThrown)
 }
 
+private let runtimeJavaInheritedAnnotationName = "java.lang.annotation.Inherited"
+
+private func runtimeJavaClassAnnotations(typeToken: Int) -> [RuntimeAnnotationRecord] {
+    guard let metadata = runtimeKClassMetadataRegistry.lookup(typeToken: typeToken) else { return [] }
+
+    var annotations = metadata.annotations
+    var presentAnnotationNames = Set(annotations.map(\.annotationFQName))
+    var visitedClassNames: Set<String> = [metadata.qualifiedName]
+    var current = metadata
+
+    while let superclass = runtimeJavaSuperclassMetadata(of: current),
+          visitedClassNames.insert(superclass.qualifiedName).inserted
+    {
+        for annotation in superclass.annotations
+        where !presentAnnotationNames.contains(annotation.annotationFQName)
+            && runtimeJavaAnnotationIsInherited(annotation.annotationFQName)
+        {
+            annotations.append(annotation)
+            presentAnnotationNames.insert(annotation.annotationFQName)
+        }
+        current = superclass
+    }
+
+    return annotations
+}
+
+private func runtimeJavaSuperclassMetadata(of metadata: RuntimeKClassMetadataEntry) -> RuntimeKClassMetadataEntry? {
+    for displayName in metadata.supertypeDisplayNames {
+        let name = String(displayName.prefix { $0 != "<" }).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty,
+              let candidate = runtimeKClassMetadataRegistry.lookup(qualifiedName: name),
+              !candidate.isInterface
+        else {
+            continue
+        }
+        return candidate
+    }
+    return nil
+}
+
+private func runtimeJavaAnnotationIsInherited(_ annotationName: String) -> Bool {
+    runtimeKClassMetadataRegistry.isJavaInheritedAnnotation(name: annotationName)
+}
+
+@_cdecl("__kk_java_class_register_inherited_annotation")
+public func __kk_java_class_register_inherited_annotation(_ annotationNameRaw: Int) -> Int {
+    let annotationName = extractString(from: UnsafeMutableRawPointer(bitPattern: annotationNameRaw)) ?? ""
+    runtimeKClassMetadataRegistry.registerJavaInheritedAnnotation(name: annotationName)
+    return 0
+}
+
+@_cdecl("__kk_java_class_get_annotations_typed")
+public func __kk_java_class_get_annotations_typed(
+    _ classRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let javaClass = resolveRuntimeHandle(classRaw, as: RuntimeJavaClassBox.self) else {
+        runtimeStructuredPanic("invalid Java Class handle")
+    }
+    return runtimeAnnotationArray(runtimeJavaClassAnnotations(typeToken: javaClass.typeToken), outThrown: outThrown)
+}
+
 @_cdecl("__kk_java_class_get_name")
 public func __kk_java_class_get_name(_ classRaw: Int) -> Int {
     guard let javaClass = resolveRuntimeHandle(classRaw, as: RuntimeJavaClassBox.self) else {

@@ -61567,6 +61567,12 @@
           "target": null
         },
         {
+          "arguments": [],
+          "name": "kotlin.jvm.JvmSynthetic",
+          "source": "@kotlin.jvm.JvmSynthetic",
+          "target": null
+        },
+        {
           "arguments": [
             {
               "expression": "\"UNUSED_PARAMETER\"",
@@ -61586,7 +61592,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 362,
+      "line": 363,
       "name": "dataAsByteArray",
       "origin": "local",
       "owner": "kotlinx.io.Segment",
@@ -61648,7 +61654,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 372,
+      "line": 373,
       "name": "writeBackData",
       "origin": "local",
       "owner": "kotlinx.io.Segment",
@@ -61704,7 +61710,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 374,
+      "line": 375,
       "name": "getUnchecked",
       "origin": "local",
       "owner": "kotlinx.io.Segment",
@@ -61748,7 +61754,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 378,
+      "line": 379,
       "name": "setUnchecked",
       "origin": "local",
       "owner": "kotlinx.io.Segment",
@@ -61800,7 +61806,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 382,
+      "line": 383,
       "name": "setUnchecked",
       "origin": "local",
       "owner": "kotlinx.io.Segment",
@@ -61864,7 +61870,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 389,
+      "line": 390,
       "name": "setUnchecked",
       "origin": "local",
       "owner": "kotlinx.io.Segment",
@@ -61940,7 +61946,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 397,
+      "line": 398,
       "name": "setUnchecked",
       "origin": "local",
       "owner": "kotlinx.io.Segment",
@@ -62028,7 +62034,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "object",
-      "line": 406,
+      "line": 407,
       "name": "Companion",
       "origin": "local",
       "owner": "kotlinx.io.Segment",
@@ -62055,7 +62061,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "property",
-      "line": 408,
+      "line": 409,
       "name": "SIZE",
       "origin": "local",
       "owner": "kotlinx.io.Segment.Companion",
@@ -62086,7 +62092,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "property",
-      "line": 411,
+      "line": 412,
       "name": "SHARE_MINIMUM",
       "origin": "local",
       "owner": "kotlinx.io.Segment.Companion",
@@ -62117,7 +62123,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 413,
+      "line": 414,
       "name": "new",
       "origin": "local",
       "owner": "kotlinx.io.Segment.Companion",
@@ -62148,7 +62154,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 415,
+      "line": 416,
       "name": "new",
       "origin": "local",
       "owner": "kotlinx.io.Segment.Companion",
@@ -62243,7 +62249,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 425,
+      "line": 426,
       "name": "indexOf",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -62315,7 +62321,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 446,
+      "line": 447,
       "name": "indexOfBytesInbound",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -62375,7 +62381,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 477,
+      "line": 478,
       "name": "indexOfBytesOutbound",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -62442,7 +62448,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 516,
+      "line": 517,
       "name": "isEmpty",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -82825,7 +82831,7 @@
       "origin": "local",
       "package": "kotlinx.io",
       "path": "Sources/CompilerCore/Stdlib/kotlinx/io/Segment.kt",
-      "sha256": "7d435296e9b68b53fc19599cf97e2fd53b10af65517f15eb63bcce4d1ec77d4b"
+      "sha256": "972b7dcb7de90d7e18e6f375fcf98563b553447142ca30a78cbf150bc26a5378"
     },
     {
       "fileAnnotations": [],
@@ -83552,7 +83558,7 @@
     },
     {
       "path": "Sources/Runtime/RuntimeCoroutine+Continuation.swift",
-      "sha256": "84bd88f5423617654cb0727654d2716ac09481e3e3ef2a9c689768718f1dfb81"
+      "sha256": "b51f8861803e97ad2fc2028d911a25046521a8d4e1e4440a61655483874c1d43"
     },
     {
       "path": "Sources/Runtime/RuntimeCoroutine+ExceptionHandler.swift",
@@ -83580,7 +83586,7 @@
     },
     {
       "path": "Sources/Runtime/RuntimeCoroutine+SyncGate.swift",
-      "sha256": "be9168964fb4d2eb8228e20cc7eaf1a5b06cd01cecd4575299f5298af9603d91"
+      "sha256": "4118cbdbbd773c0a8603d33c3e9c2546308a2ed6e61f9d7c76ec5e4e39b7a447"
     },
     {
       "path": "Sources/Runtime/RuntimeCoroutine+TestSupport.swift",
@@ -83716,7 +83722,7 @@
     },
     {
       "path": "Sources/Runtime/RuntimeJavaReflection.swift",
-      "sha256": "041389e3f9f024ff3a39419936a45d8d9e5c9501d6cb7c883664d6309cd5d6e5"
+      "sha256": "a3c66b1b3b8e187f9ce8ff7ca4f967b6bb48b5fda022e66df197443d62eec90f"
     },
     {
       "path": "Sources/Runtime/RuntimeJvmClass.swift",
@@ -83856,7 +83862,7 @@
     },
     {
       "path": "Sources/Runtime/RuntimeSequence.swift",
-      "sha256": "5536d31a8a5df9de469f41f9512eab7818cee92dbfc6fb369ea377ba904e0378"
+      "sha256": "999dd1948f21afd2c67f47f0ee34887c051434682494692f6f5494dae77cf928"
     },
     {
       "path": "Sources/Runtime/RuntimeSequenceBuilders.swift",
@@ -84020,7 +84026,7 @@
     },
     {
       "path": "Sources/Runtime/RuntimeTypes+Reflection.swift",
-      "sha256": "4e2d458e65a5bf9abba9edd86647eac724b4e697d41669eb8b4edc198cec98ce"
+      "sha256": "33d4d900f396cf1a17300590e23d04de613fa215651f92334882359d0a9a3fcb"
     },
     {
       "path": "Sources/Runtime/RuntimeTypes+SequenceBuilders.swift",

@@ -1,7 +1,3 @@
-/// Sequence/Iterable-typed member-call fallbacks that still go through
-/// the `kk_sequence_*` / `__kk_iterable_*` runtime bridges rather than
-/// resolved bundled-source declarations.
-
 extension CallLowerer {
 
     func lowerLegacySequenceIterableSingleArgFallback(

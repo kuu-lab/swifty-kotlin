@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """Guard the F02 gate against reduced scope, skipped defaults and stale artifacts."""
+import csv
 import json
 import contextlib
 import io
 import struct
 from pathlib import Path
+import re
 import tempfile
 import unittest
 from unittest.mock import patch
 
+import generate as inventory_generator
 import generate_f02_consumers as generator
 import run_f02_matrix as matrix
 
@@ -31,6 +34,96 @@ else:
 
 
 class F02GateTests(unittest.TestCase):
+    def test_segment_data_as_byte_array_is_an_independently_selectable_jvm_paired_case(self):
+        cases = {case["id"]: case for case in matrix.scenarios()}
+        case = cases["segment-data-as-byte-array"]
+        self.assertEqual(case["fixture"], matrix.ROOT / "Scripts/io_api_inventory/probes/segment_data_as_byte_array.kt")
+        self.assertEqual(case["negative_fixture"], matrix.ROOT / "Scripts/io_api_inventory/probes/segment_data_as_byte_array_negative.kt")
+        self.assertEqual(case["reference_probe"], matrix.ROOT / "Scripts/io_api_inventory/probes/segment_data_as_byte_array_jvm_abi.kt")
+        self.assertEqual(case["reference"], "jvm")
+        self.assertEqual(case["entry"], "f02consumer.main")
+        self.assertEqual(case["reference_class"], "f02jvmabi.SegmentDataAsByteArrayJvmAbi")
+        abi_probe = case["reference_probe"].read_text(encoding="utf-8")
+        self.assertIn("!Modifier.isStatic(method.modifiers)", abi_probe)
+
+    def test_segment_data_as_byte_array_retains_published_api_and_jvm_synthetic(self):
+        paths = (
+            matrix.ROOT / "Sources/CompilerCore/Stdlib/kotlinx/io/Segment.kt",
+            matrix.ROOT / "Scripts/io_api_inventory/upstream/kotlinx-io-0.9.1/core/common/src/Segment.kt",
+        )
+        for path in paths:
+            source = path.read_text(encoding="utf-8")
+            match = re.search(
+                r"(?P<annotations>(?:^[ \t]*@[^\n]*\n)+)^[ \t]*internal fun dataAsByteArray\(",
+                source,
+                re.MULTILINE,
+            )
+            self.assertIsNotNone(match, str(path))
+            annotations = {
+                name.rsplit(".", 1)[-1]
+                for name in re.findall(r"^[ \t]*@([\w.]+)", match.group("annotations"), re.MULTILINE)
+            }
+            self.assertTrue({"PublishedApi", "JvmSynthetic"}.issubset(annotations), str(path))
+
+    def test_local_probe_evidence_ids_and_candidate_source_metadata_are_explicit(self):
+        case_id = "local:Scripts/io_api_inventory/probes/segment_data_as_byte_array.kt#internal-view"
+        lane = "source-O0"
+        candidate_sha = "a" * 40
+        reference_commit = "b" * 40
+        reference = matrix.local_probe_execution(
+            case_id, lane, candidate_sha, reference_commit, "reference", "PASS"
+        )
+        candidate = matrix.local_probe_execution(
+            case_id, lane, candidate_sha, reference_commit, "candidate", "PASS"
+        )
+        self.assertEqual(reference["method"], "jvm-probe")
+        self.assertEqual(candidate["method"], "native-matrix")
+        self.assertNotEqual(reference["execution_id"], candidate["execution_id"])
+        self.assertEqual(
+            reference["execution_id"],
+            matrix.local_probe_execution_id(candidate_sha, reference_commit, case_id, lane, "reference"),
+        )
+        metadata = matrix.verify_segment_data_as_byte_array_source_metadata()
+        self.assertEqual(metadata["status"], "PASS")
+        self.assertTrue({"PublishedApi", "JvmSynthetic"}.issubset(metadata["annotations"]))
+
+    def test_visibility_probe_result_is_independent_of_later_lane_failure(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            (directory / "candidate.json").write_text(
+                json.dumps({"status": "EXITED", "exitcode": 1}), encoding="utf-8"
+            )
+            (directory / "candidate.stderr").write_text(
+                "error KSWIFTK-SEMA-0044: Cannot access 'dataAsByteArray': it is internal\n",
+                encoding="utf-8",
+            )
+            self.assertTrue(matrix.visibility_rejection_passed(directory, "candidate"))
+
+            (directory / "candidate.json").write_text(
+                json.dumps({"status": "EXITED", "exitcode": 0}), encoding="utf-8"
+            )
+            self.assertFalse(matrix.visibility_rejection_passed(directory, "candidate"))
+
+            (directory / "candidate.json").write_text(
+                json.dumps({"status": "TIMEOUT", "exitcode": 1}), encoding="utf-8"
+            )
+            self.assertFalse(matrix.visibility_rejection_passed(directory, "candidate"))
+
+    def test_segment_read_context_probe_is_a_dedicated_friend_consumer(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "segment-read-context-impl")
+        producer = case["producer"][0].read_text(encoding="utf-8")
+        probe = case["jvm_abi_probe"].read_text(encoding="utf-8")
+
+        self.assertEqual(case["entry"], "kuu2590consumer.main")
+        self.assertTrue(case["friend_io_artifacts"])
+        self.assertEqual(matrix.reference_friend_args(case, [Path("core.jar"), Path("bytestring.jar")]),
+                         ["-Xfriend-paths=core.jar,bytestring.jar"])
+        self.assertIn("val first: SegmentReadContext = SegmentReadContextImpl", producer)
+        self.assertIn("val second: SegmentReadContext = SegmentReadContextImpl", producer)
+        self.assertIn("first.getUnchecked(segment, offset + index)", producer)
+        self.assertIn("getter.isSynthetic()", probe)
+        self.assertIn("getter.invoke(null)", probe)
+
     def test_generated_public_rows_and_every_full_default_call_are_required(self):
         generated = generator.generate()
         manifest = json.loads(generated["manifest.json"])
@@ -46,6 +139,53 @@ class F02GateTests(unittest.TestCase):
         self.assertNotIn("private fun run_klib", generated["Producer.kt"])
         self.assertIn('println("committed:"', generated["Consumer.kt"])
         self.assertEqual(generator.expression("Byte", "b3"), "4.toByte()")
+
+    def test_deprecated_path_consumer_is_independently_selectable_against_jvm(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "deprecated-path-source-sink")
+        self.assertEqual(case["reference"], "jvm")
+        self.assertEqual(case["fixture"], matrix.ROOT / "Scripts/diff_cases/kotlinx_io_file_legacy_suppressed.kt")
+        self.assertEqual(matrix.LANES, [
+            ("source", "O0"), ("source", "O2"),
+            ("stdlib-library", "O0"), ("stdlib-library", "O2"),
+            ("producer-consumer", "O0"), ("producer-consumer", "O2"),
+        ])
+
+    def test_deprecated_path_rows_have_no_unrelated_upstream_assertions(self):
+        expected = {
+            "jvm-23bdc46eecb769ad": (
+                "core/common/src/files/Paths.kt:133",
+                "core/common/test/files/SmokeFileTest.kt#createAnEmptyFileUsingSink",
+            ),
+            "jvm-4a6ead57ff31eb51": (
+                "core/common/src/files/Paths.kt:115",
+                "core/common/test/files/SmokeFileTest.kt#closeFileSourceTwice",
+            ),
+            "klib-91d3efd901de8c9b": (
+                "core/common/src/files/Paths.kt:133",
+                "core/common/test/files/SmokeFileTest.kt#closeFileSinkTwice",
+            ),
+            "klib-ec16724d485f26fc": (
+                "core/common/src/files/Paths.kt:115",
+                "core/common/test/files/SmokeFileTest.kt#closeFileSourceTwice",
+            ),
+        }
+        with (matrix.HERE / "api-inventory.tsv").open(encoding="utf-8", newline="") as stream:
+            rows = {row["row_id"]: row for row in csv.DictReader(stream, delimiter="\t")}
+        for row_id, (source_ref, unrelated_case) in expected.items():
+            with self.subTest(row_id=row_id):
+                row = rows[row_id]
+                self.assertEqual(row["upstream_source_refs"], source_ref)
+                self.assertEqual(row["upstream_test_refs"], inventory_generator.NO_DIRECT_UPSTREAM_ASSERTION)
+                self.assertEqual(row["status"], "unverified")
+                self.assertEqual(
+                    inventory_generator.upstream_test_refs(
+                        {"upstream_source_refs": source_ref, "_source_paths": []}, {"files": []}
+                    ),
+                    [],
+                )
+                self.assertFalse(inventory_generator._case_id_matches_row(row, unrelated_case))
+                self.assertIn("Scripts/diff_cases/kotlinx_io_file_legacy_suppressed.kt", row["local_test_refs"])
+                self.assertIn("Tests/CompilerCoreTests/Sema/KotlinxIOF01ContractTests.swift", row["local_test_refs"])
 
     def test_missing_default_call_and_duplicate_row_cannot_pass(self):
         manifest = {"paired_source_rows": ["a"], "required_call_ids": ["a:0", "a:1"]}

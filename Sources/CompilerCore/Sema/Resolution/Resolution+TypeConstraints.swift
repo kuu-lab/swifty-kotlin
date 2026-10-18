@@ -1050,6 +1050,7 @@ extension OverloadResolver {
 
         switch (projectedSubArg, projectedSuperArg) {
         case let (.invariant(subInner), .invariant(superInner)):
+            // Invariant: both directions (equality).
             var result = decomposeSubtypeConstraintImpl(
                 subtype: subInner, supertype: superInner,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,

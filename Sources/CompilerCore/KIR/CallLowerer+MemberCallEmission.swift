@@ -1,6 +1,5 @@
 // swiftlint:disable file_length
 
-/// Member-call argument normalization and instruction emission helpers.
 extension CallLowerer {
     func memberExtensionOwnerSymbol(for callee: SymbolID, sema: SemaModule) -> SymbolID? {
         sema.symbols.memberExtensionOwnerSymbol(for: callee)
@@ -144,7 +143,6 @@ extension CallLowerer {
         return nil
     }
 
-    /// Supply the dispatch receiver shared by getter, setter and compound updates.
     func propertyAccessorArguments(
         for accessor: SymbolID,
         arguments: [KIRExprID],
@@ -209,8 +207,6 @@ extension CallLowerer {
         }
     }
 
-    /// Whether `symbol` is a `const val` whose value `tryFoldConstMemberProperty`
-    /// inlines at the use site.
     func isFoldableConstProperty(
         _ symbol: SymbolID,
         sema: SemaModule,
@@ -382,7 +378,6 @@ extension CallLowerer {
         }
     }
 
-    /// Emits the ordinal dispatcher shared by ordinary and safe enum calls.
     func tryEmitEnumEntryDispatchCall(
         defaultMask: Int64,
         isSuperCall: Bool,
@@ -1294,8 +1289,6 @@ extension CallLowerer {
         }
     }
 
-    /// Runtime callee names whose `.call` should be emitted with
-    /// `canThrow: true`.
     private static let throwingMemberCalleeNames: Set<String> = [
         "kk_list_random",
         "kk_iterable_iterator",
@@ -1380,7 +1373,6 @@ extension CallLowerer {
         "kk_sequence_scanIndexed",
     ]
 
-    /// Runtime callee names whose `Result`-style callbacks expand inline.
     private static let resultFunction1CalleeNames: Set<String> = [
         "kk_runtime_result_get_or_else",
         "kk_runtime_result_map",
@@ -1483,7 +1475,6 @@ extension CallLowerer {
             )
             instructions.append(.constValue(result: fnPtrExpr, value: .symbolRef(callableInfo.symbol)))
             if callableInfo.captureArguments.count >= 2 {
-                // Multi-capture: pack captures into a closure object.
                 let intType = sema.types.intType
                 let anyType = sema.types.anyType
                 let kkObjectNew = interner.intern("kk_object_new")

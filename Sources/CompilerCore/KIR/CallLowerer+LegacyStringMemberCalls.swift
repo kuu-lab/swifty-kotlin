@@ -1,8 +1,3 @@
-/// Legacy flat-ABI String/CharSequence member calls (`length`,
-/// `lowercase`/`uppercase`, `first`/`last`/`single`(+`OrNull`),
-/// `toRegex`, `contains` on Regex, `ifBlank`/`ifEmpty`, `format`)
-/// plus Regex `find`/`findAll` bridges.
-
 extension CallLowerer {
 
     func lowerLegacyStringLengthCall(
@@ -47,7 +42,6 @@ extension CallLowerer {
         result: KIRExprID,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        // String stdlib: 0-arg methods (STDLIB-006)
         if args.isEmpty {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
@@ -163,7 +157,6 @@ extension CallLowerer {
         result: KIRExprID,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        // String stdlib: 1-arg methods (STDLIB-006)
         if args.count == 1 {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
@@ -349,7 +342,6 @@ extension CallLowerer {
         result: KIRExprID,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        // String stdlib: format(vararg args) (STDLIB-006)
         if calleeNameStr == "format",
            let chosenCallee = sema.bindings.callBindings[exprID]?.chosenCallee,
            sema.symbols.externalLinkName(for: chosenCallee) == "__kk_string_format_flat"
