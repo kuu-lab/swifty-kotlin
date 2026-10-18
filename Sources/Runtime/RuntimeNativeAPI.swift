@@ -24,12 +24,10 @@ func runtimeCurrentStackTraceAddresses() -> [Int] {
 }
 
 
-/// Runtime backing for `kotlinx.cinterop.CPointer<T>`.
-///
-/// Holds a raw C pointer value. In the KSwiftK ABI, pointer types are
-/// represented as boxed `Int` values that carry the machine-word address.
-/// `pointeeTypeID` is the nominal typeID of T (0 = opaque/untyped), used by
-/// `pointed`, `get`, and `reinterpret` to select the pointee's C layout.
+/// In the KSwiftK ABI, pointer types are represented as boxed `Int` values that
+/// carry the machine-word address. `pointeeTypeID` is the nominal typeID of T
+/// (0 = opaque/untyped), used by `pointed`, `get`, and `reinterpret` to select
+/// the pointee's C layout.
 final class RuntimeCPointerBox: @unchecked Sendable {
     let address: UInt
     let pointeeTypeID: Int64
@@ -39,9 +37,6 @@ final class RuntimeCPointerBox: @unchecked Sendable {
     }
 }
 
-/// Runtime backing for `kotlinx.cinterop.COpaquePointer`.
-///
-/// An untyped C pointer, semantically equivalent to `void *`.
 final class RuntimeCOpaquePointerBox: @unchecked Sendable {
     let address: UInt
     init(address: UInt) {
@@ -49,15 +44,11 @@ final class RuntimeCOpaquePointerBox: @unchecked Sendable {
     }
 }
 
-// (a) RF-DEAD-002: 配線予定 → STDLIB-CINTEROP (CPointer / COpaquePointer / cname / pinned / cleaner API)
-// 以下 kk_cpointer_* / kk_copaque_pointer_* / kk_cname_* / kk_pinned_get / kk_cleaner_clean は全て同領域に紐付く。
 @_cdecl("kk_cpointer_new")
 public func kk_cpointer_new(_ address: Int) -> Int {
     registerRuntimeObject(RuntimeCPointerBox(address: UInt(bitPattern: address)))
 }
 
-/// Resolves a runtime handle to its `RuntimeCPointerBox`, performing all
-/// null-safety and registry checks. Returns `nil` for invalid handles.
 func resolveCPointerBox(from handle: Int) -> RuntimeCPointerBox? {
     guard handle != 0, handle != runtimeNullSentinelInt,
           let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
@@ -560,8 +551,6 @@ public func kk_native_byteArray_setDoubleAt(_ arrayRaw: Int, _ index: Int, _ val
 }
 
 
-/// Runtime backing for `kotlinx.cinterop.CValues<ByteVar>`.
-///
 /// Holds a copy of the ByteArray contents in a C-layout buffer allocated on
 /// the unmanaged heap. The buffer is freed when this box is deallocated by
 /// the KSwiftK GC. The raw address can be wrapped in a `RuntimeCPointerBox`
@@ -668,8 +657,6 @@ public func __kk_immutable_blob_as_cpointer(_ blobRaw: Int, _ offset: Int) -> In
 }
 
 
-/// Runtime backing for `kotlin.native.ref.Pinned<T>`.
-///
 /// Pinning prevents the GC from moving (or collecting) a heap object while
 /// the pin is held.  In the KSwiftK stop-the-world mark-sweep GC objects
 /// are never moved, so pinning is implemented as a simple reference hold:
@@ -761,7 +748,6 @@ public func kk_unpin_object(_ pinnedHandle: Int) -> Int {
     return objectRaw
 }
 
-// (a) RF-DEAD-002: 配線予定 → STDLIB-CINTEROP-FN-009/042 (pin() / usePinned())
 @_cdecl("kk_pinned_get")
 public func kk_pinned_get(_ pinnedHandle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: pinnedHandle) else {
@@ -849,8 +835,6 @@ public func kk_stable_ref_dispose(_ pointerHandle: Int) -> Int {
 }
 
 
-/// Runtime backing for `kotlin.native.ref.WeakReference<T>`.
-///
 /// KSwiftK has two object domains: managed heap objects tracked by `heapObjects`
 /// and retained runtime boxes tracked by `objectPointers`. A weak reference never
 /// registers its referent as a GC root; `get()` returns null once the referent is
@@ -957,8 +941,6 @@ public func kk_weak_ref_clear(_ weakRefRaw: Int) -> Int {
 }
 
 
-/// Runtime backing for `kotlin.native.ref.createCleaner`.
-///
 /// The cleaner keeps the value and cleanup function reachable until either
 /// `clean()` invokes the function once or `dispose()` drops both handles without
 /// invoking it. Automatic finalization is intentionally not modeled here.
@@ -1041,11 +1023,6 @@ public func kk_cleaner_dispose(_ cleanerRaw: Int) -> Int {
 }
 
 
-/// ABI-004: Protocol adopted by runtime boxes that store child object handles.
-///
-/// `kk_freeze_object` uses BFS over all reachable children so that freezing a
-/// root object also freezes every transitively-reachable ref field.
-/// Cycle detection is handled by the visited set maintained in the registry.
 protocol RuntimeChildReferenceProviding {
     /// Return all `Int` handles that this box treats as direct child object refs.
     /// Only handles that are non-zero and registered in `objectPointers` are
@@ -1059,9 +1036,6 @@ private final class RuntimeFrozenRegistry: @unchecked Sendable {
     private let lock = NSLock()
     private var frozen: Set<UInt> = []
 
-    /// ABI-004: Freeze `root` and every transitively-reachable object.
-    ///
-    /// BFS traversal via `RuntimeChildReferenceProviding.childRefs`.
     /// A per-call visited set prevents infinite loops on cyclic graphs.
     func freezeRecursive(_ root: Int) {
         guard root != 0 else { return }
@@ -1077,7 +1051,6 @@ private final class RuntimeFrozenRegistry: @unchecked Sendable {
             lock.lock()
             frozen.insert(key)
             lock.unlock()
-            // Collect children only for registered objectPointer boxes.
             guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { continue }
             let isRegistered = runtimeStorage.withGCLock { state in
                 state.objectPointers.contains(UInt(bitPattern: ptr))
@@ -1121,7 +1094,6 @@ func runtimeForgetFrozenObject(_ raw: Int) {
 @discardableResult
 @_cdecl("kk_freeze_object")
 public func kk_freeze_object(_ objectRaw: Int) -> Int {
-    // ABI-004: recursive freeze — traverses all reachable ref fields.
     runtimeFrozenSet.freezeRecursive(objectRaw)
     return objectRaw
 }
@@ -1131,11 +1103,8 @@ public func kk_is_frozen(_ objectRaw: Int) -> Int {
 }
 
 
-/// Runtime backing for `kotlin.native.concurrent.Worker`.
-///
 /// Each Worker owns a dedicated serial `DispatchQueue`.  Jobs submitted via
-/// `execute` are run in FIFO order on that queue.  `requestTermination` drains
-/// the queue and prevents new work from being submitted.
+/// `execute` are run in FIFO order on that queue.
 final class RuntimeWorkerBox: @unchecked Sendable {
     /// Guards `terminated`/`pendingJobs` and doubles as the condition
     /// `waitForTermination` parks on until `requestTermination` broadcasts.
@@ -1198,7 +1167,7 @@ final class RuntimeWorkerBox: @unchecked Sendable {
         return box?.handle
     }
 
-    /// Submit a closure to the worker. Returns false if the worker has been terminated.
+    /// Returns false if the worker has been terminated.
     @discardableResult
     func execute(_ work: @escaping @Sendable () -> Void) -> Bool {
         lock.lock()
@@ -1228,7 +1197,6 @@ final class RuntimeWorkerBox: @unchecked Sendable {
         lock.unlock()
 
         if processScheduled {
-            // Drain by submitting a barrier work item and waiting for it.
             let group = DispatchGroup()
             group.enter()
             queue.async {
@@ -1244,7 +1212,6 @@ final class RuntimeWorkerBox: @unchecked Sendable {
         return terminated
     }
 
-    /// Blocks until `requestTermination` marks this worker terminated.
     func waitForTermination() {
         lock.lock()
         defer { lock.unlock() }
@@ -1253,7 +1220,6 @@ final class RuntimeWorkerBox: @unchecked Sendable {
         }
     }
 
-    /// Schedule a closure on the worker's serial queue at the given deadline.
     /// Returns false if the worker is already terminated.
     @discardableResult
     func executeAfter(deadline: DispatchTime, _ work: @escaping @Sendable () -> Void) -> Bool {
@@ -1275,8 +1241,6 @@ final class RuntimeWorkerBox: @unchecked Sendable {
         return true
     }
 
-    /// Process work already queued for this worker.
-    ///
     /// Dispatch queues do not expose Kotlin/Native's worker event loop, so a
     /// synchronous queue drain is the closest equivalent.  Avoid synchronizing
     /// on the same queue because processQueue may itself be called by a worker job.
@@ -1293,8 +1257,6 @@ final class RuntimeWorkerBox: @unchecked Sendable {
         return hadPendingJobs
     }
 
-    /// Park the current worker thread for the requested duration.
-    ///
     /// The current runtime has no separate wake-up primitive, therefore an
     /// indefinite park is represented as an immediate timeout. Timed parks
     /// still preserve the observable delay and process flag behavior.
@@ -1310,7 +1272,6 @@ final class RuntimeWorkerBox: @unchecked Sendable {
         return false
     }
 
-    /// Return the platform thread currently servicing this worker queue.
     func platformThreadID() -> UInt64 {
         if DispatchQueue.getSpecific(key: queueSpecificKey) != nil {
             return runtimeCurrentPlatformThreadID()
@@ -1466,10 +1427,8 @@ public func kk_worker_name(_ workerHandle: Int) -> Int {
 }
 
 
-/// Registry for functions exported under a C-compatible external name via `@CName`.
 private final class RuntimeCNameRegistry: @unchecked Sendable {
     private let lock = NSLock()
-    // Maps externName -> function pointer (as Int)
     private var entries: [String: Int] = [:]
 
     func register(externName: String, fnPtr: Int) {
@@ -1507,7 +1466,6 @@ public func kk_cname_lookup(_ externNameRaw: Int) -> Int {
     return runtimeCNameRegistry.lookup(externName: name)
 }
 
-// STDLIB-CINTEROP-FN-046: writeBits(ptr: NativePtr, offset: Long, size: Int, value: Long)
 // Writes `size` bits from the low-order bits of `value` into raw memory starting
 // at bit position `offset` from the address `ptr`.
 //
