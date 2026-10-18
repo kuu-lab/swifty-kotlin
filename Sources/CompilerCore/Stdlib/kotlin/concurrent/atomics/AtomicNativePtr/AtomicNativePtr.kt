@@ -23,23 +23,17 @@ import kotlinx.cinterop.NativePtr
 // beginning with the `value` modifier keyword is not a valid top-level
 // boundary here.
 
-/** Atomically loads the value from this [AtomicNativePtr]. */
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
 public fun AtomicNativePtr.load(): NativePtr =
     this.value
 
-/** Atomically stores the [newValue] into this [AtomicNativePtr]. */
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
 public fun AtomicNativePtr.store(newValue: NativePtr): Unit {
     this.value = newValue
 }
 
-/**
- * Atomically stores the [newValue] into this [AtomicNativePtr]
- * and returns the old value.
- */
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
 public fun AtomicNativePtr.exchange(newValue: NativePtr): NativePtr {
@@ -48,20 +42,11 @@ public fun AtomicNativePtr.exchange(newValue: NativePtr): NativePtr {
     return oldValue
 }
 
-/**
- * Atomically stores the [newValue] into this [AtomicNativePtr]
- * and returns the old value.
- */
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
 public fun AtomicNativePtr.getAndSet(newValue: NativePtr): NativePtr =
     exchange(newValue)
 
-/**
- * Atomically stores the [newValue] into this [AtomicNativePtr]
- * if the current value equals the [expectedValue] and returns the old value.
- * Comparison of values is done by value.
- */
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
 public fun AtomicNativePtr.compareAndExchange(expectedValue: NativePtr, newValue: NativePtr): NativePtr {
@@ -72,11 +57,6 @@ public fun AtomicNativePtr.compareAndExchange(expectedValue: NativePtr, newValue
     return oldValue
 }
 
-/**
- * Atomically stores the [newValue] into this [AtomicNativePtr]
- * if the current value equals the [expectedValue] and returns `true` if the
- * operation was successful. Comparison of values is done by value.
- */
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
 public fun AtomicNativePtr.compareAndSet(expectedValue: NativePtr, newValue: NativePtr): Boolean {
@@ -88,7 +68,6 @@ public fun AtomicNativePtr.compareAndSet(expectedValue: NativePtr, newValue: Nat
     return false
 }
 
-/** Returns the string representation of the stored pointer value. */
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
 public fun AtomicNativePtr.toString(): String =
