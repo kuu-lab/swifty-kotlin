@@ -1,8 +1,6 @@
 import Foundation
 
 extension DataFlowSemaPhase {
-    /// A recognized Kotlin `.klib` library: validated manifest plus an open
-    /// container that IR/metadata readers pull entries from.
     struct KlibModule {
         let path: String
         let uniqueName: String
@@ -10,10 +8,6 @@ extension DataFlowSemaPhase {
         let container: KlibContainer
     }
 
-    /// Opens a `.klib` path (packed zip or unpacked directory), parses its
-    /// manifest and applies the version gate. Declaration/body materialization
-    /// happens in later stages of the pipeline; on success the module is
-    /// returned for the caller to keep.
     func loadKlibModule(path: String, diagnostics: DiagnosticEngine) -> KlibModule? {
         let libName = URL(fileURLWithPath: path).lastPathComponent
         let container: KlibContainer
@@ -65,10 +59,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// A `.klib` module that survived declaration import: keeps the open
-    /// container plus the decoded IR module and the
-    /// `(fileIndex, signatureIndex) → SymbolID` map so KIR lowering can
-    /// materialize serialized bodies against real consumer symbols.
     struct LoadedKlibModule {
         let module: KlibModule
         let ir: KlibIrModule
@@ -83,7 +73,7 @@ extension DataFlowSemaPhase {
 
     /// Parses the `klib<fileIndex>_<signatureIndex>` mangled names that
     /// `KlibRecordMaterializer` stamps on every record back into signature
-    /// keys. Returns `nil` for records that did not originate from a klib.
+    /// keys.
     static func klibSignatureKey(fromMangledName mangledName: String) -> KlibSignatureKey? {
         guard mangledName.hasPrefix("klib") else { return nil }
         let parts = mangledName.dropFirst(4).split(separator: "_")
@@ -94,9 +84,8 @@ extension DataFlowSemaPhase {
         return KlibSignatureKey(fileIndex: fileIndex, signatureIndex: signatureIndex)
     }
 
-    /// Builds the signature→symbol map for a klib module whose records have
-    /// just been registered, and applies the property back-links that KIR
-    /// lowering and member-access lowering rely on:
+    /// Applies the property back-links that KIR lowering and member-access
+    /// lowering rely on:
     ///
     /// * `backingFieldSymbol` links the property to its serialized backing
     ///   field record so layout synthesis keys the slot by the field symbol
@@ -135,8 +124,7 @@ extension DataFlowSemaPhase {
         return LoadedKlibModule(module: module, ir: ir, symbolBySignature: symbolBySignature)
     }
 
-    /// Validates the manifest `depends` lists across the recognized `.klib`s
-    /// and returns them ordered so dependencies come first. `depends` names
+    /// Returns the `.klib`s ordered so dependencies come first. `depends` names
     /// producer `unique_name`s; the special `stdlib` entry resolves to the
     /// bundled/precompiled standard library rather than another `.klib` on
     /// the search path. Module-init order follows this ordering, so a
