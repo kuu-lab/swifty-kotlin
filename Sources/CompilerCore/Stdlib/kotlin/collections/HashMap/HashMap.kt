@@ -10,7 +10,6 @@ package kotlin.collections
 import kotlin.internal.KsSymbolName
 import kotlin.internal.__valuesEqual
 
-// KSP-1055: HashMap receiver members are source-backed.
 // KUU-556: open, so LinkedHashMap.kt can be a real subclass (matching the
 // diff oracle's kotlinc-jvm reference, where java.util.LinkedHashMap extends
 // java.util.HashMap) instead of a typealias onto an unrelated interface.
