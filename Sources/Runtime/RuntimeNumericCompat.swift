@@ -85,8 +85,7 @@ func runtimeAnyToStringOverride(_ raw: Int) -> UnsafeMutableRawPointer? {
     return UnsafeMutableRawPointer(bitPattern: result)
 }
 
-/// Returns the text from an object-specific Any.toString() bridge when one is
-/// registered. Collection renderers use this shared dispatch path because
+/// Collection renderers use this shared dispatch path because
 /// their element ABI has already erased the static Kotlin type.
 func runtimeAnyToStringOverrideText(_ raw: Int) -> String? {
     guard let result = runtimeAnyToStringOverrideRaw(raw) else {
@@ -101,10 +100,7 @@ func runtimeAnyToStringOverrideText(_ raw: Int) -> String? {
 /// Nullable-aware variant of `kk_any_to_string`, for call sites that know
 /// their *static* type is nullable but cannot safely add KIR-level branching
 /// to guard tags 5/6/7 (Float?/Double?/ULong?) the way
-/// `CallLowerer.emitAnyToStringWithNullGuard` does (e.g.
-/// `OperatorLoweringPass.appendStringConversion`, which rewrites
-/// already-lowered function bodies where introducing fresh label numbers
-/// risks colliding with labels assigned during the earlier lowering phase).
+/// `CallLowerer.emitAnyToStringWithNullGuard` does.
 ///
 /// For tags 5/6/7, a genuinely-null value is always represented as the raw
 /// sentinel (never boxed), while a real non-null value of these tags is
@@ -236,7 +232,6 @@ func runtimeFloatHashCode(_ value: Float) -> Int {
     return Int(Int32(bitPattern: value.bitPattern))
 }
 
-/// Double.hashCode() folds canonical NaN bits while retaining signed zero.
 private func runtimeDoubleHashCode(_ value: Double) -> Int {
     let bits: UInt64 = value.isNaN ? 0x7FF8_0000_0000_0000 : value.bitPattern
     return runtimeXorFoldHashCode(Int64(bitPattern: bits))
@@ -546,7 +541,6 @@ private func runtimeAnyKind(_ value: Int, _ tag: Int32) -> Int32 {
     return 100
 }
 
-/// Any.hashCode() — uses runtime-aware hashing for boxed values and raw primitives.
 @_cdecl("kk_any_hashCode")
 public func kk_any_hashCode(_ value: Int, _ tag: Int) -> Int {
     // Swift's Int is pointer-sized, while Kotlin Int and hashCode() are always
@@ -576,7 +570,6 @@ func runtimeValueHash(_ value: Int) -> Int {
     return hash
 }
 
-/// Any.equals(other) — uses runtime-aware equality for boxed values and tagged primitives.
 @_cdecl("kk_any_equals")
 public func kk_any_equals(_ lhs: Int, _ lhsTag: Int, _ rhs: Int, _ rhsTag: Int) -> Int {
     let lhsTag = Int32(truncatingIfNeeded: lhsTag)
@@ -776,8 +769,6 @@ public func __kk_math_round(_ value: Int) -> Int {
     kk_double_to_bits(kk_bits_to_double(value).rounded(.toNearestOrEven))
 }
 
-// Trigonometric functions (STDLIB-430)
-//
 // Architecture assumption: Double bit-pattern transport via Int/intptr_t relies
 // on Int being 64-bit (MemoryLayout<Int>.size == 8) so that the full 64-bit
 // IEEE 754 payload is preserved. This is true on all Apple Silicon and x86_64
@@ -929,8 +920,6 @@ public func __kk_math_hypot(_ x: Int, _ y: Int) -> Int {
 // The low 32 bits carry the IEEE 754 single-precision payload; upper bits are
 // ignored on decode and zero-extended on encode.
 
-/// Helper: decode bit-encoded Float, apply a unary operation, re-encode.
-/// Reduces boilerplate across the Float math entry points below.
 private func applyFloatUnaryOp(_ v: Int, _ op: (Float) -> Float) -> Int {
     kk_float_to_bits(op(kk_bits_to_float(v)))
 }
@@ -1096,7 +1085,6 @@ public func __kk_math_hypot_float(_ x: Int, _ y: Int) -> Int {
 // algorithms matching Java 7+ Math.round(...) to avoid precision loss from
 // floor(x + 0.5) near half-integer boundaries (JDK-6430675).
 
-/// Bit-manipulation rounding for Float matching Java 7+ Math.round(float).
 /// Avoids the precision loss of `floorf(raw + 0.5)` for values just below
 /// half-integer boundaries (e.g. Float(bitPattern: 0x3EFFFFFF) ~ 0.49999997).
 private func roundFloatJava7(_ raw: Float) -> Int64 {
@@ -1115,7 +1103,6 @@ private func roundFloatJava7(_ raw: Float) -> Int64 {
     }
 }
 
-/// Bit-manipulation rounding for Double matching Java 7+ Math.round(double).
 /// Avoids the precision loss of `floor(raw + 0.5)` for values just below
 /// half-integer boundaries (e.g. 0.49999999999999994).
 private func roundDoubleJava7(_ raw: Double) -> Int64 {
@@ -1227,8 +1214,6 @@ public func __kk_float_nextDown(_ value: Int) -> Int {
 // (Stdlib/kotlin/util/Numbers.kt) on top of toRawBits(), so no runtime export
 // remains for them.
 
-/// Double.toBits(): Long — returns IEEE 754 bit representation as Long.
-/// Canonicalizes NaN to the standard quiet NaN bit pattern per Kotlin semantics.
 @_cdecl("__kk_double_toBits")
 public func __kk_double_toBits(_ value: Int) -> Int {
     let d = kk_bits_to_double(value)
@@ -1236,22 +1221,17 @@ public func __kk_double_toBits(_ value: Int) -> Int {
     return kk_double_to_bits(d)
 }
 
-/// Double.toRawBits(): Long — same as toBits() for finite values; differs for NaN.
-/// In Kotlin toRawBits returns the actual bit pattern without canonicalizing NaN.
 @_cdecl("__kk_double_toRawBits")
 public func __kk_double_toRawBits(_ value: Int) -> Int {
     value  // bit pattern is already canonical in our ABI
 }
 
-/// Double.Companion.fromBits(bits: Long): Double.
 /// Double bit patterns occupy the full runtime ABI word, so this is an identity.
 @_cdecl("__kk_double_fromBits")
 public func __kk_double_fromBits(_ bits: Int) -> Int {
     bits
 }
 
-/// Float.toBits(): Int — returns IEEE 754 bit representation as Int.
-/// Canonicalizes NaN to the standard quiet NaN bit pattern per Kotlin semantics.
 /// The ABI carries Float as a zero-extended 32-bit pattern, so the result is
 /// sign-extended back into the Int domain Kotlin expects.
 @_cdecl("__kk_float_toBits")
@@ -1261,13 +1241,11 @@ public func __kk_float_toBits(_ value: Int) -> Int {
     return Int(Int32(bitPattern: f.bitPattern))
 }
 
-/// Float.toRawBits(): Int — actual bit pattern without canonicalizing NaN.
 @_cdecl("__kk_float_toRawBits")
 public func __kk_float_toRawBits(_ value: Int) -> Int {
     Int(Int32(truncatingIfNeeded: value))
 }
 
-/// Float.Companion.fromBits(bits: Int): Float.
 /// Kotlin exposes the 32-bit IEEE pattern as a sign-extended Int, while the
 /// runtime ABI carries Float payloads as a zero-extended word.
 @_cdecl("__kk_float_fromBits")

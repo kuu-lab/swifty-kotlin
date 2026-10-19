@@ -5,7 +5,6 @@ private const val BIT_SET_ELEMENT_SIZE: Int = 64
 private fun bitSetElementSize(bitSize: Int): Int =
     (bitSize + BIT_SET_ELEMENT_SIZE - 1) / BIT_SET_ELEMENT_SIZE
 
-/** A vector of bits growing if necessary and allowing indexed bit operations. */
 @ObsoleteNativeApi
 public class BitSet(size: Int = BIT_SET_ELEMENT_SIZE) {
     // Store bits in 64-bit elements, matching Kotlin/Native's implementation.
@@ -32,7 +31,6 @@ public class BitSet(size: Int = BIT_SET_ELEMENT_SIZE) {
     public var size: Int = size
         private set
 
-    /** Creates a bit set of the given length and evaluates [initializer] for every index. */
     public constructor(length: Int, initializer: (Int) -> Boolean) : this(length) {
         var index = 0
         while (index < length) {

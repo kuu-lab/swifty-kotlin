@@ -1,11 +1,9 @@
 import Foundation
 
-// Storage for the `kotlin.io.FileSystemException` hierarchy declared in
-// Sources/CompilerCore/Stdlib/kotlin/io/FileSystemException.kt. Both Kotlin
-// `throw FileAlreadyExistsException(file)` sites and runtime-internal failures
-// (File.copyTo, Files.delete, …) allocate the boxes below, so catch-clause
-// dispatch and the `file` / `other` / `reason` accessors observe the same
-// representation regardless of where the exception originated.
+// Both Kotlin `throw FileAlreadyExistsException(file)` sites and runtime-internal
+// failures allocate the boxes below, so catch-clause dispatch and the `file` /
+// `other` / `reason` accessors observe the same representation regardless of
+// where the exception originated.
 
 /// Builds the `message` text of a filesystem exception the same way
 /// `kotlin.io.FileSystemException` does: `file[ -> other][: reason]`.
@@ -76,7 +74,6 @@ private func runtimeFileSystemExceptionBox(from raw: Int) -> RuntimeFileSystemEx
     return tryCast(ptr, to: RuntimeFileSystemExceptionBox.self)
 }
 
-/// Reads the path out of a `java.io.File` handle, tolerating null handles.
 private func runtimeFileSystemExceptionPath(from raw: Int) -> String? {
     guard let ptr = normalizeNullableRuntimePointer(UnsafeMutableRawPointer(bitPattern: raw)) else {
         return nil
@@ -104,9 +101,6 @@ func runtimeAllocateFileSystemException(file: String, other: String? = nil, reas
 
 
 
-
-// One entry point per (class, arity): the constructor overloads declared in
-// Stdlib/kotlin/io/FileSystemException.kt bind to these directly.
 
 private func runtimeMakeFileSystemException<Box: RuntimeFileSystemExceptionBox>(
     _ makeBox: (Int, Int, String?) -> Box,

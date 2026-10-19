@@ -14,8 +14,6 @@ private final class RuntimeResumeContinuationBox: @unchecked Sendable {
 }
 
 
-/// One-shot gate for cooperative producer/consumer synchronization.
-///
 /// Used by lazy sequence/iterator builders during the CORO-004 migration.
 /// Supports non-blocking resume via a continuation closure (for suspend-point
 /// wiring) with a `DispatchSemaphore` fallback for legacy synchronous callers.
@@ -25,8 +23,6 @@ final class RuntimeCoroutineSyncGate: @unchecked Sendable {
     private var fallbackSemaphore: DispatchSemaphore?
     private var signalPending = false
 
-    /// Wake a waiter. Prefer an installed continuation (async dispatch) over a
-    /// fallback semaphore signal.
     func signal() {
         lock.lock()
         if let cont = resumeContinuation {
@@ -46,8 +42,6 @@ final class RuntimeCoroutineSyncGate: @unchecked Sendable {
         lock.unlock()
     }
 
-    /// Wait until `signal()`.
-    ///
     /// When `resumeContinuation` is provided, installs it instead of blocking
     /// the current thread and returns `true`. Returns `false` when the wait was
     /// satisfied synchronously (pending signal or semaphore wakeup).
@@ -166,8 +160,8 @@ final class RuntimeContinuationState: @unchecked Sendable {
     // `RuntimeContinuationState.current` to work from code that runs inside a
     // suspend-entry loop without an explicit continuation handle.
 
-    /// Install continuation state for the given task key. Called at the top of the
-    /// suspend-entry loop so that suspend function calls can discover the current state.
+    /// Called at the top of the suspend-entry loop so that suspend function calls
+    /// can discover the current state.
     static func installState(_ state: RuntimeContinuationState?, forTask key: RuntimeTaskKey) {
         taskStateLock.lock()
         if let state {
@@ -178,25 +172,18 @@ final class RuntimeContinuationState: @unchecked Sendable {
         taskStateLock.unlock()
     }
 
-    /// Remove the task-state mapping when a suspend-entry loop finishes.
     static func removeState(forTask key: RuntimeTaskKey) {
         taskStateLock.lock()
         taskStateMap.removeValue(forKey: key)
         taskStateLock.unlock()
     }
 
-    /// Look up the continuation state installed for the current GCD dispatch work-item.
-    /// Falls back to nil if the current thread is not inside a suspend-entry loop.
     static func stateForTask(_ key: RuntimeTaskKey) -> RuntimeContinuationState? {
         taskStateLock.lock()
         defer { taskStateLock.unlock() }
         return taskStateMap[key]
     }
 
-    /// Convenience accessor used by suspend function invocations when they don't have a
-    /// continuation handle. Uses the thread-level task key installed by the
-    /// nearest enclosing suspend-entry loop.
-    ///
     /// NOTE: This is *not* TLS for the state itself -- the state lives on the
     /// continuation. The task key is only used to *find* which continuation's
     /// state is active on this thread right now.
@@ -294,8 +281,6 @@ final class RuntimeContinuationState: @unchecked Sendable {
         return generatedContextRaw ?? inheritedContextRaw
     }
 
-    /// Propagate a caller's exact continuation context to a direct suspend
-    /// child, but only when that context has no runtime-added elements.
     func inheritCoroutineContext(from caller: RuntimeContinuationState) {
         guard let contextRaw = caller.unmodifiedCoroutineContextRaw() else { return }
         interceptionLock.lock()
@@ -303,8 +288,6 @@ final class RuntimeContinuationState: @unchecked Sendable {
         interceptionLock.unlock()
     }
 
-    /// Keep the source continuation's context object when its contents still
-    /// match the ambient context after runtime scope and job elements are merged.
     func generatedCoroutineContextIfMatching(_ context: RuntimeCoroutineContext) -> Int? {
         guard let sourceContextRaw = generatedCoroutineContext(outThrown: nil),
               runtimeCoroutineContextsHaveSameContent(
@@ -393,10 +376,6 @@ final class RuntimeContinuationState: @unchecked Sendable {
         timer.resume()
     }
 
-    /// CORO-004: Install a resume continuation.  Called by the suspend-entry
-    /// loop right before it would otherwise block.  If a resume signal has
-    /// already been delivered (pending), the continuation is dispatched
-    /// immediately.
     func installResumeContinuation(_ continuation: @escaping @Sendable () -> Void) {
         let boxedContinuation = RuntimeResumeContinuationBox(continuation)
         stateLock.lock()
@@ -414,8 +393,6 @@ final class RuntimeContinuationState: @unchecked Sendable {
                 boxedContinuation.invoke()
                 return
             }
-            // Signal already arrived — re-queue the continuation immediately.
-            //
             // On a runBlocking event loop this lands at the TAIL of the queue,
             // and that is precisely what makes `yield()` FIFO: `yield()` resumes
             // its own continuation synchronously during the burst (marking a
@@ -476,7 +453,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
     }
 
     /// Legacy blocking wait.  Used only when no continuation has been installed
-    /// (e.g. direct test calls).  Creates a one-shot semaphore on demand.
+    /// (e.g. direct test calls).
     func waitForResumeSignal() {
         stateLock.lock()
         if resumeSignalPending {
@@ -504,8 +481,8 @@ final class RuntimeContinuationState: @unchecked Sendable {
         stateLock.unlock()
     }
 
-    /// Wake the coroutine. Cancellation from a replaced Job must not resume
-    /// a shielded withContext caller, but ordinary block completion still can.
+    /// Cancellation from a replaced Job must not resume a shielded withContext
+    /// caller, but ordinary block completion still can.
     func signalResume(isCancellation: Bool = false) {
         stateLock.lock()
         if isCancellation, cancellationShieldDepth > 0 {
@@ -546,13 +523,10 @@ final class RuntimeContinuationState: @unchecked Sendable {
             sem.signal()
             return
         }
-        // Neither continuation nor semaphore installed yet — mark pending.
         resumeSignalPending = true
         stateLock.unlock()
     }
 
-    /// Resume the continuation with a successful value.
-    ///
     /// Returns `nil` on success. If the continuation has already been resumed
     /// (one-shot guard), returns a raw pointer to a `RuntimeIllegalStateExceptionBox`
     /// describing the double-resume violation (STDLIB-CORO-BUG-01).
@@ -575,8 +549,6 @@ final class RuntimeContinuationState: @unchecked Sendable {
         return nil
     }
 
-    /// Resume the continuation with a thrown exception.
-    ///
     /// Returns `nil` on success. If the continuation has already been resumed
     /// (one-shot guard), returns a raw pointer to a `RuntimeIllegalStateExceptionBox`
     /// describing the double-resume violation (STDLIB-CORO-BUG-01).
@@ -666,8 +638,6 @@ final class RuntimeContinuationState: @unchecked Sendable {
         )
     }
 
-    /// Whether this coroutine's resumptions are queued on a `runBlocking`
-    /// event loop rather than dispatched to the concurrent global pool.
     var isBoundToEventLoop: Bool {
         stateLock.lock()
         defer { stateLock.unlock() }
@@ -733,9 +703,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
     }
 }
 
-/// CORO-004: Outcome of a suspend-aware task await.
 enum RuntimeTaskAwaitOutcome: Equatable {
-    /// Task finished (already complete, or blocking wait returned).
     case completed(result: Int, thrownException: Int)
     /// Registered a completion resumer; the caller must return `kk_coroutine_suspended()`.
     case suspended
@@ -838,8 +806,6 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         return true
     }
 
-    /// STDLIB-CORO-001: Capture the deferred-start action for a LAZY task.
-    /// Mirrors `RuntimeJobHandle.installLazyStartBody`.
     func installLazyStartBody(_ body: @escaping @Sendable () -> Void) {
         lock.lock()
         if !isBodyStarted, !isStartRequested, !isCompleted {
@@ -897,14 +863,12 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         return isConsumedByUserCode
     }
 
-    /// Thread-safe snapshot of the completion state.
     func isCompletedSnapshot() -> Bool {
         lock.lock()
         defer { lock.unlock() }
         return isCompleted
     }
 
-    /// Thread-safe snapshot of the cancellation flag.
     func isCancelledSnapshot() -> Bool {
         lock.lock()
         let taskIsCancelled = isCancelled
@@ -914,7 +878,6 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         return taskIsCancelled || completionJob.cancellationSnapshot()
     }
 
-    /// Thread-safe snapshot of the active state (started, not completed, not cancelled).
     func isActiveSnapshot() -> Bool {
         lock.lock()
         let taskIsActive = (isBodyStarted || isStartRequested) && !isCompleted && !isCancelled
@@ -926,7 +889,6 @@ final class RuntimeAsyncTask: @unchecked Sendable {
             && !completionJob.isFailedSnapshot()
     }
 
-    /// Thread-safe snapshot for `kk_job_is_failed` (aligned with `RuntimeJobHandle.isFailedSnapshot`).
     func isFailedSnapshot() -> Bool {
         lock.lock()
         defer { lock.unlock() }
@@ -943,7 +905,6 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         finish(result: result, exception: 0)
     }
 
-    /// Complete the task with an exception (CORO-071: async exception handling).
     func completeExceptionally(with exception: Int) {
         finish(result: 0, exception: exception)
     }
@@ -1082,8 +1043,6 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         return snapshot.load()
     }
 
-    /// Blocking await for non-suspend contexts. Suspend-aware awaiting is handled by
-    /// `awaitResult(callerState:afterResume:)` (CORO-004); see `kk_kxmini_async_await`.
     func awaitResult() -> Int {
         switch awaitResult(callerState: nil) {
         case .completed(let result, let thrown):

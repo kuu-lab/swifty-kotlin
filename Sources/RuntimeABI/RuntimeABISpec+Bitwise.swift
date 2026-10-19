@@ -1,273 +1,46 @@
-// swiftlint:disable file_length
+private let abi = RuntimeABISectionBuilder("Bitwise")
 
 public extension RuntimeABISpec {
-    static let opFloorDivSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: "kk_op_floor_div",
-        parameters: [
-            RuntimeABIParameter(name: "lhs", type: .intptr),
-            RuntimeABIParameter(name: "rhs", type: .intptr),
-            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-        ],
-        returnType: .intptr,
-        section: "Bitwise"
-    )
-
-    static let opLfloorDivSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: "kk_op_lfloor_div",
-        parameters: [
-            RuntimeABIParameter(name: "lhs", type: .intptr),
-            RuntimeABIParameter(name: "rhs", type: .intptr),
-            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-        ],
-        returnType: .intptr,
-        section: "Bitwise"
-    )
-
-    static let opFloorModSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: "kk_op_floor_mod",
-        parameters: [
-            RuntimeABIParameter(name: "lhs", type: .intptr),
-            RuntimeABIParameter(name: "rhs", type: .intptr),
-            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-        ],
-        returnType: .intptr,
-        section: "Bitwise"
-    )
-
-    static let opLfloorModSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: "kk_op_lfloor_mod",
-        parameters: [
-            RuntimeABIParameter(name: "lhs", type: .intptr),
-            RuntimeABIParameter(name: "rhs", type: .intptr),
-            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-        ],
-        returnType: .intptr,
-        section: "Bitwise"
-    )
+    static let opFloorDivSpec: RuntimeABIFunctionSpec = abi.th("kk_op_floor_div", "lhs rhs outThrown")
+    static let opLfloorDivSpec: RuntimeABIFunctionSpec = abi.th("kk_op_lfloor_div", "lhs rhs outThrown")
+    static let opFloorModSpec: RuntimeABIFunctionSpec = abi.th("kk_op_floor_mod", "lhs rhs outThrown")
+    static let opLfloorModSpec: RuntimeABIFunctionSpec = abi.th("kk_op_lfloor_mod", "lhs rhs outThrown")
 
     static let bitwiseFunctions: [RuntimeABIFunctionSpec] = [
-        RuntimeABIFunctionSpec(
-            name: "kk_bitwise_and",
-            parameters: [
-                RuntimeABIParameter(name: "a", type: .intptr),
-                RuntimeABIParameter(name: "b", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_bitwise_or",
-            parameters: [
-                RuntimeABIParameter(name: "a", type: .intptr),
-                RuntimeABIParameter(name: "b", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_bitwise_xor",
-            parameters: [
-                RuntimeABIParameter(name: "a", type: .intptr),
-                RuntimeABIParameter(name: "b", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_op_inv",
-            parameters: [
-                RuntimeABIParameter(name: "a", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_op_shl",
-            parameters: [
-                RuntimeABIParameter(name: "a", type: .intptr),
-                RuntimeABIParameter(name: "b", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_op_shr",
-            parameters: [
-                RuntimeABIParameter(name: "a", type: .intptr),
-                RuntimeABIParameter(name: "b", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_op_ushr",
-            parameters: [
-                RuntimeABIParameter(name: "a", type: .intptr),
-                RuntimeABIParameter(name: "b", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_op_dmul",
-            parameters: [
-                RuntimeABIParameter(name: "a", type: .intptr),
-                RuntimeABIParameter(name: "b", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
+        abi.nt("kk_bitwise_and", "a b"),
+        abi.nt("kk_bitwise_or", "a b"),
+        abi.nt("kk_bitwise_xor", "a b"),
+        abi.nt("kk_op_inv", "a"),
+        abi.nt("kk_op_shl", "a b"),
+        abi.nt("kk_op_shr", "a b"),
+        abi.nt("kk_op_ushr", "a b"),
+        abi.nt("kk_op_dmul", "a b"),
         // KSP-717: kk_int_toString_radix removed. Int/Long.toString(radix) is
         // pure Kotlin source (Stdlib/kotlin/text/StringNumberConversions.kt).
         // STDLIB-BIT-007: One-bit functions are source-backed in
         // `Stdlib/kotlin/BitOperations.kt` since KSP-644.
-        RuntimeABIFunctionSpec(
-            name: "kk_op_eq",
-            parameters: [
-                RuntimeABIParameter(name: "lhs", type: .intptr),
-                RuntimeABIParameter(name: "rhs", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_op_ne",
-            parameters: [
-                RuntimeABIParameter(name: "lhs", type: .intptr),
-                RuntimeABIParameter(name: "rhs", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_op_lt",
-            parameters: [
-                RuntimeABIParameter(name: "lhs", type: .intptr),
-                RuntimeABIParameter(name: "rhs", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_op_le",
-            parameters: [
-                RuntimeABIParameter(name: "lhs", type: .intptr),
-                RuntimeABIParameter(name: "rhs", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_op_gt",
-            parameters: [
-                RuntimeABIParameter(name: "lhs", type: .intptr),
-                RuntimeABIParameter(name: "rhs", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_op_ge",
-            parameters: [
-                RuntimeABIParameter(name: "lhs", type: .intptr),
-                RuntimeABIParameter(name: "rhs", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise"
-        ),
+        abi.nt("kk_op_eq", "lhs rhs"),
+        abi.th("kk_op_ne", "lhs rhs"),
+        abi.th("kk_op_lt", "lhs rhs"),
+        abi.th("kk_op_le", "lhs rhs"),
+        abi.th("kk_op_gt", "lhs rhs"),
+        abi.th("kk_op_ge", "lhs rhs"),
         // Unsigned (ULong-correct) comparison operators
-        RuntimeABIFunctionSpec(
-            name: "kk_op_ult",
-            parameters: [
-                RuntimeABIParameter(name: "lhs", type: .intptr),
-                RuntimeABIParameter(name: "rhs", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_op_ule",
-            parameters: [
-                RuntimeABIParameter(name: "lhs", type: .intptr),
-                RuntimeABIParameter(name: "rhs", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_op_ugt",
-            parameters: [
-                RuntimeABIParameter(name: "lhs", type: .intptr),
-                RuntimeABIParameter(name: "rhs", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_op_uge",
-            parameters: [
-                RuntimeABIParameter(name: "lhs", type: .intptr),
-                RuntimeABIParameter(name: "rhs", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Bitwise"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_op_div",
-            parameters: [
-                RuntimeABIParameter(name: "lhs", type: .intptr),
-                RuntimeABIParameter(name: "rhs", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Bitwise"
-        ),
+        abi.th("kk_op_ult", "lhs rhs"),
+        abi.th("kk_op_ule", "lhs rhs"),
+        abi.th("kk_op_ugt", "lhs rhs"),
+        abi.th("kk_op_uge", "lhs rhs"),
+        abi.th("kk_op_div", "lhs rhs outThrown"),
         opFloorDivSpec,
         opLfloorDivSpec,
-        RuntimeABIFunctionSpec(
-            name: "kk_op_mod",
-            parameters: [
-                RuntimeABIParameter(name: "lhs", type: .intptr),
-                RuntimeABIParameter(name: "rhs", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Bitwise"
-        ),
+        abi.th("kk_op_mod", "lhs rhs outThrown"),
         opFloorModSpec,
         opLfloorModSpec,
         // UInt/ULong/UByte/UShort division and remainder. Reinterprets both operands
         // as unsigned (UInt(bitPattern:)) instead of the plain signed division
         // kk_op_div/kk_op_mod use, which misreads ULong values with the high bit
         // set (>= 2^63) as negative.
-        RuntimeABIFunctionSpec(
-            name: "kk_op_udiv",
-            parameters: [
-                RuntimeABIParameter(name: "lhs", type: .intptr),
-                RuntimeABIParameter(name: "rhs", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Bitwise"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_op_urem",
-            parameters: [
-                RuntimeABIParameter(name: "lhs", type: .intptr),
-                RuntimeABIParameter(name: "rhs", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Bitwise"
-        ),
+        abi.th("kk_op_udiv", "lhs rhs outThrown"),
+        abi.th("kk_op_urem", "lhs rhs outThrown"),
     ]
 }

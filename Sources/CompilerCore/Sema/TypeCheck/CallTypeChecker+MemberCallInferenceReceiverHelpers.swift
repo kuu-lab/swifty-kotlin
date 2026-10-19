@@ -215,14 +215,43 @@ extension CallTypeChecker {
                 } else {
                     false
                 }
-                if nominallyMoreSpecific { return true }
-                guard candidate != other,
-                      sema.types.isSubtype(actualReceiver, otherReceiver),
-                      sema.types.isSubtype(otherReceiver, candidateReceiver)
-                else {
-                    return false
+                let receiverMoreSpecific: Bool = if nominallyMoreSpecific {
+                    true
+                } else if sema.types.isSubtype(actualReceiver, otherReceiver),
+                          sema.types.isSubtype(otherReceiver, candidateReceiver)
+                {
+                    !sema.types.isSubtype(candidateReceiver, otherReceiver)
+                } else {
+                    false
                 }
-                return !sema.types.isSubtype(candidateReceiver, otherReceiver)
+                guard receiverMoreSpecific else { return false }
+
+                // Receiver specificity must not hide an overload whose parameters
+                // are strictly more specific for the call than the competing overload.
+                // For example, RawSink.write(Buffer, Long) must not be suppressed
+                // by Sink.write(RawSource, Long) when called on a Sink receiver with a Buffer argument.
+                if let candSig = sema.symbols.functionSignature(for: candidate),
+                   let otherSig = sema.symbols.functionSignature(for: other)
+                {
+                    let count = min(candSig.parameterTypes.count, otherSig.parameterTypes.count)
+                    var candidateHasMoreSpecificParam = false
+                    for i in 0..<count {
+                        let candParam = sema.types.makeNonNullable(candSig.parameterTypes[i])
+                        let otherParam = sema.types.makeNonNullable(otherSig.parameterTypes[i])
+                        if candParam == otherParam { continue }
+                        if sema.types.typeContainsAnyTypeParam(candParam) || sema.types.typeContainsAnyTypeParam(otherParam) {
+                            continue
+                        }
+                        if sema.types.isSubtype(candParam, otherParam) && !sema.types.isSubtype(otherParam, candParam) {
+                            candidateHasMoreSpecificParam = true
+                            break
+                        }
+                    }
+                    if candidateHasMoreSpecificParam {
+                        return false
+                    }
+                }
+                return true
             }
             return hasMoreSpecific ? candidate : nil
         })

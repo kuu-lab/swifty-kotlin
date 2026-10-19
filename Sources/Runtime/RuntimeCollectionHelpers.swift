@@ -107,7 +107,6 @@ let setRuntimeTypeID: Int64 = {
     return id
 }()
 
-/// Nominal identity for source-backed `kotlin.collections.HashSet` instances.
 /// Ordinary Set factories keep using `setRuntimeTypeID`; only HashSet
 /// constructors opt into this more specific identity.
 let hashSetRuntimeTypeID: Int64 = {
@@ -121,8 +120,6 @@ let hashSetRuntimeTypeID: Int64 = {
     return id
 }()
 
-/// Nominal identity for `kotlin.collections.LinkedHashSet`.
-///
 /// User-defined subclasses are allocated as RuntimeObjectBox instances.
 /// The HashSet parent identity lets runtimeSetBox lazily attach their storage
 /// even when library superclass initializers are not emitted.
@@ -141,31 +138,25 @@ let linkedHashSetRuntimeTypeID: Int64 = {
     return id
 }()
 
-/// KUU-1361: java.util sorted-collection nominal identities. Boxes are
-/// tagged `treeSetRuntimeTypeID`/`treeMapRuntimeTypeID`; the interface IDs
-/// carry the assignability edges that let `is SortedSet<*>` /
+/// Boxes are tagged `treeSetRuntimeTypeID`/`treeMapRuntimeTypeID`; the
+/// interface IDs carry the assignability edges that let `is SortedSet<*>` /
 /// `is NavigableMap<*, *>` answer true on those tags.
 let sortedSetRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "java.util.SortedSet")
 
 let navigableSetRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "java.util.NavigableSet")
 
-/// Nominal identity for `java.util.TreeSet`. Source-allocated subclasses
-/// arrive as RuntimeObjectBox instances; runtimeSetBox lazily attaches a
-/// sorted backing box the same way LinkedHashSet subclasses attach theirs.
+/// Source-allocated subclasses arrive as RuntimeObjectBox instances;
+/// runtimeSetBox lazily attaches a sorted backing box the same way
+/// LinkedHashSet subclasses attach theirs.
 let treeSetRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "java.util.TreeSet")
 
 let sortedMapRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "java.util.SortedMap")
 
 let navigableMapRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "java.util.NavigableMap")
 
-/// Nominal identity for `java.util.TreeMap`; see `treeSetRuntimeTypeID` for
-/// the lazy-attach path that relies on this ID.
+/// See `treeSetRuntimeTypeID` for the lazy-attach path that relies on this ID.
 let treeMapRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "java.util.TreeMap")
 
-/// Installs the `java.util` sorted-collection supertype edges:
-/// `TreeSet : NavigableSet : SortedSet : MutableSet/Set` and
-/// `TreeMap : NavigableMap : SortedMap : MutableMap`, plus the
-/// AbstractMutableSet/AbstractMutableMap edges Kotlin source declares.
 /// Mirrors `registerRangeTypeEdgesOnce`, including its resettability:
 /// `kk_runtime_reset_metadata` clears `typeParents` and
 /// `sortedCollectionTypeEdgesRegistered` together, so the edges re-register

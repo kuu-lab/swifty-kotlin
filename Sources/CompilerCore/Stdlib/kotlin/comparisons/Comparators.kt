@@ -4,17 +4,6 @@ package kotlin.comparisons
 
 import kotlin.Comparator
 
-// KSP-309 / KSP-461
-// Comparator factory, composition, null-ordering and value-comparison functions
-// are bundled Kotlin source. The only residual Swift entry point is the generic
-// comparison core (`__kk_comparable_compareTo`), reached through `compareTo` on a
-// `Comparable<*>` receiver.
-//
-// The JVM-compatible binary-lambda thenComparing spelling delegates to
-// thenComparator; both preserve the primary order before breaking ties.
-
-// --- Internal helpers --------------------------------------------------------
-
 private fun compareNullable(a: Comparable<*>?, b: Comparable<*>?): Int {
     return compareValues(a, b)
 }
@@ -27,8 +16,6 @@ internal fun <T> compareValuesUnchecked(a: T?, b: T?): Int {
     if (b == null) return 1
     return (a as Comparable<Any>).compareTo(b)
 }
-
-// --- compareValues / compareValuesBy ----------------------------------------
 
 public fun <T : Comparable<*>> compareValues(a: T?, b: T?): Int {
     if (a == null) return if (b == null) 0 else -1
@@ -73,8 +60,6 @@ public fun <T> compareValuesBy(a: T, b: T, vararg selectors: (T) -> Comparable<*
 public fun <T, K> compareValuesBy(a: T, b: T, comparator: Comparator<in K>, selector: (T) -> K): Int =
     comparator.compare(selector(a), selector(b))
 
-// --- compareBy ---------------------------------------------------------------
-
 public fun <T> compareBy(selector: (T) -> Comparable<*>?): Comparator<T> =
     Comparator { a, b -> compareNullable(selector(a), selector(b)) }
 
@@ -105,23 +90,17 @@ public fun <T> compareBy(vararg selectors: (T) -> Comparable<*>?): Comparator<T>
         result
     }
 
-// --- compareByDescending -----------------------------------------------------
-
 public fun <T> compareByDescending(selector: (T) -> Comparable<*>?): Comparator<T> =
     Comparator { a, b -> compareNullable(selector(b), selector(a)) }
 
 public fun <T, K> compareByDescending(comparator: Comparator<in K>, selector: (T) -> K): Comparator<T> =
     Comparator { a, b -> comparator.compare(selector(b), selector(a)) }
 
-// --- naturalOrder / reverseOrder --------------------------------------------
-
 public fun <T : Comparable<T>> naturalOrder(): Comparator<T> =
     Comparator { a, b -> a.compareTo(b) }
 
 public fun <T : Comparable<T>> reverseOrder(): Comparator<T> =
     Comparator { a, b -> b.compareTo(a) }
-
-// --- nullsFirst / nullsLast --------------------------------------------------
 
 public fun <T : Any> nullsFirst(comparator: Comparator<in T>): Comparator<T?> =
     Comparator { a, b ->
@@ -180,8 +159,6 @@ public fun <T> Comparator<in T>.nullsLast(): Comparator<T?> {
     }
 }
 
-// --- Comparator<T>.reversed --------------------------------------------------
-
 public fun <T> Comparator<T>.reversed(): Comparator<T> {
     val self = this
     return Comparator { a, b ->
@@ -189,8 +166,6 @@ public fun <T> Comparator<T>.reversed(): Comparator<T> {
         if (r == 0) 0 else -r
     }
 }
-
-// --- Comparator<T>.thenBy ----------------------------------------------------
 
 public fun <T> Comparator<T>.thenBy(selector: (T) -> Comparable<*>?): Comparator<T> {
     val self = this
@@ -208,8 +183,6 @@ public fun <T, K> Comparator<T>.thenBy(comparator: Comparator<in K>, selector: (
     }
 }
 
-// --- Comparator<T>.thenByDescending -----------------------------------------
-
 public fun <T> Comparator<T>.thenByDescending(selector: (T) -> Comparable<*>?): Comparator<T> {
     val self = this
     return Comparator { a, b ->
@@ -225,8 +198,6 @@ public fun <T, K> Comparator<T>.thenByDescending(comparator: Comparator<in K>, s
         if (r != 0) r else comparator.compare(selector(b), selector(a))
     }
 }
-
-// --- Comparator<T>.thenDescending / thenComparator ---------------------------
 
 public fun <T> Comparator<T>.thenDescending(comparator: (T, T) -> Int): Comparator<T> {
     val self = this
@@ -252,8 +223,6 @@ public fun <T> Comparator<T>.thenComparing(comparison: (T, T) -> Int): Comparato
 
 public fun <T> Comparator<T>.thenComparing(other: Comparator<in T>): Comparator<T> =
     this.then(other)
-
-// --- Comparator<T>.then / thenDescending ------------------------------------
 
 public infix fun <T> Comparator<T>.then(comparator: Comparator<in T>): Comparator<T> {
     val self = this

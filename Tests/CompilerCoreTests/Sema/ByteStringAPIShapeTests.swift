@@ -272,9 +272,26 @@ struct ByteStringAPIShapeTests {
                 return false
             }
         }
+        let isPlatformSpecificInterop: (SemanticSymbol) -> Bool = { symbol in
+            let fq = symbol.fqName.map(resolve).joined(separator: ".")
+            if ["kotlinx.io.bytestring.asReadOnlyByteBuffer",
+                "kotlinx.io.bytestring.toNSData",
+                "kotlinx.io.bytestring.getByteString",
+                "kotlinx.io.bytestring.putByteString",
+                "kotlinx.io.bytestring.toByteString"].contains(fq) {
+                return true
+            }
+            if ["kotlinx.io.bytestring.decodeToString", "kotlinx.io.bytestring.encodeToByteString"].contains(fq) {
+                if let fn = symbols.functionSignature(for: symbol.id), !fn.parameterTypes.isEmpty {
+                    return true
+                }
+            }
+            return false
+        }
         let declaredAPIs = symbols.allSymbols().filter { symbol in
             let fq = symbol.fqName.map(resolve).joined(separator: ".")
             guard fq.hasPrefix("kotlinx.io.bytestring."),
+                  !isPlatformSpecificInterop(symbol),
                   symbol.visibility == .public || symbol.visibility == .protected || fq == "kotlinx.io.bytestring.ByteString.getBackingArrayReference",
                   [.function, .constructor, .property, .class, .interface, .annotationClass, .object, .enumClass, .typeAlias].contains(symbol.kind),
                   !symbol.flags.contains(.extensionMemberAlias),

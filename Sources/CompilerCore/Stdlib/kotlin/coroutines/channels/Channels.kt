@@ -1,17 +1,5 @@
 package kotlinx.coroutines.channels
 
-// KSP-678
-// Channel (b) surface migrated to bundled Kotlin source (7 functions): the
-// Channel() / Channel(capacity) factories, close, the isClosedForSend /
-// isClosedForReceive queries, and the whole iterator layer (iterator,
-// ChannelIterator.hasNext, ChannelIterator.next). Each delegates to a residual
-// runtime bridge via @KsSymbolName; the runtime entry points are retained
-// (c-soft) and continue to model the blocking/suspend behaviour.
-//
-// The suspension core stays in Swift as c-soft residual (3 functions): send,
-// receive, and the internal kk_channel_is_closed_token status classifier used
-// by the send/receive result codes.
-//
 // Migration source: Sources/Runtime/RuntimeCoroutineChannel.swift
 //   kk_channel_create, kk_channel_close, kk_channel_is_closed_for_send,
 //   kk_channel_is_closed_for_receive, kk_channel_iterator,
@@ -22,7 +10,6 @@ import kotlin.internal.KsSymbolName
 @KsSymbolName("kk_channel_create")
 private external fun <T> __kkChannelCreate(capacity: Int): Channel<T>
 
-// Channel() is a rendezvous channel (capacity 0); Channel(capacity) is buffered.
 // Two explicit overloads mirror the previous synthetic factory bridges.
 // Negative `Channel.Factory` sentinels (CONFLATED -1, BUFFERED -2) keep their
 // kotlinx semantics: the runtime resolves them inside kk_channel_create.
@@ -53,9 +40,8 @@ private external fun Channel<*>.__kkChannelIsClosedForReceive(): Int
 
 public fun Channel<*>.close(): Boolean = this.__kkChannelClose() != 0
 
-// KUU-1404: Channel.cancel() residual bridge — cancels the channel, discards
-// pending elements, and makes subsequent send()/receive() fail with
-// CancellationException instead of a default payload.
+// Cancels the channel, discards pending elements, and makes subsequent
+// send()/receive() fail with CancellationException instead of a default payload.
 @KsSymbolName("kk_channel_cancel")
 private external fun Channel<*>.__kkChannelCancel(): Int
 
@@ -63,11 +49,11 @@ public fun Channel<*>.cancel() {
     this.__kkChannelCancel()
 }
 
-// KUU-1404: closed-channel exception surface. The runtime throws these from
-// send()/receive() when the channel reaches a terminal closed state, so the
-// classes are also user-visible for typed `catch` clauses. Runtime-allocated
-// boxes preserve the exact throwable identity, matching the
-// CancellationException source-backing pattern (KSP-1150).
+// The runtime throws the closed-channel exceptions from send()/receive() when
+// the channel reaches a terminal closed state, so the classes are also
+// user-visible for typed `catch` clauses. Runtime-allocated boxes preserve the
+// exact throwable identity, matching the CancellationException source-backing
+// pattern (KSP-1150).
 // JVM parity (kotlinx-coroutines 1.10.2): ClosedReceiveChannelException
 // extends NoSuchElementException, ClosedSendChannelException extends
 // IllegalStateException.
@@ -89,12 +75,11 @@ public val Channel<*>.isClosedForSend: Boolean
 public val Channel<*>.isClosedForReceive: Boolean
     get() = this.__kkChannelIsClosedForReceive() != 0
 
-// Iterator layer. `Channel<T>.iterator()` returns a ChannelIterator<T> runtime
-// handle; hasNext() performs the blocking receive (delegating to the retained
-// runtime bridge) and next() returns the value peeked by the last hasNext().
-// Star-projected receivers mirror the close()/isClosed* extensions above: the
-// loop variable's element type is recovered from the Channel<T> being iterated,
-// not from next()'s declared return, so these do not need to thread <T>.
+// hasNext() performs the blocking receive and next() returns the value peeked
+// by the last hasNext(). Star-projected receivers mirror the close()/isClosed*
+// extensions above: the loop variable's element type is recovered from the
+// Channel<T> being iterated, not from next()'s declared return, so these do not
+// need to thread <T>.
 @KsSymbolName("kk_channel_iterator")
 private external fun Channel<*>.__kkChannelIterator(): ChannelIterator<*>
 

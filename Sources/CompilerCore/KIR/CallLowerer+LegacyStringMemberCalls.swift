@@ -110,36 +110,6 @@ extension CallLowerer {
                     ))
                     return result
                 }
-                if calleeStr == "first" || calleeStr == "last" || calleeStr == "single" {
-                    let thrownExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                    instructions.append(.constValue(result: thrownExpr, value: .intLiteral(0)))
-                    let kkName = calleeStr == "first" ? "__kk_string_first_flat"
-                        : calleeStr == "last" ? "__kk_string_last_flat"
-                        : "__kk_string_single_flat"
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern(kkName),
-                        arguments: [loweredReceiverID, thrownExpr],
-                        result: result,
-                        canThrow: true,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "firstOrNull" || calleeStr == "lastOrNull" || calleeStr == "singleOrNull" {
-                    let kkName = calleeStr == "firstOrNull" ? "__kk_string_firstOrNull_flat"
-                        : calleeStr == "lastOrNull" ? "__kk_string_lastOrNull_flat"
-                        : "__kk_string_singleOrNull_flat"
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern(kkName),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
             }
         }
         return nil

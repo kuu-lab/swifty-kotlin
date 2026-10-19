@@ -1,7 +1,5 @@
 import Foundation
 
-/// Metadata conversion for the source-backed EnumSet facade. Class literals
-/// already carry a KClass handle; Any.javaClass snapshots its classifier token.
 @_cdecl("__kk_enum_set_class")
 public func __kk_enum_set_class(_ classRaw: Int) -> Int {
     let classifierRaw: Int

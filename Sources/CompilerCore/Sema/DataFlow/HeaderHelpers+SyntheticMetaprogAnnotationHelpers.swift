@@ -150,43 +150,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-
-
-    func makeSyntheticThrowsThrowableType(
-        kotlinPkg: [InternedString],
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> TypeID {
-        let throwableFQName = kotlinPkg + [interner.intern("Throwable")]
-        guard let throwableSymbol = symbols.lookup(fqName: throwableFQName) else {
-            return types.anyType
-        }
-        return types.make(.classType(ClassType(
-            classSymbol: throwableSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-    }
-
-    func makeSyntheticThrowsExceptionClassesArrayType(
-        elementType: TypeID,
-        kotlinPkg: [InternedString],
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> TypeID {
-        let arrayFQName = kotlinPkg + [interner.intern("Array")]
-        guard let arraySymbol = symbols.lookup(fqName: arrayFQName) else {
-            return types.anyType
-        }
-        return types.make(.classType(ClassType(
-            classSymbol: arraySymbol,
-            args: [.out(elementType)],
-            nullability: .nonNull
-        )))
-    }
-
     func registerSyntheticStringAnnotationPropertyAndConstructor(
         ownerSymbol: SymbolID,
         ownerFQName: [InternedString],

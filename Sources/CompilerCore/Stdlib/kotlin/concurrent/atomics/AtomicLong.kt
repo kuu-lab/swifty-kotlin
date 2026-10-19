@@ -8,10 +8,9 @@
 
 package kotlin.concurrent.atomics
 
-// KSP-1104: canonical atomics AtomicLong arithmetic/assignment and CAS-update
-// operators. The distinct source-backed receiver uses the same runtime atomic
-// box, so the bodies delegate to its retained addAndFetch/load/compareAndSet
-// core operations; no new runtime bridge is required.
+// The distinct source-backed receiver uses the same runtime atomic box, so the
+// bodies delegate to its retained addAndFetch/load/compareAndSet core
+// operations; no new runtime bridge is required.
 
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")

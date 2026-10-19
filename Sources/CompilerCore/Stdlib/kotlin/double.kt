@@ -1,6 +1,5 @@
 package kotlin
 
-// KSP-775: Double-specific stdlib APIs are implemented in bundled Kotlin.
 // The unsigned conversions preserve Kotlin's saturating behavior for NaN,
 // negative values, and values outside the destination type's range.
 

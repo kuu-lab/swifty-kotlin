@@ -1,10 +1,3 @@
-
-// UByte / UShort / Char conversions (STDLIB-PRIM-002).
-//
-// Split out from `RuntimeNumericCompat.swift`.
-
-
-
 @_cdecl("kk_uint_to_int")
 public func kk_uint_to_int(_ value: Int) -> Int {
     Int(Int32(truncatingIfNeeded: value))

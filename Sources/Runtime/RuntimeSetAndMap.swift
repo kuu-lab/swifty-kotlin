@@ -1,6 +1,5 @@
 import Foundation
 
-/// Attach identity-key storage to a source-allocated IdentityHashMap.
 @_cdecl("__kk_identity_hash_map_init")
 public func kk_identity_hash_map_init(_ mapRaw: Int) -> Int {
     guard let objectBox = resolveRuntimeHandle(mapRaw, as: RuntimeObjectBox.self) else { return 0 }
@@ -8,9 +7,6 @@ public func kk_identity_hash_map_init(_ mapRaw: Int) -> Int {
     return 0
 }
 
-// Set / Map runtime functions (STDLIB-001 + STDLIB-266 set operations).
-//
-// Split out from `RuntimeCollections.swift`.
 
 /// HashMap's inherited source bodies operate on this native storage handle.
 /// Keeping it separate from the Kotlin receiver lets interface bridges dispatch
@@ -524,7 +520,6 @@ public func kk_linked_hash_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ 
     )
 }
 
-/// Builds a map from a vararg Pair array, including a spread argument.
 /// The compiler packs spread varargs before calling this bridge.
 /// KUU-646: this is the read-only `mapOf(*pairs)` tag; mutable factories use
 /// the HashMap / LinkedHashMap pair variants below.

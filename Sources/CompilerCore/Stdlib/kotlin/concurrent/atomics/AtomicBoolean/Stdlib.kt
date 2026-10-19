@@ -10,12 +10,6 @@ package kotlin.concurrent.atomics
 
 import kotlin.internal.KsSymbolName
 
-/**
- * Creates an atomic Boolean value through the canonical atomics-package API.
- *
- * The allocation stays in the runtime box via `kk_atomic_bool_create`; this
- * declaration is the source-backed `AtomicBoolean(value)` entry point.
- */
 @kotlin.concurrent.atomics.ExperimentalAtomicApi
 @SinceKotlin("2.1")
 @KsSymbolName("kk_atomic_bool_create")

@@ -912,6 +912,9 @@ extension CallLowerer {
                     thrownResult: nil
                 ))
             }
+            if ast.arena.incrementDecrementReturnsValue(exprID) {
+                return newValue
+            }
         }
 
         let unit = arena.appendExpr(.unit, type: sema.types.unitType)

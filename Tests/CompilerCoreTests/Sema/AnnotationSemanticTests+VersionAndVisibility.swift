@@ -1640,12 +1640,23 @@ extension AnnotationSemanticTests {
         in sema: SemaModule,
         interner: StringInterner
     ) throws {
-        guard case let .kClassType(kClassType) = sema.types.kind(of: type) else {
-            Issue.record("Expected KClass<Throwable>, got \(sema.types.renderType(type))")
+        guard case let .classType(kClassType) = sema.types.kind(of: type) else {
+            Issue.record("Expected KClass<out Throwable>, got \(sema.types.renderType(type))")
             return
         }
-        guard case let .classType(argumentType) = sema.types.kind(of: kClassType.argument) else {
-            Issue.record("Expected KClass argument to be Throwable, got \(sema.types.renderType(kClassType.argument))")
+        let kClassSymbol = try #require(
+            sema.symbols.lookup(fqName: [
+                interner.intern("kotlin"),
+                interner.intern("reflect"),
+                interner.intern("KClass"),
+            ])
+        )
+        #expect(kClassType.classSymbol == kClassSymbol)
+        #expect(kClassType.args.count == 1)
+        guard case let .out(argument) = kClassType.args[0],
+              case let .classType(argumentType) = sema.types.kind(of: argument)
+        else {
+            Issue.record("Expected KClass argument to be out Throwable, got \(kClassType.args)")
             return
         }
         let throwableSymbol = try #require(

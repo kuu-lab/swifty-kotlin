@@ -97,7 +97,6 @@ func runtimeCompareNullableValues(_ a: Int, _ b: Int) -> Int {
     return runtimeCompareValues(a, b)
 }
 
-/// Comparable<T>.compareTo(other: T): Int -- generic interface dispatch for bundled stdlib bodies.
 /// Emitted when a generic `T : Comparable<T>` receiver calls `.compareTo(other)` and no
 /// concrete primitive or synthetic-stub handler matches (e.g. inside `sorted()` or
 /// `kotlin.comparisons.compareValues`).
@@ -131,8 +130,7 @@ public func __kk_comparable_compareTo(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     return runtimeCompareNullableValues(lhsRaw, rhsRaw)
 }
 
-/// Invokes a `Comparator<T>` object through its itable compare slot. Emitted for
-/// `maxOf`/`minOf` with an explicit comparator argument.
+/// Emitted for `maxOf`/`minOf` with an explicit comparator argument.
 @_cdecl("__kk_compare_with_comparator")
 public func __kk_compare_with_comparator(
     _ comparatorRaw: Int,

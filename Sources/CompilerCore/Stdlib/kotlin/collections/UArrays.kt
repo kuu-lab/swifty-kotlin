@@ -5,8 +5,6 @@ package kotlin.collections
 import kotlin.internal.KsSymbolName
 import kotlin.random.Random
 
-// KSP-660
-// Array signed/unsigned view conversions.
 // Migration source: Sources/Runtime/RuntimeArrayBasics.swift (kk_*Array_as*Array)
 //
 // A signed primitive array and its unsigned counterpart share the same backing
@@ -37,9 +35,9 @@ private external fun UIntArray.__asIntArrayView(): IntArray
 @KsSymbolName("__kk_uLongArray_asLongArray")
 private external fun ULongArray.__asLongArrayView(): LongArray
 
-// KSP-1513: unsigned array member bridges. The public `size`, `toList`, and
-// `asList` declarations below are source-backed; the runtime keeps the copy
-// and backing-view semantics of the Kotlin API.
+// The public `size`, `toList`, and `asList` declarations below are
+// source-backed; the runtime keeps the copy and backing-view semantics of the
+// Kotlin API.
 @KsSymbolName("__kk_uByteArray_toList")
 private external fun __kkUByteArrayToList(array: UByteArray): List<UByte>
 
@@ -88,7 +86,6 @@ public fun UIntArray.asIntArray(): IntArray = this.__asIntArrayView()
 @ExperimentalUnsignedTypes
 public fun ULongArray.asLongArray(): LongArray = this.__asLongArrayView()
 
-// KUU-1421: copy conversions between signed and unsigned primitive arrays.
 // Unlike the as*Array views above, these return fresh storage. Elements are
 // converted one by one (the same-width toU*/to* reinterpretation), matching
 // upstream _UArrays.kt semantics: byteArrayOf(1, -1).toUByteArray() -> [1, 255].
@@ -270,9 +267,6 @@ public fun UShortArray.asList(): List<UShort> = __kkUShortArrayAsList(this)
 public fun UIntArray.asList(): List<UInt> = __kkUIntArrayAsList(this)
 @ExperimentalUnsignedTypes
 public fun ULongArray.asList(): List<ULong> = __kkULongArrayAsList(this)
-
-// KUU-1392: unsigned-array random/randomOrNull, matching the signed primitive
-// overloads in PrimitiveArraySliceAndAccess.kt.
 
 @ExperimentalUnsignedTypes
 public fun UByteArray.random(): UByte = random(Random.Default)

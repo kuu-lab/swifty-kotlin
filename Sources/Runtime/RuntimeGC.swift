@@ -15,7 +15,6 @@ struct FrameMapDescriptorC {
     let rootOffsets: UnsafePointer<Int32>?
 }
 
-/// Cache key for `__kk_kclass_create`.
 /// `typeToken` uniquely identifies a `KClass<T>` at runtime, so caching by it
 /// alone ensures stable hits across repeated evaluations.
 struct KClassCacheKey: Hashable {
@@ -31,7 +30,6 @@ struct GCState {
     /// Existing retained reference cells are external owners, not swept boxes.
     /// Trace their direct kk_alloc payloads until replacement or owner release.
     var retainedAtomicReferenceHandles: Set<UInt> = []
-    var seededRandomPointers: Set<UInt> = []
     /// Borrowed pointers in `objectPointers` whose lifetime is owned by a
     /// singleton or a dedicated runtime registry rather than passRetained.
     var borrowedObjectPointers: Set<UInt> = []
@@ -82,25 +80,12 @@ struct MetadataState {
     /// Set once the static reflection hierarchy edges are in `typeParents`;
     /// cleared with `typeParents` so a metadata reset re-registers them.
     var reflectionTypeEdgesRegistered = false
-    /// Same idea as `reflectionTypeEdgesRegistered`, for the boxed-primitive
-    /// `Number`/`Comparable` edges `RuntimePrimitiveNominalTypeIDs` installs.
     var primitiveTypeEdgesRegistered = false
-    /// Same idea, for the range/progression nominal edges
-    /// `registerRangeTypeEdgesOnce` installs (RuntimeRangeValueSemantics.swift).
     var rangeTypeEdgesRegistered = false
-    /// Same idea, for the coroutine job-family nominal edges
-    /// `registerJobFamilyTypeEdgesOnce` installs (KUU-1386).
     var jobFamilyTypeEdgesRegistered = false
-    /// Same idea, for the `CoroutineDispatcher`/`ContinuationInterceptor`
-    /// nominal edges `registerCoroutineDispatcherTypeEdgesOnce` installs
-    /// (KUU-1395).
     var coroutineDispatcherTypeEdgesRegistered = false
-    /// `registerSortedCollectionTypeEdgesOnce` installs (KUU-1361).
     var sortedCollectionTypeEdgesRegistered = false
-    /// `registerMapEntryTypeEdgesOnce` installs MutableEntry : Map.Entry.
     var mapEntryTypeEdgesRegistered = false
-    /// Same idea, for the kotlinx.cinterop MemScope/Arena/nativeHeap nominal
-    /// edges `registerCInteropRuntimeTypeMetadata` installs (KUU-1375).
     var cinteropTypeEdgesRegistered = false
     var dataClassIDs: Set<Int64> = []
     /// Bitmask of object slot indices holding primary-constructor properties, per data class.
@@ -151,7 +136,7 @@ final class RuntimeStorageBox: @unchecked Sendable {
     /// Sentinel returned via callerState.resume(with:) when a lazy sequence
     /// coroutine reaches the end of the builder lambda.  Callers compare the
     /// resumed value against kk_sequence_completed_sentinel() to distinguish
-    /// "done" from a real element (CORO-004 infrastructure).
+    /// "done" from a real element.
     let sequenceCompletedBox = RuntimeStringBox("SEQUENCE_COMPLETED")
 
     @discardableResult
@@ -276,9 +261,9 @@ private final class RuntimeGCTuningState: @unchecked Sendable {
         maxHeapBytes = value
     }
 
-    /// Restores every tuning knob to its process-startup default. Called by
-    /// `.runtimeIsolation(.gcOnly)` test resets so a test that mutates a knob
-    /// cannot leak state into an unrelated test running later in the same process.
+    /// Called by `.runtimeIsolation(.gcOnly)` test resets so a test that mutates a
+    /// knob cannot leak state into an unrelated test running later in the same
+    /// process.
     func reset() {
         lock.lock()
         defer { lock.unlock() }
@@ -425,7 +410,6 @@ public func kk_gc_max_heap_bytes_set(_ gcRaw: Int, _ value: Int) -> Int {
     return 0
 }
 
-// KSP-1263: kotlin.native.runtime.GC.MainThreadFinalizerProcessor bridges.
 // This target always processes finalizers, so `available` is unconditionally
 // true; the remaining members are plain tunable state (see the state comment
 // above `RuntimeGCTuningState`).
@@ -551,8 +535,6 @@ public func kk_unregister_coroutine_root(_ value: UnsafeMutableRawPointer?) {
     }
 }
 
-// (b) RF-DEAD-002: テスト支援 API — Kotlin プログラムから直接呼ばれない。
-// RuntimeTests がテスト間でヒープオブジェクト数を検査するためのセム。
 // DEAD-CDECL-TEST-HOOK: GC-METRICS - Runtime tests assert managed heap object counts.
 @_cdecl("kk_runtime_heap_object_count")
 public func kk_runtime_heap_object_count() -> UInt32 {
@@ -561,8 +543,6 @@ public func kk_runtime_heap_object_count() -> UInt32 {
     }
 }
 
-// (b) RF-DEAD-002: テスト支援 API — Kotlin プログラムから直接呼ばれない。
-// RuntimeTests がテスト間でランタイム全状態をリセットするためのセム。
 // DEAD-CDECL-TEST-HOOK: RUNTIME-RESET - Runtime tests isolate process-global runtime state.
 @_cdecl("kk_runtime_force_reset")
 public func kk_runtime_force_reset() {
@@ -721,7 +701,6 @@ private func releaseRegisteredRuntimeBoxes(_ pointers: [UnsafeMutableRawPointer]
             let key = UInt(bitPattern: pointer)
             state.objectPointers.remove(key)
             state.retainedAtomicReferenceHandles.remove(key)
-            state.seededRandomPointers.remove(key)
         }
     }
     for pointer in pointers {

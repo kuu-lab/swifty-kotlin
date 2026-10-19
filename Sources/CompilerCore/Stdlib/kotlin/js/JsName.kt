@@ -5,7 +5,6 @@
  */
 package kotlin.js
 
-/** Records a declaration's JavaScript name in common source metadata. */
 @Target(
     AnnotationTarget.CLASS,
     AnnotationTarget.FUNCTION,

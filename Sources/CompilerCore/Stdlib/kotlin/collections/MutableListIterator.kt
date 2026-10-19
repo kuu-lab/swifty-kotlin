@@ -7,14 +7,9 @@
 
 package kotlin.collections
 
-// KSP-945: keep the public MutableListIterator nominal declaration in bundled
-// Kotlin source. The compiler residuals for iterator mutation and the shared
+// KSP-945: The compiler residuals for iterator mutation and the shared
 // list-iterator runtime remain separate surfaces.
 
-/**
- * An iterator over a mutable list that supports element insertion, replacement,
- * and removal while iterating.
- */
 public interface MutableListIterator<T> : ListIterator<T>, MutableIterator<T> {
     /**
      * Replaces the last element returned by [next] or [previous] with the [element].

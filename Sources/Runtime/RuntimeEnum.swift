@@ -5,7 +5,6 @@ struct RuntimeEnumValueDescriptor {
     let classID: Int64
 }
 
-/// Returns a stable identity-compatible hash for one enum singleton.
 /// Enum values are stored as ordinals, so their default object hash must mix
 /// both the enum's nominal identity and the entry ordinal instead of exposing
 /// the ordinal as the hash itself. The final adjustment avoids returning the
@@ -35,8 +34,6 @@ public func kk_enum_hash_code(_ ordinal: Int, _ classID: Int) -> Int {
     runtimeEnumIdentityHashCode(ordinal, Int64(classID))
 }
 
-// Runtime support for enum valueOf (STDLIB-173) and enum name/ordinal helpers.
-
 /// Reads the declared entry name after the concrete enum type is erased.
 /// Erased toString rendering is registered independently, so this metadata
 /// remains the declaration name even when the enum overrides toString.
@@ -62,8 +59,7 @@ public func kk_enum_valueOf_throw(_ nameRaw: Int, _ outThrown: UnsafeMutablePoin
 }
 
 /// Boxes an enum ordinal for storage in an Any-erased `values()`/`entries`
-/// backing array, tagging the box with the entry's declared name and the
-/// enum class's stable nominal type ID.
+/// backing array.
 ///
 /// Every other enum value (a direct reference like `Direction.NORTH`, or a
 /// `valueOf`/`$enumOrdinalToName` argument) is a raw ordinal Int. An element
@@ -89,8 +85,6 @@ public func kk_enum_box_ordinal(_ ordinal: Int, _ namePtr: Int, _ classID: Int) 
     )
 }
 
-/// Creates an `Array` of enum instances for `enumValues<T>()` and `T.values()`.
-///
 /// The lowering stage builds an array of enum singleton objects (`RuntimeArrayBox`) and
 /// passes it to this runtime helper together with the declared size.
 /// Returns `RuntimeArrayBox` to match Kotlin JVM's `Array<T>` return type.
@@ -130,8 +124,7 @@ public func kk_enum_register_values(_ typeToken: Int, _ valuesRaw: Int, _ count:
     return 0
 }
 
-/// Returns a fresh Array<T> using the enum values registered for its reified
-/// type token. Kotlin's enumValues<T>() returns a new array on each call.
+/// Kotlin's enumValues<T>() returns a new array on each call.
 @_cdecl("kk_enum_values_for_token")
 public func kk_enum_values_for_token(_ typeToken: Int) -> Int {
     guard let values = runtimeStorage.withMetadataLock({ $0.enumValuesByTypeToken[Int64(typeToken)] }) else {
@@ -148,8 +141,6 @@ public func kk_enum_values_for_token(_ typeToken: Int) -> Int {
     return registerRuntimeObject(box)
 }
 
-/// Creates a `List` of enum instances for `T.entries`.
-///
 /// `entries` returns `EnumEntries<T>` in Kotlin, which extends `List<E>`.
 /// Returns `RuntimeListBox` to match the List-based API.
 @_cdecl("kk_enum_make_entries_list")
@@ -198,7 +189,6 @@ public func kk_enum_make_entries_list_cached(_ valuesRaw: Int, _ count: Int, _ c
     }
 }
 
-/// Creates a non-cached entries view over the supplied Array backing store.
 @_cdecl("__kk_enum_entries_from_array")
 public func kk_enum_entries_from_array(_ valuesRaw: Int) -> Int {
     runtimeRegisterViewOrEmpty(

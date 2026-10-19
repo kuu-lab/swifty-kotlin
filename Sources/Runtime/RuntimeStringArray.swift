@@ -35,18 +35,15 @@ enum RuntimeTypeTokenEncoding {
     static let ushortBase: Int64 = 10
     static let byteBase: Int64 = 16
     static let shortBase: Int64 = 17
-    // REFL-002: Additional primitive bases for Long, Double, Float, Char.
     static let longBase: Int64 = 11
     static let doubleBase: Int64 = 12
     static let floatBase: Int64 = 13
     static let charBase: Int64 = 14
-    // STDLIB-REFLECT-ABI-001: Unit::class token base.
     static let unitBase: Int64 = 15
-    // KUU-1084: Function-type token base. Payload packs the FunctionN arity
-    // in bits 0-7 and the suspend flag in bit 8.
+    // Payload packs the FunctionN arity in bits 0-7 and the suspend flag in
+    // bit 8.
     static let functionBase: Int64 = 18
 
-    /// Decodes a function-type token payload into its parts.
     static func functionPayloadParts(_ payload: Int64) -> (arity: Int, isSuspend: Bool) {
         (Int(payload & 0xFF), (payload & 0x100) != 0)
     }
@@ -201,16 +198,14 @@ private final class RuntimeFlatStringStorageRegistry: @unchecked Sendable {
 
 private let runtimeFlatStringStorageRegistry = RuntimeFlatStringStorageRegistry()
 
-/// Lazily cached UTF-16 code units of a runtime-produced flat string, keyed by
-/// its flat `data` pointer. Returns nil when the pointer did not come from
-/// `runtimeRegisterFlatString` (string literals and other foreign buffers).
+/// Returns nil when the pointer did not come from `runtimeRegisterFlatString`
+/// (string literals and other foreign buffers).
 func runtimeFlatStringRegisteredUTF16CodeUnits(
     data: UnsafePointer<UInt8>?
 ) -> [UInt16]? {
     runtimeFlatStringStorageRegistry.storage(for: data)?.utf16CodeUnits
 }
 
-/// Live storages tracked by the flat-string index; test support only.
 func runtimeFlatStringLiveStorageCountForTesting() -> Int {
     runtimeFlatStringStorageRegistry.liveStorageCount
 }
@@ -400,7 +395,6 @@ public func kk_string_compareTo_flat(
     return runtimeCompareStrings(lhs, rhs)
 }
 
-// STDLIB-TEXT-FN-043: String?.plus(other: Any?): String
 // Receiver is passed as Int (intptr) so null receivers produce "null".
 // Primitives passed as `other` are already boxed by the ABI lowering pass
 // when widened to Any?, so runtimeElementToString handles them correctly.

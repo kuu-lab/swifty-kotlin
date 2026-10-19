@@ -243,10 +243,18 @@ extension DeclTypeChecker {
         } else {
             typeArguments = []
         }
+        let expectedTypeOverrides = constructorDelegationExpectedParameterTypes(
+            args: args,
+            candidates: candidates,
+            targetType: targetType,
+            range: range,
+            ctx: ctx
+        )
         let prepared = driver.callChecker.prepareCallArguments(
             args: args,
             callRange: range,
             candidates: candidates,
+            expectedTypeOverrides: expectedTypeOverrides,
             explicitTypeArgs: typeArguments,
             ctx: ctx,
             locals: &locals
@@ -617,6 +625,58 @@ extension DeclTypeChecker {
         } else if ownerSymbol != nil {
             emitUnresolvedDelegation(delegation: delegation, sema: sema)
         }
+    }
+
+    private func constructorDelegationExpectedParameterTypes(
+        args: [CallArgument],
+        candidates: [SymbolID],
+        targetType: TypeID?,
+        range: SourceRange,
+        ctx: TypeInferenceContext
+    ) -> [Int: TypeID] {
+        let sema = ctx.sema
+        guard let targetType,
+              case let .classType(ownerType) = sema.types.kind(of: targetType)
+        else { return [:] }
+        let ownerParameters = sema.types.allTypeParameterSymbols(for: ownerType.classSymbol)
+        let ownerArguments = sema.types.allTypeArguments(for: ownerType)
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(ownerParameters)
+        var substitution: [TypeVarID: TypeID] = [:]
+        for (parameter, argument) in zip(ownerParameters, ownerArguments) {
+            guard let variable = typeVarBySymbol[parameter] else { continue }
+            switch argument {
+            case let .invariant(type), let .in(type), let .out(type):
+                substitution[variable] = type
+            case .star:
+                continue
+            }
+        }
+        let mockCallArgs = args.map { CallArg.source($0, type: sema.types.anyType, callRange: range, ast: ctx.ast) }
+        let candidateMappings = candidates.compactMap { candidate -> [Int: TypeID]? in
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  let mapping = ctx.resolver.buildParameterMapping(
+                      signature: signature,
+                      callArgs: mockCallArgs,
+                      symbols: sema.symbols,
+                      typeSystem: sema.types
+                  )
+            else { return nil }
+            return mapping.mapValues { parameterIndex in
+                sema.types.substituteTypeParameters(
+                    in: signature.parameterTypes[parameterIndex],
+                    substitution: substitution,
+                    typeVarBySymbol: typeVarBySymbol
+                )
+            }
+        }
+        guard let first = candidateMappings.first else { return [:] }
+        var uniformTypes: [Int: TypeID] = [:]
+        for (index, expected) in first {
+            if candidateMappings.allSatisfy({ $0[index] == expected }) {
+                uniformTypes[index] = expected
+            }
+        }
+        return uniformTypes
     }
 
     private func reinferConstructorDelegationArguments(

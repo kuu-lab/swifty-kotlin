@@ -1,8 +1,6 @@
 package kotlin.collections
 
 // MIGRATION-COL-003
-// List filter HOFs migrated to Kotlin source.
-// Replaces the previous runtime-backed List filter helpers.
 
 public fun <T> List<T>.filter(predicate: (T) -> Boolean): List<T> {
     val result = mutableListOf<T>()

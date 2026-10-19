@@ -7,8 +7,7 @@ package kotlin.ranges
 
 import kotlin.internal.KsSymbolName
 
-// The runtime progression handle owns the bounds and step; member getters
-// reuse its shared bridges. Companion.fromClosedRange remains synthetic.
+// The runtime progression handle owns the bounds and step.
 public open class CharProgression internal constructor(
     start: Char,
     endInclusive: Char,

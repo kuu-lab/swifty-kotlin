@@ -37,8 +37,6 @@ private external fun AtomicBoolean.__kkCompareAndExchange(expectedValue: Boolean
 @KsSymbolName("__kk_atomic_ref_compareAndExchange")
 private external fun <T> AtomicReference<T>.__kkCompareAndExchange(expectedValue: T, newValue: T): T
 
-// ── AtomicInt ──────────────────────────────────────────────────────────────
-
 public fun AtomicInt.compareAndExchange(expectedValue: Int, newValue: Int): Int =
     __kkCompareAndExchange(expectedValue, newValue)
 
@@ -86,8 +84,6 @@ public fun AtomicInt.fetchAndUpdate(transform: (Int) -> Int): Int {
         if (compareAndSet(old, newValue)) return old
     }
 }
-
-// ── AtomicLong ─────────────────────────────────────────────────────────────
 
 public fun AtomicLong.compareAndExchange(expectedValue: Long, newValue: Long): Long =
     __kkCompareAndExchange(expectedValue, newValue)
@@ -137,11 +133,6 @@ public fun AtomicLong.fetchAndUpdate(transform: (Long) -> Long): Long {
     }
 }
 
-// ── AtomicBoolean ──────────────────────────────────────────────────────────
-// KSP-670/KSP-688: get/set/getAndSet and compareAndSet delegate to the
-// load/store/exchange/compareAndExchange bridge members. The compareAndExchange
-// operation remains the runtime CAS core (__kk_atomic_bool_*).
-
 public fun AtomicBoolean.compareAndExchange(expectedValue: Boolean, newValue: Boolean): Boolean =
     __kkCompareAndExchange(expectedValue, newValue)
 
@@ -181,8 +172,6 @@ public fun AtomicBoolean.fetchAndUpdate(transform: (Boolean) -> Boolean): Boolea
         if (compareAndSet(old, newValue)) return old
     }
 }
-
-// ── AtomicReference<T> ─────────────────────────────────────────────────────
 
 public fun <T> AtomicReference<T>.compareAndExchange(expectedValue: T, newValue: T): T =
     __kkCompareAndExchange(expectedValue, newValue)
@@ -227,8 +216,6 @@ public fun <T> AtomicReference<T>.updateAndFetch(transform: (T) -> T): T {
         if (compareAndSet(old, newValue)) return newValue
     }
 }
-
-// ── java.util.concurrent.atomic.AtomicInteger ──────────────────────────────
 
 public fun AtomicInteger.getAndUpdate(transform: (Int) -> Int): Int {
     while (true) {

@@ -40,9 +40,6 @@ private struct RuntimeKCallableFlatStringOut {
     var hash: Int = 0
 }
 
-/// Whether `value` could be the receiver of a KCallable itable call: a
-/// registered object carrying the KCallable interface slot, or a compiler-
-/// tagged callable reference.
 private func runtimeKCallableIsReceiver(_ value: Int) -> Bool {
     if runtimeRegisteredInterfaceSlot(objectRaw: value, interfaceTypeID: kCallableRuntimeTypeID) != nil {
         return true
@@ -189,7 +186,6 @@ func registerReflectionRuntimeTypeMetadata() {
     }
 }
 
-/// Returns a live runtime reflection box of the requested Swift type.
 func runtimeReflectionObject<T: AnyObject>(from raw: Int, as type: T.Type) -> T? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return nil
@@ -203,8 +199,6 @@ func runtimeReflectionObject<T: AnyObject>(from raw: Int, as type: T.Type) -> T?
     return tryCast(ptr, to: type)
 }
 
-/// Shared KCallable.name dispatch for every runtime reflection box returned by
-/// KClass member and constructor queries.
 @_cdecl("__kk_kcallable_get_name")
 public func __kk_kcallable_get_name(_ callableRaw: Int) -> Int {
     if let taggedName = runtimeStorage.withDelegateLock({ state in
@@ -224,8 +218,6 @@ public func __kk_kcallable_get_name(_ callableRaw: Int) -> Int {
     return runtimeNullSentinelInt
 }
 
-/// Shared KCallable.returnType dispatch for runtime reflection boxes and
-/// compiler-tagged callable references.
 @_cdecl("__kk_kcallable_get_return_type")
 public func __kk_kcallable_get_return_type(_ callableRaw: Int) -> Int {
     let returnTypeRaw: Int?
