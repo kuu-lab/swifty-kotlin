@@ -7,9 +7,6 @@
 
 package kotlin.collections
 
-/**
- * Provides a skeletal implementation of the [MutableSet] interface.
- */
 public abstract class AbstractMutableSet<E> protected constructor() : AbstractMutableCollection<E>(), MutableSet<E> {
     abstract override val size: Int
     abstract override fun iterator(): MutableIterator<E>
