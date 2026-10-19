@@ -525,8 +525,7 @@ samples for Sema and its setup, header collection, declaration validation, body 
 and type checking intervals. Sema currently runs serially for every jobs value;
 these measurements are a baseline, not evidence of parallel Sema speedup.
 Use `--stdlib artifact --stdlib-library <path>` to measure a compatible artifact
-separately. See [the parallelization audit](../docs/sema-parallelization.md) for
-interval boundaries, shared-state constraints, and the proposed implementation gates.
+separately.
 
 ## Refactoring guard metrics
 
