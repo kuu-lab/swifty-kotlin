@@ -7,7 +7,6 @@
 
 package kotlin.annotation
 
-/** Contains the list of code elements which are possible annotation targets. */
 public enum class AnnotationTarget {
     CLASS,
     ANNOTATION_CLASS,
@@ -27,7 +26,6 @@ public enum class AnnotationTarget {
     TYPEALIAS
 }
 
-/** Contains the list of possible annotation retentions. */
 public enum class AnnotationRetention {
     SOURCE,
     BINARY,
@@ -40,19 +38,15 @@ public val AnnotationTarget.entries: kotlin.enums.EnumEntries<AnnotationTarget>
 public val AnnotationRetention.entries: kotlin.enums.EnumEntries<AnnotationRetention>
     get() = enumEntries<AnnotationRetention>()
 
-/** Specifies the code elements which are possible targets of an annotation. */
 @Target(AnnotationTarget.ANNOTATION_CLASS)
 @MustBeDocumented
 public annotation class Target(vararg val allowedTargets: AnnotationTarget)
 
-/** Specifies whether an annotation is stored in binary output and visible for reflection. */
 @Target(AnnotationTarget.ANNOTATION_CLASS)
 public annotation class Retention(val value: AnnotationRetention = AnnotationRetention.RUNTIME)
 
-/** Specifies that an annotation is applicable twice or more on a single code element. */
 @Target(AnnotationTarget.ANNOTATION_CLASS)
 public annotation class Repeatable
 
-/** Specifies that an annotation is part of the public API and should be documented. */
 @Target(AnnotationTarget.ANNOTATION_CLASS)
 public annotation class MustBeDocumented

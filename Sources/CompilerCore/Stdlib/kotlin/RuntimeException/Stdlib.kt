@@ -6,10 +6,6 @@
 
 package kotlin
 
-/**
- * The common superclass for exceptions caused by incorrect program logic or
- * invalid state.
- */
 public open class RuntimeException : Exception {
     public constructor() : super() {
         __kkThrowableSetMessage(this, null)

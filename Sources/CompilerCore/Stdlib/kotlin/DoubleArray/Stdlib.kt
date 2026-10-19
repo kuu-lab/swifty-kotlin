@@ -1,8 +1,6 @@
 package kotlin
 
 /**
- * Kotlin stdlib `DoubleArray(size) { init }` constructor.
- *
  * The size-only constructor remains compiler-provided; this overload is
  * implemented as ordinary bundled Kotlin source.
  */

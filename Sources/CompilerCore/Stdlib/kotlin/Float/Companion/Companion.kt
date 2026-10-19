@@ -1,8 +1,7 @@
 package kotlin
 
-// KSP-847: Keep Float companion constants source-backed. Float is a compiler
-// primitive, so extension properties provide the public Companion surface
-// without a runtime bridge.
+// KSP-847: Float is a compiler primitive, so extension properties provide the
+// public Companion surface without a runtime bridge.
 public val Float.Companion.MAX_VALUE: Float get() = 3.4028235E38F
 
 public val Float.Companion.MIN_VALUE: Float get() = 1.4E-45F

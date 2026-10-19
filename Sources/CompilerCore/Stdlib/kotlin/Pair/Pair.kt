@@ -7,8 +7,5 @@
 
 package kotlin
 
-/**
- * Returns a copy of this pair with optionally replaced component values.
- */
 public fun <A, B> Pair<A, B>.copy(first: A = this.first, second: B = this.second): Pair<A, B> =
     Pair(first, second)

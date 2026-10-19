@@ -10,10 +10,7 @@ package kotlin
 import kotlin.reflect.KClass
 
 /**
- * Allows to use the API denoted by the given markers in the annotated file, declaration, or expression.
  * If a declaration is annotated with [OptIn], its usages are **not** required to opt in to that API.
- *
- * See also [Kotlin language documentation](https://kotlinlang.org/docs/opt-in-requirements.html) for more information.
  */
 @kotlin.annotation.Target(
     AnnotationTarget.CLASS,

@@ -1,8 +1,5 @@
 
 public extension TypeSystem {
-    /// Produces a human-readable, Kotlin-style type string for display in IDE
-    /// features such as hover and signatures.
-    ///
     /// Unlike the internal `renderType` debug renderer (which prints class and
     /// type-parameter symbols as `Class#<id>` / `T#<id>`), this resolves those
     /// symbols to their source-level names via the symbol table and interner.

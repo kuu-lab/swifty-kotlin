@@ -7,13 +7,6 @@
 
 package kotlin
 
-/**
- * Marks Kotlin's unsigned types API as experimental.
- *
- * Any usage of a declaration annotated with `@ExperimentalUnsignedTypes` must be accepted either
- * by annotating that usage with the [OptIn] annotation, e.g. `@OptIn(ExperimentalUnsignedTypes::class)`,
- * or by using the compiler argument `-opt-in=kotlin.ExperimentalUnsignedTypes`.
- */
 @kotlin.RequiresOptIn(level = RequiresOptIn.Level.WARNING)
 @kotlin.annotation.MustBeDocumented
 @kotlin.annotation.Target(

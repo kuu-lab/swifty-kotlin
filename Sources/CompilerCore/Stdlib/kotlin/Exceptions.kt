@@ -8,8 +8,6 @@ package kotlin
 
 import kotlin.internal.KsSymbolName
 
-// KSP-656: Kotlin common exception hierarchy.
-//
 // The runtime still owns throwable storage and type identity. The remaining
 // bridge-backed constructors below allocate that storage directly instead of
 // delegating to Throwable, which would allocate a second storage-less object.

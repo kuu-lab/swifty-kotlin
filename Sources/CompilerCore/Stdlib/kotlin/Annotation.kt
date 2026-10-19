@@ -7,7 +7,6 @@
 
 package kotlin
 
-// KSP-719: nominal kotlin.Annotation declaration migrated to bundled source.
 // The existing synthetic placeholder in registerSyntheticAnyStub is reused on
 // bundle load so early type-system wiring (annotation class supertypes,
 // BuiltinTypeNames, findAssociatedObject bound) keeps resolving.

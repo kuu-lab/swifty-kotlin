@@ -20,8 +20,6 @@ package kotlin
  * 2. You disable all the warnings/errors about the behavior change because they become unnecessary.
  *
  * The effect of '-Xconsistent-data-class-copy-visibility' flag is the same as applying [ConsistentCopyVisibility] to all data classes in the module.
- *
- * @see [kotlin.annotations.ConsistentCopyVisibility]
  */
 @kotlin.annotation.Target(AnnotationTarget.CLASS)
 @kotlin.annotation.Retention(AnnotationRetention.SOURCE)

@@ -246,7 +246,6 @@ extension DeclTypeChecker {
             getValueResolved = true
         }
 
-        // Check setValue for var properties.
         if isVar, let valueType = result {
             let setValueName = interner.intern("setValue")
             let setValueResolution = resolvePropertyDelegateFunction(
@@ -277,7 +276,6 @@ extension DeclTypeChecker {
             }
         }
 
-        // Check provideDelegate operator.
         let provideDelegateName = interner.intern("provideDelegate")
         let provideDelegateResolution = resolvePropertyDelegateFunction(
             named: provideDelegateName,
@@ -452,9 +450,7 @@ extension DeclTypeChecker {
         return false
     }
 
-    /// Resolve one property-delegate convention function with the same
-    /// receiver/argument/generic rules used by ordinary calls. Member
-    /// candidates are probed first because a member always wins over an
+    /// Member candidates are probed first because a member always wins over an
     /// extension; extensions are then taken from the visible scope and the
     /// existing bundled-stdlib fallback.
     private func resolvePropertyDelegateFunction(
@@ -911,9 +907,6 @@ extension DeclTypeChecker {
         )
     }
 
-    /// The interface a stdlib delegate factory's result conforms to for a given
-    /// value type: `Lazy<T>` for `lazy`, `ReadWriteProperty<Any?, T>` for the
-    /// `Delegates` factories. Nil for `.custom` delegates.
     private func stdlibDelegateInterfaceType(
         of valueType: TypeID,
         kind: StdlibDelegateKind,

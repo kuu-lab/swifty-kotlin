@@ -1,7 +1,3 @@
-/*
- * KUU-1361: JVM java.util.SortedMap parity for the bundled stdlib.
- */
-
 package java.util
 
 import kotlin.collections.MutableMap
@@ -10,9 +6,6 @@ import kotlin.internal.KsSymbolName
 // Members are bodiless @KsSymbolName declarations — see SortedSet.kt for the
 // rationale.
 
-/**
- * A [MutableMap] that keeps its entries ordered by key — `java.util.SortedMap`.
- */
 public interface SortedMap<K, V> : MutableMap<K, V> {
     /** The comparator used to order keys, or `null` for natural ordering. */
     @KsSymbolName("__kk_sorted_map_comparator")
