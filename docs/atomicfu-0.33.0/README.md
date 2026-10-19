@@ -2,8 +2,7 @@
 
 This directory pins the API and source evidence used by KUU-1732. Files below
 `reference/sources/` are documentation inputs for the inventory tools; they are
-not bundled compiler sources. Actual registration and operations remain pending
-as described in [the implementation plan](../atomicfu-implementation-plan.md).
+not bundled compiler sources. Actual registration and operations remain pending.
 
 ## Pinned reference and count definitions
 
@@ -106,5 +105,4 @@ parser or proof of arbitrary Kotlin type resolution.
 
 CI's repository-checks job runs the checker and focused Python tests. A green
 inventory check establishes the ledger's pinned facts, not source-backed symbol
-binding, Runtime ABI correctness, or execution. Those gates remain required by
-[the implementation plan](../atomicfu-implementation-plan.md).
+binding, Runtime ABI correctness, or execution. Those gates remain required.
