@@ -7,13 +7,6 @@
 
 package kotlin
 
-/**
- * This annotation marks the experimental preview of the language feature `SubclassOptInRequired`.
- *
- * Any usage of a declaration annotated with `@ExperimentalSubclassOptIn` must be accepted either
- * by annotating that usage with the [OptIn] annotation, e.g. `@OptIn(ExperimentalSubclassOptIn::class)`,
- * or by using the compiler argument `-opt-in=kotlin.ExperimentalSubclassOptIn`.
- */
 @kotlin.RequiresOptIn(level = RequiresOptIn.Level.WARNING)
 @kotlin.annotation.Target(AnnotationTarget.ANNOTATION_CLASS)
 @kotlin.annotation.Retention(AnnotationRetention.BINARY)

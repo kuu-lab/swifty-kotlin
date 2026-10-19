@@ -8,26 +8,22 @@
 
 package kotlin.test
 
-/** Marks a class member function with no parameters and a Unit return type as a test. */
 @kotlin.annotation.Target(AnnotationTarget.FUNCTION)
 public annotation class Test
 
-/** Marks a test or a suite as ignored. */
 @kotlin.annotation.Target(AnnotationTarget.CLASS, AnnotationTarget.FUNCTION)
 public annotation class Ignore
 
-/** Marks a class member function to be invoked before each test. */
 @kotlin.annotation.Target(AnnotationTarget.FUNCTION)
 public annotation class BeforeTest
 
-/** Marks a class member function to be invoked after each test. */
 @kotlin.annotation.Target(AnnotationTarget.FUNCTION)
 public annotation class AfterTest
 
-/** Marks a function to be invoked once before a suite (Kotlin/Native lifecycle). */
+/** Kotlin/Native lifecycle. */
 @kotlin.annotation.Target(AnnotationTarget.FUNCTION)
 public annotation class BeforeClass
 
-/** Marks a function to be invoked once after a suite (Kotlin/Native lifecycle). */
+/** Kotlin/Native lifecycle. */
 @kotlin.annotation.Target(AnnotationTarget.FUNCTION)
 public annotation class AfterClass

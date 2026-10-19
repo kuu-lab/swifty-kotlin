@@ -168,11 +168,11 @@ struct SamConstructorFactoryResolutionTests {
     }
 
     @Test(arguments: [
-        "Operation { it.length }",
-        "Operation { s: String -> s.length }",
-        "Operation { c: Char -> c.code }",
+        ("Operation { it.length }", "StringOperation"),
+        ("Operation { s: String -> s.length }", "StringOperation"),
+        ("Operation { c: Char -> c.code }", "Operation"),
     ])
-    func samTypedFactoryAndRawConstructorUseTheirOwnContexts(expression: String) throws {
+    func samTypedFactoryAndRawConstructorUseTheirOwnContexts(expression: String, expectedSymbolName: String) throws {
         let ctx = context("""
         fun interface StringOperation { fun apply(value: String): Int }
         fun interface Operation { fun apply(value: Char): Int }
@@ -191,7 +191,7 @@ struct SamConstructorFactoryResolutionTests {
             return
         }
         let symbol = try #require(sema.symbols.symbol(sam.classSymbol))
-        #expect(ctx.interner.resolve(symbol.name) == (expression.contains("c: Char") ? "Operation" : "StringOperation"))
+        #expect(ctx.interner.resolve(symbol.name) == expectedSymbolName)
     }
 
     @Test

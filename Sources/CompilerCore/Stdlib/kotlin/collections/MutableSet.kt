@@ -41,19 +41,13 @@ private external fun <E> __kkMutableSetRetainAll(
     elements: Collection<out E>
 ): Boolean
 
-// KSP-704: the nominal declaration and mutation surface are source-backed.
-// The private externals above are the demoted runtime bridges; keeping the
-// bridge call in a default interface body avoids repeating the ABI plumbing in
-// every concrete MutableSet implementation.
+// Keeping the bridge call in a default interface body avoids repeating the ABI
+// plumbing in every concrete MutableSet implementation.
 //
 // `MutableCollection` will provide `MutableIterable` transitively when its
 // separate source migration lands. Keep the direct edge here until then so
 // bundled MutableSet values preserve the existing iterable type surface.
 
-/**
- * A generic unordered collection of elements that supports adding and removing
- * elements.
- */
 public interface MutableSet<E> : Set<E>, MutableCollection<E>, MutableIterable<E> {
     public override fun add(element: E): Boolean = __kkMutableSetAdd(this, element)
 
@@ -88,7 +82,6 @@ public interface MutableSet<E> : Set<E>, MutableCollection<E>, MutableIterable<E
     public override fun retainAll(elements: Collection<out E>): Boolean =
         __kkMutableSetRetainAll(this, elements)
 
-    /** Returns a typed view that keeps this set as its shared backing state. */
     @ExperimentalJsExport
     @ExperimentalJsCollectionsApi
     @SinceKotlin("2.0")

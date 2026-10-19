@@ -6,8 +6,15 @@ import Testing
 
 @Suite
 struct MetadataSerializerTests {
-    @Test(arguments: [Visibility.private, .internal, .protected, .public])
-    func testNestedDeclarationsRespectEffectiveVisibility(outerVisibility: Visibility) {
+    private static let expectedVisibilityNames: Set<String> = ["Outer", "Outer.Inner", "Outer.Inner.member", "Outer.Inner.value"]
+
+    @Test(arguments: [
+        (Visibility.private, Set<String>()),
+        (.internal, Set<String>()),
+        (.protected, expectedVisibilityNames),
+        (.public, expectedVisibilityNames),
+    ])
+    func testNestedDeclarationsRespectEffectiveVisibility(outerVisibility: Visibility, expectedPublicNames: Set<String>) {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
@@ -44,15 +51,13 @@ struct MetadataSerializerTests {
             symbols: symbols, types: types, moduleName: "Visibility",
             interner: interner, functionLinkNames: [:]
         )
-        let expectedNames: Set<String> = ["Outer", "Outer.Inner", "Outer.Inner.member", "Outer.Inner.value"]
-        let isExternallyVisible = outerVisibility == .public || outerVisibility == .protected
-        #expect(Set(publicRecords.map(\.fqName)) == (isExternallyVisible ? expectedNames : []))
+        #expect(Set(publicRecords.map(\.fqName)) == expectedPublicNames)
 
         let completeRecords = encoder.buildRecords(
             symbols: symbols, types: types, moduleName: "Visibility",
             interner: interner, functionLinkNames: [:], includeNonPublic: true
         )
-        #expect(Set(completeRecords.map(\.fqName)) == expectedNames)
+        #expect(Set(completeRecords.map(\.fqName)) == Self.expectedVisibilityNames)
     }
 
     @Test func testAutoInlineBodiesDoNotEnableNonLocalCallbackReturns() throws {
@@ -60,15 +65,19 @@ struct MetadataSerializerTests {
         let symbols = SymbolTable()
         let types = TypeSystem()
         let callbackType = types.make(.functionType(FunctionType(params: [], returnType: types.unitType)))
-        for isDeclaredInline in [false, true] {
-            let name = interner.intern(isDeclaredInline ? "inlineCallback" : "escapingCallback")
+        let testCases: [(isDeclaredInline: Bool, name: String, expectedNonLocalReturns: [Bool])] = [
+            (false, "escapingCallback", [false, false, false]),
+            (true, "inlineCallback", [true, false, false]),
+        ]
+        for testCase in testCases {
+            let name = interner.intern(testCase.name)
             let symbol = symbols.define(
                 kind: .function,
                 name: name,
                 fqName: [name],
                 declSite: nil,
                 visibility: .public,
-                flags: isDeclaredInline ? [.inlineFunction] : []
+                flags: testCase.isDeclaredInline ? [.inlineFunction] : []
             )
             symbols.setFunctionSignature(
                 FunctionSignature(
@@ -87,7 +96,7 @@ struct MetadataSerializerTests {
                 inlineFunctionSymbols: [symbol]
             )
             #expect(record.isInline)
-            #expect(record.valueParameterAllowsNonLocalReturn == (isDeclaredInline ? [true, false, false] : [false, false, false]))
+            #expect(record.valueParameterAllowsNonLocalReturn == testCase.expectedNonLocalReturns)
         }
     }
 

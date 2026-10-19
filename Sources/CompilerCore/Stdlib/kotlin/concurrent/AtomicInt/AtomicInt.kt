@@ -8,9 +8,7 @@ package kotlin.concurrent
 
 import kotlin.internal.KsSymbolName
 
-// The scalar atomic value remains owned by the shared runtime atomic box; the
-// runtime entry points stay private and the legacy receiver surface is exposed
-// as source-backed members.
+// The scalar atomic value remains owned by the shared runtime atomic box.
 @KsSymbolName("__kk_atomic_int_compareAndExchange")
 private external fun AtomicInt.__kkAtomicIntCompareAndExchange(
     expectedValue: Int,

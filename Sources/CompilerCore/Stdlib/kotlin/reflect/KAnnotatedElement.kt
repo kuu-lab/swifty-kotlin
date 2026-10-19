@@ -7,12 +7,6 @@
 
 package kotlin.reflect
 
-// KSP-1323: source-backed kotlin.reflect surface, split out of the former
-// Stdlib.kt grab-bag to follow the upstream per-declaration file layout.
-
-/**
- * Represents an annotated element and allows to obtain its annotations.
- */
 public interface KAnnotatedElement {
     public val annotations: List<Annotation>
 }

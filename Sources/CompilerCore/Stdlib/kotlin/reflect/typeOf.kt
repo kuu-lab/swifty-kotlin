@@ -7,11 +7,5 @@
 
 package kotlin.reflect
 
-// KSP-1323: source-backed kotlin.reflect surface, split out of the former
-// Stdlib.kt grab-bag to follow the upstream per-declaration file layout.
-
-/**
- * Returns a runtime representation of the given reified type [T] as an instance of [KType].
- */
 public inline fun <reified T> typeOf(): KType =
     throw IllegalStateException("typeOf is expanded by the compiler")

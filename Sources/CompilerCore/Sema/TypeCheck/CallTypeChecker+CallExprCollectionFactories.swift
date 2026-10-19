@@ -51,11 +51,29 @@ extension CallTypeChecker {
                 return sema.types.makeNonNullable(expectedType)
             }
 
+            func isMutableCollection(_ type: TypeID) -> Bool {
+                guard case let .classType(classType) = sema.types.kind(of: type),
+                      let symbol = sema.symbols.symbol(classType.classSymbol)
+                else {
+                    return false
+                }
+                let symName = interner.resolve(symbol.name)
+                return symName.hasPrefix("Mutable")
+                    || symName == "ArrayList"
+                    || symName == "HashSet"
+                    || symName == "LinkedHashSet"
+                    || symName == "HashMap"
+                    || symName == "LinkedHashMap"
+            }
+
             switch name {
             case "emptyList", "listOf", "listOfNotNull", "mutableListOf", "arrayListOf":
                 let expectedType = expectedCollectionType(withArity: 1)
-                if let expectedType, name != "mutableListOf", name != "arrayListOf" {
-                    return (expectedType, typeArgs(from: expectedType))
+                if let expectedType, explicitTypeArgs.isEmpty {
+                    let isImmutable = name == "emptyList" || name == "listOf" || name == "listOfNotNull"
+                    if !(isImmutable && isMutableCollection(expectedType)) {
+                        return (expectedType, typeArgs(from: expectedType))
+                    }
                 }
                 let elementTypes = name == "listOfNotNull"
                     ? zip(args, argTypes).compactMap { argument, type -> TypeID? in
@@ -104,8 +122,12 @@ extension CallTypeChecker {
                 return (resultType, [elementType])
 
             case "emptySet", "setOf", "setOfNotNull", "mutableSetOf", "hashSetOf", "linkedSetOf":
-                if let expectedType = expectedCollectionType(withArity: 1) {
-                    return (expectedType, typeArgs(from: expectedType))
+                let expectedType = expectedCollectionType(withArity: 1)
+                if let expectedType, explicitTypeArgs.isEmpty {
+                    let isImmutable = name == "emptySet" || name == "setOf" || name == "setOfNotNull"
+                    if !(isImmutable && isMutableCollection(expectedType)) {
+                        return (expectedType, typeArgs(from: expectedType))
+                    }
                 }
                 let elementTypes = name == "setOfNotNull"
                     ? argTypes.compactMap { type -> TypeID? in
@@ -147,8 +169,12 @@ extension CallTypeChecker {
                 return (resultType, [elementType])
 
             case "emptyMap", "mapOf", "mutableMapOf", "hashMapOf", "linkedMapOf":
-                if let expectedType = expectedCollectionType(withArity: 2) {
-                    return (expectedType, typeArgs(from: expectedType))
+                let expectedType = expectedCollectionType(withArity: 2)
+                if let expectedType, explicitTypeArgs.isEmpty {
+                    let isImmutable = name == "emptyMap" || name == "mapOf"
+                    if !(isImmutable && isMutableCollection(expectedType)) {
+                        return (expectedType, typeArgs(from: expectedType))
+                    }
                 }
                 // Spread arguments contribute their array element (Pair<K, V>),
                 // not the array itself, to the factory's key/value inference.
@@ -239,7 +265,7 @@ extension CallTypeChecker {
             // expected result directly would accept List<String> = listOf(1).
             // mapOf also needs regular resolution to select its fixed/vararg
             // overloads for non-empty calls.
-            if resolvedName != "listOf", !(resolvedName == "mapOf" && !args.isEmpty),
+            if !(resolvedName == "listOf" && !args.isEmpty), !(resolvedName == "mapOf" && !args.isEmpty),
                let sourceBackedFactory = sourceBackedCollectionFactoryType(name: resolvedName),
                !hasNonStdlibCollectionFactoryShadow(calleeName, locals: locals, ctx: ctx),
                let chosen = candidates.first(where: { candidate in

@@ -7,17 +7,10 @@
 
 package kotlin.collections
 
-// KSP-932: the nominal `AbstractSet<out E>` declaration is source-backed here;
-// collection type fallbacks remain available for contexts without the bundled
+// Collection type fallbacks remain available for contexts without the bundled
 // stdlib, but Set-specific synthetic shell registration is retired by KSP-704.
 
-/**
- * Provides a skeletal implementation of the read-only [Set] interface.
- */
 public abstract class AbstractSet<out E> protected constructor() : AbstractCollection<E>(), Set<E> {
-    /**
-     * Compares this set with another set using unordered structural equality.
-     */
     override fun equals(other: Any?): Boolean {
         if (other === this) return true
         if (other !is Set<*>) return false
@@ -36,9 +29,6 @@ public abstract class AbstractSet<out E> protected constructor() : AbstractColle
         return size == otherSize
     }
 
-    /**
-     * Returns the hash code value for this set.
-     */
     override fun hashCode(): Int {
         var hashCode = 0
         for (element in this) {

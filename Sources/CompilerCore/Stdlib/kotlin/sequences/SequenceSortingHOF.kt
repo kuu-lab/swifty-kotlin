@@ -4,14 +4,11 @@ import kotlin.comparisons.naturalOrder
 import kotlin.internal.mergeSortWith
 
 // MIGRATION-SEQ-005
-// Sequence sorting HOFs migrated to Kotlin source.
 // Kept in a separate file with package kotlin.sequences to avoid FQ-name collisions
 // with the List sorting extensions in kotlin.collections/ListSortingHOF.kt.
 //
 // Migration source:
 //   Sources/Runtime/RuntimeSequence.swift
-//
-// Migrated: sorted, sortedBy, sortedByDescending, sortedDescending, sortedWith
 
 public fun <T : Comparable<T>> Sequence<T>.sorted(): Sequence<T> {
     val result = this.toMutableList()

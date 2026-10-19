@@ -7,17 +7,9 @@
 
 package kotlin.collections
 
-// KSP-700: the nominal `Collection<out E>` declaration moved to Collection.kt.
 // The compiler-side shell in `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift`
 // remains the fallback for contexts without the bundled stdlib.
 
-// KSP-633: the nominal `AbstractCollection<out E>` declaration is source-backed
-// here; the compiler-side shell in `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift`
-// remains the fallback for contexts without the bundled stdlib.
-
-/**
- * Provides a skeletal implementation of the read-only [Collection] interface.
- */
 public abstract class AbstractCollection<out E> protected constructor() : Collection<E> {
     abstract override val size: Int
 
@@ -45,9 +37,6 @@ public abstract class AbstractCollection<out E> protected constructor() : Collec
         if (element === this) "(this Collection)" else element.toString()
     }
 
-    /**
-     * Returns a new array containing all elements of this collection.
-     */
     protected open fun toArray(): Array<Any?> {
         val result = arrayOfNulls<Any?>(size)
         var index = 0
@@ -57,9 +46,6 @@ public abstract class AbstractCollection<out E> protected constructor() : Collec
         return result
     }
 
-    /**
-     * Fills the provided array or creates a new array with the collection's elements.
-     */
     @Suppress("UNCHECKED_CAST")
     protected open fun <T> toArray(array: Array<T>): Array<T> {
         val destination = if (array.size < size) {
@@ -75,8 +61,7 @@ public abstract class AbstractCollection<out E> protected constructor() : Collec
     }
 }
 
-// KSP-957: source-backed implementations for the generic Iterable and Map
-// on-family functions. Keep the receiver type in the return value, matching
+// KSP-957: Keep the receiver type in the return value, matching
 // Kotlin 2.3.10's generated common stdlib sources.
 @SinceKotlin("1.1")
 @Suppress("UNCHECKED_CAST")

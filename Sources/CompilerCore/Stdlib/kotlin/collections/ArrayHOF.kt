@@ -1,8 +1,5 @@
 package kotlin.collections
 
-// KSP-433: Array<T> transform HOFs are bundled Kotlin source. Primitive-array
-// variants are defined in PrimitiveArrayHOF.kt.
-
 public fun <T, R> Array<T>.map(transform: (T) -> R): List<R> {
     val result = mutableListOf<R>()
     var i = 0

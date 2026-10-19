@@ -30,12 +30,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Check remote Action pins
         run: python3 Scripts/check_action_pins.py
-      - name: Run mutation-generator smoke test
-        run: bash Scripts/test_mutation_fuzzer.sh
-      - name: Run diff_kotlinc.sh script-mode classification regression test
-        run: bash Scripts/test_diff_kotlinc_script_classification.sh
-      - name: Run diff_kotlinc.sh candidate-only regression test
-        run: bash Scripts/test_diff_kotlinc_candidate_only.sh
+      - name: Run script regression tests
+        run: bash Scripts/test_all.sh
       - name: Prepare Linux runner
         uses: ./.github/actions/setup-self-hosted
       - name: Setup Swift

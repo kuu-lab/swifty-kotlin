@@ -15,13 +15,11 @@ package kotlin.test
 import kotlin.contracts.*
 import kotlin.internal.InlineOnly
 
-/** Asserts that [actual] is null. */
 public fun assertNull(actual: Any?, message: String? = null) {
     contract { returns() implies (actual == null) }
     asserter.assertNull(message, actual)
 }
 
-/** Asserts that [actual] is null, evaluating [lazyMessage] only if the assertion fails. */
 @SinceKotlin("2.4")
 @ExperimentalKotlinTestApi
 public fun assertNull(actual: Any?, lazyMessage: () -> String) {
@@ -29,7 +27,6 @@ public fun assertNull(actual: Any?, lazyMessage: () -> String) {
     if (actual != null) assertNull(actual, lazyMessage())
 }
 
-/** Asserts that [actual] is non-null and returns it with its non-null type. */
 @IgnorableReturnValue
 public fun <T : Any> assertNotNull(actual: T?, message: String? = null): T {
     contract { returns() implies (actual != null) }
@@ -37,7 +34,6 @@ public fun <T : Any> assertNotNull(actual: T?, message: String? = null): T {
     return actual!!
 }
 
-/** Asserts that [actual] is non-null, evaluating [lazyMessage] only if the assertion fails. */
 @SinceKotlin("2.4")
 @ExperimentalKotlinTestApi
 @IgnorableReturnValue
@@ -48,8 +44,6 @@ public fun <T : Any> assertNotNull(actual: T?, lazyMessage: () -> String): T {
 }
 
 /**
- * Asserts that [actual] is non-null and passes it to [block].
- *
  * The block is not a lazy error message generator. Use `assertNotNull(actual, message).let(block)` instead.
  */
 @Deprecated(

@@ -1,9 +1,5 @@
 package kotlin.collections
 
-// KSP-429: List conversion, nullability, destructuring and index APIs are
-// ordinary Kotlin implementations. List storage and element access remain
-// runtime primitives; these functions only compose those primitives.
-
 public fun <T> List<T>?.orEmpty(): List<T> {
     if (this == null) return emptyList<T>()
     return this!!

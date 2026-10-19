@@ -11,9 +11,9 @@ import kotlin.native.internal.__nativeConcurrentWorkerFromCPointer
 import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.ExperimentalForeignApi
 
-// KSP-1250: Worker receiver APIs are Kotlin source backed. The runtime-only
-// pieces remain private bridges so the public surface follows Kotlin/Native's
-// declarations without exposing synthetic member stubs.
+// Runtime-only pieces of the Worker receiver APIs remain private bridges so the
+// public surface follows Kotlin/Native's declarations without exposing
+// synthetic member stubs.
 
 @KsSymbolName("kk_worker_id")
 private external fun Worker.__kkWorkerId(): Int
@@ -112,8 +112,7 @@ public inline fun <R> withWorker(
     }
 }
 
-// KSP-1251: the public Worker.Companion surface is Kotlin source backed. The
-// Worker nominal type (and its Companion object) remains synthetic, so these
+// The Worker nominal type (and its Companion object) remains synthetic, so these
 // are package-level extensions on the Companion receiver — the same shape the
 // other companion-scoped stdlib APIs use (Int.Companion, CharRange.Companion).
 

@@ -8,8 +8,6 @@
 package kotlin
 
 /**
- * Creates the opaque failure payload used by the bundled Result representation.
- *
  * The runtime stores the Throwable directly in its Result failure box, so no
  * separate Kotlin marker object is needed here.
  */

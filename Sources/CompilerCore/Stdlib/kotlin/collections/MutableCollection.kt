@@ -9,16 +9,13 @@ package kotlin.collections
 
 import kotlin.internal.KsSymbolName
 
-// KSP-697/705/1069: mutable collection members are source-backed. Runtime
-// bridges handle the built-in collection boxes and remain available as the ABI.
+// KSP-697/705/1069: Runtime bridges handle the built-in collection boxes and
+// remain available as the ABI.
 public interface MutableCollection<E> : Collection<E>, MutableIterable<E> {
     @KsSymbolName("__kk_mutable_collection_add_throwing")
     @IgnorableReturnValue
     public external fun add(element: E): Boolean
 
-    /**
-     * Adds all elements of [elements] to this mutable collection.
-     */
     @KsSymbolName("__kk_mutable_collection_addAll_throwing")
     @IgnorableReturnValue
     public external fun addAll(elements: Collection<out E>): Boolean

@@ -28,22 +28,7 @@ public inline operator fun ULongRange.contains(element: ULong?): Boolean = eleme
 // Migration source: Sources/Runtime/RuntimeRangeAndDispatch.swift
 //   (__kk_range_contains, __kk_range_isEmpty, kk_op_contains)
 //   Sources/Runtime/RuntimeRangeLongRange.swift
-//   (__kk_long_range_contains, __kk_long_range_isEmpty)
 // See RangeIterators.kt for the iterator() half of this migration.
-//
-// NOTE: KSP-312 wires explicit `contains`/`isEmpty` calls through bundled stdlib
-// source and removes the duplicate CallTypeChecker+RangeMemberFallback entries.
-// The existing synthetic class members are skipped when the bundled declaration
-// index sees these extension signatures. `x in range` and `for (x in range)` are
-// still special-cased in ExprLowerer+ControlFlowAndBlocks.swift; retiring that
-// direct lowering path is intentionally left to KSP-452.
-//
-// These implementations are written purely in terms of the first/last/step
-// properties every one of the six classes already exposes as Kotlin members.
-//
-// The LongRange/LongProgression overloads below pass their Long step through
-// the same helpers the Int/Char/UInt overloads widen into, so the shared
-// helpers only have to handle one width.
 
 // Keep these helpers specialized: the generic Comparable helper makes bundled
 // source type-checking fail to terminate even for unrelated small programs.

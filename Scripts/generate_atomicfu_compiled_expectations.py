@@ -9,8 +9,9 @@ import json
 from pathlib import Path
 import re
 
+import generate_atomicfu_api_index as api_index
+
 ROOT = Path(__file__).resolve().parents[1]
-LEDGER = ROOT / 'docs/atomicfu-0.33.0/reference/atomicfu.common-native.declarations.json'
 OUTPUT = ROOT / 'Tests/CompilerCoreTests/Fixtures/Atomicfu/native-api-150.json'
 
 
@@ -79,11 +80,15 @@ def expected_rows(ledger):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--ledger', type=Path, default=LEDGER)
+    parser.add_argument('--ledger', type=Path, help='read a saved declaration index instead of building it from the pinned KLIB API')
     parser.add_argument('--output', type=Path, default=OUTPUT)
     parser.add_argument('--check', action='store_true')
     args = parser.parse_args()
-    content = (json.dumps(expected_rows(json.loads(args.ledger.read_text())), indent=2) + '\n').encode()
+    if args.ledger is None:
+        ledger = api_index.load_index((api_index.REFERENCE / 'atomicfu.klib.api').read_bytes())
+    else:
+        ledger = json.loads(args.ledger.read_text())
+    content = (json.dumps(expected_rows(ledger), indent=2) + '\n').encode()
     if args.check:
         if not args.output.exists() or args.output.read_bytes() != content:
             print('FAIL: compiled expectations are stale')

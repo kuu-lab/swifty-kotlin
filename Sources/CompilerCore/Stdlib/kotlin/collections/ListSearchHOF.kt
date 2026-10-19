@@ -4,12 +4,9 @@ import kotlin.comparisons.compareValuesUnchecked
 import kotlin.internal.__valuesEqual
 
 // MIGRATION-COL-005
-// List search and predicate HOFs migrated to Kotlin source.
 // Migration source:
 //   Sources/Runtime/RuntimeCollectionHOF.swift  (first / last / find / findLast / indexOf*)
 //   Sources/Runtime/RuntimeCollections.swift    (firstOrNull / lastOrNull / single / singleOrNull, contains / containsAll)
-//
-// Equality is delegated to __kk_values_equal via kotlin.internal.__valuesEqual.
 
 public fun <T> List<T>.first(): T {
     if (size == 0) throw NoSuchElementException("Collection is empty.")
@@ -231,8 +228,6 @@ public fun <T> List<T>.none(predicate: (T) -> Boolean): Boolean {
     }
     return true
 }
-
-// --- binarySearch -----------------------------------------------------------
 
 private fun checkListBinarySearchBounds(size: Int, fromIndex: Int, toIndex: Int) {
     if (fromIndex > toIndex) {

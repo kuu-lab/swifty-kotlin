@@ -72,9 +72,9 @@ struct RuntimeStructuredConcurrencyFailureTests {
         #expect(root.cancellationCauseSnapshot() == exception)
     }
 
-    @Test(arguments: [false, true])
-    func scopeFailureIsImmediateAndSupervisorsIsolateIt(supervisor: Bool) {
-        let scope = RuntimeCoroutineScope(isSupervisor: supervisor)
+    @Test
+    func regularScopeFailureCancelsSiblingAndPropagatesException() {
+        let scope = RuntimeCoroutineScope(isSupervisor: false)
         let job = scope.installJob()
         let sibling = RuntimeJobHandle()
         sibling.markScheduled()
@@ -85,10 +85,29 @@ struct RuntimeStructuredConcurrencyFailureTests {
         scope.registerChild(failedHandle)
         let exception = runtimeAllocateIllegalStateException(message: "kill")
         failed.completeExceptionally(with: exception)
-        #expect(job.isActiveSnapshot() == supervisor)
-        #expect(sibling.cancellationSnapshot() == !supervisor)
+        #expect(!job.isActiveSnapshot())
+        #expect(sibling.cancellationSnapshot())
         _ = sibling.complete(with: 0)
-        #expect(scope.waitForChildren() == (supervisor ? 0 : exception))
+        #expect(scope.waitForChildren() == exception)
+    }
+
+    @Test
+    func supervisorScopeIsolatesChildFailure() {
+        let scope = RuntimeCoroutineScope(isSupervisor: true)
+        let job = scope.installJob()
+        let sibling = RuntimeJobHandle()
+        sibling.markScheduled()
+        let failed = RuntimeAsyncTask()
+        let siblingHandle = Int(bitPattern: Unmanaged.passRetained(sibling).toOpaque())
+        let failedHandle = Int(bitPattern: Unmanaged.passRetained(failed).toOpaque())
+        scope.registerChild(siblingHandle)
+        scope.registerChild(failedHandle)
+        let exception = runtimeAllocateIllegalStateException(message: "kill")
+        failed.completeExceptionally(with: exception)
+        #expect(job.isActiveSnapshot())
+        #expect(!sibling.cancellationSnapshot())
+        _ = sibling.complete(with: 0)
+        #expect(scope.waitForChildren() == 0)
     }
 
     @Test(arguments: [false, true])
