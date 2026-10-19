@@ -70,7 +70,6 @@ extension ExprTypeChecker {
         )
     }
 
-    /// Returns the dispatch owner's type while checking a member extension body.
     private func memberExtensionDispatchReceiverType(_ ctx: TypeInferenceContext) -> TypeID? {
         guard let owner = ctx.enclosingClassSymbol,
               let declaration = ctx.currentDeclSymbol,
@@ -98,7 +97,7 @@ extension ExprTypeChecker {
         return true
     }
 
-    /// Resolves `super<T>` — only direct supertypes (interfaces and classes) are valid per Kotlin spec.
+    /// Only direct supertypes (interfaces and classes) are valid per Kotlin spec.
     private func resolveQualifiedSuper(
         id: ExprID,
         qualifier: InternedString,
