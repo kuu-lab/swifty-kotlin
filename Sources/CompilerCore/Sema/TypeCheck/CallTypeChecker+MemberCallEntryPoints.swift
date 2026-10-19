@@ -1,12 +1,4 @@
-/// Member-call entry points: `inferMemberCallExpr` (including `infix`
-/// modifier enforcement for infix-spelled calls) and `inferSafeMemberCallExpr`,
-/// both delegating to `inferMemberCallImpl`.
-///
-/// Split out from `CallTypeChecker.swift`.
 extension CallTypeChecker {
-    /// Build `List<elementType>` for synthetic stdlib member-call inference.
-    /// Falls back to `Any` when `kotlin.collections.List` is not registered.
-
     func inferMemberCallExpr(
         _ id: ExprID, receiverID: ExprID, calleeName: InternedString,
         args: [CallArgument], range: SourceRange, ctx: TypeInferenceContext,
