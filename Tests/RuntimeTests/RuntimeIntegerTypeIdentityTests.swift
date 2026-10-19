@@ -11,7 +11,7 @@ struct RuntimeIntegerTypeIdentityTests {
     ]
 
     @Test
-    func integerBoxesMatchOnlyTheirOwnType() {
+    func integerBoxesMatchTheirOwnType() {
         let legacy = [
             kk_box_byte(-128), kk_box_short(0x1234), kk_box_ubyte(255), kk_box_ushort(0x8000),
             kk_box_uint(0xDEADBEEF), kk_box_ulong_nonnull(Int.min), kk_box_int(42), kk_box_long_nonnull(Int.min),
@@ -22,15 +22,37 @@ struct RuntimeIntegerTypeIdentityTests {
         ]
         for boxes in [legacy, fast] {
             for (index, box) in boxes.enumerated() {
-                for (target, token) in tokens.enumerated() {
-                    let matches = index == target
-                    #expect(kk_op_is(box, Int(token)) == (matches ? 1 : 0))
-                    #expect(kk_op_is(box, Int(token | RuntimeTypeTokenEncoding.nullableBit)) == (matches ? 1 : 0))
-                    #expect(kk_op_safe_cast(box, Int(token)) == (matches ? box : runtimeNullSentinelInt))
+                let token = tokens[index]
+                #expect(kk_op_is(box, Int(token)) == 1)
+                #expect(kk_op_is(box, Int(token | RuntimeTypeTokenEncoding.nullableBit)) == 1)
+                #expect(kk_op_safe_cast(box, Int(token)) == box)
+                var thrown = 0
+                let cast = kk_op_cast(box, Int(token), &thrown)
+                #expect(thrown == 0)
+                #expect(cast == box)
+            }
+        }
+    }
+
+    @Test
+    func integerBoxesRejectDifferentTypes() {
+        let legacy = [
+            kk_box_byte(-128), kk_box_short(0x1234), kk_box_ubyte(255), kk_box_ushort(0x8000),
+            kk_box_uint(0xDEADBEEF), kk_box_ulong_nonnull(Int.min), kk_box_int(42), kk_box_long_nonnull(Int.min),
+        ]
+        let fast = [
+            kk_box_byte_static(-128), kk_box_short_static(0x1234), kk_box_ubyte_static(255), kk_box_ushort_static(0x8000),
+            kk_box_uint_static(0xDEADBEEF), kk_box_ulong_nonnull_static(Int.min), kk_box_int_static(42), kk_box_long_nonnull_static(Int.min),
+        ]
+        for boxes in [legacy, fast] {
+            for (index, box) in boxes.enumerated() {
+                for (target, token) in tokens.enumerated() where index != target {
+                    #expect(kk_op_is(box, Int(token)) == 0)
+                    #expect(kk_op_is(box, Int(token | RuntimeTypeTokenEncoding.nullableBit)) == 0)
+                    #expect(kk_op_safe_cast(box, Int(token)) == runtimeNullSentinelInt)
                     var thrown = 0
-                    let cast = kk_op_cast(box, Int(token), &thrown)
-                    #expect((thrown == 0) == matches)
-                    if matches { #expect(cast == box) }
+                    _ = kk_op_cast(box, Int(token), &thrown)
+                    #expect(thrown != 0)
                 }
             }
         }
