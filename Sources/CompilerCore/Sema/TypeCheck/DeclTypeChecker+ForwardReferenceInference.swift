@@ -180,7 +180,7 @@ extension DeclTypeChecker {
             guard case let .classDecl(classDecl)? = ctx.ast.arena.decl(declID),
                   let symbol = ctx.sema.bindings.declSymbols[declID]
             else { continue }
-            let nestedContext = classDecl.isInner ? ctx : ctx.copying(outerReceiverTypes: [])
+            let nestedContext = ctx.nestedClassContext(isInner: classDecl.isInner)
             precheckIndependentClassMemberProperties(
                 classDecl, symbol: symbol, ctx: nestedContext,
                 solver: solver, diagnostics: diagnostics
