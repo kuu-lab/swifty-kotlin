@@ -1,9 +1,8 @@
 import Foundation
 
 extension DataFlowSemaPhase {
-    /// Walk a decoded type and collect all synthetic type parameter symbols
-    /// (those with rawValue <= syntheticTypeParameterBase). Returns them sorted
-    /// by index order (T0, T1, T2, ...) matching the original generic parameter list.
+    /// Returns the symbols sorted by index order (T0, T1, T2, ...) matching the
+    /// original generic parameter list.
     private func collectSyntheticTypeParameters(_ typeID: TypeID, types: TypeSystem) -> [SymbolID] {
         var collected: Set<SymbolID> = []
         collectSyntheticTypeParamsRecursive(typeID, types: types, base: Self.syntheticTypeParameterBase, into: &collected)
@@ -350,9 +349,9 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // Restore extension property accessor(s). Extension properties are
-        // compiled as precompiled getter functions in the artifact objects;
-        // we synthesize the accessor symbol and point it at that link name.
+        // Extension properties are compiled as precompiled getter functions in
+        // the artifact objects; we synthesize the accessor symbol and point it
+        // at that link name.
         if let receiverSig = record.propertyReceiverTypeSignature,
            let receiverType = decodeImportedTypeSignature(
                token: receiverSig,
