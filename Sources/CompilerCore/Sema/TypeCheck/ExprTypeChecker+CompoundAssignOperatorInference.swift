@@ -396,6 +396,25 @@ extension ExprTypeChecker {
         return true
     }
 
+    func isBuiltinCompoundAssignOperand(
+        op: CompoundAssignOp,
+        lhs: TypeID,
+        rhs: TypeID,
+        sema: SemaModule
+    ) -> Bool {
+        if op == .plusAssign, lhs == sema.types.stringType {
+            return true
+        }
+        let underlyingOp = driver.helpers.compoundAssignToBinaryOp(op)
+        if lhs == sema.types.charType {
+            if underlyingOp == .add || underlyingOp == .subtract {
+                return rhs == sema.types.intType
+            }
+            return false
+        }
+        return sema.types.isBuiltinArithmeticOperand(lhs) && sema.types.isBuiltinArithmeticOperand(rhs)
+    }
+
     private func inferObjectCompoundAssignExpr(
         _ id: ExprID,
         op: CompoundAssignOp,
@@ -618,6 +637,16 @@ extension ExprTypeChecker {
             ) {
                 return sema.types.errorType
             }
+            guard isBuiltinCompoundAssignOperand(op: op, lhs: local.type, rhs: valueType, sema: sema) else {
+                let operatorName = operatorFunctionNames(for: underlyingOp, interner: interner)[0]
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0002",
+                    "No viable overload found for operator '\(interner.resolve(operatorName))'.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
             // Arithmetic compound assignment keeps the target's own numeric type
             // (BUG-015): demoting `Long`/`Double`/unsigned locals to `Int` here broke
             // later member resolution such as `longVar and 0xFFL`.
@@ -809,6 +838,16 @@ extension ExprTypeChecker {
             if rejectInvalidBuiltinCharCompoundAssignment(
                 id, op: op, lhs: propType, rhs: valueType, range: range, ctx: ctx
             ) {
+                return sema.types.errorType
+            }
+            guard isBuiltinCompoundAssignOperand(op: op, lhs: propType, rhs: valueType, sema: sema) else {
+                let operatorName = operatorFunctionNames(for: underlyingOp, interner: interner)[0]
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0002",
+                    "No viable overload found for operator '\(interner.resolve(operatorName))'.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
             }
             let resultType: TypeID = switch underlyingOp {
@@ -1074,6 +1113,17 @@ extension ExprTypeChecker {
         if rejectInvalidBuiltinCharCompoundAssignment(
             id, op: op, lhs: propType, rhs: valueType, range: range, ctx: ctx
         ) {
+            return sema.types.errorType
+        }
+        let underlyingOp = driver.helpers.compoundAssignToBinaryOp(op)
+        guard isBuiltinCompoundAssignOperand(op: op, lhs: propType, rhs: valueType, sema: sema) else {
+            let operatorName = operatorFunctionNames(for: underlyingOp, interner: interner)[0]
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0002",
+                "No viable overload found for operator '\(interner.resolve(operatorName))'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
         if !isMutable {
