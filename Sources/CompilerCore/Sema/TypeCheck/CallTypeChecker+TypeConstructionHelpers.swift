@@ -1,12 +1,3 @@
-/// Synthetic type-construction helpers used by `inferCallExpr` /
-/// `inferMemberCallExpr` to materialize `List`, `Iterable`, `Sequence`,
-/// `Set`, `MutableSet`, `LinkedHashSet`, `Map`, `MutableMap`, `Array`,
-/// and primitive-array types when the call site needs them.
-///
-/// Also includes the contract-effect propagation helper used after
-/// callable resolution.
-///
-/// Split out from `CallTypeChecker.swift`.
 extension CallTypeChecker {
     /// Promoted from `private` to module-`internal` so the
     /// `+MemberCallInference*` extension files can share the single definition
@@ -32,8 +23,6 @@ extension CallTypeChecker {
         )))
     }
 
-    /// Shared helper for synthesizing `Iterable<T>` types.
-    /// Falls back to `Any` if `kotlin.collections.Iterable` is not registered.
     func makeSyntheticIterableType(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -57,7 +46,6 @@ extension CallTypeChecker {
         )))
     }
 
-    /// Build `Array<elementType>` -- generic array with preserved element type.
     func makeSyntheticArrayType(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -78,7 +66,6 @@ extension CallTypeChecker {
         )))
     }
 
-    /// Build a primitive array type (`IntArray`, `LongArray`, etc.) by name.
     func makeSyntheticPrimitiveArrayType(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -99,8 +86,6 @@ extension CallTypeChecker {
         )))
     }
 
-    /// Build a nominal class type from a fully-qualified name (no type arguments).
-    /// Falls back to `Any` when the symbol is not registered.
     /// Promoted from `private` to module-`internal` so the
     /// `+MemberCallInference*` extension files can share the single definition
     /// instead of duplicating it.
