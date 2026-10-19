@@ -1,14 +1,6 @@
-/// Residual compiler/runtime anchors for kotlin.time experimental time APIs
-/// (STDLIB-TIME-180).
-///
 /// The public operations are implemented in bundled Kotlin source. This file
 /// retains only the opt-in marker, nominal/bootstrap anchors, and hidden
-/// bridge declarations needed by compiler/runtime dispatch. It registers:
-/// - `@ExperimentalTime`
-/// - `TimeSource` with nested `WithComparableMarks`, `Monotonic`, `markNow()`, and `asClock()`
-/// - `TimeMark` / `ComparableTimeMark` nominal types (their operations are Kotlin source,
-///   see `Stdlib/kotlin/time/TimeMark.kt`)
-/// - `AbstractDoubleTimeSource` / `AbstractLongTimeSource` / `TestTimeSource` nominal anchors
+/// bridge declarations needed by compiler/runtime dispatch.
 extension DataFlowSemaPhase {
     func registerSyntheticExperimentalTimeStubs(
         symbols: SymbolTable,
