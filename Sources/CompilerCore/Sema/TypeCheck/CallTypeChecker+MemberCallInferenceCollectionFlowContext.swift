@@ -1,15 +1,7 @@
 extension CallTypeChecker {
-    /// Extracted per-call shared state for `tryInferMemberCallCollectionFlowSpecials`.
-    /// The `let` fields are the immutable call inputs and the receiver
-    /// classification the original function computed up front; the `var`
-    /// fields hold the mutable state the collection-HOF block kept in block
-    /// scope. `collectionElementType`, `collectionMapTypes`, `listResultType`
-    /// and `resultType` are assigned before first read inside
-    /// `inferCollectionHOFSpecial`, matching the original
-    /// definite-initialization ordering. `didReturnNil` records a
-    /// `return nil` bail inside an extracted switch segment so the caller can
-    /// stop dispatching exactly where the original function would have
-    /// returned.
+    /// `didReturnNil` records a `return nil` bail inside an extracted switch
+    /// segment so the caller can stop dispatching exactly where the original
+    /// function would have returned.
     final class MemberCallCollectionFlowContext {
         unowned let checker: CallTypeChecker
         let driver: TypeCheckDriver
