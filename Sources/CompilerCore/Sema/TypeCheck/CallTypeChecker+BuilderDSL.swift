@@ -148,7 +148,6 @@ extension CallTypeChecker {
         if locals[calleeName] != nil {
             return false
         }
-        // Use builder DSL handling when no user-defined (non-synthetic) symbol is in scope.
         // Synthetic stubs (e.g. kotlin.collections.buildList) are allowed.
         if ctx.cachedScopeLookup(calleeName).contains(where: { candidate in
             guard let sym = ctx.cachedSymbol(candidate) else { return false }
@@ -933,8 +932,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Returns the read-only collection type matching the builder's `Mutable*` receiver type:
-    /// `List<E>` for `buildList`, `Set<E>` for `buildSet`, `Map<K, V>` for `buildMap`.
     func builderDSLBuildReturnType(
         kind: BuilderDSLKind,
         receiverType: TypeID,
@@ -1348,9 +1345,6 @@ extension CallTypeChecker {
 
         guard let lastArgumentExprID = args.last?.expr else { return nil }
 
-        // Infer the produced element type exactly like the synthetic path:
-        // prefer an expected Channel<E>/ReceiveChannel<E>, otherwise LUB the
-        // `send(...)` argument types seen in the lambda body.
         let channelType = produceBuilderChannelType(
             lambdaExprID: lastArgumentExprID,
             expectedType: expectedType,
@@ -1379,7 +1373,6 @@ extension CallTypeChecker {
             return fnReceiver
         }()
 
-        // Non-lambda leading arguments (e.g. `capacity`) type-check normally.
         for (index, argument) in args.dropLast().enumerated() {
             let paramExpected: TypeID? = index < signature.parameterTypes.count
                 ? sema.types.substituteTypeParameters(
