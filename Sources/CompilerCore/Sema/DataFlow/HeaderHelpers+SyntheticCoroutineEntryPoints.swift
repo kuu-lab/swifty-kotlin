@@ -1,9 +1,3 @@
-/// Residual coroutine stub registration entry points invoked by the
-/// `SyntheticStubRegistryEntry` bucket table
-/// (`registerSyntheticCoroutineCancellationStubs`,
-/// `registerSyntheticCoroutineIntrinsicsStubs`).
-///
-/// Consolidated here with the coroutine package registry for RF-STUB-005.
 extension DataFlowSemaPhase {
     // STDLIB-CORO-BUG-04: this used to also register a `Job.cancel()`
     // extension function under kotlin.coroutines.cancellation, duplicating
