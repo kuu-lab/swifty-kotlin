@@ -42,6 +42,14 @@ struct ByteStringAPIShapeTests {
         let superFQNames: [String]
         let genericSuperSignatures: [String]
         let getterSignature: String?
+
+        var parentFQName: String {
+            fqName.components(separatedBy: ".").dropLast().joined(separator: ".")
+        }
+
+        var expectedPropertyReceiverTypeSignature: String? {
+            receiverKind == "PACKAGE_EXTENSION" ? receiverTypeSignature : nil
+        }
     }
 
     private struct Annotation: Decodable {
@@ -71,8 +79,7 @@ struct ByteStringAPIShapeTests {
         #expect(index.canonicalRecordCount == 60)
 
         if allowDefaultStdlibLibrary { TestStdlibCache.shared.prepare() }
-        let selectedLibrary = allowDefaultStdlibLibrary
-            ? try #require(CompilerOptions.defaultStdlibLibraryPath, "Shared stdlib artifact must be published") : nil
+        let selectedLibrary: String? = allowDefaultStdlibLibrary ? CompilerOptions.defaultStdlibLibraryPath : nil
         let inputPath = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".kt").path
         let ctx = makeCompilationContext(inputs: [inputPath], stdlibLibraryPath: selectedLibrary,
                                          allowDefaultStdlibLibrary: false)
@@ -152,8 +159,7 @@ struct ByteStringAPIShapeTests {
                 #expect(receiverSignature(symbol) == row.receiverTypeSignature, "\(row.rowID) extension property receiver")
             } else {
                 #expect(symbols.extensionPropertyReceiverType(for: symbol.id) == nil, "\(row.rowID) member property")
-                #expect(symbol.fqName.dropLast().map(resolve).joined(separator: ".") == "kotlinx.io.bytestring."
-                    + (row.fqName.contains("ByteStringBuilder") ? "ByteStringBuilder" : "ByteString"))
+                #expect(symbol.fqName.dropLast().map(resolve).joined(separator: ".") == row.parentFQName)
             }
 
             if row.kind == "function" || row.kind == "constructor" {
@@ -235,7 +241,7 @@ struct ByteStringAPIShapeTests {
                 if row.kind == "property" {
                     #expect(record.propertyGetterExternalLinkName?.isEmpty == false, "\(row.rowID) emitted getter link")
                     #expect(record.propertySetterExternalLinkName == nil, "\(row.rowID) no setter")
-                    #expect(record.propertyReceiverTypeSignature == (row.receiverKind == "PACKAGE_EXTENSION" ? row.receiverTypeSignature : nil))
+                    #expect(record.propertyReceiverTypeSignature == row.expectedPropertyReceiverTypeSignature)
                 }
                 if row.defaults.contains(true) {
                     #expect(record.defaultStubExternalLinkName?.isEmpty == false, "\(row.rowID) emitted default stub")
