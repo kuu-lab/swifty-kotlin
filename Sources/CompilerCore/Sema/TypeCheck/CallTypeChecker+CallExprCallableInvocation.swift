@@ -1,9 +1,5 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
-/// Callable-value invocation paths from `inferCallExpr`: invoking a local
-/// `invoke` operator member, and inferring calls whose callee is a value of
-/// function type (local value, parameter, or arbitrary expression).
-/// Extracted from `CallTypeChecker+CallExprInference.swift`.
 extension CallTypeChecker {
     func inferLocalInvokeOperatorCall(
         _ id: ExprID,
@@ -195,9 +191,6 @@ extension CallTypeChecker {
             return sema.types.errorType
         }
 
-        // Invoke operator fallback: if callee is not a function type, check if
-        // its type has an `operator fun invoke(...)` member and resolve through
-        // the overload resolver as a member call.
         if let callableCalleeType {
             let invokeCandidates = implicitInvokeOperatorCandidates(for: callableCalleeType, ctx: ctx)
             if !invokeCandidates.isEmpty {
@@ -291,9 +284,8 @@ extension CallTypeChecker {
         return invokeCandidates
     }
 
-    /// Finds the first implicit-receiver property that name lookup would read.
-    /// The caller only uses it after ordinary call candidates and scoped values
-    /// have had their existing resolution priority.
+    /// The caller only uses the result after ordinary call candidates and
+    /// scoped values have had their existing resolution priority.
     func implicitReceiverFunctionProperty(
         named name: InternedString,
         ctx: TypeInferenceContext
