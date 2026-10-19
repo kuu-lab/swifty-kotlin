@@ -71,6 +71,38 @@ struct RuntimeABIExternalLinkValidationTests {
         external suspend fun <T> withTimeoutOrNull(timeMillis: Long, block: \(blockType)): T?
         """, relativePath: "timeout.kt")
         #expect(declarations.count == 3)
+        let expectedByLinkName: [String: (isThrowing: Bool, expectedParameterTypes: [String], expectedArityCandidates: Set<Int>)] = [
+            runtimeABIName(.withTimeout): (
+                isThrowing: true,
+                expectedParameterTypes: [
+                    RuntimeABICType.intptr.rawValue,
+                    RuntimeABICType.intptr.rawValue,
+                    RuntimeABICType.intptr.rawValue,
+                    RuntimeABICType.nullableIntptrPointer.rawValue,
+                ],
+                expectedArityCandidates: [2, 4]
+            ),
+            runtimeABIName(.withTimeoutOrNull): (
+                isThrowing: false,
+                expectedParameterTypes: [
+                    RuntimeABICType.intptr.rawValue,
+                    RuntimeABICType.intptr.rawValue,
+                    RuntimeABICType.intptr.rawValue,
+                ],
+                expectedArityCandidates: [2, 3]
+            ),
+            runtimeABIName(.withTimeoutOrNullThrowing): (
+                isThrowing: true,
+                expectedParameterTypes: [
+                    RuntimeABICType.intptr.rawValue,
+                    RuntimeABICType.intptr.rawValue,
+                    RuntimeABICType.intptr.rawValue,
+                    RuntimeABICType.nullableIntptrPointer.rawValue,
+                ],
+                expectedArityCandidates: [2, 4]
+            ),
+        ]
+        let baseValueParameterTypes = Array(repeating: RuntimeABICType.intptr.rawValue, count: 3)
         for declaration in declarations {
             #expect(declaration.arity == 2)
             #expect(declaration.isSuspend)
@@ -79,16 +111,14 @@ struct RuntimeABIExternalLinkValidationTests {
             let specs = RuntimeABISpec.allFunctions.filter { $0.name == declaration.linkName }
             #expect(specs.count == 1)
             let spec = try #require(specs.first)
-            let isThrowing = declaration.linkName != runtimeABIName(.withTimeoutOrNull)
-            let valueParameterTypes = Array(repeating: RuntimeABICType.intptr.rawValue, count: 3)
-            let thrownParameterTypes = isThrowing ? [RuntimeABICType.nullableIntptrPointer.rawValue] : []
-            #expect(spec.isThrowing == isThrowing)
-            #expect(spec.parameterTypeStrings == valueParameterTypes + thrownParameterTypes)
+            let expected = try #require(expectedByLinkName[declaration.linkName])
+            #expect(spec.isThrowing == expected.isThrowing)
+            #expect(spec.parameterTypeStrings == expected.expectedParameterTypes)
             // The block entry point and packed continuation occupy one slot each;
             // only throwing bridges append an outThrown slot (KUU-1218).
-            #expect(runtimeABIArityCandidates(for: declaration, specs: specs) == [2, isThrowing ? 4 : 3])
+            #expect(runtimeABIArityCandidates(for: declaration, specs: specs) == expected.expectedArityCandidates)
             #expect(expectedRuntimeABIParameterTypeVariants(for: declaration) == [
-                valueParameterTypes,
+                baseValueParameterTypes,
             ])
         }
     }
