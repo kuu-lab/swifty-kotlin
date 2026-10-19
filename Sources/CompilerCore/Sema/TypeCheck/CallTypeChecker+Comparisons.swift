@@ -60,7 +60,6 @@ extension CallTypeChecker {
             }
         }
 
-        // 2-arg overloads
         switch resolvedName {
         case "maxOf":
             if numericParamType == types.longType { return .maxOfLong }
