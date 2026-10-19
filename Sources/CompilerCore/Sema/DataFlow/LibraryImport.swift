@@ -55,6 +55,7 @@ extension DataFlowSemaPhase {
         var layoutBootstrapComplete = false
         var pendingLayoutRetries: [ImportedLibraryBinding] = []
         var indexedBindingsBySymbol: [SymbolID: ImportedLibraryBinding] = [:]
+        var preloadedPropertiesByOwner: [SymbolID: [ImportedLibraryBinding]] = [:]
 
         init(importedInlineFunctions: ImportedInlineFunctionStore = ImportedInlineFunctionStore()) {
             self.importedInlineFunctions = importedInlineFunctions
@@ -291,7 +292,8 @@ extension DataFlowSemaPhase {
                 symbols.setImportedMemberIndexShape(
                     ImportedMemberIndexShape(
                         arity: record.kind == .function || record.kind == .constructor ? record.arity : 0,
-                        receiverOwnerFQName: record.kind == .constructor ? nil : record.receiverOwnerFQName
+                        receiverOwnerFQName: record.kind == .constructor ? nil : record.receiverOwnerFQName,
+                        hasDefaultArguments: record.defaultStubExternalLinkName?.isEmpty == false
                     ),
                     for: symbol
                 )
@@ -420,7 +422,11 @@ extension DataFlowSemaPhase {
             if let indexedFile {
                 cache?.cacheIndexedMetadataFile(indexedFile, metadataPath: metadataPath)
                 withSubPhaseTiming("registerShells", timer: phaseTimer) {
+                    symbols.reserveAdditionalSymbols(indexedFile.entries.count)
+                    importedBindings.reserveCapacity(importedBindings.count + indexedFile.entries.count)
+                    boundSymbolOrigins.reserveCapacity(boundSymbolOrigins.count + indexedFile.entries.count)
                     var nominalTypeParametersByFQName: [String: String] = [:]
+                    nominalTypeParametersByFQName.reserveCapacity(indexedFile.entries.count / 8)
                     for entry in indexedFile.entries {
                         guard let signature = entry.nominalTypeParametersSignature else { continue }
                         guard nominalTypeParametersByFQName.updateValue(signature, forKey: entry.fqName) == nil else {
@@ -662,6 +668,9 @@ extension DataFlowSemaPhase {
                 isStdlibArtifact: binding.isStdlibArtifact,
                 phantomTypeParameterSymbolsByOwnerFQName: phantomTypeParameterSymbolsByOwnerFQName
             )
+            if let owner = symbols.parentSymbol(for: binding.symbol) {
+                lazyLoaderState.preloadedPropertiesByOwner[owner, default: []].append(binding)
+            }
         }
         for binding in propertyBindingsWithGetter {
             guard let getterLink = binding.record.propertyGetterExternalLinkName,
@@ -746,6 +755,18 @@ extension DataFlowSemaPhase {
                         interner: interner,
                         cache: cache
                     )
+                    if let pendingProps = lazyLoaderState.preloadedPropertiesByOwner.removeValue(forKey: symbol) {
+                        for propBinding in pendingProps {
+                            self.normalizeImportedMemberBinding(
+                                propBinding,
+                                symbols: symbols,
+                                types: types,
+                                diagnostics: diagnostics,
+                                interner: interner,
+                                cache: cache
+                            )
+                        }
+                    }
                 }
             }
             // Stored on `lazyLoaderState` itself; weak captures break the
@@ -1416,6 +1437,9 @@ extension DataFlowSemaPhase {
                let parent = symbols.symbol(parentSymbol),
                isNominalLayoutTargetSymbol(parent.kind)
             {
+                if symbols.hasPendingImportedNominalMetadata(for: parentSymbol) {
+                    return
+                }
                 symbols.ensureLazyImportedMetadataLoaded(for: parentSymbol)
             }
             let normalize: (TypeID) -> TypeID = { type in
@@ -1488,6 +1512,9 @@ extension DataFlowSemaPhase {
                let parent = symbols.symbol(parentSymbol),
                isNominalLayoutTargetSymbol(parent.kind)
             {
+                if symbols.hasPendingImportedNominalMetadata(for: parentSymbol) {
+                    return
+                }
                 symbols.ensureLazyImportedMetadataLoaded(for: parentSymbol)
             }
             let propertyType = importedPropertyType(

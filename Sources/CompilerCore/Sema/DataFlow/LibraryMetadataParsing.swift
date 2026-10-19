@@ -801,6 +801,9 @@ extension DataFlowSemaPhase {
             return type
         }
         if types.nominalTypeParameterSymbols(for: ownerSymbol).isEmpty {
+            if symbols.hasPendingImportedNominalMetadata(for: ownerSymbol) {
+                return type
+            }
             symbols.ensureLazyImportedMetadataLoaded(for: ownerSymbol)
         }
         let actualSymbols = types.nominalTypeParameterSymbols(for: ownerSymbol)

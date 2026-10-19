@@ -54,21 +54,37 @@ extension DataFlowSemaPhase {
         // default?" into "did *anything* upstream have one?" -- collapsing a
         // 3-level chain's distinctions and making diamond resolution
         // order-dependent.
+        var defaultArgFunctionNames: Set<InternedString> = []
         var ownDefaultsSnapshot: [SymbolID: [Bool]] = [:]
         ownDefaultsSnapshot.reserveCapacity(functionSymbols.count)
         for sym in functionSymbols {
             if let signature = symbols.functionSignatureIfKnown(for: sym.id) {
-                ownDefaultsSnapshot[sym.id] = signature.valueParameterHasDefaultValues
+                if signature.valueParameterHasDefaultValues.contains(true) {
+                    ownDefaultsSnapshot[sym.id] = signature.valueParameterHasDefaultValues
+                    defaultArgFunctionNames.insert(sym.name)
+                }
+            } else if let shape = symbols.importedMemberIndexShape(for: sym.id) {
+                if shape.hasDefaultArguments {
+                    defaultArgFunctionNames.insert(sym.name)
+                }
+            } else if sym.flags.contains(.importedLibrary) {
+                defaultArgFunctionNames.insert(sym.name)
             }
         }
 
         func hasOwnDefault(_ id: SymbolID) -> Bool {
-            // Resolution finishes before any signatures are rewritten below,
-            // so a demanded imported signature still carries its own defaults.
-            if ownDefaultsSnapshot[id] == nil {
-                ownDefaultsSnapshot[id] = symbols.functionSignature(for: id)?.valueParameterHasDefaultValues ?? []
+            if let existing = ownDefaultsSnapshot[id] {
+                return existing.contains(true)
             }
-            return ownDefaultsSnapshot[id]?.contains(true) ?? false
+            if let shape = symbols.importedMemberIndexShape(for: id), !shape.hasDefaultArguments {
+                return false
+            }
+            if let sym = symbols.symbol(id), !defaultArgFunctionNames.contains(sym.name) {
+                return false
+            }
+            let defaults = symbols.functionSignature(for: id)?.valueParameterHasDefaultValues ?? []
+            ownDefaultsSnapshot[id] = defaults
+            return defaults.contains(true)
         }
 
         var resolvedBase: [SymbolID: SymbolID] = [:]
@@ -144,7 +160,10 @@ extension DataFlowSemaPhase {
             return result
         }
 
-        for sym in functionSymbols where sym.flags.contains(.overrideMember) {
+        for sym in functionSymbols where sym.flags.contains(.overrideMember) && !sym.flags.contains(.importedLibrary) {
+            // If no function with this name in the entire module carries default arguments,
+            // an override of this name can never inherit any.
+            guard defaultArgFunctionNames.contains(sym.name) else { continue }
             // A parameterless override cannot inherit any default arguments.
             // Its compact-index shape answers this without decoding its own
             // signature, owner metadata, or overridden hierarchy.
