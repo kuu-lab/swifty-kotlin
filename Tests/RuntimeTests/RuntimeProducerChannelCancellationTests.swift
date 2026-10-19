@@ -31,8 +31,8 @@ struct RuntimeProducerChannelCancellationTests {
         #expect(thrown == cause)
     }
 
-    @Test(arguments: [false, true], [false, true])
-    func cancellingReceiveChannelStopsItsProducer(alreadyClosed: Bool, explicitCause: Bool) {
+    @Test(arguments: [false, true])
+    func cancellingOpenReceiveChannelStopsItsProducer(explicitCause: Bool) {
         let channel = RuntimeChannelHandle(capacity: 1)
         let job = RuntimeJobHandle()
         job.markStarted()
@@ -45,12 +45,36 @@ struct RuntimeProducerChannelCancellationTests {
             _ = job.complete(with: 0)
             Unmanaged<RuntimeChannelHandle>.fromOpaque(pointer).release()
         }
-        if alreadyClosed { #expect(channel.close()) }
         let cause = explicitCause
             ? runtimeAllocateCancellationException(message: "stop producer")
             : runtimeNullSentinelInt
 
-        #expect(__kk_channel_cancel(Int(bitPattern: pointer), cause) == (alreadyClosed ? 0 : 1))
+        #expect(__kk_channel_cancel(Int(bitPattern: pointer), cause) == 1)
+        #expect(job.cancellationSnapshot())
+        #expect(scope.isCancelled)
+        if explicitCause { #expect(job.cancellationCauseSnapshot() == cause) }
+    }
+
+    @Test(arguments: [false, true])
+    func cancellingAlreadyClosedReceiveChannelReturnsZeroAndCancelsScope(explicitCause: Bool) {
+        let channel = RuntimeChannelHandle(capacity: 1)
+        let job = RuntimeJobHandle()
+        job.markStarted()
+        let scope = RuntimeCoroutineScope()
+        scope.adoptJob(job)
+        channel.bindProducerScope(scope)
+        let pointer = Unmanaged.passRetained(channel).toOpaque()
+        defer {
+            _ = job.cancel()
+            _ = job.complete(with: 0)
+            Unmanaged<RuntimeChannelHandle>.fromOpaque(pointer).release()
+        }
+        #expect(channel.close())
+        let cause = explicitCause
+            ? runtimeAllocateCancellationException(message: "stop producer")
+            : runtimeNullSentinelInt
+
+        #expect(__kk_channel_cancel(Int(bitPattern: pointer), cause) == 0)
         #expect(job.cancellationSnapshot())
         #expect(scope.isCancelled)
         if explicitCause { #expect(job.cancellationCauseSnapshot() == cause) }
