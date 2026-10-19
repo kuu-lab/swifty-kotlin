@@ -497,7 +497,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             let keyType = inferredLambdaReturnType(
                 argExpr: args[0].expr, ast: ast, sema: sema
             )
-            // Two-lambda variant: groupBy(keySelector, valueTransform)
             var valueElementType = collectionElementType
             if args.count >= 2 {
                 let valueLambdaExpectedType = sema.types.make(.functionType(FunctionType(
@@ -555,7 +554,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 sema.bindings.bindExprType(id, type: sema.types.anyType)
                 return sema.types.anyType
             }
-            // Infer the destination map argument first
             var destType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: expectedType)
             var nonNullableDestType = sema.types.makeNonNullable(destType)
             let destKeyType: TypeID
@@ -579,7 +577,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 && (typeContainsNothingType(destKeyType, sema: sema)
                     || typeContainsNothingType(destValueType, sema: sema))
 
-            // First lambda return type: value for associateWithTo, key otherwise.
             let firstLambdaReturnType: TypeID = destinationNeedsDeferredInference
                 ? sema.types.nullableAnyType
                 : ((calleeStr == "associateWithTo") ? destValueType : destKeyType)
@@ -599,7 +596,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
 
             var valueType: TypeID = destValueType
             if args.count == 3 {
-                // Second lambda provides the transformed value.
                 // For groupByTo the destination stores MutableList<V>, so the lambda returns V.
                 let secondLambdaExpectedReturn: TypeID
                 if destinationNeedsDeferredInference {
@@ -656,7 +652,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 }
             }
 
-            // Return type is the destination map type
             resultType = destType
 
             // Source-backed overloads:
@@ -992,7 +987,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                 }
             }
-            // KUU-542: same Comparator-parameter guard as *With above.
             if isComparatorTypedArgument(args[0].expr, locals: &locals) {
                 sourceBackedIterableAggregateTypeArguments = [collectionElementType, selectorResultType]
             }
@@ -1013,7 +1007,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
             }
             _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
-            // Pair<List<T>, List<T>>
             if let pairSymbol = sema.symbols.lookupByShortName(interner.intern("Pair")).first,
                let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first
             {
