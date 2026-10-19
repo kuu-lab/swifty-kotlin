@@ -219,33 +219,6 @@ public func __kk_kcallable_register_single_annotation(
     return 0
 }
 
-/// - Parameters:
-///   - kclassRaw: Opaque pointer to a RuntimeKClassBox.
-///   - nameRaw: Opaque pointer to the annotation class name string to search for.
-/// - Returns: Opaque pointer to a RuntimeAnnotationBox, or null sentinel if not found.
-@_cdecl("__kk_kclass_find_annotation")
-public func __kk_kclass_find_annotation(_ kclassRaw: Int, _ nameRaw: Int) -> Int {
-    guard let kclass = runtimeKClassBox(from: kclassRaw),
-          let metadata = kclass.metadata,
-          let searchName = extractString(from: UnsafeMutableRawPointer(bitPattern: nameRaw))
-    else {
-        return runtimeNullSentinelInt
-    }
-
-    for record in metadata.annotations where runtimeShouldExposeAnnotation(fqName: record.annotationFQName) {
-        let simpleName = record.annotationFQName.split(separator: ".").last.map(String.init) ?? record.annotationFQName
-        if record.annotationFQName == searchName || simpleName == searchName {
-            let box = RuntimeAnnotationBox(
-                annotationFQName: record.annotationFQName,
-                arguments: record.arguments,
-                annotationClassRaw: 0
-            )
-            return registerRuntimeObject(box)
-        }
-    }
-    return runtimeNullSentinelInt
-}
-
 @_cdecl("__kk_kclass_find_annotation_typed")
 public func __kk_kclass_find_annotation_typed(
     _ kclassRaw: Int, _ typeToken: Int, _ outThrown: UnsafeMutablePointer<Int>?

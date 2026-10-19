@@ -25,7 +25,8 @@ struct RuntimeBufferedWriterTests {
         #expect(thrown == 0)
 
         #expect(try String(contentsOf: fileURL, encoding: .utf8) == "hello\nworld")
-        #expect(__kk_buffered_writer_close(writerRaw) == 0)
+        #expect(__kk_buffered_writer_close_throwing(writerRaw, &thrown) == 0)
+        #expect(thrown == 0)
     }
 
     @Test func testFileBufferedWriterCreatesFileWhenMissing() throws {
@@ -42,7 +43,8 @@ struct RuntimeBufferedWriterTests {
         #expect(thrown == 0)
 
         #expect(try String(contentsOf: fileURL, encoding: .utf8) == "created")
-        #expect(__kk_buffered_writer_close(writerRaw) == 0)
+        #expect(__kk_buffered_writer_close_throwing(writerRaw, &thrown) == 0)
+        #expect(thrown == 0)
     }
 
     @Test func testFileBufferedWriterWritesUtf8MultibyteContent() throws {
@@ -59,7 +61,8 @@ struct RuntimeBufferedWriterTests {
         #expect(thrown == 0)
 
         #expect(try String(contentsOf: fileURL, encoding: .utf8) == "日本語テスト")
-        #expect(__kk_buffered_writer_close(writerRaw) == 0)
+        #expect(__kk_buffered_writer_close_throwing(writerRaw, &thrown) == 0)
+        #expect(thrown == 0)
     }
 
     @Test func testPathBufferedWriterWritesAndTruncatesFile() throws {
@@ -81,7 +84,8 @@ struct RuntimeBufferedWriterTests {
         #expect(thrown == 0)
 
         #expect(try String(contentsOf: fileURL, encoding: .utf8) == "alpha\nbeta")
-        #expect(__kk_buffered_writer_close(writerRaw) == 0)
+        #expect(__kk_buffered_writer_close_throwing(writerRaw, &thrown) == 0)
+        #expect(thrown == 0)
     }
 
     // STDLIB-IO-FN-009: OutputStream.bufferedWriter(charset)
@@ -108,7 +112,8 @@ struct RuntimeBufferedWriterTests {
         #expect(thrown == 0)
 
         #expect(try String(contentsOf: fileURL, encoding: .utf8) == "hello\nworld")
-        #expect(__kk_buffered_writer_close(writerRaw) == 0)
+        #expect(__kk_buffered_writer_close_throwing(writerRaw, &thrown) == 0)
+        #expect(thrown == 0)
     }
 
     @Test func testOutputStreamBufferedWriterDefaultUsesUtf8() throws {
@@ -128,7 +133,8 @@ struct RuntimeBufferedWriterTests {
         #expect(__kk_buffered_writer_flush(writerRaw, &thrown) == 0)
         #expect(thrown == 0)
         #expect(try String(contentsOf: fileURL, encoding: .utf8) == "默认 utf-8")
-        #expect(__kk_buffered_writer_close(writerRaw) == 0)
+        #expect(__kk_buffered_writer_close_throwing(writerRaw, &thrown) == 0)
+        #expect(thrown == 0)
     }
 
     private func makeStringRaw(_ value: String) -> Int {
