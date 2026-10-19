@@ -54,12 +54,17 @@ struct SequenceFirstSourceMigrationTests {
                 continue
             }
             #expect(sema.symbols.symbol(receiverClass.classSymbol)?.fqName.map(ctx.interner.resolve) == ["kotlin", "sequences", "Sequence"])
+            let symbolName = ctx.interner.resolve(symbol.name)
             let names = signature.valueParameterSymbols.compactMap { sema.symbols.symbol($0)?.name }.map(ctx.interner.resolve)
-            if !names.isEmpty {
-                #expect(names == [ctx.interner.resolve(symbol.name).hasPrefix("firstNotNull") ? "transform" : "predicate"])
+            switch symbolName {
+            case "first", "firstOrNull":
+                if !names.isEmpty {
+                    #expect(names == ["predicate"])
+                    #expect(signature.valueParameterAllowsNonLocalReturn == [true])
+                }
+            case "firstNotNullOf", "firstNotNullOfOrNull":
+                #expect(names == ["transform"])
                 #expect(signature.valueParameterAllowsNonLocalReturn == [true])
-            }
-            if ctx.interner.resolve(symbol.name).hasPrefix("firstNotNull") {
                 #expect(signature.typeParameterSymbols.count == 2)
                 #expect(signature.typeParameterUpperBoundsList[1] == [sema.types.anyType])
                 let transform = try #require(signature.parameterTypes.first)
@@ -71,6 +76,8 @@ struct SequenceFirstSourceMigrationTests {
                 }
                 #expect(resultType.symbol == signature.typeParameterSymbols[1])
                 #expect(resultType.nullability == .nullable)
+            default:
+                Issue.record("Unexpected symbol name: \(symbolName)")
             }
         }
         #expect(chosenSymbols.count == 6)
