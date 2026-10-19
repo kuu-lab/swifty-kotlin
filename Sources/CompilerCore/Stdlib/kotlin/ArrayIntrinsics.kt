@@ -19,10 +19,7 @@ import kotlin.internal.KsSymbolName
 // array-typed synthetic signatures (e.g. `MutableCollection<T>.addAll`) are
 // registered before the normal bundled header collection pass; the fallback
 // fires when the sole synthetic anchor is needed instead (`--no-stdlib` /
-// precompiled `.kklib`, no bundled source parsed). Migrated from the
-// `Array<T>`/primitive-array class-shell registration formerly in
-// `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticArrayStubs.swift`
-// (deleted).
+// precompiled `.kklib`, no bundled source parsed).
 public class Array<T> private constructor() {
     public operator fun get(index: Int): T = this[index]
     public operator fun set(index: Int, value: T) { this[index] = value }
@@ -81,17 +78,11 @@ public class ULongArray private constructor() {
     public operator fun set(index: Int, value: ULong) { this[index] = value }
 }
 
-// KSP-657: Array factory intrinsics migrated (b-reclass batch 1) from the
-// synthetic stubs in
-// Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticArrayStubs.swift.
-//
-// These are canonical Kotlin intrinsic declarations backed by the runtime ABI:
 //   * `arrayOf` packs its varargs into a runtime array via `kk_array_of`
 //     (the packed-array + count normalization happens in CallSupportLowerer,
 //     keyed on the `kk_array_of` link name);
 //   * `emptyArray` allocates a fresh array and tags its component at the typed
-//     call site; `kk_empty_array` remains the untyped runtime fallback;
-//   * `arrayOfNulls` allocates a null-filled array via `kk_array_of_nulls`.
+//     call site; `kk_empty_array` remains the untyped runtime fallback.
 @KsSymbolName("kk_array_of")
 public external fun <T> arrayOf(vararg elements: T): Array<T>
 
