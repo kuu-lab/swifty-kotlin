@@ -1,6 +1,4 @@
 
-/// Returns the element type for a nominal range/progression class with a
-/// fixed primitive element type, such as `UIntRange` or `CharProgression`.
 func nominalRangeElementType(
     for rangeType: TypeID,
     sema: SemaModule,
@@ -175,9 +173,6 @@ struct TypeCheckHelpers {
         }
     }
 
-    /// Returns the expected scalar element type for a range-like declared type
-    /// (a type for which `isRangeLikeType` returns `true`).
-    ///
     /// Concrete classes such as `LongRange`/`CharProgression` have a fixed
     /// primitive element type. Generic interfaces (`OpenEndRange<T>`,
     /// `ClosedRange<T>`, `ClosedFloatingPointRange<T>`) are invariant in `T`,
@@ -211,10 +206,6 @@ struct TypeCheckHelpers {
         }
     }
 
-    /// Returns the actual element type of an expression already marked as a
-    /// range expression by the isRangeExpr duck-typing convention (see
-    /// `rangeLikeDeclaredElementType`'s callers).
-    ///
     /// A range literal's bound `bodyType` is usually the scalar element type
     /// itself (Int/Long/UInt/ULong), but two cases hide the true element type
     /// behind a side channel: Char ranges share Int's representation
@@ -278,8 +269,6 @@ struct TypeCheckHelpers {
         return actualElement == expectedElement
     }
 
-    /// Returns true only for the plain `kotlin.collections.Iterable` interface.
-    ///
     /// A range expression uses its element type as the intermediate Sema type,
     /// so `LocalDeclTypeChecker` needs a narrow exemption for an explicitly
     /// annotated `Iterable<T>`. Concrete collection types and other iterable
@@ -299,9 +288,7 @@ struct TypeCheckHelpers {
         ]
     }
 
-    /// Returns the element argument from a plain `kotlin.collections.Iterable` type.
-    ///
-    /// This deliberately reads the resolved nominal argument instead of asking
+    /// Deliberately reads the resolved nominal argument instead of asking
     /// `iterableElementType` to inspect the synthetic `iterator()` member. The
     /// latter can expose the declaration's unsubstituted `E` type parameter for
     /// the interface itself.
@@ -335,11 +322,6 @@ struct TypeCheckHelpers {
         return interner.resolve(symbol.name) == "OpenEndRange"
     }
 
-    /// Returns the element type for iterating over the given type in a for-loop.
-    /// Handles both array types and range/progression types (Int representing IntRange,
-    /// UInt representing UIntRange (STDLIB-523), etc.).
-    /// - Parameter isRangeExpr: true when the iterable expression is a range operator
-    ///   (rangeTo, rangeUntil, downTo, step), allowing Int to be treated as iterable.
     /// - Parameter isCharRangeExpr: true when the range expression's operands were Char
     ///   (STDLIB-290). Char ranges share Int's runtime/static representation (see the
     ///   `.rangeTo`/`.rangeUntil`/`.downTo` binary op inference), so this must be checked
@@ -367,12 +349,9 @@ struct TypeCheckHelpers {
         if isRangeExpr, iterableType == sema.types.longType {
             return sema.types.longType
         }
-        // STDLIB-523: UIntRange support
         if isRangeExpr, iterableType == sema.types.uintType {
             return sema.types.uintType
         }
-        // Range expressions with element type ULong (i.e. ULong + range marker)
-        // are iterable, yielding ULong elements (STDLIB-524).
         if isRangeExpr, iterableType == sema.types.ulongType {
             return sema.types.ulongType
         }
@@ -400,9 +379,6 @@ struct TypeCheckHelpers {
         if let arrayElement = arrayElementType(for: iterableType, sema: sema, interner: interner) {
             return arrayElement
         }
-        // STDLIB-OP-032: Custom classes with operator fun iterator() are iterable.
-        // Resolve the element type from the iterator's next() return type or the
-        // Iterator<T> type argument.
         if let customElement = customIteratorElementType(for: iterableType, sema: sema, interner: interner) {
             return customElement
         }
@@ -420,7 +396,6 @@ struct TypeCheckHelpers {
         return nil
     }
 
-    /// Whether `type` is a subtype of the `kotlin.CharSequence` interface.
     private func isCharSequenceSubtype(
         _ type: TypeID,
         sema: SemaModule,
@@ -440,8 +415,6 @@ struct TypeCheckHelpers {
         return sema.types.isSubtype(sema.types.makeNonNullable(type), charSequenceType)
     }
 
-    /// Element type lifted from the `kotlin.collections.Iterable<T>` supertype of
-    /// a class, or nil when the class does not implement `Iterable`.
     func iterableSupertypeElementType(
         for iterableType: TypeID,
         sema: SemaModule,
@@ -471,8 +444,6 @@ struct TypeCheckHelpers {
         }
     }
 
-    /// Resolves the element type of a custom class with `operator fun iterator()`.
-    /// Returns nil if no such operator is defined.
     private func customIteratorElementType(
         for iterableType: TypeID,
         sema: SemaModule,
@@ -504,7 +475,6 @@ struct TypeCheckHelpers {
             return nil
         }
 
-        // The iterator() return type should be Iterator<T> — extract T from its type args.
         let returnType = signature.returnType
         if case let .classType(iteratorClassType) = sema.types.kind(of: returnType),
            !iteratorClassType.args.isEmpty
@@ -516,7 +486,6 @@ struct TypeCheckHelpers {
                 return sema.types.nullableAnyType
             }
         }
-        // Fallback: try to find next() on the iterator type and use its return type.
         let nextName = interner.intern("next")
         let nextCandidates = collectMemberFunctionCandidates(
             named: nextName,
@@ -532,10 +501,8 @@ struct TypeCheckHelpers {
         return sema.types.anyType
     }
 
-    /// For any subtype of Map<K, V>, return Map.Entry<K, V>; mutable maps
-    /// iterate mutable entries. The inherited type arguments matter for
-    /// classes such as TreeMap, which reaches MutableMap through several
-    /// Java collection interfaces.
+    /// The inherited type arguments matter for classes such as TreeMap, which
+    /// reaches MutableMap through several Java collection interfaces.
     func mapEntryElementType(
         for mapType: TypeID,
         sema: SemaModule,
@@ -631,8 +598,6 @@ struct TypeCheckHelpers {
         case knownNames.charArray:
             return sema.types.charType
         default:
-            // For generic collection types (e.g. List<String?>, MutableList<Int>),
-            // extract the first type argument as the element type.
             if !classType.args.isEmpty {
                 switch classType.args[0] {
                 case let .invariant(inner), let .out(inner), let .in(inner):
@@ -742,9 +707,8 @@ struct TypeCheckHelpers {
         }
     }
 
-    /// Construct a `Flow<elementType>` ClassType by looking up the synthetic
-    /// `kotlinx.coroutines.flow.Flow` interface symbol.  Returns `nil` when
-    /// the symbol has not been registered (caller should fall back to `anyType`).
+    /// Returns `nil` when the symbol has not been registered (caller should
+    /// fall back to `anyType`).
     func makeFlowType(
         elementType: TypeID,
         sema: SemaModule,
@@ -776,8 +740,6 @@ struct TypeCheckHelpers {
         return nil
     }
 
-    /// True when a user declaration (e.g. `class Int`, local or top-level) in lexical
-    /// scope shadows the builtin type of the same name.
     func hasUserDeclaredClassifier(
         _ name: InternedString,
         scope: Scope,
@@ -960,7 +922,6 @@ struct TypeCheckHelpers {
                         argRefs, ast: ast, sema: sema, interner: interner,
                         scope: scope, diagnostics: diagnostics, inferenceContext: inferenceContext, usageRange: usageRange
                     )
-                    // Expand typealias at call-site
                     if let sym = sema.symbols.symbol(symbolID), sym.kind == .typeAlias {
                         let aliasTypeArgs: [TypeArg]
                         // Bare generic aliases erase their omitted parameters in runtime checks and casts.
@@ -1108,7 +1069,6 @@ struct TypeCheckHelpers {
         }
     }
 
-    /// Construct a non-null Throwable type from the kotlin.Throwable symbol.
     func throwableType(sema: SemaModule, interner: StringInterner) -> TypeID? {
         let throwableFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Throwable")]
         guard let throwableSymbol = sema.symbols.lookup(fqName: throwableFQName) else {
@@ -1119,5 +1079,35 @@ struct TypeCheckHelpers {
             args: [],
             nullability: .nonNull
         )))
+    }
+
+    func recordMemberValInitializationSmartCast(
+        property: SymbolID,
+        declaredType: TypeID,
+        valueType: TypeID,
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) {
+        guard ctx.allowsValPropertyInitialization,
+              ctx.lambdaDepth == 0,
+              let propSymbol = ctx.sema.symbols.symbol(property),
+              propSymbol.kind == .property,
+              !propSymbol.flags.contains(.mutable),
+              ctx.sema.symbols.parentSymbol(for: property) == ctx.enclosingClassSymbol,
+              ctx.dataFlow.isStableMemberProperty(property, ast: ctx.ast, sema: ctx.sema),
+              valueType != ctx.sema.types.errorType,
+              valueType != ctx.sema.types.nothingType,
+              ctx.sema.types.isSubtype(valueType, declaredType),
+              let thisLocal = locals[ctx.interner.intern("this")]
+        else {
+            return
+        }
+        let reference = DataFlowReference(root: thisLocal.symbol, properties: [property])
+        let flowState = VariableFlowState(
+            possibleTypes: [valueType],
+            nullability: ctx.sema.types.nullability(of: valueType),
+            isStable: true
+        )
+        locals.memberFlow[reference] = flowState
     }
 }

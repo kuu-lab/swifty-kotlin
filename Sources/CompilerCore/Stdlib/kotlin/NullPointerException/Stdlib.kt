@@ -6,9 +6,6 @@
 
 package kotlin
 
-/**
- * Thrown when an application attempts to use a null reference.
- */
 public open class NullPointerException : RuntimeException {
     public constructor() : super() {
         __kkThrowableSetMessage(this, null)

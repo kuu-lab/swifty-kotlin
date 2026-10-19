@@ -7,9 +7,6 @@
 
 package kotlin
 
-/**
- * Annotates type arguments of functional type and holds corresponding parameter name specified by the user in type declaration (if any).
- */
 @kotlin.annotation.Target(AnnotationTarget.TYPE)
 @kotlin.annotation.Retention(AnnotationRetention.BINARY)
 @kotlin.annotation.MustBeDocumented

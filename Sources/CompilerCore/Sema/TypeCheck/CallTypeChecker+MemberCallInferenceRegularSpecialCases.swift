@@ -1,10 +1,9 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
-    /// Zero-argument property access, extracted verbatim from
-    /// `inferRegularMemberCall`: bundled-stdlib extension properties, ordinary
-    /// member properties and scope extension properties are all resolved before
-    /// function candidate collection.
+    /// Bundled-stdlib extension properties, ordinary member properties and
+    /// scope extension properties are all resolved before function candidate
+    /// collection.
     /// Returns nil when no zero-arg property path applies.
     func tryInferRegularMemberCallPropertyAccess(
         _ request: MemberCallInferenceRequest,
@@ -126,7 +125,8 @@ extension CallTypeChecker {
                 id, locals: locals, ast: ast, sema: sema, interner: interner
             ), reference.isStable {
                 ctx.dataFlow.resolvedTypeFromFlowState(
-                    ctx.flowState.includingMembers(from: locals), reference: reference.symbol
+                    ctx.flowState.includingMembers(from: locals), reference: reference.symbol,
+                    types: sema.types
                 )
             } else {
                 nil
@@ -156,11 +156,7 @@ extension CallTypeChecker {
         return nil
     }
 
-    /// Special-cased member handling that sits between candidate collection and
-    /// overload filtering, extracted verbatim from `inferRegularMemberCall`:
-    /// channel send/receive, concrete String.compareTo, bundled
-    /// substring/subSequence fallbacks, comparator minWith, lexical extension
-    /// invocation and local extension shadowing.
+    /// Sits between candidate collection and overload filtering.
     /// Returns nil when no special case binds.
     func tryInferRegularMemberCallSpecialCases(
         _ request: MemberCallInferenceRequest,

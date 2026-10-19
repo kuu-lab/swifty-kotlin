@@ -1,7 +1,4 @@
 
-/// `kotlin.concurrent.atomics` package-level scaffolding — the
-/// `@ExperimentalAtomicApi` annotation and the `MemoryOrder` enum —
-/// extracted from the Atomic residual registration surface.
 extension DataFlowSemaPhase {
 
     func ensureAtomicMemoryOrderEnum(

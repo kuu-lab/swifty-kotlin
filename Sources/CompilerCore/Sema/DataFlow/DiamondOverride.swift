@@ -1,6 +1,4 @@
 
-// CLASS-004: Diamond override validation — when a class implements multiple interfaces
-// that both provide a default method with the same name, the class must override it.
 extension DataFlowSemaPhase {
     private struct DiamondDispatchKey: Hashable, CustomStringConvertible {
         let name: InternedString
@@ -116,14 +114,10 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Collects conflicting default method names across direct interface supertypes.
-    ///
-    /// This considers transitive interface inheritance and follows Kotlin's rules:
+    /// Considers transitive interface inheritance and follows Kotlin's rules:
     /// 1. Only the most specific implementation (deepest override) for each method name
     /// 2. Conflicts occur only when multiple most specific implementations exist
     /// 3. Methods inherited from a common ancestor don't conflict if not overridden
-    ///
-    /// Returns methodName -> [conflictingInterfaceIDs] for actual conflicts only.
     private func collectDiamondConflicts(
         for symbol: SymbolID,
         symbols: SymbolTable
@@ -179,20 +173,16 @@ extension DataFlowSemaPhase {
                 continue
             }
 
-            // Find the most specific implementations (minimum inheritance depth).
             // Depth 0 means the direct interface provides the implementation,
             // which is more specific than defaults inherited from ancestors.
             let minDepth = implementations.map(\.inheritanceDepth).min() ?? 0
             let mostSpecific = implementations.filter { $0.inheritanceDepth == minDepth }
 
-            // Group by implementation symbol to identify identical implementations
             var implGroups: [SymbolID: Set<SymbolID>] = [:]
             for implementation in mostSpecific {
                 implGroups[implementation.implementationID, default: []].insert(implementation.directInterfaceID)
             }
 
-            // Conflict exists only if there are multiple different implementations
-            // provided by different direct interfaces
             if implGroups.count > 1 {
                 let conflictingInterfaces = implGroups.values.reduce(into: Set<SymbolID>()) { acc, interfaces in
                     acc.formUnion(interfaces)

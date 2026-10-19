@@ -53,8 +53,6 @@ extension DataFlowSemaPhase {
     }
 }
 
-/// Converts decoded Kotlin IR declarations into `ImportedLibrarySymbolRecord`s.
-///
 /// The emitted signature strings use the `.kklib` metadata signature language
 /// (`decodeImportedTypeSignature`): `Lfq.Name;` class types, `T<i>` type
 /// parameters, `Q<>` nullability, `O<>`/`N<>` variance, `*` star projections
@@ -66,12 +64,9 @@ private struct KlibRecordMaterializer {
     private(set) var records: [DataFlowSemaPhase.ImportedLibrarySymbolRecord] = []
     private(set) var skippedDeclarationCount = 0
 
-    /// `(fileIndex, signatureIndex)` → stable `T<n>` index.
     private var typeParameterIndexBySignature: [KlibSignatureKey: Int] = [:]
     private var nextTypeParameterIndex = 0
 
-    /// Kotlin classifier fq names that map to primitive/special signature
-    /// tokens instead of `L...;` class references.
     private static let primitiveSignatureTokens: [String: String] = [
         "kotlin.Unit": "U",
         "kotlin.Nothing": "N",
@@ -558,7 +553,6 @@ private struct KlibRecordMaterializer {
         )
     }
 
-    /// Resolves the declaration's fq-name segments from its signature.
     /// `CommonIdSignature` carries package + declaration segments directly;
     /// file-local/private declarations fall back to the walk context's
     /// container fq-name plus the declaration's own name.
@@ -628,7 +622,6 @@ private struct KlibRecordMaterializer {
         }
     }
 
-    /// Encodes a `types`-table entry into the `.kklib` signature language.
     private mutating func encodeType(_ typeIndex: Int32, fileIndex: Int) -> String? {
         guard let type = try? module.type(typeIndex, fileIndex: fileIndex) else { return nil }
         switch type {
@@ -735,7 +728,7 @@ private struct KlibRecordMaterializer {
     }
 
     /// Field initializers are bare `IrExpression` entries, unlike function
-    /// bodies. Convert their physical literals to the text metadata contract.
+    /// bodies.
     private func constLiteral(_ bodyIndex: Int32?, fileIndex: Int, typeSignature: String) -> String? {
         guard let bodyIndex,
               let expression = try? module.expressionBody(bodyIndex, fileIndex: fileIndex)

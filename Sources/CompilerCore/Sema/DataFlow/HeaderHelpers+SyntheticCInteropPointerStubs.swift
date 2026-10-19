@@ -1,8 +1,3 @@
-/// `CPointer` conversion/member stubs and pointer utility functions for
-/// `kotlinx.cinterop` (`toLong`, `unwrapKotlinObjectHolder`, `pointed`/`get`/
-/// `reinterpret`, `sizeOf`/`alignOf`, `interpretCPointer`, `toCPointer`,
-/// `String.cstr`, `CValues.getPointer`), extracted from
-/// `registerSyntheticCInteropStubs`.
 extension DataFlowSemaPhase {
     func registerCInteropPointerConversionStubs(
         cinteropPkg: [InternedString],
@@ -102,8 +97,8 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) -> TypeID {
-        // `class CPointer<T : CPointed>`: declare T so member lookups can
-        // substitute the pointee type for `pointed`, `get`, and `reinterpret`.
+        // Declare T so member lookups can substitute the pointee type for
+        // `pointed`, `get`, and `reinterpret`.
         configureSingleTypeParameterNominal(
             ownerSymbol: cPointerSymbol,
             fqName: cinteropPkg + [interner.intern("CPointer")],
@@ -132,8 +127,8 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        // val CPointer<T>.pointed: T — reads the pointee var box via
-        // kk_cpointer_pointed (structural CVariable value on the same address).
+        // Reads the pointee var box via kk_cpointer_pointed (structural
+        // CVariable value on the same address).
         registerAtomicReadOnlyProperty(
             ownerSymbol: cPointerSymbol,
             propertyName: "pointed",
@@ -210,8 +205,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // fun CPointer<ByteVar>.toKString(): String — UTF-8 decode; upstream
-        // kotlinx.cinterop maps `char *` ByteVar pointers through this.
         // ByteVar is a typealias for ByteVarOf<Byte>, so the concrete nominal
         // must be used here — a ClassType built on the alias symbol cannot
         // satisfy bound checks or member lookups.
@@ -405,8 +398,8 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // val String.cstr: CPointer<ByteVar> — member extension on MemScope so
-        // `s.cstr` inside memScoped picks the arena-allocated UTF-8 buffer.
+        // Member extension on MemScope so `s.cstr` inside memScoped picks the
+        // arena-allocated UTF-8 buffer.
         // ByteVar is a typealias for ByteVarOf<Byte>; build the arg on the
         // concrete nominal so bound checks and member lookups resolve.
         do {

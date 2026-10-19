@@ -60,7 +60,6 @@ extension DataFlowSemaPhase {
         // would survive alongside the source declaration and make generic
         // `x..<y` calls ambiguous.
 
-        // Byte/Short until produce Int ranges; mixed Int/Long calls widen to Long.
         registerSyntheticRangeUntilStub(
             ownerSymbol: rangesPackageSymbol,
             receiverType: types.intType,
@@ -116,10 +115,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Complete the signed until overload matrix: Byte/Short/Int/Long with
-        // any combination; the result is Long when either side is Long, Int
-        // otherwise. The Int/Int, Int/Long, Long/Int, Long/Long, Byte/Byte,
-        // and Short/Short cases are already registered above to keep symbol
+        // The Int/Int, Int/Long, Long/Int, Long/Long, Byte/Byte, and
+        // Short/Short cases are already registered above to keep symbol
         // ordering stable for existing golden outputs.
         let signedRangeUntilTypes: [TypeID] = [
             types.byteType,

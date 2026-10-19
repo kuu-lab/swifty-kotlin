@@ -69,8 +69,6 @@ extension OverloadResolver {
         )
     }
 
-    /// Convert alias inference back to the original constructor's positional
-    /// variables, including nullable and nested arguments such as Box<T>.
     func typeAliasConstructorBindingArguments(
         _ alias: TypeAliasConstructorContext,
         original: FunctionSignature,

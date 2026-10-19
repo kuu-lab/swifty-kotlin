@@ -34,10 +34,6 @@ final class ExprTypeChecker {
 
         switch expr {
         case let .intLiteral(value, _):
-            // An unsuffixed integer literal takes on Long/UInt/ULong when that is
-            // the expected type at this position (e.g. `Millis(1500)` where the
-            // value class's single field is declared `Long`), matching Kotlin's
-            // literal-widening rule. Falls back to Int otherwise.
             let literalType = intLiteralType(expectedType: expectedType, sema: sema, defaultType: intType, literalValue: value)
             sema.bindings.bindExprType(id, type: literalType)
             return literalType
@@ -288,7 +284,6 @@ final class ExprTypeChecker {
                     sema.bindings.markUnitReturnCoercion(value)
                 }
                 lambdaReturnScope?.returnValueTypes[id] = resolved
-                // Emit subtype constraint: return value must conform to expected (function) return type.
                 // Range expressions keep their runtime representation separate from the
                 // source-level range interface (they infer as the scalar element type),
                 // so `fun f(): IntRange = a..b` skips the nominal subtype check, matching
@@ -484,9 +479,6 @@ final class ExprTypeChecker {
                     )
                 }
             }
-            // KUU-1407: flag `is` checks that can never succeed because both
-            // sides are incompatible final/value types ("check for instance
-            // is always 'false'").
             if subjectType != sema.types.errorType, targetType != sema.types.errorType {
                 let subjectNonNull = sema.types.makeNonNullable(subjectType)
                 let targetNonNull = sema.types.makeNonNullable(targetType)
@@ -606,7 +598,6 @@ final class ExprTypeChecker {
             } else {
                 type = sema.types.makeNonNullable(operandType)
             }
-            // Smart cast: after `x!!`, narrow x to non-null in subsequent code (P5-66)
             if let assertSubjectExpr = ast.arena.expr(exprID),
                case let .nameRef(assertVarName, _) = assertSubjectExpr,
                let assertLocal = locals[assertVarName],
@@ -644,7 +635,6 @@ final class ExprTypeChecker {
 
         case let .throwExpr(value, range):
             let operandType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: nil)
-            // KUU-1407: `throw` operands must be a subtype of `Throwable`.
             if operandType != sema.types.errorType,
                let throwableType = driver.helpers.throwableType(sema: sema, interner: ctx.interner),
                !sema.types.isSubtype(operandType, throwableType)
@@ -744,6 +734,7 @@ final class ExprTypeChecker {
                         locals[name] = (blockLocal.type, outerLocal.symbol, outerLocal.isMutable, blockLocal.isInitialized)
                     }
                 }
+                locals.memberFlow = blockLocals.memberFlow
             }
             sema.bindings.bindExprType(id, type: resultType)
             return resultType
@@ -779,7 +770,6 @@ final class ExprTypeChecker {
         case let .inExpr(lhsID, rhsID, range):
             let lhsType = driver.inferExpr(lhsID, ctx: ctx, locals: &locals)
             let rhsType = driver.inferExpr(rhsID, ctx: ctx, locals: &locals)
-            // Resolve operator fun contains on the RHS (container) type for custom classes (STDLIB-OP-032)
             inferContainsCallBinding(
                 exprID: id,
                 elementExpr: lhsID,
@@ -796,7 +786,6 @@ final class ExprTypeChecker {
         case let .notInExpr(lhsID, rhsID, range):
             let lhsType = driver.inferExpr(lhsID, ctx: ctx, locals: &locals)
             let rhsType = driver.inferExpr(rhsID, ctx: ctx, locals: &locals)
-            // Resolve operator fun contains on the RHS (container) type for custom classes (STDLIB-OP-032)
             inferContainsCallBinding(
                 exprID: id,
                 elementExpr: lhsID,
@@ -818,9 +807,8 @@ final class ExprTypeChecker {
         }
     }
 
-    /// Resolves operator fun contains on the container type and records a CallBinding
-    /// so KIR lowering can dispatch to the user-defined contains() instead of the
-    /// generic kk_op_contains runtime stub.
+    /// Records a CallBinding so KIR lowering can dispatch to the user-defined
+    /// contains() instead of the generic kk_op_contains runtime stub.
     private func inferContainsCallBinding(
         exprID: ExprID,
         elementExpr: ExprID,
@@ -1678,10 +1666,6 @@ final class ExprTypeChecker {
                 guard operatorCandidateMatchesReceiver(candidate) else {
                     continue
                 }
-                // Accept explicit operator functions, and also accept overrides
-                // of inherited operator functions (equals, compareTo) that may
-                // omit the `operator` keyword. In Kotlin, overrides of Any.equals
-                // and Comparable.compareTo inherit operator status.
                 if symbol.flags.contains(SymbolFlags.operatorFunction) {
                     candidates.append(candidate)
                 } else if isInheritedOperator,
@@ -2008,9 +1992,6 @@ final class ExprTypeChecker {
         }
     }
 
-    /// Declaration site of the enclosing declaration (e.g. the function whose
-    /// signature declares the expected return type), used as a secondary range
-    /// on return-type mismatch diagnostics.
     private func enclosingDeclSiteRanges(ctx: TypeInferenceContext) -> [SourceRange] {
         guard let declSymbol = ctx.currentDeclSymbol,
               let site = ctx.sema.symbols.symbol(declSymbol)?.declSite

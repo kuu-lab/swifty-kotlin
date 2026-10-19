@@ -11,7 +11,6 @@ final class ControlFlowTypeChecker {
         self.driver = driver
     }
 
-    /// Validate the receiver before falling back to the built-in iteration routes.
     func inferLoopElementType(
         exprID: ExprID,
         iterableExpr: ExprID,
@@ -305,8 +304,6 @@ final class ControlFlowTypeChecker {
         )
     }
 
-    /// Returns true when `type` is a subtype of `kotlin.collections.Iterator<*>`,
-    /// meaning a `for-in` loop can iterate it directly using `hasNext()`/`next()`.
     private func isDirectIteratorType(
         _ type: TypeID,
         sema: SemaModule,
@@ -427,7 +424,6 @@ final class ControlFlowTypeChecker {
             sema: sema,
             diagnostics: ctx.sema.diagnostics
         )
-        // Smart cast: apply condition branching to the while body (P5-66)
         let branch = ctx.dataFlow.branchOnCondition(
             conditionExpr, base: ctx.flowState.includingMembers(from: locals), locals: locals,
             ast: ast, sema: sema, interner: interner, scope: ctx.scope
@@ -599,7 +595,6 @@ final class ControlFlowTypeChecker {
         }
     }
 
-    /// Returns true if the condition expression is the boolean literal `true`.
     private func isConstantTrueCondition(_ conditionExpr: ExprID, ast: ASTModule) -> Bool {
         guard let expr = ast.arena.expr(conditionExpr) else { return false }
         if case .boolLiteral(true, _) = expr { return true }
@@ -903,13 +898,18 @@ final class ControlFlowTypeChecker {
                     }
                 }
             }
+            let reachingBranchLocals = [
+                thenCompletes ? thenLocals : nil,
+                elseCompletes ? elseLocals : nil,
+            ].compactMap { $0 }
+            locals.memberFlow = joinMemberFlow(from: reachingBranchLocals, base: locals.memberFlow, sema: sema)
         } else {
             resolvedType = sema.types.unitType
             if thenType == sema.types.nothingType {
                 // The then-branch never completes normally (return/throw/break/continue),
                 // so control only reaches the code after this `if` via the implicit else
                 // path, i.e. the negated condition. Apply that narrowed state so it survives
-                // the fallthrough (P5-66-style narrowing, but for the no-else if statement).
+                // the fallthrough.
                 driver.exprChecker.applyFlowStateToLocals(branch.falseState, locals: &locals, sema: sema)
             }
         }
@@ -953,6 +953,46 @@ final class ControlFlowTypeChecker {
         }
         guard branchTypes.count == branches.count else { return fallback }
         return sema.types.lub(branchTypes)
+    }
+
+    func joinMemberFlow(
+        from branches: [LocalBindings],
+        base: [DataFlowReference: VariableFlowState],
+        sema: SemaModule
+    ) -> [DataFlowReference: VariableFlowState] {
+        guard !branches.isEmpty else { return base }
+        if branches.count == 1 {
+            return branches[0].memberFlow
+        }
+        var joined: [DataFlowReference: VariableFlowState] = [:]
+        let firstBranch = branches[0]
+        for (reference, firstState) in firstBranch.memberFlow {
+            var allStates = [firstState]
+            var presentInAll = true
+            for otherBranch in branches.dropFirst() {
+                if let otherState = otherBranch.memberFlow[reference] {
+                    allStates.append(otherState)
+                } else {
+                    presentInAll = false
+                    break
+                }
+            }
+            guard presentInAll else { continue }
+            var combinedTypes: Set<TypeID> = []
+            var isNullable = false
+            var isStable = true
+            for s in allStates {
+                combinedTypes.formUnion(s.possibleTypes)
+                if s.nullability == .nullable { isNullable = true }
+                if !s.isStable { isStable = false }
+            }
+            joined[reference] = VariableFlowState(
+                possibleTypes: combinedTypes,
+                nullability: isNullable ? .nullable : .nonNull,
+                isStable: isStable
+            )
+        }
+        return joined
     }
 
     private func bindJoinedRangeExpressionMetadata(
@@ -1170,7 +1210,6 @@ final class ControlFlowTypeChecker {
         } else if let throwableType = driver.helpers.throwableType(sema: sema, interner: ctx.interner),
                   !sema.types.isSubtype(resolved, throwableType)
         {
-            // KUU-1407: catch parameters must be subtypes of Throwable.
             ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0413",
                 "throwable type mismatch: actual type is '\(sema.types.renderType(resolved))'.",

@@ -1,7 +1,3 @@
-/*
- * KUU-1361: JVM java.util.TreeMap parity for the bundled stdlib.
- */
-
 package java.util
 
 import kotlin.collections.Map
@@ -22,9 +18,6 @@ import kotlin.internal.__valuesEqual
 @KsSymbolName("__kk_tree_map_init")
 private external fun <K, V> __kkTreeMapInit(map: TreeMap<K, V>, comparator: Comparator<in K>?)
 
-/**
- * A key-sorted map backed by a runtime box — `java.util.TreeMap`.
- */
 public open class TreeMap<K, V> : NavigableMap<K, V> {
     public constructor() {
         __kkTreeMapInit(this, null)

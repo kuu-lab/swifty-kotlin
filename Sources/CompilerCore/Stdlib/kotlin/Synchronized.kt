@@ -2,8 +2,7 @@ package kotlin
 
 import kotlin.internal.KsSymbolName
 
-// KSP-618: the public synchronized(lock) { } layer is Kotlin source. Locking
-// itself needs per-object reentrant locks owned by the runtime, so it stays
+// Locking needs per-object reentrant locks owned by the runtime, so it stays
 // behind the demoted __kk_synchronized bridge (Sources/Runtime/RuntimePreconditions.swift),
 // which acquires the lock, runs the block and propagates a thrown exception.
 

@@ -192,8 +192,6 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             }
         }
 
-        // Rewrite symbolRef references to synthetic enum entries (e.g.
-        // RegexOption.DOT_MATCHES_ALL) into boxed ordinal int literals.
         // User-defined enum entries are backed by global variables, but
         // synthetic entries have no globals — so we inline the ordinal.
         rewriteSyntheticEnumEntryRefs(module: module, sema: sema)
@@ -248,31 +246,20 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         }
     }
 
-    /// Describes a bundled enum nominal that is appended to consumer KIR only
-    /// when referenced: where it lives in the bundled sources and which
-    /// generated members count as a reference.
     private struct BundledEnumSpec {
         let pathSegments: [String]
         let requiresSourceBacked: Bool
-        /// Member names looked up directly under the enum's fqName.
         let ownMemberNames: [String]
-        /// Member names looked up under the companion object's fqName.
         let companionMemberNames: [String]
-        /// Whether a typed expression of this enum type also counts as a reference.
         let checksExprTypes: Bool
     }
 
-    /// A bundled enum resolved against `sema.symbols`, ready for membership
-    /// checks during the combined binding scan.
     private struct BundledEnumProbe {
         let classSymbol: SymbolID
         let memberSymbols: Set<SymbolID>
         let checksExprTypes: Bool
     }
 
-    /// Makes referenced bundled coroutine, native, reflection, and serialization
-    /// enum nominals visible to the shared enum synthesis pass when a consumer
-    /// KIR references one of their generated APIs or the enum type itself.
     /// Bundled source declarations are omitted from consumer KIR, but their
     /// source-backed nominal identity is still required by enum helper bodies.
     /// A single combined pass over the binding maps records which enums are
@@ -420,15 +407,10 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         }
     }
 
-    /// Replaces `constValue(result: r, value: .symbolRef(sym))` where `sym`
-    /// is a synthetic field owned by a synthetic enum class with
-    /// `constValue(result: r, value: .intLiteral(ordinal))` followed by a
-    /// `call kk_box_int` so the value is a boxed enum ordinal.
     private func rewriteSyntheticEnumEntryRefs(
         module: KIRModule,
         sema: SemaModule
     ) {
-        // Build a lookup: syntheticEnumEntrySymbol -> ordinal.
         // Use `isSourceBackedSymbol` rather than the `synthetic` flag so that
         // real source-backed enum entries (including those imported from a
         // precompiled .kklib) keep their global-object symbolRef; only
@@ -454,7 +436,6 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             else {
                 continue
             }
-            // Ordinal = index among all field children of the parent enum.
             // The sorted sibling list is computed once per enum, not per entry.
             let siblings = sema.symbols.children(ofFQName: parentFQ)
                 .filter { id in
@@ -718,9 +699,6 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             }
     }
 
-    /// DATA-002 / STDLIB-090: Synthesizes `componentN()` KIR function bodies for data classes.
-    /// Each componentN takes the receiver ($self) and returns the Nth constructor property
-    /// by reading the corresponding field via `kk_array_get_inbounds`.
     private func synthesizeDataClassComponentN(
         nominalSymbol: SemanticSymbol,
         module: KIRModule,
@@ -757,7 +735,6 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                 nullability: .nonNull
             )))
 
-            // Create receiver parameter ($self)
             let selfParamName = interner.intern("$self")
             let selfParamSymbol = sema.symbols.define(
                 kind: .valueParameter,
@@ -774,11 +751,10 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             var body: [KIRInstruction] = []
             body.append(.constValue(result: selfRef, value: .symbolRef(selfParamSymbol)))
 
-            let propertyIndex = componentIndex - 1 // 0-based
+            let propertyIndex = componentIndex - 1
             let resultExpr = module.arena.appendTemporary(type: returnType
             )
 
-            // Read the primary-constructor-backed field via layout offset.
             if let layout = layout,
                propertyIndex < propertySymbols.count,
                let propertySymbol = propertySymbols[propertyIndex]
@@ -987,7 +963,6 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         )
     }
 
-    /// Synthesizes `values()` which returns an `Array<T>` containing all
     func appendSyntheticFunctionWithSymbol(
         functionSymbol: SymbolID,
         name: InternedString,

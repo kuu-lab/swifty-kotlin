@@ -1,7 +1,3 @@
-/*
- * KUU-1361: JVM java.util.NavigableSet parity for the bundled stdlib.
- */
-
 package java.util
 
 import kotlin.collections.MutableIterator
@@ -10,9 +6,6 @@ import kotlin.internal.KsSymbolName
 // Members stay bodiless: interface default bodies dispatch through the
 // itable, which runtime-backed boxes do not populate.
 
-/**
- * A [SortedSet] with navigation methods — `java.util.NavigableSet`.
- */
 public interface NavigableSet<E> : SortedSet<E> {
     @KsSymbolName("__kk_sorted_set_lower")
     public fun lower(e: E): E?

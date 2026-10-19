@@ -1,11 +1,11 @@
 import Foundation
 
-/// Call-site-independent memoization for opt-in checks, shared by every
-/// `TypeCheckHelpers` method on one instance. A symbol's annotations and its
-/// owning file are fixed after header collection, and the only symbols
-/// `resolveAnnotationClassSymbol` can return — `.annotationClass` kinds — are
-/// all declared at header time (local symbols defined during type checking
-/// are never annotation classes), so the results cannot go stale mid-run.
+/// Call-site-independent memoization for opt-in checks. A symbol's
+/// annotations and its owning file are fixed after header collection, and the
+/// only symbols `resolveAnnotationClassSymbol` can return — `.annotationClass`
+/// kinds — are all declared at header time (local symbols defined during type
+/// checking are never annotation classes), so the results cannot go stale
+/// mid-run.
 final class OptInResolutionCache {
     struct RequirementsKey: Hashable {
         let symbolID: SymbolID

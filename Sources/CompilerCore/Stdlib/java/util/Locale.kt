@@ -3,9 +3,6 @@ package java.util
 import kotlin.internal.KsSymbolName
 
 /**
- * Source-backed shell for Java's `Locale`, used by the locale-parameterized
- * String case-conversion and comparison overloads.
- *
  * Construction is bridged to the runtime because a `Locale` wraps a
  * platform (ICU/Foundation) locale handle rather than plain stored fields.
  */

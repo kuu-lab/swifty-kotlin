@@ -11,15 +11,13 @@ package kotlin
 
 import kotlin.internal.KsSymbolName
 
-// KSP-732: nominal `kotlin.Enum<T : Enum<T>>` declaration migrated out of the
-// synthetic self-registration. The compiler still lowers enum representation
-// details (name/ordinal and enum-specific string conversion), while the public
-// member contracts are declared here for normal source binding and metadata.
+// KSP-732: The compiler lowers enum representation details (name/ordinal and
+// enum-specific string conversion), while the public member contracts are
+// declared here for normal source binding and metadata.
 public abstract class Enum<T : Enum<T>> protected constructor(
     name: String,
     ordinal: Int
 ) : Comparable<T> {
-    // KSP-837: source-backed declarations for the six public Enum members.
     @KsSymbolName("__kk_comparable_compareTo")
     public final override external operator fun compareTo(other: T): Int
 

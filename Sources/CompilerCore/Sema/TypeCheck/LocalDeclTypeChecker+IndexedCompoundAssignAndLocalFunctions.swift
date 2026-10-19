@@ -309,8 +309,7 @@ extension LocalDeclTypeChecker {
         return .builtin
     }
 
-    /// Resolves an operator member/extension on the element type without
-    /// touching `callBindings[id]`, which holds the `get()` binding.
+    /// Does not touch `callBindings[id]`, which holds the `get()` binding.
     private func resolveElementOperatorCall(
         names: [InternedString],
         args: [CallArg],
@@ -384,10 +383,7 @@ extension LocalDeclTypeChecker {
         ).isEmpty
     }
 
-    /// True when `receiverType` is the generic `Array<*>` class specifically (star
-    /// type argument), as opposed to a concrete `Array<T>` or one of the
-    /// primitive-specialized array types (IntArray, ...). Mirrors
-    /// CallLowerer+Operators.swift's isGenericArrayReceiverType/
+    /// Mirrors CallLowerer+Operators.swift's isGenericArrayReceiverType/
     /// genericArrayElementType, which need a concrete T to select the matching
     /// box/unbox pair.
     private func isStarProjectedArrayReceiver(_ receiverType: TypeID, sema: SemaModule, interner: StringInterner) -> Bool {
@@ -401,9 +397,7 @@ extension LocalDeclTypeChecker {
         return true
     }
 
-    /// True when `receiverType` is one of the compiler's built-in array types
-    /// (Array, IntArray, ByteArray, ...). Mirrors
-    /// CallLowerer+ReceiverTypePredicates.swift's isConcreteArrayLikeType,
+    /// Mirrors CallLowerer+ReceiverTypePredicates.swift's isConcreteArrayLikeType,
     /// which KIR lowering uses to keep genuine arrays on the raw
     /// array/boxing runtime path even though `Array<T>` also has real,
     /// resolvable `get`/`set` member symbols.
@@ -498,7 +492,7 @@ extension LocalDeclTypeChecker {
         )
     }
 
-    /// Resolve `operator fun get` on the receiver and return (elementType, wasResolved).
+    /// Returns (elementType, wasResolved).
     private func resolveIndexedGetElement(
         id: ExprID,
         receiverType: TypeID,
@@ -539,7 +533,6 @@ extension LocalDeclTypeChecker {
         return (elementType, true)
     }
 
-    /// Compute the result type for a compound binary operation on an indexed element.
     private func compoundOpResultType(
         assignOp: CompoundAssignOp,
         elementType: TypeID,

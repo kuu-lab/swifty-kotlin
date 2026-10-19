@@ -218,7 +218,6 @@ extension CallTypeChecker {
                     } else {
                         sema.types.anyType
                     }
-                // STDLIB-REGEX-095: MatchResult complete implementation
                 case ("component1", 0), ("component2", 0):
                     sema.types.stringType
                 case ("next", 0):
@@ -372,7 +371,6 @@ extension CallTypeChecker {
             listStringType
         case ("replace", 2):
             sema.types.stringType
-        // STDLIB-REGEX-094: String.replaceFirst(Regex, String) -> String
         case ("replaceFirst", 2):
             sema.types.stringType
         case ("chunked", 1):
@@ -605,8 +603,6 @@ extension CallTypeChecker {
     /// member-first lookup picks up `CPointed.readValue(size, align)` (an
     /// inherited member that any `CStructVar`-bounded receiver exposes) and
     /// the resolver rejects it on arity mismatch with no extension fallback.
-    ///
-    /// Returns `CValue<receiverType>` after binding the chosen callee.
     func tryNativeCInteropReadValueExtensionFallback(
         _ id: ExprID,
         calleeName: InternedString,
@@ -643,8 +639,6 @@ extension CallTypeChecker {
 
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-        // Accept any receiver that is a CStructVar subtype, including a type
-        // parameter whose upper bound is CStructVar (or one of its descendants).
         let receiverSatisfiesCStructVar: Bool = {
             if sema.types.isSubtype(nonNullReceiverType, cStructVarType) {
                 return true

@@ -1,12 +1,6 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
-    /// Candidate filtering and adjustment, extracted verbatim from
-    /// `inferRegularMemberCall`: expect/actual de-duplication, visibility
-    /// filtering, nullable Any toString/hashCode, receiver-specificity and
-    /// per-member preference rules (forEach, withDefault, coerceX, toList,
-    /// take, unzip, isNullOrEmpty, format, trimMargin), ending in the
-    /// no-candidate fallback when nothing remains.
     /// `earlyReturnType` carries a bound result when a rule short-circuits;
     /// otherwise the surviving candidate set is returned (never empty).
     func filterRegularMemberCallCandidates(

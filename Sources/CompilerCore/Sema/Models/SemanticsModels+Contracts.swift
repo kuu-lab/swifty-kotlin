@@ -46,36 +46,14 @@ public struct ContractNonNullEffect: Equatable, Sendable {
     }
 }
 
-/// Represents a `contract { returns() }` or `contract { returns(true/false) }` effect
-/// indicating the function guarantees normal return (optionally with a specific Boolean
-/// return value).
-///
-/// - Bare `returns()`: the function guarantees it will return normally (not throw).
-/// - `returns(true)` / `returns(false)`: the function guarantees its *return value*
-///   will be the given Boolean constant on normal completion.
-///
-/// Models the kind of `returns(...)` contract effect.
-///
-/// - `returnsNormally`: bare `returns()` -- the function guarantees normal return.
-/// - `returnsBooleanValue(Bool, conditionParameterIndex: Int?)`: `returns(true)` or
-///   `returns(false)` -- the function guarantees a specific Boolean return value on
-///   normal completion.  `conditionParameterIndex` is a heuristic to locate the first
-///   Boolean parameter for downstream smart-cast patterns like `require(condition)`.
 public enum ContractReturnsEffect: Equatable, Sendable {
-    /// Bare `returns()` -- the function guarantees normal return without specifying
-    /// a particular return value.
     case returnsNormally
-    /// `returns(true)` or `returns(false)` -- the function guarantees a specific
-    /// Boolean return value on normal completion.
-    /// - `expectedValue`: the Boolean value the function returns (`true` or `false`).
-    /// - `conditionParameterIndex`: heuristic index of the first Boolean parameter,
-    ///   used by downstream smart-cast analysis (e.g. `require(condition)` patterns).
-    ///   May be nil if no Boolean parameter exists.
+    /// `conditionParameterIndex`: heuristic index of the first Boolean parameter,
+    /// used by downstream smart-cast analysis (e.g. `require(condition)` patterns).
+    /// May be nil if no Boolean parameter exists.
     case returnsBooleanValue(expectedValue: Bool, conditionParameterIndex: Int?)
 }
 
-/// STDLIB-592: `contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }` effect.
-/// Records that a lambda parameter is guaranteed to be invoked a specific number of times.
 public struct ContractCallsInPlaceEffect: Equatable, Sendable, CustomStringConvertible {
     public let parameterSymbol: SymbolID
     public let kind: InvocationKind
@@ -90,7 +68,6 @@ public struct ContractCallsInPlaceEffect: Equatable, Sendable, CustomStringConve
     }
 }
 
-/// Kotlin `InvocationKind` enum modelling how many times a lambda parameter is called.
 public enum InvocationKind: String, Equatable, Sendable {
     case atMostOnce = "AT_MOST_ONCE"
     case atLeastOnce = "AT_LEAST_ONCE"
@@ -98,10 +75,6 @@ public enum InvocationKind: String, Equatable, Sendable {
     case unknown = "UNKNOWN"
 }
 
-/// STDLIB-591: `contract { returns() implies (condition) }` effect where `condition`
-/// is a Boolean parameter.  After normal return, the argument expression at
-/// `conditionParameterIndex` is guaranteed true, enabling smart casts derived from
-/// that expression (e.g. `require(x != null)` narrows `x` to non-null).
 public struct ContractConditionEffect: Equatable, Sendable, CustomStringConvertible {
     /// Index into the function signature's value-parameter list whose argument
     /// expression is guaranteed true on normal return.

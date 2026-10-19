@@ -1,9 +1,5 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
-/// Array-constructor call interceptions from the `inferCallExpr` dispatch
-/// chain: `Array(size) { init }` (source-backed and intrinsic forms) and the
-/// `AtomicIntArray` / `AtomicLongArray` element-type fast paths.
-/// Extracted from `CallTypeChecker+CallExprInference.swift`.
 extension CallTypeChecker {
     func inferArrayConstructorCall(
         _ id: ExprID,
@@ -21,7 +17,6 @@ extension CallTypeChecker {
         let knownNames = KnownCompilerNames(interner: interner)
 
 
-        // --- Stdlib Array(size) { init } constructor (STDLIB-085/086, TYPE-103) ---
         let arrayConstructorTarget = arrayConstructorTarget(
             calleeName: calleeName,
             explicitTypeArgs: explicitTypeArgs,
@@ -146,9 +141,6 @@ extension CallTypeChecker {
                 sema.bindings.bindExprType(id, type: resultType)
                 return resultType
             }
-            // Determine the element type from the expected type annotation or
-            // the init lambda's return type, avoiding erasure to Any.
-            //
             // Only extract the generic argument from the expected type when:
             //   1. The callee is "Array" (not a primitive array like IntArray), AND
             //   2. The expected type is actually kotlin.Array<...> (not some unrelated
@@ -184,7 +176,6 @@ extension CallTypeChecker {
                     elementReturnType = sema.types.anyType
                 }
             } else if isKotlinArray {
-                // No expected type and no explicit type argument for Array(size) { init }.
                 // Infer the lambda with `it` constrained to Int, then extract the
                 // actual body return type from bindings to avoid erasing to Any.
                 let lambdaExpected = sema.types.make(.functionType(FunctionType(
@@ -197,7 +188,6 @@ extension CallTypeChecker {
                     locals: &locals,
                     expectedType: lambdaExpected
                 )
-                // Read back the lambda body's actual inferred type.
                 let bodyType: TypeID? = if case let .lambdaLiteral(_, body, _, _) = ast.arena.expr(args[1].expr) {
                     sema.bindings.exprTypes[body]
                 } else {
@@ -206,7 +196,6 @@ extension CallTypeChecker {
                 let inferred = bodyType ?? sema.types.anyType
                 elementReturnType = (inferred != sema.types.errorType) ? inferred : sema.types.anyType
             } else {
-                // For primitive array constructors, the element type is fixed.
                 elementReturnType = switch calleeNameStr {
                 case "IntArray": sema.types.intType
                 case "LongArray": sema.types.longType

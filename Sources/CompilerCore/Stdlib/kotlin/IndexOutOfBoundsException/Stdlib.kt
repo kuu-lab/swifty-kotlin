@@ -6,9 +6,6 @@
 
 package kotlin
 
-/**
- * Thrown when an index is out of bounds.
- */
 public open class IndexOutOfBoundsException : RuntimeException {
     public constructor() : super() {
         __kkThrowableSetMessage(this, null)

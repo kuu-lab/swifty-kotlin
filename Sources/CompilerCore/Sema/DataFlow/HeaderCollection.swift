@@ -101,7 +101,6 @@ extension DataFlowSemaPhase {
                 classFlags.insert(.valueType)
             }
 
-            // STDLIB-CLASS-010: Check for conflicting modifiers
             if classDecl.modifiers.contains(.abstract) && classDecl.modifiers.contains(.final) {
                 diagnostics?.error(
                     "KSWIFTK-SEMA-ABSTRACT",
@@ -117,11 +116,9 @@ extension DataFlowSemaPhase {
                 )
             }
 
-            // STDLIB-CLASS-010: Abstract classes are implicitly open
             if classDecl.modifiers.contains(.abstract) {
                 classFlags.insert(.openType)
             }
-            // STDLIB-CLASS-010: Sealed classes are implicitly abstract
             if classDecl.modifiers.contains(.sealed) {
                 classFlags.insert(.abstractType)
                 classFlags.insert(.openType)
@@ -268,13 +265,12 @@ extension DataFlowSemaPhase {
         return symbol
     }
 
-    /// Returns the predeclared synthetic nominal that a bundled source
-    /// declaration takes over, if one exists. Early synthetic stub passes
-    /// register nominal placeholders (e.g. `kotlin.Comparator`) so other stubs
-    /// can reference the type before bundled header collection runs; the
-    /// bundled declaration then claims that placeholder instead of defining a
-    /// duplicate symbol. User sources never claim placeholders — a same-name
-    /// collision there must still surface as KSWIFTK-SEMA-0001.
+    /// Early synthetic stub passes register nominal placeholders (e.g.
+    /// `kotlin.Comparator`) so other stubs can reference the type before
+    /// bundled header collection runs; the bundled declaration then claims
+    /// that placeholder instead of defining a duplicate symbol. User sources
+    /// never claim placeholders — a same-name collision there must still
+    /// surface as KSWIFTK-SEMA-0001.
     func reusableSyntheticDeclarationSymbol(
         kind: SymbolKind,
         fqName: [InternedString],
@@ -381,8 +377,6 @@ extension DataFlowSemaPhase {
         ].contains(resolvedFQName[2])
     }
 
-    /// Registers type parameters for a nominal type (class or interface) as symbols,
-    /// sets their variances and upper bounds, and returns the symbol list and local map.
     func registerNominalTypeParameters(
         _ typeParams: [TypeParamDecl],
         ownerSymbol: SymbolID,

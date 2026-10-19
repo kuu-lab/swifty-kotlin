@@ -1,7 +1,3 @@
-/// Primitive `*Var` classes and unsigned/UTF conversion stubs for
-/// `kotlinx.cinterop` (`UByteVar`…`DoubleVar` `value`/`ptr`/`rawPtr` members,
-/// `*Array.toCValues`, and the UTF-16/UTF-32 `toKString` family), extracted
-/// from `registerSyntheticCInteropStubs`.
 extension DataFlowSemaPhase {
     func registerCInteropPrimitiveVarStubs(
         cinteropPkg: [InternedString],
@@ -20,8 +16,7 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) {
         // KUU-1375: primitive `*Var` classes subtype `CPrimitiveVar` (which is a
-        // `CVariable`) so `alloc<IntVar>()` satisfies its `T : CVariable` bound
-        // and each carries a `var value` bridging to kk_cvar_*_load/_store.
+        // `CVariable`) so `alloc<IntVar>()` satisfies its `T : CVariable` bound.
         let primitiveVarKinds: [(name: String, valueType: TypeID, linkPrefix: String)] = [
             (name: "UByteVar", valueType: types.ubyteType, linkPrefix: "kk_cvar_ubyte"),
             (name: "ShortVar", valueType: types.shortType, linkPrefix: "kk_cvar_short"),
@@ -58,7 +53,6 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 interner: interner
             )
-            // val <var>.ptr: CPointer<var> / val <var>.rawPtr: NativePtr
             let primitivePtrType = types.make(.classType(ClassType(
                 classSymbol: cPointerSymbol,
                 args: [.invariant(type)],
@@ -110,8 +104,7 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
-        // val <var>.ptr / <var>.rawPtr on the generic and aggregate var classes
-        // (class type-param substitution fills in the concrete pointee).
+        // Class type-param substitution fills in the concrete pointee of `ptr`.
         for genericVarSymbol in [booleanVarOfSymbol, byteVarOfSymbol, cPointerVarOfSymbol] {
             guard let tSym = types.nominalTypeParameterSymbols(for: genericVarSymbol).first
             else { continue }

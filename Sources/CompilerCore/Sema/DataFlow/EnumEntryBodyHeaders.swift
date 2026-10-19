@@ -145,9 +145,8 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Creates the semantic symbols used by KIR to dispatch an enum-typed call
-    /// to the matching entry-body override. The helper is registered after
-    /// inheritance edges are bound so inherited interface members are included.
+    /// Registered after inheritance edges are bound so inherited interface
+    /// members are included.
     func registerEnumEntryDispatchFunctions(
         entries: [EnumEntryDecl],
         memberFunctions: [DeclID],
@@ -173,11 +172,6 @@ extension DataFlowSemaPhase {
             return symbol
         }
 
-        // Include inherited members (most importantly interface methods) that
-        // member lookup can select for an enum-typed receiver. Keep a direct
-        // member's signature as the preferred base when it overrides the same
-        // inherited declaration.
-        //
         // BUG-A: a base function inherited through a *generic* supertype (the
         // implicit `kotlin.Enum<T>` every enum class extends) declares its
         // receiver in terms of Enum's own unsubstituted type parameter `T`,
@@ -337,11 +331,10 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Whether calls on an enum-typed receiver can resolve to a member whose
-    /// declared receiver is `candidateReceiverType`. An inherited member
-    /// (e.g. `kotlin.Enum<T>.toString`) keeps the declaring class's generic
-    /// receiver, which `isSubtype` rejects against the concrete enum, so the
-    /// erased nominal ancestry is the right granularity for dispatch.
+    /// An inherited member (e.g. `kotlin.Enum<T>.toString`) keeps the
+    /// declaring class's generic receiver, which `isSubtype` rejects against
+    /// the concrete enum, so the erased nominal ancestry is the right
+    /// granularity for dispatch.
     private func receiverMatchesEnum(
         _ candidateReceiverType: TypeID,
         enumType: TypeID,

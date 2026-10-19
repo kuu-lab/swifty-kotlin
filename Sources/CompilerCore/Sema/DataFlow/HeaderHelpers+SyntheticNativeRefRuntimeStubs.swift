@@ -1,30 +1,15 @@
 
-/// STDLIB-NATIVE-REF-002: Synthetic sema stubs for `kotlin.native.ref` and
-/// `kotlin.native.runtime`.
+/// Residual `WeakReference<T>` members are retained as a no-op fallback now
+/// that the constructor (KSP-1255) and members (KSP-1256) are source-backed
+/// in Weak.kt; the bundled-declaration check short-circuits registration.
 ///
-/// Exposes the following symbols at the sema level so that name-resolution,
-/// type-checking, and opt-in diagnostics work correctly without any runtime
-/// edits:
-///
-/// - residual `WeakReference<T>` members, retained as a no-op fallback now
-///   that the constructor (KSP-1255) and members (KSP-1256) are source-backed
-///   in Weak.kt; the bundled-declaration check short-circuits registration.
-/// - residual `createCleaner` bridge only when its bundled source declaration
-///   is absent.
-/// - `kotlin.native.runtime.NativeRuntimeApi` — runtime opt-in marker.
-/// - `kotlin.native.runtime.GC` needs no stub here: it is fully source-backed
-///   (see GC.kt), including its own `@NativeRuntimeApi` annotation, so it is
-///   registered by ordinary header collection like any other bundled object.
-/// - `kotlin.native.runtime.RootSetStatistics` — GC root-set statistics DTO.
-/// - `kotlin.native.runtime.SweepStatistics` — GC sweep statistics DTO.
-/// - `kotlin.native.runtime.GCInfo` — GC statistics DTO surface.
+/// `kotlin.native.runtime.GC` needs no stub here: it is fully source-backed
+/// (see GC.kt), including its own `@NativeRuntimeApi` annotation, so it is
+/// registered by ordinary header collection like any other bundled object.
 ///
 /// `kotlin.native.runtime.Debugging` is fully source-backed (KSP-1260,
 /// `Stdlib/kotlin/native/runtime/Debugging.kt`) and registers no synthetic
 /// stub here.
-///
-/// All symbols are compile-time stubs only.  No runtime code is generated or
-/// modified by this registration.
 extension DataFlowSemaPhase {
     func registerSyntheticNativeRefRuntimeStubs(
         symbols: SymbolTable,
@@ -50,8 +35,6 @@ extension DataFlowSemaPhase {
             fqName: nativeRuntimePkg + [interner.intern("NativeRuntimeApi")]
         )
 
-        // Ensure ExperimentalNativeApi is a RequiresOptIn marker so that
-        // opt-in diagnostics fire when symbols tagged with it are used.
         ensureExperimentalNativeApiRequiresOptIn(
             markerSymbol: experimentalNativeApiSymbol,
             symbols: symbols
@@ -127,8 +110,7 @@ extension DataFlowSemaPhase {
             symbols.setParentSymbol(pkgSymbol, for: classSymbol)
         }
 
-        // Tag WeakReference itself with @ExperimentalNativeApi so that
-        // callers must opt in.  The marker is declared in bundled Kotlin
+        // The `@ExperimentalNativeApi` marker is declared in bundled Kotlin
         // source, so fall back to its fully-qualified name when the symbol
         // is not yet registered at synthetic-stub time.
         attachExperimentalNativeApi(
@@ -139,8 +121,6 @@ extension DataFlowSemaPhase {
             symbols: symbols
         )
 
-        // Set up the single type-parameter T (inline, as the NativeInterop
-        // helper is private).
         let typeParamSymbol = ensureSyntheticTypeParameterSymbol(
             named: "T",
             in: classFQName,
@@ -202,7 +182,6 @@ extension DataFlowSemaPhase {
             return
         }
 
-        // Avoid double-registration.
         guard symbols.lookupAll(fqName: functionFQName).isEmpty else {
             return
         }
@@ -220,9 +199,9 @@ extension DataFlowSemaPhase {
         }
         symbols.setExternalLinkName("kk_cleaner_create", for: functionSymbol)
 
-        // Tag with @ExperimentalNativeApi.  The marker is declared in bundled
-        // Kotlin source, so fall back to its fully-qualified name when the
-        // symbol is not yet registered at synthetic-stub time.
+        // The `@ExperimentalNativeApi` marker is declared in bundled Kotlin
+        // source, so fall back to its fully-qualified name when the symbol
+        // is not yet registered at synthetic-stub time.
         attachExperimentalNativeApi(
             to: functionSymbol,
             markerFQName: experimentalNativeApiSymbol.flatMap {
@@ -370,8 +349,7 @@ extension DataFlowSemaPhase {
 
     }
 
-    /// Attaches `@RequiresOptIn` to `ExperimentalNativeApi` so the opt-in
-    /// machinery treats it as an opt-in marker.  Safe to call multiple times.
+    /// Safe to call multiple times.
     private func ensureExperimentalNativeApiRequiresOptIn(
         markerSymbol: SymbolID?,
         symbols: SymbolTable
@@ -390,8 +368,6 @@ extension DataFlowSemaPhase {
         symbols.setAnnotations(annotations, for: markerSymbol)
     }
 
-    /// Returns the `kotlin.experimental.ExperimentalNativeApi` annotation
-    /// class symbol, looking it up from an earlier registration.
     private func lookupOrRegisterExperimentalNativeApiAnnotation(
         symbols: SymbolTable,
         interner: StringInterner
@@ -401,8 +377,6 @@ extension DataFlowSemaPhase {
         return symbols.lookup(fqName: fqName)
     }
 
-    /// Attaches a `@ExperimentalNativeApi` annotation record to the given
-    /// symbol so that opt-in checks fire when the symbol is used.
     private func attachExperimentalNativeApi(
         to symbol: SymbolID,
         markerFQName: String,
@@ -421,7 +395,6 @@ extension DataFlowSemaPhase {
         symbols.setAnnotations(annotations, for: symbol)
     }
 
-    /// Attaches a `@NativeRuntimeApi` annotation record to a runtime symbol.
     private func attachNativeRuntimeApi(
         to symbol: SymbolID,
         markerFQName: String,

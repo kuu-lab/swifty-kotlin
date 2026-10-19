@@ -7,9 +7,6 @@
 
 package kotlin
 
-/**
- * Suppresses the compilation warnings with the given names in the annotated element.
- */
 @kotlin.annotation.Target(
     AnnotationTarget.CLASS,
     AnnotationTarget.ANNOTATION_CLASS,

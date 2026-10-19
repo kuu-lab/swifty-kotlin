@@ -110,8 +110,6 @@ extension CallTypeChecker {
                 return nil
             }
         }
-        // Path 1: callee is a function/constructor whose single parameter is a
-        // fun interface type (e.g. `apply({ ... })` where apply takes Transformer).
         let samCompatibleCandidates = visibleCandidates.filter { candidate in
             guard !hasSamConstructor,
                   let signature = ctx.sema.symbols.functionSignature(for: candidate),
@@ -187,8 +185,6 @@ extension CallTypeChecker {
             return bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: ctx.sema)
         }
 
-        // Path 2: SAM constructor — callee name is a fun interface
-        // (e.g. `Transformer { it.uppercase() }`).
         if args.count == 1, let samType = inferSamConstructorCallExpr(
             id,
             calleeName: calleeName,
@@ -236,9 +232,9 @@ extension CallTypeChecker {
         }
     }
 
-    /// `Tr(f)` where `f` is a local of function type: the synthetic SAM
-    /// constructor accepts a function value, not only a lambda or reference.
-    /// Abstain when a same-named function could take precedence.
+    /// The synthetic SAM constructor accepts a function value, not only a
+    /// lambda or reference. Abstain when a same-named function could take
+    /// precedence.
     private func inferSamConstructorFromFunctionValue(
         _ id: ExprID,
         calleeName: InternedString,
@@ -407,9 +403,6 @@ extension CallTypeChecker {
         return nil
     }
 
-    /// Handles `Transformer { ... }` — calling a fun interface name with a
-    /// single trailing lambda produces an anonymous implementation of that
-    /// interface by SAM conversion.
     private func inferSamConstructorCallExpr(
         _ id: ExprID,
         calleeName: InternedString,
@@ -686,9 +679,9 @@ extension CallTypeChecker {
     }
 
     /// Infers a raw SAM constructor's type arguments from the lambda's explicit
-    /// parameter type annotations (`Cmp { a: Int, b: Int -> ... }`), which are the
-    /// only source of that information when neither explicit type arguments nor an
-    /// expected type are available (BUG-046).
+    /// parameter type annotations, which are the only source of that information
+    /// when neither explicit type arguments nor an expected type are available
+    /// (BUG-046).
     private func inferInterfaceArgsFromLambdaAnnotations(
         _ interfaceSymID: SymbolID,
         typeParameters: [SymbolID],
@@ -720,9 +713,6 @@ extension CallTypeChecker {
         return inferredArgs.count == typeParameters.count ? inferredArgs : []
     }
 
-    /// Infers a generic SAM constructor's type arguments from the lambda body's
-    /// result when neither an expected interface type nor parameter annotations
-    /// determine them (for example, `Parser { _: String -> ParserResult.Success(3, "") }`).
     private func inferInterfaceArgsFromLambdaReturnType(
         _ interfaceSymID: SymbolID,
         typeParameters: [SymbolID],

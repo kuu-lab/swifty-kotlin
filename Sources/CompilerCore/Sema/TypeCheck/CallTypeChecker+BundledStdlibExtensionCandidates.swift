@@ -73,10 +73,10 @@ extension CallTypeChecker {
         }
     }
 
-    /// Finds the source-backed value-semantics extensions for Instant. Instant
-    /// keeps these operations as package-level Kotlin functions, but its source
-    /// nominal shell also inherits Any's methods. They must be preferred when
-    /// the call site's static receiver is Instant.
+    /// Instant keeps its value-semantics operations as package-level Kotlin
+    /// functions, but its source nominal shell also inherits Any's methods. The
+    /// extensions must be preferred when the call site's static receiver is
+    /// Instant.
     func collectInstantValueSemanticsCandidates(
         named calleeName: InternedString,
         receiverType: TypeID,
@@ -114,8 +114,7 @@ extension CallTypeChecker {
         }
     }
 
-    /// Finds bundled stdlib extension functions named `calleeName` whose receiver
-    /// matches `receiverType`. Bundled stdlib extensions (e.g. the atomic-array
+    /// Bundled stdlib extensions (e.g. the atomic-array
     /// `loadAt`/`storeAt` migration source) are conceptually members and should be
     /// callable without an explicit import, but ordinary scope lookup only exposes
     /// them when imported. This is used as a final member-call resolution fallback,
@@ -222,8 +221,7 @@ extension CallTypeChecker {
         return preferredCandidates.isEmpty ? candidates : preferredCandidates
     }
 
-    /// Chooses the bundled source package that introduced the receiver visible
-    /// at a call site. Canonical atomics aliases and their legacy shells share a
+    /// Canonical atomics aliases and their legacy shells share a
     /// runtime class, so the receiver type alone cannot carry this provenance.
     func preferredBundledStdlibPackage(
         sourceFile: ASTFile,

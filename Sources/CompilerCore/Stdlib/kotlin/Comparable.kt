@@ -9,8 +9,8 @@ package kotlin
 
 import kotlin.internal.KsSymbolName
 
-// KSP-797: source-backed `compareTo` declaration. The runtime bridge performs
-// erased Comparable dispatch after source-level member resolution.
+// KSP-797: The runtime bridge performs erased Comparable dispatch after
+// source-level member resolution.
 public interface Comparable<in T> {
     @KsSymbolName("__kk_comparable_compareTo")
     public external operator fun compareTo(other: T): Int

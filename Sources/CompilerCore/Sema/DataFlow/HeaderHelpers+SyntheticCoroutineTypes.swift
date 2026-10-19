@@ -1,8 +1,3 @@
-/// Nominal symbol and type declarations for the synthetic coroutine
-/// registry: the kotlin.coroutines core interfaces/classes and the
-/// kotlinx nominal types (Job / Deferred / Flow / Channel /
-/// CoroutineDispatcher / CancellationException / CoroutineStart).
-///
 /// Extracted from `registerSyntheticCoroutineStubs`
 /// (HeaderHelpers+SyntheticCoroutineRegistry.swift). The extracted
 /// methods thread the shared registry state through `context` so the
@@ -410,7 +405,6 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
-        // STDLIB-CORO-001: CoroutineStart enum for launch(start:) overload.
         let coroutineStartSymbol = ensureEnumClassSymbol(
             named: "CoroutineStart",
             in: coroutinesPkg,

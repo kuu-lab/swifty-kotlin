@@ -1,7 +1,5 @@
 import Foundation
 
-/// Decodes the text-based metadata format into `[MetadataRecord]`.
-/// This replaces the ad-hoc parsing previously done in DataFlow/LibraryMetadataParsing.swift.
 final class MetadataDecoder {
     init() {}
 
@@ -15,7 +13,6 @@ final class MetadataDecoder {
         return decode(content)
     }
 
-    /// Parse text content into metadata records.
     func decode(_ content: String) -> [MetadataRecord] {
         if content.hasPrefix("kklib-metadata-v2\n"),
            let indexed = IndexedMetadataFile(data: Data(content.utf8))
@@ -182,7 +179,6 @@ final class MetadataDecoder {
         )
     }
 
-    /// Mutable accumulator used while parsing a single metadata line.
     private struct MutableMetadataRecord {
         var fqName: String = ""
         var visibility: Visibility = .public

@@ -1,12 +1,8 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
-    /// Resolution-failure fallbacks, extracted verbatim from
-    /// `inferRegularMemberCall`. When overload resolution produced a
-    /// diagnostic, retries through class-name static members, projection
-    /// violations, the synthetic member fallbacks and the shadowed-extension /
-    /// callable-property paths before emitting the error. `resolved` is updated
-    /// in place when a nested-argument retry clears the diagnostic.
+    /// `resolved` is updated in place when a nested-argument retry clears the
+    /// diagnostic.
     /// Returns nil when no diagnostic was pending or a retry succeeded.
     func handleRegularMemberResolutionDiagnostic(
         _ request: MemberCallInferenceRequest,
@@ -238,12 +234,6 @@ extension CallTypeChecker {
         return nil
     }
 
-    /// Chosen-callee binding tail, extracted verbatim from
-    /// `inferRegularMemberCall`: the no-callee fallbacks (class-name statics,
-    /// projection violations, common fallbacks, shadowed extensions,
-    /// callable-property invocation, SEMA-0024), deprecation/opt-in checks,
-    /// super-call rules, use-site variance projection, contract effects and
-    /// coroutine return-type narrowing.
     func bindChosenRegularMemberCall(
         _ request: MemberCallInferenceRequest,
         candidates: [SymbolID],
@@ -355,7 +345,6 @@ extension CallTypeChecker {
             range: range,
             diagnostics: ctx.sema.diagnostics
         )
-        // P5-112: Prohibit super.foo() calls to abstract members.
         if isSuperCall,
            let chosenSym = sema.symbols.symbol(chosen),
            chosenSym.flags.contains(SymbolFlags.abstractType),
@@ -398,9 +387,6 @@ extension CallTypeChecker {
             }
         }
 
-        // --- Use-site variance projection check ---
-        // When the receiver has projected type arguments (e.g. MutableList<out Number>),
-        // check that the member access respects variance constraints.
         if arrayFillHasWriteForbiddenProjection(
             chosenCallee: chosen, receiverType: lookupReceiverType, ctx: ctx
         ) {
@@ -418,7 +404,6 @@ extension CallTypeChecker {
                symbols: sema.symbols
            )
         {
-            // Check if any parameter uses a write-forbidden type parameter
             if !allowsProjectedReceiverUnsafeVariance(chosen, sema: sema, interner: interner),
                let violatingParamIndex = sema.types.checkVarianceViolationInParameters(
                    signature: signature,
@@ -493,9 +478,6 @@ extension CallTypeChecker {
             ctx: ctx,
             locals: &locals
         )
-        // Narrow `CoroutineScope.async` / `Deferred.await()` using the element
-        // type tracked by `coroutineBuilderNarrowedReturnType` for the
-        // `async {}` call that produced this receiver.
         let adjustedReturnType: TypeID = if sema.symbols.externalLinkName(for: chosen) == "kk_coroutine_scope_async",
                                           let block = args.first(where: { $0.label == interner.intern("block") }) ?? args.last
         {

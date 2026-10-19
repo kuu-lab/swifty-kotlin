@@ -25,7 +25,6 @@ extension TypeSystem {
             return true
         }
         if case .nothing(.nullable) = lhs {
-            // Nothing? is subtype of all nullable and platform types, Any?, and Nothing? itself
             switch rhs {
             case .nullableUnit, .platformUnit:
                 return true
@@ -58,13 +57,11 @@ extension TypeSystem {
         {
             return nullabilitySubtype(nullability(of: subtype), nullability(of: supertype))
         }
-        // Subtype of intersection: C <: A & B if C <: all parts
-        // (must come before LHS decomposition so that intersection-vs-intersection
-        //  decomposes the RHS first, allowing each part to then match via LHS rule)
+        // Must come before LHS decomposition so that intersection-vs-intersection
+        // decomposes the RHS first, allowing each part to then match via LHS rule.
         if case let .intersection(parts) = rhs {
             return parts.allSatisfy { isSubtype(subtype, $0) }
         }
-        // Intersection as subtype: A & B <: C if any part <: C
         if case let .intersection(parts) = lhs {
             return parts.contains { isSubtype($0, supertype) }
         }
@@ -173,7 +170,6 @@ extension TypeSystem {
             }
         }
 
-        // primitive <: Number  (Int, Long, Float, Double, Byte, Short are subclasses of kotlin.Number)
         if case let .primitive(leftPrimitive, leftNullability) = lhs,
            case let .classType(rightClass) = rhs,
            let numberSym = numberClassSymbol,
@@ -356,15 +352,12 @@ extension TypeSystem {
                     && (rightClass.classSymbol == kFunctionInterfaceSymbol
                         || rightClass.classSymbol == kCallableInterfaceSymbol))
             else {
-                // Function types conform to the synthetic regular or suspend
-                // function interface of matching arity.
                 return functionTypeSubtypeOfFunctionN(leftFunction, rightClass)
             }
             guard nullabilitySubtype(leftFunction.nullability, rightClass.nullability) else {
                 return false
             }
-            // KFunction<R> has one type arg (the return type). Accept if none specified or return
-            // type matches.
+            // KFunction<R> has one type arg (the return type).
             if rightClass.args.isEmpty { return true }
             guard rightClass.args.count == 1 else { return false }
             let returnArg = rightClass.args[0]
@@ -376,7 +369,6 @@ extension TypeSystem {
             }
 
         case let (.classType(leftClass), .functionType(rightFunction)):
-            // SAM: fun interface <: function type when the SAM method signature matches
             guard nullabilitySubtype(leftClass.nullability, rightFunction.nullability) else {
                 return false
             }
@@ -500,7 +492,7 @@ extension TypeSystem {
     /// alongside it — `isSubtype` needs both anyway, and computing the kind
     /// directly here instead of via a second `kind(of:)` call keeps this at
     /// exactly one lookup per input, same as before this normalization
-    /// existed. A no-op for every other type.
+    /// existed.
     ///
     /// Without this, `String::class`'s `classRefTargetType` (which resolves to
     /// the disguised nominal form via scope lookup — see `inferClassRefExpr`)
@@ -559,7 +551,6 @@ extension TypeSystem {
             // `lub(T, T?) == T?` instead of widening all the way to `Any?`.
             lubReapplyingNullability(filtered, retainingCommonIntersection: retainingCommonIntersection)
         }
-        // If any input was Nothing? (null literal), the result must be nullable
         if hasNullableNothing {
             let nullable = makeNullable(result)
             // makeNullable returns the same ID for two reasons:
@@ -576,8 +567,6 @@ extension TypeSystem {
         return result
     }
 
-    /// Computes a lower-bound candidate while inferring a generic type variable.
-    ///
     /// Generic inference retains incomparable common nominal bounds as an
     /// intersection, declared shared type-parameter upper bounds, and the
     /// platform-neutral `Comparable<*>` bound for mixed comparable primitives.
@@ -618,9 +607,6 @@ extension TypeSystem {
         return comparable
     }
 
-    /// Uses declared type-parameter bounds when several inputs share a more
-    /// specific supertype than `Any`. For example, both `A : T` and `B : T`
-    /// can contribute `T` as the element type for `listOf(a, b)`.
     private func inferenceLubRetainingCommonTypeParameterUpperBounds(_ types: [TypeID]) -> TypeID? {
         guard types.count > 1, let symbolTable else { return nil }
 
@@ -691,9 +677,7 @@ extension TypeSystem {
     func nullabilitySubtype(_ lhs: Nullability, _ rhs: Nullability) -> Bool {
         if lhs == rhs { return true }
         if lhs == .nonNull, rhs == .nullable { return true }
-        // Platform type (T!) is assignable to both nullable and non-null
         if lhs == .platformType { return true }
-        // Both nullable and non-null are assignable to platform type
         if rhs == .platformType { return true }
         return false
     }
@@ -859,11 +843,6 @@ extension TypeSystem {
         }
     }
 
-    /// Computes the LUB over the non-null projections of `filtered` and
-    /// re-applies nullability if any input was nullable. When the non-null
-    /// projections share a single underlying type (e.g. `String` and
-    /// `String?`), the result is that type made nullable (`String?`) rather
-    /// than being widened to `Any?`.
     private func lubReapplyingNullability(
         _ filtered: [TypeID],
         retainingCommonIntersection: Bool = false
@@ -931,18 +910,14 @@ extension TypeSystem {
         if let numberSym = numberClassSymbol, types.allSatisfy(isNumericPrimitiveType) {
             return make(.classType(ClassType(classSymbol: numberSym, args: [], nullability: .nonNull)))
         }
-        // Prefer the unique most-specific ancestor with compatible type
-        // arguments; when several incomparable candidates remain, either keep
-        // their intersection for inference or use the existing BFS approximation.
         if let commonNominal = commonNominalSupertype(types) {
             return commonNominal
         }
         return nearestCommonNominalSupertype(types, retainingCommonIntersection: retainingCommonIntersection)
     }
 
-    /// Expands declared upper bounds from type-parameter inputs before falling
-    /// back to `Any`. `nearestCommonSupertype` only receives non-null
-    /// projections, so each bound is narrowed to its non-null view as well.
+    /// `nearestCommonSupertype` only receives non-null projections, so each
+    /// bound is narrowed to its non-null view.
     private func nearestCommonTypeParameterUpperBound(_ types: [TypeID]) -> TypeID? {
         guard types.count > 1 else { return nil }
 
@@ -1034,9 +1009,8 @@ extension TypeSystem {
         }
     }
 
-    /// Builds a structural common supertype for function types with matching
-    /// callable shape. Function inputs are contravariant, so their common type
-    /// is a greatest lower bound; function results are covariant and use LUB.
+    /// Function inputs are contravariant, so their common type is a greatest
+    /// lower bound; function results are covariant and use LUB.
     private func commonFunctionSupertype(
         _ types: [TypeID],
         retainingCommonIntersection: Bool
@@ -1087,9 +1061,6 @@ extension TypeSystem {
         return types.allSatisfy { isSubtype($0, common) } ? common : nil
     }
 
-    /// Finds a greatest lower bound for a contravariant function input. Reuse
-    /// an existing subtype when one bounds every input; otherwise preserve all
-    /// input constraints in an intersection type.
     private func commonFunctionInputType(_ types: [TypeID]) -> TypeID {
         let uniqueTypes = Array(Set(types)).sorted { $0.rawValue < $1.rawValue }
         if let existingBound = uniqueTypes.first(where: { candidate in
@@ -1110,9 +1081,6 @@ extension TypeSystem {
     /// arguments the first input lifts to (`liftedNominalSupertypeArgs`) and is
     /// kept only if *every* input is a subtype of that instantiation, which
     /// rejects generic mismatches such as `Comparable<X>` vs `Comparable<Y>`.
-    /// Among the survivors, candidates that are strict supertypes of another
-    /// survivor are dropped. In the ordinary nominal approximation, a
-    /// superclass is preferred over an interface.
     ///
     /// Kotlin infers an intersection type when several incomparable candidates
     /// remain (e.g. two classes implementing both `I` and `J`). Ordinary
@@ -1183,17 +1151,8 @@ extension TypeSystem {
         return mostSpecific
     }
 
-    /// Nominal hierarchy walk for inputs that are all nominal class types
-    /// where no input dominates the rest — e.g.
-    /// `lub(EmptyCoroutineContext, Element) == CoroutineContext`: neither
-    /// input is a supertype of the other, but they share
-    /// `CoroutineContext` above them. Collects the ancestor symbols
-    /// reachable from every input, keeps instantiations that accept all inputs
-    /// under the declared variance, or synthesizes their covariant argument LUBs,
-    /// and returns the single most specific
-    /// candidate (a subtype of every other candidate). Returns `nil` for
-    /// non-class inputs, incompatible args, or ambiguity — the caller then
-    /// uses the nearest-common-ancestor approximation.
+    /// Returns `nil` for non-class inputs, incompatible args, or ambiguity —
+    /// the caller then uses the nearest-common-ancestor approximation.
     private func commonNominalSupertype(_ types: [TypeID]) -> TypeID? {
         var ancestorSets: [Set<SymbolID>] = []
         for input in types {
@@ -1290,9 +1249,6 @@ extension TypeSystem {
         return inputs.allSatisfy({ isSubtype($0, candidate) }) ? candidate : nil
     }
 
-    /// Arity of `kotlin.Function.FunctionN` when `classSymbol` is one of the
-    /// synthetic function interfaces registered by
-    /// `registerSyntheticFunctionInterface` (KUU-1084).
     private func functionNArity(of classSymbol: SymbolID) -> Int? {
         for (arity, symbolID) in functionNInterfaceSymbols where symbolID == classSymbol {
             return arity
@@ -1345,12 +1301,9 @@ extension TypeSystem {
         )
     }
 
-    /// Lifts a nominal class type to the regular or suspend function interface
-    /// of the given arity that it reaches through its nominal supertype chain,
-    /// preserving the declared projections and the subtype's nullability.
-    /// The walk mirrors
-    /// `isNominalSubtypeSymbol`: an explicit worklist with a visited set so a
-    /// cyclic `.kklib` supertype graph cannot loop.
+    /// The supertype walk mirrors `isNominalSubtypeSymbol`: an explicit
+    /// worklist with a visited set so a cyclic `.kklib` supertype graph cannot
+    /// loop.
     func inheritedFunctionInterfaceClassType(
         of classType: ClassType,
         arity: Int,
@@ -1380,10 +1333,6 @@ extension TypeSystem {
         inheritedFunctionInterfaceClassType(of: classType, arity: arity, isSuspend: false)
     }
 
-    /// `(Q1..QN) -> S <: FunctionN<A1..AN, B>` (or its suspend equivalent):
-    /// the receiver counts as the leading parameter, arity and suspend modifier
-    /// must match, and the declared projections must accept the parameter and
-    /// return types.
     private func functionTypeSubtypeOfFunctionN(
         _ function: FunctionType,
         _ classType: ClassType
@@ -1424,9 +1373,6 @@ extension TypeSystem {
         }
     }
 
-    /// A regular or suspend function interface is a subtype of its matching
-    /// function type: arity and suspend modifier must match, and parameter and
-    /// return projections must prove the corresponding bounds.
     private func functionNSubtypeOfFunctionType(
         _ classType: ClassType,
         _ function: FunctionType
@@ -1469,9 +1415,6 @@ extension TypeSystem {
         }
     }
 
-    /// If all inputs are KClass types, preserve a dominating input or compute
-    /// a projected common upper bound with the appropriate nullability.
-    /// Returns `nil` when the types are not all KClass.
     private func lubKClassTypes(_ filtered: [TypeID]) -> TypeID? {
         var arguments: [TypeID] = []
         var invariantArguments = true

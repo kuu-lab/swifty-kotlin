@@ -7,8 +7,6 @@
 
 package kotlin
 
-// KSP-725: nominal `kotlin.Comparator<in T>` declaration migrated out of the
-// synthetic self-registration.
 public fun interface Comparator<in T> {
     public fun compare(a: T, b: T): Int
 

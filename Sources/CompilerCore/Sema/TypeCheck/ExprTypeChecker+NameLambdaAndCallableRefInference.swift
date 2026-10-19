@@ -31,7 +31,6 @@ extension ExprTypeChecker {
                 )
             }
             sema.bindings.bindIdentifier(id, symbol: local.symbol)
-            // Propagate collection marks through variable references (P5-84).
             if sema.bindings.isCollectionSymbol(local.symbol) {
                 sema.bindings.markCollectionExpr(id)
             }
@@ -75,8 +74,6 @@ extension ExprTypeChecker {
         } else {
             ctx.cachedScopeLookup(name)
         }
-        // @DslMarker restriction: filter out candidates from outer receivers
-        // that share a DslMarker annotation with the current implicit receiver.
         let dslBlockedIDs = allCandidateIDs.filter { ctx.isCandidateBlockedByDslMarker($0) }
         let dslFilteredIDs = allCandidateIDs.filter { !ctx.isCandidateBlockedByDslMarker($0) }
         let (visibleIDs, initialInvisibleSyms) = ctx.filterByVisibility(dslFilteredIDs)
@@ -173,7 +170,8 @@ extension ExprTypeChecker {
                     id, locals: locals, ast: ctx.ast, sema: sema, interner: interner
                 ), reference.isStable,
                    let narrowedType = ctx.dataFlow.resolvedTypeFromFlowState(
-                       ctx.flowState.includingMembers(from: locals), reference: reference.symbol
+                       ctx.flowState.includingMembers(from: locals), reference: reference.symbol,
+                       types: sema.types
                    )
                 {
                     sema.bindings.bindExprType(id, type: narrowedType)
@@ -337,7 +335,6 @@ extension ExprTypeChecker {
             {
                 sema.bindings.markImplicitReceiverMember(id, name: name)
             }
-            // ANNO-001: Check for @Deprecated annotation on the resolved symbol.
             driver.helpers.checkDeprecation(
                 for: preferredCandidate.id,
                 sema: sema,
@@ -387,8 +384,6 @@ extension ExprTypeChecker {
         nameRange: SourceRange?,
         emitDiagnosticOnFailure: Bool = true
     ) -> TypeID? {
-        // STDLIB-004: Inside receiver lambdas (run/apply/with), bare name
-        // references resolve as properties on the implicit receiver (this).
         let knownNames = KnownCompilerNames(interner: interner)
         let resolvedName = interner.resolve(name)
         let nonNullReceiver = sema.types.makeNonNullable(receiverType)
@@ -558,8 +553,6 @@ extension ExprTypeChecker {
         return nil
     }
 
-    /// Follows a (possibly chained) typealias to the object / companion-bearing
-    /// classifier it names, so the alias can be used as a value or qualifier.
     func expandTypeAliasValueTarget(_ symbol: SemanticSymbol, sema: SemaModule) -> SemanticSymbol? {
         guard symbol.kind == .typeAlias else { return nil }
         var current = symbol.id

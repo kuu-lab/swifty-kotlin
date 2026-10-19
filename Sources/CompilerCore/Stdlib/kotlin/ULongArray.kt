@@ -14,8 +14,6 @@ public inline fun ULongArray(size: Int, init: (Int) -> ULong): ULongArray {
 }
 
 /**
- * Internal storage constructor used by the unsigned/signed array view APIs.
- *
  * Kotlin exposes this constructor only to the stdlib implementation. The
  * signed and unsigned arrays intentionally share the same backing storage.
  */

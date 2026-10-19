@@ -50,13 +50,9 @@ private external fun __classGetAnnotations(type: Class<*>): Array<Annotation>
 
 // JVM-shaped view of an existing class token; it does not own a ClassLoader.
 public class Class<T> {
-    /** Returns the JVM canonical name of this class token, or null when unavailable. */
     public val canonicalName: String?
         get() = __classCanonicalName(this)
 
-    /**
-     * Returns the native runtime's loader used for resource lookup.
-     */
     public val classLoader: ClassLoader?
         get() = getSystemClassLoader()
 
@@ -71,20 +67,15 @@ public class Class<T> {
     public val annotations: Array<Annotation>
         get() = __classGetAnnotations(this)
 
-    /** Returns the public constructor matching [parameterTypes]. */
     public fun getConstructor(vararg parameterTypes: Class<*>): Constructor<T> =
         __getConstructor(this, parameterTypes)
-    /** Returns the constructors registered for this class token. */
     public fun getDeclaredConstructors(): Array<Constructor<*>> = __declaredConstructors(this)
 
-    /** Returns the declared constructor with the supplied parameter classes. */
     public fun getDeclaredConstructor(vararg parameterTypes: Class<*>): Constructor<T> =
         __declaredConstructor(this, parameterTypes)
 
-    /** Returns methods declared directly by this class. */
     public fun getDeclaredMethods(): Array<Method> = __classGetDeclaredMethods(this)
 
-    /** Returns the method declared by this class with the given parameter types. */
     public fun getDeclaredMethod(name: String, vararg parameterTypes: Class<*>): Method =
         __classGetDeclaredMethod(this, name, parameterTypes)
 
@@ -95,7 +86,6 @@ public class Class<T> {
      */
     public fun getDeclaredField(name: String): Field = __classGetDeclaredField(this, name)
 
-    /** Returns the JVM name of this class. */
     public val name: String
         get() = __classGetName(this)
 
@@ -113,7 +103,6 @@ public class Class<T> {
     public fun getDeclaringClass(): Class<*>? = null
 
     public companion object {
-        /** Resolves a JVM binary class name to its native class token. */
         public fun forName(className: String): Class<*> = __classForName(className)
     }
 

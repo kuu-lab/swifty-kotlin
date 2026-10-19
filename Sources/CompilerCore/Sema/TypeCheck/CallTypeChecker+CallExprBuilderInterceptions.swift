@@ -1,11 +1,5 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
-/// Builder-style call interceptions from the `inferCallExpr` dispatch chain:
-/// the stdlib `buildList`/`buildSet`/`buildMap` DSL functions, the `sequence {}`
-/// and `iterator {}` builders, and the `memScoped` block helper. Each infers
-/// its lambda argument with a synthetic receiver scope that generic overload
-/// resolution cannot provide.
-/// Extracted from `CallTypeChecker+CallExprInference.swift`.
 extension CallTypeChecker {
     func inferBuilderDSLSpecialCall(
         _ id: ExprID,
@@ -20,7 +14,6 @@ extension CallTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
 
-        // --- Builder DSL functions (STDLIB-002) ---
         // Must intercept BEFORE eager arg inference so the lambda argument
         // is inferred with the correct implicit receiver type.
         if let calleeName {
@@ -77,7 +70,6 @@ extension CallTypeChecker {
                     sema: sema,
                     interner: interner
                 )
-                // Infer the lambda argument with the builder receiver as implicit `this`.
                 var builderCtx = ctx.with(implicitReceiverType: receiverType)
                 builderCtx.isBuilderLambdaScope = true
                 builderCtx.builderKind = builderKind
@@ -107,7 +99,6 @@ extension CallTypeChecker {
         let knownNames = KnownCompilerNames(interner: interner)
 
 
-        // --- sequence { ... } builder (STDLIB-330) ---
         // Intercept before eager argument inference so the lambda is inferred
         // with a SequenceScope<T> implicit receiver and T can be recovered from
         // expected type or nested yield()/yieldAll() calls.
@@ -199,7 +190,6 @@ extension CallTypeChecker {
         let knownNames = KnownCompilerNames(interner: interner)
 
 
-        // --- iterator { ... } builder (STDLIB-331/564) ---
         if let calleeName,
            calleeName == knownNames.iterator,
            args.count == 1,
@@ -276,7 +266,6 @@ extension CallTypeChecker {
         return nil
     }
 
-    // --- kotlinx.cinterop.memScoped { } (KUU-1375) ---
     // `inline fun <R> memScoped(block: MemScope.() -> R): R` needs the
     // receiver-function expected type pushed into the block so `alloc`,
     // `cstr`, and friends resolve against the MemScope implicit receiver,
@@ -373,7 +362,6 @@ extension CallTypeChecker {
             }
         }
 
-        // --- produce { ... } builder (CORO-075) ---
         return nil
     }
 }

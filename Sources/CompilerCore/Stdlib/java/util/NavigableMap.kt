@@ -1,7 +1,3 @@
-/*
- * KUU-1361: JVM java.util.NavigableMap parity for the bundled stdlib.
- */
-
 package java.util
 
 import kotlin.collections.MutableMap
@@ -10,9 +6,6 @@ import kotlin.internal.KsSymbolName
 // Members stay bodiless: interface default bodies dispatch through the
 // itable, which runtime-backed boxes do not populate.
 
-/**
- * A [SortedMap] with navigation methods — `java.util.NavigableMap`.
- */
 public interface NavigableMap<K, V> : SortedMap<K, V> {
     @KsSymbolName("__kk_sorted_map_lower_key")
     public fun lowerKey(key: K): K?

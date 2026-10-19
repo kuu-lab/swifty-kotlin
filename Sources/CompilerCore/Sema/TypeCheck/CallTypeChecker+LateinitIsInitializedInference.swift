@@ -1,10 +1,4 @@
-/// Inference for `prop::isInitialized` lateinit-property reference accesses.
-///
-/// Split out from `CallTypeChecker+MemberCallInference.swift`.
 extension CallTypeChecker {
-    /// Handles `prop::isInitialized` on lateinit property references.
-    /// Returns the inferred type, or `nil` when the call is not a lateinit
-    /// `isInitialized` access (the dispatcher should continue with other checks).
     func tryInferLateinitIsInitializedCall(
         _ id: ExprID,
         receiverID: ExprID,
