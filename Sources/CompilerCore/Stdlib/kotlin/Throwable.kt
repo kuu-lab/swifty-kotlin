@@ -3,15 +3,11 @@ package kotlin
 import kotlin.internal.KsSymbolName
 
 /**
- * The base class for all errors and exceptions. Only instances of this class
- * can be thrown or caught.
- *
- * The actual storage is allocated by the runtime as a boxed exception object;
- * the Kotlin-level class declares the type, its public constructor surface and
- * its members. Members are expressed in Kotlin and reach the boxed storage
- * through the small `__kk_throwable_*` accessor bridges below. The mutating /
- * suppressed-list members remain extensions with static dispatch, while the
- * virtual members route through the runtime bridge for boxed Throwable values.
+ * The actual storage is allocated by the runtime as a boxed exception object.
+ * Members reach the boxed storage through the small `__kk_throwable_*` accessor
+ * bridges below. The mutating / suppressed-list members remain extensions with
+ * static dispatch, while the virtual members route through the runtime bridge
+ * for boxed Throwable values.
  */
 public open class Throwable {
     @KsSymbolName("__kk_throwable_new")
