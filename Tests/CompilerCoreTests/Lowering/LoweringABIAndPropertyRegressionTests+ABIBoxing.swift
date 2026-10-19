@@ -553,5 +553,106 @@ extension LoweringABIAndPropertyRegressionTests {
         }
         #expect(!hasCopy, "Expected copy to be replaced with unboxing call")
     }
+
+    @Test
+    func localFunctionCapturesDoNotShiftParameterBoxing() throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let symbols = SymbolTable()
+        let arena = KIRArena()
+
+        let innerSym = symbols.define(
+            kind: .function,
+            name: interner.intern("inner"),
+            fqName: [interner.intern("inner")],
+            declSite: nil,
+            visibility: .private,
+            flags: [.localFunction]
+        )
+        let intArraySym = symbols.define(
+            kind: .class,
+            name: interner.intern("IntArray"),
+            fqName: [interner.intern("kotlin"), interner.intern("IntArray")],
+            declSite: nil,
+            visibility: .public,
+            flags: []
+        )
+        let intArrayType = types.make(.classType(ClassType(classSymbol: intArraySym, args: [], nullability: .nonNull)))
+        let innerSig = FunctionSignature(
+            parameterTypes: [types.intType, intArrayType],
+            returnType: types.unitType
+        )
+        symbols.setFunctionSignature(innerSig, for: innerSym)
+
+        let capParamSym = SymbolID(rawValue: 9001)
+        let kParamSym = SymbolID(rawValue: 9002)
+        let cParamSym = SymbolID(rawValue: 9003)
+        let innerFunc = KIRFunction(
+            symbol: innerSym,
+            name: interner.intern("inner"),
+            params: [
+                KIRParameter(symbol: capParamSym, type: types.intType),
+                KIRParameter(symbol: kParamSym, type: types.intType),
+                KIRParameter(symbol: cParamSym, type: intArrayType),
+            ],
+            returnType: types.unitType,
+            body: [.returnUnit],
+            isSuspend: false,
+            isInline: false
+        )
+        let innerDeclID = arena.appendDecl(.function(innerFunc))
+
+        let callerSym = symbols.define(
+            kind: .function,
+            name: interner.intern("caller"),
+            fqName: [interner.intern("caller")],
+            declSite: nil,
+            visibility: .public,
+            flags: []
+        )
+        let capExpr = arena.appendExpr(.intLiteral(4), type: types.intType)
+        let kExpr = arena.appendExpr(.intLiteral(1), type: types.intType)
+        let cExpr = arena.appendExpr(.symbolRef(SymbolID(rawValue: 9004)), type: intArrayType)
+        let callResult = arena.appendExpr(.unit, type: types.unitType)
+
+        let callerFunc = KIRFunction(
+            symbol: callerSym,
+            name: interner.intern("caller"),
+            params: [],
+            returnType: types.unitType,
+            body: [
+                .constValue(result: capExpr, value: .intLiteral(4)),
+                .constValue(result: kExpr, value: .intLiteral(1)),
+                .call(
+                    symbol: innerSym,
+                    callee: interner.intern("inner"),
+                    arguments: [capExpr, kExpr, cExpr],
+                    result: callResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .returnUnit,
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+        let callerDeclID = arena.appendDecl(.function(callerFunc))
+
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [innerDeclID, callerDeclID])], arena: arena)
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
+        try runLowering(module: module, interner: interner, moduleName: "LocalFunCaptureBoxingTest", sema: sema)
+
+        let lowered = try findKIRFunction(named: "caller", in: module, interner: interner)
+        // Check that the call to inner has [capExpr, kExpr, cExpr] and kExpr was not boxed
+        var foundInnerCall = false
+        for instruction in lowered.body {
+            if case let .call(sym, _, arguments, _, _, _, _, _) = instruction, sym == innerSym {
+                foundInnerCall = true
+                #expect(arguments == [capExpr, kExpr, cExpr])
+            }
+        }
+        #expect(foundInnerCall, "Expected to find lowered call to inner")
+    }
 }
 #endif
+
