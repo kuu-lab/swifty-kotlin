@@ -1,16 +1,13 @@
-/// Binding for `String.windowed` / `windowedSequence`(size, step = 1, partialWindows = false, transform)
-/// overloads: the `List<R>` / `Sequence<R>` counterparts. Sequence overloads
-/// that already match by arity are resolved from the bundled declarations in
-/// `StringWindowChunkTransform.kt`; skipped-default trailing-lambda forms
-/// (`windowed(2) { }` / `windowedSequence(2) { }`) go through this binder so
-/// `it` is typed as `CharSequence` before overload resolution.
+/// Sequence overloads that already match by arity are resolved from the bundled
+/// declarations in `StringWindowChunkTransform.kt`; skipped-default
+/// trailing-lambda forms (`windowed(2) { }` / `windowedSequence(2) { }`) go
+/// through this binder so `it` is typed as `CharSequence` before overload
+/// resolution.
 ///
 /// The windowed list transform overload still uses a uniquely named bundled
 /// function because the KIR lowering layer has legacy by-name dispatch for
 /// `windowed`. The public `chunked` overload has a normal bundled declaration
 /// and is resolved by the ordinary source-backed call path.
-///
-/// Split out from `CallTypeChecker+MemberCallInference.swift`.
 extension CallTypeChecker {
     func tryBindStringWindowedTransform(
         _ id: ExprID,
