@@ -8,8 +8,6 @@ private let runtimeCoroutineScopeInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlinx.coroutines.CoroutineScope"
 )
 
-/// A coroutine scope that tracks child jobs and supports structured cancellation.
-///
 /// CORO-003: Scope is no longer stored in Thread Local Storage. Instead it is
 /// carried inside `RuntimeContinuationState.scope` (the coroutine context),
 /// so it survives suspend/resume across different GCD threads. A lightweight
@@ -20,9 +18,7 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     private var children: [Int] = [] // opaque handles (RuntimeJobHandle or RuntimeAsyncTask)
     private var firstChildFailure = 0
     private(set) var isCancelled = false
-    /// Cancellation message stored when cancel(message:cause:) is called on this scope.
     private(set) var cancellationMessage: String = "CancellationException"
-    /// Cancellation cause stored when cancel(message:cause:) is called on this scope.
     private(set) var cancellationCause: Int = 0
     let isSupervisor: Bool
     let context: RuntimeCoroutineContext
@@ -39,7 +35,6 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     private var adoptedTaskIdentity: RuntimeAsyncTask?
     fileprivate var parent: RuntimeCoroutineScope?
     fileprivate var enclosingJob: RuntimeJobHandle?
-    /// Optional debug name assigned via CoroutineName context element (STDLIB-CORO-077).
     var name: String?
 
     /// Handle of the `kotlinx.coroutines.test.TestCoroutineScheduler` lazily
@@ -47,8 +42,6 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     /// pay nothing.
     private var testSchedulerHandle = 0
 
-    /// The scope's lazily minted `TestCoroutineScheduler` handle, backing
-    /// `TestScope.testScheduler` when this scope masquerades as a TestScope.
     func schedulerForTest() -> Int {
         lock.lock()
         defer { lock.unlock() }
@@ -82,8 +75,8 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     // Protected by taskScopeLock — all accesses go through installScope/removeScope/scopeForTask.
     nonisolated(unsafe) private static var taskScopeMap: [RuntimeTaskKey: RuntimeCoroutineScope] = [:]
 
-    /// Install scope for the given task key. Called at the top of the
-    /// suspend-entry loop so that launched children can discover their parent scope.
+    /// Called at the top of the suspend-entry loop so that launched children can
+    /// discover their parent scope.
     static func installScope(_ scope: RuntimeCoroutineScope?, forTask key: RuntimeTaskKey) {
         taskScopeLock.lock()
         if let scope {
@@ -94,25 +87,18 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
         taskScopeLock.unlock()
     }
 
-    /// Remove the task-scope mapping when a suspend-entry loop finishes.
     static func removeScope(forTask key: RuntimeTaskKey) {
         taskScopeLock.lock()
         taskScopeMap.removeValue(forKey: key)
         taskScopeLock.unlock()
     }
 
-    /// Look up the scope installed for the current GCD dispatch work-item.
-    /// Falls back to nil if the current thread is not inside a suspend-entry loop.
     static func scopeForTask(_ key: RuntimeTaskKey) -> RuntimeCoroutineScope? {
         taskScopeLock.lock()
         defer { taskScopeLock.unlock() }
         return taskScopeMap[key]
     }
 
-    /// Convenience accessor used by launch/async when they don't have a
-    /// continuation handle.  Uses the thread-level task key installed by the
-    /// nearest enclosing suspend-entry loop.
-    ///
     /// NOTE: This is *not* TLS for the scope itself -- the scope lives on the
     /// continuation.  The task key is only used to *find* which continuation's
     /// scope is active on this thread right now.
@@ -355,7 +341,6 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
                     // (via kk_job_join or kk_kxmini_async_await)
                     if !consumed, releaseOriginalHandles {
                         Unmanaged<AnyObject>.fromOpaque(ptr).release()
-                        // Clean up from RuntimeStorage
                         runtimeStorage.withGCLock { state in
                             state.objectPointers.remove(UInt(bitPattern: ptr))
                         }
@@ -405,8 +390,6 @@ private func enterScopeOnCurrentContinuation(_ scope: RuntimeCoroutineScope?, jo
     RuntimeJobHandle.current = job
 }
 
-/// Creates a new coroutine scope and installs it as the current scope in the
-/// task-scope registry (CORO-003: no TLS for the scope itself).
 @_cdecl("kk_coroutine_scope_new")
 public func kk_coroutine_scope_new() -> Int {
     let context = RuntimeContinuationState.current?.makeContinuationContext()
@@ -421,7 +404,6 @@ public func kk_coroutine_scope_new() -> Int {
     // `currentCoroutineContext().job` resolves there.
     scope.installJob(defaultCancellationMessage: "ScopeCoroutine was cancelled")
 
-    // Push: save parent scope and set this as current via the task-scope map
     scope.parent = RuntimeCoroutineScope.current
     scope.enclosingJob = RuntimeContinuationState.current?.jobHandle ?? RuntimeJobHandle.current
     enterScopeOnCurrentContinuation(scope, job: scope.job)
@@ -454,7 +436,6 @@ public func kk_supervisor_scope_new() -> Int {
     return Int(bitPattern: ptr)
 }
 
-/// Cancels the given coroutine scope and all its children.
 @_cdecl("kk_coroutine_scope_cancel")
 public func kk_coroutine_scope_cancel(_ scopeHandle: Int) -> Int {
     guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
@@ -476,7 +457,6 @@ public func kk_coroutine_scope_fail(_ scopeHandle: Int, _ exception: Int) -> Int
     return 0
 }
 
-/// Waits for all children in the scope to complete, then pops/releases the scope.
 @_cdecl("kk_coroutine_scope_wait")
 public func kk_coroutine_scope_wait(_ scopeHandle: Int) -> Int {
     guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
@@ -502,11 +482,8 @@ public func kk_coroutine_scope_wait(_ scopeHandle: Int) -> Int {
         parentJob?.detachChild(scopeJob.identityHandle)
     }
 
-    // Pop: restore parent scope in the task-scope map (CORO-003) and on the
-    // running continuation, mirroring enterScopeOnCurrentContinuation.
     enterScopeOnCurrentContinuation(scope.parent, job: scope.enclosingJob)
 
-    // Release the scope
     _ = runtimeReleaseObject(scopeHandle)
     // The Kotlin ABI models this as `Throwable?`; absence of a failure must use
     // the shared null sentinel (see runtimeResultExceptionOrNull) rather than raw
@@ -528,8 +505,6 @@ public func kk_coroutine_scope_wait(_ scopeHandle: Int) -> Int {
     return runtimeNullSentinelInt
 }
 
-/// Returns 1 if the scope is active (not cancelled), 0 if cancelled.
-/// This is the ABI backing for `scope.isActive` in Kotlin.
 @_cdecl("__kk_coroutine_scope_is_runtime")
 public func __kk_coroutine_scope_is_runtime(_ handle: Int) -> Int {
     runtimeCoroutineScope(from: handle) == nil ? 0 : 1
@@ -558,8 +533,6 @@ public func kk_coroutine_scope_is_active(_ scopeHandle: Int) -> Int {
     return scope.isCancelled ? 0 : 1
 }
 
-/// Returns 1 if the scope has been cancelled, 0 otherwise.
-/// This is the ABI backing for checking `scope.coroutineContext[Job]?.isCancelled`.
 public func kk_coroutine_scope_is_cancelled(_ scopeHandle: Int) -> Int {
     guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
         return 1 // invalid handle → treat as cancelled
@@ -567,7 +540,6 @@ public func kk_coroutine_scope_is_cancelled(_ scopeHandle: Int) -> Int {
     return scope.isCancelled ? 1 : 0
 }
 
-/// Registers a child job/deferred handle with the given scope.
 public func kk_coroutine_scope_register_child(_ scopeHandle: Int, _ childHandle: Int) -> Int {
     guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_scope_register_child received invalid scope handle")
@@ -1009,11 +981,6 @@ public func kk_coroutine_scope_launch(_ scopeHandle: Int, _ entryPointRaw: Int, 
     return Int(bitPattern: jobPtr)
 }
 
-/// Variant of kk_coroutine_scope_launch that accepts a pre-built continuation carrying
-/// the launched suspend lambda's captured outer variables (BUG-049). Mirrors
-/// kk_coroutine_scope_launch except that the continuation (with its capture slots
-/// already populated by the caller) is threaded through the launcher thunk instead of
-/// being freshly allocated from a functionID.
 @_cdecl("kk_coroutine_scope_launch_with_cont")
 public func kk_coroutine_scope_launch_with_cont(_ scopeHandle: Int, _ entryPointRaw: Int, _ continuation: Int) -> Int {
     guard let scope = runtimeCoroutineScope(from: scopeHandle) else {

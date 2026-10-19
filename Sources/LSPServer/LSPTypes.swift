@@ -78,7 +78,6 @@ public struct DocumentSymbolParams: Codable {
     public var textDocument: TextDocumentIdentifier
 }
 
-/// LSP diagnostic severity codes.
 public enum LSPDiagnosticSeverity: Int {
     case error = 1
     case warning = 2
@@ -140,7 +139,6 @@ public struct WorkspaceEdit: Codable, Equatable {
     }
 }
 
-/// The diagnostic context supplied with a `textDocument/codeAction` request.
 public struct CodeActionContext: Codable, Equatable {
     public var diagnostics: [LSPDiagnostic]
     public var only: [String]?
@@ -163,7 +161,6 @@ public struct CodeActionParams: Codable {
     }
 }
 
-/// An LSP code action carrying an applicable workspace edit.
 public struct LSPCodeAction: Codable, Equatable {
     public var title: String
     public var kind: String?
@@ -204,7 +201,6 @@ public struct Hover: Codable {
     }
 }
 
-/// LSP `SymbolKind` numeric codes.
 public enum LSPSymbolKind: Int {
     case file = 1
     case module = 2

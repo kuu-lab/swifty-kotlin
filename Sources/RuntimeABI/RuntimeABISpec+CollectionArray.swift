@@ -1,7 +1,5 @@
-/// Array, primitive-array conversion, and asSequence ABI specs split out from `RuntimeABISpec+Collection.swift`.
 public extension RuntimeABISpec {
     static let collectionArrayFunctions: [RuntimeABIFunctionSpec] = [
-        // Array
         RuntimeABIFunctionSpec(
             name: "kk_array_of",
             parameters: [
@@ -61,7 +59,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection"
         ),
-        // Array conversion (STDLIB-087)
         RuntimeABIFunctionSpec(
             name: "__kk_array_toList",
             parameters: [
@@ -80,7 +77,6 @@ public extension RuntimeABISpec {
             section: "Collection",
             isThrowing: false
         ),
-        // Primitive array to List conversions
         RuntimeABIFunctionSpec(
             name: "__kk_intArray_toList",
             parameters: [
@@ -177,7 +173,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection"
         ),
-        // Signed primitive array to unsigned primitive array view conversions
         RuntimeABIFunctionSpec(
             name: "__kk_byteArray_asUByteArray",
             parameters: [
@@ -214,7 +209,6 @@ public extension RuntimeABISpec {
             section: "Collection",
             isThrowing: false
         ),
-        // Primitive and generic array asList view conversions
         RuntimeABIFunctionSpec(
             name: "__kk_array_asList",
             parameters: [
@@ -319,7 +313,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection"
         ),
-        // Unsigned primitive array to signed primitive array view conversions
         RuntimeABIFunctionSpec(
             name: "__kk_uByteArray_asByteArray",
             parameters: [
@@ -356,7 +349,6 @@ public extension RuntimeABISpec {
             section: "Collection",
             isThrowing: false
         ),
-        // Primitive array size property
         RuntimeABIFunctionSpec(
             name: "__kk_intArray_size",
             parameters: [
@@ -453,7 +445,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection"
         ),
-        // Array utility functions (STDLIB-089)
         RuntimeABIFunctionSpec(
             name: "__kk_array_copyOf",
             parameters: [
@@ -473,7 +464,6 @@ public extension RuntimeABISpec {
             section: "Collection",
             isThrowing: false
         ),
-        // asSequence (STDLIB-471)
         RuntimeABIFunctionSpec(
             name: "kk_list_asSequence",
             parameters: [

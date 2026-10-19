@@ -1,7 +1,3 @@
-/// Virtual-call rewrite for `IntRange` / `LongRange` / `CharRange` /
-/// `UIntRange` / `ULongRange` receivers (STDLIB-090/091/092/093).
-///
-/// Split out from `CollectionLiteralLoweringPass+VirtualCallRewrite.swift`.
 extension CollectionVirtualCallRewriteLoweringPass {
     func rewriteRangeVirtualCall(
         callee: InternedString,
@@ -35,7 +31,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
         // KSP-1525/1527: map/filter-family HOFs are source-backed for both
         // unsigned range types, so their rewrite arms are skipped below.
         let isUnsignedRange = isUIntRange || isULongRange
-        // step — simple property access (STDLIB-RANGE-037)
         if callee == lookup.stepName, arguments.isEmpty {
             let stepName = isULongRange ? lookup.kkULongRangeStepName : (isUIntRange ? interner.intern("__kk_uint_range_step") : lookup.kkRangeStepName)
             loweredBody.append(.call(
@@ -46,7 +41,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        // first / last / start / endInclusive / endExclusive / count — simple property access (STDLIB-092 / STDLIB-RANGE-034)
         if callee == lookup.firstName || callee == lookup.startName, arguments.isEmpty {
             // KSP-1523: UIntRange receivers never reach this pass (their
             // constructing callee, e.g. __kk_uint_rangeTo, is not one of the
@@ -90,7 +84,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             ))
             return true
         }
-        // STDLIB-637: isEmpty / sum
         if callee == lookup.isEmptyName, arguments.isEmpty {
             // KSP-1523: see the `first`/`start` case above — same unreachable arm.
             let isEmptyName = lookup.kkRangeIsEmptyName
@@ -123,7 +116,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        // toList — returns a List (STDLIB-091 / STDLIB-290 / STDLIB-524)
         if callee == lookup.toListName, arguments.isEmpty {
             // KSP-1523: see the `first`/`start` case above — the isUIntRange
             // arm here was equally unreachable.
@@ -151,7 +143,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        // forEach — HOF (STDLIB-091 / STDLIB-290)
         if callee == lookup.forEachName, arguments.count == 1 {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
@@ -167,7 +158,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        // map — HOF returning List (STDLIB-091)
         if callee == lookup.mapName, arguments.count == 1, !isUnsignedRange {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
@@ -184,7 +174,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        // Additional range HOFs.
         if callee == lookup.mapIndexedName, arguments.count == 1, !isUnsignedRange {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
@@ -449,7 +438,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        // take/drop/average/sorted — dispatch by range type (STDLIB-RANGE-TDS)
         if callee == lookup.takeName, arguments.count == 1 {
             let takeName: InternedString
             if isULongRange {
@@ -516,7 +504,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        // reversed — returns a range (STDLIB-093)
         if callee == lookup.reversedName, arguments.isEmpty {
             // KSP-1523: the isUIntRange arm here was unreachable for the same
             // structural reason as the other members above (see `first`/`start`).
@@ -528,9 +515,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             ))
             if let result {
                 state.insert(.range, result)
-                // Propagate char range through reversed() (STDLIB-290)
                 if isCharRange { state.insert(.charRange, result) }
-                // Propagate ULong range through reversed() (STDLIB-524)
                 if isULongRange { state.insert(.ulongRange, result) }
             }
             return true
@@ -538,10 +523,4 @@ extension CollectionVirtualCallRewriteLoweringPass {
 
         return false
     }
-
-    /// Classify a receiver expression by its static type in the KIR arena.
-    /// If the receiver is already in one of the tracking sets, this is a no-op.
-    /// Otherwise, look up the expression's TypeID, resolve its class symbol,
-    /// and insert it into the appropriate tracking set so that downstream
-    /// rewrite logic can match on it.
 }

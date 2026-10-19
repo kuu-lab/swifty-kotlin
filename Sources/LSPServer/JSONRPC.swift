@@ -1,18 +1,15 @@
 import Foundation
 
-/// A source of bytes for the language server's input stream.
 /// `readChunk()` blocks until at least one byte is available and returns an
 /// empty `Data` to signal end of stream.
 public protocol ByteInputStream: AnyObject {
     func readChunk() -> Data
 }
 
-/// A sink of bytes for the language server's output stream.
 public protocol ByteOutputStream: AnyObject {
     func write(_ data: Data)
 }
 
-/// Reads the process's standard input in blocking chunks.
 public final class StandardInputStream: ByteInputStream {
     private let handle: FileHandle
 
@@ -25,7 +22,7 @@ public final class StandardInputStream: ByteInputStream {
     }
 }
 
-/// Writes to the process's standard output, serializing concurrent writes.
+/// Serializes concurrent writes.
 public final class StandardOutputStream: ByteOutputStream {
     private let handle: FileHandle
     private let lock = NSLock()
@@ -43,9 +40,6 @@ public final class StandardOutputStream: ByteOutputStream {
 
 /// Minimal JSON-RPC 2.0 transport over a byte stream using the LSP base
 /// protocol framing (`Content-Length: N\r\n\r\n` followed by `N` body bytes).
-///
-/// Messages are exchanged as loosely-typed JSON objects (`[String: Any]`).
-/// Typed payloads are bridged via `JSONCoding`.
 public final class JSONRPCConnection {
     /// Default upper bound on a single message body (32 MiB). Frames declaring a
     /// larger `Content-Length` are rejected to prevent memory-exhaustion DoS.
@@ -75,8 +69,7 @@ public final class JSONRPCConnection {
         self.maxHeaderBytes = maxHeaderBytes
     }
 
-    /// Reads and decodes the next framed message. Returns `nil` at end of
-    /// stream. Malformed frames are skipped.
+    /// Returns `nil` at end of stream. Malformed frames are skipped.
     public func receive() -> [String: Any]? {
         while true {
             guard let headerOffset = indexOfHeaderTerminator() else {
@@ -130,11 +123,9 @@ public final class JSONRPCConnection {
             {
                 return dict
             }
-            // Malformed body: skip and continue reading.
         }
     }
 
-    /// Frames and writes a message object.
     public func send(_ message: [String: Any]) {
         guard let body = try? JSONSerialization.data(
             withJSONObject: message,
@@ -172,7 +163,6 @@ public final class JSONRPCConnection {
         return true
     }
 
-    /// Returns the offset of the first `\r\n\r\n` sequence, or `nil` if absent.
     private func indexOfHeaderTerminator() -> Int? {
         buffer.withUnsafeBytes { raw -> Int? in
             let bytes = raw.bindMemory(to: UInt8.self)
@@ -203,18 +193,12 @@ public final class JSONRPCConnection {
     }
 }
 
-/// Bridges `Codable` payloads and the loosely-typed JSON objects exchanged by
-/// `JSONRPCConnection`.
 public enum JSONCoding {
-    /// Encodes a value into a JSON object/array/scalar suitable for embedding in
-    /// a message dictionary.
     public static func toObject(_ value: some Encodable) -> Any? {
         guard let data = try? JSONEncoder().encode(value) else { return nil }
         return try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
     }
 
-    /// Decodes a typed value from a JSON object previously produced by
-    /// `JSONSerialization`.
     public static func decode<T: Decodable>(_ type: T.Type, from object: Any) -> T? {
         guard let data = try? JSONSerialization.data(
             withJSONObject: object,

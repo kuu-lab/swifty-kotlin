@@ -1,5 +1,3 @@
-/// Predicates for bundled Kotlin primitive-array factory declarations.
-///
 /// The declaration shape is stable across the primitive array families: a
 /// top-level Kotlin function with one vararg parameter and a primitive-array
 /// return type. Keep this structural so lowering does not grow one name-based
@@ -70,7 +68,6 @@ func primitiveVarargArrayType(
     )))
 }
 
-/// The local representation of a reference vararg is Kotlin's covariant array.
 func referenceVarargArrayType(
     elementType: TypeID,
     sema: SemaModule,
@@ -89,8 +86,6 @@ func referenceVarargArrayType(
     )))
 }
 
-/// Returns the runtime nominal type ID for an array-shaped Kotlin type.
-///
 /// Arrays share one runtime storage representation, so lowering must preserve
 /// the static array class at the point where the value is allocated or copied.
 func runtimeArrayNominalTypeID(

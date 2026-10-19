@@ -8,7 +8,6 @@ package kotlinx.serialization.descriptors
 
 import kotlinx.serialization.internal.PrimitiveSerialDescriptor as PrimitiveDescriptor
 
-/** Creates a zero-element descriptor for a custom primitive serializer. */
 @Suppress("FunctionName")
 public fun PrimitiveSerialDescriptor(serialName: String, kind: PrimitiveKind): SerialDescriptor {
     require(serialName.isNotBlank()) { "Blank serial names are prohibited" }

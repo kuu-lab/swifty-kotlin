@@ -1,8 +1,5 @@
 import Foundation
 
-/// Textual dump of a ``KlibIrModule`` for inspection and tests —
-/// `klib dump-ir` style, much coarser: one line per file/declaration with
-/// resolved names, symbol kinds, and flag summaries.
 package enum KlibIrDump {
 
     package static func dump(_ module: KlibIrModule) throws -> String {

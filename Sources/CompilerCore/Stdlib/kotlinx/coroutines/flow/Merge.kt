@@ -31,7 +31,6 @@ public fun <T, R> Flow<T>.mapLatest(transform: suspend (T) -> R): Flow<R> {
     }
 }
 
-// Each upstream value cancels the previous transform before starting the next.
 public fun <T, R> Flow<T>.transformLatest(
     transform: suspend FlowCollector<R>.(value: T) -> Unit
 ): Flow<R> {

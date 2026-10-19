@@ -612,7 +612,7 @@ public final class BindingTable {
 
     /// STDLIB-REFLECT-065: Records the reified `T` argument of a
     /// `KClass<*>.findAnnotation<T>()` call so KIR lowering can compute the
-    /// runtime search name (see `RuntimeReflection.kk_kclass_find_annotation`).
+    /// runtime search name (see `__kk_kclass_find_annotation_typed`).
     public func bindFindAnnotationSearchType(_ expr: ExprID, type: TypeID) {
         findAnnotationSearchTypes[expr] = type
     }

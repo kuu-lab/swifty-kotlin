@@ -7,9 +7,3 @@
  */
 
 package kotlin.collections
-
-// The nominal collection classes that used to live here moved to their own
-// upstream-named files (docs/stdlib-pipeline.md §6):
-//   KSP-1046: ArrayList -> ArrayList/ArrayList.kt
-//   KSP-704:  HashSet and LinkedHashSet -> HashSet.kt / LinkedHashSet.kt
-//   KSP-703:  LinkedHashMap -> LinkedHashMap.kt

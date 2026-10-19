@@ -158,25 +158,18 @@ public object GC {
 
     @KsSymbolName("kk_gc_max_heap_bytes_set")
     private external fun __setMaxHeapBytes(value: Long)
-    // KSP-1263: Keep MainThreadFinalizerProcessor's property surface
-    // source-backed, following the same external-bridge pattern as
-    // kotlin.native.Platform (public get()/set() wrapping a raw external fun).
     public object MainThreadFinalizerProcessor {
-        /** Whether main-thread finalizer processing is supported on this target. */
         public val available: Boolean
             get() = __available() != 0
 
-        /** Number of finalizers processed per main-thread batch. */
         public var batchSize: ULong
             get() = __getBatchSize()
             set(value) { __setBatchSize(value) }
 
-        /** Upper bound on time spent finalizing per main-thread task. */
         public var maxTimeInTask: Duration
             get() = __getMaxTimeInTask().nanoseconds
             set(value) { __setMaxTimeInTask(value.inWholeNanoseconds) }
 
-        /** Minimum delay between consecutive main-thread finalizer tasks. */
         public var minTimeBetweenTasks: Duration
             get() = __getMinTimeBetweenTasks().nanoseconds
             set(value) { __setMinTimeBetweenTasks(value.inWholeNanoseconds) }

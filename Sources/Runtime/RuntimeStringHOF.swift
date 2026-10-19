@@ -1,12 +1,3 @@
-// String higher-order functions and commonPrefix/Suffix helpers.
-// Split out from `RuntimeStringStdlib.swift`.
-// KSP-410: filter/filterNot/map/mapIndexed/mapNotNull/any/all/none/count/
-// find/findLast/firstNotNullOf/firstNotNullOfOrNull/onEach/onEachIndexed/
-// partition/sumBy/sumByDouble/filterIndexed and the whole reduce/fold family
-// moved to bundled Kotlin source (Stdlib/kotlin/text/StringHOF.kt) — all
-// avoid named labels in their function-type parameters (workaround for
-// BUG-169, see TODO.md).
-
 import Foundation
 
 

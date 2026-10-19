@@ -147,7 +147,6 @@ public extension RuntimeABISpec {
             p("outThrown", .nullableIntptrPointer),
         ]),
         intToIntSpec,
-        // Runtime @_cdecl entries awaiting a dedicated RuntimeABISpec category.
         abiParitySpec("component1", parameters: [
             p("pairRaw", .intptr),
         ]),
@@ -216,10 +215,6 @@ public extension RuntimeABISpec {
             p("handle", .intptr),
             p("cause", .intptr),
         ], isThrowing: false),
-        // KSP-1571: ChannelResult box accessors added on top of KSP-1572's
-        // box-returning `__kk_channel_*` bridges (registered in the Coroutine
-        // section): `cause` reads the retained close cause and `create` backs
-        // the companion `success`/`failure`/`closed` factories.
         abiParitySpec("__kk_channel_result_cause", parameters: [
             p("boxRaw", .intptr),
         ], isThrowing: false),
@@ -304,7 +299,6 @@ public extension RuntimeABISpec {
             p("arrayRaw", .intptr),
         ],
             isThrowing: false),
-        // STDLIB-CINTEROP-FN-029: ByteArray.toKString(startIndex, endIndex, throwOnInvalidSequence)
         abiParitySpec("__kk_byteArray_toKString", parameters: [
             p("arrRaw", .intptr),
             p("startIndex", .intptr),
@@ -332,7 +326,6 @@ public extension RuntimeABISpec {
             p("arrayRaw", .intptr),
         ],
             isThrowing: false),
-        // KUU-1375: kotlinx.cinterop arena / variable / pointer bridges.
         abiParitySpec("kk_memscope_new", isThrowing: false),
         abiParitySpec("kk_arena_new", isThrowing: false),
         abiParitySpec("kk_native_heap_get", isThrowing: false),
@@ -626,12 +619,10 @@ public extension RuntimeABISpec {
             p("n", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        // KSP-486: MatchResult iteration / destructuring bridges
         abiParitySpec("__kk_match_result_next", parameters: [
             p("matchRaw", .intptr),
         ],
             isThrowing: false),
-        // STDLIB-TEXT-TYPE-010: MatchResult.Destructured
         abiParitySpec("__kk_match_result_destructured", parameters: [
             p("matchRaw", .intptr),
         ]),
@@ -679,12 +670,6 @@ public extension RuntimeABISpec {
             p("hash", .intptr),
         ]),
 
-        abiParitySpec("__kk_sequence_input_stream_available", parameters: [
-            p("streamRaw", .intptr),
-        ]),
-        abiParitySpec("__kk_sequence_input_stream_close", parameters: [
-            p("streamRaw", .intptr),
-        ]),
         abiParitySpec("__kk_sequence_input_stream_new", parameters: [
             p("firstRaw", .intptr),
             p("secondRaw", .intptr),

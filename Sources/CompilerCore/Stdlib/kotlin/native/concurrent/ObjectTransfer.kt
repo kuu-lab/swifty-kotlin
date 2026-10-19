@@ -36,11 +36,6 @@ public enum class TransferMode(public val value: Int) {
 public val TransferMode.entries: kotlin.enums.EnumEntries<TransferMode>
     get() = enumEntries<TransferMode>()
 
-/**
- * A detached object graph keeps an opaque stable pointer until it is attached.
- *
- * The public constructors create or restore detached object graphs.
- */
 @ObsoleteWorkersApi
 @Deprecated("Support for the legacy memory manager has been completely removed. Use the pointed value directly. To pass the value through the C interop, use the StableRef class.")
 @DeprecatedSinceKotlin(errorSince = "2.1")
@@ -49,22 +44,18 @@ public class DetachedObjectGraph<T> internal constructor(pointer: NativePtr) {
     internal val stable: kotlin.concurrent.AtomicNativePtr =
         kotlin.concurrent.AtomicNativePtr(pointer)
 
-    /** Creates a detached graph from the value returned by [producer]. */
     public constructor(mode: TransferMode = TransferMode.SAFE, producer: () -> T) :
         this(__detachObjectGraph(mode.value, producer()))
 
-    /** Restores a detached graph from an opaque C pointer. */
     public constructor(pointer: COpaquePointer?) :
         this(__nativePointerAddress(pointer))
 
-    /** Returns the opaque pointer represented by this detached graph. */
     @ExperimentalForeignApi
     @Suppress("DEPRECATION")
     public fun asCPointer(): COpaquePointer? = __interpretCPointer(stable.value)
 }
 
 /**
- * Attaches previously detached object subgraph created by [DetachedObjectGraph].
  * Please note, that once object graph is attached, the [DetachedObjectGraph.stable] pointer does not
  * make sense anymore, and shall be discarded, so attach of one DetachedObjectGraph object can only
  * happen once.

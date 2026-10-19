@@ -74,7 +74,6 @@ final class RuntimeSequenceIteratorBox {
     }
 }
 
-/// Pulls generator and builder elements on demand for Iterator.hasNext()/next().
 /// Transforms are applied before another source element is requested.
 fileprivate final class RuntimeSequencePullIteratorCursor {
     fileprivate enum Source {
@@ -229,8 +228,6 @@ func runtimeSequenceIteratorBox(from rawValue: Int) -> RuntimeSequenceIteratorBo
 }
 
 
-/// Dispatches an `Iterator` method on a source-implemented `Iterator` object by
-/// looking up the `kotlin.collections.Iterator` itable dynamically.
 private func runtimeIteratorMethodCall(
     _ iterRaw: Int,
     methodSlot: Int,
@@ -449,7 +446,6 @@ func runtimeSequenceSourceValuesOrThrow(
     fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(caller) received invalid sequence handle")
 }
 
-/// Fail-fast variant that panics on invalid handles instead of returning nil.
 /// Use this instead of `runtimeSequenceSourceElements(from:) ?? []` to distinguish
 /// invalid handles from legitimately empty sequences.
 func runtimeSequenceSourceElementsOrPanic(from rawValue: Int, caller: StaticString) -> [Int] {
@@ -478,13 +474,10 @@ final class SequenceTraversalState {
 }
 
 
-/// Error message for `first()` / `last()` on an empty sequence.
 let kEmptySequenceNoSuchElement = "Sequence is empty."
 let kSequenceNoNonNullTransformResult = "No element of the sequence was transformed to a non-null value."
-/// Error message for `reduce` on an empty sequence.
 let kEmptySequenceCannotReduce = "Empty sequence can't be reduced."
 private let kSequenceConstrainedOnceConsumed = "This sequence can be consumed only once."
-/// Error message for `Sequence.requireNoNulls()` when a null element is encountered.
 private let kSequenceRequireNoNullsFoundNull = "null element found in sequence."
 
 private func runtimeSequenceBeginTraversal(
@@ -885,7 +878,6 @@ private func runtimeSequenceTransformElement(
             state.stop = true
             return
         }
-        // Handle the sub-collection/sequence, including source-implemented Sequences.
         guard let subElements = runtimeSequenceSourceElementsOrThrow(from: subRaw, caller: #function, outThrown: outThrown) else {
             return
         }
@@ -911,7 +903,6 @@ private func runtimeSequenceTransformElement(
             state.stop = true
             return
         }
-        // Handle the sub-collection/sequence, including source-implemented Sequences.
         guard let subElements = runtimeSequenceSourceElementsOrThrow(from: subRaw, caller: #function, outThrown: outThrown) else {
             return
         }
@@ -1010,8 +1001,6 @@ private func runtimeSequenceFlushChunkedTransforms(
     }
 }
 
-/// Traverse a sequence box lazily, allowing the caller to supply its own
-/// `SequenceTraversalState` to track transforms and short-circuiting.
 func runtimeTraverseSequenceWithState(
     _ seq: RuntimeSequenceBox,
     state: SequenceTraversalState,
@@ -1143,7 +1132,6 @@ func runtimeTraverseSequenceWithState(
             }
             return
         case let .stringSource(source):
-            // Lazy: iterate string characters on demand without pre-materializing.
             // NOTE: Kotlin Char is a UTF-16 code unit (16-bit). Iterating unicodeScalars
             // produces values > 0xFFFF for supplementary characters (e.g. emoji),
             // which do not fit in a Kotlin Char. We iterate utf16 code units instead to
@@ -1198,7 +1186,6 @@ func runtimeTraverseSequenceWithState(
             }
             return
         case let .nullableGenerator(fnPtr, closureRaw):
-            // STDLIB-SEQ-002: 1-arg form — calls no-arg nextFunction repeatedly until null.
             let noArgFn = unsafeBitCast(fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
             while !state.stop {
                 var thrown = 0
@@ -1233,7 +1220,6 @@ func runtimeTraverseSequenceWithState(
     }
 }
 
-/// Convenience wrapper that creates its own `SequenceTraversalState`.
 func runtimeTraverseSequence(
     _ seq: RuntimeSequenceBox,
     outThrown: UnsafeMutablePointer<Int>?,
@@ -1275,7 +1261,6 @@ func runtimeTraverseSequenceSource(
     return nil
 }
 
-/// Traverses a runtime-backed range through its registered iterator handle.
 /// Generic Iterable calls can reach Sequence compatibility entry points with a
 /// range handle, even though that handle is neither a RuntimeSequenceBox nor a
 /// source-implemented Sequence object.
@@ -1316,7 +1301,6 @@ private func runtimeTraverseRangeSource(
     return true
 }
 
-/// Extracts source elements from a sequence step, if applicable.
 /// `.stringSource` is NOT extracted here — it is handled lazily in evaluateSequence
 /// and runtimeTraverseSequence to avoid eager materialization.
 private func extractSourceElements(from step: SequenceStepKind, outThrown: UnsafeMutablePointer<Int>? = nil) -> [Int]? {
@@ -1328,7 +1312,6 @@ private func extractSourceElements(from step: SequenceStepKind, outThrown: Unsaf
     case let .builder(builderElements):
         return builderElements
     case let .lazyBuilder(coroutine):
-        // STDLIB-563: Materialize the lazy coroutine into an element array.
         let iterator = coroutine.freshIterator()
         var elements: [Int] = []
         while case let .value(element) = iterator.nextElement(outThrown: outThrown) {
@@ -1346,7 +1329,6 @@ private func extractSourceElements(from step: SequenceStepKind, outThrown: Unsaf
     }
 }
 
-/// Applies a takeWhile transformation: takes elements while predicate returns true.
 private func applyTakeWhileStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> [Int] {
     let predicate = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
     var result: [Int] = []
@@ -1367,7 +1349,6 @@ private func applyTakeWhileStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, 
     return result
 }
 
-/// Applies a dropWhile transformation: drops elements while predicate returns true, then takes the rest.
 private func applyDropWhileStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> [Int] {
     let predicate = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
     var dropping = true
@@ -1393,7 +1374,6 @@ private func applyDropWhileStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, 
     return result
 }
 
-/// Applies a requireNoNulls transformation: fails on the first null element.
 private func applyRequireNoNullsStep(_ elements: [Int], outThrown: UnsafeMutablePointer<Int>?) -> [Int] {
     for elem in elements where runtimeNormalizeNullableCollectionValue(elem) == nil {
         let thrown = runtimeAllocateIllegalArgumentException(message: kSequenceRequireNoNullsFoundNull)
@@ -1421,7 +1401,6 @@ private func applyOnEachIndexedStep(_ elements: [Int], fnPtr: Int, closureRaw: I
     return elements
 }
 
-/// Applies a withIndex transformation: creates pairs of (index, element).
 private func applyWithIndexStep(_ elements: [Int]) -> [Int] {
     var pairs: [Int] = []
     pairs.reserveCapacity(elements.count)
@@ -1431,7 +1410,6 @@ private func applyWithIndexStep(_ elements: [Int]) -> [Int] {
     return pairs
 }
 
-/// Applies a flatMap transformation: maps each element to a collection and flattens the result.
 private func applyFlatMapStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> [Int] {
     var result: [Int] = []
     for elem in elements {
@@ -1453,7 +1431,6 @@ private func applyFlatMapStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, ou
     return result
 }
 
-/// Applies a flatMapIndexed transformation: maps each indexed element to a collection or sequence and flattens it.
 private func applyFlatMapIndexedStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> [Int] {
     var result: [Int] = []
     for (index, elem) in elements.enumerated() {
@@ -1475,8 +1452,6 @@ private func applyFlatMapIndexedStep(_ elements: [Int], fnPtr: Int, closureRaw: 
     return result
 }
 
-/// Applies a chunked transform step eagerly by grouping elements, applying the transform,
-/// and including any trailing partial chunk.
 private func applyChunkedTransformStep(
     _ elements: [Int],
     size: Int,
@@ -1554,8 +1529,6 @@ private func runtimeShuffleElementHandles(_ elements: [Int], randomRaw: Int?) ->
     return elements.shuffled()
 }
 
-/// Evaluates the lazy sequence chain and returns the materialized elements.
-/// This is the core of lazy semantics: steps are only executed here.
 func evaluateSequence(
     _ seq: RuntimeSequenceBox,
     outThrown: UnsafeMutablePointer<Int>? = nil,
@@ -1587,7 +1560,6 @@ func evaluateSequence(
         return result
     }
 
-    // Find the source elements
     var elements: [Int] = []
     for step in seq.steps {
         if let source = extractSourceElements(from: step, outThrown: outThrown) {
@@ -1626,7 +1598,6 @@ func evaluateSequence(
             break
         }
         if case let .nullableGenerator(fnPtr, closureRaw) = step {
-            // STDLIB-SEQ-002: 1-arg form — no seed, call no-arg function until null.
             // KSP-500: don't unbox `next` — see runtimeTraverseSequenceWithState's
             // .nullableGenerator case for why the closure's boxed return must survive.
             let noArgFn = unsafeBitCast(fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
@@ -1646,7 +1617,6 @@ func evaluateSequence(
         }
     }
 
-    // Apply transformation steps in order
     for step in seq.steps {
         switch step {
         case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder, .pullSource:
@@ -1782,7 +1752,6 @@ private func evaluateSequenceValues(
     return []
 }
 
-// maybeUnbox() is defined in RuntimeCollectionHelpers.swift
 
 
 /// `Sequence.iterator()` implementation for `RuntimeSequenceBox`.

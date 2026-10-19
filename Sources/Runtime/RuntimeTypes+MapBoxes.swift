@@ -1,7 +1,5 @@
 import Foundation
 
-/// Runtime box for `mapOf(...)` / `mutableMapOf(...)`.
-/// Stores keys and values as parallel runtime-value arrays.
 final class RuntimeMapBox {
     private var keyStorage: [RuntimeValue]
     private var valueStorage: [RuntimeValue]
@@ -33,18 +31,12 @@ final class RuntimeMapBox {
     private(set) var isReadOnly = false
     private var directModCount: Int = 0
 
-    /// Marks the box as comparator-ordered (java.util.TreeMap). A `0` or
-    /// `null`-sentinel comparator selects natural `Comparable` order;
-    /// `invertCompare` flips the order for descending views.
     func enableSorted(comparatorRaw: Int, invertCompare: Bool = false) {
         sorted = true
         self.comparatorRaw = comparatorRaw == runtimeNullSentinelInt ? 0 : comparatorRaw
         self.invertCompare = invertCompare
     }
 
-    /// Key ordering used by sorted boxes: the stored `Comparator` object
-    /// when one was supplied, else `Comparable` natural order. Descending
-    /// views flip the sign.
     func sortedCompare(_ lhs: Int, _ rhs: Int) -> Int {
         let base = comparatorRaw != 0
             ? runtimeInvokeComparator(comparatorRaw, lhs, rhs)
@@ -52,8 +44,6 @@ final class RuntimeMapBox {
         return invertCompare ? -base : base
     }
 
-    /// Binary search over sorted key storage — the key's position when
-    /// `found`, else the insertion index preserving comparator order.
     private func sortedKeySearch(for rawKey: Int) -> (found: Bool, index: Int) {
         var low = 0
         var high = keyStorage.count - 1
@@ -163,8 +153,6 @@ final class RuntimeMapBox {
         rebuildKeyIndex()
     }
 
-    /// `descendingMap()` view — delegates reads and mutations to the parent
-    /// box while `invertCompare` reverses key/entry presentation.
     init(descendingViewOf parent: RuntimeMapBox) {
         self.keyStorage = []
         self.valueStorage = []
@@ -387,7 +375,6 @@ final class RuntimeMapIteratorBox {
     }
 }
 
-/// MutableMap iterator whose entries remain connected to the destination map.
 final class RuntimeMutableMapIteratorBox {
     let mapRaw: Int
     let keys: [Int]
@@ -406,8 +393,6 @@ final class RuntimeMutableMapIteratorBox {
         expectedModCount = runtimeMapBox(from: mapRaw)?.modCount ?? 0
     }
 
-    /// `true` when the backing map has not structurally changed since this
-    /// iterator last observed it.
     func isInSyncWithBackingMap() -> Bool {
         guard let map = runtimeMapBox(from: mapRaw) else { return true }
         return map.modCount == expectedModCount

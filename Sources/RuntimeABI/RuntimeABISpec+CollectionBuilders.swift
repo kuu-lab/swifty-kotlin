@@ -1,7 +1,5 @@
-/// Builder DSL ABI specs split out from `RuntimeABISpec+Collection.swift`.
 public extension RuntimeABISpec {
     static let collectionBuilderFunctions: [RuntimeABIFunctionSpec] = [
-        // Builder DSL (STDLIB-002)
         // `__kk_build_list` / `__kk_build_list_with_capacity` were removed with
         // their lowering rewrite (RF-LOWER-CALL-004); `buildList` is served by
         // `CollectionBuilders.kt` via `__kk_builder_list_*`.

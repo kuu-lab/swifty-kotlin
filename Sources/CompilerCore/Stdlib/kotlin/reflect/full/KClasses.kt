@@ -14,9 +14,6 @@ import kotlin.reflect.KType
 import kotlin.reflect.isInstance
 import kotlin.reflect.qualifiedName
 
-/**
- * Casts [value] to this class, throwing [TypeCastException] for null or a non-instance.
- */
 @SinceKotlin("1.1")
 @Suppress("UNCHECKED_CAST")
 public fun <T : Any> KClass<T>.cast(value: Any?): T {
@@ -24,7 +21,6 @@ public fun <T : Any> KClass<T>.cast(value: Any?): T {
     return value as T
 }
 
-/** Returns [value] as this class, or null for null or a non-instance. */
 @SinceKotlin("1.1")
 @Suppress("UNCHECKED_CAST")
 public fun <T : Any> KClass<T>.safeCast(value: Any?): T? =
@@ -33,16 +29,10 @@ public fun <T : Any> KClass<T>.safeCast(value: Any?): T? =
 @KsSymbolName("__kk_kclass_primary_constructor")
 private external fun __kk_kclass_primary_constructor(kclass: KClass<*>): Any?
 
-/** Returns the primary constructor of this class, or `null` if it has none. */
 public val <T : Any> KClass<T>.primaryConstructor: KFunction<T>?
     @Suppress("UNCHECKED_CAST")
     get() = __kk_kclass_primary_constructor(this) as? KFunction<T>
 
-/**
- * Creates a new instance of the class, calling a constructor which either has no parameters or all
- * parameters of which are optional.
- * If there are no or many such constructors, an exception is thrown.
- */
 public fun <T : Any> KClass<T>.createInstance(): T {
     var chosen: KFunction<*>? = null
     for (candidate in constructors) {
@@ -60,9 +50,6 @@ public fun <T : Any> KClass<T>.createInstance(): T {
     return noArgsConstructor.callBy(emptyMap()) as T
 }
 
-/**
- * Returns `true` if `this` class is the same or is a (possibly indirect) subclass of [base], `false` otherwise.
- */
 public fun KClass<*>.isSubclassOf(base: KClass<*>): Boolean {
     if (this == base) return true
     val visited = mutableListOf<KClass<*>>()
@@ -85,8 +72,5 @@ public fun KClass<*>.isSubclassOf(base: KClass<*>): Boolean {
     return false
 }
 
-/**
- * Returns `true` if `this` class is the same or is a (possibly indirect) superclass of [derived], `false` otherwise.
- */
 public fun KClass<*>.isSuperclassOf(derived: KClass<*>): Boolean =
     derived.isSubclassOf(this)

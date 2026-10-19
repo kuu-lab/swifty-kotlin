@@ -4,8 +4,19 @@ import Testing
 
 @Suite
 struct ConstructorClassOptInTests {
-    @Test(arguments: [false, true], ["WARNING", "ERROR"])
-    func constructorsInheritTheirClassMarkerWithoutDuplicateDiagnostics(optedIn: Bool, level: String) throws {
+    @Test(arguments: [
+        (false, "WARNING", 3, DiagnosticSeverity.warning, false),
+        (false, "ERROR", 3, DiagnosticSeverity.error, true),
+        (true, "WARNING", 0, DiagnosticSeverity.warning, false),
+        (true, "ERROR", 0, DiagnosticSeverity.error, false),
+    ])
+    func constructorsInheritTheirClassMarkerWithoutDuplicateDiagnostics(
+        optedIn: Bool,
+        level: String,
+        expectedCount: Int,
+        expectedSeverity: DiagnosticSeverity,
+        expectedHasError: Bool
+    ) throws {
         TestStdlibCache.shared.prepare()
         let context = makeContextFromSource("""
         @RequiresOptIn(level = RequiresOptIn.Level.\(level))
@@ -22,8 +33,8 @@ struct ConstructorClassOptInTests {
         let diagnostics = context.diagnostics.diagnostics.filter {
             $0.code == "KSWIFTK-SEMA-OPT-IN" && $0.message.contains("ConstructorMarker")
         }
-        #expect(diagnostics.count == (optedIn ? 0 : 3), "\(context.diagnostics.diagnostics)")
-        #expect(diagnostics.allSatisfy { $0.severity == (level == "ERROR" ? .error : .warning) })
-        #expect(context.diagnostics.hasError == (!optedIn && level == "ERROR"))
+        #expect(diagnostics.count == expectedCount, "\(context.diagnostics.diagnostics)")
+        #expect(diagnostics.allSatisfy { $0.severity == expectedSeverity })
+        #expect(context.diagnostics.hasError == expectedHasError)
     }
 }

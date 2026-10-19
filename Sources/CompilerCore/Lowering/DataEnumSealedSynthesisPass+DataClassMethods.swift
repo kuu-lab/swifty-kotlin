@@ -1,9 +1,5 @@
 // swiftlint:disable file_length
 
-/// Data-class synthesis methods (`copy`, `equals`, `hashCode`,
-/// `toString`) for both data classes and data objects.
-///
-/// Split out from `DataEnumSealedSynthesisPass.swift`.
 extension DataEnumSealedSynthesisPass {
     func appendSyntheticDataCopyIfNeeded(
         name: InternedString,
@@ -41,7 +37,6 @@ extension DataEnumSealedSynthesisPass {
         )
         let selfParam = KIRParameter(symbol: selfParamSymbol, type: receiverType)
 
-        // Look up the constructor used for copy() synthesis.
         // Prefer the declared constructor symbol by FQName to stay aligned with
         // the lowered constructor body that codegen will emit.
         let initName = interner.intern("<init>")
@@ -85,7 +80,6 @@ extension DataEnumSealedSynthesisPass {
             return
         }
 
-        // Collect constructor value parameters (excluding receiver).
         // The constructor signature stores symbols in valueParameterSymbols and
         // types in parameterTypes. When a receiver type is prepended to
         // parameterTypes (but not to valueParameterSymbols), we strip the leading
@@ -100,7 +94,6 @@ extension DataEnumSealedSynthesisPass {
             ctorParamTypes.removeFirst()
         }
 
-        // Pair up symbols and types, truncating to the shorter array for safety.
         let pairCount = min(ctorParamSymbols.count, ctorParamTypes.count)
         if ctorParamSymbols.count != ctorParamTypes.count {
             let ownerName = interner.resolve(owner.name)
@@ -114,7 +107,6 @@ extension DataEnumSealedSynthesisPass {
             (ctorParamSymbols[i], ctorParamTypes[i])
         }
 
-        // Build KIR parameters and body for copy().
         // Each copy parameter mirrors the corresponding constructor parameter name
         // (e.g. name, age) so diagnostics and dumps reflect Kotlin's copy(name=..., age=...).
         var allParams: [KIRParameter] = [selfParam]
@@ -125,7 +117,6 @@ extension DataEnumSealedSynthesisPass {
         var copyParamSymbols: [SymbolID] = []
 
         for (ctorSym, paramType) in propertyParams {
-            // Reuse the constructor parameter's name for the copy() parameter.
             let ctorParamName = sema.symbols.symbol(ctorSym)?.name ?? interner.intern("$copy_\(allParams.count)")
             let paramSymbol = sema.symbols.define(
                 kind: .valueParameter,
@@ -146,7 +137,6 @@ extension DataEnumSealedSynthesisPass {
         var body: [KIRInstruction] = []
         let intType = sema.types.intType
 
-        // Load each copy parameter.
         var ctorArgExprs: [KIRExprID] = []
         for (index, paramSymbol) in copyParamSymbols.enumerated() {
             let paramType = propertyParams[index].type
@@ -156,7 +146,6 @@ extension DataEnumSealedSynthesisPass {
             ctorArgExprs.append(paramExpr)
         }
 
-        // Allocate a fresh instance and pass it as the constructor receiver.
         let slotCount = Int64(max(sema.symbols.nominalLayout(for: owner.id)?.instanceSizeWords ?? 1, 1))
         let slotCountExpr = module.arena.appendExpr(.intLiteral(slotCount), type: intType)
         body.append(.constValue(result: slotCountExpr, value: .intLiteral(slotCount)))
@@ -394,7 +383,6 @@ extension DataEnumSealedSynthesisPass {
         )
     }
 
-    /// Synthesizes `hashCode(): Int` for a data object from its simple name.
     func appendSyntheticDataObjectHashCodeIfNeeded(
         owner: SemanticSymbol,
         objectName: InternedString,
@@ -460,7 +448,6 @@ extension DataEnumSealedSynthesisPass {
         )
     }
 
-    /// Synthesizes `toString(): String` for data object, returning the object name.
     /// Uses existingSymbol when provided (from Sema) so call resolution matches the KIR function.
     func appendSyntheticDataObjectToStringIfNeeded(
         name: InternedString,
@@ -523,7 +510,6 @@ extension DataEnumSealedSynthesisPass {
         )
     }
 
-    /// Synthesizes `equals(other: Any?): Boolean` for data object (identity comparison via kk_op_eq).
     func appendSyntheticDataObjectEqualsIfNeeded(
         owner: SemanticSymbol,
         existingSymbol: SymbolID?,
@@ -607,15 +593,6 @@ extension DataEnumSealedSynthesisPass {
         )
     }
 
-    /// Synthesizes `hashCode(): Int` for data class.
-    /// Computes hash from all constructor properties using the standard Kotlin algorithm:
-    ///   var result = property1.hashCode()
-    ///   result = 31 * result + property2.hashCode()
-    ///   ...
-    ///   return result
-    /// Array properties use the matching `contentHashCode` overload; other properties
-    /// use `kk_any_hashCode`. The accumulation
-    /// uses `kk_op_mul` (31 * result) and `kk_op_add` (+ propertyHash).
     func appendSyntheticDataClassHashCodeIfNeeded(
         owner: SemanticSymbol,
         existingSymbol: SymbolID?,
@@ -870,7 +847,6 @@ extension DataEnumSealedSynthesisPass {
         }
     }
 
-    /// Finds the source-backed `contentToString` overload for an array type.
     private func dataClassArrayContentToStringSymbol(
         for type: TypeID,
         sema: SemaModule,
@@ -903,9 +879,7 @@ extension DataEnumSealedSynthesisPass {
         }
     }
 
-    /// Synthesizes `toString(): String` for data class with properties.
     /// Output format: "ClassName(prop1=val1, prop2=val2)"
-    /// Each property is rendered according to its declared type, then concatenated.
     func appendSyntheticDataClassToStringIfNeeded(
         name: InternedString,
         owner: SemanticSymbol,
@@ -978,7 +952,6 @@ extension DataEnumSealedSynthesisPass {
 
         for (index, property) in properties.enumerated() {
             let propName = interner.resolve(property.name)
-            // Append "propName=" (or ", propName=" for subsequent properties)
             let labelStr: String = index == 0 ? "\(propName)=" : ", \(propName)="
             let labelInterned = interner.intern(labelStr)
             let labelExpr = module.arena.appendTemporary(type: stringType
@@ -1208,9 +1181,6 @@ extension DataEnumSealedSynthesisPass {
         )
     }
 
-    /// Synthesizes `equals(other: Any?): Boolean` for data class with properties.
-    /// Compares each property of `this` and `other` via `kk_op_eq`, returning false
-    /// if any differ.
     func appendSyntheticDataClassEqualsIfNeeded(
         owner: SemanticSymbol,
         properties: [SemanticSymbol],

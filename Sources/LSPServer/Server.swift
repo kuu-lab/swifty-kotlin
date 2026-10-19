@@ -1,15 +1,5 @@
 import Foundation
 
-/// A minimal Language Server Protocol server for Kotlin built on the KSwiftK
-/// compiler frontend.
-///
-/// Supported requests: `initialize`, `shutdown`, `textDocument/hover`,
-/// `textDocument/definition`, `textDocument/documentSymbol`,
-/// `textDocument/codeAction`.
-/// Supported notifications: `initialized`, `exit`, and the
-/// `textDocument/did{Open,Change,Save,Close}` synchronization family.
-/// Diagnostics are pushed via `textDocument/publishDiagnostics` whenever a
-/// document is opened or changed.
 public final class Server: @unchecked Sendable {
     private static let defaultDebounceInterval: DispatchTimeInterval = .milliseconds(150)
 
@@ -49,7 +39,6 @@ public final class Server: @unchecked Sendable {
         self.debounceInterval = debounceInterval
     }
 
-    /// Creates a server bound to the process's standard input/output streams.
     public convenience init() {
         self.init(connection: JSONRPCConnection(
             input: StandardInputStream(),
@@ -57,8 +46,6 @@ public final class Server: @unchecked Sendable {
         ))
     }
 
-    /// Runs the message loop until the stream ends or an `exit` notification is
-    /// received. Returns the process exit code.
     @discardableResult
     public func run() -> Int32 {
         while let message = connection.receive() {

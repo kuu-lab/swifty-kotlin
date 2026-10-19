@@ -1,10 +1,6 @@
 import RuntimeABI
 
-/// String lookup names for `CollectionLiteralLookupTables`.
-///
-/// Split out from `CollectionLiteralLoweringPass+LookupTables.swift`.
 struct StringLookupNames {
-    // Set predicate HOF ABI names (STDLIB-SET-PRED)
     let kkStringSplitName: InternedString
     let stringProducingCallees: Set<InternedString>
 

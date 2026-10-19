@@ -185,8 +185,6 @@ func kirFindOverridePropertyGetter(
         current = kirSuperclass(of: nominal, sema: sema)
     }
 
-    // If no class override was found, check implemented interfaces in BFS order (most derived first)
-    // for an override or default implementation.
     var queue: [SymbolID] = []
     var visitedNominals: Set<SymbolID> = []
     var currentNominal: SymbolID? = nominalSymbol
@@ -332,8 +330,6 @@ func kirFindOverridePropertySetter(
         current = kirSuperclass(of: nominal, sema: sema)
     }
 
-    // If no class override was found, check implemented interfaces in BFS order (most derived first)
-    // for an override or default implementation.
     var queue: [SymbolID] = []
     var visitedNominals: Set<SymbolID> = []
     var currentNominal: SymbolID? = nominalSymbol
@@ -372,8 +368,6 @@ func kirFindOverridePropertySetter(
     return nil
 }
 
-/// Registers each implemented interface property getter into the object's
-/// itable, alongside the method registrations emitted for the same interfaces.
 /// The interface itself is already registered by the method-registration pass
 /// (`kk_object_register_itable_iface`), so this only appends the getter slots.
 func appendObjectItablePropertyGetterRegistrations<C: RangeReplaceableCollection>(
@@ -483,15 +477,14 @@ func appendObjectItablePropertyGetterRegistrations<C: RangeReplaceableCollection
     }
 }
 
-/// Registers each implemented interface property setter into the object's
-/// itable, alongside the getter registrations above. The setter counterpart
-/// of `appendObjectItablePropertyGetterRegistrations` — without it, writing a
-/// `var` through an interface-typed receiver has no dispatch target to find
-/// at the write site (`tryLowerInterfaceItablePropertySetterWrite` in
-/// `CallLowerer+MemberAssignment.swift`), even though every concrete
-/// overriding class already has a real setter accessor function registered
-/// (BUG-227's `synthesizeStoredPropertySetterAccessor` emits one
-/// unconditionally for any `override var`).
+/// The setter counterpart of `appendObjectItablePropertyGetterRegistrations` —
+/// without it, writing a `var` through an interface-typed receiver has no
+/// dispatch target to find at the write site
+/// (`tryLowerInterfaceItablePropertySetterWrite` in
+/// `CallLowerer+MemberAssignment.swift`), even though every concrete overriding
+/// class already has a real setter accessor function registered (BUG-227's
+/// `synthesizeStoredPropertySetterAccessor` emits one unconditionally for any
+/// `override var`).
 func appendObjectItablePropertySetterRegistrations<C: RangeReplaceableCollection>(
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,

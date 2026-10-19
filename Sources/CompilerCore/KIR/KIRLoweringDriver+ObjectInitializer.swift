@@ -1,11 +1,5 @@
 
 extension KIRLoweringDriver {
-    /// BUG-274: creates the `$initialized` flag global backing one
-    /// object/companion's lazy clinit-equivalent guard, and returns it
-    /// together with its `KIRGlobal` declaration. Shared by top-level/nested
-    /// object synthesis (this file) and companion synthesis
-    /// (`KIRLoweringDriver+ModuleLowering+ClassDecl+Companion.swift`).
-    ///
     /// The flag gets a real symbol with a stable, unique fully-qualified
     /// name (`<owner fqName>.$initialized`) rather than reusing a raw
     /// synthetic symbol ID: `NativeEmitter.stableGlobalSlotName` falls back
@@ -162,8 +156,6 @@ extension KIRLoweringDriver {
         }
     }
 
-    /// Synthesise an initializer function for a top-level `object` declaration.
-    ///
     /// BUG-274: Kotlin runs `object`/`companion object` bodies lazily, on
     /// first access, not eagerly at program start. This function keeps the
     /// eager half (the singleton's heap handle via `kk_object_new`, its type
@@ -235,7 +227,6 @@ extension KIRLoweringDriver {
             thrownResult: nil
         ))
 
-        // Store the allocated object pointer in the global slot.
         body.append(.storeGlobal(value: allocatedObj, symbol: objectSymbol))
 
         var typeEdgeInstructions: [KIRInstruction] = []
@@ -248,7 +239,6 @@ extension KIRLoweringDriver {
         )
         body.append(contentsOf: typeEdgeInstructions)
 
-        // Register itable methods for each interface.
         if let objectLayout = sema.symbols.nominalLayout(for: objectSymbol) {
             for interfaceSymbol in interfaceSupertypes {
                 guard let interfaceLayout = sema.symbols.nominalLayout(for: interfaceSymbol) else { continue }
@@ -272,7 +262,6 @@ extension KIRLoweringDriver {
                     thrownResult: nil
                 ))
 
-                // Walk the interface methods to find each method that needs registration.
                 for (methodSymbol, methodSlotInt) in kirItableMethodEntries(
                     for: interfaceSymbol,
                     interfaceLayout: interfaceLayout,
@@ -280,7 +269,6 @@ extension KIRLoweringDriver {
                     interner: interner
                 ) {
                     let methodSlot = Int64(methodSlotInt)
-                    // Find the override in the object's member functions.
                     let implementationSymbol = ctx.nominalDispatchCache.itableImplementation(
                         for: methodSymbol,
                         in: objectSymbol,
@@ -311,7 +299,6 @@ extension KIRLoweringDriver {
                     ))
                 }
             }
-            // BUG-141: register interface property getters into the itable.
             appendObjectItablePropertyGetterRegistrations(
                 objectValue: allocatedObj,
                 nominalSymbol: objectSymbol,
@@ -321,9 +308,8 @@ extension KIRLoweringDriver {
                 interner: interner,
                 instructions: &body.instructions
             )
-            // Setter counterpart: register interface property setters into
-            // the itable so a write through an interface-typed receiver can
-            // dispatch to them.
+            // Register interface property setters into the itable so a write
+            // through an interface-typed receiver can dispatch to them.
             appendObjectItablePropertySetterRegistrations(
                 objectValue: allocatedObj,
                 nominalSymbol: objectSymbol,
@@ -404,12 +390,7 @@ extension KIRLoweringDriver {
         return declIDs
     }
 
-    /// BUG-274: the lazy half of `synthesizeObjectInitializer` -- the
-    /// implicit super-constructor call and `emitObjectBodyInitializers`
-    /// (property initializers and `init` blocks in declaration order) --
-    /// guarded by a `$initialized` flag so it runs at most once, on
-    /// whichever access comes first, instead of unconditionally at module
-    /// start. The object's heap handle already exists (allocated eagerly by
+    /// BUG-274: the object's heap handle already exists (allocated eagerly by
     /// `synthesizeObjectInitializer`), so this function only needs to
     /// `loadGlobal` it before delegating to the superclass constructor.
     private func synthesizeObjectLazyInit(
@@ -444,7 +425,6 @@ extension KIRLoweringDriver {
         let flagLoadExpr = arena.appendExpr(.symbolRef(flagSymbol), type: boolType)
         body.append(.loadGlobal(result: flagLoadExpr, symbol: flagSymbol))
         let alreadyInitializedLabel = ctx.makeLoopLabel()
-        // Already initialized: skip straight to the end.
         body.append(.jumpIfEqual(lhs: flagLoadExpr, rhs: trueExpr, target: alreadyInitializedLabel))
         // Not yet initialized: set the flag *before* running the body so a
         // reentrant access from within an `init` block (Kotlin allows a
@@ -493,12 +473,10 @@ extension KIRLoweringDriver {
         return declIDs
     }
 
-    /// Emits the implicit `super(...)` call of a named object declaration's
-    /// superclass, e.g. `object Named : Base(x)` (BUG-264). Kotlin runs the
-    /// superclass constructor before the object's own initializers, so the
-    /// superclass's property initializers and `init` blocks — which write
-    /// into the same instance at the layout offsets the object inherits —
-    /// must execute here. Without this call the object keeps the zeroed
+    /// Kotlin runs the superclass constructor before the object's own
+    /// initializers, so the superclass's property initializers and `init`
+    /// blocks — which write into the same instance at the layout offsets the
+    /// object inherits — must execute here. Without this call the object keeps the zeroed
     /// defaults for every inherited property (same root cause as BUG-155 for
     /// named classes and KSP-CAP-018 for object literals).
     func emitNamedObjectSuperConstructorCall(

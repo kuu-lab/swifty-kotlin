@@ -1,10 +1,6 @@
 package kotlin.time
 
-// KSP-650
-// AbstractLongTimeSource, AbstractDoubleTimeSource, and TestTimeSource.
-// The implementation follows Kotlin 2.3.10's TimeSources.kt. Only the
-// platform-independent time reading and Duration conversion primitives remain
-// behind the existing runtime-backed stdlib surface.
+// The implementation follows Kotlin 2.3.10's TimeSources.kt.
 
 private fun timeSourceDurationFromLong(value: Long, unit: DurationUnit): Duration {
     return value.toDuration(unit)

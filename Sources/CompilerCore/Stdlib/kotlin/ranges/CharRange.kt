@@ -7,9 +7,7 @@ package kotlin.ranges
 
 import kotlin.internal.KsSymbolName
 
-// KSP-708: The typed range shell is source-backed; construction retains only
-// the hidden runtime factory for the range handle.
-// KSP-1296: Range value semantics are source-backed member overrides.
+// Construction retains only the hidden runtime factory for the range handle.
 public class CharRange @KsSymbolName("__kk_char_rangeTo") constructor(
     start: Char,
     endInclusive: Char,

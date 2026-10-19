@@ -45,7 +45,6 @@ public extension RuntimeABISpec {
     /// a call to the target's link name; they resolve at final link time.
     static let compilerGeneratedLinkNamePrefix = "kk_fn_"
 
-    /// All runtime callee symbol names that do not use the `outThrown` ABI lowering path.
     static var nonThrowingRuntimeCalleeNames: Set<String> {
         let fromSpec = Set(allFunctions.lazy.filter { !$0.isThrowing }.map(\.name))
         return fromSpec.union(compilerInternalNonThrowingCalleeNames)

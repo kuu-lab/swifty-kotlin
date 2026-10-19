@@ -13,13 +13,10 @@ struct StaticTypeClassificationNames {
         let package: [InternedString]
     }
 
-    /// Tracked stdlib simple name → classification. The names are unique
-    /// across categories, so this map is equivalent to the ordered per-kind
-    /// name lists it replaces.
+    /// The names are unique across categories, so this map is equivalent to the
+    /// ordered per-kind name lists it replaces.
     let trackedKindBySimpleName: [InternedString: Entry]
 
-    /// Receiver FQ names confirmed to construct a fresh source Sequence
-    /// object — see `isKnownSourceObjectConstructingAsSequenceReceiver`.
     let sourceObjectConstructingAsSequenceReceivers: Set<[InternedString]>
 
     init(interner: StringInterner) {

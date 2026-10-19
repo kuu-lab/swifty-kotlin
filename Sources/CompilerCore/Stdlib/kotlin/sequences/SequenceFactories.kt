@@ -4,9 +4,8 @@ import kotlin.internal.KsNoInline
 import kotlin.internal.KsSymbolName
 
 // MIGRATION-SEQ-001 / KSP-651 / KSP-1338
-// Sequence factory APIs are source-backed. The runtime entries remain private
-// implementation bridges for lazy traversal, packed vararg arrays, and the
-// sequence/iterator builder suspension points.
+// The runtime entries remain private implementation bridges for lazy traversal,
+// packed vararg arrays, and the sequence/iterator builder suspension points.
 
 @KsSymbolName("__kk_empty_sequence")
 private external fun <T> __kkEmptySequence(): Sequence<T>

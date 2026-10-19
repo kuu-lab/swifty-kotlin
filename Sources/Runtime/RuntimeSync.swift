@@ -5,12 +5,7 @@ import Darwin
 import Glibc
 #endif
 
-/// Runtime backing for `kotlinx.coroutines.sync.Mutex`.
-///
 /// A non-reentrant mutual exclusion lock with FIFO waiter ordering.
-/// `lock()` blocks or suspends depending on the caller path, `tryLock()`
-/// returns immediately, and `unlock()` transfers ownership to the oldest
-/// queued waiter.
 final class RuntimeMutexHandle: @unchecked Sendable {
     private let lock = NSLock()
     private var isHeld = false
@@ -29,15 +24,12 @@ final class RuntimeMutexHandle: @unchecked Sendable {
         return isHeld
     }
 
-    /// Check the recorded owner by identity without changing the mutex state.
     func holdsLock(owner: Int) -> Bool {
         lock.lock()
         defer { lock.unlock() }
         return owner != 0 && isHeld && self.owner == owner
     }
 
-    /// Try to acquire the lock without suspending.
-    /// Returns `true` if the lock was acquired, `false` otherwise.
     func tryLock() -> Bool {
         lock.lock()
         defer { lock.unlock() }
@@ -49,7 +41,6 @@ final class RuntimeMutexHandle: @unchecked Sendable {
         return true
     }
 
-    /// Acquire the mutex, blocking the calling thread until it is available.
     /// Used by `__kk_lock_withLock` which runs on a regular (non-coroutine) thread.
     func lockBlocking() {
         _ = lockSync(continuation: 0)
@@ -65,11 +56,11 @@ final class RuntimeMutexHandle: @unchecked Sendable {
         lockSync(continuation: continuation, owner: 0, outThrown: nil)
     }
 
-    /// `lock(owner)` overload (KUU-1356). On acquisition the owner token is
-    /// recorded so `unlock(owner)` can validate it. When the mutex is already
-    /// held by the same `owner`, this writes an `IllegalStateException` into
-    /// `outThrown` and returns 0, matching kotlinx.coroutines `lock(owner)`
-    /// which fails fast instead of deadlocking on same-owner re-acquisition.
+    /// On acquisition the owner token is recorded so `unlock(owner)` can
+    /// validate it. When the mutex is already held by the same `owner`, this
+    /// writes an `IllegalStateException` into `outThrown` and returns 0,
+    /// matching kotlinx.coroutines `lock(owner)` which fails fast instead of
+    /// deadlocking on same-owner re-acquisition.
     func lockSync(continuation: Int, owner: Int, outThrown: UnsafeMutablePointer<Int>?) -> Int {
         lock.lock()
         if !isHeld && waiters.isEmpty {
@@ -108,9 +99,6 @@ final class RuntimeMutexHandle: @unchecked Sendable {
         return result
     }
 
-    /// Release the lock.  If there are pending waiters, the first one is
-    /// resumed on a GCD queue.
-    ///
     /// Returns `0` on success. Unlocking a mutex that is not held returns an
     /// `IllegalStateException` handle, matching kotlinx.coroutines `Mutex.unlock`.
     @discardableResult
@@ -118,9 +106,9 @@ final class RuntimeMutexHandle: @unchecked Sendable {
         unlock(expectedOwner: 0)
     }
 
-    /// `unlock(owner)` overload (KUU-1356). When `expectedOwner != 0` the
-    /// recorded owner must match (upstream compares by identity); on mismatch
-    /// the lock stays held and an `IllegalStateException` handle is returned.
+    /// When `expectedOwner != 0` the recorded owner must match (upstream
+    /// compares by identity); on mismatch the lock stays held and an
+    /// `IllegalStateException` handle is returned.
     @discardableResult
     func unlock(expectedOwner: Int) -> Int {
         lock.lock()
@@ -165,10 +153,6 @@ final class RuntimeMutexHandle: @unchecked Sendable {
     }
 }
 
-/// Runtime backing for `kotlinx.coroutines.sync.Semaphore`.
-///
-/// A counting semaphore with `permits` initial permits.  `acquire()` suspends
-/// when no permits are available; `tryAcquire()` returns immediately.
 /// `release()` returns a permit and resumes one waiter (FIFO order).
 final class RuntimeSemaphoreHandle: @unchecked Sendable {
     private let lock = NSLock()
@@ -192,7 +176,6 @@ final class RuntimeSemaphoreHandle: @unchecked Sendable {
         return permits
     }
 
-    /// Try to acquire a permit without suspending.
     func tryAcquire() -> Bool {
         lock.lock()
         defer { lock.unlock() }
@@ -232,9 +215,6 @@ final class RuntimeSemaphoreHandle: @unchecked Sendable {
         return Int(bitPattern: kk_coroutine_suspended())
     }
 
-    /// Release a permit.  If waiters are pending, the first one is resumed
-    /// (or unblocked) and the permit transfers directly to it.
-    ///
     /// Returns `0` on success. Releasing more permits than `maxPermits`
     /// returns an `IllegalStateException` handle, matching kotlinx.coroutines
     /// `Semaphore.release`.
@@ -329,8 +309,6 @@ private func runtimeMutexNormalizeOwner(_ owner: Int) -> Int {
     owner == runtimeNullSentinelInt ? 0 : owner
 }
 
-// KUU-1356: owner-token overloads of Mutex.lock/unlock
-// (`suspend fun lock(owner: Any?)` / `fun unlock(owner: Any?)` upstream).
 // The lock bridge mirrors kk_mutex_lock's blocking/continuation ABI plus a
 // trailing outThrown slot; a mutex already held by the same owner reports an
 // IllegalStateException instead of deadlocking.
@@ -456,13 +434,10 @@ public func __kk_semaphore_availablePermits(_ handle: Int) -> Int {
 // (Stdlib/kotlinx/coroutines/sync/Sync.kt) composing the c-soft kernel
 // primitives lock()/unlock() and acquire()/release().
 
-/// Runtime backing for `kotlin.concurrent.Lock.withLock { }`.
-///
-/// Acquires the mutex in a blocking way using `lockBlocking()`, executes the action,
-/// and releases the mutex. `Lock.withLock` is Kotlin source (KSP-677,
-/// Stdlib/kotlin/concurrent/Lock.kt) delegating to this demoted bridge, so the
-/// action arrives split into a function pointer / closure environment pair with an
-/// `outThrown` out-parameter, matching the general closure-taking bridge ABI.
+/// `Lock.withLock` is Kotlin source (KSP-677, Stdlib/kotlin/concurrent/Lock.kt)
+/// delegating to this demoted bridge, so the action arrives split into a
+/// function pointer / closure environment pair with an `outThrown`
+/// out-parameter, matching the general closure-taking bridge ABI.
 @_cdecl("__kk_lock_withLock")
 public func kk_lock_bridge_withLock(
     _ handle: Int,

@@ -10,10 +10,9 @@ package kotlin.ranges
 
 import kotlin.internal.KsSymbolName
 
-// KSP-456: progression construction APIs migrated from Swift runtime entry points
-// to bundled Kotlin sources. The remaining runtime bridges below are private to
-// the stdlib layer; source-backed operators use them only where their construction
-// semantics still need a runtime handle.
+// KSP-456: The runtime bridges below are private to the stdlib layer; source-backed
+// operators use them only where their construction semantics still need a runtime
+// handle.
 
 
 @KsSymbolName("__kk_uint_rangeTo")

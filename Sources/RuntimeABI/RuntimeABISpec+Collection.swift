@@ -31,7 +31,6 @@ public extension RuntimeABISpec {
     )
 
     static let collectionFunctions: [RuntimeABIFunctionSpec] = [
-        // Core helpers
         RuntimeABIFunctionSpec(
             name: "__kk_objects_equals",
             parameters: [
@@ -52,7 +51,6 @@ public extension RuntimeABISpec {
             section: "Collection",
             isThrowing: false
         ),
-        // List
         RuntimeABIFunctionSpec(
             name: "__kk_list_check_modification",
             parameters: [
@@ -72,7 +70,6 @@ public extension RuntimeABISpec {
             section: "Collection",
             isThrowing: false
         ),
-        // STDLIB-410: emptyList
         RuntimeABIFunctionSpec(
             name: "__kk_emptyList",
             parameters: [],

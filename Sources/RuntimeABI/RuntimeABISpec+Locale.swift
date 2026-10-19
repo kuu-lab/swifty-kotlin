@@ -1,12 +1,9 @@
-/// Locale-parameterized string operations not already covered by `stringFunctions`.
-///
 /// `__kk_locale_new_flat`, `__kk_locale_new_language_country_flat`, and the private
 /// `__kk_string_format_locale_flat` bridge are registered in
 /// `RuntimeABISpec+String.swift` (`stringFunctions`); they are intentionally omitted
 /// here to avoid duplicate `allFunctions` entries.
 public extension RuntimeABISpec {
     static let localeFunctions: [RuntimeABIFunctionSpec] = [
-        // Memory representation: read fields from the runtime-owned Locale box.
         RuntimeABIFunctionSpec(
             name: "__kk_locale_toString_flat",
             parameters: [

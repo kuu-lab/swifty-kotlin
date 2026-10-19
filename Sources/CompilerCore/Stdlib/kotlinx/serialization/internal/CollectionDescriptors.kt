@@ -101,11 +101,6 @@ internal const val HASH_SET_NAME = "kotlin.collections.HashSet"
 internal const val LINKED_HASH_MAP_NAME = "kotlin.collections.LinkedHashMap"
 internal const val HASH_MAP_NAME = "kotlin.collections.HashMap"
 
-/**
- * Descriptor for primitive arrays, such as [IntArray], [DoubleArray], etc...
- *
- * Can be obtained from corresponding serializers (e.g. [ByteArraySerializer.descriptor])
- */
 internal class PrimitiveArrayDescriptor internal constructor(
     primitive: SerialDescriptor
 ) : ListLikeDescriptor(primitive) {

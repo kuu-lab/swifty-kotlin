@@ -38,8 +38,6 @@ jobs:
         run: |
           python3 Scripts/check_atomicfu_api_reference.py
           python3 Tests/Scripts/test_atomicfu_api_index.py
-      - name: Test kotlinx-io strict gate failure detection
-        run: python3 -m unittest discover -s Scripts/kotlinx_io_upstream/tests -p 'test_verify_gate.py' -v
       - name: Verify JS annotation candidate-only runners
         run: |
           python3 Scripts/js_annotations/test_run_candidate.py
@@ -51,12 +49,10 @@ jobs:
         run: bash Scripts/check_todo_ids.sh
       - name: Check mutation fuzzer keyword set matches lexer
         run: bash Scripts/check_mutation_fuzzer_keywords.sh
-      - name: Check Swift test parallelism overrides
-        run: bash Scripts/test_swift_test_parallelism.sh
       - name: Check workflows install npm tools via npm ci only
         run: bash Scripts/check_workflow_npm_install.sh
-      - name: Verify Kotlin compiler archive integrity policy
-        run: bash Scripts/test_verify_kotlin_compiler_archive.sh
+      - name: Run script regression tests
+        run: bash Scripts/test_all.sh
       - name: Setup Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:

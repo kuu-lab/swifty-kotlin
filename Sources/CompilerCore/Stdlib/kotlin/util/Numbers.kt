@@ -1,8 +1,6 @@
 package kotlin
 
-// KSP-646: Move Double/Float isNaN, isInfinite, and isFinite to bundled Kotlin.
-// IEEE 754 bit-pattern checks require no Swift runtime bridge, so the
-// kk_{double,float}_{isNaN,isInfinite,isFinite} symbols were removed. Use
+// KSP-646: IEEE 754 bit-pattern checks require no Swift runtime bridge. Use
 // toRawBits() to preserve NaN payloads.
 
 private const val DOUBLE_EXPONENT_MASK: Long = 0x7FF0000000000000L

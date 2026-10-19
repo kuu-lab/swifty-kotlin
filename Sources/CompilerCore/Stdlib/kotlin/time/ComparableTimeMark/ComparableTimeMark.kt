@@ -1,6 +1,5 @@
 package kotlin.time
 
-// KSP-1482: ComparableTimeMark's source-aware member contract.
 public interface ComparableTimeMark : TimeMark, Comparable<ComparableTimeMark> {
     public override operator fun plus(duration: Duration): ComparableTimeMark
 

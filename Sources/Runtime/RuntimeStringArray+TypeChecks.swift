@@ -147,7 +147,6 @@ private func runtimePrimitiveBoxNominalTypeID(_ ptr: UnsafeMutableRawPointer) ->
     return nil
 }
 
-/// True when `ptr` is a live runtime object pointer holding a `RuntimeStringBox`.
 func runtimeIsStringBoxPointer(_ ptr: UnsafeMutableRawPointer) -> Bool {
     let isObjectPointer = runtimeStorage.withGCLock { state in
         state.objectPointers.contains(UInt(bitPattern: ptr))
@@ -198,7 +197,6 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         // are fixed to always box their operand before reaching here (see
         // ABILoweringPass's typeCheckValueCallees); see also the follow-up
         // tracking sequenceOf's missing element boxing.
-        //
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
             return 1
         }
@@ -448,7 +446,7 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         }
         // Every built-in exception class now allocates a RuntimeThrowableBox
         // subclass with a correctly populated exceptionHierarchyFQNames (see
-        // RuntimeAssertions.swift / RuntimeTypes.swift), so this hierarchy check
+        // RuntimeAssertions.swift), so this hierarchy check
         // is authoritative: a real mismatch must not be treated as a match, or
         // `catch (e: T)` would incorrectly catch any unrelated sibling exception.
         if runtimeThrowableMatchesNominalTypeID(throwable, targetTypeID: payload) {
@@ -555,15 +553,12 @@ public func kk_array_op_safe_cast(_ value: Int, _ typeToken: Int, _ componentTyp
 
 @_cdecl("kk_op_contains")
 public func kk_op_contains(_ container: Int, _ element: Int) -> Int {
-    // Range check first
     if let range = runtimeRangeBox(from: container) {
         return runtimeRangeContains(range, element)
     }
-    // List check
     if let list = runtimeListBox(from: container) {
         return list.values.contains(where: { list.elementsEqual($0.legacyRawValue, element) }) ? 1 : 0
     }
-    // Set check
     if let set = runtimeSetBox(from: container) {
         return set.contains(rawValue: element) ? 1 : 0
     }

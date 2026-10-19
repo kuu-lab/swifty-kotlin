@@ -823,8 +823,16 @@ struct RuntimeCoroutineAdvancedTests {
         #expect(kk_channel_is_closed_for_receive(channelHandle) == 1, "Channel should report closed-for-receive after draining")
     }
 
-    @Test(arguments: [false, true], [false, true])
-    func testProduceFunctionValuePreservesClosureSlot(boxed: Bool, nestedClosure: Bool) {
+    @Test(arguments: [
+        (false, false, 0),
+        (false, true, 42),
+        (true, false, 0),
+        (true, true, 42),
+    ])
+    func testProduceFunctionValuePreservesClosureSlot(
+        testCase: (boxed: Bool, nestedClosure: Bool, expectedReceived: Int)
+    ) {
+        let (boxed, nestedClosure, expectedReceived) = testCase
         let entry = unsafeBitCast(
             advcoro_produce_function_value as @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int,
             to: Int.self
@@ -850,7 +858,7 @@ struct RuntimeCoroutineAdvancedTests {
         #expect(__kk_produce_launch(channel, value, env) == channel)
         var received = -1
         #expect(kk_channel_receive(channel, 0, &received) == kChannelResultSuccess)
-        #expect(received == (nestedClosure ? 42 : 0))
+        #expect(received == expectedReceived)
         #expect(kk_channel_receive(channel, 0, &received) == kChannelResultClosed)
     }
 
@@ -884,8 +892,12 @@ struct RuntimeCoroutineAdvancedTests {
 
     // MARK: - Test 21: produce with continuation uses the existing continuation
 
-    @Test(arguments: [false, true])
-    func testProduceLaunchBoxPreservesClosureSlot(packed: Bool) {
+    @Test(arguments: [
+        (false, 3),
+        (true, 17),
+    ])
+    func testProduceLaunchBoxPreservesClosureSlot(testCase: (packed: Bool, expectedValue: Int)) {
+        let (packed, expectedValue) = testCase
         let closure = packed ? kk_object_new(4, 0) : 0
         if packed {
             _ = kk_array_set(closure, 2, 17, nil)
@@ -900,7 +912,7 @@ struct RuntimeCoroutineAdvancedTests {
         #expect(__kk_produce_launch(channel, box, 0) == channel)
         var value = 0
         #expect(kk_channel_receive(channel, 0, &value) == kChannelResultSuccess)
-        #expect(value == (packed ? 17 : 3))
+        #expect(value == expectedValue)
         #expect(kk_channel_is_closed_token(kk_channel_receive(channel, 0, &value)) == 1)
     }
 

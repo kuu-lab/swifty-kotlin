@@ -1,8 +1,5 @@
 package kotlin.collections
 
-// KSP-426
-// List max/min HOFs use the Kotlin Comparator implementation from KSP-309.
-
 public inline fun <T : Comparable<T>> List<T>.max(): T {
     if (size == 0) throw NoSuchElementException("List is empty.")
     var best = this[0]

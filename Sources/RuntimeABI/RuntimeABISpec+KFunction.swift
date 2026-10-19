@@ -1,8 +1,4 @@
-// KFunction / KProperty / KConstructor / KParameter / CallableRef ABI specs
-// (STDLIB-REFLECT-063 / STDLIB-REFLECT-067 / REFL-003)
-
 public extension RuntimeABISpec {
-    /// KParameter reflection runtime functions (STDLIB-REFLECT-063).
     static let kParameterFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
             name: "__kk_kparameter_set_array_component",
@@ -101,7 +97,6 @@ public extension RuntimeABISpec {
         ),
     ]
 
-    /// KFunction, KProperty, and KConstructor reflection runtime functions.
     static let kFunctionFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
             name: "__kk_kcallable_register_annotation_factory",
@@ -376,7 +371,6 @@ public extension RuntimeABISpec {
         ),
     ]
 
-    /// Callable reference type identity functions (REFL-003).
     static let callableRefFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
             name: "__kk_function_copy_description",

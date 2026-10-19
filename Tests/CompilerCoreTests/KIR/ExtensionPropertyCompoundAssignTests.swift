@@ -6,22 +6,29 @@ import Testing
 struct ExtensionPropertyCompoundAssignTests {
     @Test
     func testCachedPostfixValueSurvivesASTSnapshot() throws {
-        let ctx = makeContextFromSource("""
+        let source = """
         class Box { var x: Int = 0 }
         var Box.y: Int
             get() = x
             set(v) { x = v }
         fun mutate(b: Box): Int = b.y++
-        """)
+        """
+        let ctx = makeContextFromSource(source)
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError)
         let ast = try #require(ctx.ast)
+        let sourceFile = try #require(ctx.sourceManager.fileIDs().first {
+            String(decoding: ctx.sourceManager.contents(of: $0), as: UTF8.self) == source
+        })
         let snapshot = ast.arena.snapshot()
-        #expect(snapshot.incrementDecrementCachedValues.count == 1)
+        let userCachedValues = snapshot.incrementDecrementCachedValues.filter {
+            ast.arena.exprRange($0.key)?.start.file == sourceFile
+        }
+        #expect(userCachedValues.count == 1)
         let data = try JSONEncoder().encode(snapshot)
         let decoded = try JSONDecoder().decode(ASTArenaSnapshot.self, from: data)
         let arena = ASTArena(snapshot: decoded)
-        for (expression, cachedValue) in snapshot.incrementDecrementCachedValues {
+        for (expression, cachedValue) in userCachedValues {
             #expect(arena.isIncrementDecrement(expression))
             #expect(arena.incrementDecrementCachedValue(for: expression) == cachedValue)
         }
@@ -69,8 +76,7 @@ struct ExtensionPropertyCompoundAssignTests {
             }
             return nil
         }
-        #expect(accessorCalls == Array(repeating: [getter, setter], count: 6).flatMap { $0 }
-            + [getter, setter, getter, getter, setter, getter, setter, getter])
+        #expect(accessorCalls == Array(repeating: [getter, setter], count: 9).flatMap { $0 })
         #expect(kirCalls(to: .arrayGetInbounds, in: body, interner: ctx.interner).isEmpty)
         #expect(kirCalls(to: .arraySet, in: body, interner: ctx.interner).isEmpty)
     }

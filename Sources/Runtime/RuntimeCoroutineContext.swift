@@ -1,12 +1,6 @@
 import Dispatch
 import Foundation
 
-// `CoroutineContext` element runtime (STDLIB-CORO-077) and the
-// coroutine dispatcher scheduler (STDLIB-133).
-//
-// Split out from `RuntimeCoroutine.swift`.
-
-
 private let runtimeCoroutineContextInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.coroutines.CoroutineContext"
 )
@@ -15,11 +9,6 @@ private let runtimeEmptyCoroutineContextTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.coroutines.EmptyCoroutineContext"
 )
 
-/// A coroutine context is a keyed collection of context elements.
-/// Elements include: dispatcher, Job, CoroutineName, CoroutineExceptionHandler,
-/// plus arbitrary source-defined elements kept in `extras` under their own
-/// key objects (KUU-1405).
-/// Contexts compose via the `+` operator (right-hand side wins for same key).
 final class RuntimeCoroutineContext: @unchecked Sendable {
     var dispatcher: Int  // 0 means "inherit from parent"
     var dispatcherHandleRaw: Int
@@ -55,7 +44,6 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
         self.extras = extras
     }
 
-    /// The first extra element stored under `keyRaw`, if any.
     func extraElement(for keyRaw: Int) -> Int? {
         for pair in extras where pair.key == keyRaw {
             return pair.element
@@ -63,10 +51,9 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
         return nil
     }
 
-    /// Merge another context into this one. Right-hand side wins for duplicate
-    /// keys — including a `key` collision between a built-in field and an
-    /// extras element, which `kotlin.coroutines` resolves as
-    /// `minusKey(otherKeys) + other`.
+    /// Right-hand side wins for duplicate keys — including a `key` collision
+    /// between a built-in field and an extras element, which
+    /// `kotlin.coroutines` resolves as `minusKey(otherKeys) + other`.
     func plus(_ other: RuntimeCoroutineContext) -> RuntimeCoroutineContext {
         // The dispatcher/interceptor slot is occupied whenever the other
         // context carries a dispatcher — a scheduler tag or an element object
@@ -254,7 +241,6 @@ func runtimeCanonicalCoroutineContext(
     )
 }
 
-/// A CoroutineName element wrapping a String name.
 final class RuntimeCoroutineNameBox: @unchecked Sendable {
     let name: String
     init(name: String) {
@@ -418,8 +404,6 @@ func runtimeCoroutineContextElementMethod(_ receiver: Int, _ interfaceTypeID: In
     }
 }
 
-/// The `key` handle a native coroutine element reports — name, dispatcher,
-/// handler and runtime job/task handles each map to their key singleton.
 private func runtimeCoroutineElementKeyHandle(for receiver: Int) -> Int {
     if let ptr = isRegisteredRuntimeObjectPointer(receiver)
         ? UnsafeMutableRawPointer(bitPattern: receiver) : nil
@@ -453,7 +437,6 @@ func runtimeRegisterObject<T: AnyObject>(_ object: T) -> Int {
     return Int(bitPattern: ptr)
 }
 
-/// Create a CoroutineName context element.
 /// nameRaw is a pointer to a runtime string (RuntimeStringBox or interned).
 @_cdecl("kk_coroutine_name_create")
 public func kk_coroutine_name_create(_ nameRaw: Int) -> Int {
@@ -471,7 +454,6 @@ public func kk_coroutine_name_create(_ nameRaw: Int) -> Int {
     return runtimeRegisterObject(box)
 }
 
-/// Get the name string from a CoroutineName handle.
 /// Returns a RuntimeStringBox pointer.
 @_cdecl("kk_coroutine_name_get")
 public func kk_coroutine_name_get(_ handleRaw: Int) -> Int {
@@ -486,7 +468,6 @@ public func kk_coroutine_name_get(_ handleRaw: Int) -> Int {
     return runtimeRegisterObject(resultBox)
 }
 
-/// Create a CoroutineExceptionHandler from a function value.
 /// KUU-CORO-101: this is a *synthetic* top-level function
 /// (registerSyntheticCoroutineTopLevelFunction in
 /// HeaderHelpers+SyntheticCoroutineRegistry.swift), confirmed via `--emit kir`
@@ -524,7 +505,6 @@ public func kk_exception_handler_create(_ handlerFnPtr: Int) -> Int {
     return runtimeRegisterObject(box)
 }
 
-/// Invoke a CoroutineExceptionHandler with a context and exception.
 @_cdecl("kk_exception_handler_invoke")
 public func kk_exception_handler_invoke(_ handlerRaw: Int, _ contextRaw: Int, _ exceptionRaw: Int) -> Int {
     guard handlerRaw != 0,
@@ -537,7 +517,6 @@ public func kk_exception_handler_invoke(_ handlerRaw: Int, _ contextRaw: Int, _ 
     return 0
 }
 
-/// Compose two CoroutineContext elements using the + operator.
 /// Each argument can be a RuntimeCoroutineContext, a dispatcher tag,
 /// a RuntimeCoroutineNameBox, or a RuntimeExceptionHandlerBox.
 @_cdecl("kk_context_plus")
@@ -581,7 +560,6 @@ public func __kk_context_plus_dispatch(
     return kk_context_plus(contextRaw, otherRaw)
 }
 
-/// Fetch a context element by key.
 /// The current runtime recognizes the closed set of coroutine element handles
 /// already modeled in RuntimeCoroutineContext.
 @_cdecl("kk_context_get")
@@ -618,7 +596,6 @@ let runtimeCoroutineContextFoldBridgePointer: Int = {
     return unsafeBitCast(bridge, to: Int.self)
 }()
 
-/// Fold the known coroutine context elements from left to right.
 @_cdecl("kk_context_fold")
 public func kk_context_fold(
     _ contextRaw: Int,
@@ -662,7 +639,6 @@ public func kk_context_fold(
     return acc
 }
 
-/// Remove a context element by key.
 @_cdecl("kk_context_minusKey")
 public func kk_context_minusKey(_ contextRaw: Int, _ keyRaw: Int) -> Int {
     let resolved = resolveToCoroutineContext(contextRaw)
@@ -689,7 +665,6 @@ public func __kk_context_minusKey_dispatch(
     return kk_context_minusKey(contextRaw, keyRaw)
 }
 
-/// Extract the dispatcher from a CoroutineContext.
 /// Returns a dispatcher tag (or 0 if none).
 @_cdecl("kk_context_get_dispatcher")
 public func kk_context_get_dispatcher(_ contextRaw: Int) -> Int {
@@ -799,7 +774,6 @@ func runtimeReleaseInterceptedContinuation(interceptor: Int, continuation: Int) 
     }
 }
 
-/// Intercept a continuation using an explicit interceptor object.
 @_cdecl("kk_continuation_interceptor_intercept_continuation")
 public func kk_continuation_interceptor_intercept_continuation(
     _ interceptorRaw: Int,
@@ -899,7 +873,6 @@ private func runtimeExtraElementGet(_ element: Int, key keyRaw: Int) -> Int? {
     return result == 0 || result == runtimeNullSentinelInt ? nil : result
 }
 
-/// Return the raw handle for a known context element matching the supplied key.
 private func runtimeCoroutineContextElementHandle(for keyRaw: Int, in ctx: RuntimeCoroutineContext) -> Int? {
     if let extra = ctx.extraElement(for: keyRaw) {
         return runtimeExtraElementGet(extra, key: keyRaw)
@@ -954,7 +927,6 @@ private func runtimeCoroutineContextElementHandle(for keyRaw: Int, in ctx: Runti
         return ctx.exceptionHandler.map { Int(bitPattern: UnsafeMutableRawPointer(Unmanaged.passUnretained($0).toOpaque())) }
     }
     if keyRaw == runtimeJobKeyRaw {
-        // KUU-1386: `ctx[Job]` — the Job.Key singleton maps to the stored job.
         return ctx.jobHandleRaw != 0 ? ctx.jobHandleRaw : nil
     }
     if runtimeJobHandle(from: keyRaw) != nil {
@@ -968,7 +940,6 @@ private func runtimeCoroutineContextElementHandle(for keyRaw: Int, in ctx: Runti
     return nil
 }
 
-/// Return the raw handles for the known elements stored in the context.
 private func runtimeCoroutineContextElementHandles(in ctx: RuntimeCoroutineContext) -> [Int] {
     var handles: [Int] = []
     // KUU-1395: the dispatcher slot is also occupied by handle-only elements
@@ -995,7 +966,6 @@ private func runtimeCoroutineContextElementHandles(in ctx: RuntimeCoroutineConte
     return handles
 }
 
-/// Remove any known element that matches the supplied key handle.
 private func runtimeCoroutineContextRemovingElement(for keyRaw: Int, from ctx: RuntimeCoroutineContext) -> RuntimeCoroutineContext {
     let next = RuntimeCoroutineContext(
         dispatcher: ctx.dispatcher,
@@ -1065,7 +1035,6 @@ private func runtimeCoroutineContextRemovingElement(for keyRaw: Int, from ctx: R
         return next
     }
     if keyRaw == runtimeJobKeyRaw {
-        // KUU-1386: `ctx.minusKey(Job)` — drop the stored job element.
         next.jobHandleRaw = 0
         return next
     }
@@ -1078,7 +1047,6 @@ private func runtimeCoroutineContextRemovingElement(for keyRaw: Int, from ctx: R
     return next
 }
 
-/// `kotlinx.coroutines.isActive` extension on CoroutineContext: `this[Job]?.isActive ?: true`.
 @_cdecl("kk_context_is_active")
 public func kk_context_is_active(_ contextRaw: Int) -> Int {
     let ctx = resolveToCoroutineContext(contextRaw)
@@ -1101,7 +1069,6 @@ public func kk_context_get_job(_ contextRaw: Int) -> Int {
             .flatMap { runtimeExtraElementGet($0, key: runtimeJobKeyRaw) } ?? 0)
 }
 
-/// Extract the CoroutineName from a CoroutineContext.
 /// Returns a RuntimeStringBox pointer (or 0 if no name).
 public func kk_context_get_name(_ contextRaw: Int) -> Int {
     guard contextRaw != 0,
@@ -1117,15 +1084,10 @@ public func kk_context_get_name(_ contextRaw: Int) -> Int {
 }
 
 
-/// Release a CoroutineContext (decrement reference count).
 public func kk_context_release(_ contextRaw: Int) {
     _ = runtimeReleaseObject(contextRaw)
 }
 
-/// withContext with a full CoroutineContext (not just a dispatcher tag).
-/// Extracts the dispatcher from the context and delegates to the dispatcher-
-/// aware withContext, while installing the child context (name, handler,
-/// dispatcher and a fresh child Job) the block's ambient context exposes.
 @_cdecl("kk_with_context_full")
 public func kk_with_context_full(_ contextRaw: Int, _ blockFnPtr: Int, _ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
     outThrown?.pointee = 0
@@ -1251,7 +1213,6 @@ private func runtimeInstallWithContextChildContext(
     }
 }
 
-/// Check if a raw Int value is a known dispatcher tag.
 private func isDispatcherTag(_ raw: Int) -> Bool {
     raw == RuntimeDispatcherTag.defaultDispatcher ||
     raw == RuntimeDispatcherTag.ioDispatcher ||
@@ -1306,9 +1267,6 @@ private func runtimeSourceContextElementKey(_ raw: Int) -> Int? {
     return keyRaw
 }
 
-/// Convert any context-like raw value to a RuntimeCoroutineContext.
-/// Handles: RuntimeCoroutineContext, dispatcher tags, RuntimeCoroutineNameBox,
-/// RuntimeExceptionHandlerBox.
 func resolveToCoroutineContext(_ raw: Int) -> RuntimeCoroutineContext {
     // Source-backed EmptyCoroutineContext is a heap singleton, not a dispatcher.
     if raw == 0 || runtimeObjectTypeID(rawValue: raw) == runtimeEmptyCoroutineContextTypeID {
@@ -1367,11 +1325,6 @@ func resolveToCoroutineContext(_ raw: Int) -> RuntimeCoroutineContext {
     return RuntimeCoroutineContext(dispatcher: raw)
 }
 
-
-/// A coroutine dispatcher that schedules work on a specific GCD queue.
-/// Each dispatcher wraps a DispatchQueue and provides `dispatch(_:)` to execute
-/// a closure on that queue. The three well-known dispatchers (Default, IO, Main)
-/// are singletons returned by `kk_dispatcher_default/io/main`.
 final class RuntimeDispatcher: @unchecked Sendable {
     let queue: DispatchQueue
     let tag: Int
@@ -1382,7 +1335,6 @@ final class RuntimeDispatcher: @unchecked Sendable {
     /// CORO-003: pthread key for the currently active dispatcher (replaces threadDictionary).
     private static let currentDispatcherPthreadKey: pthread_key_t = makePthreadKey()
 
-    /// The dispatcher active on the current thread, if any.
     static var current: RuntimeDispatcher? {
         get { pthreadGetValue(currentDispatcherPthreadKey) }
         set { pthreadSetValue(currentDispatcherPthreadKey, newValue) }
@@ -1409,8 +1361,6 @@ final class RuntimeDispatcher: @unchecked Sendable {
         )
     }
 
-    /// Dispatch a closure onto this dispatcher's queue synchronously, setting
-    /// `RuntimeDispatcher.current` for the duration.
     func dispatchSync<T>(execute work: @Sendable () -> T) -> T {
         if isCurrent {
             // Already on the correct dispatcher; execute inline to avoid deadlock.
@@ -1430,8 +1380,6 @@ final class RuntimeDispatcher: @unchecked Sendable {
         }
     }
 
-    /// Dispatch a closure onto this dispatcher's queue asynchronously, setting
-    /// `RuntimeDispatcher.current` for the duration.
     func dispatchAsync(execute work: @escaping @Sendable () -> Void) {
         queue.async { [self] in
             let saved = RuntimeDispatcher.current
@@ -1441,8 +1389,6 @@ final class RuntimeDispatcher: @unchecked Sendable {
         }
     }
 
-    /// Returns true if we are already executing on this dispatcher.
-    ///
     /// NOTE: Re-entrancy detection relies on the `RuntimeDispatcher.current`
     /// thread-local, which is only set inside `dispatchSync`/`dispatchAsync`
     /// blocks. For the main dispatcher we additionally check
@@ -1458,7 +1404,6 @@ final class RuntimeDispatcher: @unchecked Sendable {
     }
 }
 
-/// Dispatcher tag constants used as opaque handles.
 private enum RuntimeDispatcherTag {
     static let defaultDispatcher: Int = 0x4B4B_4401 // "KKD\x01"
     static let ioDispatcher: Int = 0x4B4B_4402 // "KKD\x02"
@@ -1490,7 +1435,6 @@ func registerCoroutineDispatcherTypeEdgesOnce() {
     }
 }
 
-/// Singleton dispatchers. Initialized lazily on first access.
 private let runtimeDefaultDispatcher = RuntimeDispatcher(
     queue: DispatchQueue.global(qos: .default),
     tag: RuntimeDispatcherTag.defaultDispatcher
@@ -1505,7 +1449,6 @@ private let runtimeMainDispatcher = RuntimeDispatcher(
     nominalTypeFqName: "kotlinx.coroutines.MainCoroutineDispatcher"
 )
 
-/// Resolve a raw dispatcher Int to a RuntimeDispatcher instance.
 /// Returns the Default dispatcher for unrecognized values.
 func runtimeResolveDispatcher(from raw: Int) -> RuntimeDispatcher {
     if isRegisteredRuntimeObjectPointer(raw),
@@ -1616,15 +1559,6 @@ private final class WithContextResultBox: @unchecked Sendable {
     var failure: Int = 0
 }
 
-/// Kotlin `withContext(dispatcher) { block }` — switches coroutine execution
-/// to the dispatch queue that corresponds to `dispatcherRaw`, runs the
-/// suspend-aware block through the full entry loop (supporting intermediate
-/// suspension points such as `delay`), and blocks the caller until the block
-/// completes, returning its result.
-///
-/// STDLIB-CORO-077: Also handles RuntimeCoroutineContext objects. If dispatcherRaw
-/// is a pointer to a RuntimeCoroutineContext, the dispatcher is extracted from it
-/// and context elements (name, exception handler) are propagated.
 @_cdecl("kk_with_context")
 public func kk_with_context(_ dispatcherRaw: Int, _ blockFnPtr: Int, _ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
     // A bare dispatcher tag still gets the child-context treatment: on JVM
@@ -1633,7 +1567,6 @@ public func kk_with_context(_ dispatcherRaw: Int, _ blockFnPtr: Int, _ continuat
     kk_with_context_full(dispatcherRaw, blockFnPtr, continuation, outThrown)
 }
 
-/// Shared implementation behind the `kk_with_context` ABI entry point.
 /// `restoreJobHandle`, when non-nil, is invoked exactly once at the point the
 /// block's execution has genuinely finished -- across all three completion
 /// paths below (inline, CORO-004 async, non-coroutine semaphore) -- so that

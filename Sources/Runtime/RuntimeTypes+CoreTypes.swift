@@ -92,7 +92,6 @@ typealias KKClosureFunctionEntryPoint22 = @convention(c) (Int, Int, Int, Int, In
 
 final class RuntimeStringBox {
     let value: String
-    /// Kotlin UTF-16 code units materialized on first positional access.
     /// `value` is immutable, so the cache never invalidates.
     private var cachedUTF16CodeUnits: [UInt16]?
     /// Flat-ABI buffer backing this string, materialized once so repeated
@@ -126,7 +125,6 @@ final class RuntimeStringBox {
         return cached?.count ?? runtimeKotlinStringUTF16Length(value)
     }
 
-    /// Flat-ABI buffer for `value`, creating and registering one on first use.
     /// The box is the storage's canonical boxed handle, so a flat→raw bridge
     /// of the same buffer resolves back to this box.
     func flatStringStorage() -> RuntimeFlatStringStorage {

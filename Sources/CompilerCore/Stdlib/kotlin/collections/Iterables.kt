@@ -25,11 +25,9 @@ internal external fun kk_unbox_float(value: Float): Float
 internal external fun kk_unbox_double(value: Double): Double
 
 // KSP-435
-// Generic Iterable<T> surface migrated from the Swift runtime `kk_iterable_*`
-// bridges. Every implementation only relies on `iterator()` virtual dispatch,
+// Every implementation only relies on `iterator()` virtual dispatch,
 // so it works for List, Set and any user-defined Iterable alike.
 
-// KSP-963: Kotlin's Iterable.asIterable() is an identity conversion.
 public inline fun <T> Iterable<T>.asIterable(): Iterable<T> = this
 
 // KSP-967: Preserve Kotlin's Collection fast path while keeping arbitrary
@@ -39,8 +37,6 @@ public operator fun <@kotlin.internal.OnlyInputTypes T> Iterable<T>.contains(ele
     return indexOf(element) >= 0
 }
 
-// KSP-966: Published helpers expose a Collection's known size without
-// traversing a general Iterable.
 @PublishedApi
 internal fun <T> Iterable<T>.collectionSizeOrNull(): Int? =
     if (this is Collection<*>) (this as Collection<*>).size else null
@@ -87,7 +83,6 @@ public fun <T> Iterable<T>.toMutableList(): MutableList<T> {
     return result
 }
 
-// KSP-997: Split each pair from a generic Iterable in encounter order.
 public fun <T, R> Iterable<Pair<T, R>>.unzip(): Pair<List<T>, List<R>> {
     val first = mutableListOf<T>()
     val second = mutableListOf<R>()
@@ -324,9 +319,9 @@ public inline fun <T, K, V, M : MutableMap<in K, MutableList<V>>> Iterable<T>.gr
     return destination
 }
 
-// KSP-974: Iterable flat-map transformations are source-backed. Keep the
-// Iterable and Sequence inner-result overloads distinct so lambda-return-type
-// overload resolution selects the same public API as the Kotlin stdlib.
+// KSP-974: Keep the Iterable and Sequence inner-result overloads distinct so
+// lambda-return-type overload resolution selects the same public API as the
+// Kotlin stdlib.
 public inline fun <T, R> Iterable<T>.flatMap(transform: (T) -> Iterable<R>): List<R> {
     val result = mutableListOf<R>()
     for (element in this) {
@@ -517,7 +512,6 @@ public fun <T> Iterable<T>.last(): T {
     return last as T
 }
 
-// KSP-965: numeric Iterable averages are source-backed and preserve iterator order.
 private fun checkAverageCountOverflow(count: Int): Int {
     if (count < 0) throw ArithmeticException("Count overflow has happened.")
     return count
@@ -678,8 +672,6 @@ public fun <T> Iterable<T>.elementAtOrNull(index: Int): T? {
     return null
 }
 
-// KSP-701: generic Iterable HOFs formerly registered by the compiler-side
-// synthetic member registry now use bundled Kotlin source bodies.
 public fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T> {
     val result = mutableListOf<T>()
     for (element in this) {
@@ -688,9 +680,9 @@ public fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T> {
     return result
 }
 
-// KSP-982: source-backed Iterable map-family implementations. Keep these
-// overloads independent from concrete List/Array/Set/Sequence receivers so
-// virtual iterator dispatch also covers custom and one-shot Iterables.
+// KSP-982: Keep these overloads independent from concrete
+// List/Array/Set/Sequence receivers so virtual iterator dispatch also covers
+// custom and one-shot Iterables.
 public inline fun <T, R> Iterable<T>.map(transform: (T) -> R): List<R> {
     val result = mutableListOf<R>()
     for (element in this) result.add(transform(element))
@@ -894,7 +886,6 @@ public inline fun <T> Iterable<T>.partition(predicate: (T) -> Boolean): Pair<Lis
     return Pair(first, second)
 }
 
-// KSP-995: source-backed generic Iterable take family.
 public fun <T> Iterable<T>.take(n: Int): List<T> {
     require(n >= 0) { "Requested element count $n is less than zero." }
     if (n == 0) return emptyList()
@@ -1077,10 +1068,9 @@ public inline fun <T> Iterable<T>.count(predicate: (T) -> Boolean): Int {
     return count
 }
 
-// KSP-979: Keep the Iterable index family on the iterator-backed source path.
-// The counter is checked after the previous increment wraps negative, allowing
-// the candidate at Int.MAX_VALUE to be evaluated before the next iteration
-// reports overflow, matching the Kotlin stdlib contract.
+// KSP-979: The counter is checked after the previous increment wraps negative,
+// allowing the candidate at Int.MAX_VALUE to be evaluated before the next
+// iteration reports overflow, matching the Kotlin stdlib contract.
 public fun <T> Iterable<T>.indexOf(element: T): Int {
     var index = 0
     for (item in this) {
@@ -1258,8 +1248,7 @@ public fun <T> Iterable<T>.joinToString(
     transform: (T) -> CharSequence
 ): String = appendJoinToAppendableTransform(this.iterator(), StringBuilder(), separator, prefix, postfix, limit, truncated, transform).toString()
 
-// KSP-632: remaining Iterable HOFs migrated from the Swift runtime `kk_list_*`
-// bridges. These implementations rely only on `iterator()` / `toMutableList()`,
+// KSP-632: These implementations rely only on `iterator()` / `toMutableList()`,
 // so they work for List, Set and any other Iterable.
 
 public fun <T> Iterable<T>.reduceRight(operation: (T, T) -> T): T {
@@ -1310,8 +1299,6 @@ public fun <T> Iterable<T>.reduceRightIndexedOrNull(operation: (Int, T, T) -> T)
     return accumulator
 }
 
-// KSP-993: Iterable sorting remains source-backed and materializes exactly
-// once before applying stable in-place sorting to the mutable result.
 public fun <T : Comparable<T>> Iterable<T>.sorted(): List<T> {
     return sortedWith(naturalOrder<T>())
 }
@@ -1606,8 +1593,6 @@ public fun <T> Iterable<T>.minWithOrNull(comparator: Comparator<in T>): T? {
     return minValue
 }
 
-// KSP-976: Iterable fold-family source bodies preserve the generic accumulator
-// type while traversing every receiver through its iterator exactly once.
 public inline fun <T, R> Iterable<T>.fold(initial: R, operation: (acc: R, T) -> R): R {
     var accumulator = initial
     for (element in this) accumulator = operation(accumulator, element)
@@ -1624,8 +1609,6 @@ public inline fun <T, R> Iterable<T>.foldIndexed(initial: R, operation: (index: 
     }
     return accumulator
 }
-
-// KSP-983: Iterable max-family APIs migrated from the Kotlin 2.3.10 stdlib.
 
 @SinceKotlin("1.7")
 @kotlin.jvm.JvmName("maxOrThrow")

@@ -1,10 +1,6 @@
 import CompilerCore
 
-/// Resolves the semantic symbol an expression refers to, used by hover and
-/// go-to-definition.
 enum SymbolResolution {
-    /// Returns the symbol that the given expression resolves to, checking
-    /// identifier bindings, call bindings, and callable targets in turn.
     static func symbol(for expr: ExprID, sema: SemaModule) -> SymbolID? {
         if let symbol = sema.bindings.identifierSymbol(for: expr) {
             return symbol
@@ -29,7 +25,6 @@ enum SymbolResolution {
         return nil
     }
 
-    /// A short human-readable label for a symbol kind (for hover text).
     static func label(for kind: SymbolKind) -> String {
         switch kind {
         case .package: "package"

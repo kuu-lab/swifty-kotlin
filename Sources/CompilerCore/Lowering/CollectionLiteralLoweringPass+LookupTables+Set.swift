@@ -1,8 +1,5 @@
 import RuntimeABI
 
-/// Set lookup names for `CollectionLiteralLookupTables`.
-///
-/// Split out from `CollectionLiteralLoweringPass+LookupTables.swift`.
 struct SetLookupNames {
     let setOfName: InternedString
     let setOfNotNullName: InternedString

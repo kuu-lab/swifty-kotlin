@@ -7,15 +7,9 @@
 
 package kotlin.text
 
-/**
- * Extends [MatchGroupCollection] by introducing a way to get matched groups by
- * name, when regex supports it.
- */
 @SinceKotlin("1.1")
 public interface MatchNamedGroupCollection : MatchGroupCollection {
     /**
-     * Returns a named group with the specified [name].
-     *
      * @return An instance of [MatchGroup] if the group with the specified [name]
      * was matched or `null` otherwise.
      * @throws IllegalArgumentException if no group with the specified [name] is

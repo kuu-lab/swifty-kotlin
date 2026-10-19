@@ -1,6 +1,5 @@
 // swiftlint:disable file_length
 
-/// `RuntimeABISpec.delegateFunctions` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
     static let suspendFunctionInvokeSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
         name: "kk_suspend_function_invoke",

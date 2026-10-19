@@ -1,7 +1,6 @@
-/// Resolves explicit `LazyThreadSafetyMode` enum entries to the raw values
-/// consumed by the runtime lazy factory. Non-constant mode expressions are
-/// lowered as KIR values so runtime-selected modes are preserved; compiler
-/// fallback is used only when the mode expression cannot be lowered as such.
+/// Non-constant mode expressions are lowered as KIR values so runtime-selected
+/// modes are preserved; compiler fallback is used only when the mode expression
+/// cannot be lowered as such.
 enum LazyThreadSafetyModeLowering {
     static func rawValue(
         from modeExpr: KIRExprID?,
@@ -80,10 +79,8 @@ enum LazyThreadSafetyModeLowering {
         return nil
     }
 
-    /// Returns the non-mode argument of a lazy factory call, if it is the
-    /// explicit lock overload (`lazy(lock) { ... }`). A value typed as
-    /// `LazyThreadSafetyMode` is deliberately not treated as a lock because
-    /// the mode value is forwarded to the runtime lazy factory.
+    /// A value typed as `LazyThreadSafetyMode` is deliberately not treated as a
+    /// lock because the mode value is forwarded to the runtime lazy factory.
     static func lockExpression(
         from delegateExpression: ExprID?,
         ast: ASTModule,
@@ -107,9 +104,6 @@ enum LazyThreadSafetyModeLowering {
         return nil
     }
 
-    /// KIR counterpart of `lockExpression`, used while lowering local
-    /// delegated declarations whose factory arguments have already been
-    /// lowered to KIR expressions.
     static func lockExpression(
         from arguments: [KIRExprID],
         arena: KIRArena,

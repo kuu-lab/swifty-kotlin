@@ -22,7 +22,6 @@ struct AtomicScalarApiSurfaceTests {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
         import kotlin.concurrent.atomics.*
-        import kotlin.concurrent.getAndAdd
         import kotlin.concurrent.getAndUpdate
         import kotlin.concurrent.updateAndGet
         fun main() {

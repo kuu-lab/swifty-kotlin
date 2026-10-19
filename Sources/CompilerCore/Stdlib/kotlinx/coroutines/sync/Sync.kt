@@ -2,14 +2,6 @@ package kotlinx.coroutines.sync
 
 import kotlin.internal.KsSymbolName
 
-// KSP-677: Mutex/Semaphore public wrapper layer migrated to Kotlin. The
-// composition helpers (withLock/withPermit) are expressed here in terms of the
-// c-soft kernel primitives (lock/unlock, acquire/release), so their dedicated
-// runtime entry points (kk_mutex_withLock, kk_semaphore_withPermit) are removed.
-// The factory/accessor helpers delegate to demoted __kk_* runtime bridges.
-
-// -- Mutex --
-
 @KsSymbolName("__kk_mutex_create")
 internal external fun __kkMutexCreate(): Mutex
 
@@ -44,8 +36,6 @@ public suspend fun <T> Mutex.withLock(action: suspend () -> T): T {
         unlock()
     }
 }
-
-// -- Semaphore --
 
 @KsSymbolName("__kk_semaphore_create")
 internal external fun __kkSemaphoreCreate(permits: Int): Semaphore

@@ -15,7 +15,6 @@ public object NonCancellable : AbstractCoroutineContextElement(Job), Job {
     override fun toString(): String = "NonCancellable"
 }
 
-/** Compatibility alias for the Job context key. */
 public val NonCancellable.Key: CoroutineContext.Key<Job>
     get() = Job
 

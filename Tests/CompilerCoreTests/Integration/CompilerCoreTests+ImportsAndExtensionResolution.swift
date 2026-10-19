@@ -199,7 +199,7 @@ extension CompilerCoreTests {
                 let sampleDiags = diagnosticsForPath(sample8Path, in: ctx)
 
 
-                        assertHasDiagnostic("KSWIFTK-SEMA-0024", in: sampleDiags)
+                        assertHasDiagnostic("KSWIFTK-SEMA-UNRESOLVED-IMPORT", in: sampleDiags)
 
             }
             // testImportAliasEmptyAliasNameIsIgnored

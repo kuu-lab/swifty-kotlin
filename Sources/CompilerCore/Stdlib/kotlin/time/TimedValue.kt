@@ -7,10 +7,4 @@
 
 package kotlin.time
 
-/**
- * A value returned by [measureTimedValue] function.
- *
- * @property value a result value of the code block being measured.
- * @property duration a duration of the code block execution.
- */
 public data class TimedValue<T>(public val value: T, public val duration: Duration)

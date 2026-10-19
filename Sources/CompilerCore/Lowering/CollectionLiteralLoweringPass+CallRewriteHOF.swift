@@ -1,5 +1,3 @@
-/// Higher-order collection call rewrites split out from
-/// `CollectionLiteralLoweringPass+CallRewrite.swift`.
 extension CollectionLiteralConstructionLoweringPass {
     func rewriteHigherOrderCollectionCall(
         callee: InternedString,

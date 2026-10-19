@@ -1,5 +1,3 @@
-// Numeric conversion functions (STDLIB-050).
-
 public extension RuntimeABISpec {
     static let primitiveNumericConversionFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
@@ -83,7 +81,6 @@ public extension RuntimeABISpec {
             section: "NumericConversion",
             isThrowing: false
         ),
-        // UByte and UShort conversions (STDLIB-PRIM-002)
         RuntimeABIFunctionSpec(
             name: "kk_int_to_ubyte",
             parameters: [
@@ -228,7 +225,6 @@ public extension RuntimeABISpec {
             section: "NumericConversion",
             isThrowing: false
         ),
-        // Unsigned toFloat / toDouble conversions
         RuntimeABIFunctionSpec(
             name: "kk_uint_to_float",
             parameters: [
@@ -301,7 +297,6 @@ public extension RuntimeABISpec {
             section: "NumericConversion",
             isThrowing: true
         ),
-        // UByte / UShort cross-unsigned conversions
         RuntimeABIFunctionSpec(
             name: "kk_ubyte_to_ushort",
             parameters: [
@@ -338,7 +333,6 @@ public extension RuntimeABISpec {
             section: "NumericConversion",
             isThrowing: false
         ),
-        // SPEC-NUM-0007: unsigned toByte / toShort conversions
         RuntimeABIFunctionSpec(
             name: "kk_uint_to_byte",
             parameters: [
@@ -411,7 +405,6 @@ public extension RuntimeABISpec {
             section: "NumericConversion",
             isThrowing: false
         ),
-        // Char conversions (STDLIB-PRIM-002)
         RuntimeABIFunctionSpec(
             name: "kk_int_to_char",
             parameters: [
@@ -421,11 +414,6 @@ public extension RuntimeABISpec {
             section: "NumericConversion",
             isThrowing: false
         ),
-        // KSP-1540 / DEBT-DIFF-008 / KUU-1372: Number.toDouble/toFloat/toLong/
-        // toInt/toShort/toByte/toChar dispatch for an erased `Number`/
-        // `T : Number` receiver — see
-        // CallLowerer+NumberConversionMemberCalls.swift and
-        // Sources/Runtime/RuntimeNumberConversionDispatch.swift.
         RuntimeABIFunctionSpec(
             name: "kk_number_to_primitive",
             parameters: [

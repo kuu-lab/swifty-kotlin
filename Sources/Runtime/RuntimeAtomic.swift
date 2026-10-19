@@ -2,7 +2,6 @@ import Foundation
 import RuntimeCAtomics
 
 
-/// Backing storage for kotlin.concurrent.AtomicInt.
 /// A single seq-cst hardware atomic cell instead of a mutex per box.
 final class AtomicIntBox {
     private let storage: UnsafeMutablePointer<Int32>
@@ -145,7 +144,6 @@ public func __kk_atomic_int_decrementAndFetch(_ receiver: Int) -> Int {
 }
 
 
-/// Backing storage for kotlin.concurrent.AtomicLong.
 final class AtomicLongBox {
     private let storage: UnsafeMutablePointer<Int>
 
@@ -276,7 +274,6 @@ public func __kk_atomic_long_decrementAndFetch(_ receiver: Int) -> Int {
 }
 
 
-/// Backing storage for kotlin.concurrent.AtomicBoolean.
 /// Boolean values are stored as Int: 1 = true, 0 = false.
 final class AtomicBooleanBox {
     private let storage: UnsafeMutablePointer<Int>
@@ -354,7 +351,6 @@ public func __kk_atomic_bool_compareAndExchange(_ receiver: Int, _ expect: Int, 
 }
 
 
-/// Backing storage for kotlin.concurrent.AtomicReference<T>.
 /// Values are stored as opaque intptr_t (object pointers or boxed values).
 final class AtomicRefBox {
     private let storage: UnsafeMutablePointer<Int>
@@ -453,7 +449,6 @@ public func __kk_atomic_ref_compareAndExchange(_ receiver: Int, _ expect: Int, _
 }
 
 
-/// Backing storage for kotlin.concurrent.atomics.AtomicIntArray.
 /// Each element is an independent seq-cst atomic cell, so operations on
 /// distinct indices don't contend on a shared lock.
 final class AtomicIntArrayBox {
@@ -591,7 +586,6 @@ public func __kk_atomic_int_array_addAndFetch(_ receiver: Int, _ index: Int, _ d
 }
 
 
-/// Backing storage for kotlin.concurrent.atomics.AtomicLongArray.
 final class AtomicLongArrayBox {
     private let storage: UnsafeMutableBufferPointer<Int>
 
@@ -719,10 +713,7 @@ public func __kk_atomic_long_array_addAndFetch(_ receiver: Int, _ index: Int, _ 
 }
 
 
-/// Backing storage for kotlin.concurrent.atomics.AtomicArray<T>.
 /// Elements are stored as opaque intptr_t (object pointers or boxed values).
-/// CAS uses identity semantics: two values compare equal iff their raw Int
-/// representation is identical (i.e. pointer identity, not structural equality).
 final class AtomicRefArrayBox {
     private let storage: UnsafeMutableBufferPointer<Int>
 

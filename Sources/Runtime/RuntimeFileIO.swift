@@ -496,18 +496,9 @@ public func __kk_buffered_reader_ready(_ readerRaw: Int) -> Int {
     return kk_box_bool(reader.ready() ? 1 : 0)
 }
 
-//
-// Kotlin's `kotlin.io.BufferedReader.iterator()` operator extension returns an
-// `Iterator<String>` that yields successive lines from the receiver. The
-// underlying line buffering and termination semantics are inherited from
-// `BufferedReader.readLine()`. The iterator prefetches at most one line per
+// The iterator prefetches at most one line per
 // `hasNext()`/`next()` pair, so iterating a large file holds only the current
-// line instead of draining the whole reader into a list first. The observable
-// behaviour (iteration order, blank line handling, EOF) matches `readLine()`
-// because we delegate to it.
-
-/// Streaming `Iterator<String>` box for `BufferedReader.iterator()`: pulls
-/// lines out of a live `RuntimeBufferedReaderBox` on demand.
+// line instead of draining the whole reader into a list first.
 final class RuntimeBufferedLineIteratorBox {
     private let reader: RuntimeBufferedReaderBox
     private var prefetchedLine: String?
@@ -571,17 +562,9 @@ public func __kk_buffered_reader_iterator(_ readerRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeBufferedLineIteratorBox(reader: reader))
 }
 
-//
-// Kotlin's `kotlin.io.Reader.useLines(block)` extension passes the receiver's
-// remaining lines to `block` as a `Sequence<String>` and closes the receiver
-// before returning the block's result (Reader subclasses such as
-// `BufferedReader` inherit this overload; on the JVM the sequence is the
-// `lineSequence().constrainOnce()` of a live reader). Our implementation hands
-// the lambda a `RuntimeSequenceBox` whose pull-source reads one line at a
-// time, so the block only buffers what it actually materialises — and closes
-// the underlying buffered reader after the block runs,
-// mirroring the JVM contract where the reader is closed even when the lambda
-// returns or throws.
+// Our implementation hands the lambda a `RuntimeSequenceBox` whose pull-source
+// reads one line at a time, so the block only buffers what it actually
+// materialises.
 @_cdecl("__kk_buffered_reader_useLines")
 public func __kk_buffered_reader_useLines(_ readerRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -608,12 +591,10 @@ public func __kk_buffered_reader_useLines(_ readerRaw: Int, _ fnPtr: Int, _ clos
     return result
 }
 
-//
-// Kotlin's `kotlin.io.Reader.forEachLine(action)` extension reads lines from the
-// receiver one by one and invokes `action` with each line as a `String`. Iteration
-// stops early when the action throws (the thrown value is propagated via `outThrown`).
-// Unlike `useLines`, the reader is NOT automatically closed after iteration ends —
-// this mirrors the JVM contract where `forEachLine` leaves the reader open.
+// Iteration stops early when the action throws (the thrown value is propagated
+// via `outThrown`). Unlike `useLines`, the reader is NOT automatically closed
+// after iteration ends — this mirrors the JVM contract where `forEachLine`
+// leaves the reader open.
 @_cdecl("__kk_buffered_reader_forEachLine")
 public func __kk_buffered_reader_forEachLine(
     _ readerRaw: Int,
@@ -641,12 +622,10 @@ public func __kk_buffered_reader_forEachLine(
     return 0
 }
 
-//
-// Kotlin's `kotlin.io.Reader.readText(): String` extension drains the remaining
-// content of a `Reader` and returns it as a single `String`. In KSwiftK every
-// concrete `Reader` instance is currently a `BufferedReader` so we dispatch to
-// `RuntimeBufferedReaderBox.readText()`. The function does NOT close the
-// reader, matching the stdlib contract (callers should pair with `use { }`).
+// In KSwiftK every concrete `Reader` instance is currently a `BufferedReader`
+// so we dispatch to `RuntimeBufferedReaderBox.readText()`. The function does
+// NOT close the reader, matching the stdlib contract (callers should pair with
+// `use { }`).
 // Errors during stream reads bubble up as an empty string with no thrown
 // exception, mirroring the lenient behaviour of our other reader helpers
 // (`readLine`, `readLines`). The Sema extension signature is `() -> String`,
@@ -735,15 +714,6 @@ public func __kk_buffered_writer_flush(_ writerRaw: Int, _ outThrown: UnsafeMuta
     return 0
 }
 
-@_cdecl("__kk_buffered_writer_close")
-public func __kk_buffered_writer_close(_ writerRaw: Int) -> Int {
-    guard let writer = runtimeBufferedWriterBox(from: writerRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_writer_close received invalid BufferedWriter handle")
-    }
-    writer.close()
-    return 0
-}
-
 
 @_cdecl("__kk_writer_buffered_default")
 public func __kk_writer_buffered_default(_ writerRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
@@ -773,8 +743,6 @@ public func __kk_bytearrayinputstream_new(_ bufferRaw: Int, _ outThrown: UnsafeM
     return runtimeRegisterIoStream(RuntimeInputStreamBox(arrayRaw: bufferRaw, offset: 0, length: size), fqName: "java.io.ByteArrayInputStream", input: true)
 }
 
-// STDLIB-IO-FN-020: ByteArray.inputStream() — wraps the entire byte array as a
-// ByteArrayInputStream. Mirrors the Kotlin stdlib `public fun ByteArray.inputStream()`.
 @_cdecl("__kk_bytearray_inputStream")
 public func __kk_bytearray_inputStream(_ arrayRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -785,9 +753,6 @@ public func __kk_bytearray_inputStream(_ arrayRaw: Int, _ outThrown: UnsafeMutab
     return runtimeRegisterIoStream(RuntimeInputStreamBox(arrayRaw: arrayRaw, offset: 0, length: size), fqName: "java.io.ByteArrayInputStream", input: true)
 }
 
-// STDLIB-IO-FN-021: ByteArray.inputStream(offset: Int, length: Int) — wraps a
-// subrange of the byte array as a ByteArrayInputStream. Mirrors the Kotlin stdlib
-// `public fun ByteArray.inputStream(offset: Int, length: Int)`.
 @_cdecl("__kk_bytearray_inputStream_range")
 public func __kk_bytearray_inputStream_range(
     _ arrayRaw: Int,
@@ -811,9 +776,6 @@ public func __kk_bytearray_inputStream_range(
     return runtimeRegisterIoStream(RuntimeInputStreamBox(arrayRaw: arrayRaw, offset: offset, length: length), fqName: "java.io.ByteArrayInputStream", input: true)
 }
 
-// STDLIB-IO-FN-011: String.byteInputStream() — encodes the receiver as UTF-8 and
-// returns a ByteArrayInputStream over the resulting bytes. Default charset overload
-// mirrors `String.toByteArray()` semantics for behavioral consistency.
 @_cdecl("__kk_string_byteInputStream_flat")
 public func __kk_string_byteInputStream_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -825,8 +787,6 @@ public func __kk_string_byteInputStream_flat(
     return runtimeStringByteInputStream(source)
 }
 
-// STDLIB-IO-FN-011: String.byteInputStream(charset: Charset) — charset-aware
-// overload. Reuses the same charset table as String.toByteArray(charset).
 @_cdecl("__kk_string_byteInputStream_charset_flat")
 public func __kk_string_byteInputStream_charset_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -906,17 +866,6 @@ public func __kk_input_stream_read_bytes(_ streamRaw: Int, _ bytesRaw: Int, _ ou
     return __kk_input_stream_read_range(streamRaw, bytesRaw, 0, count, outThrown)
 }
 
-//
-// Kotlin defines:
-//   public fun InputStream.readBytes(): ByteArray
-//
-// The extension reads all remaining bytes from `this` into a freshly allocated
-// ByteArray. We model `ByteArray` as a `List<Int>` whose elements are signed
-// Int values in [-128, 127], matching the rest of the runtime's ByteArray
-// representation.
-//
-// The implementation drains the underlying `RuntimeInputStreamBox` in a single
-// pass (or, for `SequenceInputStream`, walks both chained streams to EOF).
 // The receiver is not closed — `InputStream.readBytes()` mirrors JVM
 // `InputStream.readAllBytes()` in that the caller is responsible for closing
 // the stream (typically via `.use { it.readBytes() }`).
@@ -951,13 +900,11 @@ public func __kk_input_stream_readAllBytes(_ streamRaw: Int, _ outThrown: Unsafe
         }
         return runtimeMakeIoReadByteArray(result)
     }
-    // Try a plain InputStream first.
     if let stream = runtimeInputStreamBox(from: streamRaw) {
         let bytes = stream.readAllBytes()
         runtimePropagateInputStreamError(stream, outThrown)
         return runtimeMakeIoReadByteArray(bytes)
     }
-    // Fall back to a SequenceInputStream chain.
     if let ptr = UnsafeMutableRawPointer(bitPattern: streamRaw),
        let sequenceStream = tryCast(ptr, to: RuntimeSequenceInputStreamBox.self)
     {
@@ -1011,17 +958,7 @@ public func __kk_input_stream_close(_ streamRaw: Int) -> Int {
     return 0
 }
 
-//
-// Kotlin signature:
-//   public fun InputStream.copyTo(
-//       out: OutputStream,
-//       bufferSize: Int = DEFAULT_BUFFER_SIZE
-//   ): Long
-//
-// Copies bytes from this InputStream into the given OutputStream until
-// all available bytes have been read, returning the total byte count as a
-// boxed Long.  The InputStream is not closed after copying (matching
-// Kotlin/JVM behaviour).
+// The InputStream is not closed after copying (matching Kotlin/JVM behaviour).
 @_cdecl("__kk_input_stream_copyTo")
 public func __kk_input_stream_copyTo(
     _ streamRaw: Int,
@@ -1059,21 +996,14 @@ public func __kk_input_stream_copyTo(
     return kk_box_long(totalBytesCopied)
 }
 
-//
-// Kotlin's `InputStream.buffered(bufferSize)` extension returns a
-// BufferedInputStream wrapping the underlying stream.  Since the byte-level
-// reading methods provided by RuntimeInputStreamBox already operate against
-// an in-memory Data buffer, returning the same handle re-typed as a
-// BufferedInputStream preserves observable Kotlin semantics:
+// Since the byte-level reading methods provided by RuntimeInputStreamBox
+// already operate against an in-memory Data buffer, returning the same handle
+// re-typed as a BufferedInputStream preserves observable Kotlin semantics:
 //   - read()/available()/skip()/close() continue to delegate to the same
 //     underlying byte source
 //   - mark/reset remain unsupported (mirroring FileInputStream behaviour)
 //   - the buffer size argument is honoured by the type but does not alter
 //     the in-memory byte sequence
-//
-// If a future revision introduces a dedicated BufferedInputStreamBox with
-// look-ahead semantics, this function will continue to be the single seam
-// for materialising one from an arbitrary InputStream handle.
 @_cdecl("__kk_input_stream_buffered_default")
 public func __kk_input_stream_buffered_default(_ streamRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -1129,23 +1059,6 @@ public func __kk_sequence_input_stream_read(_ streamRaw: Int, _ outThrown: Unsaf
     return stream.readByte(outThrown)
 }
 
-@_cdecl("__kk_sequence_input_stream_available")
-public func __kk_sequence_input_stream_available(_ streamRaw: Int) -> Int {
-    guard let stream = runtimeSequenceInputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_sequence_input_stream_available received invalid SequenceInputStream handle")
-    }
-    return stream.available()
-}
-
-@_cdecl("__kk_sequence_input_stream_close")
-public func __kk_sequence_input_stream_close(_ streamRaw: Int) -> Int {
-    guard let stream = runtimeSequenceInputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_sequence_input_stream_close received invalid SequenceInputStream handle")
-    }
-    stream.close()
-    return 0
-}
-
 @_cdecl("__kk_output_stream_write_byte")
 public func __kk_output_stream_write_byte(_ streamRaw: Int, _ valueRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -1198,19 +1111,9 @@ public func __kk_output_stream_flush(_ streamRaw: Int, _ outThrown: UnsafeMutabl
     return 0
 }
 
-@_cdecl("__kk_output_stream_close")
-public func __kk_output_stream_close(_ streamRaw: Int) -> Int {
-    guard let stream = runtimeOutputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_output_stream_close received invalid OutputStream handle")
-    }
-    stream.close()
-    return 0
-}
-
 
 /// Maps Kotlin `Charset` tag (mirrors `kotlin.text.Charsets.*` IDs in the
-/// runtime ABI) to a Swift `String.Encoding`.  Mirrors the helper in
-/// `RuntimePath.swift` so this file stays self-contained.
+/// runtime ABI) to a Swift `String.Encoding`.
 private func outputStreamEncoding(for charsetRaw: Int) -> String.Encoding {
     switch charsetRaw {
     case 1: .isoLatin1
@@ -1225,13 +1128,8 @@ private func outputStreamEncoding(for charsetRaw: Int) -> String.Encoding {
     }
 }
 
-/// `kotlin.io.bufferedWriter(charset: Charset = Charsets.UTF_8): BufferedWriter`
-/// extension on `java.io.OutputStream`.
-///
-/// JVM semantics: returns a new `BufferedWriter` wrapping an `OutputStreamWriter`
-/// over this output stream using the specified charset.  Subsequent writes/closes
-/// of the returned writer affect the underlying stream; the original `OutputStream`
-/// handle should no longer be used directly.
+/// Subsequent writes/closes of the returned writer affect the underlying
+/// stream; the original `OutputStream` handle should no longer be used directly.
 @_cdecl("__kk_output_stream_bufferedWriter")
 public func __kk_output_stream_bufferedWriter(_ streamRaw: Int, _ charsetRaw: Int) -> Int {
     guard let stream = runtimeOutputStreamBox(from: streamRaw), let tag = CharsetTag(rawValue: charsetRaw) else {
@@ -1241,11 +1139,11 @@ public func __kk_output_stream_bufferedWriter(_ streamRaw: Int, _ charsetRaw: In
 }
 
 
-/// Returns an OutputStream that wraps the receiver with buffering. Because the
-/// underlying `RuntimeOutputStreamBox` is already streamed through the OS-level
-/// FileHandle (which performs its own buffering), the wrapped handle is the
-/// receiver itself — matching Kotlin's identity contract for an already-buffered
-/// stream (`if (this is BufferedOutputStream) this else BufferedOutputStream(this)`).
+/// Because the underlying `RuntimeOutputStreamBox` is already streamed through
+/// the OS-level FileHandle (which performs its own buffering), the wrapped
+/// handle is the receiver itself — matching Kotlin's identity contract for an
+/// already-buffered stream
+/// (`if (this is BufferedOutputStream) this else BufferedOutputStream(this)`).
 @_cdecl("__kk_output_stream_buffered")
 public func __kk_output_stream_buffered(_ streamRaw: Int) -> Int {
     guard runtimeOutputStreamBox(from: streamRaw) != nil else {
@@ -1254,10 +1152,10 @@ public func __kk_output_stream_buffered(_ streamRaw: Int) -> Int {
     return streamRaw
 }
 
-/// Sized overload of `buffered()`. The `bufferSize` parameter is currently
-/// honored by the underlying OS-level FileHandle, so this overload also returns
-/// the receiver handle. Reserved for a future BufferedOutputStream-backed
-/// implementation that respects the requested buffer size explicitly.
+/// The `bufferSize` parameter is currently honored by the underlying OS-level
+/// FileHandle, so this overload also returns the receiver handle. Reserved for a
+/// future BufferedOutputStream-backed implementation that respects the
+/// requested buffer size explicitly.
 @_cdecl("__kk_output_stream_buffered_sized")
 public func __kk_output_stream_buffered_sized(_ streamRaw: Int, _ bufferSize: Int) -> Int {
     _ = bufferSize // Reserved for explicit BufferedOutputStream implementation.
@@ -1268,14 +1166,6 @@ public func __kk_output_stream_buffered_sized(_ streamRaw: Int, _ bufferSize: In
 }
 
 
-/// `kotlinx.io.Sink.asOutputStream()` bridge. Receives the three Kotlin
-/// callbacks declared in `Stdlib/kotlinx/io/SinksJvm.kt` —
-/// `write: (ByteArray) -> Unit`, `flush: () -> Unit`, `close: () -> Unit` —
-/// each expanded by KIRLowering into a (fnPtr, closureRaw) pair, and wraps
-/// them in a `RuntimeKotlinOutputStreamSink` so the returned
-/// `java.io.OutputStream` forwards stream operations to the Kotlin `Sink`.
-/// This is currently the only way to construct an `OutputStream` handle from
-/// Kotlin source; no other producer exists in the runtime.
 @_cdecl("__kk_kotlin_sink_output_stream")
 public func __kk_kotlin_sink_output_stream(
     _ writeFnPtr: Int,
@@ -1301,15 +1191,8 @@ public func __kk_kotlin_sink_output_stream(
 /// `kotlin.io.DEFAULT_BUFFER_SIZE` (16 KiB).
 private let kReaderCopyToDefaultBufferSize: Int = 16 * 1024
 
-/// `kotlin.io.Reader.copyTo(out: Writer, bufferSize: Int = DEFAULT_BUFFER_SIZE): Long`
-///
-/// Copies every character that remains in the receiver into `out` using an
-/// internal buffer of `bufferSize` characters and returns the total number of
-/// characters transferred.  Mirrors the JVM contract:
+/// Mirrors the JVM contract:
 ///   - Neither the receiver nor `out` is closed by this function.
-///   - The receiver is read until EOF (`Reader.read()` returning `-1`).
-///   - Characters are emitted to `out` as `String` chunks of up to
-///     `bufferSize` characters at a time.
 ///   - A non-positive `bufferSize` raises `IllegalArgumentException` to match
 ///     the behaviour of `kotlin.io.copyTo` on the JVM.
 ///
@@ -1347,7 +1230,7 @@ public func __kk_reader_copyTo(
     while true {
         let charCode = reader.read()
         if charCode < 0 {
-            break // EOF
+            break
         }
         guard let scalar = Unicode.Scalar(UInt32(charCode)) else {
             // Invalid scalar — surface as IOException to match JVM-style
@@ -1383,8 +1266,6 @@ public func __kk_reader_copyTo(
     return kk_box_long(copied)
 }
 
-/// Zero-bufferSize overload — `Reader.copyTo(out)` defaults to
-/// `DEFAULT_BUFFER_SIZE`.  STDLIB-IO-FN-014.
 @_cdecl("__kk_reader_copyTo_default")
 public func __kk_reader_copyTo_default(
     _ readerRaw: Int,

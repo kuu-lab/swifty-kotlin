@@ -113,6 +113,6 @@ struct ReflectFindAnnotationTests {
         let body = try findKIRFunctionBody(named: "main", in: #require(ctx.kir), interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
         #expect(callees.contains("findAnnotation"))
-        #expect(!callees.contains("__kk_kclass_find_annotation"))
+        #expect(!callees.contains("__kk_kclass_find_annotation_typed"))
     }
 }

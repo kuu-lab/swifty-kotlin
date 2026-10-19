@@ -12,12 +12,6 @@ package kotlin.native.concurrent
 
 import kotlin.internal.KsSymbolName
 
-/**
- * Exception thrown whenever freezing is not possible.
- *
- * @param toFreeze the object that could not be frozen.
- * @param blocker the first object that prevents freezing.
- */
 @Deprecated("Support for the legacy memory manager has been completely removed. Usages of this exception can be safely dropped.")
 @DeprecatedSinceKotlin(errorSince = "2.1")
 public class FreezingException : RuntimeException {

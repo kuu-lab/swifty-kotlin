@@ -49,8 +49,8 @@ public final class StringInterner: @unchecked Sendable {
         makeWorkerInterner()
     }
 
-    /// Copy-on-write baseline for frontend workers. The caller must remap any
-    /// worker-created strings before publishing them into the module namespace.
+    /// The caller must remap any worker-created strings before publishing
+    /// them into the module namespace.
     func makeWorkerInterner() -> StringInterner {
         lock.lock()
         defer { lock.unlock() }
@@ -61,8 +61,8 @@ public final class StringInterner: @unchecked Sendable {
         return worker
     }
 
-    /// Keep compiler-name IDs local to this interner and initialize them only
-    /// when first requested. Use a separate lock because creation calls intern().
+    /// Keep compiler-name IDs local to this interner. Use a separate lock
+    /// because creation calls intern().
     func cachedCompilerNames(create: () -> KnownCompilerNames) -> KnownCompilerNames {
         compilerNamesLock.lock()
         defer { compilerNamesLock.unlock() }
@@ -74,7 +74,6 @@ public final class StringInterner: @unchecked Sendable {
         return names
     }
 
-    /// Same one-time cache for `BuiltinTypeNames` (19 interned builtin names).
     /// Keeps the IDs local to this interner; separate lock because creation
     /// calls intern().
     func cachedBuiltinTypeNames(create: () -> BuiltinTypeNames) -> BuiltinTypeNames {

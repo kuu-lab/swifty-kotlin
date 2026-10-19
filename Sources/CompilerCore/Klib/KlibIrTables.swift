@@ -1,9 +1,8 @@
 import Foundation
 
-/// Readers for the chunked `ir/*.kn*` tables inside a Kotlin `.klib`.
-///
-/// Kotlin writes each table as a big-endian `Int32` element count followed
-/// by `count` element sizes, then the concatenated element payloads.
+/// Kotlin writes each chunked `ir/*.kn*` table of a `.klib` as a big-endian
+/// `Int32` element count followed by `count` element sizes, then the
+/// concatenated element payloads.
 /// Since Kotlin 2.4 a *negative* count selects unsigned-LEB128 sizes
 /// (`-|count|` elements) instead of fixed `Int32` sizes.
 ///
@@ -16,7 +15,6 @@ import Foundation
 ///   by declaration id — `count` followed by `(declId, offset, size)`
 ///   triples (`irDeclarations.knd`).
 
-/// Byte-order helpers shared by the table readers.
 package enum KlibChunkIO {
     package static func readInt32(_ bytes: [UInt8], at offset: Int) throws -> Int32 {
         guard offset >= 0, offset + 4 <= bytes.count else {
@@ -47,7 +45,6 @@ package enum KlibChunkIO {
         throw KlibFormatError.corruptChunk("truncated uvarint at offset \(offset)")
     }
 
-    /// Parses `count` + `count` element sizes starting at `start`.
     /// Returns element offsets relative to `start` (`count + 1` entries;
     /// element 0 begins right after the header).
     package static func parseIndexToOffsets(in bytes: [UInt8], at start: Int) throws -> [Int] {

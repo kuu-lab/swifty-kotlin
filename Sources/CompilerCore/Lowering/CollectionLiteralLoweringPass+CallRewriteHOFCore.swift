@@ -1,4 +1,3 @@
-/// Core one-lambda higher-order collection rewrites.
 extension CollectionLiteralConstructionLoweringPass {
     func rewriteCoreHigherOrderCollectionCall(
         callee: InternedString,
@@ -11,7 +10,6 @@ extension CollectionLiteralConstructionLoweringPass {
         state: inout CollectionRewriteState,
         loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
-    // --- Rewrite higher-order collection member calls (FUNC-003) ---
     if callee == lookup.mapName || callee == lookup.filterName || callee == lookup.filterNotName || callee == lookup.mapNotNullName || callee == lookup.forEachName || callee == lookup.onEachName
         || callee == lookup.flatMapName || callee == lookup.flatMapIndexedName || callee == lookup.anyName || callee == lookup.noneName
         || callee == lookup.allName || callee == lookup.mapValuesName || callee == lookup.mapKeysName

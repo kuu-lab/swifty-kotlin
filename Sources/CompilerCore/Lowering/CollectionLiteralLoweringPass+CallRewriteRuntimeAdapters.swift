@@ -1,7 +1,6 @@
 
 extension CollectionLiteralConstructionLoweringPass {
 
-    /// Rewrites late-stage runtime call adapters after direct collection/HOF rewrites.
     func rewriteRuntimeAdapterCall(
         callee: InternedString,
         arguments: [KIRExprID],
@@ -14,7 +13,6 @@ extension CollectionLiteralConstructionLoweringPass {
         state: inout CollectionRewriteState,
         loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
-        // --- sortedWith with Comparator argument (STDLIB-649) ---
         // When kk_list_sortedWith is emitted as a .call (from synthetic stub),
         // the comparator argument needs trampoline/closure expansion.
         // args layout: [receiver, comparatorExpr]

@@ -1,6 +1,0 @@
-guard_id	owner	receiver	name	parameter_types	call	upstream_absence
-invalid-01	kotlinx.io.bytestring	ByteString	hex	[]	bytes.hex()	Okio ByteString.hex is absent from pinned kotlinx-io 0.9.1.
-invalid-02	kotlinx.io.bytestring	ByteString	utf8	[]	bytes.utf8()	Okio ByteString.utf8 is absent from pinned kotlinx-io 0.9.1.
-invalid-03	kotlinx.io.bytestring	ByteArray	encodeToByteString	[]	byteArrayOf(1).encodeToByteString()	Okio ByteArray.encodeToByteString is absent from pinned kotlinx-io 0.9.1.
-invalid-04	kotlinx.io	Buffer	snapshot	["Int"]	buffer.snapshot(2)	Okio Buffer.snapshot(byteCount) is absent; kotlinx-io exposes only the zero-argument snapshot.
-invalid-05	kotlinx.io		select	*	select { }	Okio select is absent from pinned kotlinx-io 0.9.1.

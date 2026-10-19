@@ -1,8 +1,0 @@
-version=2
-nameB64=c3VzcGVuZA==
-params=1
-paramSymbols=18190
-suspend=false
-body:
-const result=230941 value=symbol:18190
-returnValue value=230941

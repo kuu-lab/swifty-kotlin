@@ -16,7 +16,7 @@ struct NestedTypeAliasResolutionTests {
 
     private func expectAlias(
         _ aliasPath: [String], target targetPath: [String],
-        in ctx: CompilationContext, nullable: Bool = false
+        in ctx: CompilationContext, nullability: Nullability = .nonNull
     ) throws -> ClassType {
         let sema = try #require(ctx.sema)
         let alias = try #require(sema.symbols.lookup(fqName: aliasPath.map(ctx.interner.intern)))
@@ -26,7 +26,7 @@ struct NestedTypeAliasResolutionTests {
             throw CompilerPipelineError.invalidInput("Expected nominal alias")
         }
         #expect(sema.symbols.symbol(classType.classSymbol)?.fqName == targetPath.map(ctx.interner.intern))
-        #expect(classType.nullability == (nullable ? .nullable : .nonNull))
+        #expect(classType.nullability == nullability)
         #expect(sema.symbols.lookupAll(fqName: targetPath.map(ctx.interner.intern)).count == 1)
         return classType
     }
@@ -60,7 +60,7 @@ struct NestedTypeAliasResolutionTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
         let generic = try expectAlias(["user", "Alias"], target: ["model", "Outer", "Middle", "Nested"], in: ctx)
         #expect(generic.args.count == 1)
-        _ = try expectAlias(["user", "Nullable"], target: ["model", "Outer", "Middle", "Nested"], in: ctx, nullable: true)
+        _ = try expectAlias(["user", "Nullable"], target: ["model", "Outer", "Middle", "Nested"], in: ctx, nullability: .nullable)
     }
 
     @Test(arguments: ["import model.Outer", "import model.*", ""])

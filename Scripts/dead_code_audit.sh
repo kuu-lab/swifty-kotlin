@@ -21,7 +21,7 @@ Detects kk_*/__kk_* functions declared in Sources/Runtime that cannot be
 reached by compiled Kotlin programs. Uses identifier-frequency analysis
 across Sources/, Tests/, and *.kt files.
 
-Exclusion pipeline (reproduces docs/dead-code-audit.md):
+Exclusion pipeline:
   1. Static emit      — kk_* identifier references in CompilerCore,
                         CompilerBackend, and bundled *.kt stdlib sources
   2. Dynamic emit     — inline string-interpolation prefixes ("kk_xxx_\(...)")

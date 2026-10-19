@@ -15,12 +15,13 @@
 | `loc_report.sh` | – | Refactoring guard metrics as TSV (LoC by directory, `kk_` literals, TODO/FIXME counts) |
 | `dead_code_audit.sh` | – | Audit `@_cdecl kk_*` runtime symbols unreachable from the compiler |
 | `benchmark_stdlib_hof.sh` | – | Runtime micro-benchmark harness over `benchmark_cases/` (median wall-clock per case) |
+| `test_all.sh` | ✓ | Run every `Scripts/test_*.sh` regression test and summarize; new `test_*.sh` files are picked up automatically |
 | `check_todo_ids.sh` | ✓ | Detect duplicate task IDs in `TODO.md` |
 | `check_mutation_fuzzer_keywords.sh` | ✓ | Verify `mutate_diff_cases.py`'s `IDENTIFIER_KEYWORDS` matches the lexer's `Keyword` enum |
 | `check_workflow_npm_install.sh` | ✓ | Forbid ad-hoc `npm install`/`npx`/etc. in GitHub workflows/actions — npm-based CI tools go through `.github/ci-tools/` lockfile + `npm ci --ignore-scripts` |
 | `validate_runtime_abi_links.sh` | – | Shorthand for the `RuntimeABIExternalLinkValidationTests` filter |
 | `check_atomicfu_api_reference.py` | – | Verify the pinned kotlinx.atomicfu 0.33.0 KLIB/JVM snapshots, target-aware declaration index, and unsupported API names |
-| `generate_atomicfu_api_index.py` | – | Generate the deterministic per-declaration common/native API ledger with source provenance, visibility, overloads, and annotations |
+| `generate_atomicfu_api_index.py` | – | Build the deterministic per-declaration common/native API ledger with source provenance, visibility, overloads, and annotations (`--output PATH` writes it for inspection) |
 | `lib/common.sh` | (sourced) | Shared helpers: worker detection, interleaved sharding, filter chunking, case-name sanitizing, diff-tooling preflight, case-directive parsing, artifact-collision avoidance |
 
 ## swift_test.sh
@@ -119,17 +120,16 @@ effective KLIB target scopes, and excluded `compareAndExchange` / `load`
 python3 Scripts/check_atomicfu_api_reference.py
 ```
 
-Regenerate the checked-in 155-row ABI-identity index (150 common/native
-declarations plus five explicitly excluded inherited JS/Wasm identities; the
-common/native declarations span 126 unique rendered signatures). The schema-2
+The 155-row ABI-identity index (150 common/native declarations plus five
+explicitly excluded inherited JS/Wasm identities; the common/native declarations
+span 126 unique rendered signatures) is built in memory from the pinned
+`atomicfu.klib.api` by every consumer, so no copy is checked in. The schema-2
 index separates direct, enclosing and file annotations. All Native rows have
 verified source evidence; the five excluded JS/Wasm rows explicitly keep unknown
-annotation facts because that target source is unavailable. See
-`docs/atomicfu-implementation-plan.md` for unfinished source registration and
-runtime requirements:
+annotation facts because that target source is unavailable. Source registration and runtime requirements remain unfinished:
 
 ```bash
-python3 Scripts/generate_atomicfu_api_index.py --write
+python3 Scripts/generate_atomicfu_api_index.py --output /tmp/atomicfu-index.json
 python3 Tests/Scripts/test_atomicfu_api_index.py
 ```
 
@@ -328,12 +328,6 @@ KSwiftK atomic behavior or Kotlin/Native compatibility.
 For the separately pinned Kotlin/Native 2.3.10 / atomicfu 0.33.0 Linux/x64
 reference, including Native Trace no-op, lock aliases, parking and exception
 differences, see [atomicfu_native_reference/README.md](atomicfu_native_reference/README.md).
-
-The separate [`serialization_reference`](serialization_reference/README.md)
-directory pins serialization 1.10.0 API dumps and all eight modules' real JVM
-artifacts, including external I/O and HOCON dependencies. It supplies a verified
-Kotlin 2.3.10 compiler-plugin fixture and integrity checks. This reference does
-not count as candidate-side serialization implementation.
 
 A case can use `// DIFF_EXPECTED_OUTPUT: <relative-path>` when kotlinc is not a
 usable oracle. The runner compiles and runs only kswiftc, then compares stdout
@@ -548,7 +542,8 @@ bash Scripts/loc_report.sh > after.tsv
 ## Dead-code audit
 
 `dead_code_audit.sh` lists `@_cdecl kk_*` runtime symbols that no compiler
-path can emit (see `docs/dead-code-audit.md` for the exclusion pipeline):
+path can emit (run with `--help` for the exclusion pipeline; retained symbols and
+their reason codes are tracked in `docs/dead-code-audit.md`):
 
 ```bash
 bash Scripts/dead_code_audit.sh --verbose

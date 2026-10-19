@@ -119,8 +119,6 @@ func runtimeSourceCollectionIsEmpty(_ rawValue: Int) -> Int? {
     )
 }
 
-/// Calls a source implementation of `List.get` when the receiver is a
-/// source-backed object rather than one of the runtime's native list boxes.
 /// `List.get` occupies the first method slot in List's own interface table.
 @inline(__always)
 func runtimeSourceListGet(
@@ -205,7 +203,6 @@ func runtimeSourceListSubList(
     return fn(rawValue, fromIndex, toIndex, outThrown)
 }
 
-/// Route writes to Kotlin-defined mutable-list implementations and views.
 @inline(__always)
 func runtimeSourceMutableListSet(
     _ rawValue: Int,
@@ -407,7 +404,6 @@ func runtimeSourceMapValues(_ rawValue: Int) -> Int? {
     runtimeSourceMapProperty(rawValue, methodSlot: runtimeMapValuesGetterSlot)
 }
 
-/// Calls a 2-argument interface method through the receiver's itable.
 @inline(__always)
 func runtimeSourceInterfaceCall2(
     _ rawValue: Int,

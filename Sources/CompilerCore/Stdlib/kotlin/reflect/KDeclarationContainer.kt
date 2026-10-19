@@ -7,10 +7,4 @@
 
 package kotlin.reflect
 
-// KSP-1323: source-backed kotlin.reflect surface, split out of the former
-// Stdlib.kt grab-bag to follow the upstream per-declaration file layout.
-
-/**
- * Represents an entity which may contain declarations of other entities.
- */
 public interface KDeclarationContainer

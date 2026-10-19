@@ -25,10 +25,6 @@ public func kk_box_unit(_ value: Int) -> Int {
 /// share one acquisition. Boxing is a hot ABI path, so paying two GC-lock
 /// round trips per call would double contention on the global lock.
 ///
-/// `registeredPassThrough` refines the pass-through condition once the value
-/// is known to be a registered object pointer (e.g. Float only passes through
-/// a RuntimeFloatBox, not an unrelated registered handle).
-///
 /// Fresh boxes are registered under a tagged primitive-box handle (the same
 /// representation `runtimeStaticBox` emits), not their raw object pointer.
 /// The pass-through probe cannot distinguish "an already-boxed handle" from
@@ -82,9 +78,6 @@ private func runtimeBoxInt(
     primitiveTypeBase: Int64? = nil,
     identityCacheKey: Int64? = nil
 ) -> Int {
-    // If the value is already a registered runtime object (e.g. RuntimeRangeBox
-    // produced by kk_op_rangeTo, or an already-boxed RuntimeIntBox), pass it
-    // through without double-boxing.
     runtimeBoxPrimitive(value, identityCacheKey: identityCacheKey) {
         RuntimeIntBox(value, anyFallbackTag: anyFallbackTag, primitiveTypeBase: primitiveTypeBase)
     }
@@ -279,9 +272,6 @@ public func kk_unbox_int(_ obj: Int) -> Int {
 
 @_cdecl("kk_unbox_bool")
 public func kk_unbox_bool(_ obj: Int) -> Int {
-    // NOTE: no early-return for runtimeNullSentinelInt — see kk_unbox_int.
-    // The sentinel falls through to the passthrough below so a `Boolean?`
-    // parameter unboxed across the erased-lambda ABI keeps its null marker.
     if obj == runtimeNullSentinelInt {
         return obj
     }
@@ -348,12 +338,10 @@ public func kk_unbox_long(_ obj: Int) -> Int {
     let isObjectPointer = runtimeStorage.withGCLock { state in
         state.objectPointers.contains(UInt(bitPattern: objPointer))
     }
-    // Passthrough: value is not a heap object — treat as raw int (implicit widening)
     guard isObjectPointer else { return obj }
     if let longBox = tryCast(objPointer, to: RuntimeLongBox.self) {
         return longBox.value
     }
-    // Object pointer that isn't a LongBox — box/unbox type mismatch
     #if DEBUG
     print("KSwiftK warning [\(runtimePanicDiagnosticCode)]: kk_unbox_long called on non-LongBox object (0x\(String(obj, radix: 16)))")
     #endif
@@ -365,8 +353,6 @@ public func kk_box_ulong(_ value: Int) -> Int {
     // See kk_box_long: callers whose source may genuinely be null rely on
     // the sentinel pass-through. kk_box_ulong_nonnull is the counterpart used
     // when the source's static type is provably non-null.
-    // If the value is already a registered runtime object, pass it through
-    // without double-boxing (mirrors kk_box_long).
     return runtimeBoxPrimitive(value) {
         RuntimeULongBox(value)
     }
@@ -394,12 +380,10 @@ public func kk_unbox_ulong(_ obj: Int) -> Int {
     let isObjectPointer = runtimeStorage.withGCLock { state in
         state.objectPointers.contains(UInt(bitPattern: objPointer))
     }
-    // Passthrough: value is not a heap object — treat as raw int (implicit widening)
     guard isObjectPointer else { return obj }
     if let ulongBox = tryCast(objPointer, to: RuntimeULongBox.self) {
         return ulongBox.value
     }
-    // Object pointer that isn't a ULongBox — box/unbox type mismatch
     #if DEBUG
     print("KSwiftK warning [\(runtimePanicDiagnosticCode)]: kk_unbox_ulong called on non-ULongBox object (0x\(String(obj, radix: 16)))")
     #endif
@@ -495,8 +479,6 @@ public func kk_unbox_double_nonnull(_ obj: Int) -> Int {
 
 @_cdecl("kk_box_char")
 public func kk_box_char(_ value: Int) -> Int {
-    // If the value is already a registered runtime object, pass it through
-    // without double-boxing.
     return runtimeBoxPrimitive(
         value,
         identityCacheKey: runtimePrimitiveIdentityCacheKey(

@@ -144,7 +144,7 @@ extension DataFlowSemaPhase {
             )
         }
         for aggregateVarSymbol in [cStructVarSymbol, cEnumVarSymbol, cVariableSymbol] {
-            guard let info = symbols.symbol(aggregateVarSymbol) else { continue }
+            guard symbols.symbol(aggregateVarSymbol) != nil else { continue }
             let aggregateVarType = types.make(.classType(ClassType(
                 classSymbol: aggregateVarSymbol,
                 args: [],
@@ -171,7 +171,6 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 interner: interner
             )
-            _ = info
         }
     }
 
@@ -183,19 +182,6 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
-        if let uShortVarSymbol = symbols.lookup(fqName: cinteropPkg + [interner.intern("UShortVar")]) {
-            let uShortVarType = types.make(.classType(ClassType(
-                classSymbol: uShortVarSymbol,
-                args: [],
-                nullability: .nonNull
-            )))
-            _ = types.make(.classType(ClassType(
-                classSymbol: cValuesSymbol,
-                args: [.invariant(uShortVarType)],
-                nullability: .nonNull
-            )))
-
-        }
         if let uIntVarSymbol = symbols.lookup(fqName: cinteropPkg + [interner.intern("UIntVar")]) {
             let uIntVarType = types.make(.classType(ClassType(
                 classSymbol: uIntVarSymbol,

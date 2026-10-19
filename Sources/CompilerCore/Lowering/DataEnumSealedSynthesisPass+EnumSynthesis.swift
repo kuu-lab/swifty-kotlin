@@ -1,8 +1,3 @@
-/// Enum synthesis methods: `values()`, `entries`, ordinal-to-name,
-/// `valueOf(...)`, and the static-init function that materializes
-/// enum entry singletons.
-///
-/// Split out from `DataEnumSealedSynthesisPass.swift`.
 extension DataEnumSealedSynthesisPass {
     /// Common declarations can bind qualified entry reads to expect fields.
     /// Redirect them to the actual slots that the enum initializer populates.
@@ -61,8 +56,6 @@ extension DataEnumSealedSynthesisPass {
         }
     }
 
-    /// enum entry singletons.
-    /// The body is: kk_array_new(count) -> kk_array_set for each entry -> kk_enum_make_values_array.
     func appendSyntheticEnumValuesIfNeeded(
         name: InternedString,
         owner: SemanticSymbol,
@@ -119,7 +112,6 @@ extension DataEnumSealedSynthesisPass {
             interner: interner
         )
 
-        // kk_enum_make_values_array(array, count) -- result uses the enum type
         let listExpr = module.arena.appendTemporary(type: returnType
         )
         body.append(.call(
@@ -181,10 +173,6 @@ extension DataEnumSealedSynthesisPass {
         }
     }
 
-    /// Synthesizes the `entries` getter on the companion object.
-    /// `Color.entries` returns an EnumEntries (List) containing all enum entry singletons.
-    /// The body is: kk_array_new(count) → kk_array_set for each entry → cached
-    /// `kk_enum_make_entries_list_cached`.
     func appendSyntheticEnumEntriesGetterIfNeeded(
         owner: SemanticSymbol,
         enumSymbol: SemanticSymbol,
@@ -355,7 +343,6 @@ extension DataEnumSealedSynthesisPass {
     }
 
     /// Synthesizes `$enumOrdinalToName$<encodedFqName>(ordinal: Int): String` for (valueOf result).name.
-    /// Switches on ordinal and returns the entry name via the per-entry $enumName helpers.
     ///
     /// The bare name is suffixed with a length-prefixed encoding of the enum
     /// class's fully qualified name so it stays unique across every enum class
@@ -450,10 +437,8 @@ extension DataEnumSealedSynthesisPass {
         )
     }
 
-    /// Synthesizes one ordinal switch for each enum member function that has
-    /// an override in an entry body. Enum values are raw ordinals in KIR, so a
-    /// generated switch preserves the existing representation while selecting
-    /// the entry-specific implementation.
+    /// Enum values are raw ordinals in KIR, so a generated switch preserves the
+    /// existing representation while selecting the entry-specific implementation.
     func appendSyntheticEnumEntryDispatchesIfNeeded(
         owner: SemanticSymbol,
         entries: [SemanticSymbol],
@@ -648,11 +633,8 @@ extension DataEnumSealedSynthesisPass {
         }
     }
 
-    /// Synthesizes `valueOf(String)` which does a linear comparison of the
-    /// argument against each entry name and returns the matching ordinal.
-    /// If no match is found, it calls `kk_enum_valueOf_throw` to signal an
-    /// IllegalArgumentException. When owner is the companion, uses the stub's
-    /// symbol so Color.valueOf resolves to the same KIR function.
+    /// When owner is the companion, uses the stub's symbol so Color.valueOf
+    /// resolves to the same KIR function.
     func appendSyntheticEnumValueOfIfNeeded(
         name: InternedString,
         owner: SemanticSymbol,
@@ -687,7 +669,6 @@ extension DataEnumSealedSynthesisPass {
 
         var labelCounter: Int32 = 5000
 
-        // For each entry, compare name and return ordinal if matched
         for (ordinal, entry) in entries.enumerated() {
             let entryNameStr = interner.intern(interner.resolve(entry.name))
             let entryNameExpr = module.arena.appendExpr(
@@ -730,7 +711,7 @@ extension DataEnumSealedSynthesisPass {
 
             body.append(.jumpIfEqual(lhs: cmpResult, rhs: falseExpr, target: nextLabel))
 
-            // Match found – return ordinal (enum values are represented as ordinals)
+            // Enum values are represented as ordinals.
             let ordinalExpr = module.arena.appendExpr(
                 .intLiteral(Int64(ordinal)),
                 type: enumType
@@ -741,7 +722,6 @@ extension DataEnumSealedSynthesisPass {
             body.append(.label(nextLabel))
         }
 
-        // No match – build "ClassName." + name and call throw helper.
         // Kotlin throws: IllegalArgumentException: No enum constant ClassName.value
         let prefixInterned = interner.intern("\(enumName).")
         let prefixExpr = module.arena.appendExpr(
@@ -790,7 +770,6 @@ extension DataEnumSealedSynthesisPass {
             valueParameterIsVararg: [false]
         )
 
-        // Use existing stub symbol when companion has valueOf from Sema
         let existingValueOf = sema.symbols.lookupAll(fqName: fqName).first { candidate in
             guard let sym = sema.symbols.symbol(candidate),
                   sym.kind == .function,
@@ -842,9 +821,7 @@ extension DataEnumSealedSynthesisPass {
         }
     }
 
-    /// Synthesizes `__enum_static_init_<ClassName>()` which initialises the
-    /// global slots for each enum entry with their ordinal values, and ensures
-    /// KIRGlobal declarations exist so that codegen allocates LLVM global
+    /// Ensures KIRGlobal declarations exist so that codegen allocates LLVM global
     /// variables for the entries. These globals model ordinal storage, so the
     /// slot declarations and writes must stay typed as `Int`.
     func appendSyntheticEnumStaticInitIfNeeded(
@@ -856,7 +833,6 @@ extension DataEnumSealedSynthesisPass {
         interner: StringInterner
     ) {
         let intType = sema.types.make(.primitive(.int, .nonNull))
-        // Collect existing global symbols so we don't create duplicates.
         var existingGlobalSymbols = Set(module.arena.declarations.compactMap { decl -> SymbolID? in
             guard case let .global(global) = decl else {
                 return nil
@@ -876,28 +852,24 @@ extension DataEnumSealedSynthesisPass {
             }
         }
 
-        // Build the static initialiser body.
         let ownerName = interner.resolve(owner.name)
         let initName = interner.intern("__enum_static_init_\(ownerName)")
 
         var body = KIRLoweringEmitContext()
 
         for (ordinal, entry) in entries.enumerated() {
-            // Produce the ordinal value.
             let ordinalExpr = module.arena.appendExpr(
                 .intLiteral(Int64(ordinal)),
                 type: intType
             )
             body.append(.constValue(result: ordinalExpr, value: .intLiteral(Int64(ordinal))))
 
-            // Reference the entry's global slot.
             let entryRef = module.arena.appendExpr(
                 .symbolRef(entry.id),
                 type: intType
             )
             body.append(.constValue(result: entryRef, value: .symbolRef(entry.id)))
 
-            // Store ordinal into the global slot.
             body.append(.copy(from: ordinalExpr, to: entryRef))
         }
 
@@ -1000,7 +972,4 @@ extension DataEnumSealedSynthesisPass {
             existingFunctionSymbols: existingFunctionSymbols
         )
     }
-
-    /// Appends a KIR function using an existing symbol (e.g. from Sema). Used when the symbol
-    /// was already registered for resolution so call sites bind to the same symbol.
 }

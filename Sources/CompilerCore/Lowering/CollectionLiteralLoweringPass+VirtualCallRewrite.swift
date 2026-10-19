@@ -9,10 +9,8 @@ extension CollectionVirtualCallRewriteLoweringPass {
         let interner: StringInterner
     }
 
-    /// Keep a resolved source declaration on the original virtual-call path
-    /// unless the receiver is a confirmed runtime Sequence box. Runtime
-    /// collection intrinsics are lowered to their ABI callee before this gate;
-    /// no collection API-name allowlist is needed here.
+    /// Runtime collection intrinsics are lowered to their ABI callee before
+    /// this gate; no collection API-name allowlist is needed here.
     private func shouldPreserveSourceBackedCall(
         symbol: SymbolID?,
         receiver: KIRExprID,
@@ -111,9 +109,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return false
         }
 
-        // LOWERING-001: If the receiver is not in any tracking set yet,
-        // attempt to classify it from its static type in the KIR arena.
-        // This handles non-tracked receivers such as function parameters,
+        // Handles non-tracked receivers such as function parameters,
         // function return values, and field loads whose concrete collection
         // kind was not determined by the factory-call pre-scan.
         classifyReceiverByStaticType(
@@ -382,7 +378,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
         return true
     }
 
-    // STDLIB-021: toCollection and destination collection HOFs
     private func rewriteDestinationCollectionHOF(
         callee: InternedString,
         receiver: KIRExprID,
@@ -479,7 +474,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
         return true
     }
 
-    // STDLIB-SEQ-023 / STDLIB-535/536/537: associateByTo / associateWithTo / groupByTo
     private func rewriteAssociateToHOF(
         callee: InternedString,
         receiver: KIRExprID,
@@ -598,7 +592,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        // zipWithNext() — no-arg
         if callee == lookup.zipWithNextName, arguments.isEmpty {
             let hofResult = module.arena.appendTemporary(type: nil
             )
@@ -618,7 +611,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        // zipWithNext(transform) — HOF
         if callee == lookup.zipWithNextName, arguments.count == 1 {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
@@ -750,7 +742,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
         state: inout CollectionRewriteState
     ) {
         let raw = receiver.rawValue
-        // Already classified -- skip.
         if state.listExprIDs.contains(raw) || state.setExprIDs.contains(raw)
             || state.mapExprIDs.contains(raw) || state.arrayExprIDs.contains(raw)
             || state.sequenceExprIDs.contains(raw) || state.sequenceTypeExprIDs.contains(raw)

@@ -120,6 +120,8 @@ struct GoldenHarnessMetadataContractTests {
         // Uuid.LEXICAL_ORDER is pinned DeprecationLevel.ERROR (KUU-855), so
         // the case's useLexicalOrder intentionally emits a deprecation error.
         "stdlib_kotlin_uuid_Uuid_Companion_Companion_n.kt",
+        // Worker.execute rejects capturing job lambda with KSWIFTK-SEMA-0430
+        "stdlib_kotlin_native_concurrent_Worker_Worker_n.kt",
         "use_site_variance.kt",
         "variance_violation.kt",
     ]

@@ -1,5 +1,4 @@
 extension LambdaLowerer {
-    /// Capture the evaluated function value and delegate through its callable ABI.
     func lowerFunctionValueSamWrapper(
         _ exprID: ExprID,
         value: KIRExprID,

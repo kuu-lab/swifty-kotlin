@@ -1,6 +1,5 @@
 extension CollectionLiteralLoweringSupport {
-    /// Resolve the runtime representation evidence needed by a source-backed
-    /// call. State facts are authoritative; a receiver signature can only
+    /// State facts are authoritative; a receiver signature can only
     /// prove that an unclassified receiver is not a Sequence.
     func sequenceRuntimeRepresentationForCall(
         symbol: SymbolID?,

@@ -22,15 +22,11 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 
 /**
  * Mirror of the upstream `TestResult`: the actual type used on the JVM is
- * `Unit`, so this is a `Unit` alias here (same upstream source shape as
- * `CoroutineException` — see kotlinx-coroutines 1.10.x upstream note).
+ * `Unit`, so this is a `Unit` alias here.
  */
 public typealias TestResult = Unit
 
 /**
- * Executes [testBody] as a test coroutine: creates a [TestScope], runs the
- * body on it, and waits for it to complete.
- *
  * Delays in the test scope use virtual time, and remaining scheduled child
  * work is advanced before this function returns. [timeout] is accepted for
  * signature compatibility but is not enforced.

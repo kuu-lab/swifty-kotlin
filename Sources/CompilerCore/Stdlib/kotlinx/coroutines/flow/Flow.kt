@@ -228,8 +228,7 @@ public fun <T> Flow<T>.debounce(timeoutMillis: Long): Flow<T> {
 
 // The operators below share the sequential-collect model: cold flows emit
 // every value synchronously, so temporal/concurrent modifiers reduce to
-// pass-throughs while the filtering and error operators preserve their
-// value-stream semantics.
+// pass-throughs.
 
 public fun <T> Flow<T>.buffer(capacity: Int = -2): Flow<T> {
     require(capacity >= 0 || capacity == -2 || capacity == -1) {

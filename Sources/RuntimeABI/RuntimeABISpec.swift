@@ -1,4 +1,4 @@
-public enum RuntimeABICType: String, Equatable, Sendable {
+public enum RuntimeABICType: String, CaseIterable, Equatable, Sendable {
     case void
     case uint32 = "uint32_t"
     case uint64 = "uint64_t"
@@ -67,19 +67,16 @@ public struct RuntimeABIFunctionSpec: Equatable, Sendable {
         return "\(returnType.rawValue) \(name)(\(params));"
     }
 
-    /// Parameter types only (no names), for ABI reconciliation with `RuntimeABIExterns`.
     public var parameterTypeStrings: [String] {
         parameters.map(\.type.rawValue)
     }
 
-    /// Return type as a raw C string, for ABI reconciliation.
     public var returnTypeString: String {
         returnType.rawValue
     }
 }
 
 public enum RuntimeABISpec {
-    /// SHA-256 hex of the canonical serialization of `allFunctions`.
     /// Computed at first access so parallel PRs no longer need to update a hardcoded hash line.
     public static let specVersion: String = {
         let canonical = allFunctions.map { spec in
@@ -88,8 +85,6 @@ public enum RuntimeABISpec {
         }.joined(separator: "\n")
         return SHA256.hex(Array(canonical.utf8))
     }()
-    /// Concatenation of every sub-array of `RuntimeABIFunctionSpec` defined in this module.
-    ///
     /// The sub-arrays are listed in alphabetical order, one entry per line, so that
     /// parallel branches adding a new category insert their entry at a unique
     /// alphabetic position instead of appending to the same trailing line.
@@ -158,8 +153,8 @@ public enum RuntimeABISpec {
         uuidFunctions,
     ] as [[RuntimeABIFunctionSpec]]).flatMap { $0 }
 
-    /// `allFunctions` indexed by ABI link name; keeps the first spec per name,
-    /// matching `allFunctions.first(where: { $0.name == ... })` semantics.
+    /// Keeps the first spec per name, matching
+    /// `allFunctions.first(where: { $0.name == ... })` semantics.
     public static let byName: [String: RuntimeABIFunctionSpec] = Dictionary(
         allFunctions.map { ($0.name, $0) },
         uniquingKeysWith: { first, _ in first }

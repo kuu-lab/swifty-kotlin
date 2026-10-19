@@ -22,8 +22,6 @@ import kotlin.comparisons.minOf as comparisonMinOf
 @PublishedApi
 internal const val STABLE_SORT_RUN: Int = 16
 
-// --- Selector / comparison element sort --------------------------------------
-//
 // These helpers call the selector/comparison lambdas through ordinary function
 // parameters. Routing them through Comparator implementations would wrap them
 // in an extra function boundary that currently miscompiles inside the bundled
@@ -192,8 +190,6 @@ internal fun <T> MutableList<T>.stableSortByComparison(comparison: (T, T) -> Int
     }
 }
 
-// --- Generic element sort ----------------------------------------------------
-
 @PublishedApi
 internal fun <T> Array<T>.stableSortWith(comparator: Comparator<T>) {
     val n = this.size
@@ -337,7 +333,6 @@ internal fun <T> MutableList<T>.stableSortWith(comparator: Comparator<T>) {
 }
 
 
-// --- Primitive array sort ----------------------------------------------------
 // Stability is unobservable for primitive elements, but the same bottom-up
 // merge structure is kept so every array type shares the O(n log n) shape.
 // Primitive helpers sort directly on element comparisons, so no comparator

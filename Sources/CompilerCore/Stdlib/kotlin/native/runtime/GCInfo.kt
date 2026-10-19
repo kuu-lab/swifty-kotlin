@@ -7,7 +7,6 @@
 
 package kotlin.native.runtime
 
-// KSP-1267: Keep the native GC memory-pool measurement source-backed.
 // Kotlin/Native reports the total allocated object size in bytes, excluding
 // system allocator overhead while including alignment and object headers.
 @NativeRuntimeApi
@@ -16,7 +15,6 @@ public class MemoryUsage(
     public val totalObjectsSizeBytes: Long,
 )
 
-// KSP-1272: Keep both native GC sweep counters source-backed and immutable.
 @NativeRuntimeApi
 @SinceKotlin("1.9")
 public class SweepStatistics(
@@ -24,8 +22,6 @@ public class SweepStatistics(
     public val keptCount: Long,
 )
 
-// KSP-1269/KSP-1270: Keep the native GC root-set statistics DTO source-backed
-// and immutable, matching upstream GCInfo.kt.
 @NativeRuntimeApi
 @SinceKotlin("1.9")
 public class RootSetStatistics(
@@ -35,8 +31,6 @@ public class RootSetStatistics(
     public val stableReferences: Long,
 )
 
-// KSP-1265: Keep the GC pause/heap statistics DTO's full property surface
-// source-backed and immutable, matching upstream GCInfo.kt.
 @NativeRuntimeApi
 @SinceKotlin("1.9")
 public class GCInfo(

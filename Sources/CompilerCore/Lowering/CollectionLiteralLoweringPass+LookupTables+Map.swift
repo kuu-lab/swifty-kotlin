@@ -1,8 +1,5 @@
 import RuntimeABI
 
-/// Map lookup names for `CollectionLiteralLookupTables`.
-///
-/// Split out from `CollectionLiteralLoweringPass+LookupTables.swift`.
 struct MapLookupNames {
     let mapOfName: InternedString
     let mutableMapOfName: InternedString

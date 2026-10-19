@@ -136,13 +136,11 @@ extension KIRLoweringDriver {
         let setAccessorName = interner.intern("set")
         let intType = sema.types.make(.primitive(.int, .nonNull))
 
-        // Pass 1: collect copy targets to distinguish getter vs setter paths.
         var copyTargetExprs: Set<KIRExprID> = []
         for instruction in body {
             if case let .copy(_, toExpr) = instruction { copyTargetExprs.insert(toExpr) }
         }
 
-        // Pass 2: rewrite instructions.
         var targets: [KIRExprID: SymbolID] = [:]
         var result = KIRLoweringEmitContext()
         result.instructions.reserveCapacity(body.count)
@@ -268,8 +266,7 @@ extension KIRLoweringDriver {
         var thrownTarget: Int32
     }
 
-    /// Recovers the exception routing of the guard region opened at
-    /// `beginIndex`. `appendThrowAwareInstructions` tags every wrapped call
+    /// `appendThrowAwareInstructions` tags every wrapped call
     /// with `thrownResult: exceptionSlot` and the `copy(0 -> typeSlot)` +
     /// `jumpIfNotNull(slot -> target)` follow-up, so a sibling call inside the
     /// region exposes the routing directly. When the region holds no wired
@@ -371,8 +368,6 @@ extension KIRLoweringDriver {
 }
 
 extension KIRLoweringDriver {
-    /// Creates a lambda function from the delegate body.
-    ///
     /// A class-member delegate body (`lazy { }`, `Delegates.observable(...) { }`)
     /// may reference other instance fields by bare name (e.g. `initCount += 1`,
     /// DEBT-KIR-008/BUG-170). The generated function is invoked later through

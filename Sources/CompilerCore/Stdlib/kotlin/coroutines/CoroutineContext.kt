@@ -9,12 +9,11 @@ package kotlin.coroutines
 
 import kotlin.internal.KsSymbolName
 
-// KSP-1131/KSP-1143: the context's abstract operations and `plus` are declared
-// in bundled Kotlin source. The runtime models a context as a fixed-key
-// element collection rather than upstream's `CombinedContext` chain, so the
+// KSP-1131/KSP-1143: the runtime models a context as a fixed-key element
+// collection rather than upstream's `CombinedContext` chain, so the
 // declarations bridge native handles to the residual runtime ABI while
-// dispatching source objects to their Kotlin overrides. KSP-1144 places the Element defaults in
-// the same source owner as the upstream stdlib.
+// dispatching source objects to their Kotlin overrides. KSP-1144 places the
+// Element defaults in the same source owner as the upstream stdlib.
 public interface CoroutineContext {
     @KsSymbolName("__kk_context_get_dispatch")
     public operator fun <E : Element> get(key: Key<E>): E?

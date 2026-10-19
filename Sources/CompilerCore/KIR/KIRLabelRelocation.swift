@@ -36,9 +36,6 @@ enum KIRExternalLoopJump {
     }
 }
 
-/// Rewrites control-flow label IDs so that instruction streams lowered
-/// independently can be concatenated into a single function body.
-///
 /// `KIRLoweringContext.makeLoopLabel` restarts at 10000 for every function
 /// scope, which is safe as long as each lowered stream becomes its own
 /// function.  Top-level property initializers break that assumption: each one
@@ -48,9 +45,6 @@ enum KIRExternalLoopJump {
 /// both define `L10000`, the code generator folds them into one basic block,
 /// and the resulting module is malformed IR that crashes LLVM.
 enum KIRLabelRelocation {
-    /// Returns `instructions` with every label ID rewritten to a fresh ID
-    /// above all labels used by `existing`.  Returns them unchanged when the
-    /// two streams already use disjoint label ranges.
     static func relocatingLabels(
         of instructions: [KIRInstruction],
         toAvoidCollisionsWith existing: some Sequence<KIRInstruction>
@@ -58,12 +52,9 @@ enum KIRLabelRelocation {
         relocatingLabels(of: instructions, existingMaxLabelID: maxLabelID(in: existing))
     }
 
-    /// Same relocation as ``relocatingLabels(of:toAvoidCollisionsWith:)``,
-    /// but takes the highest label ID the destination stream already uses
-    /// (`nil` when it carries none). Callers that accumulate a stream
-    /// incrementally — `KIRLoweringEmitContext` tracks ``maxLabelID`` — pass
-    /// the tracked value here so each append costs O(instructions) instead
-    /// of rescanning the whole accumulated buffer.
+    /// Callers that accumulate a stream incrementally — `KIRLoweringEmitContext`
+    /// tracks ``maxLabelID`` — pass the tracked value here so each append costs
+    /// O(instructions) instead of rescanning the whole accumulated buffer.
     static func relocatingLabels(
         of instructions: [KIRInstruction],
         existingMaxLabelID: Int32?
@@ -106,9 +97,8 @@ enum KIRLabelRelocation {
         return highest
     }
 
-    /// Every label ID `instruction` defines or references. The single place
-    /// that enumerates the label-carrying instruction cases, so a new one
-    /// cannot be relocated by one caller and missed by another.
+    /// The single place that enumerates the label-carrying instruction cases,
+    /// so a new one cannot be relocated by one caller and missed by another.
     static func labelIDs(of instruction: KIRInstruction) -> [Int32] {
         switch instruction {
         case let .label(id):
@@ -126,8 +116,6 @@ enum KIRLabelRelocation {
         }
     }
 
-    /// Applies `mapping` to every label ID in `instruction`, leaving IDs the
-    /// mapping does not mention untouched.
     static func rewriteLabels(
         of instruction: KIRInstruction,
         mapping: [Int32: Int32]
@@ -153,8 +141,6 @@ enum KIRLabelRelocation {
 }
 
 extension KIRLoweringEmitContext {
-    /// Appends an independently lowered instruction stream, relocating its
-    /// labels above the ones already accumulated here.
     mutating func appendRelocatingLabels(contentsOf other: KIRLoweringEmitContext) {
         append(contentsOf: KIRLabelRelocation.relocatingLabels(
             of: other.instructions,

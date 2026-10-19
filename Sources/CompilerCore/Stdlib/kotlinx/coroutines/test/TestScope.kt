@@ -32,8 +32,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 private external fun kkTestScopeNewWithContext(context: CoroutineContext): TestScope
 
 /**
- * Creates a scope for test coroutines.
- *
  * Degraded (KSP-1583): the scope is a plain RuntimeCoroutineScope; the
  * [context] is stored but the extra context elements upstream installs
  * (a TestDispatcher bound to the scheduler, a CollectorJob) do not exist.
@@ -42,17 +40,14 @@ private external fun kkTestScopeNewWithContext(context: CoroutineContext): TestS
 public fun TestScope(context: CoroutineContext = EmptyCoroutineContext): TestScope =
     kkTestScopeNewWithContext(context)
 
-/** Advances the virtual clock by [delayTimeMillis] and runs work scheduled for the new time. */
 @ExperimentalCoroutinesApi
 public fun TestScope.advanceTimeBy(delayTimeMillis: Long) {
     testScheduler.advanceTimeBy(delayTimeMillis)
     testScheduler.runCurrent()
 }
 
-/** Runs all enqueued work, advancing the virtual clock as needed. */
 @ExperimentalCoroutinesApi
 public fun TestScope.advanceUntilIdle() = testScheduler.advanceUntilIdle()
 
-/** Runs the work scheduled for the current virtual time. */
 @ExperimentalCoroutinesApi
 public fun TestScope.runCurrent() = testScheduler.runCurrent()

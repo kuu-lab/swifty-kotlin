@@ -191,7 +191,8 @@
         }
       ],
       "optInArguments": [
-        "UnsafeByteStringApi::class"
+        "UnsafeByteStringApi::class",
+        "InternalIoApi::class"
       ],
       "sourceOnly": false,
       "abstract": false,
@@ -507,7 +508,8 @@
       "signature": "F0<RLkotlinx.io.Source;,Lkotlinx.io.bytestring.ByteString;>",
       "parameters": [],
       "optInArguments": [
-        "UnsafeByteStringApi::class"
+        "UnsafeByteStringApi::class",
+        "InternalIoApi::class"
       ],
       "sourceOnly": false,
       "abstract": false,

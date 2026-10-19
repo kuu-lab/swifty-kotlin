@@ -113,7 +113,6 @@ class RuntimeArrayBox {
         if storage.componentType == nil { storage.componentType = type }
     }
 
-    /// A distinct, correctly tagged box over the same mutable element storage.
     func primitiveView(rawValue: Int, sourceTypeID: Int64, targetTypeID: Int64) -> Int {
         storage.viewLock.lock()
         defer { storage.viewLock.unlock() }

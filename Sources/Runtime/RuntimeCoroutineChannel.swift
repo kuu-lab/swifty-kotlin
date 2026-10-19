@@ -1,11 +1,6 @@
 import Dispatch
 import Foundation
 
-// Channel runtime (CORO-001) and Channel iterator (CORO-075).
-//
-// Split out from `RuntimeCoroutine.swift`.
-
-
 /// Out-of-band status codes returned by channel operations.
 /// The actual payload (when present) is written to an `outValue` pointer on receive,
 /// matching the status+out-pointer pattern used by `kk_coroutine_check_cancellation`.
@@ -29,13 +24,9 @@ let kChannelCapacityOptionalChannel: Int = -3
 /// default, used for `Channel(Channel.BUFFERED)`.
 let kChannelDefaultBufferCapacity: Int = 64
 
-/// Buffer overflow strategies for Channel send operations (CORO-001)
 enum ChannelBufferOverflow {
-    /// Suspend the sender when buffer is full (default Kotlin behavior)
     case suspend
-    /// Drop the oldest element in buffer to make room
     case dropOldest
-    /// Drop the element being sent
     case dropLatest
 }
 
@@ -47,7 +38,6 @@ final class SuspendedSender: @unchecked Sendable {
     let semaphore: DispatchSemaphore // CORO-004: Keep for backward compatibility during migration
     let continuation: Int
     let value: Int
-    /// CORO-004: Resume closure for continuation-based implementation
     var resumeClosure: (@Sendable () -> Void)?
 
     /// Set to `true` (under the channel lock) when the sender's value is
@@ -73,11 +63,9 @@ final class SuspendedSender: @unchecked Sendable {
 final class SuspendedReceiver: @unchecked Sendable {
     let semaphore: DispatchSemaphore // CORO-004: Keep for backward compatibility during migration
     let continuation: Int
-    /// CORO-004: Resume closure for continuation-based implementation
     var resumeClosure: (@Sendable () -> Void)?
     /// The value deposited by a sender. `nil` means woken by close or cancel.
     var result: Int?
-    /// Set to `true` when woken due to coroutine cancellation.
     var cancelledWakeup: Bool = false
 
     init(semaphore: DispatchSemaphore, continuation: Int) {
@@ -112,8 +100,6 @@ final class RuntimeClosedReceiveChannelExceptionBox: RuntimeThrowableBox {
     }
 }
 
-/// Runtime representation of `kotlinx.coroutines.channels.ClosedSendChannelException`
-/// (KUU-1404). Mirrors `RuntimeClosedReceiveChannelExceptionBox` for the send side.
 final class RuntimeClosedSendChannelExceptionBox: RuntimeThrowableBox {
     override var exceptionFQName: String {
         "kotlinx.coroutines.channels.ClosedSendChannelException"
@@ -179,14 +165,11 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     private var cancelCauseRaw: Int = 0
     private let bufferOverflow: ChannelBufferOverflow
 
-    // Waiting-sender queue: each suspended sender is a `SuspendedSender`
-    // reference.  Receivers set `delivered = true` before signaling the
-    // semaphore so that senders can distinguish successful delivery from a
-    // close-induced wakeup.
+    // Receivers set `delivered = true` before signaling the semaphore so that
+    // senders can distinguish successful delivery from a close-induced wakeup.
     private var senderQueue = RuntimeFIFOQueue<SuspendedSender>()
 
-    // Waiting-receiver queue: each suspended receiver is a `SuspendedReceiver`
-    // reference.  Senders deposit a value before signaling the semaphore.
+    // Senders deposit a value before signaling the semaphore.
     private var receiverQueue = RuntimeFIFOQueue<SuspendedReceiver>()
     private var awaitCloseRegistered = false
     private var awaitCloseSignal: DispatchSemaphore?
@@ -237,16 +220,10 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         }
     }
 
-    /// Send a value into the channel, suspending (blocking) the caller when
-    /// backpressure is needed.
-    ///
     /// `continuation` is the opaque continuation handle for the calling coroutine.
     /// When non-zero, cancellation is checked before suspending and the sentinel
     /// is returned if the coroutine has been cancelled (matching Kotlin's behavior
     /// of throwing `CancellationException` from `send`).
-    ///
-    /// Returns `.success` when the value is delivered, or `.closed` / `.cancelled`
-    /// when the channel is closed or the calling coroutine is cancelled.
     func send(_ value: Int, continuation: Int = 0) -> ChannelOperationStatus {
         send(value, continuation: continuation, suspendedResult: nil)
     }
@@ -262,29 +239,25 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     ) -> ChannelOperationStatus {
         lock.lock()
 
-        // 0. Check cancellation before any blocking (Kotlin suspend semantics).
         if isCancelled(continuation: continuation) {
             lock.unlock()
             return .cancelled
         }
 
-        // 1. Cancelled channel -- fail immediately with the cancellation
-        //    cause (JVM `send` throws `CancellationException` on a cancelled
-        //    channel). Checked before `closed` so callers can tell the two
-        //    terminal states apart.
+        // Cancelled channel -- fail immediately with the cancellation
+        // cause (JVM `send` throws `CancellationException` on a cancelled
+        // channel). Checked before `closed` so callers can tell the two
+        // terminal states apart.
         if cancelled {
             lock.unlock()
             return .cancelled
         }
 
-        // 1a. Closed channel -- fail immediately.
         if closed {
             lock.unlock()
             return .closed
         }
 
-        // 2. If there is a waiting receiver, hand the value off directly
-        //    (both rendezvous and buffered benefit from this fast path).
         if let receiver = receiverQueue.dequeue() {
             receiver.result = value
             lock.unlock()
@@ -294,35 +267,27 @@ final class RuntimeChannelHandle: @unchecked Sendable {
             return .success
         }
 
-        // 3. Buffered channel with space -- enqueue and return immediately.
         if capacity > 0, buffer.count < capacity {
             buffer.enqueue(value)
             lock.unlock()
             return .success
         }
 
-        // 3a. Handle buffer overflow based on strategy (CORO-001)
         if capacity > 0, buffer.count >= capacity {
             switch bufferOverflow {
             case .suspend:
-                // Fall through to suspension logic below
                 break
             case .dropOldest:
-                // Remove oldest element and add new one
                 _ = buffer.dequeue()
                 buffer.enqueue(value)
                 lock.unlock()
                 return .success
             case .dropLatest:
-                // Drop the element being sent
                 lock.unlock()
                 return .success
             }
         }
 
-        // 4. No room (buffer full or rendezvous) -- suspend the sender.
-        // CORO-004: Store continuation for later dispatch while maintaining
-        // semaphore compatibility during migration.
         let senderSem = DispatchSemaphore(value: 0)
         let entry = SuspendedSender(semaphore: senderSem, continuation: continuation, value: value)
 
@@ -361,7 +326,6 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         RuntimePendingLaunchQueue.flush()
         runtimeWaitDrainingEventLoop(senderSem)
 
-        // After waking, check the wakeup reason.
         lock.lock()
         let wasDelivered = entry.delivered
         let wasCancelled = entry.cancelledWakeup
@@ -425,9 +389,6 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         return .failed
     }
 
-    /// Receive a value from the channel, suspending (blocking) the caller when
-    /// the buffer is empty and no sender is ready.
-    ///
     /// `continuation` is the opaque continuation handle for the calling coroutine.
     /// When non-zero, cancellation is checked before suspending (Kotlin suspend
     /// semantics: `receive` throws `CancellationException` if cancelled).
@@ -438,21 +399,19 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     func receive(continuation: Int = 0, outValue: UnsafeMutablePointer<Int>) -> ChannelOperationStatus {
         lock.lock()
 
-        // 0. Check cancellation before any blocking (Kotlin suspend semantics).
         if isCancelled(continuation: continuation) {
             lock.unlock()
             return .cancelled
         }
 
-        // 0a. Cancelled channel -- fail immediately with the cancellation
-        //     cause, even if elements remain buffered (JVM `cancel` discards
-        //     pending elements).
+        // Cancelled channel -- fail immediately with the cancellation
+        // cause, even if elements remain buffered (JVM `cancel` discards
+        // pending elements).
         if cancelled {
             lock.unlock()
             return .cancelled
         }
 
-        // 1. Try to take from the buffer.
         if let value = buffer.dequeue() {
             // If a sender is suspended (backpressure), wake the oldest one and
             // move its value into the buffer to maintain ordering.
@@ -460,7 +419,6 @@ final class RuntimeChannelHandle: @unchecked Sendable {
                 buffer.enqueue(sender.value)
                 sender.delivered = true
                 lock.unlock()
-                // CORO-004: Use continuation-based resume if available
                 resumeSender(sender)
             } else {
                 lock.unlock()
@@ -469,28 +427,23 @@ final class RuntimeChannelHandle: @unchecked Sendable {
             return .success
         }
 
-        // 2. Buffer is empty -- try to pair directly with a waiting sender
-        //    (rendezvous fast-path, also applies to buffered when a sender
-        //    arrived while the buffer was full and then got drained completely).
+        // Buffer is empty -- try to pair directly with a waiting sender
+        // (rendezvous fast-path, also applies to buffered when a sender
+        // arrived while the buffer was full and then got drained completely).
         if let sender = dequeueLiveSender() {
             let value = sender.value
             sender.delivered = true
             lock.unlock()
-            // CORO-004: Use continuation-based resume if available
             resumeSender(sender)
             outValue.pointee = value
             return .success
         }
 
-        // 3. Nothing available -- if closed, report closed status.
         if closed {
             lock.unlock()
             return .closed
         }
 
-        // 4. Suspend the receiver.
-        // CORO-004: Store continuation for later dispatch while maintaining
-        // semaphore compatibility during migration.
         let receiverEntry = SuspendedReceiver(semaphore: DispatchSemaphore(value: 0), continuation: continuation)
 
         receiverQueue.enqueue(receiverEntry)
@@ -519,7 +472,6 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         RuntimePendingLaunchQueue.flush()
         runtimeWaitDrainingEventLoop(receiverEntry.semaphore)
 
-        // After waking, check the wakeup reason.
         lock.lock()
         let wasCancelled = receiverEntry.cancelledWakeup
         let value = receiverEntry.result
@@ -540,8 +492,6 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         return .closed
     }
 
-    /// Attempt to receive a value without suspending (KSP-1572).
-    ///
     /// Mirrors the non-suspending prefix of `receive(continuation:outValue:)`:
     /// drain the buffer, then pair with the oldest waiting sender. An empty
     /// but open channel reports `.failed`; a closed and fully drained channel
@@ -550,8 +500,8 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     func tryReceive(outValue: UnsafeMutablePointer<Int>) -> ChannelOperationStatus {
         lock.lock()
 
-        // 1. Try to take from the buffer, waking the oldest suspended sender
-        //    so its value keeps FIFO ordering behind the drained element.
+        // Take from the buffer, waking the oldest suspended sender
+        // so its value keeps FIFO ordering behind the drained element.
         if let value = buffer.dequeue() {
             if let sender = dequeueLiveSender() {
                 buffer.enqueue(sender.value)
@@ -565,7 +515,6 @@ final class RuntimeChannelHandle: @unchecked Sendable {
             return .success
         }
 
-        // 2. Buffer is empty -- pair directly with a waiting sender.
         if let sender = dequeueLiveSender() {
             let value = sender.value
             sender.delivered = true
@@ -575,7 +524,6 @@ final class RuntimeChannelHandle: @unchecked Sendable {
             return .success
         }
 
-        // 3. Nothing available without suspending.
         if closed {
             lock.unlock()
             return .closed
@@ -674,13 +622,11 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         // Wake all suspended senders -- they will see `closed == true` and
         // return the closed sentinel.
         for sender in pendingSenders {
-            // CORO-004: Use continuation-based resume if available
             resumeSender(sender)
         }
         // Wake all suspended receivers -- they will find no result deposited
         // and return the closed sentinel.
         for receiver in pendingReceivers {
-            // CORO-004: Use continuation-based resume if available
             resumeReceiver(receiver)
         }
         for handler in pendingCloseHandlers {
@@ -769,8 +715,6 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         return runtimeAllocateCancellationException(message: "Channel was cancelled")
     }
 
-    /// Registers an `invokeOnClose` handler (KSP-1573).
-    ///
     /// Returns `true` when the handler was queued and will run on the first
     /// close.  When the channel is already closed the handler is invoked
     /// inline with the retained close cause, matching kotlinx.coroutines
@@ -826,18 +770,14 @@ final class RuntimeChannelHandle: @unchecked Sendable {
 
         for sender in pendingSenders {
             sender.cancelledWakeup = true
-            // CORO-004: Use continuation-based resume if available
             resumeSender(sender)
         }
         for receiver in pendingReceivers {
             receiver.cancelledWakeup = true
-            // CORO-004: Use continuation-based resume if available
             resumeReceiver(receiver)
         }
     }
 
-    /// Returns the current suspended waiter counts under the channel lock.
-    ///
     /// Runtime tests use this snapshot to synchronize with actual suspension
     /// instead of assuming a background queue has progressed after a fixed delay.
     func suspendedWaiterCountsSnapshot() -> (senders: Int, receivers: Int) {
@@ -857,8 +797,6 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         return nil
     }
 
-    /// CORO-004: Resume a suspended sender using continuation model if available,
-    /// falling back to semaphore for backward compatibility.
     func resumeSender(_ sender: SuspendedSender) {
         if let waiter = sender.waiter {
             if sender.delivered {
@@ -872,26 +810,20 @@ final class RuntimeChannelHandle: @unchecked Sendable {
             return
         }
         if let resumeClosure = sender.resumeClosure {
-            // Continuation-based implementation
             DispatchQueue.global().async {
                 resumeClosure()
             }
         } else {
-            // Fallback to semaphore
             sender.semaphore.signal()
         }
     }
 
-    /// CORO-004: Resume a suspended receiver using continuation model if available,
-    /// falling back to semaphore for backward compatibility.
     func resumeReceiver(_ receiver: SuspendedReceiver) {
         if let resumeClosure = receiver.resumeClosure {
-            // Continuation-based implementation
             DispatchQueue.global().async {
                 resumeClosure()
             }
         } else {
-            // Fallback to semaphore
             receiver.semaphore.signal()
         }
     }
@@ -917,8 +849,6 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         callingJob(continuation: continuation)?.cancellationSnapshot() ?? false
     }
 
-    /// Thread-safe snapshot of the closed flag.
-    ///
     /// Acquires the channel lock before reading `closed` to avoid data races
     /// with concurrent `send()`, `receive()`, and `close()` calls.
     func isClosedSnapshot() -> Bool {
@@ -989,8 +919,6 @@ public func __kk_identity(_ value: Int) -> Int {
     value
 }
 
-/// Resolve a GC-registered `RuntimeChannelHandle` from its raw handle.
-///
 /// Channel send ABIs take `(handle, value)` where both sides are the same
 /// `Int` slot width; compiled code can reach them with the receiver and the
 /// element in either order, so the callee resolves the handle positionally.
@@ -1122,7 +1050,6 @@ public func kk_channel_send(
     return status.rawValue
 }
 
-/// Non-suspending channel send used by `ProducerScope.trySend`.
 @_cdecl("kk_channel_try_send")
 public func kk_channel_try_send(_ handle: Int, _ value: Int) -> Int {
     let (channel, resolvedValue) = runtimeResolveChannelCall(handle, value)
@@ -1215,8 +1142,6 @@ public func kk_channel_is_closed_token(_ status: Int) -> Int {
 /// Returns 1 if the channel is closed for receiving (i.e., it is closed AND the buffer
 /// is empty — no more values will ever be available).  Returns 0 if the channel is
 /// open or if it is closed but still has buffered values to drain.
-///
-/// Maps to Kotlin's `Channel.isClosedForReceive` property.
 @_cdecl("kk_channel_is_closed_for_receive")
 public func kk_channel_is_closed_for_receive(_ handle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
@@ -1228,8 +1153,6 @@ public func kk_channel_is_closed_for_receive(_ handle: Int) -> Int {
 
 /// Returns 1 if the channel is closed for sending (i.e., it has been closed via
 /// `close()`).  Returns 0 if the channel is still open for new sends.
-///
-/// Maps to Kotlin's `Channel.isClosedForSend` property.
 @_cdecl("kk_channel_is_closed_for_send")
 public func kk_channel_is_closed_for_send(_ handle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
@@ -1241,8 +1164,6 @@ public func kk_channel_is_closed_for_send(_ handle: Int) -> Int {
 
 /// Returns 1 when the channel currently has no receivable element: the buffer
 /// is empty and no suspended sender is waiting to hand off a value.
-///
-/// Maps to Kotlin's `ReceiveChannel.isEmpty` property.
 @_cdecl("kk_channel_is_empty")
 public func kk_channel_is_empty(_ handle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
@@ -1409,7 +1330,6 @@ public func __kk_channel_receive_catching(_ handle: Int) -> Int {
     return runtimeChannelResultBox(status: status, value: value, cause: cause)
 }
 
-/// Returns the `ChannelOperationStatus` stored in a `ChannelResult` box.
 @_cdecl("__kk_channel_result_status")
 public func __kk_channel_result_status(_ boxRaw: Int) -> Int {
     guard let box = channelResultBoxFromRaw(boxRaw) else {
@@ -1500,7 +1420,6 @@ private final class RuntimeChannelIterator: @unchecked Sendable {
     let channel: RuntimeChannelHandle
     /// Most recent value fetched by `hasNext`.  Reset to `nil` after `next`.
     var peekedValue: Int?
-    /// Set to `true` once we observe the closed sentinel from `receive()`.
     var done: Bool = false
     private let lock = NSLock()
 
@@ -1508,11 +1427,11 @@ private final class RuntimeChannelIterator: @unchecked Sendable {
         self.channel = channel
     }
 
-    /// Advance the iterator by doing a blocking receive.  Returns the channel
-    /// status: `.success` with `peekedValue` set, or the terminal status
-    /// (`closed` / `cancelled`) so callers can distinguish normal termination
-    /// from cancellation (KUU-1404: JVM `hasNext` throws `CancellationException`
-    /// on a cancelled channel instead of just returning `false`).
+    /// Returns the channel status: `.success` with `peekedValue` set, or the
+    /// terminal status (`closed` / `cancelled`) so callers can distinguish
+    /// normal termination from cancellation (KUU-1404: JVM `hasNext` throws
+    /// `CancellationException` on a cancelled channel instead of just
+    /// returning `false`).
     func advance(continuation: Int = 0) -> ChannelOperationStatus {
         lock.lock()
         if done {
@@ -1534,7 +1453,6 @@ private final class RuntimeChannelIterator: @unchecked Sendable {
         return .success
     }
 
-    /// Return the cached value and clear it.
     func takeValue() -> Int {
         lock.lock()
         defer { lock.unlock() }
@@ -1544,8 +1462,8 @@ private final class RuntimeChannelIterator: @unchecked Sendable {
     }
 }
 
-/// Create a channel iterator for use in for-in loops.  The iterator reference
-/// is registered in `runtimeStorage` so the GC can track it.
+/// The iterator reference is registered in `runtimeStorage` so the GC can
+/// track it.
 @_cdecl("kk_channel_iterator")
 public func kk_channel_iterator(_ handle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {

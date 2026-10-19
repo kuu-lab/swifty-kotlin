@@ -11,9 +11,8 @@ private let ioOutputCloseEntry: @convention(c) (Int, UnsafeMutablePointer<Int>?)
     __kk_output_stream_close_throwing(raw, thrown)
 }
 
-/// Foreign Java IO handles still answer Kotlin nominal checks and Closeable
-/// interface dispatch. Register each allocation after metadata resets; this
-/// does not invent class fields or a JVM classfile/vtable representation.
+/// Register each allocation after metadata resets; this does not invent class
+/// fields or a JVM classfile/vtable representation.
 func runtimeRegisterIoStream(_ object: AnyObject, fqName: String, input: Bool) -> Int {
     let raw = registerRuntimeObject(object, typeID: runtimeStableNominalTypeID(fqName: fqName))
     let baseName = input ? "java.io.InputStream" : "java.io.OutputStream"

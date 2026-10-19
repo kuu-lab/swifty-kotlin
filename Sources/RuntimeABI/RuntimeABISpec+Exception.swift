@@ -1,6 +1,5 @@
 // swiftlint:disable file_length
 
-/// `RuntimeABISpec.exceptionFunctions` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
     static let bridgeThrowableNewSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
         name: "__kk_throwable_new",
@@ -318,41 +317,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "__kk_io_exception_new",
-            parameters: [],
-            returnType: .intptr,
-            section: "Exception",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_io_exception_new_message",
-            parameters: [
-                RuntimeABIParameter(name: "messageRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Exception",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_io_exception_new_message_cause",
-            parameters: [
-                RuntimeABIParameter(name: "messageRaw", type: .intptr),
-                RuntimeABIParameter(name: "causeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Exception",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_io_exception_new_cause",
-            parameters: [
-                RuntimeABIParameter(name: "causeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Exception",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "__kk_character_coding_exception_new",
             parameters: [],
             returnType: .intptr,
@@ -438,8 +402,6 @@ public extension RuntimeABISpec {
             section: "Exception",
             isThrowing: false
         ),
-        // Bridge-only allocation entry points for the bundled Kotlin
-        // `kotlin.NotImplementedError` declaration (KSP-616).
         RuntimeABIFunctionSpec(
             name: "__kk_not_implemented_error_new",
             parameters: [],
@@ -456,8 +418,6 @@ public extension RuntimeABISpec {
             section: "Exception",
             isThrowing: false
         ),
-        // Bridge-only allocation entry points for the bundled Kotlin
-        // `kotlin.OutOfMemoryError` declaration (KSP-750).
         RuntimeABIFunctionSpec(
             name: "__kk_out_of_memory_error_new",
             parameters: [],
@@ -474,8 +434,6 @@ public extension RuntimeABISpec {
             section: "Exception",
             isThrowing: false
         ),
-        // Bridge-only allocation entry points for the bundled Kotlin
-        // `kotlin.StackOverflowError` declaration (KUU-1384).
         RuntimeABIFunctionSpec(
             name: "__kk_stack_overflow_error_new",
             parameters: [],
@@ -936,7 +894,6 @@ public extension RuntimeABISpec {
         bridgeThrowableRawStackFramesSpec,
         bridgeThrowableToStringSpec,
         bridgePrintStderrSpec,
-        // STDLIB-EXCEPT-105: Advanced exception handling
         RuntimeABIFunctionSpec(
             name: "__kk_throwable_setCause",
             parameters: [

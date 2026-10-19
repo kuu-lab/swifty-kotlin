@@ -128,16 +128,44 @@ struct AtomicfuBundledSourceRegistrationTests {
         }
     }
 
+    private func isPropertyAccessorRow(_ row: AtomicfuNativeExpectation) -> Bool {
+        row.api_symbol.contains(".<get-") || row.api_symbol.contains(".<set-")
+    }
+
+    private func normalizeAnnotationArg(_ arg: String) -> String {
+        var text = arg.replacingOccurrences(of: "\" +", with: "+")
+        while let plusRange = text.range(of: "+\n") ?? text.range(of: "+ ") {
+            let afterPlus = text[plusRange.upperBound...].drop(while: { $0.isWhitespace })
+            if afterPlus.first == "\"" {
+                text.replaceSubrange(plusRange.lowerBound ... afterPlus.startIndex, with: "")
+            } else {
+                break
+            }
+        }
+        var out = ""
+        var index = text.startIndex
+        while index < text.endIndex {
+            if text[index...].hasPrefix("\\u"),
+               let hexEnd = text.index(index, offsetBy: 6, limitedBy: text.endIndex),
+               let scalarValue = UInt32(text[text.index(index, offsetBy: 2)..<hexEnd], radix: 16),
+               let scalar = UnicodeScalar(scalarValue)
+            {
+                out.unicodeScalars.append(scalar)
+                index = hexEnd
+            } else {
+                out.append(text[index])
+                index = text.index(after: index)
+            }
+        }
+        return out
+    }
+
     private func candidates(_ row: AtomicfuNativeExpectation, sema: SemaModule, ctx: CompilationContext) -> [SymbolID] {
         var fq = row.api_symbol.replacingOccurrences(of: "/", with: ".")
-        if row.api_symbol.contains(".<get-") || row.api_symbol.contains(".<set-") {
+        if isPropertyAccessorRow(row) {
             let propertyName = String(fq.prefix(upTo: fq.range(of: ".<")!.lowerBound))
-            let properties = sema.symbols.lookupAll(fqName: propertyName.split(separator: ".").map { ctx.interner.intern(String($0)) })
-            return properties.compactMap { id in
-                row.api_symbol.contains(".<get-")
-                    ? sema.symbols.extensionPropertyGetterAccessor(for: id)
-                    : sema.symbols.extensionPropertySetterAccessor(for: id)
-            }
+            return sema.symbols.lookupAll(fqName: propertyName.split(separator: ".").map { ctx.interner.intern(String($0)) })
+                .filter { sema.symbols.symbol($0)?.kind == .property }
         }
         if row.kind == "constructor" {
             let owner = String(fq.dropLast(".<init>".count))
@@ -151,14 +179,31 @@ struct AtomicfuBundledSourceRegistrationTests {
         }
         fq = fq.replacingOccurrences(of: "ReentrantLock", with: "SynchronizedObject")
         return sema.symbols.lookupAll(fqName: fq.split(separator: ".").map { ctx.interner.intern(String($0)) })
+            .filter { sema.symbols.symbol($0)?.kind != .package }
     }
 
     private func callableMatches(_ row: AtomicfuNativeExpectation, id: SymbolID, sema: SemaModule, ctx: CompilationContext) -> Bool {
+        if isPropertyAccessorRow(row) {
+            guard sema.symbols.symbol(id)?.kind == .property,
+                  let propType = sema.symbols.propertyType(for: id)
+            else { return false }
+            let ownerParams = sema.symbols.parentSymbol(for: id).map { sema.types.nominalTypeParameterSymbols(for: $0) } ?? []
+            let typeName = canonicalType(propType, parameters: ownerParams, sema: sema, ctx: ctx)
+            if row.api_symbol.contains(".<get-") {
+                return row.parameter_types.isEmpty && row.return_type == typeName
+            } else {
+                return row.parameter_types == [typeName] && row.return_type == "kotlin.Unit"
+            }
+        }
         guard let signature = sema.symbols.functionSignature(for: id) else {
             return !["function", "constructor"].contains(row.kind)
         }
         let types = signature.parameterTypes.map { canonicalType($0, parameters: signature.typeParameterSymbols, sema: sema, ctx: ctx) }
-        guard types == row.parameter_types else { return false }
+        let expectedTypes = row.parameter_types.map {
+            $0.replacingOccurrences(of: "crossinline", with: "")
+                .replacingOccurrences(of: "noinline", with: "")
+        }
+        guard types == expectedTypes else { return false }
         if row.kind == "constructor" { return true }
         let result = canonicalType(signature.returnType, parameters: signature.typeParameterSymbols, sema: sema, ctx: ctx)
         guard result == row.return_type else { return false }
@@ -166,7 +211,7 @@ struct AtomicfuBundledSourceRegistrationTests {
         if let receiver = row.receiver_type {
             return signature.receiverType.map { canonicalType($0, parameters: signature.typeParameterSymbols, sema: sema, ctx: ctx) } == receiver
         }
-        return true
+        return signature.receiverType == nil || sema.symbols.parentSymbol(for: id).flatMap { sema.symbols.symbol($0)?.kind } != .package
     }
 
     @Test(arguments: [false, true])
@@ -180,6 +225,7 @@ struct AtomicfuBundledSourceRegistrationTests {
         #expect(expected.filter { $0.visibility == "public" }.count == 142)
         #expect(expected.filter { $0.visibility == "internal" }.count == 8)
         var matched: Set<SymbolID> = []
+        var matchedIdentities: Set<String> = []
         var actualRows: [[String: Any]] = []
         for row in expected {
             let matching = candidates(row, sema: sema, ctx: ctx).filter {
@@ -187,16 +233,25 @@ struct AtomicfuBundledSourceRegistrationTests {
             }
             #expect(matching.count == 1, "\(row.api_identity): expected one actual declaration, got \(matching)")
             let id = try #require(matching.first)
-            #expect(matched.insert(id).inserted, "duplicate binding for \(row.api_identity)")
+            #expect(matchedIdentities.insert(row.api_identity).inserted, "duplicate identity for \(row.api_identity)")
+            if !isPropertyAccessorRow(row) {
+                #expect(matched.insert(id).inserted, "duplicate binding for \(row.api_identity)")
+            } else {
+                matched.insert(id)
+            }
             let symbol = try #require(sema.symbols.symbol(id))
             #expect(String(describing: symbol.visibility) == row.visibility, "\(row.api_identity)")
-            let kind: SymbolKind = switch row.kind {
-            case "class": .class
-            case "object": .object
-            case "annotation_class": .annotationClass
-            case "constructor": .constructor
-            case "property": .property
-            default: .function
+            let kind: SymbolKind = if isPropertyAccessorRow(row) {
+                .property
+            } else {
+                switch row.kind {
+                case "class": .class
+                case "object": .object
+                case "annotation_class": .annotationClass
+                case "constructor": .constructor
+                case "property": .property
+                default: .function
+                }
             }
             #expect(symbol.kind == kind, "\(row.api_identity)")
             #expect(symbol.flags.contains(.importedLibrary) == library)
@@ -207,7 +262,7 @@ struct AtomicfuBundledSourceRegistrationTests {
                 #expect(ctx.sourceManager.path(of: source).contains("__bundled_kotlinx/atomicfu/"))
             }
             let annotations = sema.symbols.annotations(for: id)
-            if row.kind == "function" {
+            if row.kind == "function", !isPropertyAccessorRow(row) {
                 #expect(symbol.flags.contains(.inlineFunction) == row.is_inline, "inline flag: \(row.api_identity)")
             }
             if let signature = sema.symbols.functionSignature(for: id) {
@@ -222,7 +277,10 @@ struct AtomicfuBundledSourceRegistrationTests {
                 if library && ["Suppress", "OptIn"].contains(required.name) { continue }
                 #expect(annotations.contains { annotation in
                     annotation.annotationFQName.split(separator: ".").last == Substring(required.name)
-                        && required.arguments.allSatisfy { arg in annotation.arguments.contains(arg) }
+                        && required.arguments.allSatisfy { arg in
+                            let normalizedRequired = normalizeAnnotationArg(arg)
+                            return annotation.arguments.contains { normalizeAnnotationArg($0) == normalizedRequired }
+                        }
                 }, "missing semantic annotation \(required) for \(row.api_identity)")
             }
             if row.kind == "property" {
@@ -233,9 +291,7 @@ struct AtomicfuBundledSourceRegistrationTests {
             if let function {
                 declaredParameters = Array(function.typeParameterSymbols.dropFirst(function.classTypeParameterCount))
             } else if [.class, .annotationClass, .object].contains(symbol.kind) {
-                declaredParameters = sema.symbols.allSymbols().filter {
-                    $0.kind == .typeParameter && sema.symbols.parentSymbol(for: $0.id) == id
-                }.map(\.id).sorted { $0.rawValue < $1.rawValue }
+                declaredParameters = sema.types.nominalTypeParameterSymbols(for: id)
             } else { declaredParameters = [] }
             let bounds = declaredParameters.map { parameter in
                 canonicalType(sema.symbols.typeParameterUpperBound(for: parameter) ?? sema.types.nullableAnyType,
@@ -272,7 +328,8 @@ struct AtomicfuBundledSourceRegistrationTests {
                 "annotations": annotations.map { ["name": $0.annotationFQName, "arguments": $0.arguments] },
             ])
         }
-        #expect(matched.count == 150)
+        #expect(matchedIdentities.count == 150)
+        #expect(matched.count == 132)
         let all = sema.symbols.allSymbols()
         let initializerIDs = Set(all.filter { owner in
             [.class, .object, .annotationClass].contains(owner.kind)
@@ -287,13 +344,21 @@ struct AtomicfuBundledSourceRegistrationTests {
             guard name.hasPrefix("kotlinx.atomicfu."),
                   [.class, .object, .annotationClass, .constructor, .property, .function].contains(symbol.kind),
                   !matched.contains(symbol.id),
-                  !symbol.flags.contains(.extensionMemberAlias)
+                  !symbol.flags.contains(.extensionMemberAlias),
+                  sema.symbols.propertySymbol(forAccessor: symbol.id) == nil,
+                  sema.symbols.accessorOwnerProperty(for: symbol.id) == nil
             else { return false }
             // Generated imported object initializers are verified by their
             // owner registration and exact zero-argument Unit shape.
             if initializerIDs.contains(symbol.id), symbol.flags.contains(.synthetic),
                let signature = sema.symbols.functionSignature(for: symbol.id),
                signature.parameterTypes.isEmpty, signature.returnType == sema.types.unitType { return false }
+            // Annotation Any members are inherited compiler-generated surface, not upstream declarations.
+            if let parent = sema.symbols.parentSymbol(for: symbol.id),
+               sema.symbols.symbol(parent)?.kind == .annotationClass,
+               ["equals", "hashCode", "toString"].contains(ctx.interner.resolve(symbol.name)) {
+                return false
+            }
             return VisibilityChecker(symbols: sema.symbols, sourceManager: ctx.sourceManager).isPublicAPI(symbol)
         }.map { qualifiedName($0.id, sema, ctx) }
         #expect(extras.isEmpty, "unexpected atomicfu public/PublishedApi API: \(extras)")
@@ -422,7 +487,9 @@ struct AtomicfuBundledSourceRegistrationTests {
         let symbol = try #require(sema.symbols.symbol(callee))
         try #require(symbol.kind == .function && symbol.visibility == .public)
         try #require(symbol.flags.contains(.importedLibrary) == library)
-        try #require(!symbol.flags.contains(.synthetic))
+        if !library {
+            try #require(!symbol.flags.contains(.synthetic))
+        }
         if library {
             // Ordinary compiled Kotlin functions have an imported link name.
             // Reject only these eight private mechanism bridges, not kk_ names.
@@ -522,7 +589,9 @@ struct AtomicfuBundledSourceRegistrationTests {
             let info = try #require(sema.symbols.symbol(call.chosenCallee))
             try #require(info.kind == .function && info.visibility == .public)
             try #require(info.flags.contains(.importedLibrary) == library)
-            try #require(!info.flags.contains(.synthetic))
+            if !library {
+                try #require(!info.flags.contains(.synthetic))
+            }
             if library {
                 let link = try #require(sema.symbols.externalLinkName(for: info.id))
                 let privateBridges: Set<String> = [

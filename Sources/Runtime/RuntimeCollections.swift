@@ -4,7 +4,6 @@
 /// two distinct String handles with the same content) are treated as
 /// equal keys while feeding actual content directly into Swift's randomized
 /// `Hasher` to protect against hash-collision denial-of-service (KUU-812).
-/// Used by Set deduplication, Map key lookup, and Sequence terminal operations.
 internal struct RuntimeElementKey: Hashable {
     let value: Int
     /// True when `value` is the bare code of a char-tagged `RuntimeValue`.
@@ -53,9 +52,6 @@ private func runtimeCharScalarKeyEqual(_ lhs: RuntimeElementKey, _ rhs: RuntimeE
     return scalar.value == other.value
 }
 
-/// Hashes an opaque runtime value directly into Swift's randomized `Hasher`
-/// for internal hash-table placement in Set and Map collections.
-///
 /// Unlike public `kk_any_hashCode` (which produces a deterministic 32-bit
 /// polynomial hash matching Kotlin/JVM), this feeds actual UTF-16 code units
 /// and composite elements into Swift's SipHash to ensure linear-time operations
@@ -534,9 +530,7 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
     // since List/Set are deliberately excluded from the generic dynamic-
     // dispatch iterator path). Without this fallback the object's own
     // `iterator()` override is silently skipped in favor of an iterator over
-    // zero elements. Dispatch through the source `Iterable.iterator()` itable
-    // slot, the same bridge `kk_iterable_iterator`/`kk_range_iterator` use for
-    // the shapes they already handle.
+    // zero elements.
     if let sourceIterator = runtimeSourceIterableIterator(listRaw) {
         return sourceIterator
     }
@@ -547,8 +541,7 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
 
 /// Backs both `List.listIterator(index)` and `MutableList.listIterator(index)`
 /// (Sema registers the same external link name for both, matching the
-/// zero-arg `kk_list_iterator` convention above): a list iterator positioned
-/// so the next `next()` call returns the element at `index`.
+/// zero-arg `kk_list_iterator` convention above).
 @_cdecl("kk_list_iterator_at")
 public func kk_list_iterator_at(_ listRaw: Int, _ index: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -592,9 +585,9 @@ public func kk_list_iterator_at(_ listRaw: Int, _ index: Int, _ outThrown: Unsaf
     return raw
 }
 
-/// Returns a mutable view over a list range. ArrayList constructors are
-/// lowered to RuntimeListBox values, so ArrayList must bypass
-/// AbstractMutableList's field-backed default `subList` implementation.
+/// ArrayList constructors are lowered to RuntimeListBox values, so ArrayList
+/// must bypass AbstractMutableList's field-backed default `subList`
+/// implementation.
 @_cdecl("kk_list_subList")
 public func kk_list_subList(
     _ listRaw: Int,
@@ -731,7 +724,6 @@ func runtimeListIteratorAdd(_ iterRaw: Int, _ elem: Int, _ outThrown: UnsafeMuta
     return 0
 }
 
-/// Whether the iterator has a valid previous element.
 /// The invariant maintained by `kk_list_iterator_next` guarantees
 /// `index` is always in `0...elements.count`, but we defensively
 /// also check the upper bound so that a corrupted/invalid index
@@ -756,8 +748,6 @@ public func kk_list_iterator_previous(_ iterRaw: Int) -> Int {
     guard listIteratorCanGoBack(iter) else {
         return 0
     }
-    // Always decrement index and return the element at the new position
-    // This matches the standard ListIterator behavior
     iter.index -= 1
     iter.lastReturnedIndex = iter.index
     return runtimeCollectionABIValue(iter.currentValue?(iter.index) ?? iter.values[iter.index])
@@ -1428,7 +1418,6 @@ public func kk_array_asSequence(_ arrayRaw: Int) -> Int {
 }
 
 
-/// Generic `Iterable<T>.toMutableSet()` that accepts any collection handle (List, Set, etc.).
 /// LinkedHashSet copy-constructor storage, also used by `Iterable.toMutableSet()`.
 /// BUG-254: both callers declare a mutable result backed by LinkedHashSet, so the
 /// box carries that nominal tag rather than the read-only `Set` default.
@@ -1443,7 +1432,6 @@ public func kk_iterable_toMutableSet(_ iterableRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeSetBox(elements: []), typeID: linkedHashSetRuntimeTypeID)
 }
 
-/// HashSet copy-constructor storage with an independent backing box.
 @_cdecl("__kk_iterable_toHashSet")
 public func kk_iterable_toHashSet(_ iterableRaw: Int) -> Int {
     let values = runtimeIterableValues(from: iterableRaw) ?? []
@@ -1453,7 +1441,6 @@ public func kk_iterable_toHashSet(_ iterableRaw: Int) -> Int {
     )
 }
 
-/// Generic `Iterable<T>.last()` that accepts any collection handle (List, Set, etc.).
 @_cdecl("__kk_iterable_last")
 public func kk_iterable_last(_ iterableRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -1465,9 +1452,6 @@ public func kk_iterable_last(_ iterableRaw: Int, _ outThrown: UnsafeMutablePoint
     return last.legacyRawValue
 }
 
-/// Generic `Collection<T>.toMutableList()` that accepts any collection handle
-/// (List, Set, Array, and the generic iterable handles such as
-/// `String.asIterable()`).
 @_cdecl("__kk_collection_toMutableList")
 public func kk_collection_toMutableList(_ collRaw: Int) -> Int {
     if let values = runtimeCollectionOrArrayValues(from: collRaw) ?? runtimeIterableValues(from: collRaw) {

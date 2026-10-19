@@ -17,8 +17,6 @@ source O0/O2 and fresh user-producer library → consumer-only O0/O2; the origin
 suite driver additionally uses stdlib-library O0/O2. The preceding five IO child
 proposals are prerequisites; the 1762 patch is an overlay delta and preserves
 1729 V3's one existing Buffer.hintEmit marker and computed unsafe contexts.
-See `docs/kotlinx-io-jvm-native-interop-contracts.md` for ABI reasons, full scope,
-execution limits and remaining provider/Reader/Writer/classfile boundaries.
 
 V6 retains the preceding 137 observed lines and adds lazy stream descriptions,
 SequenceInputStream validation/close/error composition. The separate 12-line

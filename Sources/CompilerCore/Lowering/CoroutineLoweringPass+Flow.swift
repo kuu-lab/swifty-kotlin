@@ -68,7 +68,6 @@ struct FlowLoweringNames {
 }
 
 extension CoroutineLoweringPass {
-    /// Returns true when `symbol` resolves to a real Kotlin declaration.
     /// Bundled Kotlin declarations imported from a stdlib artifact carry both
     /// `importedLibrary` and `synthetic`, so provenance is checked together
     /// with the compiler-generated `kk_fn_` link name. Runtime bridge stubs
@@ -84,9 +83,7 @@ extension CoroutineLoweringPass {
             && CallLowerer.isSourceBackedLinkName(sema.symbols.externalLinkName(for: symbol))
     }
 
-    /// Lower `flow { }`, `emit`, `map`, `filter`, `take`, `collect` calls to their
-    /// runtime ABI equivalents. Mirrors the `sequenceExprIDs` pattern in
-    /// `CollectionLiteralLoweringPass`.
+    /// Mirrors the `sequenceExprIDs` pattern in `CollectionLiteralLoweringPass`.
     func lowerFlowExpressions(module: KIRModule, ctx: KIRContext) {
         let flowName = ctx.interner.intern("flow")
         let emitName = ctx.interner.intern("emit")
@@ -177,9 +174,8 @@ extension CoroutineLoweringPass {
                 flowScopeFunctionNames.insert(name)
             }
         }
-        // Symbols that directly reference a module-declared function from an
-        // instruction: `constValue(.symbolRef)` values plus the `symbol` field
-        // of direct calls (used by `kk_function_value_adapter_*` forwarders).
+        // The `symbol` field of direct calls is used by
+        // `kk_function_value_adapter_*` forwarders.
         // Suspend machinery calls lowered copies through `$kk_coro_synthetic_*`
         // Sema symbols the arena cannot resolve, so the callee name is also
         // mapped back onto module declarations.
@@ -358,8 +354,6 @@ extension CoroutineLoweringPass {
             flowScopeFunctionSymbols.contains(function.symbol)
                 || flowScopeFunctionNames.contains(function.name)
         }
-        // Worklist BFS: scan each in-scope function once; newly discovered
-        // functions are queued for their own scan.
         var flowScopeWorklist: [SymbolID] = []
         for decl in module.arena.declarations {
             guard case let .function(function) = decl,
@@ -764,7 +758,6 @@ extension CoroutineLoweringPass {
                 }
             }
 
-            // Phase 2: rewrite flow instructions.
             let names = FlowLoweringNames(
                 flow: flowName,
                 emit: emitName,

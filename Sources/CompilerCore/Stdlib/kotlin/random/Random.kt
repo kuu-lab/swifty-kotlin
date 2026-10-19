@@ -10,14 +10,9 @@ package kotlin.random
 import kotlin.math.nextDown
 import kotlin.internal.KsSymbolName
 
-// KSP-466/KSP-685: Random — Kotlin-source implementation of
-// kotlin.random.Random and its deterministic XorWowRandom generator. The
-// public API and state initialization follow kotlin-stdlib's
+// The public API and state initialization follow kotlin-stdlib's
 // libraries/stdlib/src/kotlin/random/{Random,XorWowRandom}.kt structure so
 // seeded output remains bit-exact with kotlinc.
-//
-// Bridge residue: __kk_random_seed_entropy is the only native call, used once
-// to seed Random.Default from system entropy.
 private external fun __kk_random_seed_entropy(): Long
 
 @KsSymbolName("__kk_random_nextInt_rangeObject")
@@ -125,8 +120,6 @@ public abstract class Random : RandomSource, RandomLongSource, RandomIntBitsSour
 
     public open fun nextLong(range: LongRange): Long = __kk_random_nextLong_rangeObject(this, range)
 
-    // Implementations of the runtime-dispatch interfaces used by native
-    // collection/range helpers for deterministic seeded random values.
     public open override fun nextIntBelow(until: Int): Int = nextInt(until)
 
     public open override fun nextIntBits(): Int = nextInt()

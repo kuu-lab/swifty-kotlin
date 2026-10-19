@@ -5,18 +5,29 @@ import Testing
 @Suite(.serialized, .runtimeIsolation(.gcOnly))
 struct RuntimeCollectionBuildersKSP950Tests {
     @Test
-    func testListRemoveChecksFreezeBeforeElementLookup() throws {
-        for populated in [false, true] {
-            let list = __kk_builder_list_new(0)
-            if populated { _ = kk_mutable_list_add(list, 1, nil) }
-            _ = __kk_builder_list_freeze(list)
-            for element in [1, 2] {
-                var thrown = 0
-                #expect(kk_unbox_bool(kk_mutable_list_remove_dispatch(list, element, &thrown)) == 0)
-                let throwable = try #require(runtimeThrowableBox(from: thrown))
-                #expect(runtimeThrowableBoxHasExactType(throwable, RuntimeUnsupportedOperationExceptionBox.self))
-                #expect(kk_list_size(list) == (populated ? 1 : 0))
-            }
+    func testListRemoveChecksFreezeBeforeElementLookup_emptyList() throws {
+        let list = __kk_builder_list_new(0)
+        _ = __kk_builder_list_freeze(list)
+        for element in [1, 2] {
+            var thrown = 0
+            #expect(kk_unbox_bool(kk_mutable_list_remove_dispatch(list, element, &thrown)) == 0)
+            let throwable = try #require(runtimeThrowableBox(from: thrown))
+            #expect(runtimeThrowableBoxHasExactType(throwable, RuntimeUnsupportedOperationExceptionBox.self))
+            #expect(kk_list_size(list) == 0)
+        }
+    }
+
+    @Test
+    func testListRemoveChecksFreezeBeforeElementLookup_populatedList() throws {
+        let list = __kk_builder_list_new(0)
+        _ = kk_mutable_list_add(list, 1, nil)
+        _ = __kk_builder_list_freeze(list)
+        for element in [1, 2] {
+            var thrown = 0
+            #expect(kk_unbox_bool(kk_mutable_list_remove_dispatch(list, element, &thrown)) == 0)
+            let throwable = try #require(runtimeThrowableBox(from: thrown))
+            #expect(runtimeThrowableBoxHasExactType(throwable, RuntimeUnsupportedOperationExceptionBox.self))
+            #expect(kk_list_size(list) == 1)
         }
     }
 

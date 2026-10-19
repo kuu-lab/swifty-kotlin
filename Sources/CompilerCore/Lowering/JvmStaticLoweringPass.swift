@@ -1,13 +1,4 @@
 
-/// ANNO-001: @JvmStatic lowering pass.
-///
-/// Rewrites companion-object members annotated with `@JvmStatic` into
-/// class-level static-like wrappers:
-/// - Synthesize a new wrapper function symbol under the enclosing class.
-/// - Wrapper body materializes the companion singleton and forwards to
-///   the original companion member.
-/// - Existing KIR call sites targeting the companion member are rewritten
-///   to call the wrapper symbol (receiver argument removed).
 final class JvmStaticLoweringPass: LoweringPass {
     static let name = "JvmStaticLowering"
     static let requiredStage: KIRStage = .propertyLowered

@@ -1,6 +1,5 @@
 // swiftlint:disable file_length
 
-/// `RuntimeABISpec.boxingFunctions` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
     static let boxingFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(

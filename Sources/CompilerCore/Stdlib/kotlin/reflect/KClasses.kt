@@ -8,19 +8,6 @@
 package kotlin.reflect
 
 import kotlin.internal.KsSymbolName
-// KSP-496
-// KClass basic API: simpleName, qualifiedName, isInstance, cast, safeCast and
-// the 12 class-kind/modifier boolean flags.
-// Runtime bridges live in Sources/Runtime/RuntimeStringArray.swift.
-//
-// NOTE: extension *properties* use a star-projected `KClass<*>` receiver
-// rather than `<T : Any> KClass<T>` — this compiler's parser does not accept
-// a type-parameter list on an extension property declaration
-// (`val <T> Receiver<T>.name: Type` fails with KSWIFTK-PARSE-0002). The
-// extension *functions* below are unaffected and keep the precise
-// `<T : Any> KClass<T>` receiver.
-
-// ─── ABI bridges ─────────────────────────────────────────────────────────────
 
 @KsSymbolName("__kk_kclass_simple_name")
 private external fun __kk_kclass_simple_name(kclass: KClass<*>): String?
@@ -77,105 +64,57 @@ private external fun __kk_kclass_is_companion(kclass: KClass<*>): Boolean
 @KsSymbolName("__kk_kclass_is_fun")
 private external fun __kk_kclass_is_fun(kclass: KClass<*>): Boolean
 
-// ─── simpleName / qualifiedName ──────────────────────────────────────────────
-
-/**
- * Returns the simple name of the class as it was declared in the source code,
- * or `null` if the class is anonymous.
- */
 public val KClass<*>.simpleName: String?
     get() = __kk_kclass_simple_name(this)
 
-/**
- * Returns the fully qualified dot-separated name of the class,
- * or `null` if the class is local or anonymous.
- */
 public val KClass<*>.qualifiedName: String?
     get() = __kk_kclass_qualified_name(this)
 
-// ─── isInstance ──────────────────────────────────────────────────────────────
-
-/**
- * Returns `true` if [value] is an instance of the class represented by this KClass.
- */
 public fun <T : Any> KClass<T>.isInstance(value: Any?): Boolean =
     __kk_kclass_isInstance(this, value)
 
-// ─── cast / safeCast ─────────────────────────────────────────────────────────
-
-/**
- * Casts [value] to the class represented by this KClass,
- * or throws a `ClassCastException` if it is not an instance of it.
- */
 public fun <T : Any> KClass<T>.cast(value: Any?): T =
     __kk_kclass_cast(this, value) as T
 
-/**
- * Casts [value] to the class represented by this KClass,
- * or returns `null` if it is not an instance of it.
- */
 public fun <T : Any> KClass<T>.safeCast(value: Any?): T? =
     __kk_kclass_safeCast(this, value) as T?
 
-// ─── boolean class-kind / modifier flags ─────────────────────────────────────
-
-/** Returns `true` if this class is `final` and cannot be subclassed. */
 public val KClass<*>.isFinal: Boolean
     get() = __kk_kclass_is_final(this)
 
-/** Returns `true` if this class is `open`. */
 public val KClass<*>.isOpen: Boolean
     get() = __kk_kclass_is_open(this)
 
-/** Returns `true` if this class is `abstract`. */
 public val KClass<*>.isAbstract: Boolean
     get() = __kk_kclass_is_abstract(this)
 
-/** Returns `true` if this class is a `data` class. */
 public val KClass<*>.isData: Boolean
     get() = __kk_kclass_is_data(this)
 
-/**
- * Returns `true` if this class is `sealed`.
- * All subclasses of a sealed class must be known at compile time.
- */
 public val KClass<*>.isSealed: Boolean
     get() = __kk_kclass_is_sealed(this)
 
-/** Returns `true` if this class is a `value` (inline) class. */
 public val KClass<*>.isValue: Boolean
     get() = __kk_kclass_is_value(this)
 
-/** Returns `true` if this class is an `enum` class. */
 public val KClass<*>.isEnum: Boolean
     get() = __kk_kclass_is_enum(this)
 
-/** Returns `true` if this class is an interface. */
 public val KClass<*>.isInterface: Boolean
     get() = __kk_kclass_is_interface(this)
 
-/** Returns `true` if this class is an `object` declaration. */
 public val KClass<*>.isObject: Boolean
     get() = __kk_kclass_is_object(this)
 
-/** Returns `true` if this class is an inner class. */
 public val KClass<*>.isInner: Boolean
     get() = __kk_kclass_is_inner(this)
 
-/** Returns `true` if this class is a companion object. */
 public val KClass<*>.isCompanion: Boolean
     get() = __kk_kclass_is_companion(this)
 
-/** Returns `true` if this class is a functional (`fun`) interface. */
 public val KClass<*>.isFun: Boolean
     get() = __kk_kclass_is_fun(this)
 
-// KSP-496
-// KClass member introspection: visibility, typeParameters, annotations, and
-// the KCallable/KFunction/KProperty-returning collection accessors.
-// Runtime bridges live in Sources/Runtime/RuntimeReflection.swift and
-// Sources/Runtime/RuntimeStringArray.swift.
-//
 // NOTE (KUU-1357): the collection accessors below carry their real upstream
 // element types (`Collection<KCallable<*>>`, `Collection<KClass<*>>`,
 // `List<KType>`, …) — the returned runtime handles carry stable reflection
@@ -197,8 +136,6 @@ public val KClass<*>.isFun: Boolean
 // freely shadow it with a real user-declared extension for kotlinc
 // portability. It remains a compiler special case so user shadowing keeps
 // working exactly as before.
-
-// ─── ABI bridges ─────────────────────────────────────────────────────────────
 
 @KsSymbolName("__kk_kclass_visibility")
 private external fun __kk_kclass_visibility(kclass: KClass<*>): KVisibility?
@@ -237,54 +174,38 @@ private external fun __kk_kclass_supertypes(kclass: KClass<*>): List<KType>
 @KsSymbolName("__kk_kclass_companion_object")
 private external fun __kk_kclass_companion_object(kclass: KClass<*>): Any?
 
-// ─── visibility / typeParameters / annotations ───────────────────────────────
-
-/** Returns the visibility of this class, or `null` if unknown. */
 public val KClass<*>.visibility: KVisibility?
     get() = __kk_kclass_visibility(this)
 
-/** Returns the type parameters of this class. */
 public val KClass<*>.typeParameters: List<Any?>
     get() = __kk_kclass_type_parameters(this)
 
-/** Returns all annotations present on this class. */
 public val KClass<*>.annotations: List<Annotation>
     get() = __kk_kclass_get_annotations(this)
 
-// ─── member / constructor / supertype collections ────────────────────────────
-
-/** Returns all functions and properties declared in this class and its supertypes. */
 public val KClass<*>.members: Collection<KCallable<*>>
     get() = __kk_kclass_members(this)
 
-/** Returns the classes declared directly inside this class. */
 public val KClass<*>.nestedClasses: Collection<KClass<*>>
     get() = __kk_kclass_nested_classes(this)
 
-/** Returns all non-extension member properties declared in this class and its supertypes. */
 public val KClass<*>.memberProperties: Collection<KProperty<*>>
     get() = __kk_kclass_member_properties(this)
 
-/** Returns non-extension member properties declared directly in this class, excluding supertypes. */
 public val KClass<*>.declaredMemberProperties: Collection<KProperty<*>>
     get() = __kk_kclass_declared_member_properties(this)
 
-/** Returns all non-extension functions declared in this class and its supertypes. */
 public val KClass<*>.functions: Collection<KFunction<*>>
     get() = __kk_kclass_functions(this)
 
-/** Returns all non-extension member functions declared in this class and its supertypes. */
 public val KClass<*>.memberFunctions: Collection<KFunction<*>>
     get() = __kk_kclass_member_functions(this)
 
-/** Returns non-extension member functions declared directly in this class, excluding supertypes. */
 public val KClass<*>.declaredMemberFunctions: Collection<KFunction<*>>
     get() = __kk_kclass_declared_member_functions(this)
 
-/** Returns the immediate supertypes of this class. */
 public val KClass<*>.supertypes: List<KType>
     get() = __kk_kclass_supertypes(this)
 
-/** Returns the companion object's [KClass] of this class, or `null` if it has none. */
 public val KClass<*>.companionObject: KClass<*>?
     get() = __kk_kclass_companion_object(this) as? KClass<*>

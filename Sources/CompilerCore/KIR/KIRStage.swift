@@ -1,5 +1,3 @@
-/// Coarse-grained stage markers for the KIR lowering pipeline.
-///
 /// The stages intentionally describe contracts between passes, not every
 /// individual rewrite.  New stages should be added only when a pass boundary
 /// changes the invariants that later passes may rely on.
@@ -43,8 +41,6 @@ public enum KIRStage: Int, CaseIterable, Comparable, CustomStringConvertible, Se
     }
 }
 
-/// A lowering pass was placed at a stage other than the one it declares.
-///
 /// This is thrown only by debug builds.  Release builds still record the
 /// declared output stage, keeping the contract zero-cost in production while
 /// retaining the marker for diagnostics and future consumers.

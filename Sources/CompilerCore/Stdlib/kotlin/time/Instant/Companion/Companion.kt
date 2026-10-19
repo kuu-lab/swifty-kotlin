@@ -2,8 +2,6 @@ package kotlin.time
 
 import kotlin.internal.KsSymbolName
 
-// KSP-1490: construction from epoch components is kept in Kotlin source. The
-// runtime bridge only allocates and normalizes the opaque native Instant box.
 @KsSymbolName("kk_instant_from_epoch_seconds")
 private external fun __kk_instant_from_epoch_seconds(
     epochSeconds: Long,

@@ -16,16 +16,14 @@ func makeSemaModule(
     return (ctx, symbols, types, StringInterner())
 }
 
-/// The host target triple used by test compilations. Does not prepare the
-/// shared precompiled stdlib artifact as a side effect — callers that need
-/// it (because they default to `allowDefaultStdlibLibrary: true`) are
-/// responsible for calling `TestStdlibCache.shared.prepare()` themselves.
+/// Does not prepare the shared precompiled stdlib artifact as a side effect —
+/// callers that need it (because they default to
+/// `allowDefaultStdlibLibrary: true`) are responsible for calling
+/// `TestStdlibCache.shared.prepare()` themselves.
 func defaultTargetTriple() -> TargetTriple {
     TargetTriple.hostDefault()
 }
 
-/// Build a `CompilationContext` for test compilation.
-///
 /// `allowDefaultStdlibLibrary` is intentionally required rather than
 /// defaulted here: CompilerCoreTests and CompilerBackendTests want opposite
 /// defaults (source-compiled bundled stdlib vs. the precompiled artifact),
@@ -90,9 +88,6 @@ func runToLowering(_ ctx: CompilationContext) throws {
     try LoweringPhase().run(ctx)
 }
 
-/// Build a `CompilationContext` whose single input is `source`, injected
-/// directly into the source manager rather than written to disk.
-///
 /// See `makeCompilationContext` for why `allowDefaultStdlibLibrary` has no
 /// default here.
 func makeContextFromSource(

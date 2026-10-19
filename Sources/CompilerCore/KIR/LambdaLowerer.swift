@@ -2,7 +2,6 @@ struct KIRCallableValueInfo {
     let symbol: SymbolID
     let callee: InternedString
     let captureArguments: [KIRExprID]
-    /// True when lambda has closure param for C HOF ABI (filter, map, etc.).
     let hasClosureParam: Bool
     /// Raw entry for trampolines that must own the lambda's continuation frames.
     let unboxedSymbol: SymbolID?
@@ -83,9 +82,7 @@ final class LambdaLowerer {
 
 
     /// Best-effort scan for whether a lowered lambda body performs a call that
-    /// requires a suspend context (`.await()`/`.join()`/`delay`/`yield`/a generic
-    /// suspend-function-invoke/a Flow operation, or a call to another
-    /// already-lowered suspend function). Used to correct a lambda literal's
+    /// requires a suspend context. Used to correct a lambda literal's
     /// `isSuspend` when the contextual/expected type it was checked against is
     /// non-suspend (e.g. `List.map`'s plain `(T) -> R` `transform` parameter)
     /// but the body suspends anyway -- see the call sites for why trusting the
@@ -184,7 +181,6 @@ final class LambdaLowerer {
             driver.ctx.syntheticLambdaSymbol(for: exprID)
         }
 
-        // Enhanced receiver parameter handling for lambda with receiver types
         let hasReceiverParam = functionType?.receiver != nil
             && sema.bindings.coroutineScopeLambdaReceiverTypes[exprID] == nil
         let needsClosureParam = sema.bindings.isCollectionHOFLambdaExpr(exprID) && !isSamConversion
@@ -198,15 +194,11 @@ final class LambdaLowerer {
             } else {
                 params.count
             }
-            // For receiver lambdas (e.g., StringBuilder.() -> Unit), the receiver
-            // is implicitly passed as the first parameter, but only if there's no
-            // active implicit receiver in the current scope
             return baseCount + (needsExplicitReceiver ? 1 : 0)
         }()
 
         let lambdaParameterTypes: [TypeID] = {
             var types: [TypeID] = []
-            // Add receiver parameter first if needed
             if needsExplicitReceiver, let receiverType = functionType?.receiver {
                 types.append(receiverType)
             }
@@ -245,7 +237,6 @@ final class LambdaLowerer {
             receiverType: functionType?.receiver ?? sema.bindings.coroutineScopeLambdaReceiverTypes[exprID]
         )
 
-        // Non-capturing lambda optimization: if no captures, use function pointer directly
         let isNonCapturingLambda = captureSymbols.isEmpty && !needsClosureParam
         if isNonCapturingLambda {
             return lowerNonCapturingLambda(
@@ -300,7 +291,7 @@ final class LambdaLowerer {
         }
 
         // For lambdas passed to C HOFs (filter, map, toComponents, etc.),
-        // Runtime expects (closureRaw, ...valueParams, outThrown). Add closure param as first param.
+        // Runtime expects (closureRaw, ...valueParams, outThrown).
         let lambdaParameters: [KIRParameter]
         if needsClosureParam {
             let closureParamType = captureBindings.count == 1
@@ -401,7 +392,6 @@ final class LambdaLowerer {
             }
         }
         // Multi-capture HOF lambda: closureRaw is a packed closure object.
-        // Load each capture from the object via kk_array_get_inbounds.
         if usesClosureObjectCapture,
            let closureParam = lambdaParameters.first,
            let closureObjExpr = driver.ctx.localValue(for: closureParam.symbol)
@@ -659,17 +649,15 @@ final class LambdaLowerer {
 
     /// Re-establishes one captured symbol's value inside a lambda body's
     /// fresh scope (`resetScopeForFunction()` clears the outer scope's
-    /// bindings, including delegate storage -- see `ScopeSnapshot`), keyed
-    /// off the *kind* of thing `capturedValue` holds:
-    /// - a mutable local's captured value is a box cell (`setMutableCaptureCell`)
-    /// - a delegated local's (KSP-491: `val x by lazy { ... }`/`by Prop()`)
-    ///   captured value is the delegate *instance*, not a value
-    ///   (`setLocalDelegateStorage`) -- reads inside the lambda body must
-    ///   still call getValue fresh, exactly like reads in the declaring
-    ///   scope (see `ExprLowerer.readLocalDelegateValue`), or a vetoable/
-    ///   observable delegate's writes wouldn't be observed from inside the
-    ///   lambda
-    /// - anything else is a plain captured value (`setLocalValue`)
+    /// bindings, including delegate storage -- see `ScopeSnapshot`).
+    ///
+    /// A delegated local's (KSP-491: `val x by lazy { ... }`/`by Prop()`)
+    /// captured value is the delegate *instance*, not a value
+    /// (`setLocalDelegateStorage`) -- reads inside the lambda body must
+    /// still call getValue fresh, exactly like reads in the declaring
+    /// scope (see `ExprLowerer.readLocalDelegateValue`), or a vetoable/
+    /// observable delegate's writes wouldn't be observed from inside the
+    /// lambda.
     private func bindCapturedLambdaValue(
         _ capturedValue: KIRExprID,
         capture: (capturedSymbol: SymbolID, param: KIRParameter, valueExpr: KIRExprID, declaredType: TypeID),
@@ -729,7 +717,6 @@ final class LambdaLowerer {
         }
     }
 
-    /// Lowers a non-capturing lambda with optimized function pointer generation
     private func lowerNonCapturingLambda(
         exprID: ExprID,
         params: [InternedString],
@@ -755,7 +742,6 @@ final class LambdaLowerer {
         let lambdaName = syntheticLambdaName(for: exprID, interner: interner)
         let lambdaSymbol = driver.ctx.syntheticLambdaSymbol(for: exprID)
 
-        // Create optimized lambda parameters (no capture parameters needed)
         let lambdaParameters = (0 ..< effectiveParamCount).map { index in
             KIRParameter(
                 symbol: syntheticLambdaParamSymbol(lambdaExprID: exprID, paramIndex: index),
@@ -763,7 +749,6 @@ final class LambdaLowerer {
             )
         }
 
-        // Generate optimized lambda body
         let scopeSnapshot = driver.ctx.saveScope()
         defer { driver.ctx.restoreScope(scopeSnapshot) }
         driver.ctx.resetScopeForFunction()
@@ -777,13 +762,11 @@ final class LambdaLowerer {
 
         var lambdaBody: [KIRInstruction] = [.beginBlock]
 
-        // Set up parameters only (no captures)
         for (paramIndex, lambdaParam) in lambdaParameters.enumerated() {
             let paramExpr = arena.appendExpr(.symbolRef(lambdaParam.symbol), type: lambdaParam.type)
             lambdaBody.append(.constValue(result: paramExpr, value: .symbolRef(lambdaParam.symbol)))
             driver.ctx.setLocalValue(paramExpr, for: lambdaParam.symbol)
 
-            // Handle receiver parameter if needed
             if paramIndex == 0, hasExplicitReceiverParam {
                 driver.ctx.setImplicitReceiver(symbol: lambdaParam.symbol, exprID: paramExpr)
             }
@@ -792,19 +775,16 @@ final class LambdaLowerer {
         bindCoroutineScopeLambdaReceiver(exprID, sema: sema, arena: arena, interner: interner, instructions: &lambdaBody)
         registerLambdaReceiverValue(lambdaExprID: exprID, hasReceiverParam: functionType?.receiver != nil)
 
-        // Set up parameter name mapping for `it` parameter
         let effectiveParamNames: [InternedString] = if params.isEmpty, let functionType, !functionType.params.isEmpty {
             [interner.intern("it")]
         } else {
             params
         }
-        // Named parameters follow the explicit receiver parameter, if any.
         let valueParamStart = hasExplicitReceiverParam ? 1 : 0
         for (i, paramName) in effectiveParamNames.enumerated() where valueParamStart + i < lambdaParameters.count {
             driver.ctx.registerLambdaParam(symbol: lambdaParameters[valueParamStart + i].symbol, forName: paramName)
         }
 
-        // Lower the body
         let loweredBody = driver.lowerExpr(
             bodyExpr,
             ast: ast,
@@ -839,24 +819,22 @@ final class LambdaLowerer {
         }
         let hasNonLocalLoopJump = sema.bindings.loopJumpLambdaPaths.values.contains { $0.contains(exprID) }
 
-        // Create optimized function declaration
         let lambdaDecl = arena.appendDecl(
             .function(
                 KIRFunction(
                     symbol: lambdaSymbol,
                     name: lambdaName,
-                    params: lambdaParameters, // No capture parameters
+                    params: lambdaParameters,
                     returnType: lambdaReturnType,
                     body: lambdaBody,
                     isSuspend: effectiveIsSuspend,
-                    isInline: true, // Mark as inline for better optimization
+                    isInline: true,
                     isInlineOnly: hasNonLocalReturn || hasNonLocalLoopJump
                 )
             )
         )
         driver.ctx.appendGeneratedCallableDecl(lambdaDecl)
 
-        // Handle SAM conversion if needed
         if isSamConversion,
            let boundType,
            case let .classType(interfaceType) = sema.types.kind(of: boundType),
@@ -866,7 +844,7 @@ final class LambdaLowerer {
                lambdaSymbol: lambdaSymbol,
                lambdaName: lambdaName,
                lambdaReturnType: lambdaReturnType,
-               captureBindings: [], // No captures for non-capturing lambda
+               captureBindings: [],
                samMethodParamTypes: lambdaParameterTypes,
                sema: sema,
                arena: arena,
@@ -877,7 +855,6 @@ final class LambdaLowerer {
             return samValue
         }
 
-        // Create optimized lambda value
         let lambdaValueType = effectiveFuncTypeID
             ?? boundType
             ?? sema.types.make(
@@ -911,12 +888,11 @@ final class LambdaLowerer {
             )
         }
 
-        // Register with no capture arguments for optimization
         driver.ctx.registerCallableValue(
             lambdaValueExpr,
             symbol: lambdaSymbol,
             callee: lambdaName,
-            captureArguments: [], // Empty for non-capturing lambda
+            captureArguments: [],
             hasClosureParam: false
         )
 

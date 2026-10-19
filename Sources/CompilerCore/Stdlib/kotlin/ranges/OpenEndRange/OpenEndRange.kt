@@ -9,12 +9,10 @@ package kotlin.ranges
 
 import kotlin.internal.KsSymbolName
 
-// KSP-1311: the `OpenEndRange<T>` member declarations are source-backed here,
-// moved out of Ranges.kt alongside the interface itself. The declaration still
-// reuses the synthetic shell registered by
-// `HeaderHelpers+SyntheticRangeProgressionStubs.swift`, so `rangeUntil` and the
-// concrete range conformances wired before bundled header collection keep
-// resolving to the same nominal symbol.
+// KSP-1311: the `OpenEndRange<T>` declaration still reuses the synthetic shell
+// registered by `HeaderHelpers+SyntheticRangeProgressionStubs.swift`, so
+// `rangeUntil` and the concrete range conformances wired before bundled header
+// collection keep resolving to the same nominal symbol.
 //
 // Runtime range values (`1..<5`, `x..<y`) are opaque `RuntimeRangeBox` handles
 // that do not register interface itables, so interface-typed member access
@@ -24,32 +22,18 @@ import kotlin.internal.KsSymbolName
 // `Map.size` pattern), while `contains`/`isEmpty` bind the call sites
 // directly through `@KsSymbolName` like `Set.isEmpty`/`Map.isEmpty`.
 
-/**
- * Represents a range of [Comparable] values with the upper bound excluded from the range.
- */
 public interface OpenEndRange<T : Comparable<T>> {
-    /**
-     * The minimum value in the range.
-     */
     public val start: T
 
     /**
-     * The maximum value in the range (exclusive).
-     *
      * @throws IllegalStateException can be thrown if the exclusive end bound cannot be represented
      * with a value of type [T].
      */
     public val endExclusive: T
 
-    /**
-     * Checks whether the specified [value] belongs to the range.
-     */
     @KsSymbolName("__kk_range_contains")
     public operator fun contains(value: T): Boolean
 
-    /**
-     * Checks whether the range is empty.
-     */
     @KsSymbolName("__kk_range_isEmpty")
     public fun isEmpty(): Boolean
 }

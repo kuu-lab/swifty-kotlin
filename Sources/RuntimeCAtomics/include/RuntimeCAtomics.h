@@ -12,10 +12,9 @@
 #include <stdint.h>
 #include "RuntimeCStdio.h"
 
-// Hardware atomic ops backing kotlin.concurrent.Atomic* boxes. Kotlin atomics
-// carry sequential-consistency visibility guarantees, so every op uses
-// memory_order_seq_cst — matching the full-barrier semantics the previous
-// NSLock-backed storage provided.
+// Kotlin atomics carry sequential-consistency visibility guarantees, so every
+// op uses memory_order_seq_cst — matching the full-barrier semantics the
+// previous NSLock-backed storage provided.
 //
 // Signatures use plain pointer types because Swift cannot import _Atomic
 // types; the atomic qualifier is applied inside each function, so all accesses

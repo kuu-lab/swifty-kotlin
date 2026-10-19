@@ -1,9 +1,5 @@
 
 
-/// A deterministic PRNG using the xorshift64* algorithm.
-/// Each `Random(seed)` call creates a new instance whose state evolves
-/// independently so that two instances with the same seed produce identical
-/// sequences.
 final class SeededRandomBox {
     /// Internal PRNG state (xorshift64*).
     var state: UInt64
@@ -23,7 +19,6 @@ final class SeededRandomBox {
         self.state = s
     }
 
-    /// Returns the next pseudo-random UInt64.
     func nextBits() -> UInt64 {
         var s = state
         s ^= s >> 12
@@ -33,7 +28,6 @@ final class SeededRandomBox {
         return s &* 0x2545F4914F6CDD1D
     }
 
-    /// Returns a random Int (full range).
     func nextFullInt() -> Int {
         Int(bitPattern: UInt(truncatingIfNeeded: nextBits()))
     }
@@ -171,22 +165,6 @@ final class SecureRandomBox {
     }
 }
 
-/// Extract a SeededRandomBox from a raw receiver value.
-/// Returns `nil` when the receiver is 0 (= Random.Default / companion object)
-/// or when the handle belongs to a normal compiled Kotlin object.
-private func seededBox(from raw: Int) -> SeededRandomBox? {
-    guard raw != 0, let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
-        return nil
-    }
-    let isSeededRandomPointer = runtimeStorage.withGCLock { state in
-        state.seededRandomPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isSeededRandomPointer else {
-        return nil
-    }
-    return Unmanaged<SeededRandomBox>.fromOpaque(ptr).takeUnretainedValue()
-}
-
 private func secureRandomBox(from raw: Int) -> SecureRandomBox? {
     guard raw != 0, let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return nil
@@ -210,9 +188,6 @@ private func runtimeRandomULongBits(receiver: Int) -> UInt64 {
 
 private func runtimeRandomULongBelow(_ upperBound: UInt64, receiver: Int) -> UInt64 {
     precondition(upperBound > 0)
-    if let box = seededBox(from: receiver) {
-        return box.nextBits() % upperBound
-    }
     if upperBound == 1 {
         return 0
     }
@@ -222,11 +197,6 @@ private func runtimeRandomULongBelow(_ upperBound: UInt64, receiver: Int) -> UIn
         candidate = runtimeRandomULongBits(receiver: receiver)
     }
     return candidate % upperBound
-}
-
-private func runtimeRandomULongRange(receiver: Int, from: UInt64, until: UInt64) -> UInt64 {
-    let width = until &- from
-    return from &+ runtimeRandomULongBelow(width, receiver: receiver)
 }
 
 private func uint32Payload(_ raw: Int) -> UInt64 {
@@ -257,23 +227,6 @@ private func runtimeRandomUIntBelow(_ upperBound: UInt64, receiver: Int) -> UInt
 private func runtimeRandomUIntRange(receiver: Int, from: UInt64, until: UInt64) -> UInt64 {
     from + runtimeRandomUIntBelow(until - from, receiver: receiver)
 }
-
-
-private func runtimeCreateSeededRandom(seed: Int) -> Int {
-    let box = SeededRandomBox(seed: seed)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withGCLock { state in
-        let key = UInt(bitPattern: ptr)
-        state.objectPointers.insert(key)
-        state.seededRandomPointers.insert(key)
-    }
-    return Int(bitPattern: ptr)
-}
-
-public func __kk_random_create_seeded(_ seed: Int) -> Int {
-    runtimeCreateSeededRandom(seed: seed)
-}
-
 
 @_cdecl("__kk_secure_random_get_instance")
 public func __kk_secure_random_get_instance() -> Int {
@@ -314,64 +267,6 @@ public func __kk_secure_random_next_bytes(_ receiver: Int, _ arrayRaw: Int) -> I
     return arrayRaw
 }
 
-
-public func __kk_random_default() -> Int {
-    0
-}
-
-public func __kk_random_asKotlinRandom(_ receiver: Int) -> Int {
-    receiver
-}
-
-public func __kk_random_asJavaRandom(_ receiver: Int) -> Int {
-    receiver
-}
-
-public func kk_random_nextInt(_ receiver: Int) -> Int {
-    if let box = seededBox(from: receiver) {
-        return box.nextFullInt()
-    }
-    return Int.random(in: Int.min ... Int.max)
-}
-
-public func kk_random_nextLong(_ receiver: Int) -> Int {
-    if let box = seededBox(from: receiver) {
-        return box.nextFullInt()
-    }
-    return Int.random(in: Int.min ... Int.max)
-}
-
-public func kk_random_nextULong(_ receiver: Int) -> Int {
-    Int(bitPattern: UInt(truncatingIfNeeded: runtimeRandomULongBits(receiver: receiver)))
-}
-
-public func kk_random_nextULong_until(_ receiver: Int, _ until: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let upper = ulongPayload(until)
-    guard upper > 0 else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Random range is empty: until must be positive, but was \(upper)."
-        )
-        return 0
-    }
-    let value = runtimeRandomULongBelow(upper, receiver: receiver)
-    return Int(bitPattern: UInt(truncatingIfNeeded: value))
-}
-
-public func kk_random_nextULong_range(_ receiver: Int, _ from: Int, _ until: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let lower = ulongPayload(from)
-    let upper = ulongPayload(until)
-    guard upper > lower else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Random range is empty: \(lower)..\(upper)."
-        )
-        return 0
-    }
-    let value = runtimeRandomULongRange(receiver: receiver, from: lower, until: upper)
-    return Int(bitPattern: UInt(truncatingIfNeeded: value))
-}
-
 @_cdecl("__kk_random_nextULong_ulongRange")
 public func __kk_random_nextULong_ulongRange(_ receiver: Int, _ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -396,31 +291,6 @@ public func __kk_random_nextULong_ulongRange(_ receiver: Int, _ rangeRaw: Int, _
     return Int(bitPattern: UInt(truncatingIfNeeded: value))
 }
 
-public func kk_random_nextUInt(_ receiver: Int) -> Int {
-    Int(runtimeRandomUInt32Bits(receiver: receiver))
-}
-
-public func kk_random_nextUInt_until(_ receiver: Int, _ until: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let upper = uint32Payload(until)
-    guard upper > 0 else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Random range is empty: 0..\(until).")
-        return 0
-    }
-    return Int(runtimeRandomUIntBelow(upper, receiver: receiver))
-}
-
-public func kk_random_nextUInt_range(_ receiver: Int, _ from: Int, _ until: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let lower = uint32Payload(from)
-    let upper = uint32Payload(until)
-    guard upper > lower else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Random range is empty: \(from)..\(until).")
-        return Int(lower)
-    }
-    return Int(runtimeRandomUIntRange(receiver: receiver, from: lower, until: upper))
-}
-
 @_cdecl("__kk_random_nextUInt_uintRange")
 public func __kk_random_nextUInt_uintRange(_ receiver: Int, _ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -436,157 +306,4 @@ public func __kk_random_nextUInt_uintRange(_ receiver: Int, _ rangeRaw: Int, _ o
     }
     let exclusiveUpper = last == UInt64(UInt32.max) ? UInt64(UInt32.max) + 1 : last + 1
     return Int(runtimeRandomUIntRange(receiver: receiver, from: first, until: exclusiveUpper))
-}
-
-
-private func runtimeRandomByte(receiver: Int) -> Int {
-    if let box = seededBox(from: receiver) {
-        return Int(Int8(truncatingIfNeeded: box.nextBits()))
-    }
-    return Int(Int8.random(in: Int8.min ... Int8.max))
-}
-
-private func runtimeRandomUByte(receiver: Int) -> Int {
-    if let box = seededBox(from: receiver) {
-        return Int(UInt8(truncatingIfNeeded: box.nextBits()))
-    }
-    return Int(UInt8.random(in: UInt8.min ... UInt8.max))
-}
-
-public func kk_random_nextBytes(_ receiver: Int, _ arrayRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: arrayRaw) else {
-        // If the argument is not a valid list, return an empty list.
-        return registerRuntimeObject(RuntimeListBox(elements: []))
-    }
-    // Fill each element with a random byte in [-128, 127] (Kotlin's Byte range).
-    var filled: [Int] = []
-    filled.reserveCapacity(list.count)
-    for _ in 0..<list.count {
-        filled.append(runtimeRandomByte(receiver: receiver))
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: filled))
-}
-
-public func kk_random_nextBytes_size(_ receiver: Int, _ size: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard size >= 0 else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Random byte array size must be non-negative, but was \(size)."
-        )
-        return 0
-    }
-    let arrayRaw = registerRuntimeObject(RuntimeListBox(elements: Array(repeating: 0, count: size)))
-    return kk_random_nextBytes(receiver, arrayRaw)
-}
-
-public func kk_random_nextBytes_range(
-    _ receiver: Int,
-    _ arrayRaw: Int,
-    _ fromIndex: Int,
-    _ toIndex: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    if let list = runtimeListBox(from: arrayRaw) {
-        guard fromIndex >= 0, toIndex >= fromIndex, toIndex <= list.count else {
-            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-                message: "Random.nextBytes range [\(fromIndex), \(toIndex)) is out of bounds for size \(list.count)."
-            )
-            return arrayRaw
-        }
-        for index in fromIndex..<toIndex {
-            list[index] = runtimeRandomByte(receiver: receiver)
-        }
-        return arrayRaw
-    }
-    if let array = runtimeArrayBox(from: arrayRaw) {
-        guard fromIndex >= 0, toIndex >= fromIndex, toIndex <= array.count else {
-            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-                message: "Random.nextBytes range [\(fromIndex), \(toIndex)) is out of bounds for size \(array.count)."
-            )
-            return arrayRaw
-        }
-        for index in fromIndex..<toIndex {
-            array[index] = runtimeRandomByte(receiver: receiver)
-        }
-        return arrayRaw
-    }
-    outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-        message: "Random.nextBytes expected a ByteArray receiver."
-    )
-    return registerRuntimeObject(RuntimeListBox(elements: []))
-}
-
-public func kk_random_nextUBytes_size(_ receiver: Int, _ size: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard size >= 0 else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Random.nextUBytes size (\(size)) must be non-negative."
-        )
-        return registerRuntimeObject(RuntimeArrayBox(length: 0))
-    }
-    let array = RuntimeArrayBox(length: size)
-    for index in 0..<size {
-        array[index] = runtimeRandomUByte(receiver: receiver)
-    }
-    return registerRuntimeObject(array)
-}
-
-public func kk_random_nextUBytes(_ receiver: Int, _ arrayRaw: Int) -> Int {
-    guard let array = runtimeArrayBox(from: arrayRaw) else {
-        return registerRuntimeObject(RuntimeArrayBox(length: 0))
-    }
-    for index in 0 ..< array.count {
-        array[index] = runtimeRandomUByte(receiver: receiver)
-    }
-    return arrayRaw
-}
-
-public func kk_random_nextUBytes_range(
-    _ receiver: Int,
-    _ arrayRaw: Int,
-    _ fromIndex: Int,
-    _ toIndex: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let array = runtimeArrayBox(from: arrayRaw) else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Random.nextUBytes expected a UByteArray receiver."
-        )
-        return registerRuntimeObject(RuntimeArrayBox(length: 0))
-    }
-    guard fromIndex >= 0, toIndex >= fromIndex, toIndex <= array.count else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Random.nextUBytes range [\(fromIndex), \(toIndex)) is out of bounds for size \(array.count)."
-        )
-        return arrayRaw
-    }
-    for index in fromIndex..<toIndex {
-        array[index] = runtimeRandomUByte(receiver: receiver)
-    }
-    return arrayRaw
-}
-
-
-public func kk_random_nextBits(_ receiver: Int, _ bitCount: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard bitCount >= 0, bitCount <= 32 else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "bitCount (\(bitCount)) must be in 0..32."
-        )
-        return 0
-    }
-    if bitCount == 0 { return 0 }
-    let raw: UInt64
-    if let box = seededBox(from: receiver) {
-        raw = box.nextBits()
-    } else {
-        var rng = SystemRandomNumberGenerator()
-        raw = rng.next()
-    }
-    // Keep only the lower `bitCount` bits as an unsigned value, then
-    // reinterpret as a signed Int so the result fits Kotlin's Int type.
-    let mask: UInt64 = bitCount == 32 ? 0xFFFFFFFF : (1 << bitCount) - 1
-    return Int(Int32(bitPattern: UInt32(raw & mask)))
 }

@@ -1,7 +1,5 @@
 import Foundation
 
-/// Minimal read-only zip archive reader.
-///
 /// Kotlin `.klib` libraries are zip files with a fixed directory layout
 /// (`default/manifest`, `default/ir/...`). Foundation provides no zip support
 /// and the package has no external dependencies, so this parses the central
@@ -47,8 +45,6 @@ package struct ZipArchive {
         else {
             throw KlibFormatError.truncatedArchive
         }
-        // Multi-disk archives are rejected: disk fields must all be zero and
-        // the two entry counts must agree.
         let diskNumber = try Self.u16(bytes, eocdOffset + 4)
         let cdStartDisk = try Self.u16(bytes, eocdOffset + 6)
         let entriesThisDisk = try Self.u16(bytes, eocdOffset + 8)
@@ -114,8 +110,6 @@ package struct ZipArchive {
         entryOffsetsByName[path].map { entries[$0] }
     }
 
-    /// Returns the uncompressed contents of an entry, inflating if needed and
-    /// validating size and CRC-32.
     package func contents(of entry: Entry) throws -> [UInt8] {
         let compressed = bytes[entry.dataRange]
         let contents: [UInt8]

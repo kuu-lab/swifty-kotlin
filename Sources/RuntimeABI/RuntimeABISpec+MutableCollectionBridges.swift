@@ -1,4 +1,3 @@
-/// Mutable-collection mutation bridge ABI specs split out from `RuntimeABISpec+Collection.swift`.
 public extension RuntimeABISpec {
     static let bridgeMutableListAddSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
         name: "__kk_mutable_list_add",

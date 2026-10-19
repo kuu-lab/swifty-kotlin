@@ -1,8 +1,4 @@
-//
-// Typed RuntimeThrowableBox subclasses for AssertionError, IllegalStateException,
-// IllegalArgumentException, NoWhenBranchMatchedException, and
-// ConcurrentModificationException, StringIndexOutOfBoundsException, and
-// ArrayIndexOutOfBoundsException. These enable proper type-discriminated catch
+// Typed RuntimeThrowableBox subclasses enable proper type-discriminated catch
 // blocks in compiled Kotlin code (e.g., `catch (e: IllegalArgumentException)`).
 //
 // The message stored in each box is the *user-visible* message (without the
@@ -279,14 +275,13 @@ final class RuntimeNegativeArraySizeExceptionBox: RuntimeThrowableBox {
     }
 }
 
-// KSP-467-adjacent (catch-clause sibling-type discrimination fix): typed boxes for
-// the remaining built-in exception classes that were previously constructed via the
-// generic, type-erased `__kk_throwable_new`/`__kk_throwable_new_with_cause` external
-// functions. Without a distinct RuntimeThrowableBox subclass + hierarchy, `kk_op_is`
-// cannot tell these apart from any other built-in exception, so a `catch (e: T)`
-// clause for one of these types would incorrectly match an unrelated sibling
-// exception (e.g. `catch (e: NumberFormatException)` catching a thrown
-// `IllegalStateException`). See Sources/Runtime/RuntimeStringArray.swift kk_op_is.
+// Typed boxes for the remaining built-in exception classes that were previously
+// constructed via the generic, type-erased `__kk_throwable_new`/
+// `__kk_throwable_new_with_cause` external functions. Without a distinct
+// RuntimeThrowableBox subclass + hierarchy, `kk_op_is` cannot tell these apart
+// from any other built-in exception, so a `catch (e: T)` clause for one of these
+// types would incorrectly match an unrelated sibling exception (e.g.
+// `catch (e: NumberFormatException)` catching a thrown `IllegalStateException`).
 final class RuntimeExceptionBox: RuntimeThrowableBox {
     override var exceptionFQName: String {
         "kotlin.Exception"
@@ -573,22 +568,18 @@ func runtimeAllocateFreezingException(toFreezeRaw: Int, blockerRaw: Int) -> Int 
     return runtimeRegisterThrowable(RuntimeFreezingExceptionBox(message: message))
 }
 
-/// Allocates an `AssertionError` with the given message.
 func runtimeAllocateAssertionError(message: String?, cause: Int = 0) -> Int {
     return runtimeRegisterThrowable(RuntimeAssertionErrorBox(message: message, cause: cause))
 }
 
-/// Allocates an `IllegalStateException` with the given message.
 func runtimeAllocateIllegalStateException(message: String?, cause: Int = 0) -> Int {
     return runtimeRegisterThrowable(RuntimeIllegalStateExceptionBox(message: message, cause: cause))
 }
 
-/// Allocates an `IllegalArgumentException` with the given message.
 func runtimeAllocateIllegalArgumentException(message: String?, cause: Int = 0) -> Int {
     return runtimeRegisterThrowable(RuntimeIllegalArgumentExceptionBox(message: message, cause: cause))
 }
 
-/// Allocates a Java `InvalidParameterException` with its distinct runtime type identity.
 func runtimeAllocateInvalidParameterException(message: String?, cause: Int = 0) -> Int {
     return runtimeRegisterThrowable(RuntimeInvalidParameterExceptionBox(message: message, cause: cause))
 }
@@ -625,22 +616,18 @@ func runtimeAllocateArithmeticException(message: String?, cause: Int = 0) -> Int
     return runtimeRegisterThrowable(RuntimeArithmeticExceptionBox(message: message, cause: cause))
 }
 
-/// Allocates a `NegativeArraySizeException` with the given message.
 func runtimeAllocateNegativeArraySizeException(message: String?) -> Int {
     return runtimeRegisterThrowable(RuntimeNegativeArraySizeExceptionBox(message: message))
 }
 
-/// Allocates an `Exception` with the given message.
 func runtimeAllocateException(message: String?, cause: Int = 0) -> Int {
     return runtimeRegisterThrowable(RuntimeExceptionBox(message: message, cause: cause))
 }
 
-/// Allocates a `java.io.IOException` with the given message and cause.
 func runtimeAllocateIOException(message: String?, cause: Int = 0) -> Int {
     return runtimeRegisterThrowable(RuntimeIOExceptionBox(message: message, cause: cause))
 }
 
-/// Allocates a `CharacterCodingException` with the given message.
 func runtimeAllocateCharacterCodingException(message: String?) -> Int {
     return runtimeRegisterThrowable(RuntimeCharacterCodingExceptionBox(message: message))
 }
@@ -648,67 +635,54 @@ func runtimeAllocateCharacterCodingException(message: String?) -> Int {
 /// Message used by `MalformedInputException` for a one-byte invalid sequence.
 let runtimeMalformedInputExceptionDefaultMessage = "Input length = 1"
 
-/// Allocates a `MalformedInputException` with the given message.
 func runtimeAllocateMalformedInputException(
     message: String? = runtimeMalformedInputExceptionDefaultMessage
 ) -> Int {
     return runtimeRegisterThrowable(RuntimeMalformedInputExceptionBox(message: message))
 }
 
-/// Allocates a `KotlinNothingValueException` with the given message.
 func runtimeAllocateKotlinNothingValueException(message: String?, cause: Int = 0) -> Int {
     return runtimeRegisterThrowable(RuntimeKotlinNothingValueExceptionBox(message: message, cause: cause))
 }
 
-/// Allocates an `Error` with the given message.
 func runtimeAllocateError(message: String?, cause: Int = 0) -> Int {
     return runtimeRegisterThrowable(RuntimeErrorBox(message: message, cause: cause))
 }
 
-/// Allocates an `OutOfMemoryError` with the given message.
 func runtimeAllocateOutOfMemoryError(message: String?, cause: Int = 0) -> Int {
     return runtimeRegisterThrowable(RuntimeOutOfMemoryErrorBox(message: message, cause: cause))
 }
 
-/// Allocates a `StackOverflowError` with the given message.
 func runtimeAllocateStackOverflowError(message: String?, cause: Int = 0) -> Int {
     return runtimeRegisterThrowable(RuntimeStackOverflowErrorBox(message: message, cause: cause))
 }
 
-/// Message used by `NotImplementedError()` when no reason is supplied.
 let runtimeNotImplementedDefaultMessage = "An operation is not implemented."
 
-/// Allocates a `NotImplementedError` with the given message.
 func runtimeAllocateNotImplementedError(message: String, cause: Int = 0) -> Int {
     return runtimeRegisterThrowable(RuntimeNotImplementedErrorBox(message: message, cause: cause))
 }
 
-/// Allocates an `IndexOutOfBoundsException` with the given message.
 func runtimeAllocateIndexOutOfBoundsException(message: String?, cause: Int = 0) -> Int {
     return runtimeRegisterThrowable(RuntimeIndexOutOfBoundsExceptionBox(message: message, cause: cause))
 }
 
-/// Allocates an `UnsupportedOperationException` with the given message.
 func runtimeAllocateUnsupportedOperationException(message: String?, cause: Int = 0) -> Int {
     return runtimeRegisterThrowable(RuntimeUnsupportedOperationExceptionBox(message: message, cause: cause))
 }
 
-/// Allocates a `NoSuchElementException` with the given message.
 func runtimeAllocateNoSuchElementException(message: String?, cause: Int = 0) -> Int {
     return runtimeRegisterThrowable(RuntimeNoSuchElementExceptionBox(message: message, cause: cause))
 }
 
-/// Allocates a `ClassCastException` with the given message.
 func runtimeAllocateClassCastException(message: String?, cause: Int = 0) -> Int {
     return runtimeRegisterThrowable(RuntimeClassCastExceptionBox(message: message, cause: cause))
 }
 
-/// Allocates a `TypeCastException` with the given message.
 func runtimeAllocateTypeCastException(message: String?, cause: Int = 0) -> Int {
     return runtimeRegisterThrowable(RuntimeTypeCastExceptionBox(message: message, cause: cause))
 }
 
-/// Allocates a `NullPointerException` with the given message.
 func runtimeAllocateNullPointerException(message: String?, cause: Int = 0) -> Int {
     return runtimeRegisterThrowable(RuntimeNullPointerExceptionBox(message: message, cause: cause))
 }
@@ -924,7 +898,6 @@ public func kk_negative_array_size_exception_new_message(_ messageRaw: Int) -> I
     )
 }
 
-//
 // Each of these gives a user-facing `SomeBuiltinException(...)` constructor call its
 // own external symbol (instead of sharing the type-erased `__kk_throwable_new`/
 // `__kk_throwable_new_with_cause`), so the allocated box carries the correct
@@ -942,9 +915,8 @@ public func kk_illegal_state_exception_new() -> Int {
     runtimeAllocateIllegalStateException(message: nil)
 }
 
-/// BUG-B: allocates a message-less `NullPointerException`. Used by the
-/// backend when a String-struct field accessor (currently `.length`)
-/// observes an actually-null value at runtime -- e.g. an overridden
+/// Used by the backend when a String-struct field accessor (currently
+/// `.length`) observes an actually-null value at runtime -- e.g. an overridden
 /// non-null `String` property read during superclass construction, before
 /// the subclass has run its own initializer -- so the call throws exactly
 /// like calling any method on a null reference, regardless of the
@@ -1136,32 +1108,6 @@ public func kk_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -
 @_cdecl("__kk_exception_new_cause")
 public func kk_exception_new_cause(_ causeRaw: Int) -> Int {
     runtimeAllocateException(
-        message: runtimeCauseToString(from: causeRaw),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
-    )
-}
-
-@_cdecl("__kk_io_exception_new")
-public func kk_io_exception_new() -> Int {
-    runtimeAllocateIOException(message: nil)
-}
-
-@_cdecl("__kk_io_exception_new_message")
-public func kk_io_exception_new_message(_ messageRaw: Int) -> Int {
-    runtimeAllocateIOException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
-}
-
-@_cdecl("__kk_io_exception_new_message_cause")
-public func kk_io_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
-    runtimeAllocateIOException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
-    )
-}
-
-@_cdecl("__kk_io_exception_new_cause")
-public func kk_io_exception_new_cause(_ causeRaw: Int) -> Int {
-    runtimeAllocateIOException(
         message: runtimeCauseToString(from: causeRaw),
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
     )

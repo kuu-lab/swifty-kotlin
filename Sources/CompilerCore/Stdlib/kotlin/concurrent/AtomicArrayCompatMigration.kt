@@ -12,8 +12,6 @@ import kotlin.internal.KsSymbolName
 // synchronized core stays in the runtime. This family exposes the smaller,
 // alias-free surface that the synthetic stubs registered for this package.
 
-// ---- AtomicIntArray ----
-
 @KsSymbolName("__kk_atomic_int_array_load")
 private external fun AtomicIntArray.__kk_load(index: Int): Int
 
@@ -85,8 +83,6 @@ public fun AtomicIntArray.incrementAndFetchAt(index: Int): Int = addAndFetchAt(i
 public fun AtomicIntArray.fetchAndDecrementAt(index: Int): Int = fetchAndAddAt(index, -1)
 
 public fun AtomicIntArray.decrementAndFetchAt(index: Int): Int = addAndFetchAt(index, -1)
-
-// ---- AtomicLongArray ----
 
 @KsSymbolName("__kk_atomic_long_array_load")
 private external fun AtomicLongArray.__kk_load(index: Int): Long
