@@ -1050,21 +1050,34 @@ struct SemaDelegateTypeCheckTests {
             #expect(!diagnostics.contains { $0.severity == .error },
                     "Map delegates: \(diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | "))")
             let sema = try #require(ctx.sema)
-            for name in ["inferred", "explicit", "wideKey", "mutable", "defaulted", "named", "nullable"] {
+            struct ExpectedProperty {
+                let name: String
+                let expectedType: TypeID
+                let expectedReceiverName: String
+                let hasSetValueSymbol: Bool
+            }
+            let expectedProperties: [ExpectedProperty] = [
+                ExpectedProperty(name: "inferred", expectedType: sema.types.intType, expectedReceiverName: "Map", hasSetValueSymbol: false),
+                ExpectedProperty(name: "explicit", expectedType: sema.types.intType, expectedReceiverName: "Map", hasSetValueSymbol: false),
+                ExpectedProperty(name: "wideKey", expectedType: sema.types.intType, expectedReceiverName: "Map", hasSetValueSymbol: false),
+                ExpectedProperty(name: "mutable", expectedType: sema.types.intType, expectedReceiverName: "MutableMap", hasSetValueSymbol: true),
+                ExpectedProperty(name: "defaulted", expectedType: sema.types.intType, expectedReceiverName: "Map", hasSetValueSymbol: false),
+                ExpectedProperty(name: "named", expectedType: sema.types.stringType, expectedReceiverName: "Map", hasSetValueSymbol: false),
+                ExpectedProperty(name: "nullable", expectedType: sema.types.makeNullable(sema.types.intType), expectedReceiverName: "Map", hasSetValueSymbol: false),
+            ]
+            for expected in expectedProperties {
                 let property = try #require(topLevelSymbol(
-                    named: name, kind: .property, package: "kuu1050", sema: sema, interner: ctx.interner
+                    named: expected.name, kind: .property, package: "kuu1050", sema: sema, interner: ctx.interner
                 ))
-                let expectedType = name == "named" ? sema.types.stringType
-                    : name == "nullable" ? sema.types.makeNullable(sema.types.intType) : sema.types.intType
-                #expect(sema.symbols.propertyType(for: property) == expectedType)
+                #expect(sema.symbols.propertyType(for: property) == expected.expectedType)
                 let getter = try #require(sema.symbols.delegateGetValueSymbol(for: property))
                 let signature = try #require(sema.symbols.functionSignature(for: getter))
                 #expect(signature.parameterTypes.count == 2)
                 let receiverType = try #require(signature.receiverType)
                 let receiver = try #require(TypeCheckHelpers().nominalSymbol(of: receiverType, types: sema.types))
                 let receiverName = sema.symbols.symbol(receiver).map { ctx.interner.resolve($0.name) }
-                #expect(receiverName == (name == "mutable" ? "MutableMap" : "Map"))
-                if name == "mutable" {
+                #expect(receiverName == expected.expectedReceiverName)
+                if expected.hasSetValueSymbol {
                     #expect(sema.symbols.delegateSetValueSymbol(for: property) != nil)
                 }
             }
