@@ -4474,7 +4474,7 @@
 
 > 出典: 2026-08-22 の全サブシステム構造レビュー（Sema / KIR / Lowering / Backend / Runtime / Driver / LSP / テスト基盤の精査 + 実測）。主要実測値: release kswiftc で hello.kt が **デフォルト 4.27s → `--stdlib-library`(.kklib) 1.40s → `--no-stdlib` 0.41s**（コンパイル時間の ~2/3 が bundled stdlib 2.6万行の毎回再処理）。実行時は `for (i in 1..1000000)` が 1,236ms = **1.24µs/iter ≒ ランタイム C 呼び出し 2 回 × ~620ns**（NSLock + Set ハンドル検証 + 動的キャスト、しかも -Onone ビルド）。
 > 参照プラクティス: rustc（事前コンパイル stdlib / rmeta 遅延読込 / lang items）、Kotlin K2（フェーズ化・IDE 遅延解決）、Roslyn（WellKnownMember）、Swift SIL（raw/canonical + verifier）、MLIR（パス境界検証）、rust-analyzer（durability・エラー耐性）、Kotlin/Native（コンパイラ統合ランタイム・並行 mark-sweep）。
-> **共通ゲート G を全タスクに適用**（+ 該当時 U）。粒度ルール: 1タスク = 1 PR。性能タスクは変更前後のベンチ値（`Scripts/benchmark_stdlib_hof.sh` / `-Xfrontend time-phases`）を PR 本文に記載する。既存台帳との関係: 名前文字列特例の解体は RF4 系（`docs/rf4-name-special-case-inventory.md`）・KSP 移行と同期して進め、本セクションでは重複起票しない。
+> **共通ゲート G を全タスクに適用**（+ 該当時 U）。粒度ルール: 1タスク = 1 PR。性能タスクは変更前後のベンチ値（`Scripts/benchmark_stdlib_hof.sh` / `-Xfrontend time-phases`）を PR 本文に記載する。既存台帳との関係: 名前文字列特例の解体は RF4 系・KSP 移行と同期して進め、本セクションでは重複起票しない。
 > 優先順は Tier 順。**ARCH-001/002 は他の全性能系判断（stdlib-pipeline §13-3 の「Swift 残留の実測条件」）の基準値を変えるため最優先**。完了後に `docs/refactoring-metrics.md` のベンチ基準値を取り直すこと。
 
 ### ARCH Tier 1: 即効（相互独立・並列可）
