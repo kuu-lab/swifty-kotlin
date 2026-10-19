@@ -1,7 +1,4 @@
 extension DeclTypeChecker {
-    /// Computes contextual receiver choices for unqualified `this` arguments
-    /// in constructor delegation. Each constructor is tested with the first
-    /// receiver-tower value whose type satisfies its corresponding parameter.
     func contextualConstructorThisArgumentReceivers(
         args: [CallArgument],
         argTypes: [TypeID],
