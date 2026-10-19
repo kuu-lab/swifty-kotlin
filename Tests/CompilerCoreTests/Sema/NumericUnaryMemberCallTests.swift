@@ -22,30 +22,39 @@ struct NumericUnaryMemberCallTests {
             #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
+            let cases: [(type: String, expectedDirect: TypeID, expectedSafe: TypeID)] = [
+                ("Byte", sema.types.intType, sema.types.makeNullable(sema.types.intType)),
+                ("Short", sema.types.intType, sema.types.makeNullable(sema.types.intType)),
+                ("Int", sema.types.intType, sema.types.makeNullable(sema.types.intType)),
+                ("Long", sema.types.longType, sema.types.makeNullable(sema.types.longType)),
+                ("Float", sema.types.floatType, sema.types.makeNullable(sema.types.floatType)),
+                ("Double", sema.types.doubleType, sema.types.makeNullable(sema.types.doubleType)),
+            ]
             var checkedCalls = 0
-            for (index, expr) in ast.arena.exprs.enumerated() {
-                let id = ExprID(rawValue: Int32(index))
-                guard let range = ast.arena.exprRange(id),
-                      ctx.sourceManager.path(of: range.start.file) == path
-                else { continue }
-                let receiver: ExprID
-                let safe: Bool
-                switch expr {
-                case let .memberCall(r, _, _, _, _):
-                    receiver = r
-                    safe = false
-                case let .safeMemberCall(r, _, _, _, _):
-                    receiver = r
-                    safe = true
-                default: continue
+            for (index, testCase) in cases.enumerated() {
+                let funcName = ctx.interner.intern("sample\(index)")
+                let funcDecl = try #require(ast.arena.decls.compactMap { decl -> FunDecl? in
+                    if case let .funDecl(fn) = decl, fn.name == funcName { return fn }
+                    return nil
+                }.first)
+                guard case let .block(callExprs, _) = funcDecl.body else {
+                    Issue.record("Expected block body for sample\(index)")
+                    continue
                 }
-                let receiverType = try #require(sema.bindings.exprType(for: receiver))
-                let nonNull = sema.types.makeNonNullable(receiverType)
-                let result = nonNull == sema.types.byteType || nonNull == sema.types.shortType
-                    ? sema.types.intType : nonNull
-                #expect(sema.bindings.exprType(for: id) == (safe ? sema.types.makeNullable(result) : result))
-                #expect(sema.bindings.callBinding(for: id) != nil)
-                checkedCalls += 1
+                #expect(callExprs.count == 4)
+                // x.unaryPlus()
+                #expect(sema.bindings.exprType(for: callExprs[0]) == testCase.expectedDirect)
+                #expect(sema.bindings.callBinding(for: callExprs[0]) != nil)
+                // x.unaryMinus()
+                #expect(sema.bindings.exprType(for: callExprs[1]) == testCase.expectedDirect)
+                #expect(sema.bindings.callBinding(for: callExprs[1]) != nil)
+                // n?.unaryPlus()
+                #expect(sema.bindings.exprType(for: callExprs[2]) == testCase.expectedSafe)
+                #expect(sema.bindings.callBinding(for: callExprs[2]) != nil)
+                // n?.unaryMinus()
+                #expect(sema.bindings.exprType(for: callExprs[3]) == testCase.expectedSafe)
+                #expect(sema.bindings.callBinding(for: callExprs[3]) != nil)
+                checkedCalls += 4
             }
             #expect(checkedCalls == 24)
         }
