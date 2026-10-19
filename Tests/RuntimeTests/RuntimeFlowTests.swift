@@ -625,10 +625,16 @@ struct RuntimeFlowTests {
         let source = kk_flow_create(emitterPtr, continuation)
         let derived = kk_flow_emit(source, 1, RuntimeFlowTag.take.rawValue)
 
-        for flow in [source, derived, source, derived] {
+        let testRuns = [
+            (flow: source, expectedValues: [7, 8]),
+            (flow: derived, expectedValues: [7]),
+            (flow: source, expectedValues: [7, 8]),
+            (flow: derived, expectedValues: [7]),
+        ]
+        for run in testRuns {
             runtimeFlowTestState.reset()
-            _ = kk_flow_collect(flow, collectorPtr, 0, 0)
-            #expect(runtimeFlowTestState.snapshot().values == (flow == source ? [7, 8] : [7]))
+            _ = kk_flow_collect(run.flow, collectorPtr, 0, 0)
+            #expect(runtimeFlowTestState.snapshot().values == run.expectedValues)
         }
     }
 
@@ -647,10 +653,17 @@ struct RuntimeFlowTests {
             _ = __kk_flow_release(derived)
         }
 
-        for handle in [flow, flow, derived, derived, flow] {
+        let testRuns = [
+            (handle: flow, expectedValues: [7, 9]),
+            (handle: flow, expectedValues: [7, 9]),
+            (handle: derived, expectedValues: [7]),
+            (handle: derived, expectedValues: [7]),
+            (handle: flow, expectedValues: [7, 9]),
+        ]
+        for run in testRuns {
             runtimeFlowTestState.reset()
-            _ = kk_flow_collect(handle, collector, 0, 0)
-            #expect(runtimeFlowTestState.snapshot().values == (handle == flow ? [7, 9] : [7]))
+            _ = kk_flow_collect(run.handle, collector, 0, 0)
+            #expect(runtimeFlowTestState.snapshot().values == run.expectedValues)
         }
     }
 
