@@ -130,6 +130,18 @@ extension LocalDeclTypeChecker {
             ) {
                 return sema.types.errorType
             }
+            guard driver.exprChecker.isBuiltinCompoundAssignOperand(op: op, lhs: elementType, rhs: valueType, sema: sema) else {
+                let operatorName = driver.exprChecker.operatorFunctionNames(
+                    for: driver.helpers.compoundAssignToBinaryOp(op), interner: interner
+                )[0]
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0002",
+                    "No viable overload found for operator '\(interner.resolve(operatorName))'.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
             elementOperator = nil
         case let .resolved(binding):
             elementOperator = binding
