@@ -80,10 +80,8 @@ func isOverrideVtableParameterMatch(
     return true
 }
 
-/// Groups `inheritedVtableSlots` (methodSymbol → slot) by dispatch key so an
-/// `override` member can look up the slot(s) it might reuse. Mirrors
-/// `LayoutSynthesis.synthesizeLayoutForNominal`'s local candidate map: built
-/// once from genuine inheritance, one entry per distinct slot per key.
+/// Mirrors `LayoutSynthesis.synthesizeLayoutForNominal`'s local candidate map:
+/// built once from genuine inheritance, one entry per distinct slot per key.
 func vtableInheritedCandidatesByKey(
     inheritedVtableSlots: [SymbolID: Int],
     symbols: SymbolTable
