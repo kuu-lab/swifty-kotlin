@@ -1,6 +1,3 @@
-
-// Init block, secondary constructor, and function declaration type checking.
-
 extension DeclTypeChecker {
     func localTypeForParameter(
         at index: Int,
@@ -105,7 +102,6 @@ extension DeclTypeChecker {
         }
     }
 
-    /// Type-checks primary constructor parameter default-value expressions.
     /// Primary constructor parameters never go through `typeCheckSecondaryConstructors`
     /// or a function body check, so without this call their defaults would never be
     /// visited by Sema at all (see `typeCheckParameterDefaultValues`).
@@ -138,11 +134,6 @@ extension DeclTypeChecker {
         )
     }
 
-    /// Type-checks the superclass constructor invocation written in a class
-    /// header (`class Sub(n: Int) : Base(n)`) and records the resolved
-    /// superclass constructor as the primary constructor's delegation target,
-    /// so KIR lowering can emit the `super(...)` call.
-    ///
     /// The arguments live in the primary constructor's scope, so they are
     /// checked with the primary constructor parameters seeded as locals — the
     /// same scope `typeCheckClassDelegation` builds for `by` expressions.
@@ -349,7 +340,6 @@ extension DeclTypeChecker {
         return resolved
     }
 
-    /// The single class-kind supertype of `symbol`, if any.
     func superclassSymbol(of symbol: SymbolID, sema: SemaModule) -> SymbolID? {
         sema.symbols.directSupertypes(for: symbol).first {
             let kind = sema.symbols.symbol($0)?.kind
@@ -366,8 +356,6 @@ extension DeclTypeChecker {
         return actual
     }
 
-    /// Returns the class-kind superclass written in the source header.
-    ///
     /// Inheritance binding adds kotlin.Any to classes without an explicit
     /// superclass. That implicit edge represents nominal inheritance, but it
     /// is not an explicit constructor delegation target for `super()`.
@@ -1182,8 +1170,6 @@ extension DeclTypeChecker {
         )
     }
 
-    /// Updates the function signature with the inferred return type when no
-    /// explicit annotation is present and the body type is suitable.
     private func updateInferredReturnType(
         function: FunDecl,
         symbol: SymbolID,
@@ -1273,7 +1259,6 @@ extension DeclTypeChecker {
             return
         }
 
-        // Collect all effect expression IDs from the contract lambda body.
         let effectExprIDs: [ExprID] = switch lambdaBodyExpr {
         case let .blockExpr(statements, trailingExpr, _):
             statements + (trailingExpr.map { [$0] } ?? [])
@@ -1295,15 +1280,6 @@ extension DeclTypeChecker {
         }
     }
 
-    /// Analyzes a single expression inside a `contract { ... }` lambda and records
-    /// any recognized effect on the function symbol.
-    ///
-    /// Recognized patterns:
-    /// - `returns()` -- bare returns effect (STDLIB-591)
-    /// - `returns(true)` / `returns(false)` -- Boolean return value effect (STDLIB-591)
-    /// - `returns() implies (param != null)` -- non-null smart cast
-    /// - `callsInPlace(lambda[, kind])` -- STDLIB-592
-    /// - `returnsNotNull()` -- STDLIB-593
     private func recordSingleContractEffect(
         effectExprID: ExprID,
         function: FunDecl,
@@ -1316,8 +1292,6 @@ extension DeclTypeChecker {
     ) {
         guard let effectExpr = ast.arena.expr(effectExprID) else { return }
 
-        // Pattern 1: `returns() implies (condition)` or
-        //            `returns(true/false) implies (condition)` -- STDLIB-591
         if case let .memberCall(receiverExprID, impliesName, _, impliesArgs, _) = effectExpr,
            interner.resolve(impliesName) == "implies",
            impliesArgs.count == 1,
@@ -1337,7 +1311,6 @@ extension DeclTypeChecker {
             } else if interner.resolve(returnsName) == "returns", returnsArgs.isEmpty {
                 returnsValue = nil
                 returnCondition = .normally
-                // Also record the bare returns() effect for the function.
                 if sema.symbols.contractReturnsEffect(for: symbol) == nil {
                     sema.symbols.setContractReturnsEffect(
                         .returnsNormally,
@@ -1372,17 +1345,15 @@ extension DeclTypeChecker {
             return
         }
 
-        // Pattern 2: bare `returns()` call (STDLIB-591)
         if case let .call(returnsCalleeExprID, _, returnsArgs, _) = effectExpr,
            let returnsCalleeExpr = ast.arena.expr(returnsCalleeExprID),
            case let .nameRef(returnsName, _) = returnsCalleeExpr,
            interner.resolve(returnsName) == "returns"
         {
             if returnsArgs.isEmpty {
-                // `returns()` -- the function guarantees normal return.
-                // Only set if no effect recorded yet; a more specific effect
-                // (e.g. `returns(true)`) should not be overwritten by a bare
-                // `returns()` when multiple effects appear in the same block.
+                // A more specific effect (e.g. `returns(true)`) should not be
+                // overwritten by a bare `returns()` when multiple effects appear
+                // in the same block.
                 if sema.symbols.contractReturnsEffect(for: symbol) == nil {
                     sema.symbols.setContractReturnsEffect(
                         .returnsNormally,
@@ -1390,8 +1361,6 @@ extension DeclTypeChecker {
                     )
                 }
             } else if returnsArgs.count == 1 {
-                // `returns(true)` or `returns(false)` -- the function guarantees
-                // a specific Boolean *return value* on normal completion.
                 // Only valid when the function's return type is Boolean; ignore
                 // the effect for non-Boolean-returning functions to prevent
                 // encoding an invalid contract.
@@ -1413,7 +1382,6 @@ extension DeclTypeChecker {
             return
         }
 
-        // Pattern 3 (STDLIB-592): callsInPlace(lambdaParam) or callsInPlace(lambdaParam, InvocationKind.*)
         if case let .call(calleeExprID, _, callArgs, _) = effectExpr,
            let calleeExpr = ast.arena.expr(calleeExprID),
            case let .nameRef(calleeName, _) = calleeExpr,
@@ -1442,7 +1410,6 @@ extension DeclTypeChecker {
             return
         }
 
-        // Pattern 4 (STDLIB-593): returnsNotNull()
         if case let .call(calleeExprID, _, returnNNArgs, _) = effectExpr,
            let calleeExpr = ast.arena.expr(calleeExprID),
            case let .nameRef(calleeName, _) = calleeExpr,
@@ -1454,20 +1421,6 @@ extension DeclTypeChecker {
         }
     }
 
-    /// Records a `returns() implies (condition)` or `returns(true/false) implies (condition)`
-    /// contract effect.
-    ///
-    /// Handles these sub-patterns for the condition:
-    /// 1. `param != null` — records a `ContractNonNullEffect` that narrows the
-    ///    parameter to non-null after normal return.
-    /// 2. `param` — where `param` is a Boolean parameter, records a
-    ///    `ContractConditionEffect` so that the argument expression is analyzed
-    ///    for smart casts at the call site (STDLIB-591).
-    /// 3. `!param` — records a false Boolean implication for APIs such as
-    ///    `kotlin.test.assertFalse`.
-    ///
-    /// - Parameter returnsValue: `nil` for `returns()`, `true`/`false` for
-    ///   `returns(true)` / `returns(false)`.
     private func recordReturnsImpliesEffect(
         impliesArgs: [CallArgument],
         returnsValue: Bool?,
@@ -1527,7 +1480,6 @@ extension DeclTypeChecker {
             return
         }
 
-        // Sub-pattern 1: `returns() implies (param != null)`
         if case let .binary(.notEqual, lhsExprID, rhsExprID, _) = conditionExpr {
             let parameterName: InternedString? = if let lhsExpr = ast.arena.expr(lhsExprID),
                                                     case let .nameRef(name, _) = lhsExpr,
@@ -1581,7 +1533,7 @@ extension DeclTypeChecker {
             return
         }
 
-        // Sub-pattern 2 (STDLIB-591): `returns() implies param` where param is Boolean.
+        // `returns() implies param` where param is Boolean.
         // This means the argument expression passed for this parameter is guaranteed
         // true after normal return, enabling smart casts on the call-site expression.
         if case let .nameRef(paramName, _) = conditionExpr,
@@ -1604,7 +1556,6 @@ extension DeclTypeChecker {
         }
     }
 
-    /// Resolve an `InvocationKind.*` member-access expression to an `InvocationKind` value.
     /// The AST represents `InvocationKind.EXACTLY_ONCE` as a zero-arg `.memberCall` or
     /// as a plain `.nameRef` when already resolved.
     private func resolveInvocationKindArg(
@@ -1613,7 +1564,6 @@ extension DeclTypeChecker {
         interner: StringInterner
     ) -> InvocationKind? {
         guard let expr = ast.arena.expr(exprID) else { return nil }
-        // Match `InvocationKind.EXACTLY_ONCE` — parsed as memberCall with zero args
         if case let .memberCall(receiverExprID, memberName, _, memberArgs, _) = expr,
            memberArgs.isEmpty,
            let receiverExpr = ast.arena.expr(receiverExprID),
@@ -1622,14 +1572,12 @@ extension DeclTypeChecker {
         {
             return InvocationKind(rawValue: interner.resolve(memberName))
         }
-        // Also handle a plain nameRef that already holds the entry name.
         if case let .nameRef(name, _) = expr {
             return InvocationKind(rawValue: interner.resolve(name))
         }
         return nil
     }
 
-    /// Extracts a boolean literal value from an expression (`true` or `false`).
     private func extractBooleanLiteral(
         _ exprID: ExprID,
         ast: ASTModule,
@@ -1658,10 +1606,9 @@ extension DeclTypeChecker {
         return false
     }
 
-    /// Whether `classSymbol` (or any of its enclosing classes) carries the
-    /// `expect` modifier. A member declared without a body inside an `expect`
-    /// class/object/interface is a contract, not a missing body — the
-    /// `actual` counterpart supplies the implementation.
+    /// A member declared without a body inside an `expect` class/object/interface
+    /// is a contract, not a missing body — the `actual` counterpart supplies the
+    /// implementation.
     private func isNestedInExpectDeclaration(_ classSymbol: SymbolID?, sema: SemaModule) -> Bool {
         var current: SymbolID? = classSymbol
         var guardCount = 0
