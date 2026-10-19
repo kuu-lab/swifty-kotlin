@@ -6,9 +6,6 @@
 
 package kotlin
 
-/**
- * Thrown when a string-to-number conversion fails.
- */
 public open class NumberFormatException : IllegalArgumentException {
     public constructor() : super() {
         __kkThrowableSetMessage(this, null)
