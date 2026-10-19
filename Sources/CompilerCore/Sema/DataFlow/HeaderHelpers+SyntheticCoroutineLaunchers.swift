@@ -1,8 +1,3 @@
-/// Coroutine launcher and builder stubs for the synthetic coroutine
-/// registry: `runBlocking` / `launch` / `async` / `produce` / `yield` /
-/// `awaitCancellation` / `ensureActive` / `withContext` and the `flow`
-/// builder.
-///
 /// Extracted from `registerSyntheticCoroutineStubs`
 /// (HeaderHelpers+SyntheticCoroutineRegistry.swift). The extracted
 /// methods thread the shared registry state through `context` so the
@@ -63,7 +58,6 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 interner: interner
             )
-            // STDLIB-CORO-072: Dispatcher-aware overload: launch(context, block)
             registerSyntheticCoroutineTopLevelFunction(
                 named: "launch",
                 packageFQName: coroutinesPkg,
@@ -81,7 +75,6 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 interner: interner
             )
-            // STDLIB-CORO-001: launch(start: CoroutineStart, block:) overload.
             registerSyntheticCoroutineTopLevelFunction(
                 named: "launch",
                 packageFQName: coroutinesPkg,
@@ -99,7 +92,6 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 interner: interner
             )
-            // STDLIB-CORO-001: CoroutineStart enum and launch(start:, block:) overload.
             // rewriteLauncherCall disambiguates the 2-arg launch overloads by the
             // first argument's type: CoroutineDispatcher goes to the dispatcher-
             // aware runtime, CoroutineStart goes to the lazy-start runtime.
@@ -132,10 +124,9 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // STDLIB-CORO-001: async(start: CoroutineStart, block:) overload.
-        // Mirrors the launch(start:, block:) registration above. Lowering reads
-        // the CoroutineStart value and routes the call to the async runtime
-        // entry point implementing that mode (see rewriteStartModeLauncherCall).
+        // Lowering reads the CoroutineStart value and routes the call to the
+        // async runtime entry point implementing that mode (see
+        // rewriteStartModeLauncherCall).
         registerSyntheticCoroutineTopLevelFunction(
             named: "async",
             packageFQName: coroutinesPkg,
@@ -153,8 +144,8 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // STDLIB-CORO-075: `produce { ... }` returns a `Channel<T>` and runs the
-        // block with a `Channel<T>` receiver so channel sends resolve correctly.
+        // The `produce` block runs with a `Channel<T>` receiver so channel sends
+        // resolve correctly.
         // KSP-1573: the bundled `CoroutineScope.produce` extension
         // (Stdlib/kotlinx/coroutines/channels/Produce.kt) supersedes this
         // stub; keep the synthetic only for configurations without that
@@ -248,11 +239,10 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // KSP-1568: `awaitCancellation()` suspends for the coroutine's whole
-        // lifetime. It rewrites to `kk_await_cancellation`, which parks the
-        // continuation on the never-completing runtimeNonCancellableJob
-        // (upstream parks it for the job's whole lifetime); the suspend point
-        // unwinds only via cancellation of the awaiting coroutine.
+        // Parks the continuation on the never-completing
+        // runtimeNonCancellableJob (upstream parks it for the job's whole
+        // lifetime); the suspend point unwinds only via cancellation of the
+        // awaiting coroutine.
         registerSyntheticCoroutineTopLevelFunction(
             named: "awaitCancellation",
             packageFQName: coroutinesPkg,
@@ -334,7 +324,6 @@ extension DataFlowSemaPhase {
         // (Stdlib/kotlinx/coroutines/flow/Builders.kt), composed from the
         // retained `flow { }` (kk_flow_create) + `emit` (kk_flow_emit) core.
 
-        // withContext overload accepting CoroutineContext (not just dispatcher)
         registerSyntheticCoroutineTopLevelFunction(
             named: "withContext",
             packageFQName: coroutinesPkg,
