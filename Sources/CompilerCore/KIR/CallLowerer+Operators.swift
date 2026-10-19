@@ -57,6 +57,14 @@ extension CallLowerer {
         default:
             sema.bindings.exprTypes[exprID]
         }
+        if let constValue = sema.bindings.constExprValue(for: exprID) {
+            let constResult = arena.appendExpr(
+                constValue,
+                type: boundType ?? sema.types.anyType
+            )
+            instructions.append(.constValue(result: constResult, value: constValue))
+            return constResult
+        }
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let stringType = sema.types.stringType
         // `P == null` / `P != null` with a statically non-null operand is a
