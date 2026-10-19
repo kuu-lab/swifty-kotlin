@@ -23,5 +23,5 @@ expr e@4:18 call callee=e@4:18#1 args=[_:e@4:29,_:e@4:32] type=kotlin.ShortArray
 expr e@4:5 localDecl values mutable=0 type=_ init=e@4:18 type=Unit ref=__local_0.values[kind=local;type=kotlin.ShortArray;origin=fixture]
 expr e@12:13 name(values) type=kotlin.ShortArray ref=__local_0.values[kind=local;type=kotlin.ShortArray;origin=fixture]
 expr e@12:20 int(0) type=Int
-expr e@12:13#1 indexedAccess receiver=e@12:13 indices=[e@12:20] type=Short
+expr e@12:13#1 indexedAccess receiver=e@12:13 indices=[e@12:20] type=Short call=kotlin.ShortArray.get[kind=fun;recv=kotlin.ShortArray;params=Int;ret=Short;names=[index]]
 expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]

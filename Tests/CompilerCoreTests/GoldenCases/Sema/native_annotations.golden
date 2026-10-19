@@ -1,9 +1,12 @@
+symbol fq=golden.sema.ExportEnumToObjC.<init>[kind=ctor;recv=golden.sema.ExportEnumToObjC;params=;ret=golden.sema.ExportEnumToObjC;origin=fixture] kind=constructor vis=public flags=_ sig=recv=golden.sema.ExportEnumToObjC params=[] ret=golden.sema.ExportEnumToObjC
 symbol fq=golden.sema.ExportEnumToObjC[kind=anno;origin=fixture] kind=annotationClass vis=public flags=_
+symbol fq=golden.sema.NativeEnumBridge.<init>[kind=ctor;recv=golden.sema.NativeEnumBridge;params=;ret=golden.sema.NativeEnumBridge;origin=fixture] kind=constructor vis=public flags=_ sig=recv=golden.sema.NativeEnumBridge params=[] ret=golden.sema.NativeEnumBridge
 symbol fq=golden.sema.NativeEnumBridge[kind=anno;origin=fixture] kind=annotationClass vis=public flags=_
 symbol fq=golden.sema.NativeGreeter.greet.$0.person[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.NativeGreeter[kind=class;origin=fixture] kind=class vis=public flags=_
 symbol fq=golden.sema.NativeStatus[kind=enum;origin=fixture] kind=enumClass vis=public flags=_
 symbol fq=golden.sema.SwiftFacade[kind=anno;origin=fixture] kind=annotationClass vis=public flags=_
+symbol fq=golden.sema.SwiftRefined.<init>[kind=ctor;recv=golden.sema.SwiftRefined;params=;ret=golden.sema.SwiftRefined;origin=fixture] kind=constructor vis=public flags=_ sig=recv=golden.sema.SwiftRefined params=[] ret=golden.sema.SwiftRefined
 symbol fq=golden.sema.SwiftRefined[kind=anno;origin=fixture] kind=annotationClass vis=public flags=_
 symbol fq=golden.sema.nativeSum.$1.a[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.nativeSum.$1.b[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
@@ -26,3 +29,28 @@ expr e@54:38 name(a) type=Int ref=golden.sema.nativeSum.$1.a[kind=vparam;origin=
 expr e@54:42 name(b) type=Int ref=golden.sema.nativeSum.$1.b[kind=vparam;origin=fixture]
 expr e@54:38#1 binary(add) lhs=e@54:38 rhs=e@54:42 type=Int
 expr e@61:24 name(ptr) type=kotlinx.cinterop.CPointer<kotlinx.cinterop.IntVar>? ref=golden.sema.takesPointer.$2.ptr[kind=vparam;origin=fixture]
+expr e@24:2 call callee=e@24:2#1 args=[] type=kotlin.experimental.ExperimentalObjCRefinement call=kotlin.experimental.ExperimentalObjCRefinement.<init>[kind=ctor;recv=kotlin.experimental.ExperimentalObjCRefinement;params=;ret=kotlin.experimental.ExperimentalObjCRefinement]
+expr e@25:9 name(AnnotationTarget) type=kotlin.annotation.AnnotationTarget ref=kotlin.annotation.AnnotationTarget[kind=enum]
+expr e@25:9#1 memberCall recv=e@25:9 callee=FUNCTION args=[] type=kotlin.annotation.AnnotationTarget ref=kotlin.annotation.AnnotationTarget.FUNCTION[kind=field;type=kotlin.annotation.AnnotationTarget]
+expr e@25:2 call callee=e@25:2#1 args=[_:e@25:9#1] type=kotlin.annotation.Target call=kotlin.annotation.Target.<init>[kind=ctor;recv=kotlin.annotation.Target;params=*kotlin.annotation.AnnotationTarget;ret=kotlin.annotation.Target;vararg=[1];names=[allowedTargets]]
+expr e@28:2 call callee=e@28:2#1 args=[] type=kotlin.experimental.ExperimentalObjCEnum call=kotlin.experimental.ExperimentalObjCEnum.<init>[kind=ctor;recv=kotlin.experimental.ExperimentalObjCEnum;params=;ret=kotlin.experimental.ExperimentalObjCEnum]
+expr e@29:9 name(AnnotationTarget) type=kotlin.annotation.AnnotationTarget ref=kotlin.annotation.AnnotationTarget[kind=enum]
+expr e@29:9#1 memberCall recv=e@29:9 callee=ANNOTATION_CLASS args=[] type=kotlin.annotation.AnnotationTarget ref=kotlin.annotation.AnnotationTarget.ANNOTATION_CLASS[kind=field;type=kotlin.annotation.AnnotationTarget]
+expr e@29:2 call callee=e@29:2#1 args=[_:e@29:9#1] type=kotlin.annotation.Target call=kotlin.annotation.Target.<init>[kind=ctor;recv=kotlin.annotation.Target;params=*kotlin.annotation.AnnotationTarget;ret=kotlin.annotation.Target;vararg=[1];names=[allowedTargets]]
+expr e@32:2 call callee=e@32:2#1 args=[] type=golden.sema.NativeEnumBridge call=golden.sema.NativeEnumBridge.<init>[kind=ctor;recv=golden.sema.NativeEnumBridge;params=;ret=golden.sema.NativeEnumBridge;origin=fixture]
+expr e@33:9 name(AnnotationTarget) type=kotlin.annotation.AnnotationTarget ref=kotlin.annotation.AnnotationTarget[kind=enum]
+expr e@33:9#1 memberCall recv=e@33:9 callee=CLASS args=[] type=kotlin.annotation.AnnotationTarget ref=kotlin.annotation.AnnotationTarget.CLASS[kind=field;type=kotlin.annotation.AnnotationTarget]
+expr e@33:2 call callee=e@33:2#1 args=[_:e@33:9#1] type=kotlin.annotation.Target call=kotlin.annotation.Target.<init>[kind=ctor;recv=kotlin.annotation.Target;params=*kotlin.annotation.AnnotationTarget;ret=kotlin.annotation.Target;vararg=[1];names=[allowedTargets]]
+expr e@36:18 string(NativeGreeter) type=String
+expr e@36:47 string(NativeGreeter) type=String
+expr e@36:72 bool(true) type=Boolean
+expr e@36:2 call callee=e@36:2#1 args=[name:e@36:18,swiftName:e@36:47,exact:e@36:72] type=kotlin.native.ObjCName call=kotlin.native.ObjCName.<init>[kind=ctor;recv=kotlin.native.ObjCName;params=String,String,Boolean;ret=kotlin.native.ObjCName;defaults=[1,1,1];names=[name,swiftName,exact]]
+expr e@38:6 call callee=e@38:6#1 args=[] type=kotlin.native.ShouldRefineInSwift call=kotlin.native.ShouldRefineInSwift.<init>[kind=ctor;recv=kotlin.native.ShouldRefineInSwift;params=;ret=kotlin.native.ShouldRefineInSwift]
+expr e@39:6 call callee=e@39:6#1 args=[] type=golden.sema.SwiftRefined call=golden.sema.SwiftRefined.<init>[kind=ctor;recv=golden.sema.SwiftRefined;params=;ret=golden.sema.SwiftRefined;origin=fixture]
+expr e@38:6#2 call callee=e@38:6#3 args=[] type=kotlin.native.ShouldRefineInSwift call=kotlin.native.ShouldRefineInSwift.<init>[kind=ctor;recv=kotlin.native.ShouldRefineInSwift;params=;ret=kotlin.native.ShouldRefineInSwift]
+expr e@43:2 call callee=e@43:2#1 args=[] type=kotlin.native.RefinesInSwift call=kotlin.native.RefinesInSwift.<init>[kind=ctor;recv=kotlin.native.RefinesInSwift;params=;ret=kotlin.native.RefinesInSwift]
+expr e@46:2 call callee=e@46:2#1 args=[] type=golden.sema.ExportEnumToObjC call=golden.sema.ExportEnumToObjC.<init>[kind=ctor;recv=golden.sema.ExportEnumToObjC;params=;ret=golden.sema.ExportEnumToObjC;origin=fixture]
+expr e@52:2 call callee=e@52:2#1 args=[] type=kotlin.experimental.ExperimentalNativeApi call=kotlin.experimental.ExperimentalNativeApi.<init>[kind=ctor;recv=kotlin.experimental.ExperimentalNativeApi;params=;ret=kotlin.experimental.ExperimentalNativeApi]
+expr e@53:21 string(native_sum) type=String
+expr e@53:47 string(native_sum) type=String
+expr e@53:2 call callee=e@53:2#1 args=[externName:e@53:21,shortName:e@53:47] type=kotlin.native.CName call=kotlin.native.CName.<init>[kind=ctor;recv=kotlin.native.CName;params=String,String;ret=kotlin.native.CName;defaults=[1,1];names=[externName,shortName]]

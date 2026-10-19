@@ -17,7 +17,7 @@ expr e@7:19#1 memberCall recv=e@7:19 callee=entries args=[] type=kotlin.enums.En
 expr e@7:5 localDecl entries mutable=0 type=_ init=e@7:19#1 type=Unit ref=__local_1.entries[kind=local;type=kotlin.enums.EnumEntries<kotlin.coroutines.intrinsics.CoroutineSingletons>;origin=fixture]
 expr e@8:29 name(values) type=kotlin.Array<kotlin.coroutines.intrinsics.CoroutineSingletons> ref=__local_0.values[kind=local;type=kotlin.Array<kotlin.coroutines.intrinsics.CoroutineSingletons>;origin=fixture]
 expr e@8:36 int(0) type=Int
-expr e@8:29#1 indexedAccess receiver=e@8:29 indices=[e@8:36] type=kotlin.coroutines.intrinsics.CoroutineSingletons
+expr e@8:29#1 indexedAccess receiver=e@8:29 indices=[e@8:36] type=kotlin.coroutines.intrinsics.CoroutineSingletons call=kotlin.Array.get[kind=fun;recv=kotlin.Array<T0>;params=Int;ret=T0;gen=1;classGen=1;names=[index]] targs=[kotlin.coroutines.intrinsics.CoroutineSingletons]
 expr e@8:29#2 memberCall recv=e@8:29#1 callee=name args=[] type=String ref=kotlin.coroutines.intrinsics.CoroutineSingletons.name[kind=prop;type=String]
 expr e@8:5 localDecl firstName mutable=0 type=String init=e@8:29#2 type=Unit ref=__local_2.firstName[kind=local;type=String;origin=fixture]
 expr e@9:42 name(CoroutineSingletons) type=kotlin.coroutines.intrinsics.CoroutineSingletons ref=kotlin.coroutines.intrinsics.CoroutineSingletons[kind=enum]

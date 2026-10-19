@@ -108,6 +108,13 @@ DUMP_SURFACE=1 bash Scripts/swift_test.sh --filter FictionAuditDumpTests -Xswift
   最後の利用者を失った `syntheticListType` ヘルパーを削除し、上記 12 ブリッジのみが残る状態にした。
   これらのブロックは関数・クラスシンボルを一切定義しておらず、削除による観測可能な差は
   `SymbolID`/`TypeID` の採番のみ（`TypeSystem.make` は純粋なインターン）。
+- **追補（2026-10-19）**: 上記のうち `CValue.useContents` だけは、明示 import
+  （`import kotlinx.cinterop.useContents`、Kotlin/Native では必須）を
+  `KSWIFTK-SEMA-UNRESOLVED-IMPORT` にしないため、宣言シンボルのみの synthetic stub として
+  `HeaderHelpers+SyntheticCInteropUseContentsStub.swift` に再登録した。未解決 import の診断
+  （2026-10-10）が入るまでは宣言が無くても import が素通りしていた。呼び出し自体は従来どおり
+  scope function の傍受（`scopeUseContents`）が overload 解決より先に効くため、このシンボルは
+  import を解決させるためだけに存在する。
 
 ## 重要な判断: `java.*` / `kotlinx.*` は「架空」ではない
 

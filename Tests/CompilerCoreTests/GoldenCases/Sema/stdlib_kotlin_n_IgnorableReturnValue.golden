@@ -5,3 +5,4 @@ file fstdlib_kotlin_n_IgnorableReturnValue package=golden.sema
   decl golden.sema.user[kind=fun;params=;ret=Unit;origin=fixture] fun user sym=golden.sema.user[kind=fun;params=;ret=Unit;origin=fixture]
 expr e@4:22 int(1) type=Int
 expr e@7:5 call callee=e@7:5#1 args=[] type=Int call=golden.sema.ignored[kind=fun;params=;ret=Int;origin=fixture]
+expr e@3:2 call callee=e@3:2#1 args=[] type=kotlin.IgnorableReturnValue call=kotlin.IgnorableReturnValue.<init>[kind=ctor;recv=kotlin.IgnorableReturnValue;params=;ret=kotlin.IgnorableReturnValue]

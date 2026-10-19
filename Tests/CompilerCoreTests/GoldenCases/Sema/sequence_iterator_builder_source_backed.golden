@@ -7,7 +7,7 @@ expr e@2:11 int(1) type=Int
 expr e@2:5 call callee=e@2:5#1 args=[_:e@2:11] type=Unit call=kotlin.sequences.SequenceScope.yield[kind=fun;recv=kotlin.sequences.SequenceScope<T0>;params=T0;ret=Unit;susp;gen=1;classGen=1;names=[value]] targs=[Int]
 expr e@3:21 int(2) type=Int
 expr e@3:24 int(3) type=Int
-expr e@3:14 call callee=e@3:14#1 args=[_:e@3:21,_:e@3:24] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
+expr e@3:14 call callee=e@3:14#1 args=[_:e@3:21,_:e@3:24] type=kotlin.collections.List<Int> call=kotlin.collections.listOf[kind=fun;params=*T0;ret=kotlin.collections.List<T0>;gen=1;vararg=[1];names=[elements]] targs=[Int]
 expr e@3:5 call callee=e@3:5#1 args=[_:e@3:14] type=Unit call=kotlin.sequences.SequenceScope.yieldAll[kind=fun;recv=kotlin.sequences.SequenceScope<T0>;params=kotlin.collections.Iterable<T0>;ret=Unit;susp;gen=1;classGen=1;names=[elements]] targs=[Int]
 expr e@2:5#2 blockExpr stmts=[e@2:5] trailing=e@3:5 type=Unit
 expr e@1:45 lambda params=[] body=e@2:5#2 label=sequence type=suspend kotlin.sequences.SequenceScope<Int>.() -> Unit

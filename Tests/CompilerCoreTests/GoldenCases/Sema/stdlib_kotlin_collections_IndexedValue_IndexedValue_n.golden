@@ -33,7 +33,7 @@ expr e@12:13 name(entry) type=kotlin.collections.IndexedValue<String> ref=__loca
 expr e@12:35 int(7) type=Int
 expr e@12:38 string(x) type=String
 expr e@12:22 call callee=e@12:22#1 args=[_:e@12:35,_:e@12:38] type=kotlin.collections.IndexedValue<String> call=kotlin.collections.IndexedValue.<init>[kind=ctor;recv=kotlin.collections.IndexedValue<T0>;params=Int,T0;ret=kotlin.collections.IndexedValue<T0>;gen=1;classGen=1;names=[index,value]] targs=[String]
-expr e@12:13#1 binary(equal) lhs=e@12:13 rhs=e@12:22 type=Boolean
+expr e@12:13#1 binary(equal) lhs=e@12:13 rhs=e@12:22 type=Boolean call=kotlin.collections.IndexedValue.equals[kind=fun;recv=kotlin.collections.IndexedValue<T0>;params=Any?;ret=Boolean;gen=1;classGen=1;names=[other]] targs=[String]
 expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@13:13 name(entry) type=kotlin.collections.IndexedValue<String> ref=__local_0.entry[kind=local;type=kotlin.collections.IndexedValue<String>;origin=fixture]
 expr e@13:13#1 memberCall recv=e@13:13 callee=hashCode args=[] type=Int call=kotlin.collections.IndexedValue.hashCode[kind=fun;recv=kotlin.collections.IndexedValue<T0>;params=;ret=Int;gen=1;classGen=1] targs=[String]

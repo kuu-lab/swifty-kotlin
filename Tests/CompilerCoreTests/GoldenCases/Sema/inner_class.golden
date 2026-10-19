@@ -14,7 +14,7 @@ file finner_class package=golden.sema
   decl golden.sema.Outer[kind=class;origin=fixture] class Outer sym=golden.sema.Outer[kind=class;origin=fixture]
   decl golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture]
 expr e@4:18 name(x) type=Int ref=golden.sema.Outer.x[kind=prop;type=Int;origin=fixture]
-expr e@7:27 this@Outer type=golden.sema.Outer
+expr e@7:27 this@Outer type=golden.sema.Outer ref=golden.sema.Outer[kind=class;origin=fixture]
 expr e@7:27#1 memberCall recv=e@7:27 callee=y args=[] type=Int ref=golden.sema.Outer.y[kind=prop;type=Int;origin=fixture]
 expr e@11:32 this@Outer type=<error>
 expr e@11:32#1 memberCall recv=e@11:32 callee=y args=[] type=<error>

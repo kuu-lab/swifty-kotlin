@@ -95,5 +95,5 @@ expr e@16:74#1 memberCall recv=e@16:74 callee=length args=[] type=Int call=kotli
 expr e@16:74#2 memberCall recv=e@16:74#1 callee=toULong args=[] type=ULong
 expr e@16:72 lambda params=[] body=e@16:74#2 label=sumOf type=(String) -> ULong
 expr e@16:59#1 memberCall recv=e@16:59 callee=sumOf args=[_:e@16:72] type=ULong call=kotlin.collections.sumOf[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=ULong};ret=ULong;gen=1;names=[selector]] targs=[String]
-expr e@18:26 call callee=e@18:26#1 args=[] type=kotlin.collections.List<out Nothing> call=kotlin.collections.emptyList[kind=fun;params=;ret=kotlin.collections.List<T0>;gen=1] targs=[Nothing]
+expr e@18:26 call callee=e@18:26#1 args=[] type=kotlin.collections.Iterable<Int> call=kotlin.collections.emptyList[kind=fun;params=;ret=kotlin.collections.List<T0>;gen=1] targs=[Int]
 expr e@18:19 call callee=e@18:19#1 args=[_:e@18:26] type=Int call=intSum[kind=fun;params=kotlin.collections.Iterable<Int>;ret=Int;names=[values];origin=fixture]

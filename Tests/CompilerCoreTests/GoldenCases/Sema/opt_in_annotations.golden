@@ -1,3 +1,4 @@
+symbol fq=golden.sema.ExperimentalSemaApi.<init>[kind=ctor;recv=golden.sema.ExperimentalSemaApi;params=;ret=golden.sema.ExperimentalSemaApi;origin=fixture] kind=constructor vis=public flags=_ sig=recv=golden.sema.ExperimentalSemaApi params=[] ret=golden.sema.ExperimentalSemaApi
 symbol fq=golden.sema.ExperimentalSemaApi[kind=anno;origin=fixture] kind=annotationClass vis=public flags=_
 symbol fq=golden.sema.callerSema[kind=fun;params=;ret=Int;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
 symbol fq=golden.sema.unstableSema[kind=fun;params=;ret=Int;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
@@ -7,3 +8,11 @@ file fopt_in_annotations package=golden.sema
   decl golden.sema.callerSema[kind=fun;params=;ret=Int;origin=fixture] fun callerSema sym=golden.sema.callerSema[kind=fun;params=;ret=Int;origin=fixture]
 expr e@7:27 int(1) type=Int
 expr e@10:25 call callee=e@10:25#1 args=[] type=Int call=golden.sema.unstableSema[kind=fun;params=;ret=Int;origin=fixture]
+expr e@3:24 name(RequiresOptIn) type=Any ref=kotlin.RequiresOptIn[kind=anno]
+expr e@3:24#1 memberCall recv=e@3:24 callee=Level args=[] type=kotlin.RequiresOptIn.Level ref=kotlin.RequiresOptIn.Level[kind=enum]
+expr e@3:24#2 memberCall recv=e@3:24#1 callee=ERROR args=[] type=kotlin.RequiresOptIn.Level ref=kotlin.RequiresOptIn.Level.ERROR[kind=field;type=kotlin.RequiresOptIn.Level]
+expr e@3:2 call callee=e@3:2#1 args=[level:e@3:24#2] type=kotlin.RequiresOptIn call=kotlin.RequiresOptIn.<init>[kind=ctor;recv=kotlin.RequiresOptIn;params=String,kotlin.RequiresOptIn.Level;ret=kotlin.RequiresOptIn;defaults=[1,1];names=[message,level]]
+expr e@6:2 call callee=e@6:2#1 args=[] type=golden.sema.ExperimentalSemaApi call=golden.sema.ExperimentalSemaApi.<init>[kind=ctor;recv=golden.sema.ExperimentalSemaApi;params=;ret=golden.sema.ExperimentalSemaApi;origin=fixture]
+expr e@9:8 name(ExperimentalSemaApi) type=Any ref=golden.sema.ExperimentalSemaApi[kind=anno;origin=fixture]
+expr e@9:8#1 callableRef recv=e@9:8 member=class type=KClass<golden.sema.ExperimentalSemaApi>
+expr e@9:2 call callee=e@9:2#1 args=[_:e@9:8#1] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]

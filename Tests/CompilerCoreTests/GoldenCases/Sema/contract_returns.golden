@@ -28,7 +28,7 @@ expr e@6:37 name(null) type=Nothing?
 expr e@6:28#1 binary(notEqual) lhs=e@6:28 rhs=e@6:37 type=Boolean
 expr e@6:9#2 memberCall recv=e@6:9 callee=implies args=[_:e@6:28#1] type=kotlin.contracts.ConditionalEffect call=kotlin.contracts.SimpleEffect.implies[kind=fun;recv=kotlin.contracts.SimpleEffect;params=Boolean;ret=kotlin.contracts.ConditionalEffect;names=[booleanExpression]]
 expr e@5:14 lambda params=[] body=e@6:9#2 label=contract type=kotlin.contracts.ContractBuilder.() -> Unit
-expr e@5:5 call callee=e@5:5#1 args=[_:e@5:14] type=Unit
+expr e@5:5 call callee=e@5:5#1 args=[_:e@5:14] type=Unit call=kotlin.contracts.contract[kind=fun;params=fn{r=kotlin.contracts.ContractBuilder;p=;ret=Unit};ret=Unit;names=[builder]]
 expr e@8:9 name(value) type=Any? ref=requireNonNull.$2.value[kind=vparam;origin=fixture]
 expr e@8:18 name(null) type=Nothing?
 expr e@8:9#1 binary(equal) lhs=e@8:9 rhs=e@8:18 type=Boolean
@@ -39,7 +39,7 @@ expr e@9:12 name(value) type=Any ref=requireNonNull.$2.value[kind=vparam;origin=
 expr e@9:5 return value=e@9:12 type=Nothing
 expr e@14:9 call callee=e@14:9#1 args=[] type=kotlin.contracts.Returns call=kotlin.contracts.ContractBuilder.returns[kind=fun;recv=kotlin.contracts.ContractBuilder;params=;ret=kotlin.contracts.Returns]
 expr e@13:14 lambda params=[] body=e@14:9 label=contract type=kotlin.contracts.ContractBuilder.() -> Unit
-expr e@13:5 call callee=e@13:5#1 args=[_:e@13:14] type=Unit
+expr e@13:5 call callee=e@13:5#1 args=[_:e@13:14] type=Unit call=kotlin.contracts.contract[kind=fun;params=fn{r=kotlin.contracts.ContractBuilder;p=;ret=Unit};ret=Unit;names=[builder]]
 expr e@16:9 name(x) type=Int ref=bareReturns.$0.x[kind=vparam;origin=fixture]
 expr e@16:13 int(0) type=Int
 expr e@16:9#1 binary(lessThan) lhs=e@16:9 rhs=e@16:13 type=Boolean
@@ -49,7 +49,7 @@ expr e@16:5 if cond=e@16:9#1 then=e@16:16 else=_ type=Unit
 expr e@21:17 bool(true) type=Boolean
 expr e@21:9 call callee=e@21:9#1 args=[_:e@21:17] type=kotlin.contracts.Returns call=kotlin.contracts.ContractBuilder.returns[kind=fun;recv=kotlin.contracts.ContractBuilder;params=Any?;ret=kotlin.contracts.Returns;names=[value]]
 expr e@20:14 lambda params=[] body=e@21:9 label=contract type=kotlin.contracts.ContractBuilder.() -> Unit
-expr e@20:5 call callee=e@20:5#1 args=[_:e@20:14] type=Unit
+expr e@20:5 call callee=e@20:5#1 args=[_:e@20:14] type=Unit call=kotlin.contracts.contract[kind=fun;params=fn{r=kotlin.contracts.ContractBuilder;p=;ret=Unit};ret=Unit;names=[builder]]
 expr e@23:10 name(condition) type=Boolean ref=returnsTrue.$4.condition[kind=vparam;origin=fixture]
 expr e@23:9 unary(not) operand=e@23:10 type=Boolean
 expr e@23:27 call callee=e@23:27#1 args=[] type=kotlin.IllegalArgumentException call=kotlin.IllegalArgumentException.<init>[kind=ctor;recv=kotlin.IllegalArgumentException;params=;ret=kotlin.IllegalArgumentException]
@@ -60,7 +60,7 @@ expr e@24:5 return value=e@24:12 type=Nothing
 expr e@29:17 bool(false) type=Boolean
 expr e@29:9 call callee=e@29:9#1 args=[_:e@29:17] type=kotlin.contracts.Returns call=kotlin.contracts.ContractBuilder.returns[kind=fun;recv=kotlin.contracts.ContractBuilder;params=Any?;ret=kotlin.contracts.Returns;names=[value]]
 expr e@28:14 lambda params=[] body=e@29:9 label=contract type=kotlin.contracts.ContractBuilder.() -> Unit
-expr e@28:5 call callee=e@28:5#1 args=[_:e@28:14] type=Unit
+expr e@28:5 call callee=e@28:5#1 args=[_:e@28:14] type=Unit call=kotlin.contracts.contract[kind=fun;params=fn{r=kotlin.contracts.ContractBuilder;p=;ret=Unit};ret=Unit;names=[builder]]
 expr e@31:9 name(condition) type=Boolean ref=returnsFalse.$3.condition[kind=vparam;origin=fixture]
 expr e@31:26 call callee=e@31:26#1 args=[] type=kotlin.IllegalArgumentException call=kotlin.IllegalArgumentException.<init>[kind=ctor;recv=kotlin.IllegalArgumentException;params=;ret=kotlin.IllegalArgumentException]
 expr e@31:20 throw value=e@31:26 type=Nothing
@@ -76,7 +76,7 @@ expr e@41:17 bool(true) type=Boolean
 expr e@41:9 call callee=e@41:9#1 args=[_:e@41:17] type=kotlin.contracts.Returns call=kotlin.contracts.ContractBuilder.returns[kind=fun;recv=kotlin.contracts.ContractBuilder;params=Any?;ret=kotlin.contracts.Returns;names=[value]]
 expr e@40:9#3 blockExpr stmts=[e@40:9#2] trailing=e@41:9 type=kotlin.contracts.Returns
 expr e@39:14 lambda params=[] body=e@40:9#3 label=contract type=kotlin.contracts.ContractBuilder.() -> Unit
-expr e@39:5 call callee=e@39:5#1 args=[_:e@39:14] type=Unit
+expr e@39:5 call callee=e@39:5#1 args=[_:e@39:14] type=Unit call=kotlin.contracts.contract[kind=fun;params=fn{r=kotlin.contracts.ContractBuilder;p=;ret=Unit};ret=Unit;names=[builder]]
 expr e@43:9 name(value) type=Any? ref=multiEffect.$1.value[kind=vparam;origin=fixture]
 expr e@43:18 name(null) type=Nothing?
 expr e@43:9#1 binary(equal) lhs=e@43:9 rhs=e@43:18 type=Boolean
@@ -117,3 +117,12 @@ expr e@62:18 call callee=e@62:18#1 args=[_:e@62:30,_:e@62:33] type=Boolean call=
 expr e@62:5 localDecl result mutable=0 type=_ init=e@62:18 type=Unit ref=__local_4.result[kind=local;type=Boolean;origin=fixture]
 expr e@63:13 name(result) type=Boolean ref=__local_4.result[kind=local;type=Boolean;origin=fixture]
 expr e@63:5 call callee=e@63:5#1 args=[_:e@63:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@3:8 name(ExperimentalContracts) type=Any ref=kotlin.contracts.ExperimentalContracts[kind=anno]
+expr e@3:8#1 callableRef recv=e@3:8 member=class type=KClass<kotlin.contracts.ExperimentalContracts>
+expr e@3:2 call callee=e@3:2#1 args=[_:e@3:8#1] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]
+expr e@37:8 name(ExperimentalContracts) type=Any ref=kotlin.contracts.ExperimentalContracts[kind=anno]
+expr e@37:8#1 callableRef recv=e@37:8 member=class type=KClass<kotlin.contracts.ExperimentalContracts>
+expr e@37:2 call callee=e@37:2#1 args=[_:e@37:8#1] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]
+diagnostic severity=error code=KSWIFTK-SEMA-OPT-IN at=14:9 msg='kotlin.contracts.ExperimentalContracts' requires opt-in. Annotate the usage with '@kotlin.contracts.ExperimentalContracts' or '@OptIn(kotlin.contracts.ExperimentalContracts::class)'.
+diagnostic severity=error code=KSWIFTK-SEMA-OPT-IN at=21:9 msg='kotlin.contracts.ExperimentalContracts' requires opt-in. Annotate the usage with '@kotlin.contracts.ExperimentalContracts' or '@OptIn(kotlin.contracts.ExperimentalContracts::class)'.
+diagnostic severity=error code=KSWIFTK-SEMA-OPT-IN at=29:9 msg='kotlin.contracts.ExperimentalContracts' requires opt-in. Annotate the usage with '@kotlin.contracts.ExperimentalContracts' or '@OptIn(kotlin.contracts.ExperimentalContracts::class)'.

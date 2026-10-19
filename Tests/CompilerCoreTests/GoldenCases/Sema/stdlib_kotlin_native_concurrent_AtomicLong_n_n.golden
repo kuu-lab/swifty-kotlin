@@ -7,3 +7,7 @@ file fstdlib_kotlin_native_concurrent_AtomicLong_n_n package=golden.sema
 expr e@5:5 memberCall recv=e@5:5#1 callee=AtomicLong args=[] type=kotlin.native.concurrent.AtomicLong call=kotlin.native.concurrent.AtomicLong.<init>[kind=ctor;recv=kotlin.native.concurrent.AtomicLong;params=Long;ret=kotlin.native.concurrent.AtomicLong;defaults=[1];names=[value]]
 expr e@9:41 name(value) type=Long ref=golden.sema.constructExplicit.$0.value[kind=vparam;origin=fixture]
 expr e@9:5 memberCall recv=e@9:5#1 callee=AtomicLong args=[_:e@9:41] type=kotlin.native.concurrent.AtomicLong call=kotlin.native.concurrent.AtomicLong.<init>[kind=ctor;recv=kotlin.native.concurrent.AtomicLong;params=Long;ret=kotlin.native.concurrent.AtomicLong;defaults=[1];names=[value]]
+expr e@3:11 string(DEPRECATION_ERROR) type=String
+expr e@3:2 call callee=e@3:2#1 args=[_:e@3:11] type=kotlin.Suppress call=kotlin.Suppress.<init>[kind=ctor;recv=kotlin.Suppress;params=*String;ret=kotlin.Suppress;vararg=[1];names=[names]]
+expr e@7:11 string(DEPRECATION_ERROR) type=String
+expr e@7:2 call callee=e@7:2#1 args=[_:e@7:11] type=kotlin.Suppress call=kotlin.Suppress.<init>[kind=ctor;recv=kotlin.Suppress;params=*String;ret=kotlin.Suppress;vararg=[1];names=[names]]

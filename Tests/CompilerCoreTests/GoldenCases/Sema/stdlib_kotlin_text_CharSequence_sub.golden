@@ -8,7 +8,7 @@ file fstdlib_kotlin_text_CharSequence_sub package=golden.sema
 expr e@4:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceSubSequenceRange.$1.source[kind=vparam;origin=fixture]
 expr e@4:24 int(1) type=Int
 expr e@4:27 int(3) type=Int
-expr e@4:24#1 binary(rangeTo) lhs=e@4:24 rhs=e@4:27 type=Int
+expr e@4:24#1 binary(rangeTo) lhs=e@4:24 rhs=e@4:27 type=kotlin.ranges.IntRange call=kotlin.ranges.rangeTo[kind=fun;recv=Int;params=Int;ret=kotlin.ranges.IntRange;names=[to]]
 expr e@4:5#1 memberCall recv=e@4:5 callee=subSequence args=[_:e@4:24#1] type=kotlin.CharSequence call=kotlin.text.subSequence[kind=fun;recv=kotlin.CharSequence;params=kotlin.ranges.IntRange;ret=kotlin.CharSequence;names=[range]]
 expr e@7:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceSubSequenceEmpty.$0.source[kind=vparam;origin=fixture]
 expr e@7:24 int(2) type=Int

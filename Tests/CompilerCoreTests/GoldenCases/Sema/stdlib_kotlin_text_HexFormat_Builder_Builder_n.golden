@@ -44,3 +44,6 @@ expr e@11:5#1 memberCall recv=e@11:5 callee=number args=[_:e@11:20] type=Unit ca
 expr e@12:12 name(builder) type=kotlin.text.HexFormat.Builder ref=golden.sema.configureHexFormatBuilder.$0.builder[kind=vparam;origin=fixture]
 expr e@12:12#1 memberCall recv=e@12:12 callee=build args=[] type=kotlin.text.HexFormat call=kotlin.text.HexFormat.Builder.build[kind=fun;recv=kotlin.text.HexFormat.Builder;params=;ret=kotlin.text.HexFormat]
 expr e@12:5 return value=e@12:12#1 type=Nothing
+expr e@2:16 string(INVISIBLE_MEMBER) type=String
+expr e@2:36 string(INVISIBLE_REFERENCE) type=String
+expr e@2:7 call callee=e@2:7#1 args=[_:e@2:16,_:e@2:36] type=kotlin.Suppress call=kotlin.Suppress.<init>[kind=ctor;recv=kotlin.Suppress;params=*String;ret=kotlin.Suppress;vararg=[1];names=[names]]

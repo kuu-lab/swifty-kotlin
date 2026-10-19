@@ -8,3 +8,10 @@ file fstdlib_kotlin_n_DeprecatedSinceKotlin package=golden.sema
   decl golden.sema.oldProperty[kind=prop;type=Int;origin=fixture] property oldProperty var=0 sym=golden.sema.oldProperty[kind=prop;type=Int;origin=fixture]
   decl golden.sema.OldAnnotation[kind=anno;origin=fixture] class OldAnnotation sym=golden.sema.OldAnnotation[kind=anno;origin=fixture]
 expr e@10:24 int(1) type=Int
+expr e@3:39 string(1.0) type=String
+expr e@3:59 string(1.1) type=String
+expr e@3:80 string(1.2) type=String
+expr e@3:2 call callee=e@3:2#1 args=[warningSince:e@3:39,errorSince:e@3:59,hiddenSince:e@3:80] type=kotlin.DeprecatedSinceKotlin call=kotlin.DeprecatedSinceKotlin.<init>[kind=ctor;recv=kotlin.DeprecatedSinceKotlin;params=String,String,String;ret=kotlin.DeprecatedSinceKotlin;defaults=[1,1,1];names=[warningSince,errorSince,hiddenSince]]
+expr e@6:2 call callee=e@6:2#1 args=[] type=kotlin.DeprecatedSinceKotlin call=kotlin.DeprecatedSinceKotlin.<init>[kind=ctor;recv=kotlin.DeprecatedSinceKotlin;params=String,String,String;ret=kotlin.DeprecatedSinceKotlin;defaults=[1,1,1];names=[warningSince,errorSince,hiddenSince]]
+expr e@9:2 call callee=e@9:2#1 args=[] type=kotlin.DeprecatedSinceKotlin call=kotlin.DeprecatedSinceKotlin.<init>[kind=ctor;recv=kotlin.DeprecatedSinceKotlin;params=String,String,String;ret=kotlin.DeprecatedSinceKotlin;defaults=[1,1,1];names=[warningSince,errorSince,hiddenSince]]
+expr e@12:2 call callee=e@12:2#1 args=[] type=kotlin.DeprecatedSinceKotlin call=kotlin.DeprecatedSinceKotlin.<init>[kind=ctor;recv=kotlin.DeprecatedSinceKotlin;params=String,String,String;ret=kotlin.DeprecatedSinceKotlin;defaults=[1,1,1];names=[warningSince,errorSince,hiddenSince]]

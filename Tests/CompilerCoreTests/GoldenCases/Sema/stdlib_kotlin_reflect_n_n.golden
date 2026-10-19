@@ -138,3 +138,7 @@ expr e@69:13 name(type) type=kotlin.reflect.KType ref=__local_3.type[kind=local;
 expr e@69:13#1 memberCall recv=e@69:13 callee=arguments args=[] type=kotlin.collections.List<out kotlin.reflect.KTypeProjection> ref=kotlin.reflect.KType.arguments[kind=prop;type=kotlin.collections.List<out kotlin.reflect.KTypeProjection>]
 expr e@69:13#2 memberCall recv=e@69:13#1 callee=size args=[] type=Int ref=kotlin.collections.List.size[kind=prop;type=Int]
 expr e@69:5 call callee=e@69:5#1 args=[_:e@69:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@45:8 name(ExperimentalAssociatedObjects) type=Any ref=kotlin.reflect.ExperimentalAssociatedObjects[kind=anno]
+expr e@45:8#1 callableRef recv=e@45:8 member=class type=KClass<kotlin.reflect.ExperimentalAssociatedObjects>
+expr e@45:2 call callee=e@45:2#1 args=[_:e@45:8#1] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]
+expr e@46:2 call callee=e@46:2#1 args=[] type=kotlin.reflect.AssociatedObjectKey call=kotlin.reflect.AssociatedObjectKey.<init>[kind=ctor;recv=kotlin.reflect.AssociatedObjectKey;params=;ret=kotlin.reflect.AssociatedObjectKey]

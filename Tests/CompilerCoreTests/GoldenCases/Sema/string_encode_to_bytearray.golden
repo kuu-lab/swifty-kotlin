@@ -13,12 +13,12 @@ expr e@3:5 localDecl bytes1 mutable=0 type=_ init=e@3:18#1 type=Unit ref=__local
 expr e@4:18 name(s) type=String ref=__local_0.s[kind=local;type=String;origin=fixture]
 expr e@4:38 int(1) type=Int
 expr e@4:41 int(4) type=Int
-expr e@4:18#1 memberCall recv=e@4:18 callee=encodeToByteArray args=[_:e@4:38,_:e@4:41] type=kotlin.ByteArray call=kotlin.text.encodeToByteArray[kind=fun;recv=String;params=Int,Int;ret=kotlin.ByteArray;names=[startIndex,endIndex]]
+expr e@4:18#1 memberCall recv=e@4:18 callee=encodeToByteArray args=[_:e@4:38,_:e@4:41] type=kotlin.ByteArray call=kotlin.text.encodeToByteArray[kind=fun;recv=String;params=Int,Int;ret=kotlin.ByteArray;defaults=[1,1];names=[startIndex,endIndex]]
 expr e@4:5 localDecl bytes2 mutable=0 type=_ init=e@4:18#1 type=Unit ref=__local_2.bytes2[kind=local;type=kotlin.ByteArray;origin=fixture]
 expr e@5:18 name(s) type=String ref=__local_0.s[kind=local;type=String;origin=fixture]
 expr e@5:38 name(Charsets) type=kotlin.text.Charsets ref=kotlin.text.Charsets[kind=obj]
-expr e@5:38#1 memberCall recv=e@5:38 callee=UTF_8 args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.UTF_8[kind=prop;type=kotlin.text.Charset]
-expr e@5:18#1 memberCall recv=e@5:18 callee=encodeToByteArray args=[_:e@5:38#1] type=kotlin.ByteArray call=kotlin.text.encodeToByteArray[kind=fun;recv=String;params=kotlin.text.Charset;ret=kotlin.ByteArray;names=[charset]]
+expr e@5:38#1 memberCall recv=e@5:38 callee=UTF_8 args=[] type=java.nio.charset.Charset ref=kotlin.text.Charsets.UTF_8[kind=prop;type=java.nio.charset.Charset]
+expr e@5:18#1 memberCall recv=e@5:18 callee=encodeToByteArray args=[_:e@5:38#1] type=kotlin.ByteArray call=kotlin.text.encodeToByteArray[kind=fun;recv=String;params=java.nio.charset.Charset;ret=kotlin.ByteArray;names=[charset]]
 expr e@5:5 localDecl bytes3 mutable=0 type=_ init=e@5:18#1 type=Unit ref=__local_3.bytes3[kind=local;type=kotlin.ByteArray;origin=fixture]
 expr e@6:13 name(bytes1) type=kotlin.ByteArray ref=__local_1.bytes1[kind=local;type=kotlin.ByteArray;origin=fixture]
 expr e@6:13#1 memberCall recv=e@6:13 callee=size args=[] type=Int call=kotlin.collections.size.$get[kind=fun;recv=kotlin.ByteArray;params=;ret=Int]

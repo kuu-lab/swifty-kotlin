@@ -29,7 +29,7 @@ expr e@12:5 name(sink) type=kotlinx.io.Sink ref=__local_0.sink[kind=local;type=k
 expr e@12:28 int(7) type=Byte
 expr e@12:31 int(8) type=Byte
 expr e@12:16 call callee=e@12:16#1 args=[_:e@12:28,_:e@12:31] type=kotlin.ByteArray call=kotlin.byteArrayOf[kind=fun;params=*Byte;ret=kotlin.ByteArray;vararg=[1];names=[elements]]
-expr e@12:5#1 memberCall recv=e@12:5 callee=write args=[_:e@12:16] type=Unit call=kotlinx.io.Sink.write[kind=fun;recv=kotlinx.io.Sink;params=kotlin.ByteArray;ret=Unit;names=[source]]
+expr e@12:5#1 memberCall recv=e@12:5 callee=write args=[_:e@12:16] type=Unit call=kotlinx.io.Sink.write[kind=fun;recv=kotlinx.io.Sink;params=kotlin.ByteArray,Int,Int;ret=Unit;defaults=[0,1,1];names=[source,startIndex,endIndex]]
 expr e@13:5 name(sink) type=kotlinx.io.Sink ref=__local_0.sink[kind=local;type=kotlinx.io.Sink;origin=fixture]
 expr e@13:5#1 memberCall recv=e@13:5 callee=hintEmit args=[] type=Unit call=kotlinx.io.Sink.hintEmit[kind=fun;recv=kotlinx.io.Sink;params=;ret=Unit]
 expr e@14:5 name(sink) type=kotlinx.io.Sink ref=__local_0.sink[kind=local;type=kotlinx.io.Sink;origin=fixture]
@@ -74,3 +74,6 @@ expr e@28:5#1 memberCall recv=e@28:5 callee=buffer args=[] type=kotlinx.io.Buffe
 expr e@29:12 name(buffer) type=kotlinx.io.Buffer ref=primitives.$0.buffer[kind=vparam;origin=fixture]
 expr e@29:12#1 memberCall recv=e@29:12 callee=size args=[] type=Long ref=kotlinx.io.Buffer.size[kind=prop;type=Long]
 expr e@29:5 return value=e@29:12#1 type=Nothing
+diagnostic severity=error code=KSWIFTK-SEMA-OPT-IN at=13:5 msg='kotlinx.io.InternalIoApi' requires opt-in. Annotate the usage with '@kotlinx.io.InternalIoApi' or '@OptIn(kotlinx.io.InternalIoApi::class)'. This is an internal API and its use requires care. It is subject to change or removal and is not intended for use outside the library.Make sure you fully read and understand documentation of the declaration that is marked as an internal API.
+diagnostic severity=error code=KSWIFTK-SEMA-OPT-IN at=27:5 msg='kotlinx.io.InternalIoApi' requires opt-in. Annotate the usage with '@kotlinx.io.InternalIoApi' or '@OptIn(kotlinx.io.InternalIoApi::class)'. This is an internal API and its use requires care. It is subject to change or removal and is not intended for use outside the library.Make sure you fully read and understand documentation of the declaration that is marked as an internal API.
+diagnostic severity=error code=KSWIFTK-SEMA-OPT-IN at=28:5 msg='kotlinx.io.InternalIoApi' requires opt-in. Annotate the usage with '@kotlinx.io.InternalIoApi' or '@OptIn(kotlinx.io.InternalIoApi::class)'. This is an internal API and its use requires care. It is subject to change or removal and is not intended for use outside the library.Make sure you fully read and understand documentation of the declaration that is marked as an internal API.

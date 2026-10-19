@@ -10,3 +10,6 @@ expr e@14:5 name(stackReferences) type=Long ref=golden.sema.makeRootSetStatistic
 expr e@15:5 name(globalReferences) type=Long ref=golden.sema.makeRootSetStatistics.$0.globalReferences[kind=vparam;origin=fixture]
 expr e@16:5 name(stableReferences) type=Long ref=golden.sema.makeRootSetStatistics.$0.stableReferences[kind=vparam;origin=fixture]
 expr e@12:24 call callee=e@12:24#1 args=[_:e@13:5,_:e@14:5,_:e@15:5,_:e@16:5] type=kotlin.native.runtime.RootSetStatistics call=kotlin.native.runtime.RootSetStatistics.<init>[kind=ctor;recv=kotlin.native.runtime.RootSetStatistics;params=Long,Long,Long,Long;ret=kotlin.native.runtime.RootSetStatistics;names=[threadLocalReferences,stackReferences,globalReferences,stableReferences]]
+expr e@6:8 name(NativeRuntimeApi) type=Any ref=kotlin.native.runtime.NativeRuntimeApi[kind=anno]
+expr e@6:8#1 callableRef recv=e@6:8 member=class type=KClass<kotlin.native.runtime.NativeRuntimeApi>
+expr e@6:2 call callee=e@6:2#1 args=[_:e@6:8#1] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]

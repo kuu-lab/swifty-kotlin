@@ -4,3 +4,5 @@ file fstdlib_kotlin_native_concurrent_AtomicReference_n_n package=golden.sema
   decl golden.sema.construct[kind=fun;params=String;ret=kotlin.native.concurrent.AtomicReference<String>;names=[value];origin=fixture] fun construct sym=golden.sema.construct[kind=fun;params=String;ret=kotlin.native.concurrent.AtomicReference<String>;names=[value];origin=fixture]
 expr e@5:46 name(value) type=String ref=golden.sema.construct.$0.value[kind=vparam;origin=fixture]
 expr e@5:5 memberCall recv=e@5:5#1 callee=AtomicReference args=[_:e@5:46] type=kotlin.native.concurrent.AtomicReference<String> call=kotlin.native.concurrent.AtomicReference.<init>[kind=ctor;recv=kotlin.native.concurrent.AtomicReference<T0>;params=T0;ret=kotlin.native.concurrent.AtomicReference<T0>;gen=1;classGen=1;names=[value]] targs=[String]
+expr e@3:11 string(DEPRECATION_ERROR) type=String
+expr e@3:2 call callee=e@3:2#1 args=[_:e@3:11] type=kotlin.Suppress call=kotlin.Suppress.<init>[kind=ctor;recv=kotlin.Suppress;params=*String;ret=kotlin.Suppress;vararg=[1];names=[names]]

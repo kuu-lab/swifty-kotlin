@@ -1,5 +1,9 @@
+symbol fq=golden.sema.Outer.MyMarker.<init>.$0.level[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.Outer.MyMarker.<init>.$0.message[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.Outer.MyMarker.<init>[kind=ctor;recv=golden.sema.Outer.MyMarker;params=String,golden.sema.Outer.MyMarker.Level;ret=golden.sema.Outer.MyMarker;defaults=[1,1];names=[message,level];origin=fixture] kind=constructor vis=public flags=_ sig=recv=golden.sema.Outer.MyMarker params=[String,golden.sema.Outer.MyMarker.Level] ret=golden.sema.Outer.MyMarker defaults=[1,1]
 symbol fq=golden.sema.Outer.MyMarker.Level.ERROR[kind=field;type=golden.sema.Outer.MyMarker.Level;origin=fixture] kind=field vis=public flags=_ type=golden.sema.Outer.MyMarker.Level
 symbol fq=golden.sema.Outer.MyMarker.Level[kind=enum;origin=fixture] kind=enumClass vis=public flags=_
+symbol fq=golden.sema.Outer.MyMarker[kind=anno;origin=fixture] kind=annotationClass vis=public flags=_
 symbol fq=golden.sema.Outer[kind=class;origin=fixture] kind=class vis=public flags=_
 symbol fq=golden.sema.useMarker[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fnested_requires_opt_in package=golden.sema
@@ -8,3 +12,5 @@ file fnested_requires_opt_in package=golden.sema
 expr e@5:31 string() type=String
 expr e@6:28 name(Level) type=golden.sema.Outer.MyMarker.Level ref=golden.sema.Outer.MyMarker.Level[kind=enum;origin=fixture]
 expr e@6:28#1 memberCall recv=e@6:28 callee=ERROR args=[] type=golden.sema.Outer.MyMarker.Level ref=golden.sema.Outer.MyMarker.Level.ERROR[kind=field;type=golden.sema.Outer.MyMarker.Level;origin=fixture]
+expr e@15:2 memberCall recv=e@15:2#1 callee=Outer args=[] type=golden.sema.Outer ref=golden.sema.Outer[kind=class;origin=fixture]
+expr e@15:2#2 memberCall recv=e@15:2 callee=MyMarker args=[] type=golden.sema.Outer.MyMarker call=golden.sema.Outer.MyMarker.<init>[kind=ctor;recv=golden.sema.Outer.MyMarker;params=String,golden.sema.Outer.MyMarker.Level;ret=golden.sema.Outer.MyMarker;defaults=[1,1];names=[message,level];origin=fixture]

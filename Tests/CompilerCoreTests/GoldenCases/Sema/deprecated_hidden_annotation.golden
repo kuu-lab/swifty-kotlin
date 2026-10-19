@@ -15,5 +15,15 @@ expr e@12:38 call callee=e@12:38#1 args=[] type=Int call=golden.sema.oldFunSince
 expr e@12:21#2 binary(add) lhs=e@12:21 rhs=e@12:38 type=Int
 expr e@12:60 call callee=e@12:60#1 args=[] type=Int call=golden.sema.newFun[kind=fun;params=;ret=Int;origin=fixture]
 expr e@12:21#3 binary(add) lhs=e@12:21#2 rhs=e@12:60 type=Int
+expr e@3:13 string(Use newFun instead) type=String
+expr e@3:43 name(DeprecationLevel) type=kotlin.DeprecationLevel ref=kotlin.DeprecationLevel[kind=enum]
+expr e@3:43#1 memberCall recv=e@3:43 callee=HIDDEN args=[] type=kotlin.DeprecationLevel ref=kotlin.DeprecationLevel.HIDDEN[kind=field;type=kotlin.DeprecationLevel]
+expr e@3:2 call callee=e@3:2#1 args=[_:e@3:13,level:e@3:43#1] type=kotlin.Deprecated call=kotlin.Deprecated.<init>[kind=ctor;recv=kotlin.Deprecated;params=String,kotlin.ReplaceWith,kotlin.DeprecationLevel;ret=kotlin.Deprecated;defaults=[0,1,1];names=[message,replaceWith,level]]
+expr e@6:13 string(Use newFun instead) type=String
+expr e@6:2 call callee=e@6:2#1 args=[_:e@6:13] type=kotlin.Deprecated call=kotlin.Deprecated.<init>[kind=ctor;recv=kotlin.Deprecated;params=String,kotlin.ReplaceWith,kotlin.DeprecationLevel;ret=kotlin.Deprecated;defaults=[0,1,1];names=[message,replaceWith,level]]
+expr e@7:39 string(1.0) type=String
+expr e@7:59 string(2.0) type=String
+expr e@7:80 string(2.1) type=String
+expr e@7:2 call callee=e@7:2#1 args=[warningSince:e@7:39,errorSince:e@7:59,hiddenSince:e@7:80] type=kotlin.DeprecatedSinceKotlin call=kotlin.DeprecatedSinceKotlin.<init>[kind=ctor;recv=kotlin.DeprecatedSinceKotlin;params=String,String,String;ret=kotlin.DeprecatedSinceKotlin;defaults=[1,1,1];names=[warningSince,errorSince,hiddenSince]]
 diagnostic severity=error code=KSWIFTK-SEMA-DEPRECATED at=12:21 msg='golden.sema.oldFunHidden' is deprecated. Use newFun instead
 diagnostic severity=error code=KSWIFTK-SEMA-DEPRECATED at=12:38 msg='golden.sema.oldFunSinceHidden' is deprecated. Use newFun instead

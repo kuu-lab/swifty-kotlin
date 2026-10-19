@@ -25,7 +25,7 @@ file fstdlib_kotlin_collections_Iterable_plus package=_
   decl main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=main[kind=fun;params=;ret=Unit;origin=fixture]
 expr e@2:38 int(1) type=Int
 expr e@2:41 int(2) type=Int
-expr e@2:31 call callee=e@2:31#1 args=[_:e@2:38,_:e@2:41] type=kotlin.collections.Iterable<Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
+expr e@2:31 call callee=e@2:31#1 args=[_:e@2:38,_:e@2:41] type=kotlin.collections.List<Int> call=kotlin.collections.listOf[kind=fun;params=*T0;ret=kotlin.collections.List<T0>;gen=1;vararg=[1];names=[elements]] targs=[Int]
 expr e@2:5 localDecl ints mutable=0 type=Iterable<Int> init=e@2:31 type=Unit ref=__local_0.ints[kind=local;type=kotlin.collections.Iterable<Int>;origin=fixture]
 expr e@3:32 name(ints) type=kotlin.collections.Iterable<Int> ref=__local_0.ints[kind=local;type=kotlin.collections.Iterable<Int>;origin=fixture]
 expr e@3:42 int(3) type=Int
@@ -34,7 +34,7 @@ expr e@3:5 localDecl byElement mutable=0 type=List<Int> init=e@3:32#1 type=Unit 
 expr e@4:33 name(ints) type=kotlin.collections.Iterable<Int> ref=__local_0.ints[kind=local;type=kotlin.collections.Iterable<Int>;origin=fixture]
 expr e@4:50 int(3) type=Int
 expr e@4:53 int(4) type=Int
-expr e@4:43 call callee=e@4:43#1 args=[_:e@4:50,_:e@4:53] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
+expr e@4:43 call callee=e@4:43#1 args=[_:e@4:50,_:e@4:53] type=kotlin.collections.List<Int> call=kotlin.collections.listOf[kind=fun;params=*T0;ret=kotlin.collections.List<T0>;gen=1;vararg=[1];names=[elements]] targs=[Int]
 expr e@4:33#1 memberCall recv=e@4:33 callee=plus args=[_:e@4:43] type=kotlin.collections.List<Int> call=kotlin.collections.plus[kind=fun;recv=kotlin.collections.Iterable<T0>;params=kotlin.collections.Iterable<T0>;ret=kotlin.collections.List<T0>;gen=1;names=[elements]] targs=[Int]
 expr e@4:5 localDecl byIterable mutable=0 type=List<Int> init=e@4:33#1 type=Unit ref=__local_2.byIterable[kind=local;type=kotlin.collections.List<Int>;origin=fixture]
 expr e@5:33 name(ints) type=kotlin.collections.Iterable<Int> ref=__local_0.ints[kind=local;type=kotlin.collections.Iterable<Int>;origin=fixture]
@@ -69,31 +69,31 @@ expr e@10:36#1 memberCall recv=e@10:36 callee=plusElement args=[_:e@10:53] type=
 expr e@10:5 localDecl byPlusElement mutable=0 type=List<Int> init=e@10:36#1 type=Unit ref=__local_8.byPlusElement[kind=local;type=kotlin.collections.List<Int>;origin=fixture]
 expr e@12:47 long(1) type=Long
 expr e@12:51 long(2) type=Long
-expr e@12:40 call callee=e@12:40#1 args=[_:e@12:47,_:e@12:51] type=kotlin.collections.List<out Long> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Long]
+expr e@12:40 call callee=e@12:40#1 args=[_:e@12:47,_:e@12:51] type=kotlin.collections.List<Long> call=kotlin.collections.listOf[kind=fun;params=*T0;ret=kotlin.collections.List<T0>;gen=1;vararg=[1];names=[elements]] targs=[Long]
 expr e@12:61 long(3) type=Long
 expr e@12:40#2 memberCall recv=e@12:40 callee=minus args=[_:e@12:61] type=kotlin.collections.List<Long> call=kotlin.collections.minus[kind=fun;recv=kotlin.collections.Iterable<T0>;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Long]
 expr e@12:5 localDecl longMinusElement mutable=0 type=List<Long> init=e@12:40#2 type=Unit ref=__local_9.longMinusElement[kind=local;type=kotlin.collections.List<Long>;origin=fixture]
 expr e@13:51 double(1.0) type=Double
 expr e@13:56 double(2.0) type=Double
-expr e@13:44 call callee=e@13:44#1 args=[_:e@13:51,_:e@13:56] type=kotlin.collections.List<out Double> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Double]
+expr e@13:44 call callee=e@13:44#1 args=[_:e@13:51,_:e@13:56] type=kotlin.collections.List<Double> call=kotlin.collections.listOf[kind=fun;params=*T0;ret=kotlin.collections.List<T0>;gen=1;vararg=[1];names=[elements]] targs=[Double]
 expr e@13:67 double(3.0) type=Double
 expr e@13:44#2 memberCall recv=e@13:44 callee=minus args=[_:e@13:67] type=kotlin.collections.List<Double> call=kotlin.collections.minus[kind=fun;recv=kotlin.collections.Iterable<T0>;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Double]
 expr e@13:5 localDecl doubleMinusElement mutable=0 type=List<Double> init=e@13:44#2 type=Unit ref=__local_10.doubleMinusElement[kind=local;type=kotlin.collections.List<Double>;origin=fixture]
 expr e@14:49 float(1.0) type=Float
 expr e@14:55 float(2.0) type=Float
-expr e@14:42 call callee=e@14:42#1 args=[_:e@14:49,_:e@14:55] type=kotlin.collections.List<out Float> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Float]
+expr e@14:42 call callee=e@14:42#1 args=[_:e@14:49,_:e@14:55] type=kotlin.collections.List<Float> call=kotlin.collections.listOf[kind=fun;params=*T0;ret=kotlin.collections.List<T0>;gen=1;vararg=[1];names=[elements]] targs=[Float]
 expr e@14:67 float(3.0) type=Float
 expr e@14:42#2 memberCall recv=e@14:42 callee=minus args=[_:e@14:67] type=kotlin.collections.List<Float> call=kotlin.collections.minus[kind=fun;recv=kotlin.collections.Iterable<T0>;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Float]
 expr e@14:5 localDecl floatMinusElement mutable=0 type=List<Float> init=e@14:42#2 type=Unit ref=__local_11.floatMinusElement[kind=local;type=kotlin.collections.List<Float>;origin=fixture]
 expr e@15:47 char(97) type=Char
 expr e@15:52 char(98) type=Char
-expr e@15:40 call callee=e@15:40#1 args=[_:e@15:47,_:e@15:52] type=kotlin.collections.List<out Char> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Char]
+expr e@15:40 call callee=e@15:40#1 args=[_:e@15:47,_:e@15:52] type=kotlin.collections.List<Char> call=kotlin.collections.listOf[kind=fun;params=*T0;ret=kotlin.collections.List<T0>;gen=1;vararg=[1];names=[elements]] targs=[Char]
 expr e@15:63 char(99) type=Char
 expr e@15:40#2 memberCall recv=e@15:40 callee=minus args=[_:e@15:63] type=kotlin.collections.List<Char> call=kotlin.collections.minus[kind=fun;recv=kotlin.collections.Iterable<T0>;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Char]
 expr e@15:5 localDecl charMinusElement mutable=0 type=List<Char> init=e@15:40#2 type=Unit ref=__local_12.charMinusElement[kind=local;type=kotlin.collections.List<Char>;origin=fixture]
 expr e@17:46 string(a) type=String
 expr e@17:51 name(null) type=Nothing?
-expr e@17:39 call callee=e@17:39#1 args=[_:e@17:46,_:e@17:51] type=kotlin.collections.Iterable<String?> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[String?]
+expr e@17:39 call callee=e@17:39#1 args=[_:e@17:46,_:e@17:51] type=kotlin.collections.List<String?> call=kotlin.collections.listOf[kind=fun;params=*T0;ret=kotlin.collections.List<T0>;gen=1;vararg=[1];names=[elements]] targs=[String?]
 expr e@17:5 localDecl nullable mutable=0 type=Iterable<String?> init=e@17:39 type=Unit ref=__local_13.nullable[kind=local;type=kotlin.collections.Iterable<String?>;origin=fixture]
 expr e@18:58 string(b) type=String
 expr e@18:63 name(null) type=Nothing?
@@ -113,7 +113,7 @@ expr e@21:42#1 memberCall recv=e@21:42 callee=plus args=[_:e@21:56] type=kotlin.
 expr e@21:5 localDecl nullableByArray mutable=0 type=List<String?> init=e@21:42#1 type=Unit ref=__local_17.nullableByArray[kind=local;type=kotlin.collections.List<String?>;origin=fixture]
 expr e@23:42 string(x) type=String
 expr e@23:47 name(null) type=Nothing?
-expr e@23:35 call callee=e@23:35#1 args=[_:e@23:42,_:e@23:47] type=kotlin.collections.Iterable<Any?> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Any?]
+expr e@23:35 call callee=e@23:35#1 args=[_:e@23:42,_:e@23:47] type=kotlin.collections.List<String?> call=kotlin.collections.listOf[kind=fun;params=*T0;ret=kotlin.collections.List<T0>;gen=1;vararg=[1];names=[elements]] targs=[String?]
 expr e@23:5 localDecl widened mutable=0 type=Iterable<Any?> init=e@23:35 type=Unit ref=__local_18.widened[kind=local;type=kotlin.collections.Iterable<Any?>;origin=fixture]
 expr e@24:47 string(y) type=String
 expr e@24:39 call callee=e@24:39#1 args=[_:e@24:47] type=kotlin.Array<String> call=kotlin.arrayOf[kind=fun;params=*T0;ret=kotlin.Array<T0>;gen=1;vararg=[1];names=[elements]] targs=[String]

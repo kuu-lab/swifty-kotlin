@@ -32,14 +32,14 @@ expr e@13:16 int(1) type=Int
 expr e@13:5#1 memberCall recv=e@13:5 callee=add args=[_:e@13:16] type=Boolean call=kotlin.collections.MutableSet.add[kind=fun;recv=kotlin.collections.MutableSet<T0>;params=T0;ret=Boolean;gen=1;classGen=1;names=[element]]
 expr e@14:5 name(values) type=kotlin.collections.MutableSet<Int> ref=probe.$3.values[kind=vparam;origin=fixture]
 expr e@14:26 int(2) type=Int
-expr e@14:19 call callee=e@14:19#1 args=[_:e@14:26] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
+expr e@14:19 call callee=e@14:19#1 args=[_:e@14:26] type=kotlin.collections.List<Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
 expr e@14:5#1 memberCall recv=e@14:5 callee=addAll args=[_:e@14:19] type=Boolean call=kotlin.collections.MutableSet.addAll[kind=fun;recv=kotlin.collections.MutableSet<T0>;params=kotlin.collections.Collection<out T0>;ret=Boolean;gen=1;classGen=1;names=[elements]]
 expr e@15:5 name(values) type=kotlin.collections.MutableSet<Int> ref=probe.$3.values[kind=vparam;origin=fixture]
 expr e@15:19 int(1) type=Int
 expr e@15:5#1 memberCall recv=e@15:5 callee=remove args=[_:e@15:19] type=Boolean call=kotlin.collections.MutableSet.remove[kind=fun;recv=kotlin.collections.MutableSet<T0>;params=T0;ret=Boolean;gen=1;classGen=1;names=[element]] targs=[Int]
 expr e@16:5 name(values) type=kotlin.collections.MutableSet<Int> ref=probe.$3.values[kind=vparam;origin=fixture]
 expr e@16:29 int(2) type=Int
-expr e@16:22 call callee=e@16:22#1 args=[_:e@16:29] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
+expr e@16:22 call callee=e@16:22#1 args=[_:e@16:29] type=kotlin.collections.List<Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
 expr e@16:5#1 memberCall recv=e@16:5 callee=removeAll args=[_:e@16:22] type=Boolean call=kotlin.collections.MutableSet.removeAll[kind=fun;recv=kotlin.collections.MutableSet<T0>;params=kotlin.collections.Collection<out T0>;ret=Boolean;gen=1;classGen=1;names=[elements]]
 expr e@17:5 name(values) type=kotlin.collections.MutableSet<Int> ref=probe.$3.values[kind=vparam;origin=fixture]
 expr e@17:22 call callee=e@17:22#1 args=[] type=kotlin.collections.Set<out Nothing> call=kotlin.collections.emptySet[kind=fun;params=;ret=kotlin.collections.Set<T0>;gen=1] targs=[Nothing]
@@ -51,10 +51,10 @@ expr e@19:5 compoundAssign(plusAssign) name=values value=e@19:15 type=Unit ref=p
 expr e@20:15 int(3) type=Int
 expr e@20:5 compoundAssign(minusAssign) name=values value=e@20:15 type=Unit ref=probe.$3.values[kind=vparam;origin=fixture] call=kotlin.collections.MutableSet.minusAssign[kind=fun;recv=kotlin.collections.MutableSet<T0>;params=T0;ret=Unit;gen=1;classGen=1;names=[element]] targs=[Int]
 expr e@21:22 int(4) type=Int
-expr e@21:15 call callee=e@21:15#1 args=[_:e@21:22] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
+expr e@21:15 call callee=e@21:15#1 args=[_:e@21:22] type=kotlin.collections.List<Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
 expr e@21:5 compoundAssign(plusAssign) name=values value=e@21:15 type=Unit ref=probe.$3.values[kind=vparam;origin=fixture] call=kotlin.collections.MutableSet.plusAssign[kind=fun;recv=kotlin.collections.MutableSet<T0>;params=kotlin.collections.Collection<out T0>;ret=Unit;gen=1;classGen=1;names=[elements]] targs=[Int]
 expr e@22:22 int(4) type=Int
-expr e@22:15 call callee=e@22:15#1 args=[_:e@22:22] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
+expr e@22:15 call callee=e@22:15#1 args=[_:e@22:22] type=kotlin.collections.List<Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
 expr e@22:5 compoundAssign(minusAssign) name=values value=e@22:15 type=Unit ref=probe.$3.values[kind=vparam;origin=fixture] call=kotlin.collections.MutableSet.minusAssign[kind=fun;recv=kotlin.collections.MutableSet<T0>;params=kotlin.collections.Collection<out T0>;ret=Unit;gen=1;classGen=1;names=[elements]] targs=[Int]
 expr e@24:21 name(values) type=kotlin.collections.MutableSet<Int> ref=probe.$3.values[kind=vparam;origin=fixture]
 expr e@25:9 name(element) type=Int ref=__for_0.element[kind=local;type=Int;origin=fixture]

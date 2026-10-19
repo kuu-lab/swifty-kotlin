@@ -16,3 +16,13 @@ expr e@9:25 name(value) type=Int ref=golden.sema.SinceKotlinHost.value[kind=prop
 expr e@16:54 name(host) type=golden.sema.SinceKotlinHost ref=golden.sema.useSinceKotlinHost.$0.host[kind=vparam;origin=fixture]
 expr e@16:54#1 memberCall recv=e@16:54 callee=expose args=[] type=Int call=golden.sema.SinceKotlinHost.expose[kind=fun;recv=golden.sema.SinceKotlinHost;params=;ret=Int;origin=fixture]
 expr e@18:53 call callee=e@18:53#1 args=[] type=golden.sema.SinceKotlinHost call=golden.sema.SinceKotlinHost.<init>[kind=ctor;recv=golden.sema.SinceKotlinHost;params=;ret=golden.sema.SinceKotlinHost;origin=fixture]
+expr e@3:14 string(1.4) type=String
+expr e@3:2 call callee=e@3:2#1 args=[_:e@3:14] type=kotlin.SinceKotlin call=kotlin.SinceKotlin.<init>[kind=ctor;recv=kotlin.SinceKotlin;params=String;ret=kotlin.SinceKotlin;names=[version]]
+expr e@5:18 string(1.5) type=String
+expr e@5:6 call callee=e@5:6#1 args=[_:e@5:18] type=kotlin.SinceKotlin call=kotlin.SinceKotlin.<init>[kind=ctor;recv=kotlin.SinceKotlin;params=String;ret=kotlin.SinceKotlin;names=[version]]
+expr e@8:18 string(1.6) type=String
+expr e@8:6 call callee=e@8:6#1 args=[_:e@8:18] type=kotlin.SinceKotlin call=kotlin.SinceKotlin.<init>[kind=ctor;recv=kotlin.SinceKotlin;params=String;ret=kotlin.SinceKotlin;names=[version]]
+expr e@8:18#1 string(1.6) type=String
+expr e@8:6#2 call callee=e@8:6#3 args=[_:e@8:18#1] type=kotlin.SinceKotlin call=kotlin.SinceKotlin.<init>[kind=ctor;recv=kotlin.SinceKotlin;params=String;ret=kotlin.SinceKotlin;names=[version]]
+expr e@15:14 string(1.8) type=String
+expr e@15:2 call callee=e@15:2#1 args=[_:e@15:14] type=kotlin.SinceKotlin call=kotlin.SinceKotlin.<init>[kind=ctor;recv=kotlin.SinceKotlin;params=String;ret=kotlin.SinceKotlin;names=[version]]

@@ -9,6 +9,6 @@ expr e@4:5 localDecl r mutable=0 type=_ init=e@4:13 type=Unit ref=__local_0.r[ki
 expr e@5:13 name(r) type=kotlin.random.Random ref=__local_0.r[kind=local;type=kotlin.random.Random;origin=fixture]
 expr e@5:24 long(10) type=Long
 expr e@5:29 long(15) type=Long
-expr e@5:24#1 binary(rangeTo) lhs=e@5:24 rhs=e@5:29 type=Long
+expr e@5:24#1 binary(rangeTo) lhs=e@5:24 rhs=e@5:29 type=kotlin.ranges.LongRange call=kotlin.ranges.rangeTo[kind=fun;recv=Long;params=Long;ret=kotlin.ranges.LongRange;names=[to]]
 expr e@5:13#1 memberCall recv=e@5:13 callee=nextLong args=[_:e@5:24#1] type=Long call=kotlin.random.Random.nextLong[kind=fun;recv=kotlin.random.Random;params=kotlin.ranges.LongRange;ret=Long;names=[range]]
 expr e@5:5 localDecl a mutable=0 type=_ init=e@5:13#1 type=Unit ref=__local_1.a[kind=local;type=Long;origin=fixture]

@@ -36,6 +36,6 @@ expr e@17:5 return value=e@17:12#1 type=Nothing
 expr e@21:12 name(values) type=kotlin.collections.Iterable<Int> ref=removeByIterable.$2.values[kind=vparam;origin=fixture]
 expr e@21:32 int(2) type=Int
 expr e@21:35 int(3) type=Int
-expr e@21:25 call callee=e@21:25#1 args=[_:e@21:32,_:e@21:35] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
+expr e@21:25 call callee=e@21:25#1 args=[_:e@21:32,_:e@21:35] type=kotlin.collections.List<Int> call=kotlin.collections.listOf[kind=fun;params=*T0;ret=kotlin.collections.List<T0>;gen=1;vararg=[1];names=[elements]] targs=[Int]
 expr e@21:12#1 memberCall recv=e@21:12 callee=minus args=[_:e@21:25] type=kotlin.collections.List<Int> call=kotlin.collections.minus[kind=fun;recv=kotlin.collections.Iterable<T0>;params=kotlin.collections.Iterable<T0>;ret=kotlin.collections.List<T0>;gen=1;names=[elements]] targs=[Int]
 expr e@21:5 return value=e@21:12#1 type=Nothing

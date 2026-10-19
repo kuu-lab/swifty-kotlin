@@ -45,7 +45,7 @@ expr e@15:19#1 memberCall recv=e@15:19 callee=replaceRange args=[_:e@15:39,_:e@1
 expr e@20:19 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceReplaceRangeIntRange.$3.source[kind=vparam;origin=fixture]
 expr e@20:39 int(1) type=Int
 expr e@20:42 int(2) type=Int
-expr e@20:39#1 binary(rangeTo) lhs=e@20:39 rhs=e@20:42 type=Int
+expr e@20:39#1 binary(rangeTo) lhs=e@20:39 rhs=e@20:42 type=kotlin.ranges.IntRange call=kotlin.ranges.rangeTo[kind=fun;recv=Int;params=Int;ret=kotlin.ranges.IntRange;names=[to]]
 expr e@20:45 name(replacement) type=kotlin.CharSequence ref=golden.sema.charSequenceReplaceRangeIntRange.$3.replacement[kind=vparam;origin=fixture]
 expr e@20:19#1 memberCall recv=e@20:19 callee=replaceRange args=[_:e@20:39#1,_:e@20:45] type=kotlin.CharSequence call=kotlin.text.replaceRange[kind=fun;recv=kotlin.CharSequence;params=kotlin.ranges.IntRange,kotlin.CharSequence;ret=kotlin.CharSequence;names=[range,replacement]]
 expr e@23:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceReplaceRangeEmpty.$1.source[kind=vparam;origin=fixture]

@@ -46,7 +46,7 @@ expr e@13:62#1 memberCall recv=e@13:62 callee=removeRange args=[_:e@13:81,_:e@13
 expr e@15:63 name(source) type=kotlin.CharSequence ref=golden.sema.removeRangeIntRange.$3.source[kind=vparam;origin=fixture]
 expr e@15:82 int(1) type=Int
 expr e@15:85 int(2) type=Int
-expr e@15:82#1 binary(rangeTo) lhs=e@15:82 rhs=e@15:85 type=Int
+expr e@15:82#1 binary(rangeTo) lhs=e@15:82 rhs=e@15:85 type=kotlin.ranges.IntRange call=kotlin.ranges.rangeTo[kind=fun;recv=Int;params=Int;ret=kotlin.ranges.IntRange;names=[to]]
 expr e@15:63#1 memberCall recv=e@15:63 callee=removeRange args=[_:e@15:82#1] type=kotlin.CharSequence call=kotlin.text.removeRange[kind=fun;recv=kotlin.CharSequence;params=kotlin.ranges.IntRange;ret=kotlin.CharSequence;names=[range]]
 expr e@18:32 string(A😀BC) type=String
 expr e@18:5 localDecl source mutable=0 type=CharSequence init=e@18:32 type=Unit ref=__local_0.source[kind=local;type=kotlin.CharSequence;origin=fixture]
@@ -61,7 +61,7 @@ expr e@23:5 localDecl source mutable=0 type=CharSequence init=e@23:32 type=Unit 
 expr e@24:12 name(source) type=kotlin.CharSequence ref=__local_1.source[kind=local;type=kotlin.CharSequence;origin=fixture]
 expr e@24:31 int(1) type=Int
 expr e@24:34 int(2) type=Int
-expr e@24:31#1 binary(rangeTo) lhs=e@24:31 rhs=e@24:34 type=Int
+expr e@24:31#1 binary(rangeTo) lhs=e@24:31 rhs=e@24:34 type=kotlin.ranges.IntRange call=kotlin.ranges.rangeTo[kind=fun;recv=Int;params=Int;ret=kotlin.ranges.IntRange;names=[to]]
 expr e@24:12#1 memberCall recv=e@24:12 callee=removeRange args=[_:e@24:31#1] type=kotlin.CharSequence call=kotlin.text.removeRange[kind=fun;recv=kotlin.CharSequence;params=kotlin.ranges.IntRange;ret=kotlin.CharSequence;names=[range]]
 expr e@24:5 return value=e@24:12#1 type=Nothing
 expr e@27:60 name(source) type=kotlin.CharSequence ref=golden.sema.removeRangeEmpty.$1.source[kind=vparam;origin=fixture]

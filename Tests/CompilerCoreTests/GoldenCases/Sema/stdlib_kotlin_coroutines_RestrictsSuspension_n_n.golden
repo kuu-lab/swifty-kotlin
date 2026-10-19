@@ -5,3 +5,4 @@ file fstdlib_kotlin_coroutines_RestrictsSuspension_n_n package=golden.sema
   decl golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture]
 expr e@9:13 string(ok) type=String
 expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
+expr e@5:2 call callee=e@5:2#1 args=[] type=kotlin.coroutines.RestrictsSuspension call=kotlin.coroutines.RestrictsSuspension.<init>[kind=ctor;recv=kotlin.coroutines.RestrictsSuspension;params=;ret=kotlin.coroutines.RestrictsSuspension]

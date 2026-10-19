@@ -89,31 +89,52 @@ extension CallTypeChecker {
                 let inferredElementType = elementTypes.isEmpty
                     ? contextualElementType ?? sema.types.nothingType
                     : sema.types.lub(elementTypes)
-                let elementType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
-                    ?? inferredElementType
-                let resultType: TypeID
-                if name == "arrayListOf" {
-                    resultType = makeSyntheticListConstructorType(
-                        name: "ArrayList",
-                        symbols: sema.symbols,
-                        types: sema.types,
-                        interner: interner,
-                        elementType: elementType
-                    )
-                } else if name == "mutableListOf" {
-                    resultType = makeSyntheticMutableListType(
-                        symbols: sema.symbols,
-                        types: sema.types,
-                        interner: interner,
-                        elementType: elementType
-                    )
-                } else {
-                    resultType = makeSyntheticListType(
-                        symbols: sema.symbols,
-                        types: sema.types,
-                        interner: interner,
-                        elementType: elementType
-                    )
+                let explicitElementType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
+
+                func collectionType(elementType: TypeID) -> TypeID {
+                    if name == "arrayListOf" {
+                        makeSyntheticListConstructorType(
+                            name: "ArrayList",
+                            symbols: sema.symbols,
+                            types: sema.types,
+                            interner: interner,
+                            elementType: elementType
+                        )
+                    } else if name == "mutableListOf" {
+                        makeSyntheticMutableListType(
+                            symbols: sema.symbols,
+                            types: sema.types,
+                            interner: interner,
+                            elementType: elementType
+                        )
+                    } else {
+                        makeSyntheticListType(
+                            symbols: sema.symbols,
+                            types: sema.types,
+                            interner: interner,
+                            elementType: elementType
+                        )
+                    }
+                }
+
+                var elementType = explicitElementType ?? inferredElementType
+                var resultType = collectionType(elementType: elementType)
+                // Keep the narrow lub-based type when it already fits the target:
+                // an explicit backing field initializer is checked against the
+                // wider public property type but must stay as narrow as its
+                // arguments. For an invariant target such as
+                // `val xs: MutableList<Number> = mutableListOf(1)` the lub (Int)
+                // does not fit, so fall back to the target's element type.
+                if explicitElementType == nil, !elementTypes.isEmpty,
+                   let expectedType, let contextualElementType,
+                   !sema.types.isSubtype(resultType, expectedType),
+                   elementTypes.allSatisfy({ sema.types.isSubtype($0, contextualElementType) })
+                {
+                    let contextualResultType = collectionType(elementType: contextualElementType)
+                    if sema.types.isSubtype(contextualResultType, expectedType) {
+                        elementType = contextualElementType
+                        resultType = contextualResultType
+                    }
                 }
                 return (resultType, [elementType])
 

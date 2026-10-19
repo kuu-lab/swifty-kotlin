@@ -9,13 +9,13 @@ expr e@2:18 stringTemplate[lit(string:),expr(e@2:27)] type=String
 expr e@3:15 int(1) type=Int
 expr e@3:18 int(2) type=Int
 expr e@3:21 int(3) type=Int
-expr e@3:8 call callee=e@3:8#1 args=[_:e@3:15,_:e@3:18,_:e@3:21] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
+expr e@3:8 call callee=e@3:8#1 args=[_:e@3:15,_:e@3:18,_:e@3:21] type=kotlin.collections.List<Int> call=kotlin.collections.listOf[kind=fun;params=*T0;ret=kotlin.collections.List<T0>;gen=1;vararg=[1];names=[elements]] targs=[Int]
 expr e@1:39#2 inExpr lhs=e@1:39 rhs=e@3:8 type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.List<T0>;params=T0;ret=Boolean;gen=1;names=[element]] targs=[Any?]
 expr e@3:27 string(small) type=String
 expr e@4:16 int(4) type=Int
 expr e@4:19 int(5) type=Int
 expr e@4:22 int(6) type=Int
-expr e@4:9 call callee=e@4:9#1 args=[_:e@4:16,_:e@4:19,_:e@4:22] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
+expr e@4:9 call callee=e@4:9#1 args=[_:e@4:16,_:e@4:19,_:e@4:22] type=kotlin.collections.List<Int> call=kotlin.collections.listOf[kind=fun;params=*T0;ret=kotlin.collections.List<T0>;gen=1;vararg=[1];names=[elements]] targs=[Int]
 expr e@1:39#3 notInExpr lhs=e@1:39 rhs=e@4:9 type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.List<T0>;params=T0;ret=Boolean;gen=1;names=[element]] targs=[Any?]
 expr e@4:28 string(big-ish) type=String
 expr e@5:5 int(4) type=Int

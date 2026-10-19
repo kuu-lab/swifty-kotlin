@@ -75,5 +75,5 @@ expr e@33:13 call callee=e@33:13#1 args=[_:e@33:35,_:e@33:42] type=Boolean call=
 expr e@33:5 call callee=e@33:5#1 args=[_:e@33:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@34:16 int(1) type=Int
 expr e@34:19 int(5) type=Int
-expr e@34:16#1 binary(rangeTo) lhs=e@34:16 rhs=e@34:19 type=Int
+expr e@34:16#1 binary(rangeTo) lhs=e@34:16 rhs=e@34:19 type=kotlin.ranges.IntRange call=kotlin.ranges.rangeTo[kind=fun;recv=Int;params=Int;ret=kotlin.ranges.IntRange;names=[to]]
 expr e@34:5 call callee=e@34:5#1 args=[_:e@34:16#1] type=Unit call=golden.sema.inspectInt[kind=fun;params=kotlin.ranges.ClosedRange<Int>;ret=Unit;names=[range];origin=fixture]

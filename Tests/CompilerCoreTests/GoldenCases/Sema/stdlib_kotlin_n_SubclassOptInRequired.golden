@@ -7,3 +7,12 @@ file fstdlib_kotlin_n_SubclassOptInRequired package=golden.sema
   decl golden.sema.Base[kind=class;origin=fixture] class Base sym=golden.sema.Base[kind=class;origin=fixture]
   decl golden.sema.useSubclassOptInRequired[kind=fun;params=kotlin.SubclassOptInRequired?;ret=Int;names=[x];origin=fixture] fun useSubclassOptInRequired sym=golden.sema.useSubclassOptInRequired[kind=fun;params=kotlin.SubclassOptInRequired?;ret=Int;names=[x];origin=fixture]
 expr e@10:64 int(0) type=Int
+expr e@3:24 name(RequiresOptIn) type=Any ref=kotlin.RequiresOptIn[kind=anno]
+expr e@3:24#1 memberCall recv=e@3:24 callee=Level args=[] type=kotlin.RequiresOptIn.Level ref=kotlin.RequiresOptIn.Level[kind=enum]
+expr e@3:24#2 memberCall recv=e@3:24#1 callee=ERROR args=[] type=kotlin.RequiresOptIn.Level ref=kotlin.RequiresOptIn.Level.ERROR[kind=field;type=kotlin.RequiresOptIn.Level]
+expr e@3:2 call callee=e@3:2#1 args=[level:e@3:24#2] type=kotlin.RequiresOptIn call=kotlin.RequiresOptIn.<init>[kind=ctor;recv=kotlin.RequiresOptIn;params=String,kotlin.RequiresOptIn.Level;ret=kotlin.RequiresOptIn;defaults=[1,1];names=[message,level]]
+expr e@6:24 name(Marker) type=Any ref=golden.sema.Marker[kind=anno;origin=fixture]
+expr e@6:24#1 callableRef recv=e@6:24 member=class type=KClass<golden.sema.Marker>
+expr e@6:2 call callee=e@6:2#1 args=[_:e@6:24#1] type=kotlin.SubclassOptInRequired call=kotlin.SubclassOptInRequired.<init>[kind=ctor;recv=kotlin.SubclassOptInRequired;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.SubclassOptInRequired;vararg=[1];names=[markerClass]]
+expr e@7:13 string(use Base2 instead) type=String
+expr e@7:2 call callee=e@7:2#1 args=[_:e@7:13] type=kotlin.Deprecated call=kotlin.Deprecated.<init>[kind=ctor;recv=kotlin.Deprecated;params=String,kotlin.ReplaceWith,kotlin.DeprecationLevel;ret=kotlin.Deprecated;defaults=[0,1,1];names=[message,replaceWith,level]]

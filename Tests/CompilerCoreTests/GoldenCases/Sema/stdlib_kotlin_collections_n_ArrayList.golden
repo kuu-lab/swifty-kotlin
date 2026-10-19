@@ -29,10 +29,10 @@ expr e@8:17 int(3) type=Int
 expr e@8:5#1 memberCall recv=e@8:5 callee=add args=[_:e@8:17] type=Boolean call=kotlin.collections.MutableList.add[kind=fun;recv=kotlin.collections.MutableList<T0>;params=T0;ret=Boolean;gen=1;classGen=1;names=[element]]
 expr e@9:12 name(empty) type=kotlin.collections.ArrayList<Int> ref=__local_0.empty[kind=local;type=kotlin.collections.ArrayList<Int>;origin=fixture]
 expr e@9:12#1 isCheck expr=e@9:12 type=kotlin.collections.ArrayList<*> type=Boolean
-expr e@10:12 name(empty) type=kotlin.collections.ArrayList<*> ref=__local_0.empty[kind=local;type=kotlin.collections.ArrayList<Int>;origin=fixture]
+expr e@10:12 name(empty) type=kotlin.collections.ArrayList<Int> ref=__local_0.empty[kind=local;type=kotlin.collections.ArrayList<Int>;origin=fixture]
 expr e@10:12#1 isCheck expr=e@10:12 type=kotlin.collections.MutableList<*> type=Boolean
 expr e@9:12#2 binary(logicalAnd) lhs=e@9:12#1 rhs=e@10:12#1 type=Boolean
-expr e@11:12 name(empty) type=kotlin.collections.ArrayList<*> ref=__local_0.empty[kind=local;type=kotlin.collections.ArrayList<Int>;origin=fixture]
+expr e@11:12 name(empty) type=kotlin.collections.ArrayList<Int> ref=__local_0.empty[kind=local;type=kotlin.collections.ArrayList<Int>;origin=fixture]
 expr e@11:12#1 isCheck expr=e@11:12 type=kotlin.collections.RandomAccess type=Boolean
 expr e@9:12#3 binary(logicalAnd) lhs=e@9:12#2 rhs=e@11:12#1 type=Boolean
 expr e@12:12 name(capacity) type=kotlin.collections.ArrayList<Int> ref=__local_1.capacity[kind=local;type=kotlin.collections.ArrayList<Int>;origin=fixture]

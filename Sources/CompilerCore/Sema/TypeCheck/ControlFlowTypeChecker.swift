@@ -1212,7 +1212,7 @@ final class ControlFlowTypeChecker {
         {
             ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0413",
-                "throwable type mismatch: actual type is '\(sema.types.renderType(resolved))'.",
+                "throwable type mismatch: actual type is '\(sema.types.displayName(of: resolved, symbols: sema.symbols, interner: ctx.interner))'.",
                 range: range
             )
         }

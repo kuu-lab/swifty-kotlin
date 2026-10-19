@@ -165,6 +165,30 @@ struct IndexedGetExtensionApplicabilityTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
+    /// User overrides only inherit `operator` from the nearest overridden
+    /// declaration, and bundled stdlib declarations keep exactly the modifiers
+    /// they spell out, so `AbstractMutableList.get` must be an `operator` for
+    /// `list[0]` on a subclass to resolve (it used to type as `Any`).
+    @Test
+    func abstractMutableListSubclassGetIsUsableThroughIndexSyntax() throws {
+        let ctx = makeContextFromSource("""
+        class Probe : AbstractMutableList<Int>() {
+            override val size: Int get() = 1
+            override fun get(index: Int): Int = 7
+            override fun add(index: Int, element: Int) {}
+            override fun removeAt(index: Int): Int = 0
+            override fun set(index: Int, element: Int): Int = 0
+        }
+        fun read(probe: Probe): Int = probe[0]
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let callee = try indexedCallee(in: ctx)
+        let owner = try #require(sema.symbols.parentSymbol(for: callee))
+        #expect(sema.symbols.symbol(owner)?.name == ctx.interner.intern("Probe"))
+    }
+
     private func indexedCallee(in ctx: CompilationContext) throws -> SymbolID {
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)

@@ -1,5 +1,12 @@
+symbol fq=golden.sema.MyMarker.<init>[kind=ctor;recv=golden.sema.MyMarker;params=;ret=golden.sema.MyMarker;origin=fixture] kind=constructor vis=public flags=_ sig=recv=golden.sema.MyMarker params=[] ret=golden.sema.MyMarker
 symbol fq=golden.sema.MyMarker[kind=anno;origin=fixture] kind=annotationClass vis=public flags=_
 symbol fq=golden.sema.useMarker[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fstdlib_kotlin_n_RequiresOptIn package=golden.sema
   decl golden.sema.MyMarker[kind=anno;origin=fixture] class MyMarker sym=golden.sema.MyMarker[kind=anno;origin=fixture]
   decl golden.sema.useMarker[kind=fun;params=;ret=Unit;origin=fixture] fun useMarker sym=golden.sema.useMarker[kind=fun;params=;ret=Unit;origin=fixture]
+expr e@4:15 string(experimental) type=String
+expr e@5:13 memberCall recv=e@5:13#1 callee=RequiresOptIn args=[] type=kotlin.RequiresOptIn ref=kotlin.RequiresOptIn[kind=anno]
+expr e@5:13#2 memberCall recv=e@5:13 callee=Level args=[] type=kotlin.RequiresOptIn.Level ref=kotlin.RequiresOptIn.Level[kind=enum]
+expr e@5:13#3 memberCall recv=e@5:13#2 callee=WARNING args=[] type=kotlin.RequiresOptIn.Level ref=kotlin.RequiresOptIn.Level.WARNING[kind=field;type=kotlin.RequiresOptIn.Level]
+expr e@3:2 memberCall recv=e@3:2#1 callee=RequiresOptIn args=[message:e@4:15,level:e@5:13#3] type=kotlin.RequiresOptIn call=kotlin.RequiresOptIn.<init>[kind=ctor;recv=kotlin.RequiresOptIn;params=String,kotlin.RequiresOptIn.Level;ret=kotlin.RequiresOptIn;defaults=[1,1];names=[message,level]]
+expr e@9:2 memberCall recv=e@9:2#1 callee=MyMarker args=[] type=golden.sema.MyMarker call=golden.sema.MyMarker.<init>[kind=ctor;recv=golden.sema.MyMarker;params=;ret=golden.sema.MyMarker;origin=fixture]

@@ -1,3 +1,5 @@
 symbol fq=golden.sema.PlatformMarker[kind=anno;origin=fixture] kind=annotationClass vis=public flags=_
 file fstdlib_kotlin_n_OptionalExpectation package=golden.sema
   decl golden.sema.PlatformMarker[kind=anno;origin=fixture] class PlatformMarker sym=golden.sema.PlatformMarker[kind=anno;origin=fixture]
+expr e@3:2 call callee=e@3:2#1 args=[] type=kotlin.OptionalExpectation call=kotlin.OptionalExpectation.<init>[kind=ctor;recv=kotlin.OptionalExpectation;params=;ret=kotlin.OptionalExpectation]
+diagnostic severity=error code=KSWIFTK-SEMA-OPT-IN at=3:2 msg='kotlin.ExperimentalMultiplatform' requires opt-in. Annotate the usage with '@kotlin.ExperimentalMultiplatform' or '@OptIn(kotlin.ExperimentalMultiplatform::class)'.

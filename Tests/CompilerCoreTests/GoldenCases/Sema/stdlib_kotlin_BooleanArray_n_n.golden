@@ -11,7 +11,7 @@ expr e@5:13#1 memberCall recv=e@5:13 callee=size args=[] type=Int call=kotlin.co
 expr e@5:5 call callee=e@5:5#1 args=[_:e@5:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@6:13 name(sized) type=kotlin.BooleanArray ref=__local_0.sized[kind=local;type=kotlin.BooleanArray;origin=fixture]
 expr e@6:19 int(0) type=Int
-expr e@6:13#1 indexedAccess receiver=e@6:13 indices=[e@6:19] type=Boolean
+expr e@6:13#1 indexedAccess receiver=e@6:13 indices=[e@6:19] type=Boolean call=kotlin.BooleanArray.get[kind=fun;recv=kotlin.BooleanArray;params=Int;ret=Boolean;names=[index]]
 expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@8:36 int(4) type=Int
 expr e@8:41 name(it) type=Int ref=s-0
@@ -27,15 +27,15 @@ expr e@9:13#1 memberCall recv=e@9:13 callee=size args=[] type=Int call=kotlin.co
 expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@10:13 name(initialized) type=kotlin.BooleanArray ref=__local_1.initialized[kind=local;type=kotlin.BooleanArray;origin=fixture]
 expr e@10:25 int(0) type=Int
-expr e@10:13#1 indexedAccess receiver=e@10:13 indices=[e@10:25] type=Boolean
+expr e@10:13#1 indexedAccess receiver=e@10:13 indices=[e@10:25] type=Boolean call=kotlin.BooleanArray.get[kind=fun;recv=kotlin.BooleanArray;params=Int;ret=Boolean;names=[index]]
 expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@11:13 name(initialized) type=kotlin.BooleanArray ref=__local_1.initialized[kind=local;type=kotlin.BooleanArray;origin=fixture]
 expr e@11:25 int(1) type=Int
-expr e@11:13#1 indexedAccess receiver=e@11:13 indices=[e@11:25] type=Boolean
+expr e@11:13#1 indexedAccess receiver=e@11:13 indices=[e@11:25] type=Boolean call=kotlin.BooleanArray.get[kind=fun;recv=kotlin.BooleanArray;params=Int;ret=Boolean;names=[index]]
 expr e@11:5 call callee=e@11:5#1 args=[_:e@11:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@12:13 name(initialized) type=kotlin.BooleanArray ref=__local_1.initialized[kind=local;type=kotlin.BooleanArray;origin=fixture]
 expr e@12:25 int(3) type=Int
-expr e@12:13#1 indexedAccess receiver=e@12:13 indices=[e@12:25] type=Boolean
+expr e@12:13#1 indexedAccess receiver=e@12:13 indices=[e@12:25] type=Boolean call=kotlin.BooleanArray.get[kind=fun;recv=kotlin.BooleanArray;params=Int;ret=Boolean;names=[index]]
 expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@13:26 int(0) type=Int
 expr e@13:31 bool(true) type=Boolean

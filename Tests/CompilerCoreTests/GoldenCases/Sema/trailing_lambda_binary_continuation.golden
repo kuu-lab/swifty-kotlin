@@ -3,7 +3,7 @@ file ftrailing_lambda_binary_continuation package=golden.sema
   decl golden.sema.sumPlusOne[kind=fun;params=;ret=Int;origin=fixture] fun sumPlusOne sym=golden.sema.sumPlusOne[kind=fun;params=;ret=Int;origin=fixture]
 expr e@3:32 int(1) type=Int
 expr e@3:35 int(2) type=Int
-expr e@3:25 call callee=e@3:25#1 args=[_:e@3:32,_:e@3:35] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
+expr e@3:25 call callee=e@3:25#1 args=[_:e@3:32,_:e@3:35] type=kotlin.collections.List<Int> call=kotlin.collections.listOf[kind=fun;params=*T0;ret=kotlin.collections.List<T0>;gen=1;vararg=[1];names=[elements]] targs=[Int]
 expr e@3:43 int(0) type=Int
 expr e@3:58 name(acc) type=Int ref=s-0
 expr e@3:64 name(x) type=Int ref=s-1

@@ -5,3 +5,7 @@ file fstdlib_kotlin_io_encoding_n_n package=golden.sema
   decl golden.sema.useExperimentalEncodingApiSurface[kind=fun;params=;ret=String;origin=fixture] fun useExperimentalEncodingApiSurface sym=golden.sema.useExperimentalEncodingApiSurface[kind=fun;params=;ret=String;origin=fixture]
 expr e@6:48 string(ok) type=String
 expr e@9:51 call callee=e@9:51#1 args=[] type=String call=golden.sema.experimentalEncodingApiSurface[kind=fun;params=;ret=String;origin=fixture]
+expr e@5:2 call callee=e@5:2#1 args=[] type=kotlin.io.encoding.ExperimentalEncodingApi call=kotlin.io.encoding.ExperimentalEncodingApi.<init>[kind=ctor;recv=kotlin.io.encoding.ExperimentalEncodingApi;params=;ret=kotlin.io.encoding.ExperimentalEncodingApi]
+expr e@8:8 name(ExperimentalEncodingApi) type=Any ref=kotlin.io.encoding.ExperimentalEncodingApi[kind=anno]
+expr e@8:8#1 callableRef recv=e@8:8 member=class type=KClass<kotlin.io.encoding.ExperimentalEncodingApi>
+expr e@8:2 call callee=e@8:2#1 args=[_:e@8:8#1] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]

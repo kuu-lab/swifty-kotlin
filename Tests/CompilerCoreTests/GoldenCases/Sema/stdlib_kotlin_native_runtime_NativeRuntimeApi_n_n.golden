@@ -6,3 +6,10 @@ file fstdlib_kotlin_native_runtime_NativeRuntimeApi_n_n package=golden.sema
 expr e@11:5 call callee=e@11:5#1 args=[] type=Unit call=golden.sema.nativeRuntimeApiSurface[kind=fun;params=;ret=Unit;origin=fixture]
 expr e@12:13 string(native_runtime_api_ok=true) type=String
 expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
+expr e@5:8 name(NativeRuntimeApi) type=Any ref=kotlin.native.runtime.NativeRuntimeApi[kind=anno]
+expr e@5:8#1 callableRef recv=e@5:8 member=class type=KClass<kotlin.native.runtime.NativeRuntimeApi>
+expr e@5:2 call callee=e@5:2#1 args=[_:e@5:8#1] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]
+expr e@6:2 call callee=e@6:2#1 args=[] type=kotlin.native.runtime.NativeRuntimeApi call=kotlin.native.runtime.NativeRuntimeApi.<init>[kind=ctor;recv=kotlin.native.runtime.NativeRuntimeApi;params=;ret=kotlin.native.runtime.NativeRuntimeApi]
+expr e@9:8 name(NativeRuntimeApi) type=Any ref=kotlin.native.runtime.NativeRuntimeApi[kind=anno]
+expr e@9:8#1 callableRef recv=e@9:8 member=class type=KClass<kotlin.native.runtime.NativeRuntimeApi>
+expr e@9:2 call callee=e@9:2#1 args=[_:e@9:8#1] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]

@@ -15,12 +15,12 @@ file fin_range_operators package=_
 expr e@1:40 name(x) type=Int ref=checkIn.$0.x[kind=vparam;origin=fixture]
 expr e@1:45 int(1) type=Int
 expr e@1:48 int(10) type=Int
-expr e@1:45#1 binary(rangeTo) lhs=e@1:45 rhs=e@1:48 type=Int
+expr e@1:45#1 binary(rangeTo) lhs=e@1:45 rhs=e@1:48 type=kotlin.ranges.IntRange call=kotlin.ranges.rangeTo[kind=fun;recv=Int;params=Int;ret=kotlin.ranges.IntRange;names=[to]]
 expr e@1:40#1 inExpr lhs=e@1:40 rhs=e@1:45#1 type=Boolean call=kotlin.ranges.IntRange.contains[kind=fun;recv=kotlin.ranges.IntRange;params=Int;ret=Boolean;names=[value]]
 expr e@3:43 name(x) type=Int ref=checkNotIn.$1.x[kind=vparam;origin=fixture]
 expr e@3:49 int(1) type=Int
 expr e@3:52 int(10) type=Int
-expr e@3:49#1 binary(rangeTo) lhs=e@3:49 rhs=e@3:52 type=Int
+expr e@3:49#1 binary(rangeTo) lhs=e@3:49 rhs=e@3:52 type=kotlin.ranges.IntRange call=kotlin.ranges.rangeTo[kind=fun;recv=Int;params=Int;ret=kotlin.ranges.IntRange;names=[to]]
 expr e@3:43#1 notInExpr lhs=e@3:43 rhs=e@3:49#1 type=Boolean call=kotlin.ranges.IntRange.contains[kind=fun;recv=kotlin.ranges.IntRange;params=Int;ret=Boolean;names=[value]]
 expr e@5:39 name(n) type=Int ref=rangeUntilExpr.$2.n[kind=vparam;origin=fixture]
 expr e@5:44 int(0) type=Int

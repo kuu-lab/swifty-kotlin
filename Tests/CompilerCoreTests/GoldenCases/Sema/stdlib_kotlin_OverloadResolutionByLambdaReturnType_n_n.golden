@@ -2,3 +2,6 @@ symbol fq=golden.sema.createMarker[kind=fun;params=;ret=kotlin.OverloadResolutio
 file fstdlib_kotlin_OverloadResolutionByLambdaReturnType_n_n package=golden.sema
   decl golden.sema.createMarker[kind=fun;params=;ret=kotlin.OverloadResolutionByLambdaReturnType;origin=fixture] fun createMarker sym=golden.sema.createMarker[kind=fun;params=;ret=kotlin.OverloadResolutionByLambdaReturnType;origin=fixture]
 expr e@7:60 call callee=e@7:60#1 args=[] type=kotlin.OverloadResolutionByLambdaReturnType call=kotlin.OverloadResolutionByLambdaReturnType.<init>[kind=ctor;recv=kotlin.OverloadResolutionByLambdaReturnType;params=;ret=kotlin.OverloadResolutionByLambdaReturnType]
+expr e@6:8 name(ExperimentalTypeInference) type=Any ref=kotlin.experimental.ExperimentalTypeInference[kind=anno]
+expr e@6:8#1 callableRef recv=e@6:8 member=class type=KClass<kotlin.experimental.ExperimentalTypeInference>
+expr e@6:2 call callee=e@6:2#1 args=[_:e@6:8#1] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]

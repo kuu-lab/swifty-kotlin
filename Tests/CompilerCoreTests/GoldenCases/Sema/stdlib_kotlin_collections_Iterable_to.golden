@@ -18,10 +18,10 @@ expr e@2:51 string(a) type=String
 expr e@2:56 name(null) type=Nothing?
 expr e@2:62 string(a) type=String
 expr e@2:67 string(b) type=String
-expr e@2:44 call callee=e@2:44#1 args=[_:e@2:51,_:e@2:56,_:e@2:62,_:e@2:67] type=kotlin.collections.Iterable<String?> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[String?]
+expr e@2:44 call callee=e@2:44#1 args=[_:e@2:51,_:e@2:56,_:e@2:62,_:e@2:67] type=kotlin.collections.List<String?> call=kotlin.collections.listOf[kind=fun;params=*T0;ret=kotlin.collections.List<T0>;gen=1;vararg=[1];names=[elements]] targs=[String?]
 expr e@2:5 localDecl nullableItems mutable=0 type=Iterable<String?> init=e@2:44 type=Unit ref=__local_0.nullableItems[kind=local;type=kotlin.collections.Iterable<String?>;origin=fixture]
 expr e@3:78 string(seed) type=String
-expr e@3:58 call callee=e@3:58#1 args=[_:e@3:78] type=kotlin.collections.MutableCollection<Any?> call=kotlin.collections.mutableListOf[kind=fun;params=*T0;ret=kotlin.collections.MutableList<T0>;gen=1;vararg=[1];names=[elements]] targs=[Any?]
+expr e@3:58 call callee=e@3:58#1 args=[_:e@3:78] type=kotlin.collections.MutableList<Any?> call=kotlin.collections.mutableListOf[kind=fun;params=*T0;ret=kotlin.collections.MutableList<T0>;gen=1;vararg=[1];names=[elements]] targs=[Any?]
 expr e@3:5 localDecl collectionDestination mutable=0 type=MutableCollection<Any?> init=e@3:58 type=Unit ref=__local_1.collectionDestination[kind=local;type=kotlin.collections.MutableCollection<Any?>;origin=fixture]
 expr e@4:53 name(nullableItems) type=kotlin.collections.Iterable<String?> ref=__local_0.nullableItems[kind=local;type=kotlin.collections.Iterable<String?>;origin=fixture]
 expr e@4:80 name(collectionDestination) type=kotlin.collections.MutableCollection<Any?> ref=__local_1.collectionDestination[kind=local;type=kotlin.collections.MutableCollection<Any?>;origin=fixture]
@@ -42,7 +42,7 @@ expr e@10:9#1 memberCall recv=e@10:9 callee=to args=[_:e@10:17] type=kotlin.Pair
 expr e@11:9 string(a) type=String
 expr e@11:16 int(2) type=Int
 expr e@11:9#1 memberCall recv=e@11:9 callee=to args=[_:e@11:16] type=kotlin.Pair<String, Int> call=kotlin.to[kind=fun;recv=T0;params=T1;ret=kotlin.Pair<T0,T1>;gen=2;names=[that]] targs=[String,Int]
-expr e@8:56 call callee=e@8:56#1 args=[_:e@9:9#1,_:e@10:9#1,_:e@11:9#1] type=kotlin.collections.Iterable<kotlin.Pair<String?, Int?>> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[kotlin.Pair<String?, Int?>]
+expr e@8:56 call callee=e@8:56#1 args=[_:e@9:9#1,_:e@10:9#1,_:e@11:9#1] type=kotlin.collections.List<kotlin.Pair<out String?, out Int?>> call=kotlin.collections.listOf[kind=fun;params=*T0;ret=kotlin.collections.List<T0>;gen=1;vararg=[1];names=[elements]] targs=[kotlin.Pair<out String?, out Int?>]
 expr e@8:5 localDecl nullablePairs mutable=0 type=Iterable<Pair<String?,Int?>> init=e@8:56 type=Unit ref=__local_5.nullablePairs[kind=local;type=kotlin.collections.Iterable<kotlin.Pair<String?,Int?>>;origin=fixture]
 expr e@13:41 name(nullablePairs) type=kotlin.collections.Iterable<kotlin.Pair<String?, Int?>> ref=__local_5.nullablePairs[kind=local;type=kotlin.collections.Iterable<kotlin.Pair<String?,Int?>>;origin=fixture]
 expr e@13:41#1 memberCall recv=e@13:41 callee=toMap args=[] type=kotlin.collections.Map<String?, Int?> call=kotlin.collections.toMap[kind=fun;recv=kotlin.collections.Iterable<kotlin.Pair<T0,T1>>;params=;ret=kotlin.collections.Map<T0,T1>;gen=2] targs=[String?,Int?]
@@ -59,7 +59,7 @@ expr e@15:5 localDecl mapDestinationResult mutable=0 type=MutableMap<Any?,Any?> 
 expr e@17:42 int(1) type=Int
 expr e@17:45 int(2) type=Int
 expr e@17:48 int(1) type=Int
-expr e@17:35 call callee=e@17:35#1 args=[_:e@17:42,_:e@17:45,_:e@17:48] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
+expr e@17:35 call callee=e@17:35#1 args=[_:e@17:42,_:e@17:45,_:e@17:48] type=kotlin.collections.List<Int> call=kotlin.collections.listOf[kind=fun;params=*T0;ret=kotlin.collections.List<T0>;gen=1;vararg=[1];names=[elements]] targs=[Int]
 expr e@17:35#2 memberCall recv=e@17:35 callee=toSet args=[] type=kotlin.collections.Set<Int> call=kotlin.collections.toSet[kind=fun;recv=kotlin.collections.List<T0>;params=;ret=kotlin.collections.Set<T0>;gen=1] targs=[Int]
 expr e@17:5 localDecl listSetResult mutable=0 type=Set<Int> init=e@17:35#2 type=Unit ref=__local_9.listSetResult[kind=local;type=kotlin.collections.Set<Int>;origin=fixture]
 expr e@18:50 int(1) type=Int
@@ -69,7 +69,7 @@ expr e@18:39 call callee=e@18:39#1 args=[_:e@18:50,_:e@18:53,_:e@18:56] type=kot
 expr e@18:39#2 memberCall recv=e@18:39 callee=toSet args=[] type=kotlin.collections.Set<Int> call=kotlin.sequences.toSet[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=;ret=kotlin.collections.Set<T0>;gen=1] targs=[Int]
 expr e@18:5 localDecl sequenceSetResult mutable=0 type=Set<Int> init=e@18:39#2 type=Unit ref=__local_10.sequenceSetResult[kind=local;type=kotlin.collections.Set<Int>;origin=fixture]
 expr e@19:72 char(33) type=Char
-expr e@19:52 call callee=e@19:52#1 args=[_:e@19:72] type=kotlin.collections.MutableCollection<Char> call=kotlin.collections.mutableListOf[kind=fun;params=*T0;ret=kotlin.collections.MutableList<T0>;gen=1;vararg=[1];names=[elements]] targs=[Char]
+expr e@19:52 call callee=e@19:52#1 args=[_:e@19:72] type=kotlin.collections.MutableList<Char> call=kotlin.collections.mutableListOf[kind=fun;params=*T0;ret=kotlin.collections.MutableList<T0>;gen=1;vararg=[1];names=[elements]] targs=[Char]
 expr e@19:5 localDecl textDestination mutable=0 type=MutableCollection<Char> init=e@19:52 type=Unit ref=__local_11.textDestination[kind=local;type=kotlin.collections.MutableCollection<Char>;origin=fixture]
 expr e@20:57 string(ab) type=String
 expr e@20:75 name(textDestination) type=kotlin.collections.MutableCollection<Char> ref=__local_11.textDestination[kind=local;type=kotlin.collections.MutableCollection<Char>;origin=fixture]

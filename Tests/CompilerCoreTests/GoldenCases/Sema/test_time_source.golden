@@ -20,3 +20,6 @@ expr e@12:22 name(mark1) type=kotlin.time.ComparableTimeMark ref=__local_1.mark1
 expr e@12:14#1 binary(subtract) lhs=e@12:14 rhs=e@12:22 type=kotlin.time.Duration call=kotlin.time.ComparableTimeMark.minus[kind=fun;recv=kotlin.time.ComparableTimeMark;params=kotlin.time.ComparableTimeMark;ret=kotlin.time.Duration;names=[other]]
 expr e@12:14#2 memberCall recv=e@12:14#1 callee=inWholeMilliseconds args=[] type=Long call=kotlin.time.inWholeMilliseconds.$get[kind=fun;recv=kotlin.time.Duration;params=;ret=Long]
 expr e@12:5 call callee=e@12:5#1 args=[_:e@12:14#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@6:8 name(ExperimentalTime) type=Any ref=kotlin.time.ExperimentalTime[kind=anno]
+expr e@6:8#1 callableRef recv=e@6:8 member=class type=KClass<kotlin.time.ExperimentalTime>
+expr e@6:2 call callee=e@6:2#1 args=[_:e@6:8#1] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]

@@ -6,3 +6,9 @@ file fstdlib_kotlin_OptIn_OptIn_n package=golden.sema
   decl golden.sema.PlainMarker[kind=anno;origin=fixture] class PlainMarker sym=golden.sema.PlainMarker[kind=anno;origin=fixture]
   decl golden.sema.markerClassUse[kind=fun;params=;ret=Int;origin=fixture] fun markerClassUse sym=golden.sema.markerClassUse[kind=fun;params=;ret=Int;origin=fixture]
 expr e@11:29 int(1) type=Int
+expr e@3:2 call callee=e@3:2#1 args=[] type=kotlin.RequiresOptIn call=kotlin.RequiresOptIn.<init>[kind=ctor;recv=kotlin.RequiresOptIn;params=String,kotlin.RequiresOptIn.Level;ret=kotlin.RequiresOptIn;defaults=[1,1];names=[message,level]]
+expr e@10:8 name(Marker) type=Any ref=golden.sema.Marker[kind=anno;origin=fixture]
+expr e@10:8#1 callableRef recv=e@10:8 member=class type=KClass<golden.sema.Marker>
+expr e@10:23 name(PlainMarker) type=Any ref=golden.sema.PlainMarker[kind=anno;origin=fixture]
+expr e@10:23#1 callableRef recv=e@10:23 member=class type=KClass<golden.sema.PlainMarker>
+expr e@10:2 call callee=e@10:2#1 args=[_:e@10:8#1,_:e@10:23#1] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]
