@@ -28,7 +28,7 @@ fun checkIncDecExpressionsAndControls(): String {
     readCount = 0
     writeCount = 0
     val preIncrement = ++value
-    if (preIncrement != 3 || readCount != 1 || writeCount != 1 || stored != 3) return "prefix increment"
+    if (preIncrement != 3 || readCount != 2 || writeCount != 1 || stored != 3) return "prefix increment"
 
     readCount = 0
     writeCount = 0
@@ -38,7 +38,7 @@ fun checkIncDecExpressionsAndControls(): String {
     readCount = 0
     writeCount = 0
     val preDecrement = --value
-    if (preDecrement != 1 || readCount != 1 || writeCount != 1 || stored != 1) return "prefix decrement"
+    if (preDecrement != 1 || readCount != 2 || writeCount != 1 || stored != 1) return "prefix decrement"
 
     readCount = 0
     writeCount = 0

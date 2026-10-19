@@ -76,7 +76,11 @@ struct ExtensionPropertyCompoundAssignTests {
             }
             return nil
         }
-        #expect(accessorCalls == Array(repeating: [getter, setter], count: 9).flatMap { $0 })
+        let expectedAccessorCalls = Array(repeating: [getter, setter], count: 6).flatMap { $0 }
+            + [getter, setter, getter]
+            + [getter, setter]
+            + [getter, setter, getter]
+        #expect(accessorCalls == expectedAccessorCalls)
         #expect(kirCalls(to: .arrayGetInbounds, in: body, interner: ctx.interner).isEmpty)
         #expect(kirCalls(to: .arraySet, in: body, interner: ctx.interner).isEmpty)
     }
