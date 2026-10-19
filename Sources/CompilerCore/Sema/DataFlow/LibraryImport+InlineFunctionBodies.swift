@@ -74,9 +74,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Reads and parses the `.kir` inline body file for an imported inline
-    /// function. Shared by the eager import path and the deferred resolver
-    /// that lowering invokes for demanded callees.
     private func loadImportedInlineFunctionBody(
         _ binding: ImportedLibraryBinding,
         symbol: SymbolID,
@@ -147,12 +144,10 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Resolves deferred imported inline bodies for the callees a module's
-    /// KIR actually invokes. `.call` instructions carrying a resolved callee
-    /// symbol resolve that binding; symbol-unresolved calls fall back to the
-    /// pending name index (resolving every candidate is safe — extra bodies
-    /// simply join the expansion table). Freshly parsed bodies are scanned in
-    /// turn so transitive inline-to-inline calls resolve as well.
+    /// Symbol-unresolved calls fall back to the pending name index (resolving
+    /// every candidate is safe — extra bodies simply join the expansion
+    /// table). Freshly parsed bodies are scanned in turn so transitive
+    /// inline-to-inline calls resolve as well.
     func resolveDemandedImportedInlineBodies(
         module: KIRModule,
         state: ImportedLibraryLazyLoaderState,
