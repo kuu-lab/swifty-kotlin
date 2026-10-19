@@ -1,10 +1,5 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
-/// Coroutine call interceptions from the `inferCallExpr` dispatch chain:
-/// `produce`/`actor`-family builder calls, the `suspendCoroutine` intrinsics
-/// (fully qualified and unqualified), and the `withContext`/`withTimeout`
-/// trailing-lambda expected-type helper.
-/// Extracted from `CallTypeChecker+CallExprInference.swift`.
 extension CallTypeChecker {
     func inferBundledProduceCall(
         _ id: ExprID,
@@ -136,9 +131,6 @@ extension CallTypeChecker {
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
 
-        // --- kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn ---
-        // Special intrinsic used by coroutine lowering. The block is type-checked
-        // as a regular function taking the current Continuation<T>.
         let suspendCoroutineIntrinsicFQName = knownNames.kotlinCoroutinesIntrinsicsFQName + [knownNames.suspendCoroutineUninterceptedOrReturn]
         let isSuspendCoroutineIntrinsic = if let calleeName {
             calleeName == knownNames.suspendCoroutineUninterceptedOrReturn
@@ -211,7 +203,6 @@ extension CallTypeChecker {
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
 
-        // --- suspendCoroutine(block) ---
         // Keep this path separate from generic overload resolution so the
         // lambda parameter can be inferred from the coroutine result type.
         if let calleeName,
@@ -254,8 +245,6 @@ extension CallTypeChecker {
         return nil
     }
 
-    /// Returns the synthesized `CoroutineScope.() -> T` expected type for the
-    ///     /// trailing lambda of `withContext`/`withTimeout`/`withTimeoutOrNull`, or nil.
     func resolveWithContextExpectedLambdaType(
         calleeName: InternedString?,
         args: [CallArgument],
