@@ -56,12 +56,6 @@ extension CallTypeChecker {
         } else {
             sema.types.anyType
         }
-        // Infer argument types for the normal resolution path (scope functions,
-        // collection HOFs, and comparator HOFs infer their lambda args with
-        // expected type above and return).
-        // Skip lambda literals and callable refs so that their first inference
-        // happens inside prepareCallArguments with a contextual expected type,
-        // preventing a stale no-expectedType binding from poisoning the cache.
         let isLongRangeLiteralContainsCall = calleeName == knownNames.contains
             && args.count == 1
             && MemberRuntimeDispatch.rangeReceiverKind(
@@ -92,6 +86,9 @@ extension CallTypeChecker {
             calleeName: calleeName, receiverID: receiverID, receiverType: receiverType,
             args: args, ctx: ctx, locals: &locals
         )
+        // Skip lambda literals and callable refs so that their first inference
+        // happens inside prepareCallArguments with a contextual expected type,
+        // preventing a stale no-expectedType binding from poisoning the cache.
         let argTypes = args.map { arg -> TypeID in
             if let expr = ast.arena.expr(arg.expr) {
                 switch expr {
@@ -241,7 +238,6 @@ extension CallTypeChecker {
         }
         let isSyntacticRangeCollectionMember = (calleeName == knownNames.plus || calleeName == knownNames.minus)
             && ControlFlowTypeChecker.isRangeExpression(receiverID, ast: ast)
-        // Primitive member function: Int/Long/UInt/ULong.inv() → same type (P5-103, TYPE-005)
         if let result = tryInferRegularMemberCallPrimitiveSpecials(
             request,
             receiverType: receiverType,
@@ -336,10 +332,10 @@ extension CallTypeChecker {
             return sourceType
         }
 
-        // Detect class-name receiver: when the receiver is a name reference to
-        // a class/interface/enumClass symbol, only companion members should be
-        // accessible (not instance methods).  This prevents `Foo.instanceMethod()`
-        // from resolving when there is no companion with that name.
+        // When the receiver is a name reference to a class/interface/enumClass
+        // symbol, only companion members should be accessible (not instance
+        // methods).  This prevents `Foo.instanceMethod()` from resolving when
+        // there is no companion with that name.
         let classNameReceiverNominalSymbol: SymbolID? = {
             func nominalSymbol(for symbolID: SymbolID) -> SymbolID? {
                 guard let symbol = sema.symbols.symbol(symbolID) else { return nil }
