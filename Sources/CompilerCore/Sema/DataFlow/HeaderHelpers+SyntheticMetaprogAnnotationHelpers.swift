@@ -10,12 +10,6 @@ private enum SyntheticAnnotationAPISurfaceForHelpers {
     static let retentionEntries = ["SOURCE", "BINARY", "RUNTIME"]
 }
 
-/// AnnotationTarget / Retention / RequiresOptInLevel
-/// enums, the throws-exception-classes property/constructor, and
-/// generic String / Boolean / Int annotation property/constructor
-/// registration helpers.
-///
-/// Split out from `HeaderHelpers+SyntheticMetaprogStubs.swift`.
 extension DataFlowSemaPhase {
     func attachAnnotationIfNeeded(
         _ annotation: MetadataAnnotationRecord,
