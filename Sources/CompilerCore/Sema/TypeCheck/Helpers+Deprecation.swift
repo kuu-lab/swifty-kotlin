@@ -1,7 +1,5 @@
 import Foundation
 
-// ANNO-001: @Deprecated annotation checking helpers.
-
 private struct KotlinCompilerVersion: Comparable {
     let major: Int
     let minor: Int
@@ -66,14 +64,9 @@ extension TypeCheckHelpers {
         let hiddenSince: KotlinCompilerVersion?
     }
 
-    /// Checks whether `symbol` has a `@Deprecated` annotation and emits an appropriate
-    /// diagnostic at `range` (the call/reference site).
-    ///
-    /// - `@Deprecated("msg")` or `@Deprecated("msg", level = WARNING)` -> warning
-    /// - `@Deprecated("msg", level = ERROR)` -> error
-    /// - `@Deprecated("msg", level = HIDDEN)` -> error; the declaration still
-    ///   resolves (lookup hiding is not modelled), so the deprecated diagnostic
-    ///   stands in for kotlinc's "unresolved reference".
+    /// `@Deprecated("msg", level = HIDDEN)` -> error; the declaration still
+    /// resolves (lookup hiding is not modelled), so the deprecated diagnostic
+    /// stands in for kotlinc's "unresolved reference".
     func checkDeprecation(
         for symbolID: SymbolID,
         sema: SemaModule,
@@ -514,12 +507,9 @@ extension TypeCheckHelpers {
         return nil
     }
 
-    /// Resolves a string-valued annotation argument (`message`, the
-    /// `ReplaceWith` expression, `@DeprecatedSinceKotlin` versions, ...).
     /// Annotation arguments reach here as raw source text, so a `const val`
     /// reference like `@Deprecated(MSG)` arrives unevaluated as the bare
-    /// identifier; when it resolves to a `const val` holding a string
-    /// literal, the constant's value is used for the diagnostic.
+    /// identifier.
     private func normalizeAnnotationStringArgument(
         _ raw: String,
         annotatedSymbol symbolID: SymbolID,
@@ -537,10 +527,9 @@ extension TypeCheckHelpers {
         return normalizeAnnotationStringLiteral(raw)
     }
 
-    /// Resolves an identifier path (`MSG`, `Outer.MSG`, `pkg.Outer.MSG`) to the
-    /// string literal stored by a `const val`. The argument is looked up in the
-    /// lexical scope of the annotated declaration: the declaration's innermost
-    /// container first, then outward through its package to the root.
+    /// The argument is looked up in the lexical scope of the annotated
+    /// declaration: the declaration's innermost container first, then outward
+    /// through its package to the root.
     private func resolveStringConstantReference(
         _ raw: String,
         annotatedSymbol symbolID: SymbolID,
@@ -621,10 +610,8 @@ extension TypeCheckHelpers {
     func normalizeAnnotationStringLiteral(_ raw: String) -> String {
         let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // Annotation arguments are rebuilt from raw tokens. Determine whether
-        // the value is a string literal (regular or raw, with optional
-        // multi-dollar prefix) and extract its content. Raw strings must not
-        // be escape-decoded; regular strings are decoded like any other
+        // Annotation arguments are rebuilt from raw tokens. Raw strings must
+        // not be escape-decoded; regular strings are decoded like any other
         // Kotlin string literal.
         if let extraction = extractKotlinStringLiteralContent(value) {
             return extraction.isRaw ? extraction.content : decodeKotlinStringEscapes(extraction.content)
