@@ -154,7 +154,6 @@ extension ExprTypeChecker {
         return sema.types.unitType
     }
 
-    /// Binds the zero-argument `inc()` / `dec()` call synthesized for `++` / `--`.
     /// A missing overload returns `nil` so primitive targets can continue through
     /// the existing builtin compound-assignment path.
     private func bindIncrementDecrementOperatorCall(
@@ -360,9 +359,6 @@ extension ExprTypeChecker {
         return nil
     }
 
-    /// Result type of an arithmetic compound assignment whose operator function could
-    /// not be resolved: numeric targets keep their own type, everything else falls back
-    /// to `Int` (BUG-015).
     private func numericCompoundAssignResultType(_ targetType: TypeID, ctx: TypeInferenceContext) -> TypeID {
         guard case let .primitive(primitive, .nonNull) = ctx.sema.types.kind(of: targetType) else {
             return ctx.sema.types.intType
@@ -400,8 +396,6 @@ extension ExprTypeChecker {
         return true
     }
 
-    /// Resolves a named singleton object as the immutable receiver of a bare
-    /// compound assignment, e.g. `Registry += entry`.
     private func inferObjectCompoundAssignExpr(
         _ id: ExprID,
         op: CompoundAssignOp,
@@ -677,10 +671,6 @@ extension ExprTypeChecker {
             }
         }
 
-        // Fall back to scope-visible property lookup for compound assignments
-        // like `counter += 1` where `counter` is a top-level var or a member
-        // property accessed via implicit receiver (inside a class/object
-        // member function).
         let allCandidateIDs = ctx.cachedScopeLookup(name)
         let dslBlockedIDs = allCandidateIDs.filter { ctx.isCandidateBlockedByDslMarker($0) }
         let dslFilteredIDs = allCandidateIDs.filter { !ctx.isCandidateBlockedByDslMarker($0) }
@@ -885,9 +875,8 @@ extension ExprTypeChecker {
         return sema.types.errorType
     }
 
-    /// Resolve the property read in a compound assignment through the existing
-    /// getter overload rules. Reserve the expression's call binding for its
-    /// arithmetic operator; lowering reads and writes the selected property.
+    /// Reserve the expression's call binding for its arithmetic operator;
+    /// lowering reads and writes the selected property.
     private func resolveExtensionPropertyForCompoundAssignment(
         id: ExprID,
         named calleeName: InternedString,
@@ -914,10 +903,6 @@ extension ExprTypeChecker {
         )
     }
 
-    /// Compound assignment through an explicit receiver, e.g. `obj.field += value`
-    /// or `this.box.n += value`. Mirrors `inferCompoundAssignExpr`'s operator-overload
-    /// resolution (`plusAssign` then binary-operator fallback) but resolves the
-    /// left-hand side as a member property on `receiverExpr` instead of a bare name.
     func inferMemberCompoundAssignExpr(
         _ id: ExprID,
         op: CompoundAssignOp,
@@ -1084,10 +1069,8 @@ extension ExprTypeChecker {
             return sema.types.unitType
         }
 
-        // Primitive/builtin fallback (Int/Char/String arithmetic via `kk_op_*` or
-        // string concat at KIR-lowering time). Unlike a bare local, a property's
-        // declared type doesn't get narrowed per-assignment, so there is nothing
-        // to propagate back into `locals` here.
+        // Unlike a bare local, a property's declared type doesn't get narrowed
+        // per-assignment, so there is nothing to propagate back into `locals` here.
         if rejectInvalidBuiltinCharCompoundAssignment(
             id, op: op, lhs: propType, rhs: valueType, range: range, ctx: ctx
         ) {
