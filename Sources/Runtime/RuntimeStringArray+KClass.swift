@@ -176,6 +176,13 @@ public func __kk_kclass_of(_ value: Int, _ fallbackToken: Int, _ nameHint: Int) 
             | RuntimeTypeTokenEncoding.nominalBase
         return __kk_kclass_create(Int(truncatingIfNeeded: token), runtimeMakeStringRaw(annotation.annotationFQName))
     }
+    // Unit stays as the raw zero value when it crosses an erased Any boundary;
+    // other erased primitives are boxed. Recover Unit before falling back to
+    // the statically supplied Any token, while preserving raw Boolean/Int zero.
+    let fallbackBase = Int64(truncatingIfNeeded: fallbackToken) & RuntimeTypeTokenEncoding.baseMask
+    if value == 0, fallbackBase == RuntimeTypeTokenEncoding.anyBase {
+        return __kk_kclass_create(Int(RuntimeTypeTokenEncoding.unitBase), 0)
+    }
     if runtimeArrayBoxExcludingObjects(from: value) != nil,
        let arrayClass = runtimeArrayKClassIdentity(rawValue: value)
     {
