@@ -1,5 +1,3 @@
-// Declarative registration support for synthetic stdlib stubs that remain
-// compiler-owned after source-backed stdlib migration.
 
 indirect enum SyntheticStubTypeRef: Hashable, Sendable {
     case typeID(TypeID)
