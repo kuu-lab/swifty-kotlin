@@ -521,14 +521,22 @@ public final class TypeSystem {
         return owners.reversed().flatMap { owner in
             normalizedNominalVariances(
                 for: owner,
-                arity: nominalTypeParameterSymbols(for: owner).count
+                arity: max(
+                    nominalTypeParameterSymbols(for: owner).count,
+                    nominalTypeParameterVariances(for: owner).count
+                )
             )
         }
     }
 
-    public func allTypeParameterVariances(for nominal: SymbolID) -> [TypeVariance] {
-        enclosingTypeParameterVariances(for: nominal)
-            + normalizedNominalVariances(for: nominal, arity: nominalTypeParameterSymbols(for: nominal).count)
+    public func allTypeParameterVariances(for nominal: SymbolID, fallbackArity: Int = 0) -> [TypeVariance] {
+        let declaredArity = max(
+            nominalTypeParameterSymbols(for: nominal).count,
+            nominalTypeParameterVariances(for: nominal).count,
+            fallbackArity
+        )
+        return enclosingTypeParameterVariances(for: nominal)
+            + normalizedNominalVariances(for: nominal, arity: declaredArity)
     }
 
     public func allTypeArguments(for classType: ClassType) -> [TypeArg] {

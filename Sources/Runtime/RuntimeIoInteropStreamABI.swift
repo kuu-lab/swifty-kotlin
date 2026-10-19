@@ -113,8 +113,7 @@ public func __kk_output_stream_close_throwing(_ stream: Int, _ outThrown: Unsafe
     return 0
 }
 
-// Retain the old one-word writer close ABI for old callers. Source bindings
-// use a throwing channel so callback-backed stream close errors survive.
+// Source bindings use a throwing channel so callback-backed stream close errors survive.
 @_cdecl("__kk_buffered_writer_close_throwing")
 public func __kk_buffered_writer_close_throwing(_ writer: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -128,7 +127,7 @@ public func __kk_buffered_writer_close_throwing(_ writer: Int, _ outThrown: Unsa
     return 0
 }
 
-// Existing single-word SequenceInputStream exports remain for old callers.
+// SequenceInputStream shares the InputStream available/close paths, so these only forward.
 @_cdecl("__kk_sequence_input_stream_available_throwing")
 public func __kk_sequence_input_stream_available_throwing(_ stream: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     __kk_input_stream_available_throwing(stream, outThrown)

@@ -1,10 +1,8 @@
 /*
- * KSP-1084: Kotlin source-backed field operations for receiverless mutable
- * property references.
- *
- * Kotlin/Native implements these declarations as field intrinsics. KSwiftK
- * has no corresponding intrinsic or runtime bridge, so keep the API source
- * backed and express its sequential observable operations through get/set.
+ * KSP-1084: Kotlin/Native implements these declarations as field intrinsics.
+ * KSwiftK has no corresponding intrinsic or runtime bridge, so keep the API
+ * source backed and express its sequential observable operations through
+ * get/set.
  */
 
 package kotlin.concurrent

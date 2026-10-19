@@ -7,10 +7,4 @@
 
 package kotlin.reflect
 
-// KSP-1323: source-backed kotlin.reflect surface, split out of the former
-// Stdlib.kt grab-bag to follow the upstream per-declaration file layout.
-
-/**
- * A classifier is either a class or a type parameter.
- */
 public interface KClassifier

@@ -139,7 +139,8 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             types: types,
             diagnostics: diagnostics,
-            interner: interner
+            interner: interner,
+            sourceManager: sourceManager
         )
         collectMemberHeaders(
             members: MemberDeclarations(

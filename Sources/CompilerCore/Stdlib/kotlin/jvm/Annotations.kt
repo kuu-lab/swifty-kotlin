@@ -2,7 +2,6 @@ package kotlin.jvm
 
 import kotlin.reflect.KClass
 
-/** Marker annotation declarations for JVM-specific source APIs used by multiplatform code. */
 @Target(AnnotationTarget.CLASS)
 public annotation class JvmInline
 
@@ -26,6 +25,5 @@ public annotation class JvmOverloads
 
 // Generic extension properties are not yet supported by the parser. Keep the
 // Annotation upper bound, as with the source-backed KClass extension properties.
-/** Returns the class of this annotation instance. */
 public val Annotation.annotationClass: KClass<out Annotation>
     get() = this::class

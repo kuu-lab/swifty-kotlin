@@ -2,14 +2,6 @@ package kotlin.collections
 
 import kotlin.random.Random
 
-// KSP-939: List(size, init) initializer factory. The List<out E> nominal
-// declaration itself already lives in List.kt (KSP-697); indexed access and
-// collection members remain compiler/runtime residuals until their dedicated
-// migration tasks land.
-
-/**
- * Creates a read-only list whose elements are produced in ascending index order.
- */
 @SinceKotlin("1.1")
 @kotlin.internal.InlineOnly
 public inline fun <T> List(size: Int, init: (index: Int) -> T): List<T> =
@@ -67,9 +59,6 @@ public fun <T> List<T>.elementAtOrElse(index: Int, defaultValue: (Int) -> T): T 
 // -metadata builds that have no bundled Kotlin source to resolve against (see
 // HeaderHelpers+SyntheticCollectionTypeFallbacks.swift).
 
-/**
- * Returns a random element from this list.
- */
 @SinceKotlin("1.3")
 @kotlin.internal.InlineOnly
 public inline fun <T> List<T>.random(): T {
@@ -77,18 +66,12 @@ public inline fun <T> List<T>.random(): T {
     return this[Random.nextInt(size)]
 }
 
-/**
- * Returns a random element from this list using the specified random source.
- */
 @SinceKotlin("1.3")
 public fun <T> List<T>.random(random: Random): T {
     if (isEmpty()) throw NoSuchElementException("Collection is empty.")
     return this[random.nextInt(size)]
 }
 
-/**
- * Returns a random element from this list, or `null` if it is empty.
- */
 @SinceKotlin("1.4")
 @kotlin.internal.InlineOnly
 public inline fun <T> List<T>.randomOrNull(): T? {
@@ -96,10 +79,6 @@ public inline fun <T> List<T>.randomOrNull(): T? {
     return this[Random.nextInt(size)]
 }
 
-/**
- * Returns a random element from this list using the specified random source,
- * or `null` if it is empty.
- */
 @SinceKotlin("1.4")
 public fun <T> List<T>.randomOrNull(random: Random): T? {
     if (isEmpty()) return null

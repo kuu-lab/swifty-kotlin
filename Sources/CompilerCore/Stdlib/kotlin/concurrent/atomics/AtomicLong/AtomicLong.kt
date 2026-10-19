@@ -10,9 +10,8 @@ package kotlin.concurrent.atomics
 
 import kotlin.internal.KsSymbolName
 
-// The canonical atomics type is currently an alias of the runtime-backed
-// kotlin.concurrent.AtomicLong shell. Keep the runtime entry points private and
-// expose the public API as source-backed receiver declarations.
+// Keep the runtime entry points private and expose the public API as
+// source-backed receiver declarations.
 @KsSymbolName("__kk_atomic_long_addAndFetch")
 private external fun AtomicLong.__kkAtomicLongAddAndFetch(delta: Long): Long
 

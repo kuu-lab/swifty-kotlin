@@ -34,8 +34,14 @@ struct RuntimeCoroutineScopeContextTests {
         Unmanaged<RuntimeCancellationBox>.fromOpaque(UnsafeRawPointer(bitPattern: raw)!).takeUnretainedValue()
     }
 
-    @Test(arguments: [false, true])
-    func withContextReceiverRetainsItsOwnContextAfterReturn(emptyOverride: Bool) throws {
+    @Test(arguments: [
+        (false, "child"),
+        (true, "parent"),
+    ])
+    func withContextReceiverRetainsItsOwnContextAfterReturn(
+        testCase: (emptyOverride: Bool, expectedContextName: String)
+    ) throws {
+        let (emptyOverride, expectedContextName) = testCase
         let savedState = RuntimeContinuationState.current
         let savedScope = RuntimeCoroutineScope.current
         let savedJob = RuntimeJobHandle.current
@@ -62,7 +68,7 @@ struct RuntimeCoroutineScopeContextTests {
         #expect(receiver.job !== parentJob)
         #expect(receiver.job?.completedSnapshot() == true)
         let context = __kk_coroutine_scope_context(raw)
-        #expect(resolveToCoroutineContext(context).name == (emptyOverride ? "parent" : "child"))
+        #expect(resolveToCoroutineContext(context).name == expectedContextName)
         #expect(kk_context_get_job(context) == receiver.job?.identityHandle)
         #expect(receiver.context.jobHandleRaw == receiver.job?.identityHandle)
         #expect(parent.context.name == "parent")
@@ -244,8 +250,16 @@ struct RuntimeCoroutineScopeContextTests {
         #expect(cancellationBox(cause).cancellationJob == nil)
     }
 
-    @Test(arguments: [false, true], [false, true])
-    func scopeFailureAndCapturedJobKeepTheSameRoot(cleanupAfterCancellation: Bool, supervisor: Bool) {
+    @Test(arguments: [
+        (false, false, "ScopeCoroutine was cancelled"),
+        (false, true, "SupervisorCoroutine was cancelled"),
+        (true, false, "ScopeCoroutine was cancelled"),
+        (true, true, "SupervisorCoroutine was cancelled"),
+    ])
+    func scopeFailureAndCapturedJobKeepTheSameRoot(
+        testCase: (cleanupAfterCancellation: Bool, supervisor: Bool, expectedMessage: String)
+    ) {
+        let (cleanupAfterCancellation, supervisor, expectedMessage) = testCase
         let savedScope = RuntimeCoroutineScope.current
         let savedJob = RuntimeJobHandle.current
         let savedState = RuntimeContinuationState.current
@@ -261,19 +275,20 @@ struct RuntimeCoroutineScopeContextTests {
         let job = runtimeCoroutineScope(from: raw)!.job!
         let first = runtimeAllocateThrowable(message: "first failure")
         let cleanup = runtimeAllocateThrowable(message: "cleanup failure")
+        let expectedFailure: Int
         if cleanupAfterCancellation {
             _ = job.cancel(cause: runtimeAllocateCancellationException(message: "prior cancellation"))
+            expectedFailure = cleanup
         } else {
             _ = kk_coroutine_scope_fail(raw, first)
+            expectedFailure = first
         }
         _ = kk_coroutine_scope_fail(raw, cleanup)
-        let expected = cleanupAfterCancellation ? cleanup : first
-        #expect(kk_coroutine_scope_wait(raw) == expected)
+        #expect(kk_coroutine_scope_wait(raw) == expectedFailure)
         let exception = kk_job_get_cancellation_exception(job.identityHandle)
         #expect(kk_is_cancellation_exception(exception) == 1)
-        #expect(cancellationBox(exception).cause == expected)
-        #expect(cancellationBox(exception).message == (supervisor
-            ? "SupervisorCoroutine was cancelled" : "ScopeCoroutine was cancelled"))
+        #expect(cancellationBox(exception).cause == expectedFailure)
+        #expect(cancellationBox(exception).message == expectedMessage)
         #expect(cancellationBox(exception).cancellationJob === job)
     }
 

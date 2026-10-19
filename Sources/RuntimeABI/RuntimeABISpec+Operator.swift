@@ -353,16 +353,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "__kk_kclass_find_annotation",
-            parameters: [
-                RuntimeABIParameter(name: "kclassRaw", type: .intptr),
-                RuntimeABIParameter(name: "nameRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Reflection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "__kk_kclass_find_associated_object",
             parameters: [
                 RuntimeABIParameter(name: "kclassRaw", type: .intptr),

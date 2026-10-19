@@ -7,16 +7,12 @@ package kotlin.ranges
 
 import kotlin.internal.KsSymbolName
 
-// KSP-1320/KSP-1321: ULongRange owns its public constructor, open-end
-// properties, and value semantics in bundled Kotlin source. The range payload
-// remains a runtime-managed unsigned range handle, so construction retains the
-// existing ABI factory.
+// The range payload remains a runtime-managed unsigned range handle, so
+// construction retains the existing ABI factory.
 public class ULongRange @KsSymbolName("__kk_ulong_rangeTo") constructor(
     start: ULong,
     endInclusive: ULong,
 ) : ULongProgression(start, endInclusive, 1L), ClosedRange<ULong>, OpenEndRange<ULong> {
-    // KSP-709: `start` becomes a real member now that the synthetic unsigned
-    // range stub is gone (it was the only provider of `ULongRange.start`).
     public override val start: ULong get() = first
 
     public override val endInclusive: ULong get() = last

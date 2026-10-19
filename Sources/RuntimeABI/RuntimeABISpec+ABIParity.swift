@@ -670,12 +670,6 @@ public extension RuntimeABISpec {
             p("hash", .intptr),
         ]),
 
-        abiParitySpec("__kk_sequence_input_stream_available", parameters: [
-            p("streamRaw", .intptr),
-        ]),
-        abiParitySpec("__kk_sequence_input_stream_close", parameters: [
-            p("streamRaw", .intptr),
-        ]),
         abiParitySpec("__kk_sequence_input_stream_new", parameters: [
             p("firstRaw", .intptr),
             p("secondRaw", .intptr),

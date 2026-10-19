@@ -9,11 +9,7 @@ package kotlin.collections
 
 import kotlin.internal.KsSymbolName
 
-// KSP-704: split out of CollectionAliases.kt into its own 本家-named file
-// (docs/stdlib-pipeline.md §6).
-
 /**
- * Insertion-ordered mutable set.
  * KUU-1940: preserve the distinct HashSet superclass, matching kotlin-jvm.
  *
  * Construction is lowered to the runtime set entry points

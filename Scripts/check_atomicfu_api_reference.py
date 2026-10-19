@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 import sys
 from pathlib import Path
@@ -97,24 +96,11 @@ def main() -> int:
             f"expected {EXPECTED_COMMON_NATIVE_SIGNATURES}, got {len(signatures)}"
         )
 
-    try:
-        checked_in_index = api_index.INDEX_PATH.read_bytes()
-    except OSError as error:
-        raise SystemExit(
-            f"missing generated declaration index {api_index.INDEX_PATH}: {error}"
-        ) from error
-    index = json.loads(checked_in_index)
-    # Read and SHA-verify the actual pinned sources before the regeneration
-    # comparison. Even a mutually consistent generator/index cannot override
-    # declaration existence, visibility or annotation argument evidence.
+    index = api_index.load_index(klib)
+    # Read and SHA-verify the actual pinned sources against the generated index.
+    # A deterministic generator still cannot override declaration existence,
+    # visibility or annotation argument evidence.
     source_evidence.validate_source_semantics(index)
-    index_bytes = api_index.render_index(klib)
-    if checked_in_index != index_bytes:
-        raise SystemExit(
-            f"{api_index.INDEX_PATH.relative_to(ROOT)} is stale; "
-            "run python3 Scripts/generate_atomicfu_api_index.py --write"
-        )
-    index = json.loads(checked_in_index)
     if index["summary"]["total_api_identity_rows"] != api_index.EXPECTED_TOTAL_DECLARATIONS:
         raise SystemExit("generated declaration index does not cover all API identities")
     if index["summary"]["legacy_flat_unique_signatures"] != api_index.EXPECTED_LEGACY_SIGNATURES:

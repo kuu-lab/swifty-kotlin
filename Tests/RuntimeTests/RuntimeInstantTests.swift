@@ -18,9 +18,8 @@ struct RuntimeInstantTests {
     @Test
     func testInstantHashCodeMatchesKotlinFormula() {
         let instant = kk_instant_from_epoch_seconds(1, 500_000_000)
-        let expected = Int(Int32(1) &+ (51 &* Int32(500_000_000)))
 
-        #expect(kk_any_hashCode(instant, 0) == expected)
+        #expect(kk_any_hashCode(instant, 0) == -269_803_775)
     }
 
     @Test

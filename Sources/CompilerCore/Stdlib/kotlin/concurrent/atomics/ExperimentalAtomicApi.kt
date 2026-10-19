@@ -9,13 +9,6 @@ package kotlin.concurrent.atomics
 
 import kotlin.annotation.AnnotationTarget.*
 
-/**
- * This annotation marks the experimental Kotlin Atomics API.
- *
- * Any usage of a declaration annotated with `@ExperimentalAtomicApi` must be accepted either by
- * annotating that usage with the [OptIn] annotation, e.g. `@OptIn(ExperimentalAtomicApi::class)`,
- * or by using the compiler argument `-opt-in=kotlin.concurrent.atomics.ExperimentalAtomicApi`.
- */
 @RequiresOptIn(level = RequiresOptIn.Level.ERROR)
 @Retention(AnnotationRetention.BINARY)
 @Target(

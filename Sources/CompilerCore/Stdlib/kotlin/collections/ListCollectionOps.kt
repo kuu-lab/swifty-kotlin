@@ -5,10 +5,6 @@ import kotlin.internal.__valuesEqual
 import kotlin.experimental.ExperimentalTypeInference
 import kotlin.sequences.Sequence
 
-// KSP-428
-// List collection operations and numeric helpers migrated from the Swift
-// runtime collection bridges.
-
 private fun <T> listIterableContains(elements: Iterable<T>, value: T): Boolean {
     for (element in elements) {
         if (__valuesEqual(element, value)) return true

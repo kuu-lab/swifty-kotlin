@@ -38,10 +38,10 @@ private external fun <E> __kkMutableListRetainAll(
     elements: Collection<out E>
 ): Boolean
 
-// KSP-1503: the MutableList mutation surface is source-backed. The private
-// externals above are the demoted runtime bridges; keeping the bridge calls in
-// default interface bodies preserves the runtime-backed behavior for erased
-// MutableList receivers without synthetic member declarations.
+// KSP-1503: The private externals above are the demoted runtime bridges;
+// keeping the bridge calls in default interface bodies preserves the
+// runtime-backed behavior for erased MutableList receivers without synthetic
+// member declarations.
 // KSP-705: the addAll members stay `external` declarations bound directly to
 // their demoted bridges, matching the MutableCollection.addAll migration.
 // KSP-700: list-iterator overrides are source-backed to keep the covariant
@@ -59,16 +59,10 @@ public interface MutableList<E> : List<E>, MutableCollection<E> {
         __kkMutableListAddAt(this, index, element)
     }
 
-    /**
-     * Adds all elements of [elements] to the end of this mutable list.
-     */
     @KsSymbolName("__kk_mutable_list_addAll_checked")
     @IgnorableReturnValue
     public override external fun addAll(elements: Collection<out E>): Boolean
 
-    /**
-     * Inserts all elements of [elements] starting at [index].
-     */
     @KsSymbolName("__kk_mutable_list_addAll_at")
     @IgnorableReturnValue
     public external fun addAll(index: Int, elements: Collection<out E>): Boolean
@@ -119,9 +113,6 @@ public interface MutableList<E> : List<E>, MutableCollection<E> {
     public override external fun subList(fromIndex: Int, toIndex: Int): MutableList<E>
 }
 
-/**
- * Creates a mutable list whose elements are produced in ascending index order.
- */
 public inline fun <T> MutableList(size: Int, init: (index: Int) -> T): MutableList<T> {
     if (size < 0) throw IllegalArgumentException("Illegal Capacity: $size")
 

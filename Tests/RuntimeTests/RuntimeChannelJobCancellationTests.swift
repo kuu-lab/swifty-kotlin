@@ -142,8 +142,7 @@ private func runtime_test_producer_completion_close_gate(_ closure: Int, _ cause
 
 @Suite(.serialized)
 struct RuntimeProducerCompletionOrderingTests {
-    @Test(arguments: [0, 1, 2])
-    func closeCallbacksFinishBeforeJoinOrCompletionHandlers(terminal: Int) throws {
+    private func runProducerCompletionOrder(terminal: Int, failure: Int, expectedHandler: Int) throws {
         let channel = kk_channel_create(64)
         let object = try #require(runtimeChannelHandleObject(from: channel))
         let job = RuntimeJobHandle()
@@ -155,7 +154,6 @@ struct RuntimeProducerCompletionOrderingTests {
         let blockingJoinDone = DispatchGroup()
         let blockingJoinStarted = DispatchSemaphore(value: 0)
         let blockingJoined = ChannelCancellationResult()
-        let failure = terminal == 0 ? 0 : runtimeAllocateIllegalStateException(message: "producer")
         completeDone.enter()
         var released = false
         defer {
@@ -194,8 +192,25 @@ struct RuntimeProducerCompletionOrderingTests {
         #expect(blockingJoinDone.wait(timeout: .now() + .seconds(2)) == .success)
         #expect(blockingJoined.get() == failure)
         #expect(joined.get() == failure)
-        #expect(handler.get() == (terminal == 0 ? runtimeNullSentinelInt : failure))
+        #expect(handler.get() == expectedHandler)
         #expect(object.closeCauseSnapshot() == failure)
         #expect(job.completedSnapshot())
+    }
+
+    @Test
+    func closeCallbacksFinishBeforeJoinOrCompletionHandlers_normal() throws {
+        try runProducerCompletionOrder(terminal: 0, failure: 0, expectedHandler: runtimeNullSentinelInt)
+    }
+
+    @Test
+    func closeCallbacksFinishBeforeJoinOrCompletionHandlers_exceptional() throws {
+        let failure = runtimeAllocateIllegalStateException(message: "producer")
+        try runProducerCompletionOrder(terminal: 1, failure: failure, expectedHandler: failure)
+    }
+
+    @Test
+    func closeCallbacksFinishBeforeJoinOrCompletionHandlers_cancelled() throws {
+        let failure = runtimeAllocateIllegalStateException(message: "producer")
+        try runProducerCompletionOrder(terminal: 2, failure: failure, expectedHandler: failure)
     }
 }

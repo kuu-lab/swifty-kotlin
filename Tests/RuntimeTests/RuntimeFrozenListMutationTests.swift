@@ -36,15 +36,20 @@ struct RuntimeFrozenListMutationTests {
             let sub = kk_list_subList(raw, 0, 1, nil)
             let reversed = kk_list_as_reversed(sub)
             let nested = kk_list_subList(reversed, 0, 1, nil)
-            let views = [raw, sub, reversed, nested]
+            let viewsWithExpectedCounts: [(handle: Int, expectedCount: Int)] = [
+                (raw, 2),
+                (sub, 1),
+                (reversed, 1),
+                (nested, 1),
+            ]
             _ = __kk_builder_list_freeze(raw)
-            for view in views {
+            for (view, expectedCount) in viewsWithExpectedCounts {
                 var thrown = 123
                 _ = mutation(view, &thrown)
                 let exception = try #require(runtimeThrowableBox(from: thrown))
                 #expect(runtimeThrowableBoxHasExactType(exception, RuntimeUnsupportedOperationExceptionBox.self))
                 #expect(runtimeListBox(from: raw)?.elements == [1, 2])
-                #expect(runtimeListBox(from: view)?.count == (view == raw ? 2 : 1))
+                #expect(runtimeListBox(from: view)?.count == expectedCount)
             }
         }
     }

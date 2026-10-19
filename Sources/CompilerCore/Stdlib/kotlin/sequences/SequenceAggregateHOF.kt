@@ -13,20 +13,10 @@ import kotlin.internal.__valuesEqual
 // results (returned the first operand unchanged) when called directly.
 
 // MIGRATION-SEQ-004
-// Sequence aggregate HOFs migrated to Kotlin source.
 // Placed in kotlin.collections package for Map/MutableMap/List/MutableList resolution.
-// Uses "for in" iteration to avoid polluting toList() overload resolution
-// (this.toList() in kotlin.collections would make Collection.toList() resolve to
-// kk_sequence_to_list instead of kk_collection_toList in Sema dispatch).
 //
 // Migration source:
 //   Sources/Runtime/RuntimeSequence.swift
-//   Sources/Runtime/RuntimeSequenceAssociation.swift
-//   Sources/Runtime/RuntimeSequenceFoldScan.swift
-//
-// Migrated: scan, scanIndexed, runningFold, runningFoldIndexed, runningReduce,
-//           runningReduceIndexed, sumOf, maxByOrNull, minByOrNull, associate, associateBy,
-//           groupBy, Sequence.toMap
 //
 // KUU-1413: Sequence reduceRight/reduceRightOrNull/reduceRightIndexed/
 // reduceRightIndexedOrNull were removed — kotlin.sequences has no such
@@ -361,9 +351,8 @@ public fun <T> Sequence<T>.maxWithOrNull(comparator: Comparator<in T>): T? {
     return best
 }
 
-// KSP-1353/KSP-1354: Double/Float-specialized maxOf/minOf overloads and the
-// Comparator-based maxOfWith/minOfWith. maxOf delegates pairwise comparisons
-// to kk_max_double/kk_max_float directly, the same way Iterables.kt's own
+// KSP-1353/KSP-1354: maxOf delegates pairwise comparisons to
+// kk_max_double/kk_max_float directly, the same way Iterables.kt's own
 // maxOf(Double|Float) does; minOf goes through the comparisonMinOf import
 // alias at the top of this file instead (see that alias's own comment for
 // why). Either way this keeps NaN propagation and signed-zero ordering
@@ -769,15 +758,14 @@ public fun <T> Sequence<T>.count(predicate: (T) -> Boolean): Int {
     return count
 }
 
-// KSP-1353: Double/Float-specialized maxOrNull()/max() overloads, mirroring
-// Iterables.kt's own specializations. Pairwise kk_max_double/kk_max_float
-// keeps NaN propagation and signed-zero ordering on Kotlin's IEEE-754
-// semantics instead of the Comparable.compareTo total ordering used by the
-// generic <T : Comparable<T>> overloads below. These declarations sit ahead
-// of the generic ones so the Sequence aggregate fast path's first-match
-// lookup prefers them for concrete Double/Float receivers; other element
-// types still resolve to the generic overloads through the receiver
-// element-type filter.
+// KSP-1353: Pairwise kk_max_double/kk_max_float keeps NaN propagation and
+// signed-zero ordering on Kotlin's IEEE-754 semantics instead of the
+// Comparable.compareTo total ordering used by the generic
+// <T : Comparable<T>> overloads below. These declarations sit ahead of the
+// generic ones so the Sequence aggregate fast path's first-match lookup
+// prefers them for concrete Double/Float receivers; other element types
+// still resolve to the generic overloads through the receiver element-type
+// filter.
 @SinceKotlin("1.4")
 public fun Sequence<Double>.maxOrNull(): Double? {
     val elements = this.toList()
@@ -832,14 +820,13 @@ public fun <T : Comparable<T>> Sequence<T>.maxOrNull(): T? {
 
 public fun <T : Comparable<T>> Sequence<T>.max(): T = maxOrNull() ?: throw NoSuchElementException("Sequence is empty.")
 
-// KSP-1354: Double/Float-specialized minOrNull()/min() overloads, mirroring
-// Iterables.kt's own specializations. Pairwise comparisonMinOf keeps NaN
-// propagation and signed-zero ordering on Kotlin's IEEE-754 semantics instead
-// of the Comparable.compareTo total ordering used by the generic
-// <T : Comparable<T>> overloads below. These declarations sit ahead of the
-// generic ones so the Sequence aggregate fast path's first-match lookup
-// prefers them for concrete Double/Float receivers; other element types still
-// resolve to the generic overloads through the receiver element-type filter.
+// KSP-1354: Pairwise comparisonMinOf keeps NaN propagation and signed-zero
+// ordering on Kotlin's IEEE-754 semantics instead of the Comparable.compareTo
+// total ordering used by the generic <T : Comparable<T>> overloads below.
+// These declarations sit ahead of the generic ones so the Sequence aggregate
+// fast path's first-match lookup prefers them for concrete Double/Float
+// receivers; other element types still resolve to the generic overloads
+// through the receiver element-type filter.
 @SinceKotlin("1.4")
 public fun Sequence<Double>.minOrNull(): Double? {
     val elements = this.toList()

@@ -15,14 +15,12 @@ package kotlin.test
 import kotlin.contracts.*
 import kotlin.internal.OnlyInputTypes
 
-/** Evaluates [block] once and asserts its result equals [expected]. */
 public inline fun <@OnlyInputTypes T> expect(expected: T, block: () -> T) {
     contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
     val actual = block()
     asserter.assertEquals(null, expected, actual)
 }
 
-/** Evaluates [block] once and uses [message] when its result differs. */
 public inline fun <@OnlyInputTypes T> expect(expected: T, message: String?, block: () -> T) {
     contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
     val actual = block()

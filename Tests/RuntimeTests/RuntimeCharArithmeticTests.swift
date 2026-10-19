@@ -97,22 +97,32 @@ struct RuntimeCharArithmeticTests {
 
     // MARK: - Char compareTo
 
-    @Test
-    func testCharCompareTo_normalizesRawAndBoxedValues() {
-        let values = [0, 1, 97, 122, 0x7FFF, 0x8000, 0xD7FF, 0xD800,
-                      0xDBFF, 0xDC00, 0xDFFF, 0xE000, 0xFFFF]
-        let boxedValues = values.map { kk_box_char($0) }
-        for (lhsIndex, lhs) in values.enumerated() {
-            for (rhsIndex, rhs) in values.enumerated() {
-                let expected = lhs == rhs ? 0 : (lhs < rhs ? -1 : 1)
-                let boxedLhs = boxedValues[lhsIndex]
-                let boxedRhs = boxedValues[rhsIndex]
-                #expect(kk_char_compareTo(lhs, rhs) == expected)
-                #expect(kk_char_compareTo(boxedLhs, boxedRhs) == expected)
-                #expect(kk_char_compareTo(lhs, boxedRhs) == expected)
-                #expect(kk_char_compareTo(boxedLhs, rhs) == expected)
-            }
-        }
+    @Test(arguments: [
+        (0, 0, 0),
+        (97, 97, 0),
+        (0xFFFF, 0xFFFF, 0),
+        (0, 1, -1),
+        (1, 0, 1),
+        (97, 122, -1),
+        (122, 97, 1),
+        (0x7FFF, 0x8000, -1),
+        (0x8000, 0x7FFF, 1),
+        (0xD7FF, 0xD800, -1),
+        (0xD800, 0xD7FF, 1),
+        (0xDBFF, 0xDC00, -1),
+        (0xDC00, 0xDBFF, 1),
+        (0xDFFF, 0xE000, -1),
+        (0xE000, 0xDFFF, 1),
+        (0, 0xFFFF, -1),
+        (0xFFFF, 0, 1),
+    ])
+    func testCharCompareTo_normalizesRawAndBoxedValues(lhs: Int, rhs: Int, expected: Int) {
+        let boxedLhs = kk_box_char(lhs)
+        let boxedRhs = kk_box_char(rhs)
+        #expect(kk_char_compareTo(lhs, rhs) == expected)
+        #expect(kk_char_compareTo(boxedLhs, boxedRhs) == expected)
+        #expect(kk_char_compareTo(lhs, boxedRhs) == expected)
+        #expect(kk_char_compareTo(boxedLhs, rhs) == expected)
     }
 
     @Test

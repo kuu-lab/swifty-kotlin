@@ -3,8 +3,6 @@
 package kotlin.concurrent
 
 /**
- * Kotlin source-backed members for the legacy `kotlin.concurrent.AtomicLongArray`.
- *
  * The array's synchronized storage remains in the runtime. These members reuse
  * the `*At` boundary functions from `AtomicArrayCompatMigration.kt`, keeping
  * bounds checks and the raw atomic operations in one implementation.

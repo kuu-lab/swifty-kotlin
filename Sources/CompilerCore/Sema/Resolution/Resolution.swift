@@ -2110,7 +2110,8 @@ extension OverloadResolver {
         guard paramsEqual else {
             return false
         }
-        if let lhsReceiver = lhs.instantiatedReceiverType,
+        if lhs.instantiatedParameterTypes == rhs.instantiatedParameterTypes,
+           let lhsReceiver = lhs.instantiatedReceiverType,
            let rhsReceiver = rhs.instantiatedReceiverType
         {
             let lhsReceiverSubRhs = typeSystem.isSubtype(lhsReceiver, rhsReceiver)

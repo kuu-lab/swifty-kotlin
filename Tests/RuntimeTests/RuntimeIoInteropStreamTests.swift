@@ -272,9 +272,11 @@ struct RuntimeIoInteropStreamTests {
         #expect(thrown == failure && partialBytes == [7])
     }
 
-    @Test(arguments: [false, true])
-    func nativeReadBytesIsAWholePrimitiveByteArrayForTypedReflection(nonempty: Bool) throws {
-        let expected = nonempty ? [-1, 0, 7] : []
+    @Test(arguments: [
+        ([Int](), 0),
+        ([-1, 0, 7], 1),
+    ])
+    func nativeReadBytesIsAWholePrimitiveByteArrayForTypedReflection(expected: [Int], split: Int) throws {
         var thrown = 0
         let memory = __kk_bytearrayinputstream_new(array(expected), &thrown)
         let state = array([0] + expected)
@@ -284,7 +286,6 @@ struct RuntimeIoInteropStreamTests {
             unsafeBitCast(ioNoopThunk, to: Int.self), state,
             unsafeBitCast(ioNoopThunk, to: Int.self), state,
             unsafeBitCast(ioDescriptionThunk, to: Int.self), state)
-        let split = nonempty ? 1 : 0
         let sequence = __kk_sequence_input_stream_new(
             __kk_bytearrayinputstream_new(array(Array(expected.prefix(split))), &thrown),
             __kk_bytearrayinputstream_new(array(Array(expected.dropFirst(split))), &thrown))

@@ -9,24 +9,18 @@ package kotlin.test
 
 import kotlin.native.concurrent.ThreadLocal
 
-/** Current adapter providing assertion implementations. */
 public val asserter: Asserter
     get() = _asserter ?: lookupAsserter()
 
-/** Used to override the current asserter internally. */
 @ThreadLocal
 internal var _asserter: Asserter? = null
 
-/** Abstracts the logic for performing assertions. */
 public interface Asserter {
-    /** Fails the current test with the specified message. */
     public fun fail(message: String?): Nothing
 
-    /** Fails the current test with the specified message and cause exception. */
     @SinceKotlin("1.4")
     public fun fail(message: String?, cause: Throwable?): Nothing
 
-    /** Evaluates the failure message only when [actual] is false. */
     public fun assertTrue(lazyMessage: () -> String?, actual: Boolean): Unit {
         if (!actual) {
             fail(lazyMessage())
@@ -62,7 +56,6 @@ public interface Asserter {
     }
 }
 
-/** Provides an asserter when it is applicable to the current context. */
 public interface AsserterContributor {
     public fun contribute(): Asserter?
 }

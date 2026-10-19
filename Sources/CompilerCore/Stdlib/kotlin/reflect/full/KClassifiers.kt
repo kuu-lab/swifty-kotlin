@@ -27,11 +27,6 @@ private fun KClassifier.declaredTypeParameterCount(): Int {
     return parameters.size
 }
 
-/**
- * Creates a [KType] instance with the given classifier, type arguments, nullability and annotations.
- * If the number of passed type arguments is not equal to the total number of type parameters of a classifier,
- * an exception is thrown.
- */
 public fun KClassifier.createType(
     arguments: List<KTypeProjection> = emptyList(),
     nullable: Boolean = false,
@@ -46,10 +41,6 @@ public fun KClassifier.createType(
     return __kk_ktype_create(this, arguments, if (nullable) 1 else 0)
 }
 
-/**
- * Creates an instance of [KType] with the given classifier, substituting all its type parameters with star projections.
- * The resulting type is not marked as nullable and does not have any annotations.
- */
 public val KClassifier.starProjectedType: KType
     get() {
         val parameterCount = declaredTypeParameterCount()

@@ -1,11 +1,8 @@
 package kotlin.collections
 
-// KSP-687: primitive array higher-order functions are bundled Kotlin source.
-// The generated-looking repetition mirrors Kotlin's specialized primitive-array API.
-// It keeps element values typed at the source boundary instead of passing raw words
+// The generated-looking repetition mirrors Kotlin's specialized primitive-array API
+// and keeps element values typed at the source boundary instead of passing raw words
 // through the former kk_array_* runtime HOF bridges.
-
-// --- UIntArray ---
 
 public fun UIntArray.elementAt(index: Int): UInt = this[index]
 
@@ -402,8 +399,6 @@ public fun UIntArray.joinToString(
     sb.append(postfix)
     return sb.toString()
 }
-
-// --- ULongArray ---
 
 public fun ULongArray.elementAt(index: Int): ULong = this[index]
 

@@ -714,15 +714,6 @@ public func __kk_buffered_writer_flush(_ writerRaw: Int, _ outThrown: UnsafeMuta
     return 0
 }
 
-@_cdecl("__kk_buffered_writer_close")
-public func __kk_buffered_writer_close(_ writerRaw: Int) -> Int {
-    guard let writer = runtimeBufferedWriterBox(from: writerRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_writer_close received invalid BufferedWriter handle")
-    }
-    writer.close()
-    return 0
-}
-
 
 @_cdecl("__kk_writer_buffered_default")
 public func __kk_writer_buffered_default(_ writerRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
@@ -1068,23 +1059,6 @@ public func __kk_sequence_input_stream_read(_ streamRaw: Int, _ outThrown: Unsaf
     return stream.readByte(outThrown)
 }
 
-@_cdecl("__kk_sequence_input_stream_available")
-public func __kk_sequence_input_stream_available(_ streamRaw: Int) -> Int {
-    guard let stream = runtimeSequenceInputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_sequence_input_stream_available received invalid SequenceInputStream handle")
-    }
-    return stream.available()
-}
-
-@_cdecl("__kk_sequence_input_stream_close")
-public func __kk_sequence_input_stream_close(_ streamRaw: Int) -> Int {
-    guard let stream = runtimeSequenceInputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_sequence_input_stream_close received invalid SequenceInputStream handle")
-    }
-    stream.close()
-    return 0
-}
-
 @_cdecl("__kk_output_stream_write_byte")
 public func __kk_output_stream_write_byte(_ streamRaw: Int, _ valueRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -1134,15 +1108,6 @@ public func __kk_output_stream_flush(_ streamRaw: Int, _ outThrown: UnsafeMutabl
     } catch {
         outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
     }
-    return 0
-}
-
-@_cdecl("__kk_output_stream_close")
-public func __kk_output_stream_close(_ streamRaw: Int) -> Int {
-    guard let stream = runtimeOutputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_output_stream_close received invalid OutputStream handle")
-    }
-    stream.close()
     return 0
 }
 

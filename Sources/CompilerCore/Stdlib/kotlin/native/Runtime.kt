@@ -14,9 +14,6 @@ import kotlin.internal.KsSymbolName
 @DeprecatedSinceKotlin(warningSince = "1.9", errorSince = "2.1")
 public fun initRuntimeIfNeeded() {}
 
-/**
- * Exception thrown when a top-level variable is accessed from an incorrect execution context.
- */
 @Deprecated("Support for the legacy memory manager has been completely removed. Usages of this exception can be safely dropped.")
 @DeprecatedSinceKotlin(errorSince = "2.1")
 public class IncorrectDereferenceException : RuntimeException {
