@@ -4,6 +4,7 @@ extension ABILoweringPass {
         arguments: [KIRExprID],
         signature: FunctionSignature,
         receiverOffset: Int,
+        captureOffset: Int = 0,
         module: KIRModule,
         types: TypeSystem,
         symbols: SymbolTable?,
@@ -19,7 +20,7 @@ extension ABILoweringPass {
         // Erased and nullable slots carry boxes even after a smart cast.
         // Concrete primitive receivers and parameters require the raw payload;
         // an already raw value must retain its bits (including -0.0).
-        let receiverIndex = receiverOffset - 1
+        let receiverIndex = captureOffset + receiverOffset - 1
         // Enum bodies require raw ordinals. Only unwrap an argument when
         // the formal type is the same non-null enum; nullable enum / Any
         // extensions keep their boxes. Default stubs carry their receiver as
@@ -100,7 +101,7 @@ extension ABILoweringPass {
         // Normalize them separately so they do not shift onto the first
         // source parameter below (for example, Int context + Array argument).
         for (contextIndex, contextType) in signature.contextParameterTypes.enumerated() {
-            let argumentIndex = receiverOffset + contextIndex
+            let argumentIndex = captureOffset + receiverOffset + contextIndex
             guard arguments.indices.contains(argumentIndex),
                   let argumentType = intrinsicArgType(arguments[argumentIndex], arena: module.arena, types: types)
             else {
@@ -176,7 +177,7 @@ extension ABILoweringPass {
         let parameterTypes = signature.parameterTypes
         let varargFlags = signature.valueParameterIsVararg
         for argIndex in arguments.indices {
-            let paramIndex = argIndex - receiverOffset - signature.contextParameterTypes.count
+            let paramIndex = argIndex - captureOffset - receiverOffset - signature.contextParameterTypes.count
             guard paramIndex >= 0, paramIndex < parameterTypes.count else {
                 continue
             }
@@ -233,6 +234,7 @@ extension ABILoweringPass {
         callee: InternedString,
         arguments: [KIRExprID],
         receiver: KIRExprID? = nil,
+        captureOffset: Int = 0,
         result: KIRExprID?,
         signatureByName: [InternedString: FunctionSignature],
         module: KIRModule,
@@ -263,6 +265,7 @@ extension ABILoweringPass {
                callSymbol: callSymbol,
                arguments: arguments,
                receiver: receiver,
+               captureOffset: captureOffset,
                module: module,
                types: types,
                symbols: symbols
@@ -303,6 +306,7 @@ extension ABILoweringPass {
         callSymbol: SymbolID?,
         arguments: [KIRExprID],
         receiver: KIRExprID?,
+        captureOffset: Int = 0,
         module: KIRModule,
         types: TypeSystem,
         symbols: SymbolTable?
@@ -319,12 +323,13 @@ extension ABILoweringPass {
         let isMemberExtension = symbols.memberExtensionOwnerSymbol(for: callSymbol) != nil
         let receiverArgumentCount = signature.receiverType == nil ? 0 : (
             isMemberExtension ? (receiver == nil ? 2 : 1)
-                : (arguments.count == signature.parameterTypes.count + 1 ? 1 : 0)
+                : (arguments.count == captureOffset + signature.parameterTypes.count + 1 ? 1 : 0)
         )
         if let formalReceiverType = signature.receiverType {
+            let receiverIndex = captureOffset + receiverArgumentCount - 1
             if receiverArgumentCount > 0,
-               arguments.indices.contains(receiverArgumentCount - 1),
-               let actualReceiverType = module.arena.exprType(arguments[receiverArgumentCount - 1])
+               arguments.indices.contains(receiverIndex),
+               let actualReceiverType = module.arena.exprType(arguments[receiverIndex])
             {
                 actualTypes.append((formalReceiverType, actualReceiverType))
             } else if let receiver,
@@ -333,7 +338,7 @@ extension ABILoweringPass {
                 actualTypes.append((formalReceiverType, actualReceiverType))
             }
         }
-        for (formalType, argument) in zip(signature.parameterTypes, arguments.dropFirst(receiverArgumentCount)) {
+        for (formalType, argument) in zip(signature.parameterTypes, arguments.dropFirst(captureOffset + receiverArgumentCount)) {
             guard let actualType = module.arena.exprType(argument) else { continue }
             actualTypes.append((formalType, actualType))
         }

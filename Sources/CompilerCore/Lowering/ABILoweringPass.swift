@@ -536,6 +536,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     signature = boundaryBridgeSignatureByLinkName[effectiveCallee]
                 }
                 var boxedArguments: [KIRExprID]
+                var callCaptureOffset = 0
                 if let signature, let types {
                     // A constructor bridged to an allocating runtime entry
                     // (`Pair`'s `__kk_pair_new`) is called without the allocated-object
@@ -557,10 +558,19 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         }
                         return 1
                     }()
+                    callCaptureOffset = localFunctionCaptureOffset(
+                        callSymbol: effectiveCallSymbol,
+                        signature: signature,
+                        receiverOffset: receiverOffset,
+                        argumentCount: arguments.count,
+                        module: module,
+                        symbols: symbols
+                    )
                     boxedArguments = applyArgumentBoxing(
                         arguments: arguments,
                         signature: signature,
                         receiverOffset: receiverOffset,
+                        captureOffset: callCaptureOffset,
                         module: module,
                         types: types,
                         symbols: symbols,
@@ -731,6 +741,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     callSymbol: effectiveCallSymbol,
                     callee: effectiveCallee,
                     arguments: arguments,
+                    captureOffset: callCaptureOffset,
                     result: result,
                     signatureByName: signatureByName,
                     module: module,
@@ -978,5 +989,26 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                          result: to, canThrow: false, thrownResult: nil)]
         }
         return nil
+    }
+
+    func localFunctionCaptureOffset(
+        callSymbol: SymbolID?,
+        signature: FunctionSignature,
+        receiverOffset: Int,
+        argumentCount: Int,
+        module: KIRModule,
+        symbols: SymbolTable?
+    ) -> Int {
+        guard let callSymbol,
+              let sym = symbols?.symbol(callSymbol),
+              sym.flags.contains(.localFunction)
+        else {
+            return 0
+        }
+        let expectedCount = receiverOffset + signature.contextParameterTypes.count + signature.parameterTypes.count
+        if let function = module.arena.function(for: callSymbol) {
+            return max(0, function.params.count - expectedCount)
+        }
+        return max(0, argumentCount - expectedCount)
     }
 }
