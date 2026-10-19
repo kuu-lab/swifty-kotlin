@@ -1,8 +1,5 @@
 package kotlin
 
-// KSP-643: countOneBits / countLeadingZeroBits / countTrailingZeroBits.
-// Pure Kotlin implementations for Int and Long (SWAR popcount).
-
 public fun Int.countOneBits(): Int {
     var v = this
     v -= (v ushr 1) and 0x55555555
@@ -54,8 +51,6 @@ public fun Long.countTrailingZeroBits(): Int {
     if (this == 0L) return 64
     return ((this and (-this)) - 1L).countOneBits()
 }
-
-// KSP-644: highest/lowest one-bit operations are source-backed extensions.
 
 public fun Int.takeHighestOneBit(): Int {
     if (this == 0) return 0
