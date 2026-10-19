@@ -68,6 +68,7 @@ extension TypeCheckHelpers {
         unboundReceiverType: TypeID? = nil,
         specializeGenericReceiver: Bool = true,
         packVarargs: Bool = true,
+        targetSymbol: SymbolID? = nil,
         interner: StringInterner? = nil,
         sema: SemaModule
     ) -> TypeID {
@@ -125,7 +126,24 @@ extension TypeCheckHelpers {
                     ?? params[index]
             }
         }
+        let isAnonymous: Bool = {
+            guard let targetSymbol, let name = sema.symbols.symbol(targetSymbol)?.name, let interner else {
+                return false
+            }
+            return interner.resolve(name).hasPrefix("__AnonymousFunction_")
+        }()
         if !bindReceiver, let receiverType = unboundReceiverType ?? signature.receiverType {
+            if isAnonymous {
+                return sema.types.make(.functionType(FunctionType(
+                    contextReceivers: signature.contextParameterTypes,
+                    receiver: boundReceiver?.receiverType ?? receiverType,
+                    params: params,
+                    returnType: returnType,
+                    isSuspend: signature.isSuspend,
+                    isCallableReference: false,
+                    nullability: .nonNull
+                )))
+            }
             params.insert(boundReceiver?.receiverType ?? receiverType, at: 0)
         }
         return sema.types.make(.functionType(FunctionType(
@@ -133,7 +151,7 @@ extension TypeCheckHelpers {
             params: params,
             returnType: returnType,
             isSuspend: signature.isSuspend,
-            isCallableReference: true,
+            isCallableReference: !isAnonymous,
             nullability: .nonNull
         )))
     }
@@ -270,6 +288,7 @@ extension TypeCheckHelpers {
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
                 return contextualCallableReferenceBinding(
                     for: signature,
+                    targetSymbol: symbolID,
                     bindReceiver: bindReceiver,
                     boundReceiver: boundReceiverType.map { (symbolID, $0) },
                     unboundReceiverType: unboundReceiverType,
@@ -307,6 +326,7 @@ extension TypeCheckHelpers {
                 }
                 return contextualCallableReferenceBinding(
                     for: signature,
+                    targetSymbol: symbolID,
                     bindReceiver: bindReceiver,
                     boundReceiver: boundReceiverType.map { (symbolID, $0) },
                     unboundReceiverType: unboundReceiverType,
@@ -327,6 +347,7 @@ extension TypeCheckHelpers {
             guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
             return contextualCallableReferenceBinding(
                 for: signature,
+                targetSymbol: symbolID,
                 bindReceiver: bindReceiver,
                 boundReceiver: boundReceiverType.map { (symbolID, $0) },
                 unboundReceiverType: unboundReceiverType,
@@ -360,6 +381,7 @@ extension TypeCheckHelpers {
 
     func contextualCallableFunctionType(
         for signature: FunctionSignature,
+        targetSymbol: SymbolID? = nil,
         bindReceiver: Bool,
         boundReceiver: (symbol: SymbolID, receiverType: TypeID)? = nil,
         unboundReceiverType: TypeID? = nil,
@@ -370,7 +392,7 @@ extension TypeCheckHelpers {
         sema: SemaModule
     ) -> TypeID? {
         contextualCallableReferenceBinding(
-            for: signature, bindReceiver: bindReceiver, boundReceiver: boundReceiver,
+            for: signature, targetSymbol: targetSymbol, bindReceiver: bindReceiver, boundReceiver: boundReceiver,
             unboundReceiverType: unboundReceiverType,
             expectedFunctionType: expectedFunctionType, interner: interner,
             allowScalarVarargAdaptation: allowScalarVarargAdaptation,
@@ -380,6 +402,7 @@ extension TypeCheckHelpers {
 
     func contextualCallableReferenceBinding(
         for signature: FunctionSignature,
+        targetSymbol: SymbolID? = nil,
         bindReceiver: Bool,
         boundReceiver: (symbol: SymbolID, receiverType: TypeID)? = nil,
         unboundReceiverType: TypeID? = nil,
@@ -399,6 +422,7 @@ extension TypeCheckHelpers {
                 unboundReceiverType: unboundReceiverType,
                 specializeGenericReceiver: false,
                 packVarargs: false,
+                targetSymbol: targetSymbol,
                 interner: interner,
                 sema: sema
             )
@@ -413,6 +437,7 @@ extension TypeCheckHelpers {
                     unboundReceiverType: unboundReceiverType,
                     specializeGenericReceiver: false,
                     packVarargs: true,
+                    targetSymbol: targetSymbol,
                     interner: interner,
                     sema: sema
                 )
@@ -426,9 +451,15 @@ extension TypeCheckHelpers {
             }
 
             let types = sema.types
-            let receiverOffset = !bindReceiver && (unboundReceiverType != nil || signature.receiverType != nil) ? 1 : 0
+            let isAnonymousExtension: Bool = {
+                guard let targetSymbol, let name = sema.symbols.symbol(targetSymbol)?.name, let interner else {
+                    return false
+                }
+                return interner.resolve(name).hasPrefix("__AnonymousFunction_")
+            }()
+            let receiverOffset = !bindReceiver && (unboundReceiverType != nil || signature.receiverType != nil) && !isAnonymousExtension ? 1 : 0
             let expectedArity = (expected.receiver == nil ? 0 : 1) + expected.params.count
-            let expectedValueArity = expectedArity - receiverOffset
+            let expectedValueArity = isAnonymousExtension ? expected.params.count : (expectedArity - receiverOffset)
             guard expectedValueArity >= 0 else { return [] }
             let parameterCount = signature.parameterTypes.count
             var contextBindingChoices: [[TypeID]] = [[]]

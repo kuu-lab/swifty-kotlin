@@ -710,8 +710,48 @@ extension KotlinParser {
     }
 
     func isAnonymousFunctionExpressionStart(at offset: Int = 0) -> Bool {
-        stream.peek(offset).kind == .keyword(.fun)
-            && stream.peek(offset + 1).kind == .symbol(.lParen)
+        guard stream.peek(offset).kind == .keyword(.fun) else { return false }
+        if stream.peek(offset + 1).kind == .symbol(.lParen) {
+            return true
+        }
+        var cursor = offset + 1
+        var depth = 0
+        var prevNonTriviaKind: TokenKind? = nil
+        while cursor < 200 {
+            let token = stream.peek(cursor)
+            if token.kind == .eof { break }
+            switch token.kind {
+            case .symbol(.lParen):
+                if depth == 0 {
+                    if let prev = prevNonTriviaKind {
+                        switch prev {
+                        case .keyword(.fun),
+                             .symbol(.greaterThan),
+                             .symbol(.dot),
+                             .symbol(.questionDot):
+                            return true
+                        default:
+                            return false
+                        }
+                    }
+                    return false
+                }
+                depth += 1
+            case .symbol(.rParen):
+                depth -= 1
+            case .symbol(.lBracket), .symbol(.lessThan):
+                depth += 1
+            case .symbol(.rBracket), .symbol(.greaterThan):
+                depth -= 1
+            case .symbol(.lBrace), .symbol(.rBrace), .symbol(.semicolon), .symbol(.assign):
+                if depth == 0 { return false }
+            default:
+                break
+            }
+            prevNonTriviaKind = token.kind
+            cursor += 1
+        }
+        return false
     }
 
     /// A modifier keyword (`suspend`, `private`, ...) or the `context` soft

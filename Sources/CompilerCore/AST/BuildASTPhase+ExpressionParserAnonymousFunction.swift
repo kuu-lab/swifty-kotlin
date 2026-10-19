@@ -1,5 +1,48 @@
 
 extension BuildASTPhase.ExpressionParser {
+    func isAnonymousFunctionLiteralStart(from offset: Int = 0) -> Bool {
+        guard let token = peek(offset), token.kind == .keyword(.fun) else { return false }
+        if let next = peek(offset + 1), next.kind == .symbol(.lParen) {
+            return true
+        }
+        var cursor = offset + 1
+        var depth = 0
+        var prevNonTriviaKind: TokenKind? = nil
+        while let tok = peek(cursor) {
+            switch tok.kind {
+            case .symbol(.lParen):
+                if depth == 0 {
+                    if let prev = prevNonTriviaKind {
+                        switch prev {
+                        case .keyword(.fun),
+                             .symbol(.greaterThan),
+                             .symbol(.dot),
+                             .symbol(.questionDot):
+                            return true
+                        default:
+                            return false
+                        }
+                    }
+                    return false
+                }
+                depth += 1
+            case .symbol(.rParen):
+                depth -= 1
+            case .symbol(.lBracket), .symbol(.lessThan):
+                depth += 1
+            case .symbol(.rBracket), .symbol(.greaterThan):
+                depth -= 1
+            case .symbol(.lBrace), .symbol(.rBrace), .symbol(.semicolon), .symbol(.assign):
+                if depth == 0 { return false }
+            default:
+                break
+            }
+            prevNonTriviaKind = tok.kind
+            cursor += 1
+        }
+        return false
+    }
+
     func hasContextParameterAnonymousFunctionPrefix() -> Bool {
         guard index + 1 < tokens.endIndex,
               tokens[index].kind == .softKeyword(.context),
@@ -22,9 +65,7 @@ extension BuildASTPhase.ExpressionParser {
                     {
                         cursor += 1
                     }
-                    return cursor + 1 < tokens.endIndex
-                        && tokens[cursor].kind == .keyword(.fun)
-                        && tokens[cursor + 1].kind == .symbol(.lParen)
+                    return isAnonymousFunctionLiteralStart(from: cursor - index)
                 }
             default: break
             }
@@ -83,16 +124,42 @@ extension BuildASTPhase.ExpressionParser {
         else {
             return nil
         }
-        guard tokens.indices.contains(functionStartIndex + 1),
-              tokens[functionStartIndex + 1].kind == .symbol(.lParen)
-        else {
+        guard isAnonymousFunctionLiteralStart(from: functionStartIndex - index) else {
             return nil
         }
 
-        index = functionStartIndex
-        let startIndex = functionStartIndex
+        var lParenIndex: Int?
+        var scanCursor = functionStartIndex + 1
+        var scanDepth = 0
+        while scanCursor < tokens.endIndex {
+            let tok = tokens[scanCursor]
+            switch tok.kind {
+            case .symbol(.lParen):
+                if scanDepth == 0 {
+                    lParenIndex = scanCursor
+                    break
+                }
+                scanDepth += 1
+            case .symbol(.rParen):
+                scanDepth -= 1
+            case .symbol(.lBracket), .symbol(.lessThan):
+                scanDepth += 1
+            case .symbol(.rBracket), .symbol(.greaterThan):
+                scanDepth -= 1
+            case .symbol(.lBrace), .symbol(.rBrace), .symbol(.semicolon), .symbol(.assign):
+                if scanDepth == 0 { break }
+            default:
+                break
+            }
+            if lParenIndex != nil { break }
+            scanCursor += 1
+        }
+        guard let lParenIndex else {
+            return nil
+        }
+
+        index = lParenIndex
         let funToken = tokens[functionStartIndex]
-        _ = consume()
         skipBalancedParenthesisIfNeeded()
 
         if matches(.symbol(.colon)) {
@@ -130,8 +197,9 @@ extension BuildASTPhase.ExpressionParser {
         )
         let nameToken = Token(kind: .identifier(syntheticName), range: funToken.range)
         var synthTokens = Array(tokens[expressionStartIndex..<functionStartIndex])
-        synthTokens.append(contentsOf: [funToken, nameToken])
-        synthTokens.append(contentsOf: tokens[(startIndex + 1)..<(expressionBody == nil ? endIndex : headerEndIndex)])
+        synthTokens.append(contentsOf: tokens[functionStartIndex..<lParenIndex])
+        synthTokens.append(nameToken)
+        synthTokens.append(contentsOf: tokens[lParenIndex..<(expressionBody == nil ? endIndex : headerEndIndex)])
 
         let phase = BuildASTPhase(diagnostics: diagnostics)
         guard let localFunExprID = phase.parseLocalFunDeclExpr(
