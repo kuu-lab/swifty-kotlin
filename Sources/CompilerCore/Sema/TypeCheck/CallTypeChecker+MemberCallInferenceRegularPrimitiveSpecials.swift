@@ -77,8 +77,6 @@ extension CallTypeChecker {
             }
         }
 
-        // Primitive arithmetic/infix member functions on numeric receivers
-        // (e.g. Int.times(Int), Long.plus(Long), UInt.shl(Int)).
         if args.count == 1 {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let longType = sema.types.make(.primitive(.long, .nonNull))
@@ -111,7 +109,6 @@ extension CallTypeChecker {
                 && (receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == byteType || receiverForCheck == shortType)
             let isShiftReceiver = receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType
             let isBitwiseReceiver = isShiftReceiver || receiverForCheck == ubyteType || receiverForCheck == ushortType
-            // Helper: whether a type is a small unsigned type (UByte/UShort).
             // In Kotlin stdlib, small unsigned types promote to UInt for most
             // arithmetic (plus/minus/times/div/rem). `mod` returns the RHS type.
             let isSmallUnsigned = { (t: TypeID) -> Bool in t == ubyteType || t == ushortType }
@@ -124,7 +121,6 @@ extension CallTypeChecker {
             let isFloating = { (t: TypeID) -> Bool in
                 t == floatType || t == doubleType
             }
-            // Use non-nullable RHS for arithmetic promotion checks
             let rhsType = sema.types.makeNonNullable(rawRhsType)
             let arithmeticOp: BinaryOp? = switch interner.resolve(calleeName) {
             case "plus": .add
@@ -276,7 +272,6 @@ extension CallTypeChecker {
                 if isShiftReceiver,
                    rawRhsType == intType
                 {
-                    // shift amount must be Int; receiver can be Int/Long/UInt/ULong
                     let finalType = safeCall ? sema.types.makeNullable(receiverForCheck) : receiverForCheck
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
@@ -330,8 +325,6 @@ extension CallTypeChecker {
             }
         }
 
-        // STDLIB-NUM-130: Double/Float extension functions - Direct resolution (moved earlier, removed duplicate)
-
         let anyFallbackReceiverType = safeCall
             ? sema.types.makeNonNullable(lookupReceiverType)
             : lookupReceiverType
@@ -349,14 +342,12 @@ extension CallTypeChecker {
             anyFallbackReceiverType == sema.types.anyType || anyFallbackReceiverType == sema.types.nullableAnyType
         }
 
-        // Any.hashCode(): Int (STDLIB-306)
         if interner.resolve(calleeName) == "hashCode", args.isEmpty, allowsAnyFallback {
             let finalType = safeCall ? sema.types.makeNullable(sema.types.intType) : sema.types.intType
             sema.bindings.bindExprType(id, type: finalType)
             return finalType
         }
 
-        // Any.toString(): String (STDLIB-306)
         if interner.resolve(calleeName) == "toString", args.isEmpty, allowsAnyFallback {
             let stringType = sema.types.stringType
             let finalType = safeCall ? sema.types.makeNullable(stringType) : stringType
@@ -364,15 +355,12 @@ extension CallTypeChecker {
             return finalType
         }
 
-        // Any.equals(other: Any?): Boolean (STDLIB-306)
         if interner.resolve(calleeName) == "equals", args.count == 1, allowsAnyFallback {
             let finalType = safeCall ? sema.types.makeNullable(sema.types.booleanType) : sema.types.booleanType
             sema.bindings.bindExprType(id, type: finalType)
             return finalType
         }
 
-        // Primitive conversion: toInt(), toUInt(), toLong(), toULong(),
-        // toFloat(), toDouble(), toByte(), toShort() (TYPE-005, STDLIB-151)
         if args.isEmpty {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let longType = sema.types.make(.primitive(.long, .nonNull))
