@@ -14,10 +14,7 @@ import kotlin.internal.KsSymbolName
 // bridges, while the declaration preserves the public class hierarchy. Every
 // instance is a RuntimeListBox, so members bind directly to the shared list
 // storage bridges instead of going through the AbstractMutableList defaults
-// (which read modCount as an object field — see TODO.md BUG-247). The
-// Kotlin/Native backing-array storage is runtime-managed. Mutability checks
-// query the list box's read-only state before delegating mutation to its bridges,
-// so `ensureCapacity` / `trimToSize` are contract-only no-ops.
+// (which read modCount as an object field — see TODO.md BUG-247).
 @KsSymbolName("__kk_array_list_init")
 private external fun <E> __kkArrayListInit(list: ArrayList<E>)
 
