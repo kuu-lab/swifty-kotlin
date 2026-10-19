@@ -53,7 +53,7 @@ extension BuildASTPhase.ExpressionParser {
             return parsePrimaryThis(token)
         case .keyword(.object):
             return parseObjectLiteral()
-        case .keyword(.fun) where peek(1)?.kind == .symbol(.lParen):
+        case .keyword(.fun) where isAnonymousFunctionLiteralStart():
             // Distinct from `fun` as a declaration modifier/keyword, which is
             // never followed directly by `(` (a name always comes first).
             return parseAnonymousFunctionLiteral()

@@ -827,7 +827,8 @@ extension ExprTypeChecker {
                 else {
                     return false
                 }
-                return signature.receiverType == nil
+                let isAnonymous = interner.resolve(member).hasPrefix("__AnonymousFunction_")
+                return signature.receiverType == nil || isAnonymous
             })
             candidates = localFunctionCandidates.isEmpty
                 ? ctx.cachedScopeLookup(member).filter { symbolID in
@@ -851,7 +852,8 @@ extension ExprTypeChecker {
                let local = locals[member],
                let localSymbol = ctx.cachedSymbol(local.symbol),
                localSymbol.kind == .function,
-               sema.symbols.functionSignature(for: local.symbol)?.receiverType == nil
+               (sema.symbols.functionSignature(for: local.symbol)?.receiverType == nil
+                   || interner.resolve(member).hasPrefix("__AnonymousFunction_"))
             {
                 candidates = [local.symbol]
             }
@@ -1221,6 +1223,7 @@ extension ExprTypeChecker {
                 bindReceiver: isBoundReceiver,
                 boundReceiver: boundReceiverType.map { (chosen, $0) },
                 unboundReceiverType: unboundInnerConstructorReceiverType,
+                targetSymbol: chosen,
                 interner: interner,
                 sema: sema
             )
