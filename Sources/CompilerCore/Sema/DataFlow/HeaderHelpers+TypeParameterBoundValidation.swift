@@ -1,5 +1,3 @@
-/// DEBT-SEMA-002: declaration-site consistency check for type parameter upper bounds.
-///
 /// Kotlin classes have single inheritance, so a `where` clause combining two or more
 /// class-kind upper bounds (as opposed to interfaces) that share no subtype relationship
 /// in either direction is unsatisfiable by any concrete type (e.g. `where T : Int, T :
