@@ -1,6 +1,5 @@
 package kotlin.collections
 
-// These overloads provide the Array surface through its existing live view.
 public fun <T> Array<out T>.distinct(): List<T> = asIterable().distinct()
 
 public fun <T> Array<out T>.toSet(): Set<T> = asIterable().toSet()
@@ -9,7 +8,6 @@ public fun <T> Array<out T>.toHashSet(): HashSet<T> = asIterable().toHashSet()
 
 public fun <T> Array<out T>.toMutableSet(): MutableSet<T> = asIterable().toMutableSet()
 
-// KUU-1361: JVM `toSortedSet` array overloads.
 public fun <T : Comparable<T>> Array<out T>.toSortedSet(): java.util.SortedSet<T> =
     asIterable().toSortedSet()
 
