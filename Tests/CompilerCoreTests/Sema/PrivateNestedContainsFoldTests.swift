@@ -50,15 +50,24 @@ struct PrivateNestedContainsFoldTests {
         try expectPredicateBindings(in: ctx, nested: true)
     }
 
-    @Test(arguments: ["Int", "String", "Boolean"], ["{ wrong in it }", "{ it.contains(wrong) }"])
-    func nonLongContainsArgumentsRemainRejected(argumentType: String, predicate: String) throws {
+    @Test(
+        arguments: ["Int", "String", "Boolean"],
+        [
+            ("{ wrong in it }", "KSWIFTK-TYPE-0001"),
+            ("{ it.contains(wrong) }", "KSWIFTK-SEMA-0002"),
+        ]
+    )
+    func nonLongContainsArgumentsRemainRejected(
+        argumentType: String,
+        predicateCase: (predicate: String, expectedCode: String)
+    ) throws {
+        let (predicate, expectedCode) = predicateCase
         let source = program(nested: true, predicate: predicate)
             .replacingOccurrences(of: "fun solve():Long", with: "fun solve(wrong:\(argumentType)):Long")
             .replacingOccurrences(of: "fun main(){println(Solver().solve())}", with: "")
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        let expectedCode = predicate == "{ wrong in it }" ? "KSWIFTK-TYPE-0001" : "KSWIFTK-SEMA-0002"
         #expect(errors.count == 1)
         #expect(errors.allSatisfy { $0.code == expectedCode },
                 "Reject the contains operand after resolving the predicate parameter: \(errors)")

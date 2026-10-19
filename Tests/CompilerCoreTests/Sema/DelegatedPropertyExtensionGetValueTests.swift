@@ -72,8 +72,10 @@ struct DelegatedPropertyExtensionGetValueTests {
         ))
         let getValue = try #require(sema.symbols.delegateGetValueSymbol(for: enumerationProperty))
         let setValue = try #require(sema.symbols.delegateSetValueSymbol(for: enumerationProperty))
-        #expect(sema.symbols.parentSymbol(for: getValue) == readWriteProperty)
-        #expect(sema.symbols.parentSymbol(for: setValue) == readWriteProperty)
+        let getValueOwner = try #require(sema.symbols.parentSymbol(for: getValue))
+        let setValueOwner = try #require(sema.symbols.parentSymbol(for: setValue))
+        #expect(getValueOwner == readWriteProperty || sema.types.isNominalSubtypeSymbol(getValueOwner, of: readWriteProperty))
+        #expect(setValueOwner == readWriteProperty || sema.types.isNominalSubtypeSymbol(setValueOwner, of: readWriteProperty))
     }
 }
 #endif

@@ -7,8 +7,8 @@
 
 package kotlin.reflect
 
-// KSP-1332: source-backed KType surface. Runtime-created KType boxes provide
-// the abstract properties through their native interface itable.
+// KSP-1332: Runtime-created KType boxes provide the abstract properties
+// through their native interface itable.
 public interface KType {
     public val classifier: KClassifier?
 

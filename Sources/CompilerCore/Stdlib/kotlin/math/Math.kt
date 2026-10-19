@@ -6,16 +6,10 @@ import kotlin.fromBits
 import kotlin.internal.KsSymbolName
 
 // KSP-635
-// abs / sign / min / max and the PI / E constants migrated from the synthetic
-// stubs in Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticMathStubs.swift
-// and the kk_math_abs*/kk_math_sign*/kk_math_min*/kk_math_max*/kk_math_PI/kk_math_E
-// entry points in Sources/Runtime/RuntimeNumericCompat.swift.
-//
 // The floating-point min/max delegate to kotlin.comparisons.maxOf/minOf, which
 // already own the NaN propagation and signed-zero ordering contract; everything
 // else is expressible without touching the runtime.
 
-/** Ratio of the circumference of a circle to its diameter, approximately 3.14159. */
 @SinceKotlin("1.2")
 public const val PI: Double = 3.141592653589793
 @SinceKotlin("1.2")
@@ -81,10 +75,6 @@ public fun min(a: UInt, b: UInt): UInt = minOf(a, b)
 public fun min(a: ULong, b: ULong): ULong = minOf(a, b)
 
 // KSP-636
-// ceil / floor / round / truncate and withSign migrated from the synthetic
-// stubs in Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticMathStubs.swift
-// and the kk_math_* entry points in Sources/Runtime/RuntimeNumericCompat.swift.
-//
 // Rounding functions still need libm/Foundation, so they are exposed as
 // internal __kk_math_* runtime bridges. withSign is pure bit manipulation on
 // top of Double/Float.toRawBits and Double/Float.fromBits, so it lives fully
@@ -151,15 +141,14 @@ public fun Float.withSign(sign: Int): Float =
     if (sign < 0) -abs(this) else abs(this)
 
 // KSP-637 & KSP-638
-// Transcendental kotlin.math functions are Kotlin-source public wrappers around
-// internal libm entry points. Keeping the bridge declarations private to the
-// bundled source prevents the native ABI names from becoming public stdlib
-// symbols while preserving the platform math implementation and its edge cases.
+// Keeping the bridge declarations private to the bundled source prevents the
+// native ABI names from becoming public stdlib symbols while preserving the
+// platform math implementation and its edge cases.
 //
-// roundToInt / roundToLong / ulp / nextUp / nextDown are Kotlin-source
-// surface declarations. Their native implementations remain bridges because
-// rounding must preserve Kotlin's NaN exception and saturation contract, while
-// the precision helpers operate on IEEE 754 bit patterns.
+// The native implementations of roundToInt / roundToLong / ulp / nextUp /
+// nextDown remain bridges because rounding must preserve Kotlin's NaN
+// exception and saturation contract, while the precision helpers operate on
+// IEEE 754 bit patterns.
 
 @KsSymbolName("__kk_math_sqrt")
 internal external fun __kkMathSqrt(x: Double): Double

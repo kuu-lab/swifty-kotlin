@@ -742,9 +742,13 @@ extension CompilerCoreTests {
 
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
+        let sourceFile = try #require(ctx.sourceManager.fileIDs().first {
+            String(decoding: ctx.sourceManager.contents(of: $0), as: UTF8.self) == source
+        })
         let callableRefExprIDs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
             let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID), case .callableRef = expr else { return nil }
+            guard ast.arena.exprRange(exprID)?.start.file == sourceFile,
+                  let expr = ast.arena.expr(exprID), case .callableRef = expr else { return nil }
             return exprID
         }
         #expect(callableRefExprIDs.count == 2)
@@ -803,9 +807,13 @@ extension CompilerCoreTests {
 
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
+        let sourceFile = try #require(ctx.sourceManager.fileIDs().first {
+            String(decoding: ctx.sourceManager.contents(of: $0), as: UTF8.self) == source
+        })
         let refs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
             let id = ExprID(rawValue: Int32(index))
-            guard case .callableRef = ast.arena.expr(id) else { return nil }
+            guard ast.arena.exprRange(id)?.start.file == sourceFile,
+                  case .callableRef = ast.arena.expr(id) else { return nil }
             return id
         }
         #expect(refs.count == 12)
@@ -831,9 +839,13 @@ extension CompilerCoreTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
+        let sourceFile = try #require(ctx.sourceManager.fileIDs().first {
+            String(decoding: ctx.sourceManager.contents(of: $0), as: UTF8.self) == source
+        })
         let refs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
             let id = ExprID(rawValue: Int32(index))
-            guard case .callableRef = ast.arena.expr(id) else { return nil }
+            guard ast.arena.exprRange(id)?.start.file == sourceFile,
+                  case .callableRef = ast.arena.expr(id) else { return nil }
             return id
         }
         #expect(refs.count == 4)
@@ -938,9 +950,13 @@ extension CompilerCoreTests {
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
         let intType = sema.types.make(.primitive(.int, .nonNull))
+        let sourceFile = try #require(ctx.sourceManager.fileIDs().first {
+            String(decoding: ctx.sourceManager.contents(of: $0), as: UTF8.self) == source
+        })
         let callableRefExprIDs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
             let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID), case .callableRef = expr else { return nil }
+            guard ast.arena.exprRange(exprID)?.start.file == sourceFile,
+                  let expr = ast.arena.expr(exprID), case .callableRef = expr else { return nil }
             return exprID
         }
         #expect(callableRefExprIDs.count == 2)
@@ -970,9 +986,13 @@ extension CompilerCoreTests {
 
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
+        let sourceFile = try #require(ctx.sourceManager.fileIDs().first {
+            String(decoding: ctx.sourceManager.contents(of: $0), as: UTF8.self) == source
+        })
         let callableRefExprIDs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
             let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID), case .callableRef = expr else { return nil }
+            guard ast.arena.exprRange(exprID)?.start.file == sourceFile,
+                  let expr = ast.arena.expr(exprID), case .callableRef = expr else { return nil }
             return exprID
         }
         #expect(callableRefExprIDs.count == 2)

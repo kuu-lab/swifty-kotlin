@@ -2,9 +2,6 @@ package kotlin.collections
 
 import kotlin.internal.KsSymbolName
 
-// KSP-1512: signed primitive-array member bridges. The public `size` and
-// `toList` declarations below are bundled Kotlin source; these private
-// declarations retain only the runtime allocation/boxing work.
 @KsSymbolName("__kk_intArray_toList")
 private external fun __kkIntArrayToList(array: IntArray): List<Int>
 
@@ -33,8 +30,7 @@ private external fun __kkFloatArrayToList(array: FloatArray): List<Float>
 private external fun <T> __kkArrayToList(array: Array<out T>): List<T>
 
 // KSP-1516: array asList() keeps the Kotlin view contract. The runtime bridge
-// only creates a List view over the existing array storage; all public array
-// conversion APIs below remain ordinary bundled Kotlin declarations.
+// only creates a List view over the existing array storage.
 @KsSymbolName("__kk_array_asList")
 private external fun <T> __kkArrayAsList(array: Array<out T>): List<T>
 
@@ -62,8 +58,7 @@ private external fun __kkDoubleArrayAsList(array: DoubleArray): List<Double>
 @KsSymbolName("__kk_floatArray_asList")
 private external fun __kkFloatArrayAsList(array: FloatArray): List<Float>
 
-// KSP-1512: public signed primitive-array members are source-backed. `size`
-// uses the intrinsic declarations in kotlin.ArrayIntrinsics.kt, while
+// `size` uses the intrinsic declarations in kotlin.ArrayIntrinsics.kt, while
 // `toList` delegates to the typed runtime bridge for correct primitive boxing.
 public val IntArray.size: Int get() = __kkIntArraySize(this)
 public val LongArray.size: Int get() = __kkLongArraySize(this)
@@ -74,16 +69,11 @@ public val BooleanArray.size: Int get() = __kkBooleanArraySize(this)
 public val DoubleArray.size: Int get() = __kkDoubleArraySize(this)
 public val FloatArray.size: Int get() = __kkFloatArraySize(this)
 
-// KSP-1513: generic Array<T> members are source-backed. `toList` delegates to
-// a runtime copy bridge, while `size` keeps the generic element type intact.
 // The parser does not accept a type-parameter list on an extension property;
 // a star-projected receiver preserves the generic Array<T> surface.
 public val Array<*>.size: Int get() = __kkArraySize(this)
 public fun <T> Array<out T>.toList(): List<T> = __kkArrayToList(this)
 
-/**
- * Creates an [Iterable] instance that wraps the original array.
- */
 public fun <T> Array<out T>.asIterable(): Iterable<T> = this.asList()
 
 public fun IntArray.toList(): List<Int> = __kkIntArrayToList(this)
@@ -109,9 +99,8 @@ public fun BooleanArray.toMutableList(): MutableList<Boolean> = this.toList().to
 public fun DoubleArray.toMutableList(): MutableList<Double> = this.toList().toMutableList()
 public fun FloatArray.toMutableList(): MutableList<Float> = this.toList().toMutableList()
 
-// KSP-1516: Array slicing/reversal and primitive-array object conversion are
-// source-backed. Typed constructors and indexed access keep allocation and
-// boxing at the compiler-provided array boundary.
+// Typed constructors and indexed access keep allocation and boxing at the
+// compiler-provided array boundary.
 
 @Suppress("UNCHECKED_CAST")
 public fun <T> Array<T>.sliceArray(indices: Collection<Int>): Array<T> {
@@ -601,11 +590,6 @@ public fun ULongArray.toTypedArray(): Array<ULong> {
     return result as Array<ULong>
 }
 
-// KSP-628 + KSP-629
-// List → array conversions (object + signed/unsigned primitive element types).
-// Migration source: Sources/Runtime/RuntimeArrayBasics.swift
-//   (kk_list_toTypedArray / kk_list_to{Char,Boolean,Short,Double,Float,Int,Long,Byte,UByte,UShort,UInt,ULong}Array)
-//
 // Fresh storage comes from the array constructors / arrayOfNulls, so only the
 // per-array-type allocation core stays in the Swift runtime.
 

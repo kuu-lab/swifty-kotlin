@@ -13,15 +13,8 @@ import kotlin.internal.KsSymbolName
 @KsSymbolName("__kk_array_new_same_component")
 private external fun <T> arrayWithCopiedComponent(source: Array<T>, size: Int): Array<T?>
 
-// KSP-1514
-// Array content comparison, hashing, rendering, and deep-content helpers.
-// The public API is bundled Kotlin source. Deep traversal remains a private
-// runtime bridge because cycle detection must follow array object identity.
-// KSP-1515: Array copy helpers are bundled Kotlin source. The allocation core
-// remains compiler/runtime-provided through the array constructors.
-//
-// The old public kk_array_content* and kk_*Array_contentToString symbols are
-// not part of the source-backed API anymore.
+// Deep traversal remains a private runtime bridge because cycle detection must
+// follow array object identity.
 
 public infix fun <T> Array<out T>?.contentEquals(other: Array<out T>?): Boolean {
     if (this == null) return other == null
@@ -79,9 +72,9 @@ public fun <T> Array<out T>?.contentDeepHashCode(): Int {
     return __arrayContentDeepHashCode(array)
 }
 
-// Primitive and unsigned array overloads are source-backed as well. The
-// element remains typed at the Kotlin boundary, preserving Float/Double
-// NaN and signed-zero behavior in equality, hashing, and rendering.
+// Primitive and unsigned array overloads keep the element typed at the Kotlin
+// boundary, preserving Float/Double NaN and signed-zero behavior in equality,
+// hashing, and rendering.
 
 public infix fun ByteArray?.contentEquals(other: ByteArray?): Boolean {
     if (this == null) return other == null

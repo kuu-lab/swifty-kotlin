@@ -16,8 +16,6 @@ import kotlin.internal.KsSymbolName
 public external fun AtomicLongArray(size: Int): AtomicLongArray
 
 /**
- * Creates an atomic long array from a copy of the supplied array.
- *
  * This overload is an internal stdlib implementation entry point in Kotlin's
  * Native source and is kept out of consumer metadata.
  */

@@ -1,7 +1,7 @@
 
 extension BuildASTPhase.ExpressionParser {
     func hasContextParameterAnonymousFunctionPrefix() -> Bool {
-        guard index + 1 < tokens.count,
+        guard index + 1 < tokens.endIndex,
               tokens[index].kind == .softKeyword(.context),
               tokens[index + 1].kind == .symbol(.lParen)
         else {
@@ -9,20 +9,20 @@ extension BuildASTPhase.ExpressionParser {
         }
         var depth = 0
         var cursor = index + 1
-        while cursor < tokens.count {
+        while cursor < tokens.endIndex {
             switch tokens[cursor].kind {
             case .symbol(.lParen): depth += 1
             case .symbol(.rParen):
                 depth -= 1
                 if depth == 0 {
                     cursor += 1
-                    while cursor < tokens.count,
+                    while cursor < tokens.endIndex,
                           case let .keyword(keyword) = tokens[cursor].kind,
                           KotlinParser.isDeclarationModifierKeyword(keyword)
                     {
                         cursor += 1
                     }
-                    return cursor + 1 < tokens.count
+                    return cursor + 1 < tokens.endIndex
                         && tokens[cursor].kind == .keyword(.fun)
                         && tokens[cursor + 1].kind == .symbol(.lParen)
                 }
@@ -57,14 +57,14 @@ extension BuildASTPhase.ExpressionParser {
         if hasContextParameterAnonymousFunctionPrefix() {
             var depth = 0
             var cursor = index + 1
-            while cursor < tokens.count {
+            while cursor < tokens.endIndex {
                 switch tokens[cursor].kind {
                 case .symbol(.lParen): depth += 1
                 case .symbol(.rParen):
                     depth -= 1
                     if depth == 0 {
                         functionStartIndex = cursor + 1
-                        while functionStartIndex < tokens.count,
+                        while functionStartIndex < tokens.endIndex,
                               case let .keyword(keyword) = tokens[functionStartIndex].kind,
                               KotlinParser.isDeclarationModifierKeyword(keyword)
                         {
@@ -78,7 +78,7 @@ extension BuildASTPhase.ExpressionParser {
                 cursor += 1
             }
         }
-        guard functionStartIndex < tokens.count,
+        guard functionStartIndex < tokens.endIndex,
               case .keyword(.fun) = tokens[functionStartIndex].kind
         else {
             return nil

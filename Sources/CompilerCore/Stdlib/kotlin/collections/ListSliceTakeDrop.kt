@@ -1,7 +1,6 @@
 package kotlin.collections
 
 // MIGRATION-COL-008
-// List slice/take/drop helpers migrated to Kotlin source.
 // Migration source:
 //   Sources/Runtime/RuntimeCollectionHOFMaxMin.swift (kk_list_take, kk_list_takeLast,
 //   kk_list_drop, kk_list_dropLast)

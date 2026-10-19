@@ -51,14 +51,37 @@ extension OverloadResolverTests {
         return (set, resolved)
     }
 
+    @Test(arguments: [false, true])
+    func testCallableTrailingLambdaFailsWhenFirstParameterLacksDefault(nullableDefault: Bool) {
+        let (resolver, types, symbols, interner, ctx) = makeEnv()
+        let callable = types.make(.functionType(FunctionType(params: [types.stringType], returnType: types.stringType)))
+        let fn = defineSymbol(kind: .function, name: "callbacks", suffix: "callbacks", symbols: symbols, interner: interner)
+        let first = defineSymbol(kind: .valueParameter, name: "first", suffix: "callbacks_first", symbols: symbols, interner: interner)
+        let second = defineSymbol(kind: .valueParameter, name: "second", suffix: "callbacks_second", symbols: symbols, interner: interner)
+        symbols.setFunctionSignature(FunctionSignature(
+            parameterTypes: [callable, nullableDefault ? types.makeNullable(callable) : callable],
+            returnType: types.stringType,
+            valueParameterSymbols: [first, second],
+            valueParameterHasDefaultValues: [false, true]
+        ), for: fn)
+        let resolved = resolver.resolveCall(candidates: [fn], call: CallExpr(
+            range: makeRange(start: 0, end: 10), calleeName: interner.intern("callbacks"),
+            args: [CallArg(type: callable, isTrailingLambda: true)]
+        ), expectedType: nil, ctx: ctx)
+        #expect(resolved.chosenCallee == nil)
+        #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-0002")
+    }
+
     @Test(arguments: [
-        (false, false, false), (false, false, true),
-        (false, true, false), (false, true, true),
-        (true, false, false), (true, false, true),
-        (true, true, false), (true, true, true),
+        (false, false, false, 0),
+        (false, true, false, 0),
+        (true, false, false, 0),
+        (true, false, true, 1),
+        (true, true, false, 0),
+        (true, true, true, 1),
     ])
     func testCallablePositionAndTrailingLambdaWithLaterDefault(
-        firstHasDefault: Bool, nullableDefault: Bool, trailing: Bool
+        firstHasDefault: Bool, nullableDefault: Bool, trailing: Bool, expectedParameterIndex: Int
     ) {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
         let callable = types.make(.functionType(FunctionType(params: [types.stringType], returnType: types.stringType)))
@@ -75,14 +98,9 @@ extension OverloadResolverTests {
             range: makeRange(start: 0, end: 10), calleeName: interner.intern("callbacks"),
             args: [CallArg(type: callable, isTrailingLambda: trailing)]
         ), expectedType: nil, ctx: ctx)
-        if trailing && !firstHasDefault {
-            #expect(resolved.chosenCallee == nil)
-            #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-0002")
-        } else {
-            #expect(resolved.chosenCallee == fn)
-            #expect(resolved.diagnostic == nil)
-            #expect(resolved.parameterMapping == [0: trailing ? 1 : 0])
-        }
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.parameterMapping == [0: expectedParameterIndex])
     }
 
     @Test func testResolveCallAllowsOmittedDefaultArguments() {

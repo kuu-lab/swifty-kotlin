@@ -43,28 +43,21 @@ public enum class MemoryModel {
     EXPERIMENTAL
 }
 
-/**
- * Object describing the current platform program executes upon.
- */
 @kotlin.experimental.ExperimentalNativeApi
 public object Platform {
     /** Check if the current architecture allows unaligned access wider than a byte. */
     public val canAccessUnaligned: Boolean
         get() = __canAccessUnaligned() != 0
 
-    /** Check whether the current platform uses little-endian byte order. */
     public val isLittleEndian: Boolean
         get() = __isLittleEndian() != 0
 
-    /** Operating system family on which the program executes. */
     public val osFamily: OsFamily
         get() = __osFamily()
 
-    /** CPU architecture on which the program executes. */
     public val cpuArchitecture: CpuArchitecture
         get() = __cpuArchitecture()
 
-    /** Memory model used by the binary. Current runtimes always report EXPERIMENTAL. */
     @Deprecated(
         "This property always returns MemoryModel.EXPERIMENTAL, its usages can be safely removed.",
         ReplaceWith("MemoryModel.EXPERIMENTAL")
@@ -73,11 +66,9 @@ public object Platform {
     public val memoryModel: MemoryModel
         get() = MemoryModel.EXPERIMENTAL
 
-    /** Whether the binary was compiled in debug mode. */
     public val isDebugBinary: Boolean
         get() = __isDebugBinary() != 0
 
-    /** Whether legacy freezing is enabled. It is always false in the current memory manager. */
     @Deprecated(
         "Support for the legacy memory manager has been completely removed. Consequently, this property is always `false`.",
         ReplaceWith("false")
@@ -90,7 +81,6 @@ public object Platform {
     public val programName: String?
         get() = __programName()
 
-    /** Whether the memory leak checker is active. */
     public var isMemoryLeakCheckerActive: Boolean
         get() = __getMemoryLeakChecker() != 0
         set(value) {
@@ -100,7 +90,6 @@ public object Platform {
     @Deprecated("Cleaners leak checking is deprecated and should not be relied upon anymore")
     public var isCleanersLeakCheckerActive: Boolean = false
 
-    /** Return the number of logical processors available to the program. */
     public fun getAvailableProcessors(): Int {
         val fromEnv = __getAvailableProcessorsEnv()
         val value = fromEnv ?: return __getAvailableProcessors()

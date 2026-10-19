@@ -5,7 +5,6 @@ package kotlin.concurrent
 import kotlin.internal.KsSymbolName
 
 /**
- * Kotlin source-backed members for the legacy `kotlin.concurrent.AtomicArray`.
  * The runtime owns the atomic storage; these methods provide bounds checks and
  * reuse the reference-array ABI shared with `kotlin.concurrent.atomics`.
  */

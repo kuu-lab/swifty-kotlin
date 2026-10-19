@@ -7,5 +7,4 @@
 
 package kotlin.coroutines
 
-// KSP-1131: keep the public nominal declarations in bundled Kotlin source.
 public interface SuspendFunction<out R>

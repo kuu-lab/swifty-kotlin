@@ -254,7 +254,10 @@ extension TypeSystem {
                 ?? symbolTable?.actualSymbol(for: rightClass.classSymbol)
                 ?? leftClass.classSymbol
             let typeParameterSymbols = allTypeParameterSymbols(for: nominalOwner)
-            let declarationVariances = allTypeParameterVariances(for: nominalOwner)
+            let declarationVariances = allTypeParameterVariances(
+                for: nominalOwner,
+                fallbackArity: leftClass.args.count
+            )
             for index in 0 ..< leftArguments.count {
                 let lhsProjection: Projection
                 if case .star = leftArguments[index] {

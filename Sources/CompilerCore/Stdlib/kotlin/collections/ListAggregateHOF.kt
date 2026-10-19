@@ -203,8 +203,6 @@ public inline fun <T> List<T>.runningReduceIndexed(operation: (Int, T, T) -> T):
     return result
 }
 
-// KSP-501: migrated from BundledStdlib.kotlinCollectionsSource.
-
 public fun <T> List<T>.sumOf(selector: (T) -> Int): Int {
     var sum = 0
     var i = 0

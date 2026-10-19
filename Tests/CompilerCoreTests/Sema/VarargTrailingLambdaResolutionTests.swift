@@ -97,9 +97,11 @@ struct VarargTrailingLambdaResolutionTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
-    @Test(arguments: [false, true])
-    func sourceFunctionVarargAndTrailingLambdaHaveDifferentMappings(trailingFirst: Bool) throws {
-        let calls = trailingFirst ? "actions {}; actions({})" : "actions({}); actions {}"
+    @Test(arguments: [
+        ("actions({}); actions {}", [[0: 0], [0: 1]]),
+        ("actions {}; actions({})", [[0: 1], [0: 0]]),
+    ])
+    func sourceFunctionVarargAndTrailingLambdaHaveDifferentMappings(calls: String, expectedMappings: [[Int: Int]]) throws {
         let ctx = makeContextFromSource("""
         fun actions(vararg items: () -> Unit, action: () -> Unit = {}) {}
         fun use() { \(calls) }
@@ -116,7 +118,7 @@ struct VarargTrailingLambdaResolutionTests {
                   ctx.interner.resolve(name) == "actions" else { continue }
             mappings.append(try #require(sema.bindings.callBinding(for: id)).parameterMapping)
         }
-        #expect(mappings == (trailingFirst ? [[0: 1], [0: 0]] : [[0: 0], [0: 1]]))
+        #expect(mappings == expectedMappings)
     }
 
     @Test(arguments: ["build({ value = 17 })", "build(1, { value = 17 })",
@@ -148,8 +150,21 @@ struct VarargTrailingLambdaResolutionTests {
 }
 
 extension SemaCacheContextTests {
-    @Test(arguments: [false, true])
-    func trailingLambdaPositionSeparatesCacheEntries(trailingFirst: Bool) {
+    @Test(arguments: [
+        [
+            (isTrailing: false, expectedMapping: [0: 0]),
+            (isTrailing: true, expectedMapping: [0: 1]),
+            (isTrailing: false, expectedMapping: [0: 0]),
+            (isTrailing: true, expectedMapping: [0: 1]),
+        ],
+        [
+            (isTrailing: true, expectedMapping: [0: 1]),
+            (isTrailing: false, expectedMapping: [0: 0]),
+            (isTrailing: true, expectedMapping: [0: 1]),
+            (isTrailing: false, expectedMapping: [0: 0]),
+        ],
+    ])
+    func trailingLambdaPositionSeparatesCacheEntries(probes: [(isTrailing: Bool, expectedMapping: [Int: Int])]) {
         let setup = makeSemaModule()
         let name = setup.interner.intern("actions")
         let functionType = setup.types.make(.functionType(FunctionType(
@@ -166,21 +181,21 @@ extension SemaCacheContextTests {
         let cache = SemaCacheContext()
         let resolver = OverloadResolver()
         resolver.cacheContext = cache
-        for trailing in [trailingFirst, !trailingFirst, trailingFirst, !trailingFirst] {
+        for probe in probes {
             let resolved = resolver.resolveCall(
                 candidates: [function],
                 call: CallExpr(range: makeRange(start: 0, end: 10), calleeName: name,
-                               args: [CallArg(type: functionType, isTrailingLambda: trailing)]),
+                               args: [CallArg(type: functionType, isTrailingLambda: probe.isTrailing)]),
                 expectedType: nil, ctx: setup.ctx
             )
             #expect(resolved.diagnostic == nil)
-            #expect(resolved.parameterMapping == [0: trailing ? 1 : 0])
+            #expect(resolved.parameterMapping == probe.expectedMapping)
         }
         #expect(cache.callResolutionMisses == 2)
         #expect(cache.callResolutionHits == 2)
         // Candidate-specific lambda typing replaces Any with the function type;
         // it must retain the argument's syntactic position too.
-        for trailing in [false, true] {
+        for (trailing, expectedMapping) in [(false, [0: 0]), (true, [0: 1])] {
             let resolved = resolver.resolveCall(
                 candidates: [function],
                 call: CallExpr(range: makeRange(start: 20, end: 30), calleeName: name,
@@ -188,7 +203,7 @@ extension SemaCacheContextTests {
                 expectedType: nil, candidateArgumentTypes: [function: [0: functionType]], ctx: setup.ctx
             )
             #expect(resolved.diagnostic == nil)
-            #expect(resolved.parameterMapping == [0: trailing ? 1 : 0])
+            #expect(resolved.parameterMapping == expectedMapping)
         }
     }
 }

@@ -1,12 +1,5 @@
 package kotlin.text
 
-// KSP-481: HexFormat class + toHexString/hexTo* extension functions, fully
-// Kotlinized (no native bridge). Migration source: Sources/Runtime/RuntimeHexFormat.swift
-// (kk_hexformat_default/create/upperCase/bytes, kk_int_toHexString, kk_long_toHexString,
-// kk_bytearray_toHexString, kk_string_hexTo{Int,Short,Long,UByte,UShort,UInt,ULong,
-// ByteArray,UByteArray}). Sema stub HeaderHelpers+SyntheticHexFormatStubs.swift no
-// longer registers any HexFormat symbol; this file is the sole dispatch path.
-//
 // The public surface follows the Kotlin 2.3 stdlib model: HexFormat owns immutable
 // BytesHexFormat and NumberHexFormat values, while Builder owns their mutable builders.
 // The legacy named-argument constructor is retained for existing KSwiftK callers and
@@ -26,10 +19,6 @@ package kotlin.text
 // Routing through an ordinary function call sidesteps that gap. Flagged for
 // follow-up separately.
 
-/**
- * Formatting options for [Int.toHexString], [Long.toHexString], [ByteArray.toHexString]
- * and the corresponding `hexTo*` decoding functions.
- */
 public class HexFormat internal constructor(
     public val upperCase: Boolean,
     public val bytes: BytesHexFormat,
@@ -70,7 +59,6 @@ public class HexFormat internal constructor(
         return result.toString()
     }
 
-    /** Immutable formatting options for byte arrays. */
     public class BytesHexFormat internal constructor(
         public val bytesPerLine: Int,
         public val bytesPerGroup: Int,
@@ -92,7 +80,6 @@ public class HexFormat internal constructor(
             return result.toString()
         }
 
-        /** Mutable options used while building a [BytesHexFormat]. */
         public class Builder @PublishedApi internal constructor() {
             public var bytesPerLine: Int = Int.MAX_VALUE
                 set(value) {
@@ -138,7 +125,6 @@ public class HexFormat internal constructor(
         }
     }
 
-    /** Immutable formatting options for numeric values. */
     public class NumberHexFormat internal constructor(
         public val prefix: String,
         public val suffix: String,
@@ -156,7 +142,6 @@ public class HexFormat internal constructor(
             return result.toString()
         }
 
-        /** Mutable options used while building a [NumberHexFormat]. */
         public class Builder @PublishedApi internal constructor() {
             public var prefix: String = ""
             public var suffix: String = ""
@@ -173,7 +158,6 @@ public class HexFormat internal constructor(
         }
     }
 
-    /** Mutable root builder used to assemble a [HexFormat]. */
     public class Builder @PublishedApi internal constructor() {
         public var upperCase: Boolean = false
         public val bytes: HexFormat.BytesHexFormat.Builder = BytesHexFormat.Builder()
@@ -206,8 +190,6 @@ public class HexFormat internal constructor(
 
 private fun defaultHexFormat(): HexFormat = HexFormat()
 
-// ─── shared encode helpers ─────────────────────────────────────────────────────
-
 private const val HEX_DIGITS: String = "0123456789abcdef"
 
 private fun hexDigitsOf(value: Long, digitCount: Int): String {
@@ -221,7 +203,6 @@ private fun hexDigitsOf(value: Long, digitCount: Int): String {
     return sb.toString()
 }
 
-/** Drops leading `'0'` characters, always leaving at least one digit behind. */
 private fun trimLeadingZeros(hex: String): String {
     var start = 0
     while (start < hex.length - 1 && hex[start] == '0') {
@@ -246,8 +227,6 @@ private fun applyNumberFormat(rawHex: String, format: HexFormat): String {
     }
     return number.prefix + hex + number.suffix
 }
-
-// ─── toHexString ───────────────────────────────────────────────────────────────
 
 public fun Int.toHexString(format: HexFormat = defaultHexFormat()): String =
     applyNumberFormat(hexDigitsOf(this.toLong() and 0xffffffffL, 8), format)
@@ -323,8 +302,6 @@ private fun checkFormattedByteLength(count: Int, bytes: HexFormat.BytesHexFormat
     checkedHexLength(length + lineSeparators)
 }
 
-// ─── shared decode helpers ─────────────────────────────────────────────────────
-
 private fun asciiHexDigitOrNull(character: Char): Int? {
     if (character >= '0' && character <= '9') return character.code - '0'.code
     if (character >= 'a' && character <= 'f') return character.code - 'a'.code + 10
@@ -393,8 +370,6 @@ private fun hexDigitsToLong(hex: String): Long {
 private fun parseHexNumber(receiver: String, format: HexFormat, maxDigits: Int): Long =
     hexDigitsToLong(fitHexDigits(receiver, stripPrefixSuffix(receiver, format), maxDigits))
 
-// ─── hexTo* (signed) ─────────────────────────────────────────────────────────
-
 public fun String.hexToInt(format: HexFormat = defaultHexFormat()): Int =
     parseHexNumber(this, format, 8).toInt()
 
@@ -403,8 +378,6 @@ public fun String.hexToShort(format: HexFormat = defaultHexFormat()): Short =
 
 public fun String.hexToLong(format: HexFormat = defaultHexFormat()): Long =
     parseHexNumber(this, format, 16)
-
-// ─── hexTo* (unsigned) ───────────────────────────────────────────────────────
 
 // NOTE: converts directly from the (always non-negative, width-limited) Long
 // accumulator rather than via `.toByte()`/`.toShort()`/`.toInt()` first: narrowing
@@ -423,8 +396,6 @@ public fun String.hexToUInt(format: HexFormat = defaultHexFormat()): UInt =
 
 public fun String.hexToULong(format: HexFormat = defaultHexFormat()): ULong =
     parseHexNumber(this, format, 16).toULong()
-
-// ─── hexToByteArray / hexToUByteArray ────────────────────────────────────────
 
 private fun consumeByteFormatToken(
     receiver: String,

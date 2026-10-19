@@ -35,7 +35,8 @@ struct RuntimeStreamTests {
         let bytesRaw = registerRuntimeObject(RuntimeListBox(elements: [66, 67]))
         _ = __kk_output_stream_write_bytes(streamRaw, bytesRaw, &thrown)
         _ = __kk_output_stream_flush(streamRaw, &thrown)
-        _ = __kk_output_stream_close(streamRaw)
+        _ = __kk_output_stream_close_throwing(streamRaw, &thrown)
+        #expect(thrown == 0)
 
         let contents = try String(contentsOf: fileURL, encoding: .utf8)
         #expect(contents == "ABC")
@@ -53,7 +54,8 @@ struct RuntimeStreamTests {
         var thrown = 0
         _ = __kk_output_stream_write_bytes(streamRaw, bytesRaw, &thrown)
         #expect(thrown == 0)
-        _ = __kk_output_stream_close(streamRaw)
+        _ = __kk_output_stream_close_throwing(streamRaw, &thrown)
+        #expect(thrown == 0)
 
         #expect(try Data(contentsOf: fileURL) == Data([104, 105, 106, 0, 127, 128, 255, 255, 0]))
     }
@@ -76,7 +78,8 @@ struct RuntimeStreamTests {
             _ = __kk_output_stream_write_bytes(streamRaw, buffer, &thrown)
             #expect(thrown == 0)
         }
-        _ = __kk_output_stream_close(streamRaw)
+        _ = __kk_output_stream_close_throwing(streamRaw, &thrown)
+        #expect(thrown == 0)
 
         #expect(try Data(contentsOf: fileURL) == Data([104, 105, 106, 128, 255]))
     }

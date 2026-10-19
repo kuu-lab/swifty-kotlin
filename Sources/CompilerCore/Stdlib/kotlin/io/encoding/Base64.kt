@@ -7,7 +7,6 @@ package kotlin.io.encoding
 
 import kotlin.internal.KsSymbolName
 
-// KSP-482: Base64 encode/decode/padding logic migrated to pure Kotlin.
 // Migration source: Sources/Runtime/RuntimeBase64.swift (25 kk_base64_* @_cdecl entries, all deleted).
 // Only the OutputStream.encodingWith stream wrapper stays as a runtime bridge
 // (renamed kk_output_stream_encodingWith -> __kk_output_stream_encodingWith),
@@ -212,8 +211,6 @@ public open class Base64 internal constructor(
                 byteStart -= BASE64_BITS_PER_BYTE
             }
         }
-
-        // pad or end of input
 
         if (byteStart == -BASE64_BITS_PER_BYTE + BASE64_BITS_PER_SYMBOL) { // dangling single symbol, incorrectly encoded
             throw IllegalArgumentException("The last unit of input does not have enough bits")

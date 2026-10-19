@@ -9,8 +9,6 @@ package kotlin.collections
 // These implementations reuse the List indexing path (this[i] / size) and the
 // MutableMap / MutableList factory bridges in CollectionFactories.kt.
 
-// --- associate variants ------------------------------------------------------
-
 public fun <T, K, V> List<T>.associate(transform: (T) -> Pair<K, V>): Map<K, V> {
     val result = mutableMapOf<K, V>()
     var i = 0
@@ -57,8 +55,6 @@ public fun <T, V> List<T>.associateWith(valueTransform: (T) -> V): Map<T, V> {
     }
     return result as Map<T, V>
 }
-
-// --- associateTo variants ----------------------------------------------------
 
 public fun <T, K, V, M : MutableMap<K, V>> List<T>.associateTo(
     destination: M,
@@ -116,8 +112,6 @@ public fun <T, V, M : MutableMap<T, V>> List<T>.associateWithTo(
     }
     return destination
 }
-
-// --- groupBy variants ------------------------------------------------------
 
 public fun <T, K> List<T>.groupBy(keySelector: (T) -> K): Map<K, List<T>> {
     val result = mutableMapOf<K, MutableList<T>>()
@@ -206,8 +200,6 @@ public fun <T, K, V, M : MutableMap<K, MutableList<V>>> List<T>.groupByTo(
     }
     return destination
 }
-
-// --- side effect / indexing ------------------------------------------------
 
 public fun <T> List<T>.onEach(action: (T) -> Unit): List<T> {
     var i = 0

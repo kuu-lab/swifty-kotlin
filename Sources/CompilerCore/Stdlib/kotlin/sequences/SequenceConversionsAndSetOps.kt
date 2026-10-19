@@ -3,8 +3,6 @@ package kotlin.sequences
 import kotlin.internal.KsSymbolName
 import kotlin.random.Random
 
-// KSP-443: Sequence 変換・集合演算を Kotlin 化
-
 public inline fun <T> Sequence<T>.forEach(action: (T) -> Unit): Unit {
     for (element in this) action(element)
 }
@@ -79,8 +77,6 @@ public inline fun <T, R : Any> Sequence<T>.firstNotNullOf(transform: (T) -> R?):
     throw NoSuchElementException("No element of the sequence was transformed to a non-null value.")
 }
 
-// KSP-1346: Sequence fold-family APIs are source-backed with the Kotlin 2.3.10
-// terminal traversal contract.
 public inline fun <T, R> Sequence<T>.fold(initial: R, operation: (acc: R, T) -> R): R {
     var accumulator = initial
     for (element in this) accumulator = operation(accumulator, element)
@@ -98,9 +94,8 @@ public inline fun <T, R> Sequence<T>.foldIndexed(initial: R, operation: (index: 
     return accumulator
 }
 
-// KSP-1357: Sequence single-family APIs are source-backed with the Kotlin 2.3.10
-// terminal traversal contract: single()/singleOrNull() stop after the second
-// element instead of materializing the sequence.
+// KSP-1357: single()/singleOrNull() stop after the second element instead of
+// materializing the sequence.
 public fun <T> Sequence<T>.single(): T {
     val iterator = this.iterator()
     if (!iterator.hasNext()) throw NoSuchElementException("Sequence is empty.")
@@ -146,9 +141,8 @@ public inline fun <T> Sequence<T>.singleOrNull(predicate: (T) -> Boolean): T? {
     return single
 }
 
-// KSP-1351: Sequence last-family APIs are source-backed with the Kotlin 2.3.10
-// terminal traversal contract: elements are consumed lazily through the
-// iterator and predicate overloads evaluate in encounter order.
+// KSP-1351: elements are consumed lazily through the iterator and predicate
+// overloads evaluate in encounter order.
 public fun <T> Sequence<T>.last(): T {
     val iterator = this.iterator()
     if (!iterator.hasNext()) throw NoSuchElementException("Sequence is empty.")
@@ -189,9 +183,8 @@ public inline fun <T> Sequence<T>.lastOrNull(predicate: (T) -> Boolean): T? {
     return last
 }
 
-// KSP-1341: Sequence element-family APIs are source-backed with the Kotlin 2.3.10
-// terminal traversal contract: elementAt* reads at most index + 1 elements
-// instead of materializing the sequence.
+// KSP-1341: elementAt* reads at most index + 1 elements instead of
+// materializing the sequence.
 public fun <T> Sequence<T>.elementAt(index: Int): T {
     return elementAtOrElse(index) { throw IndexOutOfBoundsException("Sequence doesn't contain element at index $index.") }
 }
@@ -218,9 +211,8 @@ public fun <T> Sequence<T>.elementAtOrNull(index: Int): T? {
     return null
 }
 
-// KSP-1355: Sequence reduce-family APIs are source-backed with the Kotlin 2.3.10
-// terminal traversal contract. The accumulator may widen to a supertype of the
-// element type (`<S, T : S>`), matching the Iterable declarations.
+// KSP-1355: The accumulator may widen to a supertype of the element type
+// (`<S, T : S>`), matching the Iterable declarations.
 public inline fun <S, T : S> Sequence<T>.reduce(operation: (acc: S, T) -> S): S {
     val iterator = this.iterator()
     if (!iterator.hasNext()) throw UnsupportedOperationException("Empty sequence can't be reduced.")
@@ -661,9 +653,6 @@ public fun <T> Sequence<T>.shuffled(random: Random): Sequence<T> = toMutableList
 
 public fun <T> Sequence<T>?.orEmpty(): Sequence<T> = this ?: emptySequence()
 
-/**
- * Creates a grouping source from this sequence for later group-and-fold operations.
- */
 public inline fun <T, K> Sequence<T>.groupingBy(crossinline keySelector: (T) -> K): Grouping<T, K> {
     val source = this
     return object : Grouping<T, K> {
@@ -672,11 +661,9 @@ public inline fun <T, K> Sequence<T>.groupingBy(crossinline keySelector: (T) -> 
     }
 }
 
-// KSP-1359: Sequence sum-family migrated to bundled Kotlin source with the
-// Kotlin 2.3.10 signatures. The monomorphic sum() overloads iterate lazily;
-// sumOf resolves on the selector's concrete return type. The sibling Int and
-// Double sumOf overloads already live in SequenceAggregateHOF.kt
-// (kotlin.collections), and Sequence<Int>.sum() lives there too.
+// KSP-1359: The sibling Int and Double sumOf overloads already live in
+// SequenceAggregateHOF.kt (kotlin.collections), and Sequence<Int>.sum() lives
+// there too.
 public fun Sequence<Byte>.sum(): Int {
     var sum = 0
     for (element in this) sum += element
@@ -762,10 +749,9 @@ public inline fun <T> Sequence<T>.sumOf(selector: (T) -> ULong): ULong {
     return sum
 }
 
-// KUU-1413: Sequence numeric averages complete the stdlib family. They
-// mirror the Iterable counterparts in Iterables.kt — Double accumulation and
-// NaN for empty input — while iterating lazily instead of materializing.
-// Sequence<Int>.average() lives in SequenceAggregateHOF.kt
+// KUU-1413: These averages mirror the Iterable counterparts in Iterables.kt —
+// Double accumulation and NaN for empty input — while iterating lazily instead
+// of materializing. Sequence<Int>.average() lives in SequenceAggregateHOF.kt
 // (kotlin.collections) alongside the Int sum decl.
 private fun checkSequenceAverageCountOverflow(count: Int): Int {
     if (count < 0) throw ArithmeticException("Count overflow has happened.")

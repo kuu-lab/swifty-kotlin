@@ -173,14 +173,6 @@ public extension RuntimeABISpec {
             section: "FileIO"
         ),
         RuntimeABIFunctionSpec(
-            name: "__kk_buffered_writer_close",
-            parameters: [
-                RuntimeABIParameter(name: "writerRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
             name: "__kk_buffered_writer_close_throwing",
             parameters: [
                 RuntimeABIParameter(name: "writerRaw", type: .intptr),
@@ -381,14 +373,6 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "streamRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_output_stream_close",
-            parameters: [
-                RuntimeABIParameter(name: "streamRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "FileIO"

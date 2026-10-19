@@ -11,8 +11,6 @@ package kotlin.concurrent.atomics
 import kotlin.internal.KsSymbolName
 
 /**
- * Creates an atomic Int value through the canonical atomics-package API.
- *
  * `AtomicInt` is now a real class in this package, so the factory binds
  * directly to the runtime-backed allocation (`kk_atomic_int_create`) instead of
  * delegating through `kotlin.concurrent.AtomicInt`.

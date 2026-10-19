@@ -886,8 +886,7 @@ struct RuntimeRangeProgressionEdgeCaseTests {
         #expect(kk_range_sum(sumRange) == 2_147_483_642)
         // Long-domain sums keep the full 64-bit accumulator.
         let longSumRange = kk_long_rangeTo(Int.max - 2, Int.max)
-        let expectedSum = ((Int.max - 2) &+ (Int.max - 1)) &+ Int.max
-        #expect(kk_range_sum(longSumRange) == expectedSum)
+        #expect(kk_range_sum(longSumRange) == 9_223_372_036_854_775_802)
     }
 
     @Test func boundaryAggregates_int_descendingToMin() {
@@ -898,7 +897,7 @@ struct RuntimeRangeProgressionEdgeCaseTests {
         #expect(kk_list_size(kk_range_sorted(range)) == 2)
 
         let longRange = __kk_long_progression_fromClosedRange(0, Int.min + 1, Int.min, -1, nil)
-        #expect(kk_range_sum(longRange) == (Int.min + 1) &+ Int.min)
+        #expect(kk_range_sum(longRange) == 1)
     }
 
     @Test func boundaryCharProgression_largeStepTerminates() {
