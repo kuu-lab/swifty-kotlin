@@ -7,10 +7,6 @@
 
 package kotlin
 
-/**
- * This annotation is used to denote a function type with context receivers.
- * The parameter [count] specifies the number of context receivers in the function type.
- */
 @kotlin.annotation.Target(AnnotationTarget.TYPE)
 @kotlin.annotation.MustBeDocumented
 @kotlin.SinceKotlin("1.7")
