@@ -94,8 +94,7 @@ extension ExprLowerer {
                 if driver.ctx.localValue(for: sym) != nil { return true }
                 if sym == driver.ctx.activeImplicitReceiverSymbol(),
                    driver.ctx.activeImplicitReceiverExprID() != nil { return true }
-                guard let semanticSymbol = sema.symbols.symbol(sym) else { return false }
-                return semanticSymbol.kind == .valueParameter
+                return false
             }
 
             // Explicit this/super and implicit member accesses do not
