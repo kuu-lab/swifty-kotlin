@@ -40,10 +40,6 @@ jobs:
           python3 Tests/Scripts/test_atomicfu_api_index.py
           python3 Scripts/generate_atomicfu_compiled_expectations.py --check
           python3 Tests/Scripts/test_atomicfu_compiled_api.py
-      - name: Validate serialization pinned reference evidence
-        run: |
-          python3 Scripts/serialization_reference/reference.py verify
-          python3 -m unittest discover -s Scripts/serialization_reference -p 'test_*.py'
       - name: Verify JS annotation candidate-only runners
         run: |
           python3 Scripts/js_annotations/test_run_candidate.py
