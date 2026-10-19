@@ -1,9 +1,7 @@
 import Foundation
 
-/// Helpers split from `CallTypeChecker+MemberCallInference.swift`:
-/// Synthetic-stdlib bind/try fallbacks (String, Duration, Map, ThreadLocal, ReadWriteLock, Comparator, Result, KClass associatedObject) plus collection / numeric / closeable / locale type-extractor helpers used from within `inferMemberCallImpl`.
-///
-/// Split out to isolate merge conflicts between parallel stdlib PRs.
+/// Split out from `CallTypeChecker+MemberCallInference.swift` to isolate merge
+/// conflicts between parallel stdlib PRs.
 extension CallTypeChecker {
 
     func isSyntheticCharSequenceReceiverType(_ type: TypeID, sema: SemaModule) -> Bool {
@@ -580,9 +578,6 @@ extension CallTypeChecker {
     }
 
 
-    /// Extract the inferred return type from a lambda argument.
-    /// Checks the lambda body expression first, then falls back to the function
-    /// type of the argument expression. Returns `anyType` if neither is available.
     func inferredLambdaReturnType(
         argExpr: ExprID,
         ast: ASTModule,
@@ -599,8 +594,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Extract the element type from a List type.
-    /// If the type is List<R> (or similar single-type-arg list), returns R.
     /// Returns `anyType` for non-list types to avoid mis-inferring element types
     /// from unrelated generic types (e.g., Pair<K,V>).
     func extractListElementType(
@@ -622,7 +615,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Extract the element type from flattenable Iterable/Sequence-like return types.
     func extractIterableOrSequenceElementType(
         _ type: TypeID,
         sema: SemaModule,
@@ -650,8 +642,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Extract the element type T from a Comparator<T> receiver type.
-    /// Returns `nil` if the receiver does not resolve to Comparator.
     func resolvedComparatorElementType(
         of type: TypeID,
         sema: SemaModule,
@@ -789,12 +779,6 @@ extension CallTypeChecker {
     /// Note: `kotlin.io.Closeable` now extends `kotlin.AutoCloseable` (see the
     /// source-backed closeable cache and Stdlib/kotlin/AutoCloseable.kt),
     /// so checking AutoCloseable covers both Closeable and AutoCloseable receivers.
-    ///
-    /// As a fallback for synthetic IO types (BufferedReader, BufferedWriter, InputStream,
-    /// OutputStream) that implement Closeable through the nominal supertype chain registered
-    /// by registerSyntheticJavaIOStreamStubs, we also accept any class type whose class symbol
-    /// has a `close()` member function registered with no parameters — this ensures that
-    /// `path.bufferedReader().use { }` and similar patterns resolve correctly.
     func isCloseableReceiver(_ receiverType: TypeID, sema: SemaModule) -> Bool {
         guard let autoCloseableType = sema.types.closeableTypeID else {
             return false
@@ -834,7 +818,6 @@ extension CallTypeChecker {
         return closeableSymbols.contains(where: { directSupertypes.contains($0) })
     }
 
-    /// Extracts the native struct type T from a `CValue<T>` receiver.
     func extractCValueCStructContentType(
         _ receiverType: TypeID,
         sema: SemaModule,
@@ -873,7 +856,6 @@ extension CallTypeChecker {
         return contentType
     }
 
-    /// Extract the element type T from a Result<T> receiver type.
     func extractResultElementType(
         _ receiverType: TypeID,
         sema: SemaModule,
@@ -894,7 +876,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Look up a source-backed or synthetic Result member function by name.
     func lookupResultMember(
         _ name: String,
         sema: SemaModule,
@@ -911,7 +892,6 @@ extension CallTypeChecker {
         } ?? candidates.first
     }
 
-    /// Construct a Result<T> type from an element type.
     func makeResultType(
         elementType: TypeID,
         sema: SemaModule,
