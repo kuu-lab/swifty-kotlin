@@ -1122,9 +1122,7 @@ struct RuntimeCollectionHOFTests {
         #expect(setElements(setTarget) == [1, 2, 3])
     }
 
-    @Test(arguments: [true, false])
-    func testThrowingMutableCollectionBridgesPreserveBoxMutations(isSet: Bool) {
-        let target = isSet ? registerRuntimeObject(RuntimeSetBox(elements: [1, 2])) : runtimeTestMakeList([1, 2])
+    private func exerciseThrowingMutableCollectionBridges(target: Int, readElements: (Int) -> [Int]) {
         var thrown = 99
         #expect(kk_unbox_bool(kk_mutable_collection_add_throwing(target, 3, &thrown)) == 1)
         #expect(thrown == 0)
@@ -1143,11 +1141,23 @@ struct RuntimeCollectionHOFTests {
         #expect(kk_unbox_bool(kk_mutable_collection_retainAll_throwing(target, runtimeTestMakeList([3, 4]), &thrown)) == 1)
         #expect(thrown == 0)
         #expect(kk_unbox_bool(kk_mutable_collection_retainAll_throwing(target, runtimeTestMakeList([3, 4]), &thrown)) == 0)
-        #expect(isSet ? setElements(target) == [3, 4] : runtimeTestListElements(target) == [3, 4])
+        #expect(readElements(target) == [3, 4])
         thrown = 99
         #expect(kk_mutable_collection_clear_throwing(target, &thrown) == 0)
         #expect(thrown == 0)
-        #expect(isSet ? setElements(target).isEmpty : runtimeTestListElements(target).isEmpty)
+        #expect(readElements(target).isEmpty)
+    }
+
+    @Test
+    func testThrowingMutableCollectionBridgesPreserveListBoxMutations() {
+        let target = runtimeTestMakeList([1, 2])
+        exerciseThrowingMutableCollectionBridges(target: target, readElements: runtimeTestListElements)
+    }
+
+    @Test
+    func testThrowingMutableCollectionBridgesPreserveSetBoxMutations() {
+        let target = registerRuntimeObject(RuntimeSetBox(elements: [1, 2]))
+        exerciseThrowingMutableCollectionBridges(target: target, readElements: setElements)
     }
 
     @Test
