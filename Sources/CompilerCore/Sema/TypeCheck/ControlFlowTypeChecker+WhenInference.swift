@@ -639,6 +639,11 @@ extension ControlFlowTypeChecker {
             mergeNullableBranchAssignments(
                 completingLocals + (isExhaustive ? [] : [locals]), sema: sema, locals: &locals
             )
+            locals.memberFlow = joinMemberFlow(
+                from: completingLocals + (isExhaustive ? [] : [locals]),
+                base: locals.memberFlow,
+                sema: sema
+            )
             let contextualizedTypes = contextualizeLongBranchLiterals(
                 expressions: branches.map(\.body) + (elseExpr.map { [$0] } ?? []),
                 types: branchTypes, ctx: ctx

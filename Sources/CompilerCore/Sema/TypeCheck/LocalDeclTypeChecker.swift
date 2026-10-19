@@ -446,6 +446,13 @@ final class LocalDeclTypeChecker {
                         sema: ctx.sema,
                         diagnostics: ctx.sema.diagnostics
                     )
+                    driver.helpers.recordMemberValInitializationSmartCast(
+                        property: writeSymbol,
+                        declaredType: writeType,
+                        valueType: valueType,
+                        ctx: ctx,
+                        locals: &locals
+                    )
                 }
             }
             ctx.sema.bindings.bindExprType(id, type: ctx.sema.types.unitType)

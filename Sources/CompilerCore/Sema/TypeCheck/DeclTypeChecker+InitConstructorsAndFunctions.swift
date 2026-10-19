@@ -443,11 +443,21 @@ extension DeclTypeChecker {
         ctx: TypeInferenceContext,
         baseLocals: LocalBindings = [:]
     ) {
+        var runningLocals = baseLocals
+        if let classSymbol = ctx.enclosingClassSymbol ?? ctx.currentDeclSymbol,
+           let classType = ctx.implicitReceiverType {
+            let thisName = ctx.interner.intern("this")
+            if runningLocals[thisName] == nil {
+                let syntheticThisSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: classSymbol)
+                runningLocals[thisName] = (classType, syntheticThisSymbol, false, true)
+            }
+        }
         for block in blocks {
-            var locals: LocalBindings = baseLocals
+            var locals: LocalBindings = runningLocals
             var initCtx = ctx
             initCtx.allowsValPropertyInitialization = true
             _ = inferFunctionBodyType(block, ctx: initCtx, locals: &locals, expectedType: nil)
+            runningLocals.memberFlow = locals.memberFlow
         }
     }
 
@@ -538,6 +548,15 @@ extension DeclTypeChecker {
                 )
             } else {
                 constructorBodyContext = constructorCtx
+            }
+            let thisReceiverSymbol = ownerSymbol ?? ctx.enclosingClassSymbol ?? currentCtorSymbolID
+            if let thisReceiverSymbol,
+               let receiverType = ctx.implicitReceiverType {
+                let thisName = ctx.interner.intern("this")
+                if locals[thisName] == nil {
+                    let syntheticThisSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: thisReceiverSymbol)
+                    locals[thisName] = (receiverType, syntheticThisSymbol, false, true)
+                }
             }
             _ = inferFunctionBodyType(
                 ctor.body,

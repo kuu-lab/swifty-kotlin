@@ -1080,4 +1080,34 @@ struct TypeCheckHelpers {
             nullability: .nonNull
         )))
     }
+
+    func recordMemberValInitializationSmartCast(
+        property: SymbolID,
+        declaredType: TypeID,
+        valueType: TypeID,
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) {
+        guard ctx.allowsValPropertyInitialization,
+              ctx.lambdaDepth == 0,
+              let propSymbol = ctx.sema.symbols.symbol(property),
+              propSymbol.kind == .property,
+              !propSymbol.flags.contains(.mutable),
+              ctx.sema.symbols.parentSymbol(for: property) == ctx.enclosingClassSymbol,
+              ctx.dataFlow.isStableMemberProperty(property, ast: ctx.ast, sema: ctx.sema),
+              valueType != ctx.sema.types.errorType,
+              valueType != ctx.sema.types.nothingType,
+              ctx.sema.types.isSubtype(valueType, declaredType),
+              let thisLocal = locals[ctx.interner.intern("this")]
+        else {
+            return
+        }
+        let reference = DataFlowReference(root: thisLocal.symbol, properties: [property])
+        let flowState = VariableFlowState(
+            possibleTypes: [valueType],
+            nullability: ctx.sema.types.nullability(of: valueType),
+            isStable: true
+        )
+        locals.memberFlow[reference] = flowState
+    }
 }
