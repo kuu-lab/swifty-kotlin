@@ -1,8 +1,6 @@
 package kotlin
 
 /**
- * Kotlin stdlib `Array(size) { init }` constructor.
- *
  * The size-only allocation is compiler-provided, matching Kotlin/Native's
  * published internal constructor. Keeping allocation in the compiler lets
  * the runtime preserve the checked NegativeArraySizeException behavior.
