@@ -136,7 +136,6 @@ extension CallTypeChecker {
         return true
     }
 
-    /// Retry visible scope extensions against captured receivers, innermost first.
     /// Package extensions are not members of their receiver class, so the member
     /// recovery path cannot find them when a receiver lambda shadows `this`.
     func resolveOuterImplicitReceiverExtensionCall(
