@@ -127,7 +127,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         case "map", "filter", "filterNot", "filterKeys", "filterValues", "mapNotNull", "firstNotNullOf", "firstNotNullOfOrNull", "forEach", "flatMap", "flatMapIndexed", "any", "none", "all",
              "count", "first", "last", "single", "singleOrNull", "find", "associateBy", "associateWith", "associate",
              "mapValues", "mapKeys", "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "onEach", "distinct", "withIndex", "filterNotNull", "requireNoNulls", "asSequence", "sum", "average", "reversed", "asReversed":
-            // any(), none(), count(), first(), last() can be called with no args
             if args.isEmpty {
                 switch calleeStr {
                 case "any", "none": resultType = sema.types.booleanType
@@ -324,8 +323,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     }
                 }
                 if calleeStr == "average", !isSequenceReceiver {
-                    // KSP-965: prefer the existing List overloads, then bind
-                    // the numeric Iterable overload matching the element type.
                     let didBindAverageSource = if bindBundledListSourceFunction(
                         typeArguments: [],
                         receiverElementType: collectionElementType
