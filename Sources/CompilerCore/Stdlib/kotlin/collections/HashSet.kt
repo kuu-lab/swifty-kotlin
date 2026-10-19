@@ -9,9 +9,6 @@ package kotlin.collections
 
 import kotlin.internal.KsSymbolName
 
-// KSP-704: split out of CollectionAliases.kt into its own 本家-named file
-// (docs/stdlib-pipeline.md §6).
-// KSP-1057: the receiver members are source-backed on the nominal class.
 // Direct instances are tagged RuntimeSetBoxes produced by the `HashSet(...)` /
 // `hashSetOf` constructor lowering (`CollectionLiteralLoweringPass`). Members
 // bind to the shared set storage bridges, which also support the backing boxes
@@ -31,8 +28,6 @@ private external fun <E> __kkHashSetBuild(set: HashSet<E>): Set<E>
 private external fun <E> __kkHashSetInit(set: HashSet<E>)
 
 /**
- * Hash-based mutable set implementation.
- *
  * The Kotlin/Native `KonanSet` marker is an internal platform type that is not
  * modeled by KSwiftK. The public nominal hierarchy is preserved here while
  * the shared runtime set box supplies storage and collection operations.
