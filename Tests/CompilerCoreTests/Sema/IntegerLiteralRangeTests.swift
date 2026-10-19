@@ -174,5 +174,38 @@ struct IntegerLiteralRangeTests {
             #expect(sema.bindings.exprType(for: initializer) == sema.types.intType)
         }
     }
+
+    @Test
+    func integerConstantBinaryExpressionAdaptsToExpectedLong() throws {
+        let source = """
+        fun value(): Long = 2147483647 + 1
+        fun probe() {
+            val a: Long = 2147483647 + 1
+            val b: Long = 1 + 2
+            val c: Long = (10 - 3) * 2
+            val d: Long = 10 / 2
+            val e: Long = 10 % 3
+        }
+        """
+        let (ctx, _, _) = try buildFrontend(source)
+        try SemaPhase().run(ctx)
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error },
+                "Expected all integer constant binary expressions to typecheck as Long: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func nonConstantIntegerBinaryExpressionRejectedForExpectedLong() throws {
+        let source = """
+        fun probe() {
+            val x = 1
+            val a: Long = x + 1
+        }
+        """
+        let (ctx, _, _) = try buildFrontend(source)
+        try SemaPhase().run(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.contains { $0.code == "KSWIFTK-TYPE-0001" },
+                "Expected non-constant Int expression to be rejected with KSWIFTK-TYPE-0001")
+    }
 }
 #endif
