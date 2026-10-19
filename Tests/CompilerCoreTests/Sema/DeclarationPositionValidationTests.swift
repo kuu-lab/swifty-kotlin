@@ -415,6 +415,22 @@ struct DeclarationPositionValidationTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0414", in: ctx)
     }
 
+    /// The messages used to embed the internal `Class#<symbol id>` debug form,
+    /// which is meaningless to users and shifts whenever any stdlib symbol is
+    /// added.
+    @Test func nonThrowableDiagnosticsNameTheOffendingClass() throws {
+        let ctx = try semaContext(for: """
+            class Handled
+            fun thrower() { throw Handled() }
+            fun catcher() { try {} catch (e: Handled) {} }
+            """)
+        let messages = ctx.diagnostics.diagnostics
+            .filter { $0.code == "KSWIFTK-SEMA-0413" || $0.code == "KSWIFTK-SEMA-0414" }
+            .map(\.message)
+        #expect(messages.count == 2, "\(messages)")
+        #expect(messages.allSatisfy { $0.contains("'Handled'") && !$0.contains("Class#") }, "\(messages)")
+    }
+
     @Test func throwableThrowIsAccepted() throws {
         let ctx = try semaContext(for: """
             fun f() { throw Exception() }

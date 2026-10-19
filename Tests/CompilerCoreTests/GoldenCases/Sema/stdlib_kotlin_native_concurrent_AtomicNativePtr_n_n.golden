@@ -4,3 +4,5 @@ file fstdlib_kotlin_native_concurrent_AtomicNativePtr_n_n package=golden.sema
   decl golden.sema.construct[kind=fun;params=kotlinx.cinterop.NativePtr;ret=kotlin.native.concurrent.AtomicNativePtr;names=[value];origin=fixture] fun construct sym=golden.sema.construct[kind=fun;params=kotlinx.cinterop.NativePtr;ret=kotlin.native.concurrent.AtomicNativePtr;names=[value];origin=fixture]
 expr e@5:46 name(value) type=kotlinx.cinterop.NativePtr ref=golden.sema.construct.$0.value[kind=vparam;origin=fixture]
 expr e@5:5 memberCall recv=e@5:5#1 callee=AtomicNativePtr args=[_:e@5:46] type=kotlin.native.concurrent.AtomicNativePtr call=kotlin.native.concurrent.AtomicNativePtr.<init>[kind=ctor;recv=kotlin.native.concurrent.AtomicNativePtr;params=kotlinx.cinterop.NativePtr;ret=kotlin.native.concurrent.AtomicNativePtr;names=[value]]
+expr e@3:11 string(DEPRECATION_ERROR) type=String
+expr e@3:2 call callee=e@3:2#1 args=[_:e@3:11] type=kotlin.Suppress call=kotlin.Suppress.<init>[kind=ctor;recv=kotlin.Suppress;params=*String;ret=kotlin.Suppress;vararg=[1];names=[names]]

@@ -5,3 +5,4 @@ file fstdlib_kotlin_native_concurrent_SharedImmutable_n_n package=golden.sema an
   decl golden.sema.readSharedValue[kind=fun;params=;ret=Int;origin=fixture] fun readSharedValue sym=golden.sema.readSharedValue[kind=fun;params=;ret=Int;origin=fixture]
 expr e@8:24 int(42) type=Int
 expr e@10:30 name(sharedValue) type=Int ref=golden.sema.sharedValue[kind=prop;type=Int;origin=fixture]
+expr e@7:2 call callee=e@7:2#1 args=[] type=kotlin.native.concurrent.SharedImmutable call=kotlin.native.concurrent.SharedImmutable.<init>[kind=ctor;recv=kotlin.native.concurrent.SharedImmutable;params=;ret=kotlin.native.concurrent.SharedImmutable]

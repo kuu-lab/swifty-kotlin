@@ -1,10 +1,5 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
-/// Main overload-resolution pass for `inferCallExpr`: resolves the
-/// collected candidates against the prepared argument types, recovering
-/// coroutine-builder result types and applying coroutine/launcher and
-/// deprecation semantics.
-/// Extracted from `CallTypeChecker+CallExprInference.swift`.
 extension CallTypeChecker {
     func resolveCallExprCandidates(
         _ id: ExprID,
@@ -448,7 +443,6 @@ extension CallTypeChecker {
             // lambda only after overload resolution selects the bundled
             // declaration, so a same-named user function keeps the regular ABI.
             markSourceBackedCoroutineLauncherArguments(chosen, args: args, ctx: ctx)
-            // ANNO-001: Check for @Deprecated annotation on the resolved callee.
             driver.helpers.checkDeprecation(
                 for: chosen,
                 sema: sema,

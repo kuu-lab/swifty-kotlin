@@ -153,5 +153,31 @@ struct CollectionBuilderExpectedTypeTests {
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
+
+    /// `MutableList`/`ArrayList` are invariant, so the target's element type
+    /// must win over the lub of the arguments whenever every argument conforms
+    /// to it; `mutableListOf`/`arrayListOf` used to infer `Int` here.
+    @Test(arguments: [
+        "val xs: MutableList<Number> = mutableListOf(77)",
+        "val xs: MutableList<Any> = mutableListOf(1)",
+        "val xs: MutableList<Any?> = mutableListOf(1, \"s\")",
+        "val xs: ArrayList<Any> = arrayListOf(1)",
+        "val xs: MutableList<Number> = mutableListOf(1, 2L)",
+    ])
+    func mutableListFactoriesAdoptConformingInvariantTargetElementType(declaration: String) throws {
+        let ctx = makeContextFromSource("fun probe() { \(declaration) }")
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(declaration): \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test(arguments: [
+        "val xs: MutableList<String> = mutableListOf(1)",
+        "val xs: ArrayList<String> = arrayListOf(1, \"s\")",
+    ])
+    func mutableListFactoriesStillRejectNonConformingTargetElementType(declaration: String) throws {
+        let ctx = makeContextFromSource("fun probe() { \(declaration) }")
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError, "\(declaration) must stay a type error")
+    }
 }
 #endif

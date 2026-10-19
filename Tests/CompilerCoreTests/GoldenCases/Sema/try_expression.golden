@@ -121,3 +121,10 @@ expr e@57:11 string(result) type=String
 expr e@57:9 blockExpr stmts=[] trailing=e@57:11 type=String
 expr e@58:13 blockExpr stmts=[] trailing=_ type=Unit
 expr e@57:5 try body=e@57:9 catches=[] finally=e@58:13 type=String
+diagnostic severity=error code=KSWIFTK-SEMA-0414 at=35:49 msg=type mismatch: inferred type is 'Handled', but 'Throwable' was expected.
+diagnostic severity=error code=KSWIFTK-SEMA-0414 at=35:70 msg=type mismatch: inferred type is 'Unhandled', but 'Throwable' was expected.
+diagnostic severity=error code=KSWIFTK-SEMA-0413 at=36:7 msg=throwable type mismatch: actual type is 'Handled'.
+diagnostic severity=error code=KSWIFTK-SEMA-0413 at=38:7 msg=throwable type mismatch: actual type is 'Unhandled'.
+diagnostic severity=error code=KSWIFTK-SEMA-0414 at=45:19 msg=type mismatch: inferred type is 'Handled', but 'Throwable' was expected.
+diagnostic severity=error code=KSWIFTK-SEMA-0414 at=45:40 msg=type mismatch: inferred type is 'Unhandled', but 'Throwable' was expected.
+diagnostic severity=error code=KSWIFTK-SEMA-0413 at=46:7 msg=throwable type mismatch: actual type is 'Handled'.

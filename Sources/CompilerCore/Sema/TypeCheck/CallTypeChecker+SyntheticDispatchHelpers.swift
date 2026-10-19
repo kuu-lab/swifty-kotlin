@@ -1,16 +1,10 @@
-/// Synthetic-stdlib dispatch helpers used by `inferCallExpr` to detect
-/// user-shadowing or qualified-call paths.
-///
-/// Split out from `CallTypeChecker.swift`.
 extension CallTypeChecker {
-    /// Returns true when `exprID` is a lambda literal.
     func isLambdaLiteralArg(_ exprID: ExprID, ast: ASTModule) -> Bool {
         guard let argExpr = ast.arena.expr(exprID) else { return false }
         if case .lambdaLiteral = argExpr { return true }
         return false
     }
 
-    /// Returns true when `exprID` is a lambda literal or callable reference.
     func isLambdaOrCallableRefArg(_ exprID: ExprID, ast: ASTModule) -> Bool {
         guard let argExpr = ast.arena.expr(exprID) else { return false }
         switch argExpr {
@@ -61,7 +55,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Returns true only for the bundled source-backed producer-flow builders.
     /// A same-named user declaration must keep the regular callable ABI.
     func isSourceBackedProducerFlowBuilder(
         _ symbolID: SymbolID,
@@ -120,8 +113,6 @@ extension CallTypeChecker {
         return false
     }
 
-    /// Returns true when `name` is shadowed by a non-synthetic (user-defined) symbol,
-    /// either as a local variable binding or as a scope-visible declaration.
     /// Used to guard stdlib special-call paths (measureTimeMillis, measureNanoTime, etc.)
     /// so that user-defined functions with the same name are not misidentified as stdlib intrinsics.
     func isShadowedByNonSyntheticSymbol(
@@ -148,9 +139,6 @@ extension CallTypeChecker {
 
 
 
-    /// Resolves a synthetic `AtomicIntArray` / `AtomicLongArray` class symbol
-    /// visible under `name`, accepting either the legacy `kotlin.concurrent`
-    /// package or the newer `kotlin.concurrent.atomics` package.
     func syntheticAtomicArrayClassSymbol(
         _ name: InternedString,
         className: String,
@@ -172,11 +160,9 @@ extension CallTypeChecker {
         }
     }
 
-    /// Returns true when a source-backed canonical `AtomicIntArray` /
-    /// `AtomicLongArray` factory with the requested arity is visible. Imported
-    /// library symbols carry the synthetic flag for compatibility, so the
-    /// source-backed provenance check must be used before falling back to the
-    /// runtime factory special path. Legacy `kotlin.concurrent` constructors
+    /// Imported library symbols carry the synthetic flag for compatibility, so
+    /// the source-backed provenance check must be used before falling back to
+    /// the runtime factory special path. Legacy `kotlin.concurrent` constructors
     /// intentionally retain their existing special-call behavior.
     func hasSourceBackedAtomicArrayFactory(
         _ name: InternedString,
@@ -204,9 +190,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Returns the visible stdlib function symbol for source-backed stdlib
-    /// declarations that still need compiler special-casing.
-    ///
     /// A migrated bundled function is no longer synthetic, so the generic
     /// shadowing guard would otherwise treat the stdlib declaration itself as a
     /// user shadow.  We allow the exact stdlib FQN and reject any other
@@ -238,8 +221,6 @@ extension CallTypeChecker {
         return stdlibSymbol
     }
 
-    /// Returns the fully qualified path of a callee expression when it is
-    /// composed of dotted names like `kotlin.coroutines.foo`.
     func qualifiedCalleePath(for exprID: ExprID, ast: ASTModule) -> [InternedString]? {
         guard let expr = ast.arena.expr(exprID) else {
             return nil

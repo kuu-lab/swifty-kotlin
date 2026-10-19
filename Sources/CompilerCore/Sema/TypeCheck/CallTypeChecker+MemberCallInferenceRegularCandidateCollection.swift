@@ -1,12 +1,6 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
-    /// Member/extension candidate collection, extracted verbatim from
-    /// `inferRegularMemberCall`. Class-name receivers resolve companion-object
-    /// members; instance receivers combine member lookup with source-backed
-    /// bundled extensions, range extensions, inner-class constructors and
-    /// scope extensions, plus the MutableMap remove/iterator/getValue
-    /// source-member overrides.
     /// `earlyReturnType` carries a bound result when a companion property or
     /// extension short-circuits resolution; otherwise candidates and the
     /// companion receiver type are returned for the resolver.
@@ -61,10 +55,9 @@ extension CallTypeChecker {
             if let companionSymbol = classNameReceiverCompanionSymbol {
                 let companionTypeForExtensionLookup = sema.types.make(.classType(ClassType(classSymbol: companionSymbol, args: [], nullability: .nonNull)))
 
-                // Try companion property access when no arguments are provided
-                // (e.g. Foo.MAX_COUNT).  When args are present this is a function
-                // call, so skip the property short-circuit to avoid shadowing a
-                // companion function of the same name.
+                // When args are present this is a function call, so skip the
+                // property short-circuit to avoid shadowing a companion function
+                // of the same name.
                 if args.isEmpty {
                     if let propResult = driver.helpers.lookupMemberProperty(
                         named: calleeName,
@@ -74,7 +67,6 @@ extension CallTypeChecker {
                     {
                         let propSymbol = propResult.symbol
                         let propType = propResult.type
-                        // Check visibility before returning the property.
                         if let propSym = sema.symbols.symbol(propSymbol),
                            !ctx.visibilityChecker.isAccessible(
                                propSym,
@@ -105,9 +97,6 @@ extension CallTypeChecker {
                         return ([], companionReceiverType, propType)
                     }
 
-                    // Fall back to a Companion-scoped extension property
-                    // (e.g. `val Duration.Companion.ZERO: Duration`) written as
-                    // Kotlin source at package scope with the Companion as receiver.
                     let compTypeForExt = sema.types.make(.classType(ClassType(classSymbol: companionSymbol, args: [], nullability: .nonNull)))
                     if let extensionPropertyType = resolveExtensionPropertyGetter(
                         id: id,
@@ -199,8 +188,6 @@ extension CallTypeChecker {
                 allCandidates = []
             }
         } else {
-            // Normal instance receiver: use standard member lookup with
-            // companion fallback via collectMemberFunctionCandidates.
             let allowedOwnerSymbols = isSuperCall && !supertypeSymbols.isEmpty ?
                 supertypeSymbols : nil
             let hasScopedExactRangeExtension = rangeSourceMemberLookupType.map { sourceReceiverType in
@@ -555,7 +542,6 @@ extension CallTypeChecker {
                 }
                 allCandidates = memberCandidates
             } else {
-                // Try inner class constructor resolution: outer.Inner() → Inner's <init>
                 let innerCtorCandidates = driver.helpers.collectInnerClassConstructorCandidates(
                     named: calleeName,
                     receiverType: memberLookupType,

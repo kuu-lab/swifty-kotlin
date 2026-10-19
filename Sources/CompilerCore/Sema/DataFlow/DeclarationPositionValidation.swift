@@ -1,13 +1,5 @@
 
 extension DataFlowSemaPhase {
-    /// KUU-1407: reject declaration positions, modifier combinations, and
-    /// declaration-kind constraints that Kotlin/JVM reports as compile
-    /// errors but KSwiftK previously accepted silently.
-    ///
-    /// `DeclarationPositionValidator` covers the decl-level rules
-    /// (modifiers, positions, member recursion). This pass additionally
-    /// performs the checks that need type resolution or the symbol table:
-    /// enum superclassing, annotation member types, and orphan `actual`s.
     func validateDeclarationPositions(
         ast: ASTModule,
         symbols: SymbolTable,
@@ -46,9 +38,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Recursively applies the checks that require `SymbolTable`/`TypeSystem`.
-    /// `ownerPath` is the fully qualified path of the lexical scope the
-    /// declaration appears in (package plus enclosing declaration names).
     private func validateSemanticDeclRules(
         declID: DeclID,
         ownerPath: [InternedString],
@@ -133,8 +122,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// `enum class` may only implement interfaces — extending a class is an
-    /// error on JVM ("enum classes cannot extend classes").
     private func validateEnumSupertypes(
         _ enumDecl: ClassDecl,
         ownerPath: [InternedString],
@@ -170,9 +157,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Annotation class `val` parameters must have a permitted type:
-    /// primitives, `String`, `KClass`, other annotations, enums, and arrays
-    /// of those. Everything else is rejected on JVM.
     private func validateAnnotationParameterTypes(
         _ annotationDecl: ClassDecl,
         ownerPath: [InternedString],
@@ -263,9 +247,8 @@ extension DataFlowSemaPhase {
         "UIntArray", "ULongArray", "UShortArray", "UByteArray",
     ]
 
-    /// `actual` declarations without a matching `expect` are silently
-    /// accepted today; JVM rejects them (and KSwiftK's expect/actual
-    /// pairing check only inspects `expect` symbols).
+    /// JVM rejects `actual` declarations without a matching `expect`, and
+    /// KSwiftK's expect/actual pairing check only inspects `expect` symbols.
     private func validateOrphanActualDeclarations(
         symbols: SymbolTable,
         diagnostics: DiagnosticEngine?,

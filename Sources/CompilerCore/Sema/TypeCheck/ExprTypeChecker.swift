@@ -641,7 +641,7 @@ final class ExprTypeChecker {
             {
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0414",
-                    "type mismatch: inferred type is '\(sema.types.renderType(operandType))', but 'Throwable' was expected.",
+                    "type mismatch: inferred type is '\(sema.types.displayName(of: operandType, symbols: sema.symbols, interner: ctx.interner))', but 'Throwable' was expected.",
                     range: range
                 )
             }
@@ -734,6 +734,7 @@ final class ExprTypeChecker {
                         locals[name] = (blockLocal.type, outerLocal.symbol, outerLocal.isMutable, blockLocal.isInitialized)
                     }
                 }
+                locals.memberFlow = blockLocals.memberFlow
             }
             sema.bindings.bindExprType(id, type: resultType)
             return resultType

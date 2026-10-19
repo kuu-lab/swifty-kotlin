@@ -2,8 +2,6 @@ extension DataFlowSemaPhase {
     private static let bundledIntProgressionSourcePath =
         "__bundled_kotlin/ranges/IntProgression/IntProgression.kt"
 
-    /// KSP-1300: Adopt the synthetic Companion created by the progression
-    /// bootstrap when the bundled IntProgression declaration is collected.
     func reusableSyntheticIntProgressionSourceCompanionSymbol(
         fqName: [InternedString],
         sourceFileID: FileID,

@@ -92,3 +92,19 @@ expr e@74:12 if cond=e@75:9#8 then=e@83:7 else=e@83:14 type=Int
 expr e@74:5 return value=e@74:12 type=Nothing
 expr e@86:84 name(error) type=kotlin.Throwable ref=golden.sema.terminateTopLevel.$1.error[kind=vparam;origin=fixture]
 expr e@86:52 call callee=e@86:52#1 args=[_:e@86:84] type=Nothing call=kotlin.native.terminateWithUnhandledException[kind=fun;params=kotlin.Throwable;ret=Nothing;names=[throwable]]
+expr e@54:2 call callee=e@54:2#1 args=[] type=kotlin.native.EagerInitialization call=kotlin.native.EagerInitialization.<init>[kind=ctor;recv=kotlin.native.EagerInitialization;params=;ret=kotlin.native.EagerInitialization]
+expr e@41:2 call callee=e@41:2#1 args=[] type=kotlin.native.RefinesInSwift call=kotlin.native.RefinesInSwift.<init>[kind=ctor;recv=kotlin.native.RefinesInSwift;params=;ret=kotlin.native.RefinesInSwift]
+expr e@44:21 string(native_top_level) type=String
+expr e@44:53 string(native_top_level) type=String
+expr e@44:2 call callee=e@44:2#1 args=[externName:e@44:21,shortName:e@44:53] type=kotlin.native.CName call=kotlin.native.CName.<init>[kind=ctor;recv=kotlin.native.CName;params=String,String;ret=kotlin.native.CName;defaults=[1,1];names=[externName,shortName]]
+expr e@45:18 string(NativeTopLevel) type=String
+expr e@45:48 string(NativeTopLevel) type=String
+expr e@45:74 bool(true) type=Boolean
+expr e@45:2 call callee=e@45:2#1 args=[name:e@45:18,swiftName:e@45:48,exact:e@45:74] type=kotlin.native.ObjCName call=kotlin.native.ObjCName.<init>[kind=ctor;recv=kotlin.native.ObjCName;params=String,String,Boolean;ret=kotlin.native.ObjCName;defaults=[1,1,1];names=[name,swiftName,exact]]
+expr e@46:2 call callee=e@46:2#1 args=[] type=kotlin.native.HidesFromObjC call=kotlin.native.HidesFromObjC.<init>[kind=ctor;recv=kotlin.native.HidesFromObjC;params=;ret=kotlin.native.HidesFromObjC]
+expr e@47:2 call callee=e@47:2#1 args=[] type=kotlin.native.HiddenFromObjC call=kotlin.native.HiddenFromObjC.<init>[kind=ctor;recv=kotlin.native.HiddenFromObjC;params=;ret=kotlin.native.HiddenFromObjC]
+expr e@48:2 call callee=e@48:2#1 args=[] type=kotlin.native.ShouldRefineInSwift call=kotlin.native.ShouldRefineInSwift.<init>[kind=ctor;recv=kotlin.native.ShouldRefineInSwift;params=;ret=kotlin.native.ShouldRefineInSwift]
+expr e@49:2 call callee=e@49:2#1 args=[] type=kotlin.native.FreezingIsDeprecated call=kotlin.native.FreezingIsDeprecated.<init>[kind=ctor;recv=kotlin.native.FreezingIsDeprecated;params=;ret=kotlin.native.FreezingIsDeprecated]
+expr e@50:2 call callee=e@50:2#1 args=[] type=kotlin.native.NoInline call=kotlin.native.NoInline.<init>[kind=ctor;recv=kotlin.native.NoInline;params=;ret=kotlin.native.NoInline]
+expr e@51:13 string(native_top_level) type=String
+expr e@51:2 call callee=e@51:2#1 args=[_:e@51:13] type=kotlin.native.SymbolName call=kotlin.native.SymbolName.<init>[kind=ctor;recv=kotlin.native.SymbolName;params=String;ret=kotlin.native.SymbolName;names=[name]]

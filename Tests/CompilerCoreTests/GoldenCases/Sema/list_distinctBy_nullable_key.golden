@@ -3,7 +3,7 @@ symbol fq=User.<init>.$0.nickname[kind=vparam;origin=fixture] kind=valueParamete
 symbol fq=User.<init>[kind=ctor;recv=User;params=String,String?;ret=User;names=[name,nickname];origin=fixture] kind=constructor vis=public flags=_ sig=recv=User params=[String,String?] ret=User
 symbol fq=User.nickname[kind=prop;type=String?;origin=fixture] kind=property vis=public flags=_ type=String?
 symbol fq=User[kind=class;origin=fixture] kind=class vis=public flags=dataType
-symbol fq=__local_0.users[kind=local;type=kotlin.collections.List<out User>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.List<out User>
+symbol fq=__local_0.users[kind=local;type=kotlin.collections.List<User>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.List<User>
 symbol fq=__local_1.byNickname[kind=local;type=kotlin.collections.List<User>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.List<User>
 symbol fq=main[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file flist_distinctBy_nullable_key package=_
@@ -18,12 +18,12 @@ expr e@4:44 call callee=e@4:44#1 args=[_:e@4:49,_:e@4:56] type=User call=User.<i
 expr e@4:68 string(Carol) type=String
 expr e@4:77 string(A) type=String
 expr e@4:63 call callee=e@4:63#1 args=[_:e@4:68,_:e@4:77] type=User call=User.<init>[kind=ctor;recv=User;params=String,String?;ret=User;names=[name,nickname];origin=fixture]
-expr e@4:17 call callee=e@4:17#1 args=[_:e@4:24,_:e@4:44,_:e@4:63] type=kotlin.collections.List<out User> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[User]
-expr e@4:5 localDecl users mutable=0 type=_ init=e@4:17 type=Unit ref=__local_0.users[kind=local;type=kotlin.collections.List<out User>;origin=fixture]
-expr e@5:22 name(users) type=kotlin.collections.List<out User> ref=__local_0.users[kind=local;type=kotlin.collections.List<out User>;origin=fixture]
+expr e@4:17 call callee=e@4:17#1 args=[_:e@4:24,_:e@4:44,_:e@4:63] type=kotlin.collections.List<User> call=kotlin.collections.listOf[kind=fun;params=*T0;ret=kotlin.collections.List<T0>;gen=1;vararg=[1];names=[elements]] targs=[User]
+expr e@4:5 localDecl users mutable=0 type=_ init=e@4:17 type=Unit ref=__local_0.users[kind=local;type=kotlin.collections.List<User>;origin=fixture]
+expr e@5:22 name(users) type=kotlin.collections.List<User> ref=__local_0.users[kind=local;type=kotlin.collections.List<User>;origin=fixture]
 expr e@5:41 name(it) type=User ref=s-0
 expr e@5:41#1 memberCall recv=e@5:41 callee=nickname args=[] type=String? ref=User.nickname[kind=prop;type=String?;origin=fixture]
-expr e@5:39 lambda params=[] body=e@5:41#1 label=distinctBy type=(User) -> String?
+expr e@5:39 lambda params=[] body=e@5:41#1 label=distinctBy type=(User) -> Any
 expr e@5:22#1 memberCall recv=e@5:22 callee=distinctBy args=[_:e@5:39] type=kotlin.collections.List<User> call=kotlin.collections.distinctBy[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=T1};ret=kotlin.collections.List<T0>;gen=2;nonlocal=[0];names=[selector]] targs=[User,String?]
 expr e@5:5 localDecl byNickname mutable=0 type=_ init=e@5:22#1 type=Unit ref=__local_1.byNickname[kind=local;type=kotlin.collections.List<User>;origin=fixture]
 expr e@6:13 name(byNickname) type=kotlin.collections.List<User> ref=__local_1.byNickname[kind=local;type=kotlin.collections.List<User>;origin=fixture]

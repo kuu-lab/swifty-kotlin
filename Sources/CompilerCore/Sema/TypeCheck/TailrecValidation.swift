@@ -21,10 +21,6 @@ extension TypeCheckSemaPhase {
         }
     }
 
-    /// Check whether the function body contains a self-recursive call in tail position.
-    /// Tail positions are tracked through `if`/`when`/block/elvis branches so
-    /// expression bodies (`= if (c) acc else f(x)`) and early returns nested in
-    /// branches (`if (c) { return f(x) }`) are recognised.
     private func checkTailRecursiveBody(
         _ body: FunctionBody, functionSymbol: SymbolID, ast: ASTModule, bindings: BindingTable
     ) -> Bool {

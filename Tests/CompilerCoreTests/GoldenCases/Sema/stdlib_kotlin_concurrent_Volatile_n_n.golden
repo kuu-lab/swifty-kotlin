@@ -17,3 +17,4 @@ expr e@13:5 localDecl holder mutable=0 type=_ init=e@13:18 type=Unit ref=__local
 expr e@14:26 name(holder) type=golden.sema.VolatileHolder ref=__local_0.holder[kind=local;type=golden.sema.VolatileHolder;origin=fixture]
 expr e@14:13 call callee=e@14:13#1 args=[_:e@14:26] type=Int call=golden.sema.readVolatile[kind=fun;params=golden.sema.VolatileHolder;ret=Int;names=[holder];origin=fixture]
 expr e@14:5 call callee=e@14:5#1 args=[_:e@14:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@6:6 call callee=e@6:6#1 args=[] type=kotlin.concurrent.Volatile call=kotlin.concurrent.Volatile.<init>[kind=ctor;recv=kotlin.concurrent.Volatile;params=;ret=kotlin.concurrent.Volatile]

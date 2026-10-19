@@ -568,13 +568,12 @@ extension DataFlowSemaPhase {
             }
             valueParameterSymbols.append(paramSymbol)
         }
-        // STDLIB-592: restore `contract { callsInPlace(param, kind) }` effects
-        // decoded from metadata. `ContractCallsInPlaceEffect.parameterSymbol` is a
-        // `SymbolID` that cannot itself survive the metadata round-trip, so the
-        // wire format carries a per-parameter-index kind instead and this
-        // reconstructs the symbol reference from the freshly-imported
-        // `valueParameterSymbols`, mirroring how `recordContractEffects` derives
-        // it from a parameter index when parsing source directly.
+        // `ContractCallsInPlaceEffect.parameterSymbol` is a `SymbolID` that
+        // cannot itself survive the metadata round-trip, so the wire format
+        // carries a per-parameter-index kind instead and this reconstructs the
+        // symbol reference from the freshly-imported `valueParameterSymbols`,
+        // mirroring how `recordContractEffects` derives it from a parameter
+        // index when parsing source directly.
         for (index, kind) in record.valueParameterCallsInPlaceKinds.enumerated() where kind != nil {
             guard index < valueParameterSymbols.count else { continue }
             symbols.addContractCallsInPlaceEffect(
@@ -656,12 +655,10 @@ extension DataFlowSemaPhase {
         return record.typeSignature?.hasSuffix(",L\(enumFQName);>") == true
     }
 
-    /// Number of leading type parameters that belong to the owner nominal type
-    /// rather than the callable itself. `collectTypeParameterSymbols` visits the
-    /// receiver first, so a member of a generic class starts with exactly the
-    /// type parameters carried by its owner's type arguments. Extension
-    /// callables are excluded: their receiver type arguments are the function's
-    /// own type parameters.
+    /// `collectTypeParameterSymbols` visits the receiver first, so a member of a
+    /// generic class starts with exactly the type parameters carried by its
+    /// owner's type arguments. Extension callables are excluded: their receiver
+    /// type arguments are the function's own type parameters.
     private func ownerNominalTypeParameterCount(
         of functionType: FunctionType,
         record: ImportedLibrarySymbolRecord,
@@ -691,10 +688,8 @@ extension DataFlowSemaPhase {
         return seen.count
     }
 
-    /// Collects the type parameter symbols referenced by a decoded function type
-    /// in declaration order, so imported generic signatures can be solved during
-    /// overload resolution. Metadata type parameters are encoded by their
-    /// declaration index, while a receiver can mention a later parameter first.
+    /// Metadata type parameters are encoded by their declaration index, while a
+    /// receiver can mention a later parameter first.
     private func collectTypeParameterSymbols(
         from functionType: FunctionType,
         types: TypeSystem

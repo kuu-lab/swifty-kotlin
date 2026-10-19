@@ -1,9 +1,5 @@
 import RuntimeABI
 
-/// Element-type extraction for Collection member-call fallbacks
-/// (incl. primitive arrays and range receivers).
-///
-/// Split out from `CallTypeChecker+CollectionMemberFallback.swift`.
 extension CallTypeChecker {
     private func collectionFallbackClassTypes(
         _ type: TypeID,

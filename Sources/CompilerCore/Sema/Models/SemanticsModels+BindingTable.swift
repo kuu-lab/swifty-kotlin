@@ -1,7 +1,6 @@
 // swiftlint:disable file_length
 
 public final class BindingTable {
-    /// Marker checks already performed for one source annotation occurrence.
     public private(set) var validatedAnnotationOptInMarkers: [String: Set<SymbolID>] = [:]
 
     public func recordValidatedAnnotationOptIn(usageID: String?, markers: Set<SymbolID>) {
@@ -24,7 +23,6 @@ public final class BindingTable {
     }
 
     public private(set) var exprTypes: [ExprID: TypeID] = [:]
-    /// Contextual non-null targets requiring a Java platform-value null check.
     public private(set) var platformNullAssertionTypes: [ExprID: TypeID] = [:]
 
     public func bindPlatformNullAssertion(_ expr: ExprID, targetType: TypeID?) {
@@ -42,9 +40,7 @@ public final class BindingTable {
     /// Validated after overload resolution has bound the containing calls.
     public private(set) var lambdaReturnTargets: [ExprID: ExprID] = [:]
     public private(set) var lambdaReturnLambdaPaths: [ExprID: [ExprID]] = [:]
-    /// Lambda boundaries crossed by a return targeting an enclosing named function.
     public private(set) var functionReturnLambdaPaths: [ExprID: [ExprID]] = [:]
-    /// Lambda boundaries crossed by break/continue to an enclosing loop.
     /// Inline parameter eligibility is known only after overload resolution.
     public private(set) var loopJumpLambdaPaths: [ExprID: [ExprID]] = [:]
     public private(set) var callBindings: [ExprID: CallBinding] = [:]
@@ -82,8 +78,6 @@ public final class BindingTable {
     public private(set) var indexedCompoundAssignOperatorBindings: [ExprID: IndexedCompoundAssignOperatorBinding] = [:]
     public private(set) var indexedCompoundAssignElementOperatorBindings: [ExprID: IndexedCompoundAssignElementOperatorBinding] = [:]
     public private(set) var callableTargets: [ExprID: CallableTarget] = [:]
-    /// Maps a secondary constructor's own symbol to the constructor symbol chosen
-    /// by overload resolution for its `this(...)` / `super(...)` delegation call.
     /// `ConstructorDelegationCall` has no `ExprID` of its own, so this is keyed by
     /// the enclosing constructor's `SymbolID` instead. KIR lowering must consult
     /// this rather than re-deriving the target via FQ-name lookup, which cannot
@@ -96,8 +90,6 @@ public final class BindingTable {
     /// Constructor selected for each enum entry, keyed by the entry field
     /// symbol because enum-entry arguments have no standalone call ExprID.
     public private(set) var enumEntryConstructorBindings: [SymbolID: CallBinding] = [:]
-    /// Enum entry value used as the receiver when `Enum.ENTRY(args)` resolves
-    /// through the enum class's `operator fun invoke` member.
     public private(set) var enumEntryInvokeReceiverSymbols: [ExprID: SymbolID] = [:]
     public private(set) var callableValueCalls: [ExprID: CallableValueCallBinding] = [:]
     public private(set) var isCheckTargetTypes: [ExprID: TypeID] = [:]
@@ -105,7 +97,6 @@ public final class BindingTable {
     public private(set) var findAnnotationSearchTypes: [ExprID: TypeID] = [:]
     public private(set) var catchClauseBindings: [ExprID: CatchClauseBinding] = [:]
     public private(set) var captureSymbolsByExpr: [ExprID: [SymbolID]] = [:]
-    /// Free variables required by each lifted local function's direct-call ABI.
     public private(set) var localFunctionCaptureSymbolsBySymbol: [SymbolID: [SymbolID]] = [:]
     /// STDLIB-592 definite assignment: outer-scope symbols a lambda literal's body
     /// unconditionally initializes, keyed by the lambda literal's own `ExprID`.
@@ -167,7 +158,6 @@ public final class BindingTable {
     /// passes (KIR lowering, codegen) to fold constant references without
     /// re-querying the symbol table.
     public private(set) var constExprValues: [ExprID: KIRExprKind] = [:]
-    /// Tracks lambda expressions that undergo SAM (functional interface) conversion.
     public private(set) var samConversionExprs: Set<ExprID> = []
     /// Maps SAM-converted lambda expressions to their underlying function type,
     /// so KIR lowering can generate the correct callable signature.
@@ -177,15 +167,10 @@ public final class BindingTable {
     /// callable references keep their function type, so the interface must be
     /// recorded separately for KIR lowering.
     public private(set) var samInterfaceTypes: [ExprID: TypeID] = [:]
-    /// Tracks call expressions that are builder DSL calls (buildList/buildSet/buildMap).
     public private(set) var builderDSLExprIDs: Set<ExprID> = []
-    /// Maps builder DSL call expression IDs to their builder kind.
     public private(set) var builderDSLKinds: [ExprID: BuilderDSLKind] = [:]
-    /// Tracks call expressions that are scope function calls (STDLIB-004).
     public private(set) var scopeFunctionExprIDs: Set<ExprID> = []
-    /// Maps scope function call expression IDs to their kind.
     public private(set) var scopeFunctionKinds: [ExprID: ScopeFunctionKind] = [:]
-    /// Tracks lambda literals that need the collection HOF closure parameter ABI.
     public private(set) var collectionHOFLambdaExprIDs: Set<ExprID> = []
     /// Tracks lambda literals that are the callee of a direct invocation
     /// (`{ ... }()`). `inferCallExpr` synthesizes `() -> Any` for them, which
@@ -232,12 +217,8 @@ public final class BindingTable {
     /// Callable literals checked against nominal FunctionN still infer a
     /// function type, but must materialize their closure ABI before escaping.
     public private(set) var nominalFunctionExpectedTypes: [ExprID: TypeID] = [:]
-    /// Tracks stdlib calls that require dedicated lowering.
     public private(set) var stdlibSpecialCallExprIDs: Set<ExprID> = []
-    /// Maps stdlib special call expressions to their lowering kind.
     public private(set) var stdlibSpecialCallKinds: [ExprID: StdlibSpecialCallKind] = [:]
-    /// Maps nameRef expression IDs to their member name when they were resolved
-    /// as implicit receiver member accesses (STDLIB-004).
     public private(set) var implicitReceiverMemberNames: [ExprID: InternedString] = [:]
     /// For member accesses that resolved on an *outer* implicit receiver (e.g. an
     /// enclosing class's member called unqualified from an object literal's
@@ -993,137 +974,104 @@ public final class BindingTable {
         invokeOperatorCallExprs.contains(expr)
     }
 
-    /// Record the compile-time constant value for an expression that
-    /// references a `const val` property.  Called during type-check when
-    /// a name-ref resolves to a symbol carrying `.constValue`.
     public func bindConstExprValue(_ expr: ExprID, value: KIRExprKind) {
         constExprValues[expr] = value
     }
 
-    /// Retrieve the compile-time constant value for an expression, if any.
     public func constExprValue(for expr: ExprID) -> KIRExprKind? {
         constExprValues[expr]
     }
 
-    /// Mark a lambda expression as undergoing SAM (functional interface) conversion.
     public func markSamConversion(_ expr: ExprID) {
         samConversionExprs.insert(expr)
     }
 
-    /// Whether the given expression is a SAM-converted lambda.
     public func isSamConversion(_ expr: ExprID) -> Bool {
         samConversionExprs.contains(expr)
     }
 
-    /// Store the underlying function type for a SAM-converted lambda, so that
-    /// KIR lowering can generate the callable with the correct signature.
     public func bindSamUnderlyingFunctionType(_ expr: ExprID, type: TypeID) {
         samUnderlyingFunctionTypes[expr] = type
     }
 
-    /// Store the functional interface type targeted by a SAM conversion.
     public func bindSamInterfaceType(_ expr: ExprID, type: TypeID) {
         samInterfaceTypes[expr] = type
     }
 
-    /// Retrieve the functional interface type targeted by a SAM conversion.
     public func samInterfaceType(for expr: ExprID) -> TypeID? {
         samInterfaceTypes[expr]
     }
 
-    /// Retrieve the underlying function type for a SAM-converted lambda.
     public func samUnderlyingFunctionType(for expr: ExprID) -> TypeID? {
         samUnderlyingFunctionTypes[expr]
     }
 
-    /// Mark a call expression as a builder DSL call (buildList/buildSet/buildMap).
     public func markBuilderDSLExpr(_ expr: ExprID, kind: BuilderDSLKind) {
         builderDSLExprIDs.insert(expr)
         builderDSLKinds[expr] = kind
     }
 
-    /// Retrieve the builder DSL kind for a builder call expression.
     public func builderDSLKind(for expr: ExprID) -> BuilderDSLKind? {
         builderDSLKinds[expr]
     }
 
-    /// Mark a call expression as a scope function call (STDLIB-004).
     public func markScopeFunctionExpr(_ expr: ExprID, kind: ScopeFunctionKind) {
         scopeFunctionExprIDs.insert(expr)
         scopeFunctionKinds[expr] = kind
     }
 
-    /// Retrieve the scope function kind for a scope function call expression.
     public func scopeFunctionKind(for expr: ExprID) -> ScopeFunctionKind? {
         scopeFunctionKinds[expr]
     }
 
-    /// Mark a lambda literal as requiring collection HOF closure ABI lowering.
     public func markCollectionHOFLambdaExpr(_ expr: ExprID) {
         collectionHOFLambdaExprIDs.insert(expr)
     }
 
-    /// Undo a prior `markCollectionHOFLambdaExpr`. Used when a call originally
-    /// speculatively marked as a native collection HOF later turns out to bind
-    /// to a bundled Kotlin-source declaration instead, which expects an
-    /// ordinary boxed callable value rather than the native (closureObj, it)
-    /// two-argument ABI.
+    /// Used when a call originally speculatively marked as a native collection
+    /// HOF later turns out to bind to a bundled Kotlin-source declaration
+    /// instead, which expects an ordinary boxed callable value rather than the
+    /// native (closureObj, it) two-argument ABI.
     public func unmarkCollectionHOFLambdaExpr(_ expr: ExprID) {
         collectionHOFLambdaExprIDs.remove(expr)
     }
 
-    /// Whether the lambda literal requires collection HOF closure ABI lowering.
     public func isCollectionHOFLambdaExpr(_ expr: ExprID) -> Bool {
         collectionHOFLambdaExprIDs.contains(expr)
     }
 
-    /// Mark a lambda literal as the callee of a direct invocation (`{ ... }()`).
     public func markDirectlyInvokedLambdaExpr(_ expr: ExprID) {
         directlyInvokedLambdaExprIDs.insert(expr)
     }
 
-    /// Whether the lambda literal is the callee of a direct invocation.
     public func isDirectlyInvokedLambdaExpr(_ expr: ExprID) -> Bool {
         directlyInvokedLambdaExprIDs.contains(expr)
     }
 
-    /// Mark a `.memberCall` expression as resolved via the FQN-package-qualified
-    /// top-level lookup (`kotlin.math.abs(x)`, `kotlin.text.StringBuilder()`).
     public func markFQNTopLevelCallExpr(_ expr: ExprID) {
         fqnTopLevelCallExprIDs.insert(expr)
     }
 
-    /// Whether the call expression was resolved via the FQN-package-qualified
-    /// top-level lookup, meaning its receiver chain is a namespace path with
-    /// no type binding and must not be lowered as a value.
     public func isFQNTopLevelCallExpr(_ expr: ExprID) -> Bool {
         fqnTopLevelCallExprIDs.contains(expr)
     }
 
-    /// Mark a namespace-qualified property or classifier expression whose
-    /// receiver path must not be lowered as a runtime value.
     public func markFQNQualifiedValueExpr(_ expr: ExprID) {
         fqnQualifiedValueExprIDs.insert(expr)
     }
 
-    /// Whether this expression's receiver is a namespace-only qualifier path.
     public func isFQNQualifiedValueExpr(_ expr: ExprID) -> Bool {
         fqnQualifiedValueExprIDs.contains(expr)
     }
 
-    /// Mark a `.memberCall` expression as a constructor call through a type
-    /// qualifier rather than an instance receiver (`Outer.Inner()`).
     public func markTypeQualifiedConstructorCallExpr(_ expr: ExprID) {
         typeQualifiedConstructorCallExprIDs.insert(expr)
     }
 
-    /// Whether the call expression must lower its constructor without lowering
-    /// the type qualifier as a runtime receiver.
     public func isTypeQualifiedConstructorCallExpr(_ expr: ExprID) -> Bool {
         typeQualifiedConstructorCallExprIDs.contains(expr)
     }
 
-    /// Mark a lambda literal as a KIR-level coroutine launcher's block argument.
     public func markCoroutineLauncherLambdaExpr(_ expr: ExprID) {
         coroutineLauncherLambdaExprIDs.insert(expr)
     }
@@ -1132,8 +1080,6 @@ public final class BindingTable {
         rawSuspendEntryLambdaExprIDs.insert(expr)
     }
 
-    /// Whether the lambda literal is a KIR-level coroutine launcher's block
-    /// argument (see `coroutineLauncherLambdaExprIDs`).
     public func isCoroutineLauncherLambdaExpr(_ expr: ExprID) -> Bool {
         coroutineLauncherLambdaExprIDs.contains(expr)
     }
@@ -1142,13 +1088,10 @@ public final class BindingTable {
         coroutineScopeLambdaReceiverTypes[expr] = type
     }
 
-    /// Mark an expression as checked against a source-written type annotation
-    /// (see `sourceDeclaredExpectedTypeExprIDs`).
     public func markSourceDeclaredExpectedType(_ expr: ExprID) {
         sourceDeclaredExpectedTypeExprIDs.insert(expr)
     }
 
-    /// Whether the expression's expected type was written in source.
     public func hasSourceDeclaredExpectedType(_ expr: ExprID) -> Bool {
         sourceDeclaredExpectedTypeExprIDs.contains(expr)
     }
@@ -1157,43 +1100,31 @@ public final class BindingTable {
         nominalFunctionExpectedTypes[expr] = type
     }
 
-    /// Mark a call expression as a stdlib special call requiring custom lowering.
     public func markStdlibSpecialCallExpr(_ expr: ExprID, kind: StdlibSpecialCallKind) {
         stdlibSpecialCallExprIDs.insert(expr)
         stdlibSpecialCallKinds[expr] = kind
     }
 
-    /// Retrieve the stdlib special call kind for a marked call expression.
     public func stdlibSpecialCallKind(for expr: ExprID) -> StdlibSpecialCallKind? {
         stdlibSpecialCallKinds[expr]
     }
 
-    /// Mark a nameRef expression as an implicit receiver member access (STDLIB-004).
     public func markImplicitReceiverMember(_ expr: ExprID, name: InternedString) {
         implicitReceiverMemberNames[expr] = name
     }
 
-    /// Record which captured outer receiver an unqualified member access
-    /// dispatches on. See `implicitReceiverOuterReceiverSymbols`.
     public func markImplicitReceiverOuterReceiver(_ expr: ExprID, symbol: SymbolID) {
         implicitReceiverOuterReceiverSymbols[expr] = symbol
     }
 
-    /// The captured outer-receiver symbol an unqualified member access dispatches
-    /// on, if any. See `implicitReceiverOuterReceiverSymbols`.
     public func implicitReceiverOuterReceiver(for expr: ExprID) -> SymbolID? {
         implicitReceiverOuterReceiverSymbols[expr]
     }
 
-    /// Record which receiver-tower entry supplies a member extension's
-    /// extension receiver argument. See `implicitExtensionReceiverSymbols`.
     public func markImplicitExtensionReceiver(_ expr: ExprID, symbol: SymbolID) {
         implicitExtensionReceiverSymbols[expr] = symbol
     }
 
-    /// The receiver-tower symbol supplying a member extension's extension
-    /// receiver argument, if Sema recorded one. See
-    /// `implicitExtensionReceiverSymbols`.
     public func implicitExtensionReceiver(for expr: ExprID) -> SymbolID? {
         implicitExtensionReceiverSymbols[expr]
     }
@@ -1206,35 +1137,26 @@ public final class BindingTable {
         coroutineScopeImplicitReceiverCallExprs.contains(expr)
     }
 
-    /// Bind a callable reference expression to its kind (REFL-003).
     public func bindCallableRefKind(_ expr: ExprID, kind: CallableRefKind) {
         callableRefKinds[expr] = kind
     }
 
-    /// Query the callable reference kind for an expression (REFL-003).
     public func callableRefKind(for expr: ExprID) -> CallableRefKind? {
         callableRefKinds[expr]
     }
 
-    /// Mark a callable reference as an unbound type reference (REFL-003).
     public func markUnboundCallableRef(_ expr: ExprID) {
         unboundCallableRefs.insert(expr)
     }
 
-    /// Query whether a callable reference is an unbound type reference (REFL-003).
     public func isUnboundCallableRef(_ expr: ExprID) -> Bool {
         unboundCallableRefs.contains(expr)
     }
 
-    /// Record which raw binary operator a primitive-operator callable
-    /// reference (`Int::plus`) should synthesize a wrapper function around
-    /// (REFL-PRIMOP).
     public func bindPrimitiveOperatorCallableRef(_ expr: ExprID, op: BinaryOp) {
         primitiveOperatorCallableRefs[expr] = op
     }
 
-    /// Query the raw binary operator recorded for a primitive-operator
-    /// callable reference (REFL-PRIMOP).
     public func primitiveOperatorCallableRef(for expr: ExprID) -> BinaryOp? {
         primitiveOperatorCallableRefs[expr]
     }

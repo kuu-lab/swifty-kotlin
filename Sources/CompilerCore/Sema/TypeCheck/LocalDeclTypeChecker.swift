@@ -56,11 +56,11 @@ final class LocalDeclTypeChecker {
         if isDelegated, let initializer {
             // Resolve getValue (and setValue for `var`) against the delegate
             // expression's type, exactly as member/top-level delegated properties
-            // do (DeclTypeChecker.typeCheckDelegate). Previously this branch never
-            // ran for local declarations, so the local's type silently fell back
-            // to the delegate instance's own type below, and KIR lowering had no
-            // resolved operator to call — `val x by Prop()` bound `x` straight to
-            // the `Prop()` instance instead of `Prop().getValue(...)`.
+            // do (DeclTypeChecker.typeCheckDelegate); otherwise the local's type
+            // silently falls back to the delegate instance's own type below, and
+            // KIR lowering has no resolved operator to call — `val x by Prop()`
+            // binds `x` straight to the `Prop()` instance instead of
+            // `Prop().getValue(...)`.
             localType = driver.declChecker.typeCheckDelegate(
                 initializer,
                 isVar: isMutable,
@@ -135,7 +135,6 @@ final class LocalDeclTypeChecker {
                     }
                 }
             } else if let initializerType {
-                // `val x = ClassName` holds the class's companion object.
                 localType = initializer.flatMap {
                     driver.helpers.retypeClassNameAsCompanionValue(
                         $0, currentType: initializerType, ast: ast, sema: sema
@@ -447,16 +446,19 @@ final class LocalDeclTypeChecker {
                         sema: ctx.sema,
                         diagnostics: ctx.sema.diagnostics
                     )
+                    driver.helpers.recordMemberValInitializationSmartCast(
+                        property: writeSymbol,
+                        declaredType: writeType,
+                        valueType: valueType,
+                        ctx: ctx,
+                        locals: &locals
+                    )
                 }
             }
             ctx.sema.bindings.bindExprType(id, type: ctx.sema.types.unitType)
             return ctx.sema.types.unitType
         }
 
-        // Fall back to scope-visible property lookup for assignments like
-        // `counter = counter + 1` where `counter` is a top-level var or a
-        // member property accessed via implicit receiver (inside a
-        // class/object member function).
         let allCandidateIDs = ctx.cachedScopeLookup(name)
         let dslBlockedIDs = allCandidateIDs.filter { ctx.isCandidateBlockedByDslMarker($0) }
         let dslFilteredIDs = allCandidateIDs.filter { !ctx.isCandidateBlockedByDslMarker($0) }

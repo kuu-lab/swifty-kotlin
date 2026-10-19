@@ -1,4 +1,3 @@
-/// Registers the native `kotlin.native.concurrent.ThreadLocal` annotation constructor.
 extension DataFlowSemaPhase {
     func registerNativeThreadLocalAnnotationConstructor(
         packageFQName: [InternedString],

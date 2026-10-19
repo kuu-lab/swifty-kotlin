@@ -69,7 +69,7 @@ extension DataFlowAnalyzer {
         return (DataFlowReference(root: local.symbol), local.type, isStable && !mutatedInClosure)
     }
 
-    private func isStableMemberProperty(_ property: SymbolID, ast: ASTModule, sema: SemaModule) -> Bool {
+    func isStableMemberProperty(_ property: SymbolID, ast: ASTModule, sema: SemaModule) -> Bool {
         if let cached = stableMemberProperties[property] { return cached }
         let stable = hasStableMemberDeclaration(property, ast: ast, sema: sema)
         stableMemberProperties[property] = stable

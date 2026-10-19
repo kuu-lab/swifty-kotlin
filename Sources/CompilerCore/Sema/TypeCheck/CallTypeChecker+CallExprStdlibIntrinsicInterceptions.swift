@@ -1,9 +1,5 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
-/// Stdlib intrinsic call interceptions from the `inferCallExpr` dispatch
-/// chain: `kotlin.reflect.typeOf`, the `enumValues`/`enumValueOf`/`values`/
-/// `valueOf`/`entries` enum specials, and the `kotlin.contracts.contract` DSL.
-/// Extracted from `CallTypeChecker+CallExprInference.swift`.
 extension CallTypeChecker {
     func inferReflectTypeOfCall(
         _ id: ExprID,
@@ -19,7 +15,6 @@ extension CallTypeChecker {
         let knownNames = KnownCompilerNames(interner: interner)
 
 
-        // --- STDLIB-REFLECT-066: typeOf<T>() — inline reified reflection ---
         let typeOfIntrinsicFQName = [
             interner.intern("kotlin"), interner.intern("reflect"), interner.intern("typeOf"),
         ]
@@ -83,7 +78,6 @@ extension CallTypeChecker {
         let knownNames = KnownCompilerNames(interner: interner)
 
 
-        // --- Stdlib enumValues<T>() / enumValueOf<T>(name) (STDLIB-171) ---
         if let calleeName,
            let enumSpecialKind = enumStdlibSpecialCallKind(
                calleeName: calleeName,

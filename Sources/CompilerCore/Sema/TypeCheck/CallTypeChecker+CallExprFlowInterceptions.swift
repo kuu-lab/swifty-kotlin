@@ -1,9 +1,5 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
-/// Flow-builder call interceptions from the `inferCallExpr` dispatch chain:
-/// the `flow { }` cold-stream factory plus the `FlowCollector.emit` shortcuts
-/// that apply while checking a flow-builder lambda.
-/// Extracted from `CallTypeChecker+CallExprInference.swift`.
 extension CallTypeChecker {
     func inferFlowBuilderCall(
         _ id: ExprID,
@@ -21,10 +17,8 @@ extension CallTypeChecker {
         let knownNames = KnownCompilerNames(interner: interner)
 
 
-        // --- Flow builder function (CORO-003) ---
-        // `flow { emit(...) }` is treated as a builtin cold stream factory.
-        // We infer the lambda with a flow-builder scope so unqualified `emit`
-        // resolves in Sema fallback.
+        // We infer the `flow { }` lambda with a flow-builder scope so unqualified
+        // `emit` resolves in Sema fallback.
         let flowFactoryNames: Set<InternedString> = [
             knownNames.flow,
         ]
@@ -94,7 +88,6 @@ extension CallTypeChecker {
         // import now yields a proper unresolved-reference diagnostic, matching
         // kotlinx.coroutines.
 
-        // --- Flow builder lambda calls (CORO-003) ---
         // During generic receiver-builder inference, postpone an unqualified
         // FlowCollector.emit argument as a constraint on the enclosing type
         // variables. The regular member-call path cannot resolve `R` until
@@ -132,8 +125,6 @@ extension CallTypeChecker {
         return nil
     }
 
-    // Inside `flow { ... }`, unqualified `emit` resolves as a builtin
-    // effect call and returns Unit.
     func inferEmitInFlowScopeCall(
         _ id: ExprID,
         args: [CallArgument],

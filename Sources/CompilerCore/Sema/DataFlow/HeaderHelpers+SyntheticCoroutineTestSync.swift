@@ -1,7 +1,3 @@
-/// kotlinx.coroutines.test and kotlinx.coroutines.sync stubs for the
-/// synthetic coroutine registry: TestCoroutineScheduler / TestScope
-/// and the Mutex / Semaphore member surfaces.
-///
 /// Extracted from `registerSyntheticCoroutineStubs`
 /// (HeaderHelpers+SyntheticCoroutineRegistry.swift). The extracted
 /// methods thread the shared registry state through `context` so the
@@ -16,8 +12,7 @@ extension DataFlowSemaPhase {
         let coroutineScopeSymbol = context.coroutineScopeSymbol!
         let coroutineScopeType = context.coroutineScopeType!
 
-        // KSP-1583: kotlinx.coroutines.test — opaque runtime-handle nominal
-        // types. `TestScope` values are `RuntimeCoroutineScope` handles
+        // `TestScope` values are `RuntimeCoroutineScope` handles
         // minted by `kk_coroutine_scope_new_with_context` (via the bundled
         // `TestScope(context)` factory in Stdlib/kotlinx/coroutines/test/),
         // so declaring `CoroutineScope` as a supertype lets the existing
@@ -32,11 +27,6 @@ extension DataFlowSemaPhase {
         // `coroutineContext` in KSP-1582) must not be resolved on TestScope
         // through interface dispatch — keep routing this type's scope
         // operations through the synthetic `kk_coroutine_scope_*` members.
-        //
-        // `testScheduler`/`currentTime`/`backgroundScope` are synthetic
-        // member properties routing through runtime bridges, like `isActive`.
-        // Extension properties also use the bound implicit receiver, including
-        // when it is captured by a nested lambda.
         let testPkg = ensureSyntheticCoroutinePackage(
             coroutinesPkg + [interner.intern("test")],
             symbols: symbols,
@@ -121,7 +111,6 @@ extension DataFlowSemaPhase {
         let interner = context.interner
         let coroutinesPkg = context.coroutinesPkg
 
-        // Mutex (kotlinx.coroutines.sync.Mutex)
         let syncPkg = ensureSyntheticCoroutinePackage(
             coroutinesPkg + [interner.intern("sync")],
             symbols: symbols,
@@ -206,7 +195,6 @@ extension DataFlowSemaPhase {
         // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) as a suspend
         // extension that composes lock()/unlock(); no synthetic stub remains.
 
-        // Semaphore (kotlinx.coroutines.sync.Semaphore)
         let semaphoreSymbol = ensureInterfaceSymbol(
             named: "Semaphore",
             in: syncPkg,

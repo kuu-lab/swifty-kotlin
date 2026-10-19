@@ -1,9 +1,4 @@
 extension ExprTypeChecker {
-    /// KUU-555: a named `class`/`object` declared as a block statement
-    /// (`{ class L { ... } }`). The name binds like a `localFunDecl` — into
-    /// `locals`, visible only to statements after it in the same block —
-    /// while the nominal's symbols, layout, captures and member type
-    /// checking mirror the object-literal pipeline (`ensureObjectLiteralSymbol`).
     func inferLocalNominalDeclExpr(
         _ id: ExprID,
         declID: DeclID,
@@ -81,12 +76,8 @@ extension ExprTypeChecker {
         }
     }
 
-    /// Sema registration for a local `class` body statement, mirroring
-    /// `ensureObjectLiteralSymbol` for the object side: symbol + ctor
-    /// signature + member symbols, member type checking seeded with the
-    /// enclosing locals (captures), supertype wiring, and the deferred
-    /// layout synthesis — the nominal is discovered too late for
-    /// `synthesizeNominalLayouts`, so it builds its own.
+    /// The nominal is discovered too late for `synthesizeNominalLayouts`,
+    /// so it builds its own.
     private func ensureLocalClassSymbol(
         declID: DeclID,
         classDecl: ClassDecl,

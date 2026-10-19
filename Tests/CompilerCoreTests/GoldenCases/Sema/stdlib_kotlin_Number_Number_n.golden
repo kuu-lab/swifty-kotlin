@@ -34,3 +34,8 @@ expr e@10:39 name(n) type=kotlin.Number ref=golden.sema.numberToShort.$6.n[kind=
 expr e@10:39#1 memberCall recv=e@10:39 callee=toShort args=[] type=Short call=kotlin.Number.toShort[kind=fun;recv=kotlin.Number;params=;ret=Short]
 expr e@11:37 name(n) type=kotlin.Number ref=golden.sema.numberToByte.$0.n[kind=vparam;origin=fixture]
 expr e@11:37#1 memberCall recv=e@11:37 callee=toByte args=[] type=Byte call=kotlin.Number.toByte[kind=fun;recv=kotlin.Number;params=;ret=Byte]
+expr e@3:11 string(DEPRECATION) type=String
+expr e@3:2 call callee=e@3:2#1 args=[_:e@3:11] type=kotlin.Suppress call=kotlin.Suppress.<init>[kind=ctor;recv=kotlin.Suppress;params=*String;ret=kotlin.Suppress;vararg=[1];names=[names]]
+diagnostic severity=error code=KSWIFTK-SEMA-DEPRECATED at=4:37 msg='kotlin.Number.toChar' is deprecated. Direct conversion to Char is deprecated. Use toInt().toChar() or Char constructor instead.
+If you override toChar() function in your Number inheritor, it's recommended to gradually deprecate the overriding function and then remove it.
+See https://youtrack.jetbrains.com/issue/KT-46465 for details about the migration Replace with: this.toInt().toChar()

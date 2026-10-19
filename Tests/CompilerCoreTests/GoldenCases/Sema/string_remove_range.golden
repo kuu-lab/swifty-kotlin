@@ -22,5 +22,5 @@ expr e@7:37#1 memberCall recv=e@7:37 callee=removeRange args=[_:e@7:57,_:e@7:60]
 expr e@9:40 string(hello world) type=String
 expr e@9:66 int(5) type=Int
 expr e@9:69 int(10) type=Int
-expr e@9:66#1 binary(rangeTo) lhs=e@9:66 rhs=e@9:69 type=Int
+expr e@9:66#1 binary(rangeTo) lhs=e@9:66 rhs=e@9:69 type=kotlin.ranges.IntRange call=kotlin.ranges.rangeTo[kind=fun;recv=Int;params=Int;ret=kotlin.ranges.IntRange;names=[to]]
 expr e@9:40#1 memberCall recv=e@9:40 callee=removeRange args=[_:e@9:66#1] type=String call=kotlin.text.removeRange[kind=fun;recv=String;params=kotlin.ranges.IntRange;ret=String;names=[range]]

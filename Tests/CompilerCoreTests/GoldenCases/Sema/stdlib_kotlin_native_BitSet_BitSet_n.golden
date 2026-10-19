@@ -34,7 +34,7 @@ expr e@12:5#1 memberCall recv=e@12:5 callee=set args=[_:e@12:14,_:e@12:17] type=
 expr e@13:5 name(bits) type=kotlin.native.BitSet ref=__local_0.bits[kind=local;type=kotlin.native.BitSet;origin=fixture]
 expr e@13:14 int(0) type=Int
 expr e@13:17 int(1) type=Int
-expr e@13:14#1 binary(rangeTo) lhs=e@13:14 rhs=e@13:17 type=Int
+expr e@13:14#1 binary(rangeTo) lhs=e@13:14 rhs=e@13:17 type=kotlin.ranges.IntRange call=kotlin.ranges.rangeTo[kind=fun;recv=Int;params=Int;ret=kotlin.ranges.IntRange;names=[to]]
 expr e@13:20 bool(false) type=Boolean
 expr e@13:5#1 memberCall recv=e@13:5 callee=set args=[_:e@13:14#1,_:e@13:20] type=Unit call=kotlin.native.BitSet.set[kind=fun;recv=kotlin.native.BitSet;params=kotlin.ranges.IntRange,Boolean;ret=Unit;defaults=[0,1];names=[range,value]]
 expr e@14:5 name(bits) type=kotlin.native.BitSet ref=__local_0.bits[kind=local;type=kotlin.native.BitSet;origin=fixture]
@@ -52,7 +52,7 @@ expr e@16:5#1 memberCall recv=e@16:5 callee=flip args=[_:e@16:15,_:e@16:18] type
 expr e@17:5 name(bits) type=kotlin.native.BitSet ref=__local_0.bits[kind=local;type=kotlin.native.BitSet;origin=fixture]
 expr e@17:15 int(8) type=Int
 expr e@17:18 int(9) type=Int
-expr e@17:15#1 binary(rangeTo) lhs=e@17:15 rhs=e@17:18 type=Int
+expr e@17:15#1 binary(rangeTo) lhs=e@17:15 rhs=e@17:18 type=kotlin.ranges.IntRange call=kotlin.ranges.rangeTo[kind=fun;recv=Int;params=Int;ret=kotlin.ranges.IntRange;names=[to]]
 expr e@17:5#1 memberCall recv=e@17:5 callee=flip args=[_:e@17:15#1] type=Unit call=kotlin.native.BitSet.flip[kind=fun;recv=kotlin.native.BitSet;params=kotlin.ranges.IntRange;ret=Unit;names=[range]]
 expr e@18:19 name(bits) type=kotlin.native.BitSet ref=__local_0.bits[kind=local;type=kotlin.native.BitSet;origin=fixture]
 expr e@18:24 int(4) type=Int
@@ -110,7 +110,7 @@ expr e@33:5#1 memberCall recv=e@33:5 callee=clear args=[_:e@33:16,_:e@33:19] typ
 expr e@34:5 name(bits) type=kotlin.native.BitSet ref=__local_0.bits[kind=local;type=kotlin.native.BitSet;origin=fixture]
 expr e@34:16 int(8) type=Int
 expr e@34:19 int(9) type=Int
-expr e@34:16#1 binary(rangeTo) lhs=e@34:16 rhs=e@34:19 type=Int
+expr e@34:16#1 binary(rangeTo) lhs=e@34:16 rhs=e@34:19 type=kotlin.ranges.IntRange call=kotlin.ranges.rangeTo[kind=fun;recv=Int;params=Int;ret=kotlin.ranges.IntRange;names=[to]]
 expr e@34:5#1 memberCall recv=e@34:5 callee=clear args=[_:e@34:16#1] type=Unit call=kotlin.native.BitSet.clear[kind=fun;recv=kotlin.native.BitSet;params=kotlin.ranges.IntRange;ret=Unit;names=[range]]
 expr e@35:5 name(bits) type=kotlin.native.BitSet ref=__local_0.bits[kind=local;type=kotlin.native.BitSet;origin=fixture]
 expr e@35:16 int(0) type=Int

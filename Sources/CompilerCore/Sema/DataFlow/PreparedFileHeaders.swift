@@ -1,6 +1,6 @@
-/// Unresolved declaration descriptors. Preparation reads only the frozen AST;
-/// registering symbols, synthesizing members and resolving types stay behind
-/// the existing module barriers on the caller thread.
+/// Preparation reads only the frozen AST; registering symbols, synthesizing
+/// members and resolving types stay behind the existing module barriers on
+/// the caller thread.
 struct UnresolvedHeader: @unchecked Sendable {
     let declarationID: DeclID
     // Decl is an immutable value here; its TypeRefIDs still refer to frozen AST.

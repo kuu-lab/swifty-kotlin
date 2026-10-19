@@ -4,3 +4,6 @@ file fstdlib_kotlin_n_OptIn package=golden.sema annotations=[@file:OptIn(kotlin.
   decl golden.sema.MyMarker[kind=anno;origin=fixture] class MyMarker sym=golden.sema.MyMarker[kind=anno;origin=fixture]
   decl golden.sema.useOptIn[kind=fun;params=;ret=Int;origin=fixture] fun useOptIn sym=golden.sema.useOptIn[kind=fun;params=;ret=Int;origin=fixture]
 expr e@8:23 int(1) type=Int
+expr e@7:8 name(MyMarker) type=Any ref=golden.sema.MyMarker[kind=anno;origin=fixture]
+expr e@7:8#1 callableRef recv=e@7:8 member=class type=KClass<golden.sema.MyMarker>
+expr e@7:2 call callee=e@7:2#1 args=[_:e@7:8#1] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]

@@ -1,5 +1,3 @@
-/// Declaration-site check for recursive type aliases.
-///
 /// `Helpers+TypeAliasExpansion.expandTypeAlias` already detects cycles, but only when an
 /// alias is *expanded* at a use site; a cyclic alias that is never referenced compiles
 /// silently. Kotlin rejects `typealias A = B; typealias B = A` at the declaration

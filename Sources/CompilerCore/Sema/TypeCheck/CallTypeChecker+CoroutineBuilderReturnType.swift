@@ -57,7 +57,7 @@ extension CallTypeChecker {
     ) -> TypeID {
         // The lambda literal's own function-type signature mirrors the *expected*
         // type it was inferred against (usually `Any`, see
-        // coroutineLauncherExpectedLambdaType above), not the body's actual
+        // coroutineLauncherExpectedLambdaType), not the body's actual
         // tightest type. Dig into the AST for the body expression's own bound
         // type instead, same as the Flow `.map` element-type readback.
         let bodyReturnType: TypeID?
@@ -108,7 +108,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Repair residual raw Deferred types and apply the inferred element type.
     func wellKindedDeferredReturnType(
         fallback: TypeID,
         elementType: TypeID?,

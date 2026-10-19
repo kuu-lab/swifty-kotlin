@@ -1,11 +1,8 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
-    /// Effective receiver selection and the pre-resolution synthetic fallbacks,
-    /// extracted verbatim from `inferRegularMemberCall`: super MutableMap and
-    /// callable-reference receiver adjustments, then the collection,
-    /// Comparator and callable-property scope-priority
-    /// fallbacks that must run before lambda argument preparation.
+    /// The collection, Comparator and callable-property scope-priority
+    /// fallbacks must run before lambda argument preparation.
     /// `earlyReturnType` carries a bound result when a fallback handles the call.
     func selectRegularMemberCallReceiverAndFallbacks(
         _ request: MemberCallInferenceRequest,
@@ -33,8 +30,6 @@ extension CallTypeChecker {
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
 
-        // Use the companion type as implicit receiver when the candidates were
-        // redirected from the owner class to its companion object.
         let mutableMapSuperReceiverType: TypeID? = {
             guard isSuperCall,
                   [interner.intern("put"), knownNames.putAll, knownNames.remove, knownNames.clear].contains(calleeName),
@@ -232,10 +227,6 @@ extension CallTypeChecker {
         return (effectiveReceiverType, nil)
     }
 
-    /// Argument preparation and overload resolution, extracted verbatim from
-    /// `inferRegularMemberCall`: lambda-aware argument inference, the
-    /// regex-replace String bridge, the deferred-await expected-type bypass,
-    /// candidate resolution and the shadowed-extension retry.
     /// `earlyReturnType` carries a bound result only for the ambiguity
     /// diagnostic that returns immediately.
     func prepareAndResolveRegularMemberCall(

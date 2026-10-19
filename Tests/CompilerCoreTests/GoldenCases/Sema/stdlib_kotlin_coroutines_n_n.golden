@@ -44,3 +44,10 @@ expr e@33:29#1 memberCall recv=e@33:29 callee=success args=[_:e@33:44] type=kotl
 expr e@33:5#1 memberCall recv=e@33:5 callee=resumeWith args=[_:e@33:29#1] type=Unit call=kotlin.coroutines.Continuation.resumeWith[kind=fun;recv=kotlin.coroutines.Continuation<T0>;params=kotlin.Result<T0>;ret=Unit;gen=1;classGen=1;names=[result]] targs=[Int]
 expr e@32:52 lambda params=[continuation] body=e@33:5#1 label=suspendCoroutine type=(kotlin.coroutines.Continuation<Int>) -> Unit
 expr e@32:35 call callee=e@32:35#1 args=[_:e@32:52] type=Int call=kotlin.coroutines.suspendCoroutine[kind=fun;params=fn{p=kotlin.coroutines.Continuation<T0>;ret=Unit};ret=T0;susp;gen=1;nonlocal=[0];names=[block]] targs=[Int]
+expr e@13:8 memberCall recv=e@13:8#1 callee=ExperimentalStdlibApi args=[] type=kotlin.ExperimentalStdlibApi ref=kotlin.ExperimentalStdlibApi[kind=anno]
+expr e@13:8#2 callableRef recv=e@13:8 member=class type=KClass<kotlin.ExperimentalStdlibApi>
+expr e@13:2 call callee=e@13:2#1 args=[_:e@13:8#2] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]
+expr e@16:8 memberCall recv=e@16:8#1 callee=ExperimentalStdlibApi args=[] type=kotlin.ExperimentalStdlibApi ref=kotlin.ExperimentalStdlibApi[kind=anno]
+expr e@16:8#2 callableRef recv=e@16:8 member=class type=KClass<kotlin.ExperimentalStdlibApi>
+expr e@16:2 call callee=e@16:2#1 args=[_:e@16:8#2] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]
+expr e@29:2 call callee=e@29:2#1 args=[] type=kotlin.coroutines.RestrictsSuspension call=kotlin.coroutines.RestrictsSuspension.<init>[kind=ctor;recv=kotlin.coroutines.RestrictsSuspension;params=;ret=kotlin.coroutines.RestrictsSuspension]

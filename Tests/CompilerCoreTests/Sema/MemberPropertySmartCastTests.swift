@@ -229,5 +229,152 @@ struct MemberPropertySmartCastTests {
         #expect(merged[second] == nil)
         #expect(merged.variables.isEmpty)
     }
+
+    @Test func initBlockMemberValSmartCast() throws {
+        let ctx = makeContextFromSource("""
+        interface JPanel { val result: String }
+        open class ActivePanel : JPanel {
+            override var result: String = ""
+            fun fire(event: String) { result = event }
+        }
+        class Holder {
+            val panel: JPanel
+            init { panel = ActivePanel(); panel.fire("OK") }
+            fun result(): String = panel.result
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func initBlockMemberValSmartCastAnonymousObject() throws {
+        let ctx = makeContextFromSource("""
+        interface JPanel { val result: String }
+        open class ActivePanel : JPanel {
+            override var result: String = ""
+            fun fire(event: String) { result = event }
+        }
+        class Holder {
+            val panel: JPanel
+            init {
+                panel = object : ActivePanel() {}
+                panel.fire("OK")
+            }
+            fun result(): String = panel.result
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func initBlockMemberValSmartCastExplicitThis() throws {
+        let ctx = makeContextFromSource("""
+        interface JPanel { val result: String }
+        open class ActivePanel : JPanel {
+            override var result: String = ""
+            fun fire(event: String) { result = event }
+        }
+        class Holder {
+            val panel: JPanel
+            init {
+                this.panel = ActivePanel()
+                this.panel.fire("OK")
+            }
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func initBlockMemberValSmartCastBranchJoinLUB() throws {
+        let ctx = makeContextFromSource("""
+        interface Node
+        open class Common : Node {
+            fun extra(): String = "extra"
+        }
+        class LeafA : Common()
+        class LeafB : Common()
+        class Holder(flag: Boolean) {
+            val node: Node
+            init {
+                if (flag) {
+                    node = LeafA()
+                } else {
+                    node = LeafB()
+                }
+                node.extra()
+            }
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func initBlockMemberVarNotSmartCast() throws {
+        let ctx = makeContextFromSource("""
+        interface JPanel { val result: String }
+        open class ActivePanel : JPanel {
+            override var result: String = ""
+            fun fire(event: String) { result = event }
+        }
+        class Holder {
+            var panel: JPanel = ActivePanel()
+            init {
+                panel = ActivePanel()
+                panel.fire("OK")
+            }
+        }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError)
+        #expect(ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0024" }))
+    }
+
+    @Test func initBlockOpenMemberValNotSmartCast() throws {
+        let ctx = makeContextFromSource("""
+        interface JPanel { val result: String }
+        open class ActivePanel : JPanel {
+            override var result: String = ""
+            fun fire(event: String) { result = event }
+        }
+        open class BaseHolder {
+            open val panel: JPanel
+            init {
+                panel = ActivePanel()
+                panel.fire("OK")
+            }
+        }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError)
+        #expect(ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0024" }))
+    }
+
+    @Test func initBlockMemberValIncompatibleBranchJoinNotSmartCast() throws {
+        let ctx = makeContextFromSource("""
+        interface JPanel { val result: String }
+        open class ActivePanel : JPanel {
+            override var result: String = ""
+            fun fire(event: String) { result = event }
+        }
+        class PlainPanel : JPanel {
+            override val result: String = "plain"
+        }
+        class Holder(flag: Boolean) {
+            val panel: JPanel
+            init {
+                if (flag) {
+                    panel = ActivePanel()
+                } else {
+                    panel = PlainPanel()
+                }
+                panel.fire("OK")
+            }
+        }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError)
+        #expect(ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0024" }))
+    }
 }
 #endif

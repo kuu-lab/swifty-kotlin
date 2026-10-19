@@ -32,10 +32,10 @@ file fclosed_range_interface package=golden.sema
   decl golden.sema.charClosedRangeEnd[kind=fun;params=kotlin.ranges.ClosedRange<Char>;ret=Char;names=[range];origin=fixture] fun charClosedRangeEnd sym=golden.sema.charClosedRangeEnd[kind=fun;params=kotlin.ranges.ClosedRange<Char>;ret=Char;names=[range];origin=fixture]
 expr e@3:47 int(1) type=Int
 expr e@3:50 int(10) type=Int
-expr e@3:47#1 binary(rangeTo) lhs=e@3:47 rhs=e@3:50 type=Int
+expr e@3:47#1 binary(rangeTo) lhs=e@3:47 rhs=e@3:50 type=kotlin.ranges.IntRange call=kotlin.ranges.rangeTo[kind=fun;recv=Int;params=Int;ret=kotlin.ranges.IntRange;names=[to]]
 expr e@4:49 long(1) type=Long
 expr e@4:53 long(10) type=Long
-expr e@4:49#1 binary(rangeTo) lhs=e@4:49 rhs=e@4:53 type=Long
+expr e@4:49#1 binary(rangeTo) lhs=e@4:49 rhs=e@4:53 type=kotlin.ranges.LongRange call=kotlin.ranges.rangeTo[kind=fun;recv=Long;params=Long;ret=kotlin.ranges.LongRange;names=[to]]
 expr e@5:49 uint(1) type=UInt
 expr e@5:53 uint(10) type=UInt
 expr e@5:49#1 binary(rangeTo) lhs=e@5:49 rhs=e@5:53 type=kotlin.ranges.UIntRange call=kotlin.ranges.rangeTo[kind=fun;recv=UInt;params=UInt;ret=kotlin.ranges.UIntRange;names=[to]]

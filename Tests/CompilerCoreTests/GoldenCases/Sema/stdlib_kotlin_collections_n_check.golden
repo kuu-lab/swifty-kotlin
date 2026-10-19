@@ -13,3 +13,6 @@ expr e@6:12 name(index) type=Int ref=__local_0.index[kind=local;type=Int;origin=
 expr e@6:20 name(count) type=Int ref=__local_1.count[kind=local;type=Int;origin=fixture]
 expr e@6:12#1 binary(add) lhs=e@6:12 rhs=e@6:20 type=Int
 expr e@6:5 return value=e@6:12#1 type=Nothing
+expr e@2:16 string(INVISIBLE_MEMBER) type=String
+expr e@2:36 string(INVISIBLE_REFERENCE) type=String
+expr e@2:7 call callee=e@2:7#1 args=[_:e@2:16,_:e@2:36] type=kotlin.Suppress call=kotlin.Suppress.<init>[kind=ctor;recv=kotlin.Suppress;params=*String;ret=kotlin.Suppress;vararg=[1];names=[names]]

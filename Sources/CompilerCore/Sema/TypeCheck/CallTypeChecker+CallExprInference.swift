@@ -1,16 +1,6 @@
 // swiftlint:disable file_length
 
 // swiftlint:disable type_body_length
-/// Free-function call-expression inference: the `inferCallExpr` dispatcher
-/// that intercepts stdlib/top-level special cases before generic overload
-/// resolution, plus the `kotlin.context` / `kotlin.contextOf` shadowing
-/// predicates consulted only by that dispatcher.
-///
-/// The interception blocks, candidate collection, argument preparation,
-/// and fallback resolution live in the sibling `CallTypeChecker+CallExpr*`
-/// files; this file keeps only the dispatch order.
-///
-/// Split out from `CallTypeChecker.swift`.
 extension CallTypeChecker {
     // swiftlint:disable:next cyclomatic_complexity function_body_length
     func inferCallExpr(
@@ -717,9 +707,6 @@ extension CallTypeChecker {
         return sema.types.errorType
     }
 
-    /// True when `candidate` is the stdlib `kotlin.context` / `kotlin.contextOf`
-    /// intrinsic declaration (KSP-603: bundled Kotlin source, previously a
-    /// synthetic stub).
     func isStdlibContextHelper(
         _ candidate: SymbolID,
         named name: String,

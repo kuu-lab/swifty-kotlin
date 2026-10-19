@@ -1,12 +1,3 @@
-/// `Continuation` factory and member stubs for the synthetic
-/// coroutine registry, plus the property-type / supertype wiring
-/// that links the declared coroutine types.
-///
-/// Extracted from `registerSyntheticCoroutineStubs`
-/// (HeaderHelpers+SyntheticCoroutineRegistry.swift). The extracted
-/// methods thread the shared registry state through `context` so the
-/// call order and side effects are unchanged.
-
 extension DataFlowSemaPhase {
     func registerContinuationStubs(context: inout SyntheticCoroutineRegistryContext) {
         let symbols = context.symbols

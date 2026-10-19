@@ -1,5 +1,3 @@
-/// Source/imported-symbol routing for the common Closeable surface.
-///
 /// The common declarations are collected from bundled Kotlin source or loaded
 /// from a precompiled stdlib artifact. Only the JVM `java.io.Closeable` anchor
 /// remains synthetic for compatibility with existing Java-oriented IO stubs.

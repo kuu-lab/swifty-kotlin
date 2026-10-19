@@ -36,8 +36,6 @@ extension DataFlowSemaPhase {
         let valueParameterUnsafeVarianceTypeParameterIndices: [[Int]]
         let valueParameterAllowsNonLocalReturn: [Bool]
         let valueParameterHasDefaultValues: [Bool]
-        /// STDLIB-592: per-parameter `contract { callsInPlace(param, kind) }` effect
-        /// decoded from metadata, `nil` where the parameter has none.
         let valueParameterCallsInPlaceKinds: [InvocationKind?]
         let contractImplicationEffects: [ContractImplicationEffect]
         let canThrow: Bool

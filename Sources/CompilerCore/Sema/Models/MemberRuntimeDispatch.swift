@@ -460,9 +460,6 @@ enum MemberRuntimeDispatch {
         }
     }
 
-    /// Members with bundled `RangeHOF.kt` definitions on `UIntRange` /
-    /// `ULongRange` — the two types share the same source-backed HOF
-    /// surface (KSP-1525 / KSP-1527 / KSP-1528).
     private static let unsignedRangeSourceBackedHOFs: Set<String> = [
         "iterator", "chunked", "windowed", "take", "drop",
         "map", "mapIndexed", "mapNotNull",
@@ -477,8 +474,6 @@ enum MemberRuntimeDispatch {
         "reversed", "sorted", "toList",
     ]
 
-    /// Members with bundled `RangeHOF.kt` definitions on `UIntProgression` /
-    /// `ULongProgression`.
     private static let unsignedProgressionSourceBackedHOFs: Set<String> = [
         "first", "firstOrNull", "last", "lastOrNull",
         "iterator", "chunked", "windowed", "take", "drop",
@@ -487,7 +482,6 @@ enum MemberRuntimeDispatch {
         "contains", "isEmpty", "count", "sum", "reversed", "toList",
     ]
 
-    /// `Progression.first` / `last` properties (never throw).
     static func rangeFirstLastPropertyLinkName(kind: MemberDispatchReceiverKind, wantLast: Bool) -> String {
         rangeFirstLastLinkName(kind: kind, wantLast: wantLast, orThrow: false)
     }

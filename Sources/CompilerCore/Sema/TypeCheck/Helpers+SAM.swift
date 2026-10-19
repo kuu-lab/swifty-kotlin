@@ -1,8 +1,5 @@
 
 extension TypeCheckHelpers {
-    /// For a functional interface (SAM type), find the single abstract method and
-    /// return its function signature.  Returns `nil` if the symbol is not a
-    /// `funInterface` or has no abstract method with a signature.
     func samMethodSignature(
         for interfaceSymbol: SymbolID,
         sema: SemaModule
@@ -57,8 +54,6 @@ extension TypeCheckHelpers {
         return functions[0]
     }
 
-    /// Type arguments of `owner` as seen from `start<args>`, following supertype
-    /// type-argument mappings. `nil` when `owner` is not a supertype of `start`.
     private func ancestorTypeArgs(
         from start: SymbolID,
         args: [TypeArg],
@@ -100,9 +95,6 @@ extension TypeCheckHelpers {
         return walk(start, args)
     }
 
-    /// Extracts the SAM function type from a functional interface type.
-    /// Given a `classType` whose symbol is a `funInterface`, returns the
-    /// equivalent `FunctionType` derived from the SAM method's signature.
     func samFunctionType(
         for expectedType: TypeID,
         sema: SemaModule

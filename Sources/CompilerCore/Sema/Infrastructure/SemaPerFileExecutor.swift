@@ -1,7 +1,7 @@
 import Dispatch
 
-/// Executes a bounded number of large-stack workers. Every task is joined,
-/// including after failures; results and the first error follow input order.
+/// Every task is joined, including after failures; results and the first error
+/// follow input order.
 enum SemaPerFileExecutor {
     static func collect<Output: Sendable>(
         count: Int,

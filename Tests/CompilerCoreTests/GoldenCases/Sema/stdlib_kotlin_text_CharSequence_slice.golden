@@ -9,7 +9,7 @@ file fstdlib_kotlin_text_CharSequence_slice package=golden.sema
 expr e@4:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceSliceRange.$1.source[kind=vparam;origin=fixture]
 expr e@4:18 int(1) type=Int
 expr e@4:21 int(3) type=Int
-expr e@4:18#1 binary(rangeTo) lhs=e@4:18 rhs=e@4:21 type=Int
+expr e@4:18#1 binary(rangeTo) lhs=e@4:18 rhs=e@4:21 type=kotlin.ranges.IntRange call=kotlin.ranges.rangeTo[kind=fun;recv=Int;params=Int;ret=kotlin.ranges.IntRange;names=[to]]
 expr e@4:5#1 memberCall recv=e@4:5 callee=slice args=[_:e@4:18#1] type=kotlin.CharSequence call=kotlin.text.slice[kind=fun;recv=kotlin.CharSequence;params=kotlin.ranges.IntRange;ret=kotlin.CharSequence;names=[indices]]
 expr e@9:19 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceSliceIterable.$0.source[kind=vparam;origin=fixture]
 expr e@9:32 name(indices) type=kotlin.collections.Iterable<Int> ref=golden.sema.charSequenceSliceIterable.$0.indices[kind=vparam;origin=fixture]

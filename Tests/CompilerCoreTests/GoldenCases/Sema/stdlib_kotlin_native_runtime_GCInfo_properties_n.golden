@@ -105,3 +105,6 @@ expr e@35:66 long(0) type=Long
 expr e@35:10#4 binary(elvis) lhs=e@35:10#3 rhs=e@35:66 type=Long
 expr e@27:12#15 binary(add) lhs=e@27:12#14 rhs=e@35:10#4 type=Long
 expr e@27:5 return value=e@27:12#15 type=Nothing
+expr e@8:8 memberCall recv=e@8:8#1 callee=NativeRuntimeApi args=[] type=kotlin.native.runtime.NativeRuntimeApi ref=kotlin.native.runtime.NativeRuntimeApi[kind=anno]
+expr e@8:8#2 callableRef recv=e@8:8 member=class type=KClass<kotlin.native.runtime.NativeRuntimeApi>
+expr e@8:2 call callee=e@8:2#1 args=[_:e@8:8#2] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]

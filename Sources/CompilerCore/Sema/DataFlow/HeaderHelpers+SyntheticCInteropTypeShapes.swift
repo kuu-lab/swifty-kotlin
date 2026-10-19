@@ -1,7 +1,3 @@
-/// Type-parameter shapes and typealiases for the `kotlinx.cinterop` synthetic
-/// surface (`CValuesRef`/`CValue`, `CPointerVarOf`, `CFunction`, `BooleanVarOf`,
-/// `ByteVarOf`, and the `BooleanVar`/`ByteVar`/`COpaquePointer`/`CArrayPointer`
-/// aliases), extracted from `registerSyntheticCInteropStubs`.
 extension DataFlowSemaPhase {
     func registerCInteropCValuesShapes(
         cinteropPkg: [InternedString],
@@ -290,7 +286,7 @@ extension DataFlowSemaPhase {
 
         // NOTE: ByteArray.toKString() with no explicit args is covered by the
         // ByteArray.toKString(startIndex, endIndex, throwOnInvalidSequence) overload
-        // registered above (all three parameters have default values).
+        // (all three parameters have default values).
         // Registering a separate zero-parameter overload here would cause ambiguity
         // when calling bytes.toKString() with no arguments.
         let byteArrayReceiverType = syntheticClassType(

@@ -1,6 +1,6 @@
 symbol fq=__destructuring_0.evens[kind=local;type=kotlin.collections.List<Int>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.List<Int>
 symbol fq=__destructuring_0.odds[kind=local;type=kotlin.collections.List<Int>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.List<Int>
-symbol fq=__local_0.list[kind=local;type=kotlin.collections.List<out Int>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.List<out Int>
+symbol fq=__local_0.list[kind=local;type=kotlin.collections.List<Int>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.List<Int>
 symbol fq=main[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file flist_partition package=_
   decl main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=main[kind=fun;params=;ret=Unit;origin=fixture]
@@ -9,9 +9,9 @@ expr e@2:26 int(2) type=Int
 expr e@2:29 int(3) type=Int
 expr e@2:32 int(4) type=Int
 expr e@2:35 int(5) type=Int
-expr e@2:16 call callee=e@2:16#1 args=[_:e@2:23,_:e@2:26,_:e@2:29,_:e@2:32,_:e@2:35] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
-expr e@2:5 localDecl list mutable=0 type=_ init=e@2:16 type=Unit ref=__local_0.list[kind=local;type=kotlin.collections.List<out Int>;origin=fixture]
-expr e@3:25 name(list) type=kotlin.collections.List<out Int> ref=__local_0.list[kind=local;type=kotlin.collections.List<out Int>;origin=fixture]
+expr e@2:16 call callee=e@2:16#1 args=[_:e@2:23,_:e@2:26,_:e@2:29,_:e@2:32,_:e@2:35] type=kotlin.collections.List<Int> call=kotlin.collections.listOf[kind=fun;params=*T0;ret=kotlin.collections.List<T0>;gen=1;vararg=[1];names=[elements]] targs=[Int]
+expr e@2:5 localDecl list mutable=0 type=_ init=e@2:16 type=Unit ref=__local_0.list[kind=local;type=kotlin.collections.List<Int>;origin=fixture]
+expr e@3:25 name(list) type=kotlin.collections.List<Int> ref=__local_0.list[kind=local;type=kotlin.collections.List<Int>;origin=fixture]
 expr e@3:42 name(it) type=Int ref=s-0
 expr e@3:47 int(2) type=Int
 expr e@3:42#1 binary(modulo) lhs=e@3:42 rhs=e@3:47 type=Int

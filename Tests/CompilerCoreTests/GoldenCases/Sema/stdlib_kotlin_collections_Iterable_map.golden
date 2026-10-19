@@ -105,6 +105,6 @@ expr e@29:5 localDecl destination mutable=0 type=_ init=e@29:23 type=Unit ref=__
 expr e@30:22 string(a) type=String
 expr e@30:27 name(null) type=Nothing?
 expr e@30:33 string(c) type=String
-expr e@30:15 call callee=e@30:15#1 args=[_:e@30:22,_:e@30:27,_:e@30:33] type=kotlin.collections.List<out String?> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[String?]
+expr e@30:15 call callee=e@30:15#1 args=[_:e@30:22,_:e@30:27,_:e@30:33] type=kotlin.collections.List<String?> call=kotlin.collections.listOf[kind=fun;params=*T0;ret=kotlin.collections.List<T0>;gen=1;vararg=[1];names=[elements]] targs=[String?]
 expr e@30:39 name(destination) type=kotlin.collections.MutableList<Any?> ref=__local_8.destination[kind=local;type=kotlin.collections.MutableList<Any?>;origin=fixture]
 expr e@30:5 call callee=e@30:5#1 args=[_:e@30:15,_:e@30:39] type=kotlin.collections.MutableCollection<Any?> call=mapFamily[kind=fun;params=kotlin.collections.Iterable<String?>,kotlin.collections.MutableCollection<Any?>;ret=kotlin.collections.MutableCollection<Any?>;names=[source,destination];origin=fixture]

@@ -4,10 +4,9 @@ import Foundation
 
 extension CallTypeChecker {
 
-    /// Extension-function candidates for a `receiver.calleeName(...)` call,
-    /// gathered from scope lookups and the bundled/synthetic symbol-table
-    /// fallbacks. Kotlin admits these when no member candidate exists, and
-    /// (KUU-946) when every member proved inapplicable to the call.
+    /// Extension-function candidates for a `receiver.calleeName(...)` call.
+    /// Kotlin admits these when no member candidate exists, and (KUU-946)
+    /// when every member proved inapplicable to the call.
     func collectExtensionCallCandidates(
         named calleeName: InternedString,
         memberLookupType: TypeID,
@@ -377,8 +376,6 @@ extension CallTypeChecker {
             return nil
         }
 
-        // The MutableMap source-backed preference rules from the primary path,
-        // applied to the extension set.
         if calleeName == knownNames.remove,
            ReceiverClassifier(sema: sema, interner: interner).isMutableMapType(memberLookupType),
            args.count == 1
@@ -450,7 +447,6 @@ extension CallTypeChecker {
             false
         }
 
-        // Same expect/actual dedup and visibility gate as the primary path.
         let candidateSet = Set(allCandidates)
         let visibleLocalFunctionCandidates = ctx.scope.lookup(calleeName, matching: { candidate in
             ctx.cachedSymbol(candidate)?.flags.contains(.localFunction) == true
@@ -798,7 +794,6 @@ extension CallTypeChecker {
             diagnostics: ctx.sema.diagnostics
         )
 
-        // Same use-site variance projection check as the primary path.
         if let signature = sema.symbols.functionSignature(for: chosen),
            let varianceResult = sema.types.buildVarianceProjectionSubstitutions(
                receiverType: lookupReceiverType,

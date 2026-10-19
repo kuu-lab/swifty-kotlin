@@ -54,10 +54,8 @@ extension SymbolTable {
     }
 }
 
-/// Compact member shape recovered from a v2 metadata index entry when an
-/// imported symbol is registered as a lazy shell. Arity-based member keys
-/// (bundled-overlap checks) can be answered from this shape without
-/// materializing the declaration body.
+/// Arity-based member keys (bundled-overlap checks) can be answered from this
+/// shape without materializing the declaration body.
 struct ImportedMemberIndexShape {
     let arity: Int
     let receiverOwnerFQName: [InternedString]?
@@ -81,10 +79,9 @@ public final class SymbolTable {
     private var propertyHasCustomGetter: [SymbolID: Bool] = [:]
     private var propertySetterVisibilities: [SymbolID: Visibility] = [:]
     private var directSupertypes: [SymbolID: [SymbolID]] = [:]
-    /// Inverse of `directSupertypes`: supertype symbol → the nominal types
-    /// that declare it. Kept in sync by `setDirectSupertypes` so
-    /// `directSubtypes(of:)` reads a precomputed list instead of scanning
-    /// every nominal type in the module on each call.
+    /// Kept in sync by `setDirectSupertypes` so `directSubtypes(of:)` reads a
+    /// precomputed list instead of scanning every nominal type in the module
+    /// on each call.
     private var directSubtypesIndex: [SymbolID: [SymbolID]] = [:]
     private var supertypeTypeArgsMap: [SymbolID: [SymbolID: [TypeArg]]] = [:]
     private var nominalLayouts: [SymbolID: NominalLayout] = [:]
@@ -119,9 +116,6 @@ public final class SymbolTable {
     private var byModuleFQN: [InternedString: [SymbolID]] = [:]
     private var annotationsStorage: [SymbolID: [MetadataAnnotationRecord]] = [:]
     private var companionObjectSymbols: [SymbolID: SymbolID] = [:]
-    /// BUG-inner-outer: the synthetic `$outer` field holding an `inner
-    /// class`'s enclosing-instance link, keyed by the inner class's own
-    /// symbol. `nil` for every non-inner nominal.
     private var outerInstanceFieldSymbols: [SymbolID: SymbolID] = [:]
     private var objectInitializerSymbols: [SymbolID: SymbolID] = [:]
     private var objectLazyInitializerSymbols: [SymbolID: SymbolID] = [:]
@@ -143,8 +137,6 @@ public final class SymbolTable {
     private var contractCallsInPlaceEffects: [SymbolID: [ContractCallsInPlaceEffect]] = [:]
     private var contractReturnsNotNullEffects: Set<SymbolID> = []
     private var contractConditionEffects: [SymbolID: ContractConditionEffect] = [:]
-    /// ARCH-029: imported library declarations are registered from a compact
-    /// metadata index and materialized the first time semantic data is queried.
     private var lazyImportedMetadataLoader: ((SymbolID) -> Void)?
     private var lazyImportedMetadataLoaded: Set<SymbolID> = []
     private var lazyImportedMetadataLoadInProgress: Set<SymbolID> = []
@@ -152,11 +144,8 @@ public final class SymbolTable {
     private var importedLayoutSynthesizer: ((SymbolID) -> Void)?
     private var importedLayoutSynthesisInProgress = false
     private var importedNominalsWithoutInitializers: Set<SymbolID> = []
-    /// Index-shape hints for lazy shells, keyed by symbol. Consulted by
-    /// arity-key builders so they never force body materialization.
+    /// Consulted by arity-key builders so they never force body materialization.
     private var importedMemberIndexShapes: [SymbolID: ImportedMemberIndexShape] = [:]
-    /// CLASS-008: Interfaces delegated by a class via `: Interface by expr`.
-    /// Key = class symbol, Value = set of interface symbols that class delegates to.
     private var delegatedInterfacesByClass: [SymbolID: Set<SymbolID>] = [:]
 
     /// Globals that carry `.importedLibrary` but whose storage is defined by
@@ -304,7 +293,6 @@ public final class SymbolTable {
 
     public init() {}
 
-    /// Installs the per-compilation loader used by indexed `.kklib` metadata.
     /// The loader is intentionally callback-based so the metadata reader stays
     /// outside the symbol model and can reuse the normal import application path.
     func setLazyImportedMetadataLoader(
@@ -340,8 +328,6 @@ public final class SymbolTable {
         importedLayoutSynthesizer = synthesizer
     }
 
-    /// Records the compact index shape of a lazy shell so arity-based member
-    /// keys resolve without materializing the declaration body.
     func setImportedMemberIndexShape(_ shape: ImportedMemberIndexShape, for symbol: SymbolID) {
         importedMemberIndexShapes[symbol] = shape
     }
@@ -415,8 +401,8 @@ public final class SymbolTable {
         symbolsStorage[index].declSite = declSite
     }
 
-    /// ARCH-031: declaration sites of the given symbols, deduplicated and
-    /// sorted by source position so diagnostics rendering stays deterministic.
+    /// ARCH-031: deduplicated and sorted by source position so diagnostics
+    /// rendering stays deterministic.
     public func sortedDeclSites(of symbols: [SymbolID]) -> [SourceRange] {
         var sites: [SourceRange] = []
         for symbol in symbols {
@@ -520,7 +506,14 @@ public final class SymbolTable {
             }
             // When a classifier coexists with a factory, a duplicate classifier
             // must reuse the classifier rather than the first (possibly callable) entry.
-            if isNominalType(kind) || kind == .typeAlias,
+            // Parameters are likewise encoded as `ownerFQName + [paramName]`, so
+            // a factory parameter can collide with an owner member at one FQName
+            // (e.g. the `AtomicIntArray.size` property vs `fun AtomicIntArray(size:)`);
+            // a duplicate parameter must reuse the first parameter symbol, not
+            // that member — otherwise `setParentSymbol` reparents the member to
+            // the factory function and member lookup loses it.
+            if isNominalType(kind) || kind == .typeAlias
+                || kind == .valueParameter || kind == .typeParameter,
                let matching = existingSymbols.first(where: { $0.kind == kind }) {
                 return matching.id
             }
@@ -682,7 +675,6 @@ public final class SymbolTable {
         flags: SymbolFlags,
         existingSymbols: [SemanticSymbol]
     ) -> Bool {
-        // Allow exactly one matching `expect`/`actual` partner at a given FQ name.
         let existingNonPackage = existingSymbols.filter {
             $0.kind != .package && !$0.flags.contains(.synthetic)
         }
@@ -746,8 +738,6 @@ public final class SymbolTable {
         }
     }
 
-    /// The function/constructor whose signature lists `symbol` in
-    /// `valueParameterSymbols`, if any signature has done so.
     public func valueParameterOwner(for symbol: SymbolID) -> SymbolID? {
         valueParameterOwners[symbol]
     }
@@ -992,9 +982,6 @@ public final class SymbolTable {
         return externalLinkNames[symbol]
     }
 
-    /// Marks an `.importedLibrary`-flagged global as storage-defined by this
-    /// compilation (`.klib` globals have no precompiled object file behind
-    /// them — their serialized IR bodies are materialized into KIR here).
     public func markKlibDefinedGlobal(_ symbol: SymbolID) {
         klibDefinedGlobalSymbols.insert(symbol)
     }
@@ -1252,8 +1239,6 @@ public final class SymbolTable {
         outerInstanceFieldSymbols[innerClass] = field
     }
 
-    /// The `$outer` field symbol holding `innerClass`'s enclosing-instance
-    /// link, or `nil` when `innerClass` is not an `inner class`.
     public func outerInstanceFieldSymbol(for innerClass: SymbolID) -> SymbolID? {
         ensureLazyImportedMetadataLoaded(for: innerClass)
         return outerInstanceFieldSymbols[innerClass]
@@ -1348,17 +1333,14 @@ public final class SymbolTable {
         return sealedSubclassesStorage[symbol]
     }
 
-    /// Mark a property symbol as having a delegate with a `provideDelegate` operator.
     public func setHasProvideDelegate(for property: SymbolID) {
         delegateHasProvideDelegate.insert(property)
     }
 
-    /// Returns whether the delegate type of the given property defines a `provideDelegate` operator.
     public func hasProvideDelegate(for property: SymbolID) -> Bool {
         delegateHasProvideDelegate.contains(property)
     }
 
-    /// Link an `expect` declaration to its matching `actual` declaration.
     public func setExpectActualLink(expect: SymbolID, actual: SymbolID) {
         lock.lock()
         defer { lock.unlock() }
@@ -1368,14 +1350,12 @@ public final class SymbolTable {
         }
     }
 
-    /// Returns the `actual` symbol linked to the given `expect` symbol, if any.
     public func actualSymbol(for expect: SymbolID) -> SymbolID? {
         lock.lock()
         defer { lock.unlock() }
         return expectActualLinks[expect]
     }
 
-    /// Returns the paired expect that owns an actual function's default values.
     public func expectActualDefaultArgumentOwner(for actual: SymbolID) -> SymbolID? {
         lock.lock()
         defer { lock.unlock() }
@@ -1409,46 +1389,36 @@ public final class SymbolTable {
         contractReturnsEffects[function]
     }
 
-    /// STDLIB-592: Record a `callsInPlace` effect for a function's lambda parameter.
     public func addContractCallsInPlaceEffect(_ effect: ContractCallsInPlaceEffect, for function: SymbolID) {
         var effects = contractCallsInPlaceEffects[function] ?? []
         if !effects.contains(effect) { effects.append(effect) }
         contractCallsInPlaceEffects[function] = effects
     }
 
-    /// STDLIB-592: Returns the `callsInPlace` effects recorded for a function, if any.
     public func contractCallsInPlaceEffects(for function: SymbolID) -> [ContractCallsInPlaceEffect] {
         contractCallsInPlaceEffects[function] ?? []
     }
 
-    /// STDLIB-593: Record that a function has a `returnsNotNull` contract effect.
     public func setContractReturnsNotNull(for function: SymbolID) {
         contractReturnsNotNullEffects.insert(function)
     }
 
-    /// STDLIB-591: Record a `returns() implies condition` effect where the
-    /// condition is a Boolean parameter at the given index.
     public func setContractConditionEffect(_ effect: ContractConditionEffect, for function: SymbolID) {
         contractConditionEffects[function] = effect
     }
 
-    /// STDLIB-591: Returns the `returns() implies condition` effect recorded
-    /// for a function, if any.
     public func contractConditionEffect(for function: SymbolID) -> ContractConditionEffect? {
         contractConditionEffects[function]
     }
 
-    /// Returns all symbol IDs of a given kind.
     public func symbols(ofKind kind: SymbolKind) -> [SymbolID] {
         byKind[kind] ?? []
     }
 
-    /// Returns all direct child symbol IDs whose fqName parent prefix matches `parentFQName`.
     public func children(ofFQName parentFQName: [InternedString]) -> [SymbolID] {
         byParentFQName[parentFQName] ?? []
     }
 
-    /// Returns all symbol IDs declared at the given source range.
     public func symbols(atDeclSite site: SourceRange) -> [SymbolID] {
         byDeclSite[site] ?? []
     }

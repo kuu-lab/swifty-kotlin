@@ -12,3 +12,12 @@ expr e@12:28 string(EXACTLY_ONCE) type=String
 expr e@12:5#1 memberCall recv=e@12:5 callee=valueOf args=[_:e@12:28] type=kotlin.contracts.InvocationKind ref=kotlin.valueOf[kind=fun;recv=kotlin.contracts.InvocationKind;params=String;ret=kotlin.contracts.InvocationKind;names=[value]] call=kotlin.valueOf[kind=fun;recv=kotlin.contracts.InvocationKind;params=String;ret=kotlin.contracts.InvocationKind;names=[value]]
 expr e@16:5 name(InvocationKind) type=kotlin.contracts.InvocationKind ref=kotlin.contracts.InvocationKind[kind=enum]
 expr e@16:5#1 memberCall recv=e@16:5 callee=values args=[] type=kotlin.Array<kotlin.contracts.InvocationKind> ref=kotlin.values[kind=fun;recv=kotlin.contracts.InvocationKind;params=;ret=kotlin.Array<kotlin.contracts.InvocationKind>] call=kotlin.values[kind=fun;recv=kotlin.contracts.InvocationKind;params=;ret=kotlin.Array<kotlin.contracts.InvocationKind>]
+expr e@6:8 name(ExperimentalContracts) type=Any ref=kotlin.contracts.ExperimentalContracts[kind=anno]
+expr e@6:8#1 callableRef recv=e@6:8 member=class type=KClass<kotlin.contracts.ExperimentalContracts>
+expr e@6:2 call callee=e@6:2#1 args=[_:e@6:8#1] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]
+expr e@10:8 name(ExperimentalContracts) type=Any ref=kotlin.contracts.ExperimentalContracts[kind=anno]
+expr e@10:8#1 callableRef recv=e@10:8 member=class type=KClass<kotlin.contracts.ExperimentalContracts>
+expr e@10:2 call callee=e@10:2#1 args=[_:e@10:8#1] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]
+expr e@14:8 name(ExperimentalContracts) type=Any ref=kotlin.contracts.ExperimentalContracts[kind=anno]
+expr e@14:8#1 callableRef recv=e@14:8 member=class type=KClass<kotlin.contracts.ExperimentalContracts>
+expr e@14:2 call callee=e@14:2#1 args=[_:e@14:8#1] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]

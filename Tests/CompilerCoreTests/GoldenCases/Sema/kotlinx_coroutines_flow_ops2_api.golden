@@ -58,16 +58,16 @@ expr e@13:36 name(distinct) type=kotlinx.coroutines.flow.Flow<Int> ref=__local_0
 expr e@13:46 name(equivalent) type=kotlinx.coroutines.flow.Flow<Int> ref=__local_1.equivalent[kind=local;type=kotlinx.coroutines.flow.Flow<Int>;origin=fixture]
 expr e@13:82 name(values) type=kotlin.Array<Int> ref=s-5
 expr e@13:89 int(0) type=Int
-expr e@13:82#1 indexedAccess receiver=e@13:82 indices=[e@13:89] type=Int
+expr e@13:82#1 indexedAccess receiver=e@13:82 indices=[e@13:89] type=Int call=kotlin.Array.get[kind=fun;recv=kotlin.Array<T0>;params=Int;ret=T0;gen=1;classGen=1;names=[index]] targs=[Int]
 expr e@13:58 lambda params=[values] body=e@13:82#1 label=combine type=suspend (kotlin.Array<Int>) -> Int
 expr e@13:20 call callee=e@13:20#1 args=[_:e@13:28,_:e@13:36,_:e@13:46,_:e@13:58] type=kotlinx.coroutines.flow.Flow<Int> call=kotlinx.coroutines.flow.combine[kind=fun;params=*kotlinx.coroutines.flow.Flow<T0>,fn{su;p=kotlin.Array<T0>;ret=T1};ret=kotlinx.coroutines.flow.Flow<T1>;gen=2;vararg=[1,0];nonlocal=[0,0];names=[flows,transform]] targs=[Int,Int]
 expr e@13:5 localDecl combined mutable=0 type=_ init=e@13:20 type=Unit ref=__local_7.combined[kind=local;type=kotlinx.coroutines.flow.Flow<Int>;origin=fixture]
 expr e@14:35 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=operators.$0.source[kind=vparam;origin=fixture]
 expr e@14:43 name(distinct) type=kotlinx.coroutines.flow.Flow<Int> ref=__local_0.distinct[kind=local;type=kotlinx.coroutines.flow.Flow<Int>;origin=fixture]
-expr e@14:28 call callee=e@14:28#1 args=[_:e@14:35,_:e@14:43] type=kotlin.collections.List<out kotlinx.coroutines.flow.Flow<Int>> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[kotlinx.coroutines.flow.Flow<Int>]
+expr e@14:28 call callee=e@14:28#1 args=[_:e@14:35,_:e@14:43] type=kotlin.collections.List<kotlinx.coroutines.flow.Flow<Int>> call=kotlin.collections.listOf[kind=fun;params=*T0;ret=kotlin.collections.List<T0>;gen=1;vararg=[1];names=[elements]] targs=[kotlinx.coroutines.flow.Flow<Int>]
 expr e@14:78 name(values) type=kotlin.Array<Int> ref=s-6
 expr e@14:85 int(0) type=Int
-expr e@14:78#1 indexedAccess receiver=e@14:78 indices=[e@14:85] type=Int
+expr e@14:78#1 indexedAccess receiver=e@14:78 indices=[e@14:85] type=Int call=kotlin.Array.get[kind=fun;recv=kotlin.Array<T0>;params=Int;ret=T0;gen=1;classGen=1;names=[index]] targs=[Int]
 expr e@14:54 lambda params=[values] body=e@14:78#1 label=combine type=suspend (kotlin.Array<Int>) -> Int
 expr e@14:20 call callee=e@14:20#1 args=[_:e@14:28,_:e@14:54] type=kotlinx.coroutines.flow.Flow<Int> call=kotlinx.coroutines.flow.combine[kind=fun;params=kotlin.collections.Iterable<kotlinx.coroutines.flow.Flow<T0>>,fn{su;p=kotlin.Array<T0>;ret=T1};ret=kotlinx.coroutines.flow.Flow<T1>;gen=2;nonlocal=[0,0];names=[flows,transform]] targs=[Int,Int]
 expr e@14:5 localDecl iterable mutable=0 type=_ init=e@14:20 type=Unit ref=__local_8.iterable[kind=local;type=kotlinx.coroutines.flow.Flow<Int>;origin=fixture]

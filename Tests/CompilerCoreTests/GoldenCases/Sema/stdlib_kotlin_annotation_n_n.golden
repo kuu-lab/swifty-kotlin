@@ -1,6 +1,7 @@
 symbol fq=golden.sema.AnnotatedAlias[kind=alias;underlying=String;origin=fixture] kind=typeAlias vis=public flags=_
 symbol fq=golden.sema.AnnotatedClass[kind=class;origin=fixture] kind=class vis=public flags=_
 symbol fq=golden.sema.DefaultRuntimeRetention[kind=anno;origin=fixture] kind=annotationClass vis=public flags=_
+symbol fq=golden.sema.SourceBackedAnnotation.<init>[kind=ctor;recv=golden.sema.SourceBackedAnnotation;params=;ret=golden.sema.SourceBackedAnnotation;origin=fixture] kind=constructor vis=public flags=_ sig=recv=golden.sema.SourceBackedAnnotation params=[] ret=golden.sema.SourceBackedAnnotation
 symbol fq=golden.sema.SourceBackedAnnotation[kind=anno;origin=fixture] kind=annotationClass vis=public flags=_
 symbol fq=golden.sema.annotatedFunction[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=golden.sema.annotationRetentionSurface[kind=fun;params=;ret=kotlin.annotation.AnnotationRetention;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.annotation.AnnotationRetention
@@ -17,3 +18,18 @@ expr e@25:57 name(AnnotationRetention) type=kotlin.annotation.AnnotationRetentio
 expr e@25:57#1 memberCall recv=e@25:57 callee=RUNTIME args=[] type=kotlin.annotation.AnnotationRetention ref=kotlin.annotation.AnnotationRetention.RUNTIME[kind=field;type=kotlin.annotation.AnnotationRetention]
 expr e@27:51 name(AnnotationTarget) type=kotlin.annotation.AnnotationTarget ref=kotlin.annotation.AnnotationTarget[kind=enum]
 expr e@27:51#1 memberCall recv=e@27:51 callee=TYPEALIAS args=[] type=kotlin.annotation.AnnotationTarget ref=kotlin.annotation.AnnotationTarget.TYPEALIAS[kind=field;type=kotlin.annotation.AnnotationTarget]
+expr e@4:5 name(AnnotationTarget) type=kotlin.annotation.AnnotationTarget ref=kotlin.annotation.AnnotationTarget[kind=enum]
+expr e@4:5#1 memberCall recv=e@4:5 callee=CLASS args=[] type=kotlin.annotation.AnnotationTarget ref=kotlin.annotation.AnnotationTarget.CLASS[kind=field;type=kotlin.annotation.AnnotationTarget]
+expr e@5:5 name(AnnotationTarget) type=kotlin.annotation.AnnotationTarget ref=kotlin.annotation.AnnotationTarget[kind=enum]
+expr e@5:5#1 memberCall recv=e@5:5 callee=FUNCTION args=[] type=kotlin.annotation.AnnotationTarget ref=kotlin.annotation.AnnotationTarget.FUNCTION[kind=field;type=kotlin.annotation.AnnotationTarget]
+expr e@6:5 name(AnnotationTarget) type=kotlin.annotation.AnnotationTarget ref=kotlin.annotation.AnnotationTarget[kind=enum]
+expr e@6:5#1 memberCall recv=e@6:5 callee=TYPEALIAS args=[] type=kotlin.annotation.AnnotationTarget ref=kotlin.annotation.AnnotationTarget.TYPEALIAS[kind=field;type=kotlin.annotation.AnnotationTarget]
+expr e@3:2 call callee=e@3:2#1 args=[_:e@4:5#1,_:e@5:5#1,_:e@6:5#1] type=kotlin.annotation.Target call=kotlin.annotation.Target.<init>[kind=ctor;recv=kotlin.annotation.Target;params=*kotlin.annotation.AnnotationTarget;ret=kotlin.annotation.Target;vararg=[1];names=[allowedTargets]]
+expr e@8:12 name(AnnotationRetention) type=kotlin.annotation.AnnotationRetention ref=kotlin.annotation.AnnotationRetention[kind=enum]
+expr e@8:12#1 memberCall recv=e@8:12 callee=BINARY args=[] type=kotlin.annotation.AnnotationRetention ref=kotlin.annotation.AnnotationRetention.BINARY[kind=field;type=kotlin.annotation.AnnotationRetention]
+expr e@8:2 call callee=e@8:2#1 args=[_:e@8:12#1] type=kotlin.annotation.Retention call=kotlin.annotation.Retention.<init>[kind=ctor;recv=kotlin.annotation.Retention;params=kotlin.annotation.AnnotationRetention;ret=kotlin.annotation.Retention;defaults=[1];names=[value]]
+expr e@9:2 call callee=e@9:2#1 args=[] type=kotlin.annotation.MustBeDocumented call=kotlin.annotation.MustBeDocumented.<init>[kind=ctor;recv=kotlin.annotation.MustBeDocumented;params=;ret=kotlin.annotation.MustBeDocumented]
+expr e@10:2 call callee=e@10:2#1 args=[] type=kotlin.annotation.Repeatable call=kotlin.annotation.Repeatable.<init>[kind=ctor;recv=kotlin.annotation.Repeatable;params=;ret=kotlin.annotation.Repeatable]
+expr e@13:2 call callee=e@13:2#1 args=[] type=kotlin.annotation.Retention call=kotlin.annotation.Retention.<init>[kind=ctor;recv=kotlin.annotation.Retention;params=kotlin.annotation.AnnotationRetention;ret=kotlin.annotation.Retention;defaults=[1];names=[value]]
+expr e@16:2 call callee=e@16:2#1 args=[] type=golden.sema.SourceBackedAnnotation call=golden.sema.SourceBackedAnnotation.<init>[kind=ctor;recv=golden.sema.SourceBackedAnnotation;params=;ret=golden.sema.SourceBackedAnnotation;origin=fixture]
+expr e@19:2 call callee=e@19:2#1 args=[] type=golden.sema.SourceBackedAnnotation call=golden.sema.SourceBackedAnnotation.<init>[kind=ctor;recv=golden.sema.SourceBackedAnnotation;params=;ret=golden.sema.SourceBackedAnnotation;origin=fixture]

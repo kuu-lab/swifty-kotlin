@@ -2,8 +2,7 @@ extension DataFlowSemaPhase {
     func registerSyntheticStringEncodingStubs(context: SyntheticStringStubContext) -> SymbolID {
         let (symbols, types, interner) = (context.symbols, context.types, context.interner)
         let charSequenceSymbol = context.charSequenceSymbol
-        // --- STDLIB-145: String.toByteArray / encodeToByteArray ---
-        // These APIs are bundled Kotlin source in StringEncoding.kt.
+        // String.toByteArray / encodeToByteArray are bundled Kotlin source in StringEncoding.kt.
         let javaMathPkg = ensurePackage(
             path: ["java", "math"],
             symbols: symbols,
@@ -24,7 +23,6 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(bigDecimalType, for: bigDecimalSymbol)
 
-        // STDLIB-STR-125
         let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
         let stringClassSymbol = ensureClassSymbol(
             named: "String",

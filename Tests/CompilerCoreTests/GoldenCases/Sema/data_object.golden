@@ -1,3 +1,5 @@
+symbol fq=golden.sema.None.equals.other[kind=vparam;origin=unknown] kind=valueParameter vis=private flags=synthetic
+symbol fq=golden.sema.None.equals[kind=fun;recv=golden.sema.None;params=Any?;ret=Boolean;names=[other];origin=fixture] kind=function vis=public flags=synthetic|overrideMember sig=recv=golden.sema.None params=[Any?] ret=Boolean
 symbol fq=golden.sema.None[kind=obj;origin=fixture] kind=object vis=public flags=dataType
 symbol fq=golden.sema.useDataObject[kind=fun;params=;ret=Boolean;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Boolean
 file fdata_object package=golden.sema
@@ -5,4 +7,4 @@ file fdata_object package=golden.sema
   decl golden.sema.useDataObject[kind=fun;params=;ret=Boolean;origin=fixture] fun useDataObject sym=golden.sema.useDataObject[kind=fun;params=;ret=Boolean;origin=fixture]
 expr e@5:32 name(None) type=golden.sema.None ref=golden.sema.None[kind=obj;origin=fixture]
 expr e@5:40 name(None) type=golden.sema.None ref=golden.sema.None[kind=obj;origin=fixture]
-expr e@5:32#1 binary(equal) lhs=e@5:32 rhs=e@5:40 type=Boolean
+expr e@5:32#1 binary(equal) lhs=e@5:32 rhs=e@5:40 type=Boolean call=golden.sema.None.equals[kind=fun;recv=golden.sema.None;params=Any?;ret=Boolean;names=[other];origin=fixture]

@@ -14,7 +14,7 @@ expr e@8:9 call callee=e@8:9#1 args=[] type=kotlin.contracts.Returns call=kotlin
 expr e@8:28 name(value) type=Boolean ref=myRequire.$0.value[kind=vparam;origin=fixture]
 expr e@8:9#2 memberCall recv=e@8:9 callee=implies args=[_:e@8:28] type=kotlin.contracts.ConditionalEffect call=kotlin.contracts.SimpleEffect.implies[kind=fun;recv=kotlin.contracts.SimpleEffect;params=Boolean;ret=kotlin.contracts.ConditionalEffect;names=[booleanExpression]]
 expr e@7:14 lambda params=[] body=e@8:9#2 label=contract type=kotlin.contracts.ContractBuilder.() -> Unit
-expr e@7:5 call callee=e@7:5#1 args=[_:e@7:14] type=Unit
+expr e@7:5 call callee=e@7:5#1 args=[_:e@7:14] type=Unit call=kotlin.contracts.contract[kind=fun;params=fn{r=kotlin.contracts.ContractBuilder;p=;ret=Unit};ret=Unit;names=[builder]]
 expr e@10:10 name(value) type=Boolean ref=myRequire.$0.value[kind=vparam;origin=fixture]
 expr e@10:9 unary(not) operand=e@10:10 type=Boolean
 expr e@10:23 call callee=e@10:23#1 args=[] type=kotlin.IllegalArgumentException call=kotlin.IllegalArgumentException.<init>[kind=ctor;recv=kotlin.IllegalArgumentException;params=;ret=kotlin.IllegalArgumentException]
@@ -60,7 +60,7 @@ expr e@36:13 name(c) type=String? ref=__local_4.c[kind=local;type=String?;origin
 expr e@36:18 name(null) type=Nothing?
 expr e@36:13#1 binary(notEqual) lhs=e@36:13 rhs=e@36:18 type=Boolean
 expr e@36:26 string(c must not be null) type=String
-expr e@36:24 lambda params=[] body=e@36:26 label=require type=() -> String
+expr e@36:24 lambda params=[] body=e@36:26 label=require type=() -> Any
 expr e@36:5 call callee=e@36:5#1 args=[_:e@36:13#1,_:e@36:24] type=Unit call=kotlin.require[kind=fun;params=Boolean,fn{p=;ret=Any};ret=Unit;nonlocal=[0,0];names=[value,lazyMessage]]
 expr e@37:13 name(c) type=String ref=__local_4.c[kind=local;type=String?;origin=fixture]
 expr e@37:13#1 memberCall recv=e@37:13 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]
@@ -74,3 +74,6 @@ expr e@41:5 call callee=e@41:5#1 args=[_:e@41:15#1] type=Unit call=myRequire[kin
 expr e@42:13 name(d) type=String ref=__local_5.d[kind=local;type=String?;origin=fixture]
 expr e@42:13#1 memberCall recv=e@42:13 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]
 expr e@42:5 call callee=e@42:5#1 args=[_:e@42:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@5:8 name(ExperimentalContracts) type=Any ref=kotlin.contracts.ExperimentalContracts[kind=anno]
+expr e@5:8#1 callableRef recv=e@5:8 member=class type=KClass<kotlin.contracts.ExperimentalContracts>
+expr e@5:2 call callee=e@5:2#1 args=[_:e@5:8#1] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]

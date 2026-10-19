@@ -1,8 +1,6 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
-    /// Collection/Flow higher-order-function names deferred for contextual
-    /// lambda typing in `tryInferMemberCallCollectionFlowSpecials`.
     private static let collectionHOFNames: Set<String> = [
         "map", "filter", "filterNot", "mapNotNull", "forEach", "flatMap", "flatMapIndexed", "any", "none", "all",
         "fold", "foldRight", "reduce", "reduceOrNull", "reduceRight", "reduceRightOrNull", "reduceRightIndexed", "reduceRightIndexedOrNull", "foldIndexed", "foldRightIndexed", "reduceIndexed", "reduceIndexedOrNull",
@@ -28,7 +26,6 @@ extension CallTypeChecker {
 
     private static let flowHOFNames: Set<String> = ["map", "filter", "collect"]
 
-    /// Members the collection fast path may claim for a `Map` receiver.
     /// `Map<K, V>` is not an `Iterable` in Kotlin, so Iterable/Collection-only
     /// members (filterNotNull, fold, first, groupBy, ...) must not be claimed:
     /// they fall through to regular overload resolution which reports
@@ -47,7 +44,6 @@ extension CallTypeChecker {
         "maxOfWith", "minOfWith", "maxOfWithOrNull", "minOfWithOrNull",
     ]
 
-    /// Iterable filter-family names that also exist on the `Map` surface.
     private static let mapFilterFamilyHOFNames: Set<String> = ["filter", "filterNot", "filterTo", "filterNotTo"]
     private static let mutableListOnlyCollectionHOFNames: Set<String> = ["sort", "sortBy", "sortByDescending", "sortWith"]
 
@@ -118,11 +114,9 @@ extension CallTypeChecker {
         ).isEmpty {
             return nil
         }
-        // Defer inference of lambda arguments for collection HOFs so that the
-        // contextual function type (and thus implicit `it`) is available.
         // Fallback for receivers that were never routed through a `flow { }`/operator
         // call (e.g. a user function declared `fun f(): Flow<Int>`), so the
-        // `isFlowExpr`/`isFlowSymbol` bindings above were never marked. Recover the
+        // `isFlowExpr`/`isFlowSymbol` bindings were never marked. Recover the
         // same information directly from the receiver's inferred class type.
         let flowClassSymbol = sema.symbols.lookup(fqName: [
             interner.intern("kotlinx"), interner.intern("coroutines"),
@@ -208,9 +202,7 @@ extension CallTypeChecker {
             sema.types.makeNonNullable(receiverType),
             sema: sema
         )
-        // KSP-979: only the plain Iterable surface and nominal user-defined
-        // Iterable subtypes use the new source-backed index family. Concrete
-        // collection receivers retain their existing owner-specific paths.
+        // Concrete collection receivers retain their existing owner-specific paths.
         let isIterableIndexReceiver = !isSequenceReceiver
             && !receiverClassifier.isCollectionLikeType(receiverType)
             && receiverClassifier.isNominalIterableType(receiverType)

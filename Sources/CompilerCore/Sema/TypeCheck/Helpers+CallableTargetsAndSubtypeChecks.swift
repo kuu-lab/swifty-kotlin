@@ -1,6 +1,3 @@
-
-// Callable target resolution and nominal subtype helpers.
-
 struct ContextualCallableReferenceBinding {
     let functionType: TypeID
     let typeArguments: [TypeID]
@@ -59,11 +56,11 @@ extension TypeCheckHelpers {
         return .localValue(symbol)
     }
 
-    /// `boundReceiver` carries the member symbol and the (possibly generic)
-    /// type of a `value::member` or `Type<Args>::member` reference. The member's signature is
-    /// declared in terms of its owner's type parameters (`Transformer<A, B>.apply:
-    /// (A) -> B`), so they are substituted with the receiver's type arguments
-    /// (`Transformer<Int, Int>` -> `(Int) -> Int`) before the function type is built.
+    /// A bound member's signature is declared in terms of its owner's type
+    /// parameters (`Transformer<A, B>.apply: (A) -> B`), so they are
+    /// substituted with the receiver's type arguments
+    /// (`Transformer<Int, Int>` -> `(Int) -> Int`) before the function type
+    /// is built.
     func callableFunctionType(
         for signature: FunctionSignature,
         bindReceiver: Bool,
@@ -141,9 +138,8 @@ extension TypeCheckHelpers {
         )))
     }
 
-    /// Adapts the result of a callable-reference expression when its expected
-    /// function type returns Unit. This is expression-contextual: a stored
-    /// function value with a non-Unit result keeps its original type.
+    /// Expression-contextual: a stored function value with a non-Unit result
+    /// keeps its original type.
     func unitCoercedCallableReferenceType(
         _ callableType: TypeID,
         expectedFunctionType: TypeID,
@@ -170,9 +166,8 @@ extension TypeCheckHelpers {
         )))
     }
 
-    /// Returns the non-suspend comparison type for a callable reference that
-    /// Kotlin adapts to a suspend function parameter. The conversion remains
-    /// argument-only; this type is used for overload matching and constraints.
+    /// The suspend conversion remains argument-only; this type is used for
+    /// overload matching and constraints.
     func suspendConvertedCallableReferenceExpectedType(
         _ callableType: TypeID,
         expectedFunctionType: TypeID,
@@ -199,11 +194,10 @@ extension TypeCheckHelpers {
         )))
     }
 
-    /// Whether `symbolID` declares an *extension* receiver rather than the
-    /// dispatch receiver a member signature stores. Member functions record
-    /// `extensionReceiverType ?? ownerType` as `signature.receiverType`
-    /// (MemberHeaderCollection), so a non-nil receiver whose nominal differs
-    /// from the function's own parent symbol is an extension receiver.
+    /// Member functions record `extensionReceiverType ?? ownerType` as
+    /// `signature.receiverType` (MemberHeaderCollection), so a non-nil receiver
+    /// whose nominal differs from the function's own parent symbol is an
+    /// extension receiver.
     /// Top-level extensions (package/nil parent) count unconditionally:
     /// Kotlin resolves them only through `Type::ext`/`obj::ext` forms and
     /// rejects a bare `::name` reference, while member-extensions are
@@ -808,7 +802,6 @@ extension TypeCheckHelpers {
         return sema.types.isSubtype(actualType, comparison)
     }
 
-    /// Returns the covariant result constraint carried by a reflective KFunction type.
     func reflectiveCallableReferenceReturnType(
         from expectedType: TypeID,
         sema: SemaModule

@@ -1,14 +1,3 @@
-/// Coroutine intrinsic and cancellation stubs for the synthetic
-/// coroutine registry: `Flow.collect`,
-/// `suspendCoroutineUninterceptedOrReturn`, `COROUTINE_SUSPENDED`,
-/// CancellationException constructors, and the cancellation-package
-/// top-level functions.
-///
-/// Extracted from `registerSyntheticCoroutineStubs`
-/// (HeaderHelpers+SyntheticCoroutineRegistry.swift). The extracted
-/// methods thread the shared registry state through `context` so the
-/// call order and side effects are unchanged.
-
 extension DataFlowSemaPhase {
     func registerFlowCollectMember(context: inout SyntheticCoroutineRegistryContext) {
         let symbols = context.symbols

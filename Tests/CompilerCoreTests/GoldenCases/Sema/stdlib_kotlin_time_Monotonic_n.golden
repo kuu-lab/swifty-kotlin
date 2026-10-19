@@ -15,3 +15,6 @@ expr e@12:78 string(value) type=String
 expr e@12:76 lambda params=[] body=e@12:78 label=measureTimedValue type=() -> String
 expr e@12:37#2 memberCall recv=e@12:37#1 callee=measureTimedValue args=[_:e@12:76] type=kotlin.time.TimedValue<String> call=kotlin.time.measureTimedValue[kind=fun;recv=kotlin.time.TimeSource.Monotonic;params=fn{p=;ret=T0};ret=kotlin.time.TimedValue<T0>;gen=1;names=[block]] targs=[String]
 expr e@12:5 localDecl timed mutable=0 type=TimedValue<String> init=e@12:37#2 type=Unit ref=__local_1.timed[kind=local;type=kotlin.time.TimedValue<String>;origin=fixture]
+expr e@9:8 name(ExperimentalTime) type=Any ref=kotlin.time.ExperimentalTime[kind=anno]
+expr e@9:8#1 callableRef recv=e@9:8 member=class type=KClass<kotlin.time.ExperimentalTime>
+expr e@9:2 call callee=e@9:2#1 args=[_:e@9:8#1] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]

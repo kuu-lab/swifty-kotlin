@@ -583,17 +583,12 @@ struct TypeCheckScopeBuilder {
             return false
         }
 
-        // STDLIB-SHARED-009: Keep synthetic operator extensions (e.g. String.get)
-        // out of scope mappings. They are reachable through
-        // CallTypeChecker fallback paths when needed.
         return true
     }
 
-    /// Returns true for symbols that should not be inserted into the
-    /// default-import or wildcard-import scopes. This includes the synthetic
-    /// operator extensions covered by STDLIB-SHARED-009. Member-style and
-    /// operator syntax (e.g. `cs[0]`) resolve source-backed interface members
-    /// normally.
+    /// Includes the synthetic operator extensions covered by STDLIB-SHARED-009.
+    /// Member-style and operator syntax (e.g. `cs[0]`) resolve source-backed
+    /// interface members normally.
     private func shouldSkipDefaultImport(
         _ symbolID: SymbolID,
         sema: SemaModule,

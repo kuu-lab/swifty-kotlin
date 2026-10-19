@@ -562,11 +562,8 @@ extension ExprTypeChecker {
 
 
 
-    /// Registers `.property` symbols for an anonymous or local nominal's
-    /// member properties (plus `$backing_<name>` / `$delegate_<name>` storage
-    /// symbols) — the same rules `MemberHeaderCollection` applies to named
-    /// nominals, keyed by `ownerFQName` so local declarations get unique FQ
-    /// names. Marks every symbol `markObjectLiteralPropertySymbol` so member
+    /// Keyed by `ownerFQName` so local declarations get unique FQ names.
+    /// Marks every symbol `markObjectLiteralPropertySymbol` so member
     /// reads lower as direct field offsets.
     func registerLocalNominalMemberProperties(
         _ memberProperties: [DeclID],
@@ -750,13 +747,11 @@ extension ExprTypeChecker {
         return propertySymbolsByDecl
     }
 
-    /// Type-checks member properties of an anonymous or local nominal:
-    /// declared type -> initializer -> custom getter -> `by` delegate ->
-    /// setter, in the owner nominal's member scope. `initializerLocals` is the
-    /// binding set initializer/delegate expressions infer against (the
-    /// enclosing scope for object literals, ctor-param + captured locals for
-    /// a local class whose initializers run inside `<init>`); accessors,
-    /// lowered as standalone KIR functions, get `accessorBaseLocals`.
+    /// `initializerLocals` is the binding set initializer/delegate expressions
+    /// infer against (the enclosing scope for object literals, ctor-param +
+    /// captured locals for a local class whose initializers run inside
+    /// `<init>`); accessors, lowered as standalone KIR functions, get
+    /// `accessorBaseLocals`.
     func typeCheckLocalNominalMemberProperties(
         _ memberProperties: [DeclID],
         propertySymbolsByDecl: [DeclID: SymbolID],
@@ -1151,10 +1146,6 @@ extension ExprTypeChecker {
             )
         }
 
-        // BUG-242: mirror the named-class path
-        // (`LayoutSynthesis.synthesizeLayoutForNominal`) by walking this
-        // nominal's own transitive interface supertypes and assigning each
-        // one not already covered by inheritance a fresh itable slot.
         var itableSlots = inheritedItableSlots
         var nextItableSlot = max(inheritedItableSize ?? 0, (itableSlots.values.max() ?? -1) + 1)
         for interfaceID in kirTransitiveInterfaceSupertypes(of: ownerSymbol, sema: sema)
@@ -1216,8 +1207,6 @@ extension ExprTypeChecker {
         )
     }
 
-    /// Defines member-function symbols for an anonymous or local nominal
-    /// (object literal, named local `object`, named local `class`).
     /// `memberFQNamePrefix` is the owning nominal's FQ name — members get
     /// `<prefix> + [memberName]`, parameters `<prefix> + [memberName, paramName]`.
     func collectObjectLiteralMemberFunctions(

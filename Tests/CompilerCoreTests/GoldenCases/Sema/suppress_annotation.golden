@@ -9,3 +9,5 @@ expr e@4:38 name(x) type=Any ref=golden.sema.suppressedCast.$0.x[kind=vparam;ori
 expr e@4:38#1 asCast expr=e@4:38 type=String type=String
 expr e@6:40 name(x) type=Any ref=golden.sema.unsuppressedCast.$1.x[kind=vparam;origin=fixture]
 expr e@6:40#1 asCast expr=e@6:40 type=String type=String
+expr e@3:11 string(UNCHECKED_CAST) type=String
+expr e@3:2 call callee=e@3:2#1 args=[_:e@3:11] type=kotlin.Suppress call=kotlin.Suppress.<init>[kind=ctor;recv=kotlin.Suppress;params=*String;ret=kotlin.Suppress;vararg=[1];names=[names]]

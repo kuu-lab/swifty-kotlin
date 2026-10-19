@@ -15,3 +15,6 @@ expr e@8:36 name(statistics) type=kotlin.native.runtime.SweepStatistics ref=__lo
 expr e@8:36#1 memberCall recv=e@8:36 callee=keptCount args=[] type=Long ref=kotlin.native.runtime.SweepStatistics.keptCount[kind=prop;type=Long]
 expr e@8:12#2 binary(add) lhs=e@8:12#1 rhs=e@8:36#1 type=Long
 expr e@8:5 return value=e@8:12#2 type=Nothing
+expr e@5:8 memberCall recv=e@5:8#1 callee=NativeRuntimeApi args=[] type=kotlin.native.runtime.NativeRuntimeApi ref=kotlin.native.runtime.NativeRuntimeApi[kind=anno]
+expr e@5:8#2 callableRef recv=e@5:8 member=class type=KClass<kotlin.native.runtime.NativeRuntimeApi>
+expr e@5:2 call callee=e@5:2#1 args=[_:e@5:8#2] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]

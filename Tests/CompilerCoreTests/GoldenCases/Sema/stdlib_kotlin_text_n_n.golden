@@ -78,7 +78,7 @@ expr e@28:75 lambda params=[] body=e@28:77 label=ifEmpty type=() -> kotlin.text.
 expr e@28:60#1 memberCall recv=e@28:60 callee=ifEmpty args=[_:e@28:75] type=kotlin.text.StringBuilder call=kotlin.text.ifEmpty[kind=fun;recv=T0;params=fn{p=;ret=T1};ret=T1;gen=2;bounds=[kotlin.CharSequence&T1,_];names=[defaultValue]] targs=[kotlin.text.StringBuilder,kotlin.text.StringBuilder]
 expr e@30:57 name(value) type=kotlin.CharSequence ref=golden.sema.genericIfEmpty.$6.value[kind=vparam;origin=fixture]
 expr e@30:73 string(fallback) type=String
-expr e@30:71 lambda params=[] body=e@30:73 label=ifEmpty type=() -> String
+expr e@30:71 lambda params=[] body=e@30:73 label=ifEmpty type=() -> kotlin.CharSequence
 expr e@30:57#1 memberCall recv=e@30:57 callee=ifEmpty args=[_:e@30:71] type=kotlin.CharSequence call=kotlin.text.ifEmpty[kind=fun;recv=T0;params=fn{p=;ret=T1};ret=T1;gen=2;bounds=[kotlin.CharSequence&T1,_];names=[defaultValue]] targs=[kotlin.CharSequence,kotlin.CharSequence]
 expr e@32:43 name(value) type=String ref=golden.sema.stringOnEach.$11.value[kind=vparam;origin=fixture]
 expr e@32:64 name(it) type=Char ref=s-0
@@ -101,3 +101,7 @@ expr e@38:38#1 memberCall recv=e@38:38 callee=toString args=[_:e@38:53] type=Str
 expr e@40:40 name(value) type=Long ref=golden.sema.longToRadix.$8.value[kind=vparam;origin=fixture]
 expr e@40:55 int(16) type=Int
 expr e@40:40#1 memberCall recv=e@40:40 callee=toString args=[_:e@40:55] type=String call=kotlin.text.toString[kind=fun;recv=Long;params=Int;ret=String;names=[radix]]
+expr e@8:11 string(DEPRECATION_ERROR) type=String
+expr e@8:2 call callee=e@8:2#1 args=[_:e@8:11] type=kotlin.Suppress call=kotlin.Suppress.<init>[kind=ctor;recv=kotlin.Suppress;params=*String;ret=kotlin.Suppress;vararg=[1];names=[names]]
+expr e@11:11 string(DEPRECATION_ERROR) type=String
+expr e@11:2 call callee=e@11:2#1 args=[_:e@11:11] type=kotlin.Suppress call=kotlin.Suppress.<init>[kind=ctor;recv=kotlin.Suppress;params=*String;ret=kotlin.Suppress;vararg=[1];names=[names]]

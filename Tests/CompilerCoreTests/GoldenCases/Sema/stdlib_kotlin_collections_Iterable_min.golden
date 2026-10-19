@@ -171,7 +171,7 @@ expr e@49:13#1 memberCall recv=e@49:13 callee=min args=[] type=Int call=kotlin.c
 expr e@49:5 call callee=e@49:5#1 args=[_:e@49:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@50:39 name(values) type=kotlin.collections.List<Int> ref=listOwner.$1.values[kind=vparam;origin=fixture]
 expr e@50:60 name(it) type=Int ref=s-11
-expr e@50:58 lambda params=[] body=e@50:60 label=maxOfOrNull type=(Int) -> Int
+expr e@50:58 lambda params=[] body=e@50:60 label=maxOfOrNull type=(Int) -> Any
 expr e@50:39#1 memberCall recv=e@50:39 callee=maxOfOrNull args=[_:e@50:58] type=Int? call=kotlin.collections.maxOfOrNull[kind=fun;recv=kotlin.collections.List<T0>;params=fn{p=T0;ret=T1};ret=T1?;gen=2;bounds=[_,kotlin.Comparable<T1>];names=[selector]] targs=[Int,Int]
 expr e@50:5 localDecl maxOfOrNullComparable mutable=0 type=Int? init=e@50:39#1 type=Unit ref=__local_19.maxOfOrNullComparable[kind=local;type=Int?;origin=fixture]
 expr e@51:13 name(maxOfOrNullComparable) type=Int? ref=__local_19.maxOfOrNullComparable[kind=local;type=Int?;origin=fixture]

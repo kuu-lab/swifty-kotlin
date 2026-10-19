@@ -1,9 +1,5 @@
 import Foundation
 
-// MPP-001: Validate expect/actual declarations.
-// Platform compilations require matching `actual` declarations. Common modules
-// can retain unmatched `expect` declarations for platform modules to implement.
-
 extension DataFlowSemaPhase {
     func validateExpectActualMatching(
         ast: ASTModule,

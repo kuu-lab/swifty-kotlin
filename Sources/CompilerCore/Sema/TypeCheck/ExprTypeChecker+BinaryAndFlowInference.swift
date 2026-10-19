@@ -678,7 +678,7 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
-        let type: TypeID
+        var type: TypeID
 
         let lhsIsSigned = sema.types.isSigned(lhs)
         let rhsIsUnsigned = sema.types.isUnsigned(rhs)
@@ -868,6 +868,16 @@ extension ExprTypeChecker {
             }
         case .bitwiseAnd, .bitwiseOr, .bitwiseXor, .shl, .shr, .ushr:
             preconditionFailure("Bitwise/shift binary operators must be parsed as infix member calls")
+        }
+        if [.add, .subtract, .multiply, .divide, .modulo].contains(op),
+           type == intType,
+           let expectedType,
+           sema.types.makeNonNullable(expectedType) == longType,
+           let constValue = ConstantCollector().literalConstantExpr(id, ast: ast, interner: interner),
+           case let .intLiteral(foldedInt) = constValue
+        {
+            type = longType
+            sema.bindings.bindConstExprValue(id, value: .longLiteral(foldedInt))
         }
         sema.bindings.bindExprType(id, type: type)
         return type

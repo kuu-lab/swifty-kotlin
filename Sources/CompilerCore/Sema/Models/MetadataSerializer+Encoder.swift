@@ -1,11 +1,8 @@
 import Foundation
 
-/// Encodes compiler symbols into `[MetadataRecord]` and serializes them to the text-based
-/// metadata format consumed by `MetadataDecoder`.
 package final class MetadataEncoder {
     package init() {}
 
-    /// Build metadata records from the compiler's semantic state.
     /// Public and protected declarations form the cross-module API;
     /// `includeNonPublic` additionally includes internal and private declarations.
     /// `requiredNonPublicSymbols` keeps inline implementation dependencies with
@@ -1134,8 +1131,6 @@ package final class MetadataEncoder {
     /// Nominal kinds that carry layout information in metadata.
     static let nominalKinds: Set<SymbolKind> = [.class, .interface, .object, .enumClass, .annotationClass]
 
-    /// True when `symbolID` is (or belongs to) a compiler-generated member of a
-    /// source-backed data or annotation class (KSP-626, KUU-1753).
     private static func isSourceBackedDataOrAnnotationClassMember(
         _ symbolID: SymbolID,
         symbols: SymbolTable,
@@ -1250,7 +1245,6 @@ package final class MetadataEncoder {
         )
     }
 
-    /// Serialize records to the text-based metadata format.
     package func serialize(_ records: [MetadataRecord]) -> String {
         var lines = ["symbols=\(records.count)"]
         for record in records {

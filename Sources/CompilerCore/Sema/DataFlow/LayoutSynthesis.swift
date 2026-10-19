@@ -74,10 +74,7 @@ extension DataFlowSemaPhase {
 
     /// Iterative post-order DFS producing the same deterministic order as a
     /// recursive visit: a nominal is appended after all of its supertype
-    /// nominals, children explored in ascending raw-ID order. Cycles are
-    /// reported once per re-entered node and the offending edge is skipped;
-    /// nodes beyond `maxInheritanceDepth`/`maxTypeCount` are refused with a
-    /// single diagnostic each.
+    /// nominals, children explored in ascending raw-ID order.
     private func buildTopoOrder(
         nominalIDs: [SymbolID],
         symbols: SymbolTable,
@@ -126,9 +123,8 @@ extension DataFlowSemaPhase {
                     worklist[worklist.count - 1].nextIndex += 1
                     let superNominal = frame.supers[frame.nextIndex]
                     if inProgress.contains(superNominal) {
-                        // The supertype is still on the DFS path: the edge
-                        // closes a cycle. Layout cannot give a cyclic graph a
-                        // consistent base-first order, so reject it.
+                        // Layout cannot give a cyclic graph a consistent
+                        // base-first order, so reject it.
                         if reportedCycleTargets.insert(superNominal).inserted {
                             let name = symbols.symbol(superNominal)
                                 .map { renderFQName($0.fqName, interner: interner) } ?? "?"
@@ -421,8 +417,7 @@ extension DataFlowSemaPhase {
         return compatibleSlots.count == 1 ? compatibleSlots.first : nil
     }
 
-    /// Returns the direct function children of `nominalSymbol`, sorted stably by
-    /// raw symbol ID. For `kotlin.sequences.Sequence` we force `iterator()` to be
+    /// For `kotlin.sequences.Sequence` we force `iterator()` to be
     /// assigned vtable slot 0. The runtime helper that traverses source Sequence
     /// objects (`runtimeTraverseSourceSequenceObject`) dispatches `iterator()`
     /// through the Sequence itable using a fixed method slot; keeping that slot
@@ -618,8 +613,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// This nominal's own properties that ever need virtual dispatch: the
-    /// open/abstract root of an override chain, or a link further down it.
     /// A plain `final` property is never overridden in either direction, so
     /// it keeps the existing direct field-offset/accessor-call fast path
     /// untouched and never needs a slot here.

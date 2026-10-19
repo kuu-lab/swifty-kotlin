@@ -24,15 +24,15 @@ expr e@7:5#1 memberCall recv=e@7:5 callee=substring args=[startIndex:e@7:35,endI
 expr e@10:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceSubstringRange.$3.source[kind=vparam;origin=fixture]
 expr e@10:22 int(1) type=Int
 expr e@10:25 int(3) type=Int
-expr e@10:22#1 binary(rangeTo) lhs=e@10:22 rhs=e@10:25 type=Int
+expr e@10:22#1 binary(rangeTo) lhs=e@10:22 rhs=e@10:25 type=kotlin.ranges.IntRange call=kotlin.ranges.rangeTo[kind=fun;recv=Int;params=Int;ret=kotlin.ranges.IntRange;names=[to]]
 expr e@10:5#1 memberCall recv=e@10:5 callee=substring args=[_:e@10:22#1] type=String call=kotlin.text.substring[kind=fun;recv=kotlin.CharSequence;params=kotlin.ranges.IntRange;ret=String;names=[range]]
 expr e@13:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceSubstringNamedRange.$2.source[kind=vparam;origin=fixture]
 expr e@13:30 int(1) type=Int
 expr e@13:33 int(3) type=Int
-expr e@13:30#1 binary(rangeTo) lhs=e@13:30 rhs=e@13:33 type=Int
+expr e@13:30#1 binary(rangeTo) lhs=e@13:30 rhs=e@13:33 type=kotlin.ranges.IntRange call=kotlin.ranges.rangeTo[kind=fun;recv=Int;params=Int;ret=kotlin.ranges.IntRange;names=[to]]
 expr e@13:5#1 memberCall recv=e@13:5 callee=substring args=[range:e@13:30#1] type=String call=kotlin.text.substring[kind=fun;recv=kotlin.CharSequence;params=kotlin.ranges.IntRange;ret=String;names=[range]]
 expr e@16:5 name(source) type=String ref=golden.sema.stringSubstringRange.$4.source[kind=vparam;origin=fixture]
 expr e@16:22 int(1) type=Int
 expr e@16:25 int(3) type=Int
-expr e@16:22#1 binary(rangeTo) lhs=e@16:22 rhs=e@16:25 type=Int
+expr e@16:22#1 binary(rangeTo) lhs=e@16:22 rhs=e@16:25 type=kotlin.ranges.IntRange call=kotlin.ranges.rangeTo[kind=fun;recv=Int;params=Int;ret=kotlin.ranges.IntRange;names=[to]]
 expr e@16:5#1 memberCall recv=e@16:5 callee=substring args=[_:e@16:22#1] type=String call=kotlin.text.substring[kind=fun;recv=kotlin.CharSequence;params=kotlin.ranges.IntRange;ret=String;names=[range]]

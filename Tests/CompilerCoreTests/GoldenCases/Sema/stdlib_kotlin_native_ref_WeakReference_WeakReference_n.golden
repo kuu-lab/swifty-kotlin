@@ -13,4 +13,4 @@ expr e@9:5#1 memberCall recv=e@9:5 callee=clear args=[] type=Unit call=kotlin.na
 expr e@12:67 name(reference) type=kotlin.native.ref.WeakReference<String> ref=golden.sema.getWeakReference.$1.reference[kind=vparam;origin=fixture]
 expr e@12:67#1 memberCall recv=e@12:67 callee=get args=[] type=String? call=kotlin.native.ref.get[kind=fun;recv=kotlin.native.ref.WeakReference<T0>;params=;ret=T0?;gen=1;bounds=[Any]] targs=[String]
 expr e@14:66 name(reference) type=kotlin.native.ref.WeakReference<String> ref=golden.sema.valueWeakReference.$2.reference[kind=vparam;origin=fixture]
-expr e@14:66#1 memberCall recv=e@14:66 callee=value args=[] type=Any? call=kotlin.native.ref.value.$get[kind=fun;recv=kotlin.native.ref.WeakReference<*>;params=;ret=Any?]
+expr e@14:66#1 memberCall recv=e@14:66 callee=value args=[] type=String? ref=kotlin.native.ref.WeakReference.value[kind=prop;type=T0?]

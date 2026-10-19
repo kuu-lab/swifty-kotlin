@@ -1,20 +1,14 @@
 
-/// Helpers split from `CallTypeChecker+MemberCallInference.swift`:
-/// Receiver-type predicates and synthetic-builtin dispatchers (Flow, Continuation, KClass, Channel, File, Coroutine handle).
-///
-/// Split out to isolate merge conflicts between parallel stdlib PRs.
+/// Split out from `CallTypeChecker+MemberCallInference.swift` to isolate merge
+/// conflicts between parallel stdlib PRs.
 extension CallTypeChecker {
 
-    /// Safe lookup for well-known stdlib symbols (List, Map, Pair, etc.).
-    /// Returns `nil` if the symbol is not found. Callers should fall back to
-    /// `sema.types.anyType` when the result is nil, following the error-resilient
-    /// design principle (never crash on missing symbols).
+    /// Callers should fall back to `sema.types.anyType` when the result is nil,
+    /// following the error-resilient design principle (never crash on missing symbols).
     func lookupStdlibSymbol(_ name: String, symbols: SymbolTable, interner: StringInterner) -> SymbolID? {
         symbols.lookupByShortName(interner.intern(name)).first
     }
 
-    /// Prefer Collection<T>.toList() when both source-backed collection
-    /// extensions are visible for a concrete Collection receiver.
     func preferCollectionToListCandidates(
         _ candidates: [SymbolID],
         receiverType: TypeID,
@@ -356,10 +350,6 @@ extension CallTypeChecker {
         return listTakeCandidates.isEmpty ? candidates : listTakeCandidates
     }
 
-    /// Receiver check for the scope fallback that restores synthetic extensions excluded from import scopes.
-    /// Aligns with `Helpers.collectMemberFunctionCandidates`: require `actual <: declared` when possible,
-    /// but keep generics such as `Continuation<T>.intercepted` where `isSubtype(Continuation<Int>, Continuation<T>)`
-    /// is not decided until inference (mirrors the `rangeUntil`/`genericReceiver` escape hatch there).
     /// Member extensions declared on the lexical dispatch receiver
     /// (e.g. a `SelectBuilder<R>` enclosing receiver) participate in calls
     /// whose call-site receiver is the *extension* receiver: `clause { }`
@@ -397,6 +387,10 @@ extension CallTypeChecker {
         return []
     }
 
+    /// Receiver check for the scope fallback that restores synthetic extensions excluded from import scopes.
+    /// Aligns with `Helpers.collectMemberFunctionCandidates`: require `actual <: declared` when possible,
+    /// but keep generics such as `Continuation<T>.intercepted` where `isSubtype(Continuation<Int>, Continuation<T>)`
+    /// is not decided until inference (mirrors the `rangeUntil`/`genericReceiver` escape hatch there).
     func extensionSyntheticFallbackReceiverMatches(
         callSiteReceiver: TypeID,
         declaredReceiver: TypeID,
@@ -481,7 +475,6 @@ extension CallTypeChecker {
                 return false
             }
         }
-        // Recursively checks whether a type, or any of its nested type arguments, is a type parameter.
         // Required for declared receivers like Array<CPointer<T>?> where the type param is one level deep.
         func containsTypeParam(_ t: TypeID) -> Bool {
             let nonNull = sema.types.makeNonNullable(t)
@@ -617,7 +610,6 @@ extension CallTypeChecker {
 
         switch memberName {
         case "toList":
-            // Flow.toList() — collects all emitted values into a List
             guard args.isEmpty else {
                 return nil
             }
@@ -636,7 +628,6 @@ extension CallTypeChecker {
             return finalType
 
         case "first":
-            // Flow.first() — returns the first emitted value
             guard args.isEmpty else {
                 return nil
             }
@@ -646,7 +637,6 @@ extension CallTypeChecker {
             return finalType
 
         case "single":
-            // Flow.single() — returns the only emitted value.
             guard args.isEmpty else {
                 return nil
             }
@@ -911,7 +901,6 @@ extension CallTypeChecker {
         return nil
     }
 
-    /// Returns true when the receiver type is java.io.File.
     func isFileType(
         _ receiverType: TypeID,
         sema: SemaModule,
@@ -926,7 +915,6 @@ extension CallTypeChecker {
             && interner.resolve(symbol.fqName[symbol.fqName.count - 2]) == "io"
     }
 
-    /// Returns true when the receiver type is java.io.BufferedReader.
     /// Used by Reader-targeted special-case lambda inference (STDLIB-IO-FN-040)
     /// where the `useLines` extension on `kotlin.io.Reader` resolves to the
     /// synthetic `BufferedReader.useLines` stub registered by
@@ -981,14 +969,10 @@ extension CallTypeChecker {
         }
     }
 
-    /// Handles numeric companion access on a type-name receiver:
-    ///
-    ///   - **Constants** (STDLIB-153): `Int.MAX_VALUE`, `Double.NaN`, `Float.POSITIVE_INFINITY`, etc.
-    ///     when `args.isEmpty` — looked up via `numericCompanionConstant`.
-    /// Returns the inferred type when handled, or `nil` to fall through. Both
-    /// branches require the receiver to be a `nameRef` (typed identifier) that
-    /// is not currently bound as a local — an Int *value* named `Int` shadows
-    /// the type and falls through.
+    /// Returns the inferred type when handled, or `nil` to fall through. The
+    /// receiver must be a `nameRef` (typed identifier) that is not currently
+    /// bound as a local — an Int *value* named `Int` shadows the type and falls
+    /// through.
     func tryInferNumericCompanionMemberCall(
         _ id: ExprID,
         receiverID: ExprID,
@@ -1010,7 +994,6 @@ extension CallTypeChecker {
         let receiverStr = interner.resolve(receiverName)
         let memberStr = interner.resolve(calleeName)
 
-        // STDLIB-153: Numeric companion constants — Int.MAX_VALUE, Double.NaN, etc.
         if args.isEmpty,
            let (constantType, constantValue) = numericCompanionConstant(
                typeName: receiverStr, memberName: memberStr, sema: sema
@@ -1093,6 +1076,4 @@ extension CallTypeChecker {
         return resultType
     }
 
-    /// This legacy inference path still owns many special cases while the split-out helpers
-    /// are being migrated.
 }

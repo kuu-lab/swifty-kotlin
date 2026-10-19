@@ -189,9 +189,9 @@ extension CallTypeChecker {
         )
     }
 
-    /// The expected source type of one nested call argument. A spread argument
-    /// and a named vararg argument carry the complete array at the call site;
-    /// their contextual type is therefore the vararg array, not its element.
+    /// A spread argument and a named vararg argument carry the complete array
+    /// at the call site; their contextual type is therefore the vararg array,
+    /// not its element.
     func contextualCallArgumentType(
         _ argument: CallArgument,
         parameterIndex: Int,
@@ -225,9 +225,8 @@ extension CallTypeChecker {
         )))
     }
 
-    /// Returns a concrete parameter type shared by every candidate for a call
-    /// argument. This lets context-sensitive expressions such as `if` inherit
-    /// an unambiguous expected type without choosing between overloads early.
+    /// Lets context-sensitive expressions such as `if` inherit an unambiguous
+    /// expected type without choosing between overloads early.
     func uniformContextualParameterType(
         for argument: CallArgument,
         at index: Int,
@@ -268,10 +267,9 @@ extension CallTypeChecker {
         return commonType
     }
 
-    /// Returns the single unsigned parameter type shared by all candidates for a
-    /// suffixed unsigned literal. Unlike unsuffixed integer literals, Kotlin
-    /// allows a constant UInt literal to narrow to UByte/UShort or widen to
-    /// ULong when the expected parameter type requires it.
+    /// Unlike unsuffixed integer literals, Kotlin allows a constant UInt
+    /// literal to narrow to UByte/UShort or widen to ULong when the expected
+    /// parameter type requires it.
     func uniformUnsignedLiteralParameterType(
         at index: Int,
         argumentLabel: InternedString?,

@@ -18,8 +18,8 @@ extension CallTypeChecker {
         let ast = ctx.ast
         let sema = ctx.sema
         let interner = ctx.interner
-        // Early range HOF fallback: range forEach/map need lambda inference with
-        // expectedType so the implicit `it` parameter gets bound correctly.
+        // Range forEach/map need lambda inference with expectedType so the
+        // implicit `it` parameter gets bound correctly.
         // Must run before argument pre-inference below to avoid resolving
         // lambdas without the expected function type.
         if sema.bindings.isRangeExpr(receiverID),
@@ -299,8 +299,8 @@ extension CallTypeChecker {
             }
         }
 
-        // Comparator member HOFs (STDLIB-176): thenBy/thenByDescending/thenDescending/thenComparator.
-        // These need the Comparator<T> receiver type so the lambda gets the correct
+        // thenBy/thenByDescending/thenDescending/thenComparator need the
+        // Comparator<T> receiver type so the lambda gets the correct
         // contextual function signature before the general resolution path runs.
         if args.count == 2,
            ["thenBy", "thenByDescending"].contains(interner.resolve(calleeName)),

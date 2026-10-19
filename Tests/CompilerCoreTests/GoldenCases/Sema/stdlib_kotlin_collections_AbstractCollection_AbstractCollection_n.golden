@@ -25,7 +25,7 @@ expr e@7:47#1 memberCall recv=e@7:47 callee=size args=[] type=Int call=kotlin.co
 expr e@7:39#1 binary(lessThan) lhs=e@7:39 rhs=e@7:47#1 type=Boolean
 expr e@10:21 name(values) type=kotlin.Array<String?> ref=ProbeIterator.values[kind=prop;type=kotlin.Array<String?>;origin=fixture]
 expr e@10:28 name(index) type=Int ref=ProbeIterator.index[kind=prop;type=Int;mutable;origin=fixture]
-expr e@10:21#1 indexedAccess receiver=e@10:21 indices=[e@10:28] type=String?
+expr e@10:21#1 indexedAccess receiver=e@10:21 indices=[e@10:28] type=String? call=kotlin.Array.get[kind=fun;recv=kotlin.Array<T0>;params=Int;ret=T0;gen=1;classGen=1;names=[index]] targs=[String?]
 expr e@10:9 localDecl value mutable=0 type=_ init=e@10:21#1 type=Unit ref=__local_0.value[kind=local;type=String?;origin=fixture]
 expr e@11:18 int(1) type=Int
 expr e@11:9 compoundAssign(plusAssign) name=index value=e@11:18 type=Unit ref=ProbeIterator.index[kind=prop;type=Int;mutable;origin=fixture]

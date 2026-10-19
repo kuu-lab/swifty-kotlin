@@ -3,3 +3,4 @@ symbol fq=golden.sema.acceptUuid[kind=fun;params=kotlin.uuid.Uuid;ret=kotlin.uui
 file fstdlib_kotlin_uuid_n_n package=golden.sema
   decl golden.sema.acceptUuid[kind=fun;params=kotlin.uuid.Uuid;ret=kotlin.uuid.Uuid;names=[uuid];origin=fixture] fun acceptUuid sym=golden.sema.acceptUuid[kind=fun;params=kotlin.uuid.Uuid;ret=kotlin.uuid.Uuid;names=[uuid];origin=fixture]
 expr e@7:36 name(uuid) type=kotlin.uuid.Uuid ref=golden.sema.acceptUuid.$0.uuid[kind=vparam;origin=fixture]
+expr e@6:2 call callee=e@6:2#1 args=[] type=kotlin.uuid.ExperimentalUuidApi call=kotlin.uuid.ExperimentalUuidApi.<init>[kind=ctor;recv=kotlin.uuid.ExperimentalUuidApi;params=;ret=kotlin.uuid.ExperimentalUuidApi]

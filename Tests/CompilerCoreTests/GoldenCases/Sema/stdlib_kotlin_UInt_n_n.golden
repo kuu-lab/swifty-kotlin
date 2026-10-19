@@ -49,3 +49,6 @@ expr e@14:29 unary(unaryMinus) operand=e@14:30 type=Int
 expr e@14:24 call callee=e@14:24#1 args=[_:e@14:29] type=UInt call=kotlin.UInt[kind=fun;params=Int;ret=UInt;names=[data]]
 expr e@16:35 name(value) type=Any ref=golden.sema.isUInt.$0.value[kind=vparam;origin=fixture]
 expr e@16:35#1 isCheck expr=e@16:35 type=UInt type=Boolean
+expr e@2:16 string(INVISIBLE_MEMBER) type=String
+expr e@2:36 string(INVISIBLE_REFERENCE) type=String
+expr e@2:7 call callee=e@2:7#1 args=[_:e@2:16,_:e@2:36] type=kotlin.Suppress call=kotlin.Suppress.<init>[kind=ctor;recv=kotlin.Suppress;params=*String;ret=kotlin.Suppress;vararg=[1];names=[names]]

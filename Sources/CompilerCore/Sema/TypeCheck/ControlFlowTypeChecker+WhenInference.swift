@@ -43,8 +43,6 @@ extension ControlFlowTypeChecker {
                 ctx.whenSubjectTypes[subjectID] = subjectType
             }
 
-            // Register `when (val x = expr)` subject variable into locals so
-            // that branch bodies and guards can reference it.
             if let subjectVarName = ast.arena.whenSubjectVarName(for: id) {
                 let subjectVarSymbol = sema.symbols.define(
                     kind: .local,
@@ -63,7 +61,6 @@ extension ControlFlowTypeChecker {
             }
 
             let subjectLocalBinding: (name: InternedString, type: TypeID, symbol: DataFlowReference, isStable: Bool, isMutable: Bool)? = {
-                // First try the subject variable name from `when (val x = expr)`.
                 if let subjectVarName = ast.arena.whenSubjectVarName(for: id),
                    let local = locals[subjectVarName]
                 {
@@ -237,11 +234,8 @@ extension ControlFlowTypeChecker {
                 var branchCtx = ctx
                 var trueFlowStates: [DataFlowState] = []
                 var cumulativeFalseState = ctx.flowState.includingMembers(from: locals)
-                // Track condition keys within this single branch for
-                // intra-branch duplicate detection.
                 var branchConditionKeys: Set<String> = []
 
-                // Type-check and collect coverage for all branch conditions.
                 for cond in branch.conditions {
                     let conditionCtx = ctx.copying(flowState: cumulativeFalseState)
                     let condType = driver.inferExpr(cond, ctx: conditionCtx, locals: &branchLocals)
@@ -253,8 +247,6 @@ extension ControlFlowTypeChecker {
                         recordCoverage(for: cond, conditionType: condType)
                     }
 
-                    // CTRL-001: Detect duplicate conditions within a branch
-                    // and across branches for diagnostic purposes.
                     if let key = whenConditionKey(for: cond, ast: ast, sema: sema, interner: interner) {
                         if !branchConditionKeys.insert(key).inserted {
                             ctx.sema.diagnostics.warning(
@@ -359,7 +351,6 @@ extension ControlFlowTypeChecker {
                     }
                 }
 
-                // Type-check guard expression as Boolean (Kotlin 2.1 when guard conditions).
                 // The guard is checked within the narrowed context so smart casts from
                 // `is` checks are available.
                 if let guardExpr = branch.guard_ {
@@ -437,7 +428,6 @@ extension ControlFlowTypeChecker {
                         return false
                     }
                 }
-                // P5-78: enhanced diagnostic for sealed types listing missing branches
                 if !hasQualifiedObjectCondition,
                    let missingBranches = ctx.dataFlow.missingSealedBranches(
                        subjectType: subjectType, branches: summary, sema: sema
@@ -459,7 +449,6 @@ extension ControlFlowTypeChecker {
                 }
             }
 
-            // Propagate definite initialization across exhaustive when branches.
             // A branch whose body never completes normally (`return`/`throw`/
             // `break`/`continue`, typed `Nothing`) vacuously satisfies any
             // initialization requirement: control can only reach the code after
@@ -527,7 +516,6 @@ extension ControlFlowTypeChecker {
                 var condCtx = ctx.copying(flowState: cumulativeFalseState)
                 driver.exprChecker.applyFlowStateToLocals(cumulativeFalseState, locals: &branchLocals, sema: sema)
                 var branchCtx = condCtx
-                // Subject-less when: each condition must be Boolean; multiple conditions = OR.
                 // Collect all true-states and merge them (join) for the body context,
                 // since the body executes when ANY condition is true.
                 // condCtx is updated after each condition so subsequent conditions see
@@ -549,7 +537,6 @@ extension ControlFlowTypeChecker {
                     trueStates.append(condBranch.trueState)
                     // Chain false-state: branch is false only when ALL conditions are false
                     cumulativeFalseState = condBranch.falseState
-                    // Update condCtx so subsequent conditions see prior conditions' false-state narrowing
                     condCtx = ctx.copying(flowState: cumulativeFalseState)
                     driver.exprChecker.applyFlowStateToLocals(cumulativeFalseState, locals: &branchLocals, sema: sema)
                     if let condExpr = ast.arena.expr(cond) {
@@ -563,7 +550,6 @@ extension ControlFlowTypeChecker {
                         }
                     }
                 }
-                // Join all true-states: body sees the union (OR) of all conditions' narrowings
                 if let firstTrue = trueStates.first {
                     var joinedState = firstTrue
                     for state in trueStates.dropFirst() {
@@ -574,7 +560,6 @@ extension ControlFlowTypeChecker {
                     driver.exprChecker.applyFlowStateToLocals(joinedState, locals: &branchLocals, sema: sema)
                 }
 
-                // Type-check guard expression as Boolean (Kotlin 2.1 when guard conditions).
                 if let guardExpr = branch.guard_ {
                     let guardType = driver.inferExpr(guardExpr, ctx: branchCtx, locals: &branchLocals)
                     if guardType != boolType, guardType != sema.types.errorType {
@@ -619,7 +604,6 @@ extension ControlFlowTypeChecker {
                 )
             }
 
-            // Propagate definite initialization across exhaustive when branches.
             // A branch whose body never completes normally (`return`/`throw`/
             // `break`/`continue`, typed `Nothing`) vacuously satisfies any
             // initialization requirement: control can only reach the code after
@@ -654,6 +638,11 @@ extension ControlFlowTypeChecker {
                 .filter { $0.0 != sema.types.nothingType }.map(\.1)
             mergeNullableBranchAssignments(
                 completingLocals + (isExhaustive ? [] : [locals]), sema: sema, locals: &locals
+            )
+            locals.memberFlow = joinMemberFlow(
+                from: completingLocals + (isExhaustive ? [] : [locals]),
+                base: locals.memberFlow,
+                sema: sema
             )
             let contextualizedTypes = contextualizeLongBranchLiterals(
                 expressions: branches.map(\.body) + (elseExpr.map { [$0] } ?? []),

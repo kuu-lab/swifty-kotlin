@@ -646,6 +646,16 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        registerCInteropUseContentsStub(
+            cinteropPkg: cinteropPkg,
+            cinteropPkgSymbol: cinteropPkgSymbol,
+            cValueSymbol: cValueSymbol,
+            cStructVarSymbol: cStructVarSymbol,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+
         registerCInteropPointerAliases(
             cinteropPkg: cinteropPkg,
             cinteropPkgSymbol: cinteropPkgSymbol,
