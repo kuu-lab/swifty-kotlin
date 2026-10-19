@@ -9,16 +9,6 @@ package kotlin
 
 import kotlin.reflect.KClass
 
-/**
- * Annotation that marks open for subclassing classes and interfaces, and makes implementation
- * and extension of such declarations as requiring an explicit opt-in.
- *
- * When applied, any attempt to subclass the target declaration will trigger an opt-in
- * with the corresponding level and message.
- *
- * @property markerClass specifies marker annotation that require explicit opt-in.
- * @see RequiresOptIn for a detailed description of opt-in semantics and propagation rules.
- */
 @kotlin.annotation.Target(AnnotationTarget.CLASS)
 @kotlin.annotation.Retention(AnnotationRetention.BINARY)
 @kotlin.SinceKotlin("2.1")
