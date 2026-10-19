@@ -1,1 +1,7 @@
-legacy
+sink.buffered=true
+sink.pending=empty
+sink.emitted=new
+source.buffered=true
+source.read=source-input
+source.missing=FileNotFoundException
+sink.directory=IOException
