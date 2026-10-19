@@ -1,7 +1,3 @@
-/// Member-call fallback resolution for `Array<T>` and primitive-array
-/// receivers (STDLIB-087/088/089).
-///
-/// Split out from `CallTypeChecker+MemberCallFallbacks.swift`.
 extension CallTypeChecker {
     // Array.fill consumes the invariant extension parameter rather than the
     // Array class parameter, so the ordinary member variance check misses it.
@@ -324,7 +320,6 @@ extension CallTypeChecker {
             return nil
         }
 
-        // Extract the actual element type from the Array<T> receiver (TYPE-103).
         let receiverElementType = arrayFallbackElementType(receiverID: receiverID, sema: sema, interner: interner)
         if memberName == "copyOf", args.indices.contains(0) {
             _ = driver.inferExpr(
@@ -368,7 +363,6 @@ extension CallTypeChecker {
             )
         }
 
-        // Mark result as collection if it returns a List
         if isArrayMemberReturningCollection(memberName) {
             sema.bindings.markCollectionExpr(id)
         }
@@ -485,10 +479,6 @@ extension CallTypeChecker {
         return nil
     }
 
-    /// Extract the element type from an `Array<T>` receiver.
-    /// For generic `Array<T>`, returns `T`; for primitive arrays (IntArray, etc.)
-    /// returns the corresponding primitive type.  Falls back to `Any` when the
-    /// element type cannot be determined.
     private func arrayFallbackElementType(
         receiverID: ExprID,
         sema: SemaModule,
@@ -504,7 +494,6 @@ extension CallTypeChecker {
 
         let knownNames = KnownCompilerNames(interner: interner)
 
-        // Generic Array<T>: extract type argument.
         if symbol.name == knownNames.array, let firstArg = classType.args.first {
             return switch firstArg {
             case let .invariant(type), let .out(type), let .in(type):
@@ -521,9 +510,6 @@ extension CallTypeChecker {
         ) ?? sema.types.anyType
     }
 
-    /// Element type of a primitive array class (`IntArray`, `DoubleArray`, ...),
-    /// or `nil` when the class is not a primitive array.
-    ///
     /// Primitive arrays carry no type argument, so their element type has to be
     /// recovered from the class name.
     /// Note: Byte/Short map to intType (same as builtinType resolution).
@@ -550,7 +536,6 @@ extension CallTypeChecker {
         return primitiveMapping.first { $0.0 == className }?.1
     }
 
-    /// STDLIB-REFLECT-063: Checks whether the receiver type is `kotlin.reflect.KFunction<*>`.
     private func isKFunctionReceiverType(
         _ receiverType: TypeID,
         sema: SemaModule
@@ -564,7 +549,6 @@ extension CallTypeChecker {
         return true
     }
 
-    /// Returns the return-type argument of a `KFunction<R>` type, or `anyType` when not available.
     private func kFunctionReturnType(
         _ receiverType: TypeID,
         sema: SemaModule
@@ -580,8 +564,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Handles member calls on `KFunction<R>` receivers:
-    /// - `call(vararg args)` → returns R (the KFunction type argument)
     func tryKFunctionMemberFallback(
         _ id: ExprID,
         calleeName: InternedString,
@@ -601,7 +583,6 @@ extension CallTypeChecker {
 
         switch memberName {
         case "call":
-            // Infer argument types (accept any).
             for arg in args {
                 _ = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals, expectedType: nil)
             }
