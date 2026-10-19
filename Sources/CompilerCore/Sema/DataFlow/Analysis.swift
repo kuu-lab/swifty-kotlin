@@ -684,22 +684,32 @@ final class DataFlowAnalyzer {
 
     func resolvedTypeFromFlowState(
         _ state: DataFlowState,
-        symbol: SymbolID
+        symbol: SymbolID,
+        types: TypeSystem? = nil
     ) -> TypeID? {
-        return resolvedTypeFromFlowState(state, reference: DataFlowReference(root: symbol))
+        return resolvedTypeFromFlowState(state, reference: DataFlowReference(root: symbol), types: types)
     }
 
     func resolvedTypeFromFlowState(
         _ state: DataFlowState,
-        reference: DataFlowReference
+        reference: DataFlowReference,
+        types: TypeSystem? = nil
     ) -> TypeID? {
         guard let flowState = state[reference],
-              flowState.possibleTypes.count == 1,
-              let narrowed = flowState.possibleTypes.first
+              flowState.isStable,
+              !flowState.possibleTypes.isEmpty
         else {
             return nil
         }
-        return narrowed
+        if flowState.possibleTypes.count == 1,
+           let narrowed = flowState.possibleTypes.first
+        {
+            return narrowed
+        }
+        if let types {
+            return types.lub(Array(flowState.possibleTypes))
+        }
+        return nil
     }
 
     private func isNullLiteral(_ id: ExprID, ast: ASTModule) -> Bool {

@@ -126,7 +126,8 @@ extension CallTypeChecker {
                 id, locals: locals, ast: ast, sema: sema, interner: interner
             ), reference.isStable {
                 ctx.dataFlow.resolvedTypeFromFlowState(
-                    ctx.flowState.includingMembers(from: locals), reference: reference.symbol
+                    ctx.flowState.includingMembers(from: locals), reference: reference.symbol,
+                    types: sema.types
                 )
             } else {
                 nil

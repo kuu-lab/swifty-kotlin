@@ -63,6 +63,13 @@ extension ExprTypeChecker {
                         left: valueType, right: writeType, range: range, solver: ConstraintSolver(),
                         sema: sema, diagnostics: sema.diagnostics
                     )
+                    driver.helpers.recordMemberValInitializationSmartCast(
+                        property: writeSymbol,
+                        declaredType: writeType,
+                        valueType: valueType,
+                        ctx: ctx,
+                        locals: &locals
+                    )
                 }
             }
             if !isSafeCall, sema.types.nullability(of: receiverType) == .nullable {

@@ -903,6 +903,11 @@ final class ControlFlowTypeChecker {
                     }
                 }
             }
+            let reachingBranchLocals = [
+                thenCompletes ? thenLocals : nil,
+                elseCompletes ? elseLocals : nil,
+            ].compactMap { $0 }
+            locals.memberFlow = joinMemberFlow(from: reachingBranchLocals, base: locals.memberFlow, sema: sema)
         } else {
             resolvedType = sema.types.unitType
             if thenType == sema.types.nothingType {
@@ -953,6 +958,46 @@ final class ControlFlowTypeChecker {
         }
         guard branchTypes.count == branches.count else { return fallback }
         return sema.types.lub(branchTypes)
+    }
+
+    func joinMemberFlow(
+        from branches: [LocalBindings],
+        base: [DataFlowReference: VariableFlowState],
+        sema: SemaModule
+    ) -> [DataFlowReference: VariableFlowState] {
+        guard !branches.isEmpty else { return base }
+        if branches.count == 1 {
+            return branches[0].memberFlow
+        }
+        var joined: [DataFlowReference: VariableFlowState] = [:]
+        let firstBranch = branches[0]
+        for (reference, firstState) in firstBranch.memberFlow {
+            var allStates = [firstState]
+            var presentInAll = true
+            for otherBranch in branches.dropFirst() {
+                if let otherState = otherBranch.memberFlow[reference] {
+                    allStates.append(otherState)
+                } else {
+                    presentInAll = false
+                    break
+                }
+            }
+            guard presentInAll else { continue }
+            var combinedTypes: Set<TypeID> = []
+            var isNullable = false
+            var isStable = true
+            for s in allStates {
+                combinedTypes.formUnion(s.possibleTypes)
+                if s.nullability == .nullable { isNullable = true }
+                if !s.isStable { isStable = false }
+            }
+            joined[reference] = VariableFlowState(
+                possibleTypes: combinedTypes,
+                nullability: isNullable ? .nullable : .nonNull,
+                isStable: isStable
+            )
+        }
+        return joined
     }
 
     private func bindJoinedRangeExpressionMetadata(

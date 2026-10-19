@@ -734,6 +734,7 @@ final class ExprTypeChecker {
                         locals[name] = (blockLocal.type, outerLocal.symbol, outerLocal.isMutable, blockLocal.isInitialized)
                     }
                 }
+                locals.memberFlow = blockLocals.memberFlow
             }
             sema.bindings.bindExprType(id, type: resultType)
             return resultType
