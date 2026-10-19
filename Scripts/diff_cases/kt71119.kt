@@ -44,3 +44,7 @@ fun box(): String {
     BC3<Nothing, _>(2)
     return "OK"
 }
+
+fun main() {
+    println(box())
+}
