@@ -12,7 +12,6 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 REFERENCE = ROOT / "docs/atomicfu-0.33.0/reference"
-INDEX_PATH = REFERENCE / "atomicfu.common-native.declarations.json"
 UPSTREAM_COMMIT = "fc175fc575419ca9eae0d3c14cefe9c5cd7ca351"
 KLIB_BLOB_SHA1 = "d170cb60f282c47b96d2c98041a7f5f2bf2e5850"
 EXPECTED_LEGACY_SIGNATURES = 130
@@ -431,21 +430,25 @@ def render_index(klib_contents: bytes) -> bytes:
     return (json.dumps(document, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
 
 
+def load_index(klib_contents: bytes) -> dict[str, Any]:
+    # Parse the rendered bytes so consumers see exactly the JSON value shapes
+    # that --output writes, not the generator's in-memory containers.
+    return json.loads(render_index(klib_contents))
+
+
 def main() -> int:
     import argparse
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--write", action="store_true", help="regenerate the checked-in declaration JSON")
+    parser.add_argument("--output", type=Path, help="write the declaration index JSON here for inspection")
     args = parser.parse_args()
     klib = (REFERENCE / "atomicfu.klib.api").read_bytes()
     generated = render_index(klib)
-    if args.write:
-        INDEX_PATH.write_bytes(generated)
-        print(f"WROTE {INDEX_PATH.relative_to(ROOT)}")
-    elif INDEX_PATH.read_bytes() != generated:
-        raise SystemExit(f"{INDEX_PATH.relative_to(ROOT)} is stale; run {Path(__file__).name} --write")
-    else:
-        print(f"PASS deterministic declaration index: {INDEX_PATH.relative_to(ROOT)}")
+    if args.output is not None:
+        args.output.write_bytes(generated)
+        print(f"WROTE {args.output}")
+    summary = json.loads(generated)["summary"]
+    print(f"BUILT declaration index: {summary['total_api_identity_rows']} API identity rows")
     return 0
 
 

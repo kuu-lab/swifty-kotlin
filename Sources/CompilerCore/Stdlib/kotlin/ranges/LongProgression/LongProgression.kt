@@ -7,11 +7,9 @@ package kotlin.ranges
 
 import kotlin.internal.KsSymbolName
 
-// KSP-1306: Keep LongProgression's public receiver members source-backed on
-// the KSP-1305 nominal shell. The runtime progression box still owns the
-// element bounds, so `first`/`last`/`step` delegate to the shared
-// __kk_range_* / __kk_long_range_step bridges. Companion.fromClosedRange stays
-// synthetic until KSP-1307.
+// The runtime progression box still owns the element bounds, so
+// `first`/`last`/`step` delegate to the shared __kk_range_* /
+// __kk_long_range_step bridges.
 public open class LongProgression internal constructor(
     start: Long,
     endInclusive: Long,

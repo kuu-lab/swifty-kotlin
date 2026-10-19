@@ -1,8 +1,5 @@
 package kotlin.collections
 
-// KSP-433: Array<T> filter HOFs are bundled Kotlin source. Primitive-array
-// variants are defined in PrimitiveArrayHOF.kt.
-
 public fun <T> Array<T>.filter(predicate: (T) -> Boolean): List<T> {
     val result = mutableListOf<T>()
     var i = 0

@@ -1,8 +1,7 @@
 package kotlin.ranges
 
-// KSP-1288: source-backed cross-type contains overloads for OpenEndRange.
-// Narrowing conversions must reject values that cannot be represented by the
-// range element type; a plain toByte()/toShort()/toInt() would wrap instead.
+// KSP-1288: Narrowing conversions must reject values that cannot be represented
+// by the range element type; a plain toByte()/toShort()/toInt() would wrap instead.
 
 @kotlin.jvm.JvmName("byteRangeContains")
 @SinceKotlin("1.9")

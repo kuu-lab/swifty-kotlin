@@ -3,13 +3,12 @@ typealias RuntimeCollectionLambda1 = @convention(c) (Int, Int, UnsafeMutablePoin
 typealias RuntimeCollectionLambda2 = @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias RuntimeCollectionLambda3 = @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias RuntimeCollectionLambda4 = @convention(c) (Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
-/// Writes a thrown payload when the caller provided an out-thrown slot.
 func runtimeSetThrown(_ outThrown: UnsafeMutablePointer<Int>?, _ value: Int) {
     outThrown?.pointee = value
 }
 
-/// Sets `NoSuchElementException` on the thrown channel. Used by iterator `next()`
-/// after the iteration is exhausted so callers do not observe a silent `0`.
+/// Used by iterator `next()` after the iteration is exhausted so callers do not
+/// observe a silent `0`.
 func runtimeThrowIteratorExhausted(
     _ outThrown: UnsafeMutablePointer<Int>?,
     message: String = "Iterator contains no more elements."
@@ -18,7 +17,6 @@ func runtimeThrowIteratorExhausted(
     return 0
 }
 
-/// Normalizes truthiness for predicates from raw/boxed Boolean values.
 func runtimeCollectionBool(_ value: Int) -> Bool {
     kk_unbox_bool(value) != 0
 }

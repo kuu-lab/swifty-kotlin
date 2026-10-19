@@ -3,11 +3,8 @@ package kotlin.collections
 import kotlin.internal.KsSymbolName
 
 // MIGRATION-COL-001
-// Collection factory functions.
 // Migration source: Sources/Runtime/RuntimeCollections.swift, RuntimeSetAndMap.swift
 
-// --- ABI bridges -------------------------------------------------------------
-//
 // These map directly to @_cdecl functions in RuntimeCollections.swift and
 // RuntimeSetAndMap.swift. Each external declaration matches the Swift-side
 // parameter layout: null array + count=0 produces a fresh collection. Map's
@@ -38,15 +35,11 @@ private external fun <K, V> __kk_linked_hash_map_of(keys: Any?, values: Any?, co
 @KsSymbolName("__kk_builder_map_freeze")
 private external fun <K, V> __kk_map_freeze(value: MutableMap<K, V>): Map<K, V>
 
-// --- emptyList / emptySet / emptyMap -----------------------------------------
-
 public fun <T> emptyList(): List<T> = __kk_emptyList()
 
 public fun <T> emptySet(): Set<T> = __kk_emptySet()
 
 public fun <K, V> emptyMap(): Map<K, V> = __kk_emptyMap()
-
-// --- List factories ----------------------------------------------------------
 
 public fun <T> listOf(): List<T> = emptyList()
 
@@ -84,9 +77,8 @@ public fun <T> mutableListOf(vararg elements: T): MutableList<T> {
     return result
 }
 
-// KSP-699: arrayListOf is the last collection factory to become
-// source-backed. The declaration carries ArrayList's nominal identity while
-// the shared factory lowering keeps element boxing and tracked collection IDs.
+// The declaration carries ArrayList's nominal identity while the shared
+// factory lowering keeps element boxing and tracked collection IDs.
 
 @SinceKotlin("1.1")
 public inline fun <T> arrayListOf(): ArrayList<T> = ArrayList()
@@ -109,8 +101,6 @@ public fun <T : Any> listOfNotNull(vararg elements: T?): List<T> {
     }
     return result
 }
-
-// --- Set factories -----------------------------------------------------------
 
 public fun <T> setOf(): Set<T> = emptySet()
 
@@ -164,13 +154,9 @@ public fun <T> sortedSetOf(comparator: Comparator<in T>, vararg elements: T): ja
     return result
 }
 
-// --- Map factories -----------------------------------------------------------
-
 public fun <K, V> mapOf(): Map<K, V> = emptyMap()
 
 /**
- * Returns a new read-only map containing only the specified key-value pair.
- *
  * Keep this overload distinct from the vararg overload so overload resolution
  * matches the Kotlin stdlib API while reusing the shared map runtime path.
  */

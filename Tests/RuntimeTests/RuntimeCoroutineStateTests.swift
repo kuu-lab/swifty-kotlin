@@ -273,18 +273,27 @@ struct RuntimeCoroutineStateTests {
         #expect(kk_coroutine_state_get_thrown_exception(callerContinuation) == 0)
     }
 
-    @Test(arguments: [false, true])
-    func testSourceCancellationSubclassClassification(cancellation: Bool) {
-        let base = runtimeStableNominalTypeID(fqName: cancellation
-            ? "kotlin.coroutines.cancellation.CancellationException" : "kotlin.Throwable")
-        let middle = runtimeStableNominalTypeID(fqName: cancellation
-            ? "runtime.tests.SourceCancellation" : "runtime.tests.SourceFailure")
-        let leaf = runtimeStableNominalTypeID(fqName: cancellation
-            ? "runtime.tests.SourceCancellationChild" : "runtime.tests.SourceFailureChild")
+    @Test
+    func testSourceCancellationSubclassIsRecognizedAsCancellationException() {
+        let base = runtimeStableNominalTypeID(fqName: "kotlin.coroutines.cancellation.CancellationException")
+        let middle = runtimeStableNominalTypeID(fqName: "runtime.tests.SourceCancellation")
+        let leaf = runtimeStableNominalTypeID(fqName: "runtime.tests.SourceCancellationChild")
         runtimeRegisterTypeEdge(childTypeID: middle, parentTypeID: base)
         runtimeRegisterTypeEdge(childTypeID: leaf, parentTypeID: middle)
         let instance = kk_object_new(0, Int(leaf))
-        #expect(kk_is_cancellation_exception(instance) == (cancellation ? 1 : 0))
+        #expect(kk_is_cancellation_exception(instance) == 1)
+        _ = runtimeReleaseObject(instance)
+    }
+
+    @Test
+    func testSourceFailureSubclassIsNotRecognizedAsCancellationException() {
+        let base = runtimeStableNominalTypeID(fqName: "kotlin.Throwable")
+        let middle = runtimeStableNominalTypeID(fqName: "runtime.tests.SourceFailure")
+        let leaf = runtimeStableNominalTypeID(fqName: "runtime.tests.SourceFailureChild")
+        runtimeRegisterTypeEdge(childTypeID: middle, parentTypeID: base)
+        runtimeRegisterTypeEdge(childTypeID: leaf, parentTypeID: middle)
+        let instance = kk_object_new(0, Int(leaf))
+        #expect(kk_is_cancellation_exception(instance) == 0)
         _ = runtimeReleaseObject(instance)
     }
 

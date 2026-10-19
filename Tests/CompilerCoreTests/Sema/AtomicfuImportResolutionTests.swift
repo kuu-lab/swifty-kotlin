@@ -10,11 +10,6 @@ struct AtomicfuImportResolutionTests {
         // no atomic operations and is not evidence for atomic semantics.
         let ctx = makeContextFromSources([
             """
-            package kotlinx.atomicfu
-            class AtomicInt(val marker: Int)
-            fun atomic(value: Int): AtomicInt = AtomicInt(value)
-            """,
-            """
             @file:Suppress("DEPRECATION_ERROR")
             package sample
 
@@ -23,7 +18,7 @@ struct AtomicfuImportResolutionTests {
             import kotlinx.atomicfu.atomic as atomicfuAtomic
             import kotlin.concurrent.AtomicInt as NativeAtomicInt
 
-            fun viaWildcard(): AtomicInt = AtomicInt(1)
+            fun viaWildcard(): AtomicInt = atomic(1)
             fun viaAlias(): AtomicfuInt = atomicfuAtomic(2)
             fun viaFullyQualifiedName(): kotlinx.atomicfu.AtomicInt = kotlinx.atomicfu.atomic(3)
             fun standardAtomic(value: NativeAtomicInt): NativeAtomicInt = value

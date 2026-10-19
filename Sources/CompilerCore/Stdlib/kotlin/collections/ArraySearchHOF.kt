@@ -3,9 +3,6 @@ package kotlin.collections
 import kotlin.internal.__valuesEqual
 
 // MIGRATION-COL-006
-// Array search helpers. Generic and primitive-array variants are source-backed.
-//
-// Equality is delegated to __kk_values_equal via kotlin.internal.__valuesEqual.
 
 public operator fun <T> Array<T>.contains(element: T): Boolean {
     var i = 0
@@ -108,7 +105,6 @@ public inline fun <T> Array<out T>.indexOfFirst(predicate: (T) -> Boolean): Int 
     return -1
 }
 
-// KSP-433: predicate-based search / quantifier HOFs are source-backed.
 // Exception messages match kotlinc's Array wording
 // ("Array is empty." / "Array contains no element matching the predicate.").
 

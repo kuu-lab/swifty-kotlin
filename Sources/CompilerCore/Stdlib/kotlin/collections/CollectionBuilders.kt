@@ -3,7 +3,6 @@ package kotlin.collections
 import kotlin.internal.KsSymbolName
 
 // MIGRATION-COL-011
-// Builder DSL functions for collections.
 // Migration source: Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticBuilderDSLStubs.swift
 
 @KsSymbolName("__kk_builder_list_new")
@@ -79,8 +78,6 @@ internal inline fun <K, V> buildMapInternal(capacity: Int, builderAction: Mutabl
     return __kkBuilderMapFreeze(result)
 }
 
-// ─── buildList ────────────────────────────────────────────────────────────────
-
 @kotlin.experimental.ExperimentalTypeInference
 public inline fun <E> buildList(builderAction: MutableList<E>.() -> Unit): List<out E> =
     buildListInternal(builderAction)
@@ -89,8 +86,6 @@ public inline fun <E> buildList(builderAction: MutableList<E>.() -> Unit): List<
 public inline fun <E> buildList(capacity: Int, builderAction: MutableList<E>.() -> Unit): List<out E> =
     buildListInternal(capacity, builderAction)
 
-// ─── buildSet ─────────────────────────────────────────────────────────────────
-
 @kotlin.experimental.ExperimentalTypeInference
 public inline fun <E> buildSet(builderAction: MutableSet<E>.() -> Unit): Set<out E> =
     buildSetInternal(builderAction)
@@ -98,8 +93,6 @@ public inline fun <E> buildSet(builderAction: MutableSet<E>.() -> Unit): Set<out
 @kotlin.experimental.ExperimentalTypeInference
 public inline fun <E> buildSet(capacity: Int, builderAction: MutableSet<E>.() -> Unit): Set<out E> =
     buildSetInternal(capacity, builderAction)
-
-// ─── buildMap ─────────────────────────────────────────────────────────────────
 
 @kotlin.experimental.ExperimentalTypeInference
 public inline fun <K, V> buildMap(builderAction: MutableMap<K, V>.() -> Unit): Map<K, V> =

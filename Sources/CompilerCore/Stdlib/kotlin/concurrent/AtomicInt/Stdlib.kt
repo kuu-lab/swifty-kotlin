@@ -9,10 +9,7 @@ package kotlin.concurrent
 import kotlin.internal.KsSymbolName
 
 /**
- * Creates a new [AtomicInt] with the given initial [value].
- *
- * The allocation remains in the shared runtime atomic box; this declaration
- * provides the source-backed stdlib entry point for the existing runtime ABI.
+ * The allocation remains in the shared runtime atomic box.
  */
 @SinceKotlin("1.9")
 @KsSymbolName("kk_atomic_int_create")

@@ -139,9 +139,6 @@ copy の独立性、セグメント間の検索、buffered Source/Sink、境界�
 - `JvmCore.kt` の残り: `SystemLineSeparator` actual は `Core.kt` 側で実装済み。`SourcesJvm.kt` /
   `SinksJvm.kt` の残り（`readString`, `writeString`, `readAtMostTo`/`write` ByteBuffer,
   `asByteChannel`）は ByteBuffer/NIO 依存のため未対応
-- `Sink.asOutputStream()` の `close()` で `sink.close()` が投げる例外はランタイム側で
-  握り潰される（upstream の OutputStream.close() は例外を伝播するが、
-  `__kk_output_stream_close` に outThrown チャネルがない）
 - `Sinks.kt` の拡張関数群（`writeUShort` 等の unsigned 変換、`writeDouble`、
   `writeToInternalBuffer` 等）
 - `kotlinx.io.files`（`FileSystem`, `Path`）

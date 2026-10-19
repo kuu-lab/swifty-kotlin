@@ -9,10 +9,8 @@ package kotlin.io
 
 import kotlin.AutoCloseable
 
-// KSP-721: `kotlin.AutoCloseable` is now a source-backed interface in
-// `Stdlib/kotlin/AutoCloseable.kt`. `kotlin.io.Closeable` extends `AutoCloseable`
-// and redeclares `close()` so that the JVM-compatible `Closeable` subtype is
-// preserved. `kotlin.io.use` remains a source-backed extension for `Closeable?`.
+// KSP-721: `kotlin.io.Closeable` redeclares `close()` so that the
+// JVM-compatible `Closeable` subtype is preserved.
 
 public interface Closeable : AutoCloseable {
     public override fun close()

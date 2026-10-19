@@ -9,7 +9,6 @@ import kotlin.random.Random
 // MIGRATION-RANGE-002: LongProgression higher-order functions, moved verbatim from RangeHOF.kt.
 
 private fun longProgressionDescription(progression: LongProgression): String {
-    // Negate in Long so Long.MIN_VALUE still renders as a positive magnitude.
     val step = progression.step
     return if (step > 0) {
         "${progression.first}..${progression.last} step $step"

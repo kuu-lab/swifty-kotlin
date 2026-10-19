@@ -9,10 +9,6 @@ package kotlin.collections
 
 import kotlin.internal.KsSymbolName
 
-// KSP-928: the nominal AbstractMap declaration and its skeletal read-only
-// operations are source-backed. Map allocation, entry materialization, and
-// shared collection runtime bridges remain compiler/runtime-owned.
-
 private fun <K, V> abstractMapKeys(entries: Set<Map.Entry<K, V>>): Set<K> {
     val result = mutableSetOf<K>()
     for (entry in entries) {
@@ -32,9 +28,6 @@ private fun <K, V> abstractMapValues(entries: Set<Map.Entry<K, V>>): Collection<
 @KsSymbolName("__kk_map_entries")
 private external fun abstractMapEntries(map: Any?): Set<Map.Entry<Any?, Any?>>
 
-/**
- * Provides a skeletal implementation of the read-only [Map] interface.
- */
 public abstract class AbstractMap<K, out V> protected constructor() : Map<K, V> {
     // Map.entries is declared in bundled source (KSP-1067), so this must be a
     // public abstract override like AbstractMutableMap.entries.

@@ -1187,7 +1187,7 @@ annotations, factories, arrays, retry operations, Trace callback evaluation and
 nominal identity remain bundled Kotlin source. No performance exception is
 claimed. `RuntimeABISpec.atomicfuSynchronizationFunctions` registers all exact
 signatures and updates computed specVersion; direct Runtime tests cover those
-contracts. See [the complete contract](atomicfu-runtime-kernel-contract.md).
+contracts.
 This admission is prepared and unexecuted, not an enforcing-green completion.
 
 ### KUU-1768 source reference-vararg storage and component metadata

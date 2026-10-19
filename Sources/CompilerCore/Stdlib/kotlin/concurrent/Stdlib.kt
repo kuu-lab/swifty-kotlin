@@ -1,12 +1,9 @@
 @file:OptIn(kotlin.ExperimentalStdlibApi::class)
 
 /*
- * KSP-1083: Kotlin 2.3.10 kotlin.concurrent top-level declarations.
- *
- * The nominal declarations are source-backed shells. Constructors and member
- * implementations for surfaces that remain TODO-owned are supplied by the
- * residual runtime-backed registration until those migrations land. Completed
- * receiver surfaces live in their responsibility-specific files.
+ * KSP-1083: Constructors and member implementations for surfaces that remain
+ * TODO-owned are supplied by the residual runtime-backed registration until
+ * those migrations land.
  */
 
 package kotlin.concurrent

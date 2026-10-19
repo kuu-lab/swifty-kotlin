@@ -8,8 +8,8 @@ struct ExpressionSetterElvisTests {
         let bodies = [
             "p?.let { stored = it } ?: run { flag = true }",
             "p?.let { stored = it; flag = false } ?: run { flag = true }",
-            "p?.let { stored = it }",
-            "p?.let { stored = it; flag = false }",
+            "p?.let { stored = it } ?: Unit",
+            "p?.let { stored = it; flag = false } ?: Unit",
         ]
         var sources = bodies.enumerated().map { index, body in
             """

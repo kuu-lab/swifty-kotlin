@@ -9,8 +9,6 @@ package kotlin.concurrent.atomics
 // Migration source: Sources/Runtime/RuntimeAtomic.swift
 //   kk_atomic_int_array_*/kk_atomic_long_array_*/kk_atomic_ref_array_*
 
-// ── AtomicIntArray ─────────────────────────────────────────────────────────
-
 public fun AtomicIntArray.fetchAndUpdateAt(index: Int, transform: (Int) -> Int): Int {
     while (true) {
         val old = loadAt(index)
@@ -19,8 +17,6 @@ public fun AtomicIntArray.fetchAndUpdateAt(index: Int, transform: (Int) -> Int):
     }
 }
 
-// ── AtomicLongArray ────────────────────────────────────────────────────────
-
 public fun AtomicLongArray.fetchAndUpdateAt(index: Int, transform: (Long) -> Long): Long {
     while (true) {
         val old = loadAt(index)
@@ -28,8 +24,6 @@ public fun AtomicLongArray.fetchAndUpdateAt(index: Int, transform: (Long) -> Lon
         if (compareAndSetAt(index, old, newValue)) return old
     }
 }
-
-// ── AtomicArray<T> ─────────────────────────────────────────────────────────
 
 public fun <T> AtomicArray<T>.fetchAndUpdateAt(index: Int, transform: (T) -> T): T {
     while (true) {

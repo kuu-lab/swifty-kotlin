@@ -1,9 +1,7 @@
 package kotlin.collections
 
 // MIGRATION-COL-009
-// List window/chunk HOFs migrated to Kotlin source.
 // Migration source: Sources/Runtime/RuntimeCollectionHOF.swift
-// Functions: chunked, windowed, zipWithNext, zip
 
 private external fun <T> __kk_list_chunked(receiver: Iterable<T>, size: Int): List<List<T>>
 private external fun <T, R> __kk_list_chunked_transform(
@@ -39,10 +37,6 @@ private external fun <T, R> __kk_list_zipWithNextTransform(
     transform: (T, T) -> R
 ): List<R>
 
-// ── chunked ──────────────────────────────────────────────────────────────────
-//
-// Kotlin stdlib: fun <T> Iterable<T>.chunked(size: Int): List<List<T>>
-
 public fun <T> Iterable<T>.chunked(size: Int): List<List<T>> {
     require(size > 0) { "size must be positive, but was $size" }
     return __kk_list_chunked(this, size)
@@ -52,10 +46,6 @@ public fun <T, R> Iterable<T>.chunked(size: Int, transform: (List<T>) -> R): Lis
     require(size > 0) { "size must be positive, but was $size" }
     return __kk_list_chunked_transform(this, size, transform)
 }
-
-// ── windowed ─────────────────────────────────────────────────────────────────
-//
-// Kotlin stdlib: fun <T> Iterable<T>.windowed(size, step, partialWindows): List<List<T>>
 
 public fun <T> Iterable<T>.windowed(
     size: Int,
@@ -78,23 +68,12 @@ public fun <T, R> Iterable<T>.windowed(
     return __kk_list_windowed_transform(this, size, step, partialWindows, transform)
 }
 
-// ── zipWithNext ──────────────────────────────────────────────────────────────
-//
-// Kotlin stdlib: fun <T> Iterable<T>.zipWithNext(): List<Pair<T, T>>
-//
-// Uses an iterator pair (current/next) to avoid allocating an intermediate
-// list.
-
 public fun <T> Iterable<T>.zipWithNext(): List<Pair<T, T>> =
     __kk_list_zipWithNext(this)
 
 public fun <T, R> Iterable<T>.zipWithNext(transform: (T, T) -> R): List<R> =
     __kk_list_zipWithNextTransform(this, transform)
 
-// ── zip ──────────────────────────────────────────────────────────────────────
-//
-// Kotlin stdlib: fun <T, R> Iterable<T>.zip(other: Iterable<R>): List<Pair<T, R>>
-//
 // Result length equals the shorter of the two iterables, matching Kotlin
 // stdlib and the Swift ABI implementation (min(lhs.count, rhs.count)).
 
@@ -118,8 +97,6 @@ public fun <T, R, V> Iterable<T>.zip(other: Iterable<R>, transform: (T, R) -> V)
     return result
 }
 
-// Kotlin stdlib: fun <T, R> Iterable<T>.zip(other: Array<out R>): List<Pair<T, R>>
-//
 // Keep the array overload on the source path. The shared iterable bridge
 // materializes both inputs instead of preserving the stdlib iterator order.
 public infix fun <T, R> Iterable<T>.zip(other: Array<out R>): List<Pair<T, R>> {
@@ -148,5 +125,3 @@ public inline fun <T, R, V> Iterable<T>.zip(
     }
     return result
 }
-
-// withIndex lives in Iterators.kt (KSP-626).

@@ -4,8 +4,11 @@ import Testing
 
 @Suite
 struct SealedHierarchyBoundaryTests {
-    @Test(arguments: ["same", "external"])
-    func checksNestedAndCompanionSubclassesUsingActualPackage(packageName: String) {
+    @Test(arguments: [
+        ("same", 0),
+        ("external", 5),
+    ])
+    func checksNestedAndCompanionSubclassesUsingActualPackage(packageName: String, expectedErrorCount: Int) {
         let basePath = "/tmp/sealed-base-\(UUID().uuidString).kt"
         let childPath = "/tmp/sealed-child-\(UUID().uuidString).kt"
         let options = CompilerOptions(moduleName: "Sealed", inputs: [basePath, childPath], outputPath: "/tmp/sealed",
@@ -21,7 +24,7 @@ struct SealedHierarchyBoundaryTests {
             """.utf8),
         ]).context
         let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(errors.count == (packageName == "same" ? 0 : 5), "\(errors)")
+        #expect(errors.count == expectedErrorCount, "\(errors)")
         #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0070" && $0.message.contains("same package") })
     }
 }

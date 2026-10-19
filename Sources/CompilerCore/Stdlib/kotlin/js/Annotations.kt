@@ -12,8 +12,7 @@ package kotlin.js
 import kotlin.reflect.KClass
 
 /**
- * Marks an annotation as requiring an explicit opt-in before JavaScript
- * export is requested. The marker alone does not export a declaration.
+ * The marker alone does not export a declaration.
  */
 @RequiresOptIn(level = RequiresOptIn.Level.WARNING)
 @MustBeDocumented
@@ -22,8 +21,6 @@ import kotlin.reflect.KClass
 public annotation class ExperimentalJsExport
 
 /**
- * Marks the experimental JsFileName annotation.
- *
  * The marker is available to declarations that opt into the common API.
  * The Kotlin/JS actual JsFileName annotation itself does not require opt-in.
  */
@@ -34,8 +31,6 @@ public annotation class ExperimentalJsExport
 public annotation class ExperimentalJsFileName
 
 /**
- * Specifies the name of the compiled file produced from the annotated source file.
- *
  * This annotation is accepted for source compatibility. JavaScript per-file
  * emission is provided by the Kotlin/JS backend and is not performed here.
  */
@@ -45,7 +40,6 @@ public annotation class ExperimentalJsFileName
 public annotation class JsFileName(val name: String)
 
 /**
- * Requests JavaScript export metadata for the annotated declaration.
  * JavaScript module emission is provided by the Kotlin/JS backend.
  */
 @ExperimentalJsExport
@@ -60,8 +54,6 @@ public annotation class JsFileName(val name: String)
 public annotation class JsExport
 
 /**
- * Marks the experimental JsStatic annotation.
- *
  * Opting in allows source-compatible use of @JsStatic; the marker alone does
  * not create a JavaScript static member.
  */
@@ -95,7 +87,6 @@ public annotation class ExperimentalJsStatic
 public annotation class ExperimentalJsReflectionCreateInstance
 
 /**
- * Records JavaScript static-member intent for a companion function or property.
  * JavaScript static entry emission is provided by the Kotlin/JS backend.
  */
 @ExperimentalJsStatic
