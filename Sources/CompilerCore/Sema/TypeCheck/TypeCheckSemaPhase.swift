@@ -1,6 +1,4 @@
 
-/// Semantic analysis pass that performs type checking and type inference.
-///
 /// This phase is a thin wrapper around ``TypeCheckDriver``, which dispatches
 /// type-checking work to independent delegate classes (`ExprTypeChecker`,
 /// `CallTypeChecker`, `ControlFlowTypeChecker`, etc.). Each delegate holds only
