@@ -1,15 +1,12 @@
 public final class SemaModule {
-    /// Number of independent bodies joined by the opt-in Sema runner.
     var independentBodyCount = 0
 
     public let symbols: SymbolTable
     public let types: TypeSystem
     public let bindings: BindingTable
     public let diagnostics: DiagnosticEngine
-    /// String interner used to recover source-level nominal names while
-    /// resolving compiler-wide type shapes (for example `CharArray` spread
-    /// arguments passed to a vararg parameter). Kept optional for lightweight
-    /// unit-test sema modules that do not build a full source environment.
+    /// Kept optional for lightweight unit-test sema modules that do not build
+    /// a full source environment.
     public let interner: StringInterner?
     /// Imported inline bodies, resolved lazily: library import registers
     /// descriptors (path + signature + name) per symbol, and the inline
@@ -37,8 +34,6 @@ public final class SemaModule {
     /// CallTypeChecker+MemberCallInferenceCollectionFlow.swift and
     /// CallLowerer+MemberCalls.swift).
     var bundledIndex: BundledDeclarationIndex
-    /// ARCH-021: compiler-owned well-known declarations resolved by exact
-    /// SymbolID after header collection.
     var wellKnownSymbols: WellKnownSymbols
     /// Import-alias spellings (`import kotlin.enumValueOf as evo` → `evo`)
     /// that bind one of the enum intrinsic FQ names, computed lazily per file
@@ -65,11 +60,9 @@ public final class SemaModule {
         self.wellKnownSymbols = .empty
     }
 
-    /// Module-internal overload that also accepts the bundled declaration
-    /// index at construction time (see `bundledIndex` above). Not `public`
-    /// because `BundledDeclarationIndex` itself is internal to CompilerCore;
-    /// callers outside the module get the public initializer above, which
-    /// defaults `bundledIndex` to `.empty`.
+    /// Not `public` because `BundledDeclarationIndex` itself is internal to
+    /// CompilerCore; callers outside the module get the public initializer
+    /// above, which defaults `bundledIndex` to `.empty`.
     init(
         symbols: SymbolTable,
         types: TypeSystem,
