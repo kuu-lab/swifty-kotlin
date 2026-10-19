@@ -1,13 +1,3 @@
-/// Job, Deferred, Channel, and CoroutineScope member stubs for the
-/// synthetic coroutine registry, including the `ReceiveChannel` type
-/// alias and the `Job()` / `SupervisorJob()` / `CoroutineScope()`
-/// factory functions.
-///
-/// Extracted from `registerSyntheticCoroutineStubs`
-/// (HeaderHelpers+SyntheticCoroutineRegistry.swift). The extracted
-/// methods thread the shared registry state through `context` so the
-/// call order and side effects are unchanged.
-
 extension DataFlowSemaPhase {
     func registerCoroutineJobChannelStubs(context: inout SyntheticCoroutineRegistryContext) {
         let symbols = context.symbols
@@ -153,7 +143,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // STDLIB-CORO-070: Job state properties
         registerSyntheticObjectProperty(
             ownerSymbol: jobSymbol,
             ownerType: jobType,
@@ -182,9 +171,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // `kotlinx.coroutines.Job()` / `SupervisorJob()`: bare factory functions sharing
-        // their name with the `Job` interface (the same "nominal type + eponymous
-        // factory-style function" pattern already used for e.g. `Channel(...)`).
         let completableJobType = (bundledIndex.containsNominal(fqName: coroutinesPkg + [interner.intern("CompletableJob")])
             || symbols.lookup(fqName: coroutinesPkg + [interner.intern("CompletableJob")]) != nil)
             ? types.make(.classType(ClassType(
@@ -214,9 +200,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // `kotlinx.coroutines.CoroutineScope`: an interface (real Kotlin declares
-        // `val coroutineContext: CoroutineContext` as its only member) plus the
-        // eponymous `CoroutineScope(context): CoroutineScope` factory function.
         symbols.setPropertyType(coroutineScopeType, for: coroutineScopeSymbol)
         if !bundledIndex.contains(ownerFQName: coroutinesPkg, name: interner.intern("CoroutineScope"), arity: 1) {
             registerSyntheticCoroutineTopLevelFunction(
