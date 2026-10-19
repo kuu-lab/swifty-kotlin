@@ -7,15 +7,6 @@ extension BuildASTPhase.ExpressionParser {
                 .blockExpr(statements: [], trailingExpr: nil, range: token.range)
             )
         }
-        if matches(.symbol(.at)) {
-            guard let operand = parseAnnotatedExpression({
-                if self.matches(.symbol(.lBrace)) {
-                    return self.parseControlFlowBodyExpression()
-                }
-                return self.parsePrefixUnary()
-            }) else { return nil }
-            return parseInfixOperators(lhs: operand, minPrecedence: 0)
-        }
         if matches(.symbol(.lBrace)) {
             if braceGroupStartsLambdaLiteral(), let lambda = parseLambdaLiteral() {
                 return lambda
@@ -41,6 +32,15 @@ extension BuildASTPhase.ExpressionParser {
                     return localAssign
                 }
             }
+        }
+        if matches(.symbol(.at)) {
+            guard let operand = parseAnnotatedExpression({
+                if self.matches(.symbol(.lBrace)) {
+                    return self.parseControlFlowBodyExpression()
+                }
+                return self.parsePrefixUnary()
+            }) else { return nil }
+            return parseInfixOperators(lhs: operand, minPrecedence: 0)
         }
         return parseExpression(minPrecedence: 0)
     }

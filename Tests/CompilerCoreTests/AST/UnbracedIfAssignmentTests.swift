@@ -126,6 +126,95 @@ struct UnbracedIfAssignmentTests {
         #expect(statements.count == 2)
     }
 
+    @Test
+    func annotatedElseBranchAssignmentPreservesIfStructure() throws {
+        let context = makeContextFromSource("""
+        fun choose() {
+            var n = 0
+            if (1 < 0) n = 5 else @Suppress("X") n = 7
+        }
+        """)
+        try runFrontend(context)
+        let (ast, branch) = try parsedIf(in: context)
+        guard case let .ifExpr(_, thenID, elseID, _) = branch,
+              case let .localAssign(thenName, thenValue, _) = ast.arena.expr(thenID),
+              let elseID,
+              case let .localAssign(elseName, elseValue, _) = ast.arena.expr(elseID)
+        else {
+            Issue.record("Both branches must be parsed as assignments")
+            return
+        }
+        #expect(context.interner.resolve(thenName) == "n")
+        #expect(context.interner.resolve(elseName) == "n")
+        guard case .intLiteral(5, _) = ast.arena.expr(thenValue),
+              case .intLiteral(7, _) = ast.arena.expr(elseValue)
+        else {
+            Issue.record("Assignments must retain correct branch values")
+            return
+        }
+        #expect(!ast.arena.expressionAnnotations(for: elseID).isEmpty)
+    }
+
+    @Test
+    func annotatedThenBranchAssignmentPreservesIfStructure() throws {
+        let context = makeContextFromSource("""
+        fun choose() {
+            var n = 0
+            if (1 > 0) @Suppress("X") n = 9 else n = 2
+        }
+        """)
+        try runFrontend(context)
+        let (ast, branch) = try parsedIf(in: context)
+        guard case let .ifExpr(_, thenID, elseID, _) = branch,
+              case let .localAssign(thenName, thenValue, _) = ast.arena.expr(thenID),
+              let elseID,
+              case let .localAssign(elseName, elseValue, _) = ast.arena.expr(elseID)
+        else {
+            Issue.record("Both branches must be parsed as assignments")
+            return
+        }
+        #expect(context.interner.resolve(thenName) == "n")
+        #expect(context.interner.resolve(elseName) == "n")
+        guard case .intLiteral(9, _) = ast.arena.expr(thenValue),
+              case .intLiteral(2, _) = ast.arena.expr(elseValue)
+        else {
+            Issue.record("Assignments must retain correct branch values")
+            return
+        }
+        #expect(!ast.arena.expressionAnnotations(for: thenID).isEmpty)
+    }
+
+    @Test
+    func annotatedCompoundAssignmentBranchPreservesIfStructure() throws {
+        let context = makeContextFromSource("""
+        fun choose() {
+            var n = 0
+            if (1 > 0) @Suppress("X") n += 9 else n -= 2
+        }
+        """)
+        try runFrontend(context)
+        let (ast, branch) = try parsedIf(in: context)
+        guard case let .ifExpr(_, thenID, elseID, _) = branch,
+              case let .compoundAssign(thenOp, thenName, thenValue, _) = ast.arena.expr(thenID),
+              let elseID,
+              case let .compoundAssign(elseOp, elseName, elseValue, _) = ast.arena.expr(elseID)
+        else {
+            Issue.record("Both branches must be parsed as compound assignments")
+            return
+        }
+        #expect(thenOp == .plusAssign)
+        #expect(elseOp == .minusAssign)
+        #expect(context.interner.resolve(thenName) == "n")
+        #expect(context.interner.resolve(elseName) == "n")
+        guard case .intLiteral(9, _) = ast.arena.expr(thenValue),
+              case .intLiteral(2, _) = ast.arena.expr(elseValue)
+        else {
+            Issue.record("Compound assignments must retain correct branch values")
+            return
+        }
+        #expect(!ast.arena.expressionAnnotations(for: thenID).isEmpty)
+    }
+
     private struct TestFailure: Error {
         let message: String
         init(_ message: String) { self.message = message }
