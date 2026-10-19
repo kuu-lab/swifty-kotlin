@@ -2,7 +2,6 @@ package java.security
 
 import kotlin.internal.KsSymbolName
 
-/** Thrown when an invalid parameter is passed to a method. */
 public open class InvalidParameterException : java.lang.IllegalArgumentException {
     @KsSymbolName("__kk_invalid_parameter_exception_new")
     public constructor()
