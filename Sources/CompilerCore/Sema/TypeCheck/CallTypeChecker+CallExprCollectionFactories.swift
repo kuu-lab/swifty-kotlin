@@ -1,9 +1,5 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
-/// Source-backed collection-factory binding for `inferCallExpr`: selects
-/// the bundled `listOf`/`setOf`/`mapOf`-family declaration for a call and
-/// derives its result type from the inferred argument types.
-/// Extracted from `CallTypeChecker+CallExprInference.swift`.
 extension CallTypeChecker {
     func inferSourceBackedCollectionFactoryCall(
         _ id: ExprID,
