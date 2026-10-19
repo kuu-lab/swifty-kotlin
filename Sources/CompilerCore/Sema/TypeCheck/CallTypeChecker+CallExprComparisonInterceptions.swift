@@ -1,10 +1,5 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
-/// `kotlin.comparisons` / numeric call interceptions from the `inferCallExpr`
-/// dispatch chain: `maxOf`/`minOf`, the `compareBy`/`compareByDescending`
-/// selector and vararg forms, `naturalOrder`/`reverseOrder`, and
-/// `compareValuesBy`.
-/// Extracted from `CallTypeChecker+CallExprInference.swift`.
 extension CallTypeChecker {
     func inferMinMaxOfCall(
         _ id: ExprID,
@@ -20,11 +15,11 @@ extension CallTypeChecker {
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
 
-        // --- Primitive numeric minOf/maxOf fast path (STDLIB-COMP-001/002) ---
-        // Only apply to the stdlib comparison functions with value arguments;
-        // lambda/callable-ref arguments (e.g. compareBy selectors or comparators)
-        // must go through general overload resolution where an expected function
-        // type is available, otherwise implicit `it` cannot be resolved.
+        // Primitive numeric minOf/maxOf fast path: only apply to the stdlib
+        // comparison functions with value arguments; lambda/callable-ref
+        // arguments (e.g. compareBy selectors or comparators) must go through
+        // general overload resolution where an expected function type is
+        // available, otherwise implicit `it` cannot be resolved.
         if let calleeName,
            calleeName == knownNames.maxOf || calleeName == knownNames.minOf,
            args.count == 2 || args.count == 3,
@@ -38,7 +33,6 @@ extension CallTypeChecker {
                 expectedType: nil
             )
 
-            // Resolve which numeric type this overload targets.
             let supportedNumericTypes = [
                 sema.types.longType,
                 sema.types.doubleType,
@@ -74,7 +68,6 @@ extension CallTypeChecker {
                 ) {
                     let expectedType = resolvedParamType
 
-                    // Emit subtype constraint for the first argument.
                     driver.emitSubtypeConstraint(
                         left: firstArgType,
                         right: expectedType,
@@ -84,7 +77,6 @@ extension CallTypeChecker {
                         diagnostics: ctx.sema.diagnostics
                     )
 
-                    // Infer remaining arguments with the resolved type.
                     for i in 1 ..< args.count {
                         let argType = driver.inferExpr(
                             args[i].expr,
@@ -147,8 +139,6 @@ extension CallTypeChecker {
         return nil
     }
 
-    /// One flag per call argument: true when the argument is a lambda / callable
-    ///     /// reference usable as a `compareBy` selector.
     func resolveCompareBySelectorArguments(
         calleeName: InternedString?,
         args: [CallArgument],
@@ -197,7 +187,6 @@ extension CallTypeChecker {
         let knownNames = KnownCompilerNames(interner: interner)
 
 
-        // --- compareBy(selector1, selector2, ...) multi-selector overloads (STDLIB-613) ---
         if let calleeName,
            args.count == 2 || args.count == 3,
            calleeName == knownNames.compareBy,
@@ -286,7 +275,6 @@ extension CallTypeChecker {
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
 
-        // --- compareBy/compareByDescending(comparator, selector) (STDLIB-COMP-004/005) ---
         if let calleeName,
            args.count == 2,
            calleeName == knownNames.compareBy || calleeName == knownNames.compareByDescending,
@@ -387,7 +375,6 @@ extension CallTypeChecker {
         let knownNames = KnownCompilerNames(interner: interner)
 
 
-        // --- compareBy(vararg selectors) (STDLIB-COMP-006) ---
         if let calleeName,
            args.count >= 4,
            calleeName == knownNames.compareBy,
@@ -474,7 +461,6 @@ extension CallTypeChecker {
         let interner = ctx.interner
 
 
-        // --- Comparator factory functions: compareBy, compareByDescending (STDLIB-649) ---
         if let calleeName,
            args.count == 1,
            locals[calleeName] == nil
@@ -486,9 +472,6 @@ extension CallTypeChecker {
                    fqComponents: ["kotlin", "comparisons", calleeNameStr],
                    ctx: ctx
                ) != nil {
-                // Resolve the Comparator<T> return type.
-                // The lambda selector has signature (T) -> Comparable<*>.
-                // T is inferred from explicit type args, calling context, or defaults to Any.
                 let elementType: TypeID = if let explicitT = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs) {
                     explicitT
                 } else if let expectedType,
@@ -525,7 +508,6 @@ extension CallTypeChecker {
                     sema.types.anyType
                 }
 
-                // Bind to the bundled Kotlin source symbol.
                 let comparisonsPkg: [InternedString] = [interner.intern("kotlin"), interner.intern("comparisons")]
                 let funcFQName = comparisonsPkg + [calleeName]
                 if let chosen = sema.symbols.lookupAll(fqName: funcFQName).first(where: { candidate in
@@ -563,7 +545,6 @@ extension CallTypeChecker {
         let interner = ctx.interner
 
 
-        // --- Comparator factory functions: naturalOrder, reverseOrder (STDLIB-649) ---
         if let calleeName,
            args.isEmpty,
            locals[calleeName] == nil
