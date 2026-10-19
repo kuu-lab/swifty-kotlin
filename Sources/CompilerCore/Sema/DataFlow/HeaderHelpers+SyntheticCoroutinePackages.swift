@@ -1,7 +1,3 @@
-/// Synthetic coroutine package tree and the `RestrictsSuspension`
-/// residual: the kotlin/kotlinx package anchors plus the annotation
-/// class retained for --no-stdlib compilations.
-///
 /// Extracted from `registerSyntheticCoroutineStubs`
 /// (HeaderHelpers+SyntheticCoroutineRegistry.swift). The extracted
 /// methods thread the shared registry state through `context` so the
