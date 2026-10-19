@@ -263,6 +263,7 @@ extension BuildASTPhase {
                 ?? lhsRange.end
             let range = SourceRange(start: lhsRange.start, end: end)
 
+            let assignment: ExprID?
             switch lhs {
             case let .nameRef(name, _):
                 if options.rejectValVarSimpleAssignLHS {
@@ -271,7 +272,7 @@ extension BuildASTPhase {
                         return nil
                     }
                 }
-                return context.astArena.appendExpr(.localAssign(name: name, value: valueExpr, range: range))
+                assignment = context.astArena.appendExpr(.localAssign(name: name, value: valueExpr, range: range))
 
             case let .memberCall(receiver, callee, typeArgs, args, _):
                 guard options.allowMemberAssign,
@@ -280,7 +281,7 @@ extension BuildASTPhase {
                 else {
                     return nil
                 }
-                return context.astArena.appendExpr(.memberAssign(
+                assignment = context.astArena.appendExpr(.memberAssign(
                     receiver: receiver,
                     callee: callee,
                     value: valueExpr,
@@ -294,7 +295,7 @@ extension BuildASTPhase {
                 else {
                     return nil
                 }
-                return context.astArena.appendExpr(.safeMemberAssign(
+                assignment = context.astArena.appendExpr(.safeMemberAssign(
                     receiver: receiver,
                     callee: callee,
                     value: valueExpr,
@@ -302,7 +303,7 @@ extension BuildASTPhase {
                 ))
 
             case let .indexedAccess(receiver, indices, _):
-                return context.astArena.appendExpr(.indexedAssign(
+                assignment = context.astArena.appendExpr(.indexedAssign(
                     receiver: receiver,
                     indices: indices,
                     value: valueExpr,
@@ -310,8 +311,16 @@ extension BuildASTPhase {
                 ))
 
             default:
-                return nil
+                assignment = nil
             }
+
+            if let assignment {
+                let annotations = context.astArena.expressionAnnotations(for: lhsExpr)
+                if !annotations.isEmpty {
+                    context.astArena.prependExpressionAnnotations(annotations, for: assignment)
+                }
+            }
+            return assignment
         }
 
         private static func parsePostfixMutation(
@@ -379,6 +388,7 @@ extension BuildASTPhase {
             let oneExpr = context.astArena.appendExpr(.intLiteral(1, lastToken.range))
             let range = SourceRange(start: lhsRange.start, end: lastToken.range.end)
 
+            let assignment: ExprID?
             switch lhs {
             case let .nameRef(name, _):
                 if options.rejectValVarSimpleAssignLHS {
@@ -387,17 +397,16 @@ extension BuildASTPhase {
                         return nil
                     }
                 }
-                let assignment = context.astArena.appendExpr(.compoundAssign(
+                assignment = context.astArena.appendExpr(.compoundAssign(
                     op: op,
                     name: name,
                     value: oneExpr,
                     range: range
                 ))
-                context.astArena.markIncrementDecrement(assignment)
-                return assignment
+                if let assignment { context.astArena.markIncrementDecrement(assignment) }
 
             case let .indexedAccess(receiver, indices, _):
-                let assignment = context.astArena.appendExpr(.indexedCompoundAssign(
+                assignment = context.astArena.appendExpr(.indexedCompoundAssign(
                     op: op,
                     receiver: receiver,
                     indices: indices,
@@ -407,8 +416,7 @@ extension BuildASTPhase {
                 // `a[i]++` must resolve the element's `inc()`/`dec()`, not
                 // `plus(1)`/`minus(1)` — a user-defined element type usually
                 // has no `plus(Int)`.
-                context.astArena.markIncrementDecrement(assignment)
-                return assignment
+                if let assignment { context.astArena.markIncrementDecrement(assignment) }
 
             case let .memberCall(receiver, callee, typeArgs, args, _):
                 guard options.allowMemberAssign,
@@ -417,19 +425,26 @@ extension BuildASTPhase {
                 else {
                     return nil
                 }
-                let assignment = context.astArena.appendExpr(.memberCompoundAssign(
+                assignment = context.astArena.appendExpr(.memberCompoundAssign(
                     op: op,
                     receiver: receiver,
                     callee: callee,
                     value: oneExpr,
                     range: range
                 ))
-                context.astArena.markIncrementDecrement(assignment)
-                return assignment
+                if let assignment { context.astArena.markIncrementDecrement(assignment) }
 
             default:
-                return nil
+                assignment = nil
             }
+
+            if let assignment {
+                let annotations = context.astArena.expressionAnnotations(for: lhsExpr)
+                if !annotations.isEmpty {
+                    context.astArena.prependExpressionAnnotations(annotations, for: assignment)
+                }
+            }
+            return assignment
         }
 
         /// The generic expression parser's `tryParsePrefixIncrementDecrement`
@@ -550,16 +565,17 @@ extension BuildASTPhase {
                 ?? lhsRange.end
             let range = SourceRange(start: lhsRange.start, end: end)
 
+            let assignment: ExprID?
             switch lhs {
             case let .nameRef(name, _):
-                return context.astArena.appendExpr(.compoundAssign(
+                assignment = context.astArena.appendExpr(.compoundAssign(
                     op: op,
                     name: name,
                     value: valueExpr,
                     range: range
                 ))
             case let .indexedAccess(receiver, indices, _):
-                return context.astArena.appendExpr(.indexedCompoundAssign(
+                assignment = context.astArena.appendExpr(.indexedCompoundAssign(
                     op: op,
                     receiver: receiver,
                     indices: indices,
@@ -568,30 +584,35 @@ extension BuildASTPhase {
                 ))
             case let .memberCall(receiver, callee, typeArgs, args, _):
                 if context.astArena.isExplicitCall(lhsExpr) || !args.isEmpty {
-                    return desugarCallResultCompoundAssignment(
+                    assignment = desugarCallResultCompoundAssignment(
                         lhsExpr: lhsExpr, op: op, valueExpr: valueExpr, range: range, context: context
                     )
+                } else if options.allowMemberAssign, typeArgs.isEmpty, args.isEmpty {
+                    assignment = context.astArena.appendExpr(.memberCompoundAssign(
+                        op: op,
+                        receiver: receiver,
+                        callee: callee,
+                        value: valueExpr,
+                        range: range
+                    ))
+                } else {
+                    assignment = nil
                 }
-                guard options.allowMemberAssign,
-                      typeArgs.isEmpty,
-                      args.isEmpty
-                else {
-                    return nil
-                }
-                return context.astArena.appendExpr(.memberCompoundAssign(
-                    op: op,
-                    receiver: receiver,
-                    callee: callee,
-                    value: valueExpr,
-                    range: range
-                ))
             case .call:
-                return desugarCallResultCompoundAssignment(
+                assignment = desugarCallResultCompoundAssignment(
                     lhsExpr: lhsExpr, op: op, valueExpr: valueExpr, range: range, context: context
                 )
             default:
-                return nil
+                assignment = nil
             }
+
+            if let assignment {
+                let annotations = context.astArena.expressionAnnotations(for: lhsExpr)
+                if !annotations.isEmpty {
+                    context.astArena.prependExpressionAnnotations(annotations, for: assignment)
+                }
+            }
+            return assignment
         }
 
         /// Preserve the call-result receiver without introducing writable storage:
