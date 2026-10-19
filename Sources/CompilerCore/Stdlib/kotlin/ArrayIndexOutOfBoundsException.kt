@@ -8,9 +8,6 @@ package kotlin
 
 import kotlin.internal.KsSymbolName
 
-/**
- * Thrown when an array is accessed with an index that is out of bounds.
- */
 public open class ArrayIndexOutOfBoundsException : IndexOutOfBoundsException {
     @KsSymbolName("__kk_array_index_out_of_bounds_exception_new")
     public constructor()
