@@ -350,9 +350,9 @@ final class DataFlowAnalyzer {
         } else {
             return nil
         }
-        guard let (symbol, currentType, isStable) = resolveStableReference(
-            variableID, locals: locals, ast: ast, sema: sema, interner: interner, narrowingToNonNull: true
-        ), isStable else {
+        guard let (symbol, currentType, _) = resolveStableReference(
+            variableID, locals: locals, ast: ast, sema: sema, interner: interner
+        ) else {
             return nil
         }
         let effectiveType: TypeID = if let baseState = base[symbol], baseState.possibleTypes.count == 1,
@@ -363,18 +363,36 @@ final class DataFlowAnalyzer {
             currentType
         }
         let nonNullType = makeTypeNonNullable(effectiveType, types: sema.types)
+        let nullType = sema.types.nullableNothingType
+
+        let nullStable = resolveStableReference(
+            variableID, locals: locals, ast: ast, sema: sema, interner: interner, narrowingType: nullType
+        )?.isStable ?? false
+
+        let nonNullStable = resolveStableReference(
+            variableID, locals: locals, ast: ast, sema: sema, interner: interner, narrowingToNonNull: true
+        )?.isStable ?? false
+
+        guard nullStable || nonNullStable else {
+            return nil
+        }
+
         var trueVars = base
-        trueVars[symbol] = VariableFlowState(
-            possibleTypes: [effectiveType],
-            nullability: .nullable,
-            isStable: true
-        )
+        if nullStable {
+            trueVars[symbol] = VariableFlowState(
+                possibleTypes: [nullType],
+                nullability: .nullable,
+                isStable: true
+            )
+        }
         var falseVars = base
-        falseVars[symbol] = VariableFlowState(
-            possibleTypes: [nonNullType],
-            nullability: .nonNull,
-            isStable: true
-        )
+        if nonNullStable {
+            falseVars[symbol] = VariableFlowState(
+                possibleTypes: [nonNullType],
+                nullability: .nonNull,
+                isStable: true
+            )
+        }
         return ConditionBranch(
             trueState: trueVars,
             falseState: falseVars
@@ -509,7 +527,7 @@ final class DataFlowAnalyzer {
         case .nullLiteral:
             var vars = base
             vars[subjectSymbol] = VariableFlowState(
-                possibleTypes: [subjectType],
+                possibleTypes: [sema.types.nullableNothingType],
                 nullability: .nullable,
                 isStable: true
             )
