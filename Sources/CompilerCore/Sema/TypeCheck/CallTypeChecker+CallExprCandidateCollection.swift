@@ -1,10 +1,5 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
-/// Candidate collection for `inferCallExpr`: scope lookup merged with
-/// implicit-receiver member candidates (visibility- and DslMarker-filtered),
-/// classifier-as-callable handling, and fully-qualified-name calls, plus the
-/// candidate-list preference passes that follow collection.
-/// Extracted from `CallTypeChecker+CallExprInference.swift`.
 extension CallTypeChecker {
     func collectCallExprCandidates(
         _ id: ExprID,
@@ -56,9 +51,6 @@ extension CallTypeChecker {
             }) {
                 callImplicitReceiverType = receiverEntry.type
             }
-            // @DslMarker restriction: filter out candidates that belong to an
-            // outer receiver class that shares a DslMarker annotation with the
-            // current implicit receiver.
             let dslBlockedCandidates = allCallCandidates.filter { ctx.isCandidateBlockedByDslMarker($0) }
             let dslFiltered = allCallCandidates.filter { !ctx.isCandidateBlockedByDslMarker($0) }
             let (vis, invis) = ctx.filterByVisibility(dslFiltered)
@@ -218,7 +210,6 @@ extension CallTypeChecker {
                     interner: interner
                 )
             }
-            // If all candidates were blocked by DslMarker, emit a specific diagnostic.
             if candidates.isEmpty, !dslBlockedCandidates.isEmpty {
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-DSLMARKER",
@@ -485,12 +476,9 @@ extension CallTypeChecker {
                let runBlockingSymbol = sema.symbols.lookup(fqName: knownNames.kotlinxCoroutinesRunBlockingFQName) {
                 candidates = [runBlockingSymbol]
             }
-            // --- Typealias constructor calls ---
-            // If the callee is a typealias (e.g. `typealias IntPair = Pair<Int, Int>`),
-            // expand it to the underlying class and resolve its constructor. An actual
-            // typealias paired with an expect class must also replace that expect class's
-            // constructor candidate, which otherwise wins scope lookup but has no platform
-            // implementation.
+            // An actual typealias paired with an expect class must replace that
+            // expect class's constructor candidate, which otherwise wins scope
+            // lookup but has no platform implementation.
             var aliasSymbols = ctx.cachedScopeLookup(calleeName).filter { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate) else { return false }
                 return symbol.kind == .typeAlias
@@ -646,7 +634,6 @@ extension CallTypeChecker {
                 }
             }
         } else if let calleePath, calleePath.count > 1 {
-            // FQN call: e.g. kotlin.math.abs(x) — look up directly by fully qualified name
             let fqnCandidates = sema.symbols.lookupAll(fqName: calleePath).filter { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate) else { return false }
                 return symbol.kind == .function || symbol.kind == .constructor
