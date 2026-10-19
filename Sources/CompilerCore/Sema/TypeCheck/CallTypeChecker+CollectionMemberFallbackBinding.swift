@@ -1,11 +1,6 @@
 // swiftlint:disable file_length
 import RuntimeABI
 
-/// Member-call fallback binding path for Collection-typed receivers:
-/// bundled Kotlin source-extension candidates and their binding,
-/// callee resolution/validation, and parameter mapping.
-///
-/// Split out from `CallTypeChecker+CollectionMemberFallback.swift`.
 extension CallTypeChecker {
     func tryCollectionMemberFallback(
         _ id: ExprID,
@@ -330,7 +325,6 @@ extension CallTypeChecker {
             return nil
         }
 
-        // Provide contextual function type for collection HOF lambda inference.
         let receiverElementType = collectionFallbackElementType(receiverID: receiverID, sema: sema, interner: interner)
 
         // flatten() is only valid on List<List<T>>. Reject when the element type
@@ -1347,7 +1341,6 @@ extension CallTypeChecker {
             return [:]
         }
         let paramCount = signature.parameterTypes.count
-        // Build a name->index map from the parameter symbols.
         var paramNameToIndex: [InternedString: Int] = [:]
         for (paramIndex, paramSymbol) in signature.valueParameterSymbols.enumerated() {
             if let paramSymbolInfo = sema.symbols.symbol(paramSymbol) {
@@ -1361,11 +1354,8 @@ extension CallTypeChecker {
         var positionalParamIndex = 0
         for (argIndex, arg) in args.enumerated() {
             if let label = arg.label, let paramIndex = paramNameToIndex[label] {
-                // Named argument: map to the named parameter
                 mapping[argIndex] = paramIndex
             } else {
-                // Positional argument: advance to next unoccupied parameter index
-                // (skip any params that are already claimed by named args)
                 while positionalParamIndex < paramCount
                     && mapping.values.contains(positionalParamIndex)
                 {
@@ -1681,8 +1671,7 @@ extension CallTypeChecker {
             : allCandidates.filter { !hasFunctionTypedLastParam($0) }
         // Prefer the overload whose parameter count matches the call-site
         // argument count so that e.g. windowed(3, 2, true) resolves to the
-        // 3-param overload (kk_list_windowed_partial) instead of the 2-param
-        // one (kk_list_windowed).
+        // 3-param overload instead of the 2-param one.
         if let exactMatch = arityCandidates.first(where: { candidate in
             guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
             return sig.parameterTypes.count == argCount
