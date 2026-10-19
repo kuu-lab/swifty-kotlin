@@ -520,7 +520,14 @@ public final class SymbolTable {
             }
             // When a classifier coexists with a factory, a duplicate classifier
             // must reuse the classifier rather than the first (possibly callable) entry.
-            if isNominalType(kind) || kind == .typeAlias,
+            // Parameters are likewise encoded as `ownerFQName + [paramName]`, so
+            // a factory parameter can collide with an owner member at one FQName
+            // (e.g. the `AtomicIntArray.size` property vs `fun AtomicIntArray(size:)`);
+            // a duplicate parameter must reuse the first parameter symbol, not
+            // that member — otherwise `setParentSymbol` reparents the member to
+            // the factory function and member lookup loses it.
+            if isNominalType(kind) || kind == .typeAlias
+                || kind == .valueParameter || kind == .typeParameter,
                let matching = existingSymbols.first(where: { $0.kind == kind }) {
                 return matching.id
             }
