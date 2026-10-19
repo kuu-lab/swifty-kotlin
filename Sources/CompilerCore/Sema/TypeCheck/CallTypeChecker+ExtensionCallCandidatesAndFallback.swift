@@ -46,6 +46,7 @@ extension CallTypeChecker {
             let localFunctionCandidates = ctx.scope.lookup(calleeName, matching: { candidate in
                 ctx.cachedSymbol(candidate)?.flags.contains(.localFunction) == true
                     && receiverMatches(candidate)
+                    && callShapeMatches?(candidate) != false
             })
             if !localFunctionCandidates.isEmpty {
                 if localFunctionCandidates.count == 1,
@@ -364,6 +365,11 @@ extension CallTypeChecker {
             locals: locals,
             sema: sema,
             interner: interner,
+            callShapeMatches: {
+                self.extensionCandidateMatchesCallShape(
+                    $0, request: request, argumentTypes: argTypes, receiverType: memberLookupType
+                )
+            },
             requiresInfix: ast.arena.isInfixCall(id)
         ).filter { candidate in
             !sema.symbols.isSourceBackedSymbol(candidate)
