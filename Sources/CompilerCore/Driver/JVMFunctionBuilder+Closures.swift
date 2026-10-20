@@ -82,6 +82,27 @@ extension JVMFunctionBuilder {
         guard args.allSatisfy({ !$0.isSpread }) else { return nil }
         if let result = try inlineCall(args, receiver: receiver, id: id) { return result }
         if context.interner.resolve(name) == "invoke", case let .nameRef(n, _) = arena.expr(receiver), let lambda = inlineArgument(n) { return JVMIntrinsicResult(value: try expandLambda(lambda, args: args, id: id)) }
+        // An explicit invoke receiver is already the function value. Reading
+        // its property again would use that function as the getter's owner.
+        if context.interner.resolve(name) == "invoke", let signature = functionType(receiver) {
+            let function = try requireValue(receiver)
+            var values: [JVMValue] = []
+            for arg in args { values.append(try requireValue(arg.expr)) }
+            return JVMIntrinsicResult(value: try invoke(function, signature: signature, arguments: values, resultType: program.expressionType(id)))
+        }
+        if let lambda = inlineArgument(name), functionType(lambda.id)?.receiver != nil {
+            return JVMIntrinsicResult(value: try expandLambda(lambda, args: args, id: id, receiver: requireValue(receiver)))
+        }
+        if let bound = program.sema.bindings.callableValueCallBinding(for: id),
+           let callee = bound.extensionCallableExpr,
+           case let .functionType(signature) = program.sema.types.kind(of: bound.functionType) {
+            // Sema's lexical reference preserves the property's dispatch owner;
+            // the call-site receiver belongs only to the returned function.
+            let object = try requireValue(receiver), function = try requireValue(callee)
+            var values = [object]
+            for arg in args { values.append(try requireValue(arg.expr)) }
+            return JVMIntrinsicResult(value: try invoke(function, signature: signature, arguments: values, resultType: program.expressionType(id)))
+        }
         if let bound = program.sema.bindings.callableValueCallBinding(for: id),
            case let .localValue(symbol) = bound.target,
            let property = program.properties[symbol],
@@ -97,15 +118,6 @@ extension JVMFunctionBuilder {
             var values: [JVMValue] = []
             for arg in args { values.append(try requireValue(arg.expr)) }
             return JVMIntrinsicResult(value: try invoke(function, signature: signature, arguments: values, resultType: program.expressionType(id)))
-        }
-        if context.interner.resolve(name) == "invoke", let signature = functionType(receiver) {
-            let function = try requireValue(receiver)
-            var values: [JVMValue] = []
-            for arg in args { values.append(try requireValue(arg.expr)) }
-            return JVMIntrinsicResult(value: try invoke(function, signature: signature, arguments: values, resultType: program.expressionType(id)))
-        }
-        if let lambda = inlineArgument(name), functionType(lambda.id)?.receiver != nil {
-            return JVMIntrinsicResult(value: try expandLambda(lambda, args: args, id: id, receiver: requireValue(receiver)))
         }
         if let bound = program.sema.bindings.callableValueCallBinding(for: id),
            case let .localValue(symbol) = bound.target,
