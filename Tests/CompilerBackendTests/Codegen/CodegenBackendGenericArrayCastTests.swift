@@ -6,6 +6,29 @@ import Testing
 @Suite
 struct CodegenBackendGenericArrayCastTests {
     @Test
+    func genericArrayCastFromAnyChecksItsRuntimeComponentType() throws {
+        let source = """
+        class Data(val x: Int)
+
+        fun main() {
+            val arr: Any = arrayOf("zzz")
+            try {
+                val x = (arr as Array<Data>)[0].x
+                println("FAIL: $x")
+            } catch (e: ClassCastException) {
+                println("caught ClassCastException")
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "GenericArrayCastFromAny",
+            expected: "caught ClassCastException\n"
+        )
+    }
+
+    @Test
     func genericArrayCastChecksItsRuntimeComponentType() throws {
         let source = """
         data class Data(val x: String)
