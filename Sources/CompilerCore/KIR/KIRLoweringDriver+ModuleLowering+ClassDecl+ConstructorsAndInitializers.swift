@@ -223,7 +223,14 @@ extension KIRLoweringDriver {
                 superCtorSymbol: superCtorSymbol,
                 superclassSymbol: superclassSymbol,
                 receiver: receiverID,
-                loweredArgs: superArgs.map { lowerExpr($0.expr, shared: shared, emit: &body) },
+                loweredArgs: lowerSuperConstructorArguments(
+                    superArgs,
+                    ctorSymbol: ctorSymbol,
+                    ownerSymbol: ownerSymbol,
+                    receiver: receiverID,
+                    shared: shared,
+                    body: &body
+                ),
                 spreadFlags: superArgs.map(\.isSpread),
                 argumentLabels: superArgs.map(\.label),
                 callBinding: sema.bindings.constructorDelegationCallBinding(for: ctorSymbol),
@@ -261,7 +268,14 @@ extension KIRLoweringDriver {
             return
         }
 
-        let loweredSuperArgs = superArgs.map { lowerExpr($0.expr, shared: shared, emit: &body) }
+        let loweredSuperArgs = lowerSuperConstructorArguments(
+            superArgs,
+            ctorSymbol: ctorSymbol,
+            ownerSymbol: ownerSymbol,
+            receiver: receiverID,
+            shared: shared,
+            body: &body
+        )
         let resultID = arena.appendTemporary(type: sema.types.unitType)
         emitDelegatedConstructorCall(
             target: superCtorSymbol,
@@ -275,6 +289,31 @@ extension KIRLoweringDriver {
             shared: shared,
             body: &body
         )
+    }
+
+    func lowerSuperConstructorArguments(
+        _ arguments: [CallArgument],
+        ctorSymbol: SymbolID,
+        ownerSymbol: SymbolID,
+        receiver: KIRExprID,
+        shared: KIRLoweringSharedContext,
+        body: inout KIRLoweringEmitContext
+    ) -> [KIRExprID] {
+        guard !arguments.isEmpty else { return [] }
+
+        let previousOverride = ctx.superConstructorArgumentReceiverOverride
+        defer { ctx.superConstructorArgumentReceiverOverride = previousOverride }
+        if shared.sema.symbols.symbol(ownerSymbol)?.flags.contains(.innerClass) == true,
+           ctx.currentFunctionSymbol == ctorSymbol,
+           let receiverSymbol = ctx.activeImplicitReceiverSymbol()
+        {
+            ctx.superConstructorArgumentReceiverOverride = .init(
+                constructorSymbol: ctorSymbol,
+                receiverSymbol: receiverSymbol,
+                receiverExprID: receiver
+            )
+        }
+        return arguments.map { lowerExpr($0.expr, shared: shared, emit: &body) }
     }
 
     /// True when a `super(...)` target is a runtime-backed Throwable

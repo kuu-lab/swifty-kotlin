@@ -94,6 +94,23 @@ struct CodegenBackendSuperConstructorClosureCaptureTests {
     }
 
     @Test
+    func superConstructorArgumentLambdaReadsOuterPropertyBeforeDelegation() throws {
+        let source = """
+        open class Outer(val ok: String) {
+            inner class Inner : Outer {
+                constructor() : super({ ok }())
+            }
+        }
+        fun main() { println(Outer("K").Inner().ok) }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "SuperConstructorOuterPropertyCapture",
+            expected: "K\n"
+        )
+    }
+
+    @Test
     func localFunctionCaptureInSuperCallPreservesCallableEnvironment() throws {
         let source = """
         open class Base(val fn: () -> String)

@@ -113,6 +113,47 @@ func resolveOuterChainValue(
     }
 }
 
+/// Loads the immediate enclosing instance stored in an inner class's `$outer` field.
+/// Unlike `resolveOuterChainValue`, this does not treat a superclass relationship as
+/// a match: during `super(...)` argument evaluation the subclass instance is not initialized.
+func resolveImmediateOuterInstance(
+    from receiver: KIRExprID,
+    sema: SemaModule,
+    arena: KIRArena,
+    interner: StringInterner,
+    instructions: inout [KIRInstruction]
+) -> KIRExprID? {
+    guard let receiverType = arena.exprType(receiver),
+          let (_, receiverClass) = resolveClassTypeSymbol(receiverType, sema: sema),
+          receiverClass.flags.contains(.innerClass),
+          let outerFieldSymbol = sema.symbols.outerInstanceFieldSymbol(for: receiverClass.id),
+          let outerOffset = sema.symbols.nominalLayout(for: receiverClass.id)?.fieldOffsets[outerFieldSymbol],
+          let rawOuterOwnerSymbol = sema.symbols.parentSymbol(for: receiverClass.id),
+          let outerOwner = sema.symbols.symbol(rawOuterOwnerSymbol),
+          [.class, .interface, .object, .enumClass].contains(outerOwner.kind)
+    else {
+        return nil
+    }
+
+    let outerType = sema.types.make(.classType(ClassType(
+        classSymbol: rawOuterOwnerSymbol,
+        args: [],
+        nullability: .nonNull
+    )))
+    let offsetExpr = arena.appendExpr(.intLiteral(Int64(outerOffset)), type: sema.types.intType)
+    instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(outerOffset))))
+    let outerValue = arena.appendTemporary(type: outerType)
+    instructions.append(.call(
+        symbol: nil,
+        callee: interner.intern("kk_array_get_inbounds"),
+        arguments: [receiver, offsetExpr],
+        result: outerValue,
+        canThrow: false,
+        thrownResult: nil
+    ))
+    return outerValue
+}
+
 /// Allocates a fresh heap object for the class `chosen` (a resolved
 /// constructor symbol) constructs via `kk_object_new`, and performs every
 /// registration a constructor call needs before its `<init>` body runs.
