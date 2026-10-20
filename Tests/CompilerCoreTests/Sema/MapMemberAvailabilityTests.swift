@@ -104,6 +104,8 @@ struct MapMemberAvailabilityTests {
             val flatDest = m.flatMapTo(mutableListOf()) { listOf(it.value ?: 0) }
             val firstNN = m.firstNotNullOfOrNull { it.value }
             val biggest = m.maxByOrNull { it.value ?: 0 }
+            val firstValue: Int? = m.values.first()
+            val lastValue: Int? = m.values.last()
             val plus = m + ("c" to 3)
             val minus = m - "a"
             mm.putAll(m)

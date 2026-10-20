@@ -799,6 +799,25 @@ import Testing
     }
 
     @Test
+    func testCodegenMapValuesFirstAndLast() throws {
+        let source = """
+        fun firstValue(values: Collection<Int>): Int = values.first()
+        fun lastValue(values: Collection<Int>): Int = values.last()
+
+        fun main() {
+            val map = mutableMapOf("k" to 17)
+            val values = map.values
+            println(firstValue(values))
+            println(lastValue(values))
+            println(map.values.first())
+            println(map.values.last())
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "MapValuesFirstLastRuntime", expected: "17\n17\n17\n17\n")
+    }
+
+    @Test
     func testCodegenMutableMapEntrySetValueWritesThroughToMap() throws {
         let source = """
         fun main() {
