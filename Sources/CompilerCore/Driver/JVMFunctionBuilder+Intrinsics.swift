@@ -303,7 +303,10 @@ extension JVMFunctionBuilder {
             return .reference(String(descriptor.dropFirst().dropLast()), nullable: true)
         }
     }
-    func indexedGet(_ receiver: ExprID, _ indices: [ExprID], _ id: ExprID) throws -> JVMValue {
+    func indexedGet(_ receiver: ExprID, _ indices: [ExprID], _ id: ExprID) throws -> JVMValue? {
+        let args = indices.map { CallArgument(expr: $0) }
+        if let call = try inlineCall(args, receiver: receiver, id: id)
+            ?? sourceCall(args, receiver: receiver, id: id) { return call.value }
         guard indices.count == 1 else { throw fail("JVM indexing requires one index.", id) }
         let arguments = indices.map { CallArgument(expr: $0) }
         if let call = try textLibraryCall(arguments, receiver: receiver, id: id), let value = call.value { return value }
@@ -356,6 +359,9 @@ extension JVMFunctionBuilder {
         guard let type = program.sema.bindings.exprType(for: receiver), mutable(type) else { throw fail("Cannot mutate a read-only JVM collection.", id) }
     }
     func indexedSet(_ receiver: ExprID, _ indices: [ExprID], _ source: ExprID, _ id: ExprID) throws {
+        let args = (indices + [source]).map { CallArgument(expr: $0) }
+        if let _ = try inlineCall(args, receiver: receiver, id: id)
+            ?? sourceCall(args, receiver: receiver, id: id) { return }
         guard indices.count == 1 else { throw fail("JVM indexing requires one index.", id) }
         let object = try requireValue(receiver), index = try requireValue(indices[0]), value = try requireValue(source)
         try requireWritableArguments(receiver, at: id)
