@@ -82,6 +82,7 @@ struct StdlibSurfaceSpecTests {
 
             // Map and Set HOFs are source-backed and intentionally have no
             // runtime surface-spec entries.
+            // `intersect` is a Collection/Iterable operation, not a Sequence one.
             sequence("map", 1),
             sequence("filter", 1),
             sequence("filterNot", 1),
@@ -106,7 +107,6 @@ struct StdlibSurfaceSpecTests {
             sequence("firstOrNull", 0),
             sequence("minOrNull", 0),
             sequence("indexOfLast", 1),
-            sequence("intersect", 1),
             sequence("maxOrNull", 0),
             sequence("indexOfFirst", 1),
             sequence("min", 0),
