@@ -344,7 +344,10 @@ extension CallTypeChecker {
                 sema: sema,
                 interner: interner
             ).contains { candidate in
-                guard let signature = sema.symbols.functionSignature(for: candidate),
+                guard let parentID = sema.symbols.parentSymbol(for: candidate),
+                      let parent = sema.symbols.symbol(parentID),
+                      !parent.fqName.starts(with: knownNames.kotlinRangesPackage),
+                      let signature = sema.symbols.functionSignature(for: candidate),
                       signature.parameterTypes == [sema.types.uintType],
                       let declaredReceiver = signature.receiverType,
                       let declaredSymbol = driver.helpers.nominalSymbol(of: declaredReceiver, types: sema.types),

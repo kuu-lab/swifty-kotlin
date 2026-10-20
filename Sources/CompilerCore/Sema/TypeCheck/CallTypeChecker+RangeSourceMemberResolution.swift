@@ -240,7 +240,7 @@ extension CallTypeChecker {
                   sema.symbols.isSourceBackedSymbol(candidate),
                   let parentID = sema.symbols.parentSymbol(for: candidate),
                   let parent = sema.symbols.symbol(parentID),
-                  !parent.fqName.starts(with: rangesPackageFQName),
+                  parent.fqName != rangesPackageFQName,
                   let signature = sema.symbols.functionSignature(for: candidate),
                   let declaredReceiver = signature.receiverType
             else {
