@@ -24,6 +24,7 @@ private final class JVMOwnStdlibCache: @unchecked Sendable {
 
 extension JVMBackendTests {
     private static let ownStdlibCases = [
+        "intArrayToList",
         "intArrayLastIndex",
         "referenceAndIntArrayIndices",
         "referenceArrayIsEmpty",

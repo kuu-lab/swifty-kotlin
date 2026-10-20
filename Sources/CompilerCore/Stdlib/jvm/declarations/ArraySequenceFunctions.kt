@@ -22,3 +22,4 @@ fun <T> kotlin.Array<out T>.isEmpty(): Boolean = null!!
 val <T> kotlin.Array<out T>.indices: kotlin.ranges.IntRange get() = null!!
 val kotlin.IntArray.indices: kotlin.ranges.IntRange get() = null!!
 val kotlin.IntArray.lastIndex: Int get() = null!!
+fun kotlin.IntArray.toList(): List<Int> = null!!

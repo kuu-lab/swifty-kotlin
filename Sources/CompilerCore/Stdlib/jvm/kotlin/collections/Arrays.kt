@@ -180,3 +180,5 @@ fun IntArray.arrayIndices(): kotlin.ranges.IntRange = kotlin.ranges.IntRange(0, 
 
 @kotlin.jvm.JvmName("getLastIndex")
 fun IntArray.arrayLastIndex(): Int = this.size - 1
+
+fun IntArray.toList(): List<Int> = this.asSequence().toList()
