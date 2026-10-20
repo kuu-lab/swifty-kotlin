@@ -379,6 +379,18 @@
       "runtimeFacade": "kotlin/ranges/RangesKt"
     },
     {
+      "path": "declarations/ListBuilders.kt",
+      "virtualPath": "<kswiftk-jvm>/list-builders.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
+      "path": "declarations/MapBuilders.kt",
+      "virtualPath": "<kswiftk-jvm>/map-builders.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/MapsKt"
+    },
+    {
       "path": "declarations/BuilderContracts.kt",
       "virtualPath": "<kswiftk-jvm>/builder-contracts.kt",
       "excludeFromStdlibBuild": false

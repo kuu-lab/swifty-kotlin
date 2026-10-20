@@ -1,0 +1,69 @@
+list.capacity=capacity must be non-negative.
+map.capacity=capacity must be non-negative.
+list.serializeBuilding=NotSerializableException
+[1, 2, 3]
+true
+true
+list.addAll0=UnsupportedOperationException
+list.removeAll0=UnsupportedOperationException
+list.retainAll=UnsupportedOperationException
+list.addIndex=UnsupportedOperationException
+list.removeIndex=UnsupportedOperationException
+list.iteratorRemove=UnsupportedOperationException
+list.iteratorSet=UnsupportedOperationException
+list.iteratorAdd=UnsupportedOperationException
+list.subClear=UnsupportedOperationException
+list.subAdd0=UnsupportedOperationException
+list.postSubSet=UnsupportedOperationException
+list.replaceAll=UnsupportedOperationException
+list.sort=UnsupportedOperationException
+[1, 2, 3]
+[1, 2, 3]
+[2, 3]
+false
+true
+empty.clear=UnsupportedOperationException
+map.serializeBuilding=NotSerializableException
+{1=ONE, 2=two}
+true
+map.putAll0=UnsupportedOperationException
+map.removeMissing=UnsupportedOperationException
+map.keyRemoveMissing=UnsupportedOperationException
+map.keysRemoveAll0=UnsupportedOperationException
+map.valuesClear=UnsupportedOperationException
+map.keyIterator=UnsupportedOperationException
+map.valueIterator=UnsupportedOperationException
+map.entryIterator=UnsupportedOperationException
+map.entrySetValue=UnsupportedOperationException
+map.newEntrySetValue=UnsupportedOperationException
+map.replaceAll=UnsupportedOperationException
+{1=ONE, 2=two}
+{1=ONE, 2=two}
+building.keysAddAll0=UnsupportedOperationException
+building.valuesAddAll0=UnsupportedOperationException
+building.entriesAddAll0=UnsupportedOperationException
+frozen.iteratorSetBeforeNext=IllegalStateException
+frozen.iteratorRemoveBeforeNext=IllegalStateException
+frozen.removeBeforeNext=IllegalStateException
+frozen.keyRemoveBeforeNext=IllegalStateException
+frozen.staleSet=ConcurrentModificationException
+frozen.staleRemove=ConcurrentModificationException
+frozen.staleAdd=ConcurrentModificationException
+frozen.staleKeyRemove=ConcurrentModificationException
+frozen.staleEntryKey=ConcurrentModificationException
+frozen.staleEntryValue=ConcurrentModificationException
+frozen.staleEntrySet=ConcurrentModificationException
+frozen.staleEntryHash=ConcurrentModificationException
+frozen.staleEntryString=ConcurrentModificationException
+frozen.staleEntryEquals=ConcurrentModificationException
+staleEntry.equalsNull=false
+1=b
+frozen.replacedEntrySet=UnsupportedOperationException
+frozen.iteratorSetAfterRemove=IllegalStateException
+frozen.iteratorRemoveTwice=IllegalStateException
+frozen.iteratorSetAfterAdd=IllegalStateException
+frozen.iteratorRemoveAfterAdd=IllegalStateException
+frozen.iteratorSetAfterReplace=UnsupportedOperationException
+false
+true
+emptyMap.clear=UnsupportedOperationException
