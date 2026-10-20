@@ -23,6 +23,8 @@ import Testing
 //   kotlin.native.runtime.GC:
 //     - GC.collect()               -> kk_gc_collect()
 //     - GC.schedule()              -> kk_gc_schedule()
+//     - GC.lastGCInfo              -> kk_gc_last_gc_info() (KUU-2691: per-pass
+//       RuntimeGCInfoSnapshot recorded under gcLock, surfaced as GCInfo)
 //     - GC.targetHeapBytes         -> kk_gc_target_heap_bytes()
 //     - GC.targetHeapUtilization   -> kk_gc_target_heap_utilization()
 //     - GC.maxHeapBytes            -> kk_gc_max_heap_bytes()

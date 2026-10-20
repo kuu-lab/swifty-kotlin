@@ -178,6 +178,159 @@ struct RuntimeGCTests {
         }
     }
 
+    // MARK: - GC.lastGCInfo recorder (KUU-2691)
+
+    private func lastGCInfoSnapshot() -> RuntimeGCInfoSnapshot? {
+        runtimeStorage.withGCLock { $0.lastGCInfo }
+    }
+
+    /// Returns the serialized field list and releases its box; the field
+    /// values are plain Ints, so the snapshot outlives the handle.
+    private func lastGCInfoFieldValues() -> [Int]? {
+        let raw = kk_gc_last_gc_info()
+        guard raw != runtimeNullSentinelInt else { return nil }
+        defer { _ = runtimeReleaseObject(raw) }
+        return runtimeListBox(from: raw)?.elements
+    }
+
+    @Test func testLastGCInfoIsNullBeforeAnyCollection() {
+        #expect(kk_gc_last_gc_info() == runtimeNullSentinelInt)
+        #expect(lastGCInfoSnapshot() == nil)
+    }
+
+    @Test func testLastGCInfoRecordsPassStatistics() {
+        withDummyTypeInfo { ti in
+            _ = kk_alloc(16, ti)
+            kk_gc_collect()
+
+            let snapshot = lastGCInfoSnapshot()
+            #expect(snapshot != nil)
+            guard let snapshot else { return }
+
+            #expect(snapshot.epoch == 1)
+            #expect(snapshot.sweptCount == 1)
+            #expect(snapshot.keptCount == 0)
+            #expect(snapshot.markedCount == 0)
+            #expect(snapshot.memoryUsageBeforeBytes == Int64(MemoryLayout<KKObjHeader>.stride))
+            #expect(snapshot.memoryUsageAfterBytes == 0)
+
+            #expect(snapshot.startTimeNs <= snapshot.firstPauseRequestTimeNs)
+            #expect(snapshot.firstPauseRequestTimeNs <= snapshot.firstPauseStartTimeNs)
+            #expect(snapshot.firstPauseStartTimeNs <= snapshot.firstPauseEndTimeNs)
+            #expect(snapshot.firstPauseEndTimeNs <= snapshot.endTimeNs)
+            #expect(snapshot.secondPauseRequestTimeNs == nil)
+            #expect(snapshot.secondPauseStartTimeNs == nil)
+            #expect(snapshot.secondPauseEndTimeNs == nil)
+            // kk_gc_collect is synchronous: once it returns, reclamation is done.
+            if let cleanup = snapshot.postGcCleanupTimeNs {
+                #expect(snapshot.endTimeNs <= cleanup)
+            } else {
+                Issue.record("postGcCleanupTimeNs should be recorded once collect returns")
+            }
+        }
+    }
+
+    @Test func testLastGCInfoEpochIncrementsAcrossCollections() {
+        kk_gc_collect()
+        #expect(lastGCInfoSnapshot()?.epoch == 1)
+        kk_gc_collect()
+        #expect(lastGCInfoSnapshot()?.epoch == 2)
+    }
+
+    @Test func testLastGCInfoCountsRootSetByPool() {
+        // This suite only holds gc+metadata isolation; borrow the threadLocal
+        // lock as well so the root we plant here cannot leak into another
+        // thread-local suite's pass (or survive into a later test's heap
+        // census — `__kk_thread_local_store` has no dispose counterpart).
+        let threadLocalLease = RuntimeTestIsolationLease(lockSet: .threadLocalOnly)
+        defer {
+            kk_runtime_reset_thread_local()
+            threadLocalLease.release()
+        }
+        // Count each pool as a delta over a baseline pass so ambient roots
+        // left behind by other suites cannot skew the attribution.
+        kk_gc_collect()
+        guard let baseline = lastGCInfoSnapshot() else {
+            Issue.record("baseline pass should have been recorded")
+            return
+        }
+
+        withDummyTypeInfo { ti in
+            let rooted = kk_alloc(24, ti)
+            let slot = UnsafeMutablePointer<UnsafeMutableRawPointer?>.allocate(capacity: 1)
+            slot.initialize(to: rooted)
+            defer {
+                slot.deinitialize(count: 1)
+                slot.deallocate()
+            }
+            kk_register_global_root(slot)
+            defer { kk_unregister_global_root(slot) }
+
+            let coroutineRooted = kk_alloc(8, ti)
+            kk_register_coroutine_root(coroutineRooted)
+            defer { kk_unregister_coroutine_root(coroutineRooted) }
+
+            let pinned = kk_alloc(8, ti)
+            let pinHandle = kk_pin_object(Int(bitPattern: pinned))
+            defer { _ = kk_unpin_object(pinHandle) }
+
+            let threadLocal = __kk_thread_local_new()
+            _ = __kk_thread_local_store(threadLocal, Int(bitPattern: kk_alloc(8, ti)))
+
+            _ = kk_alloc(16, ti) // unrooted: swept by the pass
+
+            kk_gc_collect()
+
+            let snapshot = lastGCInfoSnapshot()
+            #expect(snapshot != nil)
+            guard let snapshot else { return }
+
+            #expect(snapshot.epoch == baseline.epoch + 1)
+            #expect(snapshot.rootSet.globalReferences == baseline.rootSet.globalReferences + 1)
+            #expect(snapshot.rootSet.stackReferences == baseline.rootSet.stackReferences + 1)
+            #expect(snapshot.rootSet.stableReferences == baseline.rootSet.stableReferences + 1)
+            #expect(snapshot.rootSet.threadLocalReferences == baseline.rootSet.threadLocalReferences + 1)
+
+            // kk_alloc pads requests below the object-header stride (16 bytes).
+            let header = Int64(MemoryLayout<KKObjHeader>.stride)
+            #expect(snapshot.markedCount == 4)
+            #expect(snapshot.keptCount == 4)
+            #expect(snapshot.sweptCount == 1)
+            #expect(snapshot.memoryUsageBeforeBytes == 24 + header * 4)
+            #expect(snapshot.memoryUsageAfterBytes == 24 + header * 3)
+            #expect(kk_runtime_heap_object_count() == 4)
+        }
+    }
+
+    @Test func testLastGCInfoReturnsDistinctImmutableSnapshots() {
+        kk_gc_collect()
+        let first = lastGCInfoFieldValues()
+        #expect(first != nil)
+        kk_gc_collect()
+        let second = lastGCInfoFieldValues()
+        #expect(second != nil)
+        guard let first, let second else { return }
+
+        // Each call yields a snapshot of the latest pass: the first still
+        // reports epoch 1 while the second reports epoch 2 — the later
+        // collection did not retroactively rewrite the earlier list.
+        #expect(first.first == 1)
+        #expect(second.first == 2)
+        #expect(second == lastGCInfoSnapshot()?.serializedFieldValues)
+    }
+
+    @Test func testLastGCInfoListLayoutMatchesSnapshot() {
+        withDummyTypeInfo { ti in
+            _ = kk_alloc(16, ti)
+            kk_gc_collect()
+            let snapshot = lastGCInfoSnapshot()
+            let fields = lastGCInfoFieldValues()
+            #expect(snapshot != nil && fields != nil)
+            guard let snapshot, let fields else { return }
+            #expect(fields == snapshot.serializedFieldValues)
+        }
+    }
+
     @Test func testGCRemovesPerObjectDispatchMetadataForSweptHeapObject() {
         withDummyTypeInfo { ti in
             let object = kk_alloc(16, ti)

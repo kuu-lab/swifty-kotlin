@@ -87,6 +87,62 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    // KUU-2691: GC.lastGCInfo must surface the recorded pass statistics
+    // end-to-end — null before any pass, an immutable snapshot after, and an
+    // epoch bump per collection (including via GC.schedule()).
+    @Test(arguments: [true, false])
+    func testGCLastGCInfoReportsRecordedPass(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            @file:OptIn(kotlin.native.runtime.NativeRuntimeApi::class, ExperimentalStdlibApi::class)
+            import kotlin.native.runtime.GC
+
+            fun main() {
+                println(GC.lastGCInfo == null)
+                GC.collect()
+                println(GC.lastGCInfo != null)
+                val first = GC.lastGCInfo ?: return
+                println(first.epoch == 1L)
+                println(first.startTimeNs <= first.firstPauseRequestTimeNs)
+                println(first.firstPauseRequestTimeNs <= first.firstPauseStartTimeNs)
+                println(first.firstPauseStartTimeNs <= first.firstPauseEndTimeNs)
+                println(first.firstPauseEndTimeNs <= first.endTimeNs)
+                println(first.secondPauseRequestTimeNs == null)
+                println(first.secondPauseStartTimeNs == null)
+                println(first.secondPauseEndTimeNs == null)
+                println(first.postGcCleanupTimeNs != null && first.endTimeNs <= first.postGcCleanupTimeNs!!)
+                println(first.sweepStatistics.size == 1)
+                println(first.sweepStatistics["heap"] != null)
+                println(first.memoryUsageBefore.size == 1)
+                println(first.memoryUsageBefore["heap"] != null)
+                println(first.memoryUsageAfter.size == 1)
+                println(first.memoryUsageAfter["heap"] != null)
+                println(first.memoryUsageAfter["heap"]!!.totalObjectsSizeBytes <= first.memoryUsageBefore["heap"]!!.totalObjectsSizeBytes)
+                println(first.markedCount == first.sweepStatistics["heap"]!!.keptCount)
+                println(first.rootSet.threadLocalReferences >= 0L)
+                println(first.rootSet.stackReferences >= 0L)
+                println(first.rootSet.globalReferences >= 0L)
+                println(first.rootSet.stableReferences >= 0L)
+                GC.collect()
+                println(GC.lastGCInfo != null)
+                val second = GC.lastGCInfo ?: return
+                println(second.epoch == first.epoch + 1)
+                println(first !== second)
+                println(GC.lastGCInfo != null)
+                val again = GC.lastGCInfo ?: return
+                println(again.epoch == second.epoch)
+                GC.schedule()
+                println(GC.lastGCInfo != null)
+                val third = GC.lastGCInfo ?: return
+                println(third.epoch == second.epoch + 1)
+            }
+            """,
+            expectedOutput: String(repeating: "true\n", count: 30),
+            moduleName: "KUU2691GCLastGCInfo",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     @Test
     func testForInRangePrintsSequence() throws {
         try compileAndRunKotlin(
