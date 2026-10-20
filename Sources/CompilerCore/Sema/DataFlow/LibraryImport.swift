@@ -81,6 +81,12 @@ extension DataFlowSemaPhase {
         let libraryDirs = discoverLibraryDirectories(searchPaths: options.effectiveLibrarySearchPaths)
         var pendingSupertypeEdges: [(subtype: SymbolID, superFQName: [InternedString])] = []
         var importedBindings: [ImportedLibraryBinding] = []
+        var deferredCompactTypeParameters: [String: [(
+            record: CompactMetadataIndexRecord,
+            metadataPath: String,
+            moduleFQN: InternedString?,
+            isStdlibArtifact: Bool
+        )]] = [:]
         /// The library that claimed each symbol, as a user-facing origin
         /// label (module name, or metadata path when unnamed) and the
         /// metadata path that identifies it. `SymbolTable.define` merges a
@@ -166,6 +172,15 @@ extension DataFlowSemaPhase {
                 == URL(fileURLWithPath: stdlibLibraryPath).standardizedFileURL.path
         }
 
+        func compactTypeParameterOwnerFQName(_ fqName: String) -> String? {
+            guard let parameterSeparator = fqName.lastIndex(of: "."),
+                  let ownerSeparator = fqName[..<parameterSeparator].lastIndex(of: ".")
+            else { return nil }
+            let disambiguator = fqName[fqName.index(after: ownerSeparator) ..< parameterSeparator]
+            guard disambiguator.first == "$" else { return nil }
+            return String(fqName[..<ownerSeparator])
+        }
+
         var seenLibraryMetadataPaths: Set<String> = []
         var activeLibraryMetadataPath: String?
         var activePathHasCrossLibraryOwners = false
@@ -178,7 +193,8 @@ extension DataFlowSemaPhase {
             isStdlibArtifact: Bool,
             materializeBody: (() -> ImportedLibrarySymbolRecord?)? = nil,
             hasCompleteInitializerInfo: Bool = false,
-            moduleFQN: InternedString?
+            moduleFQN: InternedString?,
+            qualifiedNameString: String? = nil
         ) -> SymbolID? {
             guard !record.fqName.isEmpty else { return nil }
             if activeLibraryMetadataPath != metadataPath {
@@ -310,7 +326,8 @@ extension DataFlowSemaPhase {
                 metadataPath: metadataPath,
                 inlineKIRDir: inlineKIRDir,
                 isStdlibArtifact: isStdlibArtifact,
-                materializeBody: materializeBody
+                materializeBody: materializeBody,
+                qualifiedNameString: qualifiedNameString
             )
             // Indexed inline bodies stay unparsed until lowering resolves the
             // callees the module actually invokes. Registering at shell
@@ -439,6 +456,23 @@ extension DataFlowSemaPhase {
                         }
                     }
                     for entry in indexedFile.entries {
+                        if let compactRecord = entry.compactRecord {
+                            switch compactRecord.kind {
+                            case .valueParameter, .local:
+                                // Callable signatures recreate value-parameter symbols when demanded.
+                                // Local records describe library bodies and are never part of consumer lookup.
+                                continue
+                            case .typeParameter:
+                                guard let ownerFQName = compactTypeParameterOwnerFQName(compactRecord.fqName)
+                                else { continue }
+                                deferredCompactTypeParameters[ownerFQName, default: []].append((
+                                    compactRecord, metadataPath, libraryModuleFQN, stdlibArtifact
+                                ))
+                                continue
+                            default:
+                                break
+                            }
+                        }
                         let shell: ImportedLibrarySymbolRecord?
                         if let compactRecord = entry.compactRecord {
                             shell = makeImportedLibraryIndexRecord(
@@ -469,7 +503,8 @@ extension DataFlowSemaPhase {
                                 )
                             },
                             hasCompleteInitializerInfo: entry.hasCompleteInitializerInfo,
-                            moduleFQN: libraryModuleFQN
+                            moduleFQN: libraryModuleFQN,
+                            qualifiedNameString: entry.fqName
                         )
                     }
                 }
@@ -515,12 +550,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // Member lookup needs the owner edge before it can ask the lazy loader
-        // for a member's signature. Restore this structural relationship from
-        // the compact index without decoding any declaration body.
-        for binding in importedBindings {
-            restoreImportedParentSymbol(binding.record, symbol: binding.symbol, symbols: symbols)
-        }
         // Class-name receiver resolution needs the companion edge before it
         // asks for any declaration body. The compact index carries only the
         // companion FQ name, which is enough to restore that structural link
@@ -542,37 +571,40 @@ extension DataFlowSemaPhase {
 
         var externalLinkNameToSymbol: [String: SymbolID] = [:]
         var importedSymbolByFQName: [String: SymbolID] = [:]
-        for binding in importedBindings {
-            if let linkName = binding.record.externalLinkName, !linkName.isEmpty {
-                externalLinkNameToSymbol[linkName] = binding.symbol
-            }
-            // Inline bodies can call a default stub whose signature is restored
-            // below. Resolve it to that symbol so ABI lowering retains the
-            // parameter and return types, including the flat String ABI.
-            if let linkName = binding.record.defaultStubExternalLinkName, !linkName.isEmpty {
-                externalLinkNameToSymbol[linkName] = SyntheticSymbolScheme.defaultStubSymbol(for: binding.symbol)
-            }
-            let fQName = binding.record.fqName
-                .map { interner.resolve($0) }
-                .joined(separator: ".")
-            if !fQName.isEmpty {
-                importedSymbolByFQName[fQName] = binding.symbol
+        withSubPhaseTiming("importNameRouting", timer: phaseTimer) {
+            for binding in importedBindings {
+                if let linkName = binding.record.externalLinkName, !linkName.isEmpty {
+                    externalLinkNameToSymbol[linkName] = binding.symbol
+                }
+                // Inline bodies can call a default stub whose signature is restored
+                // below. Resolve it to that symbol so ABI lowering retains the
+                // parameter and return types, including the flat String ABI.
+                if let linkName = binding.record.defaultStubExternalLinkName, !linkName.isEmpty {
+                    externalLinkNameToSymbol[linkName] = SyntheticSymbolScheme.defaultStubSymbol(for: binding.symbol)
+                }
+                let fQName = binding.qualifiedNameString
+                    ?? binding.record.fqName.map { interner.resolve($0) }.joined(separator: ".")
+                if !fQName.isEmpty {
+                    importedSymbolByFQName[fQName] = binding.symbol
+                }
             }
         }
-        // Register scan-safe routing information from the compact index only
-        // after all nominal shells exist, so metadata declaration order does
-        // not affect ownership. Full semantic getters still load body records.
-        for binding in importedBindings {
-            let record = binding.record
-            if let linkName = record.externalLinkName, !linkName.isEmpty {
-                symbols.setExternalLinkName(linkName, for: binding.symbol)
-            }
-            restoreImportedParentSymbol(record, symbol: binding.symbol, symbols: symbols)
-            if record.kind == .function, !record.isMemberExtension,
-               let receiverFQName = record.receiverOwnerFQName,
-               let receiver = symbols.lookupAll(fqName: receiverFQName)
-                .first(where: { symbols.symbol($0).map { isNominalLayoutTargetSymbol($0.kind) } == true }) {
-                symbols.setParentSymbol(receiver, for: binding.symbol)
+        // Register scan-safe routing and owner links from the compact index
+        // only after all nominal shells exist, so metadata declaration order
+        // does not affect ownership. Full semantic getters still load bodies.
+        withSubPhaseTiming("restoreImportedRouting", timer: phaseTimer) {
+            for binding in importedBindings {
+                let record = binding.record
+                if let linkName = record.externalLinkName, !linkName.isEmpty {
+                    symbols.setExternalLinkName(linkName, for: binding.symbol)
+                }
+                restoreImportedParentSymbol(record, symbol: binding.symbol, symbols: symbols)
+                if record.kind == .function, !record.isMemberExtension,
+                   let receiverFQName = record.receiverOwnerFQName,
+                   let receiver = symbols.lookupAll(fqName: receiverFQName)
+                    .first(where: { symbols.symbol($0).map { isNominalLayoutTargetSymbol($0.kind) } == true }) {
+                    symbols.setParentSymbol(receiver, for: binding.symbol)
+                }
             }
         }
 
@@ -620,29 +652,64 @@ extension DataFlowSemaPhase {
         // overloads and there is no reliable way to tell them apart.
         var functionBindingCountByFQName: [[InternedString]: Int] = [:]
         var typeParameterBindingSymbolsByOwnerFQName: [[InternedString]: [SymbolID]] = [:]
-        for binding in importedBindings {
-            switch binding.record.kind {
-            case .function, .constructor:
-                functionBindingCountByFQName[binding.record.fqName, default: 0] += 1
-            case .typeParameter:
-                let fqName = binding.record.fqName
-                guard fqName.count >= 3, interner.resolve(fqName[fqName.count - 2]).hasPrefix("$") else {
-                    continue
+        withSubPhaseTiming("indexImportedTypeParameters", timer: phaseTimer) {
+            for binding in importedBindings {
+                switch binding.record.kind {
+                case .function, .constructor:
+                    functionBindingCountByFQName[binding.record.fqName, default: 0] += 1
+                case .typeParameter:
+                    let fqName = binding.record.fqName
+                    guard fqName.count >= 3, interner.resolve(fqName[fqName.count - 2]).hasPrefix("$") else {
+                        continue
+                    }
+                    let ownerFQName = Array(fqName.dropLast(2))
+                    typeParameterBindingSymbolsByOwnerFQName[ownerFQName, default: []].append(binding.symbol)
+                default:
+                    break
                 }
-                let ownerFQName = Array(fqName.dropLast(2))
-                typeParameterBindingSymbolsByOwnerFQName[ownerFQName, default: []].append(binding.symbol)
-            default:
-                break
             }
         }
         let phantomTypeParameterSymbolsByOwnerFQName = typeParameterBindingSymbolsByOwnerFQName.filter {
             functionBindingCountByFQName[$0.key] == 1
         }
+        withSubPhaseTiming("deferImportedTypeParameters", timer: phaseTimer) {
+            for binding in importedBindings
+                where binding.record.kind == .function || binding.record.kind == .constructor
+            {
+                let ownerFQName = binding.qualifiedNameString
+                    ?? binding.record.fqName.map { interner.resolve($0) }.joined(separator: ".")
+                guard functionBindingCountByFQName[binding.record.fqName] == 1,
+                      let deferredRecords = deferredCompactTypeParameters[ownerFQName]?.filter({
+                          $0.metadataPath == binding.metadataPath
+                      }),
+                      !deferredRecords.isEmpty
+                else { continue }
+                binding.setDeferredPhantomTypeParameterSymbols(count: deferredRecords.count) { [weak symbols] in
+                    guard let symbols else { return [] }
+                    return deferredRecords.compactMap { deferred in
+                        let fqName = interner.internQualifiedName(deferred.record.fqName)
+                        guard let name = fqName.last else { return nil }
+                        let symbol = symbols.define(
+                            kind: .typeParameter,
+                            name: name,
+                            fqName: fqName,
+                            declSite: nil,
+                            visibility: deferred.record.visibility,
+                            flags: [.synthetic, .importedLibrary]
+                        )
+                        if deferred.isStdlibArtifact { symbols.markImportedStdlibSymbol(symbol) }
+                        if let moduleFQN = deferred.moduleFQN { symbols.setModuleFQN(moduleFQN, for: symbol) }
+                        return symbol
+                    }
+                }
+            }
+        }
 
         // Property getter accessors are synthesized while applying their
-        // property records. Import those records before inline function bodies
-        // so a producer getter link (for example Lazy.value) resolves to the
-        // consumer-side accessor symbol when the inline virtual call is parsed.
+        // property records. Compact records get an accessor shell here so an
+        // inline body can resolve its producer getter link without decoding
+        // every property signature during library discovery.
+        let lazyMetadataEnabled = importedBindings.contains { !$0.isMaterialized }
         let propertyBindingsWithGetter = importedBindings.filter { binding in
             (binding.record.kind == .property || binding.record.kind == .field)
                 && binding.record.propertyGetterExternalLinkName?.isEmpty == false
@@ -655,24 +722,43 @@ extension DataFlowSemaPhase {
                     && binding.record.fqName.dropLast().last == interner.intern("Companion")
                 )
         }
-        for binding in propertyBindingsWithGetter {
-            applyImportedBinding(
-                binding,
-                symbols: symbols,
-                types: types,
-                diagnostics: diagnostics,
-                interner: interner,
-                importedInlineFunctions: importedInlineFunctions,
-                pendingSupertypeEdges: &pendingSupertypeEdges,
-                cache: cache,
-                isStdlibArtifact: binding.isStdlibArtifact,
-                phantomTypeParameterSymbolsByOwnerFQName: phantomTypeParameterSymbolsByOwnerFQName
-            )
-            if let owner = symbols.parentSymbol(for: binding.symbol) {
-                lazyLoaderState.preloadedPropertiesByOwner[owner, default: []].append(binding)
+        var deferredGetterAccessorByProperty: [SymbolID: SymbolID] = [:]
+        var preloadedGetterBindingSymbols: Set<SymbolID> = []
+        withSubPhaseTiming("preloadImportedPropertyGetters", timer: phaseTimer) {
+            for binding in propertyBindingsWithGetter {
+                if !binding.isMaterialized {
+                    for accessor in predeclareImportedPropertyAccessorShells(
+                        binding,
+                        symbols: symbols,
+                        interner: interner
+                    ) {
+                        externalLinkNameToSymbol[accessor.externalLinkName] = accessor.symbol
+                        importedSymbolByFQName[accessor.fqName] = accessor.symbol
+                        if accessor.isGetter {
+                            deferredGetterAccessorByProperty[accessor.property] = accessor.symbol
+                        }
+                    }
+                    continue
+                }
+                applyImportedBinding(
+                    binding,
+                    symbols: symbols,
+                    types: types,
+                    diagnostics: diagnostics,
+                    interner: interner,
+                    importedInlineFunctions: importedInlineFunctions,
+                    pendingSupertypeEdges: &pendingSupertypeEdges,
+                    cache: cache,
+                    isStdlibArtifact: binding.isStdlibArtifact,
+                    phantomTypeParameterSymbolsByOwnerFQName: phantomTypeParameterSymbolsByOwnerFQName
+                )
+                preloadedGetterBindingSymbols.insert(binding.symbol)
+                if let owner = symbols.parentSymbol(for: binding.symbol) {
+                    lazyLoaderState.preloadedPropertiesByOwner[owner, default: []].append(binding)
+                }
             }
         }
-        for binding in propertyBindingsWithGetter {
+        for binding in propertyBindingsWithGetter where binding.isMaterialized {
             guard let getterLink = binding.record.propertyGetterExternalLinkName,
                   let getterSymbol = symbols.extensionPropertyGetterAccessor(for: binding.symbol)
             else {
@@ -684,20 +770,33 @@ extension DataFlowSemaPhase {
             guard shadowed.record.kind == .property || shadowed.record.kind == .field,
                   let getterLink = shadowed.record.propertyGetterExternalLinkName,
                   !getterLink.isEmpty,
-                  let getterSymbol = symbols.extensionPropertyGetterAccessor(for: shadowed.symbol)
+                  let getterSymbol = deferredGetterAccessorByProperty[shadowed.symbol]
+                    ?? symbols.extensionPropertyGetterAccessor(for: shadowed.symbol)
             else {
                 continue
             }
             externalLinkNameToSymbol[getterLink] = getterSymbol
         }
 
-        let preloadedGetterBindingSymbols = Set(propertyBindingsWithGetter.map(\.symbol))
-        let lazyMetadataEnabled = importedBindings.contains { !$0.isMaterialized }
-
         // Indexed declarations stay as shells. The callback is invoked by
         // SymbolTable semantic-data accessors and applies exactly one body
         // record before returning the requested value.
-        let bindingsBySymbol = Dictionary(uniqueKeysWithValues: importedBindings.map { ($0.symbol, $0) })
+        var bindingsBySymbol: [SymbolID: ImportedLibraryBinding] = [:]
+        var indexedNominalSymbols: Set<SymbolID> = []
+        var lazyShells: Set<SymbolID> = []
+        withSubPhaseTiming("buildLazyImportLookup", timer: phaseTimer) {
+            bindingsBySymbol.reserveCapacity(importedBindings.count)
+            indexedNominalSymbols.reserveCapacity(importedBindings.count / 8)
+            lazyShells.reserveCapacity(importedBindings.count)
+            for binding in importedBindings {
+                bindingsBySymbol[binding.symbol] = binding
+                guard !binding.isMaterialized else { continue }
+                lazyShells.insert(binding.symbol)
+                if isNominalLayoutTargetSymbol(binding.record.kind) {
+                    indexedNominalSymbols.insert(binding.symbol)
+                }
+            }
+        }
         lazyLoaderState.indexedBindingsBySymbol = bindingsBySymbol
         if lazyMetadataEnabled {
             // `symbols` is weak: this closure is stored on the symbol table
@@ -705,10 +804,8 @@ extension DataFlowSemaPhase {
             // table (and every captured import structure) past compilation end.
             symbols.setLazyImportedMetadataLoader(
                 alreadyLoaded: preloadedGetterBindingSymbols,
-                indexedNominals: Set(importedBindings.filter {
-                    !$0.isMaterialized && isNominalLayoutTargetSymbol($0.record.kind)
-                }.map(\.symbol)),
-                lazyShells: Set(importedBindings.lazy.filter { !$0.isMaterialized }.map(\.symbol))
+                indexedNominals: indexedNominalSymbols,
+                lazyShells: lazyShells
             ) { [self, weak symbols] symbol in
                 guard let symbols else { return }
                 guard let binding = bindingsBySymbol[symbol] else { return }
@@ -756,6 +853,12 @@ extension DataFlowSemaPhase {
                         interner: interner,
                         cache: cache
                     )
+                    if (binding.record.kind == .property || binding.record.kind == .field),
+                       let owner = symbols.parentSymbol(for: binding.symbol),
+                       symbols.hasPendingImportedNominalMetadata(for: owner)
+                    {
+                        lazyLoaderState.preloadedPropertiesByOwner[owner, default: []].append(binding)
+                    }
                     if let pendingProps = lazyLoaderState.preloadedPropertiesByOwner.removeValue(forKey: symbol) {
                         for propBinding in pendingProps {
                             self.normalizeImportedMemberBinding(
@@ -812,49 +915,51 @@ extension DataFlowSemaPhase {
             .class, .interface, .object, .enumClass, .annotationClass,
             .typeAlias, .function, .property, .constructor
         ]
-        for binding in importedBindings
-            where binding.record.kind != .package
-            && packageOwnerRecordKinds.contains(binding.record.kind)
-        {
-            let fq = binding.record.fqName
-            let moduleFQN = symbols.moduleFQN(for: binding.symbol)
-            for length in 1 ..< fq.count {
-                let prefix = Array(fq.prefix(length))
-                // Constructors are named below their nominal owner (for
-                // example, `pkg.Type.<init>`). Keep that owner path nominal
-                // when it already exists; package-level functions may legally
-                // share the same FQ-name prefix as a class and still require
-                // a package symbol for import resolution.
-                if binding.record.kind == .constructor,
-                   prefix == Array(fq.dropLast()),
-                   symbols.lookupAll(fqName: prefix).contains(where: { id in
-                    symbols.symbol(id)?.kind != .package
-                }) {
-                    continue
-                }
-                syntheticPackagePaths.insert(prefix)
-                if let moduleFQN {
-                    syntheticPackageModules[prefix] = moduleFQN
+        withSubPhaseTiming("buildImportedPackagePaths", timer: phaseTimer) {
+            for binding in importedBindings
+                where binding.record.kind != .package
+                && packageOwnerRecordKinds.contains(binding.record.kind)
+            {
+                let fq = binding.record.fqName
+                let moduleFQN = symbols.moduleFQN(for: binding.symbol)
+                for length in 1 ..< fq.count {
+                    let prefix = Array(fq.prefix(length))
+                    // Constructors are named below their nominal owner (for
+                    // example, `pkg.Type.<init>`). Keep that owner path nominal
+                    // when it already exists; package-level functions may legally
+                    // share the same FQ-name prefix as a class and still require
+                    // a package symbol for import resolution.
+                    if binding.record.kind == .constructor,
+                       prefix == Array(fq.dropLast()),
+                       symbols.lookupAll(fqName: prefix).contains(where: { id in
+                        symbols.symbol(id)?.kind != .package
+                    }) {
+                        continue
+                    }
+                    syntheticPackagePaths.insert(prefix)
+                    if let moduleFQN {
+                        syntheticPackageModules[prefix] = moduleFQN
+                    }
                 }
             }
-        }
-        for packagePath in syntheticPackagePaths {
-            let existing = symbols.lookupAll(fqName: packagePath)
-            let alreadyHasPackage = existing.contains { id in
-                symbols.symbol(id)?.kind == .package
-            }
-            if !alreadyHasPackage {
-                let name = packagePath.last ?? interner.intern("_")
-                let packageSymbol = symbols.define(
-                    kind: .package,
-                    name: name,
-                    fqName: packagePath,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-                if let moduleFQN = syntheticPackageModules[packagePath] {
-                    symbols.setModuleFQN(moduleFQN, for: packageSymbol)
+            for packagePath in syntheticPackagePaths {
+                let existing = symbols.lookupAll(fqName: packagePath)
+                let alreadyHasPackage = existing.contains { id in
+                    symbols.symbol(id)?.kind == .package
+                }
+                if !alreadyHasPackage {
+                    let name = packagePath.last ?? interner.intern("_")
+                    let packageSymbol = symbols.define(
+                        kind: .package,
+                        name: name,
+                        fqName: packagePath,
+                        declSite: nil,
+                        visibility: .public,
+                        flags: [.synthetic]
+                    )
+                    if let moduleFQN = syntheticPackageModules[packagePath] {
+                        symbols.setModuleFQN(moduleFQN, for: packageSymbol)
+                    }
                 }
             }
         }

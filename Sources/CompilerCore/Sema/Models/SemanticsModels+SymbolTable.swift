@@ -378,15 +378,17 @@ public final class SymbolTable {
     func ensureLazyImportedMetadataLoaded(for symbol: SymbolID) {
         lock.lock()
         defer { lock.unlock() }
+        let loadSymbol = accessorOwnerProperties[symbol] ?? symbol
         guard let loader = lazyImportedMetadataLoader,
-              !lazyImportedMetadataLoaded.contains(symbol),
-              !lazyImportedMetadataLoadInProgress.contains(symbol)
+              !lazyImportedMetadataLoaded.contains(loadSymbol),
+              !lazyImportedMetadataLoadInProgress.contains(loadSymbol)
         else {
             return
         }
-        lazyImportedMetadataLoadInProgress.insert(symbol)
-        loader(symbol)
-        lazyImportedMetadataLoadInProgress.remove(symbol)
+        lazyImportedMetadataLoadInProgress.insert(loadSymbol)
+        loader(loadSymbol)
+        lazyImportedMetadataLoadInProgress.remove(loadSymbol)
+        lazyImportedMetadataLoaded.insert(loadSymbol)
         lazyImportedMetadataLoaded.insert(symbol)
     }
 

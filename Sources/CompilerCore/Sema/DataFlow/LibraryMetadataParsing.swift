@@ -318,6 +318,8 @@ extension DataFlowSemaPhase {
         cache: LibraryMetadataCache? = nil,
         allowPlaceholders: Bool = false,
         phantomTypeParameterSymbols: [SymbolID] = [],
+        phantomTypeParameterSymbolCount: Int = 0,
+        phantomTypeParameterSymbolsProvider: (() -> [SymbolID])? = nil,
         isStdlibArtifact: Bool = false
     ) -> FunctionSignature {
         guard (0 ... ImportedLibraryLimits.maxCallableArity).contains(record.arity) else {
@@ -476,11 +478,11 @@ extension DataFlowSemaPhase {
         // `kotlin.native.concurrent.callContinuation1<T1>`) is invisible to
         // that scan and gets silently dropped, so `<Int>` at a call site later
         // fails overload resolution with a bogus arity mismatch.
-        // `phantomTypeParameterSymbols` carries every declared type parameter
-        // of this callable as its own already-imported `.typeParameter`
-        // symbol (see `loadImportedLibrarySymbols`), restricted to callables
-        // with no ambiguous overload. Pad up to that total count so at least
-        // the arity is right. This is restricted to non-member callables
+        // `phantomTypeParameterSymbols` carries already-imported legacy
+        // `.typeParameter` symbols. Compact indexes can instead provide a
+        // count and materialize those symbols only when this fallback is used.
+        // Both paths are restricted to callables with no ambiguous overload.
+        // Pad up to that total count so at least the arity is right. This is restricted to non-member callables
         // (`classTypeParameterCount == 0`): the wire format has no per-index
         // marker distinguishing "phantom" from "structurally found", so when
         // a callable mixes both (e.g.
@@ -491,9 +493,11 @@ extension DataFlowSemaPhase {
         // artifacts that predate `callTParams`; newer artifacts restore the
         // exact declaration order above instead.
         if !restoredDeclarationOrder, classTypeParameterCount == 0 {
-            let deficit = phantomTypeParameterSymbols.count - typeParameterSymbols.count
+            let phantomCount = max(phantomTypeParameterSymbols.count, phantomTypeParameterSymbolCount)
+            let deficit = phantomCount - typeParameterSymbols.count
             if deficit > 0 {
-                typeParameterSymbols += phantomTypeParameterSymbols.prefix(deficit)
+                let fallbackSymbols = phantomTypeParameterSymbolsProvider?() ?? phantomTypeParameterSymbols
+                typeParameterSymbols += fallbackSymbols.prefix(deficit)
             }
         }
         for index in record.inputOnlyTypeParameterIndices where typeParameterSymbols.indices.contains(index) {

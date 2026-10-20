@@ -239,7 +239,11 @@ extension DataFlowSemaPhase {
         let metadataPath: String
         let inlineKIRDir: String?
         let isStdlibArtifact: Bool
+        let qualifiedNameString: String?
         private let materializeBody: (() -> ImportedLibrarySymbolRecord?)?
+        private var deferredPhantomTypeParameterSymbolsProvider: (() -> [SymbolID])?
+        private var cachedDeferredPhantomTypeParameterSymbols: [SymbolID]?
+        private(set) var deferredPhantomTypeParameterSymbolCount = 0
         private(set) var isMaterialized: Bool
 
         init(
@@ -248,7 +252,8 @@ extension DataFlowSemaPhase {
             metadataPath: String,
             inlineKIRDir: String?,
             isStdlibArtifact: Bool,
-            materializeBody: (() -> ImportedLibrarySymbolRecord?)? = nil
+            materializeBody: (() -> ImportedLibrarySymbolRecord?)? = nil,
+            qualifiedNameString: String? = nil
         ) {
             self.record = record
             self.symbol = symbol
@@ -256,7 +261,25 @@ extension DataFlowSemaPhase {
             self.inlineKIRDir = inlineKIRDir
             self.isStdlibArtifact = isStdlibArtifact
             self.materializeBody = materializeBody
+            self.qualifiedNameString = qualifiedNameString
             self.isMaterialized = materializeBody == nil
+        }
+
+        func setDeferredPhantomTypeParameterSymbols(
+            count: Int,
+            provider: @escaping () -> [SymbolID]
+        ) {
+            deferredPhantomTypeParameterSymbolCount = count
+            deferredPhantomTypeParameterSymbolsProvider = provider
+        }
+
+        func materializeDeferredPhantomTypeParameterSymbols() -> [SymbolID] {
+            if let cachedDeferredPhantomTypeParameterSymbols {
+                return cachedDeferredPhantomTypeParameterSymbols
+            }
+            let symbols = deferredPhantomTypeParameterSymbolsProvider?() ?? []
+            cachedDeferredPhantomTypeParameterSymbols = symbols
+            return symbols
         }
 
         /// Whether this binding came from a v2 index and its `.kir` inline
