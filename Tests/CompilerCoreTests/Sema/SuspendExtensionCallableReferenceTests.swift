@@ -12,6 +12,7 @@ struct SuspendExtensionCallableReferenceTests {
     ])
     func acceptsRunTestReference(body: String) throws {
         let ctx = makeContextFromSource("""
+        import kotlinx.coroutines.*
         import kotlinx.coroutines.test.*
         @OptIn(ExperimentalCoroutinesApi::class)
         suspend fun TestScope.fnBody() {

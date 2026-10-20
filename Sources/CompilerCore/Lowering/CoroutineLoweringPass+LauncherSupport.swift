@@ -1323,16 +1323,41 @@ extension CoroutineLoweringPass {
             return nil
         }
         let contextExpr = call.arguments[0]
+        let timeoutExpr = call.arguments[1]
         let suspendArgExpr = call.arguments[2]
-        guard let suspendSymbol = symbolReference(
-                  for: suspendArgExpr,
-                  module: rewrite.module,
-                  propagatedSymbols: symbolByExprRaw
-              ),
+        let suspendSymbol = symbolReference(
+            for: suspendArgExpr,
+            module: rewrite.module,
+            propagatedSymbols: symbolByExprRaw
+        )
+        // A block that resolves to a `kk_function_value_adapter_*` symbol —
+        // the materialization of a stored suspend value — keeps its captures
+        // inside the boxed value: its suspend entry ABI is `(env, receiver,
+        // continuation)`, not per-capture launcherArgs, so it must stay on
+        // the boxed path `rewriteCoroutineScopeAsyncCall` already uses. The
+        // same holds when the block doesn't resolve at all: the raw call
+        // hands `kk_test_run_blocking` a function-value box it resolves at
+        // runtime, so emit the cdecl's (entry, closure) pair explicitly.
+        guard let suspendSymbol,
+              !isFunctionValueAdapterSymbol(suspendSymbol, using: rewrite),
               let loweredTarget = rewrite.loweredBySymbol[suspendSymbol],
               let thunk = rewrite.launcherThunkByOriginalSymbol[suspendSymbol]
         else {
-            return nil
+            let zeroExpr = rewrite.module.arena.appendExpr(
+                .intLiteral(0),
+                type: rewrite.intType
+            )
+            return [
+                .constValue(result: zeroExpr, value: .intLiteral(0)),
+                .call(
+                    symbol: call.symbol,
+                    callee: call.callee,
+                    arguments: [contextExpr, timeoutExpr, suspendArgExpr, zeroExpr],
+                    result: call.result,
+                    canThrow: call.canThrow,
+                    thrownResult: call.thrownResult
+                ),
+            ]
         }
 
         // Captures either arrive flattened as trailing call args or ride

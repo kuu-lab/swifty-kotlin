@@ -828,7 +828,7 @@ final class LambdaLowerer {
                     returnType: lambdaReturnType,
                     body: lambdaBody,
                     isSuspend: effectiveIsSuspend,
-                    isInline: true,
+                    isInline: !effectiveIsSuspend || hasNonLocalReturn || hasNonLocalLoopJump,
                     isInlineOnly: hasNonLocalReturn || hasNonLocalLoopJump
                 )
             )
