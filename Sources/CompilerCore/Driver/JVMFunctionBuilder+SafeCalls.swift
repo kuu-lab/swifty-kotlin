@@ -4,7 +4,11 @@ extension JVMFunctionBuilder {
         if !arena.isExplicitCall(id), let value = try nominalValue(id) { return value }
         if let value = try nominalCall(id, receiver: receiver, name: context.interner.resolve(name), args: args) { return value.value }
         if !arena.isExplicitCall(id), let property = propertyBinding(id) {
-            if let literal = property.field?.constantValue, let symbol = program.sema.bindings.identifierSymbol(for: receiver), program.classes[symbol]?.isObject == true { return try constant(literal, property.type) }
+            if let literal = property.field?.constantValue,
+               let symbol = program.sema.bindings.identifierSymbol(for: receiver),
+               program.classes[symbol]?.isObject == true || program.sema.symbols.companionObjectSymbol(for: symbol) != nil {
+                return try constant(literal, property.type)
+            }
             let object = try property.getter.isStatic ? constant(.null, .reference("java/lang/Object", nullable: true)) : requireValue(receiver)
             return try convert(readProperty(property, receiver: object, special: isSuper(receiver), superReceiver: receiver), to: program.expressionType(id))
         }

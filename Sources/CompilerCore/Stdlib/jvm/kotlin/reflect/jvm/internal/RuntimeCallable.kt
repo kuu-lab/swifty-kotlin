@@ -127,13 +127,16 @@ open class RuntimeCallable(
         }
         val method = method
         val instance = !constructor && (__jvmExecutableModifiers(method) and 8) == 0
+        val parameterTypes = __jvmExecutableParams(method)
+        val receiverCount = if (instance && !bound) 1 else 0
+        val boundCount = if (bound && !instance && !constructor) 1 else 0
+        val arity = parameterTypes.size + receiverCount - boundCount
+        if (args.size != arity) throw IllegalArgumentException("Callable expects $arity arguments, but ${args.size} were provided.")
         var offset = 0
         val receiver = if (instance) { if (bound) boundReceiver else args[offset++] } else null
-        val parameterTypes = __jvmExecutableParams(method)
         val actual = arrayOfNulls<Any?>(parameterTypes.size)
         var index = 0
         if (bound && !instance && !constructor) { actual[0] = adaptArgument(boundReceiver, parameterTypes[0]); index = 1 }
-        if (args.size - offset != parameterTypes.size - index) throw IllegalArgumentException("Callable expects ${parameterTypes.size} arguments")
         while (index < parameterTypes.size) { actual[index] = adaptArgument(args[offset++], parameterTypes[index]); index++ }
         val value: Any? = if (constructor) __jvmConstructorInvoke(method, actual) else if (unwrapException) invokeMethod(method, receiver, actual) else __jvmMethodInvoke(method, receiver, actual)
         if (displayName == "<init>" && !constructor) {

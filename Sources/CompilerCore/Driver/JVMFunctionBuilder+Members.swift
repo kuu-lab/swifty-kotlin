@@ -125,6 +125,7 @@ extension JVMFunctionBuilder {
         return selected
     }
     func readProperty(_ property: JVMProperty, receiver: JVMValue, special: Bool, superReceiver: ExprID? = nil) throws -> JVMValue {
+        if let literal = property.field?.constantValue { return try constant(literal, property.type) }
         var getter = property.getter
         if special { getter = try superMethod(getter, receiver: superReceiver) }
         let result = try value(property.type)
@@ -181,7 +182,7 @@ extension JVMFunctionBuilder {
 
 extension JVMProgramBuilder {
     func emitAccessors(_ plan: JVMClassPlan, _ declaration: PropertyDecl, _ property: JVMProperty) throws -> [JVMFunction] {
-        if declaration.modifiers.contains(.const), plan.companionOwner != nil { return [] }
+        if declaration.modifiers.contains(.const) { return [] }
         var functions: [JVMFunction] = []
         for setter in [false, true] {
             guard let method = setter ? property.setter : property.getter else { continue }
