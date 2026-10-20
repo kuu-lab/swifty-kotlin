@@ -386,11 +386,21 @@ extension DataFlowSemaPhase {
                     for: symbol
                 )
             }
+            if isNominalLayoutTargetSymbol(record.kind), !hasCompleteInitializerInfo {
+                symbols.recordImportedNominalIncompleteInitializerInfo(symbol)
+            }
             if hasCompleteInitializerInfo, isNominalLayoutTargetSymbol(record.kind),
                record.objectInitializerLinkName?.isEmpty != false,
                record.companionInitializerLinkName?.isEmpty != false,
                record.enumStaticInitLinkName?.isEmpty != false {
                 symbols.recordImportedNominalWithoutInitializers(symbol)
+            }
+            if record.kind == .property || record.kind == .field,
+               record.propertyReceiverTypeSignature?.isEmpty == false {
+                // The compact index already proves this member needs an
+                // extension receiver; decode will restore its type. Record the
+                // fact so `hasExtensionPropertyReceiver` answers shells too.
+                symbols.markImportedExtensionReceiverProperty(symbol)
             }
             let binding = ImportedLibraryBinding(
                 record: record,
@@ -610,6 +620,18 @@ extension DataFlowSemaPhase {
                         {
                             symbols.setCompanionObjectSymbol(companionSymbol, for: symbol)
                         }
+                        // On-demand claims run the same registration fixups as
+                        // the batch tail: initializer stubs come from compact
+                        // index links, not from decoding the owner body.
+                        if isNominalLayoutTargetSymbol(shell.kind) {
+                            self.applyImportedInitializerShells(
+                                record: shell,
+                                symbol: symbol,
+                                symbols: symbols,
+                                types: types,
+                                interner: interner
+                            )
+                        }
                         // Imported enum classes have no AST declarations, so
                         // the implicit enum API is synthesized per enum as it
                         // registers. Stdlib enum APIs come from the bundled
@@ -805,6 +827,20 @@ extension DataFlowSemaPhase {
                 .first(where: { symbols.symbol($0).map { isNominalLayoutTargetSymbol($0.kind) } == true }) {
                 symbols.setParentSymbol(receiver, for: binding.symbol)
             }
+        }
+
+        // Initializer stubs are pure compact-index facts (a link name per
+        // nominal). Creating their shells here — companion edges restored
+        // above — lets KIR lowering enumerate the calls without materializing
+        // any owner body.
+        for binding in importedBindings where isNominalLayoutTargetSymbol(binding.record.kind) {
+            applyImportedInitializerShells(
+                record: binding.record,
+                symbol: binding.symbol,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
         }
 
         // BUG-KSP-1217-PHANTOM-TYPE-PARAMS: a function's type parameter is
@@ -2000,86 +2036,129 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) {
         for binding in work.importedBindings where isNominalLayoutTargetSymbol(binding.record.kind) {
-            let record = binding.record
-            let ownerSymbol = binding.symbol
+            applyImportedInitializerShells(
+                record: binding.record,
+                symbol: binding.symbol,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        }
+    }
 
-            if record.kind == .object,
-               let linkName = record.objectInitializerLinkName,
-               !linkName.isEmpty
-            {
-                let name = interner.intern("__object_init")
-                let fqName = record.fqName + [name]
-                let initSymbol = symbols.define(
-                    kind: .function,
-                    name: name,
-                    fqName: fqName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic, .importedLibrary]
-                )
-                symbols.setParentSymbol(ownerSymbol, for: initSymbol)
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        parameterTypes: [],
-                        returnType: types.unitType
-                    ),
-                    for: initSymbol
-                )
-                symbols.setExternalLinkName(linkName, for: initSymbol)
-                symbols.setObjectInitializerSymbol(initSymbol, for: ownerSymbol)
-            }
+    /// Synthesizes the extern-linked initializer stubs a nominal's compact
+    /// index announces (`object/companion/enum-static` initializers). Shell
+    /// registration invokes this eagerly so downstream passes enumerate the
+    /// init calls from symbol maps without decoding owner bodies; the decode
+    /// path calls it again and each `IfKnown` guard keeps that idempotent.
+    func applyImportedInitializerShells(
+        record: ImportedLibrarySymbolRecord,
+        symbol ownerSymbol: SymbolID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        if record.kind == .object,
+           let linkName = record.objectInitializerLinkName,
+           !linkName.isEmpty,
+           symbols.objectInitializerSymbolIfKnown(for: ownerSymbol) == nil
+        {
+            let name = interner.intern("__object_init")
+            let fqName = record.fqName + [name]
+            let initSymbol = symbols.define(
+                kind: .function,
+                name: name,
+                fqName: fqName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .importedLibrary]
+            )
+            symbols.setParentSymbol(ownerSymbol, for: initSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    parameterTypes: [],
+                    returnType: types.unitType
+                ),
+                for: initSymbol
+            )
+            symbols.setExternalLinkName(linkName, for: initSymbol)
+            symbols.setObjectInitializerSymbol(initSymbol, for: ownerSymbol)
+        }
 
-            if record.kind == .object,
-               let linkName = record.objectLazyInitializerLinkName,
-               !linkName.isEmpty
-            {
-                let name = interner.intern(linkName)
-                let fqName = record.fqName + [interner.intern("__object_lazy_init")]
-                let initSymbol = symbols.define(
-                    kind: .function,
-                    name: name,
-                    fqName: fqName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic, .importedLibrary]
-                )
-                symbols.setParentSymbol(ownerSymbol, for: initSymbol)
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        parameterTypes: [],
-                        returnType: types.unitType
-                    ),
-                    for: initSymbol
-                )
-                symbols.setExternalLinkName(linkName, for: initSymbol)
-                symbols.setObjectLazyInitializerSymbol(initSymbol, for: ownerSymbol)
-            }
+        if record.kind == .object,
+           let linkName = record.objectLazyInitializerLinkName,
+           !linkName.isEmpty,
+           symbols.objectLazyInitializerSymbol(for: ownerSymbol) == nil
+        {
+            let name = interner.intern(linkName)
+            let fqName = record.fqName + [interner.intern("__object_lazy_init")]
+            let initSymbol = symbols.define(
+                kind: .function,
+                name: name,
+                fqName: fqName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .importedLibrary]
+            )
+            symbols.setParentSymbol(ownerSymbol, for: initSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    parameterTypes: [],
+                    returnType: types.unitType
+                ),
+                for: initSymbol
+            )
+            symbols.setExternalLinkName(linkName, for: initSymbol)
+            symbols.setObjectLazyInitializerSymbol(initSymbol, for: ownerSymbol)
+        }
 
-            if let linkName = record.companionInitializerLinkName,
-               !linkName.isEmpty,
-               symbols.companionObjectSymbol(for: ownerSymbol) != nil
-            {
-                let name = interner.intern("__companion_init")
-                let fqName = record.fqName + [name]
-                let initSymbol = symbols.define(
-                    kind: .function,
-                    name: name,
-                    fqName: fqName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic, .importedLibrary]
-                )
-                symbols.setParentSymbol(ownerSymbol, for: initSymbol)
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        parameterTypes: [],
-                        returnType: types.unitType
-                    ),
-                    for: initSymbol
-                )
-                symbols.setExternalLinkName(linkName, for: initSymbol)
-                symbols.setCompanionObjectInitializerSymbol(initSymbol, for: ownerSymbol)
-            }
+        if let linkName = record.companionInitializerLinkName,
+           !linkName.isEmpty,
+           symbols.companionObjectSymbolIfKnown(for: ownerSymbol) != nil,
+           symbols.companionObjectInitializerSymbolIfKnown(for: ownerSymbol) == nil
+        {
+            let name = interner.intern("__companion_init")
+            let fqName = record.fqName + [name]
+            let initSymbol = symbols.define(
+                kind: .function,
+                name: name,
+                fqName: fqName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .importedLibrary]
+            )
+            symbols.setParentSymbol(ownerSymbol, for: initSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    parameterTypes: [],
+                    returnType: types.unitType
+                ),
+                for: initSymbol
+            )
+            symbols.setExternalLinkName(linkName, for: initSymbol)
+            symbols.setCompanionObjectInitializerSymbol(initSymbol, for: ownerSymbol)
+        }
+
+        // Import the precompiled enum static initializer link so the consumer
+        // can call it before `main`, ensuring enum entry globals are initialized.
+        if record.kind == .enumClass,
+           let enumStaticInitLink = record.enumStaticInitLinkName,
+           !enumStaticInitLink.isEmpty,
+           symbols.enumStaticInitSymbolIfKnown(for: ownerSymbol) == nil
+        {
+            let initName = interner.intern("__enum_static_init")
+            let initFQName = record.fqName + [initName]
+            let initSymbol = symbols.define(
+                kind: .function,
+                name: initName,
+                fqName: initFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .importedLibrary]
+            )
+            symbols.setExternalLinkName(enumStaticInitLink, for: initSymbol)
+            symbols.setParentSymbol(ownerSymbol, for: initSymbol)
+            symbols.setEnumStaticInitSymbol(initSymbol, for: ownerSymbol)
         }
     }
 

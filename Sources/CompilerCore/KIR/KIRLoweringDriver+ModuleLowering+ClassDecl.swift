@@ -743,7 +743,7 @@ extension KIRLoweringDriver {
 
             let fqName = ownerSymbol.fqName + [interfaceProperty.name]
             for candidate in sema.symbols.lookupAll(fqName: fqName) {
-                guard sema.symbols.parentSymbol(for: candidate) == owner,
+                guard sema.symbols.parentSymbolIfKnown(for: candidate) == owner,
                       let propSymbol = sema.symbols.symbol(candidate),
                       propSymbol.kind == .property,
                       isClassDelegationDispatchMember(propSymbol, sema: sema)
@@ -893,7 +893,7 @@ extension KIRLoweringDriver {
 
             let fqName = ownerSymbol.fqName + [interfaceMethod.name]
             for candidate in sema.symbols.lookupAll(fqName: fqName) {
-                guard sema.symbols.parentSymbol(for: candidate) == owner,
+                guard sema.symbols.parentSymbolIfKnown(for: candidate) == owner,
                       let methodSymbol = sema.symbols.symbol(candidate),
                       isClassDelegationDispatchMember(methodSymbol, sema: sema),
                       !methodSymbol.flags.contains(.abstractType),

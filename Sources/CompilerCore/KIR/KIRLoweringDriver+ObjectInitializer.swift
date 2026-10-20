@@ -38,7 +38,7 @@ extension KIRLoweringDriver {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) {
-        if sema.symbols.externalLinkName(for: objectSymbol) != nil {
+        if sema.symbols.externalLinkNameIfKnown(for: objectSymbol) != nil {
             return
         }
         let lazyInitSymbol: SymbolID?
@@ -71,7 +71,7 @@ extension KIRLoweringDriver {
                   !objectInfo.flags.contains(.synthetic),
                   !objectInfo.flags.contains(.expectDeclaration)
             else { return }
-            let parentSymbol = sema.symbols.parentSymbol(for: objectSymbol)
+            let parentSymbol = sema.symbols.parentSymbolIfKnown(for: objectSymbol)
             // Only nominal/package ancestors produce a statically-emitted
             // lazy init; a function or local ancestor means the object is
             // function-local and never gets one.
@@ -79,13 +79,13 @@ extension KIRLoweringDriver {
             while let ancestorID = ancestorSymbol {
                 switch sema.symbols.symbol(ancestorID)?.kind {
                 case .class, .interface, .object, .enumClass, .annotationClass, .package:
-                    ancestorSymbol = sema.symbols.parentSymbol(for: ancestorID)
+                    ancestorSymbol = sema.symbols.parentSymbolIfKnown(for: ancestorID)
                 default:
                     return
                 }
             }
             let isCompanion = parentSymbol.map {
-                sema.symbols.companionObjectSymbol(for: $0) == objectSymbol
+                sema.symbols.companionObjectSymbolIfKnown(for: $0) == objectSymbol
             } ?? false
             // Nested (non-companion) objects only synthesize a lazy init when
             // they need runtime initialization -- the same gate
@@ -217,7 +217,7 @@ extension KIRLoweringDriver {
         let classIDExpr = arena.appendExpr(.intLiteral(classIDValue), type: intType)
         body.append(.constValue(result: classIDExpr, value: .intLiteral(classIDValue)))
         let allocatedObj = arena.appendTemporary(type: objectType)
-        let externalLink = sema.symbols.externalLinkName(for: objectSymbol)
+        let externalLink = sema.symbols.externalLinkNameIfKnown(for: objectSymbol)
         body.append(.call(
             symbol: nil,
             callee: interner.intern(externalLink ?? "kk_object_new"),

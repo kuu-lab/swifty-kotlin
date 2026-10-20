@@ -30,7 +30,7 @@ extension KIRLoweringDriver {
         // internal definition over the redirected external callee name.
         // Emitting even a stub body here would shadow the real runtime
         // function and cause calls to silently invoke the stub instead.
-        if let externalLink = sema.symbols.externalLinkName(for: symbol), !externalLink.isEmpty {
+        if let externalLink = sema.symbols.externalLinkNameIfKnown(for: symbol), !externalLink.isEmpty {
             return []
         }
 
