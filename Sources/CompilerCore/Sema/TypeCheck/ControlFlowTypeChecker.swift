@@ -1094,9 +1094,24 @@ final class ControlFlowTypeChecker {
         let preTryLocals = locals
         var branchTypes: [TypeID] = []
         var normalCompletionLocals: [LocalBindings] = []
+        // A discarded try expression is Unit-coerced by its statement
+        // context. Do not push that Unit expectation into generic calls in
+        // the branches, whose values are not used by the enclosing statement.
+        let branchExpectedType = isStatementContext && expectedType == sema.types.unitType
+            ? nil
+            : expectedType
+        var branchCtx = ctx
+        if isStatementContext && expectedType == nil {
+            // A discarded try expression does not provide a Unit result type
+            // to generic calls nested in its branches.
+            branchCtx.isUnitCoercionContext = false
+        }
 
         var tryBodyLocals = preTryLocals
-        let tryBodyType = driver.inferExpr(body, ctx: ctx, locals: &tryBodyLocals, expectedType: expectedType, isStatementContext: isStatementContext)
+        let tryBodyType = driver.inferExpr(
+            body, ctx: branchCtx, locals: &tryBodyLocals,
+            expectedType: branchExpectedType, isStatementContext: isStatementContext
+        )
         branchTypes.append(tryBodyType)
         if tryBodyType != sema.types.nothingType {
             normalCompletionLocals.append(tryBodyLocals)
@@ -1129,7 +1144,10 @@ final class ControlFlowTypeChecker {
                 clause.body,
                 binding: CatchClauseBinding(parameterSymbol: catchParamSymbol, parameterType: catchParamType)
             )
-            let catchType = driver.inferExpr(clause.body, ctx: ctx, locals: &catchLocals, expectedType: expectedType, isStatementContext: isStatementContext)
+            let catchType = driver.inferExpr(
+                clause.body, ctx: branchCtx, locals: &catchLocals,
+                expectedType: branchExpectedType, isStatementContext: isStatementContext
+            )
             branchTypes.append(catchType)
             if catchType != sema.types.nothingType {
                 normalCompletionLocals.append(catchLocals)
