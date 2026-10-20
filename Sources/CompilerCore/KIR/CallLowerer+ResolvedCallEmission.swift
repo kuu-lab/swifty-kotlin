@@ -409,8 +409,15 @@ extension CallLowerer {
                ),
                functionType.receiver != nil,
                callableValueCallBinding.receiverArgumentOffset == 0 {
-                implicitReceiverArgument = sema.bindings.implicitExtensionReceiver(for: exprID)
-                    .flatMap { driver.ctx.localValue(for: $0) }
+                implicitReceiverArgument = explicitReceiverOverride
+                    ?? sema.bindings.implicitExtensionReceiver(for: exprID).flatMap { driver.ctx.localValue(for: $0) }
+                    ?? driver.ctx.activeImplicitReceiverExprID()
+            } else if let chosen,
+                      let signature = sema.symbols.functionSignature(for: chosen),
+                      signature.receiverType != nil {
+                implicitReceiverArgument = explicitReceiverOverride
+                    ?? sema.bindings.implicitExtensionReceiver(for: exprID).flatMap { driver.ctx.localValue(for: $0) }
+                    ?? sema.bindings.implicitReceiverOuterReceiver(for: exprID).flatMap { driver.ctx.localValue(for: $0) }
                     ?? driver.ctx.activeImplicitReceiverExprID()
             }
             let contextArguments: [KIRExprID] = if let callableValueCallBinding,
@@ -439,6 +446,16 @@ extension CallLowerer {
                   let chosen,
                   sema.symbols.symbol(chosen)?.flags.contains(.localFunction) == true
         {
+            if let signature = sema.symbols.functionSignature(for: chosen),
+               signature.receiverType != nil {
+                let implicitReceiverArgument = explicitReceiverOverride
+                    ?? sema.bindings.implicitExtensionReceiver(for: exprID).flatMap { driver.ctx.localValue(for: $0) }
+                    ?? sema.bindings.implicitReceiverOuterReceiver(for: exprID).flatMap { driver.ctx.localValue(for: $0) }
+                    ?? driver.ctx.activeImplicitReceiverExprID()
+                if let implicitReceiverArgument {
+                    finalArgIDs.insert(implicitReceiverArgument, at: 0)
+                }
+            }
             if let localFunctionCaptureArguments {
                 // A generated adapter already has these captures as parameters.
                 // Use its local expression IDs instead of resolving the same

@@ -143,5 +143,31 @@ extension BuildKIRRegressionTests {
         let sema = try #require(ctx.sema)
         #expect(sema.symbols.memberExtensionOwnerSymbol(for: function.symbol) != nil)
     }
+
+    @Test
+    func localExtensionCallPassesReceiverArgument() throws {
+        let ctx = makeContextFromSource("""
+        class Scope {
+            fun localCaller(): Int {
+                fun Scope.helper(): Int = 42
+                return helper()
+            }
+        }
+        """)
+        try runToKIR(ctx)
+        let module = try #require(ctx.kir)
+        let helper = try #require(findAllKIRFunctions(in: module).first {
+            $0.name == ctx.interner.intern("helper")
+        })
+        let caller = try #require(findAllKIRFunctions(in: module).first {
+            $0.name == ctx.interner.intern("localCaller")
+        })
+        #expect(caller.body.contains { instruction in
+            if case let .call(symbol, _, arguments, _, _, _, _, _) = instruction {
+                return symbol == helper.symbol && !arguments.isEmpty
+            }
+            return false
+        })
+    }
 }
 #endif
