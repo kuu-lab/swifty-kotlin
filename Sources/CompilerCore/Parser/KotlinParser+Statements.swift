@@ -1027,6 +1027,19 @@ extension KotlinParser {
             let token = stream.peek()
             let atTopLevel = depth.isTopLevel
                 && templateExpressionDepth == 0
+            if !inBlock, !children.isEmpty, atTopLevel, hasLeadingNewline(token),
+               token.kind == .keyword(.this)
+            {
+                let continuesAfterPreviousToken = lastConsumedToken.map {
+                    ParserBoundaryPolicy.continuesExpressionAfterNewline($0.kind)
+                } ?? false
+                if !continuesAfterPreviousToken,
+                   !endsWithPendingInfixOperator(children),
+                   !endsWithControlFlowCondition(children)
+                {
+                    break
+                }
+            }
             if atTopLevel, token.kind == .symbol(.assign) { sawAssignment = true }
             if atTopLevel, token.kind == .symbol(.colon) { sawSupertypeColon = true }
             if atTopLevel, shouldStopStatementBefore(token, inBlock: inBlock), !isObjectExpressionStart(token),

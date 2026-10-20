@@ -82,6 +82,31 @@ struct CallableReferenceParsingTests {
         #expect(arena.snapshot().callableRefReceiverTypeRefs.isEmpty)
     }
 
+    @Test
+    func labeledThisCallableReferenceKeepsItsValueReceiver() throws {
+        let source = "this@Outer::greet"
+        let lexed = lex(source)
+        let arena = ASTArena()
+        let parser = BuildASTPhase.ExpressionParser(
+            tokens: lexed.tokens.dropLast(), interner: lexed.interner,
+            astArena: arena, diagnostics: lexed.diagnostics
+        )
+        let exprID = try #require(parser.parse())
+        guard case let .callableRef(receiver?, member, _) = arena.expr(exprID) else {
+            Issue.record("Expected a labeled-this callable reference.")
+            return
+        }
+
+        #expect(member == lexed.interner.intern("greet"))
+        #expect(arena.callableRefReceiverTypeRef(for: exprID) == nil)
+        guard case let .thisRef(label, _) = arena.expr(receiver) else {
+            Issue.record("Expected the receiver to remain a `this@Outer` expression.")
+            return
+        }
+        #expect(label == lexed.interner.intern("Outer"))
+        #expect(lexed.diagnostics.diagnostics.isEmpty)
+    }
+
     @Test(arguments: [
         "::", "x::", "println(\"d\")::",
         "(::)", "(x::)", "consume(::)", "consume(x::)",
