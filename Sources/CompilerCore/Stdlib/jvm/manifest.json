@@ -136,6 +136,11 @@
       "excludeFromStdlibBuild": false
     },
     {
+      "path": "declarations/AbstractSet.kt",
+      "virtualPath": "<kswiftk-jvm>/abstractSet.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "declarations/Collections.kt",
       "virtualPath": "<kswiftk-jvm>/collections.kt",
       "excludeFromStdlibBuild": false,

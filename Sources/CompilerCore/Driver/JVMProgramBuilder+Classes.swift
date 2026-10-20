@@ -109,7 +109,7 @@ extension JVMProgramBuilder {
                 if sourceName == "kotlin/CharSequence" { throw JVMFrontendError(message: "JVM supports CharSequence inputs but not source implementations.") }
                 if sourceName == "kotlin/Number" { throw JVMFrontendError(message: "JVM M5 does not support source subclasses of kotlin.Number.") }
                 if !context.options.stdlibOnly && ["kotlin/coroutines/CoroutineContext", "kotlin/Result"].contains(sourceName) { throw JVMFrontendError(message: "JVM M7 does not support source implementations of CoroutineContext or Result.") }
-                if sourceName.hasPrefix("kotlin/collections/"), !context.options.stdlibOnly { throw JVMFrontendError(message: "JVM M5 collection interfaces are available through factories; source implementations are unsupported.") }
+                if sourceName.hasPrefix("kotlin/collections/"), sourceName != "kotlin/collections/AbstractSet", !context.options.stdlibOnly { throw JVMFrontendError(message: "JVM M5 collection interfaces are available through factories; source implementations are unsupported.") }
                 guard classes[parent] != nil || context.jvmImports?.classes[name] != nil || JVMClasspathIndex.builtinName(sourceName) != nil else { throw JVMFrontendError(message: "Unsupported JVM supertype: \(name)") }
                 if sema.symbols.symbol(parent)?.kind == .interface { plan.interfaces.append(name) }
                 else {
@@ -168,7 +168,9 @@ extension JVMProgramBuilder {
             let capital = String(name.prefix(1)).uppercased() + name.dropFirst()
             let booleanIs = name.hasPrefix("is") && name.count > 2 && name.dropFirst(2).first!.isUppercase
             let collection = sema.symbols.lookup(fqName: ["kotlin", "collections", "Collection"].map(context.interner.intern))
-            let collectionSize = context.options.stdlibOnly && name == "size" && collection.map { sema.types.isNominalSubtypeSymbol(plan.symbol, of: $0) } == true
+            let abstractSet = sema.symbols.lookup(fqName: ["kotlin", "collections", "AbstractSet"].map(context.interner.intern))
+            let usesAbstractSetSize = abstractSet.map { sema.types.isNominalSubtypeSymbol(plan.symbol, of: $0) } == true
+            let collectionSize = name == "size" && !usesAbstractSetSize && collection.map { sema.types.isNominalSubtypeSymbol(plan.symbol, of: $0) } == true
             let getterName = plan.isAnnotation || collectionSize ? name : (booleanIs ? name : "get" + capital)
             let setterName = booleanIs ? "set" + name.dropFirst(2) : "set" + capital
             var getter = JVMForeignMethod(owner: plan.name, name: getterName, descriptor: "()" + type.descriptor, parameters: [], result: type, isStatic: plan.isFacade, isInterface: plan.isInterface, isAbstract: isAbstract)

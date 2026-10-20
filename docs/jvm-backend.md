@@ -1011,6 +1011,8 @@ source vararg は単独 parameter の通常関数に対応し、Java ACC_VARARGS
 配列 descriptor／generic signature を出力する。複数parameterのsource varargはstdlibの実装用に受け付ける。通常ユーザーの複数parameter source varargとvararg constructorは未対応。
 
 文字列の検索・trim・置換・数値変換、collectionの基本変換・distinct・take/drop・joinToStringもソースから生成する。
+AbstractSet のユーザー派生クラスは size と iterator を実装でき、Set の等値比較・hashCode・
+Collection ABI と readonly marker を継承する。size property は getSize() と JVM size() bridge を使う。
 詳細な実装範囲と検証方法は [JVM stdlib のソース化](jvm-stdlib.md) を参照。
 
 このprofileは対応済みのRegex／Sequence／Sequence builder／coroutine／reflection、unsigned runtimeと高階collection APIを含む。これらの実行に公式stdlib／reflect JARは不要。
@@ -1024,7 +1026,7 @@ main の配列引数、複数上限の where 制約、
 拡張プロパティ、ローカル関数、
 複数 parameter のユーザー定義 vararg と vararg constructor（単独 vararg 関数・対応済み API の spread は使用可能）、
 enum の secondary constructor、when の guard／範囲条件、ループラベル、`until` / `step` は未対応。
-Unit 型の通常のパラメータ宣言／型引数／配列要素（Any? 引数へ渡す Unit 式、関数型の戻り値、Continuation／Result の型引数と resume(Unit) を除く）、collection のユーザー実装、kotlin.Number のユーザー派生クラス、
+Unit 型の通常のパラメータ宣言／型引数／配列要素（Any? 引数へ渡す Unit 式、関数型の戻り値、Continuation／Result の型引数と resume(Unit) を除く）、AbstractSet 派生以外の collection のユーザー実装、kotlin.Number のユーザー派生クラス、
 上記以外の高階 collection 操作・builder、data class／Pair／MatchGroup／MatchResult.Destructured 以外や for ヘッダでの destructuring は未対応。
 関数型は context receiver なし、receiver を含め22引数まで（suspend 関数型は Continuation 分を除き21引数まで）。
 対応範囲外の構文・型は `KSWIFTK-JVM-0001`、共有の意味解析エラーは既存の Sema 診断で拒否する。
