@@ -652,7 +652,9 @@ public func __kk_input_stream_bufferedReader(
     guard let pointer = UnsafeMutableRawPointer(bitPattern: text),
           let decoded = extractString(from: pointer) else { return 0 }
     let utf8 = Data(KotlinStringSurrogateEncoding.unicodeString(decoded).utf8)
-    return registerRuntimeObject(RuntimeBufferedReaderBox(data: utf8))
+    let readerRaw = registerRuntimeObject(RuntimeBufferedReaderBox(data: utf8))
+    runtimeRegisterBufferedReaderCloseDispatch(readerRaw)
+    return readerRaw
 }
 
 
