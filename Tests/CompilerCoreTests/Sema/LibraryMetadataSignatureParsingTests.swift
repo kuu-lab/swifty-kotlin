@@ -96,12 +96,13 @@ struct LibraryMetadataSignatureParsingTests {
                 importedInlineFunctions: ImportedInlineFunctionStore()
             )
             let symbol = try #require(symbols.lookup(fqName: ["permissions", "apply"].map(interner.intern)))
-            #expect(symbols.functionSignature(for: symbol)?.valueParameterAllowsNonLocalReturn == (explicit ? [false, false, true] : [true, true, true]))
+            let expectedPermissions = explicit ? [false, false, true] : [true, true, true]
+            #expect(symbols.functionSignature(for: symbol)?.valueParameterAllowsNonLocalReturn == expectedPermissions)
             #expect(symbols.functionSignature(for: symbol)?.hasExplicitInlineParameterMetadata == explicit)
             phase.normalizeImportedLibraryMemberSignatures(
                 work, symbols: symbols, types: types, diagnostics: diagnostics, interner: interner
             )
-            #expect(symbols.functionSignature(for: symbol)?.valueParameterAllowsNonLocalReturn == (explicit ? [false, false, true] : [true, true, true]))
+            #expect(symbols.functionSignature(for: symbol)?.valueParameterAllowsNonLocalReturn == expectedPermissions)
             #expect(symbols.functionSignature(for: symbol)?.hasExplicitInlineParameterMetadata == explicit)
             #expect(!diagnostics.hasError)
         }
