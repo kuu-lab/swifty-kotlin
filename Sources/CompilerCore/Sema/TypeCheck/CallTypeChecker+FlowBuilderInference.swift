@@ -1,9 +1,15 @@
 final class FlowBuilderInferenceSession {
     let expectedElementType: TypeID?
+    /// The implicit `this` symbol in scope at the `flow { }` call site.
+    /// Receivers introduced inside the builder lambda (e.g. `with(x) { }`)
+    /// replace `this` with their own symbol, so a bare `emit` bound to an
+    /// enclosing receiver keeps the same symbol as the boundary.
+    let outerThisSymbol: SymbolID?
     var emittedTypes: [TypeID] = []
 
-    init(expectedElementType: TypeID?) {
+    init(expectedElementType: TypeID?, outerThisSymbol: SymbolID?) {
         self.expectedElementType = expectedElementType
+        self.outerThisSymbol = outerThisSymbol
     }
 
     func elementType(types: TypeSystem) -> TypeID {
@@ -12,7 +18,17 @@ final class FlowBuilderInferenceSession {
 }
 
 extension CallTypeChecker {
-    func flowBuilderEmitHasReceiverMember(ctx: TypeInferenceContext) -> Bool {
+    func flowBuilderEmitHasReceiverMember(ctx: TypeInferenceContext, locals: LocalBindings) -> Bool {
+        // Only a receiver introduced inside the builder lambda shadows the
+        // FlowCollector. When `this` is still the receiver from the `flow { }`
+        // boundary — e.g. the enclosing class, which
+        // `syncingImplicitReceiver` can restore over the synthetic Any
+        // placeholder — its `emit` member does not take precedence.
+        if let session = ctx.flowBuilderInference,
+           locals[ctx.interner.intern("this")]?.symbol == session.outerThisSymbol
+        {
+            return false
+        }
         guard let receiverType = ctx.implicitReceiverType else { return false }
         return !driver.helpers.collectMemberFunctionCandidates(
             named: ctx.interner.intern("emit"),

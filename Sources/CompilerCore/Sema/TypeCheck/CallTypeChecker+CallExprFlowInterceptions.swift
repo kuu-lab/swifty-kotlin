@@ -41,7 +41,8 @@ extension CallTypeChecker {
             flowBuilderCtx.isFlowBuilderLambdaScope = true
             let flowInference = FlowBuilderInferenceSession(
                 expectedElementType: resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
-                    ?? flowBuilderElementType(expectedType, ctx: ctx)
+                    ?? flowBuilderElementType(expectedType, ctx: ctx),
+                outerThisSymbol: locals[interner.intern("this")]?.symbol
             )
             flowBuilderCtx.flowBuilderInference = flowInference
             let flowLambdaExpectedType = sema.types.make(.functionType(FunctionType(
@@ -145,7 +146,7 @@ extension CallTypeChecker {
            calleeName == knownNames.emit,
            args.count == 1,
            locals[calleeName] == nil,
-           !flowBuilderEmitHasReceiverMember(ctx: ctx)
+           !flowBuilderEmitHasReceiverMember(ctx: ctx, locals: locals)
         {
             let emittedType = driver.inferExpr(
                 args[0].expr, ctx: ctx, locals: &locals,
