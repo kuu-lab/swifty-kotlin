@@ -288,8 +288,11 @@ public final class TypeSystem {
         case let .kClassType(kc):
             kc.nullability == .nonNull
         case let .intersection(parts):
-            // T & Any is definitely non-null; any part being non-null suffices
-            parts.contains { isDefinitelyNonNull($0) }
+            // `Nothing? & T` holds only `null` — it is not definitely
+            // non-null even though `T`'s marker says non-null (KUU-2693).
+            !parts.contains { kind(of: $0) == .nothing(.nullable) }
+                // T & Any is definitely non-null; any part being non-null suffices
+                && parts.contains { isDefinitelyNonNull($0) }
         }
     }
 
@@ -314,7 +317,11 @@ public final class TypeSystem {
         case let .kClassType(kc):
             kc.nullability
         case let .intersection(parts):
-            parts.contains { nullability(of: $0) == .nonNull } ? .nonNull : .nullable
+            // `Nothing? & T` is a null-holding type — its only value is
+            // `null` in the `x == null` narrowing that produces it (KUU-2693).
+            parts.contains { kind(of: $0) == .nothing(.nullable) }
+                ? .nullable
+                : parts.contains { nullability(of: $0) == .nonNull } ? .nonNull : .nullable
         }
     }
 
@@ -348,13 +355,31 @@ public final class TypeSystem {
             }
         case let .intersection(parts):
             if nullability == .nonNull {
+                // Drop the null conjunct so the parameter's identity
+                // survives joins: `Nothing? & T` → `T` (KUU-2693).
+                if parts.contains(where: { kind(of: $0) == .nothing(.nullable) }) {
+                    let rest = parts.filter { kind(of: $0) != .nothing(.nullable) }
+                    if rest.isEmpty { return nothingType }
+                    return makeNonNullable(rest.count == 1 ? rest[0] : make(.intersection(rest)))
+                }
                 if parts.contains(where: { isDefinitelyNonNull($0) }) {
                     return type
                 }
                 // Add Any to make it definitely non-null
                 return make(.intersection(parts + [anyType]))
             }
-            return type // intersections don't become nullable directly
+            // `.nullable` drops the `Any` non-null conjunct and re-applies
+            // nullability to what remains — `T & Any` becomes `T?`, matching
+            // Kotlin's nullable view of a definitely-non-null parameter.
+            // A `Nothing?` conjunct absorbs the result: `Nothing? & T?` can
+            // only hold `null` (KUU-2693).
+            let remaining = parts.filter { kind(of: $0) != .any(.nonNull) }
+            if remaining.contains(where: { kind(of: $0) == .nothing(.nullable) }) {
+                return nullableNothingType
+            }
+            if remaining.isEmpty { return make(.any(.nullable)) }
+            if remaining.count == 1 { return makeNullable(remaining[0]) }
+            return make(.intersection(remaining.map { makeNullable($0) }))
         case let .nothing(existing):
             let normalized: Nullability = (nullability == .platformType) ? .nullable : nullability
             if existing == normalized { return type }
@@ -394,6 +419,17 @@ public final class TypeSystem {
 
     public func makeNonNullable(_ type: TypeID) -> TypeID {
         withNullability(.nonNull, for: type)
+    }
+
+    /// The definitely-non-null view of `type`: `T & Any` for a type
+    /// parameter (Kotlin's `T & Any` refinement used by `x != null` and
+    /// `x ?: ...` smart casts), otherwise the plain non-null marker. A bare
+    /// `T` stays null-capable through its implicit `Any?` bound (KUU-2693).
+    public func definitelyNonNullForm(of type: TypeID) -> TypeID {
+        if case .typeParam = kind(of: type) {
+            return make(.intersection([makeNonNullable(type), anyType]))
+        }
+        return makeNonNullable(type)
     }
 
     public func make(_ kind: TypeKind) -> TypeID {
