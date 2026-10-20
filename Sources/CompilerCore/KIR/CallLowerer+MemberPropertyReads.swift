@@ -253,10 +253,28 @@ extension CallLowerer {
         } else {
             receiverIsUnboundNameRef = false
         }
+        let receiverIsNestedObjectQualifier: Bool = {
+            guard case let .memberCall(ownerExpr, _, _, args, _) = ast.arena.expr(receiverExpr),
+                  args.isEmpty,
+                  let ownerSymbol = sema.bindings.identifierSymbol(for: ownerExpr)
+                      ?? bareNameRefClassLikeSymbol(ownerExpr, ast: ast, sema: sema),
+                  let nestedSymbol = nestedClassLikeMemberSymbol(
+                      receiverExpr, ownerSymbol: ownerSymbol, ast: ast, sema: sema
+                  ),
+                  sema.symbols.symbol(nestedSymbol)?.kind == .object,
+                  let nestedOwner = sema.symbols.parentSymbol(for: nestedSymbol),
+                  let nestedOwnerKind = sema.symbols.symbol(nestedOwner)?.kind,
+                  nestedOwnerKind == .class || nestedOwnerKind == .object
+            else {
+                return false
+            }
+            return true
+        }()
         let loweredReceiverID: KIRExprID?
         if !objectMemberPropertyUsesGetterAccessor(valueSym, sema: sema),
            !isFQNQualifiedValue,
-           !receiverIsUnboundNameRef
+           !receiverIsUnboundNameRef,
+           !receiverIsNestedObjectQualifier
         {
             // Object-member stored properties live in global storage, but
             // Kotlin still evaluates an explicit receiver before reading that
