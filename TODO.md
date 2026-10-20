@@ -43,7 +43,7 @@
 - [ ] RF-LOWER-INLINE-011: bodyless inline snapshotの固定4回走査を依存順処理へ置き換える（前提: INLINE-010）
   - 対象: `expandNestedBodylessInlineCalls` 相当のschedulerのみ。calleeからcallerへ処理する決定的worklistを使い、lambda内の依存も含める。呼び出し側の8回走査はまだ変えない。
   - 完了条件: 4段を超える正当な依存鎖でも必須callが解消され、同じ元本体の二重展開がない。diamond依存・imported inline・lambda内依存・循環での停止を固定し、010の診断と展開量制限を維持する。
-- [ ] RF-LOWER-INLINE-012: caller本体の固定8回再走査を進捗に基づく展開へ置き換える（前提: INLINE-011）
+- [x] RF-LOWER-INLINE-012: caller expansion は共有 work budget の pending-call queue で進捗を追跡する。24段の inline/lambda 交互鎖が再帰的な body 展開でテストスレッドの stack を使い切る問題も、展開対象の nested call を caller queue に返すことで解消した。`InlineTerminationContractTests` の 19 tests が通過。
   - 対象: `inlineTransform` / `expandInlineCalls` 相当の反復制御のみ。新たに現れた展開対象を追跡し、対象がなくなるまで処理するが、010の循環・予算制限を必ず適用する。
   - 完了条件: 深い非循環inline・多段lambda・再帰で正しく完了／診断し、必須inline残存チェックがgreen。例外・non-local return・型・ABI・決定性の全回帰を通し、大きな入力で処理時間・生成命令数・arena増加を変更前と比較する。上限を単に増やしただけ、または無制限ループへの置換で完了としない。
 
