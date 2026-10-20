@@ -250,6 +250,77 @@
         }
 
         @Test
+        func genericConstructorBindsNothingFromCompanionMemberInEitherFileOrder() throws {
+            let use = """
+            package sample
+            fun readBox() = box
+            fun readExplicitBox() = explicitBox
+            """
+            let declarations = """
+            package sample
+            val earlyBox = Box(Node.EMPTY, 0)
+            class Node<K, V>(val x: Int) {
+                companion object { val EMPTY = Node<Nothing, Nothing>(0) }
+            }
+            class Box<K, V>(val node: Node<K, V>, val i: Int)
+            val box = Box(Node.EMPTY, 0)
+            val explicitBox = Box<Nothing, Nothing>(Node.EMPTY, 0)
+            """
+
+            for sources in [[use, declarations], [declarations, use]] {
+                let (sema, interner) = try SemaFixture(
+                    surface: "generic constructor binds Nothing from a companion member"
+                ).make(sources: sources)
+                let nodeSymbol = try #require(sema.symbols.lookup(
+                    fqName: ["sample", "Node"].map(interner.intern)
+                ))
+                let boxSymbol = try #require(sema.symbols.lookup(
+                    fqName: ["sample", "Box"].map(interner.intern)
+                ))
+                let nodeType = sema.types.make(.classType(ClassType(
+                    classSymbol: nodeSymbol,
+                    args: [.invariant(sema.types.nothingType), .invariant(sema.types.nothingType)],
+                    nullability: .nonNull
+                )))
+                let boxType = sema.types.make(.classType(ClassType(
+                    classSymbol: boxSymbol,
+                    args: [.invariant(sema.types.nothingType), .invariant(sema.types.nothingType)],
+                    nullability: .nonNull
+                )))
+                try expectPropertyType(
+                    ["sample", "Node", "Companion", "EMPTY"],
+                    equals: nodeType,
+                    in: sema,
+                    interner: interner
+                )
+                try expectPropertyType(
+                    ["sample", "earlyBox"],
+                    equals: boxType,
+                    in: sema,
+                    interner: interner
+                )
+                try expectPropertyType(
+                    ["sample", "box"],
+                    equals: boxType,
+                    in: sema,
+                    interner: interner
+                )
+                try expectPropertyType(
+                    ["sample", "explicitBox"],
+                    equals: boxType,
+                    in: sema,
+                    interner: interner
+                )
+                for functionName in ["readBox", "readExplicitBox"] {
+                    let function = try #require(sema.symbols.lookup(
+                        fqName: ["sample", functionName].map(interner.intern)
+                    ))
+                    #expect(sema.symbols.functionSignature(for: function)?.returnType == boxType)
+                }
+            }
+        }
+
+        @Test
         func functionInitializedPropertyKeepsDeclarationOrder() throws {
             let source = """
             package sample
