@@ -198,6 +198,10 @@ extension JVMFunctionBuilder {
         if owner.hasPrefix("["), member == "set", args.count == 2 {
             try indexedSet(receiverID, [args[0].expr], args[1].expr, id); return JVMIntrinsicResult(value: nil)
         }
+        if member == "indices", args.isEmpty, owner == "[I" || owner.hasPrefix("[L") || owner.hasPrefix("[[") {
+            let array: JVMValueType = .reference(owner == "[I" ? "[I" : "[Ljava/lang/Object;", nullable: false)
+            return JVMIntrinsicResult(value: try jdkCall("kotlin/collections/ArraysKt", "getIndices", [array], .reference("kotlin/ranges/IntRange", nullable: false), arguments: [requireValue(receiverID)]))
+        }
         if owner.hasPrefix("["), member == "size", args.isEmpty {
             let source = try requireValue(receiverID), result = try value(.int)
             instructions.append(.arrayLength(source, result)); return JVMIntrinsicResult(value: result)
