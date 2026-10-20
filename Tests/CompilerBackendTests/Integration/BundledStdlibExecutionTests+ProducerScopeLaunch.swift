@@ -117,4 +117,34 @@ extension BundledStdlibExecutionTests {
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }
+
+    /// A `channelFlow`/`callbackFlow` call emitted inside a lowered suspend
+    /// state machine references the producer block by a bare `symbolRef`, which
+    /// carries no callable-value info. The producer-create rewrite used to bail
+    /// out there, leaving the suspend invoke entry (`_s` adapter) as the
+    /// runtime emitter; invoked as `(continuation, thrown*)` it treats the
+    /// continuation as the receiver and overwrites launcherArgs[0] — the
+    /// channel handle — so `send`/`close` crashed inside `kk_channel_*`.
+    @Test(arguments: [true, false])
+    func testProducerFlowFromSuspendStateMachineRunsBlock(
+        allowDefaultStdlibLibrary: Bool
+    ) throws {
+        try compileAndRunKotlin(
+            """
+            import kotlinx.coroutines.*
+            import kotlinx.coroutines.channels.*
+            import kotlinx.coroutines.flow.*
+
+            fun main() = runBlocking {
+                val values = mutableListOf<Int>()
+                channelFlow { send(7); send(9) }.collect { values.add(it) }
+                callbackFlow<Int> { trySend(11); close() }.collect { values.add(it) }
+                println(values)
+            }
+            """,
+            expectedOutput: "[7, 9, 11]\n",
+            moduleName: "SymbolRefProducerEntry",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
 }

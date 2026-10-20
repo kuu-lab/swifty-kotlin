@@ -174,6 +174,87 @@ extension LoweringPassRegressionTests {
         #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 
+    /// Lowered suspend state machines re-emit `channelFlow`/`callbackFlow`
+    /// with the producer block as a bare `symbolRef` (no callable-value info).
+    /// The producer-create rewrite must still fire and hand the runtime the
+    /// launcher thunk — the suspend invoke entry's `(receiver, thrown)` ABI
+    /// would otherwise overwrite launcherArgs[0] (the channel handle).
+    @Test
+    func testProducerFlowCreateWithBareSymbolRefEmitterUsesLauncherThunk() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let types = TypeSystem()
+
+        let mainSymbol = SymbolID(rawValue: 830)
+        let blockSymbol = SymbolID(rawValue: 831)
+        let blockParamSymbol = SymbolID(rawValue: 832)
+
+        let blockExpr = arena.appendExpr(.temporary(1))
+        let zeroExpr = arena.appendExpr(.temporary(2))
+        let createResult = arena.appendExpr(.temporary(3))
+
+        let mainFn = KIRFunction(
+            symbol: mainSymbol,
+            name: interner.intern("main"),
+            params: [],
+            returnType: types.nullableAnyType,
+            body: [
+                .constValue(result: blockExpr, value: .symbolRef(blockSymbol)),
+                .constValue(result: zeroExpr, value: .intLiteral(0)),
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("kk_channel_flow_create"),
+                    arguments: [blockExpr, zeroExpr],
+                    result: createResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .returnValue(createResult),
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+        let blockFn = KIRFunction(
+            symbol: blockSymbol,
+            name: interner.intern("kk_lambda_1"),
+            params: [KIRParameter(symbol: blockParamSymbol, type: types.nullableAnyType)],
+            returnType: types.unitType,
+            body: [.returnUnit],
+            isSuspend: true,
+            isInline: false
+        )
+
+        let mainID = arena.appendDecl(.function(mainFn))
+        _ = arena.appendDecl(.function(blockFn))
+        let module = KIRModule(
+            files: [KIRFile(fileID: FileID(rawValue: 0), decls: [mainID])],
+            arena: arena
+        )
+        let ctx = makeKIRContext(moduleName: "ProducerSymbolRefEntry", interner: interner)
+
+        try CoroutineLoweringPass().run(module: module, ctx: ctx)
+
+        let thunk = try #require(launcherThunks(in: module, interner: interner).first,
+                                 "expected a launcher thunk for the receiver block")
+        let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "expected lowered main function")
+        let producerCall = try #require(loweredMain.body.first { instruction in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+            return callee == interner.intern("kk_channel_flow_create")
+        }, "expected the producer-create call to survive")
+        guard case let .call(_, _, arguments, _, _, _, _, _) = producerCall else {
+            Issue.record("unreachable")
+            return
+        }
+        guard case let .symbolRef(entrySymbol)? = module.arena.expr(arguments[0]) else {
+            Issue.record("expected a symbolRef emitter entry point")
+            return
+        }
+        #expect(entrySymbol == thunk.symbol)
+        let mainCallees = extractCallees(from: loweredMain.body, interner: interner)
+        #expect(mainCallees.contains(RuntimeCall.coroutineContinuationNew.name))
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
+    }
+
     @Test
     func testFlowSymbolPropagationConvergesWhenSymbolExprIsOverwritten() throws {
         let interner = StringInterner()

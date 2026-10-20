@@ -122,12 +122,17 @@ extension CoroutineLoweringPass {
     ) -> [KIRInstruction]? {
         guard call.callee == rewrite.ctx.interner.intern("kk_flow_create"),
               call.arguments.count == 2,
-              let callableInfo = rewrite.module.arena.callableValueInfo(for: call.arguments[0])
-                  ?? functionValueInfoByExprRaw[call.arguments[0].rawValue],
-              let loweredTarget = rewrite.loweredBySymbol[callableInfo.symbol]
+              let originalSymbol = symbolReference(
+                  for: call.arguments[0],
+                  module: rewrite.module,
+                  propagatedSymbols: symbolByExprRaw
+              ),
+              let loweredTarget = rewrite.loweredBySymbol[originalSymbol]
         else {
             return nil
         }
+        let captureArguments = (rewrite.module.arena.callableValueInfo(for: call.arguments[0])
+            ?? functionValueInfoByExprRaw[call.arguments[0].rawValue])?.captureArguments ?? []
 
         // A non-capturing builder still suspends (`delay`, `emit` backpressure),
         // so it must ride the suspend-entry path too: with no parameters the
@@ -138,7 +143,7 @@ extension CoroutineLoweringPass {
         if targetArity == 0 {
             entryPointSymbol = loweredTarget.symbol
         } else {
-            guard let thunk = rewrite.launcherThunkByOriginalSymbol[callableInfo.symbol] else {
+            guard let thunk = rewrite.launcherThunkByOriginalSymbol[originalSymbol] else {
                 return nil
             }
             entryPointSymbol = thunk.symbol
@@ -162,7 +167,7 @@ extension CoroutineLoweringPass {
             ),
         ]
 
-        for (index, argExpr) in callableInfo.captureArguments.enumerated() {
+        for (index, argExpr) in captureArguments.enumerated() {
             let slotExpr = rewrite.module.arena.appendExpr(
                 .intLiteral(Int64(index)),
                 type: rewrite.intType
@@ -196,6 +201,7 @@ extension CoroutineLoweringPass {
     /// lowered `ProducerScope` receiver is reconstructed by the launcher thunk.
     func rewriteProducerFlowCreateCall(
         call: CallRewriteInput,
+        symbolByExprRaw: [Int32: SymbolID],
         functionValueInfoByExprRaw: [Int32: KIRCallableValueInfo],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
@@ -207,14 +213,22 @@ extension CoroutineLoweringPass {
             return nil
         }
 
-        guard let callableInfo = rewrite.module.arena.callableValueInfo(for: call.arguments[0])
-            ?? functionValueInfoByExprRaw[call.arguments[0].rawValue],
-            let loweredTarget = rewrite.loweredBySymbol[callableInfo.symbol]
+        // Lowered state machines re-emit the builder call with a bare
+        // `symbolRef` emitter, which carries no callable-value info. Resolve
+        // the symbol directly so the launcher thunk still replaces the
+        // suspend invoke entry — handing the `_s` adapter to the runtime
+        // clobbers launcherArgs[0] (the channel handle) with a continuation.
+        guard let originalSymbol = symbolReference(
+            for: call.arguments[0],
+            module: rewrite.module,
+            propagatedSymbols: symbolByExprRaw
+        ),
+            let loweredTarget = rewrite.loweredBySymbol[originalSymbol]
         else {
             return nil
         }
-        let originalSymbol = callableInfo.symbol
-        let captureArguments = callableInfo.captureArguments
+        let captureArguments = (rewrite.module.arena.callableValueInfo(for: call.arguments[0])
+            ?? functionValueInfoByExprRaw[call.arguments[0].rawValue])?.captureArguments ?? []
         let entryPointSymbol: SymbolID
         let targetArity = rewrite.suspendFunctionArityBySymbol[loweredTarget.symbol] ?? 0
         if targetArity == 0 {

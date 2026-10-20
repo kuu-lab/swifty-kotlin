@@ -335,6 +335,7 @@ extension CoroutineLoweringPass {
 
             if let producerFlowCreateInstructions = rewriteProducerFlowCreateCall(
                 call: call,
+                symbolByExprRaw: symbolByExprRaw,
                 functionValueInfoByExprRaw: functionValueInfoByExprRaw,
                 using: rewrite
             ) {
