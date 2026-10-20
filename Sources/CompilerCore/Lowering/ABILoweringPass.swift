@@ -142,9 +142,9 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         ]
 
         // The typed rangeUntil bridges back the `until` infix function (registered in
-        // HeaderHelpers+SyntheticRangeProgressionStubs.swift with a scalar
-        // Int/Long return type, matching the isRangeExpr duck-typing convention
-        // used for range operators) but always return boxed RuntimeRangeBox
+        // bundled Kotlin source with a scalar Int/Long return type, matching
+        // the isRangeExpr duck-typing convention used for range operators,
+        // but always return boxed RuntimeRangeBox
         // references at runtime (see the typed rangeUntil bridges in Runtime).
         // Unlike `..`/`downTo`/`step`, calls to the named `until` function carry a
         // resolved Sema symbol, so resolveUnboxForCall would otherwise see a

@@ -347,8 +347,7 @@ extension CallLowerer {
 
         // KSP-1523: `contains`/`isEmpty` are also declared directly on the
         // `ClosedRange<T>`/`ClosedFloatingPointRange<T>` interfaces UIntRange
-        // conforms to (HeaderHelpers+SyntheticRangeInterfaceStubs.swift), with
-        // no externalLinkName of their own. Overload resolution sometimes picks
+        // conforms to, with no externalLinkName of their own. Overload resolution sometimes picks
         // that interface member over the per-type bundled/synthetic one (or leaves
         // no chosen callee for a scalar range representation), so check the
         // receiver's concrete element type before requiring `chosenCallee`.

@@ -4,6 +4,30 @@ import Testing
 
 @Suite
 struct IterableRangeNullableContainsTests {
+    @Test func progressionAndRangeInterfacesAreSourceBacked() throws {
+        let ctx = makeContextFromSource("fun main() {}")
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+
+        for name in [
+            "IntProgression", "LongProgression", "CharProgression", "UIntProgression", "ULongProgression",
+            "ClosedRange", "ClosedFloatingPointRange", "OpenEndRange",
+        ] {
+            let fqName = ["kotlin", "ranges", name].map(ctx.interner.intern)
+            let symbol = try #require(sema.symbols.lookup(fqName: fqName), "Missing \(name)")
+            #expect(sema.symbols.isSourceBackedSymbol(symbol), "\(name) must come from bundled Kotlin source")
+            #expect(sema.symbols.symbol(symbol)?.flags.contains(.synthetic) == false)
+        }
+
+        for name in ["until", "rangeUntil", "downTo", "step"] {
+            let fqName = ["kotlin", "ranges", name].map(ctx.interner.intern)
+            let symbols = sema.symbols.lookupAll(fqName: fqName)
+            #expect(!symbols.isEmpty, "Missing source declarations for \(name)")
+            #expect(symbols.allSatisfy(sema.symbols.isSourceBackedSymbol), "\(name) must be source-backed")
+        }
+    }
+
     @Test func nullableCallsAndOperatorsBindToSourceExtensions() throws {
         let ctx = makeContextFromSource("""
         fun check(range: IntRange, value: Int?): Boolean = range.contains(value)
