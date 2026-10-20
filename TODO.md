@@ -227,7 +227,7 @@
 
 ### ARCH Tier 2c: Sema の名前ディスパッチ出口戦略（RF4/KSP と同期）
 
-- [ ] ARCH-021: well-known シンボル表を導入する。現状 stdlib 特例判定は「TypeCheck 内の文字列リテラル switch 386 ケース + インライン `Set<String>` 名前表（collectionHOFNames 等 ~120 名）+ `interner.resolve == "…"` 比較」に散在し、ユーザ定義 `map`/`delay` 等との衝突ガードがサイトごと ad-hoc（`hasNonStdlibCollectionFactoryShadow` 等）。Roslyn `WellKnownMember` / rustc lang items に倣い、①bundled Kotlin 宣言側に `@KsIntrinsic("kotlin.collections.map")` 的注釈（既存 `@KsSymbolName` 機構を流用）または FQName 表を導入、②Sema 起動時に「well-known 名 → SymbolID」を 1 箇所で解決、③特例分岐を SymbolID 比較へ置換する**基盤**を作る（全面置換は RF4 台帳の消化として KSP 移行と同期し、本タスクは基盤 + 代表 2〜3 特例の置換まで）。完了条件: 基盤 + 置換済み特例の rg チェック（旧文字列比較 0 件）+ シャドーイング回帰テスト（ユーザ定義同名関数が特例に吸われない）+ G。
+- [x] ARCH-021: well-known シンボル表を導入する。完了（PR #7049、2026-09-23）: `WellKnownSymbols` がヘッダー収集後に compiler-owned な collection factory / enum / reflection / contract 宣言を FQName から `SymbolID` へ一度だけ解決し、代表的な Sema / KIR 特例が完全一致する `SymbolID` を使う。`WellKnownSymbolsTests` は代表シンボル、ユーザー同名宣言の shadowing、明示 import・alias を固定する。PR #7049 の全CI検証 shard が成功済み。全面置換は本項の範囲外として RF4/KSP 側に残す。
 ### ARCH Tier 2d: テスト・CI の 4 穴埋め
 
 - [~] ARCH-027: macOS CI レーンを最低 1 本追加する。現状 CI は ubuntu のみで、`docs/spec.md` が宣言する一次プラットフォーム macOS を何も検証していない（diff スクリプトに macOS 専用の配慮が既に複数あるのに、である）。最小構成: build + SmokeTests + LinkPhase 系。完了条件: macos runner ジョブ green。
