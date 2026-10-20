@@ -383,6 +383,8 @@ JDK のクラスは自動検索しない。参照先の宣言に必要な依存�
 
 public なトップレベルクラス／interface のコンストラクタ・static／instance／interface
 メソッドと、公開 superclass／interface 経由の継承メソッドに対応する。
+非公開 superclass／interface から継承する public メソッドも、アクセス可能な公開クラスを
+JVM 呼び出しの owner として利用できる。非公開の型や protected／package-private メンバーは公開しない。
 import alias、オーバーロード、参照型の引数・戻り値も使用できる。
 公式 Kotlin が生成したクラスも Java の JVM signature として読み込める。
 KSwiftK 生成のファイル facade は `import demo.ApiKt` → `ApiKt.add(...)` で再利用できる。

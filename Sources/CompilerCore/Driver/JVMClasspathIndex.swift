@@ -7,6 +7,7 @@ final class JVMClasspathIndex {
     var sourceClasses: [FileID: JVMClassInfo] = [:]
     var methods: [SymbolID: JVMForeignMethod] = [:]
     var extensionSymbols: Set<SymbolID> = []
+    private var hierarchyClasses: [String: JVMClassInfo] = [:]
 
     static func load(_ paths: [String]) throws -> JVMClasspathIndex {
         let result = JVMClasspathIndex()
@@ -16,6 +17,7 @@ final class JVMClasspathIndex {
             let info = try reader.read()
             guard info.name + ".class" == path else { throw JVMFrontendError(message: "JVM class name does not match entry path: \(info.name) in \(path)") }
             guard seen.insert(info.name).inserted else { return }
+            result.hierarchyClasses[info.name] = info
             guard info.flags & 1 != 0, !info.name.contains("$"),
                   info.name.split(separator: "/").allSatisfy({ JVMProgramBuilder.isIdentifier(String($0)) }) else { return }
             if result.classes[info.name] == nil { result.classes[info.name] = info }
@@ -43,21 +45,85 @@ final class JVMClasspathIndex {
                 }
             }
         }
-        let original = result.classes
-        for info in original.values {
+        result.importInheritedMembers()
+        return result
+    }
+    private func importInheritedMembers() {
+        func key(_ method: JVMForeignMethod) -> String {
+            method.name + method.descriptor.prefix(through: method.descriptor.firstIndex(of: ")")!)
+        }
+        func accessibleMethod(_ method: JVMForeignMethod, on info: JVMClassInfo) -> JVMForeignMethod {
+            var result = JVMForeignMethod(owner: info.name, name: method.name, descriptor: method.descriptor, parameters: method.parameters,
+                                          result: method.result, isStatic: method.isStatic, isInterface: info.isInterface, isAbstract: method.isAbstract)
+            result.isFinal = method.isFinal; result.isSpecial = method.isSpecial; result.isSuspend = method.isSuspend
+            return result
+        }
+        func interfaceInherits(_ subtype: String, _ supertype: String, visited: Set<String> = []) -> Bool {
+            if subtype == supertype { return true }
+            guard !visited.contains(subtype), let info = hierarchyClasses[subtype] else { return false }
+            return info.interfaces.contains { interfaceInherits($0, supertype, visited: visited.union([subtype])) }
+        }
+        for info in classes.values {
             var methods = info.methods
+            var bridges = info.bridgeMethods
+            var interfaces: [String] = []
+            var inheritedInterfaces = info.interfaces
+            var interfaceVisited: Set<String> = []
+            var interfaceMethods: [String: JVMForeignMethod] = [:]
+            func inheritInterface(_ name: String) {
+                guard interfaceVisited.insert(name).inserted, let base = hierarchyClasses[name] else { return }
+                if classes[name] != nil { interfaces.append(name); return }
+                bridges += base.bridgeMethods
+                for method in base.methods where !method.isStatic && !method.isConstructor {
+                    let signature = key(method)
+                    if !methods.contains(where: { key($0) == signature }),
+                       interfaceMethods[signature].map({ interfaceInherits(method.owner, $0.owner) }) ?? true {
+                        // The most specific interface wins independently of the
+                        // order of redundant interfaces in the classfile.
+                        interfaceMethods[signature] = method
+                    }
+                }
+                for parent in base.interfaces { inheritInterface(parent) }
+            }
             var visited: Set<String> = [info.name]
             var next = info.superclass
-            while let name = next, visited.insert(name).inserted, let base = original[name] {
-                for method in base.methods where method.isStatic {
-                    let parameters = method.descriptor.prefix(through: method.descriptor.firstIndex(of: ")")!)
-                    if !methods.contains(where: { $0.isStatic && $0.name == method.name && $0.descriptor.hasPrefix(parameters) }) { methods.append(method) }
+            var superclass: String?
+            var hiddenSegment = true
+            while let name = next, visited.insert(name).inserted, let base = hierarchyClasses[name] {
+                let visible = classes[name] != nil
+                if visible && superclass == nil { superclass = name; hiddenSegment = false }
+                for method in base.methods where !method.isConstructor && (method.isStatic || hiddenSegment) {
+                    if !methods.contains(where: { key($0) == key(method) }) {
+                        // A method reference must name an accessible class even
+                        // when its implementation is inherited from a hidden base.
+                        methods.append(visible ? method : accessibleMethod(method, on: info))
+                    }
+                }
+                if hiddenSegment {
+                    bridges += base.bridgeMethods
+                    inheritedInterfaces += base.interfaces
                 }
                 next = base.superclass
             }
-            result.classes[info.name] = JVMClassInfo(name: info.name, flags: info.flags, superclass: info.superclass, interfaces: info.interfaces, methods: methods)
+            for name in inheritedInterfaces { inheritInterface(name) }
+            methods += interfaceMethods.keys.sorted().map { accessibleMethod(interfaceMethods[$0]!, on: info) }
+            var abstractMethods: Set<String> = []
+            var abstractVisited: Set<String> = []
+            func collectAbstract(_ name: String) {
+                guard abstractVisited.insert(name).inserted, let base = hierarchyClasses[name] else { return }
+                for method in base.methods where method.isAbstract { abstractMethods.insert(key(method)) }
+                for parent in base.interfaces { collectAbstract(parent) }
+                if let parent = base.superclass { collectAbstract(parent) }
+            }
+            for name in interfaces { collectAbstract(name) }
+            if let superclass { collectAbstract(superclass) }
+            // Erased imports need a real bridge when an inherited raw method
+            // has different parameters from the specialized implementation.
+            for bridge in bridges where abstractMethods.contains(key(bridge)) && !methods.contains(where: { key($0) == key(bridge) }) {
+                methods.append(accessibleMethod(bridge, on: info))
+            }
+            classes[info.name] = JVMClassInfo(name: info.name, flags: info.flags, superclass: superclass, interfaces: interfaces, methods: methods)
         }
-        return result
     }
     func expose(_ type: JVMValueType) -> Bool {
         guard let name = type.referenceName else { return true }
@@ -145,7 +211,7 @@ final class JVMClasspathIndex {
             } else {
                 if info.isInterface { source += (isSAM(info.name) ? "fun interface `\(short)`" : "interface `\(short)`") }
                 else {
-                    source += info.flags & 0x0400 != 0 ? "abstract class " : "open class "
+                    source += info.flags & 0x0400 != 0 ? "abstract class " : (info.flags & 0x0010 != 0 ? "class " : "open class ")
                     source += "`\(short)` "
                     source += own.contains(where: { $0.isConstructor && $0.parameters.isEmpty }) ? "()" : "protected constructor()"
                 }
@@ -161,8 +227,9 @@ final class JVMClasspathIndex {
                 }
                 for method in own where !method.isConstructor && !method.isStatic {
                     let overrides = overridesParent(method, in: info, visited: [])
+                    if !info.isInterface && method.isFinal { source += "final " }
                     source += overrides ? "override " : ""
-                    if !info.isInterface { source += overrides ? "" : "open " }
+                    if !info.isInterface { source += overrides || method.isFinal ? "" : "open " }
                     if method.name == "get", method.parameters.count == 1 { source += "operator " }
                     if !info.isInterface { source += "external " }
                     source += "fun `\(method.name)`(" + parameters(method) + "): " + kotlinType(method.result)
@@ -183,6 +250,7 @@ final class JVMClasspathIndex {
                     } else { continue }
                     guard JVMProgramBuilder.isIdentifier(propertyName),
                           !own.contains(where: { !$0.isStatic && !$0.isConstructor && $0.name == propertyName }) else { continue }
+                    if !info.isInterface && getter.isFinal { source += "final " }
                     if overridesParent(getter, in: info, visited: []) { source += "override " }
                     else if !info.isInterface && !getter.isFinal { source += "open " }
                     source += "val `\(propertyName)`: \(kotlinType(getter.result)) get() = `\(getter.name)`()\n"
