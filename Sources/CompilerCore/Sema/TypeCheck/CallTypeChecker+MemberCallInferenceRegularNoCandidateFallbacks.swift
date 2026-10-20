@@ -75,6 +75,18 @@ extension CallTypeChecker {
                 return memberProperty
             }
             if isSuperReceiver { return nil }
+            // Char properties are represented by synthetic functions, but invoking
+            // their values follows the same operator-invoke path as a property.
+            // Try this only after ordinary functions have exhausted their tiers.
+            if maximumPropertyPriority == nil, ast.arena.isExplicitCall(id),
+               (safeCall ? sema.types.makeNonNullable(memberLookupType) : memberLookupType) == sema.types.charType,
+               let facade = sema.symbols.lookupByShortName(calleeName).first(where: {
+                   isSyntheticCharPropertyFacadeFunction($0, ctx: ctx)
+               }),
+               let signature = sema.symbols.functionSignature(for: facade)
+            {
+                return (facade, signature.returnType)
+            }
             // Package-owned extension properties have getter accessors rather
             // than nominal fields. Resolve the getter without replacing this
             // expression's eventual function-value invocation binding.
@@ -405,6 +417,7 @@ extension CallTypeChecker {
             }
         }
         if args.isEmpty,
+           !ast.arena.isExplicitCall(id),
            calleeStr == "code"
         {
             let receiverTypeForCheck = safeCall
@@ -422,7 +435,9 @@ extension CallTypeChecker {
                 ? sema.types.makeNonNullable(lookupReceiverType)
                 : lookupReceiverType
             if receiverTypeForCheck == sema.types.charType {
-                if let member = syntheticCharMemberSpec(named: calleeStr) {
+                if let member = syntheticCharMemberSpec(named: calleeStr),
+                   !ast.arena.isExplicitCall(id) || !["code", "category", "directionality"].contains(calleeStr)
+                {
                     let resultType = member.returnKind.typeID(
                         in: sema.types,
                         symbols: sema.symbols,

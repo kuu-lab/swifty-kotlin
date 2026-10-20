@@ -13,11 +13,25 @@ extension CallLowerer {
         else { return nil }
         let arena = shared.arena
         let receiver = precomputedReceiver ?? driver.lowerExpr(receiverExpr, shared: shared, emit: &instructions)
-        guard let value = lowerStoredMemberPropertyReadValue(
-            propertySymbol: property.property, callExprID: exprID, receiverExpr: receiverExpr, loweredReceiverID: receiver,
-            resultType: property.propertyType, ast: shared.ast, sema: sema, arena: arena, interner: shared.interner,
-            propertyConstantInitializers: shared.propertyConstantInitializers, instructions: &instructions.instructions
-        ) else { return nil }
+        let propertyValue: KIRExprID?
+        if sema.symbols.symbol(property.property)?.kind == .function,
+           let bridge = sema.symbols.externalLinkName(for: property.property),
+           ["kk_char_code", "kk_char_category", "kk_char_directionality"].contains(bridge)
+        {
+            let result = arena.appendTemporary(type: property.propertyType)
+            instructions.instructions.append(.call(
+                symbol: property.property, callee: shared.interner.intern(bridge),
+                arguments: [receiver], result: result, canThrow: false, thrownResult: nil
+            ))
+            propertyValue = result
+        } else {
+            propertyValue = lowerStoredMemberPropertyReadValue(
+                propertySymbol: property.property, callExprID: exprID, receiverExpr: receiverExpr, loweredReceiverID: receiver,
+                resultType: property.propertyType, ast: shared.ast, sema: sema, arena: arena, interner: shared.interner,
+                propertyConstantInitializers: shared.propertyConstantInitializers, instructions: &instructions.instructions
+            )
+        }
+        guard let value = propertyValue else { return nil }
         let loweredArgs = args.enumerated().map { index, argument in
             let value = driver.lowerExpr(argument.expr, shared: shared, emit: &instructions)
             return needsEvaluationOrderFreeze(argument.expr, ast: shared.ast, sema: sema)

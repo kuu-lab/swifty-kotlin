@@ -534,6 +534,7 @@ extension CallTypeChecker {
             // Infix eligibility precedes the member/extension priority decision.
             let memberCandidates = unfilteredMemberCandidates.filter {
                 $0 != inapplicableReflectiveCallBy
+                    && (!ast.arena.isExplicitCall(id) || !isSyntheticCharPropertyFacadeFunction($0, ctx: ctx))
                     && (!ast.arena.isInfixCall(id) || sema.symbols.symbol($0)?.flags.contains(.infixFunction) == true)
             }
             if !memberCandidates.isEmpty {
@@ -613,6 +614,9 @@ extension CallTypeChecker {
                     }
                 }
             }
+        }
+        if ast.arena.isExplicitCall(id) {
+            allCandidates.removeAll { isSyntheticCharPropertyFacadeFunction($0, ctx: ctx) }
         }
         // With no visible extension, retain the member for ordinary mismatch
         // diagnostics instead of accepting an invalid parameter map.
