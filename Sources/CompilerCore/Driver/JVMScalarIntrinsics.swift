@@ -25,10 +25,22 @@ extension JVMFunctionBuilder {
               let declaration = program.sema.symbols.symbol(symbol) else { return nil }
         var path = declaration.fqName.map(context.interner.resolve)
         if path.last == "Companion" { path.removeLast() }
-        guard path.count == 2, path[0] == "kotlin", let primitive = [PrimitiveType.char, .byte, .short, .uint, .ulong, .ubyte, .ushort, .int, .long].first(where: { $0.kotlinName == path[1] }) else { return nil }
+        guard path.count == 2, path[0] == "kotlin", let primitive = [PrimitiveType.char, .byte, .short, .uint, .ulong, .ubyte, .ushort, .int, .long, .float, .double].first(where: { $0.kotlinName == path[1] }) else { return nil }
         let member = context.interner.resolve(name), type = JVMValueType.primitive(primitive)
         let bits = [.byte, .ubyte].contains(type) ? 8 : ([.char, .short, .ushort].contains(type) ? 16 : (type.width == 2 ? 64 : 32))
         if member == "SIZE_BITS" || member == "SIZE_BYTES" { return try constant(.int(Int32(member == "SIZE_BITS" ? bits : bits / 8)), .int) }
+        if type == .float || type == .double {
+            let number: Double
+            switch member {
+            case "NaN": number = .nan
+            case "POSITIVE_INFINITY": number = .infinity
+            case "NEGATIVE_INFINITY": number = -.infinity
+            case "MIN_VALUE": number = type == .float ? Double(Float.leastNonzeroMagnitude) : Double.leastNonzeroMagnitude
+            case "MAX_VALUE": number = type == .float ? Double(Float.greatestFiniteMagnitude) : Double.greatestFiniteMagnitude
+            default: return nil
+            }
+            return try constant(type == .float ? .float(Float(number)) : .double(number), type)
+        }
         guard member == "MIN_VALUE" || member == "MAX_VALUE" else { return nil }
         let minimum = member == "MIN_VALUE"
         let unsigned = type.unsignedName != nil || type == .char
