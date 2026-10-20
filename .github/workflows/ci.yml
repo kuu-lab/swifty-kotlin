@@ -185,15 +185,17 @@ jobs:
           grep_prefix="$(brew --prefix grep)"
           llvm_prefix="$(brew --prefix llvm)"
           llvm_dylib="$llvm_prefix/lib/libLLVM.dylib"
+          macos_sdk="$(xcrun --sdk macosx --show-sdk-path)"
           [[ -f "$llvm_dylib" ]]
+          [[ -d "$macos_sdk" ]]
           "$bash_prefix/bin/bash" -c '(( BASH_VERSINFO[0] >= 4 ))'
           {
             echo "$bash_prefix/bin"
             echo "$grep_prefix/libexec/gnubin"
-            echo "$llvm_prefix/bin"
           } >> "$GITHUB_PATH"
           {
             echo "KSWIFTK_LLVM_DYLIB=$llvm_dylib"
+            echo "SDKROOT=$macos_sdk"
             echo "C_INCLUDE_PATH=$llvm_prefix/include${C_INCLUDE_PATH:+:$C_INCLUDE_PATH}"
             echo "LIBRARY_PATH=$llvm_prefix/lib${LIBRARY_PATH:+:$LIBRARY_PATH}"
           } >> "$GITHUB_ENV"
