@@ -179,6 +179,18 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerSyntheticProgressionStub(
+            named: "LongProgression",
+            elementType: types.longType,
+            stepType: types.longType,
+            externalLinkName: "__kk_long_progression_fromClosedRange",
+            registerProperties: false,
+            rangesPackageSymbol: rangesPackageSymbol,
+            rangesFQName: rangesFQName,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        registerSyntheticProgressionStub(
             named: "CharProgression",
             elementType: types.charType,
             stepType: types.intType,
