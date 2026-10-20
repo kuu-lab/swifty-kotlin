@@ -184,7 +184,9 @@ public fun <T> Sequence<T>.windowed(
             }
 
             fun compute() {
+                if (nextState == -3) throw IllegalStateException("Iterator has failed.")
                 if (nextState == 0 || nextState == -1) return
+                nextState = -3
                 if (advancePending) { advanceStep(); advancePending = false }
                 fill()
                 if (buffer.size == size) {
@@ -262,7 +264,9 @@ public fun <T> Sequence<T>.zipWithNext(): Sequence<Pair<T, T>> {
             var nextState = -2
 
             fun compute() {
+                if (nextState == -3) throw IllegalStateException("Iterator has failed.")
                 if (nextState == 0 || nextState == -1) return
+                nextState = -3
                 if (first) {
                     if (sourceIterator.hasNext()) {
                         previous = sourceIterator.next()
@@ -311,7 +315,9 @@ public fun <T, R> Sequence<T>.zipWithNext(transform: (T, T) -> R): Sequence<R> {
             var nextState = -2
 
             fun compute() {
+                if (nextState == -3) throw IllegalStateException("Iterator has failed.")
                 if (nextState == 0 || nextState == -1) return
+                nextState = -3
                 if (first) {
                     if (sourceIterator.hasNext()) {
                         previous = sourceIterator.next()
