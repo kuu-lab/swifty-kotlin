@@ -71,8 +71,7 @@ extension JVMFunctionBuilder {
         let function = try requireValue(callee)
         var values: [JVMValue] = []
         if signature.receiver != nil, args.count == signature.params.count {
-            let symbol = program.sema.bindings.implicitExtensionReceiver(for: id)
-            guard let receiver = symbol.flatMap({ contextualReceivers[$0] }) ?? extensionValue ?? thisValue else { throw fail("Function with receiver requires an argument.", id) }
+            guard let receiver = implicitExtensionReceiver(id) else { throw fail("Function with receiver requires an argument.", id) }
             values.append(receiver)
         }
         for arg in args { values.append(try requireValue(arg.expr)) }
@@ -254,9 +253,7 @@ extension JVMFunctionBuilder {
     func implicitExtensionCall(_ symbol: SymbolID, args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult? {
         guard program.extensionSymbols.contains(symbol), let signature = program.sema.symbols.functionSignature(for: symbol), signature.receiverType != nil,
               program.references[symbol] != nil || program.methods[symbol] != nil else { return nil }
-        let binding = program.sema.bindings
-        let receiverSymbol = binding.implicitExtensionReceiver(for: id)
-        guard let receiver = receiverSymbol.flatMap({ contextualReceivers[$0] }) ?? extensionValue ?? thisValue else { throw fail("Missing implicit JVM extension receiver.", id) }
+        guard let receiver = implicitExtensionReceiver(id) else { throw fail("Missing implicit JVM extension receiver.", id) }
         let reference = program.references[symbol]
         let method = program.methods[symbol]
         let parameters = reference?.parameters ?? method!.parameters

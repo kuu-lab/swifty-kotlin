@@ -56,20 +56,32 @@ extension JVMFunctionBuilder {
         mark(end); return result
     }
 
-    func stringMember(_ receiver: ExprID, name: String, args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult? {
-        guard let type = try? program.expressionType(receiver) else { return nil }
+    func implicitTextCall(_ callee: ExprID, args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult? {
+        guard let binding = program.sema.bindings.callBinding(for: id),
+              let symbol = program.sema.symbols.symbol(binding.chosenCallee),
+              let site = symbol.declSite,
+              context.sourceManager.path(of: site.start.file).hasPrefix("<kswiftk-jvm>/text"),
+              let semantic = program.sema.symbols.functionSignature(for: binding.chosenCallee)?.receiverType,
+              let receiver = implicitExtensionReceiver(id) else { return nil }
+        let type = try program.type(semantic)
+        guard type.isCharSequence else { return nil }
+        return try stringMember(callee, name: context.interner.resolve(symbol.name), args: args, id: id, boundReceiver: convert(receiver, to: type))
+    }
+    func stringMember(_ receiver: ExprID, name: String, args: [CallArgument], id: ExprID, boundReceiver: JVMValue? = nil) throws -> JVMIntrinsicResult? {
+        guard let type = boundReceiver?.type ?? (try? program.expressionType(receiver)) else { return nil }
+        func loadReceiver() throws -> JVMValue { try boundReceiver ?? requireValue(receiver) }
         if name == "toString", args.isEmpty, type.referenceName != nil {
-            return JVMIntrinsicResult(value: try jdkCall("java/lang/String", "valueOf", [.reference("java/lang/Object", nullable: true)], .string, arguments: [requireValue(receiver)]))
+            return JVMIntrinsicResult(value: try jdkCall("java/lang/String", "valueOf", [.reference("java/lang/Object", nullable: true)], .string, arguments: [loadReceiver()]))
         }
         guard type.isCharSequence || type.referenceName == "[C" else { return nil }
         if ["length", "lastIndex"].contains(name), args.isEmpty, type.isCharSequence {
-            let size = try textLength(requireValue(receiver))
+            let size = try textLength(loadReceiver())
             if name == "length" { return JVMIntrinsicResult(value: size) }
             let result = try value(.int); instructions.append(.binary(.subtract, size, try constant(.int(1), .int), result)); return JVMIntrinsicResult(value: result)
         }
-        if ["orEmpty", "isNullOrEmpty", "isNullOrBlank"].contains(name), args.isEmpty, type.isCharSequence { return JVMIntrinsicResult(value: try nullableText(requireValue(receiver), name: name)) }
+        if ["orEmpty", "isNullOrEmpty", "isNullOrBlank"].contains(name), args.isEmpty, type.isCharSequence { return JVMIntrinsicResult(value: try nullableText(loadReceiver(), name: name)) }
         if name == "plus", type.isText, args.count == 1 {
-            let source = try requireValue(receiver)
+            let source = try loadReceiver()
             guard let right = try stringPart(args[0].expr) else { return JVMIntrinsicResult(value: nil) }
             return JVMIntrinsicResult(value: try concatenate(source, right))
         }
@@ -103,7 +115,7 @@ extension JVMFunctionBuilder {
             guard !candidates.isEmpty else { return nil }
             throw fail("Unsupported JVM text overload: " + name + " (" + (signatureTypes?.map(\.descriptor).joined() ?? "unresolved") + ").", id)
         }
-        let source = try requireValue(receiver)
+        let source = try loadReceiver()
         let values = try textArguments(op, args: args, binding: binding, source: source, id: id)
         if ["isEmpty", "isNotEmpty"].contains(name) {
             let result = try value(.boolean); instructions.append(.binary(name == "isEmpty" ? .equal : .notEqual, try textLength(source), try constant(.int(0), .int), result)); return JVMIntrinsicResult(value: result)

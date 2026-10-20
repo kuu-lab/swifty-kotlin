@@ -1,4 +1,20 @@
 extension CallTypeChecker {
+    func implicitMemberExtensionReceiverMatches(_ actual: TypeID, declared: TypeID, sema: SemaModule) -> Bool {
+        let actual = sema.types.makeNonNullable(actual)
+        let declared = sema.types.makeNonNullable(declared)
+        if sema.types.isSubtype(actual, declared) { return true }
+        guard case let .typeParam(parameter) = sema.types.kind(of: declared) else { return false }
+        // Match an unsolved receiver parameter against its bounds before
+        // overload resolution. The resolver still checks the complete call.
+        let variables = sema.types.makeTypeVarBySymbol([parameter.symbol])
+        guard let variable = variables[parameter.symbol] else { return false }
+        return sema.symbols.typeParameterUpperBounds(for: parameter.symbol).allSatisfy { bound in
+            let bound = sema.types.substituteTypeParameters(
+                in: bound, substitution: [variable: actual], typeVarBySymbol: variables
+            )
+            return sema.types.isSubtype(actual, sema.types.makeNonNullable(bound))
+        }
+    }
     /// A package extension with an incompatible receiver must not hide an
     /// imported extension before its arguments can be contextualized.
     func scopeCallCandidatesConsideringImplicitReceivers(
@@ -592,10 +608,7 @@ extension CallTypeChecker {
                     continue
                 }
                 guard let picked = ctx.implicitReceiverMemberLookupEntries().first(where: { entry in
-                    sema.types.isSubtype(
-                        sema.types.makeNonNullable(entry.type),
-                        sema.types.makeNonNullable(declaredReceiver)
-                    )
+                    implicitMemberExtensionReceiverMatches(entry.type, declared: declaredReceiver, sema: sema)
                 })
                 else { continue }
                 if let groupIndex = memberExtensionGroups.firstIndex(where: {

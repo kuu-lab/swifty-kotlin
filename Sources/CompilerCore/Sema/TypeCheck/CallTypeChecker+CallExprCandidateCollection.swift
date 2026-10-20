@@ -42,6 +42,9 @@ extension CallTypeChecker {
                     guard let declaredReceiver = sema.symbols.functionSignature(for: candidate)?.receiverType else {
                         return false
                     }
+                    if sema.symbols.memberExtensionOwnerSymbol(for: candidate) != nil {
+                        return implicitMemberExtensionReceiverMatches(entry.type, declared: declaredReceiver, sema: sema)
+                    }
                     return extensionSyntheticFallbackReceiverMatches(
                         callSiteReceiver: entry.type,
                         declaredReceiver: declaredReceiver,
@@ -89,10 +92,7 @@ extension CallTypeChecker {
                               sema.symbols.memberExtensionOwnerSymbol(for: candidate) != nil,
                               let declaredReceiver = signature.receiverType,
                               let picked = ctx.implicitReceiverMemberLookupEntries().first(where: { entry in
-                                  sema.types.isSubtype(
-                                      sema.types.makeNonNullable(entry.type),
-                                      sema.types.makeNonNullable(declaredReceiver)
-                                  )
+                                  implicitMemberExtensionReceiverMatches(entry.type, declared: declaredReceiver, sema: sema)
                               })
                         else {
                             regularMembers.append(candidate)
@@ -173,10 +173,7 @@ extension CallTypeChecker {
                         guard let signature = sema.symbols.functionSignature(for: candidate),
                               let declaredReceiver = signature.receiverType,
                               let picked = ctx.implicitReceiverMemberLookupEntries().first(where: { entry in
-                                  sema.types.isSubtype(
-                                      sema.types.makeNonNullable(entry.type),
-                                      sema.types.makeNonNullable(declaredReceiver)
-                                  )
+                                  implicitMemberExtensionReceiverMatches(entry.type, declared: declaredReceiver, sema: sema)
                               })
                         else { continue }
                         memberExtensionCandidates.append((candidate, picked.type))
