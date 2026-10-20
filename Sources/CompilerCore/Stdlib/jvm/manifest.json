@@ -365,6 +365,12 @@
       "path": "declarations/JavaLang.kt",
       "virtualPath": "<kswiftk-jvm>/javaLang.kt",
       "excludeFromStdlibBuild": false
+    },
+    {
+      "path": "declarations/RangeFunctions.kt",
+      "virtualPath": "<kswiftk-jvm>/rangeFunctions.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/ranges/RangesKt"
     }
   ],
   "runtimeClassAliases": {
