@@ -82,7 +82,7 @@ extension DeclTypeChecker {
         )
         if let fieldType = inferredPropertyType {
             let fieldSymbol = sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
-            getterLocals[interner.intern("field")] = (fieldType, fieldSymbol, true, true)
+            getterLocals[interner.intern("field")] = (fieldType, fieldSymbol, property.isVar, true)
         }
         let getterType = inferFunctionBodyType(
             getter.body, ctx: getterContext.copying(

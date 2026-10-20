@@ -11,11 +11,42 @@ extension CallTypeChecker {
         let resultType: TypeID
         if info.kind == .property, args.isEmpty, let type = sema.symbols.propertyType(for: member) {
             resultType = type
-        } else if memberName == "call" || memberName == "callBy" {
-            if memberName == "callBy", args.count != 1 { return nil }
+        } else if memberName == "callBy" {
+            guard args.count == 1,
+                  let signature = sema.symbols.functionSignature(for: member),
+                  let expected = signature.parameterTypes.first,
+                  let callRange = ctx.ast.arena.exprRange(id),
+                  parameterMappingForCallArguments(args, in: signature, callRange: callRange, ctx: ctx) != nil
+            else { return nil }
+            let checkpoint = sema.diagnostics.checkpoint()
+            var probeLocals = locals
+            let argument = args[0].expr
+            let argumentType = driver.inferExpr(argument, ctx: ctx, locals: &probeLocals, expectedType: expected)
+            driver.emitSubtypeConstraint(
+                left: argumentType,
+                right: expected,
+                range: ctx.ast.arena.exprRange(argument),
+                solver: ConstraintSolver(),
+                sema: sema,
+                diagnostics: sema.diagnostics
+            )
+            if argumentType == sema.types.errorType
+                || typeContainsErrorType(argumentType, sema: sema)
+                || sema.diagnostics.diagnostics.dropFirst(checkpoint).contains(where: { $0.severity == .error })
+            {
+                // An inapplicable member must allow visible extensions to resolve.
+                // Rebuild contextual bindings before ordinary argument preparation.
+                sema.diagnostics.rollback(to: checkpoint)
+                var restoredLocals = locals
+                _ = driver.inferExpr(argument, ctx: ctx, locals: &restoredLocals)
+                sema.diagnostics.rollback(to: checkpoint)
+                return nil
+            }
+            locals = probeLocals
+            resultType = functionType.returnType
+        } else if memberName == "call" {
             for arg in args {
-                let expected = memberName == "callBy" ? sema.symbols.functionSignature(for: member)?.parameterTypes.first : nil
-                _ = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals, expectedType: expected)
+                _ = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
             }
             resultType = functionType.returnType
         } else { return nil }

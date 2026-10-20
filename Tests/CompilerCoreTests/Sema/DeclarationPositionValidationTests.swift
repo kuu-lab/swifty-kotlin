@@ -23,6 +23,18 @@ private func semaContextWithoutStdlib(for source: String) throws -> CompilationC
 @Suite(.serialized)
 struct DeclarationPositionValidationTests {
 
+    @Test(arguments: ["field = 2", "field += 1", "field++"])
+    func readOnlyBackingFieldMutationIsRejected(statement: String) throws {
+        let ctx = try semaContextWithoutStdlib(for: "class C { val x: Int = 0; get() { \(statement); return field } }")
+        assertHasDiagnostic("KSWIFTK-SEMA-0014", in: ctx)
+    }
+
+    @Test
+    func mutableBackingFieldMutationIsAccepted() throws {
+        let ctx = try semaContextWithoutStdlib(for: "class C { var x: Int = 0; get() { field += 1; return field } }")
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
+    }
+
     // MARK: - Declaration positions
 
     @Test func constValInsideClassIsRejected() throws {

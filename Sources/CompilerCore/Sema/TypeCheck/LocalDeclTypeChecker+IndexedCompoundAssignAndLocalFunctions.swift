@@ -199,7 +199,9 @@ extension LocalDeclTypeChecker {
             // Int literal `1` is an AST implementation detail, while the
             // operation is defined by the element type. Explicit
             // `a[i] += value` still has to satisfy this RHS subtype rule.
-            if !isCharOffset && !isBuiltinNumericIncrement {
+            let isStringConcatenation = binaryOp == .add
+                && sema.types.makeNonNullable(elementType) == sema.types.stringType
+            if !isCharOffset && !isBuiltinNumericIncrement && !isStringConcatenation {
                 driver.emitSubtypeConstraint(
                     left: valueType, right: elementType,
                     range: ctx.ast.arena.exprRange(valueExpr) ?? range,
@@ -555,7 +557,7 @@ extension LocalDeclTypeChecker {
         let underlyingOp = driver.helpers.compoundAssignToBinaryOp(assignOp)
         return switch underlyingOp {
         case .add:
-            (elementType == stringType || valueType == stringType) ? stringType : elementType
+            sema.types.makeNonNullable(elementType) == stringType ? stringType : elementType
         default:
             elementType
         }

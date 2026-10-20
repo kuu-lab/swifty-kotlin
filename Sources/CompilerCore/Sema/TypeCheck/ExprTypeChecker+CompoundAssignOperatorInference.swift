@@ -17,7 +17,8 @@ extension ExprTypeChecker {
         emitDiagnostics: Bool = true,
         bindCall: Bool = true,
         allowFallbackOnNoViableOverload: Bool = false,
-        inferCandidateReturnTypes: Bool = false
+        inferCandidateReturnTypes: Bool = false,
+        onAssignedType: ((TypeID) -> Void)? = nil
     ) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
@@ -148,6 +149,9 @@ extension ExprTypeChecker {
             return sema.types.errorType
         }
 
+        if !requireUnitReturn {
+            onAssignedType?(returnType)
+        }
         if bindCall {
             sema.bindings.bindExprType(exprID, type: sema.types.unitType)
         }
@@ -402,7 +406,7 @@ extension ExprTypeChecker {
         rhs: TypeID,
         sema: SemaModule
     ) -> Bool {
-        if op == .plusAssign, lhs == sema.types.stringType {
+        if op == .plusAssign, sema.types.makeNonNullable(lhs) == sema.types.stringType {
             return true
         }
         let underlyingOp = driver.helpers.compoundAssignToBinaryOp(op)
@@ -600,6 +604,7 @@ extension ExprTypeChecker {
                 }
                 return resolvedType
             }
+            var assignedType = local.type
             if let resolvedType = bindCompoundAssignmentOperatorCall(
                 exprID: id,
                 op: op,
@@ -608,7 +613,8 @@ extension ExprTypeChecker {
                 range: range,
                 locals: locals,
                 ctx: ctx,
-                requireUnitReturn: false
+                requireUnitReturn: false,
+                onAssignedType: { assignedType = $0 }
             ) {
                 if resolvedType == sema.types.errorType || !local.isMutable {
                     if !local.isMutable, resolvedType != sema.types.errorType {
@@ -620,7 +626,7 @@ extension ExprTypeChecker {
                     }
                     return resolvedType == sema.types.errorType ? resolvedType : sema.types.errorType
                 }
-                locals[name] = (local.type, local.symbol, local.isMutable, local.isInitialized)
+                locals[name] = (assignedType, local.symbol, local.isMutable, local.isInitialized)
                 sema.bindings.bindExprType(id, type: sema.types.unitType)
                 return sema.types.unitType
             }
@@ -653,7 +659,7 @@ extension ExprTypeChecker {
             let arithmeticResultType = numericCompoundAssignResultType(local.type, ctx: ctx)
             let resultType: TypeID = switch underlyingOp {
             case .add:
-                if local.type == stringType || valueType == stringType {
+                if sema.types.makeNonNullable(local.type) == stringType || valueType == stringType {
                     stringType
                 } else if local.type == charType, valueType == intType {
                     charType
@@ -852,7 +858,7 @@ extension ExprTypeChecker {
             }
             let resultType: TypeID = switch underlyingOp {
             case .add:
-                if propType == stringType || valueType == stringType {
+                if sema.types.makeNonNullable(propType) == stringType || valueType == stringType {
                     stringType
                 } else if propType == charType, valueType == intType {
                     charType

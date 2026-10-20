@@ -37,7 +37,7 @@ public enum OptimizationLevel: Int {
     case O3
 }
 
-public enum EmitMode: String {
+public enum EmitMode: String, Sendable {
     case executable
     case object
     case llvmIR

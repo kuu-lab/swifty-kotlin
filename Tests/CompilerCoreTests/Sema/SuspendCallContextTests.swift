@@ -79,6 +79,16 @@ struct SuspendCallContextTests {
     }
 
     @Test
+    func explicitSuspendSamConstructorSuppliesItsOwnSuspensionContext() throws {
+        let result = try diagnostics("""
+        suspend fun sf(): Int = 42
+        fun interface SuspendAction { suspend fun run(): Int }
+        fun setup() { val action = SuspendAction { sf() } }
+        """)
+        #expect(!result.hasError, "\(result.diagnostics)")
+    }
+
+    @Test
     func nonSuspendSamLambdaDoesNotInheritSuspensionContext() throws {
         let result = try diagnostics("""
         suspend fun sf() = 1

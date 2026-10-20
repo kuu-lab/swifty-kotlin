@@ -534,7 +534,12 @@ final class ControlFlowTypeChecker {
         let hasCurrentLoopBreak = containsBreakTargetingCurrentLoop(
             conditionExpr, loopLabelStack: [label], ast: ast, ctx: ctx
         ) || containsBreakTargetingCurrentLoop(bodyExpr, loopLabelStack: [label], ast: ast, ctx: ctx)
-        let resultType = if isConstantTrueCondition(conditionExpr, ast: ast) && !hasCurrentLoopBreak {
+        // Inline lambdas carry non-local loop jumps without contributing to
+        // this loop's local-state records, so inspect those routes as well.
+        let bodyCannotReachCondition = conditionEntryStates.isEmpty && !containsBreakTargetingCurrentLoop(
+            bodyExpr, loopLabelStack: [label], ast: ast, ctx: ctx, includingContinues: true
+        )
+        let resultType = if !hasCurrentLoopBreak && (bodyCannotReachCondition || isConstantTrueCondition(conditionExpr, ast: ast)) {
             sema.types.nothingType
         } else {
             sema.types.unitType
@@ -616,12 +621,14 @@ final class ControlFlowTypeChecker {
         _ exprID: ExprID,
         loopLabelStack: [InternedString?],
         ast: ASTModule,
-        ctx: TypeInferenceContext
+        ctx: TypeInferenceContext,
+        includingContinues: Bool = false
     ) -> Bool {
         func visit(_ exprID: ExprID, loopLabelStack: [InternedString?]) -> Bool {
             guard let expr = ast.arena.expr(exprID) else { return false }
             switch expr {
-            case .breakExpr(let label, _):
+            case .breakExpr(let label, _), .continueExpr(let label, _):
+                if case .continueExpr = expr, !includingContinues { return false }
                 let targetIndex: Int
                 if let label {
                     if let idx = loopLabelStack.lastIndex(where: { $0 == label }) {
@@ -633,8 +640,6 @@ final class ControlFlowTypeChecker {
                     targetIndex = loopLabelStack.count - 1
                 }
                 return targetIndex == 0
-            case .continueExpr:
-                return false
             case .forExpr(_, let iterable, let body, let label, _):
                 if visit(iterable, loopLabelStack: loopLabelStack) { return true }
                 var nestedStack = loopLabelStack
@@ -708,15 +713,21 @@ final class ControlFlowTypeChecker {
                     if visit(index, loopLabelStack: loopLabelStack) { return true }
                 }
                 return visit(value, loopLabelStack: loopLabelStack)
-            case .call(let callee, _, let args, _):
+            case .call(let callee, _, let args, _),
+                 .memberCall(let callee, _, _, let args, _),
+                 .safeMemberCall(let callee, _, _, let args, _):
                 if visit(callee, loopLabelStack: loopLabelStack) { return true }
-                return args.contains { visit($0.expr, loopLabelStack: loopLabelStack) }
-            case .memberCall(let receiver, _, _, let args, _):
-                if visit(receiver, loopLabelStack: loopLabelStack) { return true }
-                return args.contains { visit($0.expr, loopLabelStack: loopLabelStack) }
-            case .safeMemberCall(let receiver, _, _, let args, _):
-                if visit(receiver, loopLabelStack: loopLabelStack) { return true }
-                return args.contains { visit($0.expr, loopLabelStack: loopLabelStack) }
+                let binding = ctx.sema.bindings.callBinding(for: exprID)
+                let inlineCallee = binding.flatMap { ctx.sema.symbols.symbol($0.chosenCallee) }?.flags.contains(.inlineFunction) == true
+                let signature = binding.flatMap { ctx.sema.symbols.functionSignature(for: $0.chosenCallee) }
+                return args.enumerated().contains { index, argument in
+                    let parameter = binding?.parameterMapping[index] ?? index
+                    let allowsJump = signature.map { !$0.valueParameterAllowsNonLocalReturn.indices.contains(parameter) || $0.valueParameterAllowsNonLocalReturn[parameter] } ?? false
+                    if inlineCallee, allowsJump, case let .lambdaLiteral(_, body, _, _) = ast.arena.expr(argument.expr) {
+                        return visit(body, loopLabelStack: loopLabelStack)
+                    }
+                    return visit(argument.expr, loopLabelStack: loopLabelStack)
+                }
             case .indexedAccess(let receiver, let indices, _):
                 if visit(receiver, loopLabelStack: loopLabelStack) { return true }
                 return indices.contains { visit($0, loopLabelStack: loopLabelStack) }

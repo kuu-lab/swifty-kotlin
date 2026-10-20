@@ -525,9 +525,16 @@ extension CallTypeChecker {
                         argTypes: argTypes, sema: sema
                     )
             }
+            // An applicable reflective callBy already returned from its contextual
+            // fast path. Let the ordinary extension lookup try both function and
+            // KFunction receiver views when that member was inapplicable.
+            let inapplicableReflectiveCallBy = callableReferenceFunctionType != nil
+                && interner.resolve(calleeName) == "callBy"
+                ? sema.symbols.lookup(fqName: ["kotlin", "reflect", "KCallable", "callBy"].map(interner.intern)) : nil
             // Infix eligibility precedes the member/extension priority decision.
             let memberCandidates = unfilteredMemberCandidates.filter {
-                !ast.arena.isInfixCall(id) || sema.symbols.symbol($0)?.flags.contains(.infixFunction) == true
+                $0 != inapplicableReflectiveCallBy
+                    && (!ast.arena.isInfixCall(id) || sema.symbols.symbol($0)?.flags.contains(.infixFunction) == true)
             }
             if !memberCandidates.isEmpty {
                 // Check if the found candidates belong to a companion object so we
@@ -606,6 +613,15 @@ extension CallTypeChecker {
                     }
                 }
             }
+        }
+        // With no visible extension, retain the member for ordinary mismatch
+        // diagnostics instead of accepting an invalid parameter map.
+        if allCandidates.isEmpty,
+           callableReferenceFunctionType != nil,
+           interner.resolve(calleeName) == "callBy",
+           let member = sema.symbols.lookup(fqName: ["kotlin", "reflect", "KCallable", "callBy"].map(interner.intern))
+        {
+            allCandidates = [member]
         }
         // If no infix callable exists, retain the ordinary lookup only for the
         // missing-modifier diagnostic enforced at the member-call entry point.

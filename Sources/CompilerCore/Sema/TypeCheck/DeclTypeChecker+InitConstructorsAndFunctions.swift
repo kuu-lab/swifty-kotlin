@@ -1126,7 +1126,8 @@ extension DeclTypeChecker {
             symbol: symbol,
             bodyType: inferredBodyType,
             signature: signature,
-            sema: sema
+            sema: sema,
+            ctx: ctx
         )
         recordContractEffects(
             function: function,
@@ -1203,7 +1204,8 @@ extension DeclTypeChecker {
         symbol: SymbolID,
         bodyType: TypeID,
         signature: FunctionSignature,
-        sema: SemaModule
+        sema: SemaModule,
+        ctx: TypeInferenceContext
     ) {
         let skipUpdate = if bodyType == sema.types.errorType {
             true
@@ -1224,7 +1226,7 @@ extension DeclTypeChecker {
                     contextParameterSymbols: signature.contextParameterSymbols,
                     contextParameterTypes: signature.contextParameterTypes,
                     parameterTypes: signature.parameterTypes,
-                    returnType: bodyType,
+                    returnType: exposedAnonymousType(bodyType, symbol: symbol, range: function.range, ctx: ctx),
                     isSuspend: signature.isSuspend,
                     canThrow: signature.canThrow,
                     valueParameterSymbols: signature.valueParameterSymbols,

@@ -194,51 +194,63 @@ extension CallLowerer {
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
         }
-        let opResult = arena.appendTemporary(type: sema.types.anyType)
-        // exprID's bound type is always unitType for compound assign, so we
-        // derive the element type from the receiver's array type instead.
-        let stringType = sema.types.stringType
-        let isStringElement = receiverElementType == stringType
-        let isUnsignedElement = receiverElementType.map { sema.types.isUnsigned($0) } ?? false
-        let floatingPointPrefix: String? = if let receiverElementType {
-            switch sema.types.kind(of: receiverElementType) {
-            case .primitive(.double, _): "d"
-            case .primitive(.float, _): "f"
-            default: nil
-            }
+        let opResult: KIRExprID
+        if op == .plusAssign, let elementType = receiverElementType,
+           sema.types.makeNonNullable(elementType) == sema.types.stringType {
+            // The flat concat ABI requires two strings, including a nullable
+            // current element and an arbitrary RHS accepted by String.plus.
+            opResult = emitBuiltinIndexedCompoundOp(
+                op: op, elementType: elementType, current: getResult,
+                valueID: valueID, valueType: sema.bindings.exprTypes[valueExpr] ?? sema.types.anyType,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
         } else {
-            nil
-        }
-        let opName = if op == .plusAssign, isStringElement {
-            "__kk_string_concat_flat"
-        } else if let floatingPointPrefix {
-            // Compound assignment on Array<Double>/Array<Float> must use the
-            // floating-point runtime ABI. The generic integer stubs reinterpret
-            // the bit-encoded operands as signed integers and corrupt the result.
-            switch op {
-            case .plusAssign: "kk_op_\(floatingPointPrefix)add"
-            case .minusAssign: "kk_op_\(floatingPointPrefix)sub"
-            case .timesAssign: "kk_op_\(floatingPointPrefix)mul"
-            case .divAssign: "kk_op_\(floatingPointPrefix)div"
-            case .modAssign: "kk_op_\(floatingPointPrefix)mod"
+            opResult = arena.appendTemporary(type: sema.types.anyType)
+            // exprID's bound type is always unitType for compound assign, so we
+            // derive the element type from the receiver's array type instead.
+            let stringType = sema.types.stringType
+            let isStringElement = receiverElementType == stringType
+            let isUnsignedElement = receiverElementType.map { sema.types.isUnsigned($0) } ?? false
+            let floatingPointPrefix: String? = if let receiverElementType {
+                switch sema.types.kind(of: receiverElementType) {
+                case .primitive(.double, _): "d"
+                case .primitive(.float, _): "f"
+                default: nil
+                }
+            } else {
+                nil
             }
-        } else {
-            switch op {
-            case .plusAssign: "kk_op_add"
-            case .minusAssign: "kk_op_sub"
-            case .timesAssign: "kk_op_mul"
-            case .divAssign: isUnsignedElement ? "kk_op_udiv" : "kk_op_div"
-            case .modAssign: isUnsignedElement ? "kk_op_urem" : "kk_op_mod"
+            let opName = if op == .plusAssign, isStringElement {
+                "__kk_string_concat_flat"
+            } else if let floatingPointPrefix {
+                // Compound assignment on Array<Double>/Array<Float> must use the
+                // floating-point runtime ABI. The generic integer stubs reinterpret
+                // the bit-encoded operands as signed integers and corrupt the result.
+                switch op {
+                case .plusAssign: "kk_op_\(floatingPointPrefix)add"
+                case .minusAssign: "kk_op_\(floatingPointPrefix)sub"
+                case .timesAssign: "kk_op_\(floatingPointPrefix)mul"
+                case .divAssign: "kk_op_\(floatingPointPrefix)div"
+                case .modAssign: "kk_op_\(floatingPointPrefix)mod"
+                }
+            } else {
+                switch op {
+                case .plusAssign: "kk_op_add"
+                case .minusAssign: "kk_op_sub"
+                case .timesAssign: "kk_op_mul"
+                case .divAssign: isUnsignedElement ? "kk_op_udiv" : "kk_op_div"
+                case .modAssign: isUnsignedElement ? "kk_op_urem" : "kk_op_mod"
+                }
             }
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern(opName),
+                arguments: [getResult, valueID],
+                result: opResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
         }
-        instructions.append(.call(
-            symbol: nil,
-            callee: interner.intern(opName),
-            arguments: [getResult, valueID],
-            result: opResult,
-            canThrow: false,
-            thrownResult: nil
-        ))
         let storedOpResult: KIRExprID
         if let elementType = compoundPrimitiveElementType,
            let boxCallee = boxingTable.boxCallee(for: elementType, types: sema.types, requireNonNull: false)

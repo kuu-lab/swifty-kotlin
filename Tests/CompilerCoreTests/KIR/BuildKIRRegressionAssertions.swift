@@ -5,6 +5,7 @@ import Testing
 
 /// Operations identify ABI entries independently of their canonical link names.
 enum BuildKIRRuntimeOperation: String {
+    case anyToString = "any_to_string"
     case arrayGet = "array_get"
     case arrayGetInbounds = "array_get_inbounds"
     case arrayNew = "array_new"
