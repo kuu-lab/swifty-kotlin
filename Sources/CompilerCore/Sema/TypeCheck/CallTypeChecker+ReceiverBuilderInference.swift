@@ -40,7 +40,16 @@ extension CallTypeChecker {
             typeVarBySymbol: session.typeVarBySymbol,
             typeSystem: sema.types,
             blameRange: blameRange
-        )
+        ).filter {
+            // Type parameters that belong to the declared receiver are
+            // existentially bound at this call site: the callee instantiates
+            // them when it binds. A rigid constraint against such a parameter
+            // — `E <: T` from `ProducerScope<T> <: SendChannel<E>` through
+            // declaration-site `in` — carries no evidence for the builder's
+            // own variables and would widen them to the parameter's upper
+            // bound (Any), or reject an otherwise matching candidate.
+            !constraintMentionsForeignTypeParam($0, session: session, types: sema.types)
+        }
         let sessionVariables = Set(session.typeVarBySymbol.values)
         let introducedVariables = Set(ctx.resolver.usedTypeVariables(from: constraints))
         guard !sessionVariables.isDisjoint(with: introducedVariables) else { return nil }
@@ -70,6 +79,61 @@ extension CallTypeChecker {
             return nil
         }
         return constraints
+    }
+
+    /// A constraint operand holding a type parameter the builder session does
+    /// not own. Such parameters originate on the candidate's declared side
+    /// (session variables only ever come from the call-site receiver), so the
+    /// constraint cannot feed real evidence into the builder's solve.
+    private func constraintMentionsForeignTypeParam(
+        _ constraint: VariableConstraint,
+        session: BuilderInferenceSession,
+        types: TypeSystem
+    ) -> Bool {
+        [constraint.left, constraint.right].contains { operand in
+            guard case let .type(type) = operand else { return false }
+            return typeMentionsForeignTypeParam(type, session: session, types: types)
+        }
+    }
+
+    private func typeMentionsForeignTypeParam(
+        _ type: TypeID,
+        session: BuilderInferenceSession,
+        types: TypeSystem
+    ) -> Bool {
+        switch types.kind(of: type) {
+        case let .typeParam(parameter):
+            parameter.capture == nil && session.typeVarBySymbol[parameter.symbol] == nil
+        case let .classType(classType):
+            types.allTypeArguments(for: classType).contains { argument in
+                switch argument {
+                case let .invariant(inner), let .out(inner), let .in(inner):
+                    typeMentionsForeignTypeParam(inner, session: session, types: types)
+                case .star:
+                    false
+                }
+            }
+        case let .functionType(function):
+            (function.receiver.map {
+                typeMentionsForeignTypeParam($0, session: session, types: types)
+            } ?? false)
+                || function.params.contains {
+                    typeMentionsForeignTypeParam($0, session: session, types: types)
+                }
+                || function.contextReceivers.contains {
+                    typeMentionsForeignTypeParam($0, session: session, types: types)
+                }
+                || function.throws.contains {
+                    typeMentionsForeignTypeParam($0, session: session, types: types)
+                }
+                || typeMentionsForeignTypeParam(function.returnType, session: session, types: types)
+        case let .intersection(parts):
+            parts.contains { typeMentionsForeignTypeParam($0, session: session, types: types) }
+        case let .kClassType(kClassType):
+            typeMentionsForeignTypeParam(kClassType.argument, session: session, types: types)
+        default:
+            false
+        }
     }
 
     /// Check extension receiver applicability without committing speculative
