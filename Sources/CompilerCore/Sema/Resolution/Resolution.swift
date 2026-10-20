@@ -961,6 +961,7 @@ extension OverloadResolver {
                 + (signature.receiverType.map { [$0] } ?? [])
             for (index, typeParamSymbol) in signature.typeParameterSymbols.enumerated() {
                 guard let typeVariable = typeVarBySymbol[typeParamSymbol],
+                      explicitTypeSubstitution[typeVariable] == nil,
                       containsTypeVariable(
                           signature.returnType,
                           typeVarBySymbol: [typeParamSymbol: typeVariable],
