@@ -382,6 +382,9 @@ extension JVMFunctionBuilder {
 extension JVMFunctionBuilder {
     func sequenceLoop(_ name: InternedString, _ iterable: ExprID, _ body: ExprID, _ id: ExprID) throws {
         let source = try requireValue(iterable)
+        // An Iterator receiver is its own cursor: the stdlib Iterator<T>.iterator()
+        // operator returns `this`, so Sema leaves iteratorCall nil for it.
+        let loopBinding = program.sema.bindings.loopIterationBinding(for: id)
         let elementType: JVMValueType
         if source.type.isCharSequence { elementType = .char }
         else if let semantic = program.sema.bindings.exprType(for: iterable), case let .classType(t) = program.sema.types.kind(of: semantic), let arg = t.args.first {
@@ -390,6 +393,7 @@ extension JVMFunctionBuilder {
             default: elementType = .reference("java/lang/Object", nullable: true)
             }
         } else if source.type.referenceName?.hasPrefix("[") == true { elementType = try arrayComponent(source.type) }
+        else if let loopBinding, loopBinding.iteratorCall == nil { elementType = try program.type(loopBinding.elementType) }
         else { throw fail("JVM for requires an array or iterable collection.", id) }
         let local = try value(elementType), test = label(), advance = label(), exit = label()
         scopes.append([name: Local(value: local, mutable: false)]); defer { scopes.removeLast() }
@@ -408,7 +412,14 @@ extension JVMFunctionBuilder {
             let one = try constant(.int(1), .int)
             instructions.append(.binary(.add, index, one, index)); jump(test)
         } else {
-            let iterator = try jdkCall(source.type.referenceName == "kotlin/sequences/Sequence" ? "kotlin/sequences/Sequence" : "java/lang/Iterable", "iterator", [], .reference("java/util/Iterator", nullable: false), receiver: source, interface: true)!
+            let iteratorType: JVMValueType = .reference("java/util/Iterator", nullable: false)
+            let iterator: JVMValue
+            if let loopBinding, loopBinding.iteratorCall == nil {
+                iterator = try convert(source, to: iteratorType)
+            } else {
+                let owner = source.type.referenceName == "kotlin/sequences/Sequence" ? "kotlin/sequences/Sequence" : "java/lang/Iterable"
+                iterator = try jdkCall(owner, "iterator", [], iteratorType, receiver: source, interface: true)!
+            }
             mark(test)
             let check = try jdkCall("java/util/Iterator", "hasNext", [], .boolean, receiver: iterator, interface: true)!
             instructions.append(.jumpIfFalse(check, exit))
