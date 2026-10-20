@@ -407,7 +407,10 @@ extension CallTypeChecker {
             if !allowsProjectedReceiverUnsafeVariance(chosen, sema: sema, interner: interner),
                let violatingParamIndex = sema.types.checkVarianceViolationInParameters(
                    signature: signature,
-                   writeForbiddenSymbols: varianceResult.writeForbiddenSymbols
+                   writeForbiddenSymbols: varianceResult.writeForbiddenSymbols,
+                   nullableWriteSymbols: varianceResult.nullableWriteSymbols,
+                   argumentTypes: argTypes,
+                   parameterMapping: resolved.parameterMapping
                )
             {
                 let paramType = sema.types.displayName(
