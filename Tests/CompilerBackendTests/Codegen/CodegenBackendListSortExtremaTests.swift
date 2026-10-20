@@ -178,6 +178,28 @@ struct CodegenBackendListSortExtremaTests {
         )
     }
 
+    /// Comparator parameters erase their element type, so primitive candidates
+    /// must be boxed before the Comparator bridge performs its generic cast.
+    @Test
+    func minMaxOfWithNaturalOrderBoxesPrimitiveCandidates() throws {
+        let source = """
+        import kotlin.comparisons.naturalOrder
+
+        fun main() {
+            println(minOf(3, 2, 1, comparator = naturalOrder<Int>()))
+            println(maxOf(3, 2, 1, comparator = naturalOrder<Int>()))
+            println(kotlin.comparisons.minOf(3, 2, 1, comparator = naturalOrder<Int>()))
+            println(kotlin.comparisons.maxOf(3, 2, 1, comparator = naturalOrder<Int>()))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MinMaxOfNaturalOrderComparatorRuntime",
+            expected: "1\n3\n1\n3\n"
+        )
+    }
+
     /// `sortedByDescending` takes a `R?` selector: null keys sort last in
     /// descending order, which `compareValues` — not a raw `compareTo` — has to
     /// supply.

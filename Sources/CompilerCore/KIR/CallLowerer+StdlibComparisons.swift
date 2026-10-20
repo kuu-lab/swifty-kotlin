@@ -323,12 +323,38 @@ extension CallLowerer {
                     result: conditionExpr
                 ))
             case let .comparator(comparatorArgIndex):
+                let candidateType = sema.bindings.exprType(for: args[argIndex].expr) ?? resultType
+                let currentType = arena.exprType(currentExpr) ?? resultType
+                let boxedCandidate = boxValueForAnySlot(
+                    candidateExpr,
+                    sourceType: candidateType,
+                    types: sema.types,
+                    symbols: sema.symbols,
+                    interner: interner,
+                    arena: arena,
+                    resultType: sema.types.anyType,
+                    sema: sema,
+                    cache: driver.ctx.nominalDispatchCache,
+                    into: &instructions
+                )
+                let boxedCurrent = boxValueForAnySlot(
+                    currentExpr,
+                    sourceType: currentType,
+                    types: sema.types,
+                    symbols: sema.symbols,
+                    interner: interner,
+                    arena: arena,
+                    resultType: sema.types.anyType,
+                    sema: sema,
+                    cache: driver.ctx.nominalDispatchCache,
+                    into: &instructions
+                )
                 let compareResultExpr = arena.appendTemporary(type: intType
                 )
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("__kk_compare_with_comparator"),
-                    arguments: [loweredArgIDs[comparatorArgIndex], candidateExpr, currentExpr],
+                    arguments: [loweredArgIDs[comparatorArgIndex], boxedCandidate, boxedCurrent],
                     result: compareResultExpr,
                     canThrow: true,
                     thrownResult: nil
