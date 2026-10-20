@@ -170,3 +170,5 @@ fun <T> Array<out T>.toList(): List<T> = this.asSequence().toList()
 fun <T> Array<out T>.toMutableList(): MutableList<T> = this.asSequence().toMutableList()
 fun <T> Array<out T>.toSet(): Set<T> = this.asSequence().toSet()
 fun <T> Array<out T>.toMutableSet(): MutableSet<T> = this.asSequence().toMutableSet()
+
+fun <T> Array<out T>.isEmpty(): Boolean = this.size == 0
