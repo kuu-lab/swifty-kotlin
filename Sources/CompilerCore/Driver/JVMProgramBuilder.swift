@@ -421,6 +421,7 @@ final class JVMFunctionBuilder {
                 if property.getter.isStatic { instructions.append(.getStatic(field, result)) }
                 else { instructions.append(.getField(field, thisValue!, result)) }; return result
             }
+            if let result = try implicitTextProperty(id, name: name) { return result }
             if !scopes.contains(where: { $0[name] != nil }), let property = propertyBinding(id) {
                 if let literal = property.field?.constantValue { return try constant(literal, property.type) }
                 return try convert(readProperty(property, receiver: instance(id), special: false), to: program.expressionType(id))
