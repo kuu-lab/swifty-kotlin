@@ -289,7 +289,7 @@ final class JVMClasspathIndex {
     func bind(in ctx: CompilationContext, sema: SemaModule) throws {
         func platform(_ type: TypeID) -> TypeID {
             switch sema.types.kind(of: type) {
-            case .classType, .stringStruct, .any: return sema.types.withNullability(.platformType, for: type)
+            case .classType, .stringStruct, .any, .typeParam: return sema.types.withNullability(.platformType, for: type)
             default: return type
             }
         }
@@ -310,10 +310,18 @@ final class JVMClasspathIndex {
             methods[symbol.id] = method
             let returnType = method.isConstructor ? signature.returnType : platform(signature.returnType)
             sema.symbols.setFunctionSignature(FunctionSignature(
-                receiverType: signature.receiverType.map(platform), parameterTypes: signature.parameterTypes.map(platform),
-                returnType: returnType, canThrow: false, valueParameterSymbols: signature.valueParameterSymbols,
+                receiverType: signature.receiverType.map(platform),
+                contextReceiverTypes: signature.contextReceiverTypes, contextParameterSymbols: signature.contextParameterSymbols,
+                contextParameterTypes: signature.contextParameterTypes, parameterTypes: signature.parameterTypes.map(platform),
+                returnType: returnType, isSuspend: signature.isSuspend, canThrow: false,
+                valueParameterSymbols: signature.valueParameterSymbols,
+                valueParameterUnsafeVarianceTypeParameterSymbols: signature.valueParameterUnsafeVarianceTypeParameterSymbols,
                 valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
-                valueParameterIsVararg: signature.valueParameterIsVararg
+                valueParameterIsVararg: signature.valueParameterIsVararg,
+                valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
+                hasExplicitInlineParameterMetadata: signature.hasExplicitInlineParameterMetadata,
+                typeParameterSymbols: signature.typeParameterSymbols, reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
+                typeParameterUpperBoundsList: signature.typeParameterUpperBoundsList, classTypeParameterCount: signature.classTypeParameterCount
             ), for: symbol.id)
         }
         for symbol in sema.symbols.allSymbols() where symbol.kind == .function {
