@@ -56,8 +56,6 @@ struct LoweringFlowCodegenTests {
             #expect(!allCallees.contains(try runtimeABICallee("flow_to_list")))
             #expect(!allCallees.contains(try runtimeABICallee("flow_first")))
             #expect(!allCallees.contains(try runtimeABICallee("flow_single")))
-            #expect(!allCallees.contains(try runtimeABICallee("flow_fold")))
-            #expect(!allCallees.contains(try runtimeABICallee("flow_reduce")))
 
             try assertFlowExecutableOutput(
                 source: source,

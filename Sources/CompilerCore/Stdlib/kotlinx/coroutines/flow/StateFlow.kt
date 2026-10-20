@@ -7,12 +7,60 @@
 
 package kotlinx.coroutines.flow
 
+import kotlinx.coroutines.CompletableDeferred
+
 // MIGRATION-FLOW-003 (KSP-676)
 // StateFlow / MutableStateFlow and Flow.stateIn migrated from the dedicated
 // runtime handle (kk_mutable_state_flow_create / kk_mutable_state_flow_emit /
 // kk_mutable_state_flow_try_emit / kk_state_flow_value / kk_flow_state_in) to
 // bundled Kotlin source. MutableStateFlow keeps a single-element replay buffer
 // and conflates live collector notifications while preserving equality checks.
+
+// Each collector owns a FIFO of values and at most one suspended receiver.
+// Completing its deferred resumes collection in the collector's own coroutine,
+// so downstream aborts and cancellation still unwind through collect's finally.
+internal class HotFlowSubscription<T> {
+    private val pendingValues: MutableList<T> = mutableListOf()
+    private var waitingCollector: CompletableDeferred<T>? = null
+
+    fun emit(value: T) {
+        val waiting = waitingCollector
+        if (waiting == null) {
+            pendingValues.add(value)
+        } else {
+            waitingCollector = null
+            waiting.complete(value)
+        }
+    }
+
+    fun emitConflated(value: T) {
+        val waiting = waitingCollector
+        if (waiting == null) {
+            pendingValues.clear()
+            pendingValues.add(value)
+        } else {
+            waitingCollector = null
+            waiting.complete(value)
+        }
+    }
+
+    suspend fun receive(): T {
+        if (pendingValues.isNotEmpty()) return pendingValues.removeAt(0)
+
+        val waiting = CompletableDeferred<T>()
+        waitingCollector = waiting
+        if (pendingValues.isNotEmpty()) {
+            waitingCollector = null
+            waiting.complete(pendingValues.removeAt(0))
+        }
+        return waiting.await()
+    }
+
+    fun clear() {
+        pendingValues.clear()
+        waitingCollector = null
+    }
+}
 
 public interface StateFlow<out T> : SharedFlow<T> {
     public val value: T
