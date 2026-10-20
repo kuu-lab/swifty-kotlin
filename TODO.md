@@ -223,7 +223,7 @@
 
 ### ARCH Tier 2b: KIR 品質基盤（SIL/MLIR 流の検証導入）
 
-- [ ] ARCH-020: `KIRStage` 段階マーカー（raw / desugared / abiLowered 等）を導入し、各 Lowering パスが要求・生成段階を宣言する。現状パス順序制約はソースコメントのみ（例: Tailrec→NormalizeBlocks、ValueClassUnboxing→PropertyLowering、IntegerNarrowing→ABILowering）で機械化されていない。SIL の `sil_stage raw/canonical` 相当。完了条件: 順序違反をデバッグビルドで即検出するテスト + G。前提: ARCH-018。
+- [x] ARCH-020: `KIRStage` 段階マーカー（raw / desugared / abiLowered 等）を導入し、各 Lowering パスが要求・生成段階を宣言する。完了（PR #7040、2026-09-19）: `KIRModule.stage`、全標準 Lowering パスの required/produced 宣言、debug 時の順序検査を実装済み。`KIRStageTests` が標準順序・最終 `abiLowered` 段階・誤順序拒否を固定し、PR #7040 の全 Swift / kotlinc CI shard が成功済み。前提 ARCH-018 も完了済み。
 
 ### ARCH Tier 2c: Sema の名前ディスパッチ出口戦略（RF4/KSP と同期）
 
