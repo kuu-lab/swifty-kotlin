@@ -1144,6 +1144,34 @@ extension KIRLoweringDriver {
             ))
             return
         }
+        // Runtime-backed collection copy constructors (`ArrayList(elements)`,
+        // `LinkedHashSet(elements)`, `TreeSet(elements)` /
+        // `TreeSet(sortedSet)`, `HashMap(original)` /
+        // `LinkedHashMap(original)`) are rewritten by
+        // CollectionLiteralLoweringPass into factories that allocate and
+        // return a fresh box. As a constructor delegation target that result
+        // is discarded, so the subclass receiver keeps the empty box it was
+        // allocated as and silently drops the copied elements. Populate
+        // `receiver` in place with the same bridge the member `addAll` /
+        // `putAll` calls lower to instead.
+        if argIDs.count == 2,
+           let target,
+           let populateCallee = collectionCopyConstructorPopulateCallee(
+               for: target,
+               sema: sema,
+               interner: shared.interner
+           )
+        {
+            body.append(.call(
+                symbol: nil,
+                callee: populateCallee,
+                arguments: argIDs,
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return
+        }
         body.append(.call(
             symbol: target,
             callee: shared.interner.intern("<init>"),
@@ -1152,5 +1180,33 @@ extension KIRLoweringDriver {
             canThrow: false,
             thrownResult: nil
         ))
+    }
+
+    private func collectionCopyConstructorPopulateCallee(
+        for target: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> InternedString? {
+        guard sema.symbols.symbol(target)?.kind == .constructor,
+              let parent = sema.symbols.parentSymbol(for: target),
+              let parentFQName = sema.symbols.symbol(parent)?.fqName.map(interner.resolve),
+              let signature = sema.symbols.functionSignature(for: target),
+              signature.parameterTypes.count == 1,
+              let parameterFQName = resolveClassTypeSymbol(signature.parameterTypes[0], sema: sema)?
+                  .symbol.fqName.map(interner.resolve)
+        else { return nil }
+        switch (parentFQName, parameterFQName) {
+        case (["kotlin", "collections", "ArrayList"], ["kotlin", "collections", "Collection"]):
+            return interner.intern("__kk_mutable_list_addAll")
+        case (["kotlin", "collections", "LinkedHashSet"], ["kotlin", "collections", "Collection"]),
+             (["java", "util", "TreeSet"], ["kotlin", "collections", "Collection"]),
+             (["java", "util", "TreeSet"], ["kotlin", "collections", "SortedSet"]):
+            return interner.intern("__kk_mutable_set_addAll")
+        case (["kotlin", "collections", "HashMap"], ["kotlin", "collections", "Map"]),
+             (["kotlin", "collections", "LinkedHashMap"], ["kotlin", "collections", "Map"]):
+            return interner.intern("__kk_mutable_map_putAll")
+        default:
+            return nil
+        }
     }
 }
