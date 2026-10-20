@@ -2,8 +2,15 @@ package kotlin.collections
 
 import kotlin.sequences.asIterable
 
+import kotlin.jvm.internal.__jvmArrayList
+import kotlin.jvm.internal.__jvmRemoveAllCollection
 import kotlin.jvm.internal.__jvmNewMap
+import kotlin.jvm.internal.__jvmCopyMap
+import kotlin.jvm.internal.__jvmPutAllMap
 import kotlin.jvm.internal.__jvmSingletonMap
+import kotlin.jvm.internal.__jvmMapEntries
+import kotlin.jvm.internal.__jvmMapEntryKey
+import kotlin.jvm.internal.__jvmMapEntryValue
 
 public fun <K, V> emptyMap(): Map<K, V> = RepositoryEmptyMap as Map<K, V>
 public fun <K, V> mapOf(pair: Pair<K, V>): Map<K, V> = __jvmSingletonMap(pair.first, pair.second)
@@ -48,39 +55,44 @@ fun mapCapacity(expectedSize: Int): Int = if (expectedSize < 0) expectedSize els
 private fun <K, V> optimizeOperatorMap(result: MutableMap<K, V>): Map<K, V> {
     if (result.size == 0) return emptyMap<K, V>()
     if (result.size == 1) {
-        val key = result.keys.iterator().next()
-        return mapOf(Pair(key, result[key] as V))
+        val entry = __jvmMapEntries(result).iterator().next()
+        return __jvmSingletonMap(__jvmMapEntryKey(entry) as K, __jvmMapEntryValue(entry) as V)
     }
     return result
 }
 
 public operator fun <K, V> Map<out K, V>.minus(key: K): Map<K, V> {
-    val result = mutableMapOf<K, V>()
-    for (current in this.keys) {
-        // The key exists in this map; its value may legitimately be null.
-        if (current != key) result[current] = this[current] as V
-    }
+    val result = __jvmCopyMap(this)
+    result.remove(key)
     return optimizeOperatorMap(result)
 }
 public operator fun <K, V> Map<out K, V>.minus(keys: Iterable<K>): Map<K, V> {
-    val removed = mutableSetOf<K>()
-    for (key in keys) removed.add(key)
-    val result = mutableMapOf<K, V>()
-    for (current in this.keys) {
-        if (!removed.contains(current)) result[current] = this[current] as V
-    }
+    val result = __jvmCopyMap(this)
+    val removed = if (keys is Collection<*>) keys as Collection<K> else keys.toList()
+    __jvmRemoveAllCollection(result.keys, removed)
     return optimizeOperatorMap(result)
 }
 public operator fun <K, V> Map<out K, V>.plus(pair: Pair<K, V>): Map<K, V> {
     if (this.size == 0) return mapOf(pair)
-    val result = mutableMapOf<K, V>()
-    for (key in this.keys) result[key] = this[key] as V
+    val result = __jvmCopyMap(this)
     result[pair.first] = pair.second
     return result
 }
 public operator fun <K, V> Map<out K, V>.plus(map: Map<out K, V>): Map<K, V> {
-    val result = mutableMapOf<K, V>()
-    for (key in this.keys) result[key] = this[key] as V
-    for (key in map.keys) result[key] = map[key] as V
+    val result = __jvmCopyMap(this)
+    __jvmPutAllMap(result, map)
     return result
+}
+
+public operator fun <K, V> Map<out K, V>.minus(keys: Array<out K>): Map<K, V> {
+    val result = __jvmCopyMap(this)
+    if (keys.size != 0) __jvmRemoveAllCollection(result.keys, __jvmArrayList(keys))
+    return optimizeOperatorMap(result)
+}
+
+public operator fun <K, V> Map<out K, V>.minus(keys: kotlin.sequences.Sequence<K>): Map<K, V> {
+    val result = __jvmCopyMap(this)
+    val removed = keys.toList()
+    if (!removed.isEmpty()) __jvmRemoveAllCollection(result.keys, removed)
+    return optimizeOperatorMap(result)
 }

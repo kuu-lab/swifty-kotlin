@@ -903,6 +903,20 @@
     "kind": "constructor"
   },
   {
+    "symbol": "__jvmCopyMap",
+    "owner": "java/util/LinkedHashMap",
+    "name": "<init>",
+    "descriptor": "(Ljava/util/Map;)V",
+    "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmPutAllMap",
+    "owner": "java/util/Map",
+    "name": "putAll",
+    "descriptor": "(Ljava/util/Map;)V",
+    "kind": "interface"
+  },
+  {
     "symbol": "__jvmRemoveAllCollection",
     "owner": "java/util/Collection",
     "name": "removeAll",
@@ -915,5 +929,26 @@
     "name": "<init>",
     "descriptor": "(Ljava/util/Collection;)V",
     "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmMapEntries",
+    "owner": "java/util/Map",
+    "name": "entrySet",
+    "descriptor": "()Ljava/util/Set;",
+    "kind": "interface"
+  },
+  {
+    "symbol": "__jvmMapEntryKey",
+    "owner": "java/util/Map$Entry",
+    "name": "getKey",
+    "descriptor": "()Ljava/lang/Object;",
+    "kind": "interface"
+  },
+  {
+    "symbol": "__jvmMapEntryValue",
+    "owner": "java/util/Map$Entry",
+    "name": "getValue",
+    "descriptor": "()Ljava/lang/Object;",
+    "kind": "interface"
   }
 ]
