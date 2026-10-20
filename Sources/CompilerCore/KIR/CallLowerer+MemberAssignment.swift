@@ -475,6 +475,17 @@ extension CallLowerer {
                 || sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol) != nil
                 || sema.symbols.extensionPropertySetterAccessor(for: propertySymbol) != nil
         }()
+        // A custom getter or default setter still uses the property's backing
+        // storage for the store half; only a declared/imported setter body
+        // may replace the object's flat-global write. `usesSetterAccessor`
+        // above intentionally over-approximates (a getter accessor counts)
+        // for the enum-helper gate, so this narrower predicate decides
+        // whether `call set` has a real accessor function to reach.
+        let storeUsesSetterAccessor: Bool = {
+            guard let propertySymbol else { return false }
+            return sema.symbols.extensionPropertySetterAccessor(for: propertySymbol) != nil
+                || memberPropertyUsesSetterAccessor(propertySymbol, ast: ast, sema: sema)
+        }()
 
         // Enum stored properties: load/store through the enum property
         // helpers (per-entry storage), never through field offsets.
@@ -551,7 +562,7 @@ extension CallLowerer {
                 into: &instructions
             )
             currentValue = result
-        } else if isObjectOwned, let propertySymbol {
+        } else if isObjectOwned, !usesGetterAccessor, let propertySymbol {
             let result = arena.appendExpr(.symbolRef(propertySymbol), type: propType)
             instructions.append(.loadGlobal(result: result, symbol: propertySymbol))
             currentValue = wrapLateinitReadIfNeeded(
@@ -816,7 +827,7 @@ extension CallLowerer {
                     canThrow: false,
                     thrownResult: nil
                 ))
-            } else if isObjectOwned, let propertySymbol {
+            } else if isObjectOwned, !storeUsesSetterAccessor, let propertySymbol {
                 let globalRef = arena.appendExpr(.symbolRef(propertySymbol), type: propType)
                 instructions.append(.constValue(result: globalRef, value: .symbolRef(propertySymbol)))
                 instructions.append(.copy(from: newValue, to: globalRef))

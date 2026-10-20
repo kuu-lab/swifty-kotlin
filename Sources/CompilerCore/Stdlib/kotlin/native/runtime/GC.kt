@@ -72,22 +72,9 @@ public object GC {
             __regularGCInterval = value
         }
 
-    // BUG-266: writing an object-member `var` whose owner was imported from a
-    // precompiled .kklib (the normal, non-`--stdlib-from-source` path every
-    // real user build takes) silently does nothing when the property's type
-    // is `Long` -- the assignment lowers to the same `call set symbol=_`
-    // shape as the (working) Boolean/Double properties below, but the actual
-    // setter body never runs: neither the `require` guard nor the backing
-    // write take effect, and there's no crash to signal it. Root cause is
-    // still open (a symbol-resolution gap somewhere between Sema's member
-    // assignment lowering and NativeEmitter's nil-symbol call resolution,
-    // not the BUG-258 float/int widening this file's comparisons might
-    // suggest). Until it's fixed, the setter is a documented no-op instead of
-    // a validating write that silently fails to persist -- the getter still
-    // reports the real (never-changing) default.
     public var targetHeapBytes: Long
         get() = __getTargetHeapBytes()
-        set(value) {}
+        set(value) { __setTargetHeapBytes(value) }
 
     public var targetHeapUtilization: Double
         get() = __getTargetHeapUtilization()
@@ -96,18 +83,13 @@ public object GC {
             __setTargetHeapUtilization(value)
         }
 
-    // BUG-266 (see targetHeapBytes above): same silent-no-op write for a
-    // plain Kotlin-stored Long backing field, not just the external-fun
-    // bridged ones -- the defect is in `Long`-typed object-member writes in
-    // general, not specific to the Swift bridge.
     public var minHeapBytes: Long
         get() = __minHeapBytes
-        set(value) {}
+        set(value) { __minHeapBytes = value }
 
-    // BUG-266 (see targetHeapBytes above).
     public var maxHeapBytes: Long
         get() = __getMaxHeapBytes()
-        set(value) {}
+        set(value) { __setMaxHeapBytes(value) }
 
     public var heapTriggerCoefficient: Double
         get() = __heapTriggerCoefficient

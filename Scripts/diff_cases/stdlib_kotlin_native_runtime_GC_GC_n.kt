@@ -34,20 +34,39 @@ fun main() {
 
     // Print each result separately so a short-circuiting expression cannot
     // hide a regression in a later getter. The three threshold properties
-    // return zero. The target and minimum heap properties retain their fixed
-    // defaults after their no-op setters. The maximum heap default also
-    // depends on host physical memory, so check its guaranteed lower bound.
+    // return zero: their setters are deliberate no-ops. The heap-size
+    // properties keep the values assigned above — a persisted write is what
+    // separates a live setter from the silent drop that motivated this case.
     println(GC.threshold)
     println(GC.collectCyclesThreshold)
     println(GC.thresholdAllocations)
     println(GC.autotune)
+    println(GC.regularGCInterval)
     println(GC.targetHeapBytes)
     println(GC.targetHeapUtilization)
     println(GC.minHeapBytes)
-    println(GC.maxHeapBytes >= 100L * 1024 * 1024)
+    println(GC.maxHeapBytes)
     println(GC.heapTriggerCoefficient)
     println(GC.pauseOnTargetHeapOverflow)
     println(detected == null)
     println(lastInfo == null)
     println(cycle == null)
+
+    // Compound assignment must route through the same accessors: `+=` on an
+    // object property with custom get/set used to read and write a dead
+    // flat-global slot, silently dropping the update.
+    GC.minHeapBytes += 8L
+    GC.maxHeapBytes += 16L
+    GC.targetHeapBytes += 4L
+    GC.regularGCInterval += 1.seconds
+    GC.heapTriggerCoefficient += 0.05
+    GC.threshold += 5
+    GC.collectCyclesThreshold += 100L
+    println(GC.minHeapBytes)
+    println(GC.maxHeapBytes)
+    println(GC.targetHeapBytes)
+    println(GC.regularGCInterval)
+    println(GC.heapTriggerCoefficient)
+    println(GC.threshold)
+    println(GC.collectCyclesThreshold)
 }
