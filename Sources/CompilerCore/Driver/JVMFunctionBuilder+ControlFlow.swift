@@ -19,6 +19,13 @@ extension JVMFunctionBuilder {
     }
 
     func binary(_ op: BinaryOp, _ lhs: ExprID, _ rhs: ExprID, _ id: ExprID) throws -> JVMValue {
+        if op == .rangeTo {
+            let lower = try requireValue(lhs), upper = try requireValue(rhs)
+            guard lower.type == .int, upper.type == .int else {
+                throw fail("JVM range expressions currently require Int operands.", id)
+            }
+            return try constructJDK("kotlin/ranges/IntRange", parameters: [.int, .int], arguments: [lower, upper])
+        }
         if op == .add, try program.expressionType(id) == .string {
             let args = [CallArgument(expr: rhs)]
             if let call = try inlineCall(args, receiver: lhs, id: id), let result = call.value { return result }
@@ -128,8 +135,17 @@ extension JVMFunctionBuilder {
     }
 
     func forLoop(_ name: InternedString, _ iterable: ExprID, _ body: ExprID, _ id: ExprID) throws {
-        guard case let .binary(op, from, to, _) = arena.expr(iterable),
-              [BinaryOp.rangeTo, .rangeUntil, .downTo].contains(op) else {
+        let range: (BinaryOp, ExprID, ExprID)? = switch arena.expr(iterable) {
+        case let .binary(op, from, to, _) where [BinaryOp.rangeTo, .rangeUntil, .downTo].contains(op):
+            (op, from, to)
+        case let .memberCall(receiver, callee, _, args, _)
+            where context.interner.resolve(callee) == "until" && args.count == 1 &&
+                (try? program.expressionType(iterable).referenceName) == "kotlin/ranges/IntRange":
+            (.rangeUntil, receiver, args[0].expr)
+        default:
+            nil
+        }
+        guard let (op, from, to) = range else {
             try sequenceLoop(name, iterable, body, id); return
         }
         let first = try requireValue(from), last = try requireValue(to)

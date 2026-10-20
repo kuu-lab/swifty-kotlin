@@ -205,7 +205,7 @@ final class JVMProgramBuilder {
 }
 
 final class JVMFunctionBuilder {
-    struct Local { let value: JVMValue; let mutable: Bool; var cell: JVMValue? = nil; var functionType: FunctionType? = nil; var symbol: SymbolID? = nil; var delegateSymbol: SymbolID? = nil; var lateName: String? = nil }
+    struct Local { let value: JVMValue; let mutable: Bool; var cell: JVMValue? = nil; var functionType: FunctionType? = nil; var symbol: SymbolID? = nil; var delegateSymbol: SymbolID? = nil; var lateName: String? = nil; var deferredInitialization = false }
     let program: JVMProgramBuilder
     let declaration: FunDecl
     let reference: JVMFunctionReference
@@ -432,23 +432,27 @@ final class JVMFunctionBuilder {
             return try convert(local, to: program.expressionType(id))
         case let .localDecl(name, mutable, annotation, initializer, delegated, late, _):
             if delegated || late { try specialLocal(id, name: name, mutable: mutable, initializer: initializer, delegated: delegated, late: late); return nil }
-            guard let initializer, scopes[scopes.count - 1][name] == nil else { throw fail("JVM locals require an initializer and a unique name in their scope.", id) }
+            guard scopes[scopes.count - 1][name] == nil else { throw fail("JVM locals require a unique name in their scope.", id) }
             let declaredType: JVMValueType?
             if annotation != nil {
                 guard let symbol = program.sema.bindings.identifierSymbol(for: id), let type = program.sema.symbols.propertyType(for: symbol) else { throw fail("Missing JVM local type binding.", id) }
                 declaredType = try program.type(type)
             } else { declaredType = nil }
-            let initial = try requireValue(initializer)
-            let local = try value(declaredType ?? initial.type)
-            instructions.append(.copy(try convert(initial, to: local.type), local))
+            let initial = try initializer.map { try requireValue($0) }
+            guard let localType = declaredType ?? initial?.type else { throw fail("JVM locals without an initializer require an explicit type.", id) }
+            let local = try value(localType)
+            if let initial { instructions.append(.copy(try convert(initial, to: local.type), local)) }
             var binding = Local(value: local, mutable: mutable)
             binding.symbol = program.sema.bindings.identifierSymbol(for: id)
+            binding.deferredInitialization = initial == nil && !mutable
             if mutable {
                 let element = try binding.symbol.flatMap { program.sema.bindings.capturedLocalType(for: $0) }.map { try JVMClasspathIndex.type($0, sema: program.sema, ctx: context) } ?? local.type
                 let cell = try value(.reference("[" + element.descriptor, nullable: false)), count = try constant(.int(1), .int), index = try constant(.int(0), .int)
-                instructions.append(.newArray(element, count: count, result: cell)); instructions.append(.arraySet(cell, index, local)); binding.cell = cell
+                instructions.append(.newArray(element, count: count, result: cell))
+                if initial != nil { instructions.append(.arraySet(cell, index, local)) }
+                binding.cell = cell
             }
-            if let semantic = program.sema.bindings.exprType(for: initializer), case let .functionType(f) = program.sema.types.kind(of: semantic) { binding.functionType = f }
+            if let initializer, let semantic = program.sema.bindings.exprType(for: initializer), case let .functionType(f) = program.sema.types.kind(of: semantic) { binding.functionType = f }
             scopes[scopes.count - 1][name] = binding
             return nil
         case let .localAssign(name, rhs, _):
@@ -463,7 +467,7 @@ final class JVMFunctionBuilder {
                 return nil
             }
             let local = try lookup(name)
-            guard local.mutable else { throw fail("Cannot reassign JVM val.", id) }
+            guard local.mutable || local.deferredInitialization else { throw fail("Cannot reassign JVM val.", id) }
             let result = try convert(requireValue(rhs), to: local.value.type)
             try writeLocal(local, result)
             return arena.incrementDecrementReturnsValue(id) ? result : nil

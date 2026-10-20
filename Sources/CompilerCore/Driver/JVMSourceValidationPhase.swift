@@ -263,11 +263,19 @@ private struct JVMSourceGrammar {
         let late = take(.keyword(.lateinit))
         if late, kind != .keyword(.val), kind != .keyword(.var) { throw Unsupported() }
         if take(.keyword(.val)) || take(.keyword(.var)) {
+            var hasTypeAnnotation = false
             if take(.symbol(.lParen)) {
                 repeat { try name() } while take(.symbol(.comma))
                 try require(.symbol(.rParen))
-            } else { try name(); if take(.symbol(.colon)) { try type() } }
-            if !late { guard take(.symbol(.assign)) || take(.softKeyword(.by)) else { throw Unsupported() }; try expression() }
+            } else {
+                try name()
+                hasTypeAnnotation = take(.symbol(.colon))
+                if hasTypeAnnotation { try type() }
+            }
+            if !late {
+                if take(.symbol(.assign)) || take(.softKeyword(.by)) { try expression() }
+                else if !hasTypeAnnotation { throw Unsupported() }
+            }
         } else if take(.keyword(.while)) {
             try condition(); try body()
         } else if take(.keyword(.do)) {
@@ -297,7 +305,7 @@ private struct JVMSourceGrammar {
         case .symbol(.bang) where tokens.indices.contains(index + 1) && [TokenKind.keyword(.in), .keyword(.is)].contains(tokens[index + 1].kind): 4
         case .symbol(.lessThan), .symbol(.lessOrEqual), .symbol(.greaterThan), .symbol(.greaterOrEqual): 4
         case .symbol(.dotDot), .symbol(.dotDotLt): 5
-        case let .identifier(name) where ["zip", "matches", "downTo", "to", "and", "or", "xor", "shl", "shr", "ushr"].contains(context.interner.resolve(name)): 5
+        case let .identifier(name) where ["zip", "matches", "downTo", "to", "until", "and", "or", "xor", "shl", "shr", "ushr"].contains(context.interner.resolve(name)): 5
         case .symbol(.plus), .symbol(.minus): 6
         case .symbol(.star), .symbol(.slash), .symbol(.percent): 7
         default: nil
