@@ -14,73 +14,57 @@ import kotlin.js.ExperimentalJsExport
 import kotlin.js.collections.JsSet
 import kotlin.js.collections.createJsSetViewFrom
 
-@KsSymbolName("__kk_mutable_set_add")
-private external fun <E> __kkMutableSetAdd(set: MutableSet<E>, element: E): Boolean
-
-@KsSymbolName("__kk_mutable_set_remove")
-private external fun <E> __kkMutableSetRemove(set: MutableSet<E>, element: E): Boolean
-
-@KsSymbolName("__kk_mutable_set_clear")
-private external fun <E> __kkMutableSetClear(set: MutableSet<E>)
-
-@KsSymbolName("__kk_mutable_collection_addAll_throwing")
-private external fun <E> __kkMutableSetAddAll(
-    set: MutableSet<E>,
-    elements: Collection<out E>
-): Boolean
-
-@KsSymbolName("__kk_mutable_set_removeAll")
-private external fun <E> __kkMutableSetRemoveAll(
-    set: MutableSet<E>,
-    elements: Collection<out E>
-): Boolean
-
-@KsSymbolName("__kk_mutable_set_retainAll")
-private external fun <E> __kkMutableSetRetainAll(
-    set: MutableSet<E>,
-    elements: Collection<out E>
-): Boolean
-
-// Keeping the bridge call in a default interface body avoids repeating the ABI
-// plumbing in every concrete MutableSet implementation.
+// The mutation members stay `external` declarations bound directly to their
+// demoted set-specific runtime bridges, matching the MutableCollection
+// migration. Bound this way they keep providing an implementation to every
+// concrete MutableSet without repeating the ABI plumbing, while staying
+// recognizable as runtime bridges — e.g. an unqualified `super.removeAll()`
+// call must not treat them as an independent Kotlin default competing with a
+// concrete superclass implementation.
 //
 // `MutableCollection` will provide `MutableIterable` transitively when its
 // separate source migration lands. Keep the direct edge here until then so
 // bundled MutableSet values preserve the existing iterable type surface.
 
 public interface MutableSet<E> : Set<E>, MutableCollection<E>, MutableIterable<E> {
-    public override fun add(element: E): Boolean = __kkMutableSetAdd(this, element)
+    @KsSymbolName("__kk_mutable_set_add")
+    @IgnorableReturnValue
+    public override external fun add(element: E): Boolean
 
-    public override fun remove(element: E): Boolean = __kkMutableSetRemove(this, element)
+    @KsSymbolName("__kk_mutable_set_remove")
+    @IgnorableReturnValue
+    public override external fun remove(element: E): Boolean
 
-    public override fun clear() {
-        __kkMutableSetClear(this)
-    }
+    @KsSymbolName("__kk_mutable_set_clear")
+    public override external fun clear(): Unit
 
-    public override fun addAll(elements: Collection<out E>): Boolean =
-        __kkMutableSetAddAll(this, elements)
+    @KsSymbolName("__kk_mutable_collection_addAll_throwing")
+    @IgnorableReturnValue
+    public override external fun addAll(elements: Collection<out E>): Boolean
+
+    @KsSymbolName("__kk_mutable_set_removeAll")
+    @IgnorableReturnValue
+    public override external fun removeAll(elements: Collection<out E>): Boolean
+
+    @KsSymbolName("__kk_mutable_set_retainAll")
+    @IgnorableReturnValue
+    public override external fun retainAll(elements: Collection<out E>): Boolean
 
     public operator fun plusAssign(element: E) {
-        __kkMutableSetAdd(this, element)
+        add(element)
     }
 
     public operator fun plusAssign(elements: Collection<out E>) {
-        __kkMutableSetAddAll(this, elements)
+        addAll(elements)
     }
 
-    public override fun removeAll(elements: Collection<out E>): Boolean =
-        __kkMutableSetRemoveAll(this, elements)
-
     public operator fun minusAssign(element: E) {
-        __kkMutableSetRemove(this, element)
+        remove(element)
     }
 
     public operator fun minusAssign(elements: Collection<out E>) {
-        __kkMutableSetRemoveAll(this, elements)
+        removeAll(elements)
     }
-
-    public override fun retainAll(elements: Collection<out E>): Boolean =
-        __kkMutableSetRetainAll(this, elements)
 
     @ExperimentalJsExport
     @ExperimentalJsCollectionsApi

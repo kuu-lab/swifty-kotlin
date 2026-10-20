@@ -181,5 +181,38 @@ import Testing
         #expect(sema.symbols.symbol(bridge)?.flags.contains(.abstractType) == false)
         #expect(sema.symbols.externalLinkName(for: bridge) == "kk_iterator_next")
     }
+
+    @Test func concreteClassImplementationBeatsMutableSetBridges() throws {
+        let source = """
+        abstract class Base<E> : MutableSet<E> {
+            override fun addAll(elements: Collection<E>): Boolean = true
+            override fun retainAll(elements: Collection<E>): Boolean = true
+            override fun removeAll(elements: Collection<E>): Boolean = true
+            override fun containsAll(elements: Collection<E>): Boolean = false
+        }
+        class Builder<E> : Base<E>(), MutableSet<E> {
+            fun addTo(elements: Collection<E>) = super.addAll(elements)
+            fun retainFrom(elements: Collection<E>) = super.retainAll(elements)
+            fun removeFrom(elements: Collection<E>) = super.removeAll(elements)
+        }
+        """
+        let ctx = try semaContext(for: [source])
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        for name in ["addAll", "retainAll", "removeAll"] {
+            let owners = memberCallExprIDs(named: name, in: ast, interner: ctx.interner).compactMap { call in
+                guard isUserSourceExpr(call, in: ctx),
+                      case let .memberCall(receiver, _, _, _, _) = ast.arena.expr(call),
+                      case .superRef = ast.arena.expr(receiver),
+                      let chosen = sema.bindings.callBinding(for: call)?.chosenCallee,
+                      let owner = sema.symbols.parentSymbol(for: chosen),
+                      let symbol = sema.symbols.symbol(owner)
+                else { return String?.none }
+                return ctx.interner.resolve(symbol.name)
+            }
+            #expect(owners == ["Base"], "super.\(name) owners: \(owners)")
+        }
+    }
 }
 #endif
