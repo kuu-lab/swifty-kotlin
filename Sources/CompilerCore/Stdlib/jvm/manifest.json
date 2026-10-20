@@ -270,6 +270,12 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "declarations/CollectionFirstPredicate.kt",
+      "virtualPath": "<kswiftk-jvm>/collection-first-predicate.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
       "path": "declarations/Comparator.kt",
       "virtualPath": "<kswiftk-jvm>/comparator.kt",
       "excludeFromStdlibBuild": false,

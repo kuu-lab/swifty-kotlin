@@ -4,7 +4,7 @@ import Foundation
 import Testing
 
 extension JVMBackendTests {
-    @Test(arguments: ["companionPropertyCallableReferences", "constCompanionValues", "interfaceCompanionConstants", "constPropertyCallerArityContracts", "constPropertyInitialization", "objectConstNoLazyInitialization"], [EmitMode.jvmClass, .jvmJar])
+    @Test(arguments: ["companionPropertyCallableReferences", "constCompanionValues", "interfaceCompanionConstants", "constPropertyCallerArityContracts", "constPropertyInitialization", "objectConstNoLazyInitialization", "constPropertyReflectionFields"], [EmitMode.jvmClass, .jvmJar])
     func constPropertiesUseFieldsWithoutCompanionGetters(name: String, mode: EmitMode) throws {
         let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/JVMOwnStdlib")
         let source = try String(contentsOf: fixtures.appendingPathComponent(name + ".kt"), encoding: .utf8)
