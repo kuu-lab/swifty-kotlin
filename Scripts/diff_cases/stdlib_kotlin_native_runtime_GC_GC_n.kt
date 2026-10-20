@@ -51,4 +51,22 @@ fun main() {
     println(detected == null)
     println(lastInfo == null)
     println(cycle == null)
+
+    // Compound assignment must route through the same accessors: `+=` on an
+    // object property with custom get/set used to read and write a dead
+    // flat-global slot, silently dropping the update.
+    GC.minHeapBytes += 8L
+    GC.maxHeapBytes += 16L
+    GC.targetHeapBytes += 4L
+    GC.regularGCInterval += 1.seconds
+    GC.heapTriggerCoefficient += 0.05
+    GC.threshold += 5
+    GC.collectCyclesThreshold += 100L
+    println(GC.minHeapBytes)
+    println(GC.maxHeapBytes)
+    println(GC.targetHeapBytes)
+    println(GC.regularGCInterval)
+    println(GC.heapTriggerCoefficient)
+    println(GC.threshold)
+    println(GC.collectCyclesThreshold)
 }
