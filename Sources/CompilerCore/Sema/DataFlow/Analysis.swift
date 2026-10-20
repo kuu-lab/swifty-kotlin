@@ -1076,8 +1076,20 @@ final class DataFlowAnalyzer {
         priorType: TypeID,
         sema: SemaModule
     ) -> TypeID {
-        guard case let .classType(targetClass) = sema.types.kind(of: rawTargetType),
-              targetClass.args.isEmpty,
+        guard case let .classType(targetClass) = sema.types.kind(of: rawTargetType) else {
+            return rawTargetType
+        }
+        // Read-only covariant targets retain the element information already
+        // known through their supertype. Invariant targets keep their stars
+        // so a mutable view never gains permission to write a wider value.
+        let variances = sema.types.nominalTypeParameterVariances(for: targetClass.classSymbol)
+        let preservesCovariantStars = !targetClass.args.isEmpty
+            && targetClass.args.count == variances.count
+            && zip(targetClass.args, variances).allSatisfy { argument, variance in
+                if case .star = argument { return variance == .out }
+                return false
+            }
+        guard targetClass.args.isEmpty || preservesCovariantStars,
               !sema.types.nominalTypeParameterSymbols(for: targetClass.classSymbol).isEmpty,
               case let .classType(priorClass) = sema.types.kind(of: sema.types.makeNonNullable(priorType)),
               let narrowedArgs = sema.types.narrowedSubtypeArgs(
