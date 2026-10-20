@@ -668,13 +668,22 @@ extension DeclTypeChecker {
                       typeSystem: sema.types
                   )
             else { return nil }
-            return mapping.mapValues { parameterIndex in
-                sema.types.substituteTypeParameters(
-                    in: signature.parameterTypes[parameterIndex],
-                    substitution: substitution,
-                    typeVarBySymbol: typeVarBySymbol
+            return Dictionary(uniqueKeysWithValues: mapping.compactMap { argumentIndex, parameterIndex in
+                guard args.indices.contains(argumentIndex),
+                      let argumentType = driver.callChecker.contextualCallArgumentType(
+                          args[argumentIndex], parameterIndex: parameterIndex,
+                          in: signature, ctx: ctx
+                      )
+                else { return nil }
+                return (
+                    argumentIndex,
+                    sema.types.substituteTypeParameters(
+                        in: argumentType,
+                        substitution: substitution,
+                        typeVarBySymbol: typeVarBySymbol
+                    )
                 )
-            }
+            })
         }
         guard let first = candidateMappings.first else { return [:] }
         var uniformTypes: [Int: TypeID] = [:]
