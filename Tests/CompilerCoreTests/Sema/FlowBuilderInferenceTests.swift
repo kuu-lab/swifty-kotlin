@@ -188,6 +188,49 @@ struct FlowBuilderInferenceTests {
     }
 
     @Test
+    func nestedReceiverEmitDoesNotChangeFlowElementType() throws {
+        let source = """
+        import kotlinx.coroutines.flow.*
+        fun accept(value: Int) {}
+        class Sink { fun emit(value: String) {} }
+        suspend fun check() {
+            val result = flow { with(Sink()) { emit("sink") }; emit(14) }
+            val typed: Flow<Int> = result
+            result.collect { accept(it) }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let flowCalls = allExprIDs(in: ast, path: path, ctx: ctx) { _, expr in
+                guard case let .call(callee, _, _, _) = expr,
+                      case let .nameRef(name, _) = ast.arena.expr(callee)
+                else { return false }
+                return name == KnownCompilerNames(interner: ctx.interner).flow
+            }
+            let flowCall = try #require(flowCalls.first)
+            #expect(sema.bindings.flowElementType(forExpr: flowCall) == sema.types.intType)
+
+            let emitCalls = allExprIDs(in: ast, path: path, ctx: ctx) { _, expr in
+                guard case let .call(callee, _, _, _) = expr,
+                      case let .nameRef(name, _) = ast.arena.expr(callee)
+                else { return false }
+                return ctx.interner.resolve(name) == "emit"
+            }
+            let owners = emitCalls.compactMap { call -> String? in
+                guard let binding = sema.bindings.callBinding(for: call),
+                      let symbol = sema.symbols.symbol(binding.chosenCallee)
+                else { return nil }
+                return symbol.fqName.dropLast().map(ctx.interner.resolve).joined(separator: ".")
+            }
+            #expect(owners == ["Sink"])
+        }
+    }
+
+    @Test
     func topLevelEmitDoesNotShadowFlowCollectorEmit() throws {
         let source = """
         import kotlinx.coroutines.flow.*

@@ -144,7 +144,8 @@ extension CallTypeChecker {
            let calleeName,
            calleeName == knownNames.emit,
            args.count == 1,
-           locals[calleeName] == nil
+           locals[calleeName] == nil,
+           !flowBuilderEmitHasReceiverMember(ctx: ctx)
         {
             let emittedType = driver.inferExpr(
                 args[0].expr, ctx: ctx, locals: &locals,
