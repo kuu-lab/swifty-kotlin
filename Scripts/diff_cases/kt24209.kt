@@ -10,3 +10,7 @@ object Holder {
 
 fun box(): String =
     Holder?.value()!!
+
+fun main() {
+    println(box())
+}
