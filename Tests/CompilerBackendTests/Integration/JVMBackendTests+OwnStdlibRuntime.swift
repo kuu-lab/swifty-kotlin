@@ -25,6 +25,10 @@ private final class JVMOwnStdlibCache: @unchecked Sendable {
 extension JVMBackendTests {
     func ownStdlibLibrary() throws -> URL { try JVMOwnStdlibCache.shared.library() }
 
+    func ownStdlibRuntime() throws -> URL {
+        try JVMOwnStdlibCache.shared.library()
+    }
+
     private static let ownStdlibCases = [
         "arrayListFactoryABI",
         "intArrayToList",
