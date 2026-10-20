@@ -91,6 +91,85 @@ struct LoopBreakDefiniteAssignmentTests {
         """, expectedErrorCode: "KSWIFTK-SEMA-0014")
     }
 
+    @Test
+    func acceptsAssignmentOnBreakExitFromWhileTrue() throws {
+        try check("""
+        fun box(): String {
+            var n: Int
+            while (true) {
+                n = 5
+                if (n < 1) continue else break
+            }
+            return if (n == 5) "OK" else "fail"
+        }
+        """, expectedErrorCode: nil)
+    }
+
+    @Test
+    func acceptsAssignmentOnBothConditionalBreakExitsFromWhileTrue() throws {
+        try check("""
+        fun shouldBreak(): Boolean = true
+        fun box(): String {
+            val task: String
+            while (true) {
+                if (shouldBreak()) {
+                    task = "OK"
+                    break
+                } else {
+                    task = "OK"
+                    break
+                }
+            }
+            return task
+        }
+        """, expectedErrorCode: nil)
+    }
+
+    @Test
+    func rejectsBreakExitWithoutAssignmentFromWhileTrue() throws {
+        try check("""
+        fun shouldBreak(): Boolean = true
+        fun box(): String {
+            val task: String
+            while (true) {
+                if (shouldBreak()) break
+                task = "OK"
+            }
+            return task
+        }
+        """, expectedErrorCode: "KSWIFTK-SEMA-0031")
+    }
+
+    @Test
+    func rejectsNormalWhileExitWithoutAssignment() throws {
+        try check("""
+        fun shouldBreak(): Boolean = true
+        fun box(): String {
+            val task: String
+            while (shouldBreak()) {
+                task = "OK"
+                break
+            }
+            return task
+        }
+        """, expectedErrorCode: "KSWIFTK-SEMA-0031")
+    }
+
+    @Test
+    func whileTrueBreakAssignmentDoesNotPermitValReassignment() throws {
+        try check("""
+        fun box(): String {
+            val task: String
+            while (true) {
+                task = "OK"
+                break
+            }
+            task = "again"
+            return task
+        }
+        """, expectedErrorCode: "KSWIFTK-SEMA-0014")
+    }
+
     private func check(_ source: String, expectedErrorCode: String?) throws {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
