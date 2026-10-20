@@ -648,19 +648,23 @@ package final class MetadataEncoder {
             // flags copied from the overridden declaration in-memory
             // (`OverrideDefaultArgumentInheritance`), but never gets a
             // `$default` stub of its own -- only the base declaration does.
-            // Serializing the effective (true) flags here without a stub
-            // link would make a separately-compiled consumer believe this
-            // symbol owns a stub that was never emitted. Serialize this
-            // override's own (pre-inheritance) flags instead, exactly as if
-            // it had been compiled without this fix; the consumer's own
-            // `OverrideDefaultArgumentInheritance` pass re-derives the same
-            // link independently once it sees the (faithfully serialized)
-            // base declaration's defaults and the supertype/parent edges
-            // `LibraryImport` already restores.
-            let hasInheritedDefaultsLink = symbols.overrideDefaultsBaseSymbol(for: symbol.id) != nil
-            valueParameterHasDefaultValues = hasInheritedDefaultsLink
-                ? Array(repeating: false, count: signature.valueParameterHasDefaultValues.count)
-                : signature.valueParameterHasDefaultValues
+            // Serialize the effective flags together with the *base*
+            // stub's link so consumers can resolve omitted arguments and
+            // route the call through the emitted base stub without
+            // re-deriving the inheritance link; imported overrides are
+            // excluded from the consumer's inheritance scan to keep lazy
+            // materialization working, so the link must be self-describing.
+            // If the base stub has no link of its own (e.g. the base was
+            // never emitted), fall back to the override's pre-inheritance
+            // (all-false) flags so consumers do not look for a missing stub.
+            let inheritedDefaultsBase = symbols.overrideDefaultsBaseSymbol(for: symbol.id)
+            let inheritedStubLink = inheritedDefaultsBase.flatMap { baseID in
+                let stubSymbol = SyntheticSymbolScheme.defaultStubSymbol(for: baseID)
+                return functionLinkNames[stubSymbol] ?? symbols.externalLinkName(for: stubSymbol)
+            }
+            valueParameterHasDefaultValues = (inheritedDefaultsBase == nil || inheritedStubLink != nil)
+                ? signature.valueParameterHasDefaultValues
+                : Array(repeating: false, count: signature.valueParameterHasDefaultValues.count)
             canThrow = signature.canThrow
             valueParameterNames = signature.valueParameterSymbols.compactMap { paramSymbol in
                 symbols.symbol(paramSymbol).map { interner.resolve($0.name) }
@@ -715,12 +719,15 @@ package final class MetadataEncoder {
             })
             externalLinkName = functionLinkNames[symbol.id] ?? symbols.externalLinkName(for: symbol.id)
             // KUU-655: uses the (already override-corrected) local flag, not
-            // `signature.valueParameterHasDefaultValues` directly, so an
-            // override with an inherited defaults link never looks for a
-            // stub it was never given (see the comment above).
+            // `signature.valueParameterHasDefaultValues` directly, and an
+            // override with an inherited defaults link points at the base
+            // stub it routes through rather than a stub it was never given
+            // (see the comment above).
             if valueParameterHasDefaultValues.contains(true) {
-                let stubSymbol = SyntheticSymbolScheme.defaultStubSymbol(for: symbol.id)
-                defaultStubExternalLinkName = functionLinkNames[stubSymbol] ?? symbols.externalLinkName(for: stubSymbol)
+                defaultStubExternalLinkName = inheritedStubLink ?? {
+                    let stubSymbol = SyntheticSymbolScheme.defaultStubSymbol(for: symbol.id)
+                    return functionLinkNames[stubSymbol] ?? symbols.externalLinkName(for: stubSymbol)
+                }()
             }
             if runtimeCallbackRawReturnSymbolIDs.contains(symbol.id),
                symbols.functionABIReturnType(for: symbol.id) == nil

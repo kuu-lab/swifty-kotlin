@@ -331,6 +331,49 @@ struct LibMetadataSerializationTests {
         #expect(r.externalLinkName == "_ext_id")
     }
 
+    /// An override that inherits its base's default arguments serializes the
+    /// *effective* defaults mask together with the base stub's link: imported
+    /// overrides are excluded from the consumer's defaults-inheritance scan,
+    /// so the record must be self-describing for `obj.f()` to resolve and
+    /// route through the base's emitted `$default` stub.
+    @Test func inheritedDefaultArgumentsSerializeEffectiveMaskAndBaseStubLink() {
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        let interner = StringInterner()
+        func define(_ name: String, kind: SymbolKind, flags: SymbolFlags = []) -> SymbolID {
+            let fqName = name.split(separator: ".").map { interner.intern(String($0)) }
+            return symbols.define(kind: kind, name: fqName.last!, fqName: fqName, declSite: nil, visibility: .public, flags: flags)
+        }
+        let aClass = define("A", kind: .interface)
+        let bClass = define("B", kind: .class)
+        let aFn = define("A.f", kind: .function)
+        let bFn = define("B.f", kind: .function, flags: [.overrideMember])
+        symbols.setParentSymbol(aClass, for: aFn)
+        symbols.setParentSymbol(bClass, for: bFn)
+        symbols.setDirectSupertypes([aClass], for: bClass)
+        symbols.setFunctionSignature(
+            FunctionSignature(parameterTypes: [types.intType], returnType: types.unitType, valueParameterHasDefaultValues: [true]),
+            for: aFn
+        )
+        symbols.setFunctionSignature(
+            FunctionSignature(parameterTypes: [types.intType], returnType: types.unitType, valueParameterHasDefaultValues: [false]),
+            for: bFn
+        )
+        symbols.setExternalLinkName(
+            "kk_fn_A_f_default",
+            for: SyntheticSymbolScheme.defaultStubSymbol(for: aFn)
+        )
+        DataFlowSemaPhase().inheritDefaultArgumentValuesForOverrides(symbols: symbols, types: types)
+
+        let records = MetadataEncoder().buildRecords(
+            symbols: symbols, types: types, moduleName: "Scan",
+            interner: interner, functionLinkNames: [:], includeSynthetic: false
+        )
+        let record = records.first { $0.fqName == "B.f" }
+        #expect(record?.valueParameterHasDefaultValues == [true])
+        #expect(record?.defaultStubExternalLinkName == "kk_fn_A_f_default")
+    }
+
     @Test func testMetadataEncoderDecoderRoundTripForClassWithLayout() {
         let record = MetadataRecord(
             kind: .class,
