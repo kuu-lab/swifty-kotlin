@@ -489,7 +489,12 @@ extension CallTypeChecker {
                     // an inapplicable unqualified extension must not hide this context.
                     let contextualLambdaType = contextualCallableArgumentType(
                         expectation.type, callResultType: contextualCallResultType,
-                        candidates: expectedTypeCandidates, sema: sema
+                        candidates: expectedTypeCandidates,
+                        argumentIndex: index,
+                        argumentLabel: argument.label,
+                        args: args,
+                        inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+                        sema: sema
                     )
                     contextualArgExpectedTypes[index] = contextualLambdaType
                     if let contextualLambdaType, expectedTypeCandidates.count == 1,
@@ -1351,7 +1356,14 @@ extension CallTypeChecker {
     }
 
     private func contextualCallableArgumentType(
-        _ expectation: TypeID?, callResultType: TypeID?, candidates: [SymbolID], sema: SemaModule
+        _ expectation: TypeID?,
+        callResultType: TypeID?,
+        candidates: [SymbolID],
+        argumentIndex: Int? = nil,
+        argumentLabel: InternedString? = nil,
+        args: [CallArgument] = [],
+        inferredNonLambdaArgTypes: [Int: TypeID] = [:],
+        sema: SemaModule
     ) -> TypeID? {
         guard let callResultType,
               sema.types.makeNonNullable(callResultType) == callResultType,
@@ -1366,6 +1378,36 @@ extension CallTypeChecker {
                   sema.types.typeContainsTypeParam($0, symbol: resultParameter.symbol)
               })
         else { return expectation }
+        // The discarded call result can guide a generic lambda result only
+        // when the type parameter is not already constrained by another
+        // argument. For example, `minOfWith(Comparator<Int>()) { ... }` must
+        // keep the selector result as Int even when the whole call is coerced
+        // to Unit by an enclosing lambda.
+        if let argumentIndex,
+           let lambdaParameterIndex = parameterIndexForCallArgument(
+               at: argumentIndex, label: argumentLabel, in: signature, sema: sema
+           )
+        {
+            for (otherIndex, inferredType) in inferredNonLambdaArgTypes
+            where otherIndex != argumentIndex && inferredType != sema.types.errorType
+            {
+                guard args.indices.contains(otherIndex),
+                      let otherParameterIndex = parameterIndexForCallArgument(
+                          at: otherIndex,
+                          label: args[otherIndex].label,
+                          in: signature,
+                          sema: sema
+                      ),
+                      otherParameterIndex != lambdaParameterIndex,
+                      signature.parameterTypes.indices.contains(otherParameterIndex)
+                else { continue }
+                if sema.types.typeContainsTypeParam(
+                    signature.parameterTypes[otherParameterIndex], symbol: resultParameter.symbol
+                ) {
+                    return expectation
+                }
+            }
+        }
         // The call result is an upper constraint, not an equality. A broad
         // expected result must not replace a stricter declaration bound.
         var contextualResult = callResultType
