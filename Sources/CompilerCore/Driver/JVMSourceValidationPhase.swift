@@ -144,7 +144,7 @@ private struct JVMSourceGrammar {
     mutating func argument() throws {
         if kind.isLabelName, tokens[min(index + 1, tokens.count - 1)].kind == .symbol(.assign) { index += 2 }
         _ = take(.symbol(.star))
-        try expression()
+        try expression(allowNewlines: true)
     }
     mutating func arguments() throws {
         try require(.symbol(.lParen))
@@ -257,7 +257,7 @@ private struct JVMSourceGrammar {
         if kind == .symbol(.lBrace) { try block() } else { try statement() }
     }
     mutating func condition() throws {
-        try require(.symbol(.lParen)); try expression(); try require(.symbol(.rParen))
+        try require(.symbol(.lParen)); try expression(allowNewlines: true); try require(.symbol(.rParen))
     }
     mutating func statement() throws {
         let late = take(.keyword(.lateinit))
@@ -282,7 +282,7 @@ private struct JVMSourceGrammar {
             try body(); try require(.keyword(.while)); try condition()
         } else if take(.keyword(.for)) {
             try require(.symbol(.lParen)); try name(); try require(.keyword(.in))
-            try expression(); try require(.symbol(.rParen)); try body()
+            try expression(allowNewlines: true); try require(.symbol(.rParen)); try body()
         } else if take(.keyword(.return)) {
             if take(.symbol(.at)) { try name() }
             if kind != .symbol(.rBrace), kind != .symbol(.semicolon), !newlineBeforeCurrent() { try expression() }
@@ -311,16 +311,16 @@ private struct JVMSourceGrammar {
         default: nil
         }
     }
-    mutating func expression(_ minimum: Int = 0) throws {
+    mutating func expression(_ minimum: Int = 0, allowNewlines: Bool = false) throws {
         try primary()
-        while let level = precedence(), level >= minimum, !newlineBeforeCurrent() {
+        while let level = precedence(), level >= minimum, allowNewlines || !newlineBeforeCurrent() {
             if take(.keyword(.as)) { _ = take(.symbol(.question)); try type(); continue }
             if take(.keyword(.is)) { try type(); continue }
             if take(.symbol(.bang)) {
                 if take(.keyword(.is)) { try type(); continue }
                 try require(.keyword(.in))
             } else { index += 1 }
-            try expression(level + 1)
+            try expression(level + 1, allowNewlines: allowNewlines)
         }
     }
     mutating func lambda() throws {
@@ -368,7 +368,7 @@ private struct JVMSourceGrammar {
             if kind == .symbol(.lParen) {
                 try require(.symbol(.lParen))
                 if take(.keyword(.val)) { try name(); if take(.symbol(.colon)) { try type() }; try require(.symbol(.assign)) }
-                try expression(); try require(.symbol(.rParen))
+                try expression(allowNewlines: true); try require(.symbol(.rParen))
             }
             try require(.symbol(.lBrace)); semicolons()
             while !take(.symbol(.rBrace)) {
@@ -413,13 +413,13 @@ private struct JVMSourceGrammar {
         case .symbol(.lBracket):
             index += 1
             if !take(.symbol(.rBracket)) {
-                repeat { try expression() } while take(.symbol(.comma)) && kind != .symbol(.rBracket)
+                repeat { try expression(allowNewlines: true) } while take(.symbol(.comma)) && kind != .symbol(.rBracket)
                 try require(.symbol(.rBracket))
             }
         case .symbol(.lBrace): try lambda()
         case .symbol(.lParen):
             let header = inDelegationHeader; inDelegationHeader = false
-            index += 1; try expression(); try require(.symbol(.rParen))
+            index += 1; try expression(allowNewlines: true); try require(.symbol(.rParen))
             inDelegationHeader = header
         default:
             guard kind.isLabelName else { throw Unsupported() }
@@ -435,7 +435,7 @@ private struct JVMSourceGrammar {
                     guard kind == .symbol(.lParen) else { throw Unsupported() }
                 } catch { index = saved; break }
             } else if take(.symbol(.lBracket)) {
-                try expression(); try require(.symbol(.rBracket))
+                try expression(allowNewlines: true); try require(.symbol(.rBracket))
             } else if take(.symbol(.lParen)) {
                 let header = inDelegationHeader; inDelegationHeader = false
                 if !take(.symbol(.rParen)) {
