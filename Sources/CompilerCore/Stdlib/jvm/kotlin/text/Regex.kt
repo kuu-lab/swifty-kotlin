@@ -71,7 +71,7 @@ class Regex private constructor(private val nativePattern: Any) {
     }
     fun replaceFirst(input: CharSequence, replacement: String): String = __jvmMatcherReplaceFirst(__jvmMatcher(nativePattern, input), replacement)
     fun split(input: CharSequence, limit: Int = 0): List<String> {
-        if (limit < 0) throw IllegalArgumentException("Limit must be non-negative")
+        if (limit < 0) throw IllegalArgumentException("Limit must be non-negative, but was $limit")
         val result = mutableListOf<String>()
         if (limit == 1) { result.add(input.toString()); return result }
         var position = 0
@@ -86,7 +86,7 @@ class Regex private constructor(private val nativePattern: Any) {
         return result
     }
     fun splitToSequence(input: CharSequence, limit: Int = 0): Sequence<String> {
-        if (limit < 0) throw IllegalArgumentException("Limit must be non-negative")
+        if (limit < 0) throw IllegalArgumentException("Limit must be non-negative, but was $limit")
         return object: Sequence<String> {
             override fun iterator(): Iterator<String> = object: Iterator<String> {
                 var position = 0
