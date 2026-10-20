@@ -26,6 +26,7 @@ extension JVMBackendTests {
     func ownStdlibLibrary() throws -> URL { try JVMOwnStdlibCache.shared.library() }
 
     private static let ownStdlibCases = [
+        "intArrayToList",
         "intArrayLastIndex",
         "referenceAndIntArrayIndices",
         "referenceArrayIsEmpty",
