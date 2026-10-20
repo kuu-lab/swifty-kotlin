@@ -296,6 +296,12 @@ final class JVMFunctionBuilder {
     }
     func convert(_ source: JVMValue, to type: JVMValueType) throws -> JVMValue {
         if source.type == type { return source }
+        if source.type.referenceName != nil, type.isNumeric,
+           let carrier = source.type.numericCarrier, carrier != type {
+            // Unbox the actual wrapper before widening; casting Byte to
+            // Integer (or Float to Double) would fail at runtime.
+            return try convert(convert(source, to: carrier), to: type)
+        }
         guard (source.type.isNumeric && type.isNumeric) || (source.type.referenceName != nil && type.referenceName != nil) || (type.referenceName != nil && source.type != .unit) || (source.type.referenceName != nil && (type.isNumeric || type == .boolean)) else { throw fail("Unsupported JVM value conversion.") }
         let result = try value(type); instructions.append(.copy(source, result)); return result
     }
