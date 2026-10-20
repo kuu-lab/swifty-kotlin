@@ -344,6 +344,13 @@ private struct JVMSourceGrammar {
             try statement(); try separator(); semicolons()
         }
     }
+    func startsTrailingLambda() -> Bool {
+        guard !newlineBeforeCurrent(), !inDelegationHeader else { return false }
+        if kind == .symbol(.lBrace) { return true }
+        return kind.isLabelName && tokens.indices.contains(index + 2)
+            && tokens[index + 1].kind == .symbol(.at)
+            && tokens[index + 2].kind == .symbol(.lBrace)
+    }
     mutating func primary() throws {
         if take(.keyword(.return)) {
             if take(.symbol(.at)) { try name() }
@@ -432,7 +439,7 @@ private struct JVMSourceGrammar {
                     index += 1
                     repeat { try type() } while take(.symbol(.comma))
                     try require(.symbol(.greaterThan))
-                    guard kind == .symbol(.lParen) else { throw Unsupported() }
+                    guard kind == .symbol(.lParen) || startsTrailingLambda() else { throw Unsupported() }
                 } catch { index = saved; break }
             } else if take(.symbol(.lBracket)) {
                 try expression(allowNewlines: true); try require(.symbol(.rBracket))
@@ -443,7 +450,9 @@ private struct JVMSourceGrammar {
                     try require(.symbol(.rParen))
                 }
                 inDelegationHeader = header
-            } else if kind == .symbol(.lBrace), !newlineBeforeCurrent(), !inDelegationHeader { try lambda()
+            } else if startsTrailingLambda() {
+                if kind.isLabelName { index += 2 }
+                try lambda()
             } else if kind == .symbol(.at), !newlineBeforeCurrent() { index += 1; try lambda()
             } else if take(.symbol(.dot)) || take(.symbol(.questionDot)) { try name()
             } else if take(.symbol(.doubleColon)) {
