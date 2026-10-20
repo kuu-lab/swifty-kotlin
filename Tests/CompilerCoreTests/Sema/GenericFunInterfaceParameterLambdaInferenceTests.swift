@@ -39,6 +39,46 @@ struct GenericFunInterfaceParameterLambdaInferenceTests {
         #expect(interface.args == [.invariant(sema.types.unitType)])
     }
 
+    @Test(arguments: ["make", "Factory.make"])
+    func annotatedSamInputInfersGenericFactoryResult(factory: String) throws {
+        let ctx = context("""
+        fun interface Key<T> { fun read(value: T): Int }
+        class Holder<T>
+        class Item(val value: Int)
+        fun <T> make(key: Key<in T>): Holder<T> = Holder<T>()
+        object Factory { fun <T> make(key: Key<in T>): Holder<T> = Holder<T>() }
+        fun test() {
+            val inferred = \(factory) { item: Item -> item.value }
+            val exact: Holder<Item> = inferred
+        }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "The annotated SAM input must infer Holder<Item>: \(errors)")
+    }
+
+    @Test(arguments: [
+        "Factory.make<Item> { value: String -> 1 }",
+        "Factory.bounded<Int> { value: Int -> value }",
+        "Factory.make(Other<Item> { value: Item -> 1 })",
+    ])
+    func annotatedSamInputRetainsConcreteTypesAndBounds(call: String) throws {
+        let ctx = context("""
+        interface Marker
+        class Item: Marker
+        fun interface Key<T> { fun read(value: T): Int }
+        fun interface Other<T> { fun read(value: T): Int }
+        class Holder<T>
+        object Factory {
+            fun <T> make(key: Key<in T>): Holder<T> = Holder<T>()
+            fun <T: Marker> bounded(key: Key<in T>): Holder<T> = Holder<T>()
+        }
+        fun invalid() { \(call) }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError, "Typed SAM inputs must preserve explicit arguments and bounds")
+    }
+
     @Test
     func explicitGenericSamArgumentStillChecksLambdaResult() throws {
         let ctx = context("""
