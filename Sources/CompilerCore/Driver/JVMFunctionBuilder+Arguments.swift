@@ -65,18 +65,19 @@ extension JVMFunctionBuilder {
     }
 
     func sourceCall(_ args: [CallArgument], receiver: ExprID? = nil, id: ExprID) throws -> JVMIntrinsicResult? {
-        guard let binding = program.sema.bindings.callBinding(for: id),
-              let parameters = program.sourceParameters[binding.chosenCallee] else { return nil }
-        let symbol = binding.chosenCallee, reference = program.references[symbol], method = program.methods[symbol]
+        let binding = program.sema.bindings.callBinding(for: id)
+        guard let symbol = binding?.chosenCallee ?? program.sema.bindings.identifierSymbol(for: id) else { return nil }
+        let reference = program.references[symbol]
+        let method = program.methods[symbol] ?? context.jvmImports?.methods[symbol]
         guard reference != nil || method != nil else { return nil }
         let constructor = method?.isConstructor == true
         let plan = method.flatMap { m in program.classes.values.first { $0.name == m.owner } }
         if constructor, plan?.isEnum == true { throw fail("JVM enum constructors can only initialize enum entries.", id) }
-        let extensionCall = program.extensionSymbols.contains(symbol)
+        let extensionCall = program.extensionSymbols.contains(symbol) || context.jvmImports?.extensionSymbols.contains(symbol) == true
         var dispatch: JVMValue?, prefix: [JVMValue] = []
         if constructor, let plan, plan.isInner {
             prefix = [try receiver.map(requireValue) ?? enclosingInstance(plan.outer!)]
-        } else if method != nil && !constructor {
+        } else if let method, !method.isStatic && !constructor {
             dispatch = try receiver != nil && !extensionCall ? requireValue(receiver!) : instance(id)
         }
         if extensionCall {
@@ -86,8 +87,8 @@ extension JVMFunctionBuilder {
         }
         let allTypes = reference?.parameters ?? method!.parameters
         let types = Array(allTypes.dropFirst(prefix.count))
-        let defaultSymbol = program.defaultOwner(binding.defaultArgumentOwner ?? symbol)
-        let defaultParameters = program.sourceParameters[defaultSymbol] ?? parameters
+        let defaultSymbol = program.defaultOwner(binding?.defaultArgumentOwner ?? symbol)
+        let defaultParameters = program.sourceParameters[defaultSymbol] ?? program.sourceParameters[symbol]
         // Value constructors are static source operations: evaluate their
         // arguments before allocating the internal box, including suspension.
         let deferredValueBox = constructor && plan?.isValue == true

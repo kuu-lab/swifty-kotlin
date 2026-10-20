@@ -35,6 +35,31 @@ extension JVMFunctionBuilder {
             if let property = program.properties[call.chosenCallee] { return property }
             if let symbol = sema.symbols.propertySymbol(forAccessor: call.chosenCallee) { return program.properties[symbol] }
         }
+        let selected = sema.bindings.identifierSymbol(for: id) ?? sema.bindings.callBinding(for: id)?.chosenCallee
+        if let selected {
+            let symbol = sema.symbols.propertySymbol(forAccessor: selected) ?? selected
+            if let semanticSymbol = sema.symbols.symbol(symbol), semanticSymbol.kind == .property,
+               let parent = sema.symbols.parentSymbol(for: symbol),
+               let owner = try? program.className(parent),
+               let info = context.jvmImports?.classes[owner],
+               let propertyType = sema.symbols.propertyType(for: symbol),
+               let type = try? program.type(propertyType) {
+                let name = context.interner.resolve(semanticSymbol.name)
+                let capital = String(name.prefix(1)).uppercased() + name.dropFirst()
+                let names = name.hasPrefix("is") && name.count > 2 ? [name, "get" + capital] : ["get" + capital]
+                if let imported = info.methods.first(where: {
+                    names.contains($0.name) && !$0.isStatic && !$0.isConstructor && $0.parameters.isEmpty && $0.result.descriptor == type.descriptor
+                }) {
+                    var getter = JVMForeignMethod(
+                        owner: imported.owner, name: imported.name, descriptor: imported.descriptor,
+                        parameters: imported.parameters, result: type, isStatic: false,
+                        isInterface: imported.isInterface, isAbstract: imported.isAbstract
+                    )
+                    getter.isFinal = imported.isFinal
+                    return JVMProperty(name: name, type: type, getter: getter, setter: nil, field: nil, modifiers: [.public])
+                }
+            }
+        }
         let name: InternedString?
         switch arena.expr(id) {
         case let .nameRef(n, _), let .localAssign(n, _, _), let .compoundAssign(_, n, _, _): name = n

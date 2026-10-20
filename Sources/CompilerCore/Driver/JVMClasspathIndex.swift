@@ -6,6 +6,7 @@ final class JVMClasspathIndex {
     var classes: [String: JVMClassInfo] = [:]
     var sourceClasses: [FileID: JVMClassInfo] = [:]
     var methods: [SymbolID: JVMForeignMethod] = [:]
+    var extensionSymbols: Set<SymbolID> = []
 
     static func load(_ paths: [String]) throws -> JVMClasspathIndex {
         let result = JVMClasspathIndex()
@@ -83,18 +84,20 @@ final class JVMClasspathIndex {
         case .boolean: return "kotlin.Boolean"
         case .unit: return "kotlin.Unit"
         case .string: return "kotlin.String"
-        case let .reference(name, nullable, _):
+        case let .reference(name, _, _):
             let base: String
             if name.hasPrefix("["), let element = try? JVMDescriptor.parse("()" + String(name.dropFirst())).1 {
-                if let primitive = Self.primitiveArrays.first(where: { $0.value == element }) { return "kotlin." + primitive.key + (nullable ? "?" : "") }
-                return "kotlin.Array<" + kotlinType(element) + ">" + (nullable ? "?" : "")
+                if let primitive = Self.primitiveArrays.first(where: { $0.value == element }) { return "kotlin." + primitive.key }
+                return "kotlin.Array<" + kotlinType(element) + ">"
             }
             switch name {
-            case "java/lang/String": base = "kotlin.String"
-            case "java/lang/Object": base = "kotlin.Any"
+            case "java/lang/String": return "kotlin.String"
+            case "java/lang/Object": return "kotlin.Any"
             default: base = name.split(separator: "/").map { "`\($0)`" }.joined(separator: ".")
             }
-            return base + (nullable ? "?" : "")
+            // Classfiles do not retain Kotlin nullability without metadata. Use
+            // non-null source declarations as the current platform-type approximation.
+            return base
         }
     }
     private func isSAM(_ name: String) -> Bool {
@@ -122,44 +125,77 @@ final class JVMClasspathIndex {
             let package = parts.dropLast().map { "`\($0)`" }.joined(separator: ".")
             var source = package.isEmpty ? "" : "package \(package)\n"
             let own = info.methods.filter { $0.parameters.allSatisfy(expose) && expose($0.result) && ($0.isConstructor || JVMProgramBuilder.isIdentifier($0.name)) }
-            if info.isInterface { source += (isSAM(info.name) ? "fun interface `\(short)`" : "interface `\(short)`") }
-            else {
-                source += info.flags & 0x0400 != 0 ? "abstract class " : "open class "
-                source += "`\(short)` "
-                source += own.contains(where: { $0.isConstructor && $0.parameters.isEmpty }) ? "()" : "protected constructor()"
-            }
-            var parents: [String] = []
-            if !info.isInterface, let base = info.superclass, classes[base] != nil {
-                parents.append(kotlinType(.reference(base, nullable: false)) + "()")
-            }
-            parents += info.interfaces.filter { classes[$0] != nil }.map { kotlinType(.reference($0, nullable: false)) }
-            if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
-            source += " {\n"
-            for method in own where method.isConstructor && !method.parameters.isEmpty {
-                source += "constructor(" + parameters(method) + ") : this() {}\n"
-            }
-            for method in own where !method.isConstructor && !method.isStatic {
-                let overrides = overridesParent(method, in: info, visited: [])
-                source += overrides ? "override " : ""
-                if !info.isInterface { source += overrides ? "" : "open " }
-                if !info.isInterface { source += "external " }
-                source += "fun `\(method.name)`(" + parameters(method) + "): " + kotlinType(method.result)
-                if info.isInterface, !method.isAbstract {
-                    source += method.result == .unit ? " {}" : " = null!!"
-                    // A default method with a primitive result still has a
-                    // Nothing-typed stub body; it is never emitted or executed.
-                }
-                source += "\n"
-            }
             let statics = own.filter(\.isStatic)
-            if !statics.isEmpty {
-                source += "companion object {\n"
+            let isFileFacade = short.hasSuffix("Kt")
+            if isFileFacade {
                 for method in statics {
                     source += "external fun `\(method.name)`(" + parameters(method) + "): " + kotlinType(method.result) + "\n"
+                    // A JVM file-facade descriptor does not distinguish a
+                    // top-level function from an extension receiver. Expose
+                    // the receiver form as well so Kotlin member syntax binds
+                    // to the same static method.
+                    if let receiver = method.parameters.first,
+                       case .reference = receiver, receiver.referenceName?.hasPrefix("[") != true {
+                        let rest = method.parameters.dropFirst().enumerated().map {
+                            "p\($0.offset): " + kotlinType($0.element)
+                        }.joined(separator: ", ")
+                        source += "external fun \(kotlinType(receiver)).`\(method.name)`(\(rest)): \(kotlinType(method.result))\n"
+                    }
+                }
+            } else {
+                if info.isInterface { source += (isSAM(info.name) ? "fun interface `\(short)`" : "interface `\(short)`") }
+                else {
+                    source += info.flags & 0x0400 != 0 ? "abstract class " : "open class "
+                    source += "`\(short)` "
+                    source += own.contains(where: { $0.isConstructor && $0.parameters.isEmpty }) ? "()" : "protected constructor()"
+                }
+                var parents: [String] = []
+                if !info.isInterface, let base = info.superclass, classes[base] != nil {
+                    parents.append(kotlinType(.reference(base, nullable: false)) + "()")
+                }
+                parents += info.interfaces.filter { classes[$0] != nil }.map { kotlinType(.reference($0, nullable: false)) }
+                if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
+                source += " {\n"
+                for method in own where method.isConstructor && !method.parameters.isEmpty {
+                    source += "constructor(" + parameters(method) + ") : this() {}\n"
+                }
+                for method in own where !method.isConstructor && !method.isStatic {
+                    let overrides = overridesParent(method, in: info, visited: [])
+                    source += overrides ? "override " : ""
+                    if !info.isInterface { source += overrides ? "" : "open " }
+                    if method.name == "get", method.parameters.count == 1 { source += "operator " }
+                    if !info.isInterface { source += "external " }
+                    source += "fun `\(method.name)`(" + parameters(method) + "): " + kotlinType(method.result)
+                    if info.isInterface, !method.isAbstract {
+                        source += method.result == .unit ? " {}" : " = null!!"
+                        // A default method with a primitive result still has a
+                        // Nothing-typed stub body; it is never emitted or executed.
+                    }
+                    source += "\n"
+                }
+                for getter in own where !getter.isConstructor && !getter.isStatic && getter.parameters.isEmpty {
+                    let propertyName: String
+                    if getter.name.hasPrefix("get"), getter.name.count > 3 {
+                        let suffix = String(getter.name.dropFirst(3))
+                        propertyName = String(suffix.prefix(1)).lowercased() + suffix.dropFirst()
+                    } else if getter.name.hasPrefix("is"), getter.name.count > 2, getter.result == .boolean {
+                        propertyName = getter.name
+                    } else { continue }
+                    guard JVMProgramBuilder.isIdentifier(propertyName),
+                          !own.contains(where: { !$0.isStatic && !$0.isConstructor && $0.name == propertyName }) else { continue }
+                    if overridesParent(getter, in: info, visited: []) { source += "override " }
+                    else if !info.isInterface && !getter.isFinal { source += "open " }
+                    source += "val `\(propertyName)`: \(kotlinType(getter.result)) get() = `\(getter.name)`()\n"
+                }
+                if !statics.isEmpty {
+                    source += "companion object {\n"
+                    for method in statics {
+                        source += "external fun `\(method.name)`(" + parameters(method) + "): " + kotlinType(method.result) + "\n"
+                    }
+                    source += "}\n"
                 }
                 source += "}\n"
             }
-            source += "}\n"
             let path = "<kswiftk-jvm-import>/" + info.name + ".kt"
             guard !ctx.sourceManager.containsFile(path: path) else { throw JVMClassReader.Invalid() }
             let file = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8), origin: .residualStdlib)
@@ -194,14 +230,19 @@ final class JVMClasspathIndex {
                   symbol.kind == .function || symbol.kind == .constructor,
                   let signature = sema.symbols.functionSignature(for: symbol.id) else { continue }
             let name = symbol.kind == .constructor ? "<init>" : ctx.interner.resolve(symbol.name)
-            let descriptor = "(" + (try signature.parameterTypes.map { try Self.type($0, sema: sema, ctx: ctx).descriptor }).joined() + ")"
             let parent = sema.symbols.parentSymbol(for: symbol.id).flatMap(sema.symbols.symbol)
-            let staticMember = parent.map { ctx.interner.resolve($0.name) == "Companion" } ?? false
+            let isTopLevel = parent?.kind == .package
+            let isExtension = hasExtensionReceiver(symbol, in: ctx)
+            if isExtension { extensionSymbols.insert(symbol.id) }
+            let receiverTypes = isExtension ? signature.receiverType.map { [$0] } ?? [] : []
+            let descriptorTypes = receiverTypes + signature.parameterTypes
+            let descriptor = "(" + (try descriptorTypes.map { try Self.type($0, sema: sema, ctx: ctx).descriptor }).joined() + ")"
+            let staticMember = isTopLevel || isExtension || (parent.map { ctx.interner.resolve($0.name) == "Companion" } ?? false)
             guard let method = info.methods.first(where: { $0.name == name && $0.descriptor.hasPrefix(descriptor) && $0.isStatic == staticMember }) else { continue }
             methods[symbol.id] = method
             let returnType = method.isConstructor ? signature.returnType : platform(signature.returnType)
             sema.symbols.setFunctionSignature(FunctionSignature(
-                receiverType: signature.receiverType, parameterTypes: signature.parameterTypes.map(platform),
+                receiverType: signature.receiverType.map(platform), parameterTypes: signature.parameterTypes.map(platform),
                 returnType: returnType, canThrow: false, valueParameterSymbols: signature.valueParameterSymbols,
                 valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
                 valueParameterIsVararg: signature.valueParameterIsVararg
@@ -218,6 +259,15 @@ final class JVMClasspathIndex {
             let descriptor = "(" + parameters.map(\.descriptor).joined() + ")" + result.descriptor
             methods[symbol.id] = JVMForeignMethod(owner: "java/lang/Object", name: name, descriptor: descriptor, parameters: parameters, result: result, isStatic: false, isInterface: false, isAbstract: false)
         }
+    }
+    private func hasExtensionReceiver(_ symbol: SemanticSymbol, in ctx: CompilationContext) -> Bool {
+        guard let site = symbol.declSite, let ast = ctx.ast,
+              let file = ast.files.first(where: { $0.fileID == site.start.file }) else { return false }
+        for declaration in file.topLevelDecls {
+            guard case let .funDecl(function) = ast.arena.decl(declaration), function.range == site else { continue }
+            return function.receiverType != nil
+        }
+        return false
     }
     static func type(_ id: TypeID, sema: SemaModule, ctx: CompilationContext) throws -> JVMValueType {
         switch sema.types.kind(of: id) {
@@ -253,6 +303,15 @@ final class JVMClasspathIndex {
         case let .classType(type):
             guard let symbol = sema.symbols.symbol(type.classSymbol) else { throw JVMClassReader.Invalid() }
             let name = Self.binaryName(symbol.id, sema: sema, ctx: ctx)
+            if symbol.kind == .object,
+               let site = symbol.declSite, ctx.sourceManager.origin(of: site.start.file) == .residualStdlib,
+               let parent = sema.symbols.parentSymbol(for: symbol.id).flatMap(sema.symbols.symbol), parent.kind == .class,
+               name.hasSuffix("$Companion") {
+                let outer = String(name.dropLast("$Companion".count))
+                if ctx.jvmImports?.classes[outer] != nil {
+                    return .reference(outer, nullable: type.nullability != .nonNull)
+                }
+            }
             if name == "kotlin/Array" {
                 guard let arg = type.args.first else { throw JVMFrontendError(message: "JVM Array needs an element type.") }
                 let element = try argumentType(arg, sema: sema, ctx: ctx)
@@ -265,7 +324,10 @@ final class JVMClasspathIndex {
             // Result's non-null logical value may carry a successful null.
             if name == "kotlin/Result" { return ctx.options.stdlibOnly ? .reference(name, nullable: type.nullability != .nonNull) : .reference("java/lang/Object", nullable: true) }
             if let mapped = builtinName(name) { return .reference(mapped, nullable: type.nullability != .nonNull) }
-            guard ctx.jvmImports?.classes[name] != nil || symbol.declSite.map({ ctx.sourceManager.origin(of: $0.start.file) == .user && (symbol.kind == .class || symbol.kind == .interface || symbol.kind == .object || symbol.kind == .enumClass || symbol.kind == .annotationClass) }) == true else { throw JVMFrontendError(message: "Unsupported JVM reference type: \(name)") }
+            guard ctx.jvmImports?.classes[name] != nil || symbol.declSite.map({ ctx.sourceManager.origin(of: $0.start.file) == .user && (symbol.kind == .class || symbol.kind == .interface || symbol.kind == .object || symbol.kind == .enumClass || symbol.kind == .annotationClass) }) == true else {
+                let owner = symbol.fqName.map(ctx.interner.resolve).joined(separator: ".")
+                throw JVMFrontendError(message: "Unsupported JVM reference type: \(name) used by \(owner)")
+            }
             return .reference(name, nullable: type.nullability != .nonNull, platform: type.nullability == .platformType)
         case let .primitive(p, .nonNull):
             return .primitive(p)

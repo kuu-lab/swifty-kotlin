@@ -297,7 +297,11 @@ extension JVMFunctionBuilder {
     }
     func indexedGet(_ receiver: ExprID, _ indices: [ExprID], _ id: ExprID) throws -> JVMValue {
         guard indices.count == 1 else { throw fail("JVM indexing requires one index.", id) }
-        if let call = try textLibraryCall(indices.map { CallArgument(expr: $0) }, receiver: receiver, id: id), let value = call.value { return value }
+        let arguments = indices.map { CallArgument(expr: $0) }
+        if let call = try textLibraryCall(arguments, receiver: receiver, id: id), let value = call.value { return value }
+        if let call = try sourceCall(arguments, receiver: receiver, id: id), let value = call.value {
+            return try convert(value, to: program.expressionType(id))
+        }
         var object = try requireValue(receiver)
         // An intersection can retain Iterable as its erased local type while
         // Sema selects List.get from a smart-cast branch.
