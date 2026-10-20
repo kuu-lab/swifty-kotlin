@@ -1446,7 +1446,7 @@ extension CoroutineLoweringPass {
             .call(
                 symbol: nil,
                 callee: rewrite.ctx.interner.intern("kk_test_run_blocking_with_cont"),
-                arguments: [contextExpr, thunkRefExpr, continuationExpr, scopeSlotExpr],
+                arguments: [contextExpr, timeoutExpr, thunkRefExpr, continuationExpr, scopeSlotExpr],
                 result: call.result,
                 canThrow: call.canThrow,
                 thrownResult: call.thrownResult

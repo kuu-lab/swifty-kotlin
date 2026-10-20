@@ -29,6 +29,23 @@ final class RuntimeEventLoop: @unchecked Sendable {
     /// would cost on a busy queue.
     private var nextIndex = 0
 
+    /// KUU-2688: consulted by `run(until:)` only when the queue is empty and
+    /// the loop is about to block — the one place "nothing else to do" is
+    /// observable. Returning true reports progress and the loop re-checks
+    /// `isDone` instead of waiting. `runReadyTasks` deliberately does NOT
+    /// consult it, so a synchronous burst (e.g. `advanceTimeBy` inside a
+    /// `runTest` body) cannot be preempted by queued virtual-time work; only
+    /// a blocking drain counts as idle, matching upstream's TestDispatcher
+    /// auto-advance. `RuntimeTestScheduler` installs its pump here while a
+    /// `runTest` run is in flight.
+    private var idleAction: (@Sendable () -> Bool)?
+
+    func installIdleAction(_ action: (@Sendable () -> Bool)?) {
+        condition.lock()
+        idleAction = action
+        condition.unlock()
+    }
+
     /// Minted lazily so every read of the context resolves to the same
     /// element object.
     private var cachedElementRaw = 0
@@ -175,15 +192,22 @@ final class RuntimeEventLoop: @unchecked Sendable {
             }
             condition.lock()
             let work = popLocked()
-            if work == nil {
-                let limit = min(
-                    Date().addingTimeInterval(RuntimeEventLoop.idleWaitSeconds),
-                    deadline ?? Date.distantFuture
-                )
-                _ = condition.wait(until: limit)
-            }
+            let idle = work == nil ? idleAction : nil
             condition.unlock()
-            work?()
+            if let work {
+                work()
+                continue
+            }
+            if let idle, idle() {
+                continue
+            }
+            condition.lock()
+            let limit = min(
+                Date().addingTimeInterval(RuntimeEventLoop.idleWaitSeconds),
+                deadline ?? Date.distantFuture
+            )
+            _ = condition.wait(until: limit)
+            condition.unlock()
         }
     }
 }
