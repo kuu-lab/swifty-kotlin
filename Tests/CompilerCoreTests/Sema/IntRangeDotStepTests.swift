@@ -31,5 +31,16 @@ struct IntRangeDotStepTests {
         }
         #expect(calls == 4)
     }
+
+    @Test func longRangeDotStepInfersLongProgressionType() throws {
+        let ctx = makeContextFromSource("""
+        fun probe() {
+            val stepped: LongProgression = (1L..10L).step(3)
+            val steppedByLong: LongProgression = (1L..10L).step(3L)
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
 }
 #endif
