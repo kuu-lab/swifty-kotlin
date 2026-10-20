@@ -652,7 +652,9 @@ extension CallTypeChecker {
             // A successful nested inference can still make another invariant
             // argument incompatible. Retry the whole call without lifted hints,
             // retaining its declared expected result and all ordinary constraints.
-            if inferred == sema.types.errorType, !expectedTypeHintIndices.isEmpty {
+            // listOf retains useful element hints even in the fallback pass.
+            // Those hints must not recursively schedule the same retry again.
+            if inferred == sema.types.errorType, ctx.allowsLiftedCallExpectedTypeHints, !expectedTypeHintIndices.isEmpty {
                 sema.diagnostics.rollback(to: argumentDiagnosticsCheckpoint)
                 locals = originalArgumentLocals
                 var retryContext = ctx
