@@ -15,6 +15,9 @@ public final class CompilationContext: @unchecked Sendable {
     public internal(set) var ast: ASTModule?
     public internal(set) var sema: SemaModule?
     public internal(set) var kir: KIRModule?
+    public internal(set) var jvmProgram: JVMProgram?
+    var jvmImports: JVMClasspathIndex?
+    var jvmRuntimeClassAliases: [String: String] = [:]
     public internal(set) var generatedObjectPath: String?
     public internal(set) var generatedLLVMIRPath: String?
 

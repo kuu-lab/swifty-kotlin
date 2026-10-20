@@ -770,6 +770,12 @@ enum DiagnosticRegistry {
             summary: "Function accessed with property syntax requires invocation parentheses."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0310",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Restricted SequenceScope suspension requires the same receiver."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-PLATFORM",
             pass: "SEMA",
             defaultSeverity: .warning,

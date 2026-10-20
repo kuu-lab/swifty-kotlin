@@ -47,8 +47,8 @@ struct DefaultStdlibEmitModeTests {
                 #expect(dump.contains("values"))
             case .library:
                 #expect(FileManager.default.fileExists(atPath: directory.appendingPathComponent("output.kklib/metadata.bin").path))
-            case .executable:
-                Issue.record("Unexpected executable mode")
+            case .executable, .jvmClass, .jvmJar:
+                Issue.record("Unexpected mode in Native stdlib artifact test")
             }
         }
     }

@@ -34,7 +34,8 @@ final class DataFlowSemaPhase: CompilerPhase {
                 symbols: symbols,
                 types: types,
                 sourceManager: ctx.sourceManager,
-                interner: ctx.interner
+                interner: ctx.interner,
+                includeUserSources: ctx.options.emit.isJVM && ctx.options.stdlibOnly
             )
         }
         let sema = SemaModule(
@@ -44,6 +45,7 @@ final class DataFlowSemaPhase: CompilerPhase {
             bundledIndex: bundledIndex
         )
 
+        sema.requiresResolvedLibraryCalls = ctx.options.emit.isJVM
         let fileScopes = buildFileScopes(ast: ast, symbols: symbols, interner: ctx.interner)
         let (importedInlineFunctions, importDeferredWork) = withSubPhaseTiming("loadImports", timer: ctx.phaseTimer) {
             loadImports(ctx: ctx, symbols: symbols, types: types)
@@ -64,6 +66,15 @@ final class DataFlowSemaPhase: CompilerPhase {
         // the real symbols, so this pass simply finds nothing to do.
         var predeclaredEarlyHeaders: [DeclID: SymbolID] = [:]
         withSubPhaseTiming("predeclareBundledHeaders", timer: ctx.phaseTimer) {
+            // JVM intrinsic nominals own their headers before residual
+            // registration, just as source-backed Native stdlib types do.
+            if ctx.options.emit.isJVM {
+                for file in ast.sortedFiles where ctx.sourceManager.path(of: file.fileID).hasPrefix("<kswiftk-jvm>/") {
+                    if let scope = fileScopes[file.fileID.rawValue] {
+                        predeclareNominalTypeHeaders(file: file, ast: ast, symbols: symbols, scope: scope, sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics, interner: ctx.interner, into: &predeclaredEarlyHeaders)
+                    }
+                }
+            }
             predeclareBundledTupleHeaders(
                 ast: ast, fileScopes: fileScopes, symbols: symbols,
                 sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
@@ -221,6 +232,15 @@ final class DataFlowSemaPhase: CompilerPhase {
             interner: ctx.interner
         )
 
+        // Anchor real JVM runtime nominals before optional synthetic fallbacks.
+        if ctx.options.emit.isJVM && ctx.options.stdlibOnly {
+            sema.isJVMStdlibBuild = true
+            for file in ast.sortedFiles where ctx.sourceManager.origin(of: file.fileID) == .user {
+                if let scope = fileScopes[file.fileID.rawValue] {
+                    predeclareNominalTypeHeaders(file: file, ast: ast, symbols: symbols, scope: scope, sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics, interner: ctx.interner, into: &predeclaredEarlyHeaders)
+                }
+            }
+        }
         withSubPhaseTiming("registerSyntheticDelegateStubs", timer: ctx.phaseTimer) {
             registerSyntheticDelegateStubs(
                 symbols: symbols,
@@ -340,7 +360,7 @@ final class DataFlowSemaPhase: CompilerPhase {
         // once header registration finished.
         sema.bundledIndex = bundledIndex
         withSubPhaseTiming("runValidationPasses", timer: ctx.phaseTimer) {
-            runValidationPasses(ast: ast, symbols: symbols, bindings: bindings, types: types, ctx: ctx)
+            runValidationPasses(ast: ast, symbols: symbols, bindings: bindings, types: types, ctx: ctx, sema: sema)
         }
         patchSourceBackedPreconditionContractEffects(
             symbols: symbols,
@@ -583,7 +603,7 @@ final class DataFlowSemaPhase: CompilerPhase {
 
     private func runValidationPasses(
         ast: ASTModule, symbols: SymbolTable, bindings: BindingTable,
-        types: TypeSystem, ctx: CompilationContext
+        types: TypeSystem, ctx: CompilationContext, sema: SemaModule
     ) {
         for declID in bindings.declSymbols.keys {
             guard case let .classDecl(classDecl) = ast.arena.decl(declID) else { continue }
@@ -662,6 +682,10 @@ final class DataFlowSemaPhase: CompilerPhase {
                 ast: ast, symbols: symbols, bindings: bindings, types: types,
                 diagnostics: ctx.diagnostics, interner: ctx.interner
             )
+        }
+        if ctx.options.emit.isJVM {
+            do { try ctx.jvmImports?.bind(in: ctx, sema: sema) }
+            catch { ctx.diagnostics.error("KSWIFTK-JVM-0003", "Cannot bind JVM classpath: \(error)", range: nil) }
         }
         withSubPhaseTiming("validateAbstractOverrides", timer: ctx.phaseTimer) {
             validateAbstractOverrides(

@@ -40,6 +40,7 @@ extension TypeCheckDriver {
         inlineLambdaArguments: Set<ExprID>,
         suspendLambdaArguments: Set<ExprID>
     ) {
+        validateJVMSequenceSuspensionContexts(inlineLambdaArguments: inlineLambdaArguments, suspendLambdaArguments: suspendLambdaArguments)
         func functionType(_ exprID: ExprID) -> FunctionType? {
             // SAM conversion replaces the expression type with the nominal
             // interface; its callable signature still owns suspension context.

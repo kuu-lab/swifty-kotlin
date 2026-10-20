@@ -293,6 +293,24 @@ jobs:
             echo "SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=$worker_count"
           } >> "$GITHUB_ENV"
           echo "Backend parallelization width: $worker_count"
+      - name: Setup Java for JVM backend tests
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install Kotlin for JVM interoperability tests
+        env:
+          KOTLIN_VERSION: "2.4.20"
+          KOTLIN_COMPILER_SHA256: "59e9ca74c7904ef2c122b12114937673ccce68de820a663f0ed66ccf8799e0b7"
+        run: |
+          archive="$RUNNER_TEMP/jvm-kotlin-compiler.zip"
+          destination="$RUNNER_TEMP/jvm-kotlin"
+          curl -fSL --retry 3 --retry-delay 2 --connect-timeout 30 --max-time 120 \
+            -o "$archive" \
+            "https://github.com/JetBrains/kotlin/releases/download/v${KOTLIN_VERSION}/kotlin-compiler-${KOTLIN_VERSION}.zip"
+          bash Scripts/verify_kotlin_compiler_archive.sh \
+            "$archive" "$KOTLIN_COMPILER_SHA256" "$destination" "$KOTLIN_VERSION"
+          echo "$destination/kotlinc/bin" >> "$GITHUB_PATH"
       - name: Run CompilerBackendTests shard with strict concurrency warnings
         run: |
           bash Scripts/shard_swift_tests.sh \

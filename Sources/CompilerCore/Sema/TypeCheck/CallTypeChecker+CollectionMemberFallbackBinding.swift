@@ -26,6 +26,7 @@ extension CallTypeChecker {
         guard calleeName != knownNames.contains else { return nil }
 
         let memberName = interner.resolve(calleeName)
+        if sema.requiresResolvedLibraryCalls, Self.jvmSourceCollectionCalls.contains(memberName) { return nil }
         if sema.bindings.exprTypes[receiverID] == nil {
             _ = driver.inferExpr(receiverID, ctx: ctx, locals: &locals)
         }

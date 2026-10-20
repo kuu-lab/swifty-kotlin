@@ -1345,7 +1345,7 @@ extension DataFlowSemaPhase {
                     ) ?? anyType
                     symbols.setValueClassUnderlyingType(underlyingType, for: nestedSymbol)
                 }
-                if !nestedClass.secondaryConstructors.isEmpty {
+                if !nestedClass.secondaryConstructors.isEmpty, !ctx.options.emit.isJVM {
                     diagnostics.error(
                         "KSWIFTK-SEMA-0071",
                         "Value class cannot have secondary constructors.",

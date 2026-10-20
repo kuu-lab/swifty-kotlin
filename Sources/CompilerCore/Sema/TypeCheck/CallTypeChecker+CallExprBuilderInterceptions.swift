@@ -91,21 +91,24 @@ extension CallTypeChecker {
         locals: inout LocalBindings,
         expectedType: TypeID?,
         explicitTypeArgs: [TypeID],
-        calleeName: InternedString?
+        calleeName: InternedString?,
+        jvmBuilderName: InternedString? = nil
     ) -> TypeID? {
         let ast = ctx.ast
         let sema = ctx.sema
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
+        let builderName = jvmBuilderName ?? (sema.requiresResolvedLibraryCalls ? jvmSequenceBuilderName(calleeName, ctx: ctx, locals: locals) : calleeName)
 
 
         // Intercept before eager argument inference so the lambda is inferred
         // with a SequenceScope<T> implicit receiver and T can be recovered from
         // expected type or nested yield()/yieldAll() calls.
-        if let calleeName,
+        if let calleeName = builderName,
            calleeName == knownNames.sequenceFn,
            args.count == 1,
-           shouldUseBuilderDSLSpecialHandling(calleeName: calleeName, ctx: ctx, locals: locals)
+           (!sema.requiresResolvedLibraryCalls || (isValidBuilderLambdaArgument(args[0].expr, ast: ast) && !args[0].isSpread && (args[0].label == nil || args[0].label == interner.intern("block")) && explicitTypeArgs.count <= 1)),
+           (sema.requiresResolvedLibraryCalls || shouldUseBuilderDSLSpecialHandling(calleeName: calleeName, ctx: ctx, locals: locals))
         {
             let argumentExprID = args[0].expr
             guard isValidBuilderLambdaArgument(argumentExprID, ast: ast) else {
@@ -182,18 +185,21 @@ extension CallTypeChecker {
         locals: inout LocalBindings,
         expectedType: TypeID?,
         explicitTypeArgs: [TypeID],
-        calleeName: InternedString?
+        calleeName: InternedString?,
+        jvmBuilderName: InternedString? = nil
     ) -> TypeID? {
         let ast = ctx.ast
         let sema = ctx.sema
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
+        let builderName = jvmBuilderName ?? (sema.requiresResolvedLibraryCalls ? jvmSequenceBuilderName(calleeName, ctx: ctx, locals: locals) : calleeName)
 
 
-        if let calleeName,
+        if let calleeName = builderName,
            calleeName == knownNames.iterator,
            args.count == 1,
-           locals[calleeName] == nil
+           (!sema.requiresResolvedLibraryCalls || (isValidBuilderLambdaArgument(args[0].expr, ast: ast) && !args[0].isSpread && (args[0].label == nil || args[0].label == interner.intern("block")) && explicitTypeArgs.count <= 1)),
+           (sema.requiresResolvedLibraryCalls || locals[calleeName] == nil)
         {
             let argumentExprID = args[0].expr
             guard isValidBuilderLambdaArgument(argumentExprID, ast: ast) else {

@@ -109,6 +109,7 @@ extension CallTypeChecker {
                     if let chosen = resolved.chosenCallee,
                        let signature = sema.symbols.functionSignature(for: chosen)
                     {
+                        bindResolvedFunctionValueSamArguments(id, chosen: chosen, resolved: resolved, sema: sema)
                         sema.bindings.bindCall(
                             id,
                             binding: CallBinding(
