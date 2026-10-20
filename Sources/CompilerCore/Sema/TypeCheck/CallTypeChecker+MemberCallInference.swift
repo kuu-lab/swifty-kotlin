@@ -454,8 +454,16 @@ extension CallTypeChecker {
                 // The annotation survives library serialization; ordinary imported
                 // defaults also have link names, so a link name alone is insufficient.
                 guard let owner = sema.symbols.parentSymbol(for: member),
-                      sema.symbols.symbol(owner)?.kind == .interface
+                      sema.symbols.symbol(owner)?.kind == .interface,
+                      let memberSymbol = sema.symbols.symbol(member)
                 else { return true }
+                // Compiler-synthesized interface members are runtime bridge
+                // stubs (e.g. the `MutableSet.addAll(array)` residual), not
+                // Kotlin default implementations. Imported declarations also
+                // carry `.synthetic`, so only genuine in-module stubs count.
+                guard !memberSymbol.flags.contains(.synthetic)
+                        || memberSymbol.flags.contains(.importedLibrary)
+                else { return false }
                 return !sema.symbols.annotations(for: member).contains {
                     KnownCompilerAnnotation.ksSymbolName.matches($0.annotationFQName)
                 }
