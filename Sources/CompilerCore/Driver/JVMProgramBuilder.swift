@@ -346,8 +346,10 @@ final class JVMFunctionBuilder {
         if isStaticBody { function.access = 0x1009; function.isSynthetic = true }
         function.isSuspend = declaration.isSuspend || isSuspendBody
         function.isInline = declaration.isInline
-        function.isOperator = declaration.modifiers.contains(.operator)
-        function.isInfix = declaration.modifiers.contains(.infix)
+        // Sema includes modifiers inherited by overrides in the symbol flags.
+        let semanticFlags = functionSymbol.flatMap { program.sema.symbols.symbol($0)?.flags }
+        function.isOperator = declaration.modifiers.contains(.operator) || semanticFlags?.contains(.operatorFunction) == true
+        function.isInfix = declaration.modifiers.contains(.infix) || semanticFlags?.contains(.infixFunction) == true
         // This backend retains crossinline callbacks as function objects.
         // Export that physical requirement as noinline so Kotlin's bytecode
         // inliner does not erase an object passed to a lifted lambda helper.
