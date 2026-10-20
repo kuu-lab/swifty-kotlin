@@ -22,4 +22,7 @@ fun main() {
     println(scalarArray.size)
     val nested: List<Array<Int>> = listOf(arrayOf(1)).plus<Array<Int>>(arrayOf(2, 3))
     println(nested.size); println(nested[1].toList())
+    val map = mapOf(1 to "a", 2 to "b", 3 to "c")
+    println(map - arrayOf(2, 3)); println(map.minus(arrayOf(9)))
+    println(map - emptyArray<Int>()); println(map)
 }

@@ -2,11 +2,22 @@ set sequence failure
 yield
 throw
 caught rhs
+map sequence failure
+yield
+throw
+caught rhs
 empty set array
+0
+empty map array
 0
 empty set sequence
 0
+empty map sequence
+0
 set receiver first
+hash
+caught hash
+map receiver first
 hash
 caught hash
 set empty iterable
@@ -21,4 +32,15 @@ set large
 contains:A
 contains:B
 [A]
+map small
+{A=1}
+map equal
+contains:A
+contains:B
+{A=1}
+map large
+contains:A
+contains:B
+{A=1}
 [A, B]
+{A=1, B=2}

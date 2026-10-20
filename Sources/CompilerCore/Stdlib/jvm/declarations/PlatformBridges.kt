@@ -2,6 +2,11 @@ package kotlin.jvm.internal
 fun <T> __jvmNewList(): kotlin.collections.MutableList<T> = null!!
 fun <T> __jvmNewSet(): kotlin.collections.MutableSet<T> = null!!
 fun <K, V> __jvmNewMap(): kotlin.collections.MutableMap<K, V> = null!!
+fun <K, V> __jvmCopyMap(map: kotlin.collections.Map<out K, V>): kotlin.collections.MutableMap<K, V> = null!!
+fun __jvmMapEntries(map: kotlin.collections.Map<*, *>): kotlin.collections.Set<Any> = null!!
+fun __jvmMapEntryKey(entry: Any): Any? = null
+fun __jvmMapEntryValue(entry: Any): Any? = null
+fun <K, V> __jvmPutAllMap(destination: kotlin.collections.MutableMap<K, V>, source: kotlin.collections.Map<out K, V>) {}
 fun <T> __jvmEmptyList(): kotlin.collections.List<T> = null!!
 fun <T> __jvmEmptySet(): kotlin.collections.Set<T> = null!!
 fun <K, V> __jvmEmptyMap(): kotlin.collections.Map<K, V> = null!!
