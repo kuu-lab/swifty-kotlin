@@ -228,8 +228,8 @@ extension JVMFunctionBuilder {
             }
             if let selected = try mappedBuiltinMemberOwner(id), collections.contains(selected) { owner = selected }
             if owner == "java/util/ArrayList" { owner = "java/util/List" }
-            if ["set", "add", "remove", "removeAt", "put", "clear"].contains(member) { try requireMutableCollection(receiverID, at: id) }
-            if ["set", "add", "put"].contains(member) { try requireWritableArguments(receiverID, at: id) }
+            if ["set", "add", "addAll", "remove", "removeAll", "removeAt", "put", "clear"].contains(member) { try requireMutableCollection(receiverID, at: id) }
+            if ["set", "add", "addAll", "put"].contains(member) { try requireWritableArguments(receiverID, at: id) }
             let source = try convert(requireValue(receiverID), to: .reference(owner, nullable: false))
             let result = try program.expressionType(id)
             var values: [JVMValue] = []
@@ -247,6 +247,7 @@ extension JVMFunctionBuilder {
             case "get": actual = member; parameters = [["java/util/List", "kotlin/enums/EnumEntries"].contains(owner) ? .int : object]; returns = object
             case "set": actual = owner == "java/util/Map" ? "put" : "set"; parameters = [["java/util/List", "kotlin/enums/EnumEntries"].contains(owner) ? .int : object, object]; returns = object
             case "add", "remove", "contains", "containsKey": actual = member; parameters = [object]; returns = owner == "java/util/Map" && member == "remove" ? object : .boolean
+            case "addAll", "removeAll": actual = member; parameters = [.reference("java/util/Collection", nullable: false)]; returns = .boolean
             case "removeAt": actual = "remove"; parameters = [.int]; returns = object
             case "put": actual = member; parameters = [object, object]; returns = object
             case "clear": actual = member; parameters = []; returns = .unit
