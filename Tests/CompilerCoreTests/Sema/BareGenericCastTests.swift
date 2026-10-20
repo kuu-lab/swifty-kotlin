@@ -41,22 +41,62 @@ struct BareGenericCastTests {
             if isUserSourceExpr(id, in: ctx), case .asCast = expr { casts.append(id) }
             return false
         }
-        #expect(casts.count == 6)
-        for (index, cast) in casts.enumerated() {
+        struct ExpectedCast {
+            let args: (TypeSystem) -> [TypeArg]
+            let targetNullability: Nullability
+            let resultNullability: Nullability
+        }
+
+        let expectedCasts: [ExpectedCast] = [
+            // direct: x as Child
+            ExpectedCast(
+                args: { [.invariant($0.stringType), .invariant($0.intType)] },
+                targetNullability: .nonNull,
+                resultNullability: .nonNull
+            ),
+            // inherited: x as Child
+            ExpectedCast(
+                args: { [.invariant($0.stringType), .invariant($0.intType)] },
+                targetNullability: .nonNull,
+                resultNullability: .nonNull
+            ),
+            // safe: x as? Child
+            ExpectedCast(
+                args: { [.invariant($0.stringType), .invariant($0.intType)] },
+                targetNullability: .nonNull,
+                resultNullability: .nullable
+            ),
+            // nullable: x as Child?
+            ExpectedCast(
+                args: { [.invariant($0.stringType), .invariant($0.intType)] },
+                targetNullability: .nullable,
+                resultNullability: .nullable
+            ),
+            // explicit: x as Child<Int, String>
+            ExpectedCast(
+                args: { [.invariant($0.intType), .invariant($0.stringType)] },
+                targetNullability: .nonNull,
+                resultNullability: .nonNull
+            ),
+            // projected: x as Child<*, *>
+            ExpectedCast(
+                args: { _ in [.star, .star] },
+                targetNullability: .nonNull,
+                resultNullability: .nonNull
+            ),
+        ]
+
+        #expect(casts.count == expectedCasts.count)
+        for (cast, expected) in zip(casts, expectedCasts) {
             let target = try #require(sema.bindings.castTargetType(for: cast))
             guard case let .classType(targetClass) = sema.types.kind(of: target) else {
                 Issue.record("Expected a nominal cast target")
                 continue
             }
-            let expectedArgs: [TypeArg] = switch index {
-            case 4: [.invariant(sema.types.intType), .invariant(sema.types.stringType)]
-            case 5: [.star, .star]
-            default: [.invariant(sema.types.stringType), .invariant(sema.types.intType)]
-            }
-            #expect(targetClass.args == expectedArgs)
-            #expect(targetClass.nullability == (index == 3 ? .nullable : .nonNull))
+            #expect(targetClass.args == expected.args(sema.types))
+            #expect(targetClass.nullability == expected.targetNullability)
             let result = try #require(sema.bindings.exprType(for: cast))
-            #expect(sema.types.nullability(of: result) == ([2, 3].contains(index) ? .nullable : .nonNull))
+            #expect(sema.types.nullability(of: result) == expected.resultNullability)
         }
     }
 
