@@ -51,6 +51,7 @@ private struct JVMSourceGrammar {
         guard kind == .eof || kind == .symbol(.rBrace) || newlineBeforeCurrent() else { throw Unsupported() }
     }
     mutating func type(nullable: Bool = true) throws {
+        while kind == .symbol(.at) { try annotation() }
         _ = take(.keyword(.suspend))
         if take(.symbol(.lParen)) {
             if !take(.symbol(.rParen)) {
@@ -67,6 +68,7 @@ private struct JVMSourceGrammar {
         if take(.symbol(.lessThan)) {
             repeat {
                 if !take(.symbol(.star)) {
+                    while kind == .symbol(.at) { try annotation() }
                     _ = take(.keyword(.in)) || take(.softKeyword(.out))
                     try type()
                 }
@@ -254,12 +256,14 @@ private struct JVMSourceGrammar {
         }
     }
     mutating func body() throws {
+        while kind == .symbol(.at) { try annotation() }
         if kind == .symbol(.lBrace) { try block() } else { try statement() }
     }
     mutating func condition() throws {
         try require(.symbol(.lParen)); try expression(allowNewlines: true); try require(.symbol(.rParen))
     }
     mutating func statement() throws {
+        while kind == .symbol(.at) { try annotation() }
         let late = take(.keyword(.lateinit))
         if late, kind != .keyword(.val), kind != .keyword(.var) { throw Unsupported() }
         if take(.keyword(.val)) || take(.keyword(.var)) {
@@ -352,6 +356,7 @@ private struct JVMSourceGrammar {
             && tokens[index + 2].kind == .symbol(.lBrace)
     }
     mutating func primary() throws {
+        while kind == .symbol(.at) { try annotation() }
         if take(.keyword(.return)) {
             if take(.symbol(.at)) { try name() }
             if kind != .templateExprEnd, kind != .symbol(.rBrace), kind != .symbol(.semicolon), !newlineBeforeCurrent() { try expression() }
