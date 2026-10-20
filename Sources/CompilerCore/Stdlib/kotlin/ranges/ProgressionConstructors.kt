@@ -76,6 +76,9 @@ internal external fun IntProgression.Companion.__intProgressionFromClosedRange(s
 @KsSymbolName("__kk_long_progression_fromClosedRange")
 internal external fun LongProgression.Companion.__longProgressionFromClosedRange(start: Long, end: Long, step: Int): LongProgression
 
+@KsSymbolName("__kk_long_progression_fromClosedRange")
+internal external fun LongProgression.Companion.__longProgressionFromClosedRange(start: Long, end: Long, step: Long): LongProgression
+
 @KsSymbolName("__kk_char_progression_fromClosedRange")
 internal external fun CharProgression.Companion.__charProgressionFromClosedRange(start: Char, end: Char, step: Int): CharProgression
 
@@ -207,6 +210,7 @@ public operator infix fun ULongRange.step(step: Long): ULongProgression {
 
 public fun IntProgression.Companion.fromClosedRange(start: Int, end: Int, step: Int): IntProgression = __intProgressionFromClosedRange(start, end, step)
 public fun LongProgression.Companion.fromClosedRange(start: Long, end: Long, step: Int): LongProgression = __longProgressionFromClosedRange(start, end, step)
+public fun LongProgression.Companion.fromClosedRange(start: Long, end: Long, step: Long): LongProgression = __longProgressionFromClosedRange(start, end, step)
 public fun CharProgression.Companion.fromClosedRange(start: Char, end: Char, step: Int): CharProgression = __charProgressionFromClosedRange(start, end, step)
 public fun UIntProgression.Companion.fromClosedRange(start: UInt, end: UInt, step: Int): UIntProgression = __uintProgressionFromClosedRange(start, end, step)
 public fun ULongProgression.Companion.fromClosedRange(start: ULong, end: ULong, step: Int): ULongProgression = __ulongProgressionFromClosedRange(start, end, step)
