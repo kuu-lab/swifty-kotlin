@@ -307,6 +307,23 @@ extension DataFlowSemaPhase {
     ) {
         let nameID = interner.intern(name)
         let fqName = ownerFQName + [nameID]
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: fqName, work: { [self] in
+            registerSyntheticMapFunction(
+                symbols: symbols,
+                interner: interner,
+                owner: owner,
+                ownerFQName: ownerFQName,
+                name: name,
+                receiverType: receiverType,
+                parameterTypes: parameterTypes,
+                returnType: returnType,
+                externalLinkName: externalLinkName,
+                flags: flags,
+                typeParameterSymbols: typeParameterSymbols
+            )
+        }) {
+            return
+        }
         if let existing = symbols.lookupAll(fqName: fqName).first(where: { symbolID in
             guard let signature = symbols.functionSignature(for: symbolID) else { return false }
             return symbols.parentSymbol(for: symbolID) == owner

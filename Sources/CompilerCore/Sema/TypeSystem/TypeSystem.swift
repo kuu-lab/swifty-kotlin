@@ -440,6 +440,12 @@ public final class TypeSystem {
     }
 
     public func setNominalDirectSupertypes(_ supertypes: [SymbolID], for symbol: SymbolID) {
+        if let symbolTable,
+           symbolTable.deferUntilAfterImportedShellMaterializes(symbol, work: { [weak self] in
+               self?.setNominalDirectSupertypes(supertypes, for: symbol)
+           }) {
+            return
+        }
         let isImported = ensureImportedNominalMetadataLoaded(for: symbol)
         let existing = isImported ? nominalDirectSupertypes[symbol] ?? [] : []
         let unique = Array(Set(existing + supertypes)).sorted(by: { $0.rawValue < $1.rawValue })
@@ -452,6 +458,12 @@ public final class TypeSystem {
     }
 
     public func setNominalTypeParameterVariances(_ variances: [TypeVariance], for symbol: SymbolID) {
+        if let symbolTable,
+           symbolTable.deferUntilAfterImportedShellMaterializes(symbol, work: { [weak self] in
+               self?.setNominalTypeParameterVariances(variances, for: symbol)
+           }) {
+            return
+        }
         ensureImportedNominalMetadataLoaded(for: symbol)
         nominalTypeParameterVariancesMap[symbol] = variances
     }
@@ -471,6 +483,12 @@ public final class TypeSystem {
     }
 
     public func setNominalTypeParameterSymbols(_ symbols: [SymbolID], for nominal: SymbolID) {
+        if let symbolTable,
+           symbolTable.deferUntilAfterImportedShellMaterializes(nominal, work: { [weak self] in
+               self?.setNominalTypeParameterSymbols(symbols, for: nominal)
+           }) {
+            return
+        }
         ensureImportedNominalMetadataLoaded(for: nominal)
         nominalTypeParameterSymbolsMap[nominal] = symbols
     }
@@ -640,6 +658,12 @@ public final class TypeSystem {
     }
 
     public func setNominalSupertypeTypeArgs(_ args: [TypeArg], for child: SymbolID, supertype parent: SymbolID) {
+        if let symbolTable,
+           symbolTable.deferUntilAfterImportedShellMaterializes(child, work: { [weak self] in
+               self?.setNominalSupertypeTypeArgs(args, for: child, supertype: parent)
+           }) {
+            return
+        }
         ensureImportedNominalMetadataLoaded(for: child)
         nominalSupertypeTypeArgsMap[child, default: [:]][parent] = args
     }

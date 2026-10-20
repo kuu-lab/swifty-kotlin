@@ -786,6 +786,17 @@ extension DataFlowSemaPhase {
         let initName = interner.intern("<init>")
         let constructorFQName = ownerInfo.fqName + [initName]
         let parameterTypes = [types.intType]
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: constructorFQName, work: { [self] in
+            registerNativeConcurrentWorkerConstructor(
+                ownerSymbol: ownerSymbol,
+                ownerType: ownerType,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        }) {
+            return
+        }
         guard symbols.lookupAll(fqName: constructorFQName).first(where: { id in
             guard symbols.symbol(id)?.kind == .constructor,
                   let signature = symbols.functionSignature(for: id)

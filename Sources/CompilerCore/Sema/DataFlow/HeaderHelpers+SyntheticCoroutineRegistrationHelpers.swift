@@ -38,6 +38,24 @@ extension DataFlowSemaPhase {
     ) {
         let functionName = interner.intern(name)
         let functionFQName = packageFQName + [functionName]
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: functionFQName, work: { [self] in
+            registerSyntheticCoroutineExtensionFunction(
+                named: name,
+                packageFQName: packageFQName,
+                receiverType: receiverType,
+                parameters: parameters,
+                returnType: returnType,
+                externalLinkName: externalLinkName,
+                flags: flags,
+                typeParameterSymbols: typeParameterSymbols,
+                classTypeParameterCount: classTypeParameterCount,
+                syntheticTypeParameterNames: syntheticTypeParameterNames,
+                symbols: symbols,
+                interner: interner
+            )
+        }) {
+            return
+        }
         let existingSymbols = symbols.lookupAll(fqName: functionFQName)
         let hasExistingFunctionWithSameSignature = existingSymbols.contains { id in
             guard let sym = symbols.symbol(id),
@@ -137,6 +155,25 @@ extension DataFlowSemaPhase {
         // Skip only true duplicate function signatures. Allow overloads with the
         // same arity but different parameter types, and allow nominal types to
         // share the same FQName with factory-style functions.
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: functionFQName, work: { [self] in
+            registerSyntheticCoroutineTopLevelFunction(
+                named: name,
+                packageFQName: packageFQName,
+                parameters: parameters,
+                returnType: returnType,
+                externalLinkName: externalLinkName,
+                isSuspend: isSuspend,
+                syntheticTypeParameterNames: syntheticTypeParameterNames,
+                flags: flags,
+                explicitTypeParameterSymbols: explicitTypeParameterSymbols,
+                syntheticVarargParameterIndices: syntheticVarargParameterIndices,
+                valueParameterFQNameSuffixes: valueParameterFQNameSuffixes,
+                symbols: symbols,
+                interner: interner
+            )
+        }) {
+            return
+        }
         let existingSymbols = symbols.lookupAll(fqName: functionFQName)
         let hasExistingFunctionWithSameSignature = existingSymbols.contains { id in
             guard let sym = symbols.symbol(id),
@@ -266,6 +303,19 @@ extension DataFlowSemaPhase {
     ) {
         let functionName = interner.intern(name)
         let functionFQName = packageFQName + [functionName]
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: functionFQName, work: { [self] in
+            registerSyntheticCoroutineExtensionFunction(
+                named: name,
+                packageFQName: packageFQName,
+                receiverType: receiverType,
+                externalLinkName: externalLinkName,
+                returnType: returnType,
+                symbols: symbols,
+                interner: interner
+            )
+        }) {
+            return
+        }
         let existingSymbols = symbols.lookupAll(fqName: functionFQName)
         if let existing = existingSymbols.first(where: { symbolID in
             guard let signature = symbols.functionSignature(for: symbolID) else {
@@ -320,6 +370,24 @@ extension DataFlowSemaPhase {
         }
         let memberName = interner.intern(name)
         let memberFQName = ownerInfo.fqName + [memberName]
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: memberFQName, work: { [self] in
+            registerSyntheticCoroutineMember(
+                ownerSymbol: ownerSymbol,
+                ownerType: ownerType,
+                name: name,
+                externalLinkName: externalLinkName,
+                returnType: returnType,
+                parameters: parameters,
+                flags: flags,
+                typeParameterSymbols: typeParameterSymbols,
+                classTypeParameterCount: classTypeParameterCount,
+                isSuspend: isSuspend,
+                symbols: symbols,
+                interner: interner
+            )
+        }) {
+            return
+        }
         let hasMatchingSignature = symbols.lookupAll(fqName: memberFQName).contains { member in
             guard let signature = symbols.functionSignature(for: member) else { return false }
             return signature.receiverType == ownerType && signature.parameterTypes == parameters.map(\.type)
@@ -383,6 +451,22 @@ extension DataFlowSemaPhase {
     ) {
         let functionName = interner.intern(name)
         let functionFQName = packageFQName + [functionName]
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: functionFQName, work: { [self] in
+            registerSyntheticCoroutineExtensionFunction(
+                named: name,
+                packageFQName: packageFQName,
+                receiverType: receiverType,
+                externalLinkName: externalLinkName,
+                returnType: returnType,
+                parameters: parameters,
+                flags: flags,
+                classTypeParameterCount: classTypeParameterCount,
+                symbols: symbols,
+                interner: interner
+            )
+        }) {
+            return
+        }
         let existingSymbols = symbols.lookupAll(fqName: functionFQName)
         let hasExistingFunctionWithSameSignature = existingSymbols.contains { id in
             guard let sym = symbols.symbol(id),
@@ -561,6 +645,11 @@ extension DataFlowSemaPhase {
             annotationFQName: "kotlin.SinceKotlin",
             arguments: ["1.3"]
         )
+        if symbols.deferUntilAfterImportedShellMaterializes(symbol, work: { [self] in
+            attachRestrictsSuspensionAnnotationMetadata(to: symbol, symbols: symbols)
+        }) {
+            return
+        }
         var annotations = symbols.annotations(for: symbol)
         for record in [targetRecord, retentionRecord, sinceKotlinRecord] where !annotations.contains(record) {
             annotations.append(record)

@@ -61,6 +61,24 @@ extension DataFlowSemaPhase {
         guard let ownerInfo = symbols.symbol(ownerSymbol) else { return }
         let memberName = interner.intern(name)
         let memberFQName = ownerInfo.fqName + [memberName]
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: memberFQName, work: { [self] in
+            registerNativeConcurrentMemberFunction(
+                ownerSymbol: ownerSymbol,
+                ownerType: ownerType,
+                name: name,
+                externalLinkName: externalLinkName,
+                returnType: returnType,
+                parameters: parameters,
+                defaultValues: defaultValues,
+                typeParameterSymbols: typeParameterSymbols,
+                classTypeParameterCount: classTypeParameterCount,
+                flags: flags,
+                symbols: symbols,
+                interner: interner
+            )
+        }) {
+            return
+        }
         guard symbols.lookupAll(fqName: memberFQName).first(where: { id in
             guard let sig = symbols.functionSignature(for: id) else { return false }
             return sig.parameterTypes == parameters.map(\.type) && sig.returnType == returnType
@@ -133,6 +151,23 @@ extension DataFlowSemaPhase {
         let initName = interner.intern("<init>")
         let constructorFQName = ownerInfo.fqName + [initName]
         let parameterTypes = parameters.map(\.type)
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: constructorFQName, work: { [self] in
+            registerNativeConcurrentConstructor(
+                ownerSymbol: ownerSymbol,
+                ownerType: ownerType,
+                externalLinkName: externalLinkName,
+                visibility: visibility,
+                annotations: annotations,
+                parameters: parameters,
+                defaultValues: defaultValues,
+                typeParameterSymbols: typeParameterSymbols,
+                classTypeParameterCount: classTypeParameterCount,
+                symbols: symbols,
+                interner: interner
+            )
+        }) {
+            return
+        }
         guard symbols.lookupAll(fqName: constructorFQName).first(where: { id in
             guard symbols.symbol(id)?.kind == .constructor,
                   let sig = symbols.functionSignature(for: id)
@@ -334,17 +369,24 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        if !symbols.directSupertypes(for: cFunctionSymbol).contains(cPointedSymbol) {
-            symbols.setDirectSupertypes(
-                symbols.directSupertypes(for: cFunctionSymbol) + [cPointedSymbol],
-                for: cFunctionSymbol
-            )
+        // KUU-2673: reading supertypes of an imported shell decodes it; defer
+        // the merge until the record is applied instead.
+        let mergeCPointedSupertype = {
+            if !symbols.directSupertypes(for: cFunctionSymbol).contains(cPointedSymbol) {
+                symbols.setDirectSupertypes(
+                    symbols.directSupertypes(for: cFunctionSymbol) + [cPointedSymbol],
+                    for: cFunctionSymbol
+                )
+            }
+            if !types.directNominalSupertypes(for: cFunctionSymbol).contains(cPointedSymbol) {
+                types.setNominalDirectSupertypes(
+                    types.directNominalSupertypes(for: cFunctionSymbol) + [cPointedSymbol],
+                    for: cFunctionSymbol
+                )
+            }
         }
-        if !types.directNominalSupertypes(for: cFunctionSymbol).contains(cPointedSymbol) {
-            types.setNominalDirectSupertypes(
-                types.directNominalSupertypes(for: cFunctionSymbol) + [cPointedSymbol],
-                for: cFunctionSymbol
-            )
+        if !symbols.deferUntilAfterImportedShellMaterializes(cFunctionSymbol, work: mergeCPointedSupertype) {
+            mergeCPointedSupertype()
         }
 
         return types.make(.classType(ClassType(
@@ -367,25 +409,32 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        if !symbols.directSupertypes(for: ownerSymbol).contains(functionSymbol) {
-            symbols.setDirectSupertypes(
-                symbols.directSupertypes(for: ownerSymbol) + [functionSymbol],
-                for: ownerSymbol
-            )
-        }
-        if !types.directNominalSupertypes(for: ownerSymbol).contains(functionSymbol) {
-            types.setNominalDirectSupertypes(
-                types.directNominalSupertypes(for: ownerSymbol) + [functionSymbol],
-                for: ownerSymbol
-            )
-        }
+        // KUU-2673: reading supertypes of an imported shell decodes it; defer
+        // the merge until the record is applied instead.
+        let mergeFunctionSupertype = {
+            if !symbols.directSupertypes(for: ownerSymbol).contains(functionSymbol) {
+                symbols.setDirectSupertypes(
+                    symbols.directSupertypes(for: ownerSymbol) + [functionSymbol],
+                    for: ownerSymbol
+                )
+            }
+            if !types.directNominalSupertypes(for: ownerSymbol).contains(functionSymbol) {
+                types.setNominalDirectSupertypes(
+                    types.directNominalSupertypes(for: ownerSymbol) + [functionSymbol],
+                    for: ownerSymbol
+                )
+            }
 
-        // KUU-1084: FunctionN type params are declared in Kotlin order
-        // [P1..PN, R] — args carry the parameter types then the return type.
-        let supertypeArgs: [TypeArg] = functionArgumentTypes.map { .in($0) }
-            + [.out(types.unitType)]
-        symbols.setSupertypeTypeArgs(supertypeArgs, for: ownerSymbol, supertype: functionSymbol)
-        types.setNominalSupertypeTypeArgs(supertypeArgs, for: ownerSymbol, supertype: functionSymbol)
+            // KUU-1084: FunctionN type params are declared in Kotlin order
+            // [P1..PN, R] — args carry the parameter types then the return type.
+            let supertypeArgs: [TypeArg] = functionArgumentTypes.map { .in($0) }
+                + [.out(types.unitType)]
+            symbols.setSupertypeTypeArgs(supertypeArgs, for: ownerSymbol, supertype: functionSymbol)
+            types.setNominalSupertypeTypeArgs(supertypeArgs, for: ownerSymbol, supertype: functionSymbol)
+        }
+        if !symbols.deferUntilAfterImportedShellMaterializes(ownerSymbol, work: mergeFunctionSupertype) {
+            mergeFunctionSupertype()
+        }
     }
 
     private func nativeConcurrentFunctionInterfaceSymbol(

@@ -82,8 +82,18 @@ extension DataFlowSemaPhase {
         guard let mutableListSymbol = symbols.lookup(fqName: collectionsPackage + [mutableListName]),
               let mutableListInfo = symbols.symbol(mutableListSymbol),
               !mutableListInfo.flags.contains(.synthetic),
-              let mutableIterableSymbol = symbols.lookup(fqName: collectionsPackage + [mutableIterableName]),
-              let typeParameter = types.nominalTypeParameterSymbols(for: mutableListSymbol).first
+              let mutableIterableSymbol = symbols.lookup(fqName: collectionsPackage + [mutableIterableName])
+        else {
+            return
+        }
+        // KUU-2673: reading the imported shell's type parameters and
+        // supertypes decodes it; patch after materialization instead.
+        if symbols.deferUntilAfterImportedShellMaterializes(mutableListSymbol, work: { [self] in
+            patchSourceBackedMutableListSupertypes(symbols: symbols, types: types, interner: interner)
+        }) {
+            return
+        }
+        guard let typeParameter = types.nominalTypeParameterSymbols(for: mutableListSymbol).first
         else {
             return
         }
