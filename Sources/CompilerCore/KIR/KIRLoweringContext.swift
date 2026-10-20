@@ -11,6 +11,12 @@ final class KIRLoweringContext {
         let flagSymbol: SymbolID
     }
 
+    struct SuperConstructorArgumentReceiverOverride {
+        let constructorSymbol: SymbolID
+        let receiverSymbol: SymbolID
+        let receiverExprID: KIRExprID
+    }
+
 
     var localValuesBySymbol: [SymbolID: KIRExprID] = [:]
     var localDeclaredTypesBySymbol: [SymbolID: TypeID] = [:]
@@ -26,6 +32,9 @@ final class KIRLoweringContext {
     var lambdaEnclosingClassNamesByFileID: [FileID: String] = [:]
     var currentImplicitReceiverExprID: KIRExprID?
     var currentImplicitReceiverSymbol: SymbolID?
+    /// Inner-class `super(...)` arguments run before this instance is initialized.
+    /// A closure that captures the dispatch receiver must use the enclosing instance.
+    var superConstructorArgumentReceiverOverride: SuperConstructorArgumentReceiverOverride?
     /// Qualified receiver values that remain visible while an inline object
     /// literal property initializer is lowered. The active receiver changes
     /// to the object literal itself, but `this@Outer` must still use the

@@ -1006,8 +1006,21 @@ extension KIRLoweringDriver {
         }
         guard !delegationTarget.isEmpty else { return }
         var loweredArgs: [KIRExprID] = []
-        for arg in delegation.args {
-            loweredArgs.append(lowerExpr(arg.expr, shared: shared, emit: &body))
+        if case .super_ = delegation.kind,
+           let receiver = ctx.activeImplicitReceiverExprID()
+        {
+            loweredArgs = lowerSuperConstructorArguments(
+                delegation.args,
+                ctorSymbol: ctorSymbol,
+                ownerSymbol: ownerSymbol,
+                receiver: receiver,
+                shared: shared,
+                body: &body
+            )
+        } else {
+            for arg in delegation.args {
+                loweredArgs.append(lowerExpr(arg.expr, shared: shared, emit: &body))
+            }
         }
         let delegationResultID = arena.appendTemporary(type: sema.types.unitType
         )

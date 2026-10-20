@@ -736,6 +736,20 @@ extension LambdaLowerer {
                 )
             }
         }
+        if let receiverOverride = driver.ctx.superConstructorArgumentReceiverOverride,
+           driver.ctx.currentFunctionSymbol == receiverOverride.constructorSymbol,
+           symbol == receiverOverride.receiverSymbol
+        {
+            if let outerReceiver = resolveImmediateOuterInstance(
+                from: receiverOverride.receiverExprID,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            ) {
+                return outerReceiver
+            }
+        }
         if let localValue = driver.ctx.localValue(for: symbol) {
             return localValue
         }
