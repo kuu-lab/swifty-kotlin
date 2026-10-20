@@ -209,7 +209,7 @@ final class JVMProgramBuilder {
 }
 
 final class JVMFunctionBuilder {
-    struct Local { let value: JVMValue; let mutable: Bool; var cell: JVMValue? = nil; var functionType: FunctionType? = nil; var symbol: SymbolID? = nil; var delegateSymbol: SymbolID? = nil; var lateName: String? = nil; var deferredInitialization = false }
+    struct Local { let value: JVMValue; let mutable: Bool; var cell: JVMValue? = nil; var functionType: FunctionType? = nil; var symbol: SymbolID? = nil; var delegateSymbol: SymbolID? = nil; var lateName: String? = nil; var deferredInitialization = false; var numericBoxingOrigin: JVMValue? = nil }
     let program: JVMProgramBuilder
     let declaration: FunDecl
     let reference: JVMFunctionReference
@@ -489,6 +489,12 @@ final class JVMFunctionBuilder {
             if let initial { instructions.append(.copy(try convert(initial, to: local.type), local)) }
             var binding = Local(value: local, mutable: mutable)
             binding.symbol = symbol
+            if !mutable, local.type.referenceName == "java/lang/Comparable",
+               let initial, initial.type.isNumeric {
+                // Retain the evaluated primitive behind this immutable box.
+                // Closure helpers deliberately reconstruct locals without it.
+                binding.numericBoxingOrigin = initial
+            }
             binding.deferredInitialization = initial == nil && !mutable
             // Sema owns definite assignment, including mutually exclusive val
             // writes. Deferred callback initialization needs the same shared

@@ -143,6 +143,15 @@ extension JVMFunctionBuilder {
               let entry = program.textLibraryMethods[binding.chosenCallee] else { return nil }
         let method = entry.method
         if method.owner == "java/lang/Comparable", method.name == "compareTo", let receiver,
+           case .memberCall = arena.expr(id), case let .nameRef(name, _) = arena.expr(receiver),
+           let local = scopes.reversed().compactMap({ $0[name] }).first,
+           let origin = local.numericBoxingOrigin {
+            let saved = evaluatedOperands
+            evaluatedOperands[receiver] = origin
+            defer { evaluatedOperands = saved }
+            return try scalarMember(receiver, name: "compareTo", args: args, id: id)
+        }
+        if method.owner == "java/lang/Comparable", method.name == "compareTo", let receiver,
            (evaluatedOperands[receiver]?.type ?? (try? program.expressionType(receiver)))?.numericCarrier != nil {
             return try scalarMember(receiver, name: "compareTo", args: args, id: id)
         }
