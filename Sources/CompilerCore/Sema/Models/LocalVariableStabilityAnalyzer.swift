@@ -177,7 +177,7 @@ final class LocalVariableStabilityAnalyzer {
             flowBarrierScopes.append(id)
             scoped(body, hiding: variable.map { [$0] } ?? [])
             flowBarrierScopes.removeLast()
-        case let .forDestructuringExpr(names, iterable, body, _):
+        case let .forDestructuringExpr(names, iterable, body, _, _):
             children([iterable])
             flowBarrierScopes.append(id)
             scoped(body, hiding: names.compactMap { $0 })

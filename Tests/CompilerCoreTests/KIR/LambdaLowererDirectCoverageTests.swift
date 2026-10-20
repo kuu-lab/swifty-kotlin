@@ -240,7 +240,10 @@ struct LambdaLowererDirectCoverageTests {
             .destructuringDecl(names: [fixture.interner.intern("a"), fixture.interner.intern("b")], isMutable: false, initializer: lhs, range: range)
         )
         let forDestructuringExpr = fixture.astArena.appendExpr(
-            .forDestructuringExpr(names: [fixture.interner.intern("a")], iterable: iterable, body: rhs, range: range)
+            .forDestructuringExpr(
+                names: [fixture.interner.intern("a")], iterable: iterable, body: rhs,
+                syntax: .parentheses, range: range
+            )
         )
         let memberAssignExpr = fixture.astArena.appendExpr(
             .memberAssign(receiver: receiver, callee: fixture.interner.intern("prop"), value: value, range: range)

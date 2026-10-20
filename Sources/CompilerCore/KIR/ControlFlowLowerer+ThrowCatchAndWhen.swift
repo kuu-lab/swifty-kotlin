@@ -118,6 +118,7 @@ extension ControlFlowLowerer {
         names: [InternedString?],
         iterableExpr: ExprID,
         bodyExpr: ExprID,
+        syntax: ForDestructuringSyntax,
         shared: KIRLoweringSharedContext,
         emit instructions: inout KIRLoweringEmitContext
     ) -> KIRExprID {
@@ -126,6 +127,7 @@ extension ControlFlowLowerer {
             names: names,
             iterableExpr: iterableExpr,
             bodyExpr: bodyExpr,
+            syntax: syntax,
             ast: shared.ast,
             sema: shared.sema,
             arena: shared.arena,

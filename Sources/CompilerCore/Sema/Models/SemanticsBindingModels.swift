@@ -34,6 +34,12 @@ public struct CallBinding {
     }
 }
 
+struct DestructuringPropertyBinding {
+    let propertySymbol: SymbolID
+    let type: TypeID
+    let getterCall: CallBinding?
+}
+
 /// The value read before invoking an object's operator member through a property.
 public struct InvokeOperatorPropertyBinding {
     public let property: SymbolID

@@ -627,7 +627,7 @@ extension LambdaLowerer {
         case let .destructuringDecl(_, _, initializer, _):
             collectBoundIdentifierSymbols(in: initializer, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
 
-        case let .forDestructuringExpr(_, iterable, body, _):
+        case let .forDestructuringExpr(_, iterable, body, _, _):
             collectBoundIdentifierSymbols(in: iterable, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             collectBoundIdentifierSymbols(in: body, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
 
@@ -931,7 +931,7 @@ extension LambdaLowerer {
         case let .destructuringDecl(_, _, initializer, _):
             return containsImplicitReceiverReference(in: initializer, ast: ast)
 
-        case let .forDestructuringExpr(_, iterable, body, _):
+        case let .forDestructuringExpr(_, iterable, body, _, _):
             return containsImplicitReceiverReference(in: iterable, ast: ast)
                 || containsImplicitReceiverReference(in: body, ast: ast)
 

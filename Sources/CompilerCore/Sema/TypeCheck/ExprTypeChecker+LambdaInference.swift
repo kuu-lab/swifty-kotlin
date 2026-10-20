@@ -1070,7 +1070,7 @@ extension ExprTypeChecker {
                 return nil
             }
         case let .forExpr(_, iterable, body, _, _),
-             let .forDestructuringExpr(_, iterable, body, _):
+             let .forDestructuringExpr(_, iterable, body, _, _):
             [iterable, body]
         case let .whileExpr(condition, body, _, _):
             [condition, body]

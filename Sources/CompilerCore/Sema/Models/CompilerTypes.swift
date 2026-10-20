@@ -45,6 +45,11 @@ public enum EmitMode: String {
     case library
 }
 
+public enum NameBasedDestructuringMode: String, Equatable {
+    case disabled
+    case complete
+}
+
 /// Thread-safety mode for `by lazy { }` delegates (P5-80).
 public enum LazyDelegateThreadSafetyMode: Int, Equatable {
     /// `LazyThreadSafetyMode.SYNCHRONIZED` – uses a lock (default).
@@ -78,6 +83,13 @@ public struct CompilerOptions: Equatable {
     public var diagnosticsFormat: DiagnosticsFormat
     /// Exact file-level entry point, used by generated test executables.
     public var entryPointFQName: String?
+
+    public var nameBasedDestructuringMode: NameBasedDestructuringMode {
+        frontendFlags.contains("name-based-destructuring=complete")
+            || frontendFlags.contains("-Xname-based-destructuring=complete")
+            ? .complete
+            : .disabled
+    }
 
     /// Whether this compilation produces common-module metadata that may
     /// retain expect declarations without local actual declarations.

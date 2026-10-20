@@ -109,7 +109,7 @@ extension CallTypeChecker {
             return visit(lhs) || visit(rhs)
         case let .destructuringDecl(_, _, initializer, _):
             return visit(initializer)
-        case let .forDestructuringExpr(_, iterable, body, _):
+        case let .forDestructuringExpr(_, iterable, body, _, _):
             return visit(iterable) || visit(body)
         case let .objectLiteral(_, declID, _):
             guard let declID,

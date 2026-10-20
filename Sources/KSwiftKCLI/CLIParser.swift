@@ -7,6 +7,7 @@ enum CLIParseError: Error, Equatable {
     case unsupportedOptimizationLevel(String)
     case invalidTargetTriple(String)
     case unsupportedDiagnosticsFormat(String)
+    case unsupportedNameBasedDestructuringMode(String)
     case unknownOption(String)
     case noInputFiles
     case incompatibleStdlibOptions(String)
@@ -36,6 +37,8 @@ enum CLIParser {
                              Enable unrestricted builder inference
       -Xproper-type-inference-constraints-processing
                              Enable proper type inference constraints processing
+      -Xname-based-destructuring=complete
+                             Enable name-based short-form destructuring in for loops
       -Xir <flag>            IR/lowering feature flag (e.g. trace-lowering)
       -Xruntime <flag>       Runtime feature flag
       -Xdiagnostics <format> Diagnostic output format (text|json)
@@ -132,6 +135,12 @@ enum CLIParser {
                 frontendFlags.append("unrestricted-builder-inference")
             case "-Xproper-type-inference-constraints-processing":
                 frontendFlags.append("ProperTypeInferenceConstraintsProcessing")
+            case _ where arg.hasPrefix("-Xname-based-destructuring="):
+                let mode = String(arg.dropFirst("-Xname-based-destructuring=".count))
+                guard mode == "complete" else {
+                    throw CLIParseError.unsupportedNameBasedDestructuringMode(mode)
+                }
+                frontendFlags.append("name-based-destructuring=complete")
             case "-Xir":
                 try irFlags.append(requireValue(option: arg, args: args, index: &index))
             case "-Xruntime":

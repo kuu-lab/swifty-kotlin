@@ -322,7 +322,7 @@ struct CaptureAnalyzer {
             case let .destructuringDecl(_, _, initializer, _):
                 visit(initializer)
 
-            case let .forDestructuringExpr(_, iterable, body, _):
+            case let .forDestructuringExpr(_, iterable, body, _, _):
                 visit(iterable)
                 visit(body)
 

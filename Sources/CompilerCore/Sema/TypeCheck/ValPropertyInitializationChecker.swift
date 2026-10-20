@@ -375,7 +375,7 @@ final class ValPropertyInitializationChecker {
         case let .forExpr(_, iterable, body, label, _):
             visit(iterable)
             walkLoop(body: body, condition: nil, label: label, atLeastOnce: false, flow: &flow, permitsInitialization: permitsInitialization)
-        case let .forDestructuringExpr(_, iterable, body, _):
+        case let .forDestructuringExpr(_, iterable, body, _, _):
             visit(iterable)
             walkLoop(body: body, condition: nil, label: ast.arena.loopLabel(for: id), atLeastOnce: false, flow: &flow, permitsInitialization: permitsInitialization)
         case let .tryExpr(body, catches, finallyExpr, _):

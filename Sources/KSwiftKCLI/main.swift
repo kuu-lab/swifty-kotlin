@@ -20,6 +20,8 @@ func printCLIError(_ error: CLIParseError) {
         print("Invalid target triple: \(value)")
     case let .unsupportedDiagnosticsFormat(value):
         print("Unsupported diagnostics format: \(value)")
+    case let .unsupportedNameBasedDestructuringMode(value):
+        print("Unsupported name-based destructuring mode: \(value)")
     case let .unknownOption(option):
         print("Unknown option: \(option)")
     case let .incompatibleStdlibOptions(message):

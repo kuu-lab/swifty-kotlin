@@ -3,6 +3,7 @@ extension CallLowerer {
         getterSymbol: SymbolID,
         receiver: KIRExprID,
         callExprID: ExprID?,
+        bindingOverride: CallBinding? = nil,
         result: KIRExprID,
         sema: SemaModule,
         arena: KIRArena,
@@ -13,6 +14,7 @@ extension CallLowerer {
             for: getterSymbol,
             arguments: [receiver],
             callExprID: callExprID,
+            bindingOverride: bindingOverride,
             sema: sema,
             arena: arena,
             interner: interner,
@@ -33,6 +35,7 @@ extension CallLowerer {
         getterSlot: Int,
         receiver: KIRExprID,
         callExprID: ExprID?,
+        bindingOverride: CallBinding? = nil,
         result: KIRExprID,
         sema: SemaModule,
         arena: KIRArena,
@@ -43,6 +46,7 @@ extension CallLowerer {
             for: getterSymbol,
             arguments: [receiver],
             callExprID: callExprID,
+            bindingOverride: bindingOverride,
             sema: sema,
             arena: arena,
             interner: interner,
@@ -146,6 +150,7 @@ extension CallLowerer {
     func tryResolvePropertyAccessorVirtualDispatch(
         propertySymbol: SymbolID,
         receiverExpr: ExprID,
+        receiverTypeOverride: TypeID? = nil,
         accessorKind: PropertyAccessorKind,
         ast: ASTModule,
         sema: SemaModule,
@@ -154,7 +159,9 @@ extension CallLowerer {
         if case .superRef = ast.arena.expr(receiverExpr) {
             return nil
         }
-        let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+        let receiverType = receiverTypeOverride
+            ?? sema.bindings.exprTypes[receiverExpr]
+            ?? sema.types.anyType
         if MemberRuntimeDispatch.rangeReceiverKind(
             for: receiverType,
             sema: sema,
@@ -558,6 +565,9 @@ extension CallLowerer {
         receiverExpr: ExprID,
         loweredReceiverID: KIRExprID,
         resultType: TypeID,
+        receiverTypeOverride: TypeID? = nil,
+        isSuperQualifiedReceiverOverride: Bool? = nil,
+        callBindingOverride: CallBinding? = nil,
         ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
@@ -566,7 +576,9 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         let isSuperQualifiedReceiver: Bool
-        if case .superRef = ast.arena.expr(receiverExpr) {
+        if let isSuperQualifiedReceiverOverride {
+            isSuperQualifiedReceiver = isSuperQualifiedReceiverOverride
+        } else if case .superRef = ast.arena.expr(receiverExpr) {
             isSuperQualifiedReceiver = true
         } else {
             isSuperQualifiedReceiver = false
@@ -594,7 +606,10 @@ extension CallLowerer {
                    interner: interner, cache: driver.ctx.nominalDispatchCache
                ),
                let dispatchReceiver = memberExtensionDispatchReceiver(
-                   for: getter, callExprID: callExprID, sema: sema, arena: arena,
+                   for: getter,
+                   callExprID: callExprID,
+                   dispatchReceiverSymbol: callBindingOverride?.dispatchReceiverSymbol,
+                   sema: sema, arena: arena,
                    interner: interner, instructions: &instructions
                ) {
                 let typeID = RuntimeTypeCheckToken.stableNominalTypeID(
@@ -611,6 +626,7 @@ extension CallLowerer {
                ) {
                 let arguments = propertyAccessorArguments(
                     for: accessor, arguments: [loweredReceiverID], callExprID: callExprID,
+                    bindingOverride: callBindingOverride,
                     sema: sema, arena: arena, interner: interner, instructions: &instructions
                 )
                 instructions.append(.virtualCall(
@@ -620,7 +636,9 @@ extension CallLowerer {
                 ))
             } else {
                 appendPropertyGetterCall(
-                    getterSymbol: getter, receiver: loweredReceiverID, callExprID: callExprID, result: result,
+                    getterSymbol: getter, receiver: loweredReceiverID, callExprID: callExprID,
+                    bindingOverride: callBindingOverride,
+                    result: result,
                     sema: sema, arena: arena, interner: interner, instructions: &instructions
                 )
             }
@@ -681,7 +699,9 @@ extension CallLowerer {
         // Collection.size can otherwise look like a stored field on the
         // source-backed nominal class. Let the list runtime fallback handle
         // the property instead of indexing the opaque collection handle.
-        let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+        let receiverType = receiverTypeOverride
+            ?? sema.bindings.exprTypes[receiverExpr]
+            ?? sema.types.anyType
         let isRuntimeRangeReceiver = MemberRuntimeDispatch.rangeReceiverKind(
             for: receiverType,
             sema: sema,
@@ -802,6 +822,7 @@ extension CallLowerer {
                 getterSlot: getterSlot,
                 receiver: loweredReceiverID,
                 callExprID: nil,
+                bindingOverride: callBindingOverride,
                 result: result,
                 sema: sema,
                 arena: arena,
@@ -820,6 +841,7 @@ extension CallLowerer {
                let (accessorSymbol, dispatch) = tryResolvePropertyAccessorVirtualDispatch(
                 propertySymbol: propertySymbol,
                 receiverExpr: receiverExpr,
+                receiverTypeOverride: receiverTypeOverride,
                 accessorKind: .getter,
                 ast: ast,
                 sema: sema,
@@ -828,6 +850,7 @@ extension CallLowerer {
                 let result = arena.appendTemporary(type: resultType)
                 let virtualAccessorArguments = propertyAccessorArguments(
                     for: accessorSymbol, arguments: [loweredReceiverID], callExprID: nil,
+                    bindingOverride: callBindingOverride,
                     sema: sema, arena: arena, interner: interner, instructions: &instructions
                 )
                 instructions.append(.virtualCall(
@@ -855,6 +878,7 @@ extension CallLowerer {
                     getterSymbol: getterSymbol,
                     receiver: loweredReceiverID,
                     callExprID: nil,
+                    bindingOverride: callBindingOverride,
                     result: result,
                     sema: sema,
                     arena: arena,
@@ -902,6 +926,7 @@ extension CallLowerer {
         if let (accessorSymbol, dispatch) = tryResolvePropertyAccessorVirtualDispatch(
             propertySymbol: propertySymbol,
             receiverExpr: receiverExpr,
+            receiverTypeOverride: receiverTypeOverride,
             accessorKind: .getter,
             ast: ast,
             sema: sema,
@@ -910,6 +935,7 @@ extension CallLowerer {
             let result = arena.appendTemporary(type: resultType)
             let virtualAccessorArguments = propertyAccessorArguments(
                 for: accessorSymbol, arguments: [loweredReceiverID], callExprID: nil,
+                bindingOverride: callBindingOverride,
                 sema: sema, arena: arena, interner: interner, instructions: &instructions
             )
             instructions.append(.virtualCall(
@@ -1821,5 +1847,52 @@ extension CallLowerer {
         return sema.symbols.lookupAll(fqName: ownerFQName).first { candidate in
             sema.symbols.symbol(candidate)?.kind == .enumClass
         }
+    }
+
+    func lowerDestructuringPropertyRead(
+        _ binding: DestructuringPropertyBinding,
+        receiverExpr: ExprID,
+        receiverType: TypeID,
+        loweredReceiverID: KIRExprID,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        if let result = lowerStoredMemberPropertyReadValue(
+            propertySymbol: binding.propertySymbol,
+            receiverExpr: receiverExpr,
+            loweredReceiverID: loweredReceiverID,
+            resultType: binding.type,
+            receiverTypeOverride: receiverType,
+            isSuperQualifiedReceiverOverride: false,
+            callBindingOverride: binding.getterCall,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        ) {
+            return result
+        }
+
+        let getter = sema.symbols.extensionPropertyGetterAccessor(for: binding.propertySymbol)
+            ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: binding.propertySymbol)
+        let result = arena.appendTemporary(type: binding.type)
+        appendPropertyGetterCall(
+            getterSymbol: getter,
+            receiver: loweredReceiverID,
+            callExprID: nil,
+            bindingOverride: binding.getterCall,
+            result: result,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+        return result
     }
 }

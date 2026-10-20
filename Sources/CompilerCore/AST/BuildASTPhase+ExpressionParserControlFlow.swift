@@ -465,7 +465,8 @@ extension BuildASTPhase.ExpressionParser {
 
         if matches(.symbol(.lParen)) || matches(.symbol(.lBracket)) {
             let savedIndex = index
-            let closingKind: TokenKind = matches(.symbol(.lBracket))
+            let syntax: ForDestructuringSyntax = matches(.symbol(.lBracket)) ? .squareBrackets : .parentheses
+            let closingKind: TokenKind = syntax == .squareBrackets
                 ? .symbol(.rBracket)
                 : .symbol(.rParen)
             _ = consume()
@@ -524,6 +525,7 @@ extension BuildASTPhase.ExpressionParser {
                     names: destructuringNames,
                     iterable: iterable,
                     body: body,
+                    syntax: syntax,
                     range: range
                 ))
                 if let label {

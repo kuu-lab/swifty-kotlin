@@ -635,6 +635,7 @@ struct TypeCheckDelegateCoverageTests {
             names: [fixture.interner.intern("x"), nil],
             iterableExpr: rangeExpr,
             bodyExpr: bodyExpr,
+            syntax: .parentheses,
             range: range,
             ctx: ctx,
             locals: &locals

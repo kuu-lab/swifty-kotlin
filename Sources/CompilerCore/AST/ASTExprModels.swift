@@ -151,6 +151,11 @@ public enum StringTemplatePart: Equatable, Codable {
     case expression(ExprID)
 }
 
+public enum ForDestructuringSyntax: Equatable, Codable {
+    case parentheses
+    case squareBrackets
+}
+
 public enum Expr: Equatable, Codable {
     case intLiteral(Int64, SourceRange)
     case longLiteral(Int64, SourceRange)
@@ -204,7 +209,13 @@ public enum Expr: Equatable, Codable {
     case inExpr(lhs: ExprID, rhs: ExprID, range: SourceRange)
     case notInExpr(lhs: ExprID, rhs: ExprID, range: SourceRange)
     case destructuringDecl(names: [InternedString?], isMutable: Bool, initializer: ExprID, range: SourceRange)
-    case forDestructuringExpr(names: [InternedString?], iterable: ExprID, body: ExprID, range: SourceRange)
+    case forDestructuringExpr(
+        names: [InternedString?],
+        iterable: ExprID,
+        body: ExprID,
+        syntax: ForDestructuringSyntax,
+        range: SourceRange
+    )
 
     public var isLambdaOrCallableRef: Bool {
         switch self {

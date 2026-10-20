@@ -162,6 +162,41 @@ struct CodegenBackendInterfaceIterableForLoopTests {
     }
 
     @Test
+    func testNameBasedForLoopDestructuringReadsProperties() throws {
+        let source = """
+        class C(val a: Int, val b: Int)
+
+        fun main() {
+            for ((a, b) in arrayOf(C(1, 2), C(3, 4))) {
+                println("$a,$b")
+            }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let output = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            defer { try? FileManager.default.removeItem(atPath: output) }
+
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "NameBasedForLoopDestructuring",
+                emit: .executable,
+                outputPath: output,
+                frontendFlags: ["name-based-destructuring=complete"]
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: output, arguments: [])
+            #expect(result.exitCode == 0, "Execution stderr: \(result.stderr)")
+            #expect(result.stdout == "1,2\n3,4\n")
+        }
+    }
+
+    @Test
     func testIterableUnzipUsesOneIteratorAndPreservesOrder() throws {
         let source = """
         class CountingPairs : Iterable<Pair<Int, String>> {

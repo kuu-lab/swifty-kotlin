@@ -5,6 +5,7 @@ public final class SemaModule {
     public let types: TypeSystem
     public let bindings: BindingTable
     public let diagnostics: DiagnosticEngine
+    public let nameBasedDestructuringMode: NameBasedDestructuringMode
     /// Kept optional for lightweight unit-test sema modules that do not build
     /// a full source environment.
     public let interner: StringInterner?
@@ -48,12 +49,14 @@ public final class SemaModule {
         bindings: BindingTable,
         diagnostics: DiagnosticEngine,
         interner: StringInterner? = nil,
+        nameBasedDestructuringMode: NameBasedDestructuringMode = .disabled,
         importedInlineFunctions: ImportedInlineFunctionStore = ImportedInlineFunctionStore()
     ) {
         self.symbols = symbols
         self.types = types
         self.bindings = bindings
         self.diagnostics = diagnostics
+        self.nameBasedDestructuringMode = nameBasedDestructuringMode
         self.interner = interner
         self.importedInlineFunctions = importedInlineFunctions
         self.bundledIndex = .empty
@@ -70,12 +73,14 @@ public final class SemaModule {
         diagnostics: DiagnosticEngine,
         interner: StringInterner? = nil,
         importedInlineFunctions: ImportedInlineFunctionStore = ImportedInlineFunctionStore(),
+        nameBasedDestructuringMode: NameBasedDestructuringMode = .disabled,
         bundledIndex: BundledDeclarationIndex
     ) {
         self.symbols = symbols
         self.types = types
         self.bindings = bindings
         self.diagnostics = diagnostics
+        self.nameBasedDestructuringMode = nameBasedDestructuringMode
         self.interner = interner
         self.importedInlineFunctions = importedInlineFunctions
         self.bundledIndex = bundledIndex

@@ -282,6 +282,7 @@ public final class BindingTable {
     /// extensions), so KIR lowering must dispatch on the resolved symbol rather
     /// than re-resolving by name.
     public private(set) var destructuringComponentCallees: [ExprID: [Int: SymbolID]] = [:]
+    var destructuringPropertyBindings: [ExprID: [Int: DestructuringPropertyBinding]] = [:]
 
     /// The initial independent-body contract permits only scalar expression
     /// types and parameter references. Any other side-table write rejects the
@@ -388,6 +389,7 @@ public final class BindingTable {
         if !objectLiteralCapturedReceiversByOwner.isEmpty { return false }
         if !capturedLocalTypesBySymbol.isEmpty { return false }
         if !destructuringComponentCallees.isEmpty { return false }
+        if !destructuringPropertyBindings.isEmpty { return false }
         return true
     }
 
@@ -506,6 +508,7 @@ public final class BindingTable {
         worker.objectLiteralCapturedReceiversByOwner = objectLiteralCapturedReceiversByOwner
         worker.capturedLocalTypesBySymbol = capturedLocalTypesBySymbol
         worker.destructuringComponentCallees = destructuringComponentCallees
+        worker.destructuringPropertyBindings = destructuringPropertyBindings
         return worker
     }
 
@@ -608,6 +611,18 @@ public final class BindingTable {
 
     public func destructuringComponentCallee(for expr: ExprID, index: Int) -> SymbolID? {
         destructuringComponentCallees[expr]?[index]
+    }
+
+    func bindDestructuringProperty(
+        _ expr: ExprID,
+        index: Int,
+        binding: DestructuringPropertyBinding
+    ) {
+        destructuringPropertyBindings[expr, default: [:]][index] = binding
+    }
+
+    func destructuringProperty(for expr: ExprID, index: Int) -> DestructuringPropertyBinding? {
+        destructuringPropertyBindings[expr]?[index]
     }
 
     public func bindContractCallsInPlaceInitializedSymbols(_ expr: ExprID, symbols: [SymbolID]) {
