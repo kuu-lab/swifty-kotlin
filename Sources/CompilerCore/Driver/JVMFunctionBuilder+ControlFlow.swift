@@ -18,7 +18,7 @@ extension JVMFunctionBuilder {
         return [.double, .float, .long].first { $0 == a || $0 == b } ?? .int
     }
 
-    func binary(_ op: BinaryOp, _ lhs: ExprID, _ rhs: ExprID, _ id: ExprID) throws -> JVMValue {
+    func binary(_ op: BinaryOp, _ lhs: ExprID, _ rhs: ExprID, _ id: ExprID) throws -> JVMValue? {
         if op == .rangeTo {
             let lower = try requireValue(lhs), upper = try requireValue(rhs)
             guard lower.type == .int, upper.type == .int else {
@@ -26,10 +26,10 @@ extension JVMFunctionBuilder {
             }
             return try constructJDK("kotlin/ranges/IntRange", parameters: [.int, .int], arguments: [lower, upper])
         }
-        if op == .add, try program.expressionType(id) == .string {
+        if [.add, .subtract, .multiply, .divide, .modulo].contains(op) {
             let args = [CallArgument(expr: rhs)]
-            if let call = try inlineCall(args, receiver: lhs, id: id), let result = call.value { return result }
-            if let call = try sourceCall(args, receiver: lhs, id: id), let result = call.value { return result }
+            if let call = try inlineCall(args, receiver: lhs, id: id)
+                ?? sourceCall(args, receiver: lhs, id: id) { return call.value }
         }
         let left = try requireValue(lhs)
         if op == .elvis {
