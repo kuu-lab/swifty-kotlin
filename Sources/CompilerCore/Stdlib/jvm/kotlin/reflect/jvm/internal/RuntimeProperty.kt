@@ -7,12 +7,40 @@ open class RuntimeProperty(owner: Any, name: String, signature: String, receiver
     override val isConst: Boolean get() = (propertyNode.number(11) and 2048) != 0
     protected override fun resultType(): Proto = metadata.type(propertyNode, 3, 9)
     override val returnType: KType get() = RuntimeType(metadata, metadata.type(propertyNode, 3, 9), propertyNode.children(4))
+    override val parameters: List<KParameter> get() {
+        if (!isConst) return super.parameters
+        if (bound || !metadata.isClass) return emptyList()
+        return listOf(RuntimeParameter(this, 0, null, false, emptyList()))
+    }
     override val annotations: List<Annotation> get() {
         val signature = metadata.propertySignature(propertyNode, 2)
         return if (signature.isEmpty()) emptyList() else visibleAnnotations(findMethod(ownerClass, signature))
     }
     fun readZero(): Any? = boxResult(callArray(arrayOf<Any?>(), true), metadata, metadata.type(propertyNode, 3, 9))
     fun readOne(receiver: Any?): Any? = boxResult(callArray(arrayOf(receiver), true), metadata, metadata.type(propertyNode, 3, 9))
+    private fun classCompanionFieldOwner(): Any? {
+        if ((metadata.root.number(1) and 448) != 384) return null
+        val outerName = __jvmClassName(ownerClass).substringBeforeLast("$")
+        val outer = __jvmLoadClass(outerName, false, __jvmClassLoader(ownerClass))
+        return if ((__jvmClassModifiers(outer) and 512) == 0) outer else null
+    }
+    override fun callArray(args: Array<out Any?>, unwrapException: Boolean): Any? {
+        if (!isConst) return super.callArray(args, unwrapException)
+        val outer = classCompanionFieldOwner()
+        // Logical instance parameters remain present for static object fields.
+        val arity = if (!bound && outer != null) 1 else 0
+        if (args.size != arity) throw IllegalArgumentException("Callable expects $arity arguments, but ${args.size} were provided.")
+        val fieldOwner = outer ?: ownerClass
+        val signature = propertyNode.child(100).child(1)
+        val fieldName = if (signature.has(1)) metadata.string(signature.number(1)) else name
+        for (field in __jvmDeclaredFields(fieldOwner)) {
+            if (__jvmFieldName(field) == fieldName && (__jvmFieldModifiers(field) and 8) != 0) {
+                __jvmSetAccessible(field, true)
+                return boxResult(__jvmFieldGet(field, null), metadata, resultType())
+            }
+        }
+        throw IllegalStateException("Missing reflected JVM const field: $fieldName")
+    }
     private fun write(receiver: Any?, value: Any?) {
         val signature = metadata.propertySignature(propertyNode, 4)
         if (signature.isEmpty()) throw IllegalStateException("Property is immutable")

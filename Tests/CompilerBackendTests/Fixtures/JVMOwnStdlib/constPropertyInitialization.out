@@ -1,0 +1,16 @@
+before
+interface-discovered
+interface-init
+42
+43
+42
+44
+direct-init
+45
+object-discovered
+object-init
+46
+class-discovered
+class-init
+47
+after

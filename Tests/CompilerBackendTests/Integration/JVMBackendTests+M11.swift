@@ -309,8 +309,7 @@ extension JVMBackendTests {
         "@file:JvmName(\"Ignored\")\nfun main() {}",
         "annotation class Number(val n: Int); fun bad(@Number(\"wrong\") n: Int): Int = n",
         "annotation class Number(val n: Int); fun bad(@Number(4294967296) n: Int): Int = n",
-        "@JvmName(\"second\") fun first(): Int = 1; fun second(): Int = 2",
-        "class Constants { companion object { const val NUMBER = 42 } }"
+        "@JvmName(\"second\") fun first(): Int = 1; fun second(): Int = 2"
     ])
     func m11UnsupportedShapesFailBeforeEmission(source: String) throws {
         try withWorkspace { root in

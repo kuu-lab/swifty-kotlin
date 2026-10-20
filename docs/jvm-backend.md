@@ -518,7 +518,7 @@ Boolean／String、enum、KClass、入れ子の annotation、これらの配列�
 parameter annotations に保存し、SOURCE retention は出力しない。Kotlin／Java 両方の Retention／Target と
 MustBeDocumented を記録する。class／function／constructor／parameter、field／get／set／property／
 param／setparam の use-site target、property の `$annotations` carrier、`@JvmName` に対応する。
-annotation 引数には primitive／String の定数式と const val を使える。トップレベル／named object の const field は ConstantValue を持つ。companion の const は未対応。
+annotation 引数には primitive／String の定数式と const val を使える。トップレベル／named object／companion の const field は ConstantValue を持つ。class companion の const field は外側のクラスへ配置し、interface companion は外側とcompanion双方へ配置する。直接参照は定数値、独自reflection runtimeのプロパティ参照はそのfieldを読み出す。
 
 `Type::class`／`value::class`、bound／unbound な関数・コンストラクタ・property 参照を生成する。
 class literal は ldc を使い、対象クラスの static initializer を実行しない。
