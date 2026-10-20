@@ -115,10 +115,8 @@ extension TypeSystem {
         // This allows `T : AutoCloseable` (which stores `Closeable` as its bound after
         // typealias expansion) to satisfy `T <: Closeable` in the constraint solver and
         // member-lookup paths.
-        if case let .typeParam(typeParam) = lhs,
-           let symbols = symbolTable
-        {
-            let upperBounds = symbols.typeParameterUpperBounds(for: typeParam.symbol)
+        if case let .typeParam(typeParam) = lhs {
+            let upperBounds = declaredUpperBounds(for: typeParam.symbol)
             if !upperBounds.isEmpty {
                 if upperBounds.contains(where: { isSubtype($0, supertype) }) {
                     return true
@@ -258,7 +256,7 @@ extension TypeSystem {
                 let lhsProjection: Projection
                 if case .star = leftArguments[index] {
                     let bounds = typeParameterSymbols.indices.contains(index)
-                        ? symbolTable?.typeParameterUpperBounds(for: typeParameterSymbols[index]) ?? [] : []
+                        ? declaredUpperBounds(for: typeParameterSymbols[index]) : []
                     let variables = makeTypeVarBySymbol(typeParameterSymbols)
                     var substitution: [TypeVarID: TypeID] = [:]
                     var unresolvedStars: [SymbolID: TypeVarID] = [:]
@@ -608,7 +606,7 @@ extension TypeSystem {
     }
 
     private func inferenceLubRetainingCommonTypeParameterUpperBounds(_ types: [TypeID]) -> TypeID? {
-        guard types.count > 1, let symbolTable else { return nil }
+        guard types.count > 1 else { return nil }
 
         var candidates: [TypeID] = []
         var pending = types
@@ -625,7 +623,7 @@ extension TypeSystem {
             }
             guard visitedParameters.insert(parameter.symbol).inserted else { continue }
 
-            for bound in symbolTable.typeParameterUpperBounds(for: parameter.symbol) {
+            for bound in declaredUpperBounds(for: parameter.symbol) {
                 let candidate = parameter.nullability == .nullable ? makeNullable(bound) : bound
                 if !candidates.contains(candidate) {
                     candidates.append(candidate)
@@ -911,12 +909,12 @@ extension TypeSystem {
         if let capture = parameter.capture {
             bounds = [capture.upper]
         } else {
-            guard let symbolTable, !visitedParameters.contains(parameter.symbol) else {
-                // No bound metadata, or a cyclic bound: the implicit upper
-                // bound is `Any?`, so assume the parameter can hold null.
+            guard !visitedParameters.contains(parameter.symbol) else {
+                // A cyclic bound bottoms out: the implicit upper bound is
+                // `Any?`, so assume the parameter can hold null.
                 return true
             }
-            bounds = symbolTable.typeParameterUpperBounds(for: parameter.symbol)
+            bounds = declaredUpperBounds(for: parameter.symbol)
         }
         guard !bounds.isEmpty else { return true }
         var visited = visitedParameters
@@ -1019,10 +1017,8 @@ extension TypeSystem {
             let bounds: [TypeID]
             if let capture = parameter.capture {
                 bounds = [capture.upper]
-            } else if let symbolTable {
-                bounds = symbolTable.typeParameterUpperBounds(for: parameter.symbol)
             } else {
-                continue
+                bounds = declaredUpperBounds(for: parameter.symbol)
             }
             for bound in bounds {
                 let candidate = makeNonNullable(bound)
@@ -1098,10 +1094,8 @@ extension TypeSystem {
         let bounds: [TypeID]
         if let capture = parameter.capture {
             bounds = [capture.upper]
-        } else if let symbolTable {
-            bounds = symbolTable.typeParameterUpperBounds(for: parameter.symbol)
         } else {
-            return isSubtype(subtype, supertype)
+            bounds = declaredUpperBounds(for: parameter.symbol)
         }
         if bounds.isEmpty {
             return isSubtype(subtype, supertype)

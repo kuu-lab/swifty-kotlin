@@ -22,7 +22,7 @@ public final class TypeSystem {
     /// Preserves informative upper bounds when a star projection crosses a
     /// nominal substitution. Trivial or dependent bounds fall back to `Any?`.
     func capturedTypeForStarProjection(parameter: SymbolID, ownerTypeParameters: [SymbolID]) -> TypeID {
-        let upperBounds = symbolTable?.typeParameterUpperBounds(for: parameter) ?? []
+        let upperBounds = declaredUpperBounds(for: parameter)
         let hasDependentUpperBound = upperBounds.contains { bound in
             ownerTypeParameters.contains { typeContainsTypeParam(bound, symbol: $0) }
         }
@@ -45,6 +45,10 @@ public final class TypeSystem {
     private var nominalTypeParameterVariancesMap: [SymbolID: [TypeVariance]] = [:]
     private var nominalTypeParameterUpperBoundsMap: [SymbolID: [[TypeID]]] = [:]
     private var nominalTypeParameterSymbolsMap: [SymbolID: [SymbolID]] = [:]
+    /// Reverse lookup from a nominal's type-parameter symbol to its owning
+    /// nominal and position. Imported metadata keys bounds on the owner, so
+    /// star-projection bounds queries resolve them through this map.
+    private var nominalTypeParameterOwnerMap: [SymbolID: (owner: SymbolID, index: Int)] = [:]
     private var nominalSupertypeTypeArgsMap: [SymbolID: [SymbolID: [TypeArg]]] = [:]
     // Break recursive argument joins such as A : Producer<A>, B : Producer<B>.
     var activeNominalLUBInputs: Set<Set<TypeID>> = []
@@ -154,6 +158,7 @@ public final class TypeSystem {
         worker.nominalTypeParameterVariancesMap = nominalTypeParameterVariancesMap
         worker.nominalTypeParameterUpperBoundsMap = nominalTypeParameterUpperBoundsMap
         worker.nominalTypeParameterSymbolsMap = nominalTypeParameterSymbolsMap
+        worker.nominalTypeParameterOwnerMap = nominalTypeParameterOwnerMap
         worker.nominalSupertypeTypeArgsMap = nominalSupertypeTypeArgsMap
         worker.comparableInterfaceSymbol = comparableInterfaceSymbol
         worker.annotationInterfaceSymbol = annotationInterfaceSymbol
@@ -527,11 +532,37 @@ public final class TypeSystem {
         }
         ensureImportedNominalMetadataLoaded(for: nominal)
         nominalTypeParameterSymbolsMap[nominal] = symbols
+        for (index, parameter) in symbols.enumerated() {
+            nominalTypeParameterOwnerMap[parameter] = (nominal, index)
+        }
     }
 
     public func nominalTypeParameterSymbols(for nominal: SymbolID) -> [SymbolID] {
         ensureImportedNominalMetadataLoaded(for: nominal)
         return nominalTypeParameterSymbolsMap[nominal] ?? []
+    }
+
+    /// Owning nominal and declaration-site index of a type-parameter symbol,
+    /// when it was registered through `setNominalTypeParameterSymbols`.
+    public func nominalTypeParameterOwner(for symbol: SymbolID) -> (owner: SymbolID, index: Int)? {
+        nominalTypeParameterOwnerMap[symbol]
+    }
+
+    /// Declared upper bounds for a type parameter. Imported declarations keep
+    /// producer-local bounds on the owning nominal rather than the per-symbol
+    /// map (synthetic metadata ids are not unique across artifacts), so a
+    /// per-symbol miss resolves through the nominal registration — matching
+    /// `substitutingCovariantStarUpperBounds`.
+    public func declaredUpperBounds(for symbol: SymbolID) -> [TypeID] {
+        let symbolBounds = symbolTable?.typeParameterUpperBounds(for: symbol) ?? []
+        guard symbolBounds.isEmpty,
+              let owner = nominalTypeParameterOwnerMap[symbol],
+              let nominalBounds = nominalTypeParameterUpperBounds(for: owner.owner),
+              nominalBounds.indices.contains(owner.index)
+        else {
+            return symbolBounds
+        }
+        return nominalBounds[owner.index]
     }
 
     /// Type parameters captured from an `inner` class's enclosing class chain.

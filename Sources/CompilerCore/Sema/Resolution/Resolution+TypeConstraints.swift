@@ -8,12 +8,10 @@ private func typeArgInnerType(_ arg: TypeArg) -> TypeID? {
 }
 
 private func starProjectionUpperBound(for type: TypeID, typeSystem: TypeSystem) -> TypeID {
-    guard case let .typeParam(typeParam) = typeSystem.kind(of: type),
-          let symbolTable = typeSystem.symbolTable
-    else {
+    guard case let .typeParam(typeParam) = typeSystem.kind(of: type) else {
         return typeSystem.nullableAnyType
     }
-    let upperBounds = symbolTable.typeParameterUpperBounds(for: typeParam.symbol)
+    let upperBounds = typeSystem.declaredUpperBounds(for: typeParam.symbol)
     guard !upperBounds.isEmpty else {
         return typeSystem.nullableAnyType
     }
@@ -658,7 +656,7 @@ extension OverloadResolver {
             let receiverBounds: [TypeID] = switch subtypeKind {
             case let .typeParam(parameter):
                 parameter.capture.map { [$0.upper] }
-                    ?? typeSystem.symbolTable?.typeParameterUpperBounds(for: parameter.symbol) ?? []
+                    ?? typeSystem.declaredUpperBounds(for: parameter.symbol)
             case let .intersection(parts):
                 parts
             default:

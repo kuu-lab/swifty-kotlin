@@ -498,14 +498,14 @@ extension OverloadResolver {
                             writeForbidden: true
                         )
                     case let .in(type):
-                        let bounds = ctx.symbols.typeParameterUpperBounds(for: typeParameter)
+                        let bounds = ctx.types.declaredUpperBounds(for: typeParameter)
                         argumentType = ctx.types.makeCapturedType(
                             parameter: typeParameter,
                             lower: type,
                             upper: bounds.isEmpty ? ctx.types.nullableAnyType : ctx.types.glb(bounds)
                         )
                     case .star:
-                        let bounds = ctx.symbols.typeParameterUpperBounds(for: typeParameter)
+                        let bounds = ctx.types.declaredUpperBounds(for: typeParameter)
                         argumentType = ctx.types.makeCapturedType(
                             parameter: typeParameter,
                             lower: ctx.types.nothingType,
