@@ -445,9 +445,18 @@ extension CallLowerer {
         {
             return loweredArgID
         }
-        if (!resolvedCallableInfo.hasClosureParam
+        let canForwardZeroArgumentSuspendCallable = functionType.isSuspend
+            && functionType.params.isEmpty
+            && functionType.receiver == nil
+            && resolvedCallableInfo.captureArguments.isEmpty
+            && !hasStringSignature
+        // Keep the original continuation for this shape: an erased adapter
+        // would create a second coroutine frame and intercept it separately.
+        let requiresFunctionValueAdapter = !resolvedCallableInfo.hasClosureParam
             || needsReturnBoxing
-            || functionType.isSuspend && (hasStringSignature || functionType.receiver != nil)),
+            || functionType.isSuspend && (hasStringSignature || functionType.receiver != nil)
+        if requiresFunctionValueAdapter,
+           !canForwardZeroArgumentSuspendCallable,
            let adaptedInfo = makeCollectionHOFCallableAdapter(
                 callableInfo: resolvedCallableInfo,
                 loweredArgID: loweredCallableID,
@@ -528,8 +537,8 @@ extension CallLowerer {
             materialized,
             symbol: resolvedCallableInfo.symbol,
             callee: resolvedCallableInfo.callee,
-            captureArguments: [closureRaw],
-            hasClosureParam: true
+            captureArguments: canForwardZeroArgumentSuspendCallable ? [] : [closureRaw],
+            hasClosureParam: canForwardZeroArgumentSuspendCallable ? false : true
         )
         return materialized
     }
