@@ -561,7 +561,11 @@ annotation の値は constructor 式で直接生成できる。省略した引�
 名前付き引数もソース順に評価する。生成する値は annotation interface を実装し、要素の読み取り・等値比較に対応する。
 
 value class を持つ inline／suspend の signature は M14 で対応する。
-外部 annotation の使用、file／type-use／receiver／delegate target、
+`Deprecated`／`ReplaceWith`／`DeprecationLevel` は独自stdlibとconsumer宣言で同じ契約を使う。
+message／replacement／level、JVM Deprecated属性、property carrierとaccessorへの配置を保存する。
+HIDDENの関数／constructor／accessorはclassfileでsyntheticとなり、Kotlin metadataには宣言を残す。
+
+上記以外の外部 annotation の使用、file／type-use／receiver／delegate target、
 typealias 自体の annotation、enum entry annotation は未対応。対応する reflection API は上記の範囲で、
 Java reflection の任意の getMethod／invoke や kotlin-reflect の全 API を提供するものではない。
 

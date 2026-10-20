@@ -29,7 +29,7 @@ extension JVMProgramBuilder {
         }
         for (node, target) in nodes {
             guard let owner = annotationOwner(node, symbol: symbol), let info = sema.symbols.symbol(owner) else { throw JVMFrontendError(message: "Unresolved JVM parameter annotation: " + node.name) }
-            guard classes[owner]?.isAnnotation == true else { throw JVMFrontendError(message: "Unsupported JVM parameter annotation: " + node.name) }
+            guard annotationPlan(owner) != nil else { throw JVMFrontendError(message: "Unsupported JVM parameter annotation: " + node.name) }
             if var tokens = node.constructionTokens, let last = tokens.last {
                 if !tokens.contains(where: { $0.kind == .symbol(.lParen) }) {
                     tokens += [Token(kind: .symbol(.lParen), range: last.range), Token(kind: .symbol(.rParen), range: last.range)]
