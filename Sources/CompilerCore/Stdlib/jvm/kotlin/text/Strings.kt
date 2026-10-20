@@ -63,6 +63,7 @@ public fun String.dropLast(n: Int): String {
     return __jvmSubstring(this, 0, if (n < this.length) this.length - n else 0)
 }
 public fun String.padStart(length: Int, padChar: Char = ' '): String {
+    if (length < 0) throw IllegalArgumentException("Desired length $length is less than zero.")
     if (length <= this.length) return this
     val result = StringBuilder()
     var n = this.length
@@ -71,6 +72,7 @@ public fun String.padStart(length: Int, padChar: Char = ' '): String {
     return result.toString()
 }
 public fun String.padEnd(length: Int, padChar: Char = ' '): String {
+    if (length < 0) throw IllegalArgumentException("Desired length $length is less than zero.")
     if (length <= this.length) return this
     val result = StringBuilder(this)
     var n = this.length
