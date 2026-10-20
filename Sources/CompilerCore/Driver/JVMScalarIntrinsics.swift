@@ -25,6 +25,13 @@ extension JVMFunctionBuilder {
               let declaration = program.sema.symbols.symbol(symbol) else { return nil }
         var path = declaration.fqName.map(context.interner.resolve)
         if path.last == "Companion" { path.removeLast() }
+        if path == ["java", "lang", "Math"], declaration.declSite.map({ context.sourceManager.origin(of: $0.start.file) != .user }) == true {
+            switch context.interner.resolve(name) {
+            case "PI": return try constant(.double(.pi), .double)
+            case "E": return try constant(.double(2.718281828459045), .double)
+            default: return nil
+            }
+        }
         guard path.count == 2, path[0] == "kotlin", let primitive = [PrimitiveType.char, .byte, .short, .uint, .ulong, .ubyte, .ushort, .int, .long, .float, .double].first(where: { $0.kotlinName == path[1] }) else { return nil }
         let member = context.interner.resolve(name), type = JVMValueType.primitive(primitive)
         let bits = [.byte, .ubyte].contains(type) ? 8 : ([.char, .short, .ushort].contains(type) ? 16 : (type.width == 2 ? 64 : 32))

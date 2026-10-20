@@ -27,7 +27,7 @@ extension JVMFunctionBuilder {
         if let result = try sourceCall(args, receiver: receiver, id: id) { return result.value }
         if let result = try extensionOrInvoke(receiver, name: name, args: args, id: id) { return result.value }
         if let result = try intrinsicMember(receiver, name: name, args: args, id: id) { return result.value }
-        if let binding = program.sema.bindings.callBinding(for: id), var method = program.methods[binding.chosenCallee] ?? context.jvmImports?.methods[binding.chosenCallee] {
+        if let binding = program.sema.bindings.callBinding(for: id), var method = program.methods[binding.chosenCallee] ?? context.jvmImports?.methods[binding.chosenCallee] ?? program.builtinMethod(binding.chosenCallee) {
             guard args.allSatisfy({ $0.label == nil && !$0.isSpread }) else { throw fail("Unsupported JVM foreign arguments.", id) }
             if isSuper(receiver) { method = try superMethod(method, receiver: receiver) }
             let object = method.isStatic || method.isConstructor ? nil : try requireValue(receiver)

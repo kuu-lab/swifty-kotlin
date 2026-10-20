@@ -4,6 +4,12 @@ struct JVMIntrinsicResult { let value: JVMValue? }
 
 extension JVMProgramBuilder {
     func builtinMethod(_ symbolID: SymbolID) -> JVMForeignMethod? {
+        if let symbol = sema.symbols.symbol(symbolID),
+           symbol.fqName.map(context.interner.resolve) == ["java", "lang", "System", "Companion", "arraycopy"],
+           symbol.declSite.map({ context.sourceManager.origin(of: $0.start.file) != .user }) == true {
+            let object: JVMValueType = .reference("java/lang/Object", nullable: true)
+            return JVMForeignMethod(owner: "java/lang/System", name: "arraycopy", descriptor: "(Ljava/lang/Object;ILjava/lang/Object;II)V", parameters: [object, .int, object, .int, .int], result: .unit, isStatic: true, isInterface: false, isAbstract: false)
+        }
         guard let symbol = sema.symbols.symbol(symbolID), symbol.kind == .constructor,
               let parent = sema.symbols.parentSymbol(for: symbolID), classes[parent] == nil,
               let source = try? className(parent), let name = JVMClasspathIndex.builtinName(source),

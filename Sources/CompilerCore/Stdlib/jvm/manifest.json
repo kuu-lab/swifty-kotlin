@@ -360,6 +360,11 @@
       "virtualPath": "<kswiftk-jvm>/collection-elements.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
+      "path": "declarations/JavaLang.kt",
+      "virtualPath": "<kswiftk-jvm>/javaLang.kt",
+      "excludeFromStdlibBuild": false
     }
   ],
   "runtimeClassAliases": {
