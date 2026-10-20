@@ -152,7 +152,7 @@ size引数の評価直後に配列を確保し、負サイズ時のinitializer�
 `mapOf`／`mutableMapOf`、`emptyList`／`emptySet`／`emptyMap` を生成する。
 factoryと対応済みcollection操作はKotlin JVM ABIに接続し、独自kswiftk-stdlib.jarで実行できる。
 `to` は kotlin.Pair を生成し、factory 以外でも利用できる。
-添字、`size`、`isEmpty`、`contains`、`add`、`remove`／`removeAt`、`set`／`put`、`clear`、
+添字、`size`、`isEmpty`、`contains`／`containsAll`、`add`、`remove`／`removeAt`、`set`／`put`、`clear`、
 Map の `keys`／`values`／`containsKey` と iterable の `for` を利用できる。
 Map の取得結果は nullable なので、`!!`／`?:` で値を取り出せる。
 
