@@ -59,6 +59,10 @@ extension JVMProgramBuilder {
         guard function.contextReceivers.isEmpty,
               function.modifiers.subtracting(allowed).isEmpty,
               let signature = sema.symbols.functionSignature(for: symbol) else { throw JVMFrontendError(message: "Unsupported JVM M5 function declaration.", range: function.range) }
+        let interfaceMember = sema.symbols.parentSymbol(for: symbol).flatMap { sema.symbols.symbol($0)?.kind } == .interface
+        if function.isTailrec && member && (!memberFinal(function.modifiers) || interfaceMember && !function.modifiers.contains(.private)) {
+            throw JVMFrontendError(message: "tailrec is prohibited on open JVM members.", range: function.range)
+        }
         if function.isInline { inlineDeclarations[symbol] = function }
         try validateParameters(function.valueParams)
         sourceParameters[symbol] = function.valueParams

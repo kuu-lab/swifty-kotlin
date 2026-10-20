@@ -4,25 +4,20 @@ extension JVMFunctionBuilder {
     func prepareTailrec() throws {
         guard declaration.isTailrec, let functionSymbol else { return }
         func visit(_ id: ExprID, result: Bool) {
-            guard let node = arena.expr(id) else { return }
-            switch node {
-            case let .returnExpr(value, target, _) where target == nil:
-                if let value { visit(value, result: true) }
-            case .call, .memberCall:
-                if result, program.sema.bindings.callBinding(for: id)?.chosenCallee == functionSymbol {
-                    tailrecCalls.insert(id)
+            TailrecPositionWalker.visit(id, in: arena, isValuePosition: result) { candidate in
+                guard program.sema.bindings.callBinding(for: candidate)?.chosenCallee == functionSymbol,
+                      let node = arena.expr(candidate) else { return }
+                if case .safeMemberCall = node,
+                   !program.extensionSymbols.contains(functionSymbol) { return }
+                // A call on another instance remains an ordinary virtual call.
+                if case let .memberCall(receiver, _, _, _, _) = node,
+                   program.methods[functionSymbol] != nil,
+                   !program.extensionSymbols.contains(functionSymbol) {
+                    guard case .thisRef = arena.expr(receiver) else { return }
+                    if let symbol = program.sema.bindings.identifierSymbol(for: receiver),
+                       contextualReceivers[symbol]?.slot != thisValue?.slot { return }
                 }
-            case let .ifExpr(_, yes, no, _):
-                visit(yes, result: result)
-                if let no { visit(no, result: result) }
-            case let .whenExpr(_, branches, fallback, _):
-                for branch in branches { visit(branch.body, result: result) }
-                if let fallback { visit(fallback, result: result) }
-            case let .blockExpr(statements, trailing, _):
-                for statement in statements { visit(statement, result: false) }
-                if let trailing { visit(trailing, result: result) }
-            case let .binary(.elvis, _, rhs, _): visit(rhs, result: result)
-            default: break
+                tailrecCalls.insert(candidate)
             }
         }
         switch declaration.body {
@@ -42,6 +37,11 @@ extension JVMFunctionBuilder {
 
     func emitTailrec(_ id: ExprID, symbol: SymbolID, dispatch: JVMValue?, prefix: [JVMValue], values: [JVMValue], masks: [UInt32]) throws -> Bool {
         guard tailrecCalls.contains(id), symbol == functionSymbol, let entry = tailrecEntry else { return false }
+        // Kotlin does not optimize calls that inherit omitted defaults from an
+        // overridden declaration; preserve the ordinary default dispatcher.
+        if masks.contains(where: { $0 != 0 }),
+           let binding = program.sema.bindings.callBinding(for: id),
+           program.defaultOwner(binding.defaultArgumentOwner ?? symbol) != symbol { return false }
         // Snapshot every argument before overwriting parameters, including
         // unchanged arguments and receiver changes, so swaps remain simultaneous.
         func snapshot(_ source: JVMValue) throws -> JVMValue {
@@ -68,6 +68,9 @@ extension JVMFunctionBuilder {
         for (source, parameter) in zip(inputs, tailrecParameters) {
             instructions.append(.copy(try convert(source, to: parameter.type), parameter))
         }
+        // Constructor arguments may return before their receiver is initialized.
+        // Clear those escaping allocations before the verifier sees a backedge.
+        if !pendingAllocations.isEmpty { instructions.append(.abandonAllocations(pendingAllocations)) }
         jump(entry)
         return true
     }

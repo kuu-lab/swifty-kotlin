@@ -35,6 +35,42 @@ struct TailrecDiagnosticTests {
         }
         fun main() {}
         """, expectedWarningCount: 0),
+        Case(name: "returnInCondition", source: """
+        tailrec fun count(n: Int): Int {
+            while (if (n > 0) return count(n - 1) else false) {}
+            return 0
+        }
+        fun main() {}
+        """, expectedWarningCount: 0),
+        Case(name: "returnInInitializer", source: """
+        tailrec fun count(n: Int): Int {
+            val value = if (n > 0) return count(n - 1) else 0
+            return value
+        }
+        fun main() {}
+        """, expectedWarningCount: 0),
+        Case(name: "returnInArgument", source: """
+        fun accept(value: Int): Int = value
+        tailrec fun count(n: Int): Int {
+            accept(if (n > 0) return count(n - 1) else 0)
+            return 0
+        }
+        fun main() {}
+        """, expectedWarningCount: 0),
+        Case(name: "returnInLambdaIsNotFunctionTailCall", source: """
+        tailrec fun count(n: Int): Int {
+            val call: () -> Int = { if (n == 0) 0 else count(n - 1) }
+            return call() + 1
+        }
+        fun main() {}
+        """, expectedWarningCount: 1),
+        Case(name: "returnInTryIsNotTailCall", source: """
+        tailrec fun count(n: Int): Int {
+            if (n == 0) return 0
+            try { return count(n - 1) } finally {}
+        }
+        fun main() {}
+        """, expectedWarningCount: 1),
         Case(name: "differentReceiverOverload", source: """
         fun Int.gcd(other: Long): Long = other
         tailrec fun Long.gcd(other: Long): Long =
