@@ -799,12 +799,13 @@ extension ExprLowerer {
                 instructions: &instructions
             )
 
-        case let .forDestructuringExpr(names, iterableExpr, bodyExpr, _):
+        case let .forDestructuringExpr(names, iterableExpr, bodyExpr, syntax, _):
             return driver.controlFlowLowerer.lowerForDestructuringExpr(
                 exprID,
                 names: names,
                 iterableExpr: iterableExpr,
                 bodyExpr: bodyExpr,
+                syntax: syntax,
                 ast: ast,
                 sema: sema,
                 arena: arena,

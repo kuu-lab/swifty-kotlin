@@ -146,7 +146,7 @@ enum GoldenHarnessExprFormat {
         case let .destructuringDecl(names, isMutable, initializer, _):
             let mutStr = "mutable=\(isMutable ? 1 : 0)"
             return "destructuringDecl \(renderNameList(names, ctx)) \(mutStr) init=\(ctx.exprKey(initializer))"
-        case let .forDestructuringExpr(names, iterable, body, _):
+        case let .forDestructuringExpr(names, iterable, body, _, _):
             return "forDestructuring \(renderNameList(names, ctx)) iterable=\(ctx.exprKey(iterable)) body=\(ctx.exprKey(body))"
         case let .memberAssign(receiver, callee, value, _):
             return "memberAssign recv=\(ctx.exprKey(receiver)) callee=\(interner.resolve(callee)) value=\(ctx.exprKey(value))"

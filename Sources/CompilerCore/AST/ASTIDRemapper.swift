@@ -455,8 +455,14 @@ struct ASTIDRemapper {
             .notInExpr(lhs: remap(lhs), rhs: remap(rhs), range: range)
         case let .destructuringDecl(names, isMutable, initializer, range):
             .destructuringDecl(names: names.map { $0.map { remap($0) } }, isMutable: isMutable, initializer: remap(initializer), range: range)
-        case let .forDestructuringExpr(names, iterable, body, range):
-            .forDestructuringExpr(names: names.map { $0.map { remap($0) } }, iterable: remap(iterable), body: remap(body), range: range)
+        case let .forDestructuringExpr(names, iterable, body, syntax, range):
+            .forDestructuringExpr(
+                names: names.map { $0.map { remap($0) } },
+                iterable: remap(iterable),
+                body: remap(body),
+                syntax: syntax,
+                range: range
+            )
         }
     }
 }

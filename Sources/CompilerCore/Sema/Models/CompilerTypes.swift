@@ -49,6 +49,11 @@ public enum EmitMode: String, Sendable {
     public var isJVM: Bool { self == .jvmClass || self == .jvmJar }
 }
 
+public enum NameBasedDestructuringMode: String, Equatable {
+    case disabled
+    case complete
+}
+
 /// Thread-safety mode for `by lazy { }` delegates (P5-80).
 public enum LazyDelegateThreadSafetyMode: Int, Equatable {
     /// `LazyThreadSafetyMode.SYNCHRONIZED` – uses a lock (default).
@@ -84,6 +89,13 @@ public struct CompilerOptions: Equatable {
     public var entryPointFQName: String?
     /// JVM classpath entries, in lookup order (JAR files or class directories).
     public var jvmClasspath: [String]
+
+    public var nameBasedDestructuringMode: NameBasedDestructuringMode {
+        frontendFlags.contains("name-based-destructuring=complete")
+            || frontendFlags.contains("-Xname-based-destructuring=complete")
+            ? .complete
+            : .disabled
+    }
 
     /// Whether this compilation produces common-module metadata that may
     /// retain expect declarations without local actual declarations.

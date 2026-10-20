@@ -564,7 +564,7 @@ public final class ASTArena: @unchecked Sendable {
              let .inExpr(_, _, range),
              let .notInExpr(_, _, range),
              let .destructuringDecl(_, _, _, range),
-             let .forDestructuringExpr(_, _, _, range):
+             let .forDestructuringExpr(_, _, _, _, range):
             return range
         }
     }

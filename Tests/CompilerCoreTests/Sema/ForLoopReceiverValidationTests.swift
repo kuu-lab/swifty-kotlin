@@ -1,8 +1,21 @@
 @testable import CompilerCore
 import Testing
+import TestStdlibCache
 
 @Suite
 struct ForLoopReceiverValidationTests {
+    private func makeNameDestructuringContext(
+        _ source: String,
+        complete: Bool = true
+    ) -> CompilationContext {
+        TestStdlibCache.shared.prepare()
+        return makeContextFromSource(
+            source,
+            frontendFlags: complete ? ["name-based-destructuring=complete"] : [],
+            allowDefaultStdlibLibrary: true
+        )
+    }
+
     @Test(arguments: ["X()", "5", "true", "object {}", "null"])
     func rejectsNonIterableReceivers(receiver: String) throws {
         let ctx = makeContextFromSource("""
@@ -110,7 +123,7 @@ struct ForLoopReceiverValidationTests {
 
         let ast = try #require(ctx.ast)
         let names = ast.arena.exprs.compactMap { expression -> [InternedString?]? in
-            guard case let .forDestructuringExpr(names, _, _, _) = expression,
+            guard case let .forDestructuringExpr(names, _, _, _, _) = expression,
                   names.map({ $0.map(ctx.interner.resolve) }) == ["a", "b"]
             else {
                 return nil
@@ -118,6 +131,79 @@ struct ForLoopReceiverValidationTests {
             return names
         }.first
         #expect(names?.map { $0.map(ctx.interner.resolve) } == ["a", "b"])
+    }
+
+    @Test
+    func completeNameBasedDestructuringResolvesParenthesizedNames() throws {
+        let ctx = makeNameDestructuringContext("""
+        class C(val a: Int, val b: Int)
+        fun main() {
+            for ((a, b) in arrayOf(C(1, 2))) println("$a,$b")
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+        let ast = try #require(ctx.ast)
+        let loopIndex = try #require(ast.arena.exprs.indices.first { index in
+            if case .forDestructuringExpr = ast.arena.exprs[index] { return true }
+            return false
+        })
+        let loopID = ExprID(rawValue: Int32(loopIndex))
+        #expect(ctx.sema?.bindings.destructuringProperty(for: loopID, index: 0) != nil)
+        #expect(ctx.sema?.bindings.destructuringProperty(for: loopID, index: 1) != nil)
+    }
+
+    @Test
+    func completeNameBasedDestructuringDoesNotFallbackToComponentFunctions() throws {
+        let ctx = makeNameDestructuringContext("""
+        data class C(val first: Int, val second: Int)
+        fun test() {
+            for ((a, b) in arrayOf(C(1, 2))) {}
+        }
+        """)
+        do { try runSema(ctx) } catch {}
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.contains { $0.code == "KSWIFTK-SEMA-0022" }, "\(errors)")
+        #expect(!errors.contains { $0.code == "KSWIFTK-SEMA-0087" }, "\(errors)")
+    }
+
+    @Test
+    func completeNameBasedDestructuringDoesNotApplyToSquareBrackets() throws {
+        let ctx = makeNameDestructuringContext("""
+        class C(val a: Int, val b: Int)
+        fun test() {
+            for ([a, b] in arrayOf(C(1, 2))) {}
+        }
+        """)
+        do { try runSema(ctx) } catch {}
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0087" })
+    }
+
+    @Test
+    func completeNameBasedDestructuringRejectsNullableElements() throws {
+        let ctx = makeNameDestructuringContext("""
+        class C(val a: Int, val b: Int)
+        fun test(values: Array<C?>) {
+            for ((a, b) in values) {}
+        }
+        """)
+        do { try runSema(ctx) } catch {}
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.contains { $0.code == "KSWIFTK-SEMA-0026" }, "\(errors)")
+        #expect(!errors.contains { $0.code == "KSWIFTK-SEMA-0022" }, "\(errors)")
+    }
+
+    @Test
+    func defaultDestructuringStillRequiresComponentFunctions() throws {
+        let ctx = makeNameDestructuringContext("""
+        class C(val a: Int, val b: Int)
+        fun test() {
+            for ((a, b) in arrayOf(C(1, 2))) {}
+        }
+        """, complete: false)
+        do { try runSema(ctx) } catch {}
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0087" })
     }
 
     @Test

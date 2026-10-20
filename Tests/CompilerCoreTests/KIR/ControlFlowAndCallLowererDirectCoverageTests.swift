@@ -216,6 +216,7 @@ struct ControlFlowAndCallLowererDirectCoverageTests {
                 names: [fixture.interner.intern("item")],
                 iterable: iterableExpr,
                 body: bodyExpr,
+                syntax: .parentheses,
                 range: range
             )
         )
@@ -276,6 +277,7 @@ struct ControlFlowAndCallLowererDirectCoverageTests {
             names: [fixture.interner.intern("item")],
             iterableExpr: iterableExpr,
             bodyExpr: bodyExpr,
+            syntax: .parentheses,
             shared: shared,
             emit: &emitted
         )

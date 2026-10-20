@@ -1211,6 +1211,7 @@ extension ControlFlowLowerer {
         names: [InternedString?],
         iterableExpr: ExprID,
         bodyExpr: ExprID,
+        syntax: ForDestructuringSyntax,
         ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
@@ -1224,6 +1225,7 @@ extension ControlFlowLowerer {
                 names: names,
                 iterableExpr: iterableExpr,
                 bodyExpr: bodyExpr,
+                syntax: syntax,
                 loopBinding: loopBinding,
                 ast: ast,
                 sema: sema,
@@ -1379,12 +1381,20 @@ extension ControlFlowLowerer {
                 interner.intern("__for_destructuring_\(exprID.rawValue)"),
                 name,
             ])
-            let componentType = candidates.first.flatMap { sema.symbols.propertyType(for: $0) } ?? sema.types.anyType
+            let propertyBinding = syntax == .parentheses
+                ? sema.bindings.destructuringProperty(for: exprID, index: index)
+                : nil
+            let componentType = propertyBinding?.type
+                ?? candidates.first.flatMap { sema.symbols.propertyType(for: $0) }
+                ?? sema.types.anyType
             let componentResult = arena.appendTemporary(type: componentType)
 
-            if isMapIteration, componentIndex == 1 {
+            let namedMapProperty = propertyBinding.flatMap { binding in
+                sema.symbols.symbol(binding.propertySymbol)?.name
+            }
+            if isMapIteration, namedMapProperty == interner.intern("key") {
                 instructions.append(.copy(from: nextValueID, to: componentResult))
-            } else if isMapIteration, componentIndex == 2 {
+            } else if isMapIteration, namedMapProperty == interner.intern("value") {
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("__kk_map_get"),
@@ -1393,6 +1403,31 @@ extension ControlFlowLowerer {
                     canThrow: false,
                     thrownResult: nil
                 ))
+            } else if isMapIteration, propertyBinding == nil, componentIndex == 1 {
+                instructions.append(.copy(from: nextValueID, to: componentResult))
+            } else if isMapIteration, propertyBinding == nil, componentIndex == 2 {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("__kk_map_get"),
+                    arguments: [iterableID, nextValueID],
+                    result: componentResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+            } else if let propertyBinding {
+                let propertyResult = driver.callLowerer.lowerDestructuringPropertyRead(
+                    propertyBinding,
+                    receiverExpr: iterableExpr,
+                    receiverType: nonNullElementType,
+                    loweredReceiverID: nextValueID,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                )
+                instructions.append(.copy(from: propertyResult, to: componentResult))
             } else {
                 let resolved = resolveDestructuringComponentCallee(
                     componentName: componentName,
@@ -1453,6 +1488,7 @@ extension ControlFlowLowerer {
         names: [InternedString?],
         iterableExpr: ExprID,
         bodyExpr: ExprID,
+        syntax: ForDestructuringSyntax,
         loopBinding: LoopIterationBinding,
         ast: ASTModule,
         sema: SemaModule,
@@ -1544,27 +1580,48 @@ extension ControlFlowLowerer {
                 interner.intern("__for_destructuring_\(exprID.rawValue)"),
                 name,
             ])
-            let componentType = candidates.first.flatMap { sema.symbols.propertyType(for: $0) } ?? sema.types.anyType
+            let propertyBinding = syntax == .parentheses
+                ? sema.bindings.destructuringProperty(for: exprID, index: index)
+                : nil
+            let componentType = propertyBinding?.type
+                ?? candidates.first.flatMap { sema.symbols.propertyType(for: $0) }
+                ?? sema.types.anyType
             let componentResult = arena.appendTemporary(type: componentType)
 
-            let resolved = resolveDestructuringComponentCallee(
-                componentName: componentName,
-                receiverType: nonNullElementType,
-                sema: sema,
-                interner: interner
-            )
-            driver.callLowerer.emitDestructuringComponentCall(
-                candidate: resolved.candidate,
-                symbol: resolved.symbol,
-                callee: resolved.callee,
-                receiverExpr: nil,
-                receiverID: nextValueID,
-                result: componentResult,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
+            if let propertyBinding {
+                let propertyResult = driver.callLowerer.lowerDestructuringPropertyRead(
+                    propertyBinding,
+                    receiverExpr: iterableExpr,
+                    receiverType: nonNullElementType,
+                    loweredReceiverID: nextValueID,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                )
+                instructions.append(.copy(from: propertyResult, to: componentResult))
+            } else {
+                let resolved = resolveDestructuringComponentCallee(
+                    componentName: componentName,
+                    receiverType: nonNullElementType,
+                    sema: sema,
+                    interner: interner
+                )
+                driver.callLowerer.emitDestructuringComponentCall(
+                    candidate: resolved.candidate,
+                    symbol: resolved.symbol,
+                    callee: resolved.callee,
+                    receiverExpr: nil,
+                    receiverID: nextValueID,
+                    result: componentResult,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+            }
 
             if let symbol = candidates.first {
                 previousValues.append((symbol, driver.ctx.localValue(for: symbol)))

@@ -888,7 +888,7 @@ public final class CompilerDriver {
             }
         case let .nameRef(name, _):
             collectName(name)
-        case let .forExpr(_, iterable, body, _, _), let .forDestructuringExpr(_, iterable, body, _):
+        case let .forExpr(_, iterable, body, _, _), let .forDestructuringExpr(_, iterable, body, _, _):
             collectExpr(iterable)
             collectExpr(body)
         case let .whileExpr(condition, body, _, _), let .doWhileExpr(body, condition, _, _):

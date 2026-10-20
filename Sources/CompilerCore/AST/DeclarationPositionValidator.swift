@@ -407,7 +407,7 @@ struct DeclarationPositionValidator {
                 return nil
             }
         case .forExpr(_, let iterable, let body, _, _),
-             .forDestructuringExpr(_, let iterable, let body, _):
+             .forDestructuringExpr(_, let iterable, let body, _, _):
             [iterable, body]
         case .whileExpr(let condition, let body, _, _):
             [condition, body]

@@ -53,8 +53,10 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext,
         preferredSourcePackage: [InternedString]? = nil,
         bindCall: Bool = true,
+        bindExpression: Bool = true,
         requireInScope: Bool = false,
-        invocationCandidateFilter: ((SymbolID) -> Bool)? = nil
+        invocationCandidateFilter: ((SymbolID) -> Bool)? = nil,
+        onResolved: ((SymbolID, CallBinding) -> Void)? = nil
     ) -> TypeID? {
         let sema = ctx.sema
         let scopedCandidates = invocationCandidateFilter == nil
@@ -306,7 +308,16 @@ extension CallTypeChecker {
                 // than a call; the caller re-checks accessibility on that bound
                 // symbol, so surface the invisible declaration instead of
                 // emitting a duplicate diagnostic here.
-                guard bindCall else {
+                guard bindCall, bindExpression else {
+                    if !bindExpression {
+                        driver.helpers.emitVisibilityError(
+                            for: invisibleSymbol,
+                            name: ctx.interner.resolve(calleeName),
+                            range: range,
+                            diagnostics: ctx.sema.diagnostics
+                        )
+                        return sema.types.errorType
+                    }
                     sema.bindings.bindIdentifier(id, symbol: firstInvisible)
                     return sema.symbols.propertyType(for: firstInvisible)
                         ?? sema.types.errorType
@@ -317,7 +328,10 @@ extension CallTypeChecker {
                     range: range,
                     diagnostics: ctx.sema.diagnostics
                 )
-                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                if bindExpression {
+                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                }
+                return sema.types.errorType
             }
             return nil
         }
@@ -400,23 +414,21 @@ extension CallTypeChecker {
         }
         let dispatchReceiver = importedDispatchReceiver ?? memberExtensionDispatchReceiver
 
-        sema.bindings.bindExtensionPropertyGetterCall(id, binding: CallBinding(
+        let getterBinding = CallBinding(
             chosenCallee: chosen,
             substitutedTypeArguments: resolved.substitutedTypeArguments.sorted { $0.key.rawValue < $1.key.rawValue }.map(\.value),
             parameterMapping: resolved.parameterMapping,
             dispatchReceiverSymbol: dispatchReceiver
-        ))
-        if bindCall {
+        )
+        if bindExpression {
+            sema.bindings.bindExtensionPropertyGetterCall(id, binding: getterBinding)
+        } else if let property = propertyForGetter[chosen] ?? sema.symbols.accessorOwnerProperty(for: chosen) {
+            onResolved?(property, getterBinding)
+        }
+        if bindExpression && bindCall {
             sema.bindings.bindCall(
                 id,
-                binding: CallBinding(
-                    chosenCallee: chosen,
-                    substitutedTypeArguments: resolved.substitutedTypeArguments
-                        .sorted(by: { $0.key.rawValue < $1.key.rawValue })
-                        .map(\.value),
-                    parameterMapping: resolved.parameterMapping,
-                    dispatchReceiverSymbol: dispatchReceiver
-                )
+                binding: getterBinding
             )
             sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
         }
@@ -427,7 +439,7 @@ extension CallTypeChecker {
         // dispatches through the getter call binding.
         let ownerProperty = sema.symbols.accessorOwnerProperty(for: chosen)
             ?? (bindCall ? nil : propertyForGetter[chosen] ?? sema.symbols.parentSymbol(for: chosen))
-        if let ownerProperty, sema.symbols.symbol(ownerProperty)?.kind == .property {
+        if bindExpression, let ownerProperty, sema.symbols.symbol(ownerProperty)?.kind == .property {
             sema.bindings.bindIdentifier(id, symbol: ownerProperty)
             deprecationCheckTarget = ownerProperty
         } else {

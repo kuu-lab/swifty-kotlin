@@ -98,6 +98,7 @@ extension ControlFlowTypeChecker {
         names: [InternedString?],
         iterableExpr: ExprID,
         bodyExpr: ExprID,
+        syntax: ForDestructuringSyntax,
         range: SourceRange,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings
@@ -114,10 +115,45 @@ extension ControlFlowTypeChecker {
             range: range,
             ctx: ctx
         )
+        let usesNameBasedDestructuring = syntax == .parentheses
+            && sema.nameBasedDestructuringMode == .complete
 
         var bodyLocals = locals
 
         for (index, name) in names.enumerated() {
+            if usesNameBasedDestructuring {
+                guard let name else { continue }
+                let property: (type: TypeID, binding: DestructuringPropertyBinding?)
+                if elementType == sema.types.errorType {
+                    property = (sema.types.errorType, nil)
+                } else {
+                    property = inferNameBasedForDestructuringProperty(
+                        name,
+                        loopExpr: id,
+                        receiverType: elementType,
+                        range: range,
+                        ctx: ctx
+                    )
+                }
+                let symbol = sema.symbols.define(
+                    kind: .local,
+                    name: name,
+                    fqName: [
+                        interner.intern("__for_destructuring_\(id.rawValue)"),
+                        name,
+                    ],
+                    declSite: range,
+                    visibility: .private,
+                    flags: []
+                )
+                sema.symbols.setPropertyType(property.type, for: symbol)
+                bodyLocals[name] = (property.type, symbol, false, true)
+                if let binding = property.binding {
+                    sema.bindings.bindDestructuringProperty(id, index: index, binding: binding)
+                }
+                continue
+            }
+
             let componentIndex = index + 1
             let componentName = interner.intern("component\(componentIndex)")
 
@@ -192,6 +228,99 @@ extension ControlFlowTypeChecker {
         )
         sema.bindings.bindExprType(id, type: sema.types.unitType)
         return sema.types.unitType
+    }
+
+    private func inferNameBasedForDestructuringProperty(
+        _ name: InternedString,
+        loopExpr: ExprID,
+        receiverType: TypeID,
+        range: SourceRange,
+        ctx: TypeInferenceContext
+    ) -> (type: TypeID, binding: DestructuringPropertyBinding?) {
+        let sema = ctx.sema
+        guard sema.types.nullability(of: receiverType) != .nullable else {
+            sema.diagnostics.error(
+                "KSWIFTK-SEMA-0026",
+                "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+                range: range
+            )
+            return (sema.types.errorType, nil)
+        }
+        if let member = driver.helpers.lookupMemberProperty(
+            named: name,
+            receiverType: receiverType,
+            sema: sema
+        ) {
+            guard let symbol = sema.symbols.symbol(member.symbol),
+                  ctx.visibilityChecker.isAccessible(
+                      symbol,
+                      fromFile: ctx.currentFileID,
+                      enclosingClass: ctx.enclosingClassSymbol
+                  )
+            else {
+                if let symbol = sema.symbols.symbol(member.symbol) {
+                    driver.helpers.emitVisibilityError(
+                        for: symbol,
+                        name: ctx.interner.resolve(name),
+                        range: range,
+                        diagnostics: sema.diagnostics
+                    )
+                }
+                return (sema.types.errorType, nil)
+            }
+            driver.helpers.checkDeprecation(
+                for: member.symbol,
+                sema: sema,
+                interner: ctx.interner,
+                range: range,
+                diagnostics: sema.diagnostics
+            )
+            driver.helpers.checkOptIn(
+                for: member.symbol,
+                ctx: ctx,
+                range: range,
+                diagnostics: sema.diagnostics
+            )
+            return (
+                member.type,
+                DestructuringPropertyBinding(propertySymbol: member.symbol, type: member.type, getterCall: nil)
+            )
+        }
+
+        var extensionBinding: (property: SymbolID, getterCall: CallBinding)?
+        let errorsBeforeResolution = sema.diagnostics.errorCount
+        let extensionType = driver.callChecker.resolveExtensionPropertyGetter(
+            id: loopExpr,
+            calleeName: name,
+            range: range,
+            receiverType: receiverType,
+            expectedType: nil,
+            ctx: ctx,
+            bindCall: false,
+            bindExpression: false,
+            onResolved: { propertySymbol, getterCall in
+                extensionBinding = (propertySymbol, getterCall)
+            }
+        )
+        if let extensionType, let resolved = extensionBinding {
+            return (
+                extensionType,
+                DestructuringPropertyBinding(
+                    propertySymbol: resolved.property,
+                    type: extensionType,
+                    getterCall: resolved.getterCall
+                )
+            )
+        }
+
+        if sema.diagnostics.errorCount == errorsBeforeResolution {
+            sema.diagnostics.error(
+                "KSWIFTK-SEMA-0022",
+                "Unresolved reference '\(ctx.interner.resolve(name))'.",
+                range: range
+            )
+        }
+        return (sema.types.errorType, nil)
     }
 
     static func isRangeExpression(_ exprID: ExprID, ast: ASTModule) -> Bool {

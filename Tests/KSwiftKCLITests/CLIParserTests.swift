@@ -111,6 +111,17 @@ struct CLIParserTests {
         #expect(options.target.os == "macos")
     }
 
+    @Test
+    func parsesCompleteNameBasedDestructuringMode() throws {
+        let options = try CLIParser.parse(args: [
+            "-Xname-based-destructuring=complete", "main.kt",
+        ])
+        #expect(options.nameBasedDestructuringMode == .complete)
+        #expect(throws: CLIParseError.unsupportedNameBasedDestructuringMode("only-syntax")) {
+            try CLIParser.parse(args: ["-Xname-based-destructuring=only-syntax", "main.kt"])
+        }
+    }
+
     @Test(arguments: ["--incremental", "-Xfrontend"])
     func parsesIncrementalEnableFlag(flag: String) throws {
         let flags = flag == "-Xfrontend" ? [flag, "incremental"] : [flag]

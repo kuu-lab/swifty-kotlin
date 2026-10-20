@@ -147,13 +147,14 @@ extension CallLowerer {
         for accessor: SymbolID,
         arguments: [KIRExprID],
         callExprID: ExprID?,
+        bindingOverride: CallBinding? = nil,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> [KIRExprID] {
         var result = arguments
-        let binding = callExprID.flatMap {
+        let binding = bindingOverride ?? callExprID.flatMap {
             sema.bindings.extensionPropertyGetterCalls[$0] ?? sema.bindings.callBindings[$0]
         }
         if let receiver = memberExtensionDispatchReceiver(

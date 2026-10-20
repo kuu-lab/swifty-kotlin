@@ -802,8 +802,11 @@ final class ExprTypeChecker {
         case let .destructuringDecl(names, isMutable, initializer, range):
             return driver.controlFlowChecker.inferDestructuringDeclExpr(id, names: names, isMutable: isMutable, initializer: initializer, range: range, ctx: ctx, locals: &locals)
 
-        case let .forDestructuringExpr(names, iterableExpr, bodyExpr, range):
-            return driver.controlFlowChecker.inferForDestructuringExpr(id, names: names, iterableExpr: iterableExpr, bodyExpr: bodyExpr, range: range, ctx: ctx, locals: &locals)
+        case let .forDestructuringExpr(names, iterableExpr, bodyExpr, syntax, range):
+            return driver.controlFlowChecker.inferForDestructuringExpr(
+                id, names: names, iterableExpr: iterableExpr, bodyExpr: bodyExpr,
+                syntax: syntax, range: range, ctx: ctx, locals: &locals
+            )
         }
     }
 

@@ -1610,7 +1610,7 @@ extension CallTypeChecker {
                 bodyShadowed.insert(loopVariable)
             }
             collectProduceBuilderSendExprs(in: bodyExpr, ast: ast, interner: interner, shadowedNames: bodyShadowed, sendArgumentExprs: &sendArgumentExprs)
-        case let .forDestructuringExpr(names, iterableExpr, bodyExpr, _):
+        case let .forDestructuringExpr(names, iterableExpr, bodyExpr, _, _):
             collectProduceBuilderSendExprs(in: iterableExpr, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
             collectProduceBuilderSendExprs(in: bodyExpr, ast: ast, interner: interner, shadowedNames: shadowedNames.union(names.compactMap { $0 }), sendArgumentExprs: &sendArgumentExprs)
         case let .returnExpr(value, _, _):
@@ -1906,7 +1906,7 @@ extension CallTypeChecker {
                 )
             }
         case let .forExpr(_, iterableExpr, bodyExpr, _, _),
-            let .forDestructuringExpr(_, iterableExpr, bodyExpr, _):
+            let .forDestructuringExpr(_, iterableExpr, bodyExpr, _, _):
             collectSequenceBuilderYieldExprs(
                 in: iterableExpr,
                 ast: ast,

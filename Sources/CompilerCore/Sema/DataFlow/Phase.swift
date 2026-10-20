@@ -42,6 +42,7 @@ final class DataFlowSemaPhase: CompilerPhase {
             symbols: symbols, types: types,
             bindings: bindings, diagnostics: ctx.diagnostics,
             interner: ctx.interner,
+            nameBasedDestructuringMode: ctx.options.nameBasedDestructuringMode,
             bundledIndex: bundledIndex
         )
 

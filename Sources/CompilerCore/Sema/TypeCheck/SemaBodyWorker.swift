@@ -15,7 +15,9 @@ final class SemaBodyWorker: @unchecked Sendable {
         let sema = SemaModule(
             symbols: symbols, types: types,
             bindings: copyingBindings ? parent.sema.bindings.makeSemaWorkerBindings() : BindingTable(),
-            diagnostics: diagnostics, interner: interner, bundledIndex: parent.sema.bundledIndex
+            diagnostics: diagnostics, interner: interner,
+            nameBasedDestructuringMode: parent.sema.nameBasedDestructuringMode,
+            bundledIndex: parent.sema.bundledIndex
         )
         sema.wellKnownSymbols = parent.sema.wellKnownSymbols
         sema.enumIntrinsicAliasNamesByFile = parent.sema.enumIntrinsicAliasNamesByFile
