@@ -455,10 +455,14 @@ final class JVMFunctionBuilder {
             guard scopes[scopes.count - 1][name] == nil else { throw fail("JVM locals require a unique name in their scope.", id) }
             let symbol = program.sema.bindings.identifierSymbol(for: id)
             let semanticType = symbol.flatMap { program.sema.symbols.propertyType(for: $0) }
+                ?? initializer.flatMap { program.sema.bindings.exprType(for: $0) }
             let declaredType: JVMValueType?
             if annotation != nil {
                 guard let type = semanticType else { throw fail("Missing JVM local type binding.", id) }
                 declaredType = try localStorageType(type)
+            } else if let semanticType, case .functionType = program.sema.types.kind(of: semanticType) {
+                // Distinct generated callable classes share their inferred function storage.
+                declaredType = try localStorageType(semanticType)
             } else { declaredType = nil }
             let initial = try initializer.map { try requireValue($0) }
             guard let storageType = declaredType ?? initial?.type else { throw fail("Missing JVM local type binding.", id) }
