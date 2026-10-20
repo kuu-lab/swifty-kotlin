@@ -7,6 +7,61 @@ import TestStdlibCache
 
 extension StdlibArtifactRegressionTests {
 
+    /// Suspend function references passed to startCoroutine must reuse the
+    /// started continuation instead of intercepting an adapter frame as well.
+    @Test
+    func testSuspendFunctionReferenceStartCoroutineInterceptsOnce() throws {
+        let artifactPath = try testStdlibArtifactPath()
+        let source = """
+        import kotlin.coroutines.*
+
+        private class CountingInterceptor : ContinuationInterceptor {
+            override val key: CoroutineContext.Key<*> = ContinuationInterceptor.Key
+            var calls = 0
+            override fun <T> interceptContinuation(continuation: Continuation<T>): Continuation<T> {
+                calls++
+                return continuation
+            }
+        }
+
+        private suspend fun immediate(): Int = suspendCoroutine { it.resume(42) }
+
+        fun main() {
+            val interceptor = CountingInterceptor()
+            val completion = Continuation<Int>(interceptor) { result ->
+                println(if (result.isSuccess) "value:${result.getOrThrow()}" else "failed")
+            }
+            (::immediate).startCoroutine(completion)
+            println("intercepts:${interceptor.calls}")
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "SuspendFunctionReferenceInterceptor",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try #require(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+            #expect(
+                result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+                    == "value:42\nintercepts:1\n"
+            )
+        }
+    }
+
     /// KUU-2118: an inline resume delivered before COROUTINE_SUSPENDED must
     /// continue through if and loop conditions before startCoroutine returns.
     @Test

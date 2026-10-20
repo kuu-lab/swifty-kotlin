@@ -12,13 +12,24 @@ extension CoroutineLoweringPass {
               let original = symbolReference(
                   for: call.arguments[0], module: rewrite.module, propagatedSymbols: symbolByExprRaw
               ),
-              let thunk = rewrite.launcherThunkByOriginalSymbol[original]
+              let loweredTarget = rewrite.loweredBySymbol[original]
         else { return nil }
 
-        let entry = rewrite.module.arena.appendExpr(.symbolRef(thunk.symbol), type: rewrite.intType)
+        let entryPointSymbol: SymbolID
+        if let thunk = rewrite.launcherThunkByOriginalSymbol[original] {
+            entryPointSymbol = thunk.symbol
+        } else if rewrite.module.arena.function(for: original)?.params.isEmpty == true {
+            // A zero-argument suspend function already has the continuation-only
+            // ABI after lowering, so its lowered entry point needs no launcher thunk.
+            entryPointSymbol = loweredTarget.symbol
+        } else {
+            return nil
+        }
+
+        let entry = rewrite.module.arena.appendExpr(.symbolRef(entryPointSymbol), type: rewrite.intType)
         let arityExpr = rewrite.module.arena.appendExpr(.intLiteral(Int64(arity)), type: rewrite.intType)
         return [
-            .constValue(result: entry, value: .symbolRef(thunk.symbol)),
+            .constValue(result: entry, value: .symbolRef(entryPointSymbol)),
             .constValue(result: arityExpr, value: .intLiteral(Int64(arity))),
             .call(
                 symbol: nil, callee: rewrite.ctx.interner.intern("kk_suspend_function_create"),
