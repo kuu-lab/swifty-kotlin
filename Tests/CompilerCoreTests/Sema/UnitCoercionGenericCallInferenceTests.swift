@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+import TestStdlibCache
 import Testing
 
 @Suite
@@ -45,6 +46,49 @@ struct UnitCoercionGenericCallInferenceTests {
             let callExpr = try call(named: "materialize", path: path, in: ctx)
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
             #expect(binding.substitutedTypeArguments == [sema.types.nullableAnyType])
+        }
+    }
+
+    @Test
+    func discardedGenericCallKeepsTypeInferredFromNonLambdaArgument() throws {
+        let source = """
+        fun <T> choose(seed: T, block: () -> T): T = block()
+        fun consume(block: () -> Unit) {}
+        fun run() {
+            consume { choose(42) { 7 } }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+
+            let sema = try #require(ctx.sema)
+            let chooseCall = try call(named: "choose", path: path, in: ctx)
+            #expect(sema.bindings.callBinding(for: chooseCall)?.substitutedTypeArguments == [sema.types.intType])
+        }
+    }
+
+    @Test
+    func discardedCharSequenceMinOfWithKeepsComparatorType() throws {
+        TestStdlibCache.shared.prepare()
+        let source = """
+        fun consume(block: () -> Unit) {}
+        fun run(empty: CharSequence) {
+            consume { empty.minOfWith(Comparator<Int> { a, b -> a.compareTo(b) }) { it.code } }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let library = try #require(CompilerOptions.defaultStdlibLibraryPath)
+            let ctx = makeCompilationContext(
+                inputs: [path], stdlibLibraryPath: library, allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+
+            let sema = try #require(ctx.sema)
+            let callExpr = try call(named: "minOfWith", path: path, in: ctx)
+            #expect(sema.bindings.callBinding(for: callExpr)?.substitutedTypeArguments == [sema.types.intType])
         }
     }
 
@@ -123,10 +167,17 @@ struct UnitCoercionGenericCallInferenceTests {
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
         let calls = allExprIDs(in: ast, path: path, ctx: ctx) { id, expr in
-            guard case let .call(callee, _, _, _) = expr,
-                  case let .nameRef(calleeName, _) = ast.arena.expr(callee)
-            else { return false }
-            return ctx.interner.resolve(calleeName) == name
+            let calleeName: InternedString?
+            switch expr {
+            case let .call(callee, _, _, _):
+                guard case let .nameRef(name, _) = ast.arena.expr(callee) else { return false }
+                calleeName = name
+            case let .memberCall(_, name, _, _, _):
+                calleeName = name
+            default:
+                return false
+            }
+            return calleeName.map(ctx.interner.resolve) == name
                 && sema.bindings.callBinding(for: id) != nil
         }
         #expect(calls.count == 1)
