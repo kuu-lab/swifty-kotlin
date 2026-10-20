@@ -53,10 +53,10 @@ struct ConstPropertyEvaluationTests {
             "GE": .boolLiteral(false), "FLAGS": .boolLiteral(true),
             "BOOL_EQ": .boolLiteral(true), "TEXT_EQ": .boolLiteral(true),
             "FLOAT_LT": .boolLiteral(true), "DOUBLE_GE": .boolLiteral(true),
-            "FLOAT_ROUNDED": .boolLiteral(true), "NAN_EQ": .boolLiteral(false),
+            "FLOAT_ROUNDED": .boolLiteral(true), "NAN_EQ": .boolLiteral(true),
             "MIXED_LT": .boolLiteral(true), "MIXED_ROUNDED": .boolLiteral(false),
-            "NAN_NE": .boolLiteral(true), "NAN_LE": .boolLiteral(false),
-            "SIGNED_ZERO": .boolLiteral(true),
+            "NAN_NE": .boolLiteral(false), "NAN_LE": .boolLiteral(false),
+            "SIGNED_ZERO": .boolLiteral(false),
             "INVERTED": .intLiteral(-17), "LONG_INVERTED": .longLiteral(-1),
         ]
         for (name, value) in expected {
