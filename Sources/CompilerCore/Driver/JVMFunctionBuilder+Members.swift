@@ -291,15 +291,29 @@ extension JVMProgramBuilder {
     func bridges(_ plan: JVMClassPlan, functions: [JVMFunction]) throws -> [JVMFunction] {
         var parents: [JVMForeignMethod] = []
         var specializedParameters: [String: [JVMValueType]] = [:]
-        func substitute(_ id: TypeID, _ mapping: [SymbolID: TypeID]) -> TypeID {
+        func substitute(_ id: TypeID, _ mapping: [SymbolID: TypeID], resolving: Set<SymbolID> = []) -> TypeID {
             switch sema.types.kind(of: id) {
             case let .typeParam(p):
-                guard let mapped = mapping[p.symbol] else { return id }
+                let mapped: TypeID
+                if let replacement = mapping[p.symbol] {
+                    mapped = replacement
+                } else if !resolving.contains(p.symbol), let bound = sema.symbols.typeParameterUpperBound(for: p.symbol) {
+                    // Method parameters may be bounded by a substituted class
+                    // parameter. Match bridges using that specialized erasure.
+                    mapped = substitute(bound, mapping, resolving: resolving.union([p.symbol]))
+                } else { return id }
                 return p.nullability == .nullable ? sema.types.makeNullable(mapped) : mapped
             case let .classType(t):
-                return sema.types.make(.classType(ClassType(classSymbol: t.classSymbol, args: t.args.map { $0.mapTypes { substitute($0, mapping) } }, nullability: t.nullability)))
+                return sema.types.make(.classType(ClassType(classSymbol: t.classSymbol, args: t.args.map { $0.mapTypes { substitute($0, mapping, resolving: resolving) } }, nullability: t.nullability)))
             default: return id
             }
+        }
+        func parameterType(_ id: TypeID, _ mapping: [SymbolID: TypeID]) throws -> JVMValueType {
+            let mapped = try type(substitute(id, mapping))
+            if case let .typeParam(parameter) = sema.types.kind(of: id), mapping[parameter.symbol] == nil {
+                return JVMClasspathIndex.boxed(mapped)
+            }
+            return mapped
         }
         var specializationVisited: Set<SymbolID> = []
         func specialize(_ symbol: SymbolID, mapping: [SymbolID: TypeID]) throws {
@@ -309,7 +323,7 @@ extension JVMProgramBuilder {
                     if let id = (parent.declaration?.memberFunctions ?? parent.interface!.memberFunctions).first(where: { if case let .funDecl(f) = ast.arena.decl($0) { return f.range == decl.range }; return false }),
                        let member = sema.bindings.declSymbol(for: id), let signature = sema.symbols.functionSignature(for: member) {
                         let receiver = extensionSymbols.contains(member) ? [signature.receiverType].compactMap { $0 } : []
-                        specializedParameters[method.owner + method.name + method.descriptor] = try (receiver + signature.parameterTypes).map { try type(substitute($0, mapping)) }
+                        specializedParameters[method.owner + method.name + method.descriptor] = try (receiver + signature.parameterTypes).map { try parameterType($0, mapping) }
                     }
                 }
                 for (id, _, property) in parent.properties {
@@ -322,7 +336,7 @@ extension JVMProgramBuilder {
             if classes[symbol] == nil {
                 for child in sema.symbols.children(of: symbol) {
                     if let method = methods[child] ?? textLibraryMethods[child]?.method, let signature = sema.symbols.functionSignature(for: child) {
-                        specializedParameters[method.owner + method.name + method.descriptor] = try signature.parameterTypes.map { try type(substitute($0, mapping)) }
+                        specializedParameters[method.owner + method.name + method.descriptor] = try signature.parameterTypes.map { try parameterType($0, mapping) }
                     }
                 }
             }
