@@ -297,6 +297,11 @@
       "virtualPath": "<kswiftk-jvm>/text-platform.kt",
       "excludeFromStdlibBuild": false,
       "onlyForStdlibBuild": true
+    },
+    {
+      "path": "declarations/IntIterator.kt",
+      "virtualPath": "<kswiftk-jvm>/m19-int-iterator.kt",
+      "excludeFromStdlibBuild": true
     }
   ],
   "runtimeClassAliases": {
