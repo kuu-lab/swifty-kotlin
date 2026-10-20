@@ -61,4 +61,8 @@ fun main() {
     println(SIGNED_ZERO)
     println(INVERTED)
     println(LONG_INVERTED)
+    println(Double.NaN == Double.NaN)
+    println(Double.NaN != Double.NaN)
+    println(Double.NaN <= 0.0)
+    println(-0.0 == 0.0)
 }

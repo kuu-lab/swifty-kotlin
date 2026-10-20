@@ -276,32 +276,32 @@ struct ConstantCollector {
         case let (.floatLiteral(l), .floatLiteral(r)):
             let lhs = Float(l)
             let rhs = Float(r)
-            return comparison(op, lhs, rhs)
+            return floatingPointComparison(op, lhs, rhs)
                 ?? floatingPointBinaryOp(op, lhs, rhs).map { .floatLiteral(Double($0)) }
         case let (.floatLiteral(l), .doubleLiteral(r)):
             let lhs = Double(Float(l))
-            return comparison(op, lhs, r) ?? floatingPointBinaryOp(op, lhs, r).map { .doubleLiteral($0) }
+            return floatingPointComparison(op, lhs, r) ?? floatingPointBinaryOp(op, lhs, r).map { .doubleLiteral($0) }
         case let (.doubleLiteral(l), .floatLiteral(r)):
             let rhs = Double(Float(r))
-            return comparison(op, l, rhs) ?? floatingPointBinaryOp(op, l, rhs).map { .doubleLiteral($0) }
+            return floatingPointComparison(op, l, rhs) ?? floatingPointBinaryOp(op, l, rhs).map { .doubleLiteral($0) }
         case let (.doubleLiteral(l), .doubleLiteral(r)):
-            return comparison(op, l, r) ?? floatingPointBinaryOp(op, l, r).map { .doubleLiteral($0) }
+            return floatingPointComparison(op, l, r) ?? floatingPointBinaryOp(op, l, r).map { .doubleLiteral($0) }
         case let (.intLiteral(l), .floatLiteral(r)), let (.longLiteral(l), .floatLiteral(r)):
             let lhs = Float(l)
             let rhs = Float(r)
-            return comparison(op, lhs, rhs)
+            return floatingPointComparison(op, lhs, rhs)
                 ?? floatingPointBinaryOp(op, lhs, rhs).map { .floatLiteral(Double($0)) }
         case let (.floatLiteral(l), .intLiteral(r)), let (.floatLiteral(l), .longLiteral(r)):
             let lhs = Float(l)
             let rhs = Float(r)
-            return comparison(op, lhs, rhs)
+            return floatingPointComparison(op, lhs, rhs)
                 ?? floatingPointBinaryOp(op, lhs, rhs).map { .floatLiteral(Double($0)) }
         case let (.intLiteral(l), .doubleLiteral(r)), let (.longLiteral(l), .doubleLiteral(r)):
             let lhs = Double(l)
-            return comparison(op, lhs, r) ?? floatingPointBinaryOp(op, lhs, r).map { .doubleLiteral($0) }
+            return floatingPointComparison(op, lhs, r) ?? floatingPointBinaryOp(op, lhs, r).map { .doubleLiteral($0) }
         case let (.doubleLiteral(l), .intLiteral(r)), let (.doubleLiteral(l), .longLiteral(r)):
             let rhs = Double(r)
-            return comparison(op, l, rhs) ?? floatingPointBinaryOp(op, l, rhs).map { .doubleLiteral($0) }
+            return floatingPointComparison(op, l, rhs) ?? floatingPointBinaryOp(op, l, rhs).map { .doubleLiteral($0) }
         default:
             return nil
         }
@@ -328,6 +328,20 @@ struct ConstantCollector {
         case .greaterOrEqual: .boolLiteral(lhs >= rhs)
         default: nil
         }
+    }
+
+    private func floatingPointComparison<T: BinaryFloatingPoint>(_ op: BinaryOp, _ lhs: T, _ rhs: T) -> KIRExprKind? {
+        switch op {
+        case .equal: .boolLiteral(kotlinConstantFloatingPointEquals(lhs, rhs))
+        case .notEqual: .boolLiteral(!kotlinConstantFloatingPointEquals(lhs, rhs))
+        default: comparison(op, lhs, rhs)
+        }
+    }
+
+    private func kotlinConstantFloatingPointEquals<T: BinaryFloatingPoint>(_ lhs: T, _ rhs: T) -> Bool {
+        if lhs.isNaN || rhs.isNaN { return lhs.isNaN && rhs.isNaN }
+        if lhs == 0, rhs == 0 { return lhs.sign == rhs.sign }
+        return lhs == rhs
     }
 
     private func integerBinaryOp(_ op: BinaryOp, _ lhs: Int64, _ rhs: Int64, width: Int = 64) -> Int64? {
