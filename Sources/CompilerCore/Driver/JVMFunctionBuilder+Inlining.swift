@@ -20,7 +20,7 @@ extension JVMFunctionBuilder {
         guard !scopes.contains(where: { $0[name] != nil }) else { return nil }
         return inlineArguments[name]
     }
-    func inlineCall(_ args: [CallArgument], receiver: ExprID? = nil, id: ExprID, expectedResult: JVMValueType? = nil) throws -> JVMIntrinsicResult? {
+    func inlineCall(_ args: [CallArgument], receiver: ExprID? = nil, receiverValue: JVMValue? = nil, id: ExprID, expectedResult: JVMValueType? = nil) throws -> JVMIntrinsicResult? {
         guard let binding = program.sema.bindings.callBinding(for: id),
               let declaration = program.inlineDeclarations[binding.chosenCallee] else { return nil }
         guard !inlineStack.contains(binding.chosenCallee),
@@ -28,8 +28,8 @@ extension JVMFunctionBuilder {
         let savedScopes = scopes, savedThis = thisValue, savedReceiver = extensionValue, savedContexts = contextualReceivers
         let savedArguments = inlineArguments, savedReturns = inlineReturns, savedLambda = lambdaID
         let method = program.methods[binding.chosenCallee]
-        let dispatch = try method.map { _ in try receiver != nil && declaration.receiverType == nil ? requireValue(receiver!) : instance(id) }
-        let extensionReceiver = try declaration.receiverType == nil ? nil : receiver.map(requireValue) ?? implicitExtensionReceiver(id)
+        let dispatch = try method.map { _ in try (receiver != nil || receiverValue != nil) && declaration.receiverType == nil ? receiverValue ?? requireValue(receiver!) : instance(id) }
+        let extensionReceiver = try declaration.receiverType == nil ? nil : receiverValue ?? receiver.map(requireValue) ?? implicitExtensionReceiver(id)
         var parameters: [InternedString: Local] = [:], lambdas: [InternedString: InlineLambda] = [:]
         var supplied: Set<Int> = []
         for (sourceIndex, argument) in args.enumerated() {

@@ -524,6 +524,13 @@ final class JVMFunctionBuilder {
                 guard let field = property.field else { throw fail("Missing JVM backing field.", id) }
                 let left = try value(field.type)
                 instructions.append(property.getter.isStatic ? .getStatic(field, left) : .getField(field, thisValue!, left))
+                if let call = try resolvedCompoundCall(op, receiver: left, rhs: rhs, id: id) {
+                    if !call.mutatesReceiver, let result = call.value, !terminated {
+                        let converted = try convert(result, to: field.type)
+                        instructions.append(property.getter.isStatic ? .putStatic(field, converted) : .putField(field, thisValue!, converted))
+                    }
+                    return nil
+                }
                 let right = try compoundOperand(rhs, target: field.type)
                 if terminated { return nil }
                 guard try permitsCompound(left.type, right.type) else { throw fail("Unsupported JVM backing field conversion.", id) }
@@ -537,8 +544,17 @@ final class JVMFunctionBuilder {
                 return try propertyCompound(property, receiver: instance(id), op: op, rhs: rhs, id: id)
             }
             let local = try lookup(name)
+            let loaded = try readLocal(local), old = try value(loaded.type)
+            // The RHS may reassign this local before the operator call executes.
+            instructions.append(.copy(loaded, old))
+            if let call = try resolvedCompoundCall(op, receiver: old, rhs: rhs, id: id) {
+                if !call.mutatesReceiver, !terminated {
+                    guard local.mutable, let result = call.value else { throw fail("Cannot reassign JVM val.", id) }
+                    try writeLocal(local, convert(result, to: local.value.type))
+                }
+                return nil
+            }
             guard local.mutable, local.value.type.isNumeric || local.value.type.isText else { throw fail("JVM compound assignment requires a mutable numeric local.", id) }
-            let old = try readLocal(local)
             let rawRight = try compoundOperand(rhs, target: old.type)
             if terminated { return nil }
             guard try permitsCompound(old.type, rawRight.type) else { throw fail("JVM compound assignment cannot narrow its numeric result.", id) }
