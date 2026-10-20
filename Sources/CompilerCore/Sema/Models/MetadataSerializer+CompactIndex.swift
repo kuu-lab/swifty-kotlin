@@ -104,6 +104,59 @@ enum CompactMetadataIndex {
         withUnsafeBytes(of: &littleEndian) { data.append(contentsOf: $0) }
     }
 
+    /// Items per worker chunk when decoding in parallel. Both the string
+    /// table and the fixed-width entry table split along scanned/arithmetic
+    /// boundaries, so chunks stay independent and any malformed item still
+    /// rejects the whole file exactly like the sequential scan did.
+    private static let parallelChunkSize = 1024
+
+    /// A read-only view of the file bytes shared by decode workers for the
+    /// synchronous duration of the enclosing `withUnsafeBytes`; every
+    /// `concurrentPerform` worker has joined before that pointer can go away.
+    private struct SharedBytes: @unchecked Sendable {
+        let raw: UnsafeRawBufferPointer
+
+        func integer<T: FixedWidthInteger>(_ type: T.Type, at offset: Int) -> T {
+            T(littleEndian: raw.loadUnaligned(fromByteOffset: offset, as: T.self))
+        }
+
+        func string(_ range: Range<Int>) -> String? {
+            String(bytes: raw.bindMemory(to: UInt8.self)[range], encoding: .utf8)
+        }
+    }
+
+    /// Decodes `[0, itemCount)` in per-core chunks on the global concurrent
+    /// queue, preserving input order. Small tables stay on the calling
+    /// thread — dispatch overhead would exceed the decode work there.
+    private static func decodeChunks<T>(
+        itemCount: Int,
+        decode: @Sendable (Range<Int>) -> [T]?
+    ) -> [T]? {
+        let chunkCount = min(
+            max(1, ProcessInfo.processInfo.activeProcessorCount) * 4,
+            max(1, itemCount / parallelChunkSize)
+        )
+        if chunkCount <= 1 {
+            return decode(0 ..< itemCount)
+        }
+        let chunkSize = (itemCount + chunkCount - 1) / chunkCount
+        // Element is the per-chunk array; a chunk that rejects stores nil so
+        // the failure is distinguishable from a chunk that never ran.
+        let results = LockedIndexedResults<[T]?>(count: chunkCount)
+        DispatchQueue.concurrentPerform(iterations: chunkCount) { chunkIndex in
+            let lower = chunkIndex * chunkSize
+            let upper = min(lower + chunkSize, itemCount)
+            results.store(decode(lower ..< upper), at: chunkIndex)
+        }
+        var combined: [T] = []
+        combined.reserveCapacity(itemCount)
+        for chunk in results.orderedResults() {
+            guard let chunk else { return nil }
+            combined.append(contentsOf: chunk)
+        }
+        return combined
+    }
+
     static func decode(_ data: Data) -> (entries: [MetadataIndexEntry], bodyStart: Int)? {
         data.withUnsafeBytes { rawBytes in
             let bytes = rawBytes.bindMemory(to: UInt8.self)
@@ -129,68 +182,93 @@ enum CompactMetadataIndex {
             else { return nil }
             let stringsEnd = cursor + stringBytes
             let bodyStart = stringsEnd + count * entrySize
-            var strings: [String] = []
-            strings.reserveCapacity(stringCount)
+            // Scan string byte ranges without decoding so worker chunks can
+            // decode their slice independently; the table check above already
+            // bounded the whole section.
+            var scannedRanges: [Range<Int>] = []
+            scannedRanges.reserveCapacity(stringCount)
             for _ in 0 ..< stringCount {
                 guard cursor <= stringsEnd - 4,
                       let lengthValue = integer(UInt32.self),
                       Int(lengthValue) <= stringsEnd - cursor
                 else { return nil }
                 let end = cursor + Int(lengthValue)
-                guard let string = String(bytes: bytes[cursor ..< end], encoding: .utf8) else { return nil }
-                strings.append(string)
+                scannedRanges.append(cursor ..< end)
                 cursor = end
             }
-            guard cursor == stringsEnd, strings[0].isEmpty else { return nil }
-            var entries: [MetadataIndexEntry] = []
-            entries.reserveCapacity(count)
-            for _ in 0 ..< count {
-                guard let offsetValue = integer(UInt64.self),
-                      let lengthValue = integer(UInt64.self),
-                      let arityValue = integer(UInt32.self),
-                      let flags = integer(UInt32.self), flags >> 22 == 0, ((flags >> 16) & 3) != 3,
-                      ((flags >> 18) & 7) <= 4,
-                      let kindID = integer(UInt32.self), kindID < kinds.count,
-                      flags & (1 << 21) == 0 || kinds[Int(kindID)] == .constructor,
-                      let visibilityID = integer(UInt32.self), visibilityID < visibilities.count,
-                      offsetValue <= UInt64(bytes.count - bodyStart), lengthValue > 0,
-                      lengthValue <= UInt64(bytes.count - bodyStart) - offsetValue
-                else { return nil }
-                // Fixed field positions avoid token/key parsing and per-field
-                // string allocation. Shared IDs also preserve Unicode names.
-                let idsStart = cursor
-                for _ in 0 ..< 12 {
-                    guard let id = integer(UInt32.self), id < strings.count else { return nil }
+            guard cursor == stringsEnd else { return nil }
+            let stringRanges = scannedRanges
+            let shared = SharedBytes(raw: rawBytes)
+            guard let strings: [String] = decodeChunks(itemCount: stringCount, decode: { range in
+                var chunk: [String] = []
+                chunk.reserveCapacity(range.count)
+                for index in range {
+                    guard let string = shared.string(stringRanges[index]) else {
+                        return nil
+                    }
+                    chunk.append(string)
                 }
-                func string(_ field: Int) -> String {
-                    let id = UInt32(littleEndian: rawBytes.loadUnaligned(fromByteOffset: idsStart + field * 4, as: UInt32.self))
-                    return strings[Int(id)]
+                return chunk
+            }), strings[0].isEmpty else { return nil }
+            let tableStart = stringsEnd
+            let bodySize = bytes.count - bodyStart
+            guard let entries: [MetadataIndexEntry] = decodeChunks(itemCount: count, decode: { range in
+                var chunk: [MetadataIndexEntry] = []
+                chunk.reserveCapacity(range.count)
+                for index in range {
+                    let base = tableStart + index * entrySize
+                    let offsetValue = shared.integer(UInt64.self, at: base)
+                    let lengthValue = shared.integer(UInt64.self, at: base + 8)
+                    let arityValue = shared.integer(UInt32.self, at: base + 16)
+                    let flags = shared.integer(UInt32.self, at: base + 20)
+                    let kindID = shared.integer(UInt32.self, at: base + 24)
+                    let visibilityID = shared.integer(UInt32.self, at: base + 28)
+                    guard flags >> 22 == 0, ((flags >> 16) & 3) != 3,
+                          ((flags >> 18) & 7) <= 4,
+                          kindID < kinds.count,
+                          flags & (1 << 21) == 0 || kinds[Int(kindID)] == .constructor,
+                          visibilityID < visibilities.count,
+                          offsetValue <= UInt64(bodySize), lengthValue > 0,
+                          lengthValue <= UInt64(bodySize) - offsetValue
+                    else { return nil }
+                    // Fixed field positions avoid token/key parsing and
+                    // per-field string allocation. Shared IDs also preserve
+                    // Unicode names.
+                    let idsStart = base + 32
+                    for field in 0 ..< 12 {
+                        guard shared.integer(UInt32.self, at: idsStart + field * 4) < strings.count
+                        else { return nil }
+                    }
+                    func string(_ field: Int) -> String {
+                        strings[Int(shared.integer(UInt32.self, at: idsStart + field * 4))]
+                    }
+                    func optionalString(_ field: Int) -> String? {
+                        let id = shared.integer(UInt32.self, at: idsStart + field * 4)
+                        return id == 0 ? nil : strings[Int(id)]
+                    }
+                    guard !string(0).isEmpty else { return nil }
+                    let record = CompactMetadataIndexRecord(
+                        kind: kinds[Int(kindID)], visibility: visibilities[Int(visibilityID)],
+                        arity: Int(arityValue), flags: flags,
+                        fqName: string(0),
+                        mangledName: string(1),
+                        receiverOwnerFQName: optionalString(2),
+                        defaultStubExternalLinkName: optionalString(3),
+                        externalLinkName: optionalString(4),
+                        propertyReceiverTypeSignature: optionalString(5),
+                        propertyGetterExternalLinkName: optionalString(6),
+                        nominalTypeParametersSignature: optionalString(7),
+                        companionObjectFQName: optionalString(8),
+                        objectInitializerLinkName: optionalString(9),
+                        companionInitializerLinkName: optionalString(10),
+                        enumStaticInitLinkName: optionalString(11)
+                    )
+                    chunk.append(MetadataIndexEntry(
+                        offset: Int(offsetValue), length: Int(lengthValue), compactRecord: record
+                    ))
                 }
-                func optionalString(_ field: Int) -> String? {
-                    let id = UInt32(littleEndian: rawBytes.loadUnaligned(fromByteOffset: idsStart + field * 4, as: UInt32.self))
-                    return id == 0 ? nil : strings[Int(id)]
-                }
-                guard !string(0).isEmpty else { return nil }
-                let record = CompactMetadataIndexRecord(
-                    kind: kinds[Int(kindID)], visibility: visibilities[Int(visibilityID)],
-                    arity: Int(arityValue), flags: flags,
-                    fqName: string(0),
-                    mangledName: string(1),
-                    receiverOwnerFQName: optionalString(2),
-                    defaultStubExternalLinkName: optionalString(3),
-                    externalLinkName: optionalString(4),
-                    propertyReceiverTypeSignature: optionalString(5),
-                    propertyGetterExternalLinkName: optionalString(6),
-                    nominalTypeParametersSignature: optionalString(7),
-                    companionObjectFQName: optionalString(8),
-                    objectInitializerLinkName: optionalString(9),
-                    companionInitializerLinkName: optionalString(10),
-                    enumStaticInitLinkName: optionalString(11)
-                )
-                entries.append(MetadataIndexEntry(
-                    offset: Int(offsetValue), length: Int(lengthValue), compactRecord: record
-                ))
-            }
+                return chunk
+            }) else { return nil }
             return (entries, bodyStart)
         }
     }
