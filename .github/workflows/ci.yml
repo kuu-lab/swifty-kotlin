@@ -180,11 +180,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          brew install llvm
+          brew install bash grep llvm
+          bash_prefix="$(brew --prefix bash)"
+          grep_prefix="$(brew --prefix grep)"
           llvm_prefix="$(brew --prefix llvm)"
           llvm_dylib="$llvm_prefix/lib/libLLVM.dylib"
           [[ -f "$llvm_dylib" ]]
+          "$bash_prefix/bin/bash" -c '(( BASH_VERSINFO[0] >= 4 ))'
           {
+            echo "$bash_prefix/bin"
+            echo "$grep_prefix/libexec/gnubin"
             echo "$llvm_prefix/bin"
           } >> "$GITHUB_PATH"
           {
