@@ -6,7 +6,7 @@ import Testing
 
 extension StdlibArtifactRegressionTests {
 
-    /// KUU-2035: preserve JVM Unit local, return, and argument boundaries.
+    /// KUU-2035: preserve JVM Unit local, return, argument, and property boundaries.
     @Test
     func testJavaLinkedListPlatformUnitThroughSourceAndFreshArtifactAtO0AndO2() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -34,12 +34,12 @@ extension StdlibArtifactRegressionTests {
         npe:receiver
         npe:function-receiver
         null
-        kotlin.Unit
-        kotlin.Unit
-        kotlin.Unit
-        kotlin.Unit
-        kotlin.Unit
-        kotlin.Unit
+        null
+        null
+        null
+        null
+        null
+        null
         null
         null
         null
