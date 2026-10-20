@@ -7,6 +7,12 @@
   ],
   "declarations": [
     {
+      "path": "declarations/Math.kt",
+      "virtualPath": "<kswiftk-jvm>/math.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/math/MathKt"
+    },
+    {
       "path": "declarations/JavaCollections.kt",
       "virtualPath": "<kswiftk-jvm>/javaCollections.kt",
       "excludeFromStdlibBuild": false,
