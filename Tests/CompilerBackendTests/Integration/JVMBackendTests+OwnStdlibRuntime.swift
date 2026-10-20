@@ -24,6 +24,7 @@ private final class JVMOwnStdlibCache: @unchecked Sendable {
 
 extension JVMBackendTests {
     private static let ownStdlibCases = [
+        "boundedNestedGenericOverloads",
         "callableReferenceCallByExtensionContracts",
         "reifiedCapturedCollectionChecks",
         "arrayConstructorInlineAndReifiedContracts",
@@ -137,6 +138,49 @@ extension JVMBackendTests {
         "m9SuspendDefaultCallsUseContinuationBeforeMasks",
         "m9NamedArrayAndHigherOrderArguments",
     ]
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func boundedNestedGenericOverloadsKeepSelectedJVMBindings(mode: EmitMode) throws {
+        let library = try JVMOwnStdlibCache.shared.library()
+        let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/JVMOwnStdlib")
+        let source = try String(contentsOf: fixtures.appendingPathComponent("boundedNestedGenericOverloads.kt"), encoding: .utf8)
+        let expected = try String(contentsOf: fixtures.appendingPathComponent("boundedNestedGenericOverloads.out"), encoding: .utf8)
+        for reversed in [false, true] {
+            var lines = source.components(separatedBy: "\n")
+            if reversed {
+                for index in lines.indices.dropLast() where
+                    lines[index].contains("String): String") && lines[index + 1].contains("Int): String")
+                {
+                    lines.swapAt(index, index + 1)
+                }
+            }
+            try withWorkspace { root in
+                let app = try m22Build(root: root, sources: [("hello.kt", lines.joined(separator: "\n"))], name: mode == .jvmJar ? "app.jar" : "classes", mode: mode, classpath: [library.path])
+                try #require(app.1 == 0, "\(app.2.map(\.message))")
+                let result = try java(["-cp", app.0.path + ":" + library.path, "HelloKt"])
+                #expect(result.stdout == expected)
+                #expect(result.stderr.isEmpty)
+            }
+        }
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func boundedNestedGenericOverloadsPreserveJVMRejections(mode: EmitMode) throws {
+        let cases = [
+            "fun <T> value(): T = \"x\" as T\nfun choose(value: String): String = value\nfun choose(value: Int): String = \"int\"\nfun main() { choose(value()) }",
+            "fun <T : String> value(): T = \"x\" as T\nfun main() { val actual = value() }",
+            "fun <T : String> value(): T = \"x\" as T\nfun choose(value: Int): String = \"int\"\nfun main() { choose(value()) }",
+        ]
+        try withWorkspace { root in
+            for source in cases {
+                let result = try compile(source, root: root, mode: mode)
+                #expect(result.0 != 0)
+                #expect(result.1.contains { $0.severity == .error && $0.code.hasPrefix("KSWIFTK-SEMA") })
+                #expect(!result.1.contains { $0.code.hasPrefix("KSWIFTK-ICE") })
+                #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes").path))
+            }
+        }
+    }
 
     @Test(arguments: Self.ownStdlibCases, [EmitMode.jvmClass, .jvmJar])
     func repositoryStdlibRuntimeRegression(name: String, mode: EmitMode) throws {
