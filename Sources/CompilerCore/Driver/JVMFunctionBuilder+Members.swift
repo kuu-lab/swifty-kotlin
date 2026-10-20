@@ -5,16 +5,36 @@ extension JVMFunctionBuilder {
         if propertyBinding(id)?.getter.isStatic == true { return try constant(.null, .reference("java/lang/Object", nullable: true)) }
         let bindings = program.sema.bindings
         if let symbol = bindings.implicitReceiverOuterReceiver(for: id) ?? bindings.callBinding(for: id)?.dispatchReceiverSymbol, let receiver = contextualReceivers[symbol], !beforeDelegation || receiver.slot != thisValue?.slot { return receiver }
+        let objectName = bindings.callBinding(for: id).flatMap { program.methods[$0.chosenCallee]?.owner } ?? propertyBinding(id)?.getter.owner
+        // For an unqualified ordinary member, the extension receiver precedes
+        // the dispatch owner even when both have the same nominal type.
+        // This also selects the closest owner for a member-extension callee;
+        // its explicit extension argument is supplied separately by sourceCall.
+        if let extensionValue, let objectName,
+           isMemberReceiver(extensionValue, owner: objectName) { return extensionValue }
         if let thisValue, let owner, !beforeDelegation {
             if let binding = bindings.callBinding(for: id), program.methods[binding.chosenCallee]?.owner == owner.name { return thisValue }
             if propertyBinding(id)?.getter.owner == owner.name { return thisValue }
         }
-        let objectName = bindings.callBinding(for: id).flatMap { program.methods[$0.chosenCallee]?.owner } ?? propertyBinding(id)?.getter.owner
         if let name = objectName, let lexical = program.classes.values.first(where: { $0.name == name }), let receiver = contextualReceivers[lexical.symbol], !beforeDelegation || receiver.slot != thisValue?.slot { return receiver }
         if let name = objectName, let object = program.classes.values.first(where: { $0.name == name && $0.isObject }) { return try singleton(object) }
         guard !beforeDelegation else { throw fail("JVM member access requires an initialized this.", id) }
         if let value = extensionValue ?? thisValue { return value }
         throw fail("JVM member access requires a receiver.", id)
+    }
+    func isMemberReceiver(_ value: JVMValue, owner: String) -> Bool {
+        var pending = value.type.referenceName.map { [$0] } ?? []
+        var visited: Set<String> = []
+        while let name = pending.popLast() {
+            if name == owner { return true }
+            guard visited.insert(name).inserted else { continue }
+            if let plan = program.classes.values.first(where: { $0.name == name }) {
+                pending += [plan.superclass] + plan.interfaces
+            } else if let imported = context.jvmImports?.classes[name] {
+                pending += [imported.superclass].compactMap { $0 } + imported.interfaces
+            }
+        }
+        return false
     }
     func isSuper(_ id: ExprID) -> Bool {
         if case .superRef = arena.expr(id) { return true }
