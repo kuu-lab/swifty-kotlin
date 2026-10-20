@@ -57,14 +57,16 @@ private external fun <E> __kkArrayListRemoveAll(list: ArrayList<E>, elements: Co
 @KsSymbolName("__kk_mutable_list_retainAll")
 private external fun <E> __kkArrayListRetainAll(list: ArrayList<E>, elements: Collection<E>): Boolean
 
-public final class ArrayList<E> : MutableList<E>, RandomAccess, AbstractMutableList<E> {
+public open class ArrayList<E> : MutableList<E>, RandomAccess, AbstractMutableList<E> {
     init {
         __kkArrayListInit(this)
     }
 
     constructor()
     constructor(initialCapacity: Int)
-    constructor(elements: Collection<E>)
+    constructor(elements: Collection<E>) {
+        addAll(elements)
+    }
 
     @PublishedApi
     internal fun build(): List<E> {
