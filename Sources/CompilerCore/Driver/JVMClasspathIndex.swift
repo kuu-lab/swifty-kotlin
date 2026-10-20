@@ -356,7 +356,8 @@ final class JVMClasspathIndex {
             guard let concrete else { throw JVMFrontendError(message: "Empty JVM intersection type.") }
             return try Self.type(concrete, sema: sema, ctx: ctx)
         case let .kClassType(t): return .reference("kotlin/reflect/KClass", nullable: t.nullability != .nonNull)
-        case .unit, .nothing(.nonNull): return .unit
+        case .unit: return .unit
+        case .nothing(.nonNull): return .reference("java/lang/Void", nullable: false)
         case .nullableUnit: return .reference("kotlin/Unit", nullable: true)
         case .nothing(.nullable): return .reference("java/lang/Object", nullable: true)
         case let .any(nullability): return .reference("java/lang/Object", nullable: nullability != .nonNull, platform: nullability == .platformType)

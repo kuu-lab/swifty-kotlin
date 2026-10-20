@@ -26,6 +26,7 @@ Intrinsics、InlineMarker、lateinit例外、SpreadBuilderとprimitive spread bu
 | 範囲 | Kotlinソースの実装 |
 |---|---|
 | 基礎 | print／println、Pair／to、Unit、関数型interface、null検査、inline marker |
+| 事前条件 | inline check、error、IllegalStateExceptionのmessageと遅延評価、checkのsmartcast契約とKotlin metadataへのexport、Nothing経路のKotlinNothingValueException |
 | 文字列 | UTF-16、検索・置換・split・trim／indent／margin、大小文字・数値変換、StringBuilderと高階操作 |
 | collection | List／Set／Map factoryと変換、groupBy／associate／partition／zip、joinToString、sortedBy／windowed／chunked、配列overload |
 | Sequence | factory、generateSequence、遅延map／filter／flatMap、zip／window／distinct、終端、一回消費制約 |

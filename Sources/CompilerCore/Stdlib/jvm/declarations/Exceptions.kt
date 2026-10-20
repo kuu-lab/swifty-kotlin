@@ -1,9 +1,9 @@
 package kotlin
-open class Throwable { constructor(); constructor(message: String?); val message: String? get() = null }
+open class Throwable { constructor(); constructor(message: String?); constructor(message: String?, cause: Throwable?); constructor(cause: Throwable?); val message: String? get() = null }
 open class NegativeArraySizeException: RuntimeException { constructor(): super(); constructor(message: String?): super(message) }
 open class UnsupportedOperationException: RuntimeException { constructor(): super(); constructor(message: String?): super(message) }
-open class Exception: Throwable { constructor(): super(); constructor(message: String?): super(message) }
-open class RuntimeException: Exception { constructor(): super(); constructor(message: String?): super(message) }
+open class Exception: Throwable { constructor(): super(); constructor(message: String?): super(message); constructor(message: String?, cause: Throwable?): super(message, cause); constructor(cause: Throwable?): super(cause) }
+open class RuntimeException: Exception { constructor(): super(); constructor(message: String?): super(message); constructor(message: String?, cause: Throwable?): super(message, cause); constructor(cause: Throwable?): super(cause) }
 open class IllegalArgumentException: RuntimeException { constructor(): super(); constructor(message: String?): super(message) }
 open class IllegalStateException: RuntimeException { constructor(): super(); constructor(message: String?): super(message) }
 open class IndexOutOfBoundsException: RuntimeException { constructor(): super(); constructor(message: String?): super(message) }

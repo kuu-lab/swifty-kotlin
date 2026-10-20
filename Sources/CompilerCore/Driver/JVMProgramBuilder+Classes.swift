@@ -88,9 +88,17 @@ extension JVMProgramBuilder {
         return JVMFunctionReference(name: internalName, parameters: parameters, result: result, isSuspend: function.isSuspend)
     }
     func validateSignature(_ signature: FunctionSignature, instance: Bool, extensionReceiver: Bool = false) throws {
-        let parameters = try ((extensionReceiver ? [signature.receiverType].compactMap { $0 } : []) + signature.parameterTypes).map(type)
+        let parameterTypes = (extensionReceiver ? [signature.receiverType].compactMap { $0 } : []) + signature.parameterTypes
+        let parameters = try parameterTypes.map(type)
+        let unsupportedReturn: Bool
+        if case let .nothing(nullability) = sema.types.kind(of: signature.returnType) {
+            unsupportedReturn = nullability != .nonNull
+        } else {
+            unsupportedReturn = false
+        }
         guard !parameters.contains(.unit), parameters.reduce(instance ? 1 : 0, { $0 + $1.width }) <= 255,
-              !([signature.returnType] + signature.parameterTypes).contains(where: { if case .nothing = sema.types.kind(of: $0) { return true }; return false }) else {
+              !unsupportedReturn,
+              !parameterTypes.contains(where: { if case .nothing = sema.types.kind(of: $0) { return true }; return false }) else {
             throw JVMFrontendError(message: "Unsupported JVM signature or method parameter slot limit exceeded.")
         }
     }

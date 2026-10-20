@@ -190,6 +190,8 @@ public struct JVMFunction {
     public var typeParameters: [JVMTypeParameter] = []
     public var kotlinParameters: [JVMKotlinType] = []
     public var kotlinResult: JVMKotlinType? = nil
+    /// The indexed Boolean value parameter is true after any normal return.
+    public var normalReturnConditionParameter: Int? = nil
     public var kotlinReceiver: JVMKotlinType? = nil
     public var isSynthetic: Bool = false
     public var isMetadataHidden: Bool = false
