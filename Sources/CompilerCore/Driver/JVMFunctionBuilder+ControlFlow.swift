@@ -30,6 +30,7 @@ extension JVMFunctionBuilder {
             let args = [CallArgument(expr: rhs)]
             if let call = try inlineCall(args, receiver: lhs, id: id)
                 ?? sourceCall(args, receiver: lhs, id: id) { return call.value }
+            if let call = try textLibraryCall(args, receiver: lhs, id: id) { return call.value }
         }
         let ordering = [BinaryOp.lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual].contains(op)
         if ordering {
