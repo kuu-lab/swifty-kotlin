@@ -231,6 +231,53 @@ struct FlowBuilderInferenceTests {
     }
 
     @Test
+    func classMemberEmitDoesNotShadowFlowCollectorEmit() throws {
+        // The `this` local in scope at `flow { }` stays the enclosing class
+        // receiver inside the builder lambda (`syncingImplicitReceiver`
+        // restores it over the synthetic Any placeholder). Its `emit` member
+        // must not shadow the FlowCollector emission, while `this@S.emit`
+        // still reaches the class member.
+        let source = """
+        import kotlinx.coroutines.flow.*
+        class S {
+            fun emit(v: Int) {}
+            fun f() = flow { emit(1); emit(2) }
+            fun g() = flow { this@S.emit(100); emit(3) }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let flowCalls = allExprIDs(in: ast, path: path, ctx: ctx) { _, expr in
+                guard case let .call(callee, _, _, _) = expr,
+                      case let .nameRef(name, _) = ast.arena.expr(callee)
+                else { return false }
+                return name == KnownCompilerNames(interner: ctx.interner).flow
+            }
+            #expect(flowCalls.count == 2)
+            for flowCall in flowCalls {
+                #expect(sema.bindings.flowElementType(forExpr: flowCall) == sema.types.intType)
+            }
+            // Bare `emit` calls inside the builders are FlowCollector
+            // emissions and carry no resolved callee; only the explicit
+            // `this@S.emit` member call binds the class member.
+            let bareEmitCalls = allExprIDs(in: ast, path: path, ctx: ctx) { _, expr in
+                guard case let .call(callee, _, _, _) = expr,
+                      case let .nameRef(name, _) = ast.arena.expr(callee)
+                else { return false }
+                return ctx.interner.resolve(name) == "emit"
+            }
+            #expect(bareEmitCalls.count == 3)
+            for emitCall in bareEmitCalls {
+                #expect(sema.bindings.callBinding(for: emitCall) == nil)
+            }
+        }
+    }
+
+    @Test
     func topLevelEmitDoesNotShadowFlowCollectorEmit() throws {
         let source = """
         import kotlinx.coroutines.flow.*
