@@ -148,6 +148,12 @@ public final class SymbolTable {
     private var lazyImportedMetadataLoaded: Set<SymbolID> = []
     private var lazyImportedMetadataLoadInProgress: Set<SymbolID> = []
     private var indexedImportedNominals: Set<SymbolID> = []
+    /// Compact-index shells whose complete record has not been applied yet.
+    /// Unlike `lazyImportedMetadataLoaded` (which only tracks symbols that
+    /// went through `ensureLazyImportedMetadataLoaded`), this set is fixed at
+    /// loader registration, so membership minus `lazyImportedMetadataLoaded`
+    /// identifies shells still decodable on demand.
+    private var lazyImportedShells: Set<SymbolID> = []
     private var importedLayoutSynthesizer: ((SymbolID) -> Void)?
     private var importedLayoutSynthesisInProgress = false
     private var importedNominalsWithoutInitializers: Set<SymbolID> = []
@@ -256,6 +262,7 @@ public final class SymbolTable {
         worker.contractConditionEffects = contractConditionEffects
         worker.lazyImportedMetadataLoaded = lazyImportedMetadataLoaded
         worker.lazyImportedMetadataLoadInProgress = lazyImportedMetadataLoadInProgress
+        worker.lazyImportedShells = lazyImportedShells
         worker.importedNominalsWithoutInitializers = importedNominalsWithoutInitializers
         worker.importedMemberIndexShapes = importedMemberIndexShapes
         worker.delegatedInterfacesByClass = delegatedInterfacesByClass
@@ -305,11 +312,13 @@ public final class SymbolTable {
     func setLazyImportedMetadataLoader(
         alreadyLoaded: Set<SymbolID> = [],
         indexedNominals: Set<SymbolID> = [],
+        lazyShells: Set<SymbolID> = [],
         _ loader: ((SymbolID) -> Void)?
     ) {
         lock.lock()
         defer { lock.unlock() }
         indexedImportedNominals = indexedNominals
+        lazyImportedShells = lazyShells
         importedLayoutSynthesizer = nil
         importedLayoutSynthesisInProgress = false
         lazyImportedMetadataLoader = loader
@@ -326,6 +335,19 @@ public final class SymbolTable {
         defer { lock.unlock() }
         return lazyImportedMetadataLoader != nil
             && indexedImportedNominals.contains(symbol)
+            && !lazyImportedMetadataLoaded.contains(symbol)
+    }
+
+    /// True while this symbol's imported body can still be lazily decoded.
+    /// False for source declarations, eagerly applied imports, and shells
+    /// already materialized through the loader. Reflection record generation
+    /// uses this to skip declarations the compiled program cannot reach —
+    /// decoding them here would materialize the entire imported surface.
+    func hasPendingImportedMetadata(for symbol: SymbolID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return lazyImportedMetadataLoader != nil
+            && lazyImportedShells.contains(symbol)
             && !lazyImportedMetadataLoaded.contains(symbol)
     }
 

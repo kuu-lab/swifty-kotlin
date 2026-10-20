@@ -28,6 +28,14 @@ package final class MetadataEncoder {
     ) -> [MetadataRecord] {
         let exported = symbols.allSymbols()
             .filter { symbol in
+                // KUU-2675: the runtime blob only needs declarations this
+                // program can still reference at runtime. An imported shell
+                // whose body was never decoded is definitionally unreachable
+                // from the compiled code — materializing it here would decode
+                // the whole imported surface for metadata nobody reads.
+                if runtimeReflectionOnly, symbols.hasPendingImportedMetadata(for: symbol.id) {
+                    return false
+                }
                 let includeNonPublicSymbol = includeNonPublic || requiredNonPublicSymbols.contains(symbol.id)
                 if !includeNonPublicSymbol && symbol.visibility != .public && symbol.visibility != .protected {
                     return false

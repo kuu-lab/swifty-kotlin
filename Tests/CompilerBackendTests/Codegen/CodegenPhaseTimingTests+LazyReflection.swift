@@ -81,16 +81,35 @@ extension CodegenPhaseTimingTests {
             functionLinkNames: [:], includeNonPublic: includeNonPublic, runtimeReflectionOnly: true
         )
         #expect(callables.allSatisfy { $0.isMaterialized == legacy })
-        #expect(projected.contains { $0.fqName == "lazy.Owner.suspended" && $0.arity == 2 && $0.isSuspend })
-        #expect(projected.filter { $0.fqName == "lazy.overloaded" }.map(\.arity).sorted() == [1, 2])
-        #expect(projected.contains { $0.kind == .constructor && $0.arity == 1 })
-        #expect(projected.contains { $0.fqName == "lazy.Hidden.member" } == includeNonPublic)
-        #expect(projected.contains { $0.fqName == "lazy.secret" } == includeNonPublic)
+        if !legacy {
+            // KUU-2675: pending compact-index shells are not reachable from
+            // the compiled program, so the runtime projection omits them
+            // instead of decoding their bodies. Nominals whose layouts were
+            // materialized above still project from shell state.
+            #expect(!projected.contains { $0.kind == .function || $0.kind == .constructor })
+            #expect(projected.contains { $0.fqName == "lazy.Owner" && $0.kind == .class })
+            #expect(projected.contains { $0.fqName == "lazy.Hidden" } == includeNonPublic)
+            // Symbols whose bodies a semantic query did materialize regain
+            // their record — reachability is tracked by load state, not by
+            // how the symbol was imported.
+            for binding in callables {
+                symbols.ensureLazyImportedMetadataLoaded(for: binding.symbol)
+            }
+        }
+        let loadedProjected = encoder.buildRecords(
+            symbols: symbols, types: types, moduleName: "Consumer", interner: interner,
+            functionLinkNames: [:], includeNonPublic: includeNonPublic, runtimeReflectionOnly: true
+        )
+        #expect(loadedProjected.contains { $0.fqName == "lazy.Owner.suspended" && $0.arity == 2 && $0.isSuspend })
+        #expect(loadedProjected.filter { $0.fqName == "lazy.overloaded" }.map(\.arity).sorted() == [1, 2])
+        #expect(loadedProjected.contains { $0.kind == .constructor && $0.arity == 1 })
+        #expect(loadedProjected.contains { $0.fqName == "lazy.Hidden.member" } == includeNonPublic)
+        #expect(loadedProjected.contains { $0.fqName == "lazy.secret" } == includeNonPublic)
         let full = encoder.buildRecords(
             symbols: symbols, types: types, moduleName: "Consumer", interner: interner,
             functionLinkNames: [:], includeNonPublic: includeNonPublic
         )
-        #expect(RuntimeReflectionMetadataEmitter.serialize(projected) == RuntimeReflectionMetadataEmitter.serialize(full))
+        #expect(RuntimeReflectionMetadataEmitter.serialize(loadedProjected) == RuntimeReflectionMetadataEmitter.serialize(full))
         #expect(!diagnostics.hasError)
     }
 }
