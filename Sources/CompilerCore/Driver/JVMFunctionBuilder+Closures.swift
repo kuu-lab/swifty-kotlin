@@ -153,10 +153,10 @@ extension JVMFunctionBuilder {
         let number = program.nextClosure; program.nextClosure += 1
         let container = owner?.name ?? program.facadeName
         let name = container + "$Lambda" + String(number)
-        var visible: [InternedString: Local] = [:]
-        for scope in scopes { visible.merge(scope, uniquingKeysWith: { _, new in new }) }
+        let visible = localCaptureEnvironment()
         let symbols = Set(visible.values.compactMap(\.symbol))
         var free = Set(CaptureAnalyzer().collectCapturedOuterSymbols(in: body, ast: program.ast, sema: program.sema, outerSymbols: symbols, skipNestedClosures: false))
+        free.formUnion(localReferenceCaptureSymbols(in: body))
         // Receiver-style calls to function locals have no nameRef AST child.
         // Retain the semantically selected callable, including in nested lambdas.
         if let range = arena.exprRange(body) {

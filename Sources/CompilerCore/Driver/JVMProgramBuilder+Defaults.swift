@@ -18,7 +18,7 @@ extension JVMProgramBuilder {
         let masks = (params.count + 31) / 32
         let parameters = (method.map { [JVMValueType.reference($0.owner, nullable: false)] } ?? []) + (ref?.parameters ?? method!.parameters) + Array(repeating: JVMValueType.int, count: masks) + [.reference("java/lang/Object", nullable: true)]
         guard parameters.reduce(0, { $0 + $1.width }) + ((ref?.isSuspend ?? method?.isSuspend ?? false) ? 1 : 0) <= 255 else { throw JVMFrontendError(message: "JVM default method parameter slot limit exceeded.") }
-        var result = JVMFunctionReference(name: (ref?.name ?? method!.name) + "$default", parameters: parameters, result: ref?.result ?? method!.result, owner: ref?.owner ?? method!.owner, ownerIsInterface: method?.isInterface == true, isSuspend: ref?.isSuspend ?? method?.isSuspend ?? false)
+        var result = JVMFunctionReference(name: (ref?.name ?? method!.name) + "$default", parameters: parameters, result: ref?.result ?? method!.result, owner: ref?.owner ?? method!.owner, ownerIsInterface: ref?.ownerIsInterface == true || method?.isInterface == true, isSuspend: ref?.isSuspend ?? method?.isSuspend ?? false)
         result.suspendDefaultMasks = result.isSuspend ? masks : 0
         return result
     }

@@ -85,8 +85,7 @@ extension JVMFunctionBuilder {
     func anonymousObject(_ id: ExprID) throws -> JVMValue {
         guard case let .objectLiteral(_, decl?, range) = arena.expr(id), let symbol = program.sema.bindings.declSymbol(for: decl), let plan = program.classes[symbol] else { throw fail("Missing JVM anonymous object declaration.", id) }
         plan.escapesInline = plan.escapesInline || declaration.isInline || !inlineStack.isEmpty
-        var visible: [InternedString: Local] = [:]
-        for scope in scopes { visible.merge(scope, uniquingKeysWith: { _, new in new }) }
+        let visible = localCaptureEnvironment()
         var used: Set<SymbolID> = []
         for i in arena.snapshot().expressions.indices {
             let exprID = ExprID(rawValue: Int32(i))
@@ -94,6 +93,7 @@ extension JVMFunctionBuilder {
             if let symbol = program.sema.bindings.identifierSymbol(for: exprID) { used.insert(symbol) }
             if let binding = program.sema.bindings.callableValueCallBinding(for: exprID), case let .localValue(symbol) = binding.target { used.insert(symbol) }
         }
+        used.formUnion(localReferenceCaptureSymbols(in: id))
         var captures: [JVMAnonymousCapture] = [], values: [JVMValue] = []
         for (name, local) in visible.sorted(by: { context.interner.resolve($0.key) < context.interner.resolve($1.key) }) where local.symbol.map({ used.contains($0) }) ?? true {
             var source = local.cell ?? local.value, template = local

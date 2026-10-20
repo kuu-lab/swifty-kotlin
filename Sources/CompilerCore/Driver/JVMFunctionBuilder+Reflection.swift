@@ -40,6 +40,9 @@ extension JVMFunctionBuilder {
             return try jdkCall("kotlin/jvm/internal/Reflection", "getOrCreateKotlinClass", [klass.type], .reference("kotlin/reflect/KClass", nullable: false), arguments: [klass])!
         }
         guard let symbol = program.sema.bindings.callableReferenceBinding(for: id)?.chosenCallee ?? program.sema.bindings.identifierSymbol(for: id) else { throw fail("Missing JVM callable reference binding.", id) }
+        if let local = program.localFunctions[symbol] {
+            return try localFunctionReference(id, symbol: symbol, receiver: receiver, plan: local)
+        }
         let unbound = program.sema.bindings.isUnboundCallableRef(id)
         if let property = program.properties[symbol] {
             let bound = property.getter.isStatic || unbound ? nil : try receiver.map(requireValue) ?? instance(id)
