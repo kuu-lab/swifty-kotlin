@@ -57,6 +57,36 @@ LoadSources → Lex → Parse → BuildAST → SemaPasses → BuildKIR → Lower
 
 ## ドキュメント
 
+実験的な JVM M22 出力は `kswiftc --emit class|jar hello.kt -o <出力先>` で利用できます。
+変数・数値演算・関数・条件分岐・ループに加え、クラス・コンストラクタ・プロパティ・継承・interface、ジェネリクス・配列・基本コレクション・例外処理、ラムダ・クロージャ・高階関数・拡張関数に対応しています。
+`--classpath deps.jar` による外部 JVM 呼び出しと、Java／公式 Kotlin 向けライブラリ JAR 生成にも対応します。
+SAM 変換・inline 展開・suspend 関数にも対応します。
+object・companion object・data class・enum class・sealed classと、網羅的なwhenにも対応します。
+匿名object・data object・inner class、名前付き引数・デフォルト引数にも対応します。
+クラス委譲・委譲プロパティ・lazy・lateinitにも対応します。
+value class・typealias・アノテーション・クラス／関数／プロパティのリフレクションにも対応します。
+ジェネリックvalue classとrepeatableアノテーション（自動／明示コンテナ）の生成・実行にも対応します。
+配列や別のvalue classを保存値に持つvalue class、デフォルト引数・セカンダリコンストラクタにも対応します。
+value classを引数・戻り値に持つinline関数・suspend関数にも対応します。
+inline suspend関数とreified型パラメータ（型判定・cast・class literal・配列生成・型情報をcaptureするラムダ）にも対応します。
+reified関数参照と、匿名objectへのreified型情報のcaptureにも対応します。
+Char・Byte・Short・UInt・ULong・UByte・UShortの演算・変換・配列・ボックス化と、Java／公式Kotlin向けABIにも対応します。
+Stringの連結・文字列テンプレート・UTF-16での参照／反復・検索・置換・split・trim・大小文字変換・数値変換にも対応します。これらの操作も独自stdlibで実行できます。
+Regexの検索・グループ・置換・split、StringBuilder／buildString、文字列のmap・filter・fold・reduce・windowed等にも対応します。実行には独自stdlibを使用できます。
+groupBy・associate・partition・zip・joinToString、公式Pair、Sequenceの遅延パイプライン・生成・終端操作にも対応します。
+factory・変換・distinct・take/drop・joinToString・Sequenceは独自stdlibで動作します。
+`sequence { yield(...) }`／`iterator { ... }`と、Iterator・Iterable・Sequenceを受け取る`yieldAll`にも対応します。
+このリポジトリの Kotlin ソースから、対応済みJVM機能のruntimeを含むstdlibを生成できます。
+
+```bash
+.build/debug/kswiftc --stdlib-only --emit jar -o kswiftk-stdlib.jar
+.build/debug/kswiftc main.kt helpers.kt --emit jar --classpath kswiftk-stdlib.jar -o app.jar
+java -Xverify:all -cp app.jar:kswiftk-stdlib.jar MainKt
+```
+
+対応済みの文字列・collection・Sequence builder・Regex・unsigned・coroutine・reflection・lazyを、生成物と独自JARだけで実行できます。公式 `kotlin-stdlib.jar`／`kotlin-reflect.jar` の実行時指定は不要です。
+実行方法と制限は [JVM バックエンド](docs/jvm-backend.md)、ソースの構成と検証範囲は [JVM stdlib のソース化](docs/jvm-stdlib.md) を参照してください。
+
 | ファイル | 内容 |
 |---|---|
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | アーキテクチャ詳細・ディレクトリマップ・タスク別ナビゲーション |

@@ -66,7 +66,7 @@ public struct TargetTriple: Equatable {
 }
 
 public enum OptimizationLevel: Int { case O0, O1, O2, O3 }
-public enum EmitMode: String { case executable, object, llvmIR, kirDump, library }
+public enum EmitMode: String { case executable, object, llvmIR, kirDump, library, jvmClass, jvmJar }
 public enum DiagnosticsFormat: String { case text, json }
 
 public struct CompilerOptions: Equatable {
@@ -101,6 +101,152 @@ public struct CompilerOptions: Equatable {
 ```
 
 ## J1.2 コンパイルの “単位”
+
+実験的な JVM M22 は `--emit class|jar` で選択する。Native の KIR・ABI lowering
+の前で分岐し、既存 Parser／AST／Sema と JVM 用 console／classpath 宣言を使う。
+`--classpath` の公開 JVM signature を解決し、foreign invocation と Kotlin metadata／module を生成する。
+`JVMSourceValidationPhase` が対応文法、`JVMFrontendPhase` が型付き JVM IR を検査・構築し、
+`JVMCodegenPhase` が facade と各 class／interface の classfile、検証用 StackMapTable を生成する。
+クラスの constructor／field／accessor、継承と動的ディスパッチ、共変 override の bridge、
+Kotlin class metadata を生成する。M5 は非 reified ジェネリクスの型消去・Signature／metadata、
+JVM 配列命令、JDK List／Set／Map、exception table と finally の制御フローを追加する。
+M6 は Function0〜22 ABI のラムダクラスと同一 owner の static 本体、共有セルによる可変 capture、
+関数型の引数・戻り値・プロパティ、receiver 付き関数型、トップレベル／メンバー拡張関数を追加する。
+関数型と拡張 receiver は Signature／Kotlin metadata に保持する。実行に必要な Function interface と
+Unit singleton を同梱し、Java／公式 Kotlin の関数 ABI と互換にする。
+配列 initializer と Iterable／配列の map／filter／forEach／fold も生成する。
+M7 は SAM adapter、AST の inline 展開（局所／非局所 return、noinline／crossinline）、
+inline／fun interface／suspend metadata を追加する。suspend は Continuation 引数／Object 戻り値へ変換し、
+呼び出しごとの ContinuationImpl 状態クラスと owner 内の再開 worker がローカルと制御フローを保持する。
+標準 kotlin-stdlib の SafeContinuation／Result と接続し、実際の中断・再開、例外、suspend main を実行する。
+状態機械へ変換した後も method descriptor の重複を検査する。suspend inline、通常クラスの未初期化の
+コンストラクタ引数からの中断、独自 CoroutineContext 実装は診断して拒否する。
+M8 は名前付き object／companion の singleton とクラス初期化、data class の component／copy・default mask／
+equals／hashCode／toString、java.lang.Enum の定数・定数別サブクラス／values／valueOf／entries を生成する。
+sealed／nested の型関係、InnerClasses 属性、Kotlin metadata の data／enum／object／companion／sealed と
+直接の sealed subclasses を保持する。Java 8 の private access は synthetic accessor／constructor bridge で接続する。
+when の subject は一度評価し、各条件を順に判定する。data の destructuring も component 呼び出しへ変換する。
+M9 は匿名 object を生成し、immutable capture／共有可変セル／外側 receiver をインスタンスの synthetic field に保持する。
+capture と inner class の this$0 は super 呼び出し前に設定し、基底初期化中の virtual dispatch にも対応する。
+共有 Sema は公開 API の推論された匿名型を単一 supertype／Any に変換し、private／local は具体型を保持する。
+配列 constructor の size／init の名前を解決し、両 backend で記述順に評価する。
+inner constructor の descriptor は先頭に outer を持ち、Signature／metadata では source parameter と区別する。
+data object は型による equals、FQ name の固定 hash、単純名の toString を持ち、継承した final method を保持する。
+名前付き引数は明示引数を記述順に一度評価して並べ替える。省略引数は宣言順に評価する mask bridge とし、
+function$default／mask + DefaultConstructorMarker constructor、複数 mask、primary の全省略時の noarg、
+継承既定値、extension／inline／suspend、object／enum の super 呼び出しにも接続する。
+suspend default ABI は Continuation を mask／handler の前に置く。inline default bridge は本文も展開し、
+mask branch と default lambda の代入を公式 Kotlin の bytecode inliner が扱う形式で生成する。
+対応構文・出力規約・制限は
+[`docs/jvm-backend.md`](jvm-backend.md) を参照。
+
+M10 は interface の `by` を専用フィールドへ保存し、解決済みの forwarding symbol に対応する
+メソッド／property accessor と generic bridge を生成する。delegate 式は supertype の記述順に一度だけ評価する。
+メンバー／トップレベル／ローカルの委譲 property は保存した delegate に対し、共有 Sema が選択した
+getValue／setValue／provideDelegate を呼ぶ。member／extension operator、ReadOnlyProperty／ReadWriteProperty、
+Delegates.notNull／observable／vetoable、mutable property token を扱う。
+トップレベル property は facade の static field／accessor／clinit と package metadata へ出力する。
+Lazy は独自stdlibのKotlinソース実装に接続し、3種の thread safety mode、lock overload、初期化例外後の再試行、
+nullable 結果を保持する。lateinit は null sentinel を読み、未初期化なら標準の
+UninitializedPropertyAccessException を投げる。ローカルは capture 可能な共有セルを使い、
+member／top-level の property literal に対する isInitialized は getter を通さず backing field を検査する。
+Java 8 の private static／instance field access は必要に応じて synthetic accessor を生成する。
+Lazy／property token／lateinit例外も独自JARから供給する。
+
+M11 は value class の boxed IR から公開 unboxed ABI adapter を生成し、公式の名前修飾、
+constructor-impl／box-impl／unbox-impl／equals-impl0 と Kotlin metadata を出力する。
+box-impl は保存専用 constructor を使い、init を再実行しない。nullable reference underlying と nullable boxed value を区別する。
+通常の constructor が value parameter を持つ場合は metadata を marker 付き公開 signature に対応させる。
+callable reference の signature は ABI lowering 後に解決し、ldc class literal はクラスを初期化しない。
+typealias は source の型パラメータ・展開型を metadata に保存する。
+annotation class は Java annotation interface、定数・enum・KClass・nested／array の element_value、
+AnnotationDefault、retention／target／parameter／property carrier を生成する。const field は ConstantValue を持つ。
+KClass／KCallable／KProperty と kotlin.reflect.full の対応 API は独自stdlibのJava reflection／metadata readerに接続する。
+M12 は generic value class の保存値を宣言上の上限型へ消去し、nullable ABI を保存値の nullability で決める。
+field／getter／constructor-impl と公開 adapter の Signature は型変数と underlying の型引数を保持する。
+closure と匿名 object の capture は boxed の内部 layout を保つ。
+Kotlin Repeatable はネストした Container annotation と Java Repeatable、RepeatableContainer marker を生成し、
+複数使用を container の annotation 配列へ格納する。JvmRepeatable は source の明示 container を使い、
+value 配列、他の要素の既定値、retention、target 集合を検査する。両指定時は明示 container を優先する。
+findAnnotationsは独自metadata／annotation実装、Class.getAnnotationsByTypeはJDKへ接続する。
+M13 は配列と別の value class を保存値として扱う。保存 field と公開 ABI は nullable の区別を保って再帰的に
+flatten し、内部 IR の field read／write には box／unbox 変換を挿入する。underlying getter は instance のまま
+戻り値をマングリングする。配列の equals は参照比較、hashCode／toString は Arrays の実装を使う。
+primary／secondary constructor は constructor-impl、既定引数は mask と DefaultConstructorMarker を持つ
+constructor-impl$default として公開する。source constructor の metadata は secondary／optional flags を保つ。
+内部 constructor が保存専用 constructor と衝突する場合は隠し引数を付け、box-impl は init を実行しない。
+Sema の value-class secondary 制限は JVM 出力だけ解除する。
+M14 は value class を引数／戻り値に持つ inline と suspend の公開 ABI を生成する。
+inline adapter は本体の local／label／handler を写し、return を unbox する。callback invoke を公開 bytecode に
+残すため、公式 Kotlin consumer の bytecode inliner も non-local return と finally を展開できる。
+suspend は引数を flatten し、mangling に Continuation を含め、Continuation の Signature には logical result を保存する。
+primitive underlying は同期復帰でも boxed、reference underlying は同期復帰だけ raw storage、resume は boxed とする。
+coroutine worker 内部は logical box を維持し、公開 wrapper／default bridge の同期 return を変換する。
+interface adapter が公開 suspend を呼ぶ場合は同期結果を rebox し、resume と同じ形へ合流する。
+suspend callable reference は Continuation 込みの FunctionN と KCallables.callSuspend を使う。
+value-class constructor は内部 box の allocate を引数評価後へ置くため、引数内で suspend できる。
+M15 は inline suspend の通常 coroutine entry と未 lower の $$forInline 本体を生成する。
+reified inline suspend は metadata と marker を持つ未 lower 本体を公開する。
+suspend 呼び出しには InlineMarker 0／1、reference value-class の resume unbox には 8／9 を出力する。
+既定引数 stub にも未 lower 本体を置き、公式 Kotlin consumer の coroutine inliner が展開する。
+reified 型引数はソース内で具体化し、公開 inline bytecode は Intrinsics.reifiedOperationMarker と
+型パラメータ metadata の reified flag を使う。is／as／as?／T::class／generic array を扱う。
+escaping lambda は解決した Class と nullable 判定を capture し、lifted helper 内へ渡す。
+M16 は reified callable reference の期待型／receiverから得た型引数を使い、専門化した本体のhelperを生成する。
+通常のinvokeはhelperを呼び、FunctionReferenceImplには元関数の名前・Signature・ownerを保持する。
+既定引数省略、Unit変換、suspend変換を伴う参照はAdaptedFunctionReferenceと適切なflagsを使う。
+外側のreified型はClassとnullable情報をcaptureし、既定引数式、nested lambda、suspend復帰でも維持する。
+匿名objectは同じ情報をconstructor引数とfieldへ保存し、initializer/getter/methodへ復元する。
+公開inlineの匿名objectはアクセス可能なbaseとsiteごとのsubclassを持ち、必要なneedClassReification markerにより
+公式Kotlin consumerでもcall siteごとにclassを生成する。通常値とmutable cellのcaptureはlexicalな消去型で揃える。
+M17 は JVMValueType に Byte／Short／Char とunsigned scalar、unsignedArrayを保持する。
+scalarのdescriptorとoperand stack型を分離し、B／S／Cのload/store、narrowingとboxingを生成する。
+unsignedの昇格・除算・比較・shiftと飽和変換は符号なしの意味を保つ。
+unsignedの公開ABIはKotlinの論理型metadata・名修飾・default／constructor bridgeを保持する。
+unsigned配列はtyped codeでraw primitive array、erased codeで独自stdlibのvalue-class wrapperを使い、
+coroutine lowering後にnullable変換を展開して同期return／遅延resumeのnullを維持する。
+M18 は stringTemplate と String の +／+= を StringBuilder の逐次 append へ変換する。
+各補間式の評価直後に文字列化し、Unit・null・unsigned・value class・配列の表示規則を保つ。
+文字列操作の Sema 宣言と JVM 呼出し signature は JVMTextOperation の表から生成する。
+length／indexing／反復は UTF-16 code unit を使い、Unicode trim・split・replace は独自stdlib、
+大小文字変換は Locale.ROOT、数値変換はJDKと独自stdlibの検査へ接続する。
+引数はソース順に一度だけ評価し、既定引数と spread のコピー時点を維持する。
+StringBuilder の値は通常の JVM IR の local として inline／suspend／capture を通過する。
+M19 は Regex／MatchResult／Sequence を独自stdlib、StringBuilder を JDK の ABI へ接続する。
+JVMTextLibraryMethod は receiver、parameter mapping、default bridge と実在する descriptor を保持し、
+Kotlin 拡張と Java member の named argument の違いも検査する。
+StringBuilder の appendLine／appendRange 等と private InlineOnly な Destructured.componentN は公開 JDK／stdlib API へ展開する。
+JVMTextHigherOrderDeclarations の実体付き inline 宣言を既存 inline 展開へ登録し、
+非ローカル return、receiver lambda、capture、suspend、公開 inline consumer を同じ経路で扱う。
+UTF-16 Char と可変 CharSequence の反復規則を保ち、filter／reduce／windowed 等の終端は公式 API と同じ時点で取得する。
+非 inline の windowed／chunked／Regex.replace(transform) は boxed FunctionN で独自stdlibを呼ぶ。
+M20 は Pair を公式 kotlin.Pair の descriptor／generic signature／metadata に揃え、
+Map factory、to、constructor／copy／component／getter を同じ ABI で扱う。
+JVMCollectionDeclarations の groupBy／associate 系／partition／zip と inline terminal を実体付き source body として展開する。
+Sequence の中間操作、生成関数、joinToString 等は公式 facade の実在する descriptor／default bridge へ接続する。
+SemaModule.requiresResolvedLibraryCalls は JVM のときだけ有効とし、対応 API の型推論を通常の source overload 解決へ渡す。
+Native の型だけを返す collection fallback はこの経路で使用しない。引数名・generic bound・inline/crossinline と call binding を保持する。
+vararg factory は各 spread をソース順に snapshot し、全引数の評価後に独自stdlibのfactoryを呼ぶ。
+単一引数の非 vararg overload、Pair の分解代入、membership の container→element 評価順も保持する。
+M21 は sequence／iterator builder を公式 SequencesKt、yield／yieldAll を SequenceScope の suspend ABI に接続する。
+JVMTextLibrary は論理引数・戻り値のまま suspend 呼び出しを記録し、既存 coroutine lowering が Continuation と Object 戻り値へ変換する。
+builder は Function2 として渡し、反復ごとの独立した frame、capture、ループ、例外 handler と finally を保持する。
+型推論後に JVM 専用の SequenceScope suspension 検査を行い、同じ receiver への member／extension 呼び出しだけを許可する。
+Native の suspension 検査・builder lowering は維持する。
+M22 は複数ソースを一つの module として Sema で解決し、ファイルごとの facade／package metadata を出力する。
+`--stdlib-only --emit jar` は共通の `kotlin/Pair/Pair.kt` と `Stdlib/jvm/` の platform source profile を
+コンパイルし、`kswiftk-stdlib.jar` を生成する。Native の bundled source 列挙は `jvm/` を除外する。
+Pair の data ABI、println／print、empty／singleton／vararg の List／Set／Map factory は
+公式 stdlib なしで動作する。コレクションの backing object は JDK の実装を使う。
+組み込み型用 `.kotlin_builtins` と Kotlin consumer 向け最小 Intrinsics は独自生成し、公式 JAR をコピーしない。
+source vararg は単独 parameter の関数を扱い、配列 descriptor／generic signature／vararg metadata と spread を保持する。
+複数 main、重複 facade、二つ目以降の入力の不正構文も出力前に拒否する。
+このprofileは対応済みのSequence／Regex／unsigned／coroutine／reflection／lazyも含み、公式stdlib／reflect JARの実行時依存を持たない。
+ABI照合はvalue-class／JvmName lowering後の公開signatureで行い、静的closure検査と独自JARだけの実行を別々に検証する。
+通常の関数参照invokeはInvocationTargetExceptionを解除し、KCallable.callはJava reflectionの例外ラッパーを保持する。
+対応範囲・実行例・明示的な未対応制限は docs/jvm-backend.md の M11〜M22 節を参照する。
+
+
 
 インクリメンタルコンパイルは既定でオフ。CLI の `--incremental` は
 `incremental` frontend flag、`--incremental-cache <path>` は
