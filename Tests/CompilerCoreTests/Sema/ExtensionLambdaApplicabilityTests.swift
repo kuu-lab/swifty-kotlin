@@ -107,6 +107,18 @@ struct ExtensionLambdaApplicabilityTests {
     }
 
     @Test
+    func inapplicableLocalFunctionOverloadDoesNotHideOuterExtension() throws {
+        try assertAccepted(["""
+        package fixture
+        fun <S, T : S> Iterable<T>.aggregate(operation: (S, T) -> S): S = iterator().next()
+        fun result(values: List<Int>): Int {
+            fun List<Int>.aggregate(marker: String): String = marker
+            return values.aggregate<Int, Int> { acc, item -> acc + item }
+        }
+        """], receiver: "Iterable")
+    }
+
+    @Test
     func inaccessibleOverloadDoesNotHideVisibleExtension() throws {
         try assertAccepted(["""
         package fixture
