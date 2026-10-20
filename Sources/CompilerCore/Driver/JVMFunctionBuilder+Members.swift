@@ -119,6 +119,7 @@ extension JVMFunctionBuilder {
 
 extension JVMProgramBuilder {
     func emitAccessors(_ plan: JVMClassPlan, _ declaration: PropertyDecl, _ property: JVMProperty) throws -> [JVMFunction] {
+        if declaration.modifiers.contains(.const), plan.companionOwner != nil { return [] }
         var functions: [JVMFunction] = []
         for setter in [false, true] {
             guard let method = setter ? property.setter : property.getter else { continue }
@@ -180,6 +181,11 @@ extension JVMProgramBuilder {
             }
             if plan.isFacade { f.access = (f.isPrivate ? 2 : 1) | 8 | 16; f.isSynthetic = false }
             let setter = f.reference.result == .unit
+            let syntheticTarget = setter ? "set" : "get"
+            if let symbol = sema.bindings.declSymbol(for: plan.properties.first(where: { $0.2.name == property.name })!.0),
+               sema.symbols.annotations(for: symbol).contains(where: { $0.annotationFQName == "kotlin.jvm.JvmSynthetic" && $0.useSiteTarget == syntheticTarget }) {
+                f.access = (f.access ?? 0) | 0x1000
+            }
             f.kotlinParameters = setter ? [property.kotlinType].compactMap { $0 } : []
             f.kotlinResult = setter ? .named("kotlin/Unit", [], nullable: false) : property.kotlinType
             f.genericSignature = setter ? "(" + (property.genericSignature ?? property.type.descriptor) + ")V" : "()" + (property.genericSignature ?? property.type.descriptor)

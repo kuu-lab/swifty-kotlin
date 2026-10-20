@@ -212,9 +212,9 @@ extension JVMProgramBuilder {
             }
             if var field = property.field {
                 if p.modifiers.contains(.const) {
-                    guard plan.companionOwner == nil else { throw JVMFrontendError(message: "JVM M11 const properties support top-level declarations and named objects; companion const fields are unsupported.", range: p.range) }
                     guard let initial = p.initializer, case let .constant(constant) = try annotationConstant(initial) else { throw JVMFrontendError(message: "JVM const property requires a primitive or String constant.", range: p.range) }
-                    field = JVMField(owner: field.owner, name: field.name, type: field.type, access: access(p.modifiers) | 0x18)
+                    field = JVMField(owner: plan.companionOwner.flatMap { classes[$0]?.name } ?? field.owner,
+                                     name: field.name, type: field.type, access: access(p.modifiers) | 0x18)
                     field.constantValue = constant
                 }
                 field.annotations = try annotations(for: symbol, target: "field"); property.field = field

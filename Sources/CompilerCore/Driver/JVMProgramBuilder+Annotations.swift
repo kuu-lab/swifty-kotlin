@@ -126,7 +126,7 @@ extension JVMProgramBuilder {
         for record in records where record.useSiteTarget == target {
             let name = record.annotationFQName
             if ["kotlin.annotation.Repeatable", "kotlin.jvm.JvmRepeatable"].contains(name), classes[symbol]?.isAnnotation != true { throw JVMFrontendError(message: "JVM repeatable can only annotate annotation classes.") }
-            if ["kotlin.Metadata", "kotlin.jvm.JvmInline", "kotlin.jvm.JvmName", "kotlin.jvm.JvmField", "kotlin.Suppress", "kotlin.OptIn", "kotlin.annotation.Retention", "kotlin.annotation.Target", "kotlin.annotation.MustBeDocumented", "kotlin.annotation.Repeatable", "kotlin.jvm.JvmRepeatable"].contains(name) { continue }
+            if ["kotlin.Metadata", "kotlin.PublishedApi", "PublishedApi", "kotlin.jvm.JvmInline", "kotlin.jvm.JvmName", "kotlin.jvm.JvmField", "kotlin.jvm.JvmSynthetic", "kotlin.Suppress", "Suppress", "kotlin.OptIn", "kotlin.annotation.Retention", "kotlin.annotation.Target", "kotlin.annotation.MustBeDocumented", "kotlin.annotation.Repeatable", "kotlin.jvm.JvmRepeatable"].contains(name) { continue }
             guard let owner = sema.symbols.lookup(fqName: name.split(separator: ".").map { context.interner.intern(String($0)) }), classes[owner]?.isAnnotation == true else { throw JVMFrontendError(message: "Unsupported JVM annotation: " + name) }
             let retention = annotationRetention(owner)
             if retention == "SOURCE" { continue }

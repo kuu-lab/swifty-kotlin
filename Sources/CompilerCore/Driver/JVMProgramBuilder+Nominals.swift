@@ -181,6 +181,12 @@ extension JVMProgramBuilder {
 
     func decorateNominal(_ plan: JVMClassPlan, result: inout JVMClass) throws {
         result.extraFields += plan.delegateFields.map { $0.2 } + Array(plan.propertyTokens.values).sorted { $0.name < $1.name } + plan.properties.compactMap { $0.2.delegateField }
+        if plan.companionOwner != nil {
+            result.properties = result.properties.map { property in
+                guard property.field?.constantValue != nil else { return property }
+                var property = property; property.field = nil; return property
+            }
+        }
         result.isObject = plan.isObject; result.isCompanion = plan.companionOwner != nil
         result.isData = plan.modifiers.contains(.data); result.isEnum = plan.isEnum
         result.isSealed = plan.modifiers.contains(.sealed)
@@ -193,7 +199,10 @@ extension JVMProgramBuilder {
         result.companionName = classes.values.first(where: { $0.companionOwner == plan.symbol }).map { context.interner.resolve(sema.symbols.symbol($0.symbol)!.name) }
         result.sealedSubclasses = try (sema.symbols.sealedSubclasses(for: plan.symbol) ?? []).map(className).sorted()
         if plan.isObject && plan.companionOwner == nil { result.extraFields.append(singletonField(plan)) }
-        if let companion = classes.values.first(where: { $0.companionOwner == plan.symbol }) { result.extraFields.append(singletonField(companion)) }
+        if let companion = classes.values.first(where: { $0.companionOwner == plan.symbol }) {
+            result.extraFields.append(singletonField(companion))
+            result.extraFields += companion.properties.compactMap { $0.2.field?.constantValue == nil ? nil : $0.2.field }
+        }
         if plan.isEnum { try decorateEnum(plan, result: &result) }
         if plan.enumParent != nil { result.emitMetadata = false }
     }

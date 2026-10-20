@@ -152,6 +152,40 @@ extension JVMFunctionBuilder {
             return JVMIntrinsicResult(value: try constructJDK("kotlin/Pair", parameters: [object, object], arguments: [left, right]))
         }
         guard var owner = sourceType.referenceName else { return nil }
+        if owner.hasPrefix("["), member == "copyInto" {
+            guard let sourceComponent = try? arrayComponent(sourceType), args.count <= 4 else {
+                throw fail("JVM array copyInto requires a compatible array and at most four arguments.", id)
+            }
+            let source = try requireValue(receiverID)
+            var supplied: [Int: JVMValue] = [:]
+            let binding = program.sema.bindings.callBinding(for: id)
+            for (position, arg) in args.enumerated() {
+                let index = binding?.parameterMapping[position]
+                    ?? arg.label.flatMap { label in ["destination": 0, "destinationOffset": 1, "startIndex": 2, "endIndex": 3][context.interner.resolve(label)] }
+                    ?? position
+                guard (0..<4).contains(index), supplied[index] == nil else {
+                    throw fail("Invalid JVM array copyInto argument mapping.", id)
+                }
+                supplied[index] = try requireValue(arg.expr)
+            }
+            guard let rawDestination = supplied[0] else { throw fail("JVM array copyInto requires a destination.", id) }
+            let destination = try convert(rawDestination, to: source.type)
+            guard (try? arrayComponent(destination.type)) == sourceComponent else {
+                throw fail("JVM array copyInto requires matching array element types.", id)
+            }
+            let destinationOffset = try convert(supplied[1] ?? constant(.int(0), .int), to: .int)
+            let startIndex = try convert(supplied[2] ?? constant(.int(0), .int), to: .int)
+            let endIndex: JVMValue
+            if let explicitEnd = supplied[3] { endIndex = try convert(explicitEnd, to: .int) }
+            else {
+                endIndex = try value(.int)
+                instructions.append(.arrayLength(source, endIndex))
+            }
+            let count = try value(.int)
+            instructions.append(.binary(.subtract, endIndex, startIndex, count))
+            _ = try jdkCall("java/lang/System", "arraycopy", [.reference("java/lang/Object", nullable: false), .int, .reference("java/lang/Object", nullable: false), .int, .int], .unit, arguments: [source, startIndex, destination, destinationOffset, count])
+            return JVMIntrinsicResult(value: try convert(destination, to: program.expressionType(id)))
+        }
         if ["java/lang/Number", "java/lang/Byte", "java/lang/Short", "java/lang/Integer", "java/lang/Long", "java/lang/Float", "java/lang/Double"].contains(owner) {
             let conversions: [String: (String, JVMValueType)] = ["toByte": ("byteValue", .byte), "toShort": ("shortValue", .short), "toInt": ("intValue", .int), "toLong": ("longValue", .long), "toFloat": ("floatValue", .float), "toDouble": ("doubleValue", .double)]
             if let conversion = conversions[member], args.isEmpty {

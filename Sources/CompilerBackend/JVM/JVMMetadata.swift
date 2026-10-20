@@ -102,13 +102,13 @@ enum JVMMetadata {
             proto.data(100, signature(ref.name, ref.descriptor)); return proto.bytes
         }
         func propertyMetadata(_ property: JVMProperty, functions: [JVMFunction]) -> Data {
-            let getter = functions.first { $0.reference.name == property.getter.name && $0.reference.descriptor == property.getter.descriptor }!
+            let getter = functions.first { $0.reference.name == property.getter.name && $0.reference.descriptor == property.getter.descriptor }
             let setter = property.setter.flatMap { method in functions.first { $0.reference.name == method.name && $0.reference.descriptor == method.descriptor } }
             var proto = Proto()
-            let flags = visibility(property.modifiers) | (getter.isAbstract ? 32 : ((getter.access ?? 0) & 16 == 0 ? 16 : 0))
+            let flags = visibility(property.modifiers) | (getter?.isAbstract == true ? 32 : ((getter?.access ?? 0) & 16 == 0 ? 16 : 0))
             proto.int(11, flags | (property.modifiers.contains(.const) ? 2048 | 8192 : 0) | (property.annotationsMethod == nil ? 0 : 1) | 512 | (setter == nil ? 0 : 256 | 1024) | (property.modifiers.contains(.lateinit) ? 4096 : 0) | (property.delegateSymbol != nil ? 32768 : 0))
             proto.int(2, index(property.name)); proto.data(3, property.kotlinType.map(sourceType) ?? type(property.type))
-            if !property.modifiers.contains(.const) { proto.int(7, functionFlags(getter) | (property.customGetter ? 64 : 0)) }
+            if !property.modifiers.contains(.const), let getter { proto.int(7, functionFlags(getter) | (property.customGetter ? 64 : 0)) }
             if let setter {
                 proto.int(8, functionFlags(setter) | (property.customSetter ? 64 : 0))
                 proto.data(6, parameter(setter.parameterNames.first ?? "value", property.type, property.kotlinType))
