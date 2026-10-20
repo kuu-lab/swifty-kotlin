@@ -54,6 +54,9 @@ do {
     }
 
     let options = try CLIParser.parse(args: args)
+    IncrementalCompilationCache.environmentFingerprintProvider = { options in
+        incrementalEnvironmentFingerprint(for: options)
+    }
     let driver = CompilerDriver(backendPhases: makeBackendPhases)
     let exitCode = driver.run(options: options)
     exit(Int32(exitCode))

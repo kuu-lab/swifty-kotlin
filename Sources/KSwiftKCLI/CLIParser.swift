@@ -28,8 +28,10 @@ enum CLIParser {
       -l <name>              Link library
       --target <triple>      Target triple (arch-vendor-os[-version])
       --classpath <paths>    JVM JAR/class directories, separated by ':' (also -cp)
-      -Xfrontend <flag>      Frontend feature flag (e.g. time-phases, common-module)
-      --incremental         Enable incremental compilation (default: off)
+      -Xfrontend <flag>      Frontend feature flag (e.g. time-phases, incremental-stats,
+                             common-module)
+      --incremental         Enable incremental compilation (default: on for native
+                             compilation that uses a stdlib artifact)
       --incremental-cache <path>
                              Enable incremental compilation using a private cache directory
       --no-incremental      Disable incremental compilation; overrides enable flags and cache path

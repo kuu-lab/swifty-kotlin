@@ -69,7 +69,7 @@ public final class CompilerDriver {
             }
             return finalizeRun(ctx: preflight, printDiagnostics: printDiagnostics, timePhasesEnabled: false)
         }
-        let prepared = prepareContext(options: options)
+        let prepared = prepareContext(options: options, generatedTestRun: generatedTestRun)
         let ctx = prepared.context
         // Preserve CLI input order; dictionary iteration must not assign file IDs.
         for path in options.inputs {
@@ -109,15 +109,26 @@ public final class CompilerDriver {
         return finalizeRun(ctx: ctx, printDiagnostics: printDiagnostics, timePhasesEnabled: prepared.timePhasesEnabled)
     }
 
-    private func isIncrementalEnabled(options: CompilerOptions) -> Bool {
+    private func isIncrementalEnabled(options: CompilerOptions, generatedTestRun: Bool = false) -> Bool {
+        // Generated test-runner runs compile in-memory overlay sources that
+        // were never written next to the inputs — keep them off the cache
+        // even under the default-on scope.
+        guard !generatedTestRun else { return false }
         guard !options.emit.isJVM else { return false }
         if options.frontendFlags.contains("no-incremental") {
             return false
         }
-        if options.incrementalCachePath != nil {
+        // Explicit opt-ins keep working everywhere.
+        if options.incrementalCachePath != nil
+            || options.frontendFlags.contains("incremental") {
             return true
         }
-        return options.frontendFlags.contains("incremental")
+        // Default-on scope: configurations that compile the bundled stdlib
+        // from source would snapshot its entire AST into frontend state —
+        // hundreds of MB that make the cache a pure cost. Those stay opt-in;
+        // artifact-based stdlib (kklib) and --no-stdlib builds are cached by
+        // default.
+        return !options.includeStdlib && !options.stdlibOnly
     }
 
     /// An explicitly configured path is used as-is (it is leaf-validated and
@@ -134,37 +145,54 @@ public final class CompilerDriver {
     /// Returns `true` when the rest of the pipeline can be skipped.
     private func prepareIncrementalPipeline(ctx: CompilationContext) -> Bool {
         guard let cache = ctx.incrementalCache else { return false }
+        return PhaseTimer.measureSubPhase("incremental-prepare", timer: ctx.phaseTimer) {
+            let allPaths = ctx.sourceManager.fileIDs().map { ctx.sourceManager.path(of: $0) }
+            cache.computeCurrentFingerprints(for: allPaths, sourceManager: ctx.sourceManager)
 
-        let allPaths = ctx.sourceManager.fileIDs().map { ctx.sourceManager.path(of: $0) }
-        cache.computeCurrentFingerprints(for: allPaths, sourceManager: ctx.sourceManager)
+            guard let recompileSet = cache.recompilationSet(allPaths: allPaths, options: ctx.options) else {
+                // No compatible previous cache — full build.
+                ctx.setIncrementalRecompileSet(nil)
+                cache.recordOutcome(.full)
+                return false
+            }
 
-        if let recompileSet = cache.recompilationSet(allPaths: allPaths, options: ctx.options) {
-            ctx.setIncrementalRecompileSet(recompileSet)
             if recompileSet.isEmpty {
                 if cache.restoreCachedOutput(for: ctx.options) {
+                    // Replay the warnings the cached build emitted so a no-op
+                    // run prints the same diagnostics a fresh build would.
+                    for diagnostic in cache.loadPersistedDiagnostics() {
+                        ctx.diagnostics.emit(diagnostic)
+                    }
                     ctx.markIncrementalOutputRestored()
+                    cache.recordOutcome(.restored)
                     return true
                 }
                 // Old caches did not persist output artifacts. Fall back to a
                 // full build so the requested output is always produced.
                 ctx.setIncrementalRecompileSet(nil)
-            } else if let frontendState = cache.loadFrontendState(for: ctx.options) {
+                cache.recordOutcome(.full)
+                return false
+            }
+
+            if recompileSet.count < allPaths.count,
+               let frontendState = cache.loadFrontendState(for: ctx.options) {
+                ctx.setIncrementalRecompileSet(recompileSet)
                 ctx.interner.preload(frontendState.internerValues)
                 ctx.installIncrementalFrontendState(frontendState)
+                cache.recordOutcome(.partial)
             } else {
                 // Old caches can compute a recompilation set from deps.json, but
                 // cannot safely skip unchanged files without reusable frontend
-                // state. Fall back to a full build and refresh the cache.
+                // state; a set covering every file has nothing to reuse either.
+                // Fall back to a full build and refresh the cache.
                 ctx.setIncrementalRecompileSet(nil)
+                cache.recordOutcome(.full)
             }
-        } else {
-            // No compatible previous cache — full build.
-            ctx.setIncrementalRecompileSet(nil)
+            return false
         }
-        return false
     }
 
-    private func prepareContext(options: CompilerOptions) -> PreparedRunContext {
+    private func prepareContext(options: CompilerOptions, generatedTestRun: Bool = false) -> PreparedRunContext {
         let context = CompilationContext(
             options: options,
             sourceManager: SourceManager(),
@@ -177,7 +205,9 @@ public final class CompilerDriver {
             context.installPhaseTimer(PhaseTimer())
         }
 
-        let incrementalEnabled = isIncrementalEnabled(options: options)
+        let incrementalEnabled = isIncrementalEnabled(
+            options: options, generatedTestRun: generatedTestRun
+        )
         if incrementalEnabled, let cache = resolveIncrementalCache(options: options) {
             cache.loadPreviousState()
             context.installIncrementalCache(cache)
@@ -237,11 +267,22 @@ public final class CompilerDriver {
             let depGraph = buildDependencyGraph(ctx: ctx)
             let buildHash = cache.buildConfigurationHash(for: ctx.options)
             let frontendState = IncrementalFrontendState(context: ctx, buildConfigurationHash: buildHash)
-            cache.saveState(dependencyGraph: depGraph, options: ctx.options, frontendState: frontendState)
+            cache.saveState(
+                dependencyGraph: depGraph,
+                options: ctx.options,
+                frontendState: frontendState,
+                diagnostics: ctx.diagnostics.diagnostics
+            )
         }
 
         if printDiagnostics {
             ctx.diagnostics.printDiagnostics(format: ctx.options.diagnosticsFormat, from: ctx.sourceManager)
+        }
+
+        if ctx.options.frontendFlags.contains("incremental-stats"),
+           let cache = ctx.incrementalCache {
+            let line = cache.incrementalStatsSummary() + "\n"
+            FileHandle.standardError.write(Data(line.utf8))
         }
 
         if timePhasesEnabled, let timer = ctx.phaseTimer {

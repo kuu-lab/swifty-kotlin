@@ -66,10 +66,12 @@ jobs:
       - name: Warm runtime objects for candidate-only verification
         env:
           DIFF_COMPILE_TIMEOUT: "600"
+          DIFF_KSWIFTC_FLAGS: "--no-incremental"
         run: bash Scripts/run_candidate_only.sh Scripts/diff_cases/array_max_by.kt
       - name: Verify candidate-only diff cases
         env:
           KSWIFTK_STDLIB_LIBRARY: ${{ github.workspace }}/.artifacts/candidate_only/KSwiftKStdlib.kklib
+          DIFF_KSWIFTC_FLAGS: "--no-incremental"
         run: bash Scripts/run_candidate_only.sh Scripts/diff_cases
       - name: Package debug test bundle
         run: |
@@ -634,6 +636,7 @@ jobs:
           DIFF_ARTIFACT_ROOT: ${{ runner.temp }}/diff_diagnostics_artifacts
           DIFF_COMPILE_TIMEOUT: "180"
           DIFF_LOG_PASS: "0"
+          DIFF_KSWIFTC_FLAGS: "--no-incremental"
         run: bash Scripts/diff_diagnostics.sh --report "$DIFF_REPORT" Scripts/diagnostic_cases
       - name: Run kotlinc diff regression cases
         id: diff_kotlinc
@@ -647,7 +650,7 @@ jobs:
           KOTLINC_REF_CACHE_DIR: ${{ runner.temp }}/kotlinc-ref-cache
           KOTLINC_DEP_DIR: ${{ runner.temp }}/kotlin-tools
           KSWIFTK_KIR_VERIFY: "1"
-          DIFF_KSWIFTC_FLAGS: ${{ matrix.optimization_flags }}
+          DIFF_KSWIFTC_FLAGS: "${{ matrix.optimization_flags }} --no-incremental"
         run: |
           DIFF_WORKERS="$(nproc)" \
             bash Scripts/diff_kotlinc.sh \
@@ -657,6 +660,7 @@ jobs:
         if: matrix.shard_index == 0 && matrix.optimization == 'O0'
         env:
           KSWIFTK_STDLIB_LIBRARY: ${{ runner.temp }}/diff_kotlinc_artifacts/KSwiftKStdlib.kklib
+          DIFF_KSWIFTC_FLAGS: "--no-incremental"
         run: |
           bash Scripts/run_candidate_only.sh \
             Scripts/candidate_cases/logging_basic.kt \
