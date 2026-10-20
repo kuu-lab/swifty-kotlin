@@ -243,29 +243,44 @@ public func kk_test_run_blocking(
     scope.testSchedulerIfPresent()?.bind(eventLoop: loop)
     defer { RuntimeEventLoop.current = previousLoop }
 
-    // Expand the env slot into the thunk's positional captures, the same
-    // packed-shape expansion `__kk_produce_launch` performs: 0 → none, a
-    // packed env object (kk_object_new(2+N, classID: 0), captures at
-    // slots 2..) → N captures, anything else → a single raw capture.
-    let captures: [Int]
-    if closureRaw == 0 {
-        captures = []
-    } else if let envBox = resolveRuntimeHandle(closureRaw, as: RuntimeObjectBox.self),
-              envBox.classID == 0,
-              envBox.elements.count > 2
-    {
-        captures = Array(envBox.elements.dropFirst(2))
-    } else {
-        captures = [closureRaw]
-    }
-
     var thrown = 0
-    let result = runtimeInvokeSuspendLauncherThunk(
-        entryPointRaw: entryPointRaw,
-        receiver: scopeHandle,
-        captures: captures,
-        outThrown: &thrown
-    )
+    let result: Int
+    if let box = runtimeFunctionValueBox(from: entryPointRaw), box.suspendEntryPoint != 0 {
+        // A boxed suspend function value (`kk_suspend_function_create`)
+        // carries its own suspend entry point and env: invoke it through the
+        // suspend-value ABI so the env reaches the adapter's leading closure
+        // parameter and the minted TestScope lands as the trailing receiver.
+        // The positional launcher-thunk convention below only fits raw
+        // (fnPtr, closure) pairs.
+        result = runtimeInvokeSuspendFunction(
+            entryPointRaw,
+            arguments: [scopeHandle],
+            continuation: 0,
+            outThrown: &thrown
+        )
+    } else {
+        // Expand the env slot into the thunk's positional captures, the same
+        // packed-shape expansion `__kk_produce_launch` performs: 0 → none, a
+        // packed env object (kk_object_new(2+N, classID: 0), captures at
+        // slots 2..) → N captures, anything else → a single raw capture.
+        let captures: [Int]
+        if closureRaw == 0 {
+            captures = []
+        } else if let envBox = resolveRuntimeHandle(closureRaw, as: RuntimeObjectBox.self),
+                  envBox.classID == 0,
+                  envBox.elements.count > 2
+        {
+            captures = Array(envBox.elements.dropFirst(2))
+        } else {
+            captures = [closureRaw]
+        }
+        result = runtimeInvokeSuspendLauncherThunk(
+            entryPointRaw: entryPointRaw,
+            receiver: scopeHandle,
+            captures: captures,
+            outThrown: &thrown
+        )
+    }
     if thrown != 0 {
         outThrown?.pointee = thrown
         // runTest semantics: a body failure cancels the scope's children.

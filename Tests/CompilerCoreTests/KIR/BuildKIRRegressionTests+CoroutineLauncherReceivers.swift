@@ -138,23 +138,27 @@ extension BuildKIRRegressionTests {
         """)
         try runToKIR(ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
-        _ = try #require(ctx.kir)
+        let module = try #require(ctx.kir)
+        // Since KUU-1771 the source-backed `runBlocking` lowers its block as an
+        // ordinary `suspend CoroutineScope.() -> Unit` value: `this` binds to
+        // the declared receiver parameter (supplied by the launcher through
+        // the suspend-entry receiver slot), not to a synthetic
+        // `coroutineCurrentScope` read — and still occupies no capture slot.
         let lambda = try #require(findKIRLambdaFunctions(in: ctx).first { function in
             function.body.contains { instruction in
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
-                return callee == ctx.interner.intern(runtimeCallee(.coroutineCurrentScope))
+                return callee == ctx.interner.intern("accept")
             }
         })
-        #expect(lambda.params.count == (capturesLocal ? 1 : 0))
-        let receiver = try #require(lambda.body.compactMap { instruction -> KIRExprID? in
-            guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
-                  callee == ctx.interner.intern(runtimeCallee(.coroutineCurrentScope))
-            else { return nil }
-            return result
-        }.first)
+        #expect(lambda.params.count == (capturesLocal ? 2 : 1))
+        let receiverParam = try #require(lambda.params.last)
         #expect(lambda.body.contains { instruction in
-            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction else { return false }
-            return callee == ctx.interner.intern("accept") && arguments == [receiver]
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                  callee == ctx.interner.intern("accept"),
+                  arguments.count == 1,
+                  case let .symbolRef(symbol) = module.arena.expr(arguments[0])
+            else { return false }
+            return symbol == receiverParam.symbol
         })
     }
 }
