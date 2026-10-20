@@ -179,12 +179,32 @@ struct CodegenPhaseTimingTests {
             symbols: sema.symbols, types: sema.types, moduleName: "Consumer",
             interner: consumer.interner, functionLinkNames: [:], runtimeReflectionOnly: true
         )
+        // KUU-2675: pending compact-index shells are not reachable from the
+        // compiled program, so the projection omits them instead of decoding
+        // their bodies.
+        for symbol in sema.symbols.allSymbols()
+            where symbol.flags.contains(.importedLibrary) && sema.symbols.hasPendingImportedMetadata(for: symbol.id)
+        {
+            let fqName = symbol.fqName.map { consumer.interner.resolve($0) }.joined(separator: ".")
+            #expect(!projected.contains { $0.fqName == fqName })
+        }
+        // With every imported body materialized, the projection keeps the
+        // whole imported surface field-for-field, byte-for-byte. Both paths
+        // must run on the same load state: materialization can register
+        // member symbols, so a pre-load export sees a smaller symbol table.
+        for symbol in sema.symbols.allSymbols() where symbol.flags.contains(.importedLibrary) {
+            sema.symbols.ensureLazyImportedMetadataLoaded(for: symbol.id)
+        }
         let full = encoder.buildRecords(
             symbols: sema.symbols, types: sema.types, moduleName: "Consumer",
             interner: consumer.interner, functionLinkNames: [:]
         )
         #expect(full.contains { $0.fqName == "library.Box" && $0.nominalTypeParametersSignature != nil })
-        #expect(RuntimeReflectionMetadataEmitter.serialize(full) == RuntimeReflectionMetadataEmitter.serialize(projected))
+        let loadedProjected = encoder.buildRecords(
+            symbols: sema.symbols, types: sema.types, moduleName: "Consumer",
+            interner: consumer.interner, functionLinkNames: [:], runtimeReflectionOnly: true
+        )
+        #expect(RuntimeReflectionMetadataEmitter.serialize(full) == RuntimeReflectionMetadataEmitter.serialize(loadedProjected))
     }
 
     @Test

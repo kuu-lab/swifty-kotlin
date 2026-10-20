@@ -707,7 +707,8 @@ extension DataFlowSemaPhase {
                 alreadyLoaded: preloadedGetterBindingSymbols,
                 indexedNominals: Set(importedBindings.filter {
                     !$0.isMaterialized && isNominalLayoutTargetSymbol($0.record.kind)
-                }.map(\.symbol))
+                }.map(\.symbol)),
+                lazyShells: Set(importedBindings.lazy.filter { !$0.isMaterialized }.map(\.symbol))
             ) { [self, weak symbols] symbol in
                 guard let symbols else { return }
                 guard let binding = bindingsBySymbol[symbol] else { return }
