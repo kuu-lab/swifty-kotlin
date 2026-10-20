@@ -55,7 +55,16 @@ enum JVMMetadata {
             switch t {
             case let .function(parameters, result, receiver, nullable, suspend):
                 let inputs = [receiver].compactMap { $0 } + parameters
-                p.bytes = sourceType(.named((suspend ? "kotlin/coroutines/SuspendFunction" : "kotlin/Function") + String(inputs.count), (inputs + [result]).map { JVMKotlinTypeArgument(type: $0, variance: 2) }, nullable: nullable))
+                if suspend {
+                    // Kotlin metadata records the lowered FunctionN shape and
+                    // marks it as suspend so foreign reflection restores R.
+                    let continuation = JVMKotlinType.named("kotlin/coroutines/Continuation", [JVMKotlinTypeArgument(type: result, variance: 2)], nullable: false)
+                    let runtime = inputs + [continuation, .named("kotlin/Any", [], nullable: true)]
+                    p.bytes = sourceType(.named("kotlin/Function" + String(inputs.count + 1), runtime.map { JVMKotlinTypeArgument(type: $0, variance: 2) }, nullable: nullable))
+                    p.int(1, 1)
+                } else {
+                    p.bytes = sourceType(.named("kotlin/Function" + String(inputs.count), (inputs + [result]).map { JVMKotlinTypeArgument(type: $0, variance: 2) }, nullable: nullable))
+                }
                 if receiver != nil { var annotation = Proto(); annotation.int(1, index("kotlin/ExtensionFunctionType")); p.data(100, annotation.bytes) }
             case let .flexible(lower, upper):
                 p.bytes = sourceType(lower); p.int(4, index("kotlin.jvm.PlatformType")); p.data(5, sourceType(upper))
