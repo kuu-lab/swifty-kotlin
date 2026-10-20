@@ -26,23 +26,28 @@ struct CoroutineDispatcherSourceMigrationTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
         let sema = try #require(ctx.sema)
         let package = ["kotlinx", "coroutines"].map(ctx.interner.intern)
-        let declarations: [(String, String)] = [
-            ("Dispatchers", "Dispatchers.kt"),
-            ("immediate", "CoroutineDispatcher.kt"),
-            ("limitedParallelism", "CoroutineDispatcher.kt"),
-            ("newSingleThreadContext", "ThreadPoolDispatcher.kt"),
-            ("newFixedThreadPoolContext", "ThreadPoolDispatcher.kt"),
-            ("newScheduledThreadPoolContext", "ThreadPoolDispatcher.kt"),
-            ("asCoroutineDispatcher", "Executors.kt"),
+        struct DeclarationExpectation {
+            let name: String
+            let fileName: String
+            let expectedSymbolCount: Int
+        }
+        let declarations: [DeclarationExpectation] = [
+            DeclarationExpectation(name: "Dispatchers", fileName: "Dispatchers.kt", expectedSymbolCount: 1),
+            DeclarationExpectation(name: "immediate", fileName: "CoroutineDispatcher.kt", expectedSymbolCount: 1),
+            DeclarationExpectation(name: "limitedParallelism", fileName: "CoroutineDispatcher.kt", expectedSymbolCount: 1),
+            DeclarationExpectation(name: "newSingleThreadContext", fileName: "ThreadPoolDispatcher.kt", expectedSymbolCount: 1),
+            DeclarationExpectation(name: "newFixedThreadPoolContext", fileName: "ThreadPoolDispatcher.kt", expectedSymbolCount: 1),
+            DeclarationExpectation(name: "newScheduledThreadPoolContext", fileName: "ThreadPoolDispatcher.kt", expectedSymbolCount: 1),
+            DeclarationExpectation(name: "asCoroutineDispatcher", fileName: "Executors.kt", expectedSymbolCount: 2),
         ]
-        for (name, fileName) in declarations {
-            let symbols = sema.symbols.lookupAll(fqName: package + [ctx.interner.intern(name)])
-            #expect(symbols.count == (name == "asCoroutineDispatcher" ? 2 : 1))
+        for declaration in declarations {
+            let symbols = sema.symbols.lookupAll(fqName: package + [ctx.interner.intern(declaration.name)])
+            #expect(symbols.count == declaration.expectedSymbolCount)
             for symbol in symbols {
                 let info = try #require(sema.symbols.symbol(symbol))
                 #expect(!info.flags.contains(.synthetic))
                 let file = try #require(sema.symbols.sourceFileID(for: symbol))
-                #expect(ctx.sourceManager.path(of: file) == "__bundled_kotlinx/coroutines/\(fileName)")
+                #expect(ctx.sourceManager.path(of: file) == "__bundled_kotlinx/coroutines/\(declaration.fileName)")
             }
         }
         for name in ["Default", "IO", "Unconfined", "Main"] {
