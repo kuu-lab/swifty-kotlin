@@ -28,10 +28,11 @@ struct CrossFileInferredExtensionReturnTests {
         fun Int.measure() = Holder().word\(readLength ? ".length" : "")
         """
         let (sema, interner) = try SemaFixture(surface: "pending member property dependency").make(
-            sources: declarationFirst ? [declaration, use] : [use, declaration]
+            sources: sources(declaration: declaration, use: use, declarationFirst: declarationFirst)
         )
         let symbol = try #require(sema.symbols.lookup(fqName: [interner.intern("measure")]))
-        #expect(sema.symbols.functionSignature(for: symbol)?.returnType == (readLength ? sema.types.intType : sema.types.stringType))
+        let expectedReturnType = readLength ? sema.types.intType : sema.types.stringType
+        #expect(sema.symbols.functionSignature(for: symbol)?.returnType == expectedReturnType)
     }
 
     @Test(arguments: [false, true], [0, 1])
@@ -46,7 +47,7 @@ struct CrossFileInferredExtensionReturnTests {
         fun Int.measure() = word.length
         """
         _ = try SemaFixture(surface: "getter and delegate extension dependencies").make(
-            sources: declarationFirst ? [declaration, use] : [use, declaration]
+            sources: sources(declaration: declaration, use: use, declarationFirst: declarationFirst)
         )
     }
 
@@ -73,7 +74,7 @@ struct CrossFileInferredExtensionReturnTests {
         fun Int.measure() = consume(::text)
         """
         _ = try SemaFixture(surface: "inferred overloaded callable reference dependency").make(
-            sources: declarationFirst ? [declaration, use] : [use, declaration]
+            sources: sources(declaration: declaration, use: use, declarationFirst: declarationFirst)
         )
     }
 
@@ -152,7 +153,7 @@ struct CrossFileInferredExtensionReturnTests {
         fun Int.measure() = \(throughProperty ? "word" : "text()").length
         """
         let (sema, interner) = try SemaFixture(surface: "inferred extension declaration dependencies").make(
-            sources: declarationFirst ? [declaration, use] : [use, declaration]
+            sources: sources(declaration: declaration, use: use, declarationFirst: declarationFirst)
         )
         let symbol = try #require(sema.symbols.lookup(fqName: [interner.intern("measure")]))
         #expect(sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.intType)
@@ -195,7 +196,7 @@ struct CrossFileInferredExtensionReturnTests {
         fun <T> T.identity() = this
         """
         let (sema, interner) = try SemaFixture(surface: "forward generic nullable extension return").make(
-            sources: declarationFirst ? [declaration, use] : [use, declaration]
+            sources: sources(declaration: declaration, use: use, declarationFirst: declarationFirst)
         )
         let symbol = try #require(sema.symbols.lookup(fqName: ["sample", "identity"].map(interner.intern)))
         let signature = try #require(sema.symbols.functionSignature(for: symbol))
@@ -216,7 +217,7 @@ struct CrossFileInferredExtensionReturnTests {
         fun Int.checked() = helper(this)
         fun helper(value: Int): Boolean = value > 0
         """
-        let sources = declarationFirst ? [declaration, use] : [use, declaration]
+        let sources = sources(declaration: declaration, use: use, declarationFirst: declarationFirst)
         let (sema, interner) = try SemaFixture(surface: "forward extension dependencies").make(sources: sources)
         for name in ["isSafe", "checked"] {
             let symbol = try #require(sema.symbols.lookup(fqName: ["sample", name].map(interner.intern)))
@@ -234,7 +235,7 @@ struct CrossFileInferredExtensionReturnTests {
         package sample
         fun Int.isSafe() = 1
         """
-        let ctx = makeContextFromSources(declarationFirst ? [declaration, use] : [use, declaration])
+        let ctx = makeContextFromSources(sources(declaration: declaration, use: use, declarationFirst: declarationFirst))
         try runSema(ctx)
         #expect(ctx.diagnostics.hasError)
         let sema = try #require(ctx.sema)
@@ -267,7 +268,7 @@ struct CrossFileInferredExtensionReturnTests {
         data class Point(val x:Int,val y:Int)
         fun Array<CharArray>.isSafe(at:Point)\(explicitReturn ? ": Boolean" : "") = at.y in this.indices && at.x in this[at.y].indices
         """
-        let sources = declarationFirst ? [declaration, use] : [use, declaration]
+        let sources = sources(declaration: declaration, use: use, declarationFirst: declarationFirst)
         let ctx = makeContextFromSources(sources)
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
@@ -292,5 +293,9 @@ struct CrossFileInferredExtensionReturnTests {
             #expect(sema.bindings.callBinding(for: call)?.chosenCallee == symbol)
             #expect(sema.bindings.exprType(for: call) == sema.types.booleanType)
         }
+    }
+
+    private func sources(declaration: String, use: String, declarationFirst: Bool) -> [String] {
+        declarationFirst ? [declaration, use] : [use, declaration]
     }
 }
