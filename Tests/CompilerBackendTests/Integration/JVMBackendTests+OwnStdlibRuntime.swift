@@ -49,6 +49,10 @@ extension JVMBackendTests {
     }
 
     private static let ownStdlibCases = [
+        "nonReifiedCallableReferenceAdapters",
+        "defaultedVarargCallableReferenceAdapters",
+        "inheritedGenericDefaultReferenceAdapters",
+        "inheritedOnlyGenericDefaultReferenceAdapters",
         "iteratorForUsesCursor",
         "arrayListFactoryABI",
         "intArrayToList",
