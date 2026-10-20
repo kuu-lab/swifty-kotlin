@@ -18,14 +18,9 @@ fun mutableSet(values: MutableSet<String>): MutableSet<String> = Collections.unm
 fun mutableMap(values: MutableMap<String, Int>): MutableMap<String, Int> = Collections.unmodifiableMap(values)
 fun mutationSurface(values: MutableList<String>) { Collections.unmodifiableList(values).add("x") }
 
-// Kotlin/JVM 2.3.10 accepts these nullable Java calls, including warned return narrowing.
-fun nullableTypeKey(values: MutableMap<String, Boolean>) = Collections.newSetFromMap<String?>(values)
-fun nullableListReturn(values: List<String?>): List<String> = Collections.unmodifiableList<String?>(values)
-fun nullableMutableListReturn(values: List<String?>): MutableList<String> = Collections.unmodifiableList<String?>(values)
-fun nullableSetReturn(values: Set<String?>): Set<String> = Collections.unmodifiableSet<String?>(values)
-fun nullableMutableSetReturn(values: Set<String?>): MutableSet<String> = Collections.unmodifiableSet<String?>(values)
-fun nullableMapReturn(values: Map<String?, Int?>): Map<String, Int> = Collections.unmodifiableMap<String?, Int?>(values)
-fun nullableMutableMapReturn(values: Map<String?, Int?>): MutableMap<String, Int> = Collections.unmodifiableMap<String?, Int?>(values)
+// Kotlin/JVM 2.4.20 rejects nullable arguments where these Java APIs require
+// non-null collection element types. Runtime nullable cases remain below with
+// signatures accepted by both compilers.
 
 // Generic bodies from Util.jvm.kt lines 21-28 at the pinned upstream commit.
 // Names and multiplatform modifiers are adapted for this standalone fixture.
