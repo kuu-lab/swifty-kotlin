@@ -23,6 +23,8 @@ private final class JVMOwnStdlibCache: @unchecked Sendable {
 }
 
 extension JVMBackendTests {
+    func ownStdlibLibrary() throws -> URL { try JVMOwnStdlibCache.shared.library() }
+
     private static let ownStdlibCases = [
         "boundedNestedGenericOverloads",
         "callableReferenceCallByExtensionContracts",
