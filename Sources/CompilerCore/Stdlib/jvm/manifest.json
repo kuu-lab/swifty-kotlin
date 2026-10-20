@@ -7,6 +7,12 @@
   ],
   "declarations": [
     {
+      "path": "kotlin/Numbers.kt",
+      "virtualPath": "<kswiftk-jvm>/number-predicates.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/NumbersKt"
+    },
+    {
       "path": "kotlin/Standard.kt",
       "virtualPath": "<kswiftk-jvm>/standard.kt",
       "excludeFromStdlibBuild": true,
