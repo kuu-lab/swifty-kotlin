@@ -215,5 +215,95 @@ struct InnerClassOuterInstanceTests {
         let callees = extractCallees(from: body, interner: ctx.interner)
         #expect(!callees.contains("value"), "value must not lower to an unresolved bare call, got: \(callees)")
     }
+
+    @Test func testBoundOuterCallableReferenceCapturesReceiverAcrossNestedInnerClasses() throws {
+        let ctx = makeContextFromSource("""
+        class Outer {
+            fun greet(extra: Int): String = "outer:$extra"
+            inner class Inner {
+                inner class Deep {
+                    fun make(): String {
+                        val obj = object {
+                            fun show(): String {
+                                val ref = this@Outer::greet
+                                return ref(3)
+                            }
+                        }
+                        return obj.show()
+                    }
+                }
+            }
+        }
+        fun main() {
+            val outer = Outer()
+            println(outer.Inner().Deep().make())
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let references = ast.arena.exprs.enumerated().compactMap { index, expr -> ExprID? in
+            guard case let .callableRef(_, member, _) = expr,
+                  ctx.interner.resolve(member) == "greet"
+            else { return nil }
+            return ExprID(rawValue: Int32(index))
+        }
+        let reference = try #require(references.first)
+        #expect(!sema.bindings.isUnboundCallableRef(reference))
+
+        let module = try #require(ctx.kir)
+        let show = try findKIRFunctionBody(named: "show", in: module, interner: ctx.interner)
+        let adapterCalls = kirCalls(in: show).filter {
+            ctx.interner.resolve($0.callee).hasPrefix("kk_function_value_adapter_")
+        }
+        #expect(adapterCalls.count == 1)
+        #expect(adapterCalls.allSatisfy { $0.arguments.count == 2 }, "The bound reference must pass its captured receiver and explicit argument.")
+    }
+
+    @Test func testQualifiedOuterPropertyAssignmentAfterCallIsEmitted() throws {
+        let ctx = makeContextFromSource("""
+        class Outer {
+            var counter: Int = 0
+            fun greet(extra: Int): String = "outer:$extra"
+            inner class Inner {
+                inner class Deep {
+                    fun make(): Int {
+                        val obj = object {
+                            fun show(): Int {
+                                val greeting = this@Outer.greet(5)
+                                this@Outer.counter = 10
+                                this@Outer.counter += 1
+                                return this@Outer.counter
+                            }
+                        }
+                        return obj.show()
+                    }
+                }
+            }
+        }
+        fun main() {
+            val outer = Outer()
+            println(outer.Inner().Deep().make())
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
+
+        let ast = try #require(ctx.ast)
+        let assignments = ast.arena.exprs.enumerated().compactMap { index, expr -> ExprID? in
+            guard case let .memberAssign(_, name, _, _) = expr,
+                  ctx.interner.resolve(name) == "counter"
+            else { return nil }
+            return ExprID(rawValue: Int32(index))
+        }
+        #expect(assignments.count == 1)
+
+        let module = try #require(ctx.kir)
+        let show = try findKIRFunctionBody(named: "show", in: module, interner: ctx.interner)
+        let stores = kirCalls(to: .arraySet, in: show, interner: ctx.interner)
+        #expect(stores.count == 2, "Expected plain assignment and compound assignment to store the outer property.")
+    }
 }
 #endif

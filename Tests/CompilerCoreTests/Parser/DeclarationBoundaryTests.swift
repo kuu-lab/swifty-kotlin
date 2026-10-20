@@ -196,6 +196,35 @@ struct DeclarationBoundaryTests {
         #expect(parsed.arena.node(parsed.root).kind == .kotlinFile)
     }
 
+    @Test
+    func localPropertyCallInitializerStopsBeforeNextLabeledThisAssignment() {
+        let source = """
+        class Outer {
+            var counter = 0
+            fun greet(extra: Int) = extra
+            fun show() {
+                val greeting = this@Outer.greet(5)
+                this@Outer.counter = 10
+                this@Outer.counter += 1
+            }
+        }
+        """
+        let parsed = parse(source)
+        let greetingStart = source.range(of: "val greeting =")!.lowerBound
+        let greetingEnd = source.range(of: "this@Outer.greet(5)")!.upperBound
+        let assignmentStart = source.range(of: "this@Outer.counter = 10")!.lowerBound
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(parsed.arena.nodes.contains { node in
+            node.kind == .propertyDecl
+                && node.range.start.offset == source[..<greetingStart].utf8.count
+                && node.range.end.offset == source[..<greetingEnd].utf8.count
+        })
+        #expect(parsed.arena.nodes.contains { node in
+            node.kind == .statement && node.range.start.offset == source[..<assignmentStart].utf8.count
+        })
+    }
+
     @Test(arguments: [
         "class Target(value: Int = run {\nval count = 1\ncount\n})",
         "class Target {\nconstructor(value: Int = run {\nvar count = 1\ncount\n})\n}",

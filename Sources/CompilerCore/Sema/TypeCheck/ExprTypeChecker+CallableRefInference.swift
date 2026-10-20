@@ -262,7 +262,12 @@ extension ExprTypeChecker {
             // expression before `::` is recognized. Its final identifier is
             // nevertheless bound to the nested classifier symbol; preserve
             // that type receiver as unbound instead of capturing it as a value.
-            if let symbolID = sema.bindings.identifierSymbols[receiver],
+            // A labeled `this@Owner` also binds to its owning class symbol, but
+            // it is still a value receiver and must be captured for a bound
+            // callable reference such as `this@Outer::greet`.
+            if case .thisRef = ast.arena.expr(receiver) {
+                // Keep the inferred receiver type without classifying `this` as a type reference.
+            } else if let symbolID = sema.bindings.identifierSymbols[receiver],
                let symbol = sema.symbols.symbol(symbolID),
                symbol.kind == .class || symbol.kind == .interface || symbol.kind == .enumClass,
                case .classType = sema.types.kind(of: inferredReceiverType)
