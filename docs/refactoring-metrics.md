@@ -278,3 +278,39 @@ The v3 string pool contains 69,242 strings. The indexed prefix grows from
 this corpus. Compactness refers to the shell shape and positional fields;
 the format avoids per-record text tokenization, key/value dispatch, and full
 MetadataRecord construction at library discovery.
+
+## Parallel compact index decode observation (KUU-2679)
+
+2026-10-20, baseline master `9940cc7550`, debug build, Apple Swift 6.4, macOS
+27 arm64. The v3 format is unchanged; `CompactMetadataIndex.decode` now scans
+string byte ranges sequentially, then decodes the string pool and the
+fixed-width entry table in per-core chunks via
+`DispatchQueue.concurrentPerform`, concatenating chunk results in file order.
+Malformed input still rejects the whole file identically. The probe reuses
+the KUU-2051 stdlib artifact shape (31,457 records, 69,242 pooled strings,
+`metadata.bin` ≈ 18 MB).
+
+An early low-contention window gave `indexDecode` ≈ 104–115 ms baseline and
+≈ 34–42 ms parallel (~3×). A later interleaved A/B while the host was
+saturated by other builds (load average ≈ 250–320) inflated both compilers
+roughly 6× but kept the ratio:
+
+| Warm pair | Sequential indexDecode (ms) | Parallel indexDecode (ms) |
+|---:|---:|---:|
+| 1 | 384.51 | 342.40 |
+| 2 | 1024.61 | 165.88 |
+| 3 | 1186.13 | 540.51 |
+| 4 | 618.03 | 248.63 |
+| 5 | 698.96 | 134.12 |
+| Median | 698.96 | 248.63 |
+
+Both windows agree on ≈ 2.8–3× less index decode time (~65–70 ms absolute on
+an idle host, ~3% of a `hello.kt` debug TOTAL). These measurements do not
+establish a release-mode or LSP latency speedup.
+
+Reproduce with separate before/after compiler binaries sharing one artifact:
+
+```bash
+<compiler> Scripts/diff_cases/hello.kt --no-stdlib \
+  --stdlib-library /tmp/stdlib.kklib -Xfrontend time-phases -o /tmp/hello
+```
