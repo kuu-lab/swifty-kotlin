@@ -26,6 +26,7 @@
 struct CandidateSpecificNestedCallArgumentTypes {
     let argumentTypesByCandidate: [SymbolID: [Int: TypeID]]
     let expectedTypesByCandidate: [SymbolID: [Int: TypeID]]
+    let inapplicableCandidates: Set<SymbolID>
 }
 
 extension CallTypeChecker {
@@ -309,11 +310,13 @@ extension CallTypeChecker {
         }
 
         var argumentTypesByCandidate: [SymbolID: [Int: TypeID]] = [:]
+        var inapplicableCandidates: Set<SymbolID> = []
         for candidate in candidates {
             guard let candidateExpectedTypes = expectedTypesByCandidate[candidate] else {
                 return nil
             }
             var candidateArgumentTypes: [Int: TypeID] = [:]
+            var candidateIsInapplicable = false
             for index in nestedArgumentIndices {
                 guard let expectedType = candidateExpectedTypes[index] else {
                     return nil
@@ -334,29 +337,44 @@ extension CallTypeChecker {
                       argumentType != ctx.sema.types.errorType,
                       !typeContainsErrorType(argumentType, sema: ctx.sema)
                 else {
-                    for restoreIndex in nestedArgumentIndices {
-                        var restoreLocals = locals
-                        _ = driver.inferExpr(
-                            args[restoreIndex].expr,
-                            ctx: ctx,
-                            locals: &restoreLocals,
-                            expectedType: originalExpectedTypeOverrides[restoreIndex]
-                        )
-                    }
-                    return nil
+                    candidateIsInapplicable = true
+                    break
                 }
                 candidateArgumentTypes[index] = argumentType
             }
-            argumentTypesByCandidate[candidate] = candidateArgumentTypes
+            if candidateIsInapplicable {
+                inapplicableCandidates.insert(candidate)
+            } else {
+                argumentTypesByCandidate[candidate] = candidateArgumentTypes
+            }
+
+            // Candidate probes mutate expression and call bindings. Restore the
+            // first-pass state before probing another candidate; the selected
+            // candidate is re-inferred with its own context after resolution.
+            for restoreIndex in nestedArgumentIndices {
+                let checkpoint = ctx.sema.diagnostics.checkpoint()
+                var restoreLocals = locals
+                _ = driver.inferExpr(
+                    args[restoreIndex].expr,
+                    ctx: ctx,
+                    locals: &restoreLocals,
+                    expectedType: originalExpectedTypeOverrides[restoreIndex]
+                )
+                ctx.sema.diagnostics.rollback(to: checkpoint)
+            }
         }
-        for index in nestedArgumentIndices {
-            if let argumentRange = ctx.ast.arena.exprRange(args[index].expr) {
-                ctx.sema.diagnostics.removeErrorDiagnostics(containedIn: argumentRange)
+
+        if !argumentTypesByCandidate.isEmpty {
+            for index in nestedArgumentIndices {
+                if let argumentRange = ctx.ast.arena.exprRange(args[index].expr) {
+                    ctx.sema.diagnostics.removeErrorDiagnostics(containedIn: argumentRange)
+                }
             }
         }
         return CandidateSpecificNestedCallArgumentTypes(
             argumentTypesByCandidate: argumentTypesByCandidate,
-            expectedTypesByCandidate: expectedTypesByCandidate
+            expectedTypesByCandidate: expectedTypesByCandidate,
+            inapplicableCandidates: inapplicableCandidates
         )
     }
 

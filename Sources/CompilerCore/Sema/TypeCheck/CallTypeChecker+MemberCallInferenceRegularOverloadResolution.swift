@@ -309,6 +309,7 @@ extension CallTypeChecker {
         } else if isULongRangeLiteralContainsCall {
             argumentExpectedTypeOverrides[0] = sema.types.ulongType
         }
+        let directArgumentExpectedTypeOverrides = argumentExpectedTypeOverrides
         prepareUnambiguousNestedCallExpectedTypes(
             args: args,
             callRange: range,
@@ -372,6 +373,7 @@ extension CallTypeChecker {
         } else {
             resolutionTypeArgs = explicitTypeArgs
         }
+        let hasCandidatesBeforeNestedFiltering = !candidates.isEmpty
         let candidateSpecificNestedCallTypes = candidateSpecificNestedCallArgumentTypes(
             candidates: candidates,
             args: args,
@@ -383,6 +385,12 @@ extension CallTypeChecker {
             ctx: ctx,
             locals: locals
         )
+        if let candidateSpecificNestedCallTypes {
+            candidates.removeAll {
+                candidateSpecificNestedCallTypes.inapplicableCandidates.contains($0)
+            }
+        }
+        var selectedNestedCallTypes = candidateSpecificNestedCallTypes
         var resolved = resolveCallRespectingLambdaReturnType(
             candidates: candidates,
             args: args,
@@ -419,7 +427,7 @@ extension CallTypeChecker {
            (!isClassNameReceiver || companionReceiverType != nil),
            !isSuperCall,
            !args.contains(where: { ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true }),
-           !candidates.isEmpty
+           hasCandidatesBeforeNestedFiltering
         {
             let receiverForExtensionLookup = sema.types.makeNonNullable(effectiveReceiverType)
             func receiverMatchingExtensions(_ scopeCandidates: [SymbolID]) -> [SymbolID] {
@@ -463,11 +471,21 @@ extension CallTypeChecker {
                 extensionCandidates = receiverMatchingExtensions(ctx.scope.lookupMergingChain(calleeName))
             }
             if !extensionCandidates.isEmpty {
+                var extensionExpectedTypeOverrides = directArgumentExpectedTypeOverrides
+                prepareUnambiguousNestedCallExpectedTypes(
+                    args: args,
+                    callRange: range,
+                    candidates: extensionCandidates,
+                    preInferredArgumentTypes: cachedNonLambdaArgTypes,
+                    ctx: ctx,
+                    expectedTypeOverrides: &extensionExpectedTypeOverrides
+                )
                 let extensionArgs = prepareCallArguments(
                     args: args,
                     callRange: range,
                     candidates: extensionCandidates,
                     preInferredNonLambdaArgTypes: cachedNonLambdaArgTypes,
+                    expectedTypeOverrides: extensionExpectedTypeOverrides,
                     contextualCallResultType: ctx.isCallResultDiscarded && ctx.isUnitCoercionContext
                         ? sema.types.unitType : expectedType,
                     explicitTypeArgs: explicitTypeArgs,
@@ -475,6 +493,22 @@ extension CallTypeChecker {
                     ctx: ctx,
                     locals: &locals
                 )
+                let extensionNestedCallTypes = candidateSpecificNestedCallArgumentTypes(
+                    candidates: extensionCandidates,
+                    args: args,
+                    originalArgumentTypes: extensionArgs.argTypes,
+                    originalExpectedTypeOverrides: extensionExpectedTypeOverrides,
+                    explicitTypeArgs: explicitTypeArgs,
+                    implicitReceiverType: receiverTypeForResolution,
+                    lambdaLiteralIndices: extensionArgs.lambdaLiteralIndices,
+                    ctx: ctx,
+                    locals: locals
+                )
+                if let extensionNestedCallTypes {
+                    extensionCandidates.removeAll {
+                        extensionNestedCallTypes.inapplicableCandidates.contains($0)
+                    }
+                }
                 let retried = resolveCallRespectingLambdaReturnType(
                     candidates: extensionCandidates,
                     args: args,
@@ -484,6 +518,7 @@ extension CallTypeChecker {
                     explicitTypeArgs: explicitTypeArgs,
                     expectedType: expectedType,
                     implicitReceiverType: receiverTypeForResolution,
+                    candidateArgumentTypes: extensionNestedCallTypes?.argumentTypesByCandidate ?? [:],
                     lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
                     inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
                     blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
@@ -493,13 +528,14 @@ extension CallTypeChecker {
                 if retried.diagnostic == nil {
                     candidates = extensionCandidates
                     resolved = retried
+                    selectedNestedCallTypes = extensionNestedCallTypes
                 }
             }
         }
 
         if resolved.diagnostic == nil,
            let chosen = resolved.chosenCallee,
-           let expectedTypes = candidateSpecificNestedCallTypes?.expectedTypesByCandidate[chosen]
+           let expectedTypes = selectedNestedCallTypes?.expectedTypesByCandidate[chosen]
         {
             for (index, expectedArgumentType) in expectedTypes.sorted(by: { $0.key < $1.key }) {
                 let diagnosticsCheckpoint = sema.diagnostics.checkpoint()
