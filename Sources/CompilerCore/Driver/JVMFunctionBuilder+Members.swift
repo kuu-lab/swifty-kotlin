@@ -143,7 +143,8 @@ extension JVMFunctionBuilder {
         instructions.append(.foreignCall(setter, receiver: setter.isStatic ? nil : receiver, arguments: [converted], result: nil))
     }
     func propertyCompound(_ property: JVMProperty, receiver: JVMValue, op: CompoundAssignOp, rhs: ExprID, id: ExprID, special: Bool = false, superReceiver: ExprID? = nil) throws -> JVMValue? {
-        let left = try readProperty(property, receiver: receiver, special: special, superReceiver: superReceiver)
+        let left = try arena.incrementDecrementCachedValue(for: id).map(requireValue)
+            ?? readProperty(property, receiver: receiver, special: special, superReceiver: superReceiver)
         let right = try compoundOperand(rhs, target: left.type)
         if terminated { return nil }
         guard try permitsCompound(left.type, right.type) else { throw fail("Unsupported JVM property compound conversion.", id) }
