@@ -96,6 +96,7 @@ extension JVMProgramBuilder {
                 for id in file.topLevelDecls {
                     guard case let .funDecl(f) = ast.arena.decl(id), let symbol = sema.bindings.declSymbol(for: id), let signature = sema.symbols.functionSignature(for: symbol) else { continue }
                     try method(symbol, owner: owner, name: context.interner.resolve(f.name), declarations: f.valueParams, extensionReceiver: try signature.receiverType.map(type), staticMember: true)
+                    if f.isInline { inlineDeclarations[symbol] = f }
                 }
             }
             if path == "<kswiftk-jvm>/collections.kt" {
@@ -137,7 +138,9 @@ extension JVMFunctionBuilder {
     }
 
     func textLibraryCall(_ args: [CallArgument], receiver: ExprID? = nil, id: ExprID) throws -> JVMIntrinsicResult? {
-        guard let binding = program.sema.bindings.callBinding(for: id), let entry = program.textLibraryMethods[binding.chosenCallee] else { return nil }
+        guard let binding = program.sema.bindings.callBinding(for: id),
+              program.inlineDeclarations[binding.chosenCallee] == nil,
+              let entry = program.textLibraryMethods[binding.chosenCallee] else { return nil }
         let method = entry.method
         if method.owner == "java/lang/Comparable", method.name == "compareTo", let receiver,
            try program.expressionType(receiver).isNumeric {
