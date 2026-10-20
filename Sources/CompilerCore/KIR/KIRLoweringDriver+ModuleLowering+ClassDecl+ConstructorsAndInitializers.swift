@@ -18,6 +18,16 @@ extension KIRLoweringDriver {
             return []
         }
 
+        // Paired expect/actual classes share an FQName, so looking up
+        // `<init>` by FQName returns constructors from both declarations.
+        // Only lower the constructor owned by this class declaration;
+        // lowering both bodies under the same symbol creates duplicate KIR
+        // definitions, and the expect body's empty initializer can win at
+        // codegen time.
+        guard sema.symbols.parentSymbol(for: ctorSymbol) == ownerSymbol else {
+            return []
+        }
+
         let arena = shared.arena
         guard let signature = sema.symbols.functionSignature(for: ctorSymbol) else {
             return []

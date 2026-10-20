@@ -1093,9 +1093,27 @@ extension TypeCheckHelpers {
                     )
                 )
             }
-            ownerQueue.append(contentsOf: sema.symbols.directSupertypes(for: owner))
+            ownerQueue.append(contentsOf: memberPropertyLookupSupertypes(of: owner, sema: sema))
         }
         return nil
+    }
+
+    /// A paired expect class keeps its semantic supertype edge, but members
+    /// declared only by the actual class still participate in platform-side
+    /// member lookup. Visit that implementation before the expect class's own
+    /// supertypes, matching the actual class's runtime member surface.
+    private func memberPropertyLookupSupertypes(of owner: SymbolID, sema: SemaModule) -> [SymbolID] {
+        var supertypes: [SymbolID] = []
+        if let expectSymbol = sema.symbols.symbol(owner),
+           expectSymbol.kind == .class,
+           expectSymbol.flags.contains(.expectDeclaration),
+           let actualSymbolID = sema.symbols.actualSymbol(for: owner),
+           sema.symbols.symbol(actualSymbolID)?.kind == .class
+        {
+            supertypes.append(actualSymbolID)
+        }
+        supertypes.append(contentsOf: sema.symbols.directSupertypes(for: owner))
+        return supertypes
     }
 
     /// Resolve the effective setter for an inherited property intersection
@@ -1142,7 +1160,7 @@ extension TypeCheckHelpers {
                     )
                 ))
             }
-            ownerQueue.append(contentsOf: sema.symbols.directSupertypes(for: owner))
+            ownerQueue.append(contentsOf: memberPropertyLookupSupertypes(of: owner, sema: sema))
         }
 
         // A declaration on a subtype shadows the same member inherited from
