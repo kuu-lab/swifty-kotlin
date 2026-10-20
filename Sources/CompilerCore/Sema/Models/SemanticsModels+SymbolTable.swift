@@ -524,6 +524,19 @@ public final class SymbolTable {
             && !lazyImportedMetadataLoaded.contains(symbol)
     }
 
+    /// True when `nominalLayout(for:)` owns this nominal's layout through the
+    /// imported-layout synthesizer — a compact-index nominal (pending shell
+    /// or already materialized) while a lazy imported-metadata loader is
+    /// installed. `synthesizeNominalLayouts` skips these symbols: eagerly
+    /// synthesizing them decodes member records the program may never use,
+    /// and the on-demand callback produces the same layout at first real use.
+    func hasOnDemandImportedNominalLayout(_ symbol: SymbolID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return lazyImportedMetadataLoader != nil
+            && indexedImportedNominals.contains(symbol)
+    }
+
     func setImportedLayoutSynthesizer(_ synthesizer: @escaping (SymbolID) -> Void) {
         lock.lock()
         defer { lock.unlock() }

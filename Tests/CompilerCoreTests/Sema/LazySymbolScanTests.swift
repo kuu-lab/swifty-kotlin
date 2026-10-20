@@ -273,6 +273,51 @@ struct LazySymbolScanTests {
         #expect(!diagnostics.hasError)
     }
 
+    /// KUU-2674: an indexed nominal an earlier pass already materialized must
+    /// also stay out of the eager batch — under the pending-only filter it was
+    /// still synthesized, decoding supertype shells nothing had used. The
+    /// batch leaves pending and materialized compact-index nominals alike to
+    /// the on-demand synthesizer behind `nominalLayout(for:)`.
+    @Test func materializedIndexedLayoutsAreSkippedByInitialBatch() throws {
+        let symbols = SymbolTable()
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let diagnostics = DiagnosticEngine()
+        func nominal(_ name: String) -> SymbolID {
+            let part = interner.intern(name)
+            return symbols.define(
+                kind: .class, name: part, fqName: [part], declSite: nil,
+                visibility: .public, flags: [.synthetic, .importedLibrary]
+            )
+        }
+        let eager = nominal("Eager")
+        let pending = nominal("Pending")
+        let unused = nominal("Unused")
+        symbols.setDirectSupertypes([pending], for: eager)
+        var loaded: [SymbolID] = []
+        symbols.setLazyImportedMetadataLoader(
+            alreadyLoaded: [eager],
+            indexedNominals: [eager, pending, unused],
+            lazyShells: [pending, unused]
+        ) { symbol in
+            loaded.append(symbol)
+        }
+
+        DataFlowSemaPhase().synthesizeNominalLayouts(
+            symbols: symbols, types: types, interner: interner, diagnostics: diagnostics
+        )
+        // `eager` passed the old pending filter, so the batch walked its
+        // supertypes and decoded `pending`; now the whole cone stays lazy.
+        #expect(loaded.isEmpty)
+
+        let layout = try #require(symbols.nominalLayout(for: eager))
+        #expect(layout.superClass == pending)
+        #expect(loaded == [pending])
+        #expect(symbols.nominalLayout(for: pending) != nil)
+        #expect(loaded == [pending])
+        #expect(!diagnostics.hasError)
+    }
+
     @Test func defaultArgumentScanLoadsDemandedBaseAndPreservesOriginalOwner() {
         let symbols = SymbolTable()
         let interner = StringInterner()
