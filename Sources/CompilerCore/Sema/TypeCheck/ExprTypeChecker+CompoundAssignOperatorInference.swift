@@ -368,8 +368,10 @@ extension ExprTypeChecker {
             return ctx.sema.types.intType
         }
         switch primitive {
-        case .boolean, .char:
+        case .boolean:
             return ctx.sema.types.intType
+        case .char:
+            return targetType
         case .byte, .short, .int, .long, .float, .double, .uint, .ulong, .ubyte, .ushort:
             return targetType
         }
@@ -385,10 +387,13 @@ extension ExprTypeChecker {
     ) -> Bool {
         let sema = ctx.sema
         let binaryOp = driver.helpers.compoundAssignToBinaryOp(op)
+        let builtinRHS = resolvePrimitiveArithmeticUpperBound(
+            of: rhs, types: sema.types, symbols: sema.symbols
+        ) ?? rhs
         let invalidResult = lhs == sema.types.charType
             && [.add, .subtract].contains(binaryOp)
-            && rhs != sema.types.intType
-        guard invalidResult || hasInvalidBuiltinCharArithmetic(op: binaryOp, lhs: lhs, rhs: rhs, sema: sema) else {
+            && builtinRHS != sema.types.intType
+        guard invalidResult || hasInvalidBuiltinCharArithmetic(op: binaryOp, lhs: lhs, rhs: builtinRHS, sema: sema) else {
             return false
         }
         ctx.sema.diagnostics.error(
@@ -409,14 +414,22 @@ extension ExprTypeChecker {
         if op == .plusAssign, sema.types.makeNonNullable(lhs) == sema.types.stringType {
             return true
         }
+        // Dedicated user operators have already been considered. The builtin
+        // arithmetic fallback can read a final numeric upper bound on the RHS.
+        let primitiveRHS = resolvePrimitiveArithmeticUpperBound(
+            of: rhs, types: sema.types, symbols: sema.symbols
+        ) ?? rhs
         let underlyingOp = driver.helpers.compoundAssignToBinaryOp(op)
         if lhs == sema.types.charType {
             if underlyingOp == .add || underlyingOp == .subtract {
-                return rhs == sema.types.intType
+                return primitiveRHS == sema.types.intType
             }
             return false
         }
-        return sema.types.isBuiltinArithmeticOperand(lhs) && sema.types.isBuiltinArithmeticOperand(rhs)
+        if primitiveRHS != rhs, sema.types.isUnsigned(lhs) != sema.types.isUnsigned(primitiveRHS) {
+            return false
+        }
+        return sema.types.isBuiltinArithmeticOperand(lhs) && sema.types.isBuiltinArithmeticOperand(primitiveRHS)
     }
 
     private func inferObjectCompoundAssignExpr(

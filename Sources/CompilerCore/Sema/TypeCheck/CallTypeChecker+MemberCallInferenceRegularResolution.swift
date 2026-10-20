@@ -315,7 +315,24 @@ extension CallTypeChecker {
         } else {
             nil
         }
-        let memberLookupType = rangeSourceMemberLookupType ?? rangeExtensionLookupType ?? lookupReceiverType
+        // Final numeric bounds expose the same builtin compareTo overloads as
+        // their primitive. Keep nonnumeric extension calls on the original T.
+        let primitiveComparisonReceiver: TypeID? = {
+            guard calleeName == knownNames.compareTo, argTypes.count == 1,
+                  let receiver = resolvePrimitiveArithmeticUpperBound(
+                      of: lookupReceiverType, types: sema.types, symbols: sema.symbols
+                  ),
+                  let argument = resolvePrimitiveArithmeticUpperBound(
+                      of: argTypes[0], types: sema.types, symbols: sema.symbols
+                  )
+            else { return nil }
+            let bothArithmetic = receiver != sema.types.charType && argument != sema.types.charType
+                && sema.types.isBuiltinArithmeticOperand(receiver)
+                && sema.types.isBuiltinArithmeticOperand(argument)
+                && sema.types.isUnsigned(receiver) == sema.types.isUnsigned(argument)
+            return bothArithmetic ? receiver : nil
+        }()
+        let memberLookupType = rangeSourceMemberLookupType ?? rangeExtensionLookupType ?? primitiveComparisonReceiver ?? lookupReceiverType
 
         // A precompiled `UIntRange.contains(UInt)` can otherwise lose to the
         // inherited `ClosedRange<T>.contains(T)` member before the ordinary
@@ -602,7 +619,7 @@ extension CallTypeChecker {
         if let result = receiverSelection.earlyReturnType {
             return result
         }
-        let effectiveReceiverType = receiverSelection.effectiveReceiverType
+        let effectiveReceiverType = primitiveComparisonReceiver ?? receiverSelection.effectiveReceiverType
 
         let resolution = prepareAndResolveRegularMemberCall(
             request,
