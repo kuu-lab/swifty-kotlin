@@ -330,6 +330,24 @@
       "path": "declarations/JavaArrayList.kt",
       "virtualPath": "<kswiftk-jvm>/javaArrayList.kt",
       "excludeFromStdlibBuild": false
+    },
+    {
+      "path": "declarations/CollectionsOperators.kt",
+      "virtualPath": "<kswiftk-jvm>/collection-operators.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
+      "path": "declarations/SetsOperators.kt",
+      "virtualPath": "<kswiftk-jvm>/set-operators.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/SetsKt"
+    },
+    {
+      "path": "declarations/MapsOperators.kt",
+      "virtualPath": "<kswiftk-jvm>/map-operators.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/MapsKt"
     }
   ],
   "runtimeClassAliases": {

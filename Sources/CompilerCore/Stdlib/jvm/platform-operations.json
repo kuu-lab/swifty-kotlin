@@ -901,5 +901,19 @@
     "name": "<init>",
     "descriptor": "()V",
     "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmRemoveAllCollection",
+    "owner": "java/util/Collection",
+    "name": "removeAll",
+    "descriptor": "(Ljava/util/Collection;)Z",
+    "kind": "interface"
+  },
+  {
+    "symbol": "__jvmCopySet",
+    "owner": "java/util/LinkedHashSet",
+    "name": "<init>",
+    "descriptor": "(Ljava/util/Collection;)V",
+    "kind": "constructor"
   }
 ]

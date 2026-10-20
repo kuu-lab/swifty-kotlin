@@ -1,0 +1,24 @@
+set sequence failure
+yield
+throw
+caught rhs
+empty set array
+0
+empty set sequence
+0
+set receiver first
+hash
+caught hash
+set empty iterable
+1
+set small
+[A]
+set equal
+contains:A
+contains:B
+[A]
+set large
+contains:A
+contains:B
+[A]
+[A, B]

@@ -174,3 +174,84 @@ public fun <T> arrayListOf(vararg elements: T): java.util.ArrayList<T> {
     for (element in elements) result.add(element)
     return result
 }
+
+public operator fun <T> Collection<T>.plus(element: T): List<T> {
+    val result = mutableListOf<T>()
+    for (item in this) result.add(item)
+    result.add(element)
+    return result
+}
+public operator fun <T> Iterable<T>.plus(element: T): List<T> {
+    val result = mutableListOf<T>()
+    for (item in this) result.add(item)
+    result.add(element)
+    return result
+}
+public operator fun <T> Collection<T>.plus(elements: Iterable<T>): List<T> {
+    val result = mutableListOf<T>()
+    for (item in this) result.add(item)
+    for (item in elements) result.add(item)
+    return result
+}
+public operator fun <T> Iterable<T>.plus(elements: Iterable<T>): List<T> {
+    val result = mutableListOf<T>()
+    for (item in this) result.add(item)
+    for (item in elements) result.add(item)
+    return result
+}
+public operator fun <T> Iterable<T>.minus(element: T): List<T> {
+    val result = mutableListOf<T>()
+    var removed = false
+    for (item in this) {
+        if (!removed && item == element) removed = true else result.add(item)
+    }
+    return result
+}
+public operator fun <T> Iterable<T>.minus(elements: Iterable<T>): List<T> {
+    val removed = if (elements is Collection<*>) elements as Collection<T> else elements.toList()
+    val result = mutableListOf<T>()
+    for (item in this) if (!removed.contains(item)) result.add(item)
+    return result
+}
+
+public operator fun <T> Collection<T>.plus(elements: Array<out T>): List<T> {
+    val result = mutableListOf<T>()
+    for (item in this) result.add(item)
+    for (item in elements) result.add(item)
+    return result
+}
+public operator fun <T> Iterable<T>.plus(elements: Array<out T>): List<T> {
+    val result = mutableListOf<T>()
+    for (item in this) result.add(item)
+    for (item in elements) result.add(item)
+    return result
+}
+public operator fun <T> Iterable<T>.minus(elements: Array<out T>): List<T> {
+    val result = mutableListOf<T>()
+    for (item in this) {
+        var removed = false
+        for (element in elements) if (item == element) { removed = true; break }
+        if (!removed) result.add(item)
+    }
+    return result
+}
+
+public operator fun <T> Collection<T>.plus(elements: kotlin.sequences.Sequence<T>): List<T> {
+    val result = mutableListOf<T>()
+    for (item in this) result.add(item)
+    for (item in elements) result.add(item)
+    return result
+}
+public operator fun <T> Iterable<T>.plus(elements: kotlin.sequences.Sequence<T>): List<T> {
+    val result = mutableListOf<T>()
+    for (item in this) result.add(item)
+    for (item in elements) result.add(item)
+    return result
+}
+public operator fun <T> Iterable<T>.minus(elements: kotlin.sequences.Sequence<T>): List<T> {
+    val removed = mutableListOf<T>()
+    for (item in elements) removed.add(item)
+    val result = mutableListOf<T>()
+    for (item in this) if (!removed.contains(item)) result.add(item)
+    return result
+}
