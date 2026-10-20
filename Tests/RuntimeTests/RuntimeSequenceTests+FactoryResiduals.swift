@@ -45,12 +45,32 @@ extension RuntimeSequenceTests {
         }
     }
 
-    @Test(arguments: [false, true])
-    func factoryYieldAllInitialProbeIsCatchableButLaterFailureIsNot(yieldsFirst: Bool) throws {
+    @Test
+    func factoryYieldAllInitialProbeFailureIsCatchable() throws {
         let inner: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, thrown in
             thrown?.pointee = runtimeAllocateIllegalArgumentException(message: "nested")
             return 0
         }
+        let outer: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { iterator, builder, _ in
+            _ = __kk_sequence_builder_yield(builder, 1)
+            var nested = 0
+            _ = __kk_sequence_builder_yieldAll_checked(builder, iterator, &nested)
+            if nested != 0 { _ = __kk_sequence_builder_yield(builder, 2) }
+            return 0
+        }
+        let nested = __kk_iterator_builder_build(unsafeBitCast(inner, to: Int.self))
+        let sequence = __kk_sequence_builder_build(unsafeBitCast(outer, to: Int.self), nested)
+        var thrown = 0
+        let iterator = kk_sequence_box_iterator(sequence, &thrown)
+        #expect(kk_sequence_iterator_next(iterator, &thrown) == 1)
+        #expect(kk_sequence_iterator_next(iterator, &thrown) == 2)
+        #expect(thrown == 0)
+        #expect(kk_sequence_iterator_hasNext(iterator, &thrown) == 0)
+        #expect(thrown == 0)
+    }
+
+    @Test
+    func factoryYieldAllFailureAfterYieldIsNotCatchable() throws {
         let innerAfterYield: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builder, thrown in
             _ = __kk_iterator_builder_yield(builder, 9)
             thrown?.pointee = runtimeAllocateIllegalArgumentException(message: "nested")
@@ -63,28 +83,29 @@ extension RuntimeSequenceTests {
             if nested != 0 { _ = __kk_sequence_builder_yield(builder, 2) }
             return 0
         }
-        let nested = __kk_iterator_builder_build(unsafeBitCast(yieldsFirst ? innerAfterYield : inner, to: Int.self))
+        let nested = __kk_iterator_builder_build(unsafeBitCast(innerAfterYield, to: Int.self))
         let sequence = __kk_sequence_builder_build(unsafeBitCast(outer, to: Int.self), nested)
         var thrown = 0
         let iterator = kk_sequence_box_iterator(sequence, &thrown)
         #expect(kk_sequence_iterator_next(iterator, &thrown) == 1)
-        #expect(kk_sequence_iterator_next(iterator, &thrown) == (yieldsFirst ? 9 : 2))
+        #expect(kk_sequence_iterator_next(iterator, &thrown) == 9)
         #expect(thrown == 0)
         #expect(kk_sequence_iterator_hasNext(iterator, &thrown) == 0)
-        if yieldsFirst {
-            let error = try #require(resolveRuntimeHandle(thrown, as: RuntimeThrowableBox.self))
-            #expect(error.exceptionFQName == "kotlin.IllegalArgumentException")
-            #expect(error.message == "nested")
-            #expect(kk_sequence_iterator_hasNext(iterator, &thrown) == 0)
-            let failed = try #require(resolveRuntimeHandle(thrown, as: RuntimeThrowableBox.self))
-            #expect(failed.exceptionFQName == "kotlin.IllegalStateException")
-        } else {
-            #expect(thrown == 0)
-        }
+        let error = try #require(resolveRuntimeHandle(thrown, as: RuntimeThrowableBox.self))
+        #expect(error.exceptionFQName == "kotlin.IllegalArgumentException")
+        #expect(error.message == "nested")
+        #expect(kk_sequence_iterator_hasNext(iterator, &thrown) == 0)
+        let failed = try #require(resolveRuntimeHandle(thrown, as: RuntimeThrowableBox.self))
+        #expect(failed.exceptionFQName == "kotlin.IllegalStateException")
     }
 
-    @Test(arguments: [0, 1, 3, 4])
-    func factoryBuilderChunkedIteratorFlushesPartialChunkOnce(count: Int) {
+    @Test(arguments: [
+        (0, [Int]()),
+        (1, [1]),
+        (3, [2, 1]),
+        (4, [2, 2]),
+    ])
+    func factoryBuilderChunkedIteratorFlushesPartialChunkOnce(count: Int, expectedSizes: [Int]) {
         let producer: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { count, builder, _ in
             for value in 1..<(count + 1) { _ = __kk_sequence_builder_yield(builder, value) }
             return 0
@@ -104,7 +125,7 @@ extension RuntimeSequenceTests {
                 #expect(kk_sequence_iterator_hasNext(iterator, &thrown) == 1)
                 sizes.append(kk_sequence_iterator_next(iterator, &thrown))
             }
-            #expect(sizes == Array(repeating: 2, count: count / 2) + (count % 2 == 0 ? [] : [1]))
+            #expect(sizes == expectedSizes)
             #expect(pointer.pointee == sizes.count)
             #expect(kk_sequence_iterator_hasNext(iterator, &thrown) == 0)
             #expect(pointer.pointee == sizes.count)
