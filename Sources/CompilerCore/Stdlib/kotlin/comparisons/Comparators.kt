@@ -97,10 +97,10 @@ public fun <T, K> compareByDescending(comparator: Comparator<in K>, selector: (T
     Comparator { a, b -> comparator.compare(selector(b), selector(a)) }
 
 public fun <T : Comparable<T>> naturalOrder(): Comparator<T> =
-    Comparator { a, b -> a.compareTo(b) }
+    compareBy { value -> value }
 
 public fun <T : Comparable<T>> reverseOrder(): Comparator<T> =
-    Comparator { a, b -> b.compareTo(a) }
+    compareByDescending { value -> value }
 
 public fun <T : Any> nullsFirst(comparator: Comparator<in T>): Comparator<T?> =
     Comparator { a, b ->
