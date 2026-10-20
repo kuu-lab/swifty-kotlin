@@ -1,0 +1,12 @@
+@file:kotlin.jvm.JvmName("StringsKt")
+package kotlin.text
+fun String.toRegex(): Regex = Regex(this)
+fun String.toRegex(option: RegexOption): Regex = Regex(this, option)
+fun String.toRegex(options: Set<RegexOption>): Regex = Regex(this, options)
+infix fun CharSequence.matches(regex: Regex): Boolean = regex.matches(this)
+operator fun CharSequence.contains(regex: Regex): Boolean = regex.containsMatchIn(this)
+fun CharSequence.replace(regex: Regex, replacement: String): String = regex.replace(this, replacement)
+fun CharSequence.replace(regex: Regex, transform: (MatchResult) -> CharSequence): String = regex.replace(this, transform)
+fun CharSequence.replaceFirst(regex: Regex, replacement: String): String = regex.replaceFirst(this, replacement)
+fun CharSequence.split(regex: Regex, limit: Int = 0): List<String> = regex.split(this, limit)
+fun CharSequence.splitToSequence(regex: Regex, limit: Int = 0): kotlin.sequences.Sequence<String> = regex.splitToSequence(this, limit)
