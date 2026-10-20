@@ -17,8 +17,13 @@ extension DataFlowSemaPhase {
         maxTypeCount: Int = DataFlowSemaPhase.maxNominalLayoutTypeCount
     ) {
         let nominalKinds: [SymbolKind] = [.class, .interface, .object, .enumClass, .annotationClass]
+        // Indexed imported nominals — pending shells and records already
+        // materialized alike — are owned by the on-demand imported-layout
+        // synthesizer installed below: `nominalLayout(for:)` produces their
+        // layout at first real use. Eagerly walking them here decodes member
+        // records the program may never reference (KUU-2674).
         let nominalIDs = nominalKinds.flatMap { symbols.symbols(ofKind: $0) }
-            .filter { !symbols.hasPendingImportedNominalMetadata(for: $0) }
+            .filter { !symbols.hasOnDemandImportedNominalLayout($0) }
             .sorted(by: { $0.rawValue < $1.rawValue })
         if !nominalIDs.isEmpty {
             let topoOrder = buildTopoOrder(
