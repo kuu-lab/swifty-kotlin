@@ -363,7 +363,16 @@ final class DataFlowAnalyzer {
             currentType
         }
         let nonNullType = makeTypeNonNullable(effectiveType, types: sema.types)
-        let nullType = sema.types.nullableNothingType
+        // `x == null` narrows a type parameter to `Nothing? & T` — Kotlin's
+        // smart cast keeps `T`'s identity, so `arrayOf(k, v)` still joins at
+        // `Any?` rather than `V?` (KUU-2693). Concrete nullable types keep
+        // `Nothing?`.
+        let nullType: TypeID
+        if case .typeParam = sema.types.kind(of: effectiveType) {
+            nullType = sema.types.make(.intersection([sema.types.nullableNothingType, effectiveType]))
+        } else {
+            nullType = sema.types.nullableNothingType
+        }
 
         let nullStable = resolveStableReference(
             variableID, locals: locals, ast: ast, sema: sema, interner: interner, narrowingType: nullType
@@ -526,8 +535,17 @@ final class DataFlowAnalyzer {
         switch conditionExpr {
         case .nullLiteral:
             var vars = base
+            // See `branchOnNullComparison`: a type parameter narrows to
+            // `Nothing? & T`, preserving its identity for later joins
+            // (KUU-2693).
+            let nullType: TypeID
+            if case .typeParam = sema.types.kind(of: subjectType) {
+                nullType = sema.types.make(.intersection([sema.types.nullableNothingType, subjectType]))
+            } else {
+                nullType = sema.types.nullableNothingType
+            }
             vars[subjectSymbol] = VariableFlowState(
-                possibleTypes: [sema.types.nullableNothingType],
+                possibleTypes: [nullType],
                 nullability: .nullable,
                 isStable: true
             )
@@ -740,7 +758,10 @@ final class DataFlowAnalyzer {
     }
 
     private func makeTypeNonNullable(_ type: TypeID, types: TypeSystem) -> TypeID {
-        types.makeNonNullable(type)
+        // A type parameter narrows to `T & Any` — Kotlin's definitely
+        // non-null refinement — because bare `T` stays null-capable through
+        // its implicit `Any?` bound (KUU-2693).
+        types.definitelyNonNullForm(of: type)
     }
 
     private func nominalSymbolID(of type: TypeID, types: TypeSystem) -> SymbolID? {
