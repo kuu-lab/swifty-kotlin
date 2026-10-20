@@ -9,7 +9,15 @@ extension JVMFunctionBuilder {
                program.classes[symbol]?.isObject == true || program.sema.symbols.companionObjectSymbol(for: symbol) != nil {
                 return try constant(literal, property.type)
             }
-            let object = try property.getter.isStatic ? constant(.null, .reference("java/lang/Object", nullable: true)) : requireValue(receiver)
+            let object: JVMValue
+            if property.getter.isStatic { object = try constant(.null, .reference("java/lang/Object", nullable: true)) }
+            else if case let .nameRef(qualifier, _) = arena.expr(receiver), !scopes.contains(where: { $0[qualifier] != nil }),
+                    let plan = program.classes.values.first(where: { $0.name == property.getter.owner && $0.isObject }),
+                    program.sema.symbols.symbol(plan.symbol)?.name == qualifier {
+                // A qualified delegated property can bind its owner without
+                // attaching a separate value binding to the object qualifier.
+                object = try singleton(plan)
+            } else { object = try requireValue(receiver) }
             return try convert(readProperty(property, receiver: object, special: isSuper(receiver), superReceiver: receiver), to: program.expressionType(id))
         }
         if !arena.isExplicitCall(id), let result = try textLibraryProperty(id, receiver: receiver) { return result }

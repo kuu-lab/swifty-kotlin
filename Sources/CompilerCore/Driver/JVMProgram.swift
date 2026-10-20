@@ -192,6 +192,7 @@ public struct JVMFunction {
     public var kotlinResult: JVMKotlinType? = nil
     public var kotlinReceiver: JVMKotlinType? = nil
     public var isSynthetic: Bool = false
+    public var isMetadataHidden: Bool = false
     public var isSuspend = false
     public var suspendValueResult: JVMSuspendValueResult? = nil
     public var forwardedSuspendValueResult: JVMSuspendValueResult? = nil

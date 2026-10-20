@@ -950,5 +950,12 @@
     "name": "getValue",
     "descriptor": "()Ljava/lang/Object;",
     "kind": "interface"
+  },
+  {
+    "symbol": "__jvmArrayCapacityError",
+    "owner": "java/lang/OutOfMemoryError",
+    "name": "<init>",
+    "descriptor": "()V",
+    "kind": "constructor"
   }
 ]

@@ -153,7 +153,7 @@ size引数の評価直後に配列を確保し、負サイズ時のinitializer�
 factoryと対応済みcollection操作はKotlin JVM ABIに接続し、独自kswiftk-stdlib.jarで実行できる。
 `to` は kotlin.Pair を生成し、factory 以外でも利用できる。
 添字、`size`、`isEmpty`、`contains`／`containsAll`、`add`、`remove`／`removeAt`、`set`／`put`、`clear`、
-Map の `keys`／`values`／`containsKey` と iterable の `for` を利用できる。
+Map の `keys`／`values`／`entries`／`containsKey` と iterable の `for` を利用できる。
 Map の取得結果は nullable なので、`!!`／`?:` で値を取り出せる。
 
 `throw` と、値を返す `try`／複数の `catch`／`finally` を JVM の exception table へ変換する。
@@ -469,6 +469,12 @@ interface のクラス委譲は、delegate 式を宣言順に一度だけ評価�
 既定引数、generic method／property、member extension method と bridge に対応する。
 constructor parameter の `var` を後で変更しても、保存済みの委譲先は変わらない。
 委譲先内部のメソッド呼び出しは、その委譲先自身の receiver へディスパッチする。
+`List`／`MutableList`、`Set`／`MutableSet`、`Map`／`MutableMap` の `by` 委譲では、
+JDK interface の型消去された bridge と `toArray` などの追加エントリも生成する。
+`toArray` はクラス自身の `size`／`iterator` の override を反映する。
+read-only の `add`／`remove`／`set`、`sort`、Map の `compute` などは
+`UnsupportedOperationException` を投げる。`removeIf` は JDK の既定実装に従う。
+Kotlin の可変 collection 判定に必要な marker interface も保持する。
 
 メンバー・トップレベル・ローカルの `val`／`var` に `by` を使用できる。
 独自の operator getValue／setValue／provideDelegate、トップレベル／メンバーの extension operator、
@@ -919,7 +925,7 @@ fun main() {
 
 未列挙の Collection／Sequence API（groupingBy／destination 付き To 系／
 unzip／plus・minus／sumOf／Comparator を受ける overload 等）、Pair／標準コレクション関数そのものの関数参照、
-for ヘッダの分解代入、ユーザーによる Collection の実装は未対応。
+for ヘッダの分解代入、interface 委譲を使わないユーザーによる Collection の直接実装は未対応。
 
 ## M21: Sequence builder
 

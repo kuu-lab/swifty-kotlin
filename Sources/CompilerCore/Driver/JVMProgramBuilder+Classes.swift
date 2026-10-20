@@ -112,7 +112,7 @@ extension JVMProgramBuilder {
                 if sourceName == "kotlin/CharSequence" { throw JVMFrontendError(message: "JVM supports CharSequence inputs but not source implementations.") }
                 if sourceName == "kotlin/Number" { throw JVMFrontendError(message: "JVM M5 does not support source subclasses of kotlin.Number.") }
                 if !context.options.stdlibOnly && ["kotlin/coroutines/CoroutineContext", "kotlin/Result"].contains(sourceName) { throw JVMFrontendError(message: "JVM M7 does not support source implementations of CoroutineContext or Result.") }
-                if sourceName.hasPrefix("kotlin/collections/"), sourceName != "kotlin/collections/AbstractSet", !context.options.stdlibOnly { throw JVMFrontendError(message: "JVM M5 collection interfaces are available through factories; source implementations are unsupported.") }
+                if sourceName.hasPrefix("kotlin/collections/"), sourceName != "kotlin/collections/AbstractSet", !context.options.stdlibOnly, !sema.symbols.delegatedInterfaces(forClass: plan.symbol).contains(where: { sema.types.isNominalSubtypeSymbol($0, of: parent) }) { throw JVMFrontendError(message: "JVM M5 collection interfaces are available through factories; source implementations are unsupported.") }
                 guard classes[parent] != nil || context.jvmImports?.classes[name] != nil || JVMClasspathIndex.builtinName(sourceName) != nil else { throw JVMFrontendError(message: "Unsupported JVM supertype: \(name)") }
                 if sema.symbols.symbol(parent)?.kind == .interface { plan.interfaces.append(name) }
                 else {
@@ -170,11 +170,8 @@ extension JVMProgramBuilder {
             let isAbstract = p.modifiers.contains(.abstract) || (plan.isInterface && (p.getter?.body ?? .unit) == .unit)
             let capital = String(name.prefix(1)).uppercased() + name.dropFirst()
             let booleanIs = name.hasPrefix("is") && name.count > 2 && name.dropFirst(2).first!.isUppercase
-            let collection = sema.symbols.lookup(fqName: ["kotlin", "collections", "Collection"].map(context.interner.intern))
-            let abstractSet = sema.symbols.lookup(fqName: ["kotlin", "collections", "AbstractSet"].map(context.interner.intern))
-            let usesAbstractSetSize = abstractSet.map { sema.types.isNominalSubtypeSymbol(plan.symbol, of: $0) } == true
-            let collectionSize = name == "size" && !usesAbstractSetSize && collection.map { sema.types.isNominalSubtypeSymbol(plan.symbol, of: $0) } == true
-            let getterName = plan.isAnnotation || collectionSize ? name : (booleanIs ? name : "get" + capital)
+            let collectionGetter = collectionPropertyGetter(plan, name: name)
+            let getterName = collectionGetter ?? (plan.isAnnotation ? name : (booleanIs ? name : "get" + capital))
             let setterName = booleanIs ? "set" + name.dropFirst(2) : "set" + capital
             var getter = JVMForeignMethod(owner: plan.name, name: getterName, descriptor: "()" + type.descriptor, parameters: [], result: type, isStatic: plan.isFacade, isInterface: plan.isInterface, isAbstract: isAbstract)
             getter.isSpecial = !plan.isFacade && (p.getter?.visibility == .private || p.modifiers.contains(.private))
@@ -264,6 +261,8 @@ extension JVMProgramBuilder {
             // Return types participate in JVM descriptors. Covariant overrides
             // therefore need bridges for calls through a superclass/interface.
             functions += try bridges(plan, functions: functions)
+            functions += try collectionDelegationMethods(plan, existing: functions)
+            functions += try collectionPropertyAliases(plan, existing: functions)
             var signatures: Set<String> = []
             guard functions.allSatisfy({ signatures.insert($0.reference.name + $0.reference.descriptor).inserted }) else { throw JVMFrontendError(message: "Clashing JVM member/accessor signatures in \(plan.name).") }
             let visibility: UInt16 = plan.modifiers.contains(.private) && !plan.escapesInline ? 0 : 1
