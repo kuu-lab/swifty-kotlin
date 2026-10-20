@@ -62,6 +62,8 @@ fun checkPlatformNulls() {
     val emptyBooleans = LinkedList<Boolean>()
     try { println(emptyBooleans.peekLast() && true) }
     catch (e: NullPointerException) { println("npe:boolean") }
+    try { println(!emptyBooleans.peekLast()) }
+    catch (e: NullPointerException) { println("npe:boolean-not") }
     try { if (emptyBooleans.peekLast()) println("unexpected-condition") }
     catch (e: NullPointerException) { println("npe:condition") }
     try { when { emptyBooleans.peekLast() -> println("unexpected-when"); else -> println("unexpected-else") } }
