@@ -5,17 +5,10 @@
 
 package kotlin.ranges
 
-private fun progressionLastElement(start: ULong, endInclusive: ULong, step: Long): ULong {
-    if (step > 0) {
-        if (start >= endInclusive) return endInclusive
-        val unsignedStep = step.toULong()
-        return endInclusive - ((endInclusive - start) % unsignedStep)
-    }
+import kotlin.internal.KsSymbolName
 
-    if (start <= endInclusive) return endInclusive
-    val unsignedStep = (-step).toULong()
-    return endInclusive + ((start - endInclusive) % unsignedStep)
-}
+// Progressions are opaque runtime range handles, so their source properties
+// must read through the same bridges used by the other progression classes.
 
 public open class ULongProgression internal constructor(
     start: ULong,
@@ -29,9 +22,14 @@ public open class ULongProgression internal constructor(
         }
     }
 
-    public val first: ULong = start
-    public val last: ULong = progressionLastElement(start, endInclusive, step)
-    public val step: Long = step
+    public val first: ULong
+        get() = ulongProgressionFirst(this)
+
+    public val last: ULong
+        get() = ulongProgressionLast(this)
+
+    public val step: Long
+        get() = ulongProgressionStep(this)
 
     override fun equals(other: Any?): Boolean =
         other is ULongProgression && (isEmpty() && other.isEmpty() ||
@@ -56,3 +54,12 @@ public open class ULongProgression internal constructor(
 
     public companion object {}
 }
+
+@KsSymbolName("__kk_range_first")
+private external fun ulongProgressionFirst(progression: ULongProgression): ULong
+
+@KsSymbolName("__kk_range_last")
+private external fun ulongProgressionLast(progression: ULongProgression): ULong
+
+@KsSymbolName("__kk_ulong_range_step")
+private external fun ulongProgressionStep(progression: ULongProgression): Long

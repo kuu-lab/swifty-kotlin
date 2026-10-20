@@ -68,12 +68,6 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "KTypeParameterUpperBoundsPatch") { phase, symbols, types, interner, _ in
             phase.patchKTypeParameterUpperBoundsType(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "RangeProgression") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticRangeProgressionStubs(symbols: symbols, types: types, interner: interner)
-        },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "RangeUntil") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticRangeUntilStubs(symbols: symbols, types: types, interner: interner)
-        },
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Comparable") { phase, symbols, types, interner, _ in
             if types.comparableInterfaceSymbol == nil {
                 phase.registerSyntheticComparableStub(symbols: symbols, types: types, interner: interner)

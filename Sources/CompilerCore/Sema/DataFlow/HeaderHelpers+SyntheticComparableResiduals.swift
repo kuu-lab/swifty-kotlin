@@ -5,11 +5,10 @@
 // lookup below is a `--no-stdlib`/precompiled-metadata fallback only. What
 // remains here permanently (c) is compiler-metadata wiring with no Kotlin
 // source equivalent: making the primitive types (Int, Double, ...) implement
-// Comparable<Self> at the symbol-table level (setupPrimitiveComparableImplementations,
-// HeaderHelpers+SyntheticComparableHelpers.swift — Int/Double/etc. are compiler
-// intrinsics, not classes with a declarable supertype list) and the
-// OpenEndRange/ClosedRange upper-bound patches, which belong to the Range
-// module's own migration (KSP-714), not this one.
+// Comparable<Self> at the symbol-table level
+// (setupPrimitiveComparableImplementations, HeaderHelpers+SyntheticComparableHelpers.swift —
+// Int/Double/etc. are compiler intrinsics, not classes with a declarable supertype list).
+// Range interface bounds are declared in bundled Kotlin source (KSP-714).
 extension DataFlowSemaPhase {
     func registerSyntheticComparableStub(
         symbols: SymbolTable,
@@ -47,22 +46,11 @@ extension DataFlowSemaPhase {
         types.comparableInterfaceSymbol = comparableSymbol
         types.setNominalTypeParameterVariances([.in], for: comparableSymbol)
 
-        registerOpenEndRangeComparableUpperBound(
-            comparableSymbol: comparableSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
         setupPrimitiveComparableImplementations(
             symbols: symbols,
             types: types,
             interner: interner,
             comparableSymbol: comparableSymbol
-        )
-        patchSyntheticClosedRangeTypeParameterUpperBound(
-            symbols: symbols,
-            types: types,
-            interner: interner
         )
     }
 }

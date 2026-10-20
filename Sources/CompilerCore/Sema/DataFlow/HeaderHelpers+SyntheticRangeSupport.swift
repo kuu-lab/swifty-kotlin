@@ -1,5 +1,4 @@
-/// Shared helpers for synthetic range registrations that remain while range
-/// progression and unsigned range shells are migrated independently.
+/// Shared iterator type construction for synthetic collection registrations.
 extension DataFlowSemaPhase {
     func syntheticIteratorType(
         elementType: TypeID,
@@ -21,22 +20,4 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
     }
-
-    func syntheticNominalType(
-        named name: String,
-        in packageFQName: [InternedString],
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> TypeID {
-        guard let symbol = symbols.lookup(fqName: packageFQName + [interner.intern(name)]) else {
-            return types.anyType
-        }
-        return types.make(.classType(ClassType(
-            classSymbol: symbol,
-            args: [],
-            nullability: .nonNull
-        )))
-    }
-
 }

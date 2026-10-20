@@ -417,8 +417,8 @@ final class DataFlowSemaPhase: CompilerPhase {
     /// re-parsing that file here. A second, independent read had no
     /// diagnostic on failure (unlike the first) and would silently return
     /// `bundledIndex` unchanged, so any suppression that depends on it
-    /// (e.g. `HeaderHelpers+SyntheticRangeUntilStubs`) would fail open —
-    /// registering a synthetic stub the artifact already provides, which
+    /// (e.g. source-backed coroutine and collection registrations) would fail
+    /// open — registering a synthetic stub the artifact already provides, which
     /// then wins overload resolution as the more specific candidate.
     func mergeImportedStdlibSymbolsIntoBundledIndex(
         bundledIndex: BundledDeclarationIndex,

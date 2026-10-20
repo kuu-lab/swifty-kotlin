@@ -92,13 +92,8 @@
 >
 > 2026-08-14 現 HEAD で `SyntheticBase64Stubs` / `SyntheticHexFormatStubs` は存在しないため、Base64/HexFormat 対応タスクは追加しない。
 
-- [ ] KSP-714: RangeProgression / RangeInterface / RangeUntil クラス群を Kotlin 化し stub 群を削除する
-  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticRangeProgressionStubs.swift`, `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticRangeInterfaceStubs.swift`, `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticRangeUntilStubs.swift`
-  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/ranges/` 新設 `IntProgression.kt`/`LongProgression.kt`/`CharProgression.kt`/`UIntProgression.kt`/`ULongProgression.kt`/`Progressions.kt`（`Ranges.kt` 既存インターフェース活用）
-  - 削除/降格 kk_*: `kk_op_step`, `kk_op_downTo`, `kk_op_rangeUntil`, `kk_int_progression_*`, `kk_long_progression_*`, `kk_char_progression_*`, `kk_uint_progression_*`, `kk_ulong_progression_*` 等（`RuntimeRange*.swift`。着手時 rg）
-  - 手順: T
-  - diff: `range_progression.kt` 新規 + `range_basic.kt`/`range_until.kt` 既存
-  - 前提: KSP-451, KSP-456, KSP-708, KSP-709
+- [x] KSP-714: RangeProgression / RangeInterface / RangeUntil クラス群を Kotlin 化し stub 群を削除する（ProgressionConstructors.kt と各型・インターフェースの source 宣言を正規経路にし、3つの synthetic stub ファイルと registry 登録を削除。lowering が必要とする `__kk_*` runtime bridge は private source bridge として維持。`ULongProgression` の範囲プロパティも opaque runtime handle 用 bridge に接続）
+  - 検証: `swift build`、Sema source-backed declaration test 1/1、`range_progression.kt` / `range_until.kt` / `range_basic.kt` の kotlinc diff 3/3 が pass。全テストは未実行。
 
 ### バグバックログ（BUG-NNN。既存の未修正バグの記録。PR 状態は各タスクの記載時点）
 
