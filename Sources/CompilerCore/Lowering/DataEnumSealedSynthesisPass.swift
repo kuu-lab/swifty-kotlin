@@ -117,7 +117,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                 default:
                     break
                 }
-                owner = sema.symbols.parentSymbol(for: current)
+                owner = sema.symbols.parentSymbolIfKnown(for: current)
             }
             return false
         }
@@ -239,7 +239,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             guard referencedHelpers.contains(helperName) else { continue }
             // Imported helpers already have a body in the producer's object.
             let hasExternalHelper = sema.symbols.lookupAll(fqName: symbol.fqName + [helperName]).contains {
-                sema.symbols.externalLinkName(for: $0) != nil
+                sema.symbols.externalLinkNameIfKnown(for: $0) != nil
             }
             guard !hasExternalHelper else { continue }
             _ = module.arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol.id)))
@@ -340,7 +340,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             var memberSymbols = Set(spec.ownMemberNames.flatMap { name in
                 sema.symbols.lookupAll(fqName: enumFQName + [interner.intern(name)])
             })
-            if let companionSymbol = sema.symbols.companionObjectSymbol(for: classSymbol),
+            if let companionSymbol = sema.symbols.companionObjectSymbolIfKnown(for: classSymbol),
                let companion = sema.symbols.symbol(companionSymbol)
             {
                 memberSymbols.formUnion(spec.companionMemberNames.flatMap { name in
@@ -527,7 +527,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             interner: ctx.interner
         )
         // valueOf and entries live on the companion (Color.valueOf, Color.entries)
-        let valueOfOwner: SemanticSymbol = if let companionSymbol = sema.symbols.companionObjectSymbol(for: nominalSymbol.id),
+        let valueOfOwner: SemanticSymbol = if let companionSymbol = sema.symbols.companionObjectSymbolIfKnown(for: nominalSymbol.id),
                                               let companionSym = sema.symbols.symbol(companionSymbol)
         {
             companionSym

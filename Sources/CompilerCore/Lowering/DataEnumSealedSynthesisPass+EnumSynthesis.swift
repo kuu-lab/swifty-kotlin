@@ -4,14 +4,17 @@ extension DataEnumSealedSynthesisPass {
     func rewriteExpectEnumEntryReferences(module: KIRModule, sema: SemaModule) {
         var actualEntries: [SymbolID: SymbolID] = [:]
         for entry in sema.symbols.allSymbols() where entry.kind == .field {
-            guard let parent = sema.symbols.parentSymbol(for: entry.id),
+            // `parentSymbolIfKnown` answers imported field shells from their
+            // registered owner edge; expect/actual pairs are always source
+            // declarations, so a pending import can only be skipped safely.
+            guard let parent = sema.symbols.parentSymbolIfKnown(for: entry.id),
                   let owner = sema.symbols.symbol(parent),
                   owner.kind == .enumClass,
                   owner.flags.contains(.expectDeclaration),
                   let actualOwner = sema.symbols.actualSymbol(for: parent),
                   let actualEntry = sema.symbols.lookupAll(fqName: entry.fqName).first(where: {
                       sema.symbols.symbol($0)?.kind == .field
-                          && sema.symbols.parentSymbol(for: $0) == actualOwner
+                          && sema.symbols.parentSymbolIfKnown(for: $0) == actualOwner
                   })
             else { continue }
             actualEntries[entry.id] = actualEntry
@@ -141,7 +144,7 @@ extension DataEnumSealedSynthesisPass {
             guard let sym = sema.symbols.symbol(candidate),
                   sym.kind == .function,
                   sym.flags.contains(.synthetic),
-                  let parent = sema.symbols.parentSymbol(for: candidate)
+                  let parent = sema.symbols.parentSymbolIfKnown(for: candidate)
             else { return false }
             return parent == owner.id || sema.symbols.actualSymbol(for: parent) == owner.id
         }
@@ -567,7 +570,7 @@ extension DataEnumSealedSynthesisPass {
                 ? nil
                 : module.arena.appendTemporary(type: signature.returnType)
             if let baseSymbolID, let baseSymbolInfo, !baseSymbolInfo.flags.contains(.abstractType) {
-                if sema.symbols.externalLinkName(for: baseSymbolID) == "kk_any_member_to_string" {
+                if sema.symbols.externalLinkNameIfKnown(for: baseSymbolID) == "kk_any_member_to_string" {
                     // Enum's default toString renders the bare entry name via
                     // $enumOrdinalToName. Route there directly by bare name
                     // (mirroring emitEnumOrdinalBoxCall) instead of calling
@@ -584,7 +587,7 @@ extension DataEnumSealedSynthesisPass {
                         thrownResult: nil
                     ))
                 } else {
-                    let baseCallee: InternedString = if let linkName = sema.symbols.externalLinkName(for: baseSymbolID),
+                    let baseCallee: InternedString = if let linkName = sema.symbols.externalLinkNameIfKnown(for: baseSymbolID),
                                                         !linkName.isEmpty
                     {
                         interner.intern(linkName)
@@ -774,7 +777,7 @@ extension DataEnumSealedSynthesisPass {
             guard let sym = sema.symbols.symbol(candidate),
                   sym.kind == .function,
                   sym.flags.contains(.synthetic),
-                  sema.symbols.parentSymbol(for: candidate) == owner.id
+                  sema.symbols.parentSymbolIfKnown(for: candidate) == owner.id
             else { return false }
             return true
         }

@@ -419,7 +419,7 @@ extension ABILoweringPass {
         // itself, rather than to a getter accessor. Preserve their declared
         // generic result type so ABI lowering can unbox a concrete use site.
         if symbols.symbol(callSymbol)?.kind == .property,
-           let linkName = symbols.externalLinkName(for: callSymbol),
+           let linkName = symbols.externalLinkNameIfKnown(for: callSymbol),
            !linkName.isEmpty,
            let returnType = symbols.propertyType(for: callSymbol)
         {

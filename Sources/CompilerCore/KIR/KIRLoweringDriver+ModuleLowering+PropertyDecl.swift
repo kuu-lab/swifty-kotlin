@@ -414,7 +414,7 @@ extension KIRLoweringDriver {
         guard let ctorSymbol = stdlibDelegateSymbol(
             fqName: [interner.intern("kotlin"), interner.intern("LazyImpl"), interner.intern("<init>")],
             parameterCount: 5, sema: sema
-        ), let ownerSymbol = sema.symbols.parentSymbol(for: ctorSymbol) else {
+        ), let ownerSymbol = sema.symbols.parentSymbolIfKnown(for: ctorSymbol) else {
             preconditionFailure("KSP-491: missing kotlin.LazyImpl constructor")
         }
         let allocatedObj = allocateStdlibDelegateInstance(

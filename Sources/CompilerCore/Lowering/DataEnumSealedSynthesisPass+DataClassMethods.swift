@@ -688,7 +688,7 @@ extension DataEnumSealedSynthesisPass {
                 } else if let arrayHashSymbol = dataClassArrayContentHashSymbol(
                     for: propType, sema: sema, interner: interner
                 ) {
-                    let callee = sema.symbols.externalLinkName(for: arrayHashSymbol)
+                    let callee = sema.symbols.externalLinkNameIfKnown(for: arrayHashSymbol)
                         .map(interner.intern) ?? interner.intern("contentHashCode")
                     body.append(.call(
                         symbol: arrayHashSymbol,
@@ -1026,7 +1026,7 @@ extension DataEnumSealedSynthesisPass {
             } else if let arrayToStringSymbol = dataClassArrayContentToStringSymbol(
                 for: propType, sema: sema, interner: interner
             ) {
-                let callee = sema.symbols.externalLinkName(for: arrayToStringSymbol)
+                let callee = sema.symbols.externalLinkNameIfKnown(for: arrayToStringSymbol)
                     .map(interner.intern) ?? interner.intern("contentToString")
                 body.append(.call(
                     symbol: arrayToStringSymbol,

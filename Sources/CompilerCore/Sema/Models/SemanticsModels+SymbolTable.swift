@@ -22,21 +22,25 @@ extension SymbolTable {
     /// Member extensions use [dispatch, extension, value arguments], while
     /// their semantic signature stores only the extension receiver.
     public func memberExtensionOwnerSymbol(for callee: SymbolID) -> SymbolID? {
+        // The owner edges below are restored at shell registration, so the
+        // non-forcing reads answer pending imports the same as decoded ones.
         // Property accessors are parented by their property, not its owner.
-        if let property = parentSymbol(for: callee),
+        if let property = parentSymbolIfKnown(for: callee),
            symbol(property)?.kind == .property,
            symbol(property)?.flags.contains(.memberExtension) == true,
-           let owner = parentSymbol(for: property),
+           let owner = parentSymbolIfKnown(for: property),
            let ownerInfo = symbol(owner),
            [.class, .interface, .enumClass, .object].contains(ownerInfo.kind)
         {
             return owner
         }
+        guard symbol(callee)?.flags.contains(.memberExtension) == true else {
+            return nil
+        }
         // A member-extension *property* itself (e.g. `val String.cstr` declared
         // on MemScope) has its dispatch owner as its direct parent.
         if symbol(callee)?.kind == .property,
-           symbol(callee)?.flags.contains(.memberExtension) == true,
-           let owner = parentSymbol(for: callee),
+           let owner = parentSymbolIfKnown(for: callee),
            let ownerInfo = symbol(owner),
            [.class, .interface, .enumClass, .object].contains(ownerInfo.kind)
         {
@@ -44,8 +48,7 @@ extension SymbolTable {
         }
         guard let signature = functionSignature(for: callee),
               signature.receiverType != nil,
-              symbol(callee)?.flags.contains(.memberExtension) == true,
-              let owner = parentSymbol(for: callee),
+              let owner = parentSymbolIfKnown(for: callee),
               let ownerInfo = symbol(owner),
               [.class, .interface, .enumClass, .object].contains(ownerInfo.kind),
               symbol(callee)?.flags.contains(.extensionMemberAlias) != true
@@ -139,6 +142,10 @@ public final class SymbolTable {
     private var delegateProvideDelegateSymbols: [SymbolID: SymbolID] = [:]
     private var accessorOwnerProperties: [SymbolID: SymbolID] = [:]
     private var extensionPropertyReceiverTypes: [SymbolID: TypeID] = [:]
+    /// Imported properties whose compact-index record carries a receiver
+    /// signature. Registration records the fact so membership checks stay
+    /// correct for shells whose receiver type has not been decoded yet.
+    private var importedExtensionReceiverProperties: Set<SymbolID> = []
     private var declaredExtensionProperties: Set<SymbolID> = []
     private var extensionPropertyGetterAccessors: [SymbolID: SymbolID] = [:]
     private var extensionPropertySetterAccessors: [SymbolID: SymbolID] = [:]
@@ -200,6 +207,10 @@ public final class SymbolTable {
     private var importedLayoutSynthesizer: ((SymbolID) -> Void)?
     private var importedLayoutSynthesisInProgress = false
     private var importedNominalsWithoutInitializers: Set<SymbolID> = []
+    /// Nominals whose index record predates the initializer section: the
+    /// index can neither list nor rule out eager initializers, so scans must
+    /// retain the semantic-loader fallback for these symbols only.
+    private var importedNominalsWithIncompleteInitializerInfo: Set<SymbolID> = []
     /// Consulted by arity-key builders so they never force body materialization.
     private var importedMemberIndexShapes: [SymbolID: ImportedMemberIndexShape] = [:]
     private var delegatedInterfacesByClass: [SymbolID: Set<SymbolID>] = [:]
@@ -273,6 +284,7 @@ public final class SymbolTable {
         worker.delegateProvideDelegateSymbols = delegateProvideDelegateSymbols
         worker.accessorOwnerProperties = accessorOwnerProperties
         worker.extensionPropertyReceiverTypes = extensionPropertyReceiverTypes
+        worker.importedExtensionReceiverProperties = importedExtensionReceiverProperties
         worker.declaredExtensionProperties = declaredExtensionProperties
         worker.extensionPropertyGetterAccessors = extensionPropertyGetterAccessors
         worker.extensionPropertySetterAccessors = extensionPropertySetterAccessors
@@ -307,6 +319,7 @@ public final class SymbolTable {
         worker.lazyImportedMetadataLoadInProgress = lazyImportedMetadataLoadInProgress
         worker.lazyImportedShells = lazyImportedShells
         worker.importedNominalsWithoutInitializers = importedNominalsWithoutInitializers
+        worker.importedNominalsWithIncompleteInitializerInfo = importedNominalsWithIncompleteInitializerInfo
         worker.importedMemberIndexShapes = importedMemberIndexShapes
         worker.delegatedInterfacesByClass = delegatedInterfacesByClass
         worker.klibDefinedGlobalSymbols = klibDefinedGlobalSymbols
@@ -520,6 +533,17 @@ public final class SymbolTable {
     /// initializer calls. Older indexes retain semantic-loader fallback.
     public func mayHaveImportedInitializers(for symbol: SymbolID) -> Bool {
         !importedNominalsWithoutInitializers.contains(symbol)
+    }
+
+    func recordImportedNominalIncompleteInitializerInfo(_ symbol: SymbolID) {
+        importedNominalsWithIncompleteInitializerInfo.insert(symbol)
+    }
+
+    /// True for shells whose index entry cannot enumerate eager initializers
+    /// (pre-v3 records and eager imports): only a body decode can discover
+    /// them, so callers must use the forcing getters for these symbols.
+    func importedInitializerInfoIsIncomplete(for symbol: SymbolID) -> Bool {
+        importedNominalsWithIncompleteInitializerInfo.contains(symbol)
     }
 
     func ensureLazyImportedMetadataLoaded(for symbol: SymbolID) {
@@ -1321,8 +1345,17 @@ public final class SymbolTable {
         return extensionPropertyReceiverTypes[property]
     }
 
+    /// Compact-index registration fact: the record carries a receiver
+    /// signature, so body decoding will restore an extension receiver.
+    /// `hasExtensionPropertyReceiver` answers from this without loading it.
+    public func markImportedExtensionReceiverProperty(_ property: SymbolID) {
+        importedExtensionReceiverProperties.insert(property)
+    }
+
     public func hasExtensionPropertyReceiver(_ property: SymbolID) -> Bool {
-        declaredExtensionProperties.contains(property) || extensionPropertyReceiverTypes[property] != nil
+        declaredExtensionProperties.contains(property)
+            || extensionPropertyReceiverTypes[property] != nil
+            || importedExtensionReceiverProperties.contains(property)
     }
 
     public func setExtensionPropertyGetterAccessor(_ accessor: SymbolID, for property: SymbolID) {
@@ -1434,6 +1467,12 @@ public final class SymbolTable {
         return companionObjectSymbols[owner]
     }
 
+    /// Companion edges are restored from the compact index at shell
+    /// registration; this read never invokes the imported metadata loader.
+    public func companionObjectSymbolIfKnown(for owner: SymbolID) -> SymbolID? {
+        companionObjectSymbols[owner]
+    }
+
     public func setOuterInstanceFieldSymbol(_ field: SymbolID, for innerClass: SymbolID) {
         outerInstanceFieldSymbols[innerClass] = field
     }
@@ -1450,6 +1489,12 @@ public final class SymbolTable {
     public func objectInitializerSymbol(for object: SymbolID) -> SymbolID? {
         ensureLazyImportedMetadataLoaded(for: object)
         return objectInitializerSymbols[object]
+    }
+
+    /// Initializer shells are synthesized from compact-index link names at
+    /// shell registration, so this read never invokes the metadata loader.
+    public func objectInitializerSymbolIfKnown(for object: SymbolID) -> SymbolID? {
+        objectInitializerSymbols[object]
     }
 
     public func setObjectLazyInitializerSymbol(_ initializer: SymbolID, for object: SymbolID) {
@@ -1469,6 +1514,12 @@ public final class SymbolTable {
         return companionObjectInitializerSymbols[owner]
     }
 
+    /// Initializer shells are synthesized from compact-index link names at
+    /// shell registration, so this read never invokes the metadata loader.
+    public func companionObjectInitializerSymbolIfKnown(for owner: SymbolID) -> SymbolID? {
+        companionObjectInitializerSymbols[owner]
+    }
+
     public func setEnumStaticInitSymbol(_ initializer: SymbolID, for owner: SymbolID) {
         enumStaticInitSymbols[owner] = initializer
     }
@@ -1476,6 +1527,12 @@ public final class SymbolTable {
     public func enumStaticInitSymbol(for owner: SymbolID) -> SymbolID? {
         ensureLazyImportedMetadataLoaded(for: owner)
         return enumStaticInitSymbols[owner]
+    }
+
+    /// Initializer shells are synthesized from compact-index link names at
+    /// shell registration, so this read never invokes the metadata loader.
+    public func enumStaticInitSymbolIfKnown(for owner: SymbolID) -> SymbolID? {
+        enumStaticInitSymbols[owner]
     }
 
     public func setValueClassUnderlyingType(_ type: TypeID, for symbol: SymbolID) {
