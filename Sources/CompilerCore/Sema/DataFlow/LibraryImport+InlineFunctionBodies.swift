@@ -82,8 +82,7 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        externalLinkNameToSymbol: [String: SymbolID],
-        importedSymbolByFQName: [String: SymbolID]
+        resolver: ImportedSymbolResolver
     ) -> KIRFunction? {
         let record = binding.record
         guard let inlineDir = binding.inlineKIRDir else { return nil }
@@ -137,8 +136,7 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner,
             diagnostics: diagnostics,
-            externalLinkNameToSymbol: externalLinkNameToSymbol,
-            importedSymbolByFQName: importedSymbolByFQName,
+            resolver: resolver,
             reifiedComponentTokens: importedInlineUsesComponentTokens(binding, symbol: symbol, symbols: symbols),
             packedValueParameterTypes: importedInlinePackedValueTypes(signature, binding: binding, symbol: symbol, symbols: symbols, types: types, interner: interner)
         )
@@ -155,8 +153,7 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        externalLinkNameToSymbol: [String: SymbolID],
-        importedSymbolByFQName: [String: SymbolID]
+        resolver: ImportedSymbolResolver
     ) {
         func resolveOne(_ symbol: SymbolID) -> KIRFunction? {
             guard let binding = state.pendingInlineBindings.removeValue(forKey: symbol) else {
@@ -197,13 +194,20 @@ extension DataFlowSemaPhase {
                       types: types,
                       diagnostics: diagnostics,
                       interner: interner,
-                      externalLinkNameToSymbol: externalLinkNameToSymbol,
-                      importedSymbolByFQName: importedSymbolByFQName
+                      resolver: resolver
                   )
             else {
                 return nil
             }
             return function
+        }
+
+        /// Name-fallback callees may sit in still-pending index entries. The
+        /// short-name drain registers them, filling `pendingInlineSymbolsByName`
+        /// through `appendImportedBinding` before the map is read.
+        func drainThenRead(_ calleeName: InternedString) -> [SymbolID] {
+            _ = symbols.lookupByShortName(calleeName)
+            return state.pendingInlineSymbolsByName[calleeName] ?? []
         }
 
         var scannedSymbols: Set<SymbolID> = []
@@ -217,7 +221,7 @@ extension DataFlowSemaPhase {
                     continue
                 }
                 let targets: [SymbolID] = callSymbol.map { [$0] }
-                    ?? state.pendingInlineSymbolsByName[calleeName] ?? []
+                    ?? drainThenRead(calleeName)
                 for target in targets where scannedSymbols.insert(target).inserted {
                     if let function = resolveOne(target) {
                         bodiesToScan.append(function.body)

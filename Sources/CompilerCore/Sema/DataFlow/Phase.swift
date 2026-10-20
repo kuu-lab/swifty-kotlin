@@ -216,6 +216,7 @@ final class DataFlowSemaPhase: CompilerPhase {
                 bundledIndex = mergeImportedStdlibSymbolsIntoBundledIndex(
                     bundledIndex: bundledIndex,
                     stdlibModuleName: stdlibModuleName,
+                    stdlibIndexSource: importDeferredWork.lazyLoaderState?.stdlibIndexSource,
                     symbols: symbols,
                     types: types,
                     interner: ctx.interner
@@ -423,10 +424,27 @@ final class DataFlowSemaPhase: CompilerPhase {
     func mergeImportedStdlibSymbolsIntoBundledIndex(
         bundledIndex: BundledDeclarationIndex,
         stdlibModuleName: InternedString,
+        stdlibIndexSource: IndexedLibrarySource? = nil,
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
     ) -> BundledDeclarationIndex {
+        // A compact-indexed stdlib artifact already carries every member's
+        // (owner, name, arity) key. Reading them straight from the index keeps
+        // the merge from scanning (and thereby registering) ~31k shells just
+        // to answer "an imported declaration exists here". The scan's other
+        // job — re-parenting extension functions to their receiver — is
+        // identical to the per-registration fixup the source performs when an
+        // entry drains, so already- and not-yet-registered records are both
+        // covered.
+        if let stdlibIndexSource {
+            var updatedIndex = bundledIndex
+            updatedIndex.insertImportedStdlibSymbols(
+                keys: stdlibIndexSource.memberKeys(),
+                interner: interner
+            )
+            return updatedIndex
+        }
         // Resolve each nominal FQName once, including receivers from other
         // modules and names shared with package records. Successful lookups
         // remain valid because new symbols append after existing candidates.

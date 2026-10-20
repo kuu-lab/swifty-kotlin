@@ -8,8 +8,7 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner,
         diagnostics: DiagnosticEngine,
-        externalLinkNameToSymbol: [String: SymbolID],
-        importedSymbolByFQName: [String: SymbolID],
+        resolver: ImportedSymbolResolver,
         reifiedComponentTokens: Bool = false,
         packedValueParameterTypes: [TypeID]? = nil
     ) -> KIRFunction? {
@@ -137,8 +136,7 @@ extension DataFlowSemaPhase {
                 interner: interner,
                 labelCounter: &importLabelCounter,
                 exprCounter: &importExprCounter,
-                externalLinkNameToSymbol: externalLinkNameToSymbol,
-                importedSymbolByFQName: importedSymbolByFQName
+                resolver: resolver
             ) else {
                 // Dropping a single instruction leaves the remaining ones reading
                 // registers that are never defined, which silently miscompiles the
@@ -244,8 +242,7 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         labelCounter: inout Int32,
         exprCounter: inout Int32,
-        externalLinkNameToSymbol: [String: SymbolID],
-        importedSymbolByFQName: [String: SymbolID]
+        resolver: ImportedSymbolResolver
     ) -> [KIRInstruction]? {
         let parts = line.split(separator: " ")
         guard let opcode = parts.first else {
@@ -286,8 +283,7 @@ extension DataFlowSemaPhase {
             opcode: opcode,
             parameterSymbolMapping: parameterSymbolMapping,
             interner: interner,
-            externalLinkNameToSymbol: externalLinkNameToSymbol,
-            importedSymbolByFQName: importedSymbolByFQName
+            resolver: resolver
         ) else {
             return nil
         }
@@ -307,12 +303,11 @@ extension DataFlowSemaPhase {
         opcode: Substring,
         parameterSymbolMapping: [Int32: SymbolID],
         interner: StringInterner,
-        externalLinkNameToSymbol: [String: SymbolID],
-        importedSymbolByFQName: [String: SymbolID]
+        resolver: ImportedSymbolResolver
     ) -> KIRInstruction? {
         func returnTarget(_ key: String) -> KIRReturnTarget? {
             guard let encoded = pairs[key], let link = decodeBase64String(encoded), !link.isEmpty else { return nil }
-            if let symbol = externalLinkNameToSymbol[link] { return .function(symbol) }
+            if let symbol = resolver.symbol(forLinkName: link) { return .function(symbol) }
             // Private inline callees have no exported symbol, but still own an exit.
             return .importedFunction(interner.intern(link))
         }
@@ -351,7 +346,7 @@ extension DataFlowSemaPhase {
                       token: valueToken,
                       parameterSymbolMapping: parameterSymbolMapping,
                       interner: interner,
-                      importedSymbolByFQName: importedSymbolByFQName
+                      resolver: resolver
                   )
             else {
                 return nil
@@ -417,7 +412,7 @@ extension DataFlowSemaPhase {
             guard let valueRaw = pairs["value"], let value = Int32(valueRaw),
                   let symbol = parseImportedSymbol(
                       pairs: pairs,
-                      importedSymbolByFQName: importedSymbolByFQName
+                      resolver: resolver
                   )
             else {
                 return nil
@@ -430,7 +425,7 @@ extension DataFlowSemaPhase {
             guard let resultRaw = pairs["result"], let result = Int32(resultRaw),
                   let symbol = parseImportedSymbol(
                       pairs: pairs,
-                      importedSymbolByFQName: importedSymbolByFQName
+                      resolver: resolver
                   )
             else {
                 return nil
@@ -523,7 +518,7 @@ extension DataFlowSemaPhase {
                let linkName = decodeBase64String(linkEncoded),
                !linkName.isEmpty
             {
-                if let consumerSymbol = externalLinkNameToSymbol[linkName] {
+                if let consumerSymbol = resolver.symbol(forLinkName: linkName) {
                     callSymbol = consumerSymbol
                 } else {
                     // The callee is defined by the library itself (a mangled
@@ -536,7 +531,7 @@ extension DataFlowSemaPhase {
             } else if let symbolFQNameEncoded = pairs["symbolFQNameB64"],
                       let symbolFQName = decodeBase64String(symbolFQNameEncoded)
             {
-                callSymbol = importedSymbolByFQName[symbolFQName]
+                callSymbol = resolver.symbol(forFQName: symbolFQName)
             }
             return .call(
                 symbol: callSymbol,
@@ -574,14 +569,14 @@ extension DataFlowSemaPhase {
             if let linkEncoded = pairs["linkB64"],
                let linkName = decodeBase64String(linkEncoded),
                !linkName.isEmpty,
-               let consumerSymbol = externalLinkNameToSymbol[linkName]
+               let consumerSymbol = resolver.symbol(forLinkName: linkName)
             {
                 callSymbol = consumerSymbol
             } else if pairs["linkB64"] == nil,
                       let symbolFQNameEncoded = pairs["symbolFQNameB64"],
                       let symbolFQName = decodeBase64String(symbolFQNameEncoded)
             {
-                callSymbol = importedSymbolByFQName[symbolFQName]
+                callSymbol = resolver.symbol(forFQName: symbolFQName)
             }
             return .virtualCall(
                 symbol: callSymbol,
@@ -625,7 +620,7 @@ extension DataFlowSemaPhase {
         token: String,
         parameterSymbolMapping: [Int32: SymbolID],
         interner: StringInterner,
-        importedSymbolByFQName: [String: SymbolID]
+        resolver: ImportedSymbolResolver
     ) -> KIRExprKind? {
         if token == "unit" {
             return .unit
@@ -687,7 +682,7 @@ extension DataFlowSemaPhase {
             // belong to the producer's symbol table.
             let encoded = String(token.dropFirst("symbolFQNameB64:".count))
             guard let fQName = decodeBase64String(encoded),
-                  let symbol = importedSymbolByFQName[fQName]
+                  let symbol = resolver.symbol(forFQName: fQName)
             else {
                 return nil
             }
@@ -713,11 +708,11 @@ extension DataFlowSemaPhase {
 
     private static func parseImportedSymbol(
         pairs: [String: String],
-        importedSymbolByFQName: [String: SymbolID]
+        resolver: ImportedSymbolResolver
     ) -> SymbolID? {
         if let encoded = pairs["symbolFQNameB64"],
            let fQName = decodeBase64String(encoded),
-           let symbol = importedSymbolByFQName[fQName]
+           let symbol = resolver.symbol(forFQName: fQName)
         {
             return symbol
         }

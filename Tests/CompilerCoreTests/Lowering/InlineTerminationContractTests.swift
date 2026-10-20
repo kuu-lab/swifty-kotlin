@@ -288,7 +288,9 @@ struct InlineTerminationContractTests {
         let symbols = Dictionary(uniqueKeysWithValues: (1 ... depth).map { ("f\($0)", SymbolID(rawValue: Int32($0))) })
         store.bindParseContext(
             types: types, interner: interner, diagnostics: diagnostics,
-            externalLinkNameToSymbol: symbols, importedSymbolByFQName: [:]
+            resolver: ImportedSymbolResolver(
+                externalLinkNameToSymbol: symbols, importedSymbolByFQName: [:]
+            )
         )
         for i in 1 ... depth {
             let name = "f\(i)"

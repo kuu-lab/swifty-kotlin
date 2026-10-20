@@ -68,6 +68,35 @@ struct ImportedMemberIndexShape {
     }
 }
 
+/// A compact-indexed imported library whose records register on demand.
+///
+/// SymbolTable query paths drain matching entries through these hooks before
+/// reading their indexes, so a shell is defined only when a lookup can
+/// actually reach it — the eager `registerShells` pass over every index entry
+/// is replaced by per-query registration.
+protocol IndexedLibraryEntryProvider: AnyObject {
+    /// Position on the library search path. Drains issued while an earlier
+    /// library is still being imported must not see records from later
+    /// libraries, so each drain is capped by `SymbolTable.importDrainEpoch`.
+    var importOrder: Int { get }
+    /// Register every pending entry whose FQ name equals `fqName`.
+    func drainEntries(fqName: [InternedString], into symbols: SymbolTable)
+    /// Register every pending entry declared directly under `parentFQName`,
+    /// including extension records reparented to that nominal owner.
+    func drainChildren(parentFQName: [InternedString], into symbols: SymbolTable)
+    /// Register every pending declaration-kind entry with this simple name.
+    func drainEntries(shortName: InternedString, into symbols: SymbolTable)
+    /// Whether the index contains declarations nested under `fqName` — the
+    /// signal that justifies synthesizing a package shell for that path.
+    func containsEntriesNested(under fqName: [InternedString]) -> Bool
+    /// Package-prefix paths nested directly under `parentFQName`, in index
+    /// order. Used when a children drain must expose child package shells.
+    func packagePrefixes(under parentFQName: [InternedString]) -> [[InternedString]]
+    /// Module name stamped onto a synthesized package for `fqName`, or nil
+    /// when this library does not contribute that prefix (or has no module).
+    func packageModuleFQN(for fqName: [InternedString]) -> InternedString?
+}
+
 public final class SymbolTable {
     private var symbolsStorage: [SemanticSymbol] = []
     private var byFQName: [[InternedString]: [SymbolID]] = [:]
@@ -154,6 +183,20 @@ public final class SymbolTable {
     /// loader registration, so membership minus `lazyImportedMetadataLoaded`
     /// identifies shells still decodable on demand.
     private var lazyImportedShells: Set<SymbolID> = []
+    /// Compact-index libraries whose records register on demand. Each lookup
+    /// path drains pending entries for the queried key before reading its
+    /// index, so unreferenced records never allocate a symbol.
+    private var indexedLibraryProviders: [IndexedLibraryEntryProvider] = []
+    /// Drains only see providers at or before this search-path position while
+    /// library import is in flight; `.max` afterwards.
+    var importDrainEpoch: Int = .max
+    /// Reentrancy guards: a drain registers symbols, whose own parent/link
+    /// restoration queries other keys and must not re-drain the key already
+    /// in flight. Claimed entries are consumed, so an in-flight key simply
+    /// has nothing left to register.
+    private var fqNameDrainInProgress: Set<[InternedString]> = []
+    private var childrenDrainInProgress: Set<[InternedString]> = []
+    private var shortNameDrainInProgress: Set<InternedString> = []
     private var importedLayoutSynthesizer: ((SymbolID) -> Void)?
     private var importedLayoutSynthesisInProgress = false
     private var importedNominalsWithoutInitializers: Set<SymbolID> = []
@@ -330,6 +373,110 @@ public final class SymbolTable {
         lazyImportedMetadataLoader != nil
     }
 
+    /// Attaches a compact-index library whose entries register on demand.
+    /// Providers must be added in search-path order.
+    func addIndexedLibraryProvider(_ provider: IndexedLibraryEntryProvider) {
+        lock.lock()
+        defer { lock.unlock() }
+        indexedLibraryProviders.append(provider)
+    }
+
+    /// Registration-time mark for nominal shells drained after the lazy
+    /// loader was installed — the set passed to
+    /// `setLazyImportedMetadataLoader` only covers bindings already created
+    /// at that point.
+    func markIndexedImportedNominal(_ symbol: SymbolID) {
+        lock.lock()
+        defer { lock.unlock() }
+        indexedImportedNominals.insert(symbol)
+    }
+
+    /// Register pending index entries for `fqName`, then synthesize a package
+    /// shell when the path only exists as a declaration prefix. Every lookup
+    /// path that reads `byFQName` calls this first so unregistered shells
+    /// stay invisible until they are actually reachable.
+    ///
+    /// `define` passes `synthesizePackage: false`: it drains pending entries
+    /// so shadow and overload checks see them, but must not append a package
+    /// ahead of the symbol it is mid-way through registering — the eager pass
+    /// always placed packages after same-path declarations in `byFQName`.
+    private func drainIndexedEntries(fqName: [InternedString], synthesizePackage: Bool = true) {
+        guard !indexedLibraryProviders.isEmpty, !fqName.isEmpty,
+              fqNameDrainInProgress.insert(fqName).inserted
+        else { return }
+        defer { fqNameDrainInProgress.remove(fqName) }
+        for provider in indexedLibraryProviders where provider.importOrder <= importDrainEpoch {
+            provider.drainEntries(fqName: fqName, into: self)
+        }
+        guard synthesizePackage else { return }
+        let alreadyHasPackage = byFQName[fqName]?.contains(where: { symbol($0)?.kind == .package }) == true
+        guard !alreadyHasPackage,
+              indexedLibraryProviders.contains(where: {
+                  $0.importOrder <= importDrainEpoch && $0.containsEntriesNested(under: fqName)
+              })
+        else { return }
+        let package = define(
+            kind: .package,
+            name: fqName.last ?? .invalid,
+            fqName: fqName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        // The latest library on the search path contributing this prefix owns
+        // the package's module tag, matching the eager synthetic-package pass.
+        if let moduleFQN = indexedLibraryProviders.last(where: {
+            $0.importOrder <= importDrainEpoch && $0.packageModuleFQN(for: fqName) != nil
+        }).flatMap({ $0.packageModuleFQN(for: fqName) }) {
+            setModuleFQN(moduleFQN, for: package)
+        }
+    }
+
+    /// Register pending index entries declared directly under `parentFQName`
+    /// (member declarations plus extension records reparented to a nominal
+    /// owner at that path) and materialize child package shells, so
+    /// `children(ofFQName:)`/`children(of:)` see the same membership the eager
+    /// registration produced.
+    private func drainIndexedChildren(parentFQName: [InternedString]) {
+        guard !indexedLibraryProviders.isEmpty,
+              childrenDrainInProgress.insert(parentFQName).inserted
+        else { return }
+        defer { childrenDrainInProgress.remove(parentFQName) }
+        var claimedPrefixes: Set<[InternedString]> = []
+        for provider in indexedLibraryProviders where provider.importOrder <= importDrainEpoch {
+            provider.drainChildren(parentFQName: parentFQName, into: self)
+            for prefix in provider.packagePrefixes(under: parentFQName) {
+                claimedPrefixes.insert(prefix)
+            }
+        }
+        // Each package prefix drains through the FQ-name path, which
+        // synthesizes the package shell itself.
+        for prefix in claimedPrefixes {
+            drainIndexedEntries(fqName: prefix)
+        }
+    }
+
+    private func drainIndexedEntries(shortName: InternedString) {
+        guard !indexedLibraryProviders.isEmpty,
+              shortNameDrainInProgress.insert(shortName).inserted
+        else { return }
+        defer { shortNameDrainInProgress.remove(shortName) }
+        for provider in indexedLibraryProviders where provider.importOrder <= importDrainEpoch {
+            provider.drainEntries(shortName: shortName, into: self)
+        }
+    }
+
+    /// Whether any compact-index provider has entries nested under `fqName` —
+    /// answers "this path is a package" for import validation without
+    /// registering anything.
+    func libraryIndexContainsEntriesNested(under fqName: [InternedString]) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return indexedLibraryProviders.contains {
+            $0.importOrder <= importDrainEpoch && $0.containsEntriesNested(under: fqName)
+        }
+    }
+
     func hasPendingImportedNominalMetadata(for symbol: SymbolID) -> Bool {
         lock.lock()
         defer { lock.unlock() }
@@ -460,18 +607,21 @@ public final class SymbolTable {
     public func lookup(fqName: [InternedString]) -> SymbolID? {
         lock.lock()
         defer { lock.unlock() }
+        drainIndexedEntries(fqName: fqName)
         return byFQName[fqName]?.first
     }
 
     public func lookupAll(fqName: [InternedString]) -> [SymbolID] {
         lock.lock()
         defer { lock.unlock() }
+        drainIndexedEntries(fqName: fqName)
         return byFQName[fqName] ?? []
     }
 
     public func lookupByShortName(_ name: InternedString) -> [SymbolID] {
         lock.lock()
         defer { lock.unlock() }
+        drainIndexedEntries(shortName: name)
         return byShortName[name] ?? []
     }
 
@@ -487,6 +637,14 @@ public final class SymbolTable {
     ) -> SymbolID {
         lock.lock()
         defer { lock.unlock() }
+
+        // A define against an imported FQ name must see the pending index
+        // entries first: shadowing and overload coexistence are decided
+        // against the same symbol set eager registration produced. Package
+        // synthesis stays with query paths so a claim arriving through the
+        // children/short-name maps cannot order a package ahead of the
+        // declaration this define is registering.
+        drainIndexedEntries(fqName: fqName, synthesizePackage: false)
 
         if let existing = byFQName[fqName], !existing.isEmpty {
             // File-private callables in other files do not occupy this declaration's scope.
@@ -1095,6 +1253,9 @@ public final class SymbolTable {
     public func children(of parent: SymbolID) -> [SymbolID] {
         lock.lock()
         defer { lock.unlock() }
+        if let parentInfo = symbol(parent) {
+            drainIndexedChildren(parentFQName: parentInfo.fqName)
+        }
         return (childrenByParent[parent] ?? []).sorted { $0.rawValue < $1.rawValue }
     }
 
@@ -1454,7 +1615,10 @@ public final class SymbolTable {
     }
 
     public func children(ofFQName parentFQName: [InternedString]) -> [SymbolID] {
-        byParentFQName[parentFQName] ?? []
+        lock.lock()
+        defer { lock.unlock() }
+        drainIndexedChildren(parentFQName: parentFQName)
+        return byParentFQName[parentFQName] ?? []
     }
 
     public func symbols(atDeclSite site: SourceRange) -> [SymbolID] {
