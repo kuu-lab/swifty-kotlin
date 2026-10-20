@@ -13,6 +13,16 @@ extension JVMFunctionBuilder {
     func unconvertedInstance(_ id: ExprID) throws -> JVMValue {
         if propertyBinding(id)?.getter.isStatic == true { return try constant(.null, .reference("java/lang/Object", nullable: true)) }
         let bindings = program.sema.bindings
+        // An object-member import binds its singleton independently of the
+        // active extension receiver, even when their nominal types match.
+        if let symbol = bindings.callBinding(for: id)?.dispatchReceiverSymbol,
+           let object = program.classes[symbol], object.isObject {
+            // During singleton initialization its contextual this is already
+            // available before the static singleton field is assigned.
+            if let receiver = contextualReceivers[symbol],
+               !beforeDelegation || receiver.slot != thisValue?.slot { return receiver }
+            return try singleton(object)
+        }
         if let symbol = bindings.implicitReceiverOuterReceiver(for: id) ?? bindings.callBinding(for: id)?.dispatchReceiverSymbol, let receiver = contextualReceivers[symbol], !beforeDelegation || receiver.slot != thisValue?.slot { return receiver }
         let objectName = memberDispatchOwner(id)
         // For an unqualified ordinary member, the extension receiver precedes
