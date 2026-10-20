@@ -142,19 +142,13 @@ extension BuildASTPhase.ExpressionParser {
         }
 
         if isPrefix {
-            astArena.markIncrementDecrement(assignExpr, cachedValue: readExpr, returnsValue: true)
-            let newValueName = interner.intern("$incdec$new$\(range.start.offset)$\(nextIncDecTempID())")
-            let newValueDecl = astArena.appendExpr(.localDecl(
-                name: newValueName,
-                isMutable: false,
-                typeAnnotation: nil,
-                initializer: assignExpr,
-                range: operandRange
-            ))
-            let newValueRef = astArena.appendExpr(.nameRef(newValueName, operandRange))
+            // Prefix mutation evaluates the property again after the setter.
+            // This preserves observable custom getter behavior and returns a
+            // setter-normalized value, matching Kotlin's `{ x += 1; x }`.
+            astArena.markIncrementDecrement(assignExpr, cachedValue: readExpr)
             return astArena.appendExpr(.blockExpr(
-                statements: statements + [newValueDecl],
-                trailingExpr: newValueRef,
+                statements: statements + [assignExpr],
+                trailingExpr: readExpr,
                 range: range
             ))
         }
