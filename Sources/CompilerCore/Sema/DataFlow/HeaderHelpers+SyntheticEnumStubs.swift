@@ -330,9 +330,29 @@ extension DataFlowSemaPhase {
             return
         }
         let valuesFQName = ownerFQName + [valuesName]
-        guard symbols.lookupAll(fqName: valuesFQName).compactMap({ symbols.symbol($0) }).allSatisfy({ $0.kind != .function }) else {
+        let existingFunctions = symbols.lookupAll(fqName: valuesFQName).compactMap { symbolID in
+            symbols.symbol(symbolID).map { (symbolID, $0) }
+        }.filter { $0.1.kind == .function }
+        guard !existingFunctions.contains(where: { symbols.parentSymbol(for: $0.0) == ownerSymbol }) else {
             return
         }
+        // Class-name lookup filters by exact owner, so transfer the common stub
+        // when an actual enum follows the expect declaration.
+        if symbols.symbol(ownerSymbol)?.flags.contains(.actualDeclaration) == true,
+           let expectStub = existingFunctions.first(where: { candidate in
+               guard candidate.1.flags.contains(.synthetic),
+                     let parent = symbols.parentSymbol(for: candidate.0),
+                     let parentSymbol = symbols.symbol(parent)
+               else {
+                   return false
+               }
+               return parentSymbol.flags.contains(.expectDeclaration)
+           }) {
+            symbols.setParentSymbol(ownerSymbol, for: expectStub.0)
+            scope.insert(expectStub.0)
+            return
+        }
+        guard existingFunctions.isEmpty else { return }
         let arrayFQName = [interner.intern("kotlin"), interner.intern("Array")]
         guard let arraySymbol = symbols.lookup(fqName: arrayFQName) else {
             return
