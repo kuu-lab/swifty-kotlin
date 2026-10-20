@@ -163,11 +163,48 @@ jobs:
             echo 'Full verification runs every morning in `nightly-full.yml`; trigger it with workflow_dispatch on this branch to run it before merging.'
           } >> "$GITHUB_STEP_SUMMARY"
 
+  macos-platform-smoke:
+    name: macOS build, SmokeTests, and LinkPhase
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      SWIFT_XSWIFTC_FLAGS: -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Swift
+        uses: ./.github/actions/setup-swift
+        with:
+          swift-version: "6.3"
+      - name: Setup LLVM on macOS
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install llvm
+          llvm_prefix="$(brew --prefix llvm)"
+          llvm_dylib="$llvm_prefix/lib/libLLVM.dylib"
+          [[ -f "$llvm_dylib" ]]
+          {
+            echo "$llvm_prefix/bin"
+          } >> "$GITHUB_PATH"
+          {
+            echo "KSWIFTK_LLVM_DYLIB=$llvm_dylib"
+            echo "C_INCLUDE_PATH=$llvm_prefix/include${C_INCLUDE_PATH:+:$C_INCLUDE_PATH}"
+            echo "LIBRARY_PATH=$llvm_prefix/lib${LIBRARY_PATH:+:$LIBRARY_PATH}"
+          } >> "$GITHUB_ENV"
+          "$llvm_prefix/bin/llvm-config" --version
+      - name: Build compiler
+        run: swift build $SWIFT_XSWIFTC_FLAGS
+      - name: Run SmokeTests
+        run: bash Scripts/swift_test.sh --filter SmokeTests --no-parallel $SWIFT_XSWIFTC_FLAGS
+      - name: Run LinkPhase tests
+        run: bash Scripts/swift_test.sh --filter CompilerBackendTests.LinkPhaseIntegrationTests --no-parallel $SWIFT_XSWIFTC_FLAGS
+
   # Single required status check for the master ruleset. Adding or removing
   # jobs above only requires updating this job's `needs`, not the ruleset.
   ci-gate:
     name: CI gate
-    needs: [repository-checks, build-and-smoke]
+    needs: [repository-checks, build-and-smoke, macos-platform-smoke]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
