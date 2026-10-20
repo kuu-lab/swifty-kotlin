@@ -3,7 +3,7 @@ import Testing
 
 /// KUU-952 regression coverage: range values and range iterators are
 /// runtime-internal boxes allocated by the `__kk_*_rangeTo`/`downTo`/`until`
-/// and `kk_range_iterator`/`kk_iterable_iterator` factories, so they carry no
+/// and `__kk_range_iterator`/`kk_iterable_iterator` factories, so they carry no
 /// `objectTypeByPointer` metadata. `kk_op_is` recovers their nominal identity
 /// structurally -- `RuntimeRangeBox` by its kind tag and
 /// `RuntimeRangeIteratorBox` as `kotlin.collections.Iterator`.
@@ -134,7 +134,7 @@ struct RuntimeIsCheckRangeBoxTests {
 
     @Test
     func iteratorFactoryProducesCheckableBox() {
-        // End-to-end through the real factory: `kk_range_iterator` must hand
+        // End-to-end through the real factory: `__kk_range_iterator` must hand
         // back the box the nominalBase recovery recognizes.
         let range = kk_op_rangeTo(1, 5)
         let iterator = kk_range_iterator(range)

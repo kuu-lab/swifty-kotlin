@@ -685,7 +685,7 @@ public func kk_op_elvis(_ lhs: Int, _ rhs: Int) -> Int {
     lhs == runtimeNullSentinelInt ? rhs : lhs
 }
 
-@_cdecl("kk_op_rangeTo")
+@_cdecl("__kk_op_rangeTo")
 public func kk_op_rangeTo(_ lhs: Int, _ rhs: Int) -> Int {
     registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: 1, kind: .intRange))
 }
@@ -853,7 +853,7 @@ public func kk_iterable_iterator(_ iterableRaw: Int, _ outThrown: UnsafeMutableP
     )
 }
 
-@_cdecl("kk_range_iterator")
+@_cdecl("__kk_range_iterator")
 public func kk_range_iterator(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
     outThrown?.pointee = 0
     if runtimeIteratorBuilderBox(from: rangeRaw) != nil {
@@ -874,7 +874,7 @@ public func kk_range_iterator(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer
     // has no compile-time-resolved iterator (e.g. a generic Iterable<T>
     // parameter); without this branch an array falls through to the range-box
     // guard below, gets treated as an invalid range, and the loop silently
-    // iterates zero times (kk_range_hasNext sees no RuntimeRangeIteratorBox).
+    // iterates zero times (__kk_range_hasNext sees no RuntimeRangeIteratorBox).
     // The exact-type check excludes RuntimeObjectBox, a RuntimeArrayBox subclass
     // used for ordinary class instances.
     if let arrayBox = runtimeArrayBox(from: rangeRaw), type(of: arrayBox) == RuntimeArrayBox.self {
@@ -904,7 +904,7 @@ public func kk_range_iterator(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer
     )
 }
 
-@_cdecl("kk_range_hasNext")
+@_cdecl("__kk_range_hasNext")
 public func kk_range_hasNext(_ iterRaw: Int) -> Int {
     let object = resolveRuntimeObjectHandle(iterRaw)
     if object is RuntimeIteratorBuilderBox {
@@ -922,7 +922,7 @@ public func kk_range_hasNext(_ iterRaw: Int) -> Int {
     return iterator.hasNextValue ? 1 : 0
 }
 
-@_cdecl("kk_range_next")
+@_cdecl("__kk_range_next")
 public func kk_range_next(_ iterRaw: Int) -> Int {
     let object = resolveRuntimeObjectHandle(iterRaw)
     if object is RuntimeIteratorBuilderBox {
@@ -941,7 +941,7 @@ public func kk_range_next(_ iterRaw: Int) -> Int {
 }
 
 /// BUG-198: Fast path used only after lowering proves a signed built-in range.
-@_cdecl("kk_range_for_in_iterator")
+@_cdecl("__kk_range_for_in_iterator")
 public func kk_range_for_in_iterator(_ rangeRaw: Int) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         return 0
@@ -951,7 +951,7 @@ public func kk_range_for_in_iterator(_ rangeRaw: Int) -> Int {
     )
 }
 
-@_cdecl("kk_range_for_in_hasNext")
+@_cdecl("__kk_range_for_in_hasNext")
 public func kk_range_for_in_hasNext(_ iterRaw: Int) -> Int {
     guard let iterator = runtimeSignedRangeForInIteratorBox(from: iterRaw) else {
         return 0
@@ -959,7 +959,7 @@ public func kk_range_for_in_hasNext(_ iterRaw: Int) -> Int {
     return iterator.hasNextValue ? 1 : 0
 }
 
-@_cdecl("kk_range_for_in_next")
+@_cdecl("__kk_range_for_in_next")
 public func kk_range_for_in_next(_ iterRaw: Int) -> Int {
     guard let iterator = runtimeSignedRangeForInIteratorBox(from: iterRaw) else {
         return 0
@@ -1250,10 +1250,10 @@ public func kk_range_endExclusive(_ rangeRaw: Int, _ outThrown: UnsafeMutablePoi
 }
 
 
-@_cdecl("kk_range_take")
+@_cdecl("__kk_range_take")
 public func kk_range_take(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_take")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_range_take")
     }
     outThrown?.pointee = 0
     if n < 0 {
@@ -1265,10 +1265,10 @@ public func kk_range_take(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMutableP
     return RuntimeSignedRangeHOFKind.take(range, n)
 }
 
-@_cdecl("kk_range_drop")
+@_cdecl("__kk_range_drop")
 public func kk_range_drop(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_drop")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_range_drop")
     }
     outThrown?.pointee = 0
     if n < 0 {
@@ -1280,18 +1280,18 @@ public func kk_range_drop(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMutableP
     return RuntimeSignedRangeHOFKind.drop(range, n)
 }
 
-@_cdecl("kk_range_average")
+@_cdecl("__kk_range_average")
 public func kk_range_average(_ rangeRaw: Int) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_average")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_range_average")
     }
     return RuntimeSignedRangeHOFKind.average(range)
 }
 
-@_cdecl("kk_range_sorted")
+@_cdecl("__kk_range_sorted")
 public func kk_range_sorted(_ rangeRaw: Int) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_sorted")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_range_sorted")
     }
     return RuntimeSignedRangeHOFKind.sorted(range)
 }

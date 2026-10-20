@@ -10,7 +10,7 @@ import kotlin.internal.KsSymbolName
 // The signed range operator still uses the shared operator-core ABI.
 // KSP-1303: equals/hashCode/toString are members so `==` and erased virtual
 // dispatch use the range value rather than Any's identity behavior.
-public class IntRange @KsSymbolName("kk_op_rangeTo") constructor(
+public class IntRange @KsSymbolName("__kk_op_rangeTo") constructor(
     start: Int,
     endInclusive: Int,
 ) : IntProgression(start, endInclusive, 1), ClosedRange<Int>, OpenEndRange<Int> {

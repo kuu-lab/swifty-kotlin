@@ -723,7 +723,7 @@ extension CallLowerer {
             receiverTypeOverride: receiver.typeOverride
         )
         let loweredCalleeText = interner.resolve(loweredCallee)
-        if loweredCalleeText == "kk_range_windowed",
+        if loweredCalleeText == "__kk_range_windowed",
            chosenCallee == nil,
            (1...2).contains(sourceArgExprs.count),
            finalArguments.count == sourceArgExprs.count + 1
@@ -1304,8 +1304,8 @@ extension CallLowerer {
         "__kk_string_codePointCount_from",
         "__kk_string_codePointCount_range",
         "__kk_kclass_cast",
-        "kk_range_first_predicate",
-        "kk_range_last_predicate",
+        "__kk_range_first_predicate",
+        "__kk_range_last_predicate",
         "__kk_range_first_orThrow",
         "__kk_range_last_orThrow",
         "__kk_uint_range_first_orThrow",
@@ -1318,8 +1318,8 @@ extension CallLowerer {
         "__kk_char_range_random_random",
         "__kk_random_nextInt_rangeObject",
         "__kk_random_nextLong_rangeObject",
-        "kk_range_reduce",
-        "kk_range_reduceIndexed",
+        "__kk_range_reduce",
+        "__kk_range_reduceIndexed",
         "__kk_long_range_random",
         "__kk_long_range_random_random",
         "__kk_uint_range_random",

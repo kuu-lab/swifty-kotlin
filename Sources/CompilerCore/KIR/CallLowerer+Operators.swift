@@ -1049,7 +1049,7 @@ extension CallLowerer {
             } else if sema.bindings.isUIntRangeExpr(exprID) {
                 rangeToCallee = interner.intern("__kk_uint_rangeTo")
             } else {
-                rangeToCallee = interner.intern("kk_op_rangeTo")
+                rangeToCallee = interner.intern("__kk_op_rangeTo")
             }
             instructions.append(.call(
                 symbol: nil,

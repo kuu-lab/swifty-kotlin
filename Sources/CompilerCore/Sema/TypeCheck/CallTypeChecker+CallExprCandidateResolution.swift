@@ -566,7 +566,7 @@ extension CallTypeChecker {
             }
             let isRangeCallBinding = if let externalLinkName = sema.symbols.externalLinkName(for: chosen) {
                 [
-                    "kk_op_rangeTo",
+                    "__kk_op_rangeTo",
                     "__kk_op_rangeUntil",
                     "__kk_uint_rangeTo",
                     "__kk_ulong_rangeTo",
