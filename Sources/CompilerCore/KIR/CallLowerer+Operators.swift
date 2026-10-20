@@ -149,6 +149,51 @@ extension CallLowerer {
             instructions: &instructions
         )
         let result = arena.appendTemporary(type: boundType)
+        let genericFloatingPointArithmeticOp: KIRBinaryOp? = switch op {
+        case .add: .add
+        case .subtract: .subtract
+        case .multiply: .multiply
+        case .divide: .divide
+        case .modulo: .modulo
+        default: nil
+        }
+        let hasTypeParameterOperand = [lhs, rhs].contains { operand in
+            guard let type = sema.bindings.exprTypes[operand] else { return false }
+            if case .typeParam = sema.types.kind(of: type) { return true }
+            return false
+        }
+        let hasFloatingPointResult = boundType.map { type in
+            switch sema.types.kind(of: type) {
+            case .primitive(.float, .nonNull), .primitive(.double, .nonNull): true
+            default: false
+            }
+        } ?? false
+        if let genericFloatingPointArithmeticOp,
+           hasTypeParameterOperand,
+           hasFloatingPointResult,
+           let lhsType = sema.bindings.exprTypes[lhs],
+           let rhsType = sema.bindings.exprTypes[rhs],
+           let lhsArithmeticType = resolvePrimitiveArithmeticUpperBound(
+               of: lhsType, types: sema.types, symbols: sema.symbols
+           ),
+           let rhsArithmeticType = resolvePrimitiveArithmeticUpperBound(
+               of: rhsType, types: sema.types, symbols: sema.symbols
+           ),
+           sema.types.isBuiltinArithmeticOperand(lhsArithmeticType),
+           sema.types.isBuiltinArithmeticOperand(rhsArithmeticType)
+        {
+            // A primitive upper-bound operator is a scalar operation even though
+            // its source operands retain erased type-parameter types. Let operator
+            // lowering select the floating-point intrinsic and ABI lowering unbox
+            // each operand from that primitive result type.
+            instructions.append(.binary(
+                op: genericFloatingPointArithmeticOp,
+                lhs: lhsID,
+                rhs: rhsID,
+                result: result
+            ))
+            return result
+        }
         // Comparing a statically non-null operand against `null` (`Nothing?`)
         // is a constant: `==`/`===` are always false, `!=`/`!==` always true.
         // Folding here also avoids the kk_op_eq/ne raw path, where a non-null

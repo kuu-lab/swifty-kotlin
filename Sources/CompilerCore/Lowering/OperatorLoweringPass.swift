@@ -274,8 +274,15 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             )
         }
 
-        let lhsRank = needsStructuralEquality ? 0 : primitiveRank(for: lhs, arena: arena, types: types)
-        let rhsRank = needsStructuralEquality ? 0 : primitiveRank(for: rhs, arena: arena, types: types)
+        let useArithmeticUpperBounds = [.add, .subtract, .multiply, .divide, .modulo].contains(op)
+        let lhsRank = needsStructuralEquality ? 0 : primitiveRank(
+            for: lhs, arena: arena, types: types, symbols: symbols,
+            resolveTypeParameterUpperBound: useArithmeticUpperBounds
+        )
+        let rhsRank = needsStructuralEquality ? 0 : primitiveRank(
+            for: rhs, arena: arena, types: types, symbols: symbols,
+            resolveTypeParameterUpperBound: useArithmeticUpperBounds
+        )
         let rank = max(lhsRank, rhsRank)
         let isUnsigned = isUnsignedOperand(lhs, arena: arena, types: types)
             || isUnsignedOperand(rhs, arena: arena, types: types)
@@ -444,9 +451,26 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         }
     }
 
-    private func primitiveRank(for exprID: KIRExprID, arena: KIRArena, types: TypeSystem?) -> Int {
+    private func primitiveRank(
+        for exprID: KIRExprID,
+        arena: KIRArena,
+        types: TypeSystem?,
+        symbols: SymbolTable?,
+        resolveTypeParameterUpperBound: Bool
+    ) -> Int {
         guard let types, let typeID = arena.exprType(exprID) else { return 0 }
-        switch types.kind(of: typeID) {
+        let resolvedTypeID: TypeID
+        if resolveTypeParameterUpperBound,
+           let symbols,
+           let upperBound = resolvePrimitiveArithmeticUpperBound(
+               of: typeID, types: types, symbols: symbols
+           )
+        {
+            resolvedTypeID = upperBound
+        } else {
+            resolvedTypeID = typeID
+        }
+        switch types.kind(of: resolvedTypeID) {
         case .primitive(.double, _): return 2
         case .primitive(.float, _): return 1
         default: return 0
