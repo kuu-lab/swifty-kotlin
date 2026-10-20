@@ -113,6 +113,24 @@ extension KIRLoweringDriver {
         if let receiverBinding = ctx.activeImplicitReceiver() {
             body.append(.constValue(result: receiverBinding.exprID, value: .symbolRef(receiverBinding.symbol)))
         }
+        // Constructor parameters are not member properties: lambdas nested in
+        // delegation arguments or property initializers capture them through
+        // the local-value table, so bind each parameter's symbolRef here —
+        // otherwise the lambda frame reads an uninitialised slot (0).
+        if let signature = sema.symbols.functionSignature(for: ctorSymbol) {
+            for (index, parameterSymbol) in signature.valueParameterSymbols.enumerated() {
+                guard ctx.localValue(for: parameterSymbol) == nil else { continue }
+                let paramExpr = shared.arena.appendExpr(
+                    .symbolRef(parameterSymbol),
+                    type: constructorParameterStorageType(
+                        at: index, signature: signature,
+                        sema: sema, interner: shared.interner
+                    )
+                )
+                body.append(.constValue(result: paramExpr, value: .symbolRef(parameterSymbol)))
+                ctx.setLocalValue(paramExpr, for: parameterSymbol)
+            }
+        }
         // KUU-555: a local class's `<init>` is an independent KIR function —
         // captured outer locals (stored into instance fields at the
         // construction call site) must be read back before super-delegation
