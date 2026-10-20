@@ -49,6 +49,22 @@ struct RuntimeUnitClassTests {
         #expect(runtimeStringValue(nameRaw) == "kotlin.Unit")
     }
 
+    @Test
+    func testErasedUnitValueUsesUnitClass() {
+        let anyToken = Int(RuntimeTypeTokenEncoding.anyBase)
+        let handle = __kk_kclass_of(0, anyToken, 0)
+        #expect(runtimeKClassBox(from: handle)?.typeToken == unitTypeToken)
+        #expect(runtimeStringValue(__kk_kclass_simple_name(handle)) == "Unit")
+    }
+
+    @Test
+    func testRawBooleanZeroKeepsBooleanFallbackClass() {
+        let booleanToken = Int(RuntimeTypeTokenEncoding.booleanBase)
+        let handle = __kk_kclass_of(0, booleanToken, 0)
+        #expect(runtimeKClassBox(from: handle)?.typeToken == booleanToken)
+        #expect(runtimeStringValue(__kk_kclass_simple_name(handle)) == "Boolean")
+    }
+
     // MARK: - Unit::class != Any::class
 
     @Test
