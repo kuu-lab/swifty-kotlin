@@ -1474,7 +1474,8 @@ extension LambdaLowerer {
             callableExpr,
             symbol: callableSymbol,
             callee: callableName,
-            captureArguments: []
+            captureArguments: [],
+            hasClosureParam: needsHOFWrapper
         )
 
         if needsHOFWrapper {
