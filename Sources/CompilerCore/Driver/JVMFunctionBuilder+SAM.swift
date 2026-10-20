@@ -28,11 +28,25 @@ extension JVMFunctionBuilder {
         program.nextClosure += 1
         let immediateSuspend = method.isSuspend && function.type.referenceName == "kotlin/jvm/functions/Function" + String(method.parameters.count)
         program.closureClasses.append(program.samClass(name, target: try program.className(t.classSymbol), method: method, immediateSuspend: immediateSuspend))
+        let nullableResult = type.isNullable && function.type.isNullable ? try value(type) : nil
+        let nullCase = label(), end = label()
+        if nullableResult != nil {
+            // A null function converts to a null nullable SAM, without
+            // constructing an adapter or asserting that the function exists.
+            let null = try constant(.null, .reference("java/lang/Object", nullable: true)), present = try value(.boolean)
+            instructions.append(.referenceCompare(.notEqual, function, null, present))
+            instructions.append(.jumpIfFalse(present, nullCase))
+        }
         let object = try value(.reference(name, nullable: false))
         let callable = try convert(function, to: .reference("kotlin/jvm/functions/Function" + String(method.parameters.count + (method.isSuspend && !immediateSuspend ? 1 : 0)), nullable: false))
         instructions.append(.allocate(name, object))
         let ctor = JVMForeignMethod(owner: name, name: "<init>", descriptor: "(" + callable.type.descriptor + ")V", parameters: [callable.type], result: object.type, isStatic: false, isInterface: false, isAbstract: false)
         instructions.append(.foreignCall(ctor, receiver: object, arguments: [callable], result: nil))
+        if let nullableResult {
+            instructions.append(.copy(try convert(object, to: type), nullableResult)); jump(end)
+            mark(nullCase); instructions.append(.constant(.null, nullableResult)); mark(end)
+            return nullableResult
+        }
         return try convert(object, to: type)
     }
 }
