@@ -40,7 +40,7 @@
 
 > INLINE-001 → 002 → 003 → 004 → 005 → 006 → 007 → 008 → 009 → 010 → 011 → 012を基本のマージ順とする。002〜009は `InlineLoweringPass.swift` を共有するため、個別の小PRとして順次マージする。抽出時に展開順序・ラベル採番・ABI・例外処理を変えず、固定回数の撤廃は安全な停止条件を用意した010後に行う。
 
-- [ ] RF-LOWER-INLINE-011: bodyless inline snapshotの固定4回走査を依存順処理へ置き換える（前提: INLINE-010）
+- [x] RF-LOWER-INLINE-011: bodyless inline snapshot は決定的な callee-first worklist で依存順に処理する。80段 chain・imported inline・lambda 内依存・diamond・循環停止を含む `InlineTerminationContractTests` 19 tests が RF-LOWER-INLINE-012 の再帰解消後に通過。
   - 対象: `expandNestedBodylessInlineCalls` 相当のschedulerのみ。calleeからcallerへ処理する決定的worklistを使い、lambda内の依存も含める。呼び出し側の8回走査はまだ変えない。
   - 完了条件: 4段を超える正当な依存鎖でも必須callが解消され、同じ元本体の二重展開がない。diamond依存・imported inline・lambda内依存・循環での停止を固定し、010の診断と展開量制限を維持する。
 - [x] RF-LOWER-INLINE-012: caller expansion は共有 work budget の pending-call queue で進捗を追跡する。24段の inline/lambda 交互鎖が再帰的な body 展開でテストスレッドの stack を使い切る問題も、展開対象の nested call を caller queue に返すことで解消した。`InlineTerminationContractTests` の 19 tests が通過。
