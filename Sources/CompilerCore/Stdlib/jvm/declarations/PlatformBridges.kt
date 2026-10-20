@@ -136,3 +136,5 @@ fun __jvmULongRemainder(first: Long, second: Long): Long = 0
 fun __jvmULongStringRadix(value: Long, radix: Int): String = null!!
 fun <E: Enum<E>> __jvmEnumEntries(entries: Array<E>): kotlin.enums.EnumEntries<E> = null!!
 fun __jvmArrayCopy(source: Any?, sourceIndex: Int, target: Any?, targetIndex: Int, count: Int) {}
+
+fun <T> __jvmNewArrayList(): java.util.ArrayList<T> = null!!

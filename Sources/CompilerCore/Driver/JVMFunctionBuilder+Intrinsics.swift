@@ -209,7 +209,7 @@ extension JVMFunctionBuilder {
             let source = try requireValue(receiverID), result = try value(.int)
             instructions.append(.arrayLength(source, result)); return JVMIntrinsicResult(value: result)
         }
-        let collections: Set<String> = ["java/lang/Iterable", "java/util/Iterator", "java/util/Collection", "java/util/List", "kotlin/enums/EnumEntries", "java/util/Set", "java/util/Map", "kotlin/text/MatchGroupCollection"]
+        let collections: Set<String> = ["java/util/ArrayList", "java/lang/Iterable", "java/util/Iterator", "java/util/Collection", "java/util/List", "kotlin/enums/EnumEntries", "java/util/Set", "java/util/Map", "kotlin/text/MatchGroupCollection"]
         if collections.contains(owner) {
             // JDK collection interfaces retain the virtual Object contract;
             // their implementations provide structural equality and hashing.
@@ -221,6 +221,7 @@ extension JVMFunctionBuilder {
                 return JVMIntrinsicResult(value: try jdkCall("java/lang/Object", member, [object], .boolean, receiver: receiver, arguments: [argument]))
             }
             if let selected = try mappedBuiltinMemberOwner(id), collections.contains(selected) { owner = selected }
+            if owner == "java/util/ArrayList" { owner = "java/util/List" }
             if ["set", "add", "remove", "removeAt", "put", "clear"].contains(member) { try requireMutableCollection(receiverID, at: id) }
             if ["set", "add", "put"].contains(member) { try requireWritableArguments(receiverID, at: id) }
             let source = try convert(requireValue(receiverID), to: .reference(owner, nullable: false))
@@ -319,6 +320,9 @@ extension JVMFunctionBuilder {
         return try indexedRead(object, index: requireValue(indices[0]), type: program.expressionType(id))
     }
     func indexedRead(_ object: JVMValue, index: JVMValue, type: JVMValueType) throws -> JVMValue {
+        if object.type.referenceName == "java/util/ArrayList" {
+            return try indexedRead(convert(object, to: .reference("java/util/List", nullable: false)), index: index, type: type)
+        }
         if object.type.isCharSequence {
             let owner = object.type.referenceName!, source = try convert(object, to: .reference(owner, nullable: false))
             return try jdkCall(owner, "charAt", [.int], .char, receiver: source, arguments: [index], interface: owner == "java/lang/CharSequence")!
@@ -359,6 +363,9 @@ extension JVMFunctionBuilder {
         try indexedWrite(object, index: index, source: value)
     }
     func indexedWrite(_ object: JVMValue, index: JVMValue, source: JVMValue) throws {
+        if object.type.referenceName == "java/util/ArrayList" {
+            try indexedWrite(convert(object, to: .reference("java/util/List", nullable: false)), index: index, source: source); return
+        }
         if object.type.referenceName == "java/lang/StringBuilder" {
             _ = try jdkCall("java/lang/StringBuilder", "setCharAt", [.int, .char], .unit, receiver: object, arguments: [index, source]); return
         }
