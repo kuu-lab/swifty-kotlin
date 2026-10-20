@@ -6,6 +6,7 @@ import kotlin.native.CName
 import kotlin.native.Platform
 import kotlin.native.CpuArchitecture
 import kotlin.native.OsFamily
+import kotlin.native.concurrent.TransferMode
 import kotlin.native.concurrent.Worker
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.COpaquePointer
