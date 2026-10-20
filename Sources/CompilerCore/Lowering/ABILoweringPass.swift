@@ -506,8 +506,17 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 // channel. Closure conversion does not prove source lambda bodies
                 // non-throwing before their calls have undergone ABI lowering.
                 let isClosureRelatedCallee = module.nonThrowingClosureCallees.contains(effectiveCallee)
+                let effectiveCalleeName = ctx.interner.resolve(effectiveCallee)
+                let isFunctionValueInvoke = effectiveCalleeName == "kk_function_invoke"
+                    || effectiveCalleeName.hasPrefix("kk_function_invoke_")
+                    || effectiveCalleeName == "kk_suspend_function_invoke"
+                    || effectiveCalleeName.hasPrefix("kk_suspend_function_invoke_")
                 let canThrow = isExplicitlyThrowing
                     || isDelegatedAccessor
+                    // FunctionN.invoke forwards exceptions from an arbitrary
+                    // callback, even though its own Kotlin declaration has no
+                    // throws annotation and closure analysis may mark it pure.
+                    || isFunctionValueInvoke
                     || (!isSyntheticAccessor
                         && !isClosureRelatedCallee
                         && !nonThrowingCalleeSet.contains(effectiveCallee)
