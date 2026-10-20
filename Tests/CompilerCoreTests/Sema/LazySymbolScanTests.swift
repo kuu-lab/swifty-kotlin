@@ -360,4 +360,35 @@ struct LazySymbolScanTests {
         #expect(symbols.functionSignatureIfKnown(for: function) == nil)
         #expect(loaded.isEmpty)
     }
+
+    @Test func defaultArgumentScanDoesNotLoadImportedOverridesWithoutDefaults() {
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        let interner = StringInterner()
+        let baseClass = symbols.define(kind: .class, name: interner.intern("Base"), fqName: [interner.intern("Base")], declSite: nil, visibility: .public, flags: [.importedLibrary])
+        let subClass = symbols.define(kind: .class, name: interner.intern("Sub"), fqName: [interner.intern("Sub")], declSite: nil, visibility: .public, flags: [.importedLibrary])
+        symbols.setDirectSupertypes([baseClass], for: subClass)
+
+        let baseFn = symbols.define(kind: .function, name: interner.intern("foo"), fqName: [interner.intern("Base"), interner.intern("foo")], declSite: nil, visibility: .public, flags: [.importedLibrary])
+        symbols.setParentSymbol(baseClass, for: baseFn)
+        symbols.setImportedMemberIndexShape(ImportedMemberIndexShape(arity: 1, receiverOwnerFQName: nil, hasDefaultArguments: false), for: baseFn)
+
+        let subFn = symbols.define(kind: .function, name: interner.intern("foo"), fqName: [interner.intern("Sub"), interner.intern("foo")], declSite: nil, visibility: .public, flags: [.overrideMember, .importedLibrary])
+        symbols.setParentSymbol(subClass, for: subFn)
+        symbols.setImportedMemberIndexShape(ImportedMemberIndexShape(arity: 1, receiverOwnerFQName: nil, hasDefaultArguments: false), for: subFn)
+
+        var loaded: [SymbolID] = []
+        symbols.setLazyImportedMetadataLoader { symbol in
+            loaded.append(symbol)
+            if symbol == baseFn || symbol == subFn {
+                symbols.setFunctionSignature(FunctionSignature(parameterTypes: [types.intType], returnType: types.unitType, valueParameterHasDefaultValues: [false]), for: symbol)
+            }
+        }
+
+        DataFlowSemaPhase().inheritDefaultArgumentValuesForOverrides(symbols: symbols, types: types)
+        #expect(loaded.isEmpty)
+        #expect(symbols.functionSignatureIfKnown(for: baseFn) == nil)
+        #expect(symbols.functionSignatureIfKnown(for: subFn) == nil)
+    }
 }
+

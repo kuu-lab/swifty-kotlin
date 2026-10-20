@@ -59,6 +59,13 @@ extension SymbolTable {
 struct ImportedMemberIndexShape {
     let arity: Int
     let receiverOwnerFQName: [InternedString]?
+    let hasDefaultArguments: Bool
+
+    init(arity: Int, receiverOwnerFQName: [InternedString]?, hasDefaultArguments: Bool = false) {
+        self.arity = arity
+        self.receiverOwnerFQName = receiverOwnerFQName
+        self.hasDefaultArguments = hasDefaultArguments
+    }
 }
 
 public final class SymbolTable {
@@ -417,6 +424,15 @@ public final class SymbolTable {
             ($0.start.file.rawValue, $0.start.offset, $0.end.offset)
                 < ($1.start.file.rawValue, $1.start.offset, $1.end.offset)
         }
+    }
+
+    public func reserveAdditionalSymbols(_ count: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        symbolsStorage.reserveCapacity(symbolsStorage.count + count)
+        byFQName.reserveCapacity(byFQName.count + count)
+        byShortName.reserveCapacity(byShortName.count + count / 2)
+        byParentFQName.reserveCapacity(byParentFQName.count + count / 2)
     }
 
     public func lookup(fqName: [InternedString]) -> SymbolID? {
