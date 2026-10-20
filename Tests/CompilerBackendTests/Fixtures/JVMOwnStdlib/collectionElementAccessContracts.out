@@ -1,0 +1,180 @@
+10
+30
+10
+30
+10
+30
+10
+30
+3
+2
+3
+2
+null
+null
+null
+null
+null
+null
+null
+null
+List is empty.
+Collection is empty.
+List is empty.
+Collection is empty.
+null
+null
+null
+null
+list:0
+empty
+get:0
+10
+erased:0
+empty
+get:0
+10
+empty list:0
+empty
+List is empty.
+empty erased:0
+empty
+List is empty.
+cursor:0
+iterator
+has:0
+next:0
+1
+empty cursor:0
+iterator
+has:0
+Collection is empty.
+list:1
+empty
+size
+get:1
+20
+erased:1
+empty
+size
+get:1
+20
+empty list:1
+empty
+List is empty.
+empty erased:1
+empty
+List is empty.
+cursor:1
+iterator
+has:0
+next:0
+has:1
+next:1
+has:2
+next:2
+has:3
+3
+empty cursor:1
+iterator
+has:0
+Collection is empty.
+list:2
+empty
+get:0
+10
+erased:2
+empty
+get:0
+10
+empty list:2
+empty
+null
+empty erased:2
+empty
+null
+cursor:2
+iterator
+has:0
+next:0
+1
+empty cursor:2
+iterator
+has:0
+null
+list:3
+empty
+size
+get:1
+20
+erased:3
+empty
+size
+get:1
+20
+empty list:3
+empty
+null
+empty erased:3
+empty
+null
+cursor:3
+iterator
+has:0
+next:0
+has:1
+next:1
+has:2
+next:2
+has:3
+3
+empty cursor:3
+iterator
+has:0
+null
+7
+8
+7
+8
+iterator
+has:0
+has
+iterator
+has:0
+next:0
+next
+empty
+get:0
+get
+iterator
+has:0
+has
+iterator
+has:0
+next:0
+next
+empty
+size
+get:1
+get
+iterator
+has:0
+has
+iterator
+has:0
+next:0
+next
+empty
+get:0
+get
+iterator
+has:0
+has
+iterator
+has:0
+next:0
+next
+empty
+size
+get:1
+get

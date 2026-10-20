@@ -354,6 +354,12 @@
       "virtualPath": "<kswiftk-jvm>/map-operators.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/collections/MapsKt"
+    },
+    {
+      "path": "declarations/CollectionElements.kt",
+      "virtualPath": "<kswiftk-jvm>/collection-elements.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
     }
   ],
   "runtimeClassAliases": {
