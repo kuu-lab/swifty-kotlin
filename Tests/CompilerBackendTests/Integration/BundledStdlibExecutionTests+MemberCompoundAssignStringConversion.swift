@@ -37,4 +37,30 @@ extension BundledStdlibExecutionTests {
             expectedOutput: "start=Foo(1)\nn=42\nb=true\nnullable=null\n"
         )
     }
+
+    @Test
+    func testIndexedStringCompoundAssignConvertsArbitraryRHS() throws {
+        try compileAndRunKotlin(
+            """
+            class Item { override fun toString(): String = "item" }
+            class NullableHolder(var text: String?)
+            fun fromBody(): String { do { return "body" } while ("${throw IllegalStateException("bad")}" == "x") }
+            fun main() {
+                val strings = arrayOf("a")
+                strings[0] += 2; strings[0] += true; strings[0] += Item()
+                println(strings[0])
+                val nullable = arrayOf<String?>(null)
+                nullable[0] += 3; println(nullable[0])
+                val list = mutableListOf("l"); list[0] += false; println(list[0])
+                val map = mutableMapOf(1 to "m"); map[1] += 4; map[2] += 5
+                println(map[1]); println(map[2]); println(fromBody())
+                var text: String? = null; text += 42
+                val normalized: String = text; println(normalized)
+                val holder = NullableHolder(null); holder.text += true; println(holder.text)
+            }
+            """,
+            expectedOutput: "a2trueitem\nnull3\nlfalse\nm4\nnull5\nbody\nnull42\nnulltrue\n"
+        )
+    }
+
 }

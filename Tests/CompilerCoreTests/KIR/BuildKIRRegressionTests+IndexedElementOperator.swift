@@ -20,6 +20,16 @@ extension BuildKIRRegressionTests {
         return Array(callees[readIndex...])
     }
 
+    @Test func testIndexedStringPlusAssignConvertsPrimitiveRHS() throws {
+        let callees = try mainCallees("""
+        fun main() { val a = arrayOf("x"); a[0] += 1 }
+        """)
+        let conversion = try #require(callees.firstIndex(of: runtimeCallee(.anyToString)))
+        let concat = try #require(callees.firstIndex(of: "__kk_string_concat_flat"))
+        #expect(conversion < concat)
+        #expect(!callees.contains(runtimeCallee(.opAdd)))
+    }
+
     @Test func testIndexedCompoundAssignCallsElementPlusOperator() throws {
         let callees = try mainCallees("""
         class V(val x: Int) { operator fun plus(o: V) = V(x + o.x) }

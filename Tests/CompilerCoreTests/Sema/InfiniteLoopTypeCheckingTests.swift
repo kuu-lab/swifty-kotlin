@@ -172,5 +172,31 @@ struct InfiniteLoopTypeCheckingTests {
 
 
 
+    @Test func testDoWhileTerminatingBodySatisfiesReturnType() throws {
+        try withTemporaryFile(contents: """
+        fun fromBody(): String { do { return "body" } while (false) }
+        fun nested(): String { do { while (true) { return "nested" } } while (false) }
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "DoWhileTerminatingBody", emit: .kirDump)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
+        }
+    }
+
+    @Test(arguments: [
+        "fun fromBreak(): String { do { break } while (false) }",
+        "fun fromBreak(): String { do { run { break } } while (false) }",
+        "fun fromContinue(): String { do { run { continue } } while (false) }",
+    ])
+    func testDoWhileBreakDoesNotSatisfyReturnType(source: String) throws {
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "DoWhileBreak", emit: .kirDump)
+            try runSema(ctx)
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(!errors.isEmpty)
+            #expect(errors.allSatisfy { $0.code == "KSWIFTK-TYPE-0001" }, "\(errors.map(\.message))")
+        }
+    }
+
 }
 #endif

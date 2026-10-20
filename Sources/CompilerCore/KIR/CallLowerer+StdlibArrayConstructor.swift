@@ -96,15 +96,16 @@ extension CallLowerer {
                 .flatMap { sema.symbols.functionSignature(for: $0)?.returnType },
         ].compactMap { runtimeArrayNominalTypeID($0, sema: sema, interner: interner) }.first
 
-        let sizeExpr = driver.lowerExpr(
-            args[0].expr,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        )
+        let sizeIndex = args.firstIndex { $0.label == interner.intern("size") } ?? 0
+        let initializerIndex = args.firstIndex { $0.label == interner.intern("init") } ?? 1
+        // Evaluate supplied expressions once in their written order. A literal
+        // lambda has no construction side effects and its body is inlined below.
+        var evaluated: [Int: KIRExprID] = [:]
+        for (index, argument) in args.enumerated() {
+            if index == initializerIndex, case .lambdaLiteral = ast.arena.expr(argument.expr) { continue }
+            evaluated[index] = driver.lowerExpr(argument.expr, ast: ast, sema: sema, arena: arena, interner: interner, propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions)
+        }
+        guard let sizeExpr = evaluated[sizeIndex] else { return nil }
 
         // kk_array_new_checked throws NegativeArraySizeException for negative
         // sizes instead of silently clamping to an empty array.
@@ -172,11 +173,11 @@ extension CallLowerer {
         instructions.append(.jumpIfEqual(lhs: conditionExpr, rhs: falseExpr, target: exitLabel))
 
         var lambdaResultExpr: KIRExprID?
-        if let actionExprNode = ast.arena.expr(args[1].expr),
+        if let actionExprNode = ast.arena.expr(args[initializerIndex].expr),
            case let .lambdaLiteral(_, bodyExpr, _, _) = actionExprNode
         {
             let lambdaParamSymbol = driver.lambdaLowerer.syntheticLambdaParamSymbol(
-                lambdaExprID: args[1].expr,
+                lambdaExprID: args[initializerIndex].expr,
                 paramIndex: 0
             )
             let previousLocalValue = driver.ctx.localValue(for: lambdaParamSymbol)
@@ -197,15 +198,7 @@ extension CallLowerer {
                 driver.ctx.clearLocalValue(for: lambdaParamSymbol)
             }
         } else {
-            let actionExpr = driver.lowerExpr(
-                args[1].expr,
-                ast: ast,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
-                instructions: &instructions
-            )
+            guard let actionExpr = evaluated[initializerIndex] else { return nil }
             if let callableInfo = driver.ctx.callableValueInfo(for: actionExpr) {
                 let actionResult = arena.appendTemporary(type: anyType)
                 instructions.append(.call(

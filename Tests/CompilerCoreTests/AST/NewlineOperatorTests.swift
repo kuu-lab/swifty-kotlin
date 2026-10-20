@@ -4,6 +4,20 @@ import Testing
 
 @Suite
 struct NewlineOperatorTests {
+    @Test(arguments: ["return@action total", "if (ready) return@action total", "return@action left plus right"])
+    func labeledReturnDoesNotAbsorbFollowingStatement(source: String) {
+        let previous = lex(source).tokens.dropLast()
+        let next = lex("total").tokens.dropLast()
+        #expect(!BuildASTPhase.isContinuationBoundary(previousTail: previous, nextHead: next))
+    }
+
+    @Test(arguments: ["return@action total plus", "this@outer plus"])
+    func labeledExpressionsKeepPendingInfixContinuation(source: String) {
+        let previous = lex(source).tokens.dropLast()
+        let next = lex("total").tokens.dropLast()
+        #expect(BuildASTPhase.isContinuationBoundary(previousTail: previous, nextHead: next))
+    }
+
     @Test(arguments: [
         "+", "-", "*", "/", "%", "==", "!=", "===", "!==", "<", ">", "<=", ">=",
         "..", "..<", "in", "!in", "is", "!is", "=", "+=", "-=", "*=", "/=", "%=", "->", "++", "--",

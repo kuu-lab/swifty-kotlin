@@ -41,7 +41,9 @@ extension TypeCheckDriver {
         suspendLambdaArguments: Set<ExprID>
     ) {
         func functionType(_ exprID: ExprID) -> FunctionType? {
-            guard let type = sema.bindings.exprTypes[exprID] else { return nil }
+            // SAM conversion replaces the expression type with the nominal
+            // interface; its callable signature still owns suspension context.
+            guard let type = sema.bindings.samUnderlyingFunctionType(for: exprID) ?? sema.bindings.exprTypes[exprID] else { return nil }
             if case let .functionType(function) = sema.types.kind(of: sema.types.makeNonNullable(type)) {
                 return function
             }

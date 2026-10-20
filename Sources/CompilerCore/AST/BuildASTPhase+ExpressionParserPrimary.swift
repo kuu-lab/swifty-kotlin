@@ -426,7 +426,9 @@ extension BuildASTPhase.ExpressionParser {
                 _ = consume()
                 if let nameToken = current(), let name = tokenText(nameToken) {
                     _ = consume()
-                    let nameExprID = astArena.appendExpr(.nameRef(name, nameToken.range))
+                    let expression: Expr = interner.resolve(name) == "this"
+                        ? .thisRef(label: nil, nameToken.range) : .nameRef(name, nameToken.range)
+                    let nameExprID = astArena.appendExpr(expression)
                     parts.append(.expression(nameExprID))
                     end = nameToken.range.end
                 }

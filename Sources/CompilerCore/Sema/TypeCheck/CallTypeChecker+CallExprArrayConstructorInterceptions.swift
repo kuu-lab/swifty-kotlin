@@ -68,6 +68,20 @@ extension CallTypeChecker {
            locals[calleeName] == nil,
            !hasSourceBackedArrayConstructor
         {
+            var indices: [Int: Int] = [:]
+            for (i, argument) in args.enumerated() {
+                let parameter = argument.label.map { interner.resolve($0) == "size" ? 0 : (interner.resolve($0) == "init" ? 1 : -1) } ?? i
+                guard (0...1).contains(parameter), indices[parameter] == nil, !argument.isSpread else {
+                    sema.diagnostics.error("KSWIFTK-SEMA-0001", "Invalid array constructor argument.", range: range)
+                    return sema.types.errorType
+                }
+                indices[parameter] = i
+            }
+            guard let sizeIndex = indices[0], args.count == 1 || indices[1] != nil else {
+                sema.diagnostics.error("KSWIFTK-SEMA-0001", "Array constructor requires size and an optional init argument.", range: range)
+                return sema.types.errorType
+            }
+            let initializerIndex = indices[1] ?? 1
             let intType = sema.types.intType
             let arrayName = arrayConstructorTarget.name
             let calleeNameStr = interner.resolve(arrayName)
@@ -84,7 +98,7 @@ extension CallTypeChecker {
                 )
             }
             let countType = driver.inferExpr(
-                args[0].expr,
+                args[sizeIndex].expr,
                 ctx: ctx,
                 locals: &locals,
                 expectedType: intType
@@ -92,7 +106,7 @@ extension CallTypeChecker {
             driver.emitSubtypeConstraint(
                 left: countType,
                 right: intType,
-                range: ast.arena.exprRange(args[0].expr) ?? range,
+                range: ast.arena.exprRange(args[sizeIndex].expr) ?? range,
                 solver: ConstraintSolver(),
                 sema: sema,
                 diagnostics: ctx.sema.diagnostics
@@ -183,12 +197,12 @@ extension CallTypeChecker {
                     returnType: sema.types.makeNullable(sema.types.anyType)
                 )))
                 _ = driver.inferExpr(
-                    args[1].expr,
+                    args[initializerIndex].expr,
                     ctx: ctx,
                     locals: &locals,
                     expectedType: lambdaExpected
                 )
-                let bodyType: TypeID? = if case let .lambdaLiteral(_, body, _, _) = ast.arena.expr(args[1].expr) {
+                let bodyType: TypeID? = if case let .lambdaLiteral(_, body, _, _) = ast.arena.expr(args[initializerIndex].expr) {
                     sema.bindings.exprTypes[body]
                 } else {
                     nil
@@ -219,7 +233,7 @@ extension CallTypeChecker {
             // Skipping it leaves the lambda's index parameter unbound, so
             // `Array<Int>(3) { it }` lowers with a zero index for every slot.
             _ = driver.inferExpr(
-                args[1].expr,
+                args[initializerIndex].expr,
                 ctx: ctx,
                 locals: &locals,
                 expectedType: initExpectedType

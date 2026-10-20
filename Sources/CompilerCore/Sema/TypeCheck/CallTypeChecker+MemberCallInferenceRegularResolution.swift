@@ -86,6 +86,19 @@ extension CallTypeChecker {
             calleeName: calleeName, receiverID: receiverID, receiverType: receiverType,
             args: args, ctx: ctx, locals: &locals
         )
+        // callBy supplies the parameter-map context to nested generic calls.
+        // Infer it before context-free argument probing can emit a stale error.
+        let callableReceiverType = safeCall ? sema.types.makeNonNullable(receiverType) : receiverType
+        if interner.resolve(calleeName) == "callBy",
+           case let .functionType(functionType) = sema.types.kind(of: callableReceiverType),
+           functionType.isCallableReference,
+           let result = inferCallableReferenceMember(
+               id, receiverID: receiverID, functionType: functionType, calleeName: calleeName,
+               args: args, safeCall: safeCall, ctx: ctx, locals: &locals
+           )
+        {
+            return result
+        }
         // Skip lambda literals and callable refs so that their first inference
         // happens inside prepareCallArguments with a contextual expected type,
         // preventing a stale no-expectedType binding from poisoning the cache.

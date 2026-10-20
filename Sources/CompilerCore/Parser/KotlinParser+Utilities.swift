@@ -647,6 +647,22 @@ extension KotlinParser {
         while index > tokens.startIndex {
             let current = tokens.index(before: index)
             let token = tokens[current]
+            if token.kind.isLabelName, current > tokens.startIndex {
+                let at = tokens.index(before: current)
+                if tokens[at].kind == .symbol(.at) {
+                    // A return label is not an operand or an infix operator.
+                    // Keep a qualified `this@label` together as one operand.
+                    if at > tokens.startIndex {
+                        let receiver = tokens.index(before: at)
+                        if tokens[receiver].kind == .keyword(.this) || tokens[receiver].kind == .keyword(.super) {
+                            runLength += 1
+                            index = receiver
+                            continue
+                        }
+                    }
+                    return runLength >= 2 && runLength.isMultiple(of: 2)
+                }
+            }
             switch token.kind {
             case .identifier, .backtickedIdentifier,
                  .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral,

@@ -295,8 +295,8 @@ final class DeclTypeChecker {
             )
         }
 
-        let finalPropertyType = inferredPropertyType
-            ?? sema.types.nullableAnyType
+        let inferred = inferredPropertyType ?? sema.types.nullableAnyType
+        let finalPropertyType = property.type == nil ? exposedAnonymousType(inferred, symbol: symbol, range: property.range, ctx: ctx) : inferred
         sema.symbols.setPropertyType(finalPropertyType, for: symbol)
 
         if property.modifiers.contains(.lateinit) {
