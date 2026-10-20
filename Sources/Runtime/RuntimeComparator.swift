@@ -138,6 +138,17 @@ public func __kk_compare_with_comparator(
     _ b: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let comparatorInvoke = runtimeSortedWithComparatorInvoke(fnPtr: comparatorRaw, closureRaw: 0)
-    return comparatorInvoke(a, b, outThrown)
+    let compareFnPtr = kk_itable_lookup_dynamic(
+        comparatorRaw,
+        Int(runtimeComparatorInterfaceTypeID),
+        0
+    )
+    guard compareFnPtr != 0 else {
+        return kk_dispatch_error()
+    }
+    let compareFn = unsafeBitCast(
+        compareFnPtr,
+        to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    return compareFn(comparatorRaw, a, b, outThrown)
 }
