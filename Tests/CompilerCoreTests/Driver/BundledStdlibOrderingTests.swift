@@ -6,6 +6,14 @@ import Testing
 @Suite
 struct BundledStdlibOrderingTests {
     @Test
+    func testJVMPlatformSourcesAreExcludedFromNativeBundle() throws {
+        let sources = try BundledStdlib.collectBundledStdlibSources()
+        #expect(!sources.isEmpty)
+        #expect(sources.contains { $0.path == "__bundled_kotlin/Pair/Pair.kt" })
+        #expect(!sources.contains { $0.path.hasPrefix("__bundled_jvm/") })
+    }
+
+    @Test
     func testBundledSourcesAreLoadedBeforeUserInputsInDictionaryOrder() throws {
         try withTemporaryFiles(contents: [
             "fun alpha(): Int = 1",

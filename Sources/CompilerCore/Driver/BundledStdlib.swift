@@ -51,7 +51,7 @@ package enum BundledStdlib {
 
         var relativePaths: [String] = []
         while let path = enumerator.nextObject() as? String {
-            if path.hasSuffix(".kt") {
+            if path.hasSuffix(".kt"), !path.hasPrefix("jvm/") {
                 relativePaths.append(String(path.dropLast(3)))
             }
         }

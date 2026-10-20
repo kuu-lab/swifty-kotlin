@@ -1,0 +1,898 @@
+[
+  {
+    "symbol": "__jvmNewList",
+    "owner": "java/util/ArrayList",
+    "name": "<init>",
+    "descriptor": "()V",
+    "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmNewSet",
+    "owner": "java/util/LinkedHashSet",
+    "name": "<init>",
+    "descriptor": "()V",
+    "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmNewMap",
+    "owner": "java/util/LinkedHashMap",
+    "name": "<init>",
+    "descriptor": "()V",
+    "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmEmptyList",
+    "owner": "java/util/Collections",
+    "name": "emptyList",
+    "descriptor": "()Ljava/util/List;",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmEmptySet",
+    "owner": "java/util/Collections",
+    "name": "emptySet",
+    "descriptor": "()Ljava/util/Set;",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmEmptyMap",
+    "owner": "java/util/Collections",
+    "name": "emptyMap",
+    "descriptor": "()Ljava/util/Map;",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmSingletonList",
+    "owner": "java/util/Collections",
+    "name": "singletonList",
+    "descriptor": "(Ljava/lang/Object;)Ljava/util/List;",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmSingletonSet",
+    "owner": "java/util/Collections",
+    "name": "singleton",
+    "descriptor": "(Ljava/lang/Object;)Ljava/util/Set;",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmSingletonMap",
+    "owner": "java/util/Collections",
+    "name": "singletonMap",
+    "descriptor": "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/util/Map;",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmArrayList",
+    "owner": "java/util/Arrays",
+    "name": "asList",
+    "descriptor": "([Ljava/lang/Object;)Ljava/util/List;",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmWhitespace",
+    "owner": "java/lang/Character",
+    "name": "isWhitespace",
+    "descriptor": "(C)Z",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmSpaceChar",
+    "owner": "java/lang/Character",
+    "name": "isSpaceChar",
+    "descriptor": "(C)Z",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmSubstring",
+    "owner": "java/lang/String",
+    "name": "substring",
+    "descriptor": "(II)Ljava/lang/String;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmRootLocale",
+    "owner": "java/util/Locale",
+    "name": "ROOT",
+    "descriptor": "Ljava/util/Locale;",
+    "kind": "getStatic"
+  },
+  {
+    "symbol": "__jvmUppercase",
+    "owner": "java/lang/String",
+    "name": "toUpperCase",
+    "descriptor": "(Ljava/util/Locale;)Ljava/lang/String;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmLowercase",
+    "owner": "java/lang/String",
+    "name": "toLowerCase",
+    "descriptor": "(Ljava/util/Locale;)Ljava/lang/String;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmEqualsIgnoreCase",
+    "owner": "java/lang/String",
+    "name": "equalsIgnoreCase",
+    "descriptor": "(Ljava/lang/String;)Z",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmParseByte",
+    "owner": "java/lang/Byte",
+    "name": "parseByte",
+    "descriptor": "(Ljava/lang/String;I)B",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmParseShort",
+    "owner": "java/lang/Short",
+    "name": "parseShort",
+    "descriptor": "(Ljava/lang/String;I)S",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmParseInt",
+    "owner": "java/lang/Integer",
+    "name": "parseInt",
+    "descriptor": "(Ljava/lang/String;I)I",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmParseLong",
+    "owner": "java/lang/Long",
+    "name": "parseLong",
+    "descriptor": "(Ljava/lang/String;I)J",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmParseFloat",
+    "owner": "java/lang/Float",
+    "name": "parseFloat",
+    "descriptor": "(Ljava/lang/String;)F",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmParseDouble",
+    "owner": "java/lang/Double",
+    "name": "parseDouble",
+    "descriptor": "(Ljava/lang/String;)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmUpperChar",
+    "owner": "java/lang/Character",
+    "name": "toUpperCase",
+    "descriptor": "(C)C",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmLowerChar",
+    "owner": "java/lang/Character",
+    "name": "toLowerCase",
+    "descriptor": "(C)C",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmIndexOf",
+    "owner": "java/lang/String",
+    "name": "indexOf",
+    "descriptor": "(Ljava/lang/String;I)I",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmLastIndexOf",
+    "owner": "java/lang/String",
+    "name": "lastIndexOf",
+    "descriptor": "(Ljava/lang/String;I)I",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmSortList",
+    "owner": "java/util/Collections",
+    "name": "sort",
+    "descriptor": "(Ljava/util/List;)V",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmReverseOrder",
+    "owner": "java/util/Collections",
+    "name": "reverseOrder",
+    "descriptor": "()Ljava/util/Comparator;",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmSortListWithComparator",
+    "owner": "java/util/Collections",
+    "name": "sort",
+    "descriptor": "(Ljava/util/List;Ljava/util/Comparator;)V",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmCopyList",
+    "owner": "java/util/ArrayList",
+    "name": "<init>",
+    "descriptor": "(Ljava/util/Collection;)V",
+    "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmAtomicFlag",
+    "owner": "java/util/concurrent/atomic/AtomicBoolean",
+    "name": "<init>",
+    "descriptor": "()V",
+    "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmCompareFlag",
+    "owner": "java/util/concurrent/atomic/AtomicBoolean",
+    "name": "compareAndSet",
+    "descriptor": "(ZZ)Z",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmMinDouble",
+    "owner": "java/lang/Math",
+    "name": "min",
+    "descriptor": "(DD)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMaxDouble",
+    "owner": "java/lang/Math",
+    "name": "max",
+    "descriptor": "(DD)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMinFloat",
+    "owner": "java/lang/Math",
+    "name": "min",
+    "descriptor": "(FF)F",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMaxFloat",
+    "owner": "java/lang/Math",
+    "name": "max",
+    "descriptor": "(FF)F",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmClassOf",
+    "owner": "java/lang/Object",
+    "name": "getClass",
+    "descriptor": "()Ljava/lang/Class;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmGenericInterfaces",
+    "owner": "java/lang/Class",
+    "name": "getGenericInterfaces",
+    "descriptor": "()[Ljava/lang/reflect/Type;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmAtomicReference",
+    "owner": "java/util/concurrent/atomic/AtomicReference",
+    "name": "<init>",
+    "descriptor": "(Ljava/lang/Object;)V",
+    "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmAtomicGet",
+    "owner": "java/util/concurrent/atomic/AtomicReference",
+    "name": "get",
+    "descriptor": "()Ljava/lang/Object;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmAtomicCAS",
+    "owner": "java/util/concurrent/atomic/AtomicReference",
+    "name": "compareAndSet",
+    "descriptor": "(Ljava/lang/Object;Ljava/lang/Object;)Z",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmLatch",
+    "owner": "java/util/concurrent/CountDownLatch",
+    "name": "<init>",
+    "descriptor": "(I)V",
+    "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmCountDown",
+    "owner": "java/util/concurrent/CountDownLatch",
+    "name": "countDown",
+    "descriptor": "()V",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmAwait",
+    "owner": "java/util/concurrent/CountDownLatch",
+    "name": "await",
+    "descriptor": "()V",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmLock",
+    "owner": "java/util/concurrent/locks/ReentrantLock",
+    "name": "<init>",
+    "descriptor": "()V",
+    "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmLockAcquire",
+    "owner": "java/util/concurrent/locks/ReentrantLock",
+    "name": "lock",
+    "descriptor": "()V",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmLockRelease",
+    "owner": "java/util/concurrent/locks/ReentrantLock",
+    "name": "unlock",
+    "descriptor": "()V",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmAtomicSet",
+    "owner": "java/util/concurrent/atomic/AtomicReference",
+    "name": "set",
+    "descriptor": "(Ljava/lang/Object;)V",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmPattern",
+    "owner": "java/util/regex/Pattern",
+    "name": "compile",
+    "descriptor": "(Ljava/lang/String;I)Ljava/util/regex/Pattern;",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmPatternQuote",
+    "owner": "java/util/regex/Pattern",
+    "name": "quote",
+    "descriptor": "(Ljava/lang/String;)Ljava/lang/String;",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMatcherQuote",
+    "owner": "java/util/regex/Matcher",
+    "name": "quoteReplacement",
+    "descriptor": "(Ljava/lang/String;)Ljava/lang/String;",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmPatternText",
+    "owner": "java/util/regex/Pattern",
+    "name": "pattern",
+    "descriptor": "()Ljava/lang/String;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmPatternFlags",
+    "owner": "java/util/regex/Pattern",
+    "name": "flags",
+    "descriptor": "()I",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmMatcher",
+    "owner": "java/util/regex/Pattern",
+    "name": "matcher",
+    "descriptor": "(Ljava/lang/CharSequence;)Ljava/util/regex/Matcher;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmMatcherMatches",
+    "owner": "java/util/regex/Matcher",
+    "name": "matches",
+    "descriptor": "()Z",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmMatcherFind",
+    "owner": "java/util/regex/Matcher",
+    "name": "find",
+    "descriptor": "()Z",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmMatcherFindAt",
+    "owner": "java/util/regex/Matcher",
+    "name": "find",
+    "descriptor": "(I)Z",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmMatcherLookingAt",
+    "owner": "java/util/regex/Matcher",
+    "name": "lookingAt",
+    "descriptor": "()Z",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmMatcherRegion",
+    "owner": "java/util/regex/Matcher",
+    "name": "region",
+    "descriptor": "(II)Ljava/util/regex/Matcher;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmMatcherTransparent",
+    "owner": "java/util/regex/Matcher",
+    "name": "useTransparentBounds",
+    "descriptor": "(Z)Ljava/util/regex/Matcher;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmMatcherAnchoring",
+    "owner": "java/util/regex/Matcher",
+    "name": "useAnchoringBounds",
+    "descriptor": "(Z)Ljava/util/regex/Matcher;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmMatcherReplaceAll",
+    "owner": "java/util/regex/Matcher",
+    "name": "replaceAll",
+    "descriptor": "(Ljava/lang/String;)Ljava/lang/String;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmMatcherReplaceFirst",
+    "owner": "java/util/regex/Matcher",
+    "name": "replaceFirst",
+    "descriptor": "(Ljava/lang/String;)Ljava/lang/String;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmMatcherGroupCount",
+    "owner": "java/util/regex/Matcher",
+    "name": "groupCount",
+    "descriptor": "()I",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmMatcherGroup",
+    "owner": "java/util/regex/Matcher",
+    "name": "group",
+    "descriptor": "(I)Ljava/lang/String;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmMatcherStart",
+    "owner": "java/util/regex/Matcher",
+    "name": "start",
+    "descriptor": "(I)I",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmMatcherEnd",
+    "owner": "java/util/regex/Matcher",
+    "name": "end",
+    "descriptor": "(I)I",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmMatcherGroupNamed",
+    "owner": "java/util/regex/Matcher",
+    "name": "group",
+    "descriptor": "(Ljava/lang/String;)Ljava/lang/String;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmMatcherStartNamed",
+    "owner": "java/util/regex/Matcher",
+    "name": "start",
+    "descriptor": "(Ljava/lang/String;)I",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmMatcherEndNamed",
+    "owner": "java/util/regex/Matcher",
+    "name": "end",
+    "descriptor": "(Ljava/lang/String;)I",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmUIntString",
+    "owner": "java/lang/Integer",
+    "name": "toUnsignedString",
+    "descriptor": "(I)Ljava/lang/String;",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmULongString",
+    "owner": "java/lang/Long",
+    "name": "toUnsignedString",
+    "descriptor": "(J)Ljava/lang/String;",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmUIntCompare",
+    "owner": "java/lang/Integer",
+    "name": "compareUnsigned",
+    "descriptor": "(II)I",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmULongCompare",
+    "owner": "java/lang/Long",
+    "name": "compareUnsigned",
+    "descriptor": "(JJ)I",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmClassName",
+    "owner": "java/lang/Class",
+    "name": "getName",
+    "descriptor": "()Ljava/lang/String;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmClassSimpleName",
+    "owner": "java/lang/Class",
+    "name": "getSimpleName",
+    "descriptor": "()Ljava/lang/String;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmClassModifiers",
+    "owner": "java/lang/Class",
+    "name": "getModifiers",
+    "descriptor": "()I",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmDeclaredMethods",
+    "owner": "java/lang/Class",
+    "name": "getDeclaredMethods",
+    "descriptor": "()[Ljava/lang/reflect/Method;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmPublicMethods",
+    "owner": "java/lang/Class",
+    "name": "getMethods",
+    "descriptor": "()[Ljava/lang/reflect/Method;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmDeclaredConstructors",
+    "owner": "java/lang/Class",
+    "name": "getDeclaredConstructors",
+    "descriptor": "()[Ljava/lang/reflect/Constructor;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmDeclaredClasses",
+    "owner": "java/lang/Class",
+    "name": "getDeclaredClasses",
+    "descriptor": "()[Ljava/lang/Class;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmDeclaredFields",
+    "owner": "java/lang/Class",
+    "name": "getDeclaredFields",
+    "descriptor": "()[Ljava/lang/reflect/Field;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmClassLoader",
+    "owner": "java/lang/Class",
+    "name": "getClassLoader",
+    "descriptor": "()Ljava/lang/ClassLoader;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmClassSuperclass",
+    "owner": "java/lang/Class",
+    "name": "getSuperclass",
+    "descriptor": "()Ljava/lang/Class;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmClassInterfaces",
+    "owner": "java/lang/Class",
+    "name": "getInterfaces",
+    "descriptor": "()[Ljava/lang/Class;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmClassIsAnnotation",
+    "owner": "java/lang/Class",
+    "name": "isAnnotation",
+    "descriptor": "()Z",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmClassIsPrimitive",
+    "owner": "java/lang/Class",
+    "name": "isPrimitive",
+    "descriptor": "()Z",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmClassIsArray",
+    "owner": "java/lang/Class",
+    "name": "isArray",
+    "descriptor": "()Z",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmClassIsLocal",
+    "owner": "java/lang/Class",
+    "name": "isLocalClass",
+    "descriptor": "()Z",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmClassIsAnonymous",
+    "owner": "java/lang/Class",
+    "name": "isAnonymousClass",
+    "descriptor": "()Z",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmClassInstance",
+    "owner": "java/lang/Class",
+    "name": "isInstance",
+    "descriptor": "(Ljava/lang/Object;)Z",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmLoadClass",
+    "owner": "java/lang/Class",
+    "name": "forName",
+    "descriptor": "(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmClassAnnotation",
+    "owner": "java/lang/Class",
+    "name": "getAnnotation",
+    "descriptor": "(Ljava/lang/Class;)Ljava/lang/annotation/Annotation;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmAnnotations",
+    "owner": "java/lang/reflect/AnnotatedElement",
+    "name": "getAnnotations",
+    "descriptor": "()[Ljava/lang/annotation/Annotation;",
+    "kind": "interface"
+  },
+  {
+    "symbol": "__jvmAnnotationsByType",
+    "owner": "java/lang/reflect/AnnotatedElement",
+    "name": "getAnnotationsByType",
+    "descriptor": "(Ljava/lang/Class;)[Ljava/lang/annotation/Annotation;",
+    "kind": "interface"
+  },
+  {
+    "symbol": "__jvmMethodName",
+    "owner": "java/lang/reflect/Method",
+    "name": "getName",
+    "descriptor": "()Ljava/lang/String;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmMethodReturn",
+    "owner": "java/lang/reflect/Method",
+    "name": "getReturnType",
+    "descriptor": "()Ljava/lang/Class;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmMethodDefault",
+    "owner": "java/lang/reflect/Method",
+    "name": "getDefaultValue",
+    "descriptor": "()Ljava/lang/Object;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmMethodInvoke",
+    "owner": "java/lang/reflect/Method",
+    "name": "invoke",
+    "descriptor": "(Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmExecutableParams",
+    "owner": "java/lang/reflect/Executable",
+    "name": "getParameterTypes",
+    "descriptor": "()[Ljava/lang/Class;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmExecutableParamAnnotations",
+    "owner": "java/lang/reflect/Executable",
+    "name": "getParameterAnnotations",
+    "descriptor": "()[[Ljava/lang/annotation/Annotation;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmExecutableModifiers",
+    "owner": "java/lang/reflect/Executable",
+    "name": "getModifiers",
+    "descriptor": "()I",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmExecutableSynthetic",
+    "owner": "java/lang/reflect/Executable",
+    "name": "isSynthetic",
+    "descriptor": "()Z",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmConstructorInvoke",
+    "owner": "java/lang/reflect/Constructor",
+    "name": "newInstance",
+    "descriptor": "([Ljava/lang/Object;)Ljava/lang/Object;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmSetAccessible",
+    "owner": "java/lang/reflect/AccessibleObject",
+    "name": "setAccessible",
+    "descriptor": "(Z)V",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmInvocationCause",
+    "owner": "java/lang/reflect/InvocationTargetException",
+    "name": "getCause",
+    "descriptor": "()Ljava/lang/Throwable;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmFieldName",
+    "owner": "java/lang/reflect/Field",
+    "name": "getName",
+    "descriptor": "()Ljava/lang/String;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmFieldGet",
+    "owner": "java/lang/reflect/Field",
+    "name": "get",
+    "descriptor": "(Ljava/lang/Object;)Ljava/lang/Object;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmFieldSet",
+    "owner": "java/lang/reflect/Field",
+    "name": "set",
+    "descriptor": "(Ljava/lang/Object;Ljava/lang/Object;)V",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmFieldModifiers",
+    "owner": "java/lang/reflect/Field",
+    "name": "getModifiers",
+    "descriptor": "()I",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmRepeatableContainer",
+    "owner": "java/lang/annotation/Repeatable",
+    "name": "value",
+    "descriptor": "()Ljava/lang/Class;",
+    "kind": "interface"
+  },
+  {
+    "symbol": "__jvmAnnotationType",
+    "owner": "java/lang/annotation/Annotation",
+    "name": "annotationType",
+    "descriptor": "()Ljava/lang/Class;",
+    "kind": "interface"
+  },
+  {
+    "symbol": "__jvmComponentType",
+    "owner": "java/lang/Class",
+    "name": "getComponentType",
+    "descriptor": "()Ljava/lang/Class;",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmNewStackTraceElement",
+    "owner": "java/lang/StackTraceElement",
+    "name": "<init>",
+    "descriptor": "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)V",
+    "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmProxy",
+    "owner": "java/lang/reflect/Proxy",
+    "name": "newProxyInstance",
+    "descriptor": "(Ljava/lang/ClassLoader;[Ljava/lang/Class;Ljava/lang/reflect/InvocationHandler;)Ljava/lang/Object;",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmDeepEquals",
+    "owner": "java/util/Objects",
+    "name": "deepEquals",
+    "descriptor": "(Ljava/lang/Object;Ljava/lang/Object;)Z",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmDeepHash",
+    "owner": "java/util/Arrays",
+    "name": "deepHashCode",
+    "descriptor": "([Ljava/lang/Object;)I",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmDeepString",
+    "owner": "java/util/Arrays",
+    "name": "deepToString",
+    "descriptor": "([Ljava/lang/Object;)Ljava/lang/String;",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmCopyArray",
+    "owner": "java/util/Arrays",
+    "name": "copyOf",
+    "descriptor": "([Ljava/lang/Object;I)[Ljava/lang/Object;",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmUtf8String",
+    "owner": "java/lang/String",
+    "name": "<init>",
+    "descriptor": "([BLjava/lang/String;)V",
+    "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmUnmodifiableSet",
+    "owner": "java/util/Collections",
+    "name": "unmodifiableSet",
+    "descriptor": "(Ljava/util/Set;)Ljava/util/Set;",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmUIntDivide",
+    "owner": "java/lang/Integer",
+    "name": "divideUnsigned",
+    "descriptor": "(II)I",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmUIntRemainder",
+    "owner": "java/lang/Integer",
+    "name": "remainderUnsigned",
+    "descriptor": "(II)I",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmULongDivide",
+    "owner": "java/lang/Long",
+    "name": "divideUnsigned",
+    "descriptor": "(JJ)J",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmULongRemainder",
+    "owner": "java/lang/Long",
+    "name": "remainderUnsigned",
+    "descriptor": "(JJ)J",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmULongStringRadix",
+    "owner": "java/lang/Long",
+    "name": "toUnsignedString",
+    "descriptor": "(JI)Ljava/lang/String;",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmArrayCopy",
+    "owner": "java/lang/System",
+    "name": "arraycopy",
+    "descriptor": "(Ljava/lang/Object;ILjava/lang/Object;II)V",
+    "kind": "static"
+  }
+]
