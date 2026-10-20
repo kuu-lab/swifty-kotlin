@@ -12,7 +12,7 @@ extension JVMFunctionBuilder {
         return try numericType(target, argument) == target
     }
     func numericType(_ a: JVMValueType, _ b: JVMValueType) throws -> JVMValueType {
-        guard a.isNumeric, b.isNumeric else { throw fail("JVM arithmetic/comparison requires numeric operands.") }
+        guard let a = a.numericCarrier, let b = b.numericCarrier else { throw fail("JVM arithmetic/comparison requires numeric operands.") }
         if a == .char && b == .char { return .char }
         if a.unsignedName != nil || b.unsignedName != nil { return a == .ulong || b == .ulong ? .ulong : .uint }
         return [.double, .float, .long].first { $0 == a || $0 == b } ?? .int
@@ -80,7 +80,7 @@ extension JVMFunctionBuilder {
             let compared = try jdkCall("java/lang/String", "compareTo", [.string], .int, receiver: convert(left, to: .string), arguments: [right])!
             let result = try value(.boolean); instructions.append(.binary(op, compared, try constant(.int(0), .int), result)); return result
         }
-        if ordering, !left.type.isNumeric, !right.type.isNumeric,
+        if ordering, left.type.numericCarrier == nil, right.type.numericCarrier == nil,
            let binding = program.sema.bindings.callBinding(for: id),
            let method = program.textLibraryMethods[binding.chosenCallee]?.method,
            method.owner == "java/lang/Comparable", method.name == "compareTo" {
@@ -117,10 +117,14 @@ extension JVMFunctionBuilder {
             let a = try convert(left, to: any), b = try convert(right, to: any), result = try value(.boolean)
             instructions.append(.binary(op, a, b, result)); return result
         }
-        let type = try comparison ? numericType(left.type, right.type) : program.expressionType(id)
+        let promoted = try numericType(left.type, right.type)
+        // Arithmetic uses operand width before a contextual result widening.
+        // Char comparisons retain Char, while Char subtraction produces Int.
+        let type: JVMValueType = !comparison && promoted == .char ? .int : promoted
         let a = try convert(left, to: type), b = try convert(right, to: [.shl, .shr, .ushr].contains(op) ? .int : type)
         let result = try value(comparison ? .boolean : type)
-        instructions.append(.binary(op, a, b, result)); return result
+        instructions.append(.binary(op, a, b, result))
+        return try comparison ? result : convert(result, to: program.expressionType(id))
     }
 
     func conditional(_ id: ExprID, _ condition: ExprID, _ thenExpr: ExprID, _ elseExpr: ExprID?, discarded: Bool = false) throws -> JVMValue? {

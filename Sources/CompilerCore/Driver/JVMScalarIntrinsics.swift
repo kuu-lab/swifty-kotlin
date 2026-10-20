@@ -55,7 +55,8 @@ extension JVMFunctionBuilder {
     }
 
     func scalarMember(_ receiver: ExprID, name: String, args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult? {
-        guard let sourceType = evaluatedOperands[receiver]?.type ?? (try? program.expressionType(receiver)) else { return nil }
+        guard let rawType = evaluatedOperands[receiver]?.type ?? (try? program.expressionType(receiver)) else { return nil }
+        let sourceType = rawType.numericCarrier ?? rawType
         if let target = Self.numericConversions[name], sourceType.isNumeric, args.isEmpty {
             return JVMIntrinsicResult(value: try convert(requireValue(receiver), to: target))
         }
@@ -88,7 +89,7 @@ extension JVMFunctionBuilder {
                 return JVMIntrinsicResult(value: try jdkCall(owner, unsigned ? "compareUnsigned" : "compare", [parameter, parameter], .int, arguments: [convert(source, to: type), convert(argument, to: type)]))
             }
             if name == "inv", args.isEmpty {
-                let source = try requireValue(receiver), result = try value(sourceType)
+                let source = try convert(requireValue(receiver), to: sourceType), result = try value(sourceType)
                 let bits = try constant(sourceType.width == 2 ? .long(-1) : .int(-1), sourceType)
                 instructions.append(.binary(.bitwiseXor, source, bits, result)); return JVMIntrinsicResult(value: result)
             }

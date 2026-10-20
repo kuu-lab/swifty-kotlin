@@ -23,6 +23,25 @@ public enum JVMValueType: Hashable, Sendable {
     }
     public var width: Int { self == .unit ? 0 : (self == .long || self == .ulong || self == .double ? 2 : 1) }
     public var isNumeric: Bool { [.int, .long, .float, .double, .byte, .short, .char, .uint, .ulong, .ubyte, .ushort].contains(self) }
+    /// The primitive carrier used for numeric operations, without changing the
+    /// reference descriptor required by generic bounds and nullable values.
+    var numericCarrier: JVMValueType? {
+        if isNumeric { return self }
+        return switch referenceName {
+        case "java/lang/Byte": .byte
+        case "java/lang/Short": .short
+        case "java/lang/Character": .char
+        case "java/lang/Integer": .int
+        case "java/lang/Long": .long
+        case "java/lang/Float": .float
+        case "java/lang/Double": .double
+        case "kotlin/UByte": .ubyte
+        case "kotlin/UShort": .ushort
+        case "kotlin/UInt": .uint
+        case "kotlin/ULong": .ulong
+        default: nil
+        }
+    }
     public var referenceName: String? {
         if self == .string { return "java/lang/String" }
         if case .unsignedArray = self { return descriptor }

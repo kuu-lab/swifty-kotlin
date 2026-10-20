@@ -143,7 +143,7 @@ extension JVMFunctionBuilder {
               let entry = program.textLibraryMethods[binding.chosenCallee] else { return nil }
         let method = entry.method
         if method.owner == "java/lang/Comparable", method.name == "compareTo", let receiver,
-           try program.expressionType(receiver).isNumeric {
+           (evaluatedOperands[receiver]?.type ?? (try? program.expressionType(receiver)))?.numericCarrier != nil {
             return try scalarMember(receiver, name: "compareTo", args: args, id: id)
         }
         let kotlinBuilderOperations: Set<String> = ["get", "set", "subSequence", "substring", "deleteAt", "deleteRange", "setRange", "clear", "appendLine", "appendRange", "insertRange"]
