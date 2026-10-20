@@ -6,11 +6,22 @@ extension JVMFunctionBuilder {
     func expression(_ id: ExprID, discarded: Bool = false) throws -> JVMValue? {
         if let operand = evaluatedOperands[id] { return operand }
         let pendingConstructor = !pendingAllocations.isEmpty, start = instructions.count
-        let result: JVMValue?
+        var result: JVMValue?
         do { result = try rawExpression(id, discarded: discarded) }
         catch is JVMTerminatedExpression { return nil }
         if pendingConstructor, instructions.dropFirst(start).contains(where: \.isSuspension) {
             throw fail("JVM suspension inside an uninitialized constructor argument is unsupported.", id)
+        }
+        if result == nil, !discarded, !terminated,
+           let logicalType = program.sema.bindings.exprType(for: id),
+           case .unit = program.sema.types.kind(of: logicalType) {
+            // A void-producing Unit expression still has a value when its
+            // surrounding expression expects an object, such as a lambda result.
+            program.functionArities.insert(0)
+            let unit: JVMValueType = .reference("kotlin/Unit", nullable: false)
+            let boxed = try value(unit)
+            instructions.append(.getStatic(JVMField(owner: "kotlin/Unit", name: "INSTANCE", type: unit, access: 0x19), boxed))
+            result = boxed
         }
         let target = program.sema.bindings.samInterfaceType(for: id) ?? (program.sema.bindings.samUnderlyingFunctionType(for: id) != nil ? program.sema.bindings.exprType(for: id) : nil)
         guard !terminated, let result, let target, case .classType = program.sema.types.kind(of: target) else { return result }
