@@ -849,7 +849,9 @@ struct RuntimeStringArrayTests {
             return
         }
         #expect(values.map(\.tag) == Array(repeating: RuntimeValue.stringTag, count: expected.count), sourceLocation: sourceLocation)
-        #expect(runtimeSequenceSourceElements(from: sequenceRaw)?.map(runtimeStringValue) == expected, sourceLocation: sourceLocation)
+        #expect(runtimeSequenceSourceElements(from: sequenceRaw)?.map {
+            runtimeStringFromRawOrPanic($0, caller: #function)
+        } == expected, sourceLocation: sourceLocation)
     }
 
     private func assertRawValueSequence(
