@@ -123,6 +123,30 @@ struct CodegenBackendSequenceEdgeCasesTests {
     }
 
     @Test
+    func testCodegenSequenceSumOfPropagatesSelectorException() throws {
+        let source = """
+        fun main() {
+            var seenBeforeException = 0
+            try {
+                sequenceOf(1, 2, 3).sumOf {
+                    if (it == 3) throw IllegalStateException("selector stop")
+                    seenBeforeException = seenBeforeException * 10 + it
+                    it
+                }
+            } catch (_: IllegalStateException) {
+                println(seenBeforeException)
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceSumOfSelectorException",
+            expected: "12\n"
+        )
+    }
+
+    @Test
     func testCodegenSequenceReduceIndexedReturnsAccumulatedValueOrThrowsOnEmpty() throws {
         let source = """
         fun main() {

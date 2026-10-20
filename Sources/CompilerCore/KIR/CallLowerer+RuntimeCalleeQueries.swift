@@ -54,6 +54,13 @@ extension CallLowerer {
     /// appends the extra `intptr_t * _Nullable` slot.
     func needsThrownChannel(calleeName: InternedString, interner: StringInterner) -> Bool {
         let name = interner.resolve(calleeName)
+        // Function values may throw from their target even though Kotlin's
+        // FunctionN.invoke declaration has no checked-throws annotation.
+        if name == "kk_function_invoke" || name.hasPrefix("kk_function_invoke_")
+            || name == "kk_suspend_function_invoke" || name.hasPrefix("kk_suspend_function_invoke_")
+        {
+            return true
+        }
         return [
             "kk_runtime_result_get_or_else",
             "kk_runtime_result_get_or_throw",
@@ -161,7 +168,16 @@ extension CallLowerer {
     }
 
     func shouldRethrowThrownChannelResult(calleeName: InternedString, interner: StringInterner) -> Bool {
-        [
+        let name = interner.resolve(calleeName)
+        // Function-value invocation forwards exceptions from the runtime
+        // callback through its outThrown slot, so unhandled exceptions must
+        // escape the current Kotlin function just like other throwing calls.
+        if name == "kk_function_invoke" || name.hasPrefix("kk_function_invoke_")
+            || name == "kk_suspend_function_invoke" || name.hasPrefix("kk_suspend_function_invoke_")
+        {
+            return true
+        }
+        return [
             "__kk_channel_result_get_or_throw",
             "kk_runtime_result_get_or_else",
             "kk_runtime_result_get_or_throw",
