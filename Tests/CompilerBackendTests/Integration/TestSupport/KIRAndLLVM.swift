@@ -5,6 +5,7 @@ import RuntimeABI
 import Testing
 
 /// Like `extractCallees`, but also reports each call's argument count for
+/// Like `extractCallees`, but also reports each call's argument count for
 /// tests that need to distinguish overloads by arity.
 func extractCalleesWithArgumentCounts(
     from body: [KIRInstruction],

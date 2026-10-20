@@ -52,7 +52,8 @@ func assertKotlinOutput(
     moduleName: String,
     expected: String,
     optLevel: OptimizationLevel = .O0,
-    allowDefaultStdlibLibrary: Bool = true
+    allowDefaultStdlibLibrary: Bool = true,
+    sourceLocation: Testing.SourceLocation = #_sourceLocation
 ) throws {
     try withTemporaryFile(contents: source) { path in
         let outputBase = FileManager.default.temporaryDirectory
@@ -69,7 +70,7 @@ func assertKotlinOutput(
         let result = try CommandRunner.run(executable: outputBase, arguments: [])
         let normalizedStdout = result.stdout
             .replacingOccurrences(of: "\r\n", with: "\n")
-        #expect(normalizedStdout == expected)
+        #expect(normalizedStdout == expected, sourceLocation: sourceLocation)
     }
 }
 #endif

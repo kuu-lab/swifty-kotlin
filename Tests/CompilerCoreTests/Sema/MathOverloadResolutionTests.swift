@@ -230,22 +230,22 @@ struct MathOverloadResolutionTests {
         forCall callName: String,
         inFunction functionName: String,
         withSource source: String,
-        file: StaticString = #filePath,
-        line: UInt = #line
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
     ) throws -> String? {
         let ctx = try sharedCtx()
         #expect(
             !(ctx.diagnostics.hasError),
-            "Unexpected sema error for '\(callName)': \(ctx.diagnostics.diagnostics.map(\.message))"
+            "Unexpected sema error for '\(callName)': \(ctx.diagnostics.diagnostics.map(\.message))",
+            sourceLocation: sourceLocation
         )
-        let sema = try #require(ctx.sema)
+        let sema = try #require(ctx.sema, sourceLocation: sourceLocation)
         let matches = try matchingCallExpressions(
             named: callName,
             source: source,
             inFunction: functionName,
             in: ctx
         )
-        #expect(!matches.isEmpty, "Expected \(callName) in shared function \(functionName)")
+        #expect(!matches.isEmpty, "Expected \(callName) in shared function \(functionName)", sourceLocation: sourceLocation)
         return matches.first.flatMap { sema.symbols.externalLinkName(for: $0.1) }
     }
 
@@ -278,12 +278,11 @@ struct MathOverloadResolutionTests {
         names: Set<String>,
         inFunction functionName: String,
         withSource source: String,
-        file: StaticString = #filePath,
-        line: UInt = #line
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
     ) throws -> [String: String] {
         let ctx = try sharedCtx()
-        #expect(!(ctx.diagnostics.hasError), "Unexpected sema error")
-        let sema = try #require(ctx.sema)
+        #expect(!(ctx.diagnostics.hasError), "Unexpected sema error", sourceLocation: sourceLocation)
+        let sema = try #require(ctx.sema, sourceLocation: sourceLocation)
         var results: [String: String] = [:]
         for name in names {
             guard let chosenCallee = try matchingCallExpressions(
@@ -292,7 +291,7 @@ struct MathOverloadResolutionTests {
                 inFunction: functionName,
                 in: ctx
             ).first?.1 else {
-                #expect(Bool(false), "Expected \(name) in shared function \(functionName)")
+                #expect(Bool(false), "Expected \(name) in shared function \(functionName)", sourceLocation: sourceLocation)
                 continue
             }
             results[name] = sema.symbols.externalLinkName(for: chosenCallee) ?? "<source>"
@@ -876,14 +875,14 @@ struct MathOverloadResolutionTests {
         lastComponent: String,
         inFunction functionName: String,
         withSource source: String,
-        file: StaticString = #filePath,
-        line: UInt = #line
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
     ) throws -> String? {
         let ctx = try sharedCtx()
         #expect(!(ctx.diagnostics.hasError),
-                "Unexpected sema error for FQN call '\(lastComponent)'")
-        let ast = try #require(ctx.ast)
-        let sema = try #require(ctx.sema)
+                "Unexpected sema error for FQN call '\(lastComponent)'",
+                sourceLocation: sourceLocation)
+        let ast = try #require(ctx.ast, sourceLocation: sourceLocation)
+        let sema = try #require(ctx.sema, sourceLocation: sourceLocation)
         let functionRange = try functionBodyRange(named: functionName, in: ast, interner: ctx.interner)
         for exprIndex in ast.arena.exprs.indices {
             let exprID = ExprID(rawValue: Int32(exprIndex))
