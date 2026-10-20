@@ -4,8 +4,8 @@ import Testing
 
 @Suite
 struct TypeAliasConstructorInferenceTests {
-    private func context(_ source: String) throws -> CompilationContext {
-        let ctx = makeCompilationContext(inputs: ["/typealias-constructor.kt"], includeStdlib: false)
+    private func context(_ source: String, includeStdlib: Bool = false) throws -> CompilationContext {
+        let ctx = makeCompilationContext(inputs: ["/typealias-constructor.kt"], includeStdlib: includeStdlib)
         _ = ctx.sourceManager.addFile(path: "/typealias-constructor.kt", contents: Data(source.utf8))
         try runSema(ctx)
         return ctx
@@ -190,5 +190,55 @@ struct TypeAliasConstructorInferenceTests {
         fun reject() = TextPayload<Int>("x", 1)
         """)
         #expect(ctx.diagnostics.hasError)
+    }
+
+    @Test func arrayTypeAliasConstructorsResolveWithoutPrivateAccessError() throws {
+        let ctx = try context("""
+        typealias BoolArray = Array<Boolean>
+        typealias IArray = IntArray
+        typealias MyArray<T> = Array<T>
+
+        fun box(): String {
+            val ba = BoolArray(1) { true }
+            if (!ba[0]) return "Fail #1"
+
+            val ia = IArray(1) { 42 }
+            if (ia[0] != 42) return "Fail #2"
+
+            val ma = MyArray<Int>(1) { 42 }
+            if (ma[0] != 42) return "Fail #2"
+
+            return "OK"
+        }
+        """, includeStdlib: true)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func privateArrayTypeAliasConstructorRejectsCrossFileAccess() throws {
+        let ctx = makeCompilationContext(
+            inputs: ["/file1.kt", "/file2.kt"],
+            includeStdlib: true
+        )
+        _ = ctx.sourceManager.addFile(
+            path: "/file1.kt",
+            contents: Data("package test\nprivate typealias PrivateArray<T> = Array<T>\n".utf8)
+        )
+        _ = ctx.sourceManager.addFile(
+            path: "/file2.kt",
+            contents: Data("package test\nfun test() { val a = PrivateArray<Int>(1) { 42 } }\n".utf8)
+        )
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0040" })
+    }
+
+    @Test func inferredGenericArrayTypeAliasConstructorResolves() throws {
+        let ctx = try context("""
+        typealias MyArray<T> = Array<T>
+        fun test() {
+            val ma = MyArray(1) { 42 }
+            val str = MyArray(1) { "hello" }
+        }
+        """, includeStdlib: true)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 }
