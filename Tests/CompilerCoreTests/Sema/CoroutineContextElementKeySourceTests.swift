@@ -133,18 +133,28 @@ struct CoroutineContextElementKeySourceTests {
         #expect(ctx.diagnostics.hasError)
     }
 
-    @Test(arguments: ["key", "get", "fold", "minusKey"])
-    func elementMembersHaveOneSourceOwner(name: String) throws {
+    struct ElementMemberExpectation: Sendable {
+        let name: String
+        let expectedKind: SymbolKind
+    }
+
+    @Test(arguments: [
+        ElementMemberExpectation(name: "key", expectedKind: .property),
+        ElementMemberExpectation(name: "get", expectedKind: .function),
+        ElementMemberExpectation(name: "fold", expectedKind: .function),
+        ElementMemberExpectation(name: "minusKey", expectedKind: .function),
+    ])
+    func elementMembersHaveOneSourceOwner(expectation: ElementMemberExpectation) throws {
         let ctx = makeContextFromSource("import kotlin.coroutines.CoroutineContext")
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
         let sema = try #require(ctx.sema)
-        let fqName = ["kotlin", "coroutines", "CoroutineContext", "Element", name].map(ctx.interner.intern)
+        let fqName = ["kotlin", "coroutines", "CoroutineContext", "Element", expectation.name].map(ctx.interner.intern)
         let members = sema.symbols.lookupAll(fqName: fqName)
         #expect(members.count == 1)
         let member = try #require(members.first)
         let info = try #require(sema.symbols.symbol(member))
-        #expect(info.kind == (name == "key" ? .property : .function))
+        #expect(info.kind == expectation.expectedKind)
         #expect(!info.flags.contains(.synthetic))
         #expect(info.declSite != nil)
         #expect(sema.symbols.isSourceBackedSymbol(member))
@@ -179,19 +189,26 @@ struct CoroutineContextElementKeySourceTests {
         #expect(ctx.sourceManager.path(of: file) == "__bundled_kotlin/coroutines/CoroutineContextImpl.kt")
     }
 
-    @Test(arguments: [false, true])
-    func importedClassifierCanQualifyNestedSupertype(useAlias: Bool) throws {
+    struct NestedClassifierImportCase: Sendable {
+        let qualifier: String
+        let importClause: String
+    }
+
+    @Test(arguments: [
+        NestedClassifierImportCase(qualifier: "Outer", importClause: "import nested.Outer"),
+        NestedClassifierImportCase(qualifier: "Alias", importClause: "import nested.Outer as Alias"),
+    ])
+    func importedClassifierCanQualifyNestedSupertype(testCase: NestedClassifierImportCase) throws {
         let declaration = """
         package nested
         interface Outer {
             interface Marker
         }
         """
-        let qualifier = useAlias ? "Alias" : "Outer"
         let source = """
-        import nested.Outer\(useAlias ? " as Alias" : "")
-        class Item : \(qualifier).Marker
-        fun marker(): \(qualifier).Marker = Item()
+        \(testCase.importClause)
+        class Item : \(testCase.qualifier).Marker
+        fun marker(): \(testCase.qualifier).Marker = Item()
         """
         let ctx = makeContextFromSources([declaration, source])
         try runSema(ctx)
