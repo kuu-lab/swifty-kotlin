@@ -20,7 +20,7 @@ extension JVMFunctionBuilder {
         guard !scopes.contains(where: { $0[name] != nil }) else { return nil }
         return inlineArguments[name]
     }
-    func inlineCall(_ args: [CallArgument], receiver: ExprID? = nil, id: ExprID) throws -> JVMIntrinsicResult? {
+    func inlineCall(_ args: [CallArgument], receiver: ExprID? = nil, id: ExprID, expectedResult: JVMValueType? = nil) throws -> JVMIntrinsicResult? {
         guard let binding = program.sema.bindings.callBinding(for: id),
               let declaration = program.inlineDeclarations[binding.chosenCallee] else { return nil }
         guard !inlineStack.contains(binding.chosenCallee),
@@ -92,7 +92,7 @@ extension JVMFunctionBuilder {
                 scopes[0][parameter.name] = local
             }
         }
-        let type = try program.expressionType(id)
+        let type = try expectedResult ?? program.expressionType(id)
         let physicalResult = program.references[binding.chosenCallee]?.result ?? method?.result
         // Safe calls lift Unit to Unit?, but inline Unit bodies have no result.
         // The safe-call join materializes Unit only on the non-null edge.

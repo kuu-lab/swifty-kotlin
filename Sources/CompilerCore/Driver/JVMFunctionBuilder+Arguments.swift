@@ -64,7 +64,7 @@ extension JVMFunctionBuilder {
         try masks.map { try constant(.int(Int32(bitPattern: $0)), .int) } + [constant(.null, .reference(constructor ? "kotlin/jvm/internal/DefaultConstructorMarker" : "java/lang/Object", nullable: true))]
     }
 
-    func sourceCall(_ args: [CallArgument], receiver: ExprID? = nil, id: ExprID) throws -> JVMIntrinsicResult? {
+    func sourceCall(_ args: [CallArgument], receiver: ExprID? = nil, id: ExprID, expectedResult: JVMValueType? = nil) throws -> JVMIntrinsicResult? {
         let binding = program.sema.bindings.callBinding(for: id)
         guard let symbol = binding?.chosenCallee ?? program.sema.bindings.identifierSymbol(for: id) else { return nil }
         let reference = program.references[symbol]
@@ -98,7 +98,7 @@ extension JVMFunctionBuilder {
         let ordered = try arguments(args, binding: binding, parameters: types, declarations: defaultParameters, id: id)
         var values = try zip(prefix, allTypes).map { try convert($0.0, to: $0.1) } + ordered.values
         let usesDefaults = ordered.masks.contains { $0 != 0 }
-        let resultType = try program.expressionType(id)
+        let resultType = try expectedResult ?? program.expressionType(id)
         let physicalResult = reference?.result ?? method!.result
         // A safe Unit call has logical type Unit?, but its ordinary entry
         // still returns void. The safe-call join materializes Unit afterward.
