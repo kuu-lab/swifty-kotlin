@@ -790,6 +790,30 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Coroutine"
         ),
+        // KUU-2687: limitedParallelism view / immediate resolution / Unconfined
+        // rejection backing for the bundled CoroutineDispatcher API.
+        RuntimeABIFunctionSpec(
+            name: "__kk_dispatcher_limited_parallelism",
+            parameters: [
+                RuntimeABIParameter(name: "dispatcher", type: .intptr),
+                RuntimeABIParameter(name: "parallelism", type: .intptr),
+                RuntimeABIParameter(name: "nameRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_dispatcher_immediate_or_self",
+            parameters: [RuntimeABIParameter(name: "dispatcher", type: .intptr)],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_dispatcher_is_unconfined",
+            parameters: [RuntimeABIParameter(name: "dispatcher", type: .intptr)],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_with_context",
             parameters: [

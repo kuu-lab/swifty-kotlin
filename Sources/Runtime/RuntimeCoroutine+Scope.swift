@@ -910,7 +910,7 @@ private func runtimeScopeAsync(
         if let scheduler = blockingChildScheduler {
             scheduler.scheduleChild(work)
         } else if context.dispatcher != 0 {
-            runtimeResolveDispatcher(from: context.dispatcher).queue.async(execute: work)
+            runtimeResolveDispatcher(from: context.dispatcher).dispatchAsync(execute: work)
         } else if let scheduler = scope.testSchedulerIfPresent() {
             scheduler.schedule(after: 0, action: work)
         } else {

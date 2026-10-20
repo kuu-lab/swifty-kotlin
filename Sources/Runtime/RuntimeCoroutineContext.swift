@@ -22,7 +22,13 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
 
     /// Context operations expose the original element; scheduling uses its tag.
     var dispatcherElementHandle: Int {
-        dispatcherHandleRaw != 0 ? dispatcherHandleRaw : dispatcher
+        if dispatcherHandleRaw != 0 { return dispatcherHandleRaw }
+        // KUU-2687: a bare scheduler tag resolves to the singleton dispatcher
+        // object so `fold`/`get`/`===`/printing all see the Dispatchers.*
+        // value the tag stands for — never the raw integer (which is
+        // indistinguishable from an Int literal at the print layer).
+        if isDispatcherTag(dispatcher) { return runtimeDispatcherObjectHandle(forTag: dispatcher) }
+        return dispatcher
     }
 
     init(
@@ -1213,10 +1219,11 @@ private func runtimeInstallWithContextChildContext(
     }
 }
 
-private func isDispatcherTag(_ raw: Int) -> Bool {
+func isDispatcherTag(_ raw: Int) -> Bool {
     raw == RuntimeDispatcherTag.defaultDispatcher ||
     raw == RuntimeDispatcherTag.ioDispatcher ||
-    raw == RuntimeDispatcherTag.mainDispatcher
+    raw == RuntimeDispatcherTag.mainDispatcher ||
+    raw == RuntimeDispatcherTag.mainImmediateDispatcher
 }
 
 func isRegisteredRuntimeObjectPointer(_ raw: Int) -> Bool {
@@ -1325,12 +1332,20 @@ func resolveToCoroutineContext(_ raw: Int) -> RuntimeCoroutineContext {
     return RuntimeCoroutineContext(dispatcher: raw)
 }
 
-final class RuntimeDispatcher: @unchecked Sendable {
+class RuntimeDispatcher: @unchecked Sendable {
     let queue: DispatchQueue
-    let tag: Int
+    /// The scheduler identity stored on a `RuntimeCoroutineContext`. Views
+    /// assign their own pointer post-init so the context keeps the view as the
+    /// dispatcher element instead of collapsing to the base tag.
+    var tag: Int
     let displayName: String?
     let isUnconfined: Bool
+    /// KUU-2687: `Dispatchers.Main.immediate` semantics — when a dispatch lands
+    /// while already running on this dispatcher, the work runs in place rather
+    /// than being re-queued (upstream `isDispatchNeeded() == false`).
+    let supportsImmediateDispatch: Bool
     weak var blockingEventLoop: RuntimeEventLoop?
+    private var immediatePeerStorage: RuntimeDispatcher?
 
     /// CORO-003: pthread key for the currently active dispatcher (replaces threadDictionary).
     private static let currentDispatcherPthreadKey: pthread_key_t = makePthreadKey()
@@ -1345,12 +1360,14 @@ final class RuntimeDispatcher: @unchecked Sendable {
         tag: Int,
         displayName: String? = nil,
         isUnconfined: Bool = false,
+        supportsImmediateDispatch: Bool = false,
         nominalTypeFqName: String = "kotlinx.coroutines.CoroutineDispatcher"
     ) {
         self.queue = queue
         self.tag = tag
         self.displayName = displayName
         self.isUnconfined = isUnconfined
+        self.supportsImmediateDispatch = supportsImmediateDispatch
         // KUU-1395: a dispatcher object carries CoroutineDispatcher's nominal
         // identity so `is`/`as?` checks on `Dispatchers.*` values and on the
         // runBlocking event-loop element answer like kotlinx's.
@@ -1361,7 +1378,20 @@ final class RuntimeDispatcher: @unchecked Sendable {
         )
     }
 
-    func dispatchSync<T>(execute work: @Sendable () -> T) -> T {
+    /// The dispatcher `.immediate` resolves to. For every dispatcher except
+    /// `Dispatchers.Main` (and views over it) this is `self`, matching upstream
+    /// where only `MainCoroutineDispatcher.immediate` is a distinct object.
+    var immediatePeer: RuntimeDispatcher { immediatePeerStorage ?? self }
+    func setImmediatePeer(_ peer: RuntimeDispatcher) { immediatePeerStorage = peer }
+
+    /// Whether this dispatcher (or the dispatcher a view delegates to) is the
+    /// main-bound one — upstream `limitedParallelism` answers namedOrThis for it.
+    var isMainDispatcher: Bool {
+        tag == RuntimeDispatcherTag.mainDispatcher
+            || tag == RuntimeDispatcherTag.mainImmediateDispatcher
+    }
+
+    func dispatchSync<T>(execute work: @escaping @Sendable () -> T) -> T {
         if isCurrent {
             // Already on the correct dispatcher; execute inline to avoid deadlock.
             // Still set RuntimeDispatcher.current so callee code can observe
@@ -1381,6 +1411,16 @@ final class RuntimeDispatcher: @unchecked Sendable {
     }
 
     func dispatchAsync(execute work: @escaping @Sendable () -> Void) {
+        // immediate dispatchers resume in place when already on their thread —
+        // upstream `DispatchedContinuation` skips dispatch when
+        // `isDispatchNeeded` returns false.
+        if supportsImmediateDispatch, isCurrent {
+            let saved = RuntimeDispatcher.current
+            RuntimeDispatcher.current = self
+            work()
+            RuntimeDispatcher.current = saved
+            return
+        }
         queue.async { [self] in
             let saved = RuntimeDispatcher.current
             RuntimeDispatcher.current = self
@@ -1399,15 +1439,161 @@ final class RuntimeDispatcher: @unchecked Sendable {
         if RuntimeDispatcher.current?.tag == tag { return true }
         // DispatchQueue.main.sync from the main thread deadlocks; detect it
         // even when RuntimeDispatcher.current has not been set yet.
-        if tag == RuntimeDispatcherTag.mainDispatcher, Thread.isMainThread { return true }
+        if tag == RuntimeDispatcherTag.mainDispatcher
+            || tag == RuntimeDispatcherTag.mainImmediateDispatcher,
+           Thread.isMainThread { return true }
         return false
     }
 }
 
-private enum RuntimeDispatcherTag {
+/// KUU-2687: runtime backing for `CoroutineDispatcher.limitedParallelism` —
+/// the upstream `LimitedDispatcher` view. Dispatched work enters a FIFO queue
+/// and at most `parallelismLimit` of it runs on the underlying dispatcher at
+/// once; a suspension frees its slot, which the next queued task takes.
+/// Nested views enqueue their worker tasks through the parent view's own gate,
+/// so chained views compound the limit the way upstream's do.
+final class RuntimeLimitedDispatcher: RuntimeDispatcher, @unchecked Sendable {
+    let base: RuntimeDispatcher
+    let parallelismLimit: Int
+    private let gateLock = NSLock()
+    private var inFlight = 0
+    private var pending: [@Sendable () -> Void] = []
+
+    init(base: RuntimeDispatcher, parallelism: Int, displayName: String) {
+        self.base = base
+        self.parallelismLimit = parallelism
+        super.init(queue: base.queue, tag: 0, displayName: displayName)
+        self.tag = Int(bitPattern: Unmanaged.passUnretained(self).toOpaque())
+    }
+
+    override func dispatchAsync(execute work: @escaping @Sendable () -> Void) {
+        gateLock.lock()
+        pending.append(work)
+        gateLock.unlock()
+        pump()
+    }
+
+    override func dispatchSync<T>(execute work: @escaping @Sendable () -> T) -> T {
+        if isCurrent {
+            let saved = RuntimeDispatcher.current
+            RuntimeDispatcher.current = self
+            defer { RuntimeDispatcher.current = saved }
+            return work()
+        }
+        let semaphore = DispatchSemaphore(value: 0)
+        let resultBox = RuntimeSyncResultBox<T>()
+        dispatchAsync {
+            resultBox.value = work()
+            semaphore.signal()
+        }
+        semaphore.wait()
+        guard let value = resultBox.value else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: limited dispatcher dispatchSync produced no result")
+        }
+        return value
+    }
+
+    /// Start worker tasks until every permit is held. Each worker occupies its
+    /// slot only while a task runs; a suspending coroutine releases it.
+    private func pump() {
+        while true {
+            gateLock.lock()
+            guard inFlight < parallelismLimit, !pending.isEmpty else {
+                gateLock.unlock()
+                return
+            }
+            inFlight += 1
+            let work = pending.removeFirst()
+            gateLock.unlock()
+            base.dispatchAsync { [self] in
+                let saved = RuntimeDispatcher.current
+                RuntimeDispatcher.current = self
+                work()
+                RuntimeDispatcher.current = saved
+                gateLock.lock()
+                inFlight -= 1
+                gateLock.unlock()
+                pump()
+            }
+        }
+    }
+}
+
+private final class RuntimeSyncResultBox<T>: @unchecked Sendable {
+    var value: T?
+}
+
+/// KUU-2687: runtime backing for upstream `NamedDispatcher` — the view
+/// `limitedParallelism(parallelism, name)` returns for dispatchers that already
+/// satisfy the limit (Main) and for nested views whose requested parallelism
+/// is not tighter than the parent's.
+final class RuntimeNamedDispatcher: RuntimeDispatcher, @unchecked Sendable {
+    let wrapped: RuntimeDispatcher
+    private let peerLock = NSLock()
+    private var cachedImmediatePeer: RuntimeDispatcher?
+
+    init(wrapped: RuntimeDispatcher, name: String) {
+        self.wrapped = wrapped
+        // Upstream `NamedDispatcher` is a plain `CoroutineDispatcher` — never
+        // a `MainCoroutineDispatcher` — whatever it wraps, and nested
+        // `limitedParallelism` on it builds a real `LimitedDispatcher`
+        // (only `MainDispatcher`/`LimitedDispatcher`/`Unconfined` override).
+        super.init(
+            queue: wrapped.queue,
+            tag: 0,
+            displayName: name,
+            isUnconfined: wrapped.isUnconfined,
+            supportsImmediateDispatch: wrapped.supportsImmediateDispatch,
+            nominalTypeFqName: "kotlinx.coroutines.CoroutineDispatcher"
+        )
+        self.tag = Int(bitPattern: Unmanaged.passUnretained(self).toOpaque())
+    }
+
+    /// Upstream `NamedDispatcher.immediate` is a named view over the wrapped
+    /// dispatcher's immediate peer.
+    override var immediatePeer: RuntimeDispatcher {
+        peerLock.lock()
+        defer { peerLock.unlock() }
+        if let cachedImmediatePeer { return cachedImmediatePeer }
+        let peer = RuntimeNamedDispatcher(
+            wrapped: wrapped.immediatePeer, name: displayName ?? "dispatcher"
+        )
+        cachedImmediatePeer = peer
+        return peer
+    }
+
+    override var isCurrent: Bool {
+        RuntimeDispatcher.current === self || wrapped.isCurrent
+    }
+
+    override func dispatchAsync(execute work: @escaping @Sendable () -> Void) {
+        wrapped.dispatchAsync { [self] in
+            let saved = RuntimeDispatcher.current
+            RuntimeDispatcher.current = self
+            work()
+            RuntimeDispatcher.current = saved
+        }
+    }
+
+    override func dispatchSync<T>(execute work: @escaping @Sendable () -> T) -> T {
+        wrapped.dispatchSync { [self] in
+            let saved = RuntimeDispatcher.current
+            RuntimeDispatcher.current = self
+            defer { RuntimeDispatcher.current = saved }
+            return work()
+        }
+    }
+}
+
+enum RuntimeDispatcherTag {
     static let defaultDispatcher: Int = 0x4B4B_4401 // "KKD\x01"
     static let ioDispatcher: Int = 0x4B4B_4402 // "KKD\x02"
     static let mainDispatcher: Int = 0x4B4B_4403 // "KKD\x03"
+    /// KUU-2687: `Dispatchers.Main.immediate` is a distinct object upstream
+    /// (`MainCoroutineDispatcher.immediate`); keep a dedicated tag so contexts
+    /// preserve it as the interceptor element and `is Dispatchers.Main` stays
+    /// false like kotlinx's.
+    static let mainImmediateDispatcher: Int = 0x4B4B_4404 // "KKD\x04"
 }
 
 /// KUU-1395: `CoroutineDispatcher` is abstract and never constructed at the
@@ -1437,17 +1623,35 @@ func registerCoroutineDispatcherTypeEdgesOnce() {
 
 private let runtimeDefaultDispatcher = RuntimeDispatcher(
     queue: DispatchQueue.global(qos: .default),
-    tag: RuntimeDispatcherTag.defaultDispatcher
+    tag: RuntimeDispatcherTag.defaultDispatcher,
+    displayName: "Dispatchers.Default"
 )
 private let runtimeIODispatcher = RuntimeDispatcher(
     queue: DispatchQueue(label: "kk.dispatcher.io", qos: .utility, attributes: .concurrent),
-    tag: RuntimeDispatcherTag.ioDispatcher
+    tag: RuntimeDispatcherTag.ioDispatcher,
+    displayName: "Dispatchers.IO"
 )
 private let runtimeMainDispatcher = RuntimeDispatcher(
     queue: DispatchQueue.main,
     tag: RuntimeDispatcherTag.mainDispatcher,
+    displayName: "Dispatchers.Main",
     nominalTypeFqName: "kotlinx.coroutines.MainCoroutineDispatcher"
 )
+/// KUU-2687: upstream `Dispatchers.Main.immediate` — same main queue, but a
+/// dispatch requested while already on the main thread runs in place instead
+/// of being re-queued.
+private let runtimeImmediateMainDispatcher = RuntimeDispatcher(
+    queue: DispatchQueue.main,
+    tag: RuntimeDispatcherTag.mainImmediateDispatcher,
+    displayName: "Dispatchers.Main.immediate",
+    supportsImmediateDispatch: true,
+    nominalTypeFqName: "kotlinx.coroutines.MainCoroutineDispatcher"
+)
+
+/// Wire the Main ↔ Main.immediate peer relation on first use; idempotent.
+private func runtimeEnsureMainImmediatePeer() {
+    runtimeMainDispatcher.setImmediatePeer(runtimeImmediateMainDispatcher)
+}
 
 /// Returns the Default dispatcher for unrecognized values.
 func runtimeResolveDispatcher(from raw: Int) -> RuntimeDispatcher {
@@ -1461,9 +1665,29 @@ func runtimeResolveDispatcher(from raw: Int) -> RuntimeDispatcher {
         runtimeIODispatcher
     case RuntimeDispatcherTag.mainDispatcher:
         runtimeMainDispatcher
+    case RuntimeDispatcherTag.mainImmediateDispatcher:
+        runtimeImmediateMainDispatcher
     default:
         runtimeDefaultDispatcher
     }
+}
+
+/// Register a strong-runtime-owned object pointer as a borrowed handle so it
+/// can cross the ABI as a Kotlin object reference. Singletons are passed
+/// unretained; freshly created views must pass `retain: true` or the pointer
+/// would dangle once the local goes out of scope.
+private func runtimeRegisterBorrowedHandle(
+    _ object: RuntimeDispatcher, retain: Bool = false
+) -> Int {
+    let pointer = retain
+        ? Unmanaged.passRetained(object).toOpaque()
+        : Unmanaged.passUnretained(object).toOpaque()
+    runtimeStorage.withGCLock { state in
+        let key = UInt(bitPattern: pointer)
+        state.objectPointers.insert(key)
+        state.borrowedObjectPointers.insert(key)
+    }
+    return Int(bitPattern: pointer)
 }
 
 /// KUU-1395: registered handle for the dispatcher *object* behind a bare
@@ -1476,16 +1700,12 @@ private func runtimeDispatcherObjectHandle(forTag tag: Int) -> Int {
         runtimeNamedDispatchers[1] // "Dispatchers.IO"
     case RuntimeDispatcherTag.mainDispatcher:
         runtimeMainDispatcher
+    case RuntimeDispatcherTag.mainImmediateDispatcher:
+        runtimeImmediateMainDispatcher
     default:
         runtimeNamedDispatchers[0] // "Dispatchers.Default"
     }
-    let pointer = Unmanaged.passUnretained(object).toOpaque()
-    runtimeStorage.withGCLock { state in
-        let key = UInt(bitPattern: pointer)
-        state.objectPointers.insert(key)
-        state.borrowedObjectPointers.insert(key)
-    }
-    return Int(bitPattern: pointer)
+    return runtimeRegisterBorrowedHandle(object)
 }
 
 // These globals own the objects; accessors register their pointers idempotently.
@@ -1525,7 +1745,12 @@ public func kk_dispatcher_io() -> Int {
 
 @_cdecl("kk_dispatcher_main")
 public func kk_dispatcher_main() -> Int {
-    RuntimeDispatcherTag.mainDispatcher
+    // `Dispatchers.Main` resolves to the dispatcher *object* (not the bare
+    // scheduler tag) so it is `===`-equal to the element
+    // `ctx[ContinuationInterceptor]` hands back — kotlinx's singleton
+    // contract. Every scheduling path resolves tags and objects through the
+    // same `runtimeResolveDispatcher`, so either form dispatches identically.
+    runtimeRegisterBorrowedHandle(runtimeMainDispatcher)
 }
 
 // Memory-representation bridge: scheduler tags have no Kotlin vtable, while
@@ -1535,7 +1760,12 @@ public func kk_dispatcher_immediate(
     _ dispatcher: Int, _ getterSlot: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    if isDispatcherTag(dispatcher) { return dispatcher }
+    // Bare tags and runtime dispatcher objects resolve through the shared
+    // path: Main answers its dedicated immediate object, everything else self.
+    // A source-defined MainCoroutineDispatcher keeps its Kotlin getter below.
+    if runtimeDispatcherIfSupported(dispatcher) != nil {
+        return kk_dispatcher_immediate_or_self(dispatcher)
+    }
     let fnPtr = kk_vtable_lookup(dispatcher, getterSlot)
     let getter = unsafeBitCast(
         fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
@@ -1548,6 +1778,95 @@ public func kk_dispatcher_immediate(
         )
     }
     return result
+}
+
+/// KUU-2687: upstream `MainCoroutineDispatcher.immediate` resolution for
+/// runtime dispatchers — `Dispatchers.Main` answers the immediate object,
+/// `Dispatchers.Main.immediate` answers itself, all other dispatchers answer
+/// themselves (kotlinx's default getter).
+/// Resolves only real runtime dispatchers (tags + registered objects); a
+/// source-defined `CoroutineDispatcher` heap object resolves to nil so bridge
+/// entry points can leave it untouched instead of collapsing to Default.
+private func runtimeDispatcherIfSupported(_ raw: Int) -> RuntimeDispatcher? {
+    if isDispatcherTag(raw) { return runtimeResolveDispatcher(from: raw) }
+    guard isRegisteredRuntimeObjectPointer(raw),
+          let ptr = UnsafeMutableRawPointer(bitPattern: raw),
+          let dispatcher = tryCast(ptr, to: RuntimeDispatcher.self)
+    else { return nil }
+    return dispatcher
+}
+
+@_cdecl("__kk_dispatcher_immediate_or_self")
+public func kk_dispatcher_immediate_or_self(_ dispatcher: Int) -> Int {
+    runtimeEnsureMainImmediatePeer()
+    guard let resolved = runtimeDispatcherIfSupported(dispatcher) else {
+        return dispatcher
+    }
+    return runtimeRegisterBorrowedHandle(resolved.immediatePeer)
+}
+
+/// KUU-2687: upstream `CoroutineDispatcher.limitedParallelism`. Returns a
+/// dispatcher *view* whose concurrent task count never exceeds `parallelism`.
+/// Nested view rules: a view on `Dispatchers.Main` is a named wrapper of Main
+/// (upstream `namedOrThis`); a limited view whose stored parallelism is not
+/// tighter than the requested one returns itself (a named wrapper of it when
+/// `name` is given); otherwise the returned view queues through the parent
+/// view so limits compound. Validation of `parallelism` and the Unconfined
+/// rejection happen on the Kotlin side.
+@_cdecl("__kk_dispatcher_limited_parallelism")
+public func kk_dispatcher_limited_parallelism(
+    _ dispatcher: Int, _ parallelism: Int, _ nameRaw: Int
+) -> Int {
+    runtimeEnsureMainImmediatePeer()
+    // A source-defined dispatcher keeps its identity — the runtime cannot
+    // delegate dispatch into a Kotlin `dispatch()` override from a view yet.
+    guard let resolved = runtimeDispatcherIfSupported(dispatcher) else {
+        return dispatcher
+    }
+    let name = nameRaw != 0
+        ? extractString(from: UnsafeMutableRawPointer(bitPattern: nameRaw))
+        : nil
+    let view: RuntimeDispatcher
+    var created = false
+    if resolved.isMainDispatcher {
+        // Upstream `MainDispatcher.limitedParallelism` → `namedOrThis`.
+        if let name {
+            view = RuntimeNamedDispatcher(wrapped: resolved, name: name)
+            created = true
+        } else {
+            view = resolved
+        }
+    } else if let limited = resolved as? RuntimeLimitedDispatcher,
+              parallelism >= limited.parallelismLimit {
+        // Upstream `LimitedDispatcher.limitedParallelism`: the requested limit
+        // is no tighter than the existing one → `namedOrThis`.
+        if let name {
+            view = RuntimeNamedDispatcher(wrapped: limited, name: name)
+            created = true
+        } else {
+            view = limited
+        }
+    } else {
+        view = RuntimeLimitedDispatcher(
+            base: resolved,
+            parallelism: parallelism,
+            // Upstream: `name ?: "$dispatcher.limitedParallelism($parallelism)"`.
+            displayName: name ?? "\(resolved.displayName ?? "dispatcher").limitedParallelism(\(parallelism))"
+        )
+        created = true
+    }
+    // `view === resolved` means upstream returned `this` — keep the caller's
+    // raw handle so `Main.limitedParallelism(n) === Dispatchers.Main` holds.
+    return view === resolved && !created
+        ? dispatcher
+        : runtimeRegisterBorrowedHandle(view, retain: created)
+}
+
+/// KUU-2687: Kotlin-side `Unconfined` check for `limitedParallelism` —
+/// upstream throws `UnsupportedOperationException` on it.
+@_cdecl("__kk_dispatcher_is_unconfined")
+public func kk_dispatcher_is_unconfined(_ dispatcher: Int) -> Int {
+    (runtimeDispatcherIfSupported(dispatcher)?.isUnconfined ?? false) ? 1 : 0
 }
 
 /// A simple heap-allocated, `@unchecked Sendable` box used to pass an integer
@@ -1579,17 +1898,10 @@ func kk_with_context_impl(
     outThrown: UnsafeMutablePointer<Int>? = nil,
     restoreJobHandle: (@Sendable (Int) -> Int)?
 ) -> Int {
-    // `kk_with_context_full` resolves the context argument first, so this
-    // always receives a dispatcher tag (0/unknown values fall to Default).
-    let resolvedDispatcher = switch dispatcherRaw {
-    case RuntimeDispatcherTag.defaultDispatcher,
-         RuntimeDispatcherTag.ioDispatcher,
-         RuntimeDispatcherTag.mainDispatcher:
-        dispatcherRaw
-    default:
-        RuntimeDispatcherTag.defaultDispatcher
-    }
-    let dispatcher = runtimeResolveDispatcher(from: resolvedDispatcher)
+    // `kk_with_context_full` resolves the context argument first; the raw may
+    // be a scheduler tag or a dispatcher-object handle (limited/named views).
+    // `runtimeResolveDispatcher` covers both, falling back to Default.
+    let dispatcher = runtimeResolveDispatcher(from: dispatcherRaw)
 
     guard suspendEntryPoint(from: blockFnPtr) != nil else {
         // Clean up the continuation to avoid leaking coroutine state.
@@ -1628,7 +1940,8 @@ func kk_with_context_impl(
     // even calls from a background thread targeting the main queue would hang.
     // We therefore execute inline whenever we are already on the target queue
     // (main-thread case) to avoid the deadlock.
-    if dispatcher.tag == RuntimeDispatcherTag.mainDispatcher && Thread.isMainThread {
+    if (dispatcher.tag == RuntimeDispatcherTag.mainDispatcher && Thread.isMainThread)
+        || (dispatcher.supportsImmediateDispatch && dispatcher.isCurrent) {
         let savedScope = RuntimeCoroutineScope.current
         let savedDispatcher = RuntimeDispatcher.current
         defer { RuntimeCoroutineScope.current = savedScope }
