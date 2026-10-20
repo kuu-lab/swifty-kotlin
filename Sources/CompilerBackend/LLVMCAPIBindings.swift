@@ -32,6 +32,9 @@ final class LLVMCAPIBindings {
     typealias LLVMContextDisposeFn = @convention(c) (LLVMContextRef?) -> Void
     typealias LLVMModuleCreateWithNameInContextFn = @convention(c) (UnsafePointer<CChar>?, LLVMContextRef?) -> LLVMModuleRef?
     typealias LLVMDisposeModuleFn = @convention(c) (LLVMModuleRef?) -> Void
+    // LLVMLinkModules2(Dest, Src) -> LLVMBool (nonzero on failure). Destructively
+    // merges Src into Dest; Src must not be used or disposed afterwards.
+    typealias LLVMLinkModules2Fn = @convention(c) (LLVMModuleRef?, LLVMModuleRef?) -> LLVMBool
     typealias LLVMPrintModuleToStringFn = @convention(c) (LLVMModuleRef?) -> UnsafeMutablePointer<CChar>?
     typealias LLVMDisposeMessageFn = @convention(c) (UnsafeMutablePointer<CChar>?) -> Void
     typealias LLVMSetTargetFn = @convention(c) (LLVMModuleRef?, UnsafePointer<CChar>?) -> Void
@@ -262,6 +265,7 @@ final class LLVMCAPIBindings {
     let contextDisposeFn: LLVMContextDisposeFn
     let moduleCreateFn: LLVMModuleCreateWithNameInContextFn
     let disposeModuleFn: LLVMDisposeModuleFn
+    let linkModules2Fn: LLVMLinkModules2Fn?
     let printModuleToStringFn: LLVMPrintModuleToStringFn
     let disposeMessageFn: LLVMDisposeMessageFn
     let setTargetFn: LLVMSetTargetFn
@@ -374,6 +378,7 @@ final class LLVMCAPIBindings {
         contextDisposeFn: @escaping LLVMContextDisposeFn,
         moduleCreateFn: @escaping LLVMModuleCreateWithNameInContextFn,
         disposeModuleFn: @escaping LLVMDisposeModuleFn,
+        linkModules2Fn: LLVMLinkModules2Fn? = nil,
         printModuleToStringFn: @escaping LLVMPrintModuleToStringFn,
         disposeMessageFn: @escaping LLVMDisposeMessageFn,
         setTargetFn: @escaping LLVMSetTargetFn,
@@ -486,6 +491,7 @@ final class LLVMCAPIBindings {
         self.contextDisposeFn = contextDisposeFn
         self.moduleCreateFn = moduleCreateFn
         self.disposeModuleFn = disposeModuleFn
+        self.linkModules2Fn = linkModules2Fn
         self.printModuleToStringFn = printModuleToStringFn
         self.disposeMessageFn = disposeMessageFn
         self.setTargetFn = setTargetFn

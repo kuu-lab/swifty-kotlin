@@ -193,6 +193,7 @@ extension LLVMCAPIBindings {
                 contextDisposeFn: contextDispose,
                 moduleCreateFn: moduleCreate,
                 disposeModuleFn: disposeModule,
+                linkModules2Fn: loadSymbol(handle: handle, name: "LLVMLinkModules2", as: LLVMLinkModules2Fn.self),
                 printModuleToStringFn: printModule,
                 disposeMessageFn: disposeMessage,
                 setTargetFn: setTarget,

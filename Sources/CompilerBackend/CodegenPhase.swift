@@ -224,13 +224,20 @@ public final class CodegenPhase: CompilerPhase {
     }
 
     private func makeBackend(ctx: CompilationContext) throws -> LLVMBackend {
-        try LLVMBackend(
+        // `-Xfrontend codegen-parallel` opts into partitioned function-body
+        // emission; `-Xfrontend jobs=N` supplies the worker count (the same
+        // knob BuildAST and parallel Sema already share).
+        let parallelJobs = ctx.options.frontendFlags.contains("codegen-parallel")
+            ? ctx.frontendJobs
+            : 1
+        return try LLVMBackend(
             target: ctx.options.target,
             optLevel: ctx.options.optLevel,
             debugInfo: ctx.options.debugInfo,
             diagnostics: ctx.diagnostics,
             moduleName: ctx.options.moduleName,
             phaseTimer: ctx.phaseTimer,
+            parallelJobs: parallelJobs,
             session: session ?? LLVMBackendSession()
         )
     }
