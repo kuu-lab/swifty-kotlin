@@ -131,5 +131,40 @@ struct InheritedInterfaceDefaultArgumentTests {
         try runSema(ctx)
         #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0306" })
     }
+
+    @Test
+    func callableReferencesKeepReceiverScopedDefaultOwner() throws {
+        let ctx = makeContext("""
+        interface Api<T> { fun number(input: T, suffix: String = "!"): String }
+        open class IntBase { fun number(input: Int, suffix: String): String = suffix }
+        class IntLeaf: IntBase(), Api<Int>
+        fun sample() {
+            val bound: (Int) -> String = IntLeaf()::number
+            val unbound: (IntLeaf, Int) -> String = IntLeaf::number
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let implementation = try #require(sema.symbols.lookupAll(fqName: ["IntBase", "number"].map(ctx.interner.intern)).first)
+        let owner = try #require(sema.symbols.lookupAll(fqName: ["Api", "number"].map(ctx.interner.intern)).first)
+        let bindings = sema.bindings.callableReferenceBindings.values.filter { $0.chosenCallee == implementation }
+        #expect(bindings.count == 2)
+        #expect(bindings.allSatisfy { $0.defaultArgumentOwner == owner && $0.isCallableReferenceAdapter })
+        #expect(sema.symbols.functionSignature(for: implementation)?.valueParameterHasDefaultValues == [false, false])
+        #expect(sema.symbols.overrideDefaultsBaseSymbol(for: implementation) == nil)
+    }
+
+    @Test(arguments: [
+        "fun sample() { val bad: () -> String = Impl()::label }",
+        "fun sample() { val bad: (Impl) -> String = Impl::label }",
+        "class Other : Impl(); fun sample() { val bad: () -> String = Other()::label }",
+    ])
+    func callableReferenceDefaultsDoNotLeakToOtherReceivers(source: String) throws {
+        let ctx = makeContext(declarations + "\nfun warm() { val valid: () -> String = Leaf()::label }\n" + source)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError)
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-TYPE-0001" })
+    }
 }
 #endif

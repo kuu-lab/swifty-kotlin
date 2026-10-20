@@ -4,6 +4,7 @@ struct ContextualCallableReferenceBinding {
     let parameterMapping: [Int: Int]
     let requiresAdapter: Bool
     let boundContextParameterTypes: [TypeID]
+    let defaultArgumentOwner: SymbolID?
 }
 
 private struct CallableReferenceFunctionShape {
@@ -184,8 +185,8 @@ extension TypeCheckHelpers {
         )))
     }
 
-    /// The suspend conversion remains argument-only; this type is used for
-    /// overload matching and constraints.
+    /// Match a suspend expectation against the reference's ordinary signature
+    /// before materializing its contextual adapter.
     func suspendConvertedCallableReferenceExpectedType(
         _ callableType: TypeID,
         expectedFunctionType: TypeID,
@@ -414,6 +415,12 @@ extension TypeCheckHelpers {
         availableContextReceiverTypes: [TypeID] = [],
         sema: SemaModule
     ) -> ContextualCallableReferenceBinding? {
+        let defaultArgumentOwner = (targetSymbol ?? boundReceiver?.symbol).flatMap { target in
+            let inheritedOwner = (boundReceiver?.receiverType ?? unboundReceiverType).flatMap {
+                sema.symbols.inheritedDefaultsOwner(for: target, receiver: sema.types.makeNonNullable($0))
+            }
+            return inheritedOwner ?? sema.symbols.expectActualDefaultArgumentOwner(for: target)
+        }
         func functionShapes() -> [CallableReferenceFunctionShape] {
             let callableType = callableFunctionType(
                 for: signature,
@@ -482,7 +489,9 @@ extension TypeCheckHelpers {
                 }
             }
             let hasDefaults = OverloadResolver.normalizeFlags(
-                signature.valueParameterHasDefaultValues, count: parameterCount
+                defaultArgumentOwner.flatMap { sema.symbols.functionSignature(for: $0)?.valueParameterHasDefaultValues }
+                    ?? signature.valueParameterHasDefaultValues,
+                count: parameterCount
             )
             let isVararg = OverloadResolver.normalizeFlags(signature.valueParameterIsVararg, count: parameterCount)
             func canOmitTrailingParameters(from firstIndex: Int) -> Bool {
@@ -607,7 +616,8 @@ extension TypeCheckHelpers {
                     typeArguments: [],
                     parameterMapping: shape.parameterMapping,
                     requiresAdapter: shape.requiresAdapter,
-                    boundContextParameterTypes: shape.boundContextParameterTypes
+                    boundContextParameterTypes: shape.boundContextParameterTypes,
+                    defaultArgumentOwner: defaultArgumentOwner
                 )
             }
             let resolver = OverloadResolver()
@@ -788,7 +798,8 @@ extension TypeCheckHelpers {
                 typeArguments: arguments,
                 parameterMapping: shape.parameterMapping,
                 requiresAdapter: shape.requiresAdapter,
-                boundContextParameterTypes: specializedContextTypes
+                boundContextParameterTypes: specializedContextTypes,
+                defaultArgumentOwner: defaultArgumentOwner
             )
         }
         for shape in functionShapes() {

@@ -58,6 +58,13 @@ extension JVMFunctionBuilder {
         if program.sema.symbols.functionSignature(for: symbol)?.reifiedTypeParameterIndices.isEmpty == false {
             return try reifiedReference(id, symbol: symbol, receiver: receiver, unbound: unbound)
         }
+        if let binding = program.sema.bindings.callableReferenceBinding(for: id), let function = functionType(id),
+           let signature = program.sema.symbols.functionSignature(for: symbol) {
+            let unitConversion = try program.type(function.returnType) == .unit && program.type(signature.returnType) != .unit
+            if binding.isCallableReferenceAdapter || function.isSuspend != signature.isSuspend || unitConversion {
+                return try adaptedReference(id, symbol: symbol, receiver: receiver, unbound: unbound)
+            }
+        }
         let method = program.methods[symbol] ?? context.jvmImports?.methods[symbol]
         let ref = program.references[symbol]
         guard method != nil || ref != nil else { throw fail("Unsupported JVM callable reference target.", id) }
