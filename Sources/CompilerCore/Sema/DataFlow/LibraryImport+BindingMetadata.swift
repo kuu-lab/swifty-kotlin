@@ -77,7 +77,7 @@ extension DataFlowSemaPhase {
         pendingSupertypeEdges: inout [(subtype: SymbolID, superFQName: [InternedString])],
         cache: LibraryMetadataCache?,
         isStdlibArtifact: Bool,
-        phantomTypeParameterSymbolsByOwnerFQName: [[InternedString]: [SymbolID]] = [:]
+        phantomTypeParameterSymbols: [SymbolID] = []
     ) {
         binding.materialize()
         let record = binding.record
@@ -98,7 +98,7 @@ extension DataFlowSemaPhase {
             importedInlineFunctions: importedInlineFunctions,
             cache: cache,
             isStdlibArtifact: isStdlibArtifact,
-            phantomTypeParameterSymbolsByOwnerFQName: phantomTypeParameterSymbolsByOwnerFQName
+            phantomTypeParameterSymbols: phantomTypeParameterSymbols
         )
         applyImportedValueClassMetadata(
             binding,
@@ -177,7 +177,7 @@ extension DataFlowSemaPhase {
         importedInlineFunctions: ImportedInlineFunctionStore,
         cache: LibraryMetadataCache?,
         isStdlibArtifact: Bool = false,
-        phantomTypeParameterSymbolsByOwnerFQName: [[InternedString]: [SymbolID]] = [:]
+        phantomTypeParameterSymbols: [SymbolID] = []
     ) {
         let record = binding.record
         let symbol = binding.symbol
@@ -193,7 +193,7 @@ extension DataFlowSemaPhase {
                 metadataPath: binding.metadataPath,
                 cache: cache,
                 allowPlaceholders: isStdlibArtifact,
-                phantomTypeParameterSymbols: phantomTypeParameterSymbolsByOwnerFQName[record.fqName] ?? [],
+                phantomTypeParameterSymbols: phantomTypeParameterSymbols,
                 isStdlibArtifact: isStdlibArtifact
             )
             let usesLegacyABI = symbols.symbol(symbol)?.flags.contains(.legacyReifiedClassTokenABI) == true

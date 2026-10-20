@@ -6,16 +6,16 @@ struct TypeCheckScopeBuilder {
         interner: StringInterner,
         sourceManager: SourceManager? = nil
     ) -> [Int32: FileScope] {
-        var topLevelSymbolsByPackage = collectTopLevelSymbolsByPackage(ast: ast, sema: sema)
-        let librarySymbolsByPackage = collectLibraryTopLevelSymbolsByPackage(sema: sema, interner: interner)
-        for (packagePath, symbols) in librarySymbolsByPackage {
-            topLevelSymbolsByPackage[packagePath, default: []].append(contentsOf: symbols)
-        }
+        let topLevelSymbolsByPackage = collectTopLevelSymbolsByPackage(ast: ast, sema: sema)
         let defaultImportPackages = makeDefaultImportPackages(interner: interner)
         // Default imports are identical for every file in this compilation.
         // Populate this shared parent once; file-specific bindings stay in
         // the child scopes and never mutate the default-import scope.
-        let defaultImportScope = ImportScope(parent: nil, symbols: sema.symbols)
+        // Imported members resolve through `deferredCandidates`: the scope
+        // asks the symbol table for `<package> + name`, which drains the
+        // compact index for that name only instead of pre-collecting every
+        // imported package member here.
+        let defaultImportScope = PackageMembersScope(parent: nil, symbols: sema.symbols)
         for packagePath in defaultImportPackages {
             for importedSymbol in topLevelSymbolsByPackage[packagePath] ?? [] {
                 if shouldSkipDefaultImport(importedSymbol, sema: sema, interner: interner) {
@@ -23,11 +23,14 @@ struct TypeCheckScopeBuilder {
                 }
                 defaultImportScope.insert(importedSymbol)
             }
+            defaultImportScope.addPackage(packagePath) { [self, sema] symbolID in
+                !shouldSkipDefaultImport(symbolID, sema: sema, interner: interner)
+            }
         }
         var fileScopes: [Int32: FileScope] = [:]
 
         for file in ast.sortedFiles {
-            let wildcardImportScope = ImportScope(parent: defaultImportScope, symbols: sema.symbols)
+            let wildcardImportScope = PackageMembersScope(parent: defaultImportScope, symbols: sema.symbols)
             let explicitImportScope = ExplicitImportScope(parent: wildcardImportScope, symbols: sema.symbols)
             populateImportScopes(
                 for: file,
@@ -40,7 +43,7 @@ struct TypeCheckScopeBuilder {
                 sourceManager: sourceManager
             )
 
-            let packageScope = PackageScope(parent: explicitImportScope, symbols: sema.symbols)
+            let packageScope = PackageMembersScope(parent: explicitImportScope, symbols: sema.symbols)
             let fileScope = FileScope(parent: packageScope, symbols: sema.symbols)
             for packageSymbol in topLevelSymbolsByPackage[file.packageFQName] ?? [] {
                 // KSP-1150: the coroutine registry retains a root-level
@@ -62,6 +65,14 @@ struct TypeCheckScopeBuilder {
                 } else {
                     packageScope.insert(packageSymbol)
                 }
+            }
+            packageScope.addPackage(file.packageFQName) { [self, sema, file] symbolID in
+                !shouldSkipRootCancellationCompatibilityAlias(
+                    symbolID,
+                    file: file,
+                    sema: sema,
+                    interner: interner
+                )
             }
 
             fileScopes[file.fileID.rawValue] = fileScope
@@ -242,7 +253,7 @@ struct TypeCheckScopeBuilder {
         for file: ASTFile,
         sema: SemaModule,
         explicitImportScope: ImportScope,
-        wildcardImportScope: ImportScope,
+        wildcardImportScope: PackageMembersScope,
         topLevelSymbolsByPackage: [[InternedString]: [SymbolID]],
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
@@ -394,7 +405,13 @@ struct TypeCheckScopeBuilder {
             }
             if resolved.isEmpty {
                 let packageSymbols = topLevelSymbolsByPackage[importDecl.path] ?? []
-                if packageSymbols.isEmpty, !importDecl.isWildcard, validatesImports,
+                // Compact-index packages are not registered until a lookup
+                // reaches them; check the index without draining so an
+                // unresolved-import diagnostic never fires on a real package.
+                let indexHasMembers = sema.symbols.libraryIndexContainsEntriesNested(
+                    under: importDecl.path
+                )
+                if packageSymbols.isEmpty, !indexHasMembers, !importDecl.isWildcard, validatesImports,
                    !isSyntheticMemberExtensionImport(importDecl.path, sema: sema)
                 {
                     diagnostics.error(
@@ -403,13 +420,17 @@ struct TypeCheckScopeBuilder {
                         range: importDecl.range
                     )
                 }
-                if !packageSymbols.isEmpty {
+                if !packageSymbols.isEmpty || indexHasMembers {
                     for packageSymbol in packageSymbols {
                         if shouldSkipDefaultImport(packageSymbol, sema: sema, interner: interner) {
                             continue
                         }
                         if !isAccessibleWildcardSymbol(packageSymbol) { continue }
                         wildcardImportScope.insert(packageSymbol)
+                    }
+                    wildcardImportScope.addPackage(importDecl.path) { [self, sema] symbolID in
+                        !shouldSkipDefaultImport(symbolID, sema: sema, interner: interner)
+                            && isAccessibleWildcardSymbol(symbolID)
                     }
                 }
                 continue
@@ -515,6 +536,10 @@ struct TypeCheckScopeBuilder {
                     }
                     if !isAccessibleWildcardSymbol(importedSymbol) { continue }
                     wildcardImportScope.insert(importedSymbol)
+                }
+                wildcardImportScope.addPackage(importDecl.path) { [self, sema] symbolID in
+                    !shouldSkipDefaultImport(symbolID, sema: sema, interner: interner)
+                        && isAccessibleWildcardSymbol(symbolID)
                 }
             }
         }
