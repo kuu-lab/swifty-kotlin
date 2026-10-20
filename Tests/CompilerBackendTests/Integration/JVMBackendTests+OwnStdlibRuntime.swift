@@ -24,6 +24,25 @@ private final class JVMOwnStdlibCache: @unchecked Sendable {
 
 extension JVMBackendTests {
     func ownStdlibLibrary() throws -> URL { try JVMOwnStdlibCache.shared.library() }
+    // Exercise both runtimes independently, then compare an official consumer.
+    func runRuntimeParity(_ source: String, expected: String, mode: EmitMode, root: URL) throws {
+        let official = try m11Runtime()
+        let library = try JVMOwnStdlibCache.shared.library()
+        for (name, runtime) in [("official", official), ("own", library.path)] {
+            let app = try m22Build(root: root, sources: [("hello.kt", source)], name: name + (mode == .jvmJar ? ".jar" : "-classes"), mode: mode, classpath: runtime.components(separatedBy: ":"))
+            try #require(app.1 == 0, "\(app.2.map(\.message))")
+            let result = try java(["-cp", app.0.path + ":" + runtime, "HelloKt"])
+            #expect(result.stdout == expected)
+            #expect(result.stderr.isEmpty)
+        }
+        _ = try jvmTool("kotlinc", ["hello.kt", "-cp", official, "-d", "reference.jar"], root: root)
+        let reference = try java(["-cp", root.appendingPathComponent("reference.jar").path + ":" + official, "HelloKt"])
+        #expect(reference.stdout == expected)
+        #expect(reference.stderr.isEmpty)
+        let foreignConsumer = try java(["-cp", root.appendingPathComponent("reference.jar").path + ":" + library.path, "HelloKt"])
+        #expect(foreignConsumer.stdout == expected)
+        #expect(foreignConsumer.stderr.isEmpty)
+    }
 
     private static let ownStdlibCases = [
         "arrayListFactoryABI",

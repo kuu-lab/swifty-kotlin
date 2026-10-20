@@ -36,6 +36,7 @@ extension JVMFunctionBuilder {
     }
 
     func nominalCall(_ id: ExprID, receiver: ExprID?, name: String?, args: [CallArgument]) throws -> JVMIntrinsicResult? {
+        if let annotation = try annotationConstruction(args, id: id) { return annotation }
         if let binding = program.sema.bindings.callBinding(for: id),
            let method = program.methods[binding.chosenCallee], method.name == "copy", program.sema.symbols.symbol(binding.chosenCallee)?.flags.contains(.synthetic) == true,
            let plan = program.classes.values.first(where: { $0.name == method.owner && $0.modifiers.contains(.data) }) {

@@ -546,8 +546,11 @@ java -Xverify:all -cp "hello.jar:kswiftk-stdlib.jar" HelloKt
 
 参照の生成、クラスのフラグ・メンバー列挙・annotation・reflective call・propertyのget／set・関数参照のinvokeは、独自stdlibのJava reflection／metadata実装を使う。生成JARとkswiftk-stdlib.jarを実行classpathへ指定する。
 
+annotation の値は constructor 式で直接生成できる。省略した引数には annotation element の default を使い、
+名前付き引数もソース順に評価する。生成する値は annotation interface を実装し、要素の読み取り・等値比較に対応する。
+
 value class を持つ inline／suspend の signature は M14 で対応する。
-annotation の実行時の直接構築、外部 annotation の使用、file／type-use／receiver／delegate target、
+外部 annotation の使用、file／type-use／receiver／delegate target、
 typealias 自体の annotation、enum entry annotation は未対応。対応する reflection API は上記の範囲で、
 Java reflection の任意の getMethod／invoke や kotlin-reflect の全 API を提供するものではない。
 
