@@ -488,8 +488,10 @@ struct LinkPhaseIntegrationTests {
 
         let cSource = """
         #include <stdint.h>
+        #include <stdlib.h>
         intptr_t plus(intptr_t value, intptr_t* outThrown) {
             (void)outThrown;
+            exit((int)(value + 1));
             return value + 1;
         }
         """
@@ -526,15 +528,12 @@ struct LinkPhaseIntegrationTests {
         )
 
         // `plus` comes from the hand-written object in the manifest and carries no
-        // Kotlin type information (`metadata.bin` declares `symbols=0`), so its
-        // result cannot be printed — `println` would render the raw value as
-        // "null". Route it through `exitProcess`, the only way a Kotlin program
-        // picks a process status: `main`'s own value is discarded by the entry
-        // wrapper (see `testEntryWrapperDiscardsNonUnitMainResult`).
+        // Kotlin type information (`metadata.bin` declares `symbols=0`). Let the C
+        // function expose its result through the process status so the test does
+        // not depend on Kotlin stdlib declarations for this synthetic symbol.
         let appSource = """
-        import kotlin.system.exitProcess
         fun main() {
-            exitProcess(plus(41))
+            plus(41)
         }
         """
         try withTemporaryFile(contents: appSource) { appPath in
@@ -554,7 +553,7 @@ struct LinkPhaseIntegrationTests {
             #expect(fm.fileExists(atPath: outputPath))
             do {
                 _ = try CommandRunner.run(executable: outputPath, arguments: [])
-                Issue.record("Expected exitProcess(plus(41)) to exit with 42")
+                Issue.record("Expected plus(41) to exit with 42")
             } catch let CommandRunnerError.nonZeroExit(failed) {
                 #expect(failed.exitCode == 42)
             } catch {
