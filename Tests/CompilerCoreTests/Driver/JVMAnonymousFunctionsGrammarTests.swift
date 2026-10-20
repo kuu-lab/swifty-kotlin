@@ -6,6 +6,8 @@ import Testing
     @Test(arguments: [
         "fun value() { val f = fun(x: Int): Int { return x + 1 } }",
         "fun value() { val f = fun(x: Int): Int = x + 1 }",
+        "fun value() { fun recursive(n: Int): Int { return recursive(n - 1) }; println(recursive(3)) }",
+        "fun value() { fun <T> same(x: T): T = x }",
         "fun value() { val f = fun Int.(): String { return \"OK\" } }",
         "fun value() { val f = fun Int?.(): Int { return 1 } }",
         "fun value() { val f = fun List<Int>.(): Int { return size } }",
@@ -21,6 +23,7 @@ import Testing
 
     @Test(arguments: [
         "fun value() { val f = fun(x: Int) }",
+        "fun value() { fun named(x) = x }",
         "fun value() { val f = fun(x: Int): Int }",
         "fun value() { val f = fun named(x: Int): Int = x }",
         "fun value() { val f = fun Int(x: Int): Int = x }",

@@ -285,6 +285,10 @@ private struct JVMSourceGrammar {
                 if take(.symbol(.assign)) || take(.softKeyword(.by)) { try expression() }
                 else if !hasTypeAnnotation { throw Unsupported() }
             }
+        } else if kind == .keyword(.fun) {
+            let start = index
+            do { try anonymousFunction() }
+            catch { index = start; try declaration(member: false) }
         } else if take(.keyword(.while)) {
             try condition(); try body()
         } else if take(.keyword(.do)) {

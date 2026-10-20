@@ -10,6 +10,7 @@ final class JVMProgramBuilder {
     var facadeName = ""
     var facadePlan: JVMClassPlan?
     var references: [SymbolID: JVMFunctionReference] = [:]
+    var localFunctions: [SymbolID: JVMLocalFunctionPlan] = [:]
     var syntheticFunctions: [String: [JVMFunction]] = [:]
     var closureClasses: [JVMClass] = []
     var functionArities: Set<Int> = []
@@ -214,6 +215,8 @@ final class JVMFunctionBuilder {
     var extensionValue: JVMValue?
     var semanticSignature: FunctionSignature?
     var functionSymbol: SymbolID?
+    var leadingCaptureCount = 0
+    var parameterInputs: [JVMValue]?
     var isStaticBody = false
     var isSuspendBody = false
     var lambdaID: ExprID?
@@ -304,10 +307,13 @@ final class JVMFunctionBuilder {
     }
     func prepareParameters() throws {
         if let owner, !isStaticBody { thisValue = try value(.reference(owner.name, nullable: false)) }
-        var parameters = reference.parameters
+        var parameters = Array(reference.parameters.dropFirst(leadingCaptureCount))
+        var supplied = parameterInputs
+        guard supplied == nil || supplied!.count == parameters.count else { throw fail("JVM prepared parameter count mismatch.") }
         if declaration.receiverType != nil {
             guard let first = parameters.first else { throw fail("Missing JVM extension receiver.") }
-            extensionValue = try value(first); parameters.removeFirst()
+            extensionValue = try supplied == nil ? value(first) : supplied!.removeFirst()
+            parameters.removeFirst()
         }
         if let owner, let thisValue {
             contextualReceivers[owner.symbol] = thisValue
@@ -316,7 +322,7 @@ final class JVMFunctionBuilder {
         if let functionSymbol, let receiver = extensionValue ?? thisValue { contextualReceivers[SyntheticSymbolScheme.receiverParameterSymbol(for: functionSymbol)] = receiver }
         for (i, pair) in zip(declaration.valueParams, parameters).enumerated() {
             let (param, type) = pair
-            var local = Local(value: try value(type), mutable: false)
+            var local = Local(value: try supplied?[i] ?? value(type), mutable: false)
             if let signature = semanticSignature, signature.parameterTypes.indices.contains(i), case let .functionType(f) = program.sema.types.kind(of: signature.parameterTypes[i]) { local.functionType = f }
             if let signature = semanticSignature, signature.valueParameterSymbols.indices.contains(i) { local.symbol = signature.valueParameterSymbols[i] }
             scopes[0][param.name] = local
@@ -450,6 +456,8 @@ final class JVMFunctionBuilder {
             let local = try readLocal(lookup(name))
             let type = try program.expressionType(id)
             return type == .unit ? local : try convert(local, to: type)
+        case .localFunDecl:
+            try localFunction(id); return nil
         case let .localDecl(name, mutable, annotation, initializer, delegated, late, _):
             if delegated || late { try specialLocal(id, name: name, mutable: mutable, initializer: initializer, delegated: delegated, late: late); return nil }
             guard scopes[scopes.count - 1][name] == nil else { throw fail("JVM locals require a unique name in their scope.", id) }
