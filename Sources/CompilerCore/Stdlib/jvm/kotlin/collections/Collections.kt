@@ -4,6 +4,7 @@ import kotlin.jvm.internal.__jvmCopyList
 import kotlin.jvm.internal.__jvmReverseOrder
 import kotlin.jvm.internal.__jvmSortListWithComparator
 import kotlin.jvm.internal.__jvmSortList
+import kotlin.jvm.internal.__jvmNewArrayList
 import kotlin.jvm.internal.__jvmNewList
 import kotlin.jvm.internal.__jvmSingletonList
 import kotlin.jvm.internal.__jvmArrayList
@@ -166,4 +167,10 @@ fun <T> MutableCollection<in T>.addAll(elements: Iterable<T>): Boolean {
     var changed = false
     for (element in elements) if (this.add(element)) changed = true
     return changed
+}
+
+public fun <T> arrayListOf(vararg elements: T): java.util.ArrayList<T> {
+    val result = __jvmNewArrayList<T>()
+    for (element in elements) result.add(element)
+    return result
 }

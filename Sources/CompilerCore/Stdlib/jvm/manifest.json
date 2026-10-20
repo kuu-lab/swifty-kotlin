@@ -302,6 +302,11 @@
       "path": "declarations/IntIterator.kt",
       "virtualPath": "<kswiftk-jvm>/m19-int-iterator.kt",
       "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/JavaArrayList.kt",
+      "virtualPath": "<kswiftk-jvm>/javaArrayList.kt",
+      "excludeFromStdlibBuild": false
     }
   ],
   "runtimeClassAliases": {

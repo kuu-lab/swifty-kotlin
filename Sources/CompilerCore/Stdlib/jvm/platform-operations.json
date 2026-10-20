@@ -894,5 +894,12 @@
     "name": "arraycopy",
     "descriptor": "(Ljava/lang/Object;ILjava/lang/Object;II)V",
     "kind": "static"
+  },
+  {
+    "symbol": "__jvmNewArrayList",
+    "owner": "java/util/ArrayList",
+    "name": "<init>",
+    "descriptor": "()V",
+    "kind": "constructor"
   }
 ]
