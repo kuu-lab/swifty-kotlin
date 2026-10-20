@@ -25,15 +25,23 @@ extension ExprLowerer {
         {
             return wrapper
         }
-        // A call returning concrete Unit produces the singleton even when a
-        // generic implementation returns null through its erased ABI. Unit!
-        // calls and Unit local reads must retain their original value.
+        // A function call returning concrete Unit produces the singleton even
+        // when a generic implementation returns null through its erased ABI.
+        // Property reads can retain a platform Unit value and must stay intact.
+        let isPropertyRead = sema.bindings.identifierSymbol(for: exprID)
+            .flatMap { sema.symbols.symbol($0)?.kind } == .property
+        let isPropertyAccessorCall: Bool = if let callee = sema.bindings.callBinding(for: exprID)?.chosenCallee {
+            isPropertyRead
+                || sema.symbols.accessorOwnerProperty(for: callee) != nil
+                || sema.symbols.propertySymbol(forAccessor: callee) != nil
+                || sema.symbols.parentSymbol(for: callee)
+                    .flatMap { sema.symbols.symbol($0)?.kind } == .property
+        } else { isPropertyRead }
         let isUnitCall: Bool = if sema.bindings.exprTypes[exprID] == sema.types.unitType {
             switch ast.arena.expr(exprID) {
-            case .call, .memberCall, .safeMemberCall: true
-            case .nameRef:
-                sema.bindings.identifierSymbol(for: exprID)
-                    .flatMap { sema.symbols.symbol($0)?.kind } == .property
+            case .call: true
+            case .memberCall, .safeMemberCall:
+                !isPropertyAccessorCall
             default: false
             }
         } else { false }
