@@ -80,7 +80,7 @@ extension JVMFunctionBuilder {
             dispatch = try receiver != nil && !extensionCall ? requireValue(receiver!) : instance(id)
         }
         if extensionCall {
-            let implicit = program.sema.bindings.implicitExtensionReceiver(for: id).flatMap { contextualReceivers[$0] } ?? extensionValue ?? thisValue
+            let implicit = implicitExtensionReceiver(id)
             guard let value = try receiver.map(requireValue) ?? implicit else { throw fail("Missing JVM extension receiver.", id) }
             prefix.append(value)
         }

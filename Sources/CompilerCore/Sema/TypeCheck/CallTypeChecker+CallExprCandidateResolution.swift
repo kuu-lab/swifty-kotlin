@@ -481,6 +481,22 @@ extension CallTypeChecker {
             }
             if let extensionReceiverSymbol = memberExtensionReceiverMarks[chosen] {
                 sema.bindings.markImplicitExtensionReceiver(id, symbol: extensionReceiverSymbol)
+            } else if sema.bindings.implicitExtensionReceiver(for: id) == nil,
+                      sema.symbols.memberExtensionOwnerSymbol(for: chosen) != nil,
+                      let signature = sema.symbols.functionSignature(for: chosen),
+                      let declaredReceiver = signature.receiverType,
+                      let receiver = ctx.implicitReceiverMemberLookupEntries().first(where: {
+                          let substituted = sema.types.substituteTypeParameters(
+                              in: declaredReceiver,
+                              substitution: resolved.substitutedTypeArguments,
+                              typeVarBySymbol: sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+                          )
+                          return sema.types.isSubtype(sema.types.makeNonNullable($0.type), sema.types.makeNonNullable(substituted))
+                      }), let symbol = receiver.symbol {
+                // Scope lookup can resolve a member extension without passing
+                // through the receiver-tower fallback. Preserve its extension
+                // receiver identity separately from the lexical dispatch owner.
+                sema.bindings.markImplicitExtensionReceiver(id, symbol: symbol)
             }
             if let calleeName, let receiverType = callImplicitReceiverType,
                let owner = sema.symbols.parentSymbol(for: chosen),

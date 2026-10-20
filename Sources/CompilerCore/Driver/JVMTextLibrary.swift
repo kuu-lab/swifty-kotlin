@@ -149,7 +149,7 @@ extension JVMFunctionBuilder {
             throw fail("Named arguments are prohibited for Java StringBuilder constructors and methods.", id)
         }
         let explicit = try method.isConstructor || method.isStatic && entry.extensionReceiver == nil ? nil : receiver.map(requireValue)
-        let implicit = program.sema.bindings.implicitExtensionReceiver(for: id).flatMap { contextualReceivers[$0] } ?? extensionValue ?? thisValue
+        let implicit = implicitExtensionReceiver(id)
         let object = try method.isConstructor || method.isStatic && entry.extensionReceiver == nil ? nil : explicit ?? (entry.extensionReceiver != nil ? implicit : instance(id))
         let parameters = Array(method.parameters.dropFirst(entry.extensionReceiver == nil ? 0 : 1))
         let ordered: (values: [JVMValue], masks: [UInt32])

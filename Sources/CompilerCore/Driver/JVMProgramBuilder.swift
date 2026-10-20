@@ -530,6 +530,7 @@ final class JVMFunctionBuilder {
             if let result = try inlineCall(args, receiver: invokeReceiver, id: id) { return result.value }
             if let result = try textLibraryCall(args, receiver: invokeReceiver, id: id) { return result.value }
             if let result = try sourceCall(args, receiver: invokeReceiver, id: id) { return result.value }
+            if invokeReceiver == nil, let result = try implicitTextCall(callee, args: args, id: id) { return result.value }
             if let function = try functionValueCall(callee, args: args, id: id) { return function.value }
             guard args.allSatisfy({ !$0.isSpread }),
                   let binding = program.sema.bindings.callBinding(for: id) else { throw fail("Unsupported JVM call.", id) }
