@@ -391,6 +391,7 @@ extension JVMFunctionBuilder {
         let loopBinding = program.sema.bindings.loopIterationBinding(for: id)
         let elementType: JVMValueType
         if source.type.isCharSequence { elementType = .char }
+        else if source.type.referenceName == "kotlin/ranges/IntRange" { elementType = .int }
         else if let semantic = program.sema.bindings.exprType(for: iterable), case let .classType(t) = program.sema.types.kind(of: semantic), let arg = t.args.first {
             switch arg {
             case let .invariant(t), let .out(t): elementType = try program.type(t)
