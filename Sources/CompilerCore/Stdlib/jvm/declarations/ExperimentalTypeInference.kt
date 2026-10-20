@@ -1,0 +1,2 @@
+package kotlin.experimental
+annotation class ExperimentalTypeInference

@@ -1,0 +1,313 @@
+{
+  "schemaVersion": 1,
+  "commonSources": [
+    "kotlin/Pair/Pair.kt",
+    "kotlin/Function.kt",
+    "kotlin/Unit.kt"
+  ],
+  "declarations": [
+    {
+      "path": "declarations/JavaCollections.kt",
+      "virtualPath": "<kswiftk-jvm>/javaCollections.kt",
+      "excludeFromStdlibBuild": false,
+      "onlyForStdlibBuild": true
+    },
+    {
+      "path": "declarations/Delegates.kt",
+      "virtualPath": "<kswiftk-jvm>/delegates.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/PropertyDelegates.kt",
+      "virtualPath": "<kswiftk-jvm>/propertyDelegates.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/JvmAnnotations.kt",
+      "virtualPath": "<kswiftk-jvm>/jvmAnnotations.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/AnnotationTypes.kt",
+      "virtualPath": "<kswiftk-jvm>/annotationTypes.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/Annotation.kt",
+      "virtualPath": "<kswiftk-jvm>/annotation.kt",
+      "excludeFromStdlibBuild": false
+    },
+    {
+      "path": "declarations/Reflection.kt",
+      "virtualPath": "<kswiftk-jvm>/reflection.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/ReflectionExtensions.kt",
+      "virtualPath": "<kswiftk-jvm>/reflectionExtensions.kt",
+      "excludeFromStdlibBuild": false
+    },
+    {
+      "path": "declarations/JavaReflection.kt",
+      "virtualPath": "<kswiftk-jvm>/javaReflection.kt",
+      "excludeFromStdlibBuild": false
+    },
+    {
+      "path": "declarations/ClassMapping.kt",
+      "virtualPath": "<kswiftk-jvm>/classMapping.kt",
+      "excludeFromStdlibBuild": false
+    },
+    {
+      "path": "declarations/Unit.kt",
+      "virtualPath": "<kswiftk-jvm>/unit.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/Arrays.kt",
+      "virtualPath": "<kswiftk-jvm>/arrays.kt",
+      "excludeFromStdlibBuild": false
+    },
+    {
+      "path": "declarations/Scalars.kt",
+      "virtualPath": "<kswiftk-jvm>/scalars.kt",
+      "excludeFromStdlibBuild": false
+    },
+    {
+      "path": "declarations/Text.kt",
+      "virtualPath": "<kswiftk-jvm>/text.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/TextRuntimeFunctions.kt",
+      "virtualPath": "<kswiftk-jvm>/text-runtime-functions.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/StringBuilder.kt",
+      "virtualPath": "<kswiftk-jvm>/m19-builder.kt",
+      "excludeFromStdlibBuild": false
+    },
+    {
+      "path": "declarations/Regex.kt",
+      "virtualPath": "<kswiftk-jvm>/m19-regex.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/IntRange.kt",
+      "virtualPath": "<kswiftk-jvm>/m19-ranges.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/Sequence.kt",
+      "virtualPath": "<kswiftk-jvm>/m19-sequence.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/TextHigherOrderFunctions.kt",
+      "virtualPath": "<kswiftk-jvm>/m19-inline.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/TextWindows.kt",
+      "virtualPath": "<kswiftk-jvm>/m19-windows.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/Numbers.kt",
+      "virtualPath": "<kswiftk-jvm>/numbers.kt",
+      "excludeFromStdlibBuild": false
+    },
+    {
+      "path": "declarations/Collections.kt",
+      "virtualPath": "<kswiftk-jvm>/collections.kt",
+      "excludeFromStdlibBuild": false,
+      "appendForConsumers": "declarations/CollectionFactories.kt"
+    },
+    {
+      "path": "declarations/Pair.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-pairs.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/PairFunctions.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-pair-inline.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/CollectionHigherOrderFunctions.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-collections-inline.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/CollectionTextFunctions.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-text-inline.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/SequenceHigherOrderFunctions.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-sequence-inline.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/InferenceAnnotations.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-inference-annotations.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/ExperimentalTypeInference.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-inference-experimental.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/Comparable.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-comparable.kt",
+      "excludeFromStdlibBuild": false
+    },
+    {
+      "path": "declarations/RestrictsSuspension.kt",
+      "virtualPath": "<kswiftk-jvm>/m21-restriction.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/SequenceBuilder.kt",
+      "virtualPath": "<kswiftk-jvm>/m21-sequence-builder.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/SequenceFunctions.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-sequence-runtime.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/CollectionFunctions.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-collections-runtime.kt",
+      "excludeFromStdlibBuild": false
+    },
+    {
+      "path": "declarations/ArrayFunctions.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-arrays-runtime.kt",
+      "excludeFromStdlibBuild": false
+    },
+    {
+      "path": "declarations/TextCollectionFunctions.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-text-runtime.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/Exceptions.kt",
+      "virtualPath": "<kswiftk-jvm>/exceptions.kt",
+      "excludeFromStdlibBuild": false
+    },
+    {
+      "path": "declarations/Result.kt",
+      "virtualPath": "<kswiftk-jvm>/result.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/Coroutines.kt",
+      "virtualPath": "<kswiftk-jvm>/coroutines.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/Console.kt",
+      "virtualPath": "<kswiftk-jvm>/console.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/PlatformBridges.kt",
+      "virtualPath": "<kswiftk-jvm>/stdlib-bridges.kt",
+      "excludeFromStdlibBuild": false,
+      "onlyForStdlibBuild": true
+    },
+    {
+      "path": "declarations/Serializable.kt",
+      "virtualPath": "<kswiftk-jvm>/serializable.kt",
+      "excludeFromStdlibBuild": false,
+      "onlyForStdlibBuild": true
+    },
+    {
+      "path": "declarations/CharFunctions.kt",
+      "virtualPath": "<kswiftk-jvm>/char-runtime-functions.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/text/CharsKt"
+    },
+    {
+      "path": "declarations/LateinitException.kt",
+      "virtualPath": "<kswiftk-jvm>/lateinit-exception.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/TextSearchFunctions.kt",
+      "virtualPath": "<kswiftk-jvm>/m19-search.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/CollectionTerminalFunctions.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-collections-terminal.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/Comparator.kt",
+      "virtualPath": "<kswiftk-jvm>/comparator.kt",
+      "excludeFromStdlibBuild": false,
+      "onlyForStdlibBuild": true
+    },
+    {
+      "path": "declarations/OptIn.kt",
+      "virtualPath": "<kswiftk-jvm>/opt-in.kt",
+      "excludeFromStdlibBuild": false,
+      "onlyForStdlibBuild": true
+    },
+    {
+      "path": "declarations/ArraySequenceFunctions.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-arrays-source.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/SuspendCoroutine.kt",
+      "virtualPath": "<kswiftk-jvm>/suspend-coroutine.kt",
+      "excludeFromStdlibBuild": false,
+      "onlyForStdlibBuild": true
+    },
+    {
+      "path": "declarations/StackTraceElement.kt",
+      "virtualPath": "<kswiftk-jvm>/stack-trace.kt",
+      "excludeFromStdlibBuild": false,
+      "onlyForStdlibBuild": true
+    },
+    {
+      "path": "declarations/InvocationHandler.kt",
+      "virtualPath": "<kswiftk-jvm>/invocation-handler.kt",
+      "excludeFromStdlibBuild": false,
+      "onlyForStdlibBuild": true
+    },
+    {
+      "path": "declarations/NoSuchElementException.kt",
+      "virtualPath": "<kswiftk-jvm>/no-such-element.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/JavaNoSuchElementException.kt",
+      "virtualPath": "<kswiftk-jvm>/java-no-such-element.kt",
+      "excludeFromStdlibBuild": false,
+      "onlyForStdlibBuild": true
+    },
+    {
+      "path": "declarations/TextPlatform.kt",
+      "virtualPath": "<kswiftk-jvm>/text-platform.kt",
+      "excludeFromStdlibBuild": false,
+      "onlyForStdlibBuild": true
+    }
+  ],
+  "runtimeClassAliases": {
+    "kotlin/jvm/internal/UIntValue": "kotlin/UInt",
+    "kotlin/jvm/internal/UIntArrayValue": "kotlin/UIntArray",
+    "kotlin/jvm/internal/ULongValue": "kotlin/ULong",
+    "kotlin/jvm/internal/ULongArrayValue": "kotlin/ULongArray",
+    "kotlin/jvm/internal/UByteValue": "kotlin/UByte",
+    "kotlin/jvm/internal/UByteArrayValue": "kotlin/UByteArray",
+    "kotlin/jvm/internal/UShortValue": "kotlin/UShort",
+    "kotlin/jvm/internal/UShortArrayValue": "kotlin/UShortArray",
+    "kotlin/jvm/internal/IntrinsicsKotlin": "kotlin/jvm/internal/Intrinsics$Kotlin"
+  }
+}

@@ -1,0 +1,2 @@
+package kotlin
+public annotation class OverloadResolutionByLambdaReturnType

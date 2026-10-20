@@ -1,0 +1,2 @@
+package kotlin.coroutines
+annotation class RestrictsSuspension
