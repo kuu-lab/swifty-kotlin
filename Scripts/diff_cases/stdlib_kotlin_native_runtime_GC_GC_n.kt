@@ -34,17 +34,18 @@ fun main() {
 
     // Print each result separately so a short-circuiting expression cannot
     // hide a regression in a later getter. The three threshold properties
-    // return zero. The target and minimum heap properties retain their fixed
-    // defaults after their no-op setters. The maximum heap default also
-    // depends on host physical memory, so check its guaranteed lower bound.
+    // return zero: their setters are deliberate no-ops. The heap-size
+    // properties keep the values assigned above — a persisted write is what
+    // separates a live setter from the silent drop that motivated this case.
     println(GC.threshold)
     println(GC.collectCyclesThreshold)
     println(GC.thresholdAllocations)
     println(GC.autotune)
+    println(GC.regularGCInterval)
     println(GC.targetHeapBytes)
     println(GC.targetHeapUtilization)
     println(GC.minHeapBytes)
-    println(GC.maxHeapBytes >= 100L * 1024 * 1024)
+    println(GC.maxHeapBytes)
     println(GC.heapTriggerCoefficient)
     println(GC.pauseOnTargetHeapOverflow)
     println(detected == null)
