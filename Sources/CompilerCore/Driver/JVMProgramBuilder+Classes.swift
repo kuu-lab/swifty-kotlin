@@ -55,9 +55,8 @@ extension JVMProgramBuilder {
         }
     }
     func functionReference(_ function: FunDecl, symbol: SymbolID, member: Bool) throws -> JVMFunctionReference {
-        let allowed: Modifiers = member ? [.public, .private, .internal, .protected, .open, .final, .abstract, .override, .inline, .suspend, .operator, .infix] : [.public, .private, .internal, .inline, .suspend, .operator, .infix]
+        let allowed: Modifiers = member ? [.public, .private, .internal, .protected, .open, .final, .abstract, .override, .inline, .tailrec, .suspend, .operator, .infix] : [.public, .private, .internal, .inline, .tailrec, .suspend, .operator, .infix]
         guard function.contextReceivers.isEmpty,
-              !function.isTailrec,
               function.modifiers.subtracting(allowed).isEmpty,
               let signature = sema.symbols.functionSignature(for: symbol) else { throw JVMFrontendError(message: "Unsupported JVM M5 function declaration.", range: function.range) }
         if function.isInline { inlineDeclarations[symbol] = function }

@@ -122,7 +122,7 @@ private struct JVMSourceGrammar {
         }
     }
     mutating func modifiers() {
-        while [.public, .private, .internal, .protected, .open, .final, .abstract, .override, .inline, .suspend, .sealed, .data, .enum, .companion, .inner, .operator, .infix, .lateinit, .annotation, .value, .const].contains(where: { kind == .keyword($0) }) {
+        while [.public, .private, .internal, .protected, .open, .final, .abstract, .override, .inline, .tailrec, .suspend, .sealed, .data, .enum, .companion, .inner, .operator, .infix, .lateinit, .annotation, .value, .const].contains(where: { kind == .keyword($0) }) {
             // "value" is also a valid parameter/property name.
             if kind == .keyword(.value), tokens[min(index + 1, tokens.count - 1)].kind != .keyword(.class) { break }
             index += 1
