@@ -869,15 +869,6 @@ extension LambdaLowerer {
             ))
             return valueExpr
         }
-        guard let semanticSymbol = sema.symbols.symbol(symbol),
-              semanticSymbol.kind == .valueParameter
-        else {
-            return nil
-        }
-
-        let symbolType = typeForSymbolReference(symbol, sema: sema)
-        let symbolExpr = arena.appendExpr(.symbolRef(symbol), type: symbolType)
-        instructions.append(.constValue(result: symbolExpr, value: .symbolRef(symbol)))
-        return symbolExpr
+        return nil
     }
 }

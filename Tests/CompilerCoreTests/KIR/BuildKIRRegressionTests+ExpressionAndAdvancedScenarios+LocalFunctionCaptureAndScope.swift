@@ -362,5 +362,24 @@ extension BuildKIRRegressionTests {
             "Local function should not be visible outside its defining top-level function: \(ctx.diagnostics.diagnostics.map(\.message))"
         )
     }
+
+    @Test
+    func testStoredLambdaCapturingLocalFunctionWithNestedFunction() throws {
+        let source = """
+        fun outer(): Int {
+            fun inner(p: Int): Int {
+                fun grand(c: Int): Int = c + 1
+                return grand(p * p)
+            }
+            val f: () -> Int = { -> inner(7) }
+            return f()
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "Stored lambda capturing local function with nested function should compile: \(ctx.diagnostics.diagnostics.map(\.message))")
+        let module = try #require(ctx.kir)
+        #expect(module.functionCount >= 3)
+    }
 }
 #endif

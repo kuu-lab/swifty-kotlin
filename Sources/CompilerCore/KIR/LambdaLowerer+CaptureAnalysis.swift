@@ -17,6 +17,9 @@ extension LambdaLowerer {
         if driver.ctx.localValue(for: symbol) != nil {
             return true
         }
+        if driver.ctx.localDelegateStorage(for: symbol) != nil {
+            return true
+        }
         if driver.ctx.capturedOuterReceiverExprID(for: symbol) != nil {
             return true
         }
@@ -37,7 +40,10 @@ extension LambdaLowerer {
             let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: symbol)
             return driver.ctx.localValue(for: tokenSymbol) != nil
         }
-        return semanticSymbol.kind == .valueParameter || semanticSymbol.kind == .local
+        if sema.bindings.isContractCallsInPlaceInitializedSymbol(symbol) {
+            return true
+        }
+        return false
     }
 
     /// An object literal may key its enclosing `this` capture by the synthetic
