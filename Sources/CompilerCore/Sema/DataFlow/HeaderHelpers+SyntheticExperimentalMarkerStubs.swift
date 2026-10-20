@@ -92,6 +92,21 @@ extension DataFlowSemaPhase {
             annotationFQName: "kotlin.RequiresOptIn",
             arguments: requiresOptInArguments
         )
+        if symbols.deferUntilAfterImportedShellMaterializes(classSymbol, work: { [self] in
+            registerSyntheticExperimentalMarker(
+                named: name,
+                packageFQName: packageFQName,
+                packageSymbol: packageSymbol,
+                severity: severity,
+                message: message,
+                targetArguments: targetArguments,
+                retentionArgument: retentionArgument,
+                symbols: symbols,
+                interner: interner
+            )
+        }) {
+            return
+        }
         var annotations = symbols.annotations(for: classSymbol)
         if !annotations.contains(requiresOptInRecord) {
             annotations.append(requiresOptInRecord)
@@ -142,6 +157,20 @@ extension DataFlowSemaPhase {
         }
         if packageSymbol != .invalid {
             symbols.setParentSymbol(packageSymbol, for: classSymbol)
+        }
+
+        // KUU-2673: annotations + constructor dedup below read the class's
+        // decoded metadata; defer until its imported shell materializes.
+        if symbols.deferUntilAfterImportedShellMaterializes(classSymbol, work: { [self] in
+            registerSyntheticExpectRefinementAnnotation(
+                packageFQName: packageFQName,
+                packageSymbol: packageSymbol,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        }) {
+            return
         }
 
         let metadata = [

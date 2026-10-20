@@ -998,6 +998,11 @@ extension DataFlowSemaPhase {
                     "imports.lazyMaterialize", timer: phaseTimer, accumulating: true,
                     attributingAccumulationToCurrentSubPhase: true
                 ) {
+                    // KUU-2673: synthetic-bootstrap work deferred by
+                    // `deferUntilImportedShellMaterializes` populates the same
+                    // pre-record state the eager bootstrap wrote, so it must
+                    // run before the imported record is applied.
+                    symbols.drainPendingShellWorkBeforeMaterialization(for: symbol)
                     var bindingEdges: [(subtype: SymbolID, superFQName: [InternedString])] = []
                     self.applyImportedBinding(
                         binding,
@@ -1056,6 +1061,10 @@ extension DataFlowSemaPhase {
                             )
                         }
                     }
+                    // KUU-2673: dedup/patch work deferred by
+                    // `deferUntilAfterImportedShellMaterializes` reads the
+                    // record applied above.
+                    symbols.drainPendingShellWorkAfterMaterialization(for: symbol)
                 }
             }
             // Stored on `lazyLoaderState` itself; weak captures break the

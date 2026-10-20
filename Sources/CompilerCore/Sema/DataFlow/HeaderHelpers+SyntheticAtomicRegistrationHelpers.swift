@@ -38,6 +38,20 @@ extension DataFlowSemaPhase {
         {
             return
         }
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: ctorFQName, work: { [self] in
+            registerAtomicConstructor(
+                ownerSymbol: ownerSymbol,
+                ownerType: ownerType,
+                externalLinkName: externalLinkName,
+                paramType: paramType,
+                typeParameterSymbols: typeParameterSymbols,
+                classTypeParameterCount: classTypeParameterCount,
+                symbols: symbols,
+                interner: interner
+            )
+        }) {
+            return
+        }
         let hasMatch = symbols.lookupAll(fqName: ctorFQName).contains { id in
             guard let sym = symbols.symbol(id),
                   sym.kind == .constructor,
@@ -110,6 +124,23 @@ extension DataFlowSemaPhase {
                interner: interner
            )
         {
+            return
+        }
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: memberFQName, work: { [self] in
+            registerAtomicMember(
+                ownerSymbol: ownerSymbol,
+                ownerType: ownerType,
+                name: name,
+                externalLinkName: externalLinkName,
+                returnType: returnType,
+                parameters: parameters,
+                typeParameterSymbols: typeParameterSymbols,
+                classTypeParameterCount: classTypeParameterCount,
+                flags: flags,
+                symbols: symbols,
+                interner: interner
+            )
+        }) {
             return
         }
         guard symbols.lookupAll(fqName: memberFQName).first(where: { id in

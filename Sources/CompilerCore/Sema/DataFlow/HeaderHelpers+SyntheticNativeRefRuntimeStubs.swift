@@ -360,6 +360,11 @@ extension DataFlowSemaPhase {
         let requiresOptInRecord = MetadataAnnotationRecord(
             annotationFQName: "kotlin.RequiresOptIn"
         )
+        if symbols.deferUntilAfterImportedShellMaterializes(markerSymbol, work: { [self] in
+            ensureExperimentalNativeApiRequiresOptIn(markerSymbol: markerSymbol, symbols: symbols)
+        }) {
+            return
+        }
         var annotations = symbols.annotations(for: markerSymbol)
         guard !annotations.contains(where: { $0.annotationFQName == requiresOptInRecord.annotationFQName }) else {
             return
@@ -387,6 +392,11 @@ extension DataFlowSemaPhase {
                 ? "kotlin.experimental.ExperimentalNativeApi"
                 : markerFQName
         )
+        if symbols.deferUntilAfterImportedShellMaterializes(symbol, work: { [self] in
+            attachExperimentalNativeApi(to: symbol, markerFQName: markerFQName, symbols: symbols)
+        }) {
+            return
+        }
         var annotations = symbols.annotations(for: symbol)
         guard !annotations.contains(record) else {
             return
@@ -405,6 +415,11 @@ extension DataFlowSemaPhase {
                 ? "kotlin.native.runtime.NativeRuntimeApi"
                 : markerFQName
         )
+        if symbols.deferUntilAfterImportedShellMaterializes(symbol, work: { [self] in
+            attachNativeRuntimeApi(to: symbol, markerFQName: markerFQName, symbols: symbols)
+        }) {
+            return
+        }
         var annotations = symbols.annotations(for: symbol)
         guard !annotations.contains(record) else {
             return

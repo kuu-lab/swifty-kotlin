@@ -447,6 +447,27 @@ extension DataFlowSemaPhase {
         let functionName = interner.intern(name)
         let functionFQName = packageFQName + [functionName]
 
+        // KUU-2673: the existence check reads every candidate's signature.
+        // When some of them are still lazy imported shells, re-run this whole
+        // registration once the first such candidate materializes instead of
+        // decoding it eagerly.
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: functionFQName, work: { [self] in
+            registerSyntheticCoercionFunction(
+                named: name,
+                externalLinkName: externalLinkName,
+                receiverType: receiverType,
+                parameters: parameters,
+                returnType: returnType,
+                packageFQName: packageFQName,
+                packageSymbol: packageSymbol,
+                symbols: symbols,
+                interner: interner,
+                types: types
+            )
+        }) {
+            return
+        }
+
         if symbols.lookupAll(fqName: functionFQName).contains(where: { symbolID in
             guard let signature = symbols.functionSignature(for: symbolID) else { return false }
             return signature.receiverType == receiverType

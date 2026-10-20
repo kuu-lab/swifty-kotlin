@@ -410,21 +410,6 @@ extension DataFlowSemaPhase {
         let functionSymbols = allSymbolIDs
             .compactMap { symbols.symbol($0) }
             .filter { $0.kind == .function }
-        let candidates = functionSymbols
-            .filter { symbol in
-                // Reject impossible overloads from routing shape before a
-                // semantic query decodes their signature and nominal owner.
-                if let shape = symbols.importedMemberIndexShape(for: symbol.id),
-                   shape.arity != arity || symbol.flags.contains(.suspendFunction) != isSuspend
-                {
-                    return false
-                }
-                guard let signature = symbols.functionSignature(for: symbol.id) else {
-                    return false
-                }
-                return signature.parameterTypes.count == arity && signature.isSuspend == isSuspend
-            }
-            .sorted(by: { $0.id.rawValue < $1.id.rawValue })
 
         // Decoding a member signature can recursively materialize its nominal
         // owner before that member's signature has been stored. Resolve the
@@ -438,6 +423,48 @@ extension DataFlowSemaPhase {
                 return record.kind == .function
                     && record.arity == arity
                     && record.isSuspend == isSuspend
+            }
+            .sorted(by: { $0.id.rawValue < $1.id.rawValue })
+        let unindexedSymbols = functionSymbols.filter {
+            indexedBindingsBySymbol?[$0.id] == nil
+        }
+
+        // KUU-2673: when every same-named symbol is index-verified, the result
+        // is decided without materializing any member body — a unique match
+        // wins the arity fallback below even when its signature differs, and
+        // multiple matches only need decoding when a `typeSignature` must
+        // disambiguate them and no materialized record can.
+        if unindexedSymbols.isEmpty {
+            if indexedCandidates.isEmpty {
+                return nil
+            }
+            if indexedCandidates.count == 1 {
+                return indexedCandidates[0].id
+            }
+            if let typeSignature, !typeSignature.isEmpty,
+               let exact = indexedCandidates.first(where: {
+                   indexedBindingsBySymbol?[$0.id]?.record.typeSignature == typeSignature
+               }) {
+                return exact.id
+            }
+            if typeSignature == nil || typeSignature!.isEmpty {
+                return indexedCandidates.first?.id
+            }
+        }
+
+        let candidates = functionSymbols
+            .filter { symbol in
+                // Reject impossible overloads from routing shape before a
+                // semantic query decodes their signature and nominal owner.
+                if let shape = symbols.importedMemberIndexShape(for: symbol.id),
+                   shape.arity != arity || symbol.flags.contains(.suspendFunction) != isSuspend
+                {
+                    return false
+                }
+                guard let signature = symbols.functionSignature(for: symbol.id) else {
+                    return false
+                }
+                return signature.parameterTypes.count == arity && signature.isSuspend == isSuspend
             }
             .sorted(by: { $0.id.rawValue < $1.id.rawValue })
 

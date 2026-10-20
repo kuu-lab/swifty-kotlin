@@ -218,6 +218,20 @@ extension DataFlowSemaPhase {
     ) {
         let functionName = interner.intern(name)
         let functionFQName = packageFQName + [functionName]
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: functionFQName, work: { [self] in
+            registerDurationTopLevelBridgeFunction(
+                named: name,
+                externalLinkName: externalLinkName,
+                parameterTypes: parameterTypes,
+                returnType: returnType,
+                canThrow: canThrow,
+                packageFQName: packageFQName,
+                symbols: symbols,
+                interner: interner
+            )
+        }) {
+            return
+        }
         if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
             guard let signature = symbols.functionSignature(for: symbolID) else {
                 return false

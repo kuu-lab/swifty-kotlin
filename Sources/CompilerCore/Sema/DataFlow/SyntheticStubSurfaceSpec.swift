@@ -252,6 +252,18 @@ extension DataFlowSemaPhase {
         let constructorName = interner.intern("<init>")
         let constructorFQName = context.ownerFQName + [constructorName]
         let parameterTypes = parameters.map(\.type)
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: constructorFQName, work: { [self] in
+            _ = registerSyntheticConstructorStub(
+                spec,
+                ownerType: ownerTypeRef,
+                context: context,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        }) {
+            return nil
+        }
         if let existing = symbols.lookupAll(fqName: constructorFQName).first(where: { symbolID in
             guard symbols.symbol(symbolID)?.kind == .constructor,
                   let signature = symbols.functionSignature(for: symbolID)
@@ -412,6 +424,21 @@ extension DataFlowSemaPhase {
         let functionFQName = context.ownerFQName + [functionName]
         let parameterTypes = parameters.map(\.type)
 
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: functionFQName, work: { [self] in
+            _ = registerSyntheticFunctionDeclaration(
+                spec,
+                context: context,
+                receiverType: receiverType,
+                parameters: parameters,
+                returnType: returnType,
+                typeParameterSymbols: typeParameterSymbols,
+                typeParameterUpperBoundsList: typeParameterUpperBoundsList,
+                symbols: symbols,
+                interner: interner
+            )
+        }) {
+            return nil
+        }
         if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
             guard let signature = symbols.functionSignature(for: symbolID) else {
                 return false

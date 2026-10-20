@@ -62,6 +62,13 @@ extension DataFlowSemaPhase {
             else {
                 continue
             }
+            if symbols.deferUntilAfterImportedShellMaterializes(child, work: {
+                if symbols.propertyType(for: child) == nil {
+                    symbols.setPropertyType(enumType, for: child)
+                }
+            }) {
+                continue
+            }
             if symbols.propertyType(for: child) == nil {
                 symbols.setPropertyType(enumType, for: child)
             }

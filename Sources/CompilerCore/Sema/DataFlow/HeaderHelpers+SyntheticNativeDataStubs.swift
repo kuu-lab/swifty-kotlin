@@ -17,9 +17,22 @@ extension DataFlowSemaPhase {
             name: functionName,
             arity: 1
         ),
-        let functionSymbol = symbols.lookup(fqName: nativePkg + [functionName]),
-        let signature = symbols.functionSignature(for: functionSymbol)
+        let functionSymbol = symbols.lookup(fqName: nativePkg + [functionName])
         else {
+            return
+        }
+        // KUU-2673: patch the contract once the imported shell materializes
+        // instead of decoding it eagerly to read its signature.
+        if symbols.deferUntilAfterImportedShellMaterializes(functionSymbol, work: { [self] in
+            patchSourceBackedNativeUnhandledExceptionHookContract(
+                symbols: symbols,
+                interner: interner,
+                bundledIndex: bundledIndex
+            )
+        }) {
+            return
+        }
+        guard let signature = symbols.functionSignature(for: functionSymbol) else {
             return
         }
 

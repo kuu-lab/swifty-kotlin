@@ -183,6 +183,14 @@ public final class SymbolTable {
     private var lazyImportedMetadataLoader: ((SymbolID) -> Void)?
     private var lazyImportedMetadataLoaded: Set<SymbolID> = []
     private var lazyImportedMetadataLoadInProgress: Set<SymbolID> = []
+    /// Synthetic-bootstrap work postponed until the imported shell it touches
+    /// is materialized (KUU-2673). The pre-materialization queue runs just
+    /// before the shell's record is applied — matching the eager bootstrap's
+    /// "synthetic state first, metadata merge second" ordering — while the
+    /// post-materialization queue runs after the record is fully applied so
+    /// deferred reads observe the decoded signatures and annotations.
+    private var pendingShellWorkBeforeMaterialization: [SymbolID: [() -> Void]] = [:]
+    private var pendingShellWorkAfterMaterialization: [SymbolID: [() -> Void]] = [:]
     private var indexedImportedNominals: Set<SymbolID> = []
     /// Compact-index shells whose complete record has not been applied yet.
     /// Unlike `lazyImportedMetadataLoaded` (which only tracks symbols that
@@ -585,6 +593,104 @@ public final class SymbolTable {
         loader(symbol)
         lazyImportedMetadataLoadInProgress.remove(symbol)
         lazyImportedMetadataLoaded.insert(symbol)
+    }
+
+    /// True while `symbol` is an imported-library record whose body has not
+    /// been materialized yet — the cheap check shared by every
+    /// defer-until-materialization callsite. Membership is keyed on
+    /// `lazyImportedShells` (registered at loader install) rather than the
+    /// `.importedLibrary` flag so eagerly applied imported records — which
+    /// have no pending record to drain against — still run their work
+    /// inline instead of losing it. `loadInProgress` membership is
+    /// load-bearing: a deferred item that re-invokes its guarded call
+    /// while its own shell is mid-load must run inline (for post-queue
+    /// work the record is already applied by then), otherwise it
+    /// re-enqueues against the same drain and loops forever.
+    public func isUnmaterializedImportedShell(_ symbol: SymbolID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return isUnmaterializedImportedShellLocked(symbol)
+    }
+
+    private func isUnmaterializedImportedShellLocked(_ symbol: SymbolID) -> Bool {
+        lazyImportedMetadataLoader != nil
+            && lazyImportedShells.contains(symbol)
+            && !lazyImportedMetadataLoaded.contains(symbol)
+            && !lazyImportedMetadataLoadInProgress.contains(symbol)
+    }
+
+    /// If `symbol` is an unmaterialized imported shell, enqueue `work` so it
+    /// runs immediately before the shell's imported record is applied — the
+    /// same point where the eager synthetic bootstrap wrote this data — and
+    /// return true. Otherwise return false; the caller must run `work` itself.
+    func deferUntilImportedShellMaterializes(_ symbol: SymbolID, work: @escaping () -> Void) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard isUnmaterializedImportedShellLocked(symbol) else {
+            return false
+        }
+        pendingShellWorkBeforeMaterialization[symbol, default: []].append(work)
+        return true
+    }
+
+    /// Same as `deferUntilImportedShellMaterializes`, but `work` runs after
+    /// the shell's record has been fully applied, so it can read the decoded
+    /// signatures, annotations and member metadata it patches.
+    func deferUntilAfterImportedShellMaterializes(_ symbol: SymbolID, work: @escaping () -> Void) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard isUnmaterializedImportedShellLocked(symbol) else {
+            return false
+        }
+        pendingShellWorkAfterMaterialization[symbol, default: []].append(work)
+        return true
+    }
+
+    /// Convenience for the synthetic bootstrap's "does a member already exist
+    /// at `fqName`" checks: when any candidate is still an unmaterialized
+    /// imported shell, enqueues `work` on the first such shell so the check
+    /// re-runs once its signature is available, and returns true. When every
+    /// candidate is already materialized (or absent), returns false and the
+    /// caller performs the check inline.
+    func deferWorkUntilImportedMemberMaterializes(
+        at fqName: [InternedString],
+        work: @escaping () -> Void
+    ) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let pending = (byFQName[fqName] ?? []).first(where: {
+            isUnmaterializedImportedShellLocked($0)
+        }) else {
+            return false
+        }
+        pendingShellWorkAfterMaterialization[pending, default: []].append(work)
+        return true
+    }
+
+    /// Runs everything queued by `deferUntilImportedShellMaterializes` for
+    /// `symbol`. Called by the lazy metadata loader right before the imported
+    /// record is applied; deferred items re-check `defer` guards, so
+    /// re-enqueueing from inside a drained item keeps ordering FIFO.
+    func drainPendingShellWorkBeforeMaterialization(for symbol: SymbolID) {
+        lock.lock()
+        defer { lock.unlock() }
+        while let pending = pendingShellWorkBeforeMaterialization.removeValue(forKey: symbol) {
+            for work in pending {
+                work()
+            }
+        }
+    }
+
+    /// Runs everything queued by `deferUntilAfterImportedShellMaterializes`
+    /// for `symbol`, after its record has been applied.
+    func drainPendingShellWorkAfterMaterialization(for symbol: SymbolID) {
+        lock.lock()
+        defer { lock.unlock() }
+        while let pending = pendingShellWorkAfterMaterialization.removeValue(forKey: symbol) {
+            for work in pending {
+                work()
+            }
+        }
     }
 
     public var count: Int {

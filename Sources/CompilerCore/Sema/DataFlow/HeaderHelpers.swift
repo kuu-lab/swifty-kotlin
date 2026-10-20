@@ -1640,36 +1640,43 @@ extension DataFlowSemaPhase {
         for entry in preconditionFunctions {
             let functionName = interner.intern(entry.name)
             let functionFQName = kotlinPkg + [functionName]
-            guard let symbol = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
-                guard let symbol = symbols.symbol(symbolID),
-                      symbol.kind == .function,
-                      // Symbols loaded from a precompiled stdlib library artifact
-                      // (`--stdlib-library`, used by Scripts/diff_kotlinc.sh) carry
-                      // both `.importedLibrary` and `.synthetic`, so only exclude
-                      // synthetic placeholders that are NOT backed by an import.
-                      !symbol.flags.contains(.synthetic) || symbol.flags.contains(.importedLibrary),
-                      let signature = symbols.functionSignature(for: symbolID)
-                else {
-                    return false
+            // KUU-2673: attach the effect once the imported candidates
+            // materialize instead of decoding their signatures eagerly.
+            let patchContractEffect = {
+                guard let symbol = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
+                    guard let symbol = symbols.symbol(symbolID),
+                          symbol.kind == .function,
+                          // Symbols loaded from a precompiled stdlib library artifact
+                          // (`--stdlib-library`, used by Scripts/diff_kotlinc.sh) carry
+                          // both `.importedLibrary` and `.synthetic`, so only exclude
+                          // synthetic placeholders that are NOT backed by an import.
+                          !symbol.flags.contains(.synthetic) || symbol.flags.contains(.importedLibrary),
+                          let signature = symbols.functionSignature(for: symbolID)
+                    else {
+                        return false
+                    }
+                    return signature.receiverType == nil
+                        && signature.parameterTypes == entry.parameterTypes
+                        && signature.returnType == types.unitType
+                }) else {
+                    return
                 }
-                return signature.receiverType == nil
-                    && signature.parameterTypes == entry.parameterTypes
-                    && signature.returnType == types.unitType
-            }) else {
-                continue
+                guard let signature = symbols.functionSignature(for: symbol),
+                      !signature.valueParameterSymbols.isEmpty
+                else {
+                    return
+                }
+                symbols.setContractNonNullEffect(
+                    ContractNonNullEffect(
+                        parameterSymbol: signature.valueParameterSymbols[0],
+                        appliesOnAnyReturn: true
+                    ),
+                    for: symbol
+                )
             }
-            guard let signature = symbols.functionSignature(for: symbol),
-                  !signature.valueParameterSymbols.isEmpty
-            else {
-                continue
+            if !symbols.deferWorkUntilImportedMemberMaterializes(at: functionFQName, work: patchContractEffect) {
+                patchContractEffect()
             }
-            symbols.setContractNonNullEffect(
-                ContractNonNullEffect(
-                    parameterSymbol: signature.valueParameterSymbols[0],
-                    appliesOnAnyReturn: true
-                ),
-                for: symbol
-            )
         }
 
         // KUU-1091: `requireNotNull`/`checkNotNull` declare
@@ -1683,37 +1690,42 @@ extension DataFlowSemaPhase {
         let notNullFunctionNames = ["requireNotNull", "checkNotNull"]
         for name in notNullFunctionNames {
             let functionFQName = kotlinPkg + [interner.intern(name)]
-            for symbol in symbols.lookupAll(fqName: functionFQName) {
-                guard let symbolInfo = symbols.symbol(symbol),
-                      symbolInfo.kind == .function,
-                      !symbolInfo.flags.contains(.synthetic) || symbolInfo.flags.contains(.importedLibrary),
-                      let signature = symbols.functionSignature(for: symbol),
-                      signature.receiverType == nil,
-                      !signature.valueParameterSymbols.isEmpty
-                else {
-                    continue
+            let patchContractEffects = {
+                for symbol in symbols.lookupAll(fqName: functionFQName) {
+                    guard let symbolInfo = symbols.symbol(symbol),
+                          symbolInfo.kind == .function,
+                          !symbolInfo.flags.contains(.synthetic) || symbolInfo.flags.contains(.importedLibrary),
+                          let signature = symbols.functionSignature(for: symbol),
+                          signature.receiverType == nil,
+                          !signature.valueParameterSymbols.isEmpty
+                    else {
+                        continue
+                    }
+                    let arityMatches = switch signature.parameterTypes.count {
+                    case 1:
+                        true
+                    case 2:
+                        signature.parameterTypes[1] == lazyMessageType
+                    default:
+                        false
+                    }
+                    // The first parameter must be the nullable `value` — a Boolean
+                    // first parameter would route to condition narrowing instead.
+                    guard arityMatches,
+                          signature.parameterTypes[0] != types.booleanType else {
+                        continue
+                    }
+                    symbols.setContractNonNullEffect(
+                        ContractNonNullEffect(
+                            parameterSymbol: signature.valueParameterSymbols[0],
+                            appliesOnAnyReturn: true
+                        ),
+                        for: symbol
+                    )
                 }
-                let arityMatches = switch signature.parameterTypes.count {
-                case 1:
-                    true
-                case 2:
-                    signature.parameterTypes[1] == lazyMessageType
-                default:
-                    false
-                }
-                // The first parameter must be the nullable `value` — a Boolean
-                // first parameter would route to condition narrowing instead.
-                guard arityMatches,
-                      signature.parameterTypes[0] != types.booleanType else {
-                    continue
-                }
-                symbols.setContractNonNullEffect(
-                    ContractNonNullEffect(
-                        parameterSymbol: signature.valueParameterSymbols[0],
-                        appliesOnAnyReturn: true
-                    ),
-                    for: symbol
-                )
+            }
+            if !symbols.deferWorkUntilImportedMemberMaterializes(at: functionFQName, work: patchContractEffects) {
+                patchContractEffects()
             }
         }
     }
