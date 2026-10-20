@@ -248,13 +248,17 @@ ABI照合はvalue-class／JvmName lowering後の公開signatureで行い、静�
 
 
 
-インクリメンタルコンパイルは既定でオフ。CLI の `--incremental` は
-`incremental` frontend flag、`--incremental-cache <path>` は
-`incrementalCachePath` を設定し、それぞれ単独で有効化する。
+インクリメンタルコンパイルは stdlib artifact（`.kklib`）または `--no-stdlib` を使う
+非 JVM コンパイルで既定で有効。bundled stdlib をソース注入するコンパイル
+（`includeStdlib` 解決後）と `--stdlib-only`、JVM 出力は既定オフのまま。
+CLI の `--incremental` は `incremental` frontend flag、`--incremental-cache <path>` は
+`incrementalCachePath` を設定し、それぞれ単独で有効化する（既定対象外の経路を含む）。
 `--no-incremental` は `no-incremental` frontend flag を設定し、指定順に関係なく
 有効化 flag と保存先指定に優先する。Driver は無効化時にキャッシュを読み書きしない。
 `-Xfrontend incremental` は互換のため引き続き利用可能。
-詳細と既定オフを維持する根拠は [`incremental-compilation.md`](incremental-compilation.md) を参照。
+ヒット率は `-Xfrontend incremental-stats` が `incremental: runs=… restored=…` を
+stderr に出力し、`time-phases` は `incremental-prepare` サブフェーズを計測する。
+詳細と既定範囲の根拠は [`incremental-compilation.md`](incremental-compilation.md) を参照。
 
 * **CompilationSession**: 1回の `kswiftc` 実行
 * **Module**: Kotlin の “名前空間 + 生成物” 単位（`moduleName`）

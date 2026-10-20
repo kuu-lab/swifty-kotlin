@@ -7,6 +7,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]:-$0}")"
 KSWIFTC="${KSWIFTC:-$ROOT_DIR/.build/debug/kswiftc}"
+DIFF_KSWIFTC_FLAGS="${DIFF_KSWIFTC_FLAGS:-}"
 KOTLINC="${KOTLINC:-kotlinc}"
 JAVA_BIN="${JAVA_BIN:-java}"
 TIMEOUT_CMD="${TIMEOUT:-timeout}"
@@ -271,7 +272,7 @@ run_case() {
   # Keep reference and candidate diagnostics separate so artifacts preserve the raw compiler output.
   "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KOTLINC" -Xcontext-parameters "${kotlinc_flags[@]}" "$case_path" \
     -d "$tmp_dir/reference.jar" >"$tmp_dir/reference.stdout" 2>"$tmp_dir/reference.stderr" || ref_exit=$?
-  "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --emit kir "$case_path" \
+  "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --emit kir ${DIFF_KSWIFTC_FLAGS:+$DIFF_KSWIFTC_FLAGS} "$case_path" \
     -o "$tmp_dir/candidate.kir" >"$tmp_dir/candidate.stdout" 2>"$tmp_dir/candidate.stderr" || candidate_exit=$?
 
   cat "$tmp_dir/reference.stdout" "$tmp_dir/reference.stderr" >"$tmp_dir/reference.diagnostics"

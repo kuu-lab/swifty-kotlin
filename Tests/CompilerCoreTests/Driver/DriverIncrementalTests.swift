@@ -319,6 +319,170 @@ struct DriverIncrementalTests {
         }
     }
 
+    // MARK: - default-on behavior
+
+    @Test
+    func testIncrementalEnabledByDefaultViaManagedCache() throws {
+        let override = tempDir + "/user-cache"
+        IncrementalCompilationCache.userCacheRootOverride = override
+        defer {
+            IncrementalCompilationCache.userCacheRootOverride = nil
+            try? FileManager.default.removeItem(atPath: tempDir)
+        }
+        let path = tempDir + "/main.kt"
+        try "fun main() {}".write(toFile: path, atomically: true, encoding: .utf8)
+        let options = CompilerOptions(
+            moduleName: "Test", inputs: [path], outputPath: outputPath, emit: .kirDump,
+            target: defaultTargetTriple(), includeStdlib: false
+        )
+        #expect(makeDriver().runForTesting(options: options).exitCode == 0)
+        let namespacePath = try #require(IncrementalCompilationCache.defaultCachePath(for: options))
+        #expect(namespacePath.hasPrefix(override))
+        #expect(FileManager.default.fileExists(atPath: namespacePath + "/manifest.json"))
+
+        let original = try Data(contentsOf: URL(fileURLWithPath: kirOutputPath()))
+        try FileManager.default.removeItem(atPath: kirOutputPath())
+        #expect(makeDriver().runForTesting(options: options).exitCode == 0)
+        #expect(try Data(contentsOf: URL(fileURLWithPath: kirOutputPath())) == original)
+    }
+
+    @Test
+    func testNoIncrementalDisablesDefaultCacheUse() throws {
+        let override = tempDir + "/user-cache"
+        IncrementalCompilationCache.userCacheRootOverride = override
+        defer {
+            IncrementalCompilationCache.userCacheRootOverride = nil
+            try? FileManager.default.removeItem(atPath: tempDir)
+        }
+        let path = tempDir + "/main.kt"
+        try "fun main() {}".write(toFile: path, atomically: true, encoding: .utf8)
+        let options = CompilerOptions(
+            moduleName: "Test", inputs: [path], outputPath: outputPath, emit: .kirDump,
+            target: defaultTargetTriple(), frontendFlags: ["no-incremental"],
+            includeStdlib: false
+        )
+        #expect(makeDriver().runForTesting(options: options).exitCode == 0)
+        #expect(!FileManager.default.fileExists(atPath: override + "/incremental"))
+    }
+
+    @Test
+    func testBundledStdlibSourceInjectionStaysOptIn() throws {
+        let override = tempDir + "/user-cache"
+        IncrementalCompilationCache.userCacheRootOverride = override
+        defer {
+            IncrementalCompilationCache.userCacheRootOverride = nil
+            try? FileManager.default.removeItem(atPath: tempDir)
+        }
+        let path = tempDir + "/main.kt"
+        try "fun main() {}".write(toFile: path, atomically: true, encoding: .utf8)
+        // includeStdlib: true with no resolved artifact means bundled sources
+        // are injected — too much frontend state to cache by default.
+        let options = CompilerOptions(
+            moduleName: "Test", inputs: [path], outputPath: outputPath, emit: .kirDump,
+            target: defaultTargetTriple(), includeStdlib: true,
+            allowDefaultStdlibLibrary: false
+        )
+        #expect(options.includeStdlib)
+        #expect(makeDriver().runForTesting(options: options).exitCode == 0)
+        #expect(!FileManager.default.fileExists(atPath: override + "/incremental"))
+    }
+
+    @Test
+    func testJVMEmitKeepsIncrementalDisabled() throws {
+        let path = tempDir + "/main.kt"
+        try "fun main() {}".write(toFile: path, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(atPath: tempDir) }
+        let options = CompilerOptions(
+            moduleName: "Test", inputs: [path], outputPath: tempDir + "/out.jar",
+            emit: .jvmJar, target: defaultTargetTriple(), includeStdlib: false,
+            incrementalCachePath: tempDir + "/cache"
+        )
+        // JVM output is always non-incremental, even with an explicit cache.
+        #expect(options.emit.isJVM)
+        _ = makeDriver().runForTesting(options: options)
+        #expect(!FileManager.default.fileExists(atPath: tempDir + "/cache"))
+    }
+
+    @Test
+    func testNoOpRestoreReplaysCachedWarnings() throws {
+        let cachePath = tempDir + "/cache"
+        defer { try? FileManager.default.removeItem(atPath: tempDir) }
+        // Deprecated-declaration use produces a warning diagnostic.
+        let path = tempDir + "/main.kt"
+        try """
+        @Deprecated("use newer")
+        fun old() {}
+        fun main() { old() }
+        """.write(toFile: path, atomically: true, encoding: .utf8)
+        let options = CompilerOptions(
+            moduleName: "Test", inputs: [path], outputPath: outputPath, emit: .kirDump,
+            target: defaultTargetTriple(), includeStdlib: false,
+            incrementalCachePath: cachePath
+        )
+        let first = makeDriver().runForTesting(options: options)
+        #expect(first.exitCode == 0)
+        #expect(first.diagnostics.contains { $0.severity == .warning },
+                "Expected at least one warning on the first build, got \(first.diagnostics)")
+
+        try FileManager.default.removeItem(atPath: kirOutputPath())
+        let second = makeDriver().runForTesting(options: options)
+        #expect(second.exitCode == 0)
+        #expect(second.diagnostics.count == first.diagnostics.count,
+                "Restored build should replay the cached build's diagnostics")
+        #expect(second.diagnostics.contains { $0.severity == .warning })
+    }
+
+    @Test
+    func testIncrementalStatsRecorded() throws {
+        let cachePath = tempDir + "/cache"
+        defer { try? FileManager.default.removeItem(atPath: tempDir) }
+        let path = tempDir + "/main.kt"
+        try "fun main() {}".write(toFile: path, atomically: true, encoding: .utf8)
+        let options = CompilerOptions(
+            moduleName: "Test", inputs: [path], outputPath: outputPath, emit: .kirDump,
+            target: defaultTargetTriple(), includeStdlib: false,
+            incrementalCachePath: cachePath
+        )
+        #expect(makeDriver().runForTesting(options: options).exitCode == 0)
+        #expect(makeDriver().runForTesting(options: options).exitCode == 0)
+        let statsPath = cachePath + "/stats.json"
+        #expect(FileManager.default.fileExists(atPath: statsPath))
+        let data = try Data(contentsOf: URL(fileURLWithPath: statsPath))
+        let stats = try #require(try? JSONDecoder().decode(IncrementalStats.self, from: data))
+        #expect(stats.runs >= 2)
+        #expect(stats.restoredOutputs >= 1)
+    }
+
+    @Test
+    func testArtifactGenerationsAreCapped() throws {
+        let cachePath = tempDir + "/cache"
+        defer { try? FileManager.default.removeItem(atPath: tempDir) }
+        let path = tempDir + "/main.kt"
+        try "fun main() {}".write(toFile: path, atomically: true, encoding: .utf8)
+        var options = CompilerOptions(
+            moduleName: "Test", inputs: [path], outputPath: outputPath, emit: .kirDump,
+            target: defaultTargetTriple(), includeStdlib: false,
+            incrementalCachePath: cachePath
+        )
+        // Each run with a distinct module name writes a distinct artifact
+        // generation; the cache must cap them.
+        for index in 0 ..< 10 {
+            options.moduleName = "Test\(index)"
+            #expect(makeDriver().runForTesting(options: options).exitCode == 0)
+            // Age the just-written generation so pruning may collect it.
+            for entry in (try? FileManager.default.contentsOfDirectory(
+                atPath: cachePath + "/artifacts")) ?? [] {
+                let dir = cachePath + "/artifacts/" + entry
+                try? FileManager.default.setAttributes(
+                    [.modificationDate: Date().addingTimeInterval(-120)],
+                    ofItemAtPath: dir
+                )
+            }
+        }
+        let generations = try FileManager.default.contentsOfDirectory(atPath: cachePath + "/artifacts")
+        #expect(generations.count <= 8)
+    }
+
     // MARK: - ICE fallback
 
     @Test

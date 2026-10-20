@@ -93,5 +93,31 @@ struct FileFingerprintTests {
         let fp = FileFingerprint.compute(for: "/test.kt", contents: data)
         #expect(fp.contentHash == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
     }
+
+    @Test
+    func testSHA256MultiBlockVector() {
+        // 56-byte NIST vector: padding spills into a second block, exercising
+        // the tail path of the in-place buffer hasher.
+        let data = Data("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq".utf8)
+        let fp = FileFingerprint.compute(for: "/test.kt", contents: data)
+        #expect(fp.contentHash == "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1")
+    }
+
+    @Test
+    func testSHA256MillionAVector() {
+        // 1_000_000 'a' — many full blocks plus a non-empty tail block.
+        let data = Data(repeating: UInt8(ascii: "a"), count: 1_000_000)
+        let fp = FileFingerprint.compute(for: "/test.kt", contents: data)
+        #expect(fp.contentHash == "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0")
+    }
+
+    @Test
+    func testSHA256BlockAlignedInput() {
+        // Exactly 64 bytes — no tail bytes at all; the padding block is all
+        // zeros after the 0x80 marker.
+        let data = Data(repeating: UInt8(ascii: "b"), count: 64)
+        let fp = FileFingerprint.compute(for: "/test.kt", contents: data)
+        #expect(fp.contentHash == "a0fab1377f49a759b57f63318262ebe89fabfc990e8e93ceac2984561482b9d4")
+    }
 }
 #endif
