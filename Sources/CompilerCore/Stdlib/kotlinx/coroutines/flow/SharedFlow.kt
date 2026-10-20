@@ -7,6 +7,8 @@
 
 package kotlinx.coroutines.flow
 
+import kotlinx.atomicfu.locks.SynchronizedObject
+import kotlinx.atomicfu.locks.synchronized
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.CompletableDeferred
 
@@ -41,46 +43,66 @@ public interface MutableSharedFlow<T> : SharedFlow<T>, FlowCollector<T> {
 // Each collector owns a FIFO of values and at most one suspended receiver.
 // Completing its deferred resumes collection in the collector's own coroutine,
 // so downstream aborts and cancellation still unwind through collect's finally.
+// The queue/waiter state is guarded by its own lock so that emissions on other
+// threads cannot interleave with a receiver's check-then-register sequence
+// (KUU-2685): a lost wakeup there would suspend a collector while its value
+// sat unread in pendingValues.
 internal class HotFlowSubscription<T> {
     private val pendingValues: MutableList<T> = mutableListOf()
     private var waitingCollector: CompletableDeferred<T>? = null
+    private val lock = SynchronizedObject()
 
     fun emit(value: T) {
-        val waiting = waitingCollector
-        if (waiting == null) {
-            pendingValues.add(value)
-        } else {
-            waitingCollector = null
-            waiting.complete(value)
+        val waiting = synchronized(lock) {
+            val waiting = waitingCollector
+            if (waiting == null) {
+                pendingValues.add(value)
+            } else {
+                waitingCollector = null
+            }
+            waiting
         }
+        waiting?.complete(value)
     }
 
     fun emitConflated(value: T) {
-        val waiting = waitingCollector
-        if (waiting == null) {
-            pendingValues.clear()
-            pendingValues.add(value)
-        } else {
-            waitingCollector = null
-            waiting.complete(value)
+        val waiting = synchronized(lock) {
+            val waiting = waitingCollector
+            if (waiting == null) {
+                pendingValues.clear()
+                pendingValues.add(value)
+            } else {
+                waitingCollector = null
+            }
+            waiting
         }
+        waiting?.complete(value)
     }
 
     suspend fun receive(): T {
-        if (pendingValues.isNotEmpty()) return pendingValues.removeAt(0)
-
         val waiting = CompletableDeferred<T>()
-        waitingCollector = waiting
-        if (pendingValues.isNotEmpty()) {
-            waitingCollector = null
-            waiting.complete(pendingValues.removeAt(0))
+        var pending: T? = null
+        var hasPending = false
+        synchronized(lock) {
+            if (pendingValues.isNotEmpty()) {
+                pending = pendingValues.removeAt(0)
+                hasPending = true
+            } else {
+                waitingCollector = waiting
+            }
+        }
+        if (hasPending) {
+            @Suppress("UNCHECKED_CAST")
+            return pending as T
         }
         return waiting.await()
     }
 
     fun clear() {
-        pendingValues.clear()
-        waitingCollector = null
+        synchronized(lock) {
+            pendingValues.clear()
+            waitingCollector = null
+        }
     }
 }
 
