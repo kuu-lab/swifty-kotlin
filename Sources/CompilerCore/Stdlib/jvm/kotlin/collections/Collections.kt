@@ -146,15 +146,50 @@ public fun <T> Iterable<T>.asSequence(): kotlin.sequences.Sequence<T> {
 }
 
 public fun <T> Iterable<T>.first(): T {
+    if (this is List<*>) return (this as List<T>).first()
     val iterator = this.iterator()
     if (!iterator.hasNext()) throw NoSuchElementException("Collection is empty.")
     return iterator.next()
 }
 
 public fun <T> List<T>.first(): T {
-    if (this.size == 0) throw NoSuchElementException("List is empty.")
+    if (this.isEmpty()) throw NoSuchElementException("List is empty.")
     return this[0]
 }
+
+public fun <T> Iterable<T>.last(): T {
+    if (this is List<*>) return (this as List<T>).last()
+    val iterator = this.iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException("Collection is empty.")
+    var result = iterator.next()
+    while (iterator.hasNext()) result = iterator.next()
+    return result
+}
+
+public fun <T> List<T>.last(): T {
+    if (this.isEmpty()) throw NoSuchElementException("List is empty.")
+    return this[this.size - 1]
+}
+
+public fun <T> Iterable<T>.firstOrNull(): T? {
+    if (this is List<*>) return (this as List<T>).firstOrNull()
+    val iterator = this.iterator()
+    if (!iterator.hasNext()) return null
+    return iterator.next()
+}
+
+public fun <T> List<T>.firstOrNull(): T? = if (this.isEmpty()) null else this[0]
+
+public fun <T> Iterable<T>.lastOrNull(): T? {
+    if (this is List<*>) return (this as List<T>).lastOrNull()
+    val iterator = this.iterator()
+    if (!iterator.hasNext()) return null
+    var result = iterator.next()
+    while (iterator.hasNext()) result = iterator.next()
+    return result
+}
+
+public fun <T> List<T>.lastOrNull(): T? = if (this.isEmpty()) null else this[this.size - 1]
 
 fun <T> collectionSizeOrDefault(value: Iterable<T>, defaultValue: Int): Int = if (value is Collection<*>) value.size else defaultValue
 fun <T> collectionSizeOrNull(value: Iterable<T>): Int? = if (value is Collection<*>) value.size else null
