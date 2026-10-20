@@ -78,15 +78,22 @@ public final class CompilerDriver {
             }
         }
 
-        let phases: [CompilerPhase] = [
-            LoadSourcesPhase(),
+        let syntaxPhases: [CompilerPhase] = [LoadSourcesPhase()]
+            + (options.emit.isJVM ? [JVMPreparationPhase()] : []) + [
             LexPhase(),
             ParsePhase(),
             BuildASTPhase(),
+        ]
+        // JVM shares semantic analysis, but has its own typed IR and lowering.
+        let phases: [CompilerPhase] = syntaxPhases + (options.emit.isJVM ? [
+            JVMSourceValidationPhase(),
+            SemaPhase(),
+            JVMFrontendPhase(),
+        ] : [
             SemaPhase(),
             BuildKIRPhase(),
             LoweringPhase(),
-        ]
+        ])
 
         executePhases(ctx: ctx, phases: phases, incrementalEnabled: prepared.incrementalEnabled)
 
@@ -103,6 +110,7 @@ public final class CompilerDriver {
     }
 
     private func isIncrementalEnabled(options: CompilerOptions) -> Bool {
+        guard !options.emit.isJVM else { return false }
         if options.frontendFlags.contains("no-incremental") {
             return false
         }

@@ -98,7 +98,7 @@ extension CallTypeChecker {
             sema: sema,
             interner: interner
         )
-        if calleeName == knownNames.forEach {
+        if calleeName == knownNames.forEach, !sema.requiresResolvedLibraryCalls {
             let receiverClassification = ReceiverClassifier(sema: sema, interner: interner).classify(
                 receiverID: receiverID,
                 receiverType: lookupReceiverType,

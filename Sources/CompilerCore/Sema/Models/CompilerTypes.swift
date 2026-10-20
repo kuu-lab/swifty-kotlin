@@ -43,6 +43,10 @@ public enum EmitMode: String, Sendable {
     case llvmIR
     case kirDump
     case library
+    case jvmClass
+    case jvmJar
+
+    public var isJVM: Bool { self == .jvmClass || self == .jvmJar }
 }
 
 /// Thread-safety mode for `by lazy { }` delegates (P5-80).
@@ -78,6 +82,8 @@ public struct CompilerOptions: Equatable {
     public var diagnosticsFormat: DiagnosticsFormat
     /// Exact file-level entry point, used by generated test executables.
     public var entryPointFQName: String?
+    /// JVM classpath entries, in lookup order (JAR files or class directories).
+    public var jvmClasspath: [String]
 
     /// Whether this compilation produces common-module metadata that may
     /// retain expect declarations without local actual declarations.
@@ -137,7 +143,7 @@ public struct CompilerOptions: Equatable {
         stdlibLibraryPath: String?,
         emit: EmitMode
     ) -> Bool {
-        allowDefaultStdlibLibrary && includeStdlib && !stdlibOnly
+        !emit.isJVM && allowDefaultStdlibLibrary && includeStdlib && !stdlibOnly
             && stdlibLibraryPath == nil
     }
 
@@ -162,7 +168,8 @@ public struct CompilerOptions: Equatable {
         stdlibOnly: Bool = false,
         stdlibLibraryPath: String? = nil,
         allowDefaultStdlibLibrary: Bool = true,
-        entryPointFQName: String? = nil
+        entryPointFQName: String? = nil,
+        jvmClasspath: [String] = []
     ) {
         self.moduleName = moduleName
         self.inputs = inputs
@@ -189,12 +196,13 @@ public struct CompilerOptions: Equatable {
         )
         let resolvedStdlibLibraryPath = stdlibLibraryPath ?? (shouldUseDefaultStdlib ? Self.defaultStdlibLibraryPath : nil)
         self.stdlibLibraryPath = resolvedStdlibLibraryPath
-        self.includeStdlib = includeStdlib && resolvedStdlibLibraryPath == nil
+        self.includeStdlib = !emit.isJVM && includeStdlib && resolvedStdlibLibraryPath == nil
 
         self.incrementalCachePath = incrementalCachePath
         self.diagnosticsFormat = diagnosticsFormat
         self.stdlibOnly = stdlibOnly
         self.entryPointFQName = entryPointFQName
+        self.jvmClasspath = jvmClasspath
     }
 
     /// Default search paths for locating Kotlin stdlib sources.

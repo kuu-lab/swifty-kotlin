@@ -50,13 +50,12 @@ public extension CompilerDriver {
             _ = context.sourceManager.addFile(path: path, contents: data)
         }
 
-        let phases: [CompilerPhase] = [
-            LoadSourcesPhase(),
+        let phases: [CompilerPhase] = [LoadSourcesPhase()]
+            + (options.emit.isJVM ? [JVMPreparationPhase()] : []) + [
             LexPhase(),
             ParsePhase(),
             BuildASTPhase(),
-            SemaPhase(),
-        ]
+        ] + (options.emit.isJVM ? [JVMSourceValidationPhase(), SemaPhase(), JVMFrontendPhase()] : [SemaPhase()])
 
         var continuedAfterParseError = false
         for phase in phases {

@@ -510,6 +510,8 @@ public final class IncrementalCompilationCache {
             outputPath(base: options.outputPath, defaultExtension: "o")
         case .executable:
             options.outputPath
+        case .jvmClass, .jvmJar:
+            options.outputPath
         case .library:
             options.outputPath.hasSuffix(".kklib") ? options.outputPath : options.outputPath + ".kklib"
         }

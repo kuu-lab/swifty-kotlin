@@ -76,13 +76,15 @@ struct BundledDeclarationIndex: Sendable {
         symbols _: SymbolTable,
         types _: TypeSystem,
         sourceManager: SourceManager,
-        interner: StringInterner
+        interner: StringInterner,
+        includeUserSources: Bool = false
     ) -> BundledDeclarationIndex {
-        var keys = buildKeys(ast: ast, sourceManager: sourceManager, interner: interner)
+        let extraFiles = includeUserSources ? Set(sourceManager.fileIDs().filter { sourceManager.origin(of: $0) == .user }) : []
+        var keys = buildKeys(ast: ast, sourceManager: sourceManager, interner: interner, extraFiles: extraFiles)
         addListIterableAliases(to: &keys, interner: interner)
         return BundledDeclarationIndex(
             keys: keys,
-            nominalFQNames: buildNominalFQNames(ast: ast, sourceManager: sourceManager)
+            nominalFQNames: buildNominalFQNames(ast: ast, sourceManager: sourceManager, extraFiles: extraFiles)
         )
     }
 
@@ -606,9 +608,10 @@ struct BundledDeclarationIndex: Sendable {
     private static func buildKeys(
         ast: ASTModule,
         sourceManager: SourceManager,
-        interner: StringInterner
+        interner: StringInterner,
+        extraFiles: Set<FileID> = []
     ) -> Set<BundledMemberKey> {
-        let bundledFileIDs = bundledFileIDs(in: sourceManager)
+        let bundledFileIDs = bundledFileIDs(in: sourceManager).union(extraFiles)
         guard !bundledFileIDs.isEmpty else {
             return []
         }
@@ -688,9 +691,10 @@ struct BundledDeclarationIndex: Sendable {
 
     private static func buildNominalFQNames(
         ast: ASTModule,
-        sourceManager: SourceManager
+        sourceManager: SourceManager,
+        extraFiles: Set<FileID> = []
     ) -> Set<[InternedString]> {
-        let bundledFileIDs = bundledFileIDs(in: sourceManager)
+        let bundledFileIDs = bundledFileIDs(in: sourceManager).union(extraFiles)
         guard !bundledFileIDs.isEmpty else {
             return []
         }

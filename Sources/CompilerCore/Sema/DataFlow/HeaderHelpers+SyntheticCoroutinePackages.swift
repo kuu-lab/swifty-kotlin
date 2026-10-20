@@ -71,7 +71,8 @@ extension DataFlowSemaPhase {
         let restrictsSuspensionFQName = kotlinCoroutinesPkg + [interner.intern("RestrictsSuspension")]
         // The bundled declaration owns this annotation and its implicit constructor.
         // Retain the residual registration only for --no-stdlib compilations.
-        if !bundledIndex.containsNominal(fqName: restrictsSuspensionFQName) {
+        let sourceOwned = symbols.lookup(fqName: restrictsSuspensionFQName).flatMap { symbols.symbol($0)?.declSite } != nil
+        if !bundledIndex.containsNominal(fqName: restrictsSuspensionFQName) && !sourceOwned {
             let restrictsSuspensionSymbol = ensureAnnotationClassSymbol(
                 named: "RestrictsSuspension",
                 in: kotlinCoroutinesPkg,

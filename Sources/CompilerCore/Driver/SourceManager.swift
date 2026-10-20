@@ -12,7 +12,7 @@ public enum SourceOrigin: String, Equatable, Sendable, Codable {
 }
 
 /// Concurrency model:
-/// `SourceManager` is populated sequentially during `LoadSourcesPhase`,
+/// `SourceManager` is populated sequentially during source loading and target preparation,
 /// and treated as read-only after that phase completes.
 public final class SourceManager: @unchecked Sendable {
     private struct FileRecord {

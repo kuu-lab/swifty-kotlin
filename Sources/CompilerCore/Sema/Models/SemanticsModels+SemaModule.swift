@@ -1,6 +1,12 @@
 public final class SemaModule {
     var independentBodyCount = 0
 
+    /// The JVM emitter needs resolved source declarations, including default and
+    /// inline parameter information, rather than Native collection shortcuts.
+    var requiresResolvedLibraryCalls = false
+    /// The trusted JVM runtime owns the implementation of restricted suspension.
+    var isJVMStdlibBuild = false
+
     public let symbols: SymbolTable
     public let types: TypeSystem
     public let bindings: BindingTable

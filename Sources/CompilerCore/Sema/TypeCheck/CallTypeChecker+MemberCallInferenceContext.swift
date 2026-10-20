@@ -398,6 +398,17 @@ extension CallTypeChecker {
         let (vis, _) = ctx.filterByVisibility(fqnCandidates)
         guard !vis.isEmpty else { return nil }
 
+        if sema.requiresResolvedLibraryCalls,
+           receiverPath.map(interner.resolve) == ["kotlin", "sequences"],
+           ["sequence", "iterator"].contains(interner.resolve(calleeName)),
+           vis.contains(where: { candidate in
+               ctx.cachedSymbol(candidate)?.declSite.map { driver.sourceManager?.origin(of: $0.start.file) == .residualStdlib } == true
+           }),
+           let builder = inferSequenceBuilderCall(id, args: args, range: range, ctx: ctx, locals: &locals, expectedType: request.expectedType, explicitTypeArgs: explicitTypeArgs, calleeName: calleeName, jvmBuilderName: calleeName)
+               ?? inferIteratorBuilderCall(id, args: args, range: range, ctx: ctx, locals: &locals, expectedType: request.expectedType, explicitTypeArgs: explicitTypeArgs, calleeName: calleeName, jvmBuilderName: calleeName) {
+            sema.bindings.markFQNTopLevelCallExpr(id)
+            return builder
+        }
         if let builderResult = inferReceiverBuilderCall(
             id, calleeName: calleeName, args: args, range: range,
             ctx: ctx, locals: &locals, expectedType: request.expectedType,

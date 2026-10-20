@@ -282,7 +282,8 @@ extension CallTypeChecker {
             // expected result directly would accept List<String> = listOf(1).
             // mapOf also needs regular resolution to select its fixed/vararg
             // overloads for non-empty calls.
-            if !(resolvedName == "listOf" && !args.isEmpty), !(resolvedName == "mapOf" && !args.isEmpty),
+            // JVM factories retain their declared overload, vararg, and type constraints.
+            if !sema.requiresResolvedLibraryCalls, !(resolvedName == "listOf" && !args.isEmpty), !(resolvedName == "mapOf" && !args.isEmpty),
                let sourceBackedFactory = sourceBackedCollectionFactoryType(name: resolvedName),
                !hasNonStdlibCollectionFactoryShadow(calleeName, locals: locals, ctx: ctx),
                let chosen = candidates.first(where: { candidate in

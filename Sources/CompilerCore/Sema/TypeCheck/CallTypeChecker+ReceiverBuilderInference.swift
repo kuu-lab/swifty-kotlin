@@ -130,6 +130,7 @@ extension CallTypeChecker {
         guard let calleeName,
               (candidateOverride != nil || receiverType != nil || locals[calleeName] == nil)
         else { return nil }
+        if receiverType == nil, candidateOverride == nil, jvmSequenceBuilderName(calleeName, ctx: ctx, locals: locals) != nil { return nil }
         // Coroutine launcher and sequence builders (`produce { }`,
         // `runBlocking { }`, `sequence { }`, ...) have dedicated handling
         // below that derives their element/result type from `send`/`yield`

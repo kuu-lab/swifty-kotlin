@@ -17,7 +17,8 @@ enum CLIParser {
     static let usageText = """
     Usage: kswiftc [options] <input files>
       -o <path>              Output path
-      --emit <mode>          executable|object|llvm|kir|library
+      --emit <mode>          executable|object|llvm|kir|library|class|jar
+                             class: JVM output directory; jar: JVM archive (library or executable)
       -O0|-O1|-O2|-O3        Optimization level
       -m <name>              Module name
       --entry-point <fqname> Select the file-level executable entry function
@@ -25,6 +26,7 @@ enum CLIParser {
       -L <path>              Library path
       -l <name>              Link library
       --target <triple>      Target triple (arch-vendor-os[-version])
+      --classpath <paths>    JVM JAR/class directories, separated by ':' (also -cp)
       -Xfrontend <flag>      Frontend feature flag (e.g. time-phases, common-module)
       --incremental         Enable incremental compilation (default: off)
       --incremental-cache <path>
@@ -41,7 +43,7 @@ enum CLIParser {
       -Xdiagnostics <format> Diagnostic output format (text|json)
       --stdlib               Include stdlib search paths (default)
       --no-stdlib            Disable automatic stdlib inclusion
-      --stdlib-only          Compile bundled stdlib only as a .kklib (implies --emit library)
+      --stdlib-only          Compile bundled stdlib (.kklib by default; --emit jar for JVM)
       --stdlib-library <path> Use <path>.kklib as the stdlib instead of source injection
       --stdlib-from-source   Debug fallback: inject bundled stdlib Kotlin sources
       --test                 Generate an executable runner for kotlin.test annotations
@@ -51,6 +53,7 @@ enum CLIParser {
     static func parse(args: [String]) throws -> CompilerOptions {
         var inputPaths: [String] = []
         var outputPath = "./a.out"
+        var explicitOutputPath = false
         var moduleName = "Main"
         var entryPointFQName: String?
         var emitMode: EmitMode = .executable
@@ -71,6 +74,7 @@ enum CLIParser {
         var allowDefaultStdlibLibrary = true
         var explicitIncludeStdlib: Bool? = nil
         var target = TargetTriple.hostDefault()
+        var jvmClasspath: [String] = []
 
         if args.isEmpty {
             throw CLIParseError.noInputFiles
@@ -85,10 +89,15 @@ enum CLIParser {
                 throw CLIParseError.usageRequested
             case "-o":
                 outputPath = try requireValue(option: arg, args: args, index: &index)
+                explicitOutputPath = true
             case "-m":
                 moduleName = try requireValue(option: arg, args: args, index: &index)
             case "--entry-point":
                 entryPointFQName = try requireValue(option: arg, args: args, index: &index)
+            case "--classpath", "-classpath", "-cp":
+                let paths = try requireValue(option: arg, args: args, index: &index)
+                guard !paths.isEmpty, !paths.hasPrefix("-") else { throw CLIParseError.missingValue(arg) }
+                jvmClasspath += paths.split(separator: ":", omittingEmptySubsequences: false).map { $0.isEmpty ? "." : String($0) }
             case "--emit":
                 let value = try requireValue(option: arg, args: args, index: &index)
                 guard let mode = parseEmitMode(value) else {
@@ -186,10 +195,10 @@ enum CLIParser {
             if stdlibLibraryPath != nil {
                 throw CLIParseError.incompatibleStdlibOptions("--stdlib-only cannot be combined with --stdlib-library")
             }
-            if let explicitEmitMode, explicitEmitMode != .library {
+            if let explicitEmitMode, explicitEmitMode != .library, !explicitEmitMode.isJVM {
                 throw CLIParseError.stdlibOnlyRequiresLibraryEmit
             }
-            emitMode = .library
+            emitMode = explicitEmitMode ?? .library
             if moduleName == "Main" {
                 moduleName = "KSwiftKStdlib"
             }
@@ -210,6 +219,13 @@ enum CLIParser {
 
         if inputPaths.isEmpty && !stdlibOnly {
             throw CLIParseError.noInputFiles
+        }
+
+        if emitMode.isJVM, !explicitOutputPath {
+            outputPath = emitMode == .jvmClass ? "./classes" : (stdlibOnly ? "./kswiftk-stdlib.jar" : "./main.jar")
+        }
+        if !emitMode.isJVM, !jvmClasspath.isEmpty {
+            throw CLIParseError.incompatibleStdlibOptions("--classpath requires --emit class or jar")
         }
 
         return CompilerOptions(
@@ -233,7 +249,8 @@ enum CLIParser {
             stdlibOnly: stdlibOnly,
             stdlibLibraryPath: stdlibLibraryPath,
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary,
-            entryPointFQName: entryPointFQName
+            entryPointFQName: entryPointFQName,
+            jvmClasspath: jvmClasspath
         )
     }
 
@@ -257,6 +274,10 @@ enum CLIParser {
             .kirDump
         case "library", "lib":
             .library
+        case "class":
+            .jvmClass
+        case "jar":
+            .jvmJar
         default:
             nil
         }

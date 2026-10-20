@@ -9,6 +9,41 @@ import Testing
 // suite's tests concurrently races on that global.
 @Suite("CLI.Parser", .serialized)
 struct CLIParserTests {
+    @Test(arguments: ["class", "jar"])
+    func parsesM22JVMStdlibBuild(mode: String) throws {
+        for args in [["--stdlib-only", "--emit", mode], ["--emit", mode, "--no-stdlib", "--stdlib-only"]] {
+            let options = try CLIParser.parse(args: args)
+            #expect(options.stdlibOnly)
+            #expect(options.inputs.isEmpty)
+            #expect(options.emit == (mode == "jar" ? .jvmJar : .jvmClass))
+            #expect(options.outputPath == (mode == "jar" ? "./kswiftk-stdlib.jar" : "./classes"))
+            #expect(!options.includeStdlib)
+        }
+    }
+
+    @Test(arguments: ["class", "jar"])
+    func parsesJVMOutputModes(mode: String) throws {
+        let options = try CLIParser.parse(args: ["--emit", mode, "hello.kt"])
+        #expect(options.emit == (mode == "class" ? .jvmClass : .jvmJar))
+        #expect(options.outputPath == (mode == "class" ? "./classes" : "./main.jar"))
+        #expect(!options.includeStdlib)
+        #expect(options.stdlibLibraryPath == nil)
+        #expect(!CompilerOptions.shouldUseDefaultStdlib(
+            allowDefaultStdlibLibrary: true, includeStdlib: true, stdlibOnly: false,
+            stdlibLibraryPath: nil, emit: options.emit
+        ))
+        let explicit = try CLIParser.parse(args: ["-o", "custom", "--emit", mode, "hello.kt"])
+        #expect(explicit.outputPath == "custom")
+    }
+
+    @Test(arguments: ["--classpath", "-classpath", "-cp"])
+    func parsesJVMClasspath(flag: String) throws {
+        let options = try CLIParser.parse(args: ["--emit", "jar", flag, "a.jar::classes", flag, "b.jar", "hello.kt"])
+        #expect(options.jvmClasspath == ["a.jar", ".", "classes", "b.jar"])
+        #expect(throws: CLIParseError.missingValue(flag)) { try CLIParser.parse(args: [flag]) }
+        #expect(throws: CLIParseError.incompatibleStdlibOptions("--classpath requires --emit class or jar")) { try CLIParser.parse(args: [flag, "a.jar", "hello.kt"]) }
+    }
+
     @Test(arguments: ["--test", "-generate-test-runner"])
     func parsesTestRunnerFlag(flag: String) throws {
         let options = try CLIParser.parse(args: [flag, "tests.kt"])
@@ -236,6 +271,11 @@ struct CLIParserTests {
             let explicit = try CLIParser.parse(args: ["--stdlib-library", "/tmp/explicit.kklib"] + args)
             #expect(explicit.stdlibLibraryPath == "/tmp/explicit.kklib")
             #expect(!explicit.includeStdlib)
+        }
+        for mode in ["class", "jar"] {
+            let options = try CLIParser.parse(args: ["--emit", mode, "main.kt"])
+            #expect(options.stdlibLibraryPath == nil)
+            #expect(!options.includeStdlib)
         }
         let stdlibOnly = try CLIParser.parse(args: ["--stdlib-only"])
         #expect(stdlibOnly.stdlibLibraryPath == nil)

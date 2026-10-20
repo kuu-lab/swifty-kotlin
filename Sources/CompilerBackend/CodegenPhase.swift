@@ -12,6 +12,10 @@ public final class CodegenPhase: CompilerPhase {
     init(session: LLVMBackendSession) { self.session = session }
 
     public func run(_ ctx: CompilationContext) throws {
+        if ctx.options.emit.isJVM {
+            try JVMCodegenPhase().run(ctx)
+            return
+        }
         guard let kir = ctx.kir else {
             throw CompilerPipelineError.invalidInput("KIR not available for codegen.")
         }
@@ -88,7 +92,7 @@ public final class CodegenPhase: CompilerPhase {
                     functionLinkInfo: functionLinkInfo
                 )
 
-            case .kirDump:
+            case .kirDump, .jvmClass, .jvmJar:
                 return
             }
         } catch {

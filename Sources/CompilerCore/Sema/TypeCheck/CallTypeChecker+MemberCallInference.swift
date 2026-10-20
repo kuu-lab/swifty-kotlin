@@ -377,6 +377,10 @@ extension CallTypeChecker {
             return result
         }
 
+        if request.ctx.sema.requiresResolvedLibraryCalls, Self.jvmSourceCollectionCalls.contains(request.ctx.interner.resolve(request.calleeName)) {
+            return inferRegularMemberCall(request, receiverType: receiverType, locals: &locals)
+        }
+
         if let result = tryInferMemberCallCollectionFlowSpecials(
             request,
             receiverType: receiverType,
