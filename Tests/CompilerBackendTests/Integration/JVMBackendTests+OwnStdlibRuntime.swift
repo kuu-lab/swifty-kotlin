@@ -49,6 +49,7 @@ extension JVMBackendTests {
     }
 
     private static let ownStdlibCases = [
+        "inferredMutableCallableReferences",
         "reflectionParameterNames",
         "nonReifiedCallableReferenceAdapters",
         "defaultedVarargCallableReferenceAdapters",
