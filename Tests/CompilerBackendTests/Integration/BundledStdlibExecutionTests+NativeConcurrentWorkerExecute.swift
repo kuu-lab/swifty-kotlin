@@ -2,6 +2,26 @@ import Testing
 
 extension BundledStdlibExecutionTests {
     @Test(arguments: [false, true])
+    func testWithWorkerWithoutQueuedJobsCompletesNormally(
+        allowDefaultStdlibLibrary: Bool
+    ) throws {
+        try compileAndRunKotlin(
+            """
+            @file:Suppress("DEPRECATION_ERROR")
+            @file:OptIn(kotlin.native.concurrent.ObsoleteWorkersApi::class)
+            import kotlin.native.concurrent.withWorker
+
+            fun main() {
+                withWorker { println("inside") }
+                println("after")
+            }
+            """,
+            expectedOutput: "inside\nafter\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
+    @Test(arguments: [false, true])
     func testWorkerReceiverFunctionValueAndExecuteThreadContract(
         allowDefaultStdlibLibrary: Bool
     ) throws {
