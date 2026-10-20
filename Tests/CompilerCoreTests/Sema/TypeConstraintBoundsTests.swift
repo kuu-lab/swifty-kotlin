@@ -388,4 +388,22 @@ struct TypeConstraintBoundsTests {
             #expect(!ctx.diagnostics.hasError)
         }
     }
+
+    @Test func unconstrainedTypeParameterArraySortResolvesWithoutBoundError() throws {
+        let sources = [
+            """
+            fun <T> jortSort(a: Array<T>): Boolean {
+                val b = a.copyOf()
+                b.sort()
+                b.sort(0, b.size)
+                return true
+            }
+            """
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: true)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        }
+    }
 }

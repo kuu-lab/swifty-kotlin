@@ -19,9 +19,12 @@ private fun checkBinarySearchBounds(size: Int, fromIndex: Int, toIndex: Int) {
     }
 }
 
+private fun naturalOrderUnchecked(): Comparator<Any?> =
+    Comparator { a, b -> compareValuesUnchecked(a, b) }
+
 @Suppress("UNCHECKED_CAST")
-public fun <T : Comparable<T>> Array<out T>.sort() {
-    (this as Array<T>).stableSortWith(naturalOrder<T>())
+public fun <T> Array<out T>.sort() {
+    (this as Array<Any?>).stableSortWith(naturalOrderUnchecked())
 }
 
 public fun <T : Comparable<T>> Array<out T>.sorted(): List<T> = sortedWith(naturalOrder<T>())
@@ -41,12 +44,12 @@ public fun <T, R : Comparable<R>> Array<out T>.sortedBy(selector: (T) -> R?): Li
 }
 
 @Suppress("UNCHECKED_CAST")
-public fun <T : Comparable<T>> Array<out T>.sort(fromIndex: Int = 0, toIndex: Int = this.size) {
+public fun <T> Array<out T>.sort(fromIndex: Int = 0, toIndex: Int = this.size) {
     checkBinarySearchBounds(this.size, fromIndex, toIndex)
     if (toIndex - fromIndex <= 1) return
-    val array = this as Array<T>
+    val array = this as Array<Any?>
     val sorted = array.copyOfRange(fromIndex, toIndex)
-    sorted.stableSortWith(naturalOrder<T>())
+    sorted.stableSortWith(naturalOrderUnchecked())
     var index = 0
     while (index < sorted.size) {
         array[fromIndex + index] = sorted[index]
