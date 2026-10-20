@@ -98,6 +98,9 @@ extension JVMFunctionBuilder {
         let ordered = try arguments(args, binding: binding, parameters: types, declarations: defaultParameters, id: id)
         var values = try zip(prefix, allTypes).map { try convert($0.0, to: $0.1) } + ordered.values
         let usesDefaults = ordered.masks.contains { $0 != 0 }
+        if try emitTailrec(id, symbol: symbol, dispatch: dispatch, prefix: prefix, values: ordered.values, masks: ordered.masks) {
+            return JVMIntrinsicResult(value: nil)
+        }
         let resultType = try expectedResult ?? program.expressionType(id)
         let physicalResult = reference?.result ?? method!.result
         // A safe Unit call has logical type Unit?, but its ordinary entry

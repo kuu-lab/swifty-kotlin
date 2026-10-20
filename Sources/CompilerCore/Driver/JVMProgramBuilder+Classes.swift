@@ -55,11 +55,14 @@ extension JVMProgramBuilder {
         }
     }
     func functionReference(_ function: FunDecl, symbol: SymbolID, member: Bool) throws -> JVMFunctionReference {
-        let allowed: Modifiers = member ? [.public, .private, .internal, .protected, .open, .final, .abstract, .override, .inline, .suspend, .operator, .infix] : [.public, .private, .internal, .inline, .suspend, .operator, .infix]
+        let allowed: Modifiers = member ? [.public, .private, .internal, .protected, .open, .final, .abstract, .override, .inline, .tailrec, .suspend, .operator, .infix] : [.public, .private, .internal, .inline, .tailrec, .suspend, .operator, .infix]
         guard function.contextReceivers.isEmpty,
-              !function.isTailrec,
               function.modifiers.subtracting(allowed).isEmpty,
               let signature = sema.symbols.functionSignature(for: symbol) else { throw JVMFrontendError(message: "Unsupported JVM M5 function declaration.", range: function.range) }
+        let interfaceMember = sema.symbols.parentSymbol(for: symbol).flatMap { sema.symbols.symbol($0)?.kind } == .interface
+        if function.isTailrec && member && (!memberFinal(function.modifiers) || interfaceMember && !function.modifiers.contains(.private)) {
+            throw JVMFrontendError(message: "tailrec is prohibited on open JVM members.", range: function.range)
+        }
         if function.isInline { inlineDeclarations[symbol] = function }
         try validateParameters(function.valueParams)
         sourceParameters[symbol] = function.valueParams

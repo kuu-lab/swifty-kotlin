@@ -248,6 +248,9 @@ final class JVMFunctionBuilder {
     var finalizers: [FinallyFrame] = []
     var activeRegions: [(start: Int?, segments: [(Int, Int)])] = []
     var evaluatedOperands: [ExprID: JVMValue] = [:]
+    var tailrecEntry: Int?
+    var tailrecCalls: Set<ExprID> = []
+    var tailrecParameters: [JVMValue] = []
     var nextSlot = 0
     var nextLabel = 0
     var terminated = false
@@ -345,6 +348,7 @@ final class JVMFunctionBuilder {
     func build() throws -> JVMFunction {
         try prepareParameters()
         if declaration.modifiers.contains(.abstract) || (owner?.isInterface == true && declaration.body == .unit) { return finish(abstract: true) }
+        try prepareTailrec()
         // A function body may shadow a parameter, as ordinary nested blocks do.
         scopes.append([:])
         switch declaration.body {
