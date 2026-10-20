@@ -124,6 +124,11 @@ extension CallTypeChecker {
                 ctx: ctx,
                 locals: locals
             )
+            if let candidateSpecificNestedCallTypes {
+                resolvedCandidates.removeAll {
+                    candidateSpecificNestedCallTypes.inapplicableCandidates.contains($0)
+                }
+            }
             var resolvedTypeNameInvokeCandidates = typeNameCompanionInvokeCandidates.intersection(
                 resolvedCandidates
             )
