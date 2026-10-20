@@ -31,6 +31,15 @@ extension JVMFunctionBuilder {
             if let call = try inlineCall(args, receiver: lhs, id: id)
                 ?? sourceCall(args, receiver: lhs, id: id) { return call.value }
         }
+        let ordering = [BinaryOp.lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual].contains(op)
+        if ordering {
+            let args = [CallArgument(expr: rhs)]
+            if let call = try inlineCall(args, receiver: lhs, id: id, expectedResult: .int)
+                ?? sourceCall(args, receiver: lhs, id: id, expectedResult: .int), let compared = call.value {
+                let result = try value(.boolean)
+                instructions.append(.binary(op, compared, try constant(.int(0), .int), result)); return result
+            }
+        }
         let left = try requireValue(lhs)
         if op == .elvis {
             let type = try program.expressionType(id), result = try value(type), fallback = label(), end = label()
@@ -67,9 +76,17 @@ extension JVMFunctionBuilder {
             return try concatenate(left, right)
         }
         let right = try requireValue(rhs)
-        if [BinaryOp.lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual].contains(op), left.type.isText, right.type.isText {
+        if ordering, left.type.isText, right.type.isText {
             let compared = try jdkCall("java/lang/String", "compareTo", [.string], .int, receiver: convert(left, to: .string), arguments: [right])!
             let result = try value(.boolean); instructions.append(.binary(op, compared, try constant(.int(0), .int), result)); return result
+        }
+        if ordering, !left.type.isNumeric, !right.type.isNumeric,
+           let binding = program.sema.bindings.callBinding(for: id),
+           let method = program.textLibraryMethods[binding.chosenCallee]?.method,
+           method.owner == "java/lang/Comparable", method.name == "compareTo" {
+            let compared = try jdkCall(method.owner, method.name, method.parameters, .int, receiver: left, arguments: [right], interface: true)!
+            let result = try value(.boolean)
+            instructions.append(.binary(op, compared, try constant(.int(0), .int), result)); return result
         }
         if op == .identityEqual || op == .notIdentityEqual {
             guard left.type.referenceName != nil, right.type.referenceName != nil else { throw fail("JVM identity comparison requires reference operands.", id) }
