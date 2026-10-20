@@ -14,6 +14,8 @@ extension BundledStdlibExecutionTests {
                 println(emptyFlow<Flow<Int>>().flattenConcat().toList())
                 // Sequential cold-flow model: merge collects each flow in order.
                 println(listOf(flowOf(1, 2), flowOf(3, 4)).merge().toList())
+                println(listOf(flowOf(2, 1)).merge().toList().sorted())
+                println(listOf(flowOf(1, 3, 2)).merge().toList().sortedDescending())
                 println(emptyList<Flow<Int>>().merge().toList())
                 println(flowOf(flowOf(1, 2), flowOf(3, 4)).flattenMerge().toList())
                 println(flowOf(flowOf(1, 2), flowOf(3, 4)).flattenMerge(1).toList())
@@ -30,6 +32,8 @@ extension BundledStdlibExecutionTests {
             [1, 2]
             []
             [1, 2, 3, 4]
+            [1, 2]
+            [3, 2, 1]
             []
             [1, 2, 3, 4]
             [1, 2, 3, 4]
