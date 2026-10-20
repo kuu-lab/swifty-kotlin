@@ -277,6 +277,7 @@ final class JVMMethodEmitter {
             assembler.code.u1(0xB8)
             assembler.code.u2(try pool.member(ref.ownerIsInterface ? 11 : 10, owner: ref.owner ?? owner, name: ref.name, descriptor: ref.descriptor))
             if let result { try conversion(ref.result, result.type); store(result) }
+            else if ref.result != .unit { assembler.code.u1(ref.result.width == 2 ? 0x58 : 0x57) }
         case let .abandonAllocations(objects):
             // Clear only this escaping edge. The other arm of an if still
             // owns the allocation until its invokespecial initializes it.
