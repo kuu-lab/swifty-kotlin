@@ -448,6 +448,13 @@ final class ControlFlowTypeChecker {
             expectedType: nil,
             isStatementContext: true
         )
+        var loopExitStates = loopFlowScope.breakLocalStates
+        if !isConstantTrueCondition(conditionExpr, ast: ast),
+           canCompleteNormally(conditionExpr, ctx: ctx)
+        {
+            loopExitStates.append(locals)
+        }
+        mergeDefiniteInitializationAcrossLoopExits(loopExitStates, into: &locals)
         let resultType = if isConstantTrueCondition(conditionExpr, ast: ast) && !containsBreakTargetingCurrentLoop(
             bodyExpr, loopLabelStack: [label], ast: ast, ctx: ctx
         ) {
