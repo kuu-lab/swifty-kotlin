@@ -183,7 +183,7 @@ struct MacOSLinkerPlan: Codable {
             && CommandRunner.resolveExecutable(url.lastPathComponent, fallback: "", pathEnvironment: url.deletingLastPathComponent().path) == path
     }
 
-    private static func trustedCacheFile(_ url: URL) -> Bool {
+    static func trustedCacheFile(_ url: URL) -> Bool {
         guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
               attributes[.type] as? FileAttributeType == .typeRegular,
               let permissions = (attributes[.posixPermissions] as? NSNumber)?.uint16Value,
