@@ -190,7 +190,8 @@ extension DataFlowSemaPhase {
         /// survive).
         func shadowedOwnerOrigin(
             for record: ImportedLibrarySymbolRecord,
-            metadataPath: String
+            metadataPath: String,
+            symbols: SymbolTable
         ) -> String? {
             guard record.kind != .package else { return nil }
             let ownerFQName = Array(record.fqName.dropLast())
@@ -234,6 +235,8 @@ extension DataFlowSemaPhase {
         @discardableResult
         func appendImportedBinding(
             _ record: ImportedLibrarySymbolRecord,
+            symbols: SymbolTable,
+            lazyLoaderState: ImportedLibraryLazyLoaderState,
             metadataPath: String,
             inlineKIRDir: String?,
             isStdlibArtifact: Bool,
@@ -261,7 +264,7 @@ extension DataFlowSemaPhase {
                 origin = "'\(metadataPath)'"
             }
             if activePathHasCrossLibraryOwners,
-               let winner = shadowedOwnerOrigin(for: record, metadataPath: metadataPath)
+               let winner = shadowedOwnerOrigin(for: record, metadataPath: metadataPath, symbols: symbols)
             {
                 if !isShadowedMemberMachinery(record.kind) {
                     diagnostics.warning(
@@ -459,6 +462,8 @@ extension DataFlowSemaPhase {
                     for record in records {
                         if let symbol = appendImportedBinding(
                             record,
+                            symbols: symbols,
+                            lazyLoaderState: lazyLoaderState,
                             metadataPath: "\(libraryDir)/ir",
                             inlineKIRDir: nil,
                             isStdlibArtifact: stdlibArtifact,
@@ -537,6 +542,9 @@ extension DataFlowSemaPhase {
                     // only when a query can actually reach it. The closure
                     // shares this function's shadow/link state and restores
                     // the structural edges the removed eager post-pass kept.
+                    // `symbols` is weak: the table retains this provider (and
+                    // therefore the closure), so a strong capture would be a
+                    // retain cycle leaking the table past compilation end.
                     let source = IndexedLibrarySource(
                         importOrder: importOrder,
                         indexedFile: indexedFile,
@@ -544,7 +552,8 @@ extension DataFlowSemaPhase {
                         moduleFQN: libraryModuleFQN,
                         isStdlibArtifact: stdlibArtifact,
                         symbols: symbols
-                    ) { [self] index, nominalTypeParametersByFQName in
+                    ) { [self, weak symbols, weak lazyLoaderState] index, nominalTypeParametersByFQName in
+                        guard let symbols, let lazyLoaderState else { return nil }
                         let entry = indexedFile.entries[index]
                         guard let compactRecord = entry.compactRecord,
                               let shell = self.makeImportedLibraryIndexRecord(
@@ -554,6 +563,8 @@ extension DataFlowSemaPhase {
                         else { return nil }
                         guard let symbol = appendImportedBinding(
                             shell,
+                            symbols: symbols,
+                            lazyLoaderState: lazyLoaderState,
                             metadataPath: metadataPath,
                             inlineKIRDir: manifestInfo.inlineKIRDir,
                             isStdlibArtifact: stdlibArtifact,
@@ -678,6 +689,8 @@ extension DataFlowSemaPhase {
                             guard let shell else { continue }
                             appendImportedBinding(
                                 shell,
+                                symbols: symbols,
+                                lazyLoaderState: lazyLoaderState,
                                 metadataPath: metadataPath,
                                 inlineKIRDir: manifestInfo.inlineKIRDir,
                                 isStdlibArtifact: stdlibArtifact,
@@ -716,6 +729,8 @@ extension DataFlowSemaPhase {
                 for record in records {
                     appendImportedBinding(
                         record,
+                        symbols: symbols,
+                        lazyLoaderState: lazyLoaderState,
                         metadataPath: metadataPath,
                         inlineKIRDir: manifestInfo.inlineKIRDir,
                         isStdlibArtifact: stdlibArtifact,
@@ -827,9 +842,10 @@ extension DataFlowSemaPhase {
         // overloads and there is no reliable way to tell them apart. The
         // resolver drains the owner's pending index entries first so a
         // provider-registered callable sees the same count the eager pass
-        // would have computed.
-        let resolvePhantomTypeParameterSymbols: ([InternedString]) -> [SymbolID] = { ownerFQName in
-            _ = symbols.lookupAll(fqName: ownerFQName)
+        // would have computed. `symbols` stays weak: the lazy loader closure
+        // retains this resolver while living on the table itself.
+        let resolvePhantomTypeParameterSymbols: ([InternedString]) -> [SymbolID] = { [weak symbols] ownerFQName in
+            _ = symbols?.lookupAll(fqName: ownerFQName)
             for source in indexedSources {
                 _ = source.claimTypeParameterSymbols(forOwner: ownerFQName)
             }
@@ -895,12 +911,16 @@ extension DataFlowSemaPhase {
         // that misses now fall through to the index providers, which register
         // (and, for getter links, materialize) the shell a late lookup needs.
         // The local `var` maps stay live in the closures, so links added by
-        // provider drains after this point still resolve.
+        // provider drains after this point still resolve. `symbols` stays
+        // weak in both lookups: the resolver is retained through the lazy
+        // loader state and the inline store's parse context, which the table
+        // itself roots — a strong capture would cycle it.
         let resolver = ImportedSymbolResolver(
-            linkNameLookup: { name in
+            linkNameLookup: { [weak symbols] name in
                 if let symbol = externalLinkNameToSymbol[name] {
                     return symbol
                 }
+                guard let symbols else { return nil }
                 if let property = shadowedGetterLinks[name] {
                     symbols.ensureLazyImportedMetadataLoaded(for: property)
                     return symbols.extensionPropertyGetterAccessor(for: property)
@@ -928,13 +948,13 @@ extension DataFlowSemaPhase {
                 }
                 return nil
             },
-            fqNameLookup: { name in
+            fqNameLookup: { [weak symbols] name in
                 if let symbol = importedSymbolByFQName[name] {
                     return symbol
                 }
                 let components = name.split(separator: ".").map { interner.intern(String($0)) }
                 guard !components.isEmpty else { return nil }
-                _ = symbols.lookupAll(fqName: components)
+                _ = symbols?.lookupAll(fqName: components)
                 return importedSymbolByFQName[name]
             }
         )
