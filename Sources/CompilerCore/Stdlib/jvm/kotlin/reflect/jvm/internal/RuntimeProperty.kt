@@ -6,7 +6,7 @@ open class RuntimeProperty(owner: Any, name: String, signature: String, receiver
     override val isLateinit: Boolean get() = (propertyNode.number(11) and 4096) != 0
     override val isConst: Boolean get() = (propertyNode.number(11) and 2048) != 0
     protected override fun resultType(): Proto = metadata.type(propertyNode, 3, 9)
-    override val returnType: KType get() = RuntimeType(metadata, metadata.type(propertyNode, 3, 9))
+    override val returnType: KType get() = RuntimeType(metadata, metadata.type(propertyNode, 3, 9), propertyNode.children(4))
     override val annotations: List<Annotation> get() {
         val signature = metadata.propertySignature(propertyNode, 2)
         return if (signature.isEmpty()) emptyList() else visibleAnnotations(findMethod(ownerClass, signature))

@@ -2,13 +2,14 @@ package kotlin.reflect.jvm.internal
 import kotlin.jvm.internal.*
 import kotlin.reflect.*
 
-internal class RuntimeType(private val metadata: RuntimeMetadata, private val type: Proto): KType {
+internal class RuntimeType(private val metadata: RuntimeMetadata, private val type: Proto, private val parameters: List<Proto> = emptyList()): KType {
     override val annotations: List<Annotation> get() = emptyList()
     override val isMarkedNullable: Boolean get() = type.number(3) != 0
     override val classifier: KClassifier? get() {
         if (!type.has(6)) return null
         return ClassReference(loadMetadataType(metadata.string(type.number(6)), metadata.owner) as java.lang.Class<Any>)
     }
+    override fun toString(): String = renderRuntimeType(metadata, type, parameters)
 }
 internal class RuntimeTypeParameter(private val metadata: RuntimeMetadata, private val node: Proto): KTypeParameter {
     override val name: String get() = metadata.string(node.number(2))
@@ -23,6 +24,7 @@ internal class RuntimeClassType(private val owner: Any): KType {
     override val annotations: List<Annotation> get() = emptyList()
     override val isMarkedNullable: Boolean get() = false
     override val classifier: KClassifier get() = ClassReference(owner as java.lang.Class<Any>)
+    override fun toString(): String = ClassReference(owner as java.lang.Class<Any>).qualifiedName ?: __jvmClassName(owner)
 }
 internal class RuntimeParameter(private val key: RuntimeCallable, override val index: Int, override val name: String?, override val isOptional: Boolean, override val annotations: List<Annotation>): KParameter {
     override fun equals(other: Any?): Boolean = other is RuntimeParameter && key == other.key && index == other.index
@@ -75,7 +77,7 @@ open class RuntimeCallable(
     }
     override val name: String get() = displayName
     override val isSuspend: Boolean get() = (node.number(9) and 8192) != 0
-    override val returnType: KType get() = if (displayName == "<init>") RuntimeClassType(ownerClass) else RuntimeType(metadata, metadata.type(node, 3, 7))
+    override val returnType: KType get() = if (displayName == "<init>") RuntimeClassType(ownerClass) else RuntimeType(metadata, metadata.type(node, 3, 7), node.children(4))
     override val typeParameters: List<KTypeParameter> get() {
         val result = mutableListOf<KTypeParameter>()
         for (parameter in node.children(4)) result.add(RuntimeTypeParameter(metadata, parameter))

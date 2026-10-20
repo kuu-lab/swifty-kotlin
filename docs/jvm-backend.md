@@ -523,6 +523,8 @@ class literal は ldc を使い、対象クラスの static initializer を実�
 KClass の名前・フラグ・isInstance・members／constructors、KCallable の name／parameters／returnType／call、
 property の get／set、`kotlin.reflect.full` の memberProperties／memberFunctions／createInstance／findAnnotation、
 `.java`／`.kotlin`／`.javaClass` と Class.getAnnotation を独自stdlibのJDK連携へ接続する。
+KCallable の returnType.toString は metadata の Kotlin 型名、nullability、型引数・projection、
+関数型と型パラメータ名を表示する。constructor の戻り型も Kotlin のクラス名を返す。
 
 ```kotlin
 import kotlin.reflect.full.findAnnotation
