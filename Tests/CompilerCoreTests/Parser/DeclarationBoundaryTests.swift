@@ -309,14 +309,14 @@ struct DeclarationBoundaryTests {
     }
 
     @Test(arguments: [
-        "object Cast : Holder({ value -> calls += 1; value as? String })",
-        "class Cast : Holder({ value -> calls += 1; value as? String })",
-        "object Cast : Holder({ value -> calls += 1; value as? String }) { fun member() {} }",
-        "class Cast : Holder(f = { value -> calls += 1; value as? String }) { fun member() {} }",
-        "object Cast : Holder(listOf({ value -> calls += 1; value as? String })[0])",
-        "class Cast : Holder({ value -> val copy = value; calls += 1; copy as? String }, 42)",
+        ("object Cast : Holder({ value -> calls += 1; value as? String })", 1),
+        ("class Cast : Holder({ value -> calls += 1; value as? String })", 1),
+        ("object Cast : Holder({ value -> calls += 1; value as? String }) { fun member() {} }", 2),
+        ("class Cast : Holder(f = { value -> calls += 1; value as? String }) { fun member() {} }", 2),
+        ("object Cast : Holder(listOf({ value -> calls += 1; value as? String })[0])", 1),
+        ("class Cast : Holder({ value -> val copy = value; calls += 1; copy as? String }, 42)", 1),
     ])
-    func superConstructorLambdaSemicolonsStayInsideDeclaration(declaration: String) throws {
+    func superConstructorLambdaSemicolonsStayInsideDeclaration(declaration: String, expectedFunCount: Int) throws {
         let parsed = parse("\(declaration)\nfun after() {}")
         let declarationNode = try #require(parsed.arena.nodes.first {
             $0.kind == .classDecl || $0.kind == .objectDecl
@@ -324,7 +324,7 @@ struct DeclarationBoundaryTests {
 
         #expect(parsed.diagnostics.diagnostics.isEmpty)
         #expect(declarationNode.range.end.offset == declaration.utf8.count)
-        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == (declaration.contains("member") ? 2 : 1))
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == expectedFunCount)
     }
 
     @Test(arguments: ["super", "this"])
@@ -487,8 +487,11 @@ struct DeclarationBoundaryTests {
         #expect(property.range.end.offset == prefix.utf8.count + initializer.utf8.count)
     }
 
-    @Test(arguments: ["val result", "fun result()"])
-    func nestedSemicolonsDoNotEndTopLevelExpressionBody(declaration: String) throws {
+    @Test(arguments: [
+        ("val result", 1),
+        ("fun result()", 2),
+    ])
+    func nestedSemicolonsDoNotEndTopLevelExpressionBody(declaration: String, expectedFunCount: Int) throws {
         let source = """
         \(declaration) = listOf(object { val x = 7; val y = 8 })
         fun next() = 9
@@ -500,7 +503,7 @@ struct DeclarationBoundaryTests {
             return parsed.arena.node(id)
         }.first)
         #expect(first.range.end.offset == source.split(separator: "\n")[0].utf8.count)
-        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == (declaration == "val result" ? 1 : 2))
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == expectedFunCount)
     }
 
     @Test
@@ -812,8 +815,9 @@ struct DeclarationBoundaryTests {
 
         // Recovery also reports the skipped modifier tokens once.
         let expectedCodes = exceedsBudget ? ["KSWIFTK-PARSE-0007", "KSWIFTK-PARSE-0006"] : []
+        let expectedRootKind: SyntaxKind = exceedsBudget ? .script : .kotlinFile
         #expect(parsed.diagnostics.diagnostics.map(\.code) == expectedCodes)
-        #expect(parsed.arena.node(parsed.root).kind == (exceedsBudget ? .script : .kotlinFile))
+        #expect(parsed.arena.node(parsed.root).kind == expectedRootKind)
         #expect(parsed.arena.node(parsed.root).range.end.offset == source.utf8.count)
         #expect(nodeCount(in: parsed.arena, kind: .propertyDecl) == 1)
         #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 1)
@@ -850,8 +854,9 @@ struct DeclarationBoundaryTests {
             return
         }
 
+        let expectedKind: SyntaxKind = isCall ? .callExpr : .statement
         #expect(parsed.diagnostics.diagnostics.isEmpty)
-        #expect(parsed.arena.node(firstID).kind == (isCall ? .callExpr : .statement))
+        #expect(parsed.arena.node(firstID).kind == expectedKind)
         #expect(parsed.arena.node(firstID).range.end.offset == expression.utf8.count)
         #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 1)
     }
