@@ -2,10 +2,19 @@ import Foundation
 
 extension JVMFunctionBuilder {
     func instance(_ id: ExprID) throws -> JVMValue {
+        let receiver = try unconvertedInstance(id)
+        if propertyBinding(id)?.getter.isStatic == true { return receiver }
+        let objectName = memberDispatchOwner(id)
+        guard let objectName, !isMemberReceiver(receiver, owner: objectName) else { return receiver }
+        // A smart-cast implicit receiver retains its original physical local
+        // type. Narrow it to the selected member's owner before invocation.
+        return try convert(receiver, to: .reference(objectName, nullable: false))
+    }
+    func unconvertedInstance(_ id: ExprID) throws -> JVMValue {
         if propertyBinding(id)?.getter.isStatic == true { return try constant(.null, .reference("java/lang/Object", nullable: true)) }
         let bindings = program.sema.bindings
         if let symbol = bindings.implicitReceiverOuterReceiver(for: id) ?? bindings.callBinding(for: id)?.dispatchReceiverSymbol, let receiver = contextualReceivers[symbol], !beforeDelegation || receiver.slot != thisValue?.slot { return receiver }
-        let objectName = bindings.callBinding(for: id).flatMap { program.methods[$0.chosenCallee]?.owner } ?? propertyBinding(id)?.getter.owner
+        let objectName = memberDispatchOwner(id)
         // For an unqualified ordinary member, the extension receiver precedes
         // the dispatch owner even when both have the same nominal type.
         // This also selects the closest owner for a member-extension callee;
@@ -13,7 +22,7 @@ extension JVMFunctionBuilder {
         if let extensionValue, let objectName,
            isMemberReceiver(extensionValue, owner: objectName) { return extensionValue }
         if let thisValue, let owner, !beforeDelegation {
-            if let binding = bindings.callBinding(for: id), program.methods[binding.chosenCallee]?.owner == owner.name { return thisValue }
+            if objectName == owner.name { return thisValue }
             if propertyBinding(id)?.getter.owner == owner.name { return thisValue }
         }
         if let name = objectName, let lexical = program.classes.values.first(where: { $0.name == name }), let receiver = contextualReceivers[lexical.symbol], !beforeDelegation || receiver.slot != thisValue?.slot { return receiver }
@@ -21,6 +30,13 @@ extension JVMFunctionBuilder {
         guard !beforeDelegation else { throw fail("JVM member access requires an initialized this.", id) }
         if let value = extensionValue ?? thisValue { return value }
         throw fail("JVM member access requires a receiver.", id)
+    }
+    func memberDispatchOwner(_ id: ExprID) -> String? {
+        if let symbol = program.sema.bindings.callBinding(for: id)?.chosenCallee,
+           let method = program.methods[symbol] ?? context.jvmImports?.methods[symbol] ?? program.textLibraryMethods[symbol]?.method {
+            return method.owner
+        }
+        return propertyBinding(id)?.getter.owner
     }
     func isMemberReceiver(_ value: JVMValue, owner: String) -> Bool {
         var pending = value.type.referenceName.map { [$0] } ?? []
