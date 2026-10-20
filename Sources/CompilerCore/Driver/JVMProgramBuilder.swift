@@ -543,6 +543,8 @@ final class JVMFunctionBuilder {
             return arena.incrementDecrementReturnsValue(id) ? result : nil
         case let .binary(op, lhs, rhs, _): return try binary(op, lhs, rhs, id)
         case let .unaryExpr(op, operand, _):
+            if let call = try inlineCall([], receiver: operand, id: id)
+                ?? sourceCall([], receiver: operand, id: id) { return call.value }
             if op == .unaryMinus, case let .intLiteral(n, _) = arena.expr(operand), n == 2_147_483_648,
                try program.expressionType(id) == .int { return try constant(.int(.min), .int) }
             let source = try requireValue(operand)
