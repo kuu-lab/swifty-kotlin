@@ -1,0 +1,15 @@
+(1, 2)
+caught:zip source
+hasNext:Iterator has failed.
+next:Iterator has failed.
+[1, 2]
+caught:overlap source
+hasNext:Iterator has failed.
+next:Iterator has failed.
+[1, 2]
+caught:gap source
+hasNext:Iterator has failed.
+next:Iterator has failed.
+false
+empty next
+false
