@@ -6,6 +6,7 @@ struct JVMClassInfo {
     let superclass: String?
     let interfaces: [String]
     let methods: [JVMForeignMethod]
+    var bridgeMethods: [JVMForeignMethod] = []
     var isInterface: Bool { flags & 0x0200 != 0 }
 }
 
@@ -77,24 +78,26 @@ struct JVMClassReader {
         let fields = try u2()
         for _ in 0..<fields { try skip(6); try attributes() }
         var methods: [JVMForeignMethod] = []
+        var bridgeMethods: [JVMForeignMethod] = []
         let methodCount = try u2()
         for _ in 0..<methodCount {
             let access = try u2(), nameIndex = try u2(), descriptorIndex = try u2()
             let methodName = try text(Int(nameIndex)), descriptor = try text(Int(descriptorIndex))
-            if access & 1 != 0, access & 0x1040 == 0, methodName != "<clinit>",
+            if access & 1 != 0, (access & 0x1040 == 0 || access & 0x0040 != 0), methodName != "<clinit>",
                let signature = try? JVMDescriptor.parse(descriptor),
                signature.0.reduce(0, { $0 + $1.width }) <= (access & 8 != 0 ? 255 : 254) {
                 var method = JVMForeignMethod(owner: name, name: methodName, descriptor: descriptor,
                     parameters: signature.0, result: methodName == "<init>" ? .reference(name, nullable: false) : signature.1,
                     isStatic: access & 8 != 0, isInterface: flags & 0x0200 != 0, isAbstract: access & 0x0400 != 0)
                 method.isFinal = access & 16 != 0
-                methods.append(method)
+                if access & 0x0040 != 0 { bridgeMethods.append(method) }
+                else { methods.append(method) }
             }
             try attributes()
         }
         try attributes()
         guard offset == bytes.count else { throw Invalid() }
-        return JVMClassInfo(name: name, flags: flags, superclass: superclass, interfaces: interfaces, methods: methods)
+        return JVMClassInfo(name: name, flags: flags, superclass: superclass, interfaces: interfaces, methods: methods, bridgeMethods: bridgeMethods)
     }
 }
 
