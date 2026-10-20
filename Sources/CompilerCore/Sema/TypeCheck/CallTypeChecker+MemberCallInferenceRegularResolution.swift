@@ -317,6 +317,73 @@ extension CallTypeChecker {
         }
         let memberLookupType = rangeSourceMemberLookupType ?? rangeExtensionLookupType ?? lookupReceiverType
 
+        // A precompiled `UIntRange.contains(UInt)` can otherwise lose to the
+        // inherited `ClosedRange<T>.contains(T)` member before the ordinary
+        // range source fallback runs. Bind the exact bundled overload first,
+        // while leaving a same-scope user extension to normal overload rules.
+        let hasScopedExactUIntRangeContains = {
+            guard !isSuperCall,
+                  calleeName == knownNames.contains,
+                  args.count == 1,
+                  argTypes == [sema.types.uintType],
+                  MemberRuntimeDispatch.rangeReceiverKind(
+                      receiverExpr: receiverID,
+                      receiverType: lookupReceiverType,
+                      sema: sema,
+                      interner: interner
+                  ) == .uintRange,
+                  let actualReceiver = driver.helpers.nominalSymbol(of: memberLookupType, types: sema.types),
+                  let actualOwner = sema.symbols.symbol(actualReceiver)?.fqName
+            else {
+                return false
+            }
+            return collectScopedRangeUserExtensionCandidates(
+                named: calleeName,
+                receiverType: memberLookupType,
+                ctx: ctx,
+                sema: sema,
+                interner: interner
+            ).contains { candidate in
+                guard let parentID = sema.symbols.parentSymbol(for: candidate),
+                      let parent = sema.symbols.symbol(parentID),
+                      !parent.fqName.starts(with: knownNames.kotlinRangesPackage),
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.parameterTypes == [sema.types.uintType],
+                      let declaredReceiver = signature.receiverType,
+                      let declaredSymbol = driver.helpers.nominalSymbol(of: declaredReceiver, types: sema.types),
+                      let declaredOwner = sema.symbols.symbol(declaredSymbol)?.fqName
+                else {
+                    return false
+                }
+                return declaredOwner == actualOwner
+            }
+        }()
+
+        if !hasScopedExactUIntRangeContains,
+           !isSuperCall,
+           calleeName == knownNames.contains,
+           args.count == 1,
+           argTypes == [sema.types.uintType],
+           MemberRuntimeDispatch.rangeReceiverKind(
+               receiverExpr: receiverID,
+               receiverType: lookupReceiverType,
+               sema: sema,
+               interner: interner
+           ) == .uintRange,
+           let sourceType = bindSourceRangeHOFCall(
+               id,
+               memberName: "contains",
+               calleeName: calleeName,
+               receiverID: receiverID,
+               args: args,
+               safeCall: safeCall,
+               ctx: ctx,
+               locals: &locals
+           )
+        {
+            return sourceType
+        }
+
         // `ClosedRange.isEmpty` is also a valid candidate for a syntactic
         // ULongRange expression. Prefer the exact bundled ULongRange source
         // extension before ordinary member resolution can select that broader
