@@ -169,6 +169,7 @@ extension BuildASTPhase {
         // after the condition. The CST parser splits both at the newline.
         if KotlinParser.endsWithPendingInfixOperator(previousTail)
             || KotlinParser.endsWithControlFlowCondition(previousTail)
+            || endsWithUnattachedAnnotation(previousTail)
         {
             return true
         }
@@ -198,6 +199,172 @@ extension BuildASTPhase {
             return true
         }
         return false
+    }
+
+    /// A group ending in an annotation use-site is incomplete: the annotation
+    /// attaches to the following expression or declaration, which may start on
+    /// the next line (`else @Suppress("UNCHECKED_CAST")` then a newline before
+    /// `walk(...)`). Returns true when every top-level token at the tail is an
+    /// annotation — `@name`, `@name(args)`, or a chain — so the newline does
+    /// not become a statement split.
+    ///
+    /// `x = @A foo` is not flagged: `foo` already is the operand, so the group
+    /// is complete. Label shapes are excluded by the token before `@`:
+    /// `return@loop` / `break@x` / `this@Outer` are complete expressions and
+    /// `name@` is a label definition, not an annotation.
+    private static func endsWithUnattachedAnnotation<C: BidirectionalCollection>(
+        _ tokens: C
+    ) -> Bool where C.Element == Token {
+        var index = tokens.startIndex
+        var depth = 0
+        var annotationChainStart: C.Index?
+        while index < tokens.endIndex {
+            let kind = tokens[index].kind
+            if depth == 0 {
+                if kind == .symbol(.at), !isLabelPosition(before: index, in: tokens),
+                   let end = annotationSpanEnd(from: index, in: tokens)
+                {
+                    if annotationChainStart == nil {
+                        annotationChainStart = index
+                    }
+                    index = end
+                    continue
+                }
+                annotationChainStart = nil
+            }
+            switch kind {
+            case .symbol(.lParen), .symbol(.lBracket), .symbol(.lBrace):
+                depth += 1
+            case .symbol(.rParen), .symbol(.rBracket), .symbol(.rBrace):
+                depth = max(0, depth - 1)
+            default:
+                break
+            }
+            index = tokens.index(after: index)
+        }
+        return annotationChainStart != nil
+    }
+
+    /// `@` is a label position, not an annotation, when the token before it is
+    /// a keyword that takes a label reference (`return@`, `break@`,
+    /// `continue@`, `this@`, `super@`) or a bare label name (`loop@`). A name
+    /// before `@` that is itself the tail of an annotation (`@A.b` or the
+    /// `A` in `@field:A`) instead opens a chained annotation.
+    private static func isLabelPosition<C: BidirectionalCollection>(
+        before index: C.Index, in tokens: C
+    ) -> Bool where C.Element == Token {
+        guard index > tokens.startIndex else { return false }
+        var scan = tokens.index(before: index)
+
+        // `@A(x)` before a chained annotation: the closer belongs to the
+        // previous annotation's argument list — peel the balanced group.
+        while true {
+            let close = tokens[scan].kind
+            let open: TokenKind
+            if close == .symbol(.rParen) {
+                open = .symbol(.lParen)
+            } else if close == .symbol(.rBracket) {
+                open = .symbol(.lBracket)
+            } else {
+                break
+            }
+            var depth = 0
+            var matched = false
+            while true {
+                let kind = tokens[scan].kind
+                if kind == close {
+                    depth += 1
+                } else if kind == open {
+                    depth -= 1
+                    if depth == 0 {
+                        matched = true
+                        break
+                    }
+                }
+                if scan == tokens.startIndex { break }
+                scan = tokens.index(before: scan)
+            }
+            guard matched, scan > tokens.startIndex else { return false }
+            scan = tokens.index(before: scan)
+        }
+
+        switch tokens[scan].kind {
+        case .keyword(.return), .keyword(.break), .keyword(.continue),
+             .keyword(.this), .keyword(.super):
+            return true
+        case let kind where kind.isLabelName || kind == .symbol(.dot):
+            // Skip the possibly qualified name backward. Landing on `@` makes
+            // it an annotation name, not a label; landing on `:` makes it the
+            // name of a use-site-targeted annotation (`@field:A`).
+            while tokens[scan].kind.isLabelName || tokens[scan].kind == .symbol(.dot) {
+                if scan == tokens.startIndex { return true }
+                scan = tokens.index(before: scan)
+            }
+            if tokens[scan].kind == .symbol(.colon) {
+                if scan == tokens.startIndex { return true }
+                scan = tokens.index(before: scan)
+                while tokens[scan].kind.isLabelName {
+                    if scan == tokens.startIndex { return true }
+                    scan = tokens.index(before: scan)
+                }
+            }
+            return tokens[scan].kind != .symbol(.at)
+        default:
+            return false
+        }
+    }
+
+    /// The index just past the annotation beginning at `at` — `@` plus an
+    /// optional use-site target (`name:`), a possibly qualified name, and an
+    /// optional `(...)` argument list — or nil when `@` starts none.
+    private static func annotationSpanEnd<C: BidirectionalCollection>(
+        from at: C.Index, in tokens: C
+    ) -> C.Index? where C.Element == Token {
+        func isNameToken(_ kind: TokenKind) -> Bool {
+            switch kind {
+            case .identifier, .backtickedIdentifier, .softKeyword, .keyword:
+                return true
+            default:
+                return false
+            }
+        }
+        var index = tokens.index(after: at)
+        guard index < tokens.endIndex else { return nil }
+        let afterName = tokens.index(after: index)
+        if isNameToken(tokens[index].kind),
+           afterName < tokens.endIndex,
+           tokens[afterName].kind == .symbol(.colon)
+        {
+            index = tokens.index(after: afterName)
+        }
+        guard index < tokens.endIndex, isNameToken(tokens[index].kind) else {
+            return nil
+        }
+        index = tokens.index(after: index)
+        while index < tokens.endIndex, tokens[index].kind == .symbol(.dot) {
+            let afterDot = tokens.index(after: index)
+            guard afterDot < tokens.endIndex, isNameToken(tokens[afterDot].kind) else {
+                return index
+            }
+            index = tokens.index(after: afterDot)
+        }
+        guard index < tokens.endIndex, tokens[index].kind == .symbol(.lParen) else {
+            return index
+        }
+        var depth = 0
+        while index < tokens.endIndex {
+            let kind = tokens[index].kind
+            if kind == .symbol(.lParen) {
+                depth += 1
+            } else if kind == .symbol(.rParen) {
+                depth -= 1
+                if depth == 0 {
+                    return tokens.index(after: index)
+                }
+            }
+            index = tokens.index(after: index)
+        }
+        return nil
     }
 
     /// A newline before `while` keeps it attached to a preceding do-loop body.
@@ -327,8 +494,8 @@ extension BuildASTPhase {
         ) {
             return expr
         }
-        let raw = skipLeadingLocalAnnotations(raw, interner: interner)
-        let filtered = skipLeadingLocalAnnotations(filtered, interner: interner)
+        let raw = Self.skipLeadingLocalAnnotations(raw, interner: interner)
+        let filtered = Self.skipLeadingLocalAnnotations(filtered, interner: interner)
         if let expr = parseLocalFunDeclExpr(from: raw, interner: interner, astArena: astArena) {
             return expr
         }
@@ -518,7 +685,7 @@ extension BuildASTPhase {
     /// otherwise a leading `@` token is unrecognized by every local-statement
     /// parser (and by the generic `ExpressionParser` fallback), silently
     /// dropping the entire statement.
-    func skipLeadingLocalAnnotations(_ tokens: [Token], interner: StringInterner) -> [Token] {
+    static func skipLeadingLocalAnnotations(_ tokens: [Token], interner: StringInterner) -> [Token] {
         var index = 0
         while index < tokens.count, tokens[index].kind == .symbol(.at) {
             guard let parsed = AnnotationParsingSupport.parseAnnotation(

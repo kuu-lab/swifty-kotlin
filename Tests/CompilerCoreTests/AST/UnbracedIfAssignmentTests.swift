@@ -215,6 +215,56 @@ struct UnbracedIfAssignmentTests {
         #expect(!ast.arena.expressionAnnotations(for: thenID).isEmpty)
     }
 
+    @Test
+    func newlineAnnotatedElseBranchStaysAttachedInsideNestedBlock() throws {
+        let context = makeContextFromSource("""
+        fun choose(l: List<Any>) {
+            val out = mutableListOf<Any>()
+            fun walk(x: List<Any>) { out.add(x.size) }
+            for (e in l) {
+                if (e !is List<*>)
+                    out.add(e)
+                else
+                    @Suppress("UNCHECKED_CAST")
+                    walk(e as List<Any>)
+            }
+        }
+        """)
+        try runFrontend(context)
+        let ast = try #require(context.ast)
+        let file = try #require(ast.files.first {
+            context.sourceManager.origin(of: $0.fileID) == .user
+        })
+        let function = try #require(file.topLevelDecls.compactMap { declaration -> FunDecl? in
+            guard case let .funDecl(function) = ast.arena.decl(declaration),
+                  function.name == context.interner.intern("choose")
+            else { return nil }
+            return function
+        }.first)
+        guard case let .block(statements, _) = function.body,
+              let forID = statements.first(where: { expression in
+                  if case .forExpr = ast.arena.expr(expression) { return true }
+                  return false
+              }),
+              case let .forExpr(_, _, bodyID, _, _) = ast.arena.expr(forID),
+              case let .blockExpr(bodyStatements, bodyTrailing, _) = ast.arena.expr(bodyID)
+        else {
+            Issue.record("Expected a for loop with a block body")
+            return
+        }
+        // The annotated else-branch statement must not detach into a second
+        // statement that runs unconditionally after the if.
+        #expect(bodyStatements.isEmpty)
+        guard let ifID = bodyTrailing,
+              case let .ifExpr(_, _, elseID, _) = ast.arena.expr(ifID),
+              let elseID
+        else {
+            Issue.record("The if must keep its annotated else branch")
+            return
+        }
+        #expect(!ast.arena.expressionAnnotations(for: elseID).isEmpty)
+    }
+
     private struct TestFailure: Error {
         let message: String
         init(_ message: String) { self.message = message }
