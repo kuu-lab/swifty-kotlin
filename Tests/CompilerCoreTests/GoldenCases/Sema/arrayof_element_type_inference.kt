@@ -1,4 +1,4 @@
-// RF-FIXTURE-002: arrayOf infers its element type from the argument types.
+// RF-FIXTURE-002: mixed Int/String/Double arrayOf infers Comparable<*> on Native, without JVM Serializable.
 
 fun arrayOfInts() {
     val ints = arrayOf(1, 2, 3)
