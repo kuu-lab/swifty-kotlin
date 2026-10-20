@@ -113,6 +113,11 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// coroutine builders set the same source explicitly.
     private var contextContinuationRaw: Int = 0
     private var hasStartedUninterceptedCoroutine = false
+    /// KUU-2689: kotlinx's MODE_CANCELLABLE start flag. Set only when the
+    /// intercepted continuation is a native dispatch wrapper (upstream's
+    /// `is DispatchedContinuation` gate) so the Job check at the first-resume
+    /// boundary decides whether the block ever runs.
+    private var cancellableCoroutineStart = false
     // Cancellation must wake the innermost call and let it unwind before its caller.
     private var suspendedCallChild: RuntimeContinuationState?
     private let interceptionLock = NSRecursiveLock()
@@ -236,7 +241,13 @@ final class RuntimeContinuationState: @unchecked Sendable {
         interceptionLock.unlock()
     }
 
-    func takeUninterceptedCoroutineStart() -> (entryPointRaw: Int, completionContinuation: Int)? {
+    func markCancellableCoroutineStart() {
+        stateLock.lock()
+        cancellableCoroutineStart = true
+        stateLock.unlock()
+    }
+
+    func takeUninterceptedCoroutineStart() -> (entryPointRaw: Int, completionContinuation: Int, cancellableStart: Bool)? {
         stateLock.lock()
         defer { stateLock.unlock() }
         guard uninterceptedEntryPointRaw != 0, !hasStartedUninterceptedCoroutine else {
@@ -245,8 +256,28 @@ final class RuntimeContinuationState: @unchecked Sendable {
         hasStartedUninterceptedCoroutine = true
         return (
             entryPointRaw: uninterceptedEntryPointRaw,
-            completionContinuation: uninterceptedCompletionContinuation
+            completionContinuation: uninterceptedCompletionContinuation,
+            cancellableStart: cancellableCoroutineStart
         )
+    }
+
+    /// KUU-2689: the CancellationException a MODE_CANCELLABLE coroutine start
+    /// delivers to its completion instead of running the block, or nil when
+    /// the coroutine context's Job is absent or still active. This mirrors
+    /// `DispatchedContinuation.resumeCancelled` / `DispatchedTask.run`'s
+    /// `!job.isActive` check, evaluated at the first-resume boundary.
+    func unstartedCoroutineCancellationException() -> Int? {
+        guard let contextRaw = generatedCoroutineContext(outThrown: nil), contextRaw != 0 else {
+            return nil
+        }
+        let jobRaw = kk_context_get_job(contextRaw)
+        guard jobRaw != 0,
+              let job = runtimeJobHandle(from: jobRaw) ?? runtimeAsyncTask(from: jobRaw)?.completionJob,
+              !job.isActiveSnapshot()
+        else {
+            return nil
+        }
+        return kk_job_get_cancellation_exception(jobRaw)
     }
 
     func generatedCoroutineContext(outThrown: UnsafeMutablePointer<Int>?) -> Int? {

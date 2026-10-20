@@ -205,9 +205,14 @@ struct RuntimeABIExternalLinkValidationTests {
                     expectedRuntimeABIParameterTypeVariants(for: $0).map(canonicalHandleTypes)
                 }
             }
-            let expectedReturnTypes = Set(functionDeclarations.compactMap {
-                expectedRuntimeABIReturnType(for: $0).map(canonicalHandleType)
-            })
+            let expectedReturnTypes: Set<String>
+            if let pinnedReturn = rewrittenSuspendBridgeReturnTypes[linkName] {
+                expectedReturnTypes = [canonicalHandleType(pinnedReturn)]
+            } else {
+                expectedReturnTypes = Set(functionDeclarations.compactMap {
+                    expectedRuntimeABIReturnType(for: $0).map(canonicalHandleType)
+                })
+            }
             for spec in specs {
                 let actualParameterTypes = spec.parameterTypeStrings
                 let coreActual: [String]
@@ -762,11 +767,26 @@ struct RuntimeABIExternalLinkValidationTests {
     /// emitted shape; the pinned parameter types below cover only the emitted
     /// value arguments, the part the signature check compares a throwing spec on.
     private let rewrittenSuspendBridgeParameterCounts: [String: Int] = [
+        // The `suspend () -> T` receiver lowers to a single boxed function
+        // value; the throwing bridge appends the outThrown slot.
+        "__kk_start_coroutine_cancellable": 3,
         runtimeABIName(.withTimeout): 4,
         runtimeABIName(.withTimeoutOrNull): 3,
         runtimeABIName(.withTimeoutOrNullThrowing): 4,
     ]
+    /// Link names whose declared signatures the test's signature scanner
+    /// cannot linearize into an expected ABI return type: a parenthesized
+    /// receiver such as `(suspend () -> T)` is mistaken for the parameter
+    /// list, so the text after it parses as a bogus return type. The spec's
+    /// recorded return type is authoritative for these bridges.
+    private let rewrittenSuspendBridgeReturnTypes: [String: String] = [
+        "__kk_start_coroutine_cancellable": RuntimeABICType.void.rawValue,
+    ]
     private let rewrittenSuspendBridgeParameterTypes: [String: [String]] = [
+        "__kk_start_coroutine_cancellable": [
+            RuntimeABICType.intptr.rawValue,
+            RuntimeABICType.intptr.rawValue,
+        ],
         runtimeABIName(.withTimeout): [
             RuntimeABICType.intptr.rawValue,
             RuntimeABICType.intptr.rawValue,
