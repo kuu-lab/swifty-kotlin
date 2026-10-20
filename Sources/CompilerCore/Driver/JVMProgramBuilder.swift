@@ -6,6 +6,7 @@ final class JVMProgramBuilder {
     let sema: SemaModule
     var classes: [SymbolID: JVMClassPlan] = [:]
     var methods: [SymbolID: JVMForeignMethod] = [:]
+    var collectionInterfaceMethods: [SymbolID: JVMForeignMethod] = [:]
     var properties: [SymbolID: JVMProperty] = [:]
     var facadeName = ""
     var facadePlan: JVMClassPlan?
@@ -89,8 +90,10 @@ final class JVMProgramBuilder {
         try prepareTextLibrary()
         try prepareDelegateInterfaces()
         try prepareLazyProperty()
+        try prepareCollectionInterfaces()
         try prepareClasses(files.flatMap(\.topLevelDecls))
         try prepareClassDelegates()
+        try prepareCollectionDelegationMarkers()
         var plans: [JVMClassPlan?] = []
         var declarationsByFile: [[(FunDecl, JVMFunctionReference)]] = []
         for (index, file) in files.enumerated() {

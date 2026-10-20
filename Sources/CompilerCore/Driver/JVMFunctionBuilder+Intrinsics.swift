@@ -231,6 +231,7 @@ extension JVMFunctionBuilder {
             let parameters: [JVMValueType], returns: JVMValueType, actual: String
             switch member {
             case "size": actual = "size"; parameters = []; returns = .int
+            case "entries": actual = "entrySet"; parameters = []; returns = .reference("java/util/Set", nullable: false)
             case "keys": actual = "keySet"; parameters = []; returns = .reference("java/util/Set", nullable: false)
             case "values": actual = "values"; parameters = []; returns = .reference("java/util/Collection", nullable: false)
             case "containsAll": actual = member; parameters = [.reference("java/util/Collection", nullable: false)]; returns = .boolean

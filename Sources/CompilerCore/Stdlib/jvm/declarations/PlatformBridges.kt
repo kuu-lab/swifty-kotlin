@@ -146,3 +146,4 @@ fun <T> __jvmNewArrayList(): java.util.ArrayList<T> = null!!
 
 fun __jvmRemoveAllCollection(destination: kotlin.collections.Collection<*>, source: kotlin.collections.Collection<*>): Boolean = null!!
 fun <T> __jvmCopySet(collection: kotlin.collections.Collection<T>): kotlin.collections.MutableSet<T> = null!!
+fun __jvmArrayCapacityError(): Throwable = null!!
