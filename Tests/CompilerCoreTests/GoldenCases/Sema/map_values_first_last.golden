@@ -1,0 +1,13 @@
+symbol fq=firstMapValue.$0.values[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=firstMapValue[kind=fun;params=kotlin.collections.Map<String,Int>;ret=Int;names=[values];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.Map<String, Int>] ret=Int
+symbol fq=lastMapValue.$1.values[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=lastMapValue[kind=fun;params=kotlin.collections.Map<String,Int>;ret=Int;names=[values];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.Map<String, Int>] ret=Int
+file fmap_values_first_last package=_
+  decl firstMapValue[kind=fun;params=kotlin.collections.Map<String,Int>;ret=Int;names=[values];origin=fixture] fun firstMapValue sym=firstMapValue[kind=fun;params=kotlin.collections.Map<String,Int>;ret=Int;names=[values];origin=fixture]
+  decl lastMapValue[kind=fun;params=kotlin.collections.Map<String,Int>;ret=Int;names=[values];origin=fixture] fun lastMapValue sym=lastMapValue[kind=fun;params=kotlin.collections.Map<String,Int>;ret=Int;names=[values];origin=fixture]
+expr e@1:52 name(values) type=kotlin.collections.Map<String, Int> ref=firstMapValue.$0.values[kind=vparam;origin=fixture]
+expr e@1:52#1 memberCall recv=e@1:52 callee=values args=[] type=kotlin.collections.Collection<Int> ref=kotlin.collections.Map.values[kind=prop;type=kotlin.collections.Collection<T1>]
+expr e@1:52#2 memberCall recv=e@1:52#1 callee=first args=[] type=Int call=kotlin.collections.first[kind=fun;recv=kotlin.collections.Iterable<T0>;params=;ret=T0;gen=1] targs=[Int]
+expr e@3:51 name(values) type=kotlin.collections.Map<String, Int> ref=lastMapValue.$1.values[kind=vparam;origin=fixture]
+expr e@3:51#1 memberCall recv=e@3:51 callee=values args=[] type=kotlin.collections.Collection<Int> ref=kotlin.collections.Map.values[kind=prop;type=kotlin.collections.Collection<T1>]
+expr e@3:51#2 memberCall recv=e@3:51#1 callee=last args=[] type=Int call=kotlin.collections.last[kind=fun;recv=kotlin.collections.Iterable<T0>;params=;ret=T0;gen=1] targs=[Int]
