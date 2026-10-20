@@ -50,6 +50,11 @@ extension JVMFunctionBuilder {
         if sourceType == .char, name == "code", args.isEmpty {
             return JVMIntrinsicResult(value: try convert(requireValue(receiver), to: .int))
         }
+        if sourceType == .char, name == "plus", args.count == 1, try program.expressionType(id).isText {
+            let source = try requireValue(receiver)
+            guard let argument = try stringPart(args[0].expr) else { throw JVMTerminatedExpression() }
+            return JVMIntrinsicResult(value: try concatenate(source, argument))
+        }
         if sourceType.isNumeric || sourceType == .boolean {
             if name == "toString", args.isEmpty {
                 let source = try requireValue(receiver)
