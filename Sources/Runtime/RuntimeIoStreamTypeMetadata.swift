@@ -10,6 +10,22 @@ private let ioInputCloseEntry: @convention(c) (Int, UnsafeMutablePointer<Int>?) 
 private let ioOutputCloseEntry: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, thrown in
     __kk_output_stream_close_throwing(raw, thrown)
 }
+private let ioBufferedReaderCloseEntry: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, thrown in
+    thrown?.pointee = 0
+    return __kk_buffered_reader_close(raw)
+}
+
+func runtimeRegisterBufferedReaderCloseDispatch(_ objectRaw: Int) {
+    let closeEntry = unsafeBitCast(ioBufferedReaderCloseEntry, to: Int.self)
+    for (interfaceName, interfaceSlot) in [("kotlin.AutoCloseable", 0), ("kotlin.io.Closeable", 1)] {
+        _ = kk_object_register_itable_iface(
+            objectRaw,
+            Int(runtimeStableNominalTypeID(fqName: interfaceName)),
+            interfaceSlot
+        )
+        _ = kk_object_register_itable_method(objectRaw, interfaceSlot, 0, closeEntry)
+    }
+}
 
 /// Register each allocation after metadata resets; this does not invent class
 /// fields or a JVM classfile/vtable representation.

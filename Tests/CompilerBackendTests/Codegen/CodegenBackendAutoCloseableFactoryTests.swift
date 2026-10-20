@@ -57,6 +57,17 @@ struct CodegenBackendAutoCloseableFactoryTests {
     }
 
     @Test
+    func testInputStreamBufferedReaderUseClosesThroughAutoCloseable() throws {
+        let source = """
+        fun main() {
+            println("buffered\n".byteInputStream().bufferedReader().use { it.readLine() })
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "BufferedReaderAutoCloseableUse", expected: "buffered\n")
+    }
+
+    @Test
     func testCodegenPreservesPrimaryAndSuppressedCloseExceptions() throws {
         let source = """
         class ThrowingResource(private val throwOnClose: Boolean) : AutoCloseable {
