@@ -86,4 +86,17 @@ struct ProtoReaderTests {
             _ = try ProtoFields([0x00, 0x01])
         }
     }
+
+    @Test
+    func rejectsOverflowingVarintsAndLengths() {
+        let invalidMessages: [[UInt8]] = [
+            [0x08] + Array(repeating: 0xFF, count: 9) + [0x02],
+            [0x12] + Array(repeating: 0xFF, count: 9) + [0x01],
+            [0x12, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F],
+            [0x80, 0x80, 0x80, 0x80, 0x10, 0x00],
+        ]
+        for bytes in invalidMessages {
+            #expect(throws: KlibFormatError.self) { _ = try ProtoFields(bytes) }
+        }
+    }
 }

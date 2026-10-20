@@ -536,13 +536,16 @@ Kotlin/Native (および共通 IR) が生成する `.klib` も `-I` のサーチ
 
 インポートの流れ:
 
-1. `LibraryDiscovery` が `.klib` を発見 → `loadKlibModule` が manifest 検証 (`abi_version` 2.3.x 系を受理、2.4 は best-effort 警告 `KSWIFTK-LIB-0027`)
+1. `LibraryDiscovery` が `.klib` を発見 → `loadKlibModule` が manifest 検証 (Kotlin/Native 2.4.21 の ABI 2.4.0 と旧 ABI 2.3 を受理。未対応 ABI・署名は `KSWIFTK-LIB-0027`)
 2. `KlibRecordMaterializer` (LibraryKlibMaterialization.swift) が IR 宣言を `ImportedLibrarySymbolRecord` に変換し、既存の `.kklib` インポート経路で `SymbolTable`/`TypeSystem` に登録
 3. `resolveKlibDependencies` が manifest `depends` を検証 (欠落は `KSWIFTK-LIB-0030`) し依存順にソート — 依存モジュールの top-level 初期化が先に走る
 4. `KlibBodyLowerer` (KIR/) が `lowerModule` 内で serialized body を KIR に翻訳して注入 — 関数/ctor/accessor/object 初期化/top-level フィールド。ctor は `this` を暗黙バインドして `returnValue(this)` で終える (serialized ctor は dispatch receiver を持たない)。`IrField.initializer` は `instanceInitializerCall` 地点で展開 (Kotlin/Native の匿名初期化子再合成と同じ)。プリミティブ member call は `kk_op_*` intrinsic にマップ
 5. 未対応 IR 形式は `KSWIFTK-LIB-0029` 警告 + `kk_abort_unreachable` (verifier-safe)
 
 `.klib` はコンパイル済みオブジェクトを持たないため、そのグローバルは `.importedLibrary` を保ちつつ `markKlibDefinedGlobal` で本コンパイル側のストレージを持つ印を付け、`NativeEmitter` が extern ではなく実体を出力する。
+
+最新 KLIB の検証範囲・再生成可能な fixture・完全対応に向けた残りの機能は
+[`klib-compatibility.md`](klib-compatibility.md) を参照。
 
 ---
 

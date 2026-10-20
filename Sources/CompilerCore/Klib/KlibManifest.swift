@@ -10,7 +10,9 @@ package enum JavaProperties {
         var logical = ""
         var continuation = false
 
-        for physicalLine in text.split(separator: "\n", omittingEmptySubsequences: false) {
+        let normalized = text.replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        for physicalLine in normalized.split(separator: "\n", omittingEmptySubsequences: false) {
             var line = String(physicalLine)
             if line.hasSuffix("\r") { line.removeLast() }
             if continuation {
@@ -30,10 +32,10 @@ package enum JavaProperties {
                 continue
             }
             continuation = false
-            pairs.append(splitProperty(logical))
+            pairs.append(try splitProperty(logical))
         }
         if continuation && !logical.isEmpty {
-            pairs.append(splitProperty(logical))
+            pairs.append(try splitProperty(logical))
         }
         return pairs
     }
@@ -49,7 +51,7 @@ package enum JavaProperties {
         return backslashes % 2 == 1
     }
 
-    private static func splitProperty(_ line: String) -> (key: String, value: String) {
+    private static func splitProperty(_ line: String) throws -> (key: String, value: String) {
         // First unescaped `=`, `:` or whitespace separates key and value.
         var keyEnd = line.startIndex
         var escaped = false
@@ -65,25 +67,31 @@ package enum JavaProperties {
             keyEnd = line.index(after: keyEnd)
         }
         var valueStart = keyEnd
-        while valueStart < line.endIndex {
-            let ch = line[valueStart]
-            if ch == " " || ch == "\t" || ch == "\u{0C}" || ch == "=" || ch == ":" {
-                valueStart = line.index(after: valueStart)
-            } else {
-                break
-            }
+        while valueStart < line.endIndex, isWhitespace(line[valueStart]) {
+            valueStart = line.index(after: valueStart)
         }
-        return (unescape(String(line[..<keyEnd])), unescape(String(line[valueStart...])))
+        if valueStart < line.endIndex, line[valueStart] == "=" || line[valueStart] == ":" {
+            valueStart = line.index(after: valueStart)
+        }
+        while valueStart < line.endIndex, isWhitespace(line[valueStart]) {
+            valueStart = line.index(after: valueStart)
+        }
+        return try (unescape(String(line[..<keyEnd])), unescape(String(line[valueStart...])))
     }
 
-    private static func unescape(_ string: String) -> String {
+    private static func isWhitespace(_ ch: Character) -> Bool {
+        ch == " " || ch == "\t" || ch == "\u{0C}"
+    }
+
+    private static func unescape(_ string: String) throws -> String {
         guard string.contains("\\") else { return string }
-        var result = ""
+        // Java escapes encode UTF-16 code units, including surrogate pairs.
+        var result: [UInt16] = []
         var i = string.startIndex
         while i < string.endIndex {
             let ch = string[i]
             guard ch == "\\", string.index(after: i) < string.endIndex else {
-                result.append(ch)
+                result.append(contentsOf: String(ch).utf16)
                 i = string.index(after: i)
                 continue
             }
@@ -91,22 +99,26 @@ package enum JavaProperties {
             let esc = string[i]
             i = string.index(after: i)
             switch esc {
-            case "t": result.append("\t")
-            case "n": result.append("\n")
-            case "r": result.append("\r")
-            case "f": result.append("\u{0C}")
+            case "t": result.append(9)
+            case "n": result.append(10)
+            case "r": result.append(13)
+            case "f": result.append(12)
             case "u":
                 var code = 0
-                for _ in 0 ..< 4 where i < string.endIndex {
-                    code = code * 16 + (string[i].hexDigitValue ?? 0)
+                for _ in 0 ..< 4 {
+                    guard i < string.endIndex, string[i].isASCII,
+                          let digit = string[i].hexDigitValue else {
+                        throw KlibFormatError.invalidManifest("malformed Unicode escape")
+                    }
+                    code = code * 16 + digit
                     i = string.index(after: i)
                 }
-                result.append(Character(UnicodeScalar(code) ?? "\u{FFFD}"))
+                result.append(UInt16(code))
             default:
-                result.append(esc)
+                result.append(contentsOf: String(esc).utf16)
             }
         }
-        return result
+        return String(decoding: result, as: UTF16.self)
     }
 }
 
@@ -121,19 +133,29 @@ package struct KlibManifest {
         package let minor: Int
         package let patch: Int
 
-        package init?(_ string: String) {
-            let parts = string.split(separator: ".").map(String.init)
+        package init?(_ string: String, allowsSuffix: Bool = false) {
+            let parts = string.split(separator: ".", omittingEmptySubsequences: false).map(String.init)
             guard (2 ... 3).contains(parts.count),
+                  Self.isDecimal(parts[0]), Self.isDecimal(parts[1]),
                   let major = Int(parts[0]),
                   let minor = Int(parts[1])
             else { return nil }
             // Kotlin may suffix versions ("2.4.20-dev-7885"); keep the
             // leading numeric component of the patch field.
             let patchField = parts.count > 2 ? parts[2] : "0"
-            let digits = patchField.prefix(while: { $0.isNumber })
+            let digits = patchField.prefix(while: { $0.isASCII && $0.isNumber })
+            let suffix = patchField.dropFirst(digits.count)
+            guard !digits.isEmpty, let patch = Int(digits),
+                  suffix.isEmpty || (allowsSuffix && (suffix.first == "-" || suffix.first == "+")) else {
+                return nil
+            }
             self.major = major
             self.minor = minor
-            self.patch = Int(digits) ?? 0
+            self.patch = patch
+        }
+
+        private static func isDecimal(_ string: String) -> Bool {
+            !string.isEmpty && string.allSatisfy { $0.isASCII && $0.isNumber }
         }
 
         package static func < (lhs: Version, rhs: Version) -> Bool {
@@ -144,11 +166,8 @@ package struct KlibManifest {
     }
 
     package enum Compatibility: Equatable {
-        /// Produced by a Kotlin version whose IR layout we fully support.
+        /// Uses an IR wire format supported by this reader.
         case supported
-        /// Newer than the supported track; import proceeds best-effort and
-        /// the caller should surface `reason` as a warning.
-        case bestEffort(reason: String)
         /// Cannot be imported; `reason` should be surfaced as an error.
         case unsupported(reason: String)
     }
@@ -175,13 +194,13 @@ package struct KlibManifest {
             throw KlibFormatError.missingManifestKey("unique_name")
         }
         self.uniqueName = uniqueName
-        self.compilerVersion = props["compiler_version"].flatMap(Version.init)
-        self.abiVersion = props["abi_version"].flatMap(Version.init)
-        self.metadataVersion = props["metadata_version"].flatMap(Version.init)
+        self.compilerVersion = props["compiler_version"].flatMap { Version($0, allowsSuffix: true) }
+        self.abiVersion = props["abi_version"].flatMap { Version($0) }
+        self.metadataVersion = props["metadata_version"].flatMap { Version($0) }
         self.libraryVersion = props["library_version"]
         self.builtinsPlatform = props["builtins_platform"]
         self.irSignatureVersions = Set(
-            (props["ir_signature_versions"] ?? "")
+            (props["ir_signature_versions"] ?? "1")
                 .split(whereSeparator: { $0 == "," || $0 == " " })
                 .compactMap { Int($0) }
         )
@@ -190,29 +209,28 @@ package struct KlibManifest {
             .map(String.init)
     }
 
-    /// Version gate for the IR reader. KSwiftK targets Kotlin 2.3.x;
-    /// `abi_version` "2.3.*" is the supported track. Kotlin 2.4 keeps the
-    /// same chunk layout but adds varint-sized tables, which the IR readers
-    /// handle, so 2.4.x is accepted best-effort. Anything else is rejected.
+    /// Kotlin 2.4.21 writes ABI 2.4.0. Compiler release versions and the IR
+    /// ABI are independent: accepting an unimplemented future ABI would
+    /// silently misread its declarations. The reader also retains ABI 2.3.
     package var compatibility: Compatibility {
         guard let abiVersion else {
-            return .unsupported(reason: "manifest is missing 'abi_version'")
+            return .unsupported(reason: properties["abi_version"] == nil
+                ? "manifest is missing 'abi_version'"
+                : "manifest has invalid 'abi_version': \(properties["abi_version"] ?? "")")
         }
-        switch (abiVersion.major, abiVersion.minor) {
-        case (2, 3):
-            break
-        case (2, 4):
-            return .bestEffort(
-                reason: "klib '\(uniqueName)' has abi_version \(abiVersion) newer than the supported 2.3.x track; import is best-effort"
-            )
-        default:
+        guard abiVersion >= Version("2.3.0")!, abiVersion <= Version("2.4.0")! else {
             return .unsupported(
-                reason: "klib '\(uniqueName)' has unsupported abi_version \(abiVersion) (expected 2.3.x)"
+                reason: "klib '\(uniqueName)' has unsupported abi_version \(abiVersion) (supported: 2.3.0 through 2.4.0)"
             )
         }
-        guard irSignatureVersions.contains(1) else {
+        let signatureTokens = (properties["ir_signature_versions"] ?? "1")
+            .split(whereSeparator: { $0 == "," || $0 == " " })
+        guard !signatureTokens.isEmpty,
+              signatureTokens.allSatisfy({ token in
+                  !token.isEmpty && token.allSatisfy { $0.isASCII && $0.isNumber } && Int(token) != nil
+              }), !irSignatureVersions.isDisjoint(with: [1, 2]) else {
             return .unsupported(
-                reason: "klib '\(uniqueName)' carries no v1 IR signatures (ir_signature_versions=\(properties["ir_signature_versions"] ?? ""))"
+                reason: "klib '\(uniqueName)' has no supported IR signature version (supported: 1,2; ir_signature_versions=\(properties["ir_signature_versions"] ?? ""))"
             )
         }
         return .supported

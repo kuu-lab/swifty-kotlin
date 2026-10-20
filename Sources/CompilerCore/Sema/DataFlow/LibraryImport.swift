@@ -1161,6 +1161,11 @@ extension DataFlowSemaPhase {
         }
 
         lazyLoaderState.stdlibIndexSource = stdlibIndexSource
+
+        for module in klibModules {
+            inheritKlibDefaultArguments(module: module, symbols: symbols)
+        }
+
         return LibraryImportDeferredWork(
             pendingSupertypeEdges: pendingSupertypeEdges,
             importedBindings: importedBindings,

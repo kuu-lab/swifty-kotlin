@@ -164,7 +164,7 @@ package enum KlibIrDecoding {
         if let legacy = try proto.message(1) {
             return .legacySimple(
                 classifier: try legacy.symbol(2, name: "legacySimple.classifier"),
-                hasQuestionMark: legacy.bool(3) ?? false,
+                hasQuestionMark: try requiredBool(legacy, 3, "legacySimple.has_question_mark"),
                 arguments: try legacy.int64List(4).map(KlibBinaryEncoding.decodeTypeProjection),
                 annotations: try legacy.decodedList(1, annotation)
             )
@@ -192,11 +192,12 @@ package enum KlibIrDecoding {
     static func annotation(_ proto: ProtoFields) throws -> KlibAnnotation {
         try KlibAnnotation(
             symbol: proto.symbol(1, name: "annotation.symbol"),
-            constructorTypeArgumentsCount: proto.int32(2) ?? 0,
+            constructorTypeArgumentsCount: requiredInt32(proto, 2, "annotation.constructor_type_arguments_count"),
             memberAccess: proto.decoded(3, memberAccess),
             arguments: proto.decodedList(5, expression),
             typeArguments: proto.int32List(6),
-            originName: proto.int32(4)
+            originName: proto.int32(4),
+            localCoordinates: proto.localCoordinates(7)
         )
     }
 
@@ -214,7 +215,7 @@ package enum KlibIrDecoding {
     private static func declarationBase(_ proto: ProtoFields) throws -> KlibDeclBase {
         try KlibDeclBase(
             symbol: proto.symbol(1, name: "declaration.symbol"),
-            originName: proto.int32(2) ?? 0,
+            originName: requiredInt32(proto, 2, "declaration.origin_name"),
             globalCoordinates: proto.globalCoordinates(3),
             localCoordinates: proto.localCoordinates(6),
             flags: KlibIrFlags(raw: proto.int64(4).map { UInt64(bitPattern: $0) } ?? 0),
@@ -239,14 +240,14 @@ package enum KlibIrDecoding {
     private static func anonymousInit(_ proto: ProtoFields) throws -> KlibAnonymousInit {
         try KlibAnonymousInit(
             base: proto.required(1, name: "anonymous_init.base", declarationBase),
-            bodyIndex: proto.int32(2) ?? 0
+            bodyIndex: requiredInt32(proto, 2, "anonymous_init.body")
         )
     }
 
     private static func `class`(_ proto: ProtoFields) throws -> KlibClass {
         try KlibClass(
             base: proto.required(1, name: "class.base", declarationBase),
-            nameIndex: proto.int32(2) ?? 0,
+            nameIndex: requiredInt32(proto, 2, "class.name"),
             thisReceiver: proto.decoded(3, valueParameter),
             typeParameters: proto.decodedList(4, typeParameter),
             declarations: proto.decodedList(5, declaration),
@@ -257,9 +258,9 @@ package enum KlibIrDecoding {
     }
 
     private static func inlineClassRepresentation(_ proto: ProtoFields) throws -> KlibInlineClassRepresentation {
-        KlibInlineClassRepresentation(
-            underlyingPropertyName: proto.int32(1) ?? 0,
-            underlyingPropertyType: proto.int32(2) ?? 0
+        try KlibInlineClassRepresentation(
+            underlyingPropertyName: requiredInt32(proto, 1, "inline_class_representation.underlying_property_name"),
+            underlyingPropertyType: requiredInt32(proto, 2, "inline_class_representation.underlying_property_type")
         )
     }
 
@@ -272,7 +273,7 @@ package enum KlibIrDecoding {
     private static func enumEntry(_ proto: ProtoFields) throws -> KlibEnumEntry {
         try KlibEnumEntry(
             base: proto.required(1, name: "enum_entry.base", declarationBase),
-            nameIndex: proto.int32(2) ?? 0,
+            nameIndex: requiredInt32(proto, 2, "enum_entry.name"),
             initializerIndex: proto.int32(3),
             correspondingClass: proto.decoded(4, `class`)
         )
@@ -307,7 +308,7 @@ package enum KlibIrDecoding {
     private static func property(_ proto: ProtoFields) throws -> KlibProperty {
         try KlibProperty(
             base: proto.required(1, name: "property.base", declarationBase),
-            nameIndex: proto.int32(2) ?? 0,
+            nameIndex: requiredInt32(proto, 2, "property.name"),
             backingField: proto.decoded(3, field),
             getter: proto.decoded(4, function),
             setter: proto.decoded(5, function)
@@ -334,7 +335,7 @@ package enum KlibIrDecoding {
     private static func typeParameter(_ proto: ProtoFields) throws -> KlibTypeParameter {
         try KlibTypeParameter(
             base: proto.required(1, name: "type_parameter.base", declarationBase),
-            nameIndex: proto.int32(2) ?? 0,
+            nameIndex: requiredInt32(proto, 2, "type_parameter.name"),
             superTypes: proto.int32List(3)
         )
     }
@@ -418,7 +419,7 @@ package enum KlibIrDecoding {
 
     private static func loop(_ proto: ProtoFields) throws -> KlibLoop {
         return try KlibLoop(
-            loopId: proto.int32(1) ?? 0,
+            loopId: requiredInt32(proto, 1, "loop.loop_id"),
             condition: proto.required(2, name: "loop.condition", expression),
             label: proto.int32(3),
             body: proto.decoded(4, expression),
@@ -472,15 +473,15 @@ package enum KlibIrDecoding {
     }
 
     private static func inlinedFunctionBlock(_ value: ProtoFields) throws -> KlibIrExpressionKind {
-        let block = try value.message(3)
+        let block = try requiredMessage(value, 3, "inlined_function_block.base")
         return .inlinedFunctionBlock(
             symbol: try value.optionalSymbol(1),
             fileEntry: try value.decoded(2, fileEntry),
             fileEntryId: value.int32(6),
-            statements: try block.map { try statementList($0, field: 1) } ?? [],
-            originName: block?.int32(2),
-            startOffset: value.int32(4) ?? 0,
-            endOffset: value.int32(5) ?? 0
+            statements: try statementList(block, field: 1),
+            originName: block.int32(2),
+            startOffset: try requiredInt32(value, 4, "inlined_function_block.start_offset"),
+            endOffset: try requiredInt32(value, 5, "inlined_function_block.end_offset")
         )
     }
 
@@ -492,7 +493,7 @@ package enum KlibIrDecoding {
         let local = proto.localCoordinates(4)
         let kind: KlibIrExpressionKind
 
-        if let legacy = try proto.message(1) {
+        if !(5 ... 44).contains(where: { proto.has($0) }), let legacy = try proto.message(1) {
             kind = try legacyOperation(legacy)
         } else if let value = try proto.message(5) {
             kind = try const(value)
@@ -511,18 +512,18 @@ package enum KlibIrDecoding {
         } else if let value = try proto.message(9) {
             kind = .constructorCall(
                 symbol: try value.symbol(1, name: "constructor_call.symbol"),
-                constructorTypeArgumentsCount: value.int32(2) ?? 0,
+                constructorTypeArgumentsCount: try requiredInt32(value, 2, "constructor_call.constructor_type_arguments_count"),
                 memberAccess: try callMemberAccess(value, memberAccessField: 3, argumentField: 5, typeArgumentField: 6),
                 originName: value.int32(4)
             )
         } else if let value = try proto.message(10) {
             kind = .block(statements: try statementList(value, field: 1), originName: value.int32(2))
         } else if let value = try proto.message(11) {
-            let block = try value.message(2)
+            let block = try requiredMessage(value, 2, "returnable_block.base")
             kind = .returnableBlock(
                 symbol: try value.symbol(1, name: "returnable_block.symbol"),
-                statements: try block.map { try statementList($0, field: 1) } ?? [],
-                originName: block?.int32(2)
+                statements: try statementList(block, field: 1),
+                originName: block.int32(2)
             )
         } else if let value = try proto.message(12) {
             guard let returnExpr = try value.message(2) else { throw KlibIrDecodeError.missing("return.value") }
@@ -531,8 +532,8 @@ package enum KlibIrDecoding {
             kind = .when(branches: try statementList(value, field: 1), originName: value.int32(2))
         } else if let value = try proto.message(14) {
             kind = .typeOp(
-                operator: value.int32(1).flatMap { KlibTypeOperator(rawValue: Int($0)) } ?? .implicitCast,
-                operandType: value.int32(2) ?? 0,
+                operator: try requiredEnum(value, 1, "type_op.operator", KlibTypeOperator.self),
+                operandType: try requiredInt32(value, 2, "type_op.operand"),
                 argument: try value.required(3, name: "type_op.argument", expression)
             )
         } else if let value = try proto.message(15) {
@@ -554,16 +555,16 @@ package enum KlibIrDecoding {
         } else if let value = try proto.message(19) {
             kind = .classReference(
                 classSymbol: try value.symbol(1, name: "class_reference.class_symbol"),
-                classType: value.int32(2) ?? 0
+                classType: try requiredInt32(value, 2, "class_reference.class_type")
             )
         } else if let value = try proto.message(20) {
             kind = .getEnumValue(symbol: try value.symbol(1, name: "get_enum_value.symbol"))
         } else if let value = try proto.message(21) {
             kind = .composite(statements: try statementList(value, field: 1), originName: value.int32(2))
         } else if let value = try proto.message(22) {
-            kind = .break(loopId: value.int32(1) ?? 0, label: value.int32(2))
+            kind = .break(loopId: try requiredInt32(value, 1, "break.loop_id"), label: value.int32(2))
         } else if let value = try proto.message(23) {
-            kind = .continue(loopId: value.int32(1) ?? 0, label: value.int32(2))
+            kind = .continue(loopId: try requiredInt32(value, 1, "continue.loop_id"), label: value.int32(2))
         } else if let value = try proto.message(24) {
             kind = .while(loop: try protoMessageLoop(value))
         } else if let value = try proto.message(25) {
@@ -592,14 +593,14 @@ package enum KlibIrDecoding {
             )
         } else if let value = try proto.message(32) {
             kind = .vararg(
-                elementType: value.int32(1) ?? 0,
+                elementType: try requiredInt32(value, 1, "vararg.element_type"),
                 elements: try value.decodedList(2, varargElement)
             )
         } else if let value = try proto.message(33) {
-            kind = .dynamicMember(memberName: value.int32(1) ?? 0, receiver: try value.required(2, name: "dynamic_member.receiver", expression))
+            kind = .dynamicMember(memberName: try requiredInt32(value, 1, "dynamic_member.member_name"), receiver: try value.required(2, name: "dynamic_member.receiver", expression))
         } else if let value = try proto.message(34) {
             kind = .dynamicOperator(
-                operator: value.int32(1).flatMap { KlibDynamicOperator(rawValue: Int($0)) } ?? .invoke,
+                operator: try requiredEnum(value, 1, "dynamic_operator.operator", KlibDynamicOperator.self),
                 receiver: try value.required(2, name: "dynamic_operator.receiver", expression),
                 arguments: try expressionList(value, field: 3)
             )
@@ -612,12 +613,12 @@ package enum KlibIrDecoding {
                 originName: value.int32(5)
             )
         } else if let value = try proto.message(36) {
-            kind = .functionExpression(function: try value.required(1, name: "function_expression.function", function), originName: value.int32(2) ?? 0)
+            kind = .functionExpression(function: try value.required(1, name: "function_expression.function", function), originName: try requiredInt32(value, 2, "function_expression.origin_name"))
         } else if let value = try proto.message(37) {
-            kind = .errorExpression(description: value.int32(1) ?? 0)
+            kind = .errorExpression(description: try requiredInt32(value, 1, "error_expression.description"))
         } else if let value = try proto.message(38) {
             kind = .errorCallExpression(
-                description: value.int32(1) ?? 0,
+                description: try requiredInt32(value, 1, "error_call_expression.description"),
                 receiver: try optionalExpression(value, field: 2),
                 valueArguments: try expressionList(value, field: 3)
             )
@@ -689,7 +690,7 @@ package enum KlibIrDecoding {
             else { throw KlibIrDecodeError.missing("catch.catch_parameter/result") }
             kind = .catch(KlibIrCatch(parameter: try variable(parameter), result: try expression(result)))
         } else if let value = try proto.message(7) {
-            kind = .syntheticBody(value.int32(1).flatMap { KlibSyntheticBodyKind(rawValue: Int($0)) } ?? .enumValues)
+            kind = .syntheticBody(try requiredEnum(value, 1, "synthetic_body.kind", KlibSyntheticBodyKind.self))
         } else {
             throw KlibFormatError.corruptProto("IrStatement has no statement set")
         }
@@ -704,6 +705,26 @@ package enum KlibIrDecoding {
 
     private static func requiredInt64(_ proto: ProtoFields, _ field: Int, _ name: String) throws -> Int64 {
         guard let value = proto.int64(field) else { throw KlibIrDecodeError.missing(name) }
+        return value
+    }
+
+    private static func requiredBool(_ proto: ProtoFields, _ field: Int, _ name: String) throws -> Bool {
+        guard let value = proto.bool(field) else { throw KlibIrDecodeError.missing(name) }
+        return value
+    }
+
+    private static func requiredMessage(_ proto: ProtoFields, _ field: Int, _ name: String) throws -> ProtoFields {
+        guard let value = try proto.message(field) else { throw KlibIrDecodeError.missing(name) }
+        return value
+    }
+
+    private static func requiredEnum<T: RawRepresentable>(
+        _ proto: ProtoFields, _ field: Int, _ name: String, _ type: T.Type
+    ) throws -> T where T.RawValue == Int {
+        let raw = try requiredInt32(proto, field, name)
+        guard let value = type.init(rawValue: Int(raw)) else {
+            throw KlibFormatError.corruptProto("unknown \(name): \(raw)")
+        }
         return value
     }
 }

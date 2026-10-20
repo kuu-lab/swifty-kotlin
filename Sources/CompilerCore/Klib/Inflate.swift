@@ -13,6 +13,7 @@ package enum KlibFormatError: Error, Equatable {
     case sizeMismatch(String)
     case missingManifest
     case missingManifestKey(String)
+    case invalidManifest(String)
     case invalidKlibLayout(String)
     case unsafeEntryPath(String)
     case unreadableContainer(String)
@@ -35,6 +36,7 @@ extension KlibFormatError: CustomStringConvertible {
         case .sizeMismatch(let m): return "size mismatch: \(m)"
         case .missingManifest: return "component has no manifest"
         case .missingManifestKey(let k): return "manifest is missing required key '\(k)'"
+        case .invalidManifest(let reason): return "invalid manifest: \(reason)"
         case .invalidKlibLayout(let m): return "invalid klib layout: \(m)"
         case .unsafeEntryPath(let p): return "unsafe entry path '\(p)'"
         case .unreadableContainer(let p): return "unreadable container '\(p)'"
