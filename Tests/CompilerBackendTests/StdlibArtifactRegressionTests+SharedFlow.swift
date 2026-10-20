@@ -647,7 +647,7 @@ extension StdlibArtifactRegressionTests {
             val state = MutableStateFlow(5)
             val stateCount = state.subscriptionCount
             val stateView = state.asStateFlow()
-            stateView.collect { value ->
+            stateView.take(1).collect { value ->
                 state.value = 6
                 println("state=$value/count=${stateCount.value}")
             }
@@ -663,7 +663,7 @@ extension StdlibArtifactRegressionTests {
             } catch (e: IllegalStateException) {
                 println("state exception/count=${stateCount.value}")
             }
-            stateCount.collect { println("count snapshot=$it") }
+            stateCount.take(1).collect { println("count snapshot=$it") }
         }
         """
 
