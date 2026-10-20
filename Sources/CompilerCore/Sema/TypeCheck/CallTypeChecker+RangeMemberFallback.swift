@@ -1433,22 +1433,29 @@ extension CallTypeChecker {
         isULongRange: Bool,
         returnsProgression: Bool = false
     ) -> TypeID {
-        // Both reversed() and step(Int) return IntProgression. Retaining
-        // IntRange here selects its range-only toString and HOF overloads.
-        if returnsProgression,
-           elementType == sema.types.intType,
-           !isLongRange,
-           !isUIntRange,
-           !isULongRange
-        {
-            let intProgressionFQName: [InternedString] = [
+        // Primitive range reversed()/step() return progression classes. Retaining
+        // the range type here selects range-only toString and HOF overloads.
+        if returnsProgression {
+            let progressionName: String
+            if isLongRange {
+                progressionName = "LongProgression"
+            } else if isUIntRange {
+                progressionName = "UIntProgression"
+            } else if isULongRange {
+                progressionName = "ULongProgression"
+            } else if elementType == sema.types.charType {
+                progressionName = "CharProgression"
+            } else {
+                progressionName = "IntProgression"
+            }
+            let progressionFQName: [InternedString] = [
                 interner.intern("kotlin"),
                 interner.intern("ranges"),
-                interner.intern("IntProgression"),
+                interner.intern(progressionName),
             ]
-            if let intProgressionSymbol = sema.symbols.lookup(fqName: intProgressionFQName) {
+            if let progressionSymbol = sema.symbols.lookup(fqName: progressionFQName) {
                 return sema.types.make(.classType(ClassType(
-                    classSymbol: intProgressionSymbol,
+                    classSymbol: progressionSymbol,
                     args: [],
                     nullability: .nonNull
                 )))
