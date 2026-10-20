@@ -1,0 +1,15 @@
+start:Desired length -1 is less than zero.
+end:Desired length -1 is less than zero.
+start:Desired length -2147483648 is less than zero.
+end:Desired length -2147483648 is less than zero.
+start:abc
+end:[abc]
+start:abc
+end:[abc]
+start:abc
+end:[abc]
+start:**abc
+end:[abc  ]
+empty:Desired length -3 is less than zero.
+
+**
