@@ -1,0 +1,15 @@
+Deep(value=Outer(value=I(value=21)))
+21
+21
+true
+Deep(value=Outer(value=I(value=21)))
+true
+null
+Text(value=S(value=ok))
+null
+Maybe(value=null)
+Maybe(value=S(value=yes))
+NullText(value=N(value=null))
+Boxed(value=null)
+Boxed(value=N(value=null))
+21

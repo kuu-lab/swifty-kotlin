@@ -1,0 +1,15 @@
+Numbers(value=[1, 2])
+true
+false
+994
+null
+Numbers(value=[1, 2])
+Numbers(value=[3, 2])
+1056
+Optional(value=null)
+0
+true
+Items(value=[a, b])
+b
+4066
+3

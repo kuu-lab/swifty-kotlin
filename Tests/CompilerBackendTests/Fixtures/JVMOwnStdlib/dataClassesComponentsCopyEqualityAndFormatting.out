@@ -1,0 +1,16 @@
+Point(x=21, label=left)
+21
+Point(x=42, label=left)
+Point(x=21, label=left)
+true
+true
+21
+left
+generic
+Samples(value=0.5, flags=[1, 2])
+true
+false
+true
+false
+custom
+7

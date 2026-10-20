@@ -1,0 +1,20 @@
+fun main() {
+    println(listOf(1, 2).zip(listOf("a", "b")).map { (a, b) -> "$a$b" });
+    println(listOf(1) zip listOf(2)); println((sequenceOf(1) zip sequenceOf(2)).toList())
+    val p = "a" to 1; println(p); println(p.first); println(p.second); val (a, b) = p; println("$a:$b")
+    println(p == Pair("a", 1)); println(p.copy(second = 2)); println(listOf(p).joinToString())
+    val words = listOf("a", "bb", "c", "dd")
+    println(words.groupBy { it.length }); println(words.groupBy({ it.length }) { it.uppercase() })
+    println(words.associate { it.length to it }); println(words.associateBy { it.length })
+    println(words.associateBy({ it.length }) { it.uppercase() }); println(words.associateWith { it.length })
+    val (yes, no) = words.partition { it.length == 1 }; println(yes); println(no)
+    println(words.zip(listOf(1, 2))); println(words.zip(arrayOf(1, 2)) { x, y -> "$x$y" })
+    println(words.zipWithNext()); println(words.zipWithNext { x, y -> x + y })
+    println(listOf("a", "b", "a").associateWith { if (it == "a") null else 2 })
+    println(words.groupBy { if (it.length == 1) null else 2 })
+    println(listOf("b" to 1, "a" to 2, "b" to 3).toMap())
+    println(words.joinToString(separator = "/", prefix = "[", postfix = "]", limit = 2) { it.uppercase() })
+    println(emptyList<String>().joinToString()); println(words.take(2)); println(words.drop(2))
+    println(listOf(3, 1, 2, 1).distinct().sorted()); println(words.sortedBy { it.length })
+    println(words.asSequence().zip(sequenceOf(1, 2)).toList())
+}

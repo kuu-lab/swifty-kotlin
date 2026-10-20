@@ -1,0 +1,14 @@
+kotlin.Unit
+null
+[1, 2]
+class kotlin.collections.List
+{x=3}
+class kotlin.collections.Map
+a, b
+class kotlin.Array
+4, 5
+class kotlin.IntArray
+Nested(value=7)
+class Outer$Nested
+[6]
+class kotlin.collections.List
