@@ -480,6 +480,19 @@ extension ExprTypeChecker {
                 scope: classScope, interner: interner,
                 diagnostics: ctx.sema.diagnostics
             )
+            // Local declarations are discovered during body inference, after
+            // the module-wide post-inheritance pass. Their superclass edges
+            // are already bound here, so collect the generated override now.
+            DataFlowSemaPhase().collectSyntheticToString(
+                ownerSymbol: classSymbol,
+                ownerFQName: classFQName,
+                ownerType: classType,
+                requireDataTypeFlag: true,
+                symbols: sema.symbols,
+                types: sema.types,
+                scope: classScope,
+                interner: interner
+            )
         }
         for ctorSymbol in constructorSymbols {
             classScope.insert(ctorSymbol)
