@@ -263,6 +263,7 @@ struct RuntimeRangeProgressionEdgeCaseTests {
         var thrown = 0
         _ = __kk_int_progression_fromClosedRange(0, 1, 10, Int(Int32.min), &thrown)
         #expect(thrown != 0, "step=Int.MIN_VALUE (Int32) must throw")
+        #expect(runtimeTestStringValue(__kk_throwable_message(thrown)) == "Step must be greater than Int.MIN_VALUE to avoid overflow on negation.")
     }
 
     // MARK: - until: empty ranges keep step 1; minimum bound yields EMPTY
@@ -344,6 +345,13 @@ struct RuntimeRangeProgressionEdgeCaseTests {
         var thrown = 0
         _ = __kk_long_progression_fromClosedRange(0, 1, 10, 0, &thrown)
         #expect(thrown != 0, "step=0 must throw for LongProgression")
+    }
+
+    @Test func longProgressionFromClosedRange_stepLongMinThrows() {
+        var thrown = 0
+        _ = __kk_long_progression_fromClosedRange(0, 1, 10, Int.min, &thrown)
+        #expect(thrown != 0, "step=Long.MIN_VALUE must throw for LongProgression")
+        #expect(runtimeTestStringValue(__kk_throwable_message(thrown)) == "Step must be greater than Long.MIN_VALUE to avoid overflow on negation.")
     }
 
     // MARK: - CharProgression fromClosedRange
@@ -565,6 +573,7 @@ struct RuntimeRangeProgressionEdgeCaseTests {
         var thrown = 0
         _ = __kk_ulong_progression_fromClosedRange(0, 1, 10, Int.min, &thrown)
         #expect(thrown != 0, "step=Int.min must throw for ULongProgression")
+        #expect(runtimeTestStringValue(__kk_throwable_message(thrown)) == "Step must be greater than Long.MIN_VALUE to avoid overflow on negation.")
     }
 
     @Test func uLongRange_largeValues_beyondIntMax() {

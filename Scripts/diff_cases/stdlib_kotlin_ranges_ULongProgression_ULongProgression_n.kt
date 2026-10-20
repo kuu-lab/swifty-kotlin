@@ -11,4 +11,9 @@ fun main() {
     println("empty=${emptyPositive == emptyNegative},${emptyPositive.hashCode()},${emptyNegative.hashCode()}")
     println("text=${positive.toString()},${negative.toString()}")
     println("iter=${positive.iterator().asSequence().toList()}")
+    try {
+        ULongProgression.fromClosedRange(1uL, 5uL, Long.MIN_VALUE)
+    } catch (e: IllegalArgumentException) {
+        println("min=${e.message}")
+    }
 }
