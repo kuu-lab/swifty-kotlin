@@ -7,6 +7,7 @@ extension JVMClasspathIndex {
     static let exceptionNames: Set<String> = ["NoSuchElementException", "UnsupportedOperationException", "Throwable", "Exception", "RuntimeException", "IllegalArgumentException", "IllegalStateException", "IndexOutOfBoundsException", "ArrayIndexOutOfBoundsException", "ArithmeticException", "NumberFormatException", "NullPointerException", "ClassCastException", "NegativeArraySizeException"]
     static func builtinName(_ name: String) -> String? {
         if ["java/util/AbstractList", "java/util/AbstractSet", "java/util/AbstractMap", "java/util/ListIterator"].contains(name) { return name }
+        if name == "kotlin/collections/AbstractSet" { return name }
         if ["kotlin/Lazy", "kotlin/LazyThreadSafetyMode", "kotlin/reflect/KProperty", "kotlin/reflect/KMutableProperty", "kotlin/UninitializedPropertyAccessException", "kotlin/properties/ReadOnlyProperty", "kotlin/properties/ReadWriteProperty", "kotlin/properties/Delegates"].contains(name) { return name }
         if name.hasPrefix("kotlin/reflect/") || name == "java/lang/Class" { return name }
         if ["java/util/NoSuchElementException", "java/lang/StackTraceElement", "java/lang/reflect/Method", "java/lang/reflect/InvocationHandler"].contains(name) { return name }
