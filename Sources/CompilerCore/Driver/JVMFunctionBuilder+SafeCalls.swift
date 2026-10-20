@@ -9,6 +9,7 @@ extension JVMFunctionBuilder {
             return try convert(readProperty(property, receiver: object, special: isSuper(receiver), superReceiver: receiver), to: program.expressionType(id))
         }
         if !arena.isExplicitCall(id), let result = try textLibraryProperty(id, receiver: receiver) { return result }
+        if let result = try nominalPropertyInvocation(id, receiver: receiver, args: args) { return result.value }
         if let result = try textLibraryCall(args, receiver: receiver, id: id) { return result.value }
         if let result = try inlineCall(args, receiver: receiver, id: id) { return result.value }
         if let result = try sourceCall(args, receiver: receiver, id: id) { return result.value }
