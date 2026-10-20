@@ -47,6 +47,14 @@ extension JVMClasspathIndex {
 }
 
 extension JVMProgramBuilder {
+    func varargComponentType(_ id: TypeID) throws -> JVMValueType {
+        let component = try type(id)
+        // Generic varargs use Array<T>, even when a final primitive bound
+        // gives individual T values a primitive descriptor.
+        if case .typeParam = sema.types.kind(of: id) { return JVMClasspathIndex.boxed(component) }
+        return component
+    }
+
     func kotlinType(_ id: TypeID) throws -> JVMKotlinType {
         if sema.types.nullability(of: id) == .platformType {
             return .flexible(try kotlinType(sema.types.withNullability(.nonNull, for: id)), try kotlinType(sema.types.withNullability(.nullable, for: id)))
@@ -146,7 +154,7 @@ extension JVMProgramBuilder {
             f.sourceName = context.interner.resolve(declaration.name)
             f.parameterVarargTypes = try declaration.valueParams.enumerated().map { i, p in p.isVararg ? try kotlinType(signature.parameterTypes[i]) : nil }
             for (i, p) in declaration.valueParams.enumerated() where p.isVararg {
-                let element = try type(signature.parameterTypes[i])
+                let element = try varargComponentType(signature.parameterTypes[i])
                 if element.referenceName == nil, let primitive = JVMClasspathIndex.primitiveArrays.first(where: { $0.value == element }) {
                     f.kotlinParameters[i] = .named("kotlin/" + primitive.key, [], nullable: false)
                 } else { f.kotlinParameters[i] = .named("kotlin/Array", [JVMKotlinTypeArgument(type: f.parameterVarargTypes[i]!, variance: 1)], nullable: false) }

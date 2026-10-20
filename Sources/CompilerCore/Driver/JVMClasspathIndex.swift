@@ -367,7 +367,11 @@ final class JVMClasspathIndex {
         case let .typeParam(parameter):
             if let bound = sema.symbols.typeParameterUpperBound(for: parameter.symbol) {
                 if case let .typeParam(other) = sema.types.kind(of: bound), other.symbol == parameter.symbol { return .reference("java/lang/Object", nullable: true) }
-                let erased = boxed(try Self.type(bound, sema: sema, ctx: ctx))
+                let upper = try Self.type(bound, sema: sema, ctx: ctx)
+                // Final primitive bounds use primitive JVM descriptors. A
+                // nullable use or nullable bound still requires its wrapper.
+                let erased = parameter.nullability == .nonNull && (upper.isNumeric || upper == .boolean)
+                    ? upper : boxed(upper)
                 if parameter.nullability == .nullable, let name = erased.referenceName { return .reference(name, nullable: true) }
                 return erased
             }

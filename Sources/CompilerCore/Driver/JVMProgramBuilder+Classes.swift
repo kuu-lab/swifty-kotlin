@@ -74,7 +74,8 @@ extension JVMProgramBuilder {
         var parameters = try ((function.receiverType == nil ? [] : [signature.receiverType].compactMap { $0 }) + signature.parameterTypes).map(type)
         let offset = function.receiverType == nil ? 0 : 1
         for (i, parameter) in function.valueParams.enumerated() where parameter.isVararg {
-            parameters[i + offset] = .reference("[" + parameters[i + offset].descriptor, nullable: false)
+            let component = try varargComponentType(signature.parameterTypes[i])
+            parameters[i + offset] = .reference("[" + component.descriptor, nullable: false)
         }
         let result = try type(signature.returnType)
         let unsigned = parameters.contains { $0.unsignedName != nil }
