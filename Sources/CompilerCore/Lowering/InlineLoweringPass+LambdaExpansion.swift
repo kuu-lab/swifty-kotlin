@@ -350,7 +350,10 @@ extension InlineLoweringPass {
                             expansionBudget: budget
                         )
                     }()
-                    guard let inlineExpansion else {
+                    // Keep non-local returns in the caller's function-level pass.
+                    // Expanding them inside another lambda can alias the nested
+                    // call's normal result to the enclosing return slot.
+                    guard let inlineExpansion, !inlineExpansion.hasNonLocalReturn else {
                         let loweredResult = result.map { expr -> KIRExprID in
                             InlineExprCloning.cloneOrReuseExpr(expr, localExprMap: &localExprMap, in: module.arena)
                         }
