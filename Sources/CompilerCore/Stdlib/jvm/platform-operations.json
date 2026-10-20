@@ -957,5 +957,12 @@
     "name": "<init>",
     "descriptor": "()V",
     "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmPowDouble",
+    "owner": "java/lang/Math",
+    "name": "pow",
+    "descriptor": "(DD)D",
+    "kind": "static"
   }
 ]
