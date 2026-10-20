@@ -47,7 +47,8 @@ struct SourceReferenceVarargArtifactABITests {
             if reified {
                 #expect(signature.returnType == sema.types.stringType, "Lkotlin_String; decodes String, never Short")
             } else {
-                #expect(signature.parameterTypes == [primitive ? sema.types.intType : sema.types.stringType])
+                let expectedParamType = primitive ? sema.types.intType : sema.types.stringType
+                #expect(signature.parameterTypes == [expectedParamType])
             }
             #expect(sema.symbols.symbol(symbol)?.flags.contains(.legacyReifiedClassTokenABI) == !current)
             if runtimeBridge {
@@ -58,7 +59,9 @@ struct SourceReferenceVarargArtifactABITests {
             }
             if reified {
                 let module = try #require(ctx.kir)
-                for (name, target, count) in [("explicit", link, current ? 3 : 2), ("omitted", "kk_fn_abi_probe_default", current ? 4 : 3)] {
+                let explicitCount = current ? 3 : 2
+                let omittedCount = current ? 4 : 3
+                for (name, target, count) in [("explicit", link, explicitCount), ("omitted", "kk_fn_abi_probe_default", omittedCount)] {
                     let function = try findKIRFunction(named: name, in: module, interner: ctx.interner)
                     let calls = function.body.compactMap { instruction -> [KIRExprID]? in
                         guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction else { return nil }
@@ -69,7 +72,8 @@ struct SourceReferenceVarargArtifactABITests {
                     if name == "omitted" { #expect(module.arena.expr(try #require(calls[0].last)) == .intLiteral(1)) }
                 }
                 let stub = SyntheticSymbolScheme.defaultStubSymbol(for: symbol)
-                #expect(sema.symbols.functionSignature(for: stub)?.parameterTypes.count == (current ? 4 : 3))
+                let expectedStubParamCount = current ? 4 : 3
+                #expect(sema.symbols.functionSignature(for: stub)?.parameterTypes.count == expectedStubParamCount)
             }
         }
     }
@@ -180,7 +184,8 @@ struct SourceReferenceVarargArtifactABITests {
                 Issue.record("default inline body vararg must retain physical array storage")
                 return
             }
-            #expect(sema.symbols.symbol(array.classSymbol)?.fqName.map(ctx.interner.resolve) == ["kotlin", primitive ? "IntArray" : "Array"])
+            let expectedArrayName = primitive ? "IntArray" : "Array"
+            #expect(sema.symbols.symbol(array.classSymbol)?.fqName.map(ctx.interner.resolve) == ["kotlin", expectedArrayName])
         }
     }
 
