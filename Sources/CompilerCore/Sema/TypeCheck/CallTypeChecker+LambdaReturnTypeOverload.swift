@@ -598,6 +598,14 @@ extension CallTypeChecker {
         }
 
         let refinedArgTypes = args.enumerated().map { index, argument -> TypeID in
+            // Infer generic SAM arguments from the lambda's actual function
+            // inputs, rather than its provisional interface containing free T.
+            if lambdaLiteralIndices.contains(index),
+               case .classType = sema.types.kind(of: argTypes[index]),
+               sema.bindings.isSamConversion(argument.expr),
+               let functionType = sema.bindings.samUnderlyingFunctionType(for: argument.expr) {
+                return functionType
+            }
             let type = argTypes[index]
             // A bare `ClassName` argument denotes the class's companion object.
             if !lambdaLiteralIndices.contains(index),
