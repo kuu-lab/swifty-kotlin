@@ -554,3 +554,10 @@ Kotlin/Native (および共通 IR) が生成する `.klib` も `-I` のサーチ
 - `DispatchQueue.concurrentPerform` で並列化し、`DispatchSemaphore` / `DispatchGroup` で並列度を制御（`Driver/FrontendPhases.swift`）
 - 並列実行後は `FileID` 順でソートし決定性を保証
 - 診断メッセージも `sortBySourceLocation()` でソース位置順に安定化
+
+Codegen の関数本体 emission は `-Xfrontend codegen-parallel` + `-Xfrontend jobs=N` でオプトイン並列化できる（`NativeEmitter+ParallelEmission.swift`）:
+
+- emit 対象関数を C シンボル順に並べたリストを連続チャンクに分割し、パーティション毎に独立した LLVMContext/モジュールへ本体を emit する（LLVMContext はスレッド共有不可のため）
+- 完了後 `LLVMLinkModules2` でパーティション順にマージするため出力は決定的。パーティション内の private グローバル名（`str_lit_*` 等）は衝突時に LLVM がリネームするため、直列ビルドとオブジェクトバイトが一致するとは限らない（パブリックシンボルの集合・順序は同一）
+- パーティション側コンテキストは merge 後も破棄できない（merge 先モジュールが型状態を参照し続けるため）。最終モジュールの dispose まで保持する
+- 適用条件: `!debugInfo`、lazy import / imported-layout 合成が非活性（`SymbolTable.hasLazySymbolMaterialization`）、`LLVMLinkModules2` バインディングが存在すること。いずれか不成立なら直列パスにフォールバック

@@ -25,6 +25,18 @@ extension LLVMCAPIBindings {
         disposeModuleFn(module)
     }
 
+    /// Destructively merges `source` into `destination` (LLVMLinkModules2).
+    /// `source` is consumed unconditionally — on success AND on failure — and
+    /// must not be used or disposed afterwards. Modules built in different
+    /// LLVM contexts are supported — values are remapped into the destination
+    /// context.
+    func linkModules(destination: LLVMModuleRef?, source: LLVMModuleRef?) -> Bool {
+        guard let linkModules2Fn else {
+            return false
+        }
+        return linkModules2Fn(destination, source) == 0
+    }
+
     func printModule(_ module: LLVMModuleRef?) -> String? {
         guard let raw = printModuleToStringFn(module) else {
             return nil

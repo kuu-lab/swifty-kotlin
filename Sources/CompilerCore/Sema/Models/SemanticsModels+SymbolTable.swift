@@ -373,6 +373,19 @@ public final class SymbolTable {
         lazyImportedMetadataLoader != nil
     }
 
+    /// True while a table query can still lazily materialize imported state:
+    /// compact-index drains register symbols on demand, lazy metadata shells
+    /// decode bodies, and the imported-layout synthesizer writes nominal
+    /// layouts — each of which mutates TypeSystem without synchronization.
+    /// Parallel codegen workers therefore only run once this is false.
+    public var hasLazySymbolMaterialization: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return lazyImportedMetadataLoader != nil
+            || importedLayoutSynthesizer != nil
+            || !indexedLibraryProviders.isEmpty
+    }
+
     /// Attaches a compact-index library whose entries register on demand.
     /// Providers must be added in search-path order.
     func addIndexedLibraryProvider(_ provider: IndexedLibraryEntryProvider) {
