@@ -31,9 +31,12 @@ struct PrimaryConstructorPropertyOptInTests {
     @Test(arguments: ["val", "var"], ["OptIn", "param:OptIn", "property:OptIn"])
     func respectsParameterAndPropertySitesWithoutMovingAnnotations(kind: String, annotation: String) throws {
         let context = check(markerSource() + "\nclass Holder(@\(annotation)(Gate::class) \(kind) value: Experimental)")
-        let propertyOnly = annotation == "property:OptIn"
-        #expect(context.diagnostics.hasError == propertyOnly, "\(context.diagnostics.diagnostics)")
-        #expect(optInDiagnostics(context).count == (propertyOnly ? 1 : 0))
+        let isPropertyOnly = annotation == "property:OptIn"
+        let expectedDiagnosticCount = isPropertyOnly ? 1 : 0
+        let expectedOptInCount = isPropertyOnly ? 1 : 0
+
+        #expect(context.diagnostics.hasError == isPropertyOnly, "\(context.diagnostics.diagnostics)")
+        #expect(optInDiagnostics(context).count == expectedDiagnosticCount)
         let sema = try #require(context.sema)
         let property = try #require(sema.symbols.allSymbols().first {
             $0.fqName.map(context.interner.resolve) == ["Holder", "value"]
@@ -41,7 +44,7 @@ struct PrimaryConstructorPropertyOptInTests {
         let optIns = sema.symbols.annotations(for: property.id).filter {
             $0.annotationFQName == "kotlin.OptIn"
         }
-        #expect(optIns.count == (annotation == "property:OptIn" ? 1 : 0))
+        #expect(optIns.count == expectedOptInCount)
         #expect(optIns.allSatisfy { $0.useSiteTarget == "property" })
     }
 
@@ -53,16 +56,18 @@ struct PrimaryConstructorPropertyOptInTests {
         class Holder(\(optInFirst ? consent : "")val first: Experimental, \(optInFirst ? "" : consent)val second: Experimental)
         """)
         let diagnostics = optInDiagnostics(context)
+        let expectedSeverity: DiagnosticSeverity = level == "ERROR" ? .error : .warning
         #expect(diagnostics.count == 1, "\(context.diagnostics.diagnostics)")
-        #expect(diagnostics.allSatisfy { $0.severity == (level == "ERROR" ? .error : .warning) })
+        #expect(diagnostics.allSatisfy { $0.severity == expectedSeverity })
         let sema = try #require(context.sema)
         let optedProperties = sema.bindings.primaryConstructorPropertyParameters.filter {
             !$0.value.parameter.annotations.isEmpty
                 && sema.symbols.symbol($0.key)?.fqName.first.map(context.interner.resolve) == "Holder"
         }
         #expect(optedProperties.count == 1)
+        let expectedOptedPropertyName = optInFirst ? "first" : "second"
         #expect(optedProperties.keys.allSatisfy {
-            sema.symbols.symbol($0).map { context.interner.resolve($0.name) } == (optInFirst ? "first" : "second")
+            sema.symbols.symbol($0).map { context.interner.resolve($0.name) } == expectedOptedPropertyName
         })
     }
 
@@ -102,8 +107,10 @@ struct PrimaryConstructorPropertyOptInTests {
             class Holder(\(optedIn ? "@OptIn(Gate::class) " : "")val value: Experimental)
         }
         """)
-        #expect(context.diagnostics.hasError == !optedIn, "\(context.diagnostics.diagnostics)")
-        #expect(optInDiagnostics(context).count == (optedIn ? 0 : 1), "\(context.diagnostics.diagnostics)")
+        let expectedHasError = !optedIn
+        let expectedDiagnosticCount = optedIn ? 0 : 1
+        #expect(context.diagnostics.hasError == expectedHasError, "\(context.diagnostics.diagnostics)")
+        #expect(optInDiagnostics(context).count == expectedDiagnosticCount, "\(context.diagnostics.diagnostics)")
     }
 
     @Test
@@ -137,8 +144,9 @@ struct PrimaryConstructorPropertyOptInTests {
     @Test(arguments: ["WARNING", "ERROR"])
     func preservesUnoptedSeverityAndEnclosingConsent(level: String) {
         let unopted = check(markerSource(level: level) + "\nclass Holder(val value: Experimental)")
+        let expectedHasError = level == "ERROR"
         #expect(optInDiagnostics(unopted).count == 1, "\(unopted.diagnostics.diagnostics)")
-        #expect(unopted.diagnostics.hasError == (level == "ERROR"))
+        #expect(unopted.diagnostics.hasError == expectedHasError)
         for declaration in [
             "@OptIn(Gate::class) class Holder(val value: Experimental)",
             "class Holder(@OptIn(Gate::class) value: Experimental)",
@@ -159,7 +167,8 @@ struct PrimaryConstructorPropertyOptInTests {
         let context = check("annotation class Tags(\(consent)vararg val tags: ULong)")
         #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
         let diagnostics = optInDiagnostics(context)
-        #expect(diagnostics.count == (annotation.isEmpty || annotation == "property:OptIn" ? 1 : 0), "\(context.diagnostics.diagnostics)")
+        let expectedDiagnosticCount = (annotation.isEmpty || annotation == "property:OptIn") ? 1 : 0
+        #expect(diagnostics.count == expectedDiagnosticCount, "\(context.diagnostics.diagnostics)")
         #expect(diagnostics.allSatisfy { $0.severity == .warning })
     }
 }
