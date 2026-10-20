@@ -49,6 +49,7 @@ extension JVMBackendTests {
     }
 
     private static let ownStdlibCases = [
+        "reflectionParameterNames",
         "nonReifiedCallableReferenceAdapters",
         "defaultedVarargCallableReferenceAdapters",
         "inheritedGenericDefaultReferenceAdapters",

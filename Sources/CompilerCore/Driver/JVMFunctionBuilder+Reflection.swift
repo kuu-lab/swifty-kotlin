@@ -211,8 +211,8 @@ extension JVMFunctionBuilder {
             if name == "annotations" { declaring = "kotlin/reflect/KAnnotatedElement"; result = .reference("java/util/List", nullable: false) }
             else if isClass, classProperties.contains(name) { declaring = ownerName }
             else if ownerName == "java/lang/Class", ["name", "simpleName", "isAnnotation"].contains(name) { declaring = ownerName }
-            else if callableProperties.contains(name) { declaring = ["isInline", "isOperator", "isSuspend"].contains(name) ? "kotlin/reflect/KFunction" : (["isLateinit", "isConst"].contains(name) ? "kotlin/reflect/KProperty" : "kotlin/reflect/KCallable") }
             else if ["kotlin/reflect/KParameter", "kotlin/reflect/KType"].contains(ownerName) { declaring = ownerName }
+            else if callableProperties.contains(name) { declaring = ["isInline", "isOperator", "isSuspend"].contains(name) ? "kotlin/reflect/KFunction" : (["isLateinit", "isConst"].contains(name) ? "kotlin/reflect/KProperty" : "kotlin/reflect/KCallable") }
             if let declaring {
                 if name == "objectInstance" { result = object }
                 if name == "classifier" { result = .reference("kotlin/reflect/KClassifier", nullable: true) }
