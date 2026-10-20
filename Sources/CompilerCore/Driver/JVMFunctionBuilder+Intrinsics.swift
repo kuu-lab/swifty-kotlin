@@ -233,6 +233,7 @@ extension JVMFunctionBuilder {
             case "size": actual = "size"; parameters = []; returns = .int
             case "keys": actual = "keySet"; parameters = []; returns = .reference("java/util/Set", nullable: false)
             case "values": actual = "values"; parameters = []; returns = .reference("java/util/Collection", nullable: false)
+            case "containsAll": actual = member; parameters = [.reference("java/util/Collection", nullable: false)]; returns = .boolean
             case "isEmpty", "hasNext": actual = member; parameters = []; returns = .boolean
             case "iterator": actual = member; parameters = []; returns = .reference("java/util/Iterator", nullable: false)
             case "next": actual = member; parameters = []; returns = object
