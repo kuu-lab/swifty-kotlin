@@ -37,6 +37,30 @@ struct ExpectActualEnumExecutionTests {
         )
     }
 
+    @Test func pairedEnumEntriesKeepDistinctIdentityAndNames() throws {
+        try compileAndRun(
+            common: "package x\nexpect enum class E { A, B }",
+            platform: "package x\nactual enum class E { A, B }",
+            consumer: """
+            import x.E
+            enum class P { A, B }
+            fun main() {
+                println(E.A === E.B)
+                println(E.A != E.B)
+                println(E.A.name)
+                println(E.B.name)
+                println(E.values().size)
+                println(E.entries.size)
+                println(E.valueOf("B").name)
+                println(P.A === P.B)
+            }
+            """,
+            expected: "false\ntrue\nA\nB\n2\n2\nB\nfalse\n",
+            fromSource: false,
+            optimization: 0
+        )
+    }
+
     @Test(arguments: [false, true], [0, 2])
     func actualEntriesKeepTheirNamesAndOrdinals(fromSource: Bool, optimization: Int) throws {
         try compileAndRun(
