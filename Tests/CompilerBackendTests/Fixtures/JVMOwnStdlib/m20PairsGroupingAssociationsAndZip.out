@@ -1,0 +1,32 @@
+[1a, 2b]
+[(1, 2)]
+[(1, 2)]
+(a, 1)
+a
+1
+a:1
+true
+(a, 2)
+(a, 1)
+{1=[a, c], 2=[bb, dd]}
+{1=[A, C], 2=[BB, DD]}
+{1=c, 2=dd}
+{1=c, 2=dd}
+{1=C, 2=DD}
+{a=1, bb=2, c=1, dd=2}
+[a, c]
+[bb, dd]
+[(a, 1), (bb, 2)]
+[a1, bb2]
+[(a, bb), (bb, c), (c, dd)]
+[abb, bbc, cdd]
+{a=null, b=2}
+{null=[a, c], 2=[bb, dd]}
+{b=3, a=2}
+[A/BB/...]
+
+[a, bb]
+[c, dd]
+[1, 2, 3]
+[a, c, bb, dd]
+[(a, 1), (bb, 2)]

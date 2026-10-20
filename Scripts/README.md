@@ -20,6 +20,7 @@
 | `check_mutation_fuzzer_keywords.sh` | ✓ | Verify `mutate_diff_cases.py`'s `IDENTIFIER_KEYWORDS` matches the lexer's `Keyword` enum |
 | `check_workflow_npm_install.sh` | ✓ | Forbid ad-hoc `npm install`/`npx`/etc. in GitHub workflows/actions — npm-based CI tools go through `.github/ci-tools/` lockfile + `npm ci --ignore-scripts` |
 | `validate_runtime_abi_links.sh` | – | Shorthand for the `RuntimeABIExternalLinkValidationTests` filter |
+| `validate_jvm_stdlib.py` | – | Check Kotlin class/member references in repository-built JVM stdlib and consumer JARs; see [JVM stdlib](../docs/jvm-stdlib.md) |
 | `check_atomicfu_api_reference.py` | – | Verify the pinned kotlinx.atomicfu 0.33.0 KLIB/JVM snapshots, target-aware declaration index, and unsupported API names |
 | `generate_atomicfu_api_index.py` | – | Build the deterministic per-declaration common/native API ledger with source provenance, visibility, overloads, and annotations (`--output PATH` writes it for inspection) |
 | `lib/common.sh` | (sourced) | Shared helpers: worker detection, interleaved sharding, filter chunking, case-name sanitizing, diff-tooling preflight, case-directive parsing, artifact-collision avoidance |

@@ -1,0 +1,22 @@
+created
+iterator
+start
+true
+true
+1
+next
+2
+start
+next
+done
+[1, 2, 3, 4, 5]
+done
+[3, 4, 5]
+empty
+[9]
+a
+b, c
+false
+end
+[]
+[null, 1, null, 2]

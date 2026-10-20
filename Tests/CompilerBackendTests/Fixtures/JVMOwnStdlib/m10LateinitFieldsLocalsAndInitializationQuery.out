@@ -1,0 +1,10 @@
+false
+false
+lateinit property top has not been initialized
+lateinit property text has not been initialized
+true
+true
+top
+member
+lateinit property local has not been initialized
+local

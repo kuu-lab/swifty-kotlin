@@ -1,0 +1,10 @@
+null
+Text(value=hello)
+null
+OptionalText(value=null)
+Wide(value=9000000001)
+Real(value=2.5)
+true
+false
+true
+Wide

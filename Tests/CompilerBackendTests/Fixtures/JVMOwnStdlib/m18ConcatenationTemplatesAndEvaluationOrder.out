@@ -1,0 +1,24 @@
+hello 界: 43
+arg1
+str1
+arg2
+str2
+T1T2
+arg3
+str3
+arg4
+str4
+T3:T4
+effect
+unit=kotlin.Unit
+nullx
+null
+42/1.5/true/界/255/18446744073709551615
+<U(value=4294967295)>
+escape
+	"$name
+nested=42
+true
+true
+ABC
+1/2/3

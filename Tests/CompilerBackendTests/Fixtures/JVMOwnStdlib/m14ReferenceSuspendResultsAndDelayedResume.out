@@ -1,0 +1,18 @@
+Text(value=sync)
+Text(value=reference)
+Text(value=made)
+Text(value=number)
+null
+Text(value=some)
+Maybe(value=null)
+Maybe(value=null)
+ArrayValue(value=[1, 2])
+Box(value=42)
+Box(value=null)
+paused
+22
+Text(value=resumed)
+paused again
+failed
+finally
+Text(value=done)

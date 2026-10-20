@@ -1,0 +1,21 @@
+(?<word>[a-z]+)([0-9]+)?
+true
+true
+Ab12
+1
+4
+Ab
+[Ab12, Ab, 12]
+12
+[a1, b2]
+a[12]b[3]
+a!b!
+[, a, , ]
+\Qa.b\E
+null
+a
+0
+1
+2
+null
+true

@@ -1,0 +1,43 @@
+unit
+x1nullkotlin.Unit
+receiver
+get
+rhs
+set:changed
+set:A2
+get
+A2
+F3
+a2
+ltrue
+m3
+nullx
+C!
+C!!
+object:C!!
+render
+throw
+early
+false
+early
+true
+early
+done
+early
+body
+when:chosen
+early
+multi:chosen
+early
+custom:2
+true
+false
+true
+index4
+index1
+ell
+[a, b;c]
+[a,b, c]
+[a, b;c]
+x
+[a, b;c, d]
