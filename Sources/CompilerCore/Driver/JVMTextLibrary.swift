@@ -23,13 +23,14 @@ extension JVMProgramBuilder {
             for id in ids {
                 guard case let .funDecl(f) = ast.arena.decl(id), let symbol = sema.bindings.declSymbol(for: id) else { continue }
                 let name = context.interner.resolve(f.name)
+                if owner == "java/util/Map", name == "set" { continue }
                 let aliases = ["get": "charAt", "set": "setCharAt", "deleteAt": "deleteCharAt", "deleteRange": "delete", "setRange": "replace"]
-                try method(symbol, owner: owner, name: owner == "java/lang/StringBuilder" ? aliases[name] ?? name : name, declarations: f.valueParams, interface: interface, adaptation: owner == "java/lang/StringBuilder" ? name : nil)
+                try method(symbol, owner: owner, name: owner == "java/util/List" && name == "removeAt" ? "remove" : owner == "java/lang/StringBuilder" ? aliases[name] ?? name : name, declarations: f.valueParams, interface: interface, adaptation: owner == "java/lang/StringBuilder" ? name : nil)
             }
             for id in properties {
                 guard case let .propertyDecl(p) = ast.arena.decl(id), let symbol = sema.bindings.declSymbol(for: id), let semantic = sema.symbols.propertyType(for: symbol) else { continue }
                 let name = context.interner.resolve(p.name), type = try type(semantic)
-                let jvmName = ["java/lang/StringBuilder", "kotlin/text/MatchGroupCollection", "java/util/Collection"].contains(owner) && ["length", "size"].contains(name) ? name : "get" + name.prefix(1).uppercased() + name.dropFirst()
+                let jvmName = owner.hasPrefix("java/util/") && ["size", "keys", "values"].contains(name) ? ["size": "size", "keys": "keySet", "values": "values"][name] ?? "get" + name.prefix(1).uppercased() + name.dropFirst() : ["java/lang/StringBuilder", "kotlin/text/MatchGroupCollection", "java/util/Collection"].contains(owner) && ["length", "size"].contains(name) ? name : "get" + name.prefix(1).uppercased() + name.dropFirst()
                 let result: JVMValueType = owner == "kotlin/ranges/IntRange" && ["start", "endInclusive"].contains(name) ? .reference("java/lang/Integer", nullable: false) : type
                 textLibraryProperties[symbol] = JVMForeignMethod(owner: owner, name: jvmName, descriptor: "()" + result.descriptor, parameters: [], result: result, isStatic: false, isInterface: interface, isAbstract: false)
             }
@@ -99,9 +100,10 @@ extension JVMProgramBuilder {
                     if f.isInline { inlineDeclarations[symbol] = f }
                 }
             }
+            if path == "<kswiftk-jvm>/javaCollections.kt" { try visit(file.topLevelDecls, path: path) }
             if path == "<kswiftk-jvm>/collections.kt" {
                 try visit(file.topLevelDecls.filter { id in
-                    if case let .interfaceDecl(declaration) = ast.arena.decl(id) { return ["Iterator", "Iterable", "Collection"].contains(context.interner.resolve(declaration.name)) }
+                    if case let .interfaceDecl(declaration) = ast.arena.decl(id) { return ["Iterator", "Iterable", "Collection", "MutableIterator", "MutableIterable", "MutableCollection", "List", "MutableList", "Set", "MutableSet", "Map", "MutableMap"].contains(context.interner.resolve(declaration.name)) }
                     return false
                 }, path: path)
                 let factories: Set<String> = ["arrayListOf", "listOf", "setOf", "mapOf", "mutableListOf", "mutableSetOf", "mutableMapOf", "emptyList", "emptySet", "emptyMap"]

@@ -201,6 +201,11 @@ extension JVMProgramBuilder {
             f.annotations.append(JVMAnnotation(descriptor: "Lkotlin/jvm/JvmName;", values: [("name", .constant(.string(name)))], visible: false))
         }
         if let signature = sema.symbols.functionSignature(for: symbol) {
+            for effect in sema.symbols.contractCallsInPlaceEffects(for: symbol) {
+                if let index = signature.valueParameterSymbols.firstIndex(of: effect.parameterSymbol) {
+                    f.callsInPlaceEffects[index] = effect.kind
+                }
+            }
             let leading = max(0, f.reference.parameters.count - signature.valueParameterSymbols.count)
             f.parameterAnnotations = Array(repeating: [], count: leading) + (try signature.valueParameterSymbols.map { try annotations(for: $0, target: nil) + annotations(for: $0, target: "param") })
         }
