@@ -61,6 +61,27 @@ struct JavaLinkedListPlatformReturnTests {
     }
 
     @Test
+    func booleanPlatformReturnIsNullCheckedBeforeUnaryNot() throws {
+        let ctx = makeContextFromSource("""
+        import java.util.LinkedList
+        fun inverted(values: LinkedList<Boolean>): Boolean = !values.peekLast()
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let unary = try #require(ast.arena.exprs.enumerated().compactMap { index, expression -> (ExprID, ExprID)? in
+            guard case let .unaryExpr(.not, operand, range) = expression,
+                  isUserSourceRange(range, in: ctx)
+            else { return nil }
+            return (ExprID(rawValue: Int32(index)), operand)
+        }.first)
+        #expect(sema.types.nullability(of: try #require(sema.bindings.exprType(for: unary.1))) == .platformType)
+        #expect(sema.bindings.platformNullAssertionTypes[unary.1] == sema.types.booleanType)
+    }
+
+    @Test
     func userJavaPackageDeclarationDoesNotAcquirePlatformContract() throws {
         try withTemporaryFile(contents: """
         package java.util

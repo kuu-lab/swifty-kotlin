@@ -382,6 +382,14 @@ final class ExprTypeChecker {
                     solver: ConstraintSolver(), sema: sema,
                     diagnostics: ctx.sema.diagnostics
                 )
+                if case .primitive(.boolean, .platformType) = sema.types.kind(of: operandType) {
+                    let nonNullOperandType = sema.types.makeNonNullable(operandType)
+                    driver.recordPlatformNullAssertion(
+                        operandID,
+                        sourceType: operandType,
+                        targetType: nonNullOperandType
+                    )
+                }
                 type = boolType
             case .unaryPlus, .unaryMinus:
                 // Constant-fold unary +/- over an integer literal so that e.g.
