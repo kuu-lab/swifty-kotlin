@@ -112,6 +112,10 @@ extension JVMFunctionBuilder {
             } else {
                 let target = try program.defaultReference(defaultSymbol)
                 values = (dispatch.map { [$0] } ?? []) + values + (try maskArguments(ordered.masks, constructor: false))
+                // An inherited default can belong to a generic interface even
+                // when the concrete implementation takes primitive arguments.
+                guard values.count == target.parameters.count else { throw fail("Invalid JVM default argument count.", id) }
+                values = try zip(values, target.parameters).map { try convert($0.0, to: $0.1) }
                 instructions.append(.call(target, values, result))
             }
         } else if var method {
