@@ -140,6 +140,55 @@ struct ExplicitReceiverFunctionInvocationSyntaxTests {
         #expect(errors.isEmpty, "Unexpected errors for Char property facades: \(errors)")
     }
 
+    @Test(arguments: ["code", "category", "directionality"])
+    func syntheticCharPropertyInvocationsAreRejected(name: String) throws {
+        for access in ["'a'.\(name)()", "value?.\(name)()"] {
+            let diagnostics = try compileAndCollectDiagnostics("""
+            fun main() {
+                val value: Char? = 'a'
+                println(\(access))
+            }
+            """)
+            #expect(diagnostics.hasError, "\(access) must not invoke a synthetic property facade")
+        }
+    }
+
+    @Test
+    func sameNamedCharExtensionFunctionsRemainCallable() throws {
+        let diagnostics = try compileAndCollectDiagnostics("""
+        fun Char.code(): Int = this.code + 10
+        fun Char.category(): Int = 20
+        fun Char.directionality(): Int = 30
+        fun main() {
+            val value: Char? = 'a'
+            println('a'.code()); println(value?.code())
+            println('a'.category()); println('a'.directionality())
+            println('a'.code); println('a'.category); println('a'.directionality)
+        }
+        """)
+        #expect(!diagnostics.hasError, "Unexpected errors: \(diagnostics.diagnostics)")
+    }
+
+    @Test
+    func charCodeValuesUseThePropertyInvokeBridge() throws {
+        try withTemporaryFile(contents: """
+        operator fun Int.invoke(delta: Int): Int = this + delta
+        fun read(): Int = 'a'.code(20)
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "read", in: module, interner: ctx.interner)
+            let calls = body.compactMap { instruction -> String? in
+                if case let .call(_, callee, _, _, _, _, _, _) = instruction { return ctx.interner.resolve(callee) }
+                return nil
+            }
+            #expect(calls.filter { $0 == "kk_char_code" }.count == 1)
+            #expect(calls.filter { $0 == "invoke" }.count == 1)
+        }
+    }
+
     @Test
     func declaredPropertiesAreAccepted() throws {
         let diagnostics = try compileAndCollectDiagnostics("""
