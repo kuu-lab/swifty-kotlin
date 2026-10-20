@@ -99,7 +99,7 @@ extension JVMFunctionBuilder {
             var source = local.cell ?? local.value, template = local
             if let symbol = local.symbol,
                let semantic = program.sema.bindings.capturedLocalType(for: symbol) ?? program.sema.symbols.propertyType(for: symbol) {
-                let type = try JVMClasspathIndex.type(semantic, sema: program.sema, ctx: context)
+                let type = try localStorageType(semantic)
                 let storage = local.cell == nil ? type : (local.delegateSymbol == nil ? .reference("[" + type.descriptor, nullable: false) : source.type)
                 source = try convert(source, to: storage)
                 template = Local(value: JVMValue(slot: local.value.slot, type: type), mutable: local.mutable, cell: local.cell, functionType: local.functionType, symbol: local.symbol)

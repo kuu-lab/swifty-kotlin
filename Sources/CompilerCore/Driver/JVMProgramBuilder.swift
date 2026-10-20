@@ -274,8 +274,22 @@ final class JVMFunctionBuilder {
     func requireValue(_ id: ExprID) throws -> JVMValue {
         let result = try expression(id)
         if terminated { throw JVMTerminatedExpression() }
+        if result == nil, program.sema.bindings.exprType(for: id) == program.sema.types.unitType {
+            program.functionArities.insert(0)
+            let unit: JVMValueType = .reference("kotlin/Unit", nullable: false), result = try value(unit)
+            instructions.append(.getStatic(JVMField(owner: "kotlin/Unit", name: "INSTANCE", type: unit, access: 0x19), result))
+            return result
+        }
         guard let result else { throw fail("JVM value expression does not produce a supported value.", id) }
         return result
+    }
+    func localStorageType(_ semantic: TypeID) throws -> JVMValueType {
+        let type = try program.type(semantic)
+        if type == .unit {
+            program.functionArities.insert(0)
+            return .reference("kotlin/Unit", nullable: false)
+        }
+        return type
     }
     func convert(_ source: JVMValue, to type: JVMValueType) throws -> JVMValue {
         if source.type == type { return source }
@@ -429,30 +443,36 @@ final class JVMFunctionBuilder {
             // Snapshot reads before evaluating later operands/arguments, which
             // may mutate the same source variable (for example f(x, x++)).
             let local = try readLocal(lookup(name))
-            return try convert(local, to: program.expressionType(id))
+            let type = try program.expressionType(id)
+            return type == .unit ? local : try convert(local, to: type)
         case let .localDecl(name, mutable, annotation, initializer, delegated, late, _):
             if delegated || late { try specialLocal(id, name: name, mutable: mutable, initializer: initializer, delegated: delegated, late: late); return nil }
             guard scopes[scopes.count - 1][name] == nil else { throw fail("JVM locals require a unique name in their scope.", id) }
+            let symbol = program.sema.bindings.identifierSymbol(for: id)
+            let semanticType = symbol.flatMap { program.sema.symbols.propertyType(for: $0) }
             let declaredType: JVMValueType?
             if annotation != nil {
-                guard let symbol = program.sema.bindings.identifierSymbol(for: id), let type = program.sema.symbols.propertyType(for: symbol) else { throw fail("Missing JVM local type binding.", id) }
-                declaredType = try program.type(type)
+                guard let type = semanticType else { throw fail("Missing JVM local type binding.", id) }
+                declaredType = try localStorageType(type)
             } else { declaredType = nil }
             let initial = try initializer.map { try requireValue($0) }
-            guard let localType = declaredType ?? initial?.type else { throw fail("JVM locals without an initializer require an explicit type.", id) }
-            let local = try value(localType)
+            guard let storageType = declaredType ?? initial?.type else { throw fail("Missing JVM local type binding.", id) }
+            let local = try value(storageType)
             if let initial { instructions.append(.copy(try convert(initial, to: local.type), local)) }
             var binding = Local(value: local, mutable: mutable)
-            binding.symbol = program.sema.bindings.identifierSymbol(for: id)
+            binding.symbol = symbol
             binding.deferredInitialization = initial == nil && !mutable
-            if mutable {
-                let element = try binding.symbol.flatMap { program.sema.bindings.capturedLocalType(for: $0) }.map { try JVMClasspathIndex.type($0, sema: program.sema, ctx: context) } ?? local.type
+            // Sema owns definite assignment, including mutually exclusive val
+            // writes. Deferred callback initialization needs the same shared
+            // storage as a mutable captured local.
+            if mutable || (initializer == nil && symbol.map { program.sema.bindings.isContractCallsInPlaceInitializedSymbol($0) } == true) {
+                let element = try binding.symbol.flatMap { program.sema.bindings.capturedLocalType(for: $0) }.map { try localStorageType($0) } ?? local.type
                 let cell = try value(.reference("[" + element.descriptor, nullable: false)), count = try constant(.int(1), .int), index = try constant(.int(0), .int)
                 instructions.append(.newArray(element, count: count, result: cell))
                 if initial != nil { instructions.append(.arraySet(cell, index, local)) }
                 binding.cell = cell
             }
-            if let initializer, let semantic = program.sema.bindings.exprType(for: initializer), case let .functionType(f) = program.sema.types.kind(of: semantic) { binding.functionType = f }
+            if let semantic = semanticType ?? initializer.flatMap({ program.sema.bindings.exprType(for: $0) }), case let .functionType(f) = program.sema.types.kind(of: semantic) { binding.functionType = f }
             scopes[scopes.count - 1][name] = binding
             return nil
         case let .localAssign(name, rhs, _):

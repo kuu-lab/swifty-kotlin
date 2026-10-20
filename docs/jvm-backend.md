@@ -40,7 +40,7 @@ java -Xverify:all -jar hello.jar
 
 - 入力は Kotlin ファイル 1 個。トップレベル関数を複数宣言でき、実行用の `main` は引数なし・Unit 戻り値。ライブラリでは省略できる。
 - 型は`Int`、`Long`、`Float`、`Double`、`Boolean`、`String`、`Any` と classpath の参照型。nullable primitive は wrapper に boxing し、参照型とともに `null`、`!!`、`?:` に対応する。関数の戻り値には `Unit` も使用できる。数値／Boolean を `Any` に渡す場合は JVM の wrapper に boxing する。
-- 初期化を伴うローカル `val` / `var`、型推論、型注釈、代入、数値の `+=` / `-=` / `*=` / `/=` / `%=`、前置／後置 `++` / `--`。
+- ローカル `val` / `var`、型推論、型注釈、代入、数値の `+=` / `-=` / `*=` / `/=` / `%=`、前置／後置 `++` / `--`。型注釈があれば宣言と初回代入を分けられる。
 - 数値の `+` / `-` / `*` / `/` / `%`、単項符号、比較。数値型の混合演算と `toInt` / `toLong` / `toFloat` / `toDouble`。
 - Boolean の `!` / `&&` / `||` と短絡評価。数値・Boolean・参照型の `==` / `!=`。
 - トップレベル関数の位置引数呼び出し、オーバーロード、再帰、`return`、ブロック本体と式本体。
@@ -50,6 +50,10 @@ java -Xverify:all -jar hello.jar
 - package 宣言、`public` / `private` / `internal` の関数。ファイル名（拡張子を除く）・package・クラス名・関数名・プロパティ名・module 名は ASCII 識別子に限定する。
 
 ローカル変数はブロックのスコープを持つ。関数本体ではパラメータを shadow できる。
+初期値のないローカルも固定の保存先を持ち、分岐・ループ・例外処理の代入を合流後に読み出せる。
+初期化前の読み出し、不完全な経路の初期化、`val` の再代入は共有 Sema で拒否する。
+関数型ローカル、closure／匿名 object の capture、suspend をまたぐ保存にも対応する。
+ローカルの `Unit` は `kotlin.Unit` オブジェクトとして保存し、関数の `Unit` 戻り値は引き続き JVM の `void` とする。
 `do-while` の条件は、その本体で宣言したローカル変数を参照できる。
 非 Unit のブロック本体は全経路で明示的に戻る必要がある。ループが常に終了しないことの
 証明には対応しないため、ループだけで戻り値を保証する形は拒否する。
@@ -1008,7 +1012,7 @@ source vararg は単独 parameter の通常関数に対応し、Java ACC_VARARGS
 ## 未対応と診断
 
 外部 field／property、
-明示的な backing field 宣言、lateinit 以外の未初期化ローカル変数、
+明示的な backing field 宣言、
 main の配列引数、複数上限の where 制約、
 拡張プロパティ、ローカル関数、
 複数 parameter のユーザー定義 vararg と vararg constructor（単独 vararg 関数・対応済み API の spread は使用可能）、
@@ -1055,7 +1059,7 @@ Native 用の KIR／Lowering／ABI は通らない。
 Signature 属性はクラスの superclass を先頭にし、interface と型引数を後に記録する。
 各メソッドの scratch locals を冒頭で既定値に初期化し、全分岐先へ固定型の full
 `StackMapTable` frame を出力する。これは JVM verifier のための初期化であり、ソースでの
-未初期化変数を許可する機能ではない。条件分岐は反転した短距離 test と `goto_w` を組み合わせ、
+初期化前の読み出しを許可する機能ではなく、ソースの definite assignment は Sema が検証する。条件分岐は反転した短距離 test と `goto_w` を組み合わせ、
 大きなメソッドでも分岐 offset を切り詰めない。
 コンストラクタの `new` は引数より前に評価し、初期化前の参照は allocation offset とともに
 frame に記録する。引数から break／continue する辺では未完了の allocation slot を null に戻す。256 以上のローカルスロットには `wide` を使う。
