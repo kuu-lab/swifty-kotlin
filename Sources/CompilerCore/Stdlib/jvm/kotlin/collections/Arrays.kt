@@ -177,3 +177,6 @@ fun <T> Array<out T>.isEmpty(): Boolean = this.size == 0
 fun <T> Array<out T>.arrayIndices(): kotlin.ranges.IntRange = kotlin.ranges.IntRange(0, this.size - 1)
 @kotlin.jvm.JvmName("getIndices")
 fun IntArray.arrayIndices(): kotlin.ranges.IntRange = kotlin.ranges.IntRange(0, this.size - 1)
+
+@kotlin.jvm.JvmName("getLastIndex")
+fun IntArray.arrayLastIndex(): Int = this.size - 1
