@@ -6,9 +6,10 @@ import Testing
 struct FilePrivateTopLevelPropertyTests {
     @Test(arguments: ["", "package demo\n"], ["private val", "private var", "private const val"])
     func propertiesBindToTheirOwnFile(package: String, declaration: String) throws {
+        let expectedValues = ["f1", "f2-diff"]
         let sources = [
-            "\(package)\(declaration) secret = \"f1\"\nfun useSecret(): String = secret",
-            "\(package)\(declaration) secret = \"f2-diff\"\nfun useLocal(): String = secret",
+            "\(package)\(declaration) secret = \"\(expectedValues[0])\"\nfun useSecret(): String = secret",
+            "\(package)\(declaration) secret = \"\(expectedValues[1])\"\nfun useLocal(): String = secret",
         ]
         try withTemporaryFiles(contents: sources) { paths in
             let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
@@ -25,10 +26,10 @@ struct FilePrivateTopLevelPropertyTests {
                 let constants = ConstantCollector().collectPropertyConstantInitializers(
                     ast: try #require(ctx.ast), sema: sema, interner: ctx.interner, sourceByFileID: [:]
                 )
-                for (index, path) in paths.enumerated() {
+                for (path, expectedValue) in zip(paths, expectedValues) {
                     let fileID = try #require(ctx.sourceManager.fileID(forPath: path))
                     let property = try #require(properties.first { sema.symbols.sourceFileID(for: $0) == fileID })
-                    #expect(constants[property] == .stringLiteral(ctx.interner.intern(index == 0 ? "f1" : "f2-diff")))
+                    #expect(constants[property] == .stringLiteral(ctx.interner.intern(expectedValue)))
                 }
             }
         }
