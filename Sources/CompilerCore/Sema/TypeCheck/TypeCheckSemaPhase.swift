@@ -27,25 +27,30 @@ final class TypeCheckSemaPhase: CompilerPhase {
             resolver.cacheContext = semaCacheContext
         }
         let dataFlow = DataFlowAnalyzer()
-        let lazyBoundDecls = collectLazyBoundObjectLiteralDecls(ast: ast)
+        let lazyBoundDecls = withSemaSubPhaseTiming("lazy-bound-decls", ctx: ctx) {
+            collectLazyBoundObjectLiteralDecls(ast: ast)
+        }
 
         // Run consistency checks for active declarations only, so incremental
         // frontends can drop stale declarations from the previous compile.
         let activeDeclIDs = ast.activeDeclarationIDs
-        for declID in activeDeclIDs {
-            if lazyBoundDecls.contains(declID) {
-                continue
-            }
-            if sema.bindings.declSymbols[declID] == nil {
-                ctx.diagnostics.error(
-                    "KSWIFTK-TYPE-0003",
-                    "Unbound declaration found during type checking.",
-                    range: nil
-                )
+        withSemaSubPhaseTiming("unbound-decl-check", ctx: ctx) {
+            for declID in activeDeclIDs {
+                if lazyBoundDecls.contains(declID) {
+                    continue
+                }
+                if sema.bindings.declSymbols[declID] == nil {
+                    ctx.diagnostics.error(
+                        "KSWIFTK-TYPE-0003",
+                        "Unbound declaration found during type checking.",
+                        range: nil
+                    )
+                }
             }
         }
 
-        let driver = TypeCheckDriver(
+        let driver = withSemaSubPhaseTiming("driver-init", ctx: ctx) {
+            TypeCheckDriver(
             ast: ast,
             sema: sema,
             compilationContext: ctx,
@@ -60,14 +65,17 @@ final class TypeCheckSemaPhase: CompilerPhase {
             useUnrestrictedBuilderInference: ctx.options.useUnrestrictedBuilderInference,
             useProperTypeInferenceConstraintsProcessing: ctx.options.useProperTypeInferenceConstraintsProcessing,
             globalOptInMarkerNames: ctx.options.optInMarkerNames
-        )
+            )
+        }
 
-        let fileScopes = driver.scopeBuilder.buildFileScopes(
-            ast: ast,
-            sema: sema,
-            interner: ctx.interner,
-            sourceManager: ctx.sourceManager
-        )
+        let fileScopes = withSemaSubPhaseTiming("build-file-scopes", ctx: ctx) {
+            driver.scopeBuilder.buildFileScopes(
+                ast: ast,
+                sema: sema,
+                interner: ctx.interner,
+                sourceManager: ctx.sourceManager
+            )
+        }
 
         // Expression type inference recurses with large per-frame contexts
         // (`TypeInferenceContext` is threaded by value through every call).
@@ -84,16 +92,18 @@ final class TypeCheckSemaPhase: CompilerPhase {
             }
         }
 
-        validateTailrecFunctions(ast: ast, sema: sema, diagnostics: ctx.diagnostics)
-        validateWorkerExecuteJobs(ast: ast, sema: sema, ctx: ctx)
+        try withSemaSubPhaseTiming("post-validation", ctx: ctx) {
+            validateTailrecFunctions(ast: ast, sema: sema, diagnostics: ctx.diagnostics)
+            validateWorkerExecuteJobs(ast: ast, sema: sema, ctx: ctx)
 
-        let (inlineLambdaArguments, suspendLambdaArguments) = collectInlineLambdaArguments(ast: ast, sema: sema)
-        validateLoopJumpLambdaPaths(ast: ast, sema: sema, diagnostics: ctx.diagnostics, inlineLambdaArguments: inlineLambdaArguments)
-        validateReturnLambdaPaths(ast: ast, sema: sema, diagnostics: ctx.diagnostics, inlineLambdaArguments: inlineLambdaArguments)
-        driver.validateSuspensionContexts(
-            inlineLambdaArguments: inlineLambdaArguments,
-            suspendLambdaArguments: suspendLambdaArguments
-        )
+            let (inlineLambdaArguments, suspendLambdaArguments) = collectInlineLambdaArguments(ast: ast, sema: sema)
+            validateLoopJumpLambdaPaths(ast: ast, sema: sema, diagnostics: ctx.diagnostics, inlineLambdaArguments: inlineLambdaArguments)
+            validateReturnLambdaPaths(ast: ast, sema: sema, diagnostics: ctx.diagnostics, inlineLambdaArguments: inlineLambdaArguments)
+            driver.validateSuspensionContexts(
+                inlineLambdaArguments: inlineLambdaArguments,
+                suspendLambdaArguments: suspendLambdaArguments
+            )
+        }
 
         for declID in lazyBoundDecls where activeDeclIDs.contains(declID) && sema.bindings.declSymbols[declID] == nil {
             let declRange: SourceRange? = if let decl = ast.arena.decl(declID) {
@@ -130,7 +140,9 @@ final class TypeCheckSemaPhase: CompilerPhase {
         // This post-pass recursively walks the same deep expressions as the
         // body checker; it must not return to a thin cooperative-pool stack.
         let escapeWork = ComparableCharEscapeWork(ast: ast, sema: sema, interner: ctx.interner)
-        let nonEscapingLocals = try LargeStackExecutor.run { escapeWork.run() }
+        let nonEscapingLocals = try withSemaSubPhaseTiming("comparable-char-escape", ctx: ctx) {
+            try LargeStackExecutor.run { escapeWork.run() }
+        }
         sema.bindings.setNonEscapingComparableCharLocals(nonEscapingLocals)
     }
 
