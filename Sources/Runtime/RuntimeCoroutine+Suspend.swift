@@ -351,6 +351,7 @@ func runSuspendEntryLoopWithContinuation(
     // task-scope map so that child launches dispatched on this thread can
     // discover their parent scope without TLS.
     let contState = runtimeContinuationState(from: continuation)
+    contState?.suspendDriveEntryPointRaw = entryPointRaw
     let cancellationJob = contState?.jobHandle
     let cancellationHandler = cancellationJob?.addCompletionHandler(onCancelling: true) { [weak contState, weak cancellationJob] _ in
         guard let contState, let cancellationJob, cancellationJob.cancellationSnapshot() else { return }
