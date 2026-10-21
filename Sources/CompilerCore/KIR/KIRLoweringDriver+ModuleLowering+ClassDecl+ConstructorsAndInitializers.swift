@@ -1118,7 +1118,17 @@ extension KIRLoweringDriver {
         }
 
         let ctorFQName = ownerInfo.fqName + [interner.intern("<init>")]
-        let ctorSymbols = sema.symbols.lookupAll(fqName: ctorFQName)
+        // Paired expect/actual declarations share an FQName, so this lookup can
+        // also return the paired declaration's constructors. Keep only
+        // owner-owned constructors — the same guard `lowerConstructor` uses —
+        // because the other side's constructor is never lowered here: for a
+        // paired enum the expect declaration is skipped entirely, so its
+        // constructor has no internal function and no external link name, and
+        // the generated `__kconstructor_callable` thunk would emit a bare
+        // `_<init>` reference that cannot link (KUU-2672).
+        let ctorSymbols = sema.symbols.lookupAll(fqName: ctorFQName).filter {
+            sema.symbols.parentSymbol(for: $0) == ownerSymbol
+        }
         guard !ctorSymbols.isEmpty else {
             return []
         }
