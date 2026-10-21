@@ -23,7 +23,7 @@ struct RuntimeExperimentalTimeTests {
 
     @Test func comparableTimeMarkDifferenceAndOrdering() async throws {
         let first = kk_time_source_monotonic_mark_now(0)
-        try await Task.sleep(for: .microseconds(1))
+        try await Task.sleep(nanoseconds: 1_000)
         let second = kk_time_source_monotonic_mark_now(0)
 
         let diff = timeMarkMinusMark(second, first)
