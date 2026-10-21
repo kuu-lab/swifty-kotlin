@@ -391,6 +391,7 @@ final class JVMFunctionBuilder {
     }
 
     func rawExpression(_ id: ExprID, discarded: Bool = false) throws -> JVMValue? {
+        if program.sema.bindings.stdlibSpecialCallKinds[id] == .contract { return nil }
         guard let expr = arena.expr(id) else { throw fail("Missing JVM expression.", id) }
         switch expr {
         case let .inExpr(lhs, rhs, _), let .notInExpr(lhs, rhs, _):

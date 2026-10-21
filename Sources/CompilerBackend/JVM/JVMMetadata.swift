@@ -101,6 +101,25 @@ enum JVMMetadata {
         func parameter(_ name: String, _ parameterType: JVMValueType, _ source: JVMKotlinType? = nil, flags: Int = 0, vararg: JVMKotlinType? = nil) -> Data {
             var proto = Proto(); if flags != 0 { proto.int(1, flags) }; proto.int(2, index(name)); proto.data(3, source.map(sourceType) ?? type(parameterType)); if let vararg { proto.data(4, sourceType(vararg)) }; return proto.bytes
         }
+        func contract(_ function: JVMFunction) -> Data? {
+            var effects: [Data] = []
+            for (parameter, kind) in function.callsInPlaceEffects.sorted(by: { $0.key < $1.key }) {
+                let invocation: Int
+                switch kind {
+                case .atMostOnce: invocation = 0
+                case .exactlyOnce: invocation = 1
+                case .atLeastOnce: invocation = 2
+                case .unknown: continue
+                }
+                var argument = Proto(); argument.int(2, parameter + 1)
+                var effect = Proto(); effect.int(1, 1); effect.data(2, argument.bytes); effect.int(4, invocation)
+                effects.append(effect.bytes)
+            }
+            guard !effects.isEmpty else { return nil }
+            var result = Proto()
+            for effect in effects { result.data(1, effect) }
+            return result.bytes
+        }
         func function(_ function: JVMFunction) -> Data {
             let ref = function.reference
             var proto = Proto(); proto.int(9, functionFlags(function))
@@ -108,6 +127,7 @@ enum JVMMetadata {
             proto.int(2, index(function.sourceName ?? ref.name)); proto.data(3, function.kotlinResult.map(sourceType) ?? type(ref.result))
             for t in function.typeParameters { proto.data(4, typeParameter(t)) }
             for (i, pair) in zip(function.parameterNames, Array(ref.parameters.dropFirst(function.metadataParameterOffset + (function.kotlinReceiver == nil ? 0 : 1)))).enumerated() { proto.data(6, parameter(pair.0, pair.1, function.kotlinParameters.indices.contains(i) ? function.kotlinParameters[i] : nil, flags: (function.parameterInlineFlags.indices.contains(i) ? function.parameterInlineFlags[i] : 0) | (function.parameterDefaultFlags.indices.contains(i) && function.parameterDefaultFlags[i] ? 2 : 0) | (function.parameterAnnotations.indices.contains(i + function.metadataParameterOffset + (function.kotlinReceiver == nil ? 0 : 1)) && !function.parameterAnnotations[i + function.metadataParameterOffset + (function.kotlinReceiver == nil ? 0 : 1)].isEmpty ? 1 : 0), vararg: function.parameterVarargTypes.indices.contains(i) ? function.parameterVarargTypes[i] : nil)) }
+            if let effects = contract(function) { proto.data(32, effects) }
             proto.data(100, signature(ref.name, ref.descriptor)); return proto.bytes
         }
         func propertyMetadata(_ property: JVMProperty, functions: [JVMFunction]) -> Data {

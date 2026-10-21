@@ -377,6 +377,16 @@
       "virtualPath": "<kswiftk-jvm>/rangeFunctions.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/ranges/RangesKt"
+    },
+    {
+      "path": "declarations/BuilderContracts.kt",
+      "virtualPath": "<kswiftk-jvm>/builder-contracts.kt",
+      "excludeFromStdlibBuild": false
+    },
+    {
+      "path": "declarations/Function.kt",
+      "virtualPath": "<kswiftk-jvm>/function-root.kt",
+      "excludeFromStdlibBuild": true
     }
   ],
   "runtimeClassAliases": {
