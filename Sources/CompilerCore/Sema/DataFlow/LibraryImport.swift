@@ -538,6 +538,7 @@ extension DataFlowSemaPhase {
             }
             let indexedFile = withSubPhaseTiming("indexDecode", timer: phaseTimer) {
                 cache?.cachedIndexedMetadataFile(metadataPath: metadataPath)
+                    ?? KklibBatchSession.cachedIndexedFile(metadataPath: metadataPath)
                     ?? (try? Data(contentsOf: URL(fileURLWithPath: metadataPath))).flatMap(IndexedMetadataFile.init(data:))
             }
             if manifestInfo.formatVersion == 2, indexedFile?.metadataVersion != 3 {
@@ -546,6 +547,7 @@ extension DataFlowSemaPhase {
             }
             if let indexedFile {
                 cache?.cacheIndexedMetadataFile(indexedFile, metadataPath: metadataPath)
+                KklibBatchSession.store(indexedFile, metadataPath: metadataPath)
                 if indexedFile.metadataVersion == 3 {
                     // Malformed records the eager registration pass used to
                     // reject up front must be caught here: an on-demand entry

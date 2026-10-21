@@ -53,6 +53,7 @@ enum CLIParser {
       --stdlib-from-source   Debug fallback: inject bundled stdlib Kotlin sources
       --test                 Generate an executable runner for kotlin.test annotations
       -g                     Emit debug info
+      --batch <manifest>     Compile many cases in one process (see BatchMode.swift)
     """
 
     static func parse(args: [String]) throws -> CompilerOptions {
