@@ -206,8 +206,13 @@ public extension TypeSystem {
                     upper = effectiveUpperBound(for: parameter, symbols: symbols)
                     writeForbidden = true
                 }
-                let captured = makeCapturedType(
-                    parameter: parameter, lower: lower, upper: upper, writeForbidden: writeForbidden
+                let captured = makeProjectedReceiverCapture(
+                    receiverType: receiverType,
+                    parameter: parameter,
+                    lower: lower,
+                    upper: upper,
+                    writeForbidden: writeForbidden,
+                    argumentIndex: index
                 )
                 if case let .typeParam(parameter) = kind(of: captured), let capture = parameter.capture {
                     captureIdentities.insert(capture.identity)

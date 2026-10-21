@@ -9,7 +9,9 @@ extension TypeSystem {
         // A captured parameter is readable through its upper bound and accepts
         // only values below its lower bound. It is never equal to either bound.
         if case let .typeParam(left) = lhs, case let .typeParam(right) = rhs,
-           let capture = left.capture, capture == right.capture
+           let capture = left.capture,
+           let rightCapture = right.capture,
+           capture.isSameProjectedCapture(as: rightCapture)
         {
             return nullabilitySubtype(left.nullability, right.nullability)
         }

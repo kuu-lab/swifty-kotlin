@@ -5,18 +5,41 @@ public final class TypeSystem {
         parameter: SymbolID,
         lower: TypeID,
         upper: TypeID,
-        writeForbidden: Bool = false
+        writeForbidden: Bool = false,
+        origin: CapturedTypeOrigin? = nil
     ) -> TypeID {
         let capture = CapturedTypeBounds(
             identity: nextCaptureIdentity,
             lower: lower,
             upper: upper,
-            writeForbidden: writeForbidden
+            writeForbidden: writeForbidden,
+            origin: origin
         )
         nextCaptureIdentity += 1
         return make(.typeParam(TypeParamType(
             symbol: parameter, nullability: nullability(of: upper), capture: capture
         )))
+    }
+
+    func makeProjectedReceiverCapture(
+        receiverType: TypeID,
+        parameter: SymbolID,
+        lower: TypeID,
+        upper: TypeID,
+        writeForbidden: Bool,
+        argumentIndex: Int
+    ) -> TypeID {
+        makeCapturedType(
+            parameter: parameter,
+            lower: lower,
+            upper: upper,
+            writeForbidden: writeForbidden,
+            origin: CapturedTypeOrigin(
+                receiverType: receiverType,
+                parameter: parameter,
+                argumentIndex: argumentIndex
+            )
+        )
     }
 
     /// Preserves informative upper bounds when a star projection crosses a
