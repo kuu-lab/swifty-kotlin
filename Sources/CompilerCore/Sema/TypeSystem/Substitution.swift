@@ -134,7 +134,7 @@ public extension TypeSystem {
     /// Resolve the effective upper bound for a type parameter, returning `Any?` when
     /// no explicit bounds exist and an intersection type when multiple bounds exist.
     private func effectiveUpperBound(for symbol: SymbolID, symbols: SymbolTable) -> TypeID {
-        let bounds = symbols.typeParameterUpperBounds(for: symbol)
+        let bounds = declaredUpperBounds(for: symbol)
         if bounds.isEmpty { return nullableAnyType }
         if bounds.count == 1 { return bounds[0] }
         return make(.intersection(bounds))
