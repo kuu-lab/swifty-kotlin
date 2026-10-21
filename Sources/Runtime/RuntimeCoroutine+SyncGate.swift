@@ -190,6 +190,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// enqueued resume.
     private var inlineExceptionalDeliveryPending = false
     private var cancellationShieldDepth = 0
+    private var didExit = false
 
     // CORO-003: Task-local continuation state registry (replaces TLS).
     // Maps an opaque task token (assigned by the suspend-entry loop on entry) to
@@ -528,9 +529,26 @@ final class RuntimeContinuationState: @unchecked Sendable {
         return thrown
     }
 
-    func installCancellableDelivery(_ continuation: RuntimeCancellableContinuation) {
+    func installCancellableDelivery(_ continuation: RuntimeCancellableContinuation) -> Bool {
         stateLock.lock()
+        guard !didExit else {
+            stateLock.unlock()
+            return false
+        }
         cancellableDelivery = continuation
+        stateLock.unlock()
+        return true
+    }
+
+    var isExited: Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return didExit
+    }
+
+    func markExited() {
+        stateLock.lock()
+        didExit = true
         stateLock.unlock()
     }
 
@@ -545,6 +563,14 @@ final class RuntimeContinuationState: @unchecked Sendable {
         completion = Int64(runtimeResultValueOrNull(result))
         thrownException = runtimeResultIsSuccess(result) ? 0 : runtimeResultExceptionOrNull(result)
         stateLock.unlock()
+    }
+
+    func retireCancellableDeliveryOnExit() {
+        stateLock.lock()
+        let delivery = cancellableDelivery
+        cancellableDelivery = nil
+        stateLock.unlock()
+        delivery?.delegateDidExit()
     }
 
     /// Legacy blocking wait.  Used only when no continuation has been installed
