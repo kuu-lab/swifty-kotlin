@@ -50,6 +50,41 @@ struct NewlineOperatorTests {
         #expect(!BuildASTPhase.isContinuationBoundary(previousTail: unrelatedBlock, nextHead: next))
     }
 
+    @Test(arguments: [
+        "for (i in 0 until 3) {}",
+        "while (true) {}",
+        "do {} while (false)",
+    ])
+    func lineSeparatedLoopLabelBindsToFollowingLoop(loopSource: String) throws {
+        let (ast, context) = try buildASTModule(from: """
+        fun test() {
+            outer@
+            \(loopSource)
+        }
+        """, includeStdlib: false)
+        let function = try #require(topLevelFunction(named: "test", in: ast, interner: context.interner))
+
+        guard case let .block(statements, _) = function.body,
+              statements.count == 1,
+              let loop = statements.first
+        else {
+            Issue.record("The label and loop must parse as one statement")
+            return
+        }
+
+        let label: InternedString?
+        switch ast.arena.expr(loop) {
+        case let .forExpr(_, _, _, loopLabel, _),
+             let .whileExpr(_, _, loopLabel, _),
+             let .doWhileExpr(_, _, loopLabel, _):
+            label = loopLabel
+        default:
+            Issue.record("Expected the labeled statement to be a loop")
+            return
+        }
+        #expect(label == context.interner.intern("outer"))
+    }
+
     @Test(arguments: ["+", "-"])
     func unaryStatementDoesNotChangeInitializer(op: String) throws {
         let context = makeContextFromSource("""
