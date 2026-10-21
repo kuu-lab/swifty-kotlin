@@ -226,6 +226,27 @@ struct ExplicitImportResolutionTests {
         }
     }
 
+    /// KUU-2731: a star-imported non-callable property must not hide a
+    /// same-named default-imported function in call syntax.
+    @Test(arguments: [false, true])
+    func starImportedPropertyDoesNotShadowDefaultImportedFunctionCall(useArtifact: Bool) throws {
+        let owner = """
+        package kk
+        val emptyMap: Map<String, String> = mapOf()
+        """
+        let usage = """
+        package kk.impl
+        import kk.*
+        class DM { var backing: Map<String, String> = emptyMap() }
+        """
+        try withTemporaryFiles(contents: [owner, usage]) { paths in
+            let ctx = try context(inputs: paths, useArtifact: useArtifact)
+            try runSema(ctx)
+            let errors = diagnosticsForPath(paths[1], in: ctx).filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+        }
+    }
+
     @Test(arguments: [false, true])
     func unusedUnresolvedExplicitImportsAreDiagnosed(useArtifact: Bool) throws {
         let source = try repositoryFileSource(
