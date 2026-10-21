@@ -67,6 +67,7 @@ extension JVMProgramBuilder {
             return .function(try f.params.map(kotlinType), try kotlinType(f.returnType), receiver: try f.receiver.map(kotlinType), nullable: f.nullability != .nonNull, isSuspend: f.isSuspend)
         case .unit: return named("kotlin/Unit")
         case .nullableUnit: return named("kotlin/Unit", true)
+        case let .nothing(nullability): return named("kotlin/Nothing", nullability == .nullable)
         case let .primitive(p, n): return named("kotlin/" + p.kotlinName, n != .nonNull)
         case let .stringStruct(n): return named("kotlin/String", n != .nonNull)
         case let .any(n): return named("kotlin/Any", n != .nonNull)
@@ -146,11 +147,25 @@ extension JVMProgramBuilder {
         if f.reference.name.contains("$unsigned$") { f.sourceName = String(f.reference.name.components(separatedBy: "$unsigned$")[0]) }
         f.typeParameters = try typeParameters(Array(signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount)), declarations: parameters)
         f.kotlinParameters = try signature.parameterTypes.map(kotlinType)
-        let declaration = sourceDeclarations.first {
+        let sourceDeclaration = sourceDeclarations.first {
             if let ref = references[$0.key] { return ref.name == function.reference.name && ref.owner == function.owner && ref.descriptor == function.reference.descriptor }
             if let method = methods[$0.key] { return method.name == function.reference.name && method.owner == function.owner && method.descriptor == function.reference.descriptor }
             return false
-        }?.value
+        }
+        let declaration = sourceDeclaration?.value
+        if let symbol = sourceDeclaration?.key {
+            if let effect = sema.symbols.contractConditionEffect(for: symbol), effect.returnsValue == nil,
+               signature.parameterTypes.indices.contains(effect.conditionParameterIndex),
+               signature.parameterTypes[effect.conditionParameterIndex] == sema.types.booleanType {
+                f.normalReturnConditionParameter = effect.conditionParameterIndex
+            } else if let effect = sema.symbols.contractNonNullEffect(for: symbol), effect.appliesOnAnyReturn,
+                      let index = signature.valueParameterSymbols.firstIndex(of: effect.parameterSymbol),
+                      signature.parameterTypes.indices.contains(index), signature.parameterTypes[index] == sema.types.booleanType {
+                // Source-backed preconditions share this Boolean condition rail
+                // with Sema's post-call smart-cast analysis.
+                f.normalReturnConditionParameter = index
+            }
+        }
         if let declaration {
             f.sourceName = context.interner.resolve(declaration.name)
             f.parameterVarargTypes = try declaration.valueParams.enumerated().map { i, p in p.isVararg ? try kotlinType(signature.parameterTypes[i]) : nil }

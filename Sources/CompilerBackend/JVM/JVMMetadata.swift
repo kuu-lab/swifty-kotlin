@@ -103,6 +103,14 @@ enum JVMMetadata {
         }
         func contract(_ function: JVMFunction) -> Data? {
             var effects: [Data] = []
+            if let condition = function.normalReturnConditionParameter,
+               function.parameterNames.indices.contains(condition) {
+                // A normal return implies that this one-based value parameter
+                // is true. These fields follow metadata.proto's Contract model.
+                var expression = Proto(); expression.int(2, condition + 1)
+                var effect = Proto(); effect.int(1, 0); effect.data(3, expression.bytes)
+                effects.append(effect.bytes)
+            }
             for (parameter, kind) in function.callsInPlaceEffects.sorted(by: { $0.key < $1.key }) {
                 let invocation: Int
                 switch kind {

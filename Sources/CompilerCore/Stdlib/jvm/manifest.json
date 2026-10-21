@@ -19,6 +19,12 @@
       "runtimeFacade": "kotlin/StandardKt"
     },
     {
+      "path": "kotlin/Preconditions.kt",
+      "virtualPath": "<kswiftk-jvm>/preconditions.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/PreconditionsKt"
+    },
+    {
       "path": "declarations/Math.kt",
       "virtualPath": "<kswiftk-jvm>/math.kt",
       "excludeFromStdlibBuild": true,

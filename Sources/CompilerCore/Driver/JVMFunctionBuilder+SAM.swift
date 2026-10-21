@@ -12,6 +12,14 @@ extension JVMFunctionBuilder {
         if pendingConstructor, instructions.dropFirst(start).contains(where: \.isSuspension) {
             throw fail("JVM suspension inside an uninitialized constructor argument is unsupported.", id)
         }
+        if !terminated, let logicalType = program.sema.bindings.exprType(for: id),
+           case .nothing(.nonNull) = program.sema.types.kind(of: logicalType) {
+            // A Nothing-valued call has no normal source edge, even when its
+            // Void descriptor or an inline join appears to return a value.
+            let unreachable = try constructJDK("kotlin/KotlinNothingValueException", parameters: [], arguments: [])
+            instructions.append(.throwValue(unreachable)); terminated = true
+            return nil
+        }
         if result == nil, !discarded, !terminated,
            let logicalType = program.sema.bindings.exprType(for: id),
            case .unit = program.sema.types.kind(of: logicalType) {

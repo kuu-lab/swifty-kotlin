@@ -230,7 +230,7 @@ extension JVMBackendTests {
         }
     }
 
-    @Test(arguments: ["import dep.Counter\nfun main() { Counter.hidden() }", "import dep.Closed\nfun main() { Closed() }", "import dep.Counter\nfun main() { Counter.array(1) }", "import dep.Counter\nfun main() { Counter.create(0).twice(1) }", "fun nil() = null", "fun recur(): Nothing = recur()", "fun onlyNull(x: Nothing?): Int = 1"])
+    @Test(arguments: ["import dep.Counter\nfun main() { Counter.hidden() }", "import dep.Closed\nfun main() { Closed() }", "import dep.Counter\nfun main() { Counter.array(1) }", "import dep.Counter\nfun main() { Counter.create(0).twice(1) }", "fun nil() = null", "fun onlyNull(x: Nothing?): Int = 1"])
     func rejectsUnsupportedForeignMembers(source: String) throws {
         try withWorkspace { root in
             let dependency = try javaFixture(root)

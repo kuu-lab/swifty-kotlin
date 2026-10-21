@@ -158,6 +158,7 @@ Map の取得結果は nullable なので、`!!`／`?:` で値を取り出せる
 
 `throw` と、値を返す `try`／複数の `catch`／`finally` を JVM の exception table へ変換する。
 Throwable／Exception／RuntimeException と主要な標準例外、引数なし／String? 引数のコンストラクタ、`message`、ユーザー定義の例外クラスを扱う。
+Throwable／Exception／RuntimeException には Throwable? 引数と String?／Throwable? 引数のコンストラクタもある。
 `finally` は通常終了、例外、`return`／`break`／`continue` で実行し、内部の同名変数や
 ループに影響されず字句的な参照先を保持する。`finally` 内の return／throw は元の結果を置き換える。
 コンストラクタ引数内の try/catch でも初期化前の参照を JVM verifier に合わせて保持する。
@@ -1040,7 +1041,10 @@ Unit 型の通常のパラメータ宣言／型引数／配列要素（Any? 引�
 
 Native ライブラリ／非ホスト target triple、カスタム entry point、incremental、
 `-O1` 以上、`-g`、feature flag も拒否する（`time-phases` と `no-incremental` は使用可能）。
-関数・コンストラクタ・プロパティの公開型に `Nothing`／`Nothing?` は使用できない。
+関数の非nullableな `Nothing` 戻り値は `java.lang.Void` のJVM descriptorとKotlin metadataで保持する。
+通常の戻り先は専用の `KotlinNothingValueException` で終端する。own-JAR は同例外の引数なし、String?、String?／Throwable?、Throwable? の4コンストラクタを提供する。
+`Nothing?` の公開戻り値、関数・コンストラクタの `Nothing`／`Nothing?` 引数とreceiver、
+プロパティの `Nothing`／`Nothing?` 型は使用できない。null式とローカルの `Nothing?` はObject表現を使う。
 Java 8 が扱えない private interface メンバーも診断して拒否する。null だけを返す関数には
 `String?` など対応する戻り型を明示する。Maven／Gradle の依存解決、JAR Manifest の
 Class-Path、multi-release JAR のバージョン選択、JRT／module path は扱わない。
