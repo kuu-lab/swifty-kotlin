@@ -1432,6 +1432,7 @@ extension ControlFlowLowerer {
                 let resolved = resolveDestructuringComponentCallee(
                     componentName: componentName,
                     receiverType: nonNullElementType,
+                    semaChosen: sema.bindings.destructuringComponentCallee(for: exprID, index: index),
                     sema: sema,
                     interner: interner
                 )
@@ -1606,6 +1607,7 @@ extension ControlFlowLowerer {
                 let resolved = resolveDestructuringComponentCallee(
                     componentName: componentName,
                     receiverType: nonNullElementType,
+                    semaChosen: sema.bindings.destructuringComponentCallee(for: exprID, index: index),
                     sema: sema,
                     interner: interner
                 )
