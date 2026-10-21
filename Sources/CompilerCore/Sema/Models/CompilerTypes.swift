@@ -1,6 +1,6 @@
 import Foundation
 
-public struct TargetTriple: Equatable {
+public struct TargetTriple: Equatable, Sendable {
     public let arch: String
     public let vendor: String
     public let os: String
@@ -28,6 +28,28 @@ public struct TargetTriple: Equatable {
             return TargetTriple(arch: arch, vendor: "apple", os: "macosx", osVersion: nil)
         #endif
     }
+
+    /// Canonical spelling used in `.kklib` manifests and diagnostics for a
+    /// WASI-hosted wasm32 target.
+    public static let wasmWASI = TargetTriple(
+        arch: "wasm32", vendor: "unknown", os: "wasi", osVersion: nil
+    )
+
+    /// Canonical spelling for a JS/browser-hosted wasm32 target.
+    public static let wasmJS = TargetTriple(
+        arch: "wasm32", vendor: "unknown", os: "js", osVersion: nil
+    )
+
+    /// Whether this target describes a WebAssembly module (`wasm32`/`wasm64`).
+    public var isWasm: Bool { arch.hasPrefix("wasm") }
+
+    /// Whether this is a WASI-hosted wasm target (`wasi`, `wasi-p1`, `wasip1`...).
+    public var isWASI: Bool {
+        isWasm && (os == "wasi" || os.hasPrefix("wasip") || os.hasPrefix("wasi-"))
+    }
+
+    /// Whether this is a JS/browser-hosted wasm target (`js` OS tag).
+    public var isWasmJS: Bool { isWasm && os == "js" }
 }
 
 public enum OptimizationLevel: Int {

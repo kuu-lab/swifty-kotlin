@@ -2,7 +2,7 @@
 
 Runtime が `@_cdecl` で公開する `kk_*` / `__kk_*` のうち、コンパイラが emit できず Kotlin プログラムから呼べないものの台帳。件数と一覧は `Scripts/dead_code_audit.sh` の出力が正で、この文書は **スクリプトからは分からない判断（なぜ残すか、後継は何か）** だけを持つ。過去の経緯は git で追う（履歴付きの最終版: `git show 209eca2f97:docs/dead-code-audit.md`）。
 
-再現: `bash Scripts/dead_code_audit.sh --self-test --output-dir <dir>`（四半期ごとに `.github/workflows/quarterly-audits.yml` が実行）
+再現: `bash Scripts/dead_code_audit.sh --self-test --output-dir <dir>`（毎晩 `.github/workflows/nightly-full.yml` の `audits` ジョブが実行）
 
 ## 現在の状態（2026-10-19、旧 C bridge 9 件の削除後）
 

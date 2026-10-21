@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val arr = arrayOf(4, 5, 6)
     println(arr.size)

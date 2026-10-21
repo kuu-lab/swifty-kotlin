@@ -154,6 +154,32 @@ normalize_stdout_for_diff() {
   fi
 }
 
+# Opt-in backend lane membership: `// DIFF_JVM` admits a case to
+# DIFF_BACKEND=jvm, `// DIFF_WASM` to DIFF_BACKEND=wasm. Unmarked cases stay
+# native-only so the default sweep is unchanged.
+case_supports_backend() {
+  local kt_file="$1" backend="$2"
+  [[ "$backend" == "native" ]] && return 0
+  grep -Eq "^[[:space:]]*//[[:space:]]*DIFF_${backend^^}\b" "$kt_file"
+}
+
+# In a non-native backend lane, directory sweeps only run marked cases;
+# an explicitly named single file always runs so one-off backend checks do
+# not need a directive edit. Candidate-only variants stay native-only: they
+# run through run_candidate_only.sh's own native pipeline.
+backend_lane_skips_case() {
+  local kt_file="$1"
+  [[ "$DIFF_BACKEND" == "native" ]] && return 1
+  if is_candidate_only_from_source_case "$kt_file" \
+    || is_pr_candidate_only_case "$kt_file" \
+    || is_candidate_only_case "$kt_file" \
+    || grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT:' "$kt_file"; then
+    return 0
+  fi
+  [[ -f "$TARGET" ]] && return 1
+  ! case_supports_backend "$kt_file" "$DIFF_BACKEND"
+}
+
 should_skip_regular_diff_case() {
   should_skip_diff_case "$1" "$FORCE_RUN_SKIPPED"
 }
