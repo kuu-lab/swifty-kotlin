@@ -382,7 +382,10 @@ public final class SymbolTable {
         lock.lock()
         defer { lock.unlock() }
         indexedImportedNominals = indexedNominals
-        lazyImportedShells = lazyShells
+        // Union, not replace: `appendImportedBinding` already marks shells
+        // registered ahead of the install (and tail-pass lookups between the
+        // `importedBindings` snapshot and here can add more).
+        lazyImportedShells.formUnion(lazyShells)
         importedLayoutSynthesizer = nil
         importedLayoutSynthesisInProgress = false
         lazyImportedMetadataLoader = loader
@@ -423,6 +426,16 @@ public final class SymbolTable {
         lock.lock()
         defer { lock.unlock() }
         indexedImportedNominals.insert(symbol)
+    }
+
+    /// Same growth for lazy shells of every kind: index providers keep
+    /// appending pending bindings after `setLazyImportedMetadataLoader` took
+    /// its `lazyShells` snapshot, and every pending-shell predicate
+    /// (deferral, `hasPendingImportedMetadata`) must see them too.
+    func markLazyImportedShell(_ symbol: SymbolID) {
+        lock.lock()
+        defer { lock.unlock() }
+        lazyImportedShells.insert(symbol)
     }
 
     /// Register pending index entries for `fqName`, then synthesize a package
@@ -658,6 +671,11 @@ public final class SymbolTable {
     ) -> Bool {
         lock.lock()
         defer { lock.unlock() }
+        // Shells register through index-provider drains on lookup, so the
+        // pending check must drain this path first — otherwise a member whose
+        // shell has not been requested yet looks absent and the caller decodes
+        // it eagerly instead of deferring.
+        drainIndexedEntries(fqName: fqName, synthesizePackage: false)
         guard let pending = (byFQName[fqName] ?? []).first(where: {
             isUnmaterializedImportedShellLocked($0)
         }) else {

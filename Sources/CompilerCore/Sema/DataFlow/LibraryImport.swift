@@ -426,11 +426,14 @@ extension DataFlowSemaPhase {
                     lazyLoaderState.pendingInlineSymbolsByName[name, default: []].append(symbol)
                 }
             }
-            if materializeBody != nil, isNominalLayoutTargetSymbol(record.kind) {
+            if materializeBody != nil {
                 // Registration can outlive the lazy-loader install (index
                 // providers keep draining during later phases), so the pending
                 // set is grown per binding instead of handed over once.
-                symbols.markIndexedImportedNominal(symbol)
+                symbols.markLazyImportedShell(symbol)
+                if isNominalLayoutTargetSymbol(record.kind) {
+                    symbols.markIndexedImportedNominal(symbol)
+                }
             }
             lazyLoaderState.indexedBindingsBySymbol[symbol] = binding
             lazyLoaderState.allImportedBindings.append(binding)
