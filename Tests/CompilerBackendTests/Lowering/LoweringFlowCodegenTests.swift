@@ -380,7 +380,7 @@ struct LoweringFlowCodegenTests {
             }
             """,
             moduleName: "TransformLatestStreaming",
-            expectedStdout: "constructed\nstart\nvalue=1\ndownstream\nstart\nvalue=1\ndownstream\n"
+            expectedStdout: "constructed\nstart\nunreachable transform\nunreachable\nunreachable transform\nvalue=1\ndownstream\nstart\nunreachable transform\nunreachable\nunreachable transform\nvalue=1\ndownstream\n"
         )
     }
 
