@@ -715,6 +715,28 @@ extension ExprLowerer {
             guard let name else {
                 continue
             }
+            if let propertyBinding = sema.bindings.destructuringProperty(for: exprID, index: index) {
+                let symbols = sema.symbols.lookupAll(fqName: [
+                    interner.intern("__destructuring_\(exprID.rawValue)"),
+                    name,
+                ])
+                let propertyResult = driver.callLowerer.lowerDestructuringPropertyRead(
+                    propertyBinding,
+                    receiverExpr: initializer,
+                    receiverType: nonNullRhsType,
+                    loweredReceiverID: rhsID,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                )
+                if let symbol = symbols.first {
+                    driver.ctx.setLocalValue(propertyResult, for: symbol)
+                }
+                continue
+            }
             let componentIndex = index + 1
             let componentName = interner.intern("component\(componentIndex)")
 

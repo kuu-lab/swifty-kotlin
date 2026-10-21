@@ -156,6 +156,23 @@ public enum ForDestructuringSyntax: Equatable, Codable {
     case squareBrackets
 }
 
+/// Extra shape of a `destructuringDecl` that the positional `names` list cannot
+/// express (Kotlin 2.4 name-based and full-form destructuring declarations).
+public struct DestructuringDeclLayout: Equatable, Codable {
+    public var syntax: ForDestructuringSyntax
+    /// Per entry: the property read for `(a = prop)`; nil means "same as the
+    /// variable name" (short form) or positional entry.
+    public var properties: [InternedString?]
+    /// Per entry mutability (`[val a, var b]`); empty means the declaration's `isMutable`.
+    public var mutableFlags: [Bool]
+
+    public init(syntax: ForDestructuringSyntax, properties: [InternedString?], mutableFlags: [Bool]) {
+        self.syntax = syntax
+        self.properties = properties
+        self.mutableFlags = mutableFlags
+    }
+}
+
 public enum Expr: Equatable, Codable {
     case intLiteral(Int64, SourceRange)
     case longLiteral(Int64, SourceRange)
