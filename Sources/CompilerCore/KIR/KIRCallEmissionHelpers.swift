@@ -151,10 +151,13 @@ func emitThrowingCall<C: RangeReplaceableCollection>(
 func resolveDestructuringComponentCallee(
     componentName: InternedString,
     receiverType: TypeID,
+    semaChosen: SymbolID? = nil,
     sema: SemaModule,
     interner: StringInterner
 ) -> (symbol: SymbolID?, callee: InternedString, candidate: SymbolID?) {
-    let chosen = TypeCheckHelpers().collectMemberFunctionCandidates(
+    // Sema's choice wins: it also covers operator extensions (e.g. a user
+    // `operator fun C.component1()`), which the member-only lookup misses.
+    let chosen = semaChosen ?? TypeCheckHelpers().collectMemberFunctionCandidates(
         named: componentName,
         receiverType: receiverType,
         sema: sema,
