@@ -998,6 +998,17 @@ public extension RuntimeABISpec {
             isThrowing: true
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_start_coroutine_cancellable",
+            parameters: [
+                RuntimeABIParameter(name: "functionRaw", type: .intptr),
+                RuntimeABIParameter(name: "completionRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .void,
+            section: "Coroutine",
+            isThrowing: true
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_continuation_interceptor_intercept_continuation",
             parameters: [
                 RuntimeABIParameter(name: "interceptorRaw", type: .intptr),

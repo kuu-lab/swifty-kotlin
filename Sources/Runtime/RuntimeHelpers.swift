@@ -646,9 +646,11 @@ func normalizeNullableRuntimePointer(_ ptr: UnsafeMutableRawPointer?) -> UnsafeM
     return ptr
 }
 
-private final class KKInterceptedContinuation: KKContinuation, @unchecked Sendable {
+final class KKInterceptedContinuation: KKContinuation, @unchecked Sendable {
     public let context: UnsafeMutableRawPointer?
-    private let continuation: KKContinuation
+    /// The pre-interception continuation. `__kk_start_coroutine_cancellable`
+    /// unwraps it to flag a generated coroutine start as cancellable.
+    let continuation: KKContinuation
     private let dispatcher: RuntimeDispatcher
 
     init(

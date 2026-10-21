@@ -774,6 +774,53 @@ func runtimeReleaseInterceptedContinuation(interceptor: Int, continuation: Int) 
     }
 }
 
+/// KUU-2689: kotlinx's `startCoroutineCancellable`
+/// (`resumeCancellableWith` in MODE_CANCELLABLE + `runSafely`). The suspend
+/// block receiver arrives as a single boxed function value, the same operand
+/// `createCoroutineUninterceptedNoReceiver` forwards as its function param.
+/// When interception produces a native dispatch wrapper -- the analogue of
+/// upstream's `is DispatchedContinuation` gate -- the un-started coroutine is
+/// flagged so the Job check in `__kk_coroutine_continuation_resume_with` runs
+/// on the resume boundary (inline or on the dispatcher queue). Non-dispatched
+/// interception products take upstream's plain `resumeWith` path unchanged.
+/// A thrown interception or dispatch failure is delivered to `completion`
+/// and rethrown through `outThrown`, matching `runSafely`.
+@_cdecl("__kk_start_coroutine_cancellable")
+public func __kk_start_coroutine_cancellable(
+    _ functionRaw: Int,
+    _ completionRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>? = nil
+) {
+    outThrown?.pointee = 0
+    var thrown = 0
+    let coroutine = kk_create_coroutine_unintercepted_no_receiver(
+        functionRaw, 0, completionRaw
+    )
+    let intercepted = __kk_continuation_intercepted(
+        coroutine, kk_continuation_interceptor_key(), &thrown
+    )
+    if thrown == 0 {
+        if isRegisteredRuntimeObjectPointer(intercepted),
+           let ptr = UnsafeMutableRawPointer(bitPattern: intercepted),
+           let wrapper = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue() as? KKInterceptedContinuation,
+           let generated = wrapper.continuation as? RuntimeGeneratedContinuation
+        {
+            generated.state.markCancellableCoroutineStart()
+        }
+        __kk_coroutine_continuation_resume_with(
+            intercepted,
+            runtimeResultSuccess(kk_box_unit(0)),
+            &thrown
+        )
+    }
+    if thrown != 0 {
+        __kk_coroutine_continuation_resume_with(
+            completionRaw, runtimeResultFailure(thrown), nil
+        )
+        outThrown?.pointee = thrown
+    }
+}
+
 @_cdecl("kk_continuation_interceptor_intercept_continuation")
 public func kk_continuation_interceptor_intercept_continuation(
     _ interceptorRaw: Int,

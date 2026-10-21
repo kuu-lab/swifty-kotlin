@@ -573,6 +573,24 @@ public func __kk_coroutine_continuation_resume_with(
             _ = kk_coroutine_state_exit(continuation, 0)
             return
         }
+        // KUU-2689: a MODE_CANCELLABLE start whose context Job is no longer
+        // active at this resume boundary (inline or on the dispatcher queue)
+        // completes the continuation with the job's CancellationException
+        // without running the block.
+        if start.cancellableStart,
+           let cancellationException = state.unstartedCoroutineCancellationException()
+        {
+            state.releaseInterception(continuationRaw: continuation)
+            if start.completionContinuation != 0 {
+                __kk_coroutine_continuation_resume_with(
+                    start.completionContinuation,
+                    runtimeResultFailure(cancellationException),
+                    outThrown
+                )
+            }
+            _ = kk_coroutine_state_exit(continuation, 0)
+            return
+        }
         startUninterceptedCoroutineFromResume(
             entryPointRaw: start.entryPointRaw,
             continuation: continuation,
