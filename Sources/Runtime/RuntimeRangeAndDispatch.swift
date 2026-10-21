@@ -1582,7 +1582,7 @@ public func __kk_long_progression_fromClosedRange(_ receiverRaw: Int, _ rangeSta
         return 0
     }
     guard step != Int.min else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be greater than Int.MIN_VALUE to avoid overflow on negation.")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be greater than Long.MIN_VALUE to avoid overflow on negation.")
         return 0
     }
     let alignedLast = runtimeSignedProgressionLast(start: rangeStart, end: rangeEnd, step: step)
@@ -1626,7 +1626,7 @@ public func __kk_ulong_progression_fromClosedRange(_ receiverRaw: Int, _ rangeSt
         return 0
     }
     guard step != Int.min else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be greater than Int.MIN_VALUE to avoid overflow on negation.")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be greater than Long.MIN_VALUE to avoid overflow on negation.")
         return 0
     }
     let alignedLast = runtimeUnsignedProgressionLast(start: rangeStart, end: rangeEnd, step: step)
