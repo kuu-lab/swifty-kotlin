@@ -36,17 +36,17 @@ public fun <T, R> Flow<T>.mapLatest(transform: suspend (T) -> R): Flow<R> {
 // queued children off-loop concurrently, so no sibling drainer can preserve
 // cold ordering anyway).
 //
-// Drains run when a subsequent upstream value arrives, when a full buffer
-// parks a child's send, and once upstream collection finishes, matching the
-// JVM observable ordering for cold, hot, overflow, and downstream-failure
-// cases. An upstream failure cancels the pending child and discards the
-// buffer, matching JVM's produce-cancellation. A transform body failure is
-// recorded by the child itself (`childFailure`) because coroutineScope only
-// surfaces child failures at scope end; the suspend ABI always parks the
-// child once when its suspend call completes thrown, so detection can trail
-// one drain — buffered values already delivered before the failure lands may
-// still reach downstream where JVM's closed-with-cause channel drops them
-// (residual edge tracked as KUU-2724).
+// Drains run only when a full buffer parks a child's send and once upstream
+// collection finishes. JVM's emitAll receives buffered values when the
+// producer's collect suspends or completes — never mid-burst — so draining on
+// every subsequent upstream value would deliver values JVM still holds (and
+// drops) at failure boundaries (KUU-2724). An upstream failure cancels the
+// pending child and discards the buffer, matching JVM's
+// produce-cancellation. A transform body failure is recorded by the child
+// itself (`childFailure`) because coroutineScope only surfaces child
+// failures at scope end; the suspend ABI delivers a synchronously thrown
+// suspend-call result to the catch label inline (KUU-2724), so detection
+// lands before the next drain rather than one event-loop turn behind.
 public fun <T, R> Flow<T>.transformLatest(
     transform: suspend FlowCollector<R>.(value: T) -> Unit
 ): Flow<R> {
@@ -83,7 +83,7 @@ public fun <T, R> Flow<T>.transformLatest(
                     }
                     previous = child
                     childFailure?.let { throw it }
-                    if (prev != null || sendBlocked) {
+                    if (sendBlocked) {
                         while (true) {
                             val received = channel.tryReceive()
                             if (!received.isSuccess) break

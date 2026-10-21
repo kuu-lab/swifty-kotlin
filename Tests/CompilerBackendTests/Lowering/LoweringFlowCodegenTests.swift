@@ -384,6 +384,39 @@ struct LoweringFlowCodegenTests {
         )
     }
 
+    // KUU-2724: a thrown transform body must discard values the cancelled child
+    // already buffered; JVM's closed-with-cause produce channel delivers none.
+    @Test
+    func testTransformLatestFailureDropsBufferedValues() throws {
+        try assertFlowExecutableOutput(
+            source: """
+            import kotlinx.coroutines.*
+            import kotlinx.coroutines.flow.*
+
+            fun main() = runBlocking {
+                try {
+                    flowOf(1, 2, 3).transformLatest<Int, String> { value ->
+                        if (value == 2) throw IllegalStateException("transform blew up")
+                        emit("v$value")
+                    }.collect { println(it) }
+                } catch (e: IllegalStateException) {
+                    println("caught:${e.message}")
+                }
+                try {
+                    flowOf(1, 2, 3).transformLatest<Int, String> { value ->
+                        if (value == 3) throw IllegalStateException("last blew up")
+                        emit("p$value")
+                    }.collect { println(it) }
+                } catch (e: IllegalStateException) {
+                    println("caught:${e.message}")
+                }
+            }
+            """,
+            moduleName: "TransformLatestFailureDrop",
+            expectedStdout: "caught:transform blew up\ncaught:last blew up\n"
+        )
+    }
+
     @Test
     func testBundledFlowLoweringPreservesSourceBackedOperators() throws {
         let source = """

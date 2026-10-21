@@ -434,9 +434,21 @@ func runSuspendEntryLoopWithContinuation(
         // for the duration of `entryPoint`'s call below, so RuntimePendingLaunchQueue
         // knows any `launch{}` it makes has a real burst to be flushed at.
         RuntimeCoroutineBurstDepth.enter()
-        contState?.consumeCancellableDelivery()
         var thrownValue = 0
-        let result = entryPoint(continuation, &thrownValue)
+        var result: Int
+        repeat {
+            thrownValue = 0
+            contState?.consumeCancellableDelivery()
+            result = entryPoint(continuation, &thrownValue)
+            // A suspend-point callee that already completed exceptionally
+            // before the machine suspended (a thrown direct suspend call, an
+            // await on an already-failed task) marks the state for inline
+            // delivery. Re-enter the machine so the failure lands on the
+            // caller's catch label inside this burst -- manufacturing an
+            // enqueued resume would let already-queued siblings observe and
+            // drain state the failure was meant to discard (KUU-2724).
+        } while thrownValue == 0 && result == suspendedToken
+            && (contState?.consumeInlineExceptionalDelivery() ?? false)
         if thrownValue != 0 {
             // BUG-041: this burst is ending (with a thrown exception); dispatch
             // anything it `launch`-ed for real now that no more synchronous
