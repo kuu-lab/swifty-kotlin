@@ -1394,6 +1394,47 @@ final class ExprTypeChecker {
             }
         }
 
+        // The bundled progressions declare `contains` as a kotlin.ranges
+        // package extension rather than a class member, so neither the
+        // same-element member path above nor the generic member-candidate
+        // path below can see it — `x in progression` would silently fall back
+        // to the kk_op_contains runtime stub. Bind the source-backed
+        // extension directly when its parameter accepts the element type.
+        if driver.callChecker.sourceLevelRangeMemberLookupType(
+            receiverExpr: containerExpr,
+            receiverType: containerType,
+            sema: sema,
+            interner: interner
+        ) != nil,
+        let rangeKind = MemberRuntimeDispatch.rangeReceiverKind(
+            receiverExpr: containerExpr,
+            receiverType: containerType,
+            sema: sema,
+            interner: interner
+        ),
+        [MemberDispatchReceiverKind.intProgression, .longProgression, .charProgression,
+         .uintProgression, .ulongProgression].contains(rangeKind) {
+            if let sourceSymbol = driver.callChecker.sourceRangeHOFSymbol(
+                memberName: "contains",
+                rangeKind: rangeKind,
+                argCount: 1,
+                argumentTypes: [sema.types.makeNonNullable(elementType)],
+                argumentLabels: [nil],
+                sema: sema,
+                interner: interner
+            ) {
+                sema.bindings.bindCall(
+                    exprID,
+                    binding: CallBinding(
+                        chosenCallee: sourceSymbol,
+                        substitutedTypeArguments: [],
+                        parameterMapping: [0: 0]
+                    )
+                )
+                return
+            }
+        }
+
         // Recover nominal range types for generic Iterable.contains resolution.
         // Other primitives are handled by kk_op_contains at runtime.
         // String is `.stringStruct`, not `.classType` (KSWIFTK-INTERNAL-0001), but it does
