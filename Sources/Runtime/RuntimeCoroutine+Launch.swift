@@ -736,11 +736,15 @@ public func kk_kxmini_launch_with_dispatcher(_ entryPointRaw: Int, _ functionID:
     if let callerJob {
         callerJob.registerChild(Int(bitPattern: jobPtr))
     }
+    let dispatcher = runtimeResolveDispatcher(from: dispatcherRaw)
     if let contState = runtimeContinuationState(from: continuation) {
         contState.scope = callerScope
+        // KUU-2687: the body's coroutineContext carries the launch dispatcher
+        // (a limited view keeps its own element) so suspensions resume through
+        // its gate instead of an unbounded fallback queue.
+        contState.builderContext = resolveToCoroutineContext(dispatcherRaw)
     }
 
-    let dispatcher = runtimeResolveDispatcher(from: dispatcherRaw)
     let workItem = DispatchWorkItem {
         // See kk_kxmini_launch: mark the body as started on the dispatch thread
         // and re-check cancellation so a racing cancel() can skip the body.
@@ -752,29 +756,31 @@ public func kk_kxmini_launch_with_dispatcher(_ entryPointRaw: Int, _ functionID:
         let savedDispatcher = RuntimeDispatcher.current
         RuntimeDispatcher.current = dispatcher
         defer { RuntimeDispatcher.current = savedDispatcher }
-        RuntimeCoroutineScope.current = callerScope
-        RuntimeJobHandle.current = callerJob
-        // See kk_kxmini_launch: forward outThrown so an exception escaping the body
-        // completes the job exceptionally instead of being discarded as a normal result.
-        var thrown = 0
-        let result = runSuspendEntryLoopWithContinuation(
+        // KUU-2687: async drive — the work item must return when the body
+        // suspends so a limited view releases its permit for the resumption.
+        runtimeStartLaunchedBody(
             entryPointRaw: entryPointRaw,
             continuation: continuation,
-            outThrown: &thrown
-        )
-        RuntimeCoroutineScope.current = nil
-        RuntimeJobHandle.current = nil
-        if thrown != 0 {
-            runtimeCompleteLaunchJobExceptionally(
-                job, with: thrown, parentJob: callerJob, parentScope: callerScope
-            )
-        } else {
-            _ = job.complete(with: result)
+            scope: callerScope,
+            job: callerJob
+        ) { result, thrown in
+            if thrown != 0 {
+                runtimeCompleteLaunchJobExceptionally(
+                    job, with: thrown, parentJob: callerJob, parentScope: callerScope
+                )
+            } else {
+                _ = job.complete(with: result)
+            }
         }
     }
     job.dispatchWorkItem = workItem
     job.markScheduled()
-    dispatcher.queue.async(execute: workItem)
+    // Route through `dispatchAsync` so limited-parallelism views gate the
+    // first burst; the box keeps DispatchWorkItem cancellation skip semantics.
+    let boxedWorkItem = RuntimeWorkItemBox(workItem)
+    dispatcher.dispatchAsync {
+        boxedWorkItem.performUnlessCancelled()
+    }
     return Int(bitPattern: jobPtr)
 }
 
@@ -800,11 +806,15 @@ public func kk_kxmini_launch_with_dispatcher_and_cont(_ entryPointRaw: Int, _ co
     if let callerJob {
         callerJob.registerChild(Int(bitPattern: jobPtr))
     }
+    let dispatcher = runtimeResolveDispatcher(from: dispatcherRaw)
     if let contState = runtimeContinuationState(from: continuation) {
         contState.scope = callerScope
+        // KUU-2687: the body's coroutineContext carries the launch dispatcher
+        // (a limited view keeps its own element) so suspensions resume through
+        // its gate instead of an unbounded fallback queue.
+        contState.builderContext = resolveToCoroutineContext(dispatcherRaw)
     }
 
-    let dispatcher = runtimeResolveDispatcher(from: dispatcherRaw)
     let workItem = DispatchWorkItem {
         // See kk_kxmini_launch: mark the body as started on the dispatch thread
         // and re-check cancellation so a racing cancel() can skip the body.
@@ -816,29 +826,31 @@ public func kk_kxmini_launch_with_dispatcher_and_cont(_ entryPointRaw: Int, _ co
         let savedDispatcher = RuntimeDispatcher.current
         RuntimeDispatcher.current = dispatcher
         defer { RuntimeDispatcher.current = savedDispatcher }
-        RuntimeCoroutineScope.current = callerScope
-        RuntimeJobHandle.current = callerJob
-        // See kk_kxmini_launch: forward outThrown so an exception escaping the body
-        // completes the job exceptionally instead of being discarded as a normal result.
-        var thrown = 0
-        let result = runSuspendEntryLoopWithContinuation(
+        // KUU-2687: async drive — the work item must return when the body
+        // suspends so a limited view releases its permit for the resumption.
+        runtimeStartLaunchedBody(
             entryPointRaw: entryPointRaw,
             continuation: continuation,
-            outThrown: &thrown
-        )
-        RuntimeCoroutineScope.current = nil
-        RuntimeJobHandle.current = nil
-        if thrown != 0 {
-            runtimeCompleteLaunchJobExceptionally(
-                job, with: thrown, parentJob: callerJob, parentScope: callerScope
-            )
-        } else {
-            _ = job.complete(with: result)
+            scope: callerScope,
+            job: callerJob
+        ) { result, thrown in
+            if thrown != 0 {
+                runtimeCompleteLaunchJobExceptionally(
+                    job, with: thrown, parentJob: callerJob, parentScope: callerScope
+                )
+            } else {
+                _ = job.complete(with: result)
+            }
         }
     }
     job.dispatchWorkItem = workItem
     job.markScheduled()
-    dispatcher.queue.async(execute: workItem)
+    // Route through `dispatchAsync` so limited-parallelism views gate the
+    // first burst; the box keeps DispatchWorkItem cancellation skip semantics.
+    let boxedWorkItem = RuntimeWorkItemBox(workItem)
+    dispatcher.dispatchAsync {
+        boxedWorkItem.performUnlessCancelled()
+    }
     return Int(bitPattern: jobPtr)
 }
 

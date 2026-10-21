@@ -45,13 +45,16 @@ struct CodegenBackendCoroutineDispatcherTests {
 
         class Service : ExecutorService {
             override fun execute(command: Runnable) { command.run() }
+            override fun shutdown() {}
+            override fun shutdownNow(): List<Runnable> = emptyList()
+            override fun isShutdown(): Boolean = false
+            override fun isTerminated(): Boolean = false
         }
 
         fun main() {
             val default = Dispatchers.Default
             println(Dispatchers.IO === default)
             println(Dispatchers.Unconfined === default)
-            println(default.immediate === default)
             println(default.limitedParallelism(1) === default)
             println(Dispatchers.Main.immediate === Dispatchers.Main)
             println(newSingleThreadContext("single") === default)
@@ -69,16 +72,15 @@ struct CodegenBackendCoroutineDispatcherTests {
             }
         }
         """, moduleName: "CoroutineDispatcherAliases", expected: """
+        false
+        false
+        false
+        false
         true
         true
         true
-        true
-        true
-        true
-        true
-        true
-        true
-        true
+        false
+        false
         executed
         42
         43

@@ -28,20 +28,30 @@ struct CoroutineDispatcherSourceMigrationTests {
         let package = ["kotlinx", "coroutines"].map(ctx.interner.intern)
         struct DeclarationExpectation {
             let name: String
+            let parentName: String?
             let fileName: String
             let expectedSymbolCount: Int
+            init(_ name: String, parent: String? = nil, fileName: String, expectedSymbolCount: Int) {
+                self.name = name
+                self.parentName = parent
+                self.fileName = fileName
+                self.expectedSymbolCount = expectedSymbolCount
+            }
         }
         let declarations: [DeclarationExpectation] = [
-            DeclarationExpectation(name: "Dispatchers", fileName: "Dispatchers.kt", expectedSymbolCount: 1),
-            DeclarationExpectation(name: "immediate", fileName: "CoroutineDispatcher.kt", expectedSymbolCount: 1),
-            DeclarationExpectation(name: "limitedParallelism", fileName: "CoroutineDispatcher.kt", expectedSymbolCount: 1),
-            DeclarationExpectation(name: "newSingleThreadContext", fileName: "ThreadPoolDispatcher.kt", expectedSymbolCount: 1),
-            DeclarationExpectation(name: "newFixedThreadPoolContext", fileName: "ThreadPoolDispatcher.kt", expectedSymbolCount: 1),
-            DeclarationExpectation(name: "newScheduledThreadPoolContext", fileName: "ThreadPoolDispatcher.kt", expectedSymbolCount: 1),
-            DeclarationExpectation(name: "asCoroutineDispatcher", fileName: "Executors.kt", expectedSymbolCount: 2),
+            DeclarationExpectation("Dispatchers", fileName: "Dispatchers.kt", expectedSymbolCount: 1),
+            DeclarationExpectation("immediate", parent: "MainCoroutineDispatcher", fileName: "MainCoroutineDispatcher.kt", expectedSymbolCount: 1),
+            DeclarationExpectation("limitedParallelism", fileName: "CoroutineDispatcher.kt", expectedSymbolCount: 1),
+            DeclarationExpectation("newSingleThreadContext", fileName: "ThreadPoolDispatcher.kt", expectedSymbolCount: 1),
+            DeclarationExpectation("newFixedThreadPoolContext", fileName: "ThreadPoolDispatcher.kt", expectedSymbolCount: 1),
+            DeclarationExpectation("newScheduledThreadPoolContext", fileName: "ThreadPoolDispatcher.kt", expectedSymbolCount: 1),
+            DeclarationExpectation("asCoroutineDispatcher", fileName: "Executors.kt", expectedSymbolCount: 2),
         ]
         for declaration in declarations {
-            let symbols = sema.symbols.lookupAll(fqName: package + [ctx.interner.intern(declaration.name)])
+            let fqName = package
+                + (declaration.parentName.map { [ctx.interner.intern($0)] } ?? [])
+                + [ctx.interner.intern(declaration.name)]
+            let symbols = sema.symbols.lookupAll(fqName: fqName)
             #expect(symbols.count == declaration.expectedSymbolCount)
             for symbol in symbols {
                 let info = try #require(sema.symbols.symbol(symbol))

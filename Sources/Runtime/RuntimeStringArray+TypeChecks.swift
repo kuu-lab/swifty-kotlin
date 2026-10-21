@@ -425,6 +425,23 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
                 targetTypeID: payload
             ) ? 1 : 0
         }
+        // KUU-2687: bare scheduler tags (`kk_dispatcher_main`,
+        // `Dispatchers.Main.immediate`) are Ints, not registered objects —
+        // recover their nominal identity so `Dispatchers.Main is
+        // MainCoroutineDispatcher` answers like kotlinx's.
+        if isDispatcherTag(value) {
+            registerCoroutineDispatcherTypeEdgesOnce()
+            let tagSourceTypeID = runtimeStableNominalTypeID(
+                fqName: (value == RuntimeDispatcherTag.mainDispatcher
+                         || value == RuntimeDispatcherTag.mainImmediateDispatcher)
+                    ? "kotlinx.coroutines.MainCoroutineDispatcher"
+                    : "kotlinx.coroutines.CoroutineDispatcher"
+            )
+            return runtimeIsAssignable(
+                sourceTypeID: tagSourceTypeID,
+                targetTypeID: payload
+            ) ? 1 : 0
+        }
         // KUU-1386: coroutine job-family handles (launch/async tasks, Job()/
         // SupervisorJob() handles, ChildHandle boxes) are raw runtime objects
         // with no object type ID — recover the kotlinx nominal they answer

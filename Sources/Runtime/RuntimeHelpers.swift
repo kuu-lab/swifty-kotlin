@@ -755,12 +755,9 @@ public enum KxMiniRuntime {
     }
 
     static func launch(on dispatcher: RuntimeDispatcher, block: @Sendable @escaping () -> Void) {
-        dispatcher.queue.async {
-            let saved = RuntimeDispatcher.current
-            RuntimeDispatcher.current = dispatcher
-            block()
-            RuntimeDispatcher.current = saved
-        }
+        // Route through `dispatchAsync` so limited-parallelism views gate this
+        // work and `RuntimeDispatcher.current` reflects the dispatcher element.
+        dispatcher.dispatchAsync(execute: block)
     }
 
     public static func async(_ block: @escaping () -> UnsafeMutableRawPointer?) -> KKContinuation {

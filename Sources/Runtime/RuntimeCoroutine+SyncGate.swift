@@ -103,6 +103,12 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// Set only by the canonical context-aware runBlocking boundary and its
     /// structured descendants. nil preserves legacy invocation scheduling.
     var blockingScheduler: RuntimeBlockingScheduler?
+    /// KUU-2687: dispatcher resolved from this coroutine's own context, used
+    /// when neither a blocking scheduler nor an event loop owns its resumptions.
+    /// A standalone `launch(dispatcher)`/`withContext(dispatcher)` continuation
+    /// hops back through it (and through a limited view's permit gate) on every
+    /// resume, matching kotlinx's intercepted-continuation dispatch.
+    var resumeDispatcher: RuntimeDispatcher?
     // Public builders leave scheduling to the intercepted continuation itself.
     var resumesInline = false
     var builderContext: RuntimeCoroutineContext?
@@ -425,10 +431,15 @@ final class RuntimeContinuationState: @unchecked Sendable {
             resumeSignalPending = false
             let loop = eventLoop
             let scheduler = blockingScheduler
+            let dispatcher = resumeDispatcher
             let inlineResume = resumesInline
             stateLock.unlock()
             if let scheduler {
                 scheduler.enqueueResume { boxedContinuation.invoke() }
+                return
+            }
+            if let dispatcher {
+                dispatcher.dispatchAsync { boxedContinuation.invoke() }
                 return
             }
             if inlineResume {
@@ -568,9 +579,14 @@ final class RuntimeContinuationState: @unchecked Sendable {
             let loop = eventLoop
             let inlineResume = resumesInline
             let scheduler = blockingScheduler
+            let dispatcher = resumeDispatcher
             stateLock.unlock()
             if let scheduler {
                 scheduler.enqueueResume { cont.invoke() }
+                return
+            }
+            if let dispatcher {
+                dispatcher.dispatchAsync { cont.invoke() }
                 return
             }
             // Queue the resumption on the coroutine's event loop when it has

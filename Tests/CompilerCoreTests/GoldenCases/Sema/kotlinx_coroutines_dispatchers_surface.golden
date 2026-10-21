@@ -33,7 +33,7 @@ expr e@10:45#1 memberCall recv=e@10:45 callee=Main args=[] type=kotlinx.coroutin
 expr e@10:45#2 memberCall recv=e@10:45#1 callee=immediate args=[] type=kotlinx.coroutines.MainCoroutineDispatcher ref=kotlinx.coroutines.MainCoroutineDispatcher.immediate[kind=prop;type=kotlinx.coroutines.MainCoroutineDispatcher]
 expr e@11:79 name(dispatcher) type=kotlinx.coroutines.CoroutineDispatcher ref=golden.sema.limitedDispatcher.$1.dispatcher[kind=vparam;origin=fixture]
 expr e@11:109 int(2) type=Int
-expr e@11:79#1 memberCall recv=e@11:79 callee=limitedParallelism args=[_:e@11:109] type=kotlinx.coroutines.CoroutineDispatcher call=kotlinx.coroutines.limitedParallelism[kind=fun;recv=kotlinx.coroutines.CoroutineDispatcher;params=Int;ret=kotlinx.coroutines.CoroutineDispatcher;names=[parallelism]]
+expr e@11:79#1 memberCall recv=e@11:79 callee=limitedParallelism args=[_:e@11:109] type=kotlinx.coroutines.CoroutineDispatcher call=kotlinx.coroutines.limitedParallelism[kind=fun;recv=kotlinx.coroutines.CoroutineDispatcher;params=Int,String?;ret=kotlinx.coroutines.CoroutineDispatcher;defaults=[0,1];names=[parallelism,name]]
 expr e@12:70 string(single) type=String
 expr e@12:47 call callee=e@12:47#1 args=[_:e@12:70] type=kotlinx.coroutines.CoroutineDispatcher call=kotlinx.coroutines.newSingleThreadContext[kind=fun;params=String;ret=kotlinx.coroutines.CoroutineDispatcher;names=[name]]
 expr e@13:72 int(2) type=Int

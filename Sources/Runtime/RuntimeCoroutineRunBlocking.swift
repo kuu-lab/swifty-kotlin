@@ -34,7 +34,8 @@ final class RuntimeBlockingScheduler: @unchecked Sendable {
     func scheduleChild(_ work: @escaping @Sendable () -> Void) {
         switch destination {
         case let .eventLoop(loop): loop.enqueue(work)
-        case let .dispatcher(dispatcher): dispatcher.queue.async(execute: work)
+        // `dispatchAsync` routes through limited-view gates (KUU-2687).
+        case let .dispatcher(dispatcher): dispatcher.dispatchAsync(execute: work)
         case .unconfined: RuntimeUnconfinedRunQueue.startInline(work)
         }
     }
@@ -43,7 +44,7 @@ final class RuntimeBlockingScheduler: @unchecked Sendable {
         switch destination {
         case let .eventLoop(loop):
             if RuntimeEventLoop.current === loop { work() } else { loop.enqueue(work) }
-        case let .dispatcher(dispatcher): dispatcher.queue.async(execute: work)
+        case let .dispatcher(dispatcher): dispatcher.dispatchAsync(execute: work)
         case .unconfined: RuntimeUnconfinedRunQueue.startInline(work)
         }
     }
@@ -197,6 +198,12 @@ public func __kk_run_blocking_context(
         RuntimeDispatcher.current = scheduler.dispatcher
         var result = 0
         var thrown = 0
+        // KUU-2687: for a real-dispatcher destination the body is driven
+        // asynchronously — each suspension must end this work item so a
+        // limited view's permit is released for the queued resumption.
+        // Blocking the worker until completion would hold the only permit of
+        // a `parallelism=1` view while the resume waits behind it: deadlock.
+        var bodyAsync = false
         defer {
             RuntimeCoroutineScope.removeScope(forTask: invocationKey)
             RuntimeContinuationState.removeState(forTask: invocationKey)
@@ -205,8 +212,10 @@ public func __kk_run_blocking_context(
             RuntimeEventLoop.current = savedLoop
             RuntimeDispatcher.current = savedDispatcher
             // Publish only after this invocation's ambient bindings restore.
-            outcome.complete(result: result, thrown: thrown)
-            waitLoop.wake()
+            if !bodyAsync {
+                outcome.complete(result: result, thrown: thrown)
+                waitLoop.wake()
+            }
         }
         if job.cancellationSnapshot() {
             thrown = kk_job_get_cancellation_exception(jobRaw)
@@ -214,9 +223,44 @@ public func __kk_run_blocking_context(
         }
         let scopeRaw = Int(bitPattern: Unmanaged.passUnretained(scope).toOpaque())
         if let box = runtimeFunctionValueBox(from: fnOrBox), box.suspendEntryPoint != 0 {
-            result = runtimeInvokeSuspendFunction(
-                fnOrBox, arguments: [scopeRaw], continuation: 0, outThrown: &thrown
-            )
+            if case .dispatcher = scheduler.destination {
+                // Async drive: completions reach `outcome` through the entry
+                // loop's onCompletion instead of this work item's return.
+                guard box.arity == 1 else {
+                    thrown = runtimeAllocateThrowable(
+                        message: "Function invoke arity mismatch: expected \(box.arity), got 1"
+                    )
+                    return
+                }
+                let child = kk_coroutine_continuation_new(box.suspendEntryPoint)
+                for (index, argument) in ([box.closureRaw] + [scopeRaw]).enumerated() {
+                    _ = kk_coroutine_launcher_arg_set(child, Int64(index), Int64(argument))
+                }
+                if let childState = runtimeContinuationState(from: child) {
+                    childState.scope = scope
+                    childState.builderContext = context
+                    childState.jobHandle = job
+                    childState.blockingScheduler = scheduler
+                    childState.flowCollectContext = invocation.flowCollectContext
+                    invocation.bindSuspendedCallChild(childState)
+                }
+                bodyAsync = true
+                _ = runSuspendEntryLoopWithContinuation(
+                    entryPointRaw: box.suspendEntryPoint,
+                    continuation: child,
+                    onCompletion: { bodyResult, bodyThrown in
+                        if let childState = runtimeContinuationState(from: child) {
+                            invocation.unbindSuspendedCallChild(childState)
+                        }
+                        outcome.complete(result: bodyResult, thrown: bodyThrown)
+                        waitLoop.wake()
+                    }
+                )
+            } else {
+                result = runtimeInvokeSuspendFunction(
+                    fnOrBox, arguments: [scopeRaw], continuation: 0, outThrown: &thrown
+                )
+            }
         } else {
             result = runtimeInvokeCollectionLambda1(
                 fnPtr: fnOrBox, closureRaw: envRaw, value: scopeRaw, outThrown: &thrown

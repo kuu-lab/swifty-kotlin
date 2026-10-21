@@ -201,7 +201,7 @@ extension BundledStdlibExecutionTests {
                 try { throwing.immediate } catch (e: IllegalArgumentException) { println("caught getter") }
             }
             """,
-            expectedOutput: "true\ntrue\ninvalid parallelism\ncustom immediate\ntrue\ncaught getter\n",
+            expectedOutput: "false\ntrue\ninvalid parallelism\ncustom immediate\ntrue\ncaught getter\n",
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }

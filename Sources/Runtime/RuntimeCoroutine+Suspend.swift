@@ -379,6 +379,20 @@ func runSuspendEntryLoopWithContinuation(
     if let contState, contState.blockingScheduler == nil, contState.eventLoop == nil {
         contState.eventLoop = callerEventLoop
     }
+    // KUU-2687: a coroutine bound to a real dispatcher (tag or limited/named
+    // view object) but owned by no runBlocking scheduler hops back through that
+    // dispatcher on every resumption — required for a limited view's permits to
+    // actually bound its concurrency after a suspension.
+    if let contState, contState.blockingScheduler == nil, contState.eventLoop == nil,
+       contState.resumeDispatcher == nil {
+        let handle = contState.makeContinuationContext().dispatcherElementHandle
+        if handle != 0 {
+            let resolved = runtimeResolveDispatcher(from: handle)
+            if resolved.blockingEventLoop == nil, !resolved.isUnconfined {
+                contState.resumeDispatcher = resolved
+            }
+        }
+    }
     let boundEventLoop = contState?.eventLoop
     // Capture this thread's ambient bindings before minting a fresh key so a
     // nested loop (e.g. a `coroutineScope { }` block's entry loop) hands them

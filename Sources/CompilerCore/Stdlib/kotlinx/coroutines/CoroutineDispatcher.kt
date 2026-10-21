@@ -14,11 +14,23 @@ public abstract class CoroutineDispatcher : CoroutineContext.Element, Continuati
     public override val key: CoroutineContext.Key<*> get() = ContinuationInterceptor.Key
 }
 
-// Dispatcher handles use the existing scheduler; these views do not change it.
-public val CoroutineDispatcher.immediate: CoroutineDispatcher
-    get() = this
+// KUU-2687: dispatcher views resolve in the runtime — the returned handle is a
+// real dispatcher object (limited-view gate, named wrapper, or the immediate
+// peer) rather than the bare scheduler tag.
+@KsSymbolName("__kk_dispatcher_limited_parallelism")
+internal external fun __dispatcherLimitedParallelism(
+    dispatcher: CoroutineDispatcher, parallelism: Int, name: String?
+): CoroutineDispatcher
 
-public fun CoroutineDispatcher.limitedParallelism(parallelism: Int): CoroutineDispatcher {
+@KsSymbolName("__kk_dispatcher_is_unconfined")
+internal external fun __dispatcherIsUnconfined(dispatcher: CoroutineDispatcher): Boolean
+
+public fun CoroutineDispatcher.limitedParallelism(
+    parallelism: Int, name: String? = null
+): CoroutineDispatcher {
     require(parallelism > 0) { "Expected positive parallelism level, but got $parallelism" }
-    return this
+    if (__dispatcherIsUnconfined(this)) {
+        throw UnsupportedOperationException("limitedParallelism is not supported for Dispatchers.Unconfined")
+    }
+    return __dispatcherLimitedParallelism(this, parallelism, name)
 }
