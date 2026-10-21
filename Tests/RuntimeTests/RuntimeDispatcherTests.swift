@@ -516,10 +516,10 @@ struct RuntimeDispatcherTests {
         RuntimeDispatcher.current = immediate
         let ran = AtomicBox(false)
         let ranInlineThread = AtomicBox(false)
-        let callingThread = mach_thread_self()
+        let callingThread = ObjectIdentifier(Thread.current)
         immediate.dispatchAsync {
             ran.value = true
-            ranInlineThread.value = mach_thread_self() == callingThread
+            ranInlineThread.value = ObjectIdentifier(Thread.current) == callingThread
         }
         #expect(ran.value, "immediate dispatch must run inline on its thread")
         #expect(ranInlineThread.value)
