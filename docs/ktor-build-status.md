@@ -161,19 +161,20 @@ cancellation cause、ByteString peek、unsafe buffer read を扱い、各最適�
 `ktor-io-consumer-111c5807/out/` に残る。既知の fresh `.kklib` を使うときは
 `KTOR_IO_STDLIB_KKLIB=/path/to/KSwiftKStdlib.kklib` を指定できる。
 
-実行結果: `swift build` と fresh stdlib compile は成功。2026-10-16 の pinned 63-file library compile は
-O0/O2 とも `KSWIFTK` error 102件、warning 8件で停止し、library artifact は生成されなかった。
-主な残件は `PosixErrors.kt` の errno 定数、`ByteOrderNative.kt` の `Platform`、POSIX `memcpy` / pointer
-overload、`CharsetDarwin.kt` の Foundation 型・関数と型推論である。よってこの実行では consumer compile・
-link・run、stdout 一致、非ハングは未検証である。
+実行結果: pinned 63-file library compile、consumer compile・link・run、stdout の期待バイト列との
+完全比較が O0/O2 ともに PASS する。KUU-2403（PR #9197）、KUU-2415（PR #9278 / #9288）、
+KUU-2404（PR #9196）、KUU-2339（PR #9163）はすべて完了済みで、これらを前提に残っていた
+`io.ktor.utils.io.pool.DefaultPool` の expect/actual 重複 metadata（KSWIFTK-LIB-0024）と、
+bundled `kotlinx.io` クラスを source が shadow した際に imported member が source class に
+付け替わる問題（KSWIFTK-SEMA-0014/0024 の多発）も解消した。
 
-残る blocker は [KUU-2403](https://linear.app/kuu/issue/KUU-2403)（In Progress、PR #9197）と
-[KUU-2415](https://linear.app/kuu/issue/KUU-2415)（expect class を actual typealias で実装した際の
-重複宣言・member lookup）で、どちらもこの source set の library compile を妨げる。
-KUU-2404 と KUU-2339 はそれぞれ PR #9196 / #9163 で完了している。
+なお `Scripts/ktor_build.sh` の kotlinx_io プローブ（上流 kotlinx-io 0.9.1 を bundled stdlib 上に
+再コンパイルする）は依然失敗する。bundled stdlib に vendored された `kotlinx.io` と上流 source が
+同名シグネチャで衝突し、call 解決が imported 側候補を選ぶ残件が残っている。
 
 ## まとめ
 
-Ktor が今すぐビルドできる状態にはなっていない。今回直したのは実在する Kotlin コードで踏む
-コンパイラのバグ（false positive）で、Ktor 本体をビルド可能にするにはさらに大きな作業
-（kotlinx.io / kotlinx.serialization / atomicfu / kotlinx.coroutines のAPI実装）が必要になる。
+pinned `ktor-io` は consumer まで含めて O0/O2 で動作する。一方で `ktor_build.sh` がプローブする
+kotlinx_io / ktor_utils / ktor_http の standalone コンパイルは依然失敗し、Ktor 全体をビルド可能にするには
+さらに大きな作業（kotlinx.io の source-vs-imported shadow 解決、依存モジュール未リンク由来の
+unresolved reference、kotlinx.serialization / atomicfu / kotlinx.coroutines のAPI実装）が必要になる。

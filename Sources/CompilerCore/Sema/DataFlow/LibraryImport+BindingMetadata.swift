@@ -155,7 +155,19 @@ extension DataFlowSemaPhase {
 
         let ownerFQName = Array(record.fqName.dropLast())
         let ownerCandidates = symbols.lookupAll(fqName: ownerFQName).compactMap { symbols.symbol($0) }
-        if let ownerSymbol = ownerCandidates.first(where: { isNominalLayoutTargetSymbol($0.kind) })?.id {
+        let nominalOwners = ownerCandidates.filter { isNominalLayoutTargetSymbol($0.kind) }
+        let memberIsImported = symbols.symbol(symbol)?.flags.contains(.importedLibrary) == true
+        let ownerSymbol: SymbolID?
+        if memberIsImported {
+            // A source declaration can shadow an imported nominal at the same
+            // fqName. Imported members still belong to the imported nominal;
+            // attaching them to the shadowing source class would merge two
+            // different member tables under one owner.
+            ownerSymbol = nominalOwners.first(where: { $0.flags.contains(.importedLibrary) })?.id
+        } else {
+            ownerSymbol = nominalOwners.first?.id
+        }
+        if let ownerSymbol {
             symbols.setParentSymbol(ownerSymbol, for: symbol)
         } else if (record.receiverOwnerFQName != nil || record.propertyReceiverTypeSignature != nil
                    || isNominalLayoutTargetSymbol(record.kind)),

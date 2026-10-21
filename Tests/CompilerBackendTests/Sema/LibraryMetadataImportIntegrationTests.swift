@@ -100,6 +100,145 @@ struct LibraryMetadataImportIntegrationTests {
     }
 
     @Test
+    func testMatchedExpectActualClassEmitsSingleNominalMetadata() throws {
+        let librarySource = """
+        package test.pool
+        public interface ObjectPool<T : Any> {
+            public fun borrow(): T
+        }
+        public expect abstract class DefaultPool<T : Any>(capacity: Int) : ObjectPool<T> {
+            public abstract override fun borrow(): T
+        }
+        public actual abstract class DefaultPool<T : Any> actual constructor(
+            capacity: Int
+        ) : ObjectPool<T> {
+            public actual abstract override fun borrow(): T
+        }
+        """
+        let libraryBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .path
+        let libraryPath = libraryBase + ".kklib"
+        defer { try? FileManager.default.removeItem(atPath: libraryPath) }
+
+        try withTemporaryFile(contents: librarySource) { librarySourcePath in
+            let libraryCtx = CompilerTestSupport.makeCompilationContext(
+                inputs: [librarySourcePath],
+                moduleName: "PoolLib",
+                emit: .library,
+                outputPath: libraryBase,
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            try CompilerTestSupport.runToKIR(libraryCtx)
+            try LoweringPhase().run(libraryCtx)
+            try CodegenPhase().run(libraryCtx)
+
+            let appSource = """
+            package consumer
+            import test.pool.DefaultPool
+            fun use(pool: DefaultPool<Int>) = pool
+            """
+            try withTemporaryFile(contents: appSource) { appPath in
+                let appCtx = CompilerTestSupport.makeCompilationContext(
+                    inputs: [appPath],
+                    moduleName: "PoolConsumer",
+                    emit: .kirDump,
+                    searchPaths: [libraryPath],
+                    includeStdlib: false,
+                    allowDefaultStdlibLibrary: false
+                )
+                try CompilerTestSupport.runSema(appCtx)
+
+                #expect(!appCtx.diagnostics.hasError, "Unexpected diagnostics: \(appCtx.diagnostics.diagnostics)")
+                #expect(!appCtx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-LIB-0024" })
+                let sema = try #require(appCtx.sema)
+                let nominalCount = sema.symbols.lookupAll(fqName: [
+                    appCtx.interner.intern("test"), appCtx.interner.intern("pool"),
+                    appCtx.interner.intern("DefaultPool"),
+                ]).compactMap { sema.symbols.symbol($0) }
+                    .filter { $0.kind == .class && $0.flags.contains(.importedLibrary) }
+                #expect(nominalCount.count == 1)
+                #expect(nominalCount.first?.flags.contains(.actualDeclaration) == true)
+            }
+        }
+    }
+
+    @Test
+    func testImportedMemberDoesNotAttachToShadowingSourceClass() throws {
+        let librarySource = """
+        package shadow.pool
+        public class Node
+        public open class Box {
+            public var head: Node? = null
+        }
+        """
+        let libraryBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .path
+        let libraryPath = libraryBase + ".kklib"
+        defer { try? FileManager.default.removeItem(atPath: libraryPath) }
+
+        try withTemporaryFile(contents: librarySource) { librarySourcePath in
+            let libraryCtx = CompilerTestSupport.makeCompilationContext(
+                inputs: [librarySourcePath],
+                moduleName: "ShadowLib",
+                emit: .library,
+                outputPath: libraryBase,
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            try CompilerTestSupport.runToKIR(libraryCtx)
+            try LoweringPhase().run(libraryCtx)
+            try CodegenPhase().run(libraryCtx)
+
+            // The source module redeclares `shadow.pool.Box`, shadowing the
+            // imported class. The imported `head: Node?` member must stay
+            // attached to the imported Box — if it were reparented to the
+            // source Box, write lookup would merge `Node?` with `Int` and
+            // reject `head = 1` as an immutable-property assignment.
+            let appSource = """
+            package shadow.pool
+            public open class Box {
+                public var head: Int = 0
+            }
+            public class Sub : Box() {
+                public fun bump() {
+                    head = 1
+                }
+            }
+            """
+            try withTemporaryFile(contents: appSource) { appPath in
+                let appCtx = CompilerTestSupport.makeCompilationContext(
+                    inputs: [appPath],
+                    moduleName: "ShadowConsumer",
+                    emit: .kirDump,
+                    searchPaths: [libraryPath],
+                    includeStdlib: false,
+                    allowDefaultStdlibLibrary: false
+                )
+                try CompilerTestSupport.runSema(appCtx)
+
+                #expect(!appCtx.diagnostics.hasError, "Unexpected diagnostics: \(appCtx.diagnostics.diagnostics)")
+                let sema = try #require(appCtx.sema)
+                let interner = appCtx.interner
+                let heads = sema.symbols.lookupAll(fqName: [
+                    interner.intern("shadow"), interner.intern("pool"),
+                    interner.intern("Box"), interner.intern("head"),
+                ]).compactMap { sema.symbols.symbol($0) }
+                let sourceBox = try #require(sema.symbols.lookupAll(fqName: [
+                    interner.intern("shadow"), interner.intern("pool"), interner.intern("Box"),
+                ]).first { symbolID in
+                    sema.symbols.symbol(symbolID)?.flags.contains(.importedLibrary) == false
+                })
+                for head in heads where head.flags.contains(.importedLibrary) {
+                    #expect(sema.symbols.parentSymbol(for: head.id) != sourceBox)
+                }
+            }
+        }
+    }
+
+    @Test
     func testShortTargetMetadataSurvivesKklibImport() throws {
         let librarySource = """
         package targetprobe
