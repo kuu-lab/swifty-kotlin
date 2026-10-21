@@ -137,7 +137,7 @@ extension JVMFunctionBuilder {
         return try jdkCall(method.owner, method.name, [], method.result, receiver: object, interface: method.isInterface, resolved: program.expressionType(id))
     }
 
-    func textLibraryCall(_ args: [CallArgument], receiver: ExprID? = nil, id: ExprID) throws -> JVMIntrinsicResult? {
+    func textLibraryCall(_ args: [CallArgument], receiver: ExprID? = nil, receiverValue: JVMValue? = nil, id: ExprID, expectedResult: JVMValueType? = nil) throws -> JVMIntrinsicResult? {
         guard let binding = program.sema.bindings.callBinding(for: id),
               program.inlineDeclarations[binding.chosenCallee] == nil,
               let entry = program.textLibraryMethods[binding.chosenCallee] else { return nil }
@@ -151,7 +151,7 @@ extension JVMFunctionBuilder {
            !kotlinBuilderOperations.contains(entry.adaptation ?? "") {
             throw fail("Named arguments are prohibited for Java StringBuilder constructors and methods.", id)
         }
-        let explicit = try method.isConstructor || method.isStatic && entry.extensionReceiver == nil ? nil : receiver.map(requireValue)
+        let explicit = try method.isConstructor || method.isStatic && entry.extensionReceiver == nil ? nil : receiverValue ?? receiver.map(requireValue)
         let implicit = implicitExtensionReceiver(id)
         let object = try method.isConstructor || method.isStatic && entry.extensionReceiver == nil ? nil : explicit ?? (entry.extensionReceiver != nil ? implicit : instance(id))
         let parameters = Array(method.parameters.dropFirst(entry.extensionReceiver == nil ? 0 : 1))
@@ -216,11 +216,11 @@ extension JVMFunctionBuilder {
             guard !usesDefaults else { throw fail("Unsupported JVM library suspend defaults.", id) }
             var converted: [JVMValue] = []
             for (argument, parameter) in zip(actual, params) { converted.append(try convert(argument, to: parameter)) }
-            let resultType = try program.expressionType(id)
+            let resultType = try expectedResult ?? program.expressionType(id)
             let result = resultType == .unit ? nil : try value(resultType)
             instructions.append(.foreignCall(method, receiver: method.isStatic ? nil : object, arguments: converted, result: result))
             return JVMIntrinsicResult(value: result)
         }
-        return JVMIntrinsicResult(value: try jdkCall(method.owner, method.name + (usesDefaults ? "$default" : ""), params, method.result, receiver: method.isStatic || usesDefaults ? nil : object, arguments: actual, interface: method.isInterface && !usesDefaults, resolved: program.expressionType(id)))
+        return JVMIntrinsicResult(value: try jdkCall(method.owner, method.name + (usesDefaults ? "$default" : ""), params, method.result, receiver: method.isStatic || usesDefaults ? nil : object, arguments: actual, interface: method.isInterface && !usesDefaults, resolved: expectedResult ?? program.expressionType(id)))
     }
 }
