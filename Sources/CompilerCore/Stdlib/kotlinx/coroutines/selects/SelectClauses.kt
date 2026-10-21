@@ -8,13 +8,6 @@ import kotlinx.coroutines.channels.ChannelResult
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.tryLock
-
-@KsSymbolName("__kk_select_try_receive")
-internal external fun __kkSelectTryReceive(channel: Channel<*>): ChannelResult<Any?>
-
-@KsSymbolName("kk_channel_try_send")
-internal external fun __kkSelectTrySend(channel: Any, value: Any?): Int
 
 @KsSymbolName("kk_job_is_completed")
 internal external fun __kkSelectIsCompleted(job: Any): Int
@@ -22,29 +15,33 @@ internal external fun __kkSelectIsCompleted(job: Any): Int
 @KsSymbolName("__kk_select_start_job")
 internal external fun __kkSelectStart(job: Any): Boolean
 
-internal class SelectClause0Impl(val ready: () -> Boolean) : SelectClause0 {
+// `ready` receives the clause registration token minted by
+// SelectBuilder.registerClause; channel and mutex polls commit their
+// outcome against that token so the same rendezvous cannot feed two
+// clauses.
+internal class SelectClause0Impl(val ready: (Any) -> Boolean) : SelectClause0 {
     override fun <R> registerSelectClause0(select: SelectBuilder<R>, block: suspend () -> R) {
         select.registerClause(ready, block)
     }
 }
 
-internal class SelectClause1Impl<Q>(val ready: () -> Boolean, val value: suspend () -> Q) : SelectClause1<Q> {
+internal class SelectClause1Impl<Q>(val ready: (Any) -> Boolean, val value: suspend () -> Q) : SelectClause1<Q> {
     override fun <R> registerSelectClause1(select: SelectBuilder<R>, block: suspend (Q) -> R) {
         select.registerClause(ready) { block(value()) }
     }
 }
 
-internal class SelectClause2Impl<P, Q>(val ready: (P) -> Boolean, val value: (P) -> Q) : SelectClause2<P, Q> {
+internal class SelectClause2Impl<P, Q>(val ready: (Any, P) -> Boolean, val value: (P) -> Q) : SelectClause2<P, Q> {
     override fun <R> registerSelectClause2(select: SelectBuilder<R>, param: P, block: suspend (Q) -> R) {
-        select.registerClause({ ready(param) }) { block(value(param)) }
+        select.registerClause({ token -> ready(token, param) }) { block(value(param)) }
     }
 }
 
 public val ReceiveChannel<*>.onReceive: SelectClause1<Any?>
     get() {
         var result: ChannelResult<Any?>? = null
-        return SelectClause1Impl({
-            val polled = __kkSelectTryReceive(this)
+        return SelectClause1Impl({ token ->
+            val polled = __kkSelectPollReceive(this, token)
             result = polled
             polled.isSuccess || polled.isClosed
         }, { result!!.getOrThrow() })
@@ -53,8 +50,8 @@ public val ReceiveChannel<*>.onReceive: SelectClause1<Any?>
 public val ReceiveChannel<*>.onReceiveCatching: SelectClause1<ChannelResult<Any?>>
     get() {
         var result: ChannelResult<Any?>? = null
-        return SelectClause1Impl({
-            val polled = __kkSelectTryReceive(this)
+        return SelectClause1Impl({ token ->
+            val polled = __kkSelectPollReceive(this, token)
             result = polled
             polled.isSuccess || polled.isClosed
         }, { result!! })
@@ -62,8 +59,8 @@ public val ReceiveChannel<*>.onReceiveCatching: SelectClause1<ChannelResult<Any?
 
 public fun <E, R> ReceiveChannel<E>.onReceive(block: suspend (E) -> R) {
     var result: ChannelResult<Any?>? = null
-    currentSelectBuilder<R>().registerClause({
-        val polled = __kkSelectTryReceive(this)
+    currentSelectBuilder<R>().registerClause({ token ->
+        val polled = __kkSelectPollReceive(this, token)
         result = polled
         polled.isSuccess || polled.isClosed
     }) { block(result!!.getOrThrow() as E) }
@@ -72,39 +69,39 @@ public fun <E, R> ReceiveChannel<E>.onReceive(block: suspend (E) -> R) {
 @Suppress("UNCHECKED_CAST")
 public fun <E, R> ReceiveChannel<E>.onReceiveCatching(block: suspend (ChannelResult<E>) -> R) {
     var result: ChannelResult<Any?>? = null
-    currentSelectBuilder<R>().registerClause({
-        val polled = __kkSelectTryReceive(this)
+    currentSelectBuilder<R>().registerClause({ token ->
+        val polled = __kkSelectPollReceive(this, token)
         result = polled
         polled.isSuccess || polled.isClosed
     }) { block(result!! as ChannelResult<E>) }
 }
 
 public fun <E, R> Channel<E>.onSend(element: E, block: suspend (Channel<E>) -> R) {
-    currentSelectBuilder<R>().registerClause({
-        val status = __kkSelectTrySend(this, element)
+    currentSelectBuilder<R>().registerClause({ token ->
+        val status = __kkSelectPollSend(this, token, element)
         if (status == 1 || status == 2) throw IllegalStateException("Channel was closed")
         status == 0
     }) { block(this) }
 }
 
 public fun <E, R> SendChannel<E>.onSend(element: E, block: suspend (SendChannel<E>) -> R) {
-    currentSelectBuilder<R>().registerClause({
-        val status = __kkSelectTrySend(this, element)
+    currentSelectBuilder<R>().registerClause({ token ->
+        val status = __kkSelectPollSend(this, token, element)
         if (status == 1 || status == 2) throw IllegalStateException("Channel was closed")
         status == 0
     }) { block(this) }
 }
 
 public val Channel<*>.onSend: SelectClause2<Any?, Channel<*>>
-    get() = SelectClause2Impl({ value ->
-        val status = __kkSelectTrySend(this, value)
+    get() = SelectClause2Impl({ token, value ->
+        val status = __kkSelectPollSend(this, token, value)
         if (status == 1 || status == 2) throw IllegalStateException("Channel was closed")
         status == 0
     }, { this })
 
 public val SendChannel<*>.onSend: SelectClause2<Any?, SendChannel<*>>
-    get() = SelectClause2Impl({ value ->
-        val status = __kkSelectTrySend(this, value)
+    get() = SelectClause2Impl({ token, value ->
+        val status = __kkSelectPollSend(this, token, value)
         if (status == 1 || status == 2) throw IllegalStateException("Channel was closed")
         status == 0
     }, { this })
@@ -129,7 +126,10 @@ public fun <R> Job.onJoin(block: suspend () -> R) {
 }
 
 public val Mutex.onLock: SelectClause2<Any?, Mutex>
-    get() = SelectClause2Impl({ tryLock() }, { this })
+    get() = SelectClause2Impl({ token, owner -> selectLockReady(__kkSelectPollLock(this, token, owner)) }, { this })
+
 public fun <R> Mutex.onLock(owner: Any? = null, block: suspend (Mutex) -> R) {
-    currentSelectBuilder<R>().registerClause({ tryLock() }) { block(this) }
+    currentSelectBuilder<R>().registerClause(
+        { token -> selectLockReady(__kkSelectPollLock(this, token, owner)) }
+    ) { block(this) }
 }

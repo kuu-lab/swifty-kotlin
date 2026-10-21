@@ -1076,6 +1076,94 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             isThrowing: false
         ),
+        // KUU-2686: atomic select state/clause handles. Reason code:
+        // GC・continuation — selection state lives behind the runtime's
+        // claim lock and channel/mutex waiter queues, which Kotlin source
+        // cannot reach.
+        RuntimeABIFunctionSpec(
+            name: "__kk_select_state_new",
+            parameters: [],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_select_clause_new",
+            parameters: [RuntimeABIParameter(name: "state", type: .intptr)],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_select_try_select",
+            parameters: [RuntimeABIParameter(name: "clause", type: .intptr)],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_select_try_select_result",
+            parameters: [
+                RuntimeABIParameter(name: "clause", type: .intptr),
+                RuntimeABIParameter(name: "result", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_select_mark_selected",
+            parameters: [RuntimeABIParameter(name: "state", type: .intptr)],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_select_selected_clause",
+            parameters: [RuntimeABIParameter(name: "state", type: .intptr)],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_select_state_finish",
+            parameters: [RuntimeABIParameter(name: "state", type: .intptr)],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_select_poll_receive",
+            parameters: [
+                RuntimeABIParameter(name: "handle", type: .intptr),
+                RuntimeABIParameter(name: "clause", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_select_poll_send",
+            parameters: [
+                RuntimeABIParameter(name: "handle", type: .intptr),
+                RuntimeABIParameter(name: "clause", type: .intptr),
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_select_poll_lock",
+            parameters: [
+                RuntimeABIParameter(name: "handle", type: .intptr),
+                RuntimeABIParameter(name: "clause", type: .intptr),
+                RuntimeABIParameter(name: "owner", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_channel_try_send",
             parameters: [
@@ -1895,6 +1983,19 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         bridgeMutexTryLockSpec,
+        // KUU-2686: owner-aware tryLock for `Mutex.tryLock(owner)` and
+        // `select { onLock(owner) }`. Reason code: GC・continuation — the
+        // owner token lives in the runtime mutex handle's waiter state.
+        RuntimeABIFunctionSpec(
+            name: "__kk_mutex_tryLock_owner",
+            parameters: [
+                RuntimeABIParameter(name: "handle", type: .intptr),
+                RuntimeABIParameter(name: "owner", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
         bridgeMutexIsLockedSpec,
         bridgeMutexHoldsLockSpec,
         // KSP-677: Lock.withLock is Kotlin source delegating to this demoted
