@@ -133,6 +133,11 @@ public func kk_coroutine_call_direct_suspend(
     if let outcome = completion.markReturned() {
         if outcome.thrown != 0 {
             // The state machine reads the thrown exception after a resume.
+            // The child already failed inside this call, so mark the delivery
+            // inline: a suspend-entry loop then re-enters the machine within
+            // this burst and the catch label runs before queued siblings can
+            // drain state the failure was meant to discard (KUU-2724).
+            callerState.markInlineExceptionalDelivery()
             callerState.signalResume()
             return suspendedToken
         }

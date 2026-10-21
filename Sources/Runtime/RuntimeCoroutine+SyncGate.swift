@@ -152,6 +152,17 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// True if signalResume() was called before any continuation or wait was
     /// installed (edge case: timer fires immediately).
     private var resumeSignalPending = false
+    /// KUU-2724: a suspend-point callee already completed exceptionally before
+    /// the caller's state machine reached the suspend return -- e.g. a direct
+    /// suspend call whose child finished thrown inside
+    /// `kk_coroutine_call_direct_suspend`, or an await on an already-failed
+    /// task. The suspend-entry loop consumes this marker and re-enters the
+    /// machine inline so the failure lands on the catch label inside the same
+    /// burst; an enqueued resume would let already-queued siblings observe and
+    /// drain state the failure was meant to discard. `signalResume()` still
+    /// runs alongside it, so drivers without the inline check keep the
+    /// enqueued resume.
+    private var inlineExceptionalDeliveryPending = false
     private var cancellationShieldDepth = 0
 
     // CORO-003: Task-local continuation state registry (replaces TLS).
@@ -419,6 +430,33 @@ final class RuntimeContinuationState: @unchecked Sendable {
             return false
         }
         resumeSignalPending = false
+        inlineExceptionalDeliveryPending = false
+        hasResumed = false
+        return true
+    }
+
+    /// Mark that the pending resume signal carries an already-known failure
+    /// (see `inlineExceptionalDeliveryPending`). Callers still invoke
+    /// `signalResume()` so continuation drivers without the inline check fall
+    /// back to an ordinary enqueued resume.
+    func markInlineExceptionalDelivery() {
+        stateLock.lock()
+        inlineExceptionalDeliveryPending = true
+        stateLock.unlock()
+    }
+
+    /// The suspend-entry loop consumes the inline marker and re-enters the
+    /// state machine so the failure reaches the catch label inside the same
+    /// burst (KUU-2724). Clears the pending signal/one-shot guard the same way
+    /// `consumePendingExceptionalResume` does.
+    func consumeInlineExceptionalDelivery() -> Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        guard inlineExceptionalDeliveryPending else {
+            return false
+        }
+        inlineExceptionalDeliveryPending = false
+        resumeSignalPending = false
         hasResumed = false
         return true
     }
@@ -653,6 +691,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
         resumeContinuation = nil
         fallbackSemaphore = nil
         resumeSignalPending = false
+        inlineExceptionalDeliveryPending = false
         hasResumed = false
         stateLock.unlock()
     }
@@ -997,7 +1036,10 @@ final class RuntimeAsyncTask: @unchecked Sendable {
             if thrown != 0, let callerState {
                 // Already completed exceptionally: resume the caller's continuation
                 // with the exception and report suspension so the state machine
-                // throws after it returns.
+                // throws after it returns. Marked inline (KUU-2724): the failure
+                // is already known, so the burst loop delivers it to the catch
+                // label without an event-loop turn.
+                callerState.markInlineExceptionalDelivery()
                 _ = callerState.resume(withException: thrown)
                 return .suspended
             }

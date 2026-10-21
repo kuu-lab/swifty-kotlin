@@ -283,6 +283,7 @@ public func kk_kxmini_async_await(_ handle: Int, _ continuation: Int) -> Int {
             if snapshot.completed {
                 if snapshot.exception != 0 {
                     callerState.thrownException = snapshot.exception
+                    callerState.markInlineExceptionalDelivery()
                     callerState.signalResume()
                     return Int(bitPattern: kk_coroutine_suspended())
                 }
@@ -325,6 +326,7 @@ public func kk_kxmini_async_await(_ handle: Int, _ continuation: Int) -> Int {
                 // the same protocol `kk_coroutine_call_direct_suspend` uses. Returning
                 // the (zero) result here instead would swallow the child exception.
                 callerState.thrownException = thrown
+                callerState.markInlineExceptionalDelivery()
                 callerState.signalResume()
                 return Int(bitPattern: kk_coroutine_suspended())
             }
