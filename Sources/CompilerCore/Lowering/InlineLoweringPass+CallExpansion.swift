@@ -291,7 +291,10 @@ extension InlineLoweringPass {
                         labels: &labels,
                         expansionBudget: budget
                     ) {
-                        let lambdaExpansion = rawLambdaExpansion.remappingExternalLoopTargets(using: labelRemap)
+                        // External loop markers name loops of the lambda's lexical scope, never
+                        // of the inline callee, so the callee's `labelRemap` must not touch them
+                        // (its local labels share the same numeric space).
+                        let lambdaExpansion = rawLambdaExpansion
                         hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
                         hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
                         appendInlinedLambdaExpansion(
@@ -369,7 +372,10 @@ extension InlineLoweringPass {
                         labels: &labels,
                         expansionBudget: budget
                     ) {
-                        let lambdaExpansion = rawLambdaExpansion.remappingExternalLoopTargets(using: labelRemap)
+                        // External loop markers name loops of the lambda's lexical scope, never
+                        // of the inline callee, so the callee's `labelRemap` must not touch them
+                        // (its local labels share the same numeric space).
+                        let lambdaExpansion = rawLambdaExpansion
                         hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
                         hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
                         appendInlinedLambdaExpansion(
