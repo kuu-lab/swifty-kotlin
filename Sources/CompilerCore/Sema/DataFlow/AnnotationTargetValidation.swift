@@ -4,6 +4,7 @@ private struct AnnotationTargetResolutionContext {
     let types: TypeSystem
     let propertyValidator: DeclarationPositionValidator
     let bindings: BindingTable
+    let sourceManager: SourceManager?
     var hasInferredBodies = false
     var enclosingFQName: [InternedString] = []
     var lexicalEnclosingFQNames: [[InternedString]] = []
@@ -110,7 +111,8 @@ extension DataFlowSemaPhase {
     /// target errors from a nominal that was already registered in that probe.
     func validateDeferredAnnotationTargets(
         ast: ASTModule, symbols: SymbolTable, types: TypeSystem, bindings: BindingTable,
-        diagnostics: DiagnosticEngine, interner: StringInterner
+        diagnostics: DiagnosticEngine, interner: StringInterner,
+        sourceManager: SourceManager? = nil
     ) {
         let pending = bindings.takePendingAnnotationTargets()
         guard !pending.isEmpty else { return }
@@ -121,6 +123,7 @@ extension DataFlowSemaPhase {
                 types: types,
                 propertyValidator: DeclarationPositionValidator(astArena: ast.arena, interner: interner, diagnostics: nil),
                 bindings: bindings,
+                sourceManager: sourceManager,
                 hasInferredBodies: true,
                 lexicalEnclosingFQNames: pending[declID] ?? []
             )
@@ -139,12 +142,14 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         bindings: BindingTable,
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        sourceManager: SourceManager? = nil
     ) {
         let resolutionContext = AnnotationTargetResolutionContext(
             types: types,
             propertyValidator: DeclarationPositionValidator(astArena: ast.arena, interner: interner, diagnostics: nil),
-            bindings: bindings
+            bindings: bindings,
+            sourceManager: sourceManager
         )
         let filesByID = Dictionary(uniqueKeysWithValues: ast.sortedFiles.map { ($0.fileID.rawValue, $0) })
 
@@ -176,21 +181,36 @@ extension DataFlowSemaPhase {
 
         validateExpressionAnnotationTargets(
             ast: ast, symbols: symbols, types: types, bindings: bindings,
-            diagnostics: diagnostics, interner: interner, filesByID: filesByID
+            diagnostics: diagnostics, interner: interner, filesByID: filesByID,
+            sourceManager: sourceManager
         )
     }
 
     private func validateExpressionAnnotationTargets(
         ast: ASTModule, symbols: SymbolTable, types: TypeSystem, bindings: BindingTable,
-        diagnostics: DiagnosticEngine, interner: StringInterner, filesByID: [Int32: ASTFile]
+        diagnostics: DiagnosticEngine, interner: StringInterner, filesByID: [Int32: ASTFile],
+        sourceManager: SourceManager?
     ) {
         let annotationsByExpr = ast.arena.annotatedExpressions
-        guard !annotationsByExpr.isEmpty else { return }
         let owners = ast.arena.decls.enumerated().compactMap { index, decl -> (SourceRange, [InternedString])? in
             guard let symbol = bindings.declSymbols[DeclID(rawValue: Int32(index))],
                   let owner = symbols.symbol(symbol) else { return nil }
             return (decl.range, owner.fqName)
         }
+        // Type references embedded in body expressions (local declarations,
+        // casts, explicit type arguments, object-literal supertypes, local
+        // functions) are not reachable from the declaration walk; validate
+        // their annotations with the same enclosing-decl context.
+        validateBodyEmbeddedTypeAnnotations(
+            ast: ast, owners: owners, types: types, bindings: bindings,
+            symbols: symbols, diagnostics: diagnostics, interner: interner,
+            filesByID: filesByID, sourceManager: sourceManager
+        )
+        guard !annotationsByExpr.isEmpty else { return }
+        // Compound-assignment and inc/dec desugars mirror the leading
+        // annotation onto both the operand and the rewritten assignment
+        // expression; validate each source annotation occurrence once.
+        var seenAnnotationUsages: Set<String> = []
         for exprID in annotationsByExpr.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
             guard let range = ast.arena.exprRange(exprID), let file = ast.file(for: range.start.file) else { continue }
             let enclosingOwners = owners.filter { $0.0.contains(range) }.sorted {
@@ -200,6 +220,7 @@ extension DataFlowSemaPhase {
                 types: types,
                 propertyValidator: DeclarationPositionValidator(astArena: ast.arena, interner: interner, diagnostics: nil),
                 bindings: bindings,
+                sourceManager: sourceManager,
                 enclosingFQName: enclosingOwners.first ?? [],
                 lexicalEnclosingFQNames: enclosingOwners
             )
@@ -210,6 +231,9 @@ extension DataFlowSemaPhase {
                 isFunctionLiteral = ast.arena.isAnonymousFunction(exprID)
             }
             for annotation in annotationsByExpr[exprID] ?? [] {
+                if let usageID = annotation.usageID, !seenAnnotationUsages.insert(usageID).inserted {
+                    continue
+                }
                 // Register before body inference and worker creation, retaining
                 // the existing diagnostic-name and severity suppression policy.
                 if let symbolID = resolveAnnotationSymbol(
@@ -261,6 +285,85 @@ extension DataFlowSemaPhase {
             if paren == 0 { break }
         }
         return concatenated
+    }
+
+    private func validateBodyEmbeddedTypeAnnotations(
+        ast: ASTModule,
+        owners: [(SourceRange, [InternedString])],
+        types: TypeSystem,
+        bindings: BindingTable,
+        symbols: SymbolTable,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        filesByID: [Int32: ASTFile],
+        sourceManager: SourceManager?
+    ) {
+        for (index, expr) in ast.arena.exprs.enumerated() {
+            let exprID = ExprID(rawValue: Int32(index))
+            var typeRefs: [TypeRefID] = []
+            switch expr {
+            case let .localDecl(_, _, typeAnnotation, _, _, _, _):
+                if let typeAnnotation {
+                    typeRefs.append(typeAnnotation)
+                }
+            case let .call(_, typeArgs, _, _),
+                 let .memberCall(_, _, typeArgs, _, _),
+                 let .safeMemberCall(_, _, typeArgs, _, _):
+                typeRefs.append(contentsOf: typeArgs)
+            case let .isCheck(_, type, _, _):
+                typeRefs.append(type)
+            case let .asCast(_, type, _, _):
+                typeRefs.append(type)
+            case let .objectLiteral(superTypes, _, _):
+                typeRefs.append(contentsOf: superTypes)
+            case let .localFunDecl(_, receiverType, valueParams, returnType, _, _, _, typeParams):
+                if let receiverType {
+                    typeRefs.append(receiverType)
+                }
+                typeRefs.append(contentsOf: valueParams.compactMap(\.type))
+                if let returnType {
+                    typeRefs.append(returnType)
+                }
+                for typeParam in typeParams {
+                    typeRefs.append(contentsOf: typeParam.upperBounds)
+                }
+            case let .tryExpr(_, catchClauses, _, _):
+                typeRefs.append(contentsOf: catchClauses.compactMap(\.paramType))
+            case .callableRef:
+                if let typeRef = ast.arena.callableRefReceiverTypeRef(for: exprID) {
+                    typeRefs.append(typeRef)
+                }
+            default:
+                break
+            }
+            guard !typeRefs.isEmpty,
+                  let range = ast.arena.exprRange(exprID),
+                  let file = ast.file(for: range.start.file) else { continue }
+            let enclosingOwners = owners.filter { $0.0.contains(range) }.sorted {
+                ($0.0.end.offset - $0.0.start.offset) < ($1.0.end.offset - $1.0.start.offset)
+            }.map { $0.1 }
+            let resolutionContext = AnnotationTargetResolutionContext(
+                types: types,
+                propertyValidator: DeclarationPositionValidator(astArena: ast.arena, interner: interner, diagnostics: nil),
+                bindings: bindings,
+                sourceManager: sourceManager,
+                enclosingFQName: enclosingOwners.first ?? [],
+                lexicalEnclosingFQNames: enclosingOwners
+            )
+            for typeRef in typeRefs {
+                validateTypeAnnotationTargets(
+                    typeRefID: typeRef,
+                    ownerRange: range,
+                    file: file,
+                    ast: ast,
+                    symbols: symbols,
+                    diagnostics: diagnostics,
+                    interner: interner,
+                    filesByID: filesByID,
+                    resolutionContext: resolutionContext
+                )
+            }
+        }
     }
 
     private func validateFileAnnotationTargets(
@@ -618,6 +721,27 @@ extension DataFlowSemaPhase {
         ), let annotationSymbol = symbols.symbol(annotationSymbolID),
               annotationSymbol.kind == .annotationClass
         else {
+            // Expression/type positions became syntactically admissible in the
+            // JVM grammar gate, so an unresolvable name here must not compile
+            // silently (kotlinc reports "unresolved reference"). Declaration
+            // positions keep their existing JVM codegen check. Two tolerances
+            // remain: bundled stdlib sources annotate types with names their
+            // own surface omits (e.g. the JVM stubs use @UnsafeVariance
+            // without declaring it), and built-in names that the compiler
+            // recognises by name alone (kotlin.Suppress on JVM).
+            switch site {
+            case .expression, .type:
+                if resolutionContext.sourceManager?.origin(of: file.fileID)?.isBundledStdlib != true,
+                   !KnownCompilerAnnotation.isKnownBuiltInAnnotation(annotation.name) {
+                    diagnostics.error(
+                        "KSWIFTK-SEMA-0022",
+                        "Unresolved reference '\(annotation.name)'.",
+                        range: annotation.constructionTokens?.first?.range ?? ownerRange
+                    )
+                }
+            default:
+                break
+            }
             return
         }
 

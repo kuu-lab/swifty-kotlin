@@ -159,6 +159,10 @@ extension JVMBackendTests {
         "fun main() { for (i in 1..3 step 2) println(i) }",
         "fun main() { println(1) garbage }",
         "fun main() { var x = 1; @Missing x += 2 }",
+        "fun main() { var x = 1; @Missing x = 2 }",
+        "fun main() { var x = 1; x = @Missing 2 }",
+        "fun main() { val x: @Missing Int = 1 }",
+        "fun f(): @Missing Int = 1; fun main() {}",
         "fun main() where T : Any { println(1) }",
         "fun main() { var x = 1; x += 0.5 }",
     ])

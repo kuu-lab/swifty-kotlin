@@ -1,6 +1,6 @@
 import Foundation
 
-package enum KnownCompilerAnnotation {
+package enum KnownCompilerAnnotation: CaseIterable {
     case deprecated
     case deprecatedSinceKotlin
     case replaceWith
@@ -184,6 +184,14 @@ package enum KnownCompilerAnnotation {
 
     package func matches(_ rawName: String) -> Bool {
         rawName == simpleName || rawName == qualifiedName
+    }
+
+    /// Built-in Kotlin annotation names the compiler recognises by name even
+    /// when the active stdlib surface does not declare them (e.g. the JVM
+    /// text library omits SOURCE-retention metadata annotations such as
+    /// `kotlin.Suppress` or `kotlin.UnsafeVariance`).
+    package static func isKnownBuiltInAnnotation(_ rawName: String) -> Bool {
+        allCases.contains { $0.matches(rawName) }
     }
 }
 

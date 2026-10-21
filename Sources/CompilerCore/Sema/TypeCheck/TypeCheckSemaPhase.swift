@@ -333,7 +333,8 @@ private final class TypeCheckWork: @unchecked Sendable {
         driver.validateJsFileNameAnnotationArguments(in: files)
         DataFlowSemaPhase().validateDeferredAnnotationTargets(
             ast: driver.ast, symbols: driver.sema.symbols, types: driver.sema.types,
-            bindings: driver.sema.bindings, diagnostics: driver.diagnostics, interner: driver.interner
+            bindings: driver.sema.bindings, diagnostics: driver.diagnostics, interner: driver.interner,
+            sourceManager: driver.sourceManager
         )
     }
 }
