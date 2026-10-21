@@ -800,8 +800,8 @@ extension OverloadResolver {
                 }
 
                 // If no concrete input inferred this parameter, an unambiguous
-                // unsigned primitive upper bound can still contextualize a
-                // constant UInt literal. The normal solve and bound validation
+                // integer primitive upper bound can still contextualize a
+                // constant literal. The normal solve and bound validation
                 // below remain authoritative, including the literal's range.
                 var boundSubstitution = partial
                 for (variable, type) in explicitTypeSubstitution {
@@ -824,7 +824,7 @@ extension OverloadResolver {
                         ? signature.typeParameterUpperBoundsList[typeParameterIndex] : []
                     let symbolBounds = ctx.symbols.typeParameterUpperBounds(for: parameter.symbol)
                     let upperBounds = signatureBounds + symbolBounds.filter { !signatureBounds.contains($0) }
-                    var unsignedPrimitiveBounds: [TypeID] = []
+                    var integerPrimitiveBounds: [TypeID] = []
                     for upperBound in upperBounds {
                         let substitutedBound = ctx.types.makeNonNullable(ctx.types.substituteTypeParameters(
                             in: upperBound,
@@ -835,15 +835,15 @@ extension OverloadResolver {
                             continue
                         }
                         switch primitive {
-                        case .ubyte, .ushort, .uint, .ulong:
-                            if !unsignedPrimitiveBounds.contains(substitutedBound) {
-                                unsignedPrimitiveBounds.append(substitutedBound)
+                        case .byte, .short, .int, .long, .ubyte, .ushort, .uint, .ulong:
+                            if !integerPrimitiveBounds.contains(substitutedBound) {
+                                integerPrimitiveBounds.append(substitutedBound)
                             }
                         default:
                             continue
                         }
                     }
-                    if unsignedPrimitiveBounds.count == 1, let bound = unsignedPrimitiveBounds.first {
+                    if integerPrimitiveBounds.count == 1, let bound = integerPrimitiveBounds.first {
                         literalTypeSubstitution[variable] = bound
                     }
                 }
