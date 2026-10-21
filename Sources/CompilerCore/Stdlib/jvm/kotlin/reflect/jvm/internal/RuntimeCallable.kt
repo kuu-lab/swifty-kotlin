@@ -239,7 +239,32 @@ open class RuntimeCallable(
     }
     override fun equals(other: Any?): Boolean = other is RuntimeCallable && ownerClass == other.ownerClass && signatureString == other.signatureString && bound == other.bound && boundReceiver == other.boundReceiver
     override fun hashCode(): Int = ownerClass.hashCode() * 31 + signatureString.hashCode()
-    override fun toString(): String = "fun $displayName"
+    override fun toString(): String {
+        if (constructor) return "fun <init>"
+        val typeParameters = node.children(4)
+        var result = if (isSuspend) "suspend fun " else "fun "
+        if (!typeParameters.isEmpty()) {
+            result += "<"
+            var index = 0
+            while (index < typeParameters.size) {
+                if (index != 0) result += ", "
+                result += metadata.string(typeParameters[index].number(2))
+                index++
+            }
+            result += "> "
+        }
+        if (node.has(5)) result += renderRuntimeType(metadata, metadata.type(node, 5, 8), typeParameters) + "."
+        else if (metadata.isClass) result += (ClassReference(ownerClass as java.lang.Class<Any>).qualifiedName ?: displayName) + "."
+        result += displayName + "("
+        val declarations = node.children(6)
+        var index = 0
+        while (index < declarations.size) {
+            if (index != 0) result += ", "
+            result += renderRuntimeType(metadata, metadata.type(declarations[index], 3, 5), typeParameters)
+            index++
+        }
+        return result + "): " + renderRuntimeType(metadata, resultType(), typeParameters)
+    }
 }
 internal fun defaultValue(type: Any): Any? = when (__jvmClassName(type)) {
     "boolean" -> false
