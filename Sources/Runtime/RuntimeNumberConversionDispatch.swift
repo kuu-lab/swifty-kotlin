@@ -28,26 +28,28 @@ public func kk_number_to_primitive(_ receiver: Int, _ slot: Int, _ targetKindRaw
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_number_to_primitive got an unknown target kind \(targetKindRaw)")
     }
 
-    if let pointer = UnsafeMutableRawPointer(bitPattern: receiver) {
-        let isObjectPointer = runtimeStorage.withGCLock { state in
-            state.objectPointers.contains(UInt(bitPattern: pointer))
+    let primitiveBoxPointer = runtimePrimitiveBoxBasePointer(from: receiver)
+    let objectPointer = primitiveBoxPointer ?? UnsafeMutableRawPointer(bitPattern: receiver)
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        // Primitive box handles are stored with their tag bits in the registry.
+        // Check the original handle before normalizing it for Swift object access.
+        state.objectPointers.contains(UInt(bitPattern: receiver))
+    }
+    if isObjectPointer, let pointer = objectPointer {
+        if let intBox = tryCast(pointer, to: RuntimeIntBox.self) {
+            return runtimeConvertBoxedNumberInt(intBox.value, to: targetKind)
         }
-        if isObjectPointer {
-            if let intBox = tryCast(pointer, to: RuntimeIntBox.self) {
-                return runtimeConvertBoxedNumberInt(intBox.value, to: targetKind)
-            }
-            if let longBox = tryCast(pointer, to: RuntimeLongBox.self) {
-                return runtimeConvertBoxedNumberLong(longBox.value, to: targetKind)
-            }
-            if let doubleBox = tryCast(pointer, to: RuntimeDoubleBox.self) {
-                return runtimeConvertBoxedNumberDouble(doubleBox.value, to: targetKind)
-            }
-            if let floatBox = tryCast(pointer, to: RuntimeFloatBox.self) {
-                return runtimeConvertBoxedNumberFloat(floatBox.value, to: targetKind)
-            }
-            if let bigDecimalResult = runtimeBigDecimalNumberConversion(receiver, targetKind: targetKindRaw) {
-                return bigDecimalResult
-            }
+        if let longBox = tryCast(pointer, to: RuntimeLongBox.self) {
+            return runtimeConvertBoxedNumberLong(longBox.value, to: targetKind)
+        }
+        if let doubleBox = tryCast(pointer, to: RuntimeDoubleBox.self) {
+            return runtimeConvertBoxedNumberDouble(doubleBox.value, to: targetKind)
+        }
+        if let floatBox = tryCast(pointer, to: RuntimeFloatBox.self) {
+            return runtimeConvertBoxedNumberFloat(floatBox.value, to: targetKind)
+        }
+        if let bigDecimalResult = runtimeBigDecimalNumberConversion(receiver, targetKind: targetKindRaw) {
+            return bigDecimalResult
         }
     }
 
