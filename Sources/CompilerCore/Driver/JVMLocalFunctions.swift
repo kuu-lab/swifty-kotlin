@@ -154,7 +154,9 @@ extension JVMFunctionBuilder {
             if suspend { args.append(inputs[reference.parameters.count]) }
             defaults.instructions.append(.call(target, args, result))
             defaults.instructions.append(.returnValue(result))
-            program.syntheticFunctions[container, default: []].append(defaults.finish())
+            var defaultsFunction = defaults.finish()
+            defaultsFunction.checksParameters = false
+            program.syntheticFunctions[container, default: []].append(defaultsFunction)
         }
     }
 

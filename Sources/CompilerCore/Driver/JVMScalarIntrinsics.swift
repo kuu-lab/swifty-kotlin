@@ -76,6 +76,23 @@ extension JVMFunctionBuilder {
             return JVMIntrinsicResult(value: try concatenate(source, argument))
         }
         if sourceType.isNumeric || sourceType == .boolean {
+            let object: JVMValueType = .reference("java/lang/Object", nullable: true)
+            if rawType.isNullable {
+                // Nullable receivers reach Any?.hashCode/toString/equals, which
+                // are null-safe; the boxed value must not be unboxed here.
+                if name == "hashCode", args.isEmpty {
+                    let source = try requireValue(receiver)
+                    return JVMIntrinsicResult(value: try jdkCall("java/util/Objects", "hashCode", [object], .int, arguments: [source]))
+                }
+                if name == "toString", args.isEmpty {
+                    let source = try requireValue(receiver)
+                    return JVMIntrinsicResult(value: try jdkCall("java/util/Objects", "toString", [object], .string, arguments: [source]))
+                }
+                if name == "equals", args.count == 1 {
+                    let source = try requireValue(receiver), argument = try requireValue(args[0].expr)
+                    return JVMIntrinsicResult(value: try jdkCall("java/util/Objects", "equals", [object, object], .boolean, arguments: [source, argument]))
+                }
+            }
             if name == "toString", args.isEmpty {
                 let source = try requireValue(receiver)
                 if let owner = sourceType.unsignedName {

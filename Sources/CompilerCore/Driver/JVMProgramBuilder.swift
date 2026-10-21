@@ -53,7 +53,15 @@ final class JVMProgramBuilder {
         guard let type = sema.bindings.exprType(for: id) else {
             throw JVMFrontendError(message: "JVM expression has no resolved type.", range: ast.arena.exprRange(id))
         }
-        return try self.type(type)
+        let mapped = try self.type(type)
+        // Range expressions carry the runtime-box element type (Int) in
+        // exprTypes, but the JVM backend materializes a real IntRange
+        // reference. Reads of range-marked expressions must keep the nominal
+        // type or the value would be unboxed like an Int.
+        if mapped == .int, sema.bindings.isRangeExpr(id) {
+            return .reference("kotlin/ranges/IntRange", nullable: false)
+        }
+        return mapped
     }
     static func isIdentifier(_ value: String) -> Bool {
         let bytes = Array(value.utf8)

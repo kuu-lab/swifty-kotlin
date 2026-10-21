@@ -1,0 +1,7 @@
+fun top(): kotlin.Int
+fun sum(kotlin.Int, kotlin.String?): kotlin.Int
+fun Counter.add(kotlin.Int): kotlin.Int
+fun Counter.add(kotlin.Int): kotlin.Int
+fun kotlin.String.measure(): kotlin.Int
+fun kotlin.String.measure(): kotlin.Int
+fun lengths(kotlin.collections.List<kotlin.Int>): kotlin.Int
