@@ -745,8 +745,9 @@ private func runtimeFlowRunSourceStage(
     }
 
     let processValue: (Int) -> Int = { rawValue in
+        let valueForOperations = runtimeFlowMaybeUnbox(rawValue)
         let result = runtimeFlowApplyOpsLazy(
-            rawValue,
+            valueForOperations,
             ops: ops,
             takeCounters: &takeCounters,
             lastValues: &lastValues
@@ -755,7 +756,9 @@ private func runtimeFlowRunSourceStage(
         switch result {
         case .emit(let value):
             emitted.append(value)
-            return runtimeFlowTakeExhausted(ops: ops, takeCounters: takeCounters) ? runtimeFlowStopSentinel : value
+            return runtimeFlowTakeExhausted(ops: ops, takeCounters: takeCounters)
+                ? runtimeFlowStopSentinel
+                : value
         case .filtered:
             return rawValue
         case .thrown(let thrown):
@@ -1558,7 +1561,8 @@ private func runtimeFlowCollectStreaming(
     // correctly fans out the 1-to-many transform semantics.
     let hasTransformOp = ops.contains(where: { $0.kind == .transform })
 
-    context.emitHandler = { rawValue in
+    context.emitHandler = { emittedValue in
+        let rawValue = runtimeFlowMaybeUnbox(emittedValue)
         if hasTransformOp {
             guard let transformIdx = ops.firstIndex(where: { $0.kind == .transform }) else {
                 return rawValue
@@ -1650,8 +1654,9 @@ private func runtimeFlowCollectStreaming(
 
         switch result {
         case .emit(let value):
+            let deliveredValue = ops.contains(where: { $0.kind == .map }) ? value : emittedValue
             let delivered = runtimeFlowDeliverValue(
-                value,
+                deliveredValue,
                 collectorFnPtr: collectorFnPtr,
                 collectorEnvPtr: collectorEnvPtr,
                 continuation: continuation,
@@ -1660,7 +1665,7 @@ private func runtimeFlowCollectStreaming(
             if !delivered || runtimeFlowTakeExhausted(ops: ops, takeCounters: takeCounters) {
                 return runtimeFlowStopSentinel
             }
-            return value
+            return deliveredValue
         case .filtered:
             return rawValue
         case let .thrown(failure):
@@ -1807,7 +1812,7 @@ public func kk_flow_emit(_ flowHandle: Int, _ value: Int, _ tag: Int, _ outThrow
             context.emittedValues.append(unboxed)
             context.emittedEvents.append(RuntimeFlowEvent(value: unboxed, timestamp: timestamp))
             if let emitHandler = context.emitHandler {
-                let result = emitHandler(unboxed)
+                let result = emitHandler(value)
                 outThrown?.pointee = context.failure
                 return result
             }
@@ -1837,7 +1842,7 @@ public func __kk_flow_emit_with_timestamp(_ flowHandle: Int, _ value: Int, _ tag
             context.emittedValues.append(unboxed)
             context.emittedEvents.append(RuntimeFlowEvent(value: unboxed, timestamp: timestamp))
             if let emitHandler = context.emitHandler {
-                return emitHandler(unboxed)
+                return emitHandler(value)
             }
         }
         return value
