@@ -312,7 +312,7 @@ struct ListSearchPredicateLoweringRoutingTests {
     /// here: rewrites that still fire because nothing source-backed resolves
     /// (`__kk_list_size` for a bare `count()`, `__kk_set_contains`), and
     /// rewrites the preserve check shadows, which removing the name would
-    /// re-enable (`kk_range_find`, `kk_map_count`).
+    /// re-enable (`__kk_range_find`, `kk_map_count`).
     @Test
     func nonListReceiversKeepTheirRuntimeRewrites() throws {
         let source = """
@@ -339,27 +339,35 @@ struct ListSearchPredicateLoweringRoutingTests {
 
             let module = try runCollectionLiteralPassOnly(ctx)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = Set(extractCallees(from: body, interner: ctx.interner))
+            // KUU-1945 routes `Set.contains` through itable dispatch (a
+            // `virtualCall` whose callee is the shared `__kk_set_contains`
+            // bridge), so this callee set includes virtualCall targets too.
+            var callees = Set(extractCallees(from: body, interner: ctx.interner))
+            for instruction in body {
+                if case let .virtualCall(_, callee, _, _, _, _, _, _) = instruction {
+                    callees.insert(ctx.interner.resolve(callee))
+                }
+            }
 
             #expect(
                 callees.contains(LoweringTestRuntime.name("list_size")),
                 "List.size must still reach __kk_list_size; callees: \(callees.sorted())"
             )
-            // Set.contains is not source-backed, so the preserve check does
-            // not fire and `+CallRewriteCollectionMember` still rewrites it.
+            // Set.contains is not source-backed; it reaches the shared
+            // `__kk_set_contains` bridge as a virtualCall target.
             #expect(
                 callees.contains(LoweringTestRuntime.name("set_contains")),
                 "Set.contains must still reach __kk_set_contains; callees: \(callees.sorted())"
             )
             // `IntRange.find` is source-backed in RangeHOF.kt, so the
-            // preserve check shadows the `kk_range_find` rewrite in
+            // preserve check shadows the `__kk_range_find` rewrite in
             // `+VirtualCallRewrite+Range.swift`.  Dropping `findName` from
             // the allowlist the way the five index names were dropped would
             // re-enable that rewrite and change the emitted call — which is
             // precisely why `findName` had to stay.
             #expect(
                 !callees.contains(LoweringTestRuntime.name("range_find")),
-                "source-backed IntRange.find must not reach kk_range_find; callees: \(callees.sorted())"
+                "source-backed IntRange.find must not reach __kk_range_find; callees: \(callees.sorted())"
             )
             #expect(
                 callees.contains("find"),

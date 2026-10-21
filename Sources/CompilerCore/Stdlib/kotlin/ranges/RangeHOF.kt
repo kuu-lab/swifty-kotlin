@@ -10,8 +10,8 @@ import kotlin.random.Random
 // Range/Progression higher-order functions migrated to Kotlin source.
 // Migration source:
 //   Sources/Runtime/RuntimeRangeAndDispatch.swift, RuntimeRangeIntRangeHOF.swift,
-//   RuntimeRangeLongRange.swift, RuntimeRangeSharedHOF.swift (kk_range_forEach,
-//   kk_range_map, kk_range_filter, kk_range_toList; __kk_long_range_* / __kk_char_range_*
+//   RuntimeRangeLongRange.swift, RuntimeRangeSharedHOF.swift (__kk_range_forEach,
+//   __kk_range_map, __kk_range_filter, __kk_range_toList; __kk_long_range_* / __kk_char_range_*
 //   equivalents)
 //
 // NOTE: Range/Progression members that still use the hardcoded range dispatch remain

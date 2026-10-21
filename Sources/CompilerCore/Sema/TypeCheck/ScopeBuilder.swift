@@ -134,10 +134,26 @@ struct TypeCheckScopeBuilder {
     private func resolveExplicitImport(
         _ path: [InternedString],
         sema: SemaModule,
-        interner: StringInterner
+        interner: StringInterner,
+        sourceManager: SourceManager?
     ) -> [SymbolID] {
         let resolved = sema.symbols.lookupAll(fqName: path)
         guard resolved.isEmpty, let name = path.last else { return resolved }
+        // Java static methods are represented by companion stubs. Only imported
+        // JVM declarations admit the Java spelling Owner.method in an import.
+        let jvmStaticMembers = sema.symbols.lookupAll(fqName: Array(path.dropLast())).flatMap { owner -> [SymbolID] in
+            guard let declaration = sema.symbols.symbol(owner),
+                  declaration.kind == .class || declaration.kind == .interface,
+                  let site = declaration.declSite,
+                  sourceManager?.origin(of: site.start.file) == .residualStdlib,
+                  let filePath = sourceManager?.path(of: site.start.file),
+                  filePath.hasPrefix("<kswiftk-jvm-import>/") || filePath.hasPrefix("<kswiftk-jvm>/platform/")
+            else { return [] }
+            return sema.symbols.lookupAll(fqName: declaration.fqName + [interner.intern("Companion"), name]).filter {
+                sema.symbols.symbol($0)?.kind == .function
+            }
+        }
+        if !jvmStaticMembers.isEmpty { return jvmStaticMembers }
         // Bundled companion constants are package-owned extension properties.
         // Resolve the qualifier as a singleton and retain only its extensions,
         // rather than falling back to unrelated same-name package properties.
@@ -329,7 +345,7 @@ struct TypeCheckScopeBuilder {
                     continue
                 }
 
-                let resolved = resolveExplicitImport(importDecl.path, sema: sema, interner: interner)
+                let resolved = resolveExplicitImport(importDecl.path, sema: sema, interner: interner, sourceManager: sourceManager)
 
                 let isPackageOnlyImport = !resolved.isEmpty && resolved.allSatisfy {
                     sema.symbols.symbol($0)?.kind == .package
@@ -392,7 +408,7 @@ struct TypeCheckScopeBuilder {
 
             let resolved = importDecl.isWildcard
                 ? sema.symbols.lookupAll(fqName: importDecl.path)
-                : resolveExplicitImport(importDecl.path, sema: sema, interner: interner)
+                : resolveExplicitImport(importDecl.path, sema: sema, interner: interner, sourceManager: sourceManager)
             if importDecl.isWildcard, resolved.contains(where: {
                 sema.symbols.symbol($0)?.kind == .enumClass
             }) {

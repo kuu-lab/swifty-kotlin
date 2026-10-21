@@ -74,7 +74,8 @@ extension JVMProgramBuilder {
         var parameters = try ((function.receiverType == nil ? [] : [signature.receiverType].compactMap { $0 }) + signature.parameterTypes).map(type)
         let offset = function.receiverType == nil ? 0 : 1
         for (i, parameter) in function.valueParams.enumerated() where parameter.isVararg {
-            parameters[i + offset] = .reference("[" + parameters[i + offset].descriptor, nullable: false)
+            let component = try varargComponentType(signature.parameterTypes[i])
+            parameters[i + offset] = .reference("[" + component.descriptor, nullable: false)
         }
         let result = try type(signature.returnType)
         let unsigned = parameters.contains { $0.unsignedName != nil }
@@ -87,9 +88,17 @@ extension JVMProgramBuilder {
         return JVMFunctionReference(name: internalName, parameters: parameters, result: result, isSuspend: function.isSuspend)
     }
     func validateSignature(_ signature: FunctionSignature, instance: Bool, extensionReceiver: Bool = false) throws {
-        let parameters = try ((extensionReceiver ? [signature.receiverType].compactMap { $0 } : []) + signature.parameterTypes).map(type)
+        let parameterTypes = (extensionReceiver ? [signature.receiverType].compactMap { $0 } : []) + signature.parameterTypes
+        let parameters = try parameterTypes.map(type)
+        let unsupportedReturn: Bool
+        if case let .nothing(nullability) = sema.types.kind(of: signature.returnType) {
+            unsupportedReturn = nullability != .nonNull
+        } else {
+            unsupportedReturn = false
+        }
         guard !parameters.contains(.unit), parameters.reduce(instance ? 1 : 0, { $0 + $1.width }) <= 255,
-              !([signature.returnType] + signature.parameterTypes).contains(where: { if case .nothing = sema.types.kind(of: $0) { return true }; return false }) else {
+              !unsupportedReturn,
+              !parameterTypes.contains(where: { if case .nothing = sema.types.kind(of: $0) { return true }; return false }) else {
             throw JVMFrontendError(message: "Unsupported JVM signature or method parameter slot limit exceeded.")
         }
     }
@@ -112,7 +121,7 @@ extension JVMProgramBuilder {
                 if sourceName == "kotlin/CharSequence" { throw JVMFrontendError(message: "JVM supports CharSequence inputs but not source implementations.") }
                 if sourceName == "kotlin/Number" { throw JVMFrontendError(message: "JVM M5 does not support source subclasses of kotlin.Number.") }
                 if !context.options.stdlibOnly && ["kotlin/coroutines/CoroutineContext", "kotlin/Result"].contains(sourceName) { throw JVMFrontendError(message: "JVM M7 does not support source implementations of CoroutineContext or Result.") }
-                if sourceName.hasPrefix("kotlin/collections/"), sourceName != "kotlin/collections/AbstractSet", !context.options.stdlibOnly { throw JVMFrontendError(message: "JVM M5 collection interfaces are available through factories; source implementations are unsupported.") }
+                if sourceName.hasPrefix("kotlin/collections/"), sourceName != "kotlin/collections/AbstractSet", !context.options.stdlibOnly, !sema.symbols.delegatedInterfaces(forClass: plan.symbol).contains(where: { sema.types.isNominalSubtypeSymbol($0, of: parent) }) { throw JVMFrontendError(message: "JVM M5 collection interfaces are available through factories; source implementations are unsupported.") }
                 guard classes[parent] != nil || context.jvmImports?.classes[name] != nil || JVMClasspathIndex.builtinName(sourceName) != nil else { throw JVMFrontendError(message: "Unsupported JVM supertype: \(name)") }
                 if sema.symbols.symbol(parent)?.kind == .interface { plan.interfaces.append(name) }
                 else {
@@ -170,11 +179,8 @@ extension JVMProgramBuilder {
             let isAbstract = p.modifiers.contains(.abstract) || (plan.isInterface && (p.getter?.body ?? .unit) == .unit)
             let capital = String(name.prefix(1)).uppercased() + name.dropFirst()
             let booleanIs = name.hasPrefix("is") && name.count > 2 && name.dropFirst(2).first!.isUppercase
-            let collection = sema.symbols.lookup(fqName: ["kotlin", "collections", "Collection"].map(context.interner.intern))
-            let abstractSet = sema.symbols.lookup(fqName: ["kotlin", "collections", "AbstractSet"].map(context.interner.intern))
-            let usesAbstractSetSize = abstractSet.map { sema.types.isNominalSubtypeSymbol(plan.symbol, of: $0) } == true
-            let collectionSize = name == "size" && !usesAbstractSetSize && collection.map { sema.types.isNominalSubtypeSymbol(plan.symbol, of: $0) } == true
-            let getterName = plan.isAnnotation || collectionSize ? name : (booleanIs ? name : "get" + capital)
+            let collectionGetter = collectionPropertyGetter(plan, name: name)
+            let getterName = collectionGetter ?? (plan.isAnnotation ? name : (booleanIs ? name : "get" + capital))
             let setterName = booleanIs ? "set" + name.dropFirst(2) : "set" + capital
             var getter = JVMForeignMethod(owner: plan.name, name: getterName, descriptor: "()" + type.descriptor, parameters: [], result: type, isStatic: plan.isFacade, isInterface: plan.isInterface, isAbstract: isAbstract)
             getter.isSpecial = !plan.isFacade && (p.getter?.visibility == .private || p.modifiers.contains(.private))
@@ -222,7 +228,9 @@ extension JVMProgramBuilder {
                                      name: field.name, type: field.type, access: access(p.modifiers) | 0x18)
                     field.constantValue = constant
                 }
-                field.annotations = try annotations(for: symbol, target: "field"); property.field = field
+                field.annotations = try annotations(for: symbol, target: "field")
+                field.isDeprecated = try (annotations(for: symbol, target: nil) + annotations(for: symbol, target: "property")).contains { $0.descriptor == "Lkotlin/Deprecated;" }
+                property.field = field
             }
             if !(try annotations(for: symbol, target: nil) + annotations(for: symbol, target: "property")).isEmpty {
                 property.annotationsMethod = JVMForeignMethod(owner: plan.name, name: getterName + "$annotations", descriptor: "()V", parameters: [], result: .unit, isStatic: true, isInterface: plan.isInterface, isAbstract: false)
@@ -264,6 +272,8 @@ extension JVMProgramBuilder {
             // Return types participate in JVM descriptors. Covariant overrides
             // therefore need bridges for calls through a superclass/interface.
             functions += try bridges(plan, functions: functions)
+            functions += try collectionDelegationMethods(plan, existing: functions)
+            functions += try collectionPropertyAliases(plan, existing: functions)
             var signatures: Set<String> = []
             guard functions.allSatisfy({ signatures.insert($0.reference.name + $0.reference.descriptor).inserted }) else { throw JVMFrontendError(message: "Clashing JVM member/accessor signatures in \(plan.name).") }
             let visibility: UInt16 = plan.modifiers.contains(.private) && !plan.escapesInline ? 0 : 1

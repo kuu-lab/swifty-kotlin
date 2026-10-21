@@ -752,26 +752,16 @@ extension DataFlowSemaPhase {
             pendingSupertypeEdges.append((subtype: binding.symbol, superFQName: superFQName))
         }
 
-        // Import the precompiled enum static initializer link so the consumer
-        // can call it before `main`, ensuring enum entry globals are initialized.
-        if record.kind == .enumClass,
-           let enumStaticInitLink = record.enumStaticInitLinkName,
-           !enumStaticInitLink.isEmpty
-        {
-            let initName = interner.intern("__enum_static_init")
-            let initFQName = record.fqName + [initName]
-            let initSymbol = symbols.define(
-                kind: .function,
-                name: initName,
-                fqName: initFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .importedLibrary]
-            )
-            symbols.setExternalLinkName(enumStaticInitLink, for: initSymbol)
-            symbols.setParentSymbol(binding.symbol, for: initSymbol)
-            symbols.setEnumStaticInitSymbol(initSymbol, for: binding.symbol)
-        }
+        // The precompiled initializer stubs (object/companion/enum static)
+        // are compact-index facts and are already synthesized at shell
+        // registration; this call only fills any path that still lacks them.
+        applyImportedInitializerShells(
+            record: record,
+            symbol: binding.symbol,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
     }
 
     /// Restores the declaration-order type parameters of an imported generic

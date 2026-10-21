@@ -793,7 +793,10 @@ extension ExprTypeChecker {
             )
             type = boolType
         case .elvis:
-            let nonNullLhs = sema.types.makeNonNullable(lhs)
+            // Kotlin's `?:` joins `T & Any` (not bare `T`) with the rhs —
+            // the lhs value is proven non-null, so a null-capable type
+            // parameter needs its definitely-non-null form (KUU-2693).
+            let nonNullLhs = sema.types.definitelyNonNullForm(of: lhs)
             type = sema.types.lub([nonNullLhs, rhs])
             // Smart cast: `x ?: return` / `x ?: throw` narrows x to non-null (P5-66)
             if let rhsExpr = ast.arena.expr(rhsID),
@@ -804,7 +807,7 @@ extension ExprTypeChecker {
                    let elvisLocal = locals[elvisVarName],
                    driver.helpers.isStableLocalSymbol(elvisLocal.symbol, sema: sema)
                 {
-                    let nonNullType = sema.types.makeNonNullable(elvisLocal.type)
+                    let nonNullType = sema.types.definitelyNonNullForm(of: elvisLocal.type)
                     locals[elvisVarName] = (nonNullType, elvisLocal.symbol, elvisLocal.isMutable, elvisLocal.isInitialized)
                 }
             }

@@ -51,8 +51,19 @@ extension CallTypeChecker {
         guard let signature = sema.symbols.functionSignature(for: chosen) else { return }
         let typeVars = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         for (index, argument) in args.enumerated() where !argument.isSpread {
-            guard let sourceType = sema.bindings.exprType(for: argument.expr),
-                  case .functionType = sema.types.kind(of: sourceType),
+            let wasSamConverted = sema.bindings.isSamConversion(argument.expr)
+            guard let expressionType = sema.bindings.exprType(for: argument.expr) else { continue }
+            let hasNominalSamType: Bool
+            if case .classType = sema.types.kind(of: expressionType),
+               case .lambdaLiteral = driver.ast.arena.expr(argument.expr) {
+                hasNominalSamType = wasSamConverted
+            } else {
+                hasNominalSamType = false
+            }
+            let sourceType = hasNominalSamType
+                ? sema.bindings.samUnderlyingFunctionType(for: argument.expr) ?? expressionType
+                : expressionType
+            guard case .functionType = sema.types.kind(of: sourceType),
                   let parameterIndex = resolved.parameterMapping[index],
                   signature.parameterTypes.indices.contains(parameterIndex)
             else { continue }
@@ -75,6 +86,7 @@ extension CallTypeChecker {
             sema.bindings.markSamConversion(argument.expr)
             sema.bindings.bindSamUnderlyingFunctionType(argument.expr, type: functionType)
             sema.bindings.bindSamInterfaceType(argument.expr, type: interfaceType)
+            if hasNominalSamType { sema.bindings.bindExprType(argument.expr, type: interfaceType) }
         }
     }
 }

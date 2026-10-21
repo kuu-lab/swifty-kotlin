@@ -214,9 +214,16 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         context: SyntheticDelegateStubRegistryContext
     ) {
+        let stubTrace = ProcessInfo.processInfo.environment["KSWIFTK_DEBUG_STUB_TRACE"] == "1"
         for entry in delegateStubRegistryEntries() {
             _ = (entry.bucket, entry.name)
+            if stubTrace {
+                FileHandle.standardError.write(Data("STUBENTRY \(entry.name)\n".utf8))
+            }
             entry.register(self, symbols, types, interner, context)
+        }
+        if stubTrace {
+            FileHandle.standardError.write(Data("STUBEND delegate\n".utf8))
         }
     }
 
@@ -225,15 +232,25 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
+        let stubTrace = ProcessInfo.processInfo.environment["KSWIFTK_DEBUG_STUB_TRACE"] == "1"
         for entry in extendedStdlibRegistryEntries() {
             _ = (entry.bucket, entry.name)
+            if stubTrace {
+                FileHandle.standardError.write(Data("STUBENTRY ext.\(entry.name)\n".utf8))
+            }
             entry.register(self, symbols, types, interner)
         }
         // KSP-1205: EnumEntries is available after the Enum bucket has run.
+        if stubTrace {
+            FileHandle.standardError.write(Data("STUBENTRY ext.MemoryModelEnumMembers\n".utf8))
+        }
         registerSyntheticMemoryModelEnumMembers(
             symbols: symbols,
             types: types,
             interner: interner
         )
+        if stubTrace {
+            FileHandle.standardError.write(Data("STUBEND ext\n".utf8))
+        }
     }
 }

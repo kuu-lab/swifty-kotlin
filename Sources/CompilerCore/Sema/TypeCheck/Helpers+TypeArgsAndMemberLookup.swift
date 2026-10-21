@@ -1337,7 +1337,7 @@ extension TypeCheckHelpers {
               visited.insert(parameter.symbol).inserted
         {
             var next: TypeID?
-            for bound in sema.symbols.typeParameterUpperBounds(for: parameter.symbol) {
+            for bound in sema.types.declaredUpperBounds(for: parameter.symbol) {
                 let candidate = sema.types.makeNonNullable(sema.types.capturedReadableUpperBound(of: bound))
                 switch sema.types.kind(of: candidate) {
                 case let .classType(classType)

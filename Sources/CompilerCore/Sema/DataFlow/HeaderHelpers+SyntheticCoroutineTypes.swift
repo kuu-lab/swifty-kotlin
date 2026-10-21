@@ -380,7 +380,13 @@ extension DataFlowSemaPhase {
         // source processing finishes. A raw `Deferred` (zero args) is what
         // made `async { 7 }.await()` report KSWIFTK-SEMA-0002 in the harness
         // even though the `async` call itself type-checked.
-        let deferredTypeParameterCount = types.nominalTypeParameterSymbols(for: deferredSymbol).count
+        // KUU-2673: `Deferred<out T>`'s bundled declaration always carries
+        // exactly one type parameter, so an unmaterialized imported shell uses
+        // the same one-argument shape instead of decoding the record just for
+        // the count (the count == 0 fallback below already emits one arg).
+        let deferredTypeParameterCount = symbols.hasPendingImportedNominalMetadata(for: deferredSymbol)
+            ? 1
+            : types.nominalTypeParameterSymbols(for: deferredSymbol).count
         let deferredTypeArgs: [TypeArg] = deferredTypeParameterCount > 0
             ? Array(repeating: .out(types.nullableAnyType), count: deferredTypeParameterCount)
             : [.out(types.nullableAnyType)]

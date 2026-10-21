@@ -147,4 +147,53 @@ struct KlibIrTableTests {
         #expect(Array(try table.element(fileIndex: 0, declarationId: 3)) == [0xAA])
         #expect(Array(try table.element(fileIndex: 1, declarationId: 9)) == [0xBB, 0xCC])
     }
+
+    @Test
+    func rejectsInvalidCountsAndNegativeSizesBeforeAllocation() {
+        let invalidHeaders: [[Int32]] = [[1, -1], [Int32.max], [Int32.min], [-5, 0]]
+        for words in invalidHeaders {
+            var bytes: [UInt8] = []
+            for word in words { Self.appendInt32(&bytes, word) }
+            #expect(throws: KlibFormatError.self) { _ = try KlibIrTable(bytes: bytes) }
+        }
+        #expect(throws: KlibFormatError.self) {
+            _ = try KlibChunkIO.readInt32([], at: Int.max)
+        }
+    }
+
+    @Test
+    func rejectsVarintOverflow() {
+        #expect(throws: KlibFormatError.self) {
+            _ = try KlibChunkIO.readUVarint([0xFF, 0xFF, 0xFF, 0xFF, 0x10], at: 0)
+        }
+        #expect(throws: KlibFormatError.self) {
+            _ = try KlibChunkIO.readUVarint([1], at: -1)
+        }
+    }
+
+    @Test
+    func rejectsInnerPayloadCrossingIntoNextRow() throws {
+        var invalidRow: [UInt8] = []
+        Self.appendInt32(&invalidRow, 1)
+        Self.appendInt32(&invalidRow, 5)
+        invalidRow.append(0xAA) // Only one byte belongs to this row.
+        let table = try KlibIrMultiTable(bytes: Self.fixedTable([invalidRow, Self.fixedTable([[2]])]))
+        #expect(throws: KlibFormatError.self) { _ = try table.element(row: 0, column: 0) }
+    }
+
+    @Test
+    func rejectsDeclarationCoordinatesOutsideOwningRow() throws {
+        var invalidRow: [UInt8] = []
+        for word in [Int32(1), 7, 16, 5] { Self.appendInt32(&invalidRow, word) }
+        invalidRow.append(0xAA)
+        let table = try KlibIrDeclarationMultiTable(bytes: Self.fixedTable([invalidRow, [0, 0, 0, 0]]))
+        #expect(throws: KlibFormatError.self) { _ = try table.element(fileIndex: 0, declarationId: 7) }
+    }
+
+    @Test
+    func rejectsDeclarationPayloadOverlappingHeader() {
+        var bytes: [UInt8] = []
+        for word in [Int32(1), 7, 4, 1] { Self.appendInt32(&bytes, word) }
+        #expect(throws: KlibFormatError.self) { _ = try KlibIrDeclarationTable(bytes: bytes) }
+    }
 }

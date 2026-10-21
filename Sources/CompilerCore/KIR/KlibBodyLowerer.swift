@@ -25,6 +25,16 @@ final class KlibBodyLowerer {
     /// parameters map to their `.symbolRef` param expr, local `variable`s map
     /// to a temporary slot.
     private var valueExprs: [Int: KIRExprID] = [:]
+    private var mutableValues: Set<Int> = []
+    private var mutableCells: [Int: KIRExprID] = [:]
+    private struct LiftedLambda {
+        let symbol: SymbolID
+        let name: InternedString
+        let returnType: TypeID
+        let captures: [(index: Int, isCell: Bool)]
+    }
+    private var liftedLambdas: [KlibSignatureKey: LiftedLambda] = [:]
+    private var typeParameterSymbols: [KlibSignatureKey: SymbolID] = [:]
     private var returnTargetSignatureIndexes: Set<Int> = []
     /// The callable being translated, used to seed instance fields before a
     /// serialized constructor delegates to its superclass.
@@ -90,6 +100,12 @@ final class KlibBodyLowerer {
         var declIDs: [KIRDeclID] = []
         for index in 0 ..< ir.fileCount {
             fileIndex = index
+            for declaration in (try? ir.declarations(fileIndex: index)) ?? [] {
+                bindTypeParameters(declaration)
+            }
+        }
+        for index in 0 ..< ir.fileCount {
+            fileIndex = index
             guard let file = try? ir.file(index) else { continue }
             for declarationId in file.declarationIds {
                 guard let declaration = try? ir.declaration(declarationId, fileIndex: index) else {
@@ -99,6 +115,7 @@ final class KlibBodyLowerer {
             }
         }
         var orderedInit = KIRLoweringEmitContext()
+        declIDs.append(contentsOf: driver.ctx.drainGeneratedCallableDecls())
         orderedInit.appendRelocatingLabels(contentsOf: eagerObjectInit)
         orderedInit.appendRelocatingLabels(contentsOf: topLevelInit)
         return Result(
@@ -107,6 +124,36 @@ final class KlibBodyLowerer {
                 : KIRFile(fileID: .invalid, decls: declIDs),
             topLevelInitInstructions: orderedInit
         )
+    }
+
+    /// A type-parameter signature is a local/composite signature, not its
+    /// containing class/function symbol. Preserve the metadata binder's IDs.
+    private func bindTypeParameters(_ declaration: KlibIrDeclaration) {
+        func bind(_ parameters: [KlibTypeParameter], to symbols: [SymbolID]) {
+            for (parameter, symbol) in zip(parameters, symbols.suffix(parameters.count)) {
+                typeParameterSymbols[KlibSignatureKey(
+                    fileIndex: fileIndex, signatureIndex: parameter.base.symbol.signatureIndex
+                )] = symbol
+            }
+        }
+        switch declaration {
+        case .class(let klass):
+            if let symbol = symbol(for: klass.base.symbol) {
+                bind(klass.typeParameters, to: types.allTypeParameterSymbols(for: symbol))
+            }
+            for member in klass.declarations { bindTypeParameters(member) }
+        case .function(let function):
+            if let symbol = symbol(for: function.base.base.symbol),
+               let signature = symbols.functionSignature(for: symbol) {
+                bind(function.base.typeParameters, to: signature.typeParameterSymbols)
+            }
+        case .constructor(let constructor):
+            if let symbol = symbol(for: constructor.base.base.symbol),
+               let signature = symbols.functionSignature(for: symbol) {
+                bind(constructor.base.typeParameters, to: signature.typeParameterSymbols)
+            }
+        default: break
+        }
     }
 
 
@@ -143,13 +190,21 @@ final class KlibBodyLowerer {
     /// artifacts, `depends` klibs) resolve by fully-qualified name.
     private func symbol(for ref: KlibSymbolRef) -> SymbolID? {
         let key = KlibSignatureKey(fileIndex: fileIndex, signatureIndex: ref.signatureIndex)
+        if let symbol = typeParameterSymbols[key] { return symbol }
         if let symbol = loaded.symbolBySignature[key] {
+            return symbol
+        }
+        if let signature = try? ir.publicSignature(ref.signatureIndex, fileIndex: fileIndex),
+           let symbol = loaded.symbolByPublicSignature[signature] {
             return symbol
         }
         return resolveExternalSymbol(ref)
     }
 
-    private func resolveExternalSymbol(_ ref: KlibSymbolRef) -> SymbolID? {
+    private func resolveExternalSymbol(_ ref: KlibSymbolRef, visited: Set<Int> = []) -> SymbolID? {
+        guard !visited.contains(ref.signatureIndex), visited.count < 64 else { return nil }
+        var visited = visited
+        visited.insert(ref.signatureIndex)
         guard let signature = try? ir.signature(ref.signatureIndex, fileIndex: fileIndex) else {
             return nil
         }
@@ -169,7 +224,10 @@ final class KlibBodyLowerer {
         case .accessor(let propertySignature, let name, _, _, _):
             // External accessor → the property's synthetic accessor symbol,
             // mirroring `finalizeKlibModule`'s synthetic-key registration.
-            guard let propertySymbol = ownModuleSymbol(propertySignature)
+            guard propertySignature >= 0,
+                  let propertyRef = KlibSymbolRef((Int64(propertySignature) << 8) | Int64(KlibSymbolKind.property.rawValue)),
+                  let propertySymbol = ownModuleSymbol(propertySignature)
+                    ?? resolveExternalSymbol(propertyRef, visited: visited)
             else { return nil }
             let accessorName = (try? ir.string(name, fileIndex: fileIndex)) ?? ""
             if accessorName.hasPrefix("<set-") {
@@ -190,13 +248,20 @@ final class KlibBodyLowerer {
     /// FQ name of the declaration a symbol ref points at — used to detect
     /// compiler-intrinsic member calls (`kotlin.Int.plus` & friends) whose
     /// symbols have no body anywhere and must map onto `kk_op_*` stubs.
-    private func resolvedFqName(of ref: KlibSymbolRef) -> String? {
-        guard let signature = try? ir.signature(ref.signatureIndex, fileIndex: fileIndex),
-              case .common(let packageFqName, let declarationFqName, _, _, _) = signature
-        else { return nil }
-        let package = (try? ir.fqName(packageFqName, fileIndex: fileIndex)) ?? ""
-        let declaration = (try? ir.fqName(declarationFqName, fileIndex: fileIndex)) ?? ""
-        return package.isEmpty ? declaration : "\(package).\(declaration)"
+    private func resolvedFqName(of ref: KlibSymbolRef, depth: Int = 0) -> String? {
+        guard depth < 64, let signature = try? ir.signature(ref.signatureIndex, fileIndex: fileIndex) else { return nil }
+        switch signature {
+        case .common(let packageFqName, let declarationFqName, _, _, _):
+            guard let package = try? ir.fqName(packageFqName, fileIndex: fileIndex),
+                  let declaration = try? ir.fqName(declarationFqName, fileIndex: fileIndex) else { return nil }
+            return package.isEmpty ? declaration : "\(package).\(declaration)"
+        case .accessor(let property, _, _, _, _):
+            guard property >= 0,
+                  let propertyRef = KlibSymbolRef((Int64(property) << 8) | Int64(KlibSymbolKind.property.rawValue)) else { return nil }
+            return resolvedFqName(of: propertyRef, depth: depth + 1)
+        default:
+            return nil
+        }
     }
 
 
@@ -266,8 +331,7 @@ final class KlibBodyLowerer {
             signatureIndex: base.base.symbol.signatureIndex
         )
         guard let symbol = loaded.symbolBySignature[key],
-              let signature = symbols.functionSignature(for: symbol),
-              let bodyIndex = base.bodyIndex
+              let signature = symbols.functionSignature(for: symbol)
         else { return [] }
 
         var params: [KIRParameter] = []
@@ -285,7 +349,10 @@ final class KlibBodyLowerer {
             let paramSymbol = index < signature.valueParameterSymbols.count
                 ? signature.valueParameterSymbols[index]
                 : driver.ctx.allocateSyntheticGeneratedSymbol()
-            params.append(KIRParameter(symbol: paramSymbol, type: paramType))
+            let storageType = index < base.regularParameters.count && base.regularParameters[index].varargElementType != nil
+                ? decodeType(base.regularParameters[index].nameType.typeIndex) ?? paramType
+                : paramType
+            params.append(KIRParameter(symbol: paramSymbol, type: storageType))
         }
         // Reified type parameters arrive as trailing `Int` token arguments at
         // call sites — the params mirror source lowering so the body can read
@@ -309,16 +376,152 @@ final class KlibBodyLowerer {
             }
         }
 
-        return emitCallableBody(
-            base: base,
-            symbol: symbol,
-            params: params,
-            returnType: signature.returnType,
-            bodyIndex: bodyIndex,
-            isSuspend: signature.isSuspend || base.base.flags.isSuspend,
-            isInline: base.base.flags.isInline,
-            isTailrec: base.base.flags.isTailrec
+        var declarations: [KIRDeclID] = []
+        if let bodyIndex = base.bodyIndex {
+            declarations = emitCallableBody(
+                base: base,
+                symbol: symbol,
+                params: params,
+                returnType: signature.returnType,
+                bodyIndex: bodyIndex,
+                isSuspend: signature.isSuspend || base.base.flags.isSuspend,
+                isInline: base.base.flags.isInline,
+                isTailrec: base.base.flags.isTailrec
+            )
+        }
+        if base.regularParameters.contains(where: { $0.defaultValueIndex != nil }) {
+            declarations.append(emitDefaultStub(base: base, symbol: symbol, signature: signature, params: params))
+        }
+        return declarations
+    }
+
+    /// KLIBs serialize default expressions rather than KSwiftK's `$default`
+    /// function. Rebuild that function with the same mask ABI used by source
+    /// calls. Bind resolved parameters in order so a default can read `this`
+    /// and earlier parameters, and evaluate defaults only when requested.
+    private func emitDefaultStub(
+        base: KlibFunctionBase,
+        symbol: SymbolID,
+        signature: FunctionSignature,
+        params: [KIRParameter]
+    ) -> KIRDeclID {
+        valueExprs = [:]
+        mutableValues = []
+        mutableCells = [:]
+        returnableBlocks = [:]
+        loopLabels = [:]
+        returnTargetSignatureIndexes = []
+        thisExpr = nil
+        currentCallableSymbol = nil
+
+        let maskSymbol = driver.callSupportLowerer.defaultStubMaskSymbol(for: symbol)
+        let maskExpr = arena.appendExpr(.symbolRef(maskSymbol), type: types.intType)
+        var body: KIRLoweringEmitContext = [.beginBlock]
+        body.append(.constValue(result: maskExpr, value: .symbolRef(maskSymbol)))
+        var forwarded: [KIRExprID] = []
+        let receiverCount = signature.receiverType == nil ? 0 : 1
+        for (index, parameter) in params.enumerated() {
+            let provided = arena.appendExpr(.symbolRef(parameter.symbol), type: parameter.type)
+            body.append(.constValue(result: provided, value: .symbolRef(parameter.symbol)))
+            if index < receiverCount {
+                thisExpr = provided
+                for receiver in [base.dispatchReceiver, base.extensionReceiver].compactMap({ $0 }) {
+                    valueExprs[receiver.base.symbol.signatureIndex] = provided
+                }
+                forwarded.append(provided)
+                continue
+            }
+            let regularIndex = index - receiverCount
+            guard regularIndex < base.regularParameters.count else {
+                forwarded.append(provided) // Reified type tokens.
+                continue
+            }
+            let serialized = base.regularParameters[regularIndex]
+            var resolved = provided
+            if let defaultIndex = serialized.defaultValueIndex {
+                let selected = defaultMaskBit(regularIndex, mask: maskExpr, into: &body)
+                let zero = arena.appendExpr(.intLiteral(0), type: types.intType)
+                body.append(.constValue(result: zero, value: .intLiteral(0)))
+                resolved = arena.appendTemporary(type: parameter.type)
+                body.append(.copy(from: provided, to: resolved))
+                let after = driver.ctx.makeLoopLabel()
+                body.append(.jumpIfEqual(lhs: selected, rhs: zero, target: after))
+                do {
+                    let expression = try ir.expressionBody(defaultIndex, fileIndex: fileIndex)
+                    let value = translateExpression(expression, into: &body)
+                    body.append(.copy(from: value, to: resolved))
+                } catch {
+                    reportUnsupported("undecodable default value for \(debugName(of: base.base.symbol)): \(error)")
+                }
+                body.append(.label(after))
+            }
+            valueExprs[serialized.base.symbol.signatureIndex] = resolved
+            forwarded.append(resolved)
+        }
+        let result = arena.appendTemporary(type: signature.returnType)
+        let name = symbols.symbol(symbol)?.name ?? interner.intern("<klib>")
+        let directCall = KIRInstruction.call(
+            symbol: symbol, callee: name, arguments: forwarded,
+            result: result, canThrow: true, thrownResult: nil
         )
+        if let receiver = thisExpr,
+           symbols.symbol(symbol)?.kind != .constructor,
+           let dispatch = resolveVirtualDispatchKind(
+               callee: symbol, receiverTypeID: arena.exprType(receiver), sema: sema, interner: interner
+           ) {
+            // Kotlin forbids omitted arguments in super calls. Every mask
+            // bit therefore belongs to a parameter, including bit 30.
+            body.append(.virtualCall(
+                symbol: symbol, callee: name, receiver: receiver,
+                arguments: Array(forwarded.dropFirst()), result: result,
+                canThrow: true, thrownResult: nil, dispatch: dispatch
+            ))
+        } else {
+            body.append(directCall)
+        }
+        body.append(.returnValue(result))
+        body.append(.endBlock)
+        let stubSymbol = driver.callSupportLowerer.defaultStubSymbol(for: symbol)
+        let stubParams = params + [KIRParameter(symbol: maskSymbol, type: types.intType)]
+        // The stub's receiver is an ordinary KIR parameter. Register its
+        // complete erased ABI so Any/T receivers and values are boxed at
+        // source and serialized call sites, including constructors.
+        func erased(_ type: TypeID) -> TypeID {
+            if case .typeParam = types.kind(of: type) { return types.anyType }
+            return type
+        }
+        symbols.setFunctionSignature(FunctionSignature(
+            parameterTypes: stubParams.map { erased($0.type) },
+            returnType: erased(signature.returnType),
+            isSuspend: signature.isSuspend,
+            canThrow: true
+        ), for: stubSymbol)
+        return arena.appendDecl(.function(KIRFunction(
+            symbol: stubSymbol,
+            name: interner.intern(interner.resolve(name) + "$default"),
+            params: stubParams,
+            returnType: signature.returnType,
+            body: body.instructions,
+            isSuspend: signature.isSuspend,
+            isInline: base.base.flags.isInline
+        )))
+    }
+
+    private func defaultMaskBit(_ index: Int, mask: KIRExprID, into body: inout KIRLoweringEmitContext) -> KIRExprID {
+        guard index < 63 else {
+            reportUnsupported("more than 63 default-argument mask bits")
+            return appendIntegerConstant(0, into: &body)
+        }
+        let bit = Int64(1) << index
+        let divisor = arena.appendExpr(.intLiteral(bit), type: types.intType)
+        let two = arena.appendExpr(.intLiteral(2), type: types.intType)
+        body.append(.constValue(result: divisor, value: .intLiteral(bit)))
+        body.append(.constValue(result: two, value: .intLiteral(2)))
+        let divided = arena.appendTemporary(type: types.intType)
+        let selected = arena.appendTemporary(type: types.intType)
+        body.append(.binary(op: .divide, lhs: mask, rhs: divisor, result: divided))
+        body.append(.binary(op: .modulo, lhs: divided, rhs: two, result: selected))
+        return selected
     }
 
     private func emitCallableBody(
@@ -329,9 +532,12 @@ final class KlibBodyLowerer {
         bodyIndex: Int32,
         isSuspend: Bool,
         isInline: Bool,
-        isTailrec: Bool
+        isTailrec: Bool,
+        captures: [(signatureIndex: Int, parameter: KIRParameter, isCell: Bool)] = []
     ) -> [KIRDeclID] {
         valueExprs = [:]
+        mutableValues = []
+        mutableCells = [:]
         returnableBlocks = [:]
         loopLabels = [:]
         returnTargetSignatureIndexes = [base.base.symbol.signatureIndex]
@@ -346,6 +552,13 @@ final class KlibBodyLowerer {
         }
 
         var body: KIRLoweringEmitContext = [.beginBlock]
+        for capture in captures {
+            let parameter = capture.parameter
+            let value = arena.appendExpr(.symbolRef(parameter.symbol), type: parameter.type)
+            body.append(.constValue(result: value, value: .symbolRef(parameter.symbol)))
+            valueExprs[capture.signatureIndex] = value
+            if capture.isCell { mutableCells[capture.signatureIndex] = value }
+        }
 
         // Serialized `getValue`s on the dispatch/extension receiver parameter
         // resolve to the receiver binding — the same convention source
@@ -354,18 +567,18 @@ final class KlibBodyLowerer {
         // `params[0]` and is referenced implicitly by
         // `delegatingConstructorCall`/`instanceInitializerCall`.
         let isConstructor = symbols.symbol(symbol)?.kind == .constructor
-        var paramIndex = 0
+        var paramIndex = captures.count
         if !params.isEmpty,
            isConstructor || base.dispatchReceiver != nil || base.extensionReceiver != nil
         {
-            let receiverParam = params[0]
+            let receiverParam = params[paramIndex]
             let receiverExpr = arena.appendExpr(.symbolRef(receiverParam.symbol), type: receiverParam.type)
             body.append(.constValue(result: receiverExpr, value: .symbolRef(receiverParam.symbol)))
             for parameter in [base.dispatchReceiver, base.extensionReceiver].compactMap({ $0 }) {
                 valueExprs[parameter.base.symbol.signatureIndex] = receiverExpr
             }
             thisExpr = receiverExpr
-            paramIndex = 1
+            paramIndex += 1
         }
         // Context parameters precede regular parameters in serialized call
         // order; both map onto `signature.parameterTypes` slots in sequence.
@@ -406,6 +619,161 @@ final class KlibBodyLowerer {
         )))
         currentCallableSymbol = nil
         return [kirID]
+    }
+
+    /// Lift the serialized body into a capture-first function and reuse the
+    /// same escaping-callable adapter as source lambdas. Rich references may
+    /// also bind an explicit prefix of the invoke function's parameters.
+    private func translateLambda(
+        _ function: KlibFunction,
+        boundValues: [KlibIrExpression],
+        resultType: TypeID,
+        into body: inout KIRLoweringEmitContext
+    ) -> KIRExprID {
+        guard case .functionType(let functionType) = types.kind(of: resultType),
+              !functionType.isSuspend, functionType.contextReceivers.isEmpty,
+              functionType.params.count + (functionType.receiver == nil ? 0 : 1) <= 6,
+              function.base.dispatchReceiver == nil, function.base.contextParameters.isEmpty,
+              !function.base.base.flags.isSuspend,
+              let bodyIndex = function.base.bodyIndex else {
+            reportUnsupported("lambda signature or suspend/context lambda")
+            return errorExpr(type: resultType, into: &body)
+        }
+        let serializedParameters = [function.base.extensionReceiver].compactMap { $0 }
+            + function.base.regularParameters
+        let invocationCount = functionType.params.count + (functionType.receiver == nil ? 0 : 1)
+        guard serializedParameters.count == boundValues.count + invocationCount else {
+            reportUnsupported("lambda bound/invocation parameter count")
+            return errorExpr(type: resultType, into: &body)
+        }
+        // Bound expressions execute once, in their serialized order.
+        let boundArguments = boundValues.map { translateExpression($0, into: &body) }
+        let key = KlibSignatureKey(fileIndex: fileIndex, signatureIndex: function.base.base.symbol.signatureIndex)
+        let lifted: LiftedLambda
+        if let existing = liftedLambdas[key] {
+            lifted = existing
+        } else {
+            let indices: [Int]
+            do {
+                indices = try KlibLambdaCaptureAnalysis.captures(
+                    of: function, module: ir, fileIndex: fileIndex, available: Set(valueExprs.keys)
+                )
+            } catch {
+                reportUnsupported("undecodable lambda captures: \(error)")
+                return errorExpr(type: resultType, into: &body)
+            }
+            let captures = indices.map { (index: $0, isCell: mutableValues.contains($0) || mutableCells[$0] != nil) }
+            var captureParameters: [(signatureIndex: Int, parameter: KIRParameter, isCell: Bool)] = []
+            for capture in captures {
+                let value = capture.isCell ? ensureMutableCell(capture.index, into: &body) : valueExprs[capture.index]
+                guard let value else {
+                    reportUnsupported("unbound lambda capture")
+                    return errorExpr(type: resultType, into: &body)
+                }
+                captureParameters.append((capture.index, KIRParameter(
+                    symbol: driver.ctx.allocateSyntheticGeneratedSymbol(),
+                    type: arena.exprType(value) ?? types.anyType
+                ), capture.isCell))
+            }
+            var parameters = captureParameters.map(\.parameter)
+            for parameter in serializedParameters {
+                guard let type = decodeType(parameter.nameType.typeIndex) else {
+                    reportUnsupported("lambda parameter type")
+                    return errorExpr(type: resultType, into: &body)
+                }
+                parameters.append(KIRParameter(symbol: driver.ctx.allocateSyntheticGeneratedSymbol(), type: type))
+            }
+            guard let returnType = decodeType(function.base.nameType.typeIndex) else {
+                reportUnsupported("lambda return type")
+                return errorExpr(type: resultType, into: &body)
+            }
+            let name = interner.intern("__klib_lambda_\(driver.ctx.allocateSyntheticGeneratedSymbol().rawValue)")
+            let symbol = symbols.define(
+                kind: .function, name: name, fqName: [name], declSite: nil,
+                visibility: .private, flags: [.synthetic]
+            )
+            func erased(_ type: TypeID) -> TypeID {
+                if case .typeParam = types.kind(of: type) { return types.anyType }
+                return type
+            }
+            symbols.setFunctionSignature(FunctionSignature(
+                parameterTypes: parameters.map { erased($0.type) }, returnType: erased(returnType), canThrow: true
+            ), for: symbol)
+            lifted = LiftedLambda(symbol: symbol, name: name, returnType: returnType, captures: captures)
+            liftedLambdas[key] = lifted
+
+            let savedValues = valueExprs
+            let savedMutableValues = mutableValues
+            let savedCells = mutableCells
+            let savedReturns = returnTargetSignatureIndexes
+            let savedBlocks = returnableBlocks
+            let savedLoops = loopLabels
+            let savedThis = thisExpr
+            let savedCallable = currentCallableSymbol
+            defer {
+                valueExprs = savedValues
+                mutableValues = savedMutableValues
+                mutableCells = savedCells
+                returnTargetSignatureIndexes = savedReturns
+                returnableBlocks = savedBlocks
+                loopLabels = savedLoops
+                thisExpr = savedThis
+                currentCallableSymbol = savedCallable
+            }
+            for declaration in emitCallableBody(
+                base: function.base, symbol: symbol, params: parameters, returnType: returnType,
+                bodyIndex: bodyIndex, isSuspend: false, isInline: false, isTailrec: false,
+                captures: captureParameters
+            ) {
+                driver.ctx.appendGeneratedCallableDecl(declaration)
+            }
+        }
+        let captureArguments = lifted.captures.compactMap { capture in
+            capture.isCell ? ensureMutableCell(capture.index, into: &body) : valueExprs[capture.index]
+        } + boundArguments
+        guard captureArguments.count == lifted.captures.count + boundArguments.count,
+              let callable = driver.lambdaLowerer.materializeEscapingCallableValue(
+                  lambdaSymbol: lifted.symbol, lambdaName: lifted.name, lambdaReturnType: lifted.returnType,
+                  functionType: functionType, captureArguments: captureArguments,
+                  sema: sema, arena: arena, interner: interner, instructions: &body.instructions
+              ) else {
+            reportUnsupported("lambda callable materialization")
+            return errorExpr(type: resultType, into: &body)
+        }
+        return callable
+    }
+
+    private func ensureMutableCell(_ index: Int, into body: inout KIRLoweringEmitContext) -> KIRExprID? {
+        if let cell = mutableCells[index] { return cell }
+        guard let value = valueExprs[index] else { return nil }
+        let count = appendIntegerConstant(1, into: &body)
+        let cell = arena.appendTemporary(type: types.anyType)
+        body.append(.call(
+            symbol: nil, callee: interner.intern("kk_array_new"), arguments: [count],
+            result: cell, canThrow: false, thrownResult: nil
+        ))
+        storeCell(value, cell: cell, into: &body)
+        mutableCells[index] = cell
+        return cell
+    }
+
+    private func loadCell(_ cell: KIRExprID, type: TypeID, into body: inout KIRLoweringEmitContext) -> KIRExprID {
+        let zero = appendIntegerConstant(0, into: &body)
+        let value = arena.appendTemporary(type: type)
+        body.append(.call(
+            symbol: nil, callee: interner.intern("kk_array_get_inbounds"), arguments: [cell, zero],
+            result: value, canThrow: false, thrownResult: nil
+        ))
+        return value
+    }
+
+    private func storeCell(_ value: KIRExprID, cell: KIRExprID, into body: inout KIRLoweringEmitContext) {
+        let zero = appendIntegerConstant(0, into: &body)
+        let result = arena.appendTemporary(type: types.anyType)
+        body.append(.call(
+            symbol: nil, callee: interner.intern("kk_array_set"), arguments: [cell, zero, value],
+            result: result, canThrow: false, thrownResult: nil
+        ))
     }
 
     private static func isTerminator(_ instruction: KIRInstruction) -> Bool {
@@ -674,10 +1042,25 @@ final class KlibBodyLowerer {
         case .variable(let variable):
             let declaredType = decodeType(variable.nameType.typeIndex) ?? types.anyType
             let slot = arena.appendTemporary(type: declaredType)
-            valueExprs[variable.base.symbol.signatureIndex] = slot
+            let index = variable.base.symbol.signatureIndex
+            valueExprs[index] = slot
+            if variable.base.flags.isLocalVar {
+                mutableValues.insert(index)
+                // Allocate at the declaration so a lambda created on only one
+                // control-flow path cannot leave another path without a cell.
+                let seed = deferredLocalCaptureCellSeedValue(
+                    for: declaredType, sema: sema, arena: arena, instructions: &body.instructions
+                )
+                body.append(.copy(from: seed, to: slot))
+                _ = ensureMutableCell(index, into: &body)
+            }
             if let initializer = variable.initializer {
                 let value = translateExpression(initializer, into: &body)
-                body.append(.copy(from: value, to: slot))
+                if let cell = mutableCells[index] {
+                    storeCell(value, cell: cell, into: &body)
+                } else {
+                    body.append(.copy(from: value, to: slot))
+                }
             }
         case .localDelegatedProperty(let delegated):
             reportUnsupported("local delegated property")
@@ -733,13 +1116,22 @@ final class KlibBodyLowerer {
             body.append(.constValue(result: expr, value: .doubleLiteral(value)))
             return expr
         case .constString(let index):
-            let text = (try? ir.string(index, fileIndex: fileIndex)) ?? ""
+            let text: String
+            do {
+                text = try ir.stringLiteral(index, fileIndex: fileIndex)
+            } catch {
+                reportUnsupported("invalid string literal: \(error)")
+                return errorExpr(type: resultType, into: &body)
+            }
             let interned = interner.intern(text)
             let expr = arena.appendExpr(.stringLiteral(interned), type: resultType)
             body.append(.constValue(result: expr, value: .stringLiteral(interned)))
             return expr
 
         case .getValue(let ref, _):
+            if let cell = mutableCells[ref.signatureIndex] {
+                return loadCell(cell, type: resultType, into: &body)
+            }
             if let bound = valueExprs[ref.signatureIndex] {
                 return bound
             }
@@ -760,6 +1152,10 @@ final class KlibBodyLowerer {
 
         case .setValue(let ref, let value, _):
             let lowered = translateExpression(value, into: &body)
+            if let cell = mutableCells[ref.signatureIndex] {
+                storeCell(lowered, cell: cell, into: &body)
+                return lowered
+            }
             guard let target = valueExprs[ref.signatureIndex] else {
                 reportUnsupported("unbound setValue \(debugName(of: ref))")
                 return lowered
@@ -887,9 +1283,18 @@ final class KlibBodyLowerer {
                 resultType: resultType, into: &body
             )
 
+        case .functionExpression(let function, _):
+            return translateLambda(function, boundValues: [], resultType: resultType, into: &body)
+
+        case .richFunctionReference(let boundValues, let reflectionTarget, _, let function, _, _):
+            guard reflectionTarget == nil else {
+                reportUnsupported("reflective function reference")
+                return errorExpr(type: resultType, into: &body)
+            }
+            return translateLambda(function, boundValues: boundValues, resultType: resultType, into: &body)
+
         case .getClass, .classReference, .functionReference, .propertyReference,
-             .richFunctionReference, .richPropertyReference,
-             .localDelegatedPropertyReference, .functionExpression:
+             .richPropertyReference, .localDelegatedPropertyReference:
             reportUnsupported("callable/class reference")
             return errorExpr(type: resultType, into: &body)
 
@@ -925,17 +1330,23 @@ final class KlibBodyLowerer {
     /// first, then extension receiver, then value parameters); pre-2.4
     /// payloads carry them in dedicated fields. `nil` entries mark
     /// default-argument slots — Kotlin resolves them through the callee's
-    /// `$default` stub, which is not yet supported here.
+    /// `$default` stub, synthesized from the callee's serialized defaults.
     private func splitArguments(
         _ access: KlibMemberAccess,
         signature: FunctionSignature?
     ) -> (receivers: [KlibIrExpression], regular: [KlibIrExpression?]) {
-        if !access.arguments.isEmpty {
+        if !access.arguments.isEmpty || !access.argumentsPre240.isEmpty {
+            let arguments = access.arguments.isEmpty
+                ? access.argumentsPre240
+                : access.arguments.map { expression -> KlibIrExpression? in
+                    if case .missingExpression = expression.kind { return nil }
+                    return expression
+                }
             let regularCount = signature?.parameterTypes.count ?? 0
-            let receiverCount = max(0, access.arguments.count - regularCount)
+            let receiverCount = max(0, arguments.count - regularCount)
             return (
-                receivers: Array(access.arguments.prefix(receiverCount)),
-                regular: access.arguments.dropFirst(receiverCount).map { $0 as KlibIrExpression? }
+                receivers: arguments.prefix(receiverCount).compactMap { $0 },
+                regular: Array(arguments.dropFirst(receiverCount))
             )
         }
         let receivers = [access.dispatchReceiver, access.extensionReceiver].compactMap { $0 }
@@ -943,6 +1354,47 @@ final class KlibBodyLowerer {
             ? access.argumentsPre240
             : access.regularArguments
         return (receivers: receivers, regular: regular)
+    }
+
+    private func lowerArguments(
+        _ arguments: [KlibIrExpression?],
+        signature: FunctionSignature?,
+        into body: inout KIRLoweringEmitContext
+    ) -> (values: [KIRExprID], mask: Int64) {
+        var values: [KIRExprID] = []
+        var mask: Int64 = 0
+        for (index, argument) in arguments.enumerated() {
+            if let argument {
+                values.append(translateExpression(argument, into: &body))
+                continue
+            }
+            guard let signature, index < signature.parameterTypes.count else {
+                reportUnsupported("missing argument without a parameter")
+                continue
+            }
+            let parameterType = signature.parameterTypes[index]
+            if index < signature.valueParameterHasDefaultValues.count,
+               signature.valueParameterHasDefaultValues[index], index < 63 {
+                mask |= Int64(1) << index
+                let placeholder = arena.appendExpr(.intLiteral(0), type: parameterType)
+                body.append(.constValue(result: placeholder, value: .intLiteral(0)))
+                values.append(placeholder)
+            } else if index < signature.valueParameterIsVararg.count, signature.valueParameterIsVararg[index] {
+                let arrayType = primitiveVarargArrayType(elementType: parameterType, sema: sema, interner: interner)
+                    ?? referenceVarargArrayType(elementType: parameterType, sema: sema, interner: interner)
+                    ?? parameterType
+                values.append(translateVararg(elements: [], resultType: arrayType, into: &body))
+            } else {
+                reportUnsupported("missing argument for parameter \(index)")
+            }
+        }
+        return (values, mask)
+    }
+
+    private func appendIntegerConstant(_ mask: Int64, into body: inout KIRLoweringEmitContext) -> KIRExprID {
+        let expression = arena.appendExpr(.intLiteral(mask), type: types.intType)
+        body.append(.constValue(result: expression, value: .intLiteral(mask)))
+        return expression
     }
 
     private func translateCall(
@@ -971,19 +1423,27 @@ final class KlibBodyLowerer {
         for receiver in split.receivers {
             loweredReceivers.append(translateExpression(receiver, into: &body))
         }
-        var loweredArguments: [KIRExprID] = []
-        for argument in split.regular {
-            guard let argument else {
-                reportUnsupported("default argument in call \(debugName(of: ref))")
-                continue
-            }
-            loweredArguments.append(translateExpression(argument, into: &body))
-        }
+        let lowered = lowerArguments(split.regular, signature: signature, into: &body)
+        let loweredArguments = lowered.values
 
-        let result = arena.appendTemporary(type: signature?.returnType ?? resultType)
+        // The expression type includes the call site's generic substitution.
+        let result = arena.appendTemporary(type: resultType)
         let calleeName = self.calleeName(for: calleeSymbol, ref: ref)
 
-        if !loweredReceivers.isEmpty,
+        if lowered.mask != 0 {
+            guard superRef == nil else {
+                reportUnsupported("super call with omitted default arguments")
+                return errorExpr(type: resultType, into: &body)
+            }
+            let owner = driver.callSupportLowerer.defaultStubOwnerSymbol(for: calleeSymbol, sema: sema)
+            let mask = appendIntegerConstant(lowered.mask, into: &body)
+            body.append(.call(
+                symbol: driver.callSupportLowerer.defaultStubSymbol(for: owner),
+                callee: interner.intern(interner.resolve(calleeName) + "$default"),
+                arguments: loweredReceivers + loweredArguments + [mask],
+                result: result, canThrow: true, thrownResult: nil
+            ))
+        } else if superRef == nil, !loweredReceivers.isEmpty,
            let dispatch = resolveVirtualDispatchKind(
                callee: calleeSymbol,
                receiverTypeID: arena.exprType(loweredReceivers[0]),
@@ -1015,6 +1475,21 @@ final class KlibBodyLowerer {
         resultType: TypeID,
         into body: inout KIRLoweringEmitContext
     ) -> KIRExprID {
+        if resolvedFqName(of: ref) == "kotlin.internal.SharedVariableBox.<init>" {
+            let values = intrinsicArguments(memberAccess, into: &body)
+            guard values.count == 1 else {
+                reportUnsupported("shared-variable box constructor arguments")
+                return errorExpr(type: resultType, into: &body)
+            }
+            let count = appendIntegerConstant(1, into: &body)
+            let cell = arena.appendTemporary(type: types.anyType)
+            body.append(.call(
+                symbol: nil, callee: interner.intern("kk_array_new"), arguments: [count],
+                result: cell, canThrow: false, thrownResult: nil
+            ))
+            storeCell(values[0], cell: cell, into: &body)
+            return cell
+        }
         guard let ctorSymbol = symbol(for: ref),
               let classSymbol = symbols.parentSymbol(for: ctorSymbol)
         else {
@@ -1030,17 +1505,13 @@ final class KlibBodyLowerer {
             classSymbol: classSymbol, objectType: objectType, into: &body
         )
         let split = splitArguments(memberAccess, signature: signature)
-        var arguments: [KIRExprID] = [allocated]
-        for argument in split.regular {
-            guard let argument else {
-                reportUnsupported("default argument in ctor \(debugName(of: ref))")
-                continue
-            }
-            arguments.append(translateExpression(argument, into: &body))
-        }
+        let lowered = lowerArguments(split.regular, signature: signature, into: &body)
+        var arguments: [KIRExprID] = [allocated] + lowered.values
+        if lowered.mask != 0 { arguments.append(appendIntegerConstant(lowered.mask, into: &body)) }
         let initResult = arena.appendTemporary(type: types.unitType)
         body.append(.call(
-            symbol: ctorSymbol, callee: interner.intern("<init>"),
+            symbol: lowered.mask == 0 ? ctorSymbol : driver.callSupportLowerer.defaultStubSymbol(for: ctorSymbol),
+            callee: interner.intern(lowered.mask == 0 ? "<init>" : "<init>$default"),
             arguments: arguments, result: initResult,
             canThrow: true, thrownResult: nil
         ))
@@ -1070,14 +1541,13 @@ final class KlibBodyLowerer {
         }
         let signature = symbols.functionSignature(for: ctorSymbol)
         let split = splitArguments(memberAccess, signature: signature)
-        var arguments: [KIRExprID] = [thisExpr]
-        for argument in split.regular {
-            guard let argument else { continue }
-            arguments.append(translateExpression(argument, into: &body))
-        }
+        let lowered = lowerArguments(split.regular, signature: signature, into: &body)
+        var arguments: [KIRExprID] = [thisExpr] + lowered.values
+        if lowered.mask != 0 { arguments.append(appendIntegerConstant(lowered.mask, into: &body)) }
         let result = arena.appendTemporary(type: types.unitType)
         body.append(.call(
-            symbol: ctorSymbol, callee: interner.intern("<init>"),
+            symbol: lowered.mask == 0 ? ctorSymbol : driver.callSupportLowerer.defaultStubSymbol(for: ctorSymbol),
+            callee: interner.intern(lowered.mask == 0 ? "<init>" : "<init>$default"),
             arguments: arguments, result: result,
             canThrow: true, thrownResult: nil
         ))
@@ -1620,6 +2090,49 @@ final class KlibBodyLowerer {
         let owner = parts.dropLast().joined(separator: ".")
         let member = parts.last ?? ""
 
+        if member == "invoke", let shape = KlibFunctionTypeShape(classifierName: owner), !shape.isSuspend {
+            let arguments = intrinsicArguments(memberAccess, into: &body)
+            guard shape.arity <= 6, arguments.count == shape.arity + 1 else {
+                reportUnsupported("function-value invocation arity")
+                return errorExpr(type: resultType, into: &body)
+            }
+            let result = arena.appendTemporary(type: resultType)
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern(shape.arity == 1 ? "kk_function_invoke" : "kk_function_invoke_\(shape.arity)"),
+                arguments: arguments, result: result, canThrow: true, thrownResult: nil
+            ))
+            return result
+        }
+        if owner == "kotlin.internal.SharedVariableBox", member == "element" {
+            let arguments = intrinsicArguments(memberAccess, into: &body)
+            switch arguments.count {
+            case 1: return loadCell(arguments[0], type: resultType, into: &body)
+            case 2:
+                storeCell(arguments[1], cell: arguments[0], into: &body)
+                return unitExpr(into: &body)
+            default:
+                reportUnsupported("shared-variable box accessor arguments")
+                return errorExpr(type: resultType, into: &body)
+            }
+        }
+
+        // Native models array `size` as a member, while the bundled stdlib
+        // supplies an extension property backed by these typed intrinsics.
+        if parts.count == 3, parts[0] == "kotlin", member == "size",
+           KnownCompilerNames(interner: interner).isArrayLikeName(interner.intern(parts[1])),
+           let bridge = symbols.lookup(fqName: [
+               interner.intern("kotlin"), interner.intern("__kk\(parts[1])Size"),
+           ]), let linkName = symbols.externalLinkName(for: bridge) {
+            let arguments = intrinsicArguments(memberAccess, into: &body)
+            let result = arena.appendTemporary(type: resultType)
+            body.append(.call(
+                symbol: bridge, callee: interner.intern(linkName), arguments: arguments,
+                result: result, canThrow: false, thrownResult: nil
+            ))
+            return result
+        }
+
         let floatPrefix: String? = switch owner {
         case "kotlin.Double": "d"
         case "kotlin.Float": "f"
@@ -1689,9 +2202,7 @@ final class KlibBodyLowerer {
             return nil
         }
 
-        let loweredArguments = memberAccess.arguments.map {
-            translateExpression($0, into: &body)
-        }
+        let loweredArguments = intrinsicArguments(memberAccess, into: &body)
 
         if member == "unaryPlus" {
             return loweredArguments.first
@@ -1728,6 +2239,25 @@ final class KlibBodyLowerer {
             canThrow: false, thrownResult: nil
         ))
         return result
+    }
+
+    private func intrinsicArguments(_ access: KlibMemberAccess, into body: inout KIRLoweringEmitContext) -> [KIRExprID] {
+        let arguments: [KlibIrExpression?]
+        if !access.arguments.isEmpty {
+            arguments = access.arguments
+        } else if !access.argumentsPre240.isEmpty {
+            arguments = access.argumentsPre240
+        } else {
+            arguments = [access.dispatchReceiver, access.extensionReceiver].compactMap { $0 }
+                + access.regularArguments
+        }
+        return arguments.compactMap { argument in
+            guard let argument else {
+                reportUnsupported("missing intrinsic argument")
+                return nil
+            }
+            return translateExpression(argument, into: &body)
+        }
     }
 
 
@@ -1771,11 +2301,35 @@ final class KlibBodyLowerer {
         arguments: [KlibTypeArgument]
     ) -> TypeID? {
         if classifier.kind == .typeParameter {
-            guard let paramSymbol = symbol(for: classifier) else { return nil }
+            let key = KlibSignatureKey(fileIndex: fileIndex, signatureIndex: classifier.signatureIndex)
+            // Imported signature placeholders have stable synthetic IDs but
+            // no standalone SymbolTable entry. The declaration binder is the
+            // authority for these IDs; composite resolution may instead find
+            // the containing function, which is not a type parameter.
+            let paramSymbol = typeParameterSymbols[key] ?? symbol(for: classifier).flatMap {
+                symbols.symbol($0)?.kind == .typeParameter ? $0 : nil
+            }
+            guard let paramSymbol else { return nil }
             return types.make(.typeParam(TypeParamType(
                 symbol: paramSymbol,
                 nullability: nullable ? .nullable : .nonNull
             )))
+        }
+        if let name = resolvedFqName(of: classifier) {
+            if let primitive = primitiveType(fqName: name, nullable: nullable) { return primitive }
+            if name == "kotlin.internal.SharedVariableBox" { return types.anyType }
+            if let shape = KlibFunctionTypeShape(classifierName: name) {
+                guard arguments.count == shape.arity + 1 else { return nil }
+                var decoded: [TypeID] = []
+                for argument in arguments {
+                    guard case .type(let index, _) = argument, let type = decodeType(index) else { return nil }
+                    decoded.append(type)
+                }
+                return types.make(.functionType(FunctionType(
+                    params: Array(decoded.dropLast()), returnType: decoded.last!,
+                    isSuspend: shape.isSuspend, nullability: nullable ? .nullable : .nonNull
+                )))
+            }
         }
         guard let classSymbol = symbol(for: classifier) else { return nil }
         if let primitive = primitiveType(classSymbol: classSymbol, nullable: nullable) {
@@ -1804,6 +2358,10 @@ final class KlibBodyLowerer {
     private func primitiveType(classSymbol: SymbolID, nullable: Bool) -> TypeID? {
         guard let info = symbols.symbol(classSymbol) else { return nil }
         let fqName = info.fqName.map { interner.resolve($0) }.joined(separator: ".")
+        return primitiveType(fqName: fqName, nullable: nullable)
+    }
+
+    private func primitiveType(fqName: String, nullable: Bool) -> TypeID? {
         let base: TypeID?
         switch fqName {
         case "kotlin.Boolean": base = types.booleanType

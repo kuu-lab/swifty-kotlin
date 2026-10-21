@@ -11,7 +11,7 @@ extension CallTypeChecker {
         let externalLinkName = sema.symbols.externalLinkName(for: chosen)
         if let externalLinkName, !CallLowerer.isSourceBackedLinkName(externalLinkName) {
             isRangeConstructor = [
-                "kk_op_rangeTo",
+                "__kk_op_rangeTo",
                 "__kk_op_rangeUntil",
                 "__kk_op_ulong_rangeUntil",
                 "__kk_uint_rangeTo",

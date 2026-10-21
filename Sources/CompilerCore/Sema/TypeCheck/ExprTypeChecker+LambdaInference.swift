@@ -506,7 +506,7 @@ extension ExprTypeChecker {
             let underlyingFunctionType = FunctionType(
                 contextReceivers: expectedFunctionType.contextReceivers,
                 receiver: expectedFunctionType.receiver,
-                params: expectedFunctionType.params,
+                params: parameterTypes,
                 returnType: inferredReturnType,
                 isSuspend: expectedFunctionType.isSuspend,
                 isCallableReference: expectedFunctionType.isCallableReference,

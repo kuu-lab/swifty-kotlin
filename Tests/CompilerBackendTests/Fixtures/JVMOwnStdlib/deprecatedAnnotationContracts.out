@@ -1,0 +1,23 @@
+class message
+WARNING
+Fresh()
+2
+warning
+WARNING
+
+0
+error
+ERROR
+
+0
+property
+WARNING
+
+0
+LegacyCtor
+13
+14
+WARNING
+1
+extension-level
+extension-local

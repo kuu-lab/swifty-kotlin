@@ -39,6 +39,15 @@ extension CallTypeChecker {
         // two viable overloads and produce a false ambiguity.
         let candidateSet = Set(allCandidates)
         let resolvedCandidates = allCandidates.filter { candidate in
+            // The Array bulk mutation is a Kotlin extension on JVM. The native
+            // MutableSet shortcut would otherwise shadow user extensions.
+            if sema.requiresResolvedLibraryCalls,
+               let symbol = ctx.cachedSymbol(candidate), symbol.flags.contains(.synthetic),
+               symbol.fqName == knownNames.kotlinCollectionsMutableSetFQName + [knownNames.addAll],
+               let parameter = sema.symbols.functionSignature(for: candidate)?.parameterTypes.first,
+               let (_, parameterSymbol) = resolveClassTypeSymbol(parameter, sema: sema),
+               parameterSymbol.fqName == knownNames.kotlinArrayFQName
+            { return false }
             if ctx.cachedSymbol(candidate)?.flags.contains(.localFunction) == true,
                locals[calleeName]?.symbol != candidate
             {

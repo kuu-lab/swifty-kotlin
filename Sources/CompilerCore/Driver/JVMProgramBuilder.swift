@@ -6,6 +6,7 @@ final class JVMProgramBuilder {
     let sema: SemaModule
     var classes: [SymbolID: JVMClassPlan] = [:]
     var methods: [SymbolID: JVMForeignMethod] = [:]
+    var collectionInterfaceMethods: [SymbolID: JVMForeignMethod] = [:]
     var properties: [SymbolID: JVMProperty] = [:]
     var facadeName = ""
     var facadePlan: JVMClassPlan?
@@ -89,8 +90,10 @@ final class JVMProgramBuilder {
         try prepareTextLibrary()
         try prepareDelegateInterfaces()
         try prepareLazyProperty()
+        try prepareCollectionInterfaces()
         try prepareClasses(files.flatMap(\.topLevelDecls))
         try prepareClassDelegates()
+        try prepareCollectionDelegationMarkers()
         var plans: [JVMClassPlan?] = []
         var declarationsByFile: [[(FunDecl, JVMFunctionReference)]] = []
         for (index, file) in files.enumerated() {
@@ -206,7 +209,7 @@ final class JVMProgramBuilder {
 }
 
 final class JVMFunctionBuilder {
-    struct Local { let value: JVMValue; let mutable: Bool; var cell: JVMValue? = nil; var functionType: FunctionType? = nil; var symbol: SymbolID? = nil; var delegateSymbol: SymbolID? = nil; var lateName: String? = nil; var deferredInitialization = false }
+    struct Local { let value: JVMValue; let mutable: Bool; var cell: JVMValue? = nil; var functionType: FunctionType? = nil; var symbol: SymbolID? = nil; var delegateSymbol: SymbolID? = nil; var lateName: String? = nil; var deferredInitialization = false; var numericBoxingOrigin: JVMValue? = nil }
     let program: JVMProgramBuilder
     let declaration: FunDecl
     let reference: JVMFunctionReference
@@ -346,8 +349,10 @@ final class JVMFunctionBuilder {
         if isStaticBody { function.access = 0x1009; function.isSynthetic = true }
         function.isSuspend = declaration.isSuspend || isSuspendBody
         function.isInline = declaration.isInline
-        function.isOperator = declaration.modifiers.contains(.operator)
-        function.isInfix = declaration.modifiers.contains(.infix)
+        // Sema includes modifiers inherited by overrides in the symbol flags.
+        let semanticFlags = functionSymbol.flatMap { program.sema.symbols.symbol($0)?.flags }
+        function.isOperator = declaration.modifiers.contains(.operator) || semanticFlags?.contains(.operatorFunction) == true
+        function.isInfix = declaration.modifiers.contains(.infix) || semanticFlags?.contains(.infixFunction) == true
         // This backend retains crossinline callbacks as function objects.
         // Export that physical requirement as noinline so Kotlin's bytecode
         // inliner does not erase an object passed to a lifted lambda helper.
@@ -386,6 +391,7 @@ final class JVMFunctionBuilder {
     }
 
     func rawExpression(_ id: ExprID, discarded: Bool = false) throws -> JVMValue? {
+        if program.sema.bindings.stdlibSpecialCallKinds[id] == .contract { return nil }
         guard let expr = arena.expr(id) else { throw fail("Missing JVM expression.", id) }
         switch expr {
         case let .inExpr(lhs, rhs, _), let .notInExpr(lhs, rhs, _):
@@ -484,6 +490,12 @@ final class JVMFunctionBuilder {
             if let initial { instructions.append(.copy(try convert(initial, to: local.type), local)) }
             var binding = Local(value: local, mutable: mutable)
             binding.symbol = symbol
+            if !mutable, local.type.referenceName == "java/lang/Comparable",
+               let initial, initial.type.isNumeric {
+                // Retain the evaluated primitive behind this immutable box.
+                // Closure helpers deliberately reconstruct locals without it.
+                binding.numericBoxingOrigin = initial
+            }
             binding.deferredInitialization = initial == nil && !mutable
             // Sema owns definite assignment, including mutually exclusive val
             // writes. Deferred callback initialization needs the same shared
@@ -519,6 +531,13 @@ final class JVMFunctionBuilder {
                 guard let field = property.field else { throw fail("Missing JVM backing field.", id) }
                 let left = try value(field.type)
                 instructions.append(property.getter.isStatic ? .getStatic(field, left) : .getField(field, thisValue!, left))
+                if let call = try resolvedCompoundCall(op, receiver: left, rhs: rhs, id: id) {
+                    if !call.mutatesReceiver, let result = call.value, !terminated {
+                        let converted = try convert(result, to: field.type)
+                        instructions.append(property.getter.isStatic ? .putStatic(field, converted) : .putField(field, thisValue!, converted))
+                    }
+                    return nil
+                }
                 let right = try compoundOperand(rhs, target: field.type)
                 if terminated { return nil }
                 guard try permitsCompound(left.type, right.type) else { throw fail("Unsupported JVM backing field conversion.", id) }
@@ -532,8 +551,17 @@ final class JVMFunctionBuilder {
                 return try propertyCompound(property, receiver: instance(id), op: op, rhs: rhs, id: id)
             }
             let local = try lookup(name)
+            let loaded = try readLocal(local), old = try value(loaded.type)
+            // The RHS may reassign this local before the operator call executes.
+            instructions.append(.copy(loaded, old))
+            if let call = try resolvedCompoundCall(op, receiver: old, rhs: rhs, id: id) {
+                if !call.mutatesReceiver, !terminated {
+                    guard local.mutable, let result = call.value else { throw fail("Cannot reassign JVM val.", id) }
+                    try writeLocal(local, convert(result, to: local.value.type))
+                }
+                return nil
+            }
             guard local.mutable, local.value.type.isNumeric || local.value.type.isText else { throw fail("JVM compound assignment requires a mutable numeric local.", id) }
-            let old = try readLocal(local)
             let rawRight = try compoundOperand(rhs, target: old.type)
             if terminated { return nil }
             guard try permitsCompound(old.type, rawRight.type) else { throw fail("JVM compound assignment cannot narrow its numeric result.", id) }

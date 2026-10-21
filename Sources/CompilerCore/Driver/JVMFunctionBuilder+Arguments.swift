@@ -64,7 +64,7 @@ extension JVMFunctionBuilder {
         try masks.map { try constant(.int(Int32(bitPattern: $0)), .int) } + [constant(.null, .reference(constructor ? "kotlin/jvm/internal/DefaultConstructorMarker" : "java/lang/Object", nullable: true))]
     }
 
-    func sourceCall(_ args: [CallArgument], receiver: ExprID? = nil, id: ExprID, expectedResult: JVMValueType? = nil) throws -> JVMIntrinsicResult? {
+    func sourceCall(_ args: [CallArgument], receiver: ExprID? = nil, receiverValue: JVMValue? = nil, id: ExprID, expectedResult: JVMValueType? = nil) throws -> JVMIntrinsicResult? {
         let binding = program.sema.bindings.callBinding(for: id)
         guard let symbol = binding?.chosenCallee ?? program.sema.bindings.identifierSymbol(for: id) else { return nil }
         if let local = program.localFunctions[symbol] {
@@ -79,13 +79,13 @@ extension JVMFunctionBuilder {
         let extensionCall = program.extensionSymbols.contains(symbol) || context.jvmImports?.extensionSymbols.contains(symbol) == true
         var dispatch: JVMValue?, prefix: [JVMValue] = []
         if constructor, let plan, plan.isInner {
-            prefix = [try receiver.map(requireValue) ?? enclosingInstance(plan.outer!)]
+            prefix = [try receiverValue ?? receiver.map(requireValue) ?? enclosingInstance(plan.outer!)]
         } else if let method, !method.isStatic && !constructor {
-            dispatch = try receiver != nil && !extensionCall ? requireValue(receiver!) : instance(id)
+            dispatch = try (receiver != nil || receiverValue != nil) && !extensionCall ? receiverValue ?? requireValue(receiver!) : instance(id)
         }
         if extensionCall {
             let implicit = implicitExtensionReceiver(id)
-            guard let value = try receiver.map(requireValue) ?? implicit else { throw fail("Missing JVM extension receiver.", id) }
+            guard let value = try receiverValue ?? receiver.map(requireValue) ?? implicit else { throw fail("Missing JVM extension receiver.", id) }
             prefix.append(value)
         }
         let allTypes = reference?.parameters ?? method!.parameters

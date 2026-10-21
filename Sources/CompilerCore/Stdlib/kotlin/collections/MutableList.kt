@@ -2,62 +2,26 @@ package kotlin.collections
 
 import kotlin.internal.KsSymbolName
 
-@KsSymbolName("__kk_mutable_list_set")
-private external fun <E> __kkMutableListSet(list: MutableList<E>, index: Int, element: E): E
-
-@KsSymbolName("__kk_mutable_list_add")
-private external fun <E> __kkMutableListAdd(list: MutableList<E>, element: E): Boolean
-
-@KsSymbolName("__kk_mutable_list_add_at")
-private external fun <E> __kkMutableListAddAt(list: MutableList<E>, index: Int, element: E)
-
-@KsSymbolName("__kk_mutable_list_addAll_checked")
-private external fun <E> __kkMutableListAddAll(
-    list: MutableList<E>,
-    elements: Collection<out E>
-): Boolean
-
-@KsSymbolName("__kk_mutable_list_removeAt")
-private external fun <E> __kkMutableListRemoveAt(list: MutableList<E>, index: Int): E
-
-@KsSymbolName("__kk_mutable_list_remove_checked")
-private external fun <E> __kkMutableListRemove(list: MutableList<E>, element: E): Boolean
-
-@KsSymbolName("__kk_mutable_list_clear_checked")
-private external fun <E> __kkMutableListClear(list: MutableList<E>)
-
-@KsSymbolName("__kk_mutable_list_removeAll_checked")
-private external fun <E> __kkMutableListRemoveAll(
-    list: MutableList<E>,
-    elements: Collection<out E>
-): Boolean
-
-@KsSymbolName("__kk_mutable_list_retainAll_checked")
-private external fun <E> __kkMutableListRetainAll(
-    list: MutableList<E>,
-    elements: Collection<out E>
-): Boolean
-
-// KSP-1503: The private externals above are the demoted runtime bridges;
-// keeping the bridge calls in default interface bodies preserves the
-// runtime-backed behavior for erased MutableList receivers without synthetic
-// member declarations.
-// KSP-705: the addAll members stay `external` declarations bound directly to
-// their demoted bridges, matching the MutableCollection.addAll migration.
+// KSP-705/1503: the mutating members stay `external` declarations bound
+// directly to their demoted list-specific runtime bridges, matching the
+// MutableCollection migration. Bound this way they keep providing an
+// implementation to every concrete MutableList without repeating the ABI
+// plumbing, while staying recognizable as runtime bridges — e.g. an
+// unqualified `super.removeAll()` call must not treat them as an independent
+// Kotlin default competing with a concrete superclass implementation.
 // KSP-700: list-iterator overrides are source-backed to keep the covariant
 // return type visible to inherited abstract-member checks.
 public interface MutableList<E> : List<E>, MutableCollection<E> {
+    @KsSymbolName("__kk_mutable_list_set")
     @IgnorableReturnValue
-    public operator fun set(index: Int, element: E): E =
-        __kkMutableListSet(this, index, element)
+    public external operator fun set(index: Int, element: E): E
 
+    @KsSymbolName("__kk_mutable_list_add")
     @IgnorableReturnValue
-    public override fun add(element: E): Boolean =
-        __kkMutableListAdd(this, element)
+    public override external fun add(element: E): Boolean
 
-    public fun add(index: Int, element: E) {
-        __kkMutableListAddAt(this, index, element)
-    }
+    @KsSymbolName("__kk_mutable_list_add_at")
+    public external fun add(index: Int, element: E): Unit
 
     @KsSymbolName("__kk_mutable_list_addAll_checked")
     @IgnorableReturnValue
@@ -67,40 +31,39 @@ public interface MutableList<E> : List<E>, MutableCollection<E> {
     @IgnorableReturnValue
     public external fun addAll(index: Int, elements: Collection<out E>): Boolean
 
+    @KsSymbolName("__kk_mutable_list_removeAt")
     @IgnorableReturnValue
-    public fun removeAt(index: Int): E =
-        __kkMutableListRemoveAt(this, index)
+    public external fun removeAt(index: Int): E
 
+    @KsSymbolName("__kk_mutable_list_remove_checked")
     @IgnorableReturnValue
-    public override fun remove(element: E): Boolean =
-        __kkMutableListRemove(this, element)
+    public override external fun remove(element: E): Boolean
 
-    public override fun clear() {
-        __kkMutableListClear(this)
-    }
+    @KsSymbolName("__kk_mutable_list_clear_checked")
+    public override external fun clear(): Unit
 
+    @KsSymbolName("__kk_mutable_list_removeAll_checked")
     @IgnorableReturnValue
-    public override fun removeAll(elements: Collection<out E>): Boolean =
-        __kkMutableListRemoveAll(this, elements)
+    public override external fun removeAll(elements: Collection<out E>): Boolean
 
+    @KsSymbolName("__kk_mutable_list_retainAll_checked")
     @IgnorableReturnValue
-    public override fun retainAll(elements: Collection<out E>): Boolean =
-        __kkMutableListRetainAll(this, elements)
+    public override external fun retainAll(elements: Collection<out E>): Boolean
 
     public operator fun plusAssign(element: E) {
-        __kkMutableListAdd(this, element)
+        add(element)
     }
 
     public operator fun plusAssign(elements: Collection<out E>) {
-        __kkMutableListAddAll(this, elements)
+        addAll(elements)
     }
 
     public operator fun minusAssign(element: E) {
-        __kkMutableListRemove(this, element)
+        remove(element)
     }
 
     public operator fun minusAssign(elements: Collection<out E>) {
-        __kkMutableListRemoveAll(this, elements)
+        removeAll(elements)
     }
 
     @KsSymbolName("__kk_mutable_list_listIterator")

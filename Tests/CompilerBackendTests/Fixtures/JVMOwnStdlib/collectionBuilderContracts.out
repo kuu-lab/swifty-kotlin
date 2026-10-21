@@ -1,0 +1,31 @@
+[1, 2]
+{1=ONE, 2=two}
+12
+[3, 4]
+true
+list-add=UnsupportedOperationException
+list-set=UnsupportedOperationException
+list-remove=UnsupportedOperationException
+list-clear=UnsupportedOperationException
+[3, 4]
+{3=three}
+true
+map-put=UnsupportedOperationException
+map-remove=UnsupportedOperationException
+map-clear=UnsupportedOperationException
+{3=three}
+negative-list=IllegalArgumentException
+negative-map=IllegalArgumentException
+0
+[6]
+{6=six}
+throw-list=IllegalStateException
+[9, 10]
+throw-map=IllegalStateException
+{9=nine, 10=ten}
+7
+[11, 12]
+8
+{11=eleven, 12=twelve}
+true
+true

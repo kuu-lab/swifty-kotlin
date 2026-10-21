@@ -533,7 +533,7 @@ func runtimeBufferedLineIteratorBox(from raw: Int) -> RuntimeBufferedLineIterato
 
 /// `hasNext`/`next` for the streaming line iterator. These return nil when
 /// `iterRaw` holds a different iterator box so the generic `kk_iterator_*` and
-/// `kk_range_*` dispatchers can fall through to the other shapes.
+/// `__kk_range_*` dispatchers can fall through to the other shapes.
 func runtimeBufferedLineIteratorHasNext(_ iterRaw: Int) -> Int? {
     guard let iter = runtimeBufferedLineIteratorBox(from: iterRaw) else { return nil }
     return iter.hasNext() ? 1 : 0

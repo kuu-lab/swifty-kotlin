@@ -136,10 +136,12 @@ extension CallTypeChecker {
             || isMutableMapIteratorSource
             || isUniqueIteratorSource
             || isListSourceBackedMember
-        // Keep user bulk overloads/extensions ahead of the bundled MutableSet
-        // fallback. Its source bodies only replace the old stdlib residuals.
-        let isMutableSetBulkCall = calleeName == knownNames.addAll
-            && sema.symbols.lookup(fqName: knownNames.kotlinCollectionsMutableSetFQName).map { owner in
+        // Keep user bulk extensions ahead of the bundled fallback. JVM List
+        // and Collection overloads use the same source binding as MutableSet.
+        let bulkReceiverFQName = sema.requiresResolvedLibraryCalls
+            ? knownNames.kotlinCollectionsMutableCollectionFQName : knownNames.kotlinCollectionsMutableSetFQName
+        let isMutableBulkCall = (calleeName == knownNames.addAll || sema.requiresResolvedLibraryCalls && calleeName == knownNames.removeAll)
+            && sema.symbols.lookup(fqName: bulkReceiverFQName).map { owner in
                 driver.helpers.allNominalSymbols(of: lookupReceiverType, types: sema.types, symbols: sema.symbols).contains {
                     sema.types.isNominalSubtypeSymbol($0, of: owner)
                 }
@@ -147,7 +149,7 @@ extension CallTypeChecker {
         // Ordinary lookup remains member-only until those members fail. Include
         // visible extensions here so they reach the normal shadowed-extension
         // resolver instead of being replaced by the stdlib fallback first.
-        let bulkExtensionCandidates = isMutableSetBulkCall ? collectExtensionCallCandidates(
+        let bulkExtensionCandidates = isMutableBulkCall ? collectExtensionCallCandidates(
             named: calleeName,
             memberLookupType: memberLookupType,
             isSuperCall: isSuperCall,
@@ -158,7 +160,7 @@ extension CallTypeChecker {
             interner: interner
         ) : []
         let (visibleBulkExtensions, _) = ctx.filterByVisibility(bulkExtensionCandidates)
-        let hasUserBulkCandidate = isMutableSetBulkCall && (candidates + visibleBulkExtensions).contains { candidate in
+        let hasUserBulkCandidate = isMutableBulkCall && (candidates + visibleBulkExtensions).contains { candidate in
             guard let symbol = sema.symbols.symbol(candidate),
                   sema.symbols.isSourceBackedSymbol(candidate),
                   !symbol.fqName.starts(with: knownNames.kotlinCollectionsPackage),

@@ -190,8 +190,11 @@ public struct JVMFunction {
     public var typeParameters: [JVMTypeParameter] = []
     public var kotlinParameters: [JVMKotlinType] = []
     public var kotlinResult: JVMKotlinType? = nil
+    /// The indexed Boolean value parameter is true after any normal return.
+    public var normalReturnConditionParameter: Int? = nil
     public var kotlinReceiver: JVMKotlinType? = nil
     public var isSynthetic: Bool = false
+    public var isMetadataHidden: Bool = false
     public var isSuspend = false
     public var suspendValueResult: JVMSuspendValueResult? = nil
     public var forwardedSuspendValueResult: JVMSuspendValueResult? = nil
@@ -201,6 +204,7 @@ public struct JVMFunction {
     public var parameterDefaultFlags: [Bool] = []
     public var kotlinParameterOffset = 0
     public var isInline = false
+    public var callsInPlaceEffects: [Int: InvocationKind] = [:]
     public var inlineContinuation: JVMValue? = nil
     public var inlineSuspendValueResults: [String: JVMSuspendValueResult] = [:]
     public var parameterInlineFlags: [Int] = []
@@ -211,6 +215,8 @@ public struct JVMFunction {
     public var annotations: [JVMAnnotation] = []
     public var parameterAnnotations: [[JVMAnnotation]] = []
     public var annotationDefault: JVMAnnotationValue? = nil
+    public var isDeprecated = false
+    public var isHiddenByDeprecation = false
     public var parameterVarargTypes: [JVMKotlinType?] = []
 }
 
@@ -253,6 +259,7 @@ public struct JVMField {
     public let type: JVMValueType
     public let access: UInt16
     public var annotations: [JVMAnnotation] = []
+    public var isDeprecated = false
     public var constantValue: JVMConstant? = nil
 }
 

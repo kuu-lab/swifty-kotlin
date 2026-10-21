@@ -82,6 +82,25 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         interner: StringInterner
     ) {
+        // KUU-2673: when imported candidates at this FQName are still shells,
+        // re-run once the first materializes so the dedup reads real
+        // signatures and `setStdlibSpecialCallKind` lands on the result.
+        let functionFQName = packageFQName + [interner.intern(name)]
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: functionFQName, work: { [self] in
+            registerSyntheticTopLevelFunction(
+                named: name,
+                packageFQName: packageFQName,
+                parameters: parameters,
+                returnType: returnType,
+                externalLinkName: externalLinkName,
+                annotations: annotations,
+                stdlibSpecialCallKind: stdlibSpecialCallKind,
+                symbols: symbols,
+                interner: interner
+            )
+        }) {
+            return
+        }
         let functionSymbol = registerSyntheticFunctionStub(
             named: name,
             ownerFQName: packageFQName,
@@ -94,7 +113,7 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        if let stdlibSpecialCallKind {
+        if let stdlibSpecialCallKind, functionSymbol != .invalid {
             symbols.setStdlibSpecialCallKind(stdlibSpecialCallKind, for: functionSymbol)
         }
     }
@@ -470,14 +489,21 @@ extension DataFlowSemaPhase {
         // not surface the newly defined SymbolID.
         let iteratorFQName: [InternedString] = (symbols.symbol(bufferedReaderSymbol)?.fqName ?? [])
             + [interner.intern("iterator")]
-        for candidate in symbols.lookupAll(fqName: iteratorFQName) {
-            guard let info = symbols.symbol(candidate),
-                  info.flags.contains(.synthetic),
-                  let signature = symbols.functionSignature(for: candidate),
-                  signature.receiverType == bufferedReaderType,
-                  signature.parameterTypes.isEmpty
-            else { continue }
-            symbols.insertFlags(.operatorFunction, for: candidate)
+        // KUU-2673: patch operator flags once imported candidates materialize
+        // instead of decoding their signatures eagerly.
+        let promoteIteratorToOperator = {
+            for candidate in symbols.lookupAll(fqName: iteratorFQName) {
+                guard let info = symbols.symbol(candidate),
+                      info.flags.contains(.synthetic),
+                      let signature = symbols.functionSignature(for: candidate),
+                      signature.receiverType == bufferedReaderType,
+                      signature.parameterTypes.isEmpty
+                else { continue }
+                symbols.insertFlags(.operatorFunction, for: candidate)
+            }
+        }
+        if !symbols.deferWorkUntilImportedMemberMaterializes(at: iteratorFQName, work: promoteIteratorToOperator) {
+            promoteIteratorToOperator()
         }
 
         // BufferedReader.useLines { lines: Sequence<String> -> T } (STDLIB-IO-FN-040)
@@ -1364,6 +1390,18 @@ extension DataFlowSemaPhase {
         }
         let initName = interner.intern("<init>")
         let ctorFQName = ownerInfo.fqName + [initName]
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: ctorFQName, work: { [self] in
+            registerFileConstructor(
+                ownerSymbol: ownerSymbol,
+                ownerType: ownerType,
+                parameters: parameters,
+                externalLinkName: externalLinkName,
+                symbols: symbols,
+                interner: interner
+            )
+        }) {
+            return
+        }
         let hasMatchingConstructor = symbols.lookupAll(fqName: ctorFQName).contains { symbolID in
             guard let symbol = symbols.symbol(symbolID),
                   symbol.kind == .constructor,
@@ -1449,6 +1487,22 @@ extension DataFlowSemaPhase {
         let varargs = valueParameterIsVararg
             ?? Array(repeating: false, count: parameters.count)
 
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: functionFQName, work: { [self] in
+            registerKotlinIOExtensionFunction(
+                named: name,
+                packageFQName: packageFQName,
+                receiverType: receiverType,
+                parameters: parameters,
+                returnType: returnType,
+                externalLinkName: externalLinkName,
+                valueParameterHasDefaultValues: valueParameterHasDefaultValues,
+                valueParameterIsVararg: valueParameterIsVararg,
+                symbols: symbols,
+                interner: interner
+            )
+        }) {
+            return
+        }
         if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
             guard let existingSignature = symbols.functionSignature(for: symbolID) else {
                 return false
@@ -1538,6 +1592,20 @@ extension DataFlowSemaPhase {
         }
         let functionName = interner.intern(name)
         let functionFQName = ownerInfo.fqName + [functionName]
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: functionFQName, work: { [self] in
+            registerFileMemberFunction(
+                named: name,
+                externalLinkName: externalLinkName,
+                ownerSymbol: ownerSymbol,
+                ownerType: ownerType,
+                parameters: parameters,
+                returnType: returnType,
+                symbols: symbols,
+                interner: interner
+            )
+        }) {
+            return
+        }
         if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
             guard let existingSignature = symbols.functionSignature(for: symbolID) else {
                 return false
@@ -1779,6 +1847,20 @@ extension DataFlowSemaPhase {
         let functionName = interner.intern(name)
         let functionFQName = packageFQName + [functionName]
         let parameterTypes = parameters.map(\.type)
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: functionFQName, work: { [self] in
+            registerFilePackageExtensionFunction(
+                named: name,
+                packageFQName: packageFQName,
+                receiverType: receiverType,
+                parameters: parameters,
+                returnType: returnType,
+                externalLinkName: externalLinkName,
+                symbols: symbols,
+                interner: interner
+            )
+        }) {
+            return
+        }
         if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
             guard let signature = symbols.functionSignature(for: symbolID) else { return false }
             return signature.receiverType == receiverType

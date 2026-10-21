@@ -148,7 +148,7 @@ extension CallLowerer {
                         ? "__kk_ulong_range_step"
                         : (sema.bindings.isUIntRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.uintType
                             ? "__kk_uint_range_step"
-                            : (isLongRange ? "__kk_long_range_step" : "kk_range_step")))
+                            : (isLongRange ? "__kk_long_range_step" : "__kk_range_step")))
                 default:
                     nil
                 }
@@ -192,7 +192,7 @@ extension CallLowerer {
             {
                 interner.intern("__kk_uint_range_step")
             } else {
-                interner.intern("kk_range_step")
+                interner.intern("__kk_range_step")
             }
             instructions.append(.call(
                 symbol: nil,

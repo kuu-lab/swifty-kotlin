@@ -4,10 +4,16 @@ struct JVMIntrinsicResult { let value: JVMValue? }
 
 extension JVMProgramBuilder {
     func builtinMethod(_ symbolID: SymbolID) -> JVMForeignMethod? {
+        if let symbol = sema.symbols.symbol(symbolID),
+           symbol.fqName.map(context.interner.resolve) == ["java", "lang", "System", "Companion", "arraycopy"],
+           symbol.declSite.map({ context.sourceManager.origin(of: $0.start.file) != .user }) == true {
+            let object: JVMValueType = .reference("java/lang/Object", nullable: true)
+            return JVMForeignMethod(owner: "java/lang/System", name: "arraycopy", descriptor: "(Ljava/lang/Object;ILjava/lang/Object;II)V", parameters: [object, .int, object, .int, .int], result: .unit, isStatic: true, isInterface: false, isAbstract: false)
+        }
         guard let symbol = sema.symbols.symbol(symbolID), symbol.kind == .constructor,
               let parent = sema.symbols.parentSymbol(for: symbolID), classes[parent] == nil,
               let source = try? className(parent), let name = JVMClasspathIndex.builtinName(source),
-              (name.hasPrefix("java/lang/") || ["java/util/NoSuchElementException", "java/util/AbstractList", "java/util/AbstractSet", "java/util/AbstractMap", "kotlin/collections/AbstractSet", "kotlin/UninitializedPropertyAccessException"].contains(name)), let signature = sema.symbols.functionSignature(for: symbolID),
+              (name.hasPrefix("java/lang/") || ["java/util/NoSuchElementException", "java/util/AbstractCollection", "java/util/AbstractList", "java/util/AbstractSet", "java/util/AbstractMap", "kotlin/collections/AbstractSet", "kotlin/UninitializedPropertyAccessException"].contains(name)), let signature = sema.symbols.functionSignature(for: symbolID),
               let parameters = try? signature.parameterTypes.map(type) else { return nil }
         return JVMForeignMethod(owner: name, name: "<init>", descriptor: "(" + parameters.map(\.descriptor).joined() + ")V", parameters: parameters, result: .reference(name, nullable: false), isStatic: false, isInterface: false, isAbstract: false)
     }
@@ -222,8 +228,8 @@ extension JVMFunctionBuilder {
             }
             if let selected = try mappedBuiltinMemberOwner(id), collections.contains(selected) { owner = selected }
             if owner == "java/util/ArrayList" { owner = "java/util/List" }
-            if ["set", "add", "remove", "removeAt", "put", "clear"].contains(member) { try requireMutableCollection(receiverID, at: id) }
-            if ["set", "add", "put"].contains(member) { try requireWritableArguments(receiverID, at: id) }
+            if ["set", "add", "addAll", "remove", "removeAll", "removeAt", "put", "clear"].contains(member) { try requireMutableCollection(receiverID, at: id) }
+            if ["set", "add", "addAll", "put"].contains(member) { try requireWritableArguments(receiverID, at: id) }
             let source = try convert(requireValue(receiverID), to: .reference(owner, nullable: false))
             let result = try program.expressionType(id)
             var values: [JVMValue] = []
@@ -231,14 +237,17 @@ extension JVMFunctionBuilder {
             let parameters: [JVMValueType], returns: JVMValueType, actual: String
             switch member {
             case "size": actual = "size"; parameters = []; returns = .int
+            case "entries": actual = "entrySet"; parameters = []; returns = .reference("java/util/Set", nullable: false)
             case "keys": actual = "keySet"; parameters = []; returns = .reference("java/util/Set", nullable: false)
             case "values": actual = "values"; parameters = []; returns = .reference("java/util/Collection", nullable: false)
+            case "containsAll": actual = member; parameters = [.reference("java/util/Collection", nullable: false)]; returns = .boolean
             case "isEmpty", "hasNext": actual = member; parameters = []; returns = .boolean
             case "iterator": actual = member; parameters = []; returns = .reference("java/util/Iterator", nullable: false)
             case "next": actual = member; parameters = []; returns = object
             case "get": actual = member; parameters = [["java/util/List", "kotlin/enums/EnumEntries"].contains(owner) ? .int : object]; returns = object
             case "set": actual = owner == "java/util/Map" ? "put" : "set"; parameters = [["java/util/List", "kotlin/enums/EnumEntries"].contains(owner) ? .int : object, object]; returns = object
             case "add", "remove", "contains", "containsKey": actual = member; parameters = [object]; returns = owner == "java/util/Map" && member == "remove" ? object : .boolean
+            case "addAll", "removeAll": actual = member; parameters = [.reference("java/util/Collection", nullable: false)]; returns = .boolean
             case "removeAt": actual = "remove"; parameters = [.int]; returns = object
             case "put": actual = member; parameters = [object, object]; returns = object
             case "clear": actual = member; parameters = []; returns = .unit

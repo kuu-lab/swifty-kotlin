@@ -1405,7 +1405,7 @@ public func __kk_channel_result_get_or_throw(
 
 //
 // A lightweight wrapper that allows channels to participate in the
-// `kk_range_iterator` / `kk_range_hasNext` / `kk_range_next` loop protocol.
+// `__kk_range_iterator` / `__kk_range_hasNext` / `__kk_range_next` loop protocol.
 //
 // The iterator holds the channel handle (strongly retained) and caches the
 // result of the most recent `receive()` call.  `hasNext` must be called before

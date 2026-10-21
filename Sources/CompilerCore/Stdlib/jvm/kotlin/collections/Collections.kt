@@ -1,5 +1,7 @@
 package kotlin.collections
 
+import kotlin.jvm.internal.__jvmAddAllCollection
+import kotlin.jvm.internal.__jvmRemoveAllCollection
 import kotlin.jvm.internal.__jvmCopyList
 import kotlin.jvm.internal.__jvmReverseOrder
 import kotlin.jvm.internal.__jvmSortListWithComparator
@@ -146,15 +148,50 @@ public fun <T> Iterable<T>.asSequence(): kotlin.sequences.Sequence<T> {
 }
 
 public fun <T> Iterable<T>.first(): T {
+    if (this is List<*>) return (this as List<T>).first()
     val iterator = this.iterator()
     if (!iterator.hasNext()) throw NoSuchElementException("Collection is empty.")
     return iterator.next()
 }
 
 public fun <T> List<T>.first(): T {
-    if (this.size == 0) throw NoSuchElementException("List is empty.")
+    if (this.isEmpty()) throw NoSuchElementException("List is empty.")
     return this[0]
 }
+
+public fun <T> Iterable<T>.last(): T {
+    if (this is List<*>) return (this as List<T>).last()
+    val iterator = this.iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException("Collection is empty.")
+    var result = iterator.next()
+    while (iterator.hasNext()) result = iterator.next()
+    return result
+}
+
+public fun <T> List<T>.last(): T {
+    if (this.isEmpty()) throw NoSuchElementException("List is empty.")
+    return this[this.size - 1]
+}
+
+public fun <T> Iterable<T>.firstOrNull(): T? {
+    if (this is List<*>) return (this as List<T>).firstOrNull()
+    val iterator = this.iterator()
+    if (!iterator.hasNext()) return null
+    return iterator.next()
+}
+
+public fun <T> List<T>.firstOrNull(): T? = if (this.isEmpty()) null else this[0]
+
+public fun <T> Iterable<T>.lastOrNull(): T? {
+    if (this is List<*>) return (this as List<T>).lastOrNull()
+    val iterator = this.iterator()
+    if (!iterator.hasNext()) return null
+    var result = iterator.next()
+    while (iterator.hasNext()) result = iterator.next()
+    return result
+}
+
+public fun <T> List<T>.lastOrNull(): T? = if (this.isEmpty()) null else this[this.size - 1]
 
 fun <T> collectionSizeOrDefault(value: Iterable<T>, defaultValue: Int): Int = if (value is Collection<*>) value.size else defaultValue
 fun <T> collectionSizeOrNull(value: Iterable<T>): Int? = if (value is Collection<*>) value.size else null
@@ -164,6 +201,7 @@ fun <T> Iterable<T>.sortedWith(comparator: Comparator<in T>): List<T> {
     return result
 }
 fun <T> MutableCollection<in T>.addAll(elements: Iterable<T>): Boolean {
+    if (elements is Collection<*>) return __jvmAddAllCollection(this, elements as Collection<T>)
     var changed = false
     for (element in elements) if (this.add(element)) changed = true
     return changed
@@ -254,4 +292,23 @@ public operator fun <T> Iterable<T>.minus(elements: kotlin.sequences.Sequence<T>
     val result = mutableListOf<T>()
     for (item in this) if (!removed.contains(item)) result.add(item)
     return result
+}
+
+public fun <T> MutableCollection<in T>.addAll(elements: Array<out T>): Boolean = __jvmAddAllCollection(this, __jvmArrayList(elements))
+public fun <T> MutableCollection<in T>.addAll(elements: kotlin.sequences.Sequence<T>): Boolean {
+    var changed = false
+    for (element in elements) if (this.add(element)) changed = true
+    return changed
+}
+public fun <T> MutableCollection<in T>.removeAll(elements: Iterable<T>): Boolean {
+    val removed = if (elements is Collection<*>) elements as Collection<T> else elements.toList()
+    return __jvmRemoveAllCollection(this, removed)
+}
+public fun <T> MutableCollection<in T>.removeAll(elements: Array<out T>): Boolean {
+    if (elements.size == 0) return false
+    return __jvmRemoveAllCollection(this, __jvmArrayList(elements))
+}
+public fun <T> MutableCollection<in T>.removeAll(elements: kotlin.sequences.Sequence<T>): Boolean {
+    val removed = elements.toList()
+    return !removed.isEmpty() && __jvmRemoveAllCollection(this, removed)
 }

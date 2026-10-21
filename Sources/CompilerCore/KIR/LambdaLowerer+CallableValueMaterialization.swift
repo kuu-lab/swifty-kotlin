@@ -23,7 +23,7 @@ extension LambdaLowerer {
     }
 
     func materializeEscapingCallableValue(
-        exprID: ExprID,
+        exprID: ExprID? = nil,
         lambdaSymbol: SymbolID,
         lambdaName: InternedString,
         lambdaReturnType: TypeID,
@@ -34,7 +34,7 @@ extension LambdaLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        if functionType.receiver != nil, !functionType.isSuspend {
+        if let exprID, functionType.receiver != nil, !functionType.isSuspend {
             // Generic receiver callbacks already use the callee's erased return ABI.
             guard lambdaReturnType == functionType.returnType else { return nil }
             let callable = arena.appendExpr(.symbolRef(lambdaSymbol), type: sema.types.make(.functionType(functionType)))
@@ -80,14 +80,15 @@ extension LambdaLowerer {
         }
 
         let adapterSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
-        let adapterName = interner.intern("kk_function_value_adapter_\(exprID.rawValue)_\(adapterSymbol.rawValue)")
+        let adapterName = interner.intern("kk_function_value_adapter_\(exprID?.rawValue ?? -1)_\(adapterSymbol.rawValue)")
         let closureParam = KIRParameter(
             symbol: driver.ctx.allocateSyntheticGeneratedSymbol(),
             type: sema.types.intType
         )
         let valueParams: [KIRParameter] = invocationTypes.enumerated().map { index, type in
             KIRParameter(
-                symbol: syntheticLambdaParamSymbol(lambdaExprID: exprID, paramIndex: 100 + index),
+                symbol: exprID.map { syntheticLambdaParamSymbol(lambdaExprID: $0, paramIndex: 100 + index) }
+                    ?? driver.ctx.allocateSyntheticGeneratedSymbol(),
                 type: type
             )
         }

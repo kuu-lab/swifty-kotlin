@@ -10,11 +10,13 @@ package kotlin.uuid
 @file:OptIn(ExperimentalUuidApi::class)
 
 import java.nio.ByteBuffer
+import kotlin.concurrent.atomics.AtomicLong
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
+import kotlin.concurrent.atomics.load
 import kotlin.internal.KsSymbolName
+import kotlin.time.Clock
 import kotlin.time.Instant
-import kotlin.time.epochSeconds
-import kotlin.time.nanosecondsOfSecond
-import kotlin.time.now
+import kotlin.time.toEpochMilliseconds
 
 private const val UUID_HEX_DIGITS: String = "0123456789abcdef"
 
@@ -126,44 +128,20 @@ public class Uuid private constructor(
         // attribution). Bit layout per RFC 9562 section-4.2:
         //   msb = unix_ts_ms(48) | ver(4)=0111 | rand_a/counter(12)
         //   lsb = var(2)=10 | rand_b(62)
+        // The monotonic state lives in UuidV7Generator, which mirrors
+        // upstream's AtomicLong CAS loop so concurrent callers keep
+        // monotonicity and uniqueness within the process.
         // Randomness is drawn from random()'s existing secure entropy bridge
         // (__kk_uuid_random) rather than a new bridge; only the fixed
         // version/variant bit positions of that v4 source are avoided when
         // slicing bits out, so the reused entropy stays uniformly random.
-        //
-        // Deviation from upstream (tracked in docs/stdlib-pipeline.md §13-8):
-        // upstream uses a CAS loop over an AtomicLong for thread-safe
-        // monotonicity; this port uses a plain var since kswiftc's
-        // diff/golden harness is single-threaded. Resolution condition:
-        // adopt kotlin.concurrent.atomics.AtomicLong once its load()/
-        // compareAndSet() are verified working end-to-end.
-        private val v7State: UuidV7MonotonicState = UuidV7MonotonicState()
+        public fun generateV7(): Uuid = generateV7(Clock.System)
 
-        public fun generateV7(): Uuid {
-            val entropy = random()
-            val seedCounter = ((entropy.mostSignificantBits ushr 53).toInt() and 0x7FF) or 0x7000
-            val nowMillis = run {
-                val now = Instant.now()
-                now.epochSeconds * 1000L + (now.nanosecondsOfSecond / 1_000_000).toLong()
-            }
-            val previous = v7State.timestampAndCounter
-            val previousMillis = previous ushr 16
-            val updated = if (previousMillis < nowMillis) {
-                (nowMillis shl 16) or seedCounter.toLong()
-            } else {
-                val incremented = previous + 1L
-                if ((incremented and 0x8000L) != 0L) {
-                    ((previousMillis + 1L) shl 16) or seedCounter.toLong()
-                } else {
-                    incremented
-                }
-            }
-            v7State.timestampAndCounter = updated
-
-            val randB = entropy.leastSignificantBits and ((1L shl 62) - 1L)
-            val variantAndRandB = (0x2L shl 62) or randB
-            return fromLongs(updated, variantAndRandB)
-        }
+        // Clock-injectable entry point matching upstream's
+        // `internal fun generateV7(clock: Clock)`; same-module tests use it to
+        // exercise the same-millisecond, clock-regression, and counter
+        // rollover paths deterministically.
+        internal fun generateV7(clock: Clock): Uuid = UuidV7Generator.generate(clock)
 
         // See generateV7() above for bit-layout and entropy-reuse notes.
         // Unlike generateV7(), this is a pure function of [timestamp] with no
@@ -172,7 +150,7 @@ public class Uuid private constructor(
         public fun generateV7NonMonotonicAt(timestamp: Instant): Uuid {
             val entropy = random()
             val randA = (entropy.mostSignificantBits ushr 52).toInt() and 0xFFF
-            val unixTsMs = timestamp.epochSeconds * 1000L + (timestamp.nanosecondsOfSecond / 1_000_000).toLong()
+            val unixTsMs = timestamp.toEpochMilliseconds()
             val tsVerAndRandA = (unixTsMs shl 16) or (0x7000L or randA.toLong())
 
             val randB = entropy.leastSignificantBits and ((1L shl 62) - 1L)
@@ -329,12 +307,69 @@ public class Uuid private constructor(
     }
 }
 
-// Last-used (timestamp << 16 | version | counter) value, packed identically
-// to a v7 uuid's own msb so it can be reused as one directly. See
-// generateV7()'s doc comment for why this is a plain var rather than an
-// AtomicLong.
-internal class UuidV7MonotonicState {
-    var timestampAndCounter: Long = 0L
+// Ported from kotlin-stdlib's UuidV7Generator (see file header for
+// attribution). Last-used (timestamp << 16 | version | counter) value is
+// packed identically to a v7 uuid's own msb and kept in an AtomicLong so
+// concurrent generateV7() calls update it through a CAS loop, preserving
+// process-wide monotonicity and uniqueness.
+//
+// Layout:                                          TIMESTAMP_BIAS_BITS
+//                                                   /
+// 64                                               16   12            0
+//  |----------unix timestamp in milliseconds--------|rdzn|--counter---|
+//  |tttttttttttttttttttttttttttttttttttttttttttttttt|0111|cccccccccccc|
+//
+// Where rdzn (or a red zone) works both as a valid UUID version for UUIDv7
+// (0b0111) and works as an overflow guard.
+@OptIn(ExperimentalAtomicApi::class)
+private object UuidV7Generator {
+    private const val TIMESTAMP_BIAS_BITS = 16
+    // covers ver and rand_a fields, set ver to 7
+    private const val VERSION_MASK = 0x7000
+    // if counter's highest bit is set to one, we have an overflow
+    private const val OVERFLOW_MASK = 0x8000L
+
+    private val timestampAndCounter = AtomicLong(0L)
+
+    fun generate(clock: Clock): Uuid {
+        // One draw from the shared entropy bridge supplies both the counter
+        // seed (rand_a, with the top counter bit kept clear) and rand_b.
+        val entropy = Uuid.random()
+        // Note that the MSB is always unset (thus the mask is 0x7FF).
+        val newCounter = ((entropy.mostSignificantBits ushr 53).toInt() and 0x7FF) or VERSION_MASK
+
+        var newTimeStampAndCounter: Long
+        while (true) {
+            val previousTimeStampAndCounter = timestampAndCounter.load()
+            val currentTimeMillis = clock.now().toEpochMilliseconds()
+
+            val previousTimeMillis = previousTimeStampAndCounter ushr TIMESTAMP_BIAS_BITS
+
+            newTimeStampAndCounter = if (previousTimeMillis < currentTimeMillis) {
+                // clocks are ticking: concatenate a new timestamp with a
+                // counter value
+                (currentTimeMillis shl TIMESTAMP_BIAS_BITS) or newCounter.toLong()
+            } else {
+                // clocks are not ticking: increment the counter; on overflow
+                // increment the timestamp by 1ms and reseed the counter
+                val incremented = previousTimeStampAndCounter + 1L
+                if ((incremented and OVERFLOW_MASK) != 0L) {
+                    ((previousTimeMillis + 1L) shl TIMESTAMP_BIAS_BITS) or newCounter.toLong()
+                } else {
+                    incremented
+                }
+            }
+            // try to save updated timestamp and counter values, retry on
+            // failure
+            if (timestampAndCounter.compareAndSet(previousTimeStampAndCounter, newTimeStampAndCounter)) {
+                break
+            }
+        }
+
+        val randB = entropy.leastSignificantBits and ((1L shl 62) - 1L)
+        val variantAndRandB = (0x2L shl 62) or randB
+        return Uuid.fromLongs(newTimeStampAndCounter, variantAndRandB)
+    }
 }
 
 @KsSymbolName("__kk_uuid_random")

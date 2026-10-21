@@ -450,9 +450,14 @@ extension KIRLoweringDriver {
             let parentKind = sema.symbols.parentSymbolIfKnown(for: symbol).flatMap {
                 sema.symbols.symbol($0)?.kind
             }
+            // Compact indexes mark extension receivers at registration; only
+            // a pending shell on an older index needs the decoded receiver
+            // type to reach the same answer.
             guard parentKind == nil || parentKind == .package || parentKind == .object,
                   sema.symbols.backingFieldSymbol(for: symbol) == nil,
-                  sema.symbols.extensionPropertyReceiverType(for: symbol) == nil,
+                  !sema.symbols.hasExtensionPropertyReceiver(symbol),
+                  (!sema.symbols.hasPendingImportedMetadata(for: symbol)
+                      || sema.symbols.extensionPropertyReceiverType(for: symbol) == nil),
                   let propertyType = sema.symbols.propertyType(for: symbol)
             else {
                 continue
@@ -495,7 +500,7 @@ extension KIRLoweringDriver {
     ) {
         func appendInitializer(_ initializerSymbol: SymbolID?) {
             guard let initializerSymbol else { return }
-            guard let externalLinkName = sema.symbols.externalLinkName(for: initializerSymbol),
+            guard let externalLinkName = sema.symbols.externalLinkNameIfKnown(for: initializerSymbol),
                   !externalLinkName.isEmpty
             else {
                 return
@@ -523,13 +528,29 @@ extension KIRLoweringDriver {
         // with a null receiver in the consuming module.
         for symbol in importedSymbols {
             guard sema.symbols.mayHaveImportedInitializers(for: symbol.id) else { continue }
+            // Complete indexes (v3) synthesized the initializer shells at
+            // registration; anything older can only be discovered by decoding
+            // the body record, which is exactly what the forcing getters do.
+            let forceDecode = sema.symbols.importedInitializerInfoIsIncomplete(for: symbol.id)
             switch symbol.kind {
             case .object:
-                appendInitializer(sema.symbols.objectInitializerSymbol(for: symbol.id))
+                appendInitializer(
+                    forceDecode
+                        ? sema.symbols.objectInitializerSymbol(for: symbol.id)
+                        : sema.symbols.objectInitializerSymbolIfKnown(for: symbol.id)
+                )
             case .class, .interface, .annotationClass:
-                appendInitializer(sema.symbols.companionObjectInitializerSymbol(for: symbol.id))
+                appendInitializer(
+                    forceDecode
+                        ? sema.symbols.companionObjectInitializerSymbol(for: symbol.id)
+                        : sema.symbols.companionObjectInitializerSymbolIfKnown(for: symbol.id)
+                )
             case .enumClass:
-                appendInitializer(sema.symbols.companionObjectInitializerSymbol(for: symbol.id))
+                appendInitializer(
+                    forceDecode
+                        ? sema.symbols.companionObjectInitializerSymbol(for: symbol.id)
+                        : sema.symbols.companionObjectInitializerSymbolIfKnown(for: symbol.id)
+                )
             default:
                 break
             }
@@ -538,7 +559,11 @@ extension KIRLoweringDriver {
         // Enum entry initialization may itself access imported singletons, so
         // keep it after all object and companion handles have been allocated.
         for symbol in importedSymbols where symbol.kind == .enumClass {
-            appendInitializer(sema.symbols.enumStaticInitSymbol(for: symbol.id))
+            appendInitializer(
+                sema.symbols.importedInitializerInfoIsIncomplete(for: symbol.id)
+                    ? sema.symbols.enumStaticInitSymbol(for: symbol.id)
+                    : sema.symbols.enumStaticInitSymbolIfKnown(for: symbol.id)
+            )
         }
 
         // Run library stored-property initializers only after singleton handles

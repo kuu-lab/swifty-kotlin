@@ -1,15 +1,13 @@
 /// Residual compiler/runtime support for kotlin.time.Clock (STDLIB-TIME-086).
 ///
 /// `Clock` and the public `Clock.System.now()` API are source-backed. This
-/// residual file retains only the interface shell and the nested object anchor
+/// residual file retains only the interface shell and the Companion anchor
 /// required by source loading. `Clock` is user-implementable, so `now()` must
 /// remain an interface member for virtual dispatch to work.
 ///
-/// `Clock.System` is created as a nested object so that the bundled Kotlin
-/// source extension `Clock.System.now()` in Stdlib/kotlin/time/Clock.kt can
-/// resolve. The Clock.System.now() factory itself is implemented in Kotlin
-/// source and delegates to `kk_clock_system_now` via a `@KsSymbolName`
-/// external declaration.
+/// `Clock.System` is declared by the bundled source itself as
+/// `object System : Clock` in Stdlib/kotlin/time/Clock/Clock.kt, so it gets a
+/// real itable entry for `now()` and needs no synthetic anchor here.
 ///
 /// kotlin.time.Instant itself is registered by
 /// HeaderHelpers+SyntheticInstantStubs.swift; this file only re-resolves the
@@ -42,18 +40,6 @@ extension DataFlowSemaPhase {
         // Clock.Companion is a public namespace object in the Kotlin API.
         _ = ensureClockCompanionSymbol(
             ownerSymbol: clockSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- Clock.System nested object ---
-        // Created so the bundled Kotlin-source extension Clock.System.now()
-        // in Stdlib/kotlin/time/Clock.kt can resolve.
-        _ = ensureClockNestedObject(
-            named: "System",
-            ownerSymbol: clockSymbol,
-            ownerFQName: kotlinTimePkg + [interner.intern("Clock")],
-            types: types,
             symbols: symbols,
             interner: interner
         )
@@ -94,35 +80,6 @@ extension DataFlowSemaPhase {
         symbols.setParentSymbol(ownerSymbol, for: companionSymbol)
         symbols.setCompanionObjectSymbol(companionSymbol, for: ownerSymbol)
         return companionFQName
-    }
-
-    private func ensureClockNestedObject(
-        named objectName: String,
-        ownerSymbol: SymbolID,
-        ownerFQName: [InternedString],
-        types: TypeSystem,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) -> [InternedString] {
-        let interned = interner.intern(objectName)
-        let fqName = ownerFQName + [interned]
-        let objectSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: fqName), symbols.symbol(existing) != nil {
-            objectSymbol = existing
-        } else {
-            objectSymbol = symbols.define(
-                kind: .object,
-                name: interned,
-                fqName: fqName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .static]
-            )
-        }
-        symbols.setParentSymbol(ownerSymbol, for: objectSymbol)
-        symbols.setDirectSupertypes([ownerSymbol], for: objectSymbol)
-        types.setNominalDirectSupertypes([ownerSymbol], for: objectSymbol)
-        return fqName
     }
 
 }

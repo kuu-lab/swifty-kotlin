@@ -30,7 +30,7 @@ extension BuildKIRRegressionTests {
         #expect(callees.contains("set"), "Expected custom set call, got: \(callees)")
         #expect(callees.contains("contains"), "Expected custom contains call, got: \(callees)")
         #expect(callees.contains("rangeTo"), "Expected custom rangeTo call, got: \(callees)")
-        #expect(!(callees.contains(runtimeCallee(.opRangeTo))), "Custom rangeTo should not lower to kk_op_rangeTo, got: \(callees)")
+        #expect(!(callees.contains(runtimeCallee(.opRangeTo))), "Custom rangeTo should not lower to __kk_op_rangeTo, got: \(callees)")
     }
 
     // KSWIFTK-BUG: a bare integer literal index (`b[0]`) must contextualize to
@@ -251,9 +251,9 @@ extension BuildKIRRegressionTests {
         #expect(callees.contains("next"), "Expected custom next call, got: \(callees)")
         #expect(callees.contains("component1"), "Expected destructuring component1 call, got: \(callees)")
         #expect(callees.contains("component2"), "Expected destructuring component2 call, got: \(callees)")
-        #expect(!(callees.contains(runtimeCallee(.rangeIterator))), "Custom iterator loop should not use kk_range_iterator, got: \(callees)")
-        #expect(!(callees.contains(runtimeCallee(.rangeHasNext))), "Custom iterator loop should not use kk_range_hasNext, got: \(callees)")
-        #expect(!(callees.contains(runtimeCallee(.rangeNext))), "Custom iterator loop should not use kk_range_next, got: \(callees)")
+        #expect(!(callees.contains(runtimeCallee(.rangeIterator))), "Custom iterator loop should not use __kk_range_iterator, got: \(callees)")
+        #expect(!(callees.contains(runtimeCallee(.rangeHasNext))), "Custom iterator loop should not use __kk_range_hasNext, got: \(callees)")
+        #expect(!(callees.contains(runtimeCallee(.rangeNext))), "Custom iterator loop should not use __kk_range_next, got: \(callees)")
     }
 
     // BUG-013 / KSP-CAP-002: user-defined Iterator/Iterable should drive for-in
@@ -286,9 +286,9 @@ extension BuildKIRRegressionTests {
 
         #expect(callees.contains("hasNext"), "Expected direct hasNext call, got: \(callees)")
         #expect(callees.contains("next"), "Expected direct next call, got: \(callees)")
-        #expect(!(callees.contains(runtimeCallee(.rangeIterator))), "User Iterator loop should not use kk_range_iterator, got: \(callees)")
-        #expect(!(callees.contains(runtimeCallee(.rangeHasNext))), "User Iterator loop should not use kk_range_hasNext, got: \(callees)")
-        #expect(!(callees.contains(runtimeCallee(.rangeNext))), "User Iterator loop should not use kk_range_next, got: \(callees)")
+        #expect(!(callees.contains(runtimeCallee(.rangeIterator))), "User Iterator loop should not use __kk_range_iterator, got: \(callees)")
+        #expect(!(callees.contains(runtimeCallee(.rangeHasNext))), "User Iterator loop should not use __kk_range_hasNext, got: \(callees)")
+        #expect(!(callees.contains(runtimeCallee(.rangeNext))), "User Iterator loop should not use __kk_range_next, got: \(callees)")
     }
 
     // KSP-938: a source-backed CharSequence.iterator() returns CharIterator,
@@ -346,9 +346,9 @@ extension BuildKIRRegressionTests {
 
         #expect(callees.contains("hasNext"), "Expected direct hasNext call, got: \(callees)")
         #expect(callees.contains("next"), "Expected direct next call, got: \(callees)")
-        #expect(!(callees.contains(runtimeCallee(.rangeIterator))), "User nullable Iterator loop should not use kk_range_iterator, got: \(callees)")
-        #expect(!(callees.contains(runtimeCallee(.rangeHasNext))), "User nullable Iterator loop should not use kk_range_hasNext, got: \(callees)")
-        #expect(!(callees.contains(runtimeCallee(.rangeNext))), "User nullable Iterator loop should not use kk_range_next, got: \(callees)")
+        #expect(!(callees.contains(runtimeCallee(.rangeIterator))), "User nullable Iterator loop should not use __kk_range_iterator, got: \(callees)")
+        #expect(!(callees.contains(runtimeCallee(.rangeHasNext))), "User nullable Iterator loop should not use __kk_range_hasNext, got: \(callees)")
+        #expect(!(callees.contains(runtimeCallee(.rangeNext))), "User nullable Iterator loop should not use __kk_range_next, got: \(callees)")
     }
 
     @Test func testBuildKIRUsesUserIterableSubtypeIterator() throws {
@@ -392,9 +392,9 @@ extension BuildKIRRegressionTests {
             allCallees.contains(runtimeCallee(.iteratorNext)) || virtualCallees.contains("next"),
             "Expected Iterator.next to use the source-backed virtual dispatch or generic runtime dispatcher, got: call=\(callCallees) virtual=\(virtualCallees)"
         )
-        #expect(!allCallees.contains(runtimeCallee(.rangeIterator)), "User Iterable loop should not use kk_range_iterator, got: \(allCallees)")
-        #expect(!allCallees.contains(runtimeCallee(.rangeHasNext)), "User Iterable loop should not use kk_range_hasNext, got: \(allCallees)")
-        #expect(!allCallees.contains(runtimeCallee(.rangeNext)), "User Iterable loop should not use kk_range_next, got: \(allCallees)")
+        #expect(!allCallees.contains(runtimeCallee(.rangeIterator)), "User Iterable loop should not use __kk_range_iterator, got: \(allCallees)")
+        #expect(!allCallees.contains(runtimeCallee(.rangeHasNext)), "User Iterable loop should not use __kk_range_hasNext, got: \(allCallees)")
+        #expect(!allCallees.contains(runtimeCallee(.rangeNext)), "User Iterable loop should not use __kk_range_next, got: \(allCallees)")
     }
 
     // KSP-697: List is source-backed and therefore no longer synthetic, but a
@@ -543,9 +543,9 @@ extension BuildKIRRegressionTests {
             #expect(!callees.contains("iterator"), "\(functionName): for-in must not allocate the generic source iterator, got: \(callees)")
             #expect(!callees.contains(runtimeCallee(.iteratorHasNext)), "\(functionName): for-in must not use generic hasNext dispatch, got: \(callees)")
             #expect(!callees.contains(runtimeCallee(.iteratorNext)), "\(functionName): for-in must not use generic next dispatch, got: \(callees)")
-            #expect(!callees.contains(runtimeCallee(.rangeIterator)), "\(functionName): range loop must not use kk_range_iterator, got: \(callees)")
-            #expect(!callees.contains(runtimeCallee(.rangeHasNext)), "\(functionName): range loop must not use kk_range_hasNext, got: \(callees)")
-            #expect(!callees.contains(runtimeCallee(.rangeNext)), "\(functionName): range loop must not use kk_range_next, got: \(callees)")
+            #expect(!callees.contains(runtimeCallee(.rangeIterator)), "\(functionName): range loop must not use __kk_range_iterator, got: \(callees)")
+            #expect(!callees.contains(runtimeCallee(.rangeHasNext)), "\(functionName): range loop must not use __kk_range_hasNext, got: \(callees)")
+            #expect(!callees.contains(runtimeCallee(.rangeNext)), "\(functionName): range loop must not use __kk_range_next, got: \(callees)")
         }
     }
 

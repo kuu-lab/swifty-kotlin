@@ -7,6 +7,11 @@
   ],
   "declarations": [
     {
+      "path": "kotlin/Deprecation.kt",
+      "virtualPath": "<kswiftk-jvm>/deprecation.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "kotlin/Numbers.kt",
       "virtualPath": "<kswiftk-jvm>/number-predicates.kt",
       "excludeFromStdlibBuild": true,
@@ -17,6 +22,12 @@
       "virtualPath": "<kswiftk-jvm>/standard.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/StandardKt"
+    },
+    {
+      "path": "kotlin/Preconditions.kt",
+      "virtualPath": "<kswiftk-jvm>/preconditions.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/PreconditionsKt"
     },
     {
       "path": "declarations/Math.kt",
@@ -350,10 +361,55 @@
       "runtimeFacade": "kotlin/collections/SetsKt"
     },
     {
+      "path": "kotlin/collections/CollectionAssignments.kt",
+      "virtualPath": "<kswiftk-jvm>/collection-assignments.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
       "path": "declarations/MapsOperators.kt",
       "virtualPath": "<kswiftk-jvm>/map-operators.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/collections/MapsKt"
+    },
+    {
+      "path": "declarations/CollectionElements.kt",
+      "virtualPath": "<kswiftk-jvm>/collection-elements.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
+      "path": "declarations/JavaLang.kt",
+      "virtualPath": "<kswiftk-jvm>/javaLang.kt",
+      "excludeFromStdlibBuild": false
+    },
+    {
+      "path": "declarations/RangeFunctions.kt",
+      "virtualPath": "<kswiftk-jvm>/rangeFunctions.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/ranges/RangesKt"
+    },
+    {
+      "path": "declarations/ListBuilders.kt",
+      "virtualPath": "<kswiftk-jvm>/list-builders.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
+      "path": "declarations/MapBuilders.kt",
+      "virtualPath": "<kswiftk-jvm>/map-builders.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/MapsKt"
+    },
+    {
+      "path": "declarations/BuilderContracts.kt",
+      "virtualPath": "<kswiftk-jvm>/builder-contracts.kt",
+      "excludeFromStdlibBuild": false
+    },
+    {
+      "path": "declarations/Function.kt",
+      "virtualPath": "<kswiftk-jvm>/function-root.kt",
+      "excludeFromStdlibBuild": true
     }
   ],
   "runtimeClassAliases": {

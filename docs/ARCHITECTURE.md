@@ -536,13 +536,16 @@ Kotlin/Native (および共通 IR) が生成する `.klib` も `-I` のサーチ
 
 インポートの流れ:
 
-1. `LibraryDiscovery` が `.klib` を発見 → `loadKlibModule` が manifest 検証 (`abi_version` 2.3.x 系を受理、2.4 は best-effort 警告 `KSWIFTK-LIB-0027`)
+1. `LibraryDiscovery` が `.klib` を発見 → `loadKlibModule` が manifest 検証 (Kotlin/Native 2.4.21 の ABI 2.4.0 と旧 ABI 2.3 を受理。未対応 ABI・署名は `KSWIFTK-LIB-0027`)
 2. `KlibRecordMaterializer` (LibraryKlibMaterialization.swift) が IR 宣言を `ImportedLibrarySymbolRecord` に変換し、既存の `.kklib` インポート経路で `SymbolTable`/`TypeSystem` に登録
 3. `resolveKlibDependencies` が manifest `depends` を検証 (欠落は `KSWIFTK-LIB-0030`) し依存順にソート — 依存モジュールの top-level 初期化が先に走る
 4. `KlibBodyLowerer` (KIR/) が `lowerModule` 内で serialized body を KIR に翻訳して注入 — 関数/ctor/accessor/object 初期化/top-level フィールド。ctor は `this` を暗黙バインドして `returnValue(this)` で終える (serialized ctor は dispatch receiver を持たない)。`IrField.initializer` は `instanceInitializerCall` 地点で展開 (Kotlin/Native の匿名初期化子再合成と同じ)。プリミティブ member call は `kk_op_*` intrinsic にマップ
 5. 未対応 IR 形式は `KSWIFTK-LIB-0029` 警告 + `kk_abort_unreachable` (verifier-safe)
 
 `.klib` はコンパイル済みオブジェクトを持たないため、そのグローバルは `.importedLibrary` を保ちつつ `markKlibDefinedGlobal` で本コンパイル側のストレージを持つ印を付け、`NativeEmitter` が extern ではなく実体を出力する。
+
+最新 KLIB の検証範囲・再生成可能な fixture・完全対応に向けた残りの機能は
+[`klib-compatibility.md`](klib-compatibility.md) を参照。
 
 ---
 
@@ -554,3 +557,10 @@ Kotlin/Native (および共通 IR) が生成する `.klib` も `-I` のサーチ
 - `DispatchQueue.concurrentPerform` で並列化し、`DispatchSemaphore` / `DispatchGroup` で並列度を制御（`Driver/FrontendPhases.swift`）
 - 並列実行後は `FileID` 順でソートし決定性を保証
 - 診断メッセージも `sortBySourceLocation()` でソース位置順に安定化
+
+Codegen の関数本体 emission は `-Xfrontend codegen-parallel` + `-Xfrontend jobs=N` でオプトイン並列化できる（`NativeEmitter+ParallelEmission.swift`）:
+
+- emit 対象関数を C シンボル順に並べたリストを連続チャンクに分割し、パーティション毎に独立した LLVMContext/モジュールへ本体を emit する（LLVMContext はスレッド共有不可のため）
+- 完了後 `LLVMLinkModules2` でパーティション順にマージするため出力は決定的。パーティション内の private グローバル名（`str_lit_*` 等）は衝突時に LLVM がリネームするため、直列ビルドとオブジェクトバイトが一致するとは限らない（パブリックシンボルの集合・順序は同一）
+- パーティション側コンテキストは merge 後も破棄できない（merge 先モジュールが型状態を参照し続けるため）。最終モジュールの dispose まで保持する
+- 適用条件: `!debugInfo`、lazy import / imported-layout 合成が非活性（`SymbolTable.hasLazySymbolMaterialization`）、`LLVMLinkModules2` バインディングが存在すること。いずれか不成立なら直列パスにフォールバック
