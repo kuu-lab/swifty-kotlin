@@ -1,3 +1,4 @@
+import Dispatch
 import Foundation
 
 struct HeapObjectRecord {
@@ -19,6 +20,87 @@ struct FrameMapDescriptorC {
 /// alone ensures stable hits across repeated evaluations.
 struct KClassCacheKey: Hashable {
     let typeToken: Int
+}
+
+/// Per-category count of GC roots discovered while seeding the mark worklist,
+/// mapped onto `kotlin.native.runtime.RootSetStatistics`'s four pools:
+/// `threadLocalReferences` counts rooted thread-local values,
+/// `stackReferences` counts frame-map/coroutine roots, `globalReferences`
+/// counts global root slots plus runtime-internal reflection roots, and
+/// `stableReferences` counts StableRef / Pinned targets plus foreign-resource
+/// lease roots and retained atomic-cell payloads (the "internal usages" bucket
+/// of the upstream API).
+struct RuntimeGCRootSetCounts {
+    var threadLocalReferences: Int64 = 0
+    var stackReferences: Int64 = 0
+    var globalReferences: Int64 = 0
+    var stableReferences: Int64 = 0
+}
+
+/// Statistics gathered by one mark-and-sweep pass over the managed heap.
+struct RuntimeGCMarkSweepStats {
+    var markedCount: Int64 = 0
+    var sweptCount: Int64 = 0
+    var keptCount: Int64 = 0
+    var memoryUsageBeforeBytes: Int64 = 0
+    var memoryUsageAfterBytes: Int64 = 0
+    var rootSet = RuntimeGCRootSetCounts()
+}
+
+/// Immutable per-pass record backing `kotlin.native.runtime.GC.lastGCInfo`.
+/// Written under gcLock once per `kk_gc_collect` pass; `postGcCleanupTimeNs`
+/// is patched in afterwards under an epoch guard because retired-lease ARC
+/// destruction deliberately runs outside gcLock. Optional `*TimeNs` fields
+/// are nil only for collector phases this runtime does not have — it is a
+/// single-pause collector, so the second-pause fields are always nil.
+struct RuntimeGCInfoSnapshot {
+    var epoch: Int64
+    var startTimeNs: Int64
+    var endTimeNs: Int64
+    var firstPauseRequestTimeNs: Int64
+    var firstPauseStartTimeNs: Int64
+    var firstPauseEndTimeNs: Int64
+    var secondPauseRequestTimeNs: Int64?
+    var secondPauseStartTimeNs: Int64?
+    var secondPauseEndTimeNs: Int64?
+    var postGcCleanupTimeNs: Int64?
+    var rootSet: RuntimeGCRootSetCounts
+    var markedCount: Int64
+    var sweptCount: Int64
+    var keptCount: Int64
+    var memoryUsageBeforeBytes: Int64
+    var memoryUsageAfterBytes: Int64
+
+    /// Field order is part of the Kotlin-facing ABI: `GC.kt`'s `__lastGCInfo`
+    /// unpacks these indices into the GCInfo constructor. Absent optional
+    /// timestamps serialize as `runtimeNullSentinelInt` (Int64.min).
+    var serializedFieldValues: [Int] {
+        func ns(_ value: Int64?) -> Int {
+            guard let value else { return runtimeNullSentinelInt }
+            return Int(clamping: value)
+        }
+        return [
+            Int(clamping: epoch),
+            Int(clamping: startTimeNs),
+            Int(clamping: endTimeNs),
+            Int(clamping: firstPauseRequestTimeNs),
+            Int(clamping: firstPauseStartTimeNs),
+            Int(clamping: firstPauseEndTimeNs),
+            ns(secondPauseRequestTimeNs),
+            ns(secondPauseStartTimeNs),
+            ns(secondPauseEndTimeNs),
+            ns(postGcCleanupTimeNs),
+            Int(clamping: rootSet.threadLocalReferences),
+            Int(clamping: rootSet.stackReferences),
+            Int(clamping: rootSet.globalReferences),
+            Int(clamping: rootSet.stableReferences),
+            Int(clamping: markedCount),
+            Int(clamping: sweptCount),
+            Int(clamping: keptCount),
+            Int(clamping: memoryUsageBeforeBytes),
+            Int(clamping: memoryUsageAfterBytes),
+        ]
+    }
 }
 
 struct GCState {
@@ -62,6 +144,11 @@ struct GCState {
     /// cache box must never be nominal-type tagged in place, so
     /// `kk_tag_value_class_box` consults this set and clones instead.
     var identityPrimitiveBoxHandles: Set<UInt> = []
+    /// Monotonic counter of completed GC passes, surfaced as `GCInfo.epoch`.
+    /// The first recorded pass reports epoch 1.
+    var gcEpoch: Int64 = 0
+    /// Statistics of the most recently completed GC pass (`GC.lastGCInfo`).
+    var lastGCInfo: RuntimeGCInfoSnapshot? = nil
 }
 
 struct MetadataState {
@@ -341,20 +428,67 @@ public func kk_alloc(_ size: UInt32, _ typeInfo: UnsafeRawPointer) -> UnsafeMuta
 // identical bridge functions). The default keeps every pre-existing zero-argument
 // Swift call site (tests, `RuntimeMemory.swift`) source-compatible: Swift call
 // sites fill the default at compile time, while compiled Kotlin always supplies it.
+@inline(__always)
+private func runtimeGCNowNanos() -> Int64 {
+    Int64(clamping: DispatchTime.now().uptimeNanoseconds)
+}
+
 @_cdecl("kk_gc_collect")
 public func kk_gc_collect(_ gcRaw: Int = 0) {
     _ = gcRaw
+    // This collector is a single synchronous stop-the-world pass: gcLock
+    // acquisition is the "pause request", the locked mark+sweep is the pause,
+    // and the ARC destruction of retired leases is the post-GC cleanup.
+    let startTimeNs = runtimeGCNowNanos()
     let threadLocalRoots = runtimeStorage.withThreadLocalLock { state in
         state.threadLocalValues
     }
     let callableRoots = runtimeCallableReflectionRoots()
+    let firstPauseRequestTimeNs = runtimeGCNowNanos()
+    var passEpoch: Int64 = 0
     let retired = runtimeStorage.withGCLock { state -> [RuntimeForeignResourceLease] in
-        performMarkAndSweepLocked(state: &state, threadLocalValues: threadLocalRoots, callableRoots: callableRoots)
+        let firstPauseStartTimeNs = runtimeGCNowNanos()
+        let stats = performMarkAndSweepLocked(
+            state: &state,
+            threadLocalValues: threadLocalRoots,
+            callableRoots: callableRoots
+        )
+        let firstPauseEndTimeNs = runtimeGCNowNanos()
         let retired = state.retiredForeignResources
         state.retiredForeignResources.removeAll()
+        let endTimeNs = runtimeGCNowNanos()
+        state.gcEpoch += 1
+        passEpoch = state.gcEpoch
+        state.lastGCInfo = RuntimeGCInfoSnapshot(
+            epoch: passEpoch,
+            startTimeNs: startTimeNs,
+            endTimeNs: endTimeNs,
+            firstPauseRequestTimeNs: firstPauseRequestTimeNs,
+            firstPauseStartTimeNs: firstPauseStartTimeNs,
+            firstPauseEndTimeNs: firstPauseEndTimeNs,
+            secondPauseRequestTimeNs: nil,
+            secondPauseStartTimeNs: nil,
+            secondPauseEndTimeNs: nil,
+            postGcCleanupTimeNs: nil,
+            rootSet: stats.rootSet,
+            markedCount: stats.markedCount,
+            sweptCount: stats.sweptCount,
+            keptCount: stats.keptCount,
+            memoryUsageBeforeBytes: stats.memoryUsageBeforeBytes,
+            memoryUsageAfterBytes: stats.memoryUsageAfterBytes
+        )
         return retired
     }
     withExtendedLifetime(retired) {} // ARC destruction outside gcLock.
+    let postGcCleanupTimeNs = runtimeGCNowNanos()
+    runtimeStorage.withGCLock { state in
+        // A newer pass may have already published its own snapshot; only patch
+        // in the cleanup timestamp while this pass is still the latest one.
+        guard state.lastGCInfo?.epoch == passEpoch else {
+            return
+        }
+        state.lastGCInfo?.postGcCleanupTimeNs = postGcCleanupTimeNs
+    }
 }
 
 @_cdecl("kk_gc_schedule")
@@ -362,6 +496,20 @@ public func kk_gc_schedule(_ gcRaw: Int = 0) -> Int {
     _ = gcRaw
     kk_gc_collect()
     return 0
+}
+
+/// Hands the recorded `RuntimeGCInfoSnapshot` to Kotlin as a flat `List<Long>`
+/// (see `serializedFieldValues` for the index layout). Returns
+/// `runtimeNullSentinelInt` while no GC pass has completed. The snapshot
+/// struct is copied under gcLock, so the returned list is an immutable
+/// per-pass view even if a concurrent collection lands mid-read.
+@_cdecl("kk_gc_last_gc_info")
+public func kk_gc_last_gc_info(_ gcRaw: Int = 0) -> Int {
+    _ = gcRaw
+    guard let snapshot = runtimeStorage.withGCLock({ $0.lastGCInfo }) else {
+        return runtimeNullSentinelInt
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: snapshot.serializedFieldValues))
 }
 
 @_cdecl("kk_gc_target_heap_bytes")
@@ -580,6 +728,8 @@ func kk_runtime_reset_gc() {
         state.coroutineRoots.removeAll(keepingCapacity: false)
         state.pinnedObjectCounts.removeAll(keepingCapacity: false)
         state.stableRefCounts.removeAll(keepingCapacity: false)
+        state.gcEpoch = 0
+        state.lastGCInfo = nil
         return retired
     }
     withExtendedLifetime(retired) {}
@@ -720,23 +870,38 @@ func kk_runtime_reset_delegate() {
     }
 }
 
-func performMarkAndSweepLocked(state: inout GCState, threadLocalValues: [UInt: [ObjectIdentifier: Int]] = [:], callableRoots: [Int] = []) {
+@discardableResult
+func performMarkAndSweepLocked(state: inout GCState, threadLocalValues: [UInt: [ObjectIdentifier: Int]] = [:], callableRoots: [Int] = []) -> RuntimeGCMarkSweepStats {
+    var stats = RuntimeGCMarkSweepStats()
+    stats.memoryUsageBeforeBytes = state.heapObjects.values.reduce(Int64(0)) { $0 &+ Int64($1.byteCount) }
     guard !state.heapObjects.isEmpty else {
-        return
+        return stats
     }
 
     var worklist: [UnsafeMutableRawPointer] = []
     worklist.reserveCapacity(state.heapObjects.count)
-    collectRootPointersLocked(state: state, threadLocalValues: threadLocalValues, into: &worklist)
-    worklist.append(contentsOf: callableRoots.compactMap(UnsafeMutableRawPointer.init(bitPattern:)))
-    // Box owners are retained until runtimeReleaseObject; roots attached to an
-    // SDK lease follow that existing lifetime. Heap owners are handled as edges.
-    for lease in state.foreignResources.values {
-        if let owner = lease.owner, state.objectPointers.contains(owner) {
-            worklist.append(contentsOf: (lease.dependentRoots + lease.attachmentRoots).compactMap(UnsafeMutableRawPointer.init(bitPattern:)))
+    collectRootPointersLocked(state: state, threadLocalValues: threadLocalValues, counts: &stats.rootSet, into: &worklist)
+    var resolvedCallableRoots = 0
+    for rawRoot in callableRoots {
+        if let pointer = UnsafeMutableRawPointer(bitPattern: rawRoot) {
+            worklist.append(pointer)
+            resolvedCallableRoots += 1
         }
     }
+    stats.rootSet.globalReferences += Int64(resolvedCallableRoots)
+    // Box owners are retained until runtimeReleaseObject; roots attached to an
+    // SDK lease follow that existing lifetime. Heap owners are handled as edges.
+    var seededLeaseRoots = 0
+    for lease in state.foreignResources.values {
+        if let owner = lease.owner, state.objectPointers.contains(owner) {
+            let roots = (lease.dependentRoots + lease.attachmentRoots).compactMap(UnsafeMutableRawPointer.init(bitPattern:))
+            worklist.append(contentsOf: roots)
+            seededLeaseRoots += roots.count
+        }
+    }
+    let retainedAtomicRootsStart = worklist.count
     collectRetainedAtomicPayloadRootsLocked(state: state, into: &worklist)
+    stats.rootSet.stableReferences += Int64(seededLeaseRoots + worklist.count - retainedAtomicRootsStart)
 
     while let current = worklist.popLast() {
         let key = UInt(bitPattern: current)
@@ -748,6 +913,7 @@ func performMarkAndSweepLocked(state: inout GCState, threadLocalValues: [UInt: [
             continue
         }
         header.pointee.flags |= kkObjMarkFlag
+        stats.markedCount += 1
         appendObjectChildrenLocked(of: object, into: &worklist)
         for lease in state.foreignResources.values where lease.owner == key {
             worklist.append(contentsOf: (lease.dependentRoots + lease.attachmentRoots).compactMap(UnsafeMutableRawPointer.init(bitPattern:)))
@@ -761,6 +927,8 @@ func performMarkAndSweepLocked(state: inout GCState, threadLocalValues: [UInt: [
         if (header.pointee.flags & kkObjMarkFlag) != 0 {
             header.pointee.flags &= ~kkObjMarkFlag
             survivors[key] = object
+            stats.keptCount += 1
+            stats.memoryUsageAfterBytes &+= Int64(object.byteCount)
         } else {
             let tokens = state.foreignResources.compactMap { $0.value.owner == key ? $0.key : nil }
             for token in tokens {
@@ -770,12 +938,14 @@ func performMarkAndSweepLocked(state: inout GCState, threadLocalValues: [UInt: [
             }
             removeRuntimeObjectMetadata(forObjectKey: key)
             object.pointer.deallocate()
+            stats.sweptCount += 1
         }
     }
     state.heapObjects = survivors
+    return stats
 }
 
-func collectRootPointersLocked(state: GCState, threadLocalValues: [UInt: [ObjectIdentifier: Int]], into worklist: inout [UnsafeMutableRawPointer]) {
+func collectRootPointersLocked(state: GCState, threadLocalValues: [UInt: [ObjectIdentifier: Int]], counts: inout RuntimeGCRootSetCounts, into worklist: inout [UnsafeMutableRawPointer]) {
     for slotAddress in state.globalRootSlots {
         guard let slot = UnsafeMutablePointer<UnsafeMutableRawPointer?>(bitPattern: slotAddress),
               let value = slot.pointee
@@ -783,6 +953,7 @@ func collectRootPointersLocked(state: GCState, threadLocalValues: [UInt: [Object
             continue
         }
         worklist.append(value)
+        counts.globalReferences += 1
     }
 
     for frame in state.activeFrames {
@@ -795,6 +966,7 @@ func collectRootPointersLocked(state: GCState, threadLocalValues: [UInt: [Object
             let slot = frameBase.advanced(by: Int(offset)).assumingMemoryBound(to: UnsafeMutableRawPointer?.self)
             if let value = slot.pointee {
                 worklist.append(value)
+                counts.stackReferences += 1
             }
         }
     }
@@ -804,6 +976,7 @@ func collectRootPointersLocked(state: GCState, threadLocalValues: [UInt: [Object
             continue
         }
         worklist.append(ptr)
+        counts.stackReferences += 1
     }
 
     for pinned in state.pinnedObjectCounts.keys {
@@ -811,6 +984,7 @@ func collectRootPointersLocked(state: GCState, threadLocalValues: [UInt: [Object
             continue
         }
         worklist.append(ptr)
+        counts.stableReferences += 1
     }
 
     for stableRefTarget in state.stableRefCounts.keys {
@@ -818,6 +992,7 @@ func collectRootPointersLocked(state: GCState, threadLocalValues: [UInt: [Object
             continue
         }
         worklist.append(ptr)
+        counts.stableReferences += 1
     }
 
     for threadValues in threadLocalValues.values {
@@ -826,6 +1001,7 @@ func collectRootPointersLocked(state: GCState, threadLocalValues: [UInt: [Object
                 continue
             }
             worklist.append(ptr)
+            counts.threadLocalReferences += 1
         }
     }
 }
