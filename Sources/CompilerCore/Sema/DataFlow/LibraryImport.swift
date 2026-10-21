@@ -547,6 +547,40 @@ extension DataFlowSemaPhase {
             if let indexedFile {
                 cache?.cacheIndexedMetadataFile(indexedFile, metadataPath: metadataPath)
                 if indexedFile.metadataVersion == 3 {
+                    // Malformed records the eager registration pass used to
+                    // reject up front must be caught here: an on-demand entry
+                    // nobody references would otherwise never be validated.
+                    // A duplicate nominal signature rejects the whole library
+                    // (eager parity), while an out-of-range arity drops only
+                    // the offending record.
+                    var nominalSignaturesByFQName: [String: String] = [:]
+                    var duplicateNominalSignature = false
+                    for entry in indexedFile.entries {
+                        guard let signature = entry.nominalTypeParametersSignature else { continue }
+                        guard nominalSignaturesByFQName.updateValue(signature, forKey: entry.fqName) == nil else {
+                            diagnostics.error(
+                                "KSWIFTK-LIB-0024",
+                                "Duplicate nominal type metadata for '\(entry.fqName)' in library metadata at \(metadataPath)",
+                                range: nil
+                            )
+                            duplicateNominalSignature = true
+                            break
+                        }
+                    }
+                    if duplicateNominalSignature { continue }
+                    var rejectedEntryIndices: Set<Int> = []
+                    for (index, entry) in indexedFile.entries.enumerated() {
+                        guard let compactRecord = entry.compactRecord,
+                              compactRecord.kind == .function || compactRecord.kind == .constructor,
+                              !(0 ... ImportedLibraryLimits.maxCallableArity).contains(compactRecord.arity)
+                        else { continue }
+                        diagnostics.error(
+                            "KSWIFTK-LIB-0024",
+                            "Callable arity \(compactRecord.arity) in '\(metadataPath)' is outside the supported range 0...\(ImportedLibraryLimits.maxCallableArity)",
+                            range: nil
+                        )
+                        rejectedEntryIndices.insert(index)
+                    }
                     // Compact-indexed entries register on demand: the symbol
                     // table's lookup drains pull a shell out of this source
                     // only when a query can actually reach it. The closure
@@ -561,7 +595,8 @@ extension DataFlowSemaPhase {
                         interner: interner,
                         moduleFQN: libraryModuleFQN,
                         isStdlibArtifact: stdlibArtifact,
-                        symbols: symbols
+                        symbols: symbols,
+                        rejectedEntryIndices: rejectedEntryIndices
                     ) { [self, weak symbols, weak lazyLoaderState] index, nominalTypeParametersByFQName in
                         guard let symbols, let lazyLoaderState else { return nil }
                         let entry = indexedFile.entries[index]

@@ -29,6 +29,11 @@ extension DataFlowSemaPhase {
         /// record builder needs and which live here so the closure does not
         /// retain the provider (the symbol table already does).
         private let registerEntry: (Int, [String: String]) -> SymbolID?
+        /// Index entries rejected by the import-time validation scan (e.g.
+        /// callable arity outside the supported range). They behave as if
+        /// the record were absent: not claimable, not counted, contributing
+        /// no link names, member keys, or package prefixes.
+        private let rejectedIndices: Set<Int>
 
         init(
             importOrder: Int,
@@ -37,6 +42,7 @@ extension DataFlowSemaPhase {
             moduleFQN: InternedString?,
             isStdlibArtifact: Bool,
             symbols: SymbolTable,
+            rejectedEntryIndices: Set<Int> = [],
             registerEntry: @escaping (Int, [String: String]) -> SymbolID?
         ) {
             self.importOrder = importOrder
@@ -45,6 +51,8 @@ extension DataFlowSemaPhase {
             self.moduleFQN = moduleFQN
             self.isStdlibArtifact = isStdlibArtifact
             self.symbols = symbols
+            self.rejectedIndices = rejectedEntryIndices
+            self.claimed = rejectedEntryIndices
             self.registerEntry = registerEntry
         }
 
@@ -135,7 +143,8 @@ extension DataFlowSemaPhase {
             /// waits for the declaration-occupancy check below.
             var constructorParents: Set<Substring> = []
             for (index, entry) in indexedFile.entries.enumerated() {
-                guard let record = entry.compactRecord else { continue }
+                guard let record = entry.compactRecord, !rejectedIndices.contains(index)
+                else { continue }
                 let fqName = Substring(record.fqName)
                 pendingByFQName[fqName, default: []].append(index)
                 entryFQNames.insert(fqName)
@@ -349,8 +358,9 @@ extension DataFlowSemaPhase {
             if let cached = stdlibMemberKeysCache { return cached }
             var keys: Set<BundledMemberKey> = []
             keys.reserveCapacity(indexedFile.entries.count)
-            for entry in indexedFile.entries {
-                guard let record = entry.compactRecord else { continue }
+            for (index, entry) in indexedFile.entries.enumerated() {
+                guard let record = entry.compactRecord, !rejectedIndices.contains(index)
+                else { continue }
                 let arity: Int
                 switch record.kind {
                 case .function, .constructor:
