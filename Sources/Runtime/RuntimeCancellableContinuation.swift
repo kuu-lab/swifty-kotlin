@@ -31,6 +31,7 @@ final class RuntimeCancellableContinuation: @unchecked Sendable {
     private enum State { case active, reserved, completed, cancelled }
     private let lock = NSLock()
     private let delegate: Int
+    private var delegateExited = false
     private var state: State = .active
     private var suspended = false
     private var delivered = false
@@ -55,11 +56,27 @@ final class RuntimeCancellableContinuation: @unchecked Sendable {
         // coroutine context. Its cancellation state lives on completionJob.
         guard let job = runtimeJobHandle(from: jobRaw)
             ?? runtimeAsyncTask(from: jobRaw)?.completionJob else { return }
+        lock.lock()
+        guard !delegateExited else {
+            lock.unlock()
+            return
+        }
         parent = job
-        parentHandlerID = job.addCompletionHandler(onCancelling: true) { [weak self, weak job] cause in
+        lock.unlock()
+        let delegateState = runtimeContinuationState(from: delegate)
+        let handlerID = job.addCompletionHandler(onCancelling: true) { [weak self, weak job, delegateState] cause in
             if cause != 0, cause != runtimeNullSentinelInt, let job {
+                guard delegateState?.isExited != true else { return }
                 self?.cancelFromParent(runtimeJobCancellationException(job))
             }
+        }
+        lock.lock()
+        let delegateExited = self.delegateExited
+        if !delegateExited { parentHandlerID = handlerID }
+        lock.unlock()
+        if delegateExited {
+            job.removeCompletionHandler(id: handlerID)
+            return
         }
         if job.cancellationSnapshot() || job.isFailedSnapshot() {
             cancelFromParent(runtimeJobCancellationException(job))
@@ -77,8 +94,65 @@ final class RuntimeCancellableContinuation: @unchecked Sendable {
     }
 
     private func dispatchResult(_ result: Int) {
-        let deliveredResult = runtimeContinuationState(from: delegate) == nil ? takeResultForDelivery() : result
+        lock.lock()
+        guard !delegateExited else {
+            lock.unlock()
+            return
+        }
+        // Resolve while holding the same lock that delegate exit uses to retire
+        // this continuation. The temporary strong reference keeps the raw ABI
+        // handle alive until resume_with has finished using it.
+        let delegateState = runtimeContinuationState(from: delegate)
+        guard delegateState?.isExited != true else {
+            lock.unlock()
+            return
+        }
+        lock.unlock()
+        let deliveredResult = delegateState == nil ? takeResultForDelivery() : result
         __kk_coroutine_continuation_resume_with(delegate, deliveredResult, nil)
+        withExtendedLifetime(delegateState) {}
+    }
+
+    /// The delegate's state machine can finish through another completion path
+    /// while a channel or parent Job still retains this cancellable continuation.
+    /// Retire the parent callback before the delegate handle is released so a
+    /// late cancellation cannot resume a stale raw continuation pointer.
+    func delegateDidExit() {
+        lock.lock()
+        guard !delegateExited else {
+            lock.unlock()
+            return
+        }
+        delegateExited = true
+        let parent = self.parent
+        let handlerID = parentHandlerID
+        parentHandlerID = 0
+        let shouldCancel = !delivered && (
+            state == .active || state == .reserved
+                || (state == .completed && runtimeResultIsSuccess(result))
+        )
+        let cause: Int
+        if shouldCancel {
+            cause = cancelCause != 0
+                ? cancelCause
+                : runtimeAllocateCancellationException(message: "Continuation delegate exited before delivery")
+            state = .cancelled
+            cancelCause = cause
+            result = runtimeResultFailure(cause)
+        } else {
+            cause = 0
+        }
+        let handler = shouldCancel ? cancellationHandler : nil
+        let callback = shouldCancel ? resumeCancellation : nil
+        cancellationHandler = nil
+        resumeCancellation = nil
+        lock.unlock()
+
+        if handlerID != 0 { parent?.removeCompletionHandler(id: handlerID) }
+        if cause != 0 {
+            handler?.invoke(cause)
+            callback?.invoke(cause)
+        }
     }
 
     /// Kernel resources must be returned if cancellation wins before delivery.
@@ -127,6 +201,10 @@ final class RuntimeCancellableContinuation: @unchecked Sendable {
         let resolved = cause == 0 || cause == runtimeNullSentinelInt
             ? runtimeAllocateCancellationException(message: "Continuation was cancelled") : cause
         lock.lock()
+        guard !delegateExited else {
+            lock.unlock()
+            return false
+        }
         let wasActive = state == .active
         let promptCancellation = fromParent && state == .completed && !delivered && runtimeResultIsSuccess(result)
         guard wasActive || promptCancellation else {
@@ -196,17 +274,25 @@ final class RuntimeCancellableContinuation: @unchecked Sendable {
         lock.lock()
         delivered = true
         let result = self.result
+        let parent = self.parent
+        let handlerID = parentHandlerID
+        parentHandlerID = 0
         lock.unlock()
-        parent?.removeCompletionHandler(id: parentHandlerID)
+        if handlerID != 0 { parent?.removeCompletionHandler(id: handlerID) }
         return result
     }
 
     func getResult(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
         lock.lock()
         if state == .active || state == .reserved {
-            runtimeContinuationState(from: delegate)?.installCancellableDelivery(self)
+            let delegateState = runtimeContinuationState(from: delegate)
+            let installed = delegateState?.installCancellableDelivery(self) ?? true
             suspended = true
             lock.unlock()
+            if !installed {
+                delegateDidExit()
+                return runtimeResultGetOrThrow(takeResultForDelivery(), outThrown)
+            }
             return Int(bitPattern: kk_coroutine_suspended())
         }
         lock.unlock()
