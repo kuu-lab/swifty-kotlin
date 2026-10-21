@@ -845,10 +845,16 @@ struct RuntimeChannelTests {
 
     /// Once a rendezvous send is matched with a receiver, the send result should
     /// report success even if cancellation races with the wakeup.
+    ///
+    /// Since suspendable `Channel.send` (KUU-2162), `kk_channel_send` with a live
+    /// continuation parks instead of blocking: the call returns
+    /// `COROUTINE_SUSPENDED` and the outcome is delivered through the
+    /// continuation. The delivered result is consumed the way the resumed
+    /// coroutine's entry loop would consume it.
     @Test func sendWithCancellationDuringSuspensionSucceedsAfterDelivery() {
         let channel = kk_channel_create(0)
         defer { _ = kk_channel_close(channel) }
-        let done = ChannelTestSignal("matched send completes")
+        let done = ChannelTestSignal("matched send returns")
         let result = ThreadSafeInt()
         let job = RuntimeJobHandle()
         let state = RuntimeContinuationState(functionID: 999)
@@ -862,13 +868,21 @@ struct RuntimeChannelTests {
             done.fulfill()
         }
         #expect(waitForSuspendedWaiters(in: channel, senders: 1))
+        done.wait(timeout: 2)
+        #expect(
+            result.get() == Int(bitPattern: kk_coroutine_suspended()),
+            "a send that must wait parks the continuation and returns COROUTINE_SUSPENDED"
+        )
         // Match first; cancellation must not remove a value already delivered.
         var value = 0
         #expect(runtimeChannelHandle(channel).tryReceive(outValue: &value) == .success)
+        // The parked sender's coroutine consumes the delivered result on
+        // resume; a cancellation arriving afterwards must not retract it.
+        state.consumeCancellableDelivery()
         _ = job.cancel()
-        done.wait(timeout: 2)
         #expect(value == 42)
-        #expect(result.get() == kChannelResultSuccess)
+        #expect(Int(state.completion) == kChannelResultSuccess)
+        #expect(state.takeThrownException() == 0)
     }
 
     /// A match committed under the channel lock precedes later cancellation.
