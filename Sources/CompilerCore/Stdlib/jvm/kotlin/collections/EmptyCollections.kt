@@ -6,7 +6,7 @@ private fun readOnlyCollection(): Unit = throw UnsupportedOperationException("Op
 
 // Preserve Kotlin's mapped marker while inheriting the complete JDK collection
 // ABI, including both toArray overloads and list iteration helpers.
-internal object RepositoryEmptyList: java.util.AbstractList<Any?>(), KMappedMarker, java.io.Serializable {
+internal object RepositoryEmptyList: java.util.AbstractList<Any?>(), KMappedMarker, java.io.Serializable, java.util.RandomAccess {
     override val size: Int get() = 0
     fun size(): Int = 0
     override fun get(index: Int): Any? = throw IndexOutOfBoundsException("Empty list doesn't contain element at index $index.")
