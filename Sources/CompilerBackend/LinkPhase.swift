@@ -40,6 +40,9 @@ final class LinkPhase: CompilerPhase {
 
     func run(_ ctx: CompilationContext) throws {
         guard ctx.options.emit == .executable else { return }
+        // The wasm backend emits the final module itself; there is no host
+        // object link step.
+        guard !ctx.options.target.isWasm else { return }
         guard let objectPath = ctx.generatedObjectPath else {
             ctx.diagnostics.error(
                 "KSWIFTK-LINK-0004",

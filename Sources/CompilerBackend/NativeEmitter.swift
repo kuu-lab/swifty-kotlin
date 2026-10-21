@@ -554,21 +554,16 @@ struct NativeEmitter {
     }
 
     private func configuredTargetMachine(for llvmModule: LLVMCAPIBindings.LLVMModuleRef) throws -> LLVMCAPIBindings.LLVMTargetMachineRef {
-        var triple = targetTripleString()
+        let triple = targetTripleString()
         bindings.setTarget(llvmModule, triple: triple)
 
-        var targetMachine = bindings.createTargetMachine(triple: triple, optLevel: optLevel)
-        if targetMachine == nil,
-           let hostTriple = bindings.defaultTargetTriple(),
-           !hostTriple.isEmpty,
-           hostTriple != triple
-        {
-            triple = hostTriple
-            bindings.setTarget(llvmModule, triple: triple)
-            targetMachine = bindings.createTargetMachine(triple: hostTriple, optLevel: optLevel)
-        }
-        guard let targetMachine else {
-            throw LLVMBackendError.nativeEmissionFailed("failed to create LLVM target machine")
+        // Never silently retarget to the host: emitting a binary for a target
+        // other than the requested one (e.g. an arm64 host object when wasm32
+        // was asked for) produces confusing failures far downstream.
+        guard let targetMachine = bindings.createTargetMachine(triple: triple, optLevel: optLevel) else {
+            throw LLVMBackendError.nativeEmissionFailed(
+                "failed to create LLVM target machine for '\(triple)' (the loaded LLVM may lack this backend)"
+            )
         }
         guard bindings.applyTargetMachine(targetMachine, to: llvmModule) else {
             bindings.disposeTargetMachine(targetMachine)

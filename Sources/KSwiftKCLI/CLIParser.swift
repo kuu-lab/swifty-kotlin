@@ -311,6 +311,17 @@ enum CLIParser {
     }
 
     private static func parseTargetTriple(_ value: String) -> TargetTriple? {
+        // WebAssembly spellings. `wasm32-wasi` / `wasm-js` are two-part
+        // shorthand; the unknown-vendor forms normalize to the same triple.
+        switch value {
+        case "wasm32-wasi", "wasm-wasi", "wasm32-unknown-wasi",
+             "wasm32-wasip1", "wasm32-unknown-wasip1":
+            return .wasmWASI
+        case "wasm-js", "wasm32-js", "wasm32-unknown-js", "wasm32-web":
+            return .wasmJS
+        default:
+            break
+        }
         let parts = value.split(separator: "-", omittingEmptySubsequences: false).map(String.init)
         guard parts.count >= 3 else {
             return nil

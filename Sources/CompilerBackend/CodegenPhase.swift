@@ -67,6 +67,15 @@ public final class CodegenPhase: CompilerPhase {
                 ctx.storeGeneratedObjectPath(path)
 
             case .executable:
+                if ctx.options.target.isWasm {
+                    // WebAssembly executables are modules, not host objects:
+                    // the wasm emitter writes the final .wasm directly and the
+                    // Link phase is bypassed.
+                    let path = outputPath(base: ctx.options.outputPath, defaultExtension: "wasm")
+                    try emitWasmModule(module: kir, outputPath: path, ctx: ctx)
+                    ctx.storeGeneratedWasmPath(path)
+                    return
+                }
                 let path = executableObjectPath(base: ctx.options.outputPath)
                 try backend.emitObject(
                     module: kir,
@@ -113,6 +122,33 @@ public final class CodegenPhase: CompilerPhase {
             return fileURL.appendingPathExtension(defaultExtension).path
         }
         return base
+    }
+
+    /// Runs the custom KIR→wasm emitter and writes the module. The entry
+    /// symbol is resolved the same way Link does so `_start`/`main` wraps the
+    /// real `main` function.
+    private func emitWasmModule(module kir: KIRModule, outputPath: String, ctx: CompilationContext) throws {
+        var entrySymbol: SymbolID?
+        if let ast = ctx.ast, let sema = ctx.sema {
+            entrySymbol = ExecutableEntryPointSelector.firstFileLevelSymbol(
+                ast: ast,
+                bindings: sema.bindings,
+                arena: kir.arena,
+                interner: ctx.interner,
+                symbols: sema.symbols,
+                entryPointFQName: ctx.options.entryPointFQName
+            )
+        }
+        let result = try WasmEmitter().emitModule(
+            module: kir,
+            interner: ctx.interner,
+            symbols: ctx.sema?.symbols,
+            types: ctx.sema?.types,
+            entrySymbol: entrySymbol,
+            target: ctx.options.target,
+            diagnostics: ctx.diagnostics
+        )
+        try Data(result.bytes).write(to: URL(fileURLWithPath: outputPath), options: .atomic)
     }
 
     private func executableObjectPath(base: String) -> String {
