@@ -97,7 +97,7 @@ extension CodegenRuntimeSupport {
     ) throws -> (objects: [String], linkerCacheDirectory: URL) {
         let packageRoot = try runtimePackageRootURL()
         let cacheKey = try runtimeBuildCacheKey(target: target, configuration: configuration, packageRoot: packageRoot)
-        let scratchRoot = packageRoot.appendingPathComponent(".runtime-build", isDirectory: true)
+        let scratchRoot = runtimeSharedScratchRoot()
         let buildRoot = scratchRoot.appendingPathComponent(cacheKey, isDirectory: true)
         let buildDirectory = buildRoot
             .appendingPathComponent(runtimeBuildCacheDirectoryComponent(target: target), isDirectory: true)
@@ -132,7 +132,9 @@ extension CodegenRuntimeSupport {
                 return fallback
             }
         }
-        return (objects, scratchRoot.appendingPathComponent("link-plans", isDirectory: true))
+        // Link plans embed per-checkout toolchain state, so they stay beside
+        // the package rather than in the shared object cache.
+        return (objects, packageRoot.appendingPathComponent(".runtime-build/link-plans", isDirectory: true))
     }
 
     private static func buildRuntimeObjects(packageRoot: URL, arguments: [String]) throws {
@@ -426,7 +428,37 @@ extension CodegenRuntimeSupport {
     }
 
     private static func runtimeScratchRootDirectory() throws -> URL {
-        try runtimePackageRootURL().appendingPathComponent(".runtime-build", isDirectory: true)
+        runtimeSharedScratchRoot()
+    }
+
+    /// Runtime objects are keyed by a content hash of the Runtime sources (see
+    /// `runtimeSourceFingerprint`), not by checkout location, so one cache
+    /// directory is shared by every worktree: a fresh worktree whose Runtime
+    /// sources are unchanged reuses the objects instead of paying a full
+    /// from-scratch `swift build`. `KSWIFTK_RUNTIME_CACHE_DIR` overrides it.
+    /// Exposed for testing and for `incrementalEnvironmentFingerprint`.
+    static func runtimeSharedScratchRoot(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> URL {
+        if let override = environment["KSWIFTK_RUNTIME_CACHE_DIR"], !override.isEmpty {
+            return URL(fileURLWithPath: override, isDirectory: true)
+        }
+        let cachesBase: URL
+#if canImport(Darwin)
+        cachesBase = homeDirectory
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Caches", isDirectory: true)
+#else
+        if let xdg = environment["XDG_CACHE_HOME"], !xdg.isEmpty {
+            cachesBase = URL(fileURLWithPath: xdg, isDirectory: true)
+        } else {
+            cachesBase = homeDirectory.appendingPathComponent(".cache", isDirectory: true)
+        }
+#endif
+        return cachesBase
+            .appendingPathComponent("kswiftk", isDirectory: true)
+            .appendingPathComponent("runtime-build", isDirectory: true)
     }
 
     private static func withRuntimeBuildLock<T>(cacheKey: String, scratchRoot: URL, body: () throws -> T) throws -> T {
@@ -649,34 +681,44 @@ extension CodegenRuntimeSupport {
         configuration: RuntimeBuildConfiguration,
         packageRoot: URL
     ) throws -> String {
-        "runtime-nocov-v3-\(configuration.rawValue)-\(targetTripleString(target))-\(try runtimeSourceFingerprint(packageRoot: packageRoot))"
+        "runtime-nocov-v4-\(configuration.rawValue)-\(targetTripleString(target))-\(try runtimeSourceFingerprint(packageRoot: packageRoot))"
     }
 
+    // Hashes file contents under package-relative paths so the key is identical
+    // across worktrees holding the same Runtime sources. RuntimeABI is part of
+    // the linked object set, so it participates in the key too.
     private static func runtimeSourceFingerprint(packageRoot: URL) throws -> String {
-        let runtimeSourcesURL = packageRoot
-            .appendingPathComponent("Sources", isDirectory: true)
-            .appendingPathComponent("Runtime", isDirectory: true)
-        guard let enumerator = FileManager.default.enumerator(
-            at: runtimeSourcesURL,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]
-        ) else {
-            return "runtime-sources-missing"
-        }
-
-        let files = (enumerator.allObjects as? [URL] ?? [])
-            .filter { $0.pathExtension == "swift" }
-            .sorted { $0.path < $1.path }
-
+        let sourcesURL = packageRoot.appendingPathComponent("Sources", isDirectory: true)
         var payload = ""
-        payload.reserveCapacity(files.count * 256)
-        for fileURL in files {
-            payload.append(fileURL.path)
-            payload.append("\u{0}")
-            if let data = try? Data(contentsOf: fileURL) {
-                payload.append(String(decoding: data, as: UTF8.self))
+        for module in ["Runtime", "RuntimeABI"] {
+            let moduleURL = sourcesURL.appendingPathComponent(module, isDirectory: true)
+            guard let enumerator = FileManager.default.enumerator(
+                at: moduleURL,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            ) else {
+                payload.append("\(module)-sources-missing\u{1}")
+                continue
             }
-            payload.append("\u{1}")
+            let modulePrefix = moduleURL.standardizedFileURL.path + "/"
+            let files = (enumerator.allObjects as? [URL] ?? [])
+                .filter { $0.pathExtension == "swift" }
+                .sorted { $0.path < $1.path }
+            payload.reserveCapacity(payload.count + files.count * 256)
+            for fileURL in files {
+                let fullPath = fileURL.standardizedFileURL.path
+                let relativePath = fullPath.hasPrefix(modulePrefix)
+                    ? String(fullPath.dropFirst(modulePrefix.count))
+                    : fileURL.lastPathComponent
+                payload.append(module)
+                payload.append("/")
+                payload.append(relativePath)
+                payload.append("\u{0}")
+                if let data = try? Data(contentsOf: fileURL) {
+                    payload.append(String(decoding: data, as: UTF8.self))
+                }
+                payload.append("\u{1}")
+            }
         }
         return stableFNV1a64Hex(payload)
     }

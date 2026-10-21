@@ -666,6 +666,15 @@ fi
 
 if [[ $CLEAN_RUNTIME_CACHE -eq 1 ]]; then
   rm -rf "$ROOT_DIR/.runtime-build"
+  # Runtime objects live in a cache shared by all worktrees (see
+  # CodegenRuntimeSupport.runtimeSharedScratchRoot).
+  if [[ -n "${KSWIFTK_RUNTIME_CACHE_DIR:-}" ]]; then
+    rm -rf "$KSWIFTK_RUNTIME_CACHE_DIR"
+  elif [[ "$(uname -s)" == "Darwin" ]]; then
+    rm -rf "$HOME/Library/Caches/kswiftk/runtime-build"
+  else
+    rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/kswiftk/runtime-build"
+  fi
 fi
 
 # A single candidate-only target has no JVM reference by design. Delegate
