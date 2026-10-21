@@ -641,7 +641,9 @@ extension DataFlowSemaPhase {
                             symbols.setExternalLinkName(linkName, for: symbol)
                         }
                         if let linkName = shell.defaultStubExternalLinkName, !linkName.isEmpty {
-                            externalLinkNameToSymbol[linkName] = SyntheticSymbolScheme.defaultStubSymbol(for: symbol)
+                            let stubSymbol = SyntheticSymbolScheme.defaultStubSymbol(for: symbol)
+                            externalLinkNameToSymbol[linkName] = stubSymbol
+                            symbols.setExternalLinkName(linkName, for: stubSymbol)
                         }
                         let fQName = shell.fqName
                             .map { interner.resolve($0) }
@@ -871,6 +873,15 @@ extension DataFlowSemaPhase {
             let record = binding.record
             if let linkName = record.externalLinkName, !linkName.isEmpty {
                 symbols.setExternalLinkName(linkName, for: binding.symbol)
+            }
+            // Deferred bodies call the stub by its artifact link name; the
+            // record's stub link is a compact-index fact, so restore it here
+            // instead of waiting for the binding's lazy metadata apply.
+            if let linkName = record.defaultStubExternalLinkName, !linkName.isEmpty {
+                symbols.setExternalLinkName(
+                    linkName,
+                    for: SyntheticSymbolScheme.defaultStubSymbol(for: binding.symbol)
+                )
             }
             restoreImportedParentSymbol(record, symbol: binding.symbol, symbols: symbols)
             if record.kind == .function, !record.isMemberExtension,
