@@ -27,6 +27,14 @@ public fun println(message: String) {
     __printlnStringRaw(message)
 }
 
+public fun print(message: CharArray) {
+    print(message.concatToString())
+}
+
+public fun println(message: CharArray) {
+    println(message.concatToString())
+}
+
 public fun print() {
     __printRaw("")
 }
