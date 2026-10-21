@@ -62,6 +62,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
         let kkFlowSingleName = interner.intern("__kk_flow_single")
 
         let intType = ctx.sema?.types.intType
+        let boxingCalleeTable = BoxingCalleeTable(interner: interner)
 
         // KSP-674: `flowOf`/`emptyFlow`/`Iterable.asFlow` now resolve to bundled
         // Kotlin source returning `Flow<T>` rather than the removed
@@ -301,11 +302,31 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                             loweredBody.append(instruction)
                             continue
                         }
+                        var emittedValueExpr = valueExpr
+                        if let sema = ctx.sema,
+                           let valueType = module.arena.exprType(valueExpr),
+                           let boxCallee = boxingCalleeTable.boxCallee(
+                               for: sema.types.kind(of: valueType),
+                               requireNonNull: true,
+                               preferStaticPrimitive: true
+                           )
+                        {
+                            let boxedValueExpr = module.arena.appendTemporary(type: sema.types.anyType)
+                            loweredBody.append(.call(
+                                symbol: nil,
+                                callee: boxCallee,
+                                arguments: [valueExpr],
+                                result: boxedValueExpr,
+                                canThrow: false,
+                                thrownResult: nil
+                            ))
+                            emittedValueExpr = boxedValueExpr
+                        }
                         let tag = appendIntConstant(RuntimeFlowTag.emit.rawValue)
                         loweredBody.append(.call(
                             symbol: nil,
                             callee: kkFlowEmitName,
-                            arguments: [flowHandleExpr, valueExpr, tag],
+                            arguments: [flowHandleExpr, emittedValueExpr, tag],
                             result: result,
                             canThrow: false,
                             thrownResult: nil
