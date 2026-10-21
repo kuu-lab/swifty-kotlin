@@ -239,6 +239,64 @@ struct LibraryMetadataImportIntegrationTests {
     }
 
     @Test
+    func testTypeAnnotationPrefersSourceClassOverImportedSameFqName() throws {
+        let librarySource = """
+        package shadow.io
+        public class Segment {
+            public fun libOnly(): Int = 0
+        }
+        """
+        let libraryBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .path
+        let libraryPath = libraryBase + ".kklib"
+        defer { try? FileManager.default.removeItem(atPath: libraryPath) }
+
+        try withTemporaryFile(contents: librarySource) { librarySourcePath in
+            let libraryCtx = CompilerTestSupport.makeCompilationContext(
+                inputs: [librarySourcePath],
+                moduleName: "ShadowIoLib",
+                emit: .library,
+                outputPath: libraryBase,
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            try CompilerTestSupport.runToKIR(libraryCtx)
+            try LoweringPhase().run(libraryCtx)
+            try CodegenPhase().run(libraryCtx)
+
+            // The source module redeclares `shadow.io.Segment` in the same
+            // package. Classifier references must resolve to the source
+            // declaration even though the imported symbol has a lower ID:
+            // `Segment()` must bind the source constructor and `marker()`
+            // only exists on the source class.
+            let appSource = """
+            package shadow.io
+            class Segment {
+                fun marker(): Int = 42
+            }
+            fun probe(): Int {
+                val x: Segment? = Segment()
+                return x?.marker() ?: -1
+            }
+            """
+            try withTemporaryFile(contents: appSource) { appPath in
+                let appCtx = CompilerTestSupport.makeCompilationContext(
+                    inputs: [appPath],
+                    moduleName: "ShadowIoConsumer",
+                    emit: .kirDump,
+                    searchPaths: [libraryPath],
+                    includeStdlib: false,
+                    allowDefaultStdlibLibrary: false
+                )
+                try CompilerTestSupport.runSema(appCtx)
+
+                #expect(!appCtx.diagnostics.hasError, "Unexpected diagnostics: \(appCtx.diagnostics.diagnostics)")
+            }
+        }
+    }
+
+    @Test
     func testShortTargetMetadataSurvivesKklibImport() throws {
         let librarySource = """
         package targetprobe
