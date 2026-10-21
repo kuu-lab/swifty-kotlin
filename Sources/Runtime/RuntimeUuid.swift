@@ -193,6 +193,6 @@ func kk_uuid_toKotlinUuid(_ receiver: Int) -> Int {
 }
 
 @_cdecl("__kk_uuid_toKotlinUuid")
-func __kk_uuid_toKotlinUuid(_ receiver: Int) -> Int {
+public func __kk_uuid_toKotlinUuid(_ receiver: Int) -> Int {
     kk_uuid_toKotlinUuid(receiver)
 }

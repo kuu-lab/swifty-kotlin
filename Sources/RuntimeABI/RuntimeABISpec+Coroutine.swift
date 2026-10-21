@@ -1365,10 +1365,13 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Coroutine"
         ),
+        // KUU-2688: `timeoutRaw` mirrors the boxed variant — the literal path
+        // forwards `runTest`'s Duration so the runtime can enforce it.
         RuntimeABIFunctionSpec(
             name: "kk_test_run_blocking_with_cont",
             parameters: [
                 RuntimeABIParameter(name: "contextRaw", type: .intptr),
+                RuntimeABIParameter(name: "timeoutRaw", type: .intptr),
                 RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
                 RuntimeABIParameter(name: "continuation", type: .intptr),
                 RuntimeABIParameter(name: "scopeSlotRaw", type: .intptr),

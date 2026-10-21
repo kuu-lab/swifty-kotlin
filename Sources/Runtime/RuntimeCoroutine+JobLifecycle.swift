@@ -193,13 +193,13 @@ public func kk_job_await_completion(
 }
 
 
-func runtimeCancelChild(_ handle: Int) {
+func runtimeCancelChild(_ handle: Int, cause: Int = 0) {
     // Completed children can have been released by their scope while an
     // ancestor still holds the raw hierarchy entry. Resolve liveness first.
     if let job = runtimeJobHandle(from: handle) {
-        _ = job.cancel()
+        _ = job.cancel(cause: cause)
     } else if let task = runtimeAsyncTask(from: handle) {
-        task.cancel()
+        task.cancel(cause: cause)
     }
 }
 
@@ -625,7 +625,10 @@ func runtimeJobWrapperDebugString(_ rawValue: Int) -> String? {
     return runtimeJobDebugString(job)
 }
 
-private func runtimeJobDebugString(_ job: RuntimeJobHandle) -> String {
+/// Renders a job the way kotlinx's `toDebugString()` does —
+/// `ClassName{State}@hexIdentity` — for runTest timeout diagnostics and
+/// `job.toString()`.
+func runtimeJobDebugString(_ job: RuntimeJobHandle) -> String {
     "\(runtimeJobToStringName(job)){\(job.toStringStateName())}@\(String(job.sourceIdentityHandle, radix: 16))"
 }
 
