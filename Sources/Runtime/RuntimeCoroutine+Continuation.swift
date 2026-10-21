@@ -326,6 +326,7 @@ private func startCoroutineUninterceptedOrReturn(
         outThrown?.pointee = 0
         return 0
     }
+    state.suspendDriveEntryPointRaw = entryPointRaw
 
     let outerTaskKey = RuntimeCoroutineScopeTaskKey.installedKey
     let outerJob = RuntimeJobHandle.current

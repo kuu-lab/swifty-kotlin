@@ -57,26 +57,49 @@ final class RuntimeDeepRecursiveScopeBox {
     }
 }
 
+private final class RuntimeDeepRecursiveScopeStackBox {
+    var scopes: [RuntimeDeepRecursiveScopeBox] = []
+}
+
 private enum RuntimeDeepRecursiveTaskScopes {
     private static let lock = NSLock()
     nonisolated(unsafe) private static var scopeByTask: [RuntimeTaskKey: RuntimeDeepRecursiveScopeBox] = [:]
+    private static let threadScopesKey: pthread_key_t = makePthreadKey()
 
     static func bind(_ scope: RuntimeDeepRecursiveScopeBox, forTask key: RuntimeTaskKey) {
         lock.lock()
         scopeByTask[key] = scope
+        let stack: RuntimeDeepRecursiveScopeStackBox
+            = pthreadGetValue(threadScopesKey) ?? RuntimeDeepRecursiveScopeStackBox()
+        stack.scopes.append(scope)
+        pthreadSetValue(threadScopesKey, stack)
         lock.unlock()
     }
 
     static func unbind(forTask key: RuntimeTaskKey) {
         lock.lock()
         scopeByTask.removeValue(forKey: key)
+        if let stack: RuntimeDeepRecursiveScopeStackBox = pthreadGetValue(threadScopesKey) {
+            _ = stack.scopes.popLast()
+            if stack.scopes.isEmpty {
+                pthreadSetValue(threadScopesKey, nil as RuntimeDeepRecursiveScopeStackBox?)
+            }
+        }
         lock.unlock()
     }
 
     static var current: RuntimeDeepRecursiveScopeBox? {
         lock.lock()
         defer { lock.unlock() }
-        return scopeByTask[RuntimeCoroutineScopeTaskKey.currentTaskKey]
+        if let byTask = scopeByTask[RuntimeCoroutineScopeTaskKey.currentTaskKey] {
+            return byTask
+        }
+        // KUU-2750: a nested suspend frame (local suspend fun / suspend
+        // function value) runs under a fresh task key, so the task binding
+        // misses. The trampoline drives frames synchronously on the invoking
+        // thread, making the innermost thread-bound scope the right fallback.
+        let stack: RuntimeDeepRecursiveScopeStackBox? = pthreadGetValue(threadScopesKey)
+        return stack?.scopes.last
     }
 }
 
@@ -244,30 +267,54 @@ private func runtimeRunDeepRecursiveTrampoline(
                 scope.currentFunction = frame.restore
                 work = .resume(cont: frame.originalCont, value: value, thrown: thrown)
             default:
-                guard let state = scope.continuationStateByHandle[cont],
-                      let entryPointRaw = scope.entryPointOf[cont]
-                else {
+                if let state = scope.continuationStateByHandle[cont],
+                   let entryPointRaw = scope.entryPointOf[cont]
+                {
+                    let parent = scope.parentOf[cont] ?? 0
+                    state.completion = Int64(value)
+                    state.thrownException = thrown
+                    state.resetResumeState()
+                    let step = runtimeCallDeepRecursiveEntry(
+                        entryPointRaw: entryPointRaw,
+                        continuation: cont,
+                        taskKey: taskKey
+                    )
+                    if step.thrown != 0 || step.result != suspendedToken {
+                        scope.continuationStateByHandle.removeValue(forKey: cont)
+                        scope.parentOf.removeValue(forKey: cont)
+                        scope.entryPointOf.removeValue(forKey: cont)
+                    }
+                    work = runtimeDeepRecursiveWork(
+                        after: step,
+                        resumeCont: parent,
+                        suspendedToken: suspendedToken
+                    )
+                } else if let state = runtimeContinuationState(from: cont),
+                          state.suspendDriveEntryPointRaw != 0
+                {
+                    // KUU-2750: callRecursive reached through a nested suspend
+                    // frame (a local suspend fun's child continuation or an
+                    // invoked suspend function value) parks that inner
+                    // continuation, not the coroutine root. Drive it directly
+                    // and keep unwinding at its caller so the recursive result
+                    // propagates back through the suspended frames.
+                    let caller = state.suspendCallerContinuationRaw
+                    state.completion = Int64(value)
+                    state.thrownException = thrown
+                    state.resetResumeState()
+                    let step = runtimeCallDeepRecursiveEntry(
+                        entryPointRaw: state.suspendDriveEntryPointRaw,
+                        continuation: cont,
+                        taskKey: taskKey
+                    )
+                    work = runtimeDeepRecursiveWork(
+                        after: step,
+                        resumeCont: caller,
+                        suspendedToken: suspendedToken
+                    )
+                } else {
                     return (0, thrown)
                 }
-                let parent = scope.parentOf[cont] ?? 0
-                state.completion = Int64(value)
-                state.thrownException = thrown
-                state.resetResumeState()
-                let step = runtimeCallDeepRecursiveEntry(
-                    entryPointRaw: entryPointRaw,
-                    continuation: cont,
-                    taskKey: taskKey
-                )
-                if step.thrown != 0 || step.result != suspendedToken {
-                    scope.continuationStateByHandle.removeValue(forKey: cont)
-                    scope.parentOf.removeValue(forKey: cont)
-                    scope.entryPointOf.removeValue(forKey: cont)
-                }
-                work = runtimeDeepRecursiveWork(
-                    after: step,
-                    resumeCont: parent,
-                    suspendedToken: suspendedToken
-                )
             }
         }
     }
