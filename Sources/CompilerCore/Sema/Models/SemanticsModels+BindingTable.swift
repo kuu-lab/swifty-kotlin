@@ -172,6 +172,8 @@ public final class BindingTable {
     public private(set) var scopeFunctionExprIDs: Set<ExprID> = []
     public private(set) var scopeFunctionKinds: [ExprID: ScopeFunctionKind] = [:]
     public private(set) var collectionHOFLambdaExprIDs: Set<ExprID> = []
+    /// Contextual function type to use when a lambda escapes as a boxed function value.
+    public private(set) var functionValueExpectedTypes: [ExprID: TypeID] = [:]
     /// Tracks lambda literals that are the callee of a direct invocation
     /// (`{ ... }()`). `inferCallExpr` synthesizes `() -> Any` for them, which
     /// must not leak into the lambda's own type — the call's result is the
@@ -363,6 +365,7 @@ public final class BindingTable {
         if !scopeFunctionExprIDs.isEmpty { return false }
         if !scopeFunctionKinds.isEmpty { return false }
         if !collectionHOFLambdaExprIDs.isEmpty { return false }
+        if !functionValueExpectedTypes.isEmpty { return false }
         if !directlyInvokedLambdaExprIDs.isEmpty { return false }
         if !fqnTopLevelCallExprIDs.isEmpty { return false }
         if !fqnQualifiedValueExprIDs.isEmpty { return false }
@@ -482,6 +485,7 @@ public final class BindingTable {
         worker.scopeFunctionExprIDs = scopeFunctionExprIDs
         worker.scopeFunctionKinds = scopeFunctionKinds
         worker.collectionHOFLambdaExprIDs = collectionHOFLambdaExprIDs
+        worker.functionValueExpectedTypes = functionValueExpectedTypes
         worker.directlyInvokedLambdaExprIDs = directlyInvokedLambdaExprIDs
         worker.fqnTopLevelCallExprIDs = fqnTopLevelCallExprIDs
         worker.fqnQualifiedValueExprIDs = fqnQualifiedValueExprIDs
@@ -1053,6 +1057,14 @@ public final class BindingTable {
 
     public func isCollectionHOFLambdaExpr(_ expr: ExprID) -> Bool {
         collectionHOFLambdaExprIDs.contains(expr)
+    }
+
+    public func bindFunctionValueExpectedType(_ expr: ExprID, type: TypeID) {
+        functionValueExpectedTypes[expr] = type
+    }
+
+    public func functionValueExpectedType(for expr: ExprID) -> TypeID? {
+        functionValueExpectedTypes[expr]
     }
 
     public func markDirectlyInvokedLambdaExpr(_ expr: ExprID) {

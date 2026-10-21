@@ -147,7 +147,15 @@ extension LambdaLowerer {
             )
         }
 
-        let callResult = arena.appendTemporary(type: lambdaReturnType)
+        let concreteReturnType = arena.function(for: lambdaSymbol)?.returnType ?? lambdaReturnType
+        let boxedReturnType = driver.callLowerer.functionValueBoxedReturnType(
+            concreteReturnType: concreteReturnType,
+            expectedReturnType: functionType.returnType,
+            sema: sema
+        )
+        let adapterReturnType = boxedReturnType ?? lambdaReturnType
+
+        let callResult = arena.appendTemporary(type: concreteReturnType)
         let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType)
         body.append(.constValue(result: thrownResult, value: .null))
         body.append(.call(
@@ -165,11 +173,26 @@ extension LambdaLowerer {
         body.append(.label(rethrowLabel))
         body.append(.rethrow(value: thrownResult))
         body.append(.label(continueLabel))
-        switch sema.types.kind(of: lambdaReturnType) {
+        var returnValue = callResult
+        if let boxedReturnType {
+            returnValue = boxValueForAnySlot(
+                callResult,
+                sourceType: concreteReturnType,
+                types: sema.types,
+                symbols: sema.symbols,
+                interner: interner,
+                arena: arena,
+                resultType: boxedReturnType,
+                requireNonNull: true,
+                sema: sema,
+                into: &body
+            )
+        }
+        switch sema.types.kind(of: adapterReturnType) {
         case .unit, .nothing(.nonNull), .nothing(.nullable):
             body.append(.returnUnit)
         default:
-            body.append(.returnValue(callResult))
+            body.append(.returnValue(returnValue))
         }
         body.append(.endBlock)
 
@@ -179,7 +202,7 @@ extension LambdaLowerer {
                     symbol: adapterSymbol,
                     name: adapterName,
                     params: [closureParam] + valueParams,
-                    returnType: lambdaReturnType,
+                    returnType: adapterReturnType,
                     body: body,
                     isSuspend: functionType.isSuspend,
                     isInline: false
