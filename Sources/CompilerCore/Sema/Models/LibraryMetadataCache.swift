@@ -187,3 +187,32 @@ final class LibraryMetadataCache {
         return Int64(date.timeIntervalSince1970 * 1_000_000_000)
     }
 }
+
+/// Process-wide reuse of decoded compact `.kklib` indexes for batch compile
+/// sessions (`kswiftc --batch`). Only the interner-independent
+/// `IndexedMetadataFile` is shared — SymbolTable/TypeSystem/StringInterner
+/// state stays per-compilation, so no semantic state leaks between cases.
+/// Disabled by default; single-threaded use only (batch cases run sequentially).
+public enum KklibBatchSession {
+    nonisolated(unsafe) public static var isEnabled = false
+    nonisolated(unsafe) private static var indexedFiles: [String: (mtimeNanos: Int64, file: IndexedMetadataFile)] = [:]
+
+    static func cachedIndexedFile(metadataPath: String) -> IndexedMetadataFile? {
+        guard isEnabled, let entry = indexedFiles[metadataPath],
+              entry.mtimeNanos == mtimeNanos(metadataPath)
+        else { return nil }
+        return entry.file
+    }
+
+    static func store(_ file: IndexedMetadataFile, metadataPath: String) {
+        guard isEnabled else { return }
+        indexedFiles[metadataPath] = (mtimeNanos(metadataPath), file)
+    }
+
+    private static func mtimeNanos(_ path: String) -> Int64 {
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
+              let date = attrs[.modificationDate] as? Date
+        else { return 0 }
+        return Int64(date.timeIntervalSince1970 * 1_000_000_000)
+    }
+}
