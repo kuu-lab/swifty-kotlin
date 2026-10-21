@@ -148,7 +148,8 @@ extension InlineLoweringPass {
         allFunctionsBySymbol: [SymbolID: KIRFunction],
         ctx: KIRContext,
         labels: inout InlineLabelAllocator,
-        expansionBudget: InlineExpansionBudget? = nil
+        expansionBudget: InlineExpansionBudget? = nil,
+        externalLoopAliases: [InlineLoopLabelAliases] = []
     ) -> InlineExpansion? {
         let budget = expansionBudget ?? InlineExpansionBudget(arena: module.arena)
         guard budget.enter(lambdaFunction, arena: module.arena) else { return nil }
@@ -181,6 +182,7 @@ extension InlineLoweringPass {
         var localExprMap: [KIRExprID: KIRExprID] = [:]
         var lowered = KIRLoweringEmitContext()
         var callAncestries: [Int: [SymbolID]] = [:]
+        var callExternalLoopAliases: [Int: [InlineLoopLabelAliases]] = [:]
         // Caller-supplied lambdas may legitimately call their enclosing inline function.
         let lambdaAncestry = budget.ancestry.filter { !budget.inlineSymbols.contains($0) }
         lowered.instructions.reserveCapacity(lambdaFunction.body.count)
@@ -240,6 +242,12 @@ extension InlineLoweringPass {
                 labelRemap[id] = labels.allocateScratchLabel()
             }
         }
+        var enclosingCallAliases = externalLoopAliases
+        if !labelRemap.isEmpty {
+            enclosingCallAliases.insert(
+                InlineLoopLabelAliases(labels: labelRemap, needsRelocation: true), at: 0
+            )
+        }
         for instruction in lambdaFunction.body {
             guard budget.permitsOutput(lowered.instructions.count, arena: module.arena) else { return nil }
             let outputStart = lowered.instructions.count
@@ -247,6 +255,9 @@ extension InlineLoweringPass {
                 for offset in outputStart ..< lowered.instructions.count {
                     if case .call = lowered.instructions[offset], callAncestries[offset] == nil {
                         callAncestries[offset] = lambdaAncestry
+                    }
+                    if case .call = lowered.instructions[offset], callExternalLoopAliases[offset] == nil {
+                        callExternalLoopAliases[offset] = enclosingCallAliases
                     }
                 }
             }
@@ -477,7 +488,8 @@ extension InlineLoweringPass {
             returnedExpr: returnedExpr,
             hasNonLocalReturn: hasNonLocalReturn,
             hasNormalReturn: hasNormalReturn,
-            callAncestries: callAncestries
+            callAncestries: callAncestries,
+            callExternalLoopAliases: callExternalLoopAliases
         )
     }
 
@@ -490,6 +502,7 @@ extension InlineLoweringPass {
         localExprMap: [KIRExprID: KIRExprID],
         labels: inout InlineLabelAllocator,
         callAncestries: inout [Int: [SymbolID]],
+        callExternalLoopAliases: inout [Int: [InlineLoopLabelAliases]],
         into lowered: inout KIRLoweringEmitContext
     ) {
         let routedSlot = callThrownResult.map {
@@ -509,10 +522,12 @@ extension InlineLoweringPass {
             dispatchLabel: dispatchLabel
         )
         let paths = lambdaExpansion.callPaths
+        let aliasPaths = lambdaExpansion.callExternalLoopAliasPaths
         var callIndex = 0
         for instruction in routed.instructions {
             if case .call = instruction {
                 callAncestries[lowered.instructions.count] = paths[callIndex]
+                callExternalLoopAliases[lowered.instructions.count] = aliasPaths[callIndex]
                 callIndex += 1
             }
             lowered.append(instruction)
