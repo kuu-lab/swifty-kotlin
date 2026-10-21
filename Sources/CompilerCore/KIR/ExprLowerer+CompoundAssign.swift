@@ -140,9 +140,11 @@ extension ExprLowerer {
             // resolution. That call does not carry the compiler's
             // Any-to-String conversion policy when used as the
             // read/modify/write operator, so route String receivers
-            // through the builtin concatenation path below.
+            // through the builtin concatenation path below. Increment and
+            // decrement instead dispatch through the selected `inc()` / `dec()`.
             let lhsType = arena.exprType(lhs) ?? sema.types.anyType
             if op == .plusAssign,
+               !ast.arena.isIncrementDecrement(exprID),
                lhsType == stringType || lhsType == nullableStringType
             {
                 return appendBuiltinCompoundResult(
