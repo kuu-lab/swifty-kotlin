@@ -28,4 +28,9 @@ public class Stack<E> {
     }
 
     public operator fun get(index: Int): E = elements[index]
+
+    public override fun toString(): String =
+        elements.joinToString(", ", "[", "]") { element ->
+            if (element === this) "(this Collection)" else element.toString()
+        }
 }
