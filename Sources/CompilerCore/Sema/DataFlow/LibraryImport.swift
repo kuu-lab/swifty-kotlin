@@ -657,8 +657,13 @@ extension DataFlowSemaPhase {
                         self.restoreImportedParentSymbol(shell, symbol: symbol, symbols: symbols)
                         if shell.kind == .function, !shell.isMemberExtension,
                            let receiverFQName = shell.receiverOwnerFQName,
-                           let receiver = symbols.lookupAll(fqName: receiverFQName)
-                               .first(where: { symbols.symbol($0).map { isNominalLayoutTargetSymbol($0.kind) } == true })
+                           let receiver = preferredNominalOwnerSymbol(
+                               among: symbols.lookupAll(fqName: receiverFQName)
+                                   .compactMap { symbols.symbol($0) }
+                                   .filter { isNominalLayoutTargetSymbol($0.kind) },
+                               forMember: symbol,
+                               symbols: symbols
+                           )
                         {
                             symbols.setParentSymbol(receiver, for: symbol)
                         }
@@ -889,8 +894,13 @@ extension DataFlowSemaPhase {
             restoreImportedParentSymbol(record, symbol: binding.symbol, symbols: symbols)
             if record.kind == .function, !record.isMemberExtension,
                let receiverFQName = record.receiverOwnerFQName,
-               let receiver = symbols.lookupAll(fqName: receiverFQName)
-                .first(where: { symbols.symbol($0).map { isNominalLayoutTargetSymbol($0.kind) } == true }) {
+               let receiver = preferredNominalOwnerSymbol(
+                   among: symbols.lookupAll(fqName: receiverFQName)
+                       .compactMap { symbols.symbol($0) }
+                       .filter { isNominalLayoutTargetSymbol($0.kind) },
+                   forMember: binding.symbol,
+                   symbols: symbols
+               ) {
                 symbols.setParentSymbol(receiver, for: binding.symbol)
             }
         }

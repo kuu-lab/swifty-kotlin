@@ -43,7 +43,8 @@ extension CallTypeChecker {
         func scopeLookup(excludingAllProperties: Bool) -> [SymbolID] {
             ctx.scope.lookup(name, matching: { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate),
-                      !ctx.isExpectDeclarationSupersededByActual(candidate)
+                      !ctx.isExpectDeclarationSupersededByActual(candidate),
+                      !ctx.isImportedCallableShadowedBySource(candidate)
                 else { return false }
                 if symbol.kind == .property {
                     if excludingAllProperties { return !isNonCallableTopLevelProperty(candidate) }

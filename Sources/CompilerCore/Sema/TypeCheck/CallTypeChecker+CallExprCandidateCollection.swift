@@ -60,6 +60,26 @@ extension CallTypeChecker {
             candidates = vis
             implicitReceiverScopeCandidates = vis
             callInvisible = invis
+            if candidates.isEmpty, !invis.isEmpty {
+                // A scope tier that only offers inaccessible declarations must
+                // not stop the call tower — keep looking in outer tiers so a
+                // bundled-internal `maxOf` cannot hide `kotlin.math.maxOf`.
+                // Restrict the retry to plain callables; receiver-bearing
+                // candidates need the implicit-receiver matching done above.
+                let blocked = Set(allCallCandidates).union(invis.map(\.id))
+                let outerTierCandidates = ctx.scope.lookup(calleeName, matching: { candidate in
+                    guard !blocked.contains(candidate),
+                          let symbol = ctx.cachedSymbol(candidate) else { return false }
+                    return (symbol.kind == .function || symbol.kind == .constructor)
+                        && sema.symbols.functionSignature(for: candidate)?.receiverType == nil
+                }).filter { !ctx.isCandidateBlockedByDslMarker($0) }
+                let outerVisible = ctx.filterByVisibility(outerTierCandidates).visible
+                if !outerVisible.isEmpty {
+                    candidates = outerVisible
+                    implicitReceiverScopeCandidates = outerVisible
+                    callInvisible = []
+                }
+            }
             if locals[calleeName] == nil,
                let receiverType = ctx.implicitReceiverType
             {

@@ -169,12 +169,17 @@ bundled `kotlinx.io` クラスを source が shadow した際に imported member
 付け替わる問題（KSWIFTK-SEMA-0014/0024 の多発）も解消した。
 
 なお `Scripts/ktor_build.sh` の kotlinx_io プローブ（上流 kotlinx-io 0.9.1 を bundled stdlib 上に
-再コンパイルする）は依然失敗する。bundled stdlib に vendored された `kotlinx.io` と上流 source が
-同名シグネチャで衝突し、call 解決が imported 側候補を選ぶ残件が残っている。
+再コンパイルする）は **エラー 0 件**（warning SEMA-0102×12 のみ）になった。bundled stdlib に vendored された
+`kotlinx.io` と上流 source が同名で衝突する問題は、classifier 参照を同 fqName の imported シンボルより
+source 側へ優先させる修正、imported 拡張関数を shadow された imported nominal 側へ留める修正、
+同 fqName・同消去シグネチャの imported callable を scope 候補から落とす dedup、および
+「内側 tier が不可視候補のみ／全候補が不適格のとき call tower を外側 tier へ続行する」フォールスルーで
+解消した。ktor_utils は 76 errors（大半が io.ktor.utils.io.* の依存モジュール未リンク由来）、
+ktor_http は 344 errors で standalone コンパイルは依然失敗する。
 
 ## まとめ
 
-pinned `ktor-io` は consumer まで含めて O0/O2 で動作する。一方で `ktor_build.sh` がプローブする
-kotlinx_io / ktor_utils / ktor_http の standalone コンパイルは依然失敗し、Ktor 全体をビルド可能にするには
-さらに大きな作業（kotlinx.io の source-vs-imported shadow 解決、依存モジュール未リンク由来の
-unresolved reference、kotlinx.serialization / atomicfu / kotlinx.coroutines のAPI実装）が必要になる。
+pinned `ktor-io` は consumer まで含めて O0/O2 で動作し、kotlinx_io プローブも 0 errors に到達した。
+一方で ktor_utils / ktor_http の standalone コンパイルは依然失敗し、Ktor 全体をビルド可能にするには
+さらに大きな作業（依存モジュール未リンク由来の unresolved reference、kotlinx.serialization /
+atomicfu / kotlinx.coroutines のAPI実装）が必要になる。
