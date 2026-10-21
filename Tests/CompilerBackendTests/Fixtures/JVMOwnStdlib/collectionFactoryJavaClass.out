@@ -1,0 +1,19 @@
+class kotlin.collections.EmptyList
+class java.util.Collections$SingletonList
+class java.util.Arrays$ArrayList
+class kotlin.collections.EmptySet
+class java.util.Collections$SingletonSet
+class java.util.LinkedHashSet
+class kotlin.collections.EmptyMap
+class java.util.Collections$SingletonMap
+class java.util.LinkedHashMap
+class java.util.ArrayList
+class java.util.ArrayList
+class java.util.LinkedHashSet
+class java.util.LinkedHashMap
+class kotlin.collections.EmptyList
+class kotlin.collections.EmptySet
+class kotlin.collections.EmptyMap
+2
+true
+a

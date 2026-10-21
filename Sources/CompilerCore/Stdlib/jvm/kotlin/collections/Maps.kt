@@ -12,7 +12,7 @@ import kotlin.jvm.internal.__jvmMapEntries
 import kotlin.jvm.internal.__jvmMapEntryKey
 import kotlin.jvm.internal.__jvmMapEntryValue
 
-public fun <K, V> emptyMap(): Map<K, V> = RepositoryEmptyMap as Map<K, V>
+public fun <K, V> emptyMap(): Map<K, V> = EmptyMap as Map<K, V>
 public fun <K, V> mapOf(pair: Pair<K, V>): Map<K, V> = __jvmSingletonMap(pair.first, pair.second)
 public fun <K, V> mapOf(vararg pairs: Pair<K, V>): Map<K, V> {
     if (pairs.size == 0) return emptyMap<K, V>()

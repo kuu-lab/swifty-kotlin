@@ -6,7 +6,7 @@ import kotlin.jvm.internal.__jvmRemoveAllCollection
 import kotlin.jvm.internal.__jvmNewSet
 import kotlin.jvm.internal.__jvmSingletonSet
 
-public fun <T> emptySet(): Set<T> = RepositoryEmptySet as Set<T>
+public fun <T> emptySet(): Set<T> = EmptySet as Set<T>
 public fun <T> setOf(element: T): Set<T> = __jvmSingletonSet(element)
 public fun <T> setOf(vararg elements: T): Set<T> {
     if (elements.size == 0) return emptySet<T>()

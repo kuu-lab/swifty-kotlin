@@ -39,5 +39,10 @@ extension JVMBackendTests {
     func callableReferenceToStringRendersFullSignature(mode: EmitMode) throws {
         try runJVMOwnStdlibFixture("callableReferenceToString", mode: mode)
     }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func collectionFactoriesMatchKotlincJavaClass(mode: EmitMode) throws {
+        try runJVMOwnStdlibFixture("collectionFactoryJavaClass", mode: mode)
+    }
 }
 #endif
