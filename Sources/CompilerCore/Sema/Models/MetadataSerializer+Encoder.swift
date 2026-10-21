@@ -36,6 +36,17 @@ package final class MetadataEncoder {
                 if runtimeReflectionOnly, symbols.hasPendingImportedMetadata(for: symbol.id) {
                     return false
                 }
+                // A matched expect declaration is not part of the module's ABI:
+                // its actual counterpart carries the exported API, and emitting both
+                // under the same FQ name produces duplicate nominal metadata that
+                // consumers reject (KSWIFTK-LIB-0024). Members of expect declarations
+                // inherit the flag, so this also covers their actual-matched members.
+                // Unmatched expects (e.g. common-module artifacts) stay exported so a
+                // later platform compilation can still pair them.
+                if symbol.flags.contains(.expectDeclaration),
+                   symbols.actualSymbol(for: symbol.id) != nil {
+                    return false
+                }
                 let includeNonPublicSymbol = includeNonPublic || requiredNonPublicSymbols.contains(symbol.id)
                 if !includeNonPublicSymbol && symbol.visibility != .public && symbol.visibility != .protected {
                     return false
