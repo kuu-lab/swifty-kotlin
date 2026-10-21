@@ -917,6 +917,13 @@
     "kind": "interface"
   },
   {
+    "symbol": "__jvmAddAllCollection",
+    "owner": "java/util/Collection",
+    "name": "addAll",
+    "descriptor": "(Ljava/util/Collection;)Z",
+    "kind": "interface"
+  },
+  {
     "symbol": "__jvmRemoveAllCollection",
     "owner": "java/util/Collection",
     "name": "removeAll",

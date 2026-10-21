@@ -350,6 +350,12 @@
       "runtimeFacade": "kotlin/collections/SetsKt"
     },
     {
+      "path": "kotlin/collections/CollectionAssignments.kt",
+      "virtualPath": "<kswiftk-jvm>/collection-assignments.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
       "path": "declarations/MapsOperators.kt",
       "virtualPath": "<kswiftk-jvm>/map-operators.kt",
       "excludeFromStdlibBuild": true,

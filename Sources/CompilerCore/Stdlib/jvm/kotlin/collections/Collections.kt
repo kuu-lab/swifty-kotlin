@@ -1,5 +1,7 @@
 package kotlin.collections
 
+import kotlin.jvm.internal.__jvmAddAllCollection
+import kotlin.jvm.internal.__jvmRemoveAllCollection
 import kotlin.jvm.internal.__jvmCopyList
 import kotlin.jvm.internal.__jvmReverseOrder
 import kotlin.jvm.internal.__jvmSortListWithComparator
@@ -199,6 +201,7 @@ fun <T> Iterable<T>.sortedWith(comparator: Comparator<in T>): List<T> {
     return result
 }
 fun <T> MutableCollection<in T>.addAll(elements: Iterable<T>): Boolean {
+    if (elements is Collection<*>) return __jvmAddAllCollection(this, elements as Collection<T>)
     var changed = false
     for (element in elements) if (this.add(element)) changed = true
     return changed
@@ -289,4 +292,23 @@ public operator fun <T> Iterable<T>.minus(elements: kotlin.sequences.Sequence<T>
     val result = mutableListOf<T>()
     for (item in this) if (!removed.contains(item)) result.add(item)
     return result
+}
+
+public fun <T> MutableCollection<in T>.addAll(elements: Array<out T>): Boolean = __jvmAddAllCollection(this, __jvmArrayList(elements))
+public fun <T> MutableCollection<in T>.addAll(elements: kotlin.sequences.Sequence<T>): Boolean {
+    var changed = false
+    for (element in elements) if (this.add(element)) changed = true
+    return changed
+}
+public fun <T> MutableCollection<in T>.removeAll(elements: Iterable<T>): Boolean {
+    val removed = if (elements is Collection<*>) elements as Collection<T> else elements.toList()
+    return __jvmRemoveAllCollection(this, removed)
+}
+public fun <T> MutableCollection<in T>.removeAll(elements: Array<out T>): Boolean {
+    if (elements.size == 0) return false
+    return __jvmRemoveAllCollection(this, __jvmArrayList(elements))
+}
+public fun <T> MutableCollection<in T>.removeAll(elements: kotlin.sequences.Sequence<T>): Boolean {
+    val removed = elements.toList()
+    return !removed.isEmpty() && __jvmRemoveAllCollection(this, removed)
 }
