@@ -177,7 +177,13 @@ extension DeclTypeChecker {
                     isInitialized: true
                 )
             }
-            delegationCtx = ctx.copying(scope: ctorScope)
+            // Supertype initializer arguments run before `this` (and any outer
+            // instance) is available, so instance members must not resolve.
+            delegationCtx = ctx.copying(
+                scope: ctorScope,
+                implicitReceiverType: .some(nil),
+                outerReceiverTypes: []
+            ).excludingEnclosingClassReceiver()
         }
 
         let candidates = sema.symbols

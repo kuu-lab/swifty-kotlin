@@ -131,6 +131,10 @@ struct TypeInferenceContext: CustomStringConvertible {
     var outerReceiverTypes: [(label: InternedString, type: TypeID, symbol: SymbolID?)]
     /// Context receiver types available to `contextOf<A>()` in the current lambda body.
     var contextReceiverTypes: [TypeID] = []
+    /// Supertype constructor arguments run before `this` exists, so the
+    /// enclosing class must not act as an implicit receiver there (it still
+    /// drives visibility checks).
+    var excludesEnclosingClassReceiver = false
     /// When true, the current scope is a builder DSL lambda body.
     /// Used to scope `append`/`add`/`put` fallback resolution.
     var isBuilderLambdaScope: Bool = false
@@ -254,6 +258,12 @@ struct TypeInferenceContext: CustomStringConvertible {
             return entry.denotesFunction
         }
         return nil
+    }
+
+    func excludingEnclosingClassReceiver() -> TypeInferenceContext {
+        var copy = self
+        copy.excludesEnclosingClassReceiver = true
+        return copy
     }
 
     func withoutSuspensionContext() -> TypeInferenceContext {
@@ -442,7 +452,7 @@ struct TypeInferenceContext: CustomStringConvertible {
         for entry in outerReceiverTypes.reversed() {
             appendUnique(entry.type, symbol: entry.symbol)
         }
-        if let enclosingClassSymbol {
+        if let enclosingClassSymbol, !excludesEnclosingClassReceiver {
             let ownerArgs = sema.types.nominalTypeParameterSymbols(for: enclosingClassSymbol).map {
                 TypeArg.invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0))))
             }
@@ -482,7 +492,7 @@ struct TypeInferenceContext: CustomStringConvertible {
         for entry in outerReceiverTypes.reversed() {
             appendUnique(entry.type)
         }
-        if let enclosingClassSymbol {
+        if let enclosingClassSymbol, !excludesEnclosingClassReceiver {
             let ownerArgs = sema.types.nominalTypeParameterSymbols(for: enclosingClassSymbol).map {
                 TypeArg.invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0))))
             }
