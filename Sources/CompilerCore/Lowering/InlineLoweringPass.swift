@@ -6,6 +6,7 @@ struct InlineExpansion {
     /// that need to be converted to exit-label jumps in the NLR path.
     let hasNormalReturn: Bool
     var callAncestries: [Int: [SymbolID]] = [:]
+    var callExternalLoopAliases: [Int: [InlineLoopLabelAliases]] = [:]
 
     var callPaths: [[SymbolID]] {
         instructions.enumerated().compactMap { offset, instruction in
@@ -14,15 +15,62 @@ struct InlineExpansion {
         }
     }
 
-    func remappingExternalLoopTargets(using mapping: [Int32: Int32]) -> InlineExpansion {
-        InlineExpansion(
+    var callExternalLoopAliasPaths: [[InlineLoopLabelAliases]] {
+        instructions.enumerated().compactMap { offset, instruction in
+            guard case .call = instruction else { return nil }
+            return callExternalLoopAliases[offset] ?? []
+        }
+    }
+
+    func remappingExternalLoopTargets(using aliases: [InlineLoopLabelAliases]) -> InlineExpansion {
+        var mapping: [Int32: Int32] = [:]
+        for alias in aliases {
+            for (label, remappedLabel) in alias.labels where mapping[label] == nil {
+                mapping[label] = remappedLabel
+            }
+        }
+        return InlineExpansion(
             instructions: KIRExternalLoopJump.remappingTargets(in: instructions, mapping: mapping),
             returnedExpr: returnedExpr,
             hasNonLocalReturn: hasNonLocalReturn,
             hasNormalReturn: hasNormalReturn,
-            callAncestries: callAncestries
+            callAncestries: callAncestries,
+            callExternalLoopAliases: callExternalLoopAliases
         )
     }
+
+    func remappingCallExternalLoopAliases(using mapping: [Int32: Int32]) -> InlineExpansion {
+        var remappedAliases = callExternalLoopAliases
+        for (offset, aliases) in remappedAliases {
+            remappedAliases[offset] = aliases.map { alias in
+                guard alias.needsRelocation else { return alias }
+                return InlineLoopLabelAliases(
+                    labels: alias.labels.mapValues { mapping[$0] ?? $0 },
+                    needsRelocation: false
+                )
+            }
+        }
+        return InlineExpansion(
+            instructions: instructions,
+            returnedExpr: returnedExpr,
+            hasNonLocalReturn: hasNonLocalReturn,
+            hasNormalReturn: hasNormalReturn,
+            callAncestries: callAncestries,
+            callExternalLoopAliases: remappedAliases
+        )
+    }
+}
+
+struct InlineLoopLabelAliases {
+    /// Maps a label in an enclosing lambda to its current caller label.
+    var labels: [Int32: Int32]
+    /// True while the values are scratch labels allocated by the active expansion.
+    var needsRelocation: Bool
+}
+
+struct InlinePendingCall {
+    var ancestry: [SymbolID]
+    var externalLoopAliases: [InlineLoopLabelAliases] = []
 }
 
 final class InlineLoweringPass: LoweringPass {
@@ -106,10 +154,10 @@ final class InlineLoweringPass: LoweringPass {
         module: KIRModule,
         ctx: KIRContext,
         unitType: TypeID?,
-        pending: [Int: [SymbolID]],
+        pending: [Int: InlinePendingCall],
         budget: InlineExpansionBudget,
         preserveNonLocalReturns: Bool = false
-    ) -> (body: [KIRInstruction], locations: [SourceRange?], didExpand: Bool, pending: [Int: [SymbolID]]) {
+    ) -> (body: [KIRInstruction], locations: [SourceRange?], didExpand: Bool, pending: [Int: InlinePendingCall]) {
         // Every label this round introduces into the caller comes from here,
         // starting above the labels the caller body already uses.
         var labels = InlineLabelAllocator(callerBody: callerBody)
@@ -126,13 +174,15 @@ final class InlineLoweringPass: LoweringPass {
         loweredBody.instructions.reserveCapacity(callerBody.count)
         var aliases: [KIRExprID: KIRExprID] = [:]
         var didExpand = false
-        var nextPending: [Int: [SymbolID]] = [:]
+        var nextPending: [Int: InlinePendingCall] = [:]
 
         for (instructionIndex, originalInstruction) in callerBody.enumerated() {
             let outputStart = loweredBody.instructions.count
-            let ancestry = pending[instructionIndex]
+            let pendingCall = pending[instructionIndex]
+            let ancestry = pendingCall?.ancestry
             var expandedSymbol: SymbolID?
             var emittedCallAncestries: [Int: [SymbolID]] = [:]
+            var emittedCallExternalLoopAliases: [Int: [InlineLoopLabelAliases]] = [:]
             var retryInvoke = false
             defer {
                 if let ancestry {
@@ -141,10 +191,15 @@ final class InlineLoweringPass: LoweringPass {
                         if let expandedSymbol {
                             let path = emittedCallAncestries[offset] ?? (ancestry + [expandedSymbol])
                             if budget.consumeWork(path.count, arena: module.arena) {
-                                nextPending[offset] = path
+                                nextPending[offset] = InlinePendingCall(
+                                    ancestry: path,
+                                    externalLoopAliases: emittedCallExternalLoopAliases[offset]
+                                        ?? pendingCall?.externalLoopAliases
+                                        ?? []
+                                )
                             }
                         } else if retryInvoke {
-                            nextPending[offset] = ancestry
+                            nextPending[offset] = pendingCall
                         }
                     }
                 }
@@ -216,21 +271,29 @@ final class InlineLoweringPass: LoweringPass {
                     allFunctionsBySymbol: index.allFunctionsBySymbol,
                     ctx: ctx,
                     labels: &labels,
-                    expansionBudget: budget
+                    expansionBudget: budget,
+                    externalLoopAliases: pendingCall?.externalLoopAliases ?? []
                 ) {
+                    let expandedLambda = lambdaExpansion.remappingExternalLoopTargets(
+                        using: pendingCall?.externalLoopAliases ?? []
+                    )
                     if let callerThrownResult {
                         loweredBody.append(.constValue(result: callerThrownResult, value: .null))
                     }
+                    var relocation: [Int32: Int32] = [:]
                     let (reroutedInstructions, throwDispatchLabel) = InlineThrowRerouting.rerouteUnprotectedThrows(
-                        in: labels.relocate(lambdaExpansion.instructions),
+                        in: labels.relocate(expandedLambda.instructions, labelMapping: &relocation),
                         callerThrownResult: callerThrownResult,
                         labels: &labels
                     )
-                    let paths = lambdaExpansion.callPaths
+                    let relocatedLambda = expandedLambda.remappingCallExternalLoopAliases(using: relocation)
+                    let paths = relocatedLambda.callPaths
+                    let aliasPaths = relocatedLambda.callExternalLoopAliasPaths
                     var callIndex = 0
                     for instruction in reroutedInstructions {
                         if case .call = instruction {
                             emittedCallAncestries[loweredBody.instructions.count] = paths[callIndex]
+                            emittedCallExternalLoopAliases[loweredBody.instructions.count] = aliasPaths[callIndex]
                             callIndex += 1
                         }
                         loweredBody.append(instruction)
@@ -328,7 +391,8 @@ final class InlineLoweringPass: LoweringPass {
                 ctx: ctx,
                 callerBody: callerBody,
                 labels: &labels,
-                expansionBudget: budget
+                expansionBudget: budget,
+                externalLoopAliases: pendingCall?.externalLoopAliases ?? []
             )
             guard let expansion else {
                 loweredBody.append(instruction)
@@ -339,7 +403,9 @@ final class InlineLoweringPass: LoweringPass {
 
             // Move the expansion's labels into the caller's label namespace so
             // the caller's own labels and the inlined callee's cannot collide.
-            let remappedInstructions = labels.relocate(expansion.instructions)
+            var relocation: [Int32: Int32] = [:]
+            let remappedInstructions = labels.relocate(expansion.instructions, labelMapping: &relocation)
+            let relocatedExpansion = expansion.remappingCallExternalLoopAliases(using: relocation)
 
             if let callerThrownResult {
                 loweredBody.append(.constValue(result: callerThrownResult, value: .null))
@@ -354,7 +420,8 @@ final class InlineLoweringPass: LoweringPass {
                 callerThrownResult: callerThrownResult,
                 labels: &labels
             )
-            let callPaths = expansion.callPaths
+            let callPaths = relocatedExpansion.callPaths
+            let callAliasPaths = relocatedExpansion.callExternalLoopAliasPaths
             var callIndex = 0
 
             if expansion.hasNonLocalReturn {
@@ -369,11 +436,14 @@ final class InlineLoweringPass: LoweringPass {
 
                 for expandedInstruction in reroutedInstructions {
                     let callPath: [SymbolID]?
+                    let callAliases: [InlineLoopLabelAliases]?
                     if case .call = expandedInstruction {
                         callPath = callPaths[callIndex]
+                        callAliases = callAliasPaths[callIndex]
                         callIndex += 1
                     } else {
                         callPath = nil
+                        callAliases = nil
                     }
                     if afterTerminator {
                         switch expandedInstruction {
@@ -419,6 +489,7 @@ final class InlineLoweringPass: LoweringPass {
                     default:
                         if let callPath {
                             emittedCallAncestries[loweredBody.instructions.count] = callPath
+                            emittedCallExternalLoopAliases[loweredBody.instructions.count] = callAliases ?? []
                         }
                         loweredBody.append(expandedInstruction)
                     }
@@ -446,6 +517,7 @@ final class InlineLoweringPass: LoweringPass {
                 for instruction in filtered {
                     if case .call = instruction {
                         emittedCallAncestries[loweredBody.instructions.count] = callPaths[callIndex]
+                        emittedCallExternalLoopAliases[loweredBody.instructions.count] = callAliasPaths[callIndex]
                         callIndex += 1
                     }
                     loweredBody.append(instruction)

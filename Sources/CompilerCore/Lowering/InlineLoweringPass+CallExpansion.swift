@@ -7,7 +7,8 @@ extension InlineLoweringPass {
         ctx: KIRContext,
         callerBody: [KIRInstruction],
         labels: inout InlineLabelAllocator,
-        expansionBudget: InlineExpansionBudget? = nil
+        expansionBudget: InlineExpansionBudget? = nil,
+        externalLoopAliases: [InlineLoopLabelAliases] = []
     ) -> InlineExpansion? {
         guard arguments.count == inlineTarget.params.count else {
             return nil
@@ -72,6 +73,7 @@ extension InlineLoweringPass {
         var unitResultAliasExprs: Set<KIRExprID> = []
         var lowered = KIRLoweringEmitContext()
         var callAncestries: [Int: [SymbolID]] = [:]
+        var callExternalLoopAliases: [Int: [InlineLoopLabelAliases]] = [:]
         lowered.instructions.reserveCapacity(inlineTarget.body.count)
         for param in inlineTarget.params {
             guard let argument = parameterValues[param.symbol] else { continue }
@@ -142,6 +144,9 @@ extension InlineLoweringPass {
                 for offset in outputStart ..< lowered.instructions.count {
                     if case .call = lowered.instructions[offset], callAncestries[offset] == nil {
                         callAncestries[offset] = budget.ancestry
+                    }
+                    if case .call = lowered.instructions[offset], callExternalLoopAliases[offset] == nil {
+                        callExternalLoopAliases[offset] = externalLoopAliases
                     }
                 }
             }
@@ -289,12 +294,15 @@ extension InlineLoweringPass {
                         allFunctionsBySymbol: allFunctionsBySymbol,
                         ctx: ctx,
                         labels: &labels,
-                        expansionBudget: budget
+                        expansionBudget: budget,
+                        externalLoopAliases: externalLoopAliases
                     ) {
                         // External loop markers name loops of the lambda's lexical scope, never
                         // of the inline callee, so the callee's `labelRemap` must not touch them
                         // (its local labels share the same numeric space).
-                        let lambdaExpansion = rawLambdaExpansion
+                        let lambdaExpansion = rawLambdaExpansion.remappingExternalLoopTargets(
+                            using: externalLoopAliases
+                        )
                         hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
                         hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
                         appendInlinedLambdaExpansion(
@@ -303,6 +311,7 @@ extension InlineLoweringPass {
                             localExprMap: localExprMap,
                             labels: &labels,
                             callAncestries: &callAncestries,
+                            callExternalLoopAliases: &callExternalLoopAliases,
                             into: &lowered
                         )
                         if let result {
@@ -370,12 +379,15 @@ extension InlineLoweringPass {
                         allFunctionsBySymbol: allFunctionsBySymbol,
                         ctx: ctx,
                         labels: &labels,
-                        expansionBudget: budget
+                        expansionBudget: budget,
+                        externalLoopAliases: externalLoopAliases
                     ) {
                         // External loop markers name loops of the lambda's lexical scope, never
                         // of the inline callee, so the callee's `labelRemap` must not touch them
                         // (its local labels share the same numeric space).
-                        let lambdaExpansion = rawLambdaExpansion
+                        let lambdaExpansion = rawLambdaExpansion.remappingExternalLoopTargets(
+                            using: externalLoopAliases
+                        )
                         hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
                         hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
                         appendInlinedLambdaExpansion(
@@ -384,6 +396,7 @@ extension InlineLoweringPass {
                             localExprMap: localExprMap,
                             labels: &labels,
                             callAncestries: &callAncestries,
+                            callExternalLoopAliases: &callExternalLoopAliases,
                             into: &lowered
                         )
                         if let result {
@@ -711,7 +724,8 @@ extension InlineLoweringPass {
             returnedExpr: returnedExpr,
             hasNonLocalReturn: hasNonLocalReturn,
             hasNormalReturn: hasNormalReturn,
-            callAncestries: callAncestries
+            callAncestries: callAncestries,
+            callExternalLoopAliases: callExternalLoopAliases
         )
     }
 

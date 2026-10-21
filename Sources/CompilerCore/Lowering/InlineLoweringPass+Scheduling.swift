@@ -159,9 +159,11 @@ extension InlineLoweringPass {
         var locations = function.instructionLocations
         let budget = InlineExpansionBudget(arena: module.arena, limits: expansionLimits)
         if function.isInline { budget.inlineSymbols.insert(function.symbol) }
-        var pending: [Int: [SymbolID]] = [:]
+        var pending: [Int: InlinePendingCall] = [:]
         for (offset, instruction) in body.enumerated() {
-            if case .call = instruction { pending[offset] = [function.symbol] }
+            if case .call = instruction {
+                pending[offset] = InlinePendingCall(ancestry: [function.symbol])
+            }
         }
         while !pending.isEmpty, budget.consumeWork(body.count, arena: module.arena) {
             let expansion = expandInlineCalls(

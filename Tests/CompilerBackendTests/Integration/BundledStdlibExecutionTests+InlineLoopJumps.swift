@@ -124,4 +124,30 @@ extension BundledStdlibExecutionTests {
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }
+
+    @Test(arguments: [true, false])
+    func testKUU2757NestedInlineContinueTracksRelocatedLoopLabel(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            inline fun invokeBlock(block: () -> Unit) { block() }
+
+            fun f1(): Int {
+                var count = 0
+                for (o in 0..1) {
+                    invokeBlock {
+                        for (i in 0..1) {
+                            invokeBlock { count += 10; continue }
+                        }
+                    }
+                }
+                return count
+            }
+
+            fun main() { println(f1()) }
+            """,
+            expectedOutput: "40\n",
+            moduleName: "KUU2757NestedInlineContinueLabelRemap",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
 }
