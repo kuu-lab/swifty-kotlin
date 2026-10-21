@@ -569,7 +569,7 @@ enum MemberRuntimeDispatch {
 
         // KSP-453: IntRange/IntProgression HOFs are now implemented in bundled
         // Kotlin source (RangeHOF.kt) and must not be routed to the legacy
-        // kk_range_* runtime entry points.
+        // __kk_range_* runtime entry points.
         if kind == .intRange || kind == .intProgression {
             let sourceBacked: Set<String> = [
                 "toList", "forEach", "map", "mapIndexed", "mapNotNull",
@@ -601,7 +601,7 @@ enum MemberRuntimeDispatch {
         if kind.isLongRangeLike, let longMember {
             return "__kk_long_range_\(longMember)"
         }
-        return "kk_range_\(member)"
+        return "__kk_range_\(member)"
     }
 
     private static func stdlibSurfaceOwnerKind(

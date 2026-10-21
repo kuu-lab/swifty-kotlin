@@ -11,8 +11,8 @@ final class ForLoweringPass: LoweringPass, ParallelLoweringPass {
 
     func run(module: KIRModule, ctx: KIRContext) throws {
         let marker = ctx.interner.intern("kk_for_lowered")
-        let hasNext = ctx.interner.intern("kk_range_hasNext")
-        let next = ctx.interner.intern("kk_range_next")
+        let hasNext = ctx.interner.intern("__kk_range_hasNext")
+        let next = ctx.interner.intern("__kk_range_next")
 
         module.arena.transformFunctions { (function: KIRFunction) -> KIRFunction in
             var updated = function

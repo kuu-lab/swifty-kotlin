@@ -34,7 +34,7 @@ struct CodegenBackendCollectionIteratorTests {
                 let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
                 let callees = extractCallees(from: body, interner: ctx.interner)
                 #expect(callees.contains(try runtimeABICallee("list_iterator")), "\(functionName) should call kk_list_iterator")
-                #expect(!callees.contains(try runtimeABICallee("range_iterator")), "\(functionName) should not call kk_range_iterator")
+                #expect(!callees.contains(try runtimeABICallee("range_iterator")), "\(functionName) should not call __kk_range_iterator")
             }
         }
     }

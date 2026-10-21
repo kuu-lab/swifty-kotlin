@@ -313,9 +313,9 @@ extension ControlFlowLowerer {
             defaultHasNextCallee = interner.intern("__kk_uint_range_hasNext")
             defaultNextCallee = interner.intern("__kk_uint_range_next")
         } else {
-            defaultIteratorCallee = interner.intern("kk_range_iterator")
-            defaultHasNextCallee = interner.intern("kk_range_hasNext")
-            defaultNextCallee = interner.intern("kk_range_next")
+            defaultIteratorCallee = interner.intern("__kk_range_iterator")
+            defaultHasNextCallee = interner.intern("__kk_range_hasNext")
+            defaultNextCallee = interner.intern("__kk_range_next")
         }
 
         // Preserve the iterator() return type so hasNext()/next() can resolve
@@ -410,7 +410,7 @@ extension ControlFlowLowerer {
         } else {
             // The map-entry bridge carries an outThrown channel so
             // ConcurrentModificationException propagates instead of degrading
-            // to a sentinel element (kk_range_next has no thrown channel).
+            // to a sentinel element (__kk_range_next has no thrown channel).
             instructions.append(.call(
                 symbol: nil,
                 callee: defaultNextCallee,
@@ -676,7 +676,7 @@ extension ControlFlowLowerer {
 
         let iteratorID = arena.appendTemporary(type: sema.types.anyType)
         emitNonThrowingCall(
-            callee: interner.intern("kk_range_for_in_iterator"),
+            callee: interner.intern("__kk_range_for_in_iterator"),
             arg: iterableID,
             result: iteratorID,
             into: &instructions
@@ -688,7 +688,7 @@ extension ControlFlowLowerer {
 
         let hasNextID = arena.appendTemporary(type: boolType)
         emitNonThrowingCall(
-            callee: interner.intern("kk_range_for_in_hasNext"),
+            callee: interner.intern("__kk_range_for_in_hasNext"),
             arg: iteratorID,
             result: hasNextID,
             into: &instructions
@@ -704,7 +704,7 @@ extension ControlFlowLowerer {
             ?? sema.types.anyType
         let nextValueID = arena.appendTemporary(type: loopVarType)
         emitNonThrowingCall(
-            callee: interner.intern("kk_range_for_in_next"),
+            callee: interner.intern("__kk_range_for_in_next"),
             arg: iteratorID,
             result: nextValueID,
             into: &instructions
@@ -1252,7 +1252,7 @@ extension ControlFlowLowerer {
             sema: sema,
             interner: interner
         )
-        // BUG-167: `kk_range_*` only understands range and list iterators, so a
+        // BUG-167: `__kk_range_*` only understands range and list iterators, so a
         // dynamically resolved `iterator()` needs the generic intrinsics.
         let dynamicIterator = customIterator == nil
             && usesDynamicIteratorDispatch(iterableType, sema: sema, interner: interner)
@@ -1281,7 +1281,7 @@ extension ControlFlowLowerer {
         } else {
             instructions.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_range_iterator"),
+                callee: interner.intern("__kk_range_iterator"),
                 arguments: [iterableID],
                 result: iteratorID,
                 canThrow: true,
@@ -1313,7 +1313,7 @@ extension ControlFlowLowerer {
         } else {
             instructions.append(.call(
                 symbol: nil,
-                callee: interner.intern(dynamicIterator ? "kk_iterator_hasNext" : "kk_range_hasNext"),
+                callee: interner.intern(dynamicIterator ? "kk_iterator_hasNext" : "__kk_range_hasNext"),
                 arguments: [iteratorID],
                 result: hasNextID,
                 canThrow: dynamicIterator,
@@ -1344,7 +1344,7 @@ extension ControlFlowLowerer {
         } else {
             instructions.append(.call(
                 symbol: nil,
-                callee: interner.intern(dynamicIterator ? "kk_iterator_next" : "kk_range_next"),
+                callee: interner.intern(dynamicIterator ? "kk_iterator_next" : "__kk_range_next"),
                 arguments: [iteratorID],
                 result: nextValueID,
                 canThrow: dynamicIterator,

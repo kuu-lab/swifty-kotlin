@@ -94,6 +94,7 @@
 
 - [x] KSP-714: RangeProgression / RangeInterface / RangeUntil クラス群を Kotlin 化し stub 群を削除する（ProgressionConstructors.kt と各型・インターフェースの source 宣言を正規経路にし、3つの synthetic stub ファイルと registry 登録を削除。lowering が必要とする `__kk_*` runtime bridge は private source bridge として維持。`ULongProgression` の範囲プロパティも opaque runtime handle 用 bridge に接続）
   - 検証: `swift build`、Sema source-backed declaration test 1/1、`range_progression.kt` / `range_until.kt` / `range_basic.kt` の kotlinc diff 3/3 が pass。全テストは未実行。
+  - 残余対応 (2026-10-21, KUU-2681): 移行済み bundled Kotlin source が内部で使う signed range の runtime bridge 37 シンボル（`kk_op_rangeTo` と `kk_range_step` を含む `kk_range_*` HOF / iterator / for-in / take・drop・average・sorted 群）を `__kk_*` へ降格し、Runtime の `@_cdecl`・RuntimeABISpec（+Range / +ABIParity / +BridgeCoverage）・KIR link name・bundled `.kt` の `@KsSymbolName`・テスト期待値を同期した。Swift 関数名と `functionName:` 診断ラベルは既存慣例どおり `kk_` のまま維持（KSP-457 / KSP-709 と同じ手順）。synthetic stub ファイルは既に削除済みのため再作成しない。
 
 ### バグバックログ（BUG-NNN。既存の未修正バグの記録。PR 状態は各タスクの記載時点）
 

@@ -9,7 +9,7 @@ extension CallLowerer {
     ) {
         let className: String
         switch interner.resolve(factoryName) {
-        case "kk_op_rangeTo", "__kk_op_rangeUntil":
+        case "__kk_op_rangeTo", "__kk_op_rangeUntil":
             className = "IntRange"
         case "__kk_long_rangeTo", "__kk_long_rangeUntil":
             className = "LongRange"

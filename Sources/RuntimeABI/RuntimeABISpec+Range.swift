@@ -203,7 +203,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_op_rangeTo",
+            name: "__kk_op_rangeTo",
             parameters: [
                 RuntimeABIParameter(name: "a", type: .intptr),
                 RuntimeABIParameter(name: "b", type: .intptr),
@@ -383,7 +383,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_toList",
+            name: "__kk_range_toList",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
             ],
@@ -419,7 +419,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_forEach",
+            name: "__kk_range_forEach",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
@@ -430,7 +430,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_map",
+            name: "__kk_range_map",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
@@ -441,7 +441,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_step",
+            name: "__kk_range_step",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
             ],
@@ -450,7 +450,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_mapIndexed",
+            name: "__kk_range_mapIndexed",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
@@ -461,7 +461,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_mapNotNull",
+            name: "__kk_range_mapNotNull",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
@@ -472,7 +472,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_filter",
+            name: "__kk_range_filter",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
@@ -483,7 +483,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_filterIndexed",
+            name: "__kk_range_filterIndexed",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
@@ -494,7 +494,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_filterNot",
+            name: "__kk_range_filterNot",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
@@ -505,7 +505,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_reduce",
+            name: "__kk_range_reduce",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
@@ -516,7 +516,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_reduceIndexed",
+            name: "__kk_range_reduceIndexed",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
@@ -527,19 +527,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_fold",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-                RuntimeABIParameter(name: "initialValue", type: .intptr),
-                RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
-                RuntimeABIParameter(name: "captureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Range"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_range_foldIndexed",
+            name: "__kk_range_fold",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "initialValue", type: .intptr),
@@ -551,7 +539,19 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_find",
+            name: "__kk_range_foldIndexed",
+            parameters: [
+                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
+                RuntimeABIParameter(name: "initialValue", type: .intptr),
+                RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
+                RuntimeABIParameter(name: "captureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Range"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_range_find",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
@@ -562,7 +562,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_findLast",
+            name: "__kk_range_findLast",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
@@ -573,7 +573,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_first_predicate",
+            name: "__kk_range_first_predicate",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
@@ -584,7 +584,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_firstOrNull_predicate",
+            name: "__kk_range_firstOrNull_predicate",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
@@ -595,7 +595,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_last_predicate",
+            name: "__kk_range_last_predicate",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
@@ -606,7 +606,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_lastOrNull_predicate",
+            name: "__kk_range_lastOrNull_predicate",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
@@ -617,7 +617,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_any",
+            name: "__kk_range_any",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
@@ -628,7 +628,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_all",
+            name: "__kk_range_all",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
@@ -639,7 +639,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_none",
+            name: "__kk_range_none",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
@@ -650,7 +650,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_chunked",
+            name: "__kk_range_chunked",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "size", type: .intptr),
@@ -660,7 +660,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_windowed",
+            name: "__kk_range_windowed",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "size", type: .intptr),
@@ -1016,7 +1016,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_firstOrNull",
+            name: "__kk_range_firstOrNull",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
             ],
@@ -1024,7 +1024,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_range_lastOrNull",
+            name: "__kk_range_lastOrNull",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
             ],

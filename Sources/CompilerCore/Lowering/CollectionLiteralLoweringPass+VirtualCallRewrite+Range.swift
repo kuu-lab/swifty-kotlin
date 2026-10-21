@@ -343,7 +343,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         if callee == lookup.firstOrNullName, arguments.isEmpty {
             // KSP-1523: the isUIntRange arm here was unreachable for the same
             // structural reason as the other members above (see `first`/`start`).
-            let firstOrNullName = interner.intern("kk_range_firstOrNull")
+            let firstOrNullName = interner.intern("__kk_range_firstOrNull")
             loweredBody.append(.call(
                 symbol: nil, callee: firstOrNullName,
                 arguments: [receiver], result: result,
@@ -380,7 +380,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         if callee == lookup.lastOrNullName, arguments.isEmpty {
             // KSP-1523: the isUIntRange arm here was unreachable for the same
             // structural reason as the other members above (see `first`/`start`).
-            let lastOrNullName = interner.intern("kk_range_lastOrNull")
+            let lastOrNullName = interner.intern("__kk_range_lastOrNull")
             loweredBody.append(.call(
                 symbol: nil, callee: lastOrNullName,
                 arguments: [receiver], result: result,

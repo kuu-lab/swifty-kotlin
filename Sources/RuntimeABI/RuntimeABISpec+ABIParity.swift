@@ -644,20 +644,20 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_pinned_get", parameters: [
             p("pinnedHandle", .intptr),
         ]),
-        abiParitySpec("kk_range_average", parameters: [
+        abiParitySpec("__kk_range_average", parameters: [
             p("rangeRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_range_drop", parameters: [
+        abiParitySpec("__kk_range_drop", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_range_sorted", parameters: [
+        abiParitySpec("__kk_range_sorted", parameters: [
             p("rangeRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_range_take", parameters: [
+        abiParitySpec("__kk_range_take", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
             p("outThrown", .nullableIntptrPointer),
