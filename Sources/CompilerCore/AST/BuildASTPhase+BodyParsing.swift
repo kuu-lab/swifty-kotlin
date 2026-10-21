@@ -488,18 +488,21 @@ extension BuildASTPhase {
         astArena: ASTArena
     ) -> ExprID? {
         // Local nominals retain header annotations for declaration validation.
-        // Other local statement forms still use the annotation-stripping path.
+        // Local fun/val dispatch needs the stripped view to see the head
+        // keyword. Assignment and expression statements keep the unstripped
+        // head so leading annotations still attach to the parsed expression —
+        // dropping them would also drop unresolved-annotation diagnostics.
         if let expr = Self.parseLocalNominalDeclExpr(
             from: raw, interner: interner, astArena: astArena, diagnostics: diagnostics
         ) {
             return expr
         }
-        let raw = Self.skipLeadingLocalAnnotations(raw, interner: interner)
-        let filtered = Self.skipLeadingLocalAnnotations(filtered, interner: interner)
-        if let expr = parseLocalFunDeclExpr(from: raw, interner: interner, astArena: astArena) {
+        let strippedRaw = Self.skipLeadingLocalAnnotations(raw, interner: interner)
+        let strippedFiltered = Self.skipLeadingLocalAnnotations(filtered, interner: interner)
+        if let expr = parseLocalFunDeclExpr(from: strippedRaw, interner: interner, astArena: astArena) {
             return expr
         }
-        if let expr = parseLocalDeclarationExpr(from: filtered, interner: interner, astArena: astArena) {
+        if let expr = parseLocalDeclarationExpr(from: strippedFiltered, interner: interner, astArena: astArena) {
             return expr
         }
         if let expr = parseLocalAssignmentExpr(from: filtered, interner: interner, astArena: astArena) {
@@ -680,11 +683,9 @@ extension BuildASTPhase {
         return annotations
     }
 
-    /// Local statements have no AST representation for annotations, so callers that
-    /// dispatch on a statement's leading keyword must strip them first —
-    /// otherwise a leading `@` token is unrecognized by every local-statement
-    /// parser (and by the generic `ExpressionParser` fallback), silently
-    /// dropping the entire statement.
+    /// Local fun/val declaration dispatch needs the stripped view to see the
+    /// head keyword; assignment and expression statements keep the head so
+    /// leading annotations still attach to the parsed expression.
     static func skipLeadingLocalAnnotations(_ tokens: [Token], interner: StringInterner) -> [Token] {
         var index = 0
         while index < tokens.count, tokens[index].kind == .symbol(.at) {
