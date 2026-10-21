@@ -215,6 +215,8 @@ public struct JVMFunction {
     public var annotations: [JVMAnnotation] = []
     public var parameterAnnotations: [[JVMAnnotation]] = []
     public var annotationDefault: JVMAnnotationValue? = nil
+    public var isDeprecated = false
+    public var isHiddenByDeprecation = false
     public var parameterVarargTypes: [JVMKotlinType?] = []
 }
 
@@ -257,6 +259,7 @@ public struct JVMField {
     public let type: JVMValueType
     public let access: UInt16
     public var annotations: [JVMAnnotation] = []
+    public var isDeprecated = false
     public var constantValue: JVMConstant? = nil
 }
 

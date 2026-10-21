@@ -204,6 +204,7 @@ extension JVMProgramBuilder {
                     var duplicate = JVMField(owner: plan.name, name: field.name, type: field.type, access: field.access)
                     duplicate.annotations = field.annotations
                     duplicate.constantValue = field.constantValue
+                    duplicate.isDeprecated = field.isDeprecated
                     property.field = duplicate
                 } else {
                     property.field = nil

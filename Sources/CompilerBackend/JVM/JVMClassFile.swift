@@ -30,6 +30,7 @@ enum JVMClassFile {
     private static func emitMethod(_ function: JVMFunction, owner: String, pool: JVMConstantPool) throws -> JVMMethodCode {
         var method = try JVMMethodEmitter(function: function, owner: owner, pool: pool).emit()
         method.annotations = function.annotations; method.parameterAnnotations = function.parameterAnnotations
+        method.isDeprecated = function.isDeprecated
         method.annotationDefault = function.annotationDefault
         return method
     }
@@ -58,7 +59,7 @@ enum JVMClassFile {
             if case let .boolean(value) = constant { return try pool.constant(.int(value ? 1 : 0)) }
             return try pool.constant(constant)
         }
-        let fieldAnnotations = try fields.map { try JVMAnnotations.attributes($0.annotations, pool: pool) }
+        let fieldAnnotations = try fields.map { try JVMAnnotations.attributes($0.annotations, deprecated: $0.isDeprecated, pool: pool) }
         let methodAnnotations = try methods.map { try JVMAnnotations.methodAttributes($0, pool: pool) }
         let innerName = try innerClasses.isEmpty ? nil : pool.utf8("InnerClasses")
         let innerIndices = try innerClasses.map { (try pool.classInfo($0.0), try pool.classInfo($0.1), try pool.utf8($0.2), $0.3) }

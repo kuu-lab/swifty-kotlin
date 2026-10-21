@@ -14,6 +14,7 @@ struct JVMMethodCode {
     var annotations: [JVMAnnotation] = []
     var parameterAnnotations: [[JVMAnnotation]] = []
     var annotationDefault: JVMAnnotationValue? = nil
+    var isDeprecated = false
 }
 
 final class JVMMethodEmitter {
@@ -134,7 +135,7 @@ final class JVMMethodEmitter {
     }
     func emit() throws -> JVMMethodCode {
         if function.isAbstract {
-            return JVMMethodCode(name: try pool.utf8(function.reference.name), descriptor: try pool.utf8(function.reference.descriptor), access: function.access ?? 0x0401, code: Data(), stack: 0, locals: 0, frames: nil, exceptions: [], signature: function.genericSignature)
+            return JVMMethodCode(name: try pool.utf8(function.reference.name), descriptor: try pool.utf8(function.reference.descriptor), access: (function.access ?? 0x0401) | (function.isHiddenByDeprecation ? 0x1000 : 0), code: Data(), stack: 0, locals: 0, frames: nil, exceptions: [], signature: function.genericSignature)
         }
         if function.isConstructor { uninitialized[0] = -1 }
         // Fixed-type, eagerly initialized scratch locals keep all CFG joins
@@ -173,7 +174,7 @@ final class JVMMethodEmitter {
         let frames = try stackMaps(codeSize: code.count)
         return JVMMethodCode(
             name: try pool.utf8(function.reference.name), descriptor: try pool.utf8(function.reference.descriptor),
-            access: (function.access ?? (function.isPrivate ? 0x000A : 0x0009)) | (function.typeParameters.contains(where: \.isReified) ? 0x1000 : 0), code: code, stack: UInt16(maxStack),
+            access: (function.access ?? (function.isPrivate ? 0x000A : 0x0009)) | (function.typeParameters.contains(where: \.isReified) || function.isHiddenByDeprecation ? 0x1000 : 0), code: code, stack: UInt16(maxStack),
             locals: UInt16(function.locals.last.map { $0.slot + $0.type.width } ?? 0), frames: frames,
             exceptions: try function.handlers.compactMap { h in
                 guard let start = assembler.labels[h.start], let end = assembler.labels[h.end], let handler = assembler.labels[h.handler], start <= end else { throw JVMEmissionError.limit("Invalid JVM exception range.") }

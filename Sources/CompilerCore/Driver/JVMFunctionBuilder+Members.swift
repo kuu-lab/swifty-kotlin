@@ -92,7 +92,7 @@ extension JVMFunctionBuilder {
                let type = try? program.type(propertyType) {
                 let name = context.interner.resolve(semanticSymbol.name)
                 let capital = String(name.prefix(1)).uppercased() + name.dropFirst()
-                let names = name.hasPrefix("is") && name.count > 2 ? [name, "get" + capital] : ["get" + capital]
+                let names = info.flags & 0x2000 != 0 ? [name] : (name.hasPrefix("is") && name.count > 2 ? [name, "get" + capital] : ["get" + capital])
                 if let imported = info.methods.first(where: {
                     names.contains($0.name) && !$0.isStatic && !$0.isConstructor && $0.parameters.isEmpty && $0.result.descriptor == type.descriptor
                 }) {
@@ -200,9 +200,8 @@ extension JVMFunctionBuilder {
 
 extension JVMProgramBuilder {
     func emitAccessors(_ plan: JVMClassPlan, _ declaration: PropertyDecl, _ property: JVMProperty) throws -> [JVMFunction] {
-        if declaration.modifiers.contains(.const) { return [] }
         var functions: [JVMFunction] = []
-        for setter in [false, true] {
+        for setter in [false, true] where !declaration.modifiers.contains(.const) {
             guard let method = setter ? property.setter : property.getter else { continue }
             let accessor = setter ? declaration.setter : declaration.getter
             var modifiers = declaration.modifiers
@@ -258,6 +257,7 @@ extension JVMProgramBuilder {
             var f = function
             if let symbol = sema.bindings.declSymbol(for: plan.properties.first(where: { $0.2.name == property.name })!.0) {
                 f.annotations = try annotations(for: symbol, target: function.reference.result == .unit ? "set" : "get")
+                applyDeprecation(try annotations(for: symbol, target: nil) + annotations(for: symbol, target: "property") + f.annotations, to: &f)
                 if function.reference.result == .unit { f.parameterAnnotations = [try annotations(for: symbol, target: "setparam")] }
             }
             if plan.isFacade { f.access = (f.isPrivate ? 2 : 1) | 8 | 16; f.isSynthetic = false }
@@ -274,7 +274,7 @@ extension JVMProgramBuilder {
             return f
         }
         if let carrier = property.annotationsMethod, let symbol = sema.bindings.declSymbol(for: plan.properties.first(where: { $0.2.name == property.name })!.0) {
-            var f = rawFunction(plan.name, name: carrier.name, parameters: [], result: .unit, access: 0x1009, locals: [], instructions: [.returnValue(nil)])
+            var f = rawFunction(plan.name, name: carrier.name, parameters: [], result: .unit, access: access(declaration.modifiers) | 0x1008, locals: [], instructions: [.returnValue(nil)])
             f.annotations = try annotations(for: symbol, target: nil) + annotations(for: symbol, target: "property")
             decorated.append(f)
         }

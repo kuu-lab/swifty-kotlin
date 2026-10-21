@@ -228,7 +228,9 @@ extension JVMProgramBuilder {
                                      name: field.name, type: field.type, access: access(p.modifiers) | 0x18)
                     field.constantValue = constant
                 }
-                field.annotations = try annotations(for: symbol, target: "field"); property.field = field
+                field.annotations = try annotations(for: symbol, target: "field")
+                field.isDeprecated = try (annotations(for: symbol, target: nil) + annotations(for: symbol, target: "property")).contains { $0.descriptor == "Lkotlin/Deprecated;" }
+                property.field = field
             }
             if !(try annotations(for: symbol, target: nil) + annotations(for: symbol, target: "property")).isEmpty {
                 property.annotationsMethod = JVMForeignMethod(owner: plan.name, name: getterName + "$annotations", descriptor: "()V", parameters: [], result: .unit, isStatic: true, isInterface: plan.isInterface, isAbstract: false)
