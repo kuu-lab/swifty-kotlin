@@ -360,7 +360,8 @@ Each cached jar is keyed by the source name and contents, extra compiler
 flags, Kotlin compiler version, JDK version, and classpath contents.
 Script-style cases still execute through `kotlinc -script` on every run.
 Note that `--clean-runtime-cache` removes `.runtime-build` and therefore
-also the default reference cache.
+also the default reference cache. It also clears the runtime-object cache shared across worktrees
+(`~/Library/Caches/kswiftk/runtime-build`, or `$KSWIFTK_RUNTIME_CACHE_DIR`).
 
 kotlinc invocations run with `-XX:TieredStopAtLevel=1` (C1-only JIT,
 ~15-20% faster for these short-lived compiles) prepended to `JAVA_OPTS`;

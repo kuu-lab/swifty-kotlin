@@ -17,13 +17,11 @@ public func incrementalEnvironmentFingerprint(for options: CompilerOptions) -> [
     var parts: [String] = []
     let configuration = RuntimeBuildConfiguration.release
     do {
-        let packageRoot = try CodegenRuntimeSupport.runtimePackageRootURL()
         let cacheKey = try CodegenRuntimeSupport.runtimeBuildCacheKey(
             target: options.target, configuration: configuration
         )
         parts.append("runtimeBuildKey=\(cacheKey)")
-        let manifestURL = packageRoot
-            .appendingPathComponent(".runtime-build", isDirectory: true)
+        let manifestURL = CodegenRuntimeSupport.runtimeSharedScratchRoot()
             .appendingPathComponent(cacheKey, isDirectory: true)
             .appendingPathComponent("objects-\(configuration.rawValue).manifest")
         let objects = CodegenRuntimeSupport.manifestValidatedRuntimeObjectPaths(

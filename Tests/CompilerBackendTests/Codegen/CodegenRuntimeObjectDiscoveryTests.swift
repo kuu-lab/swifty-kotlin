@@ -40,6 +40,26 @@ struct CodegenRuntimeObjectDiscoveryTests {
     }
 
     @Test
+    func testRuntimeSharedScratchRootIsCheckoutIndependentAndOverridable() throws {
+        let home = URL(fileURLWithPath: "/tmp/kswiftk-home", isDirectory: true)
+        let defaultRoot = CodegenRuntimeSupport.runtimeSharedScratchRoot(environment: [:], homeDirectory: home)
+        #expect(defaultRoot.path.hasPrefix(home.path))
+        #expect(defaultRoot.path.hasSuffix("kswiftk/runtime-build"))
+
+        let overridden = CodegenRuntimeSupport.runtimeSharedScratchRoot(
+            environment: ["KSWIFTK_RUNTIME_CACHE_DIR": "/tmp/custom-runtime-cache"],
+            homeDirectory: home
+        )
+        #expect(overridden.path == "/tmp/custom-runtime-cache")
+
+        let buildDirectory = try CodegenRuntimeSupport.runtimeBuildDirectory(
+            target: TargetTriple.hostDefault(), configuration: .release
+        )
+        let packageRoot = try CodegenRuntimeSupport.runtimePackageRootURL()
+        #expect(!buildDirectory.path.hasPrefix(packageRoot.path + "/"))
+    }
+
+    @Test
     func testRuntimeBuildConfigurationIsIncludedInArgumentsPathsAndCacheKeys() throws {
         let target = TargetTriple(
             arch: "arm64",
