@@ -41,6 +41,14 @@ final class JVMProgramBuilder {
         noteFunctionTypes(actual)
         return try JVMClasspathIndex.type(actual, sema: sema, ctx: context)
     }
+    /// The declared type without the active inline substitution. Storage that
+    /// outlives one instantiation (anonymous object capture fields, shared
+    /// mutable-variable cells) is emitted once, so it must erase reified type
+    /// parameters to their bounds rather than adopt a call site's argument.
+    func erasedType(_ id: TypeID) throws -> JVMValueType {
+        noteFunctionTypes(id)
+        return try JVMClasspathIndex.type(id, sema: sema, ctx: context)
+    }
     func expressionType(_ id: ExprID) throws -> JVMValueType {
         guard let type = sema.bindings.exprType(for: id) else {
             throw JVMFrontendError(message: "JVM expression has no resolved type.", range: ast.arena.exprRange(id))
@@ -300,6 +308,14 @@ final class JVMFunctionBuilder {
         }
         return type
     }
+    func erasedLocalStorageType(_ semantic: TypeID) throws -> JVMValueType {
+        let type = try program.erasedType(semantic)
+        if type == .unit {
+            program.functionArities.insert(0)
+            return .reference("kotlin/Unit", nullable: false)
+        }
+        return type
+    }
     func convert(_ source: JVMValue, to type: JVMValueType) throws -> JVMValue {
         if source.type == type { return source }
         if source.type.referenceName != nil, type.isNumeric,
@@ -494,7 +510,7 @@ final class JVMFunctionBuilder {
             // writes. Deferred callback initialization needs the same shared
             // storage as a mutable captured local.
             if mutable || (initializer == nil && symbol.map { program.sema.bindings.isContractCallsInPlaceInitializedSymbol($0) } == true) {
-                let element = try binding.symbol.flatMap { program.sema.bindings.capturedLocalType(for: $0) }.map { try localStorageType($0) } ?? local.type
+                let element = try binding.symbol.flatMap { program.sema.bindings.capturedLocalType(for: $0) }.map { try erasedLocalStorageType($0) } ?? local.type
                 let cell = try value(.reference("[" + element.descriptor, nullable: false)), count = try constant(.int(1), .int), index = try constant(.int(0), .int)
                 instructions.append(.newArray(element, count: count, result: cell))
                 if initial != nil { instructions.append(.arraySet(cell, index, local)) }

@@ -99,7 +99,7 @@ extension JVMFunctionBuilder {
             var source = local.cell ?? local.value, template = local
             if let symbol = local.symbol,
                let semantic = program.sema.bindings.capturedLocalType(for: symbol) ?? program.sema.symbols.propertyType(for: symbol) {
-                let type = try localStorageType(semantic)
+                let type = try erasedLocalStorageType(semantic)
                 let storage = local.cell == nil ? type : (local.delegateSymbol == nil ? .reference("[" + type.descriptor, nullable: false) : source.type)
                 source = try convert(source, to: storage)
                 template = Local(value: JVMValue(slot: local.value.slot, type: type), mutable: local.mutable, cell: local.cell, functionType: local.functionType, symbol: local.symbol)
@@ -117,7 +117,15 @@ extension JVMFunctionBuilder {
         for (symbol, input) in receivers where !beforeDelegation || input.slot != thisValue?.slot { groups[input.slot, default: []].append(symbol); receiverValues[input.slot] = input }
         if let extensionValue { groups[extensionValue.slot, default: []] += []; receiverValues[extensionValue.slot] = extensionValue }
         for slot in groups.keys.sorted() {
-            let source = receiverValues[slot]!, field = JVMField(owner: plan.name, name: "$receiver" + String(captures.count), type: source.type, access: 0x1012)
+            var erased: JVMValueType?, conflict = false
+            for symbol in groups[slot]! {
+                guard let owner = SyntheticSymbolScheme.receiverParameterOwner(for: symbol),
+                      let receiverType = program.sema.symbols.functionSignature(for: owner)?.receiverType else { continue }
+                let type = try erasedLocalStorageType(receiverType)
+                if erased == nil { erased = type } else if erased != type { conflict = true }
+            }
+            let fieldType = conflict ? JVMValueType.reference("java/lang/Object", nullable: false) : erased ?? receiverValues[slot]!.type
+            let source = try convert(receiverValues[slot]!, to: fieldType), field = JVMField(owner: plan.name, name: "$receiver" + String(captures.count), type: fieldType, access: 0x1012)
             captures.append(JVMAnonymousCapture(field: field, receiverSymbols: groups[slot]!, extensionReceiver: slot == extensionValue?.slot)); values.append(source)
         }
         let tokenTypes = reifiedCaptureTypes(id, specialize: false)

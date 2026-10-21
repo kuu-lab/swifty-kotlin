@@ -107,8 +107,9 @@ extension JVMFunctionBuilder {
             local.cell = cell; local.delegateSymbol = symbol
         } else if late {
             guard type.referenceName != nil, mutable else { throw fail("JVM lateinit requires a mutable reference local.", id) }
-            let cell = try value(.reference("[" + type.descriptor, nullable: false)), count = try constant(.int(1), .int)
-            instructions.append(.newArray(type, count: count, result: cell))
+            let element = try erasedLocalStorageType(semantic)
+            let cell = try value(.reference("[" + element.descriptor, nullable: false)), count = try constant(.int(1), .int)
+            instructions.append(.newArray(element, count: count, result: cell))
             local.cell = cell; local.lateName = context.interner.resolve(name)
         }
         scopes[scopes.count - 1][name] = local
