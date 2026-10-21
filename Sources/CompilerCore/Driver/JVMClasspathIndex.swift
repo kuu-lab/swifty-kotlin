@@ -194,6 +194,18 @@ final class JVMClasspathIndex {
             let statics = own.filter(\.isStatic)
             let isFileFacade = short.hasSuffix("Kt")
             if isFileFacade {
+                // The facade class itself stays importable: `import api.HelloKt`
+                // resolves the nominal and `HelloKt.member(...)` reaches its
+                // statics through the companion, matching Kotlin/JVM.
+                source += "class `\(short)` private constructor() {\n"
+                if !statics.isEmpty {
+                    source += "companion object {\n"
+                    for method in statics {
+                        source += "external fun `\(method.name)`(" + parameters(method) + "): " + kotlinType(method.result) + "\n"
+                    }
+                    source += "}\n"
+                }
+                source += "}\n"
                 for method in statics {
                     source += "external fun `\(method.name)`(" + parameters(method) + "): " + kotlinType(method.result) + "\n"
                     // A JVM file-facade descriptor does not distinguish a
