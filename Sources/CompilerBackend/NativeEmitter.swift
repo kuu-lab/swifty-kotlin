@@ -76,6 +76,10 @@ struct NativeEmitter {
     /// Symbols that should use linkonce_odr linkage (e.g. bundled stdlib functions compiled into
     /// multiple compilation units). The linker deduplicates linkonce_odr definitions automatically.
     let linkOnceODRSymbols: Set<SymbolID>
+    /// Number of codegen worker partitions for function-body emission. Values
+    /// >1 emit function bodies into per-partition LLVM contexts/modules and
+    /// merge them with LLVMLinkModules2; 1 keeps fully serial emission.
+    let parallelJobs: Int
 
     init(
         target: TargetTriple,
@@ -92,6 +96,7 @@ struct NativeEmitter {
         reflectionMetadataRecords: [MetadataRecord] = [],
         reflectionMetadataSymbolPrefix: String? = nil,
         linkOnceODRSymbols: Set<SymbolID> = [],
+        parallelJobs: Int = 1,
         phaseTimer: PhaseTimer? = nil
     ) {
         self.phaseTimer = phaseTimer
@@ -126,6 +131,7 @@ struct NativeEmitter {
         self.reflectionMetadataRecords = reflectionMetadataRecords
         self.reflectionMetadataSymbolPrefix = reflectionMetadataSymbolPrefix
         self.linkOnceODRSymbols = linkOnceODRSymbols
+        self.parallelJobs = parallelJobs
     }
 
     private func collectRuntimeCallbackRawABISymbols() -> Set<SymbolID> {
@@ -475,6 +481,9 @@ struct NativeEmitter {
         }
         defer {
             bindings.disposeModule(built.module)
+            for partitionContext in built.partitionContexts {
+                bindings.disposeContext(partitionContext)
+            }
             bindings.disposeContext(built.context)
         }
 
@@ -516,6 +525,9 @@ struct NativeEmitter {
         }
         defer {
             bindings.disposeModule(built.module)
+            for partitionContext in built.partitionContexts {
+                bindings.disposeContext(partitionContext)
+            }
             bindings.disposeContext(built.context)
         }
 
@@ -655,10 +667,11 @@ struct NativeEmitter {
     /// references to globals defined in a precompiled `.kklib` (e.g.
     /// `Uuid.Companion.NIL`) because those globals are not present in the
     /// current module's KIR global declarations.
-    private func ensureImportedGlobalReferences(
+    func ensureImportedGlobalReferences(
         module: KIRModule,
         llvmModule: LLVMCAPIBindings.LLVMModuleRef,
         int64Type: LLVMCAPIBindings.LLVMTypeRef,
+        emitDefinitions: Bool,
         globalVariables: inout [SymbolID: LLVMCAPIBindings.LLVMValueRef]
     ) {
         var referencedSymbols: Set<SymbolID> = []
@@ -697,22 +710,28 @@ struct NativeEmitter {
                 }) == true {
                     bindings.setThreadLocal(llvmGlobal)
                 }
-                if shouldUseWeakImportedGlobalReference(for: symbol) {
-                    bindings.setWeakAnyLinkage(llvmGlobal)
-                    if let zero = bindings.constInt(int64Type, value: 0) {
-                        bindings.setInitializer(llvmGlobal, value: zero)
+                if emitDefinitions {
+                    if shouldUseWeakImportedGlobalReference(for: symbol) {
+                        bindings.setWeakAnyLinkage(llvmGlobal)
+                        if let zero = bindings.constInt(int64Type, value: 0) {
+                            bindings.setInitializer(llvmGlobal, value: zero)
+                        }
+                    } else {
+                        bindings.setExternalLinkage(llvmGlobal)
                     }
-                } else {
-                    bindings.setExternalLinkage(llvmGlobal)
                 }
                 globalVariables[symbol] = llvmGlobal
             }
         }
     }
 
+    /// `partitionContexts` are worker LLVM contexts retained by partitioned
+    /// emission. They must stay alive until `module` is disposed: the merge
+    /// can leave the module referencing a worker context's type state.
     func buildModule() throws -> (
         context: LLVMCAPIBindings.LLVMContextRef,
-        module: LLVMCAPIBindings.LLVMModuleRef
+        module: LLVMCAPIBindings.LLVMModuleRef,
+        partitionContexts: [LLVMCAPIBindings.LLVMContextRef]
     ) {
         guard let context = bindings.createContext() else {
             throw LLVMBackendError.nativeEmissionFailed("LLVMContextCreate returned null")
@@ -734,11 +753,131 @@ struct NativeEmitter {
         }
         let typeLowering = makeLLVMTypeLowering(context: context, int64Type: int64Type)
         let runtimeCallbackRawABISymbols = collectRuntimeCallbackRawABISymbols()
+        var partitionContexts: [LLVMCAPIBindings.LLVMContextRef] = []
 
-        // Create LLVM global variables for each KIR global declaration.
-        // Globals that back properties/singletons shared across .kklib modules
-        // are named by their stable fully-qualified name so a consumer object
-        // can reference the same storage defined in the library object.
+        do {
+            // Create LLVM global variables for each KIR global declaration.
+            // Globals that back properties/singletons shared across .kklib modules
+            // are named by their stable fully-qualified name so a consumer object
+            // can reference the same storage defined in the library object.
+            var llvmGlobalVariables = declareGlobals(
+                llvmModule: llvmModule,
+                int64Type: int64Type,
+                emitDefinitions: true
+            )
+
+            // Imported-library globals (e.g. `Uuid.Companion.NIL`) are referenced by
+            // `loadGlobal`/`symbolRef` in the consumer module but are not present in
+            // the consumer's KIR global declarations because they live in the
+            // precompiled `.kklib`. Emit external declarations for them so the backend
+            // resolves them to the library definition instead of returning zero.
+            ensureImportedGlobalReferences(
+                module: module,
+                llvmModule: llvmModule,
+                int64Type: int64Type,
+                emitDefinitions: true,
+                globalVariables: &llvmGlobalVariables
+            )
+
+            let declared = try declareFunctions(
+                llvmModule: llvmModule,
+                int64Type: int64Type,
+                outThrownPointerType: outThrownPointerType,
+                typeLowering: typeLowering,
+                runtimeCallbackRawABISymbols: runtimeCallbackRawABISymbols
+            )
+
+            let diContext: DebugInfoContext? = (debugInfo && bindings.debugLocationAvailable)
+                ? createDebugInfoContext(
+                    llvmModule: llvmModule,
+                    context: context,
+                    internalFunctions: declared.internalFunctions
+                )
+                : nil
+
+            do {
+                if canEmitFunctionBodiesInParallel(emittableCount: declared.emittableFunctions.count) {
+                    partitionContexts = try emitFunctionBodiesInParallel(
+                        emittableFunctions: declared.emittableFunctions,
+                        runtimeCallbackRawABISymbols: runtimeCallbackRawABISymbols,
+                        into: llvmModule
+                    )
+                } else {
+                    let nameCounter = GeneratedNameCounter()
+                    for (function, _) in declared.emittableFunctions {
+                        guard let llvmFunction = declared.internalFunctions[function.symbol] else { continue }
+                        let usesRuntimeCallbackRawABI = runtimeCallbackRawABISymbols.contains(function.symbol)
+                        let returnsRawStringRuntimeCallback = usesRuntimeCallbackRawABI
+                            && isStringAggregateType(
+                                function.returnType,
+                                typeSystem: typeSystem,
+                                hasStringLowering: typeLowering != nil
+                            )
+                        try emitFunctionBody(
+                            function: function,
+                            llvmFunction: llvmFunction,
+                            llvmModule: llvmModule,
+                            context: context,
+                            int64Type: int64Type,
+                            typeLowering: typeLowering,
+                            outThrownPointerType: outThrownPointerType,
+                            internalFunctions: declared.internalFunctions,
+                            internalSignatures: declared.internalSignatures,
+                            internalFunctionsByLookupKey: declared.internalFunctionsByLookupKey,
+                            globalVariables: llvmGlobalVariables,
+                            runtimeCallbackRawReturnSymbols: runtimeCallbackRawABISymbols,
+                            usesRuntimeCallbackRawABI: usesRuntimeCallbackRawABI,
+                            returnsRawStringRuntimeCallback: returnsRawStringRuntimeCallback,
+                            nameCounter: nameCounter,
+                            diContext: diContext
+                        )
+                    }
+                }
+            } catch {
+                if let diContext {
+                    bindings.disposeDIBuilder(diContext.diBuilder)
+                }
+                throw error
+            }
+
+            if let diContext {
+                finalizeDebugInfo(
+                    diContext: diContext,
+                    llvmModule: llvmModule,
+                    context: context
+                )
+            }
+        } catch {
+            bindings.disposeModule(llvmModule)
+            for partitionContext in partitionContexts {
+                bindings.disposeContext(partitionContext)
+            }
+            bindings.disposeContext(context)
+            throw error
+        }
+
+        PhaseTimer.measureSubPhase("IR/reflection globals", timer: phaseTimer) {
+            RuntimeReflectionMetadataEmitter.emitGlobals(
+                records: reflectionMetadataRecords,
+                bindings: bindings,
+                module: llvmModule,
+                context: context,
+                int64Type: int64Type,
+                symbolPrefix: reflectionMetadataSymbolPrefix
+            )
+        }
+
+        return (context: context, module: llvmModule, partitionContexts: partitionContexts)
+    }
+
+    /// Declares an LLVM global for every KIR global declaration. With
+    /// `emitDefinitions: false` only external declarations are created — used
+    /// by partition worker modules whose definitions merge in afterwards.
+    func declareGlobals(
+        llvmModule: LLVMCAPIBindings.LLVMModuleRef,
+        int64Type: LLVMCAPIBindings.LLVMTypeRef,
+        emitDefinitions: Bool
+    ) -> [SymbolID: LLVMCAPIBindings.LLVMValueRef] {
         var llvmGlobalVariables: [SymbolID: LLVMCAPIBindings.LLVMValueRef] = [:]
         let globalDecls = module.arena.declarations.compactMap { decl -> (slotName: String, global: KIRGlobal)? in
             guard case let .global(global) = decl else { return nil }
@@ -756,46 +895,57 @@ struct NativeEmitter {
                 if global.isThreadLocal {
                     bindings.setThreadLocal(llvmGlobal)
                 }
-                if isImported {
-                    // Imported globals are defined in another object file.
-                    if shouldUseWeakImportedGlobalReference(for: global.symbol) {
-                        bindings.setWeakAnyLinkage(llvmGlobal)
+                if emitDefinitions {
+                    if isImported {
+                        // Imported globals are defined in another object file.
+                        if shouldUseWeakImportedGlobalReference(for: global.symbol) {
+                            bindings.setWeakAnyLinkage(llvmGlobal)
+                            if let zero = bindings.constInt(int64Type, value: 0) {
+                                bindings.setInitializer(llvmGlobal, value: zero)
+                            }
+                        } else {
+                            bindings.setExternalLinkage(llvmGlobal)
+                        }
+                    } else {
+                        // Use linkonce_odr so multiple compilation units (e.g. a
+                        // precompiled stdlib .kklib and a consuming module) can each
+                        // contain a tentative definition of the same global; the
+                        // linker keeps one copy and all references resolve to it.
+                        bindings.setLinkOnceODRLinkage(llvmGlobal)
                         if let zero = bindings.constInt(int64Type, value: 0) {
                             bindings.setInitializer(llvmGlobal, value: zero)
                         }
-                    } else {
-                        bindings.setExternalLinkage(llvmGlobal)
-                    }
-                } else {
-                    // Use linkonce_odr so multiple compilation units (e.g. a
-                    // precompiled stdlib .kklib and a consuming module) can each
-                    // contain a tentative definition of the same global; the
-                    // linker keeps one copy and all references resolve to it.
-                    bindings.setLinkOnceODRLinkage(llvmGlobal)
-                    if let zero = bindings.constInt(int64Type, value: 0) {
-                        bindings.setInitializer(llvmGlobal, value: zero)
                     }
                 }
                 llvmGlobalVariables[global.symbol] = llvmGlobal
             }
         }
+        return llvmGlobalVariables
+    }
 
-        // Imported-library globals (e.g. `Uuid.Companion.NIL`) are referenced by
-        // `loadGlobal`/`symbolRef` in the consumer module but are not present in
-        // the consumer's KIR global declarations because they live in the
-        // precompiled `.kklib`. Emit external declarations for them so the backend
-        // resolves them to the library definition instead of returning zero.
-        ensureImportedGlobalReferences(
-            module: module,
-            llvmModule: llvmModule,
-            int64Type: int64Type,
-            globalVariables: &llvmGlobalVariables
-        )
-
+    /// The products of the function-declaration pass shared by serial and
+    /// partitioned emission.
+    struct DeclaredFunctions {
         var internalFunctions: [SymbolID: LLVMFunction] = [:]
         var internalSignatures: [SymbolID: (parameters: [TypeID], returnType: TypeID)] = [:]
         var internalFunctionsByLookupKey: [FunctionLookupKey: [KIRFunction]] = [:]
+        /// Functions with bodies to emit, sorted by generated C symbol so the
+        /// output order does not depend on KIR declaration order.
         var emittableFunctions: [(KIRFunction, String)] = []
+    }
+
+    /// Declares every emittable function into `llvmModule`. Partition worker
+    /// modules call the same routine so their declarations match the primary
+    /// module name-for-name and type-for-type; bodies then attach to those
+    /// declarations when LLVMLinkModules2 merges the partition in.
+    func declareFunctions(
+        llvmModule: LLVMCAPIBindings.LLVMModuleRef,
+        int64Type: LLVMCAPIBindings.LLVMTypeRef,
+        outThrownPointerType: LLVMCAPIBindings.LLVMTypeRef,
+        typeLowering: LLVMTypeLowering?,
+        runtimeCallbackRawABISymbols: Set<SymbolID>
+    ) throws -> DeclaredFunctions {
+        var declared = DeclaredFunctions()
 
         for declaration in module.arena.declarations {
             guard case let .function(function) = declaration,
@@ -841,92 +991,22 @@ struct NativeEmitter {
             guard let functionType = bindings.functionType(returnType: returnType, parameters: parameterTypes, isVarArg: false),
                   let functionValue = bindings.addFunction(module: llvmModule, name: functionName, functionType: functionType)
             else {
-                bindings.disposeModule(llvmModule)
-                bindings.disposeContext(context)
                 throw LLVMBackendError.nativeEmissionFailed("failed to declare function '\(functionName)'")
             }
             if linkOnceODRSymbols.contains(function.symbol) {
                 bindings.setLinkOnceODRLinkage(functionValue)
             }
-            internalFunctions[function.symbol] = LLVMFunction(value: functionValue, type: functionType)
-            internalSignatures[function.symbol] = (function.params.map(\.type), function.returnType)
+            declared.internalFunctions[function.symbol] = LLVMFunction(value: functionValue, type: functionType)
+            declared.internalSignatures[function.symbol] = (function.params.map(\.type), function.returnType)
             let functionLookupKey = FunctionLookupKey(name: interner.resolve(function.name), parameterCount: function.params.count)
             let cSymbolLookupKey = FunctionLookupKey(name: functionName, parameterCount: function.params.count)
-            internalFunctionsByLookupKey[functionLookupKey, default: []].append(function)
-            internalFunctionsByLookupKey[cSymbolLookupKey, default: []].append(function)
-            emittableFunctions.append((function, functionName))
+            declared.internalFunctionsByLookupKey[functionLookupKey, default: []].append(function)
+            declared.internalFunctionsByLookupKey[cSymbolLookupKey, default: []].append(function)
+            declared.emittableFunctions.append((function, functionName))
         }
 
-        do {
-            let diContext: DebugInfoContext? = (debugInfo && bindings.debugLocationAvailable)
-                ? createDebugInfoContext(
-                    llvmModule: llvmModule,
-                    context: context,
-                    internalFunctions: internalFunctions
-                )
-                : nil
-
-            let nameCounter = GeneratedNameCounter()
-            emittableFunctions.sort { $0.1 < $1.1 }
-            for (function, _) in emittableFunctions {
-                guard let llvmFunction = internalFunctions[function.symbol] else { continue }
-                do {
-                    let usesRuntimeCallbackRawABI = runtimeCallbackRawABISymbols.contains(function.symbol)
-                    let returnsRawStringRuntimeCallback = usesRuntimeCallbackRawABI
-                        && isStringAggregateType(
-                            function.returnType,
-                            typeSystem: typeSystem,
-                            hasStringLowering: typeLowering != nil
-                        )
-                    try emitFunctionBody(
-                        function: function,
-                        llvmFunction: llvmFunction,
-                        llvmModule: llvmModule,
-                        context: context,
-                        int64Type: int64Type,
-                        typeLowering: typeLowering,
-                        outThrownPointerType: outThrownPointerType,
-                        internalFunctions: internalFunctions,
-                        internalSignatures: internalSignatures,
-                        internalFunctionsByLookupKey: internalFunctionsByLookupKey,
-                        globalVariables: llvmGlobalVariables,
-                        runtimeCallbackRawReturnSymbols: runtimeCallbackRawABISymbols,
-                        usesRuntimeCallbackRawABI: usesRuntimeCallbackRawABI,
-                        returnsRawStringRuntimeCallback: returnsRawStringRuntimeCallback,
-                        nameCounter: nameCounter,
-                        diContext: diContext
-                    )
-                } catch {
-                    if let diContext {
-                        bindings.disposeDIBuilder(diContext.diBuilder)
-                    }
-                    bindings.disposeModule(llvmModule)
-                    bindings.disposeContext(context)
-                    throw error
-                }
-            }
-
-            if let diContext {
-                finalizeDebugInfo(
-                    diContext: diContext,
-                    llvmModule: llvmModule,
-                    context: context
-                )
-            }
-        }
-
-        PhaseTimer.measureSubPhase("IR/reflection globals", timer: phaseTimer) {
-            RuntimeReflectionMetadataEmitter.emitGlobals(
-                records: reflectionMetadataRecords,
-                bindings: bindings,
-                module: llvmModule,
-                context: context,
-                int64Type: int64Type,
-                symbolPrefix: reflectionMetadataSymbolPrefix
-            )
-        }
-
-        return (context: context, module: llvmModule)
+        declared.emittableFunctions.sort { $0.1 < $1.1 }
+        return declared
     }
 
     /// Created BEFORE function bodies are emitted so that debug locations can be set

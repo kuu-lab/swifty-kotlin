@@ -17,7 +17,7 @@ import Foundation
 
 package enum KlibChunkIO {
     package static func readInt32(_ bytes: [UInt8], at offset: Int) throws -> Int32 {
-        guard offset >= 0, offset + 4 <= bytes.count else {
+        guard offset >= 0, bytes.count >= 4, offset <= bytes.count - 4 else {
             throw KlibFormatError.corruptChunk("truncated Int32 at offset \(offset)")
         }
         return Int32(bitPattern: UInt32(bytes[offset]) << 24
@@ -28,13 +28,20 @@ package enum KlibChunkIO {
 
     /// Unsigned LEB128 at `offset`; returns the value and the offset of the
     /// next byte.
-    package static func readUVarint(_ bytes: [UInt8], at offset: Int) throws -> (value: UInt32, next: Int) {
+    package static func readUVarint(_ bytes: [UInt8], at offset: Int, end: Int? = nil) throws -> (value: UInt32, next: Int) {
+        let limit = end ?? bytes.count
+        guard offset >= 0, offset <= limit, limit <= bytes.count else {
+            throw KlibFormatError.corruptChunk("invalid uvarint bounds at offset \(offset)")
+        }
         var result: UInt32 = 0
         var shift: UInt32 = 0
         var position = offset
-        while position < bytes.count {
+        while position < limit {
             let byte = bytes[position]
             position += 1
+            guard shift < 28 || byte & 0xF0 == 0 else {
+                throw KlibFormatError.corruptChunk("uvarint exceeds 32 bits at offset \(offset)")
+            }
             result |= UInt32(byte & 0x7F) << shift
             if byte & 0x80 == 0 { return (result, position) }
             shift += 7
@@ -47,7 +54,11 @@ package enum KlibChunkIO {
 
     /// Returns element offsets relative to `start` (`count + 1` entries;
     /// element 0 begins right after the header).
-    package static func parseIndexToOffsets(in bytes: [UInt8], at start: Int) throws -> [Int] {
+    package static func parseIndexToOffsets(in bytes: [UInt8], at start: Int, end: Int? = nil) throws -> [Int] {
+        let limit = end ?? bytes.count
+        guard start >= 0, limit <= bytes.count, limit >= 4, start <= limit - 4 else {
+            throw KlibFormatError.corruptChunk("truncated table header at offset \(start)")
+        }
         var count = try Int(readInt32(bytes, at: start))
         var position = start + 4
         var usesVarint = false
@@ -56,26 +67,32 @@ package enum KlibChunkIO {
             count = -count
             usesVarint = true
         }
+        // Validate the header before allocating an array from untrusted data.
+        guard count <= (limit - position) / (usesVarint ? 1 : 4) else {
+            throw KlibFormatError.corruptChunk("element count exceeds table header size")
+        }
         var offsets = [Int](repeating: 0, count: count + 1)
-        var sizes = [Int](repeating: 0, count: count)
         for i in 0 ..< count {
+            let size: Int
             if usesVarint {
-                let (value, next) = try readUVarint(bytes, at: position)
-                sizes[i] = Int(value)
+                let (value, next) = try readUVarint(bytes, at: position, end: limit)
+                size = Int(value)
                 position = next
             } else {
-                sizes[i] = try Int(readInt32(bytes, at: position))
+                size = try Int(readInt32(bytes, at: position))
                 position += 4
             }
+            guard size >= 0, size <= limit - start - offsets[i] else {
+                throw KlibFormatError.corruptChunk("invalid element size \(size)")
+            }
+            offsets[i + 1] = offsets[i] + size
         }
         // Element payloads follow the header immediately.
-        offsets[0] = position - start
-        for i in 0 ..< count {
-            offsets[i + 1] = offsets[i] + sizes[i]
-        }
-        guard start + offsets[count] <= bytes.count else {
+        guard offsets[count] <= limit - position else {
             throw KlibFormatError.corruptChunk("element data exceeds chunk size")
         }
+        let headerSize = position - start
+        for i in offsets.indices { offsets[i] += headerSize }
         return offsets
     }
 }
@@ -145,7 +162,7 @@ package struct KlibIrMultiTable {
     }
 
     private func innerOffsets(row: Int) throws -> [Int] {
-        try KlibChunkIO.parseIndexToOffsets(in: bytes, at: checkedRowOffset(row))
+        try KlibChunkIO.parseIndexToOffsets(in: bytes, at: checkedRowOffset(row), end: rowOffsets[row + 1])
     }
 }
 
@@ -162,13 +179,18 @@ package struct KlibIrDeclarationTable {
     package let start: Int
     package let coordinates: [Int32: Coordinates]
 
-    package init(bytes: [UInt8], at start: Int = 0) throws {
+    package init(bytes: [UInt8], at start: Int = 0, end: Int? = nil) throws {
         self.bytes = bytes
         self.start = start
-        let count = try Int(KlibChunkIO.readInt32(bytes, at: start))
-        guard count >= 0 else {
-            throw KlibFormatError.corruptChunk("negative declaration count \(count)")
+        let limit = end ?? bytes.count
+        guard start >= 0, limit <= bytes.count, limit >= 4, start <= limit - 4 else {
+            throw KlibFormatError.corruptChunk("truncated declaration header")
         }
+        let count = try Int(KlibChunkIO.readInt32(bytes, at: start))
+        guard count >= 0, count <= (limit - start - 4) / 12 else {
+            throw KlibFormatError.corruptChunk("invalid declaration count \(count)")
+        }
+        let headerSize = 4 + count * 12
         var coordinates: [Int32: Coordinates] = [:]
         coordinates.reserveCapacity(count)
         var position = start + 4
@@ -176,8 +198,12 @@ package struct KlibIrDeclarationTable {
             let declId = try KlibChunkIO.readInt32(bytes, at: position)
             let offset = try Int(KlibChunkIO.readInt32(bytes, at: position + 4))
             let size = try Int(KlibChunkIO.readInt32(bytes, at: position + 8))
-            guard offset >= 0, size >= 0, start + offset + size <= bytes.count else {
+            guard offset >= headerSize, offset <= limit - start,
+                  size >= 0, size <= limit - start - offset else {
                 throw KlibFormatError.corruptChunk("declaration \(declId) coordinates out of bounds")
+            }
+            guard coordinates[declId] == nil else {
+                throw KlibFormatError.corruptChunk("duplicate declaration id \(declId)")
             }
             coordinates[declId] = Coordinates(offset: offset, size: size)
             position += 12
@@ -221,6 +247,6 @@ package struct KlibIrDeclarationMultiTable {
         guard fileIndex >= 0, fileIndex < fileCount else {
             throw KlibFormatError.corruptChunk("file index \(fileIndex) out of bounds (files \(fileCount))")
         }
-        return try KlibIrDeclarationTable(bytes: bytes, at: rowOffsets[fileIndex])
+        return try KlibIrDeclarationTable(bytes: bytes, at: rowOffsets[fileIndex], end: rowOffsets[fileIndex + 1])
     }
 }

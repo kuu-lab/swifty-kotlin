@@ -54,5 +54,5 @@ private external fun intProgressionFirst(progression: IntProgression): Int
 @KsSymbolName("__kk_range_last")
 private external fun intProgressionLast(progression: IntProgression): Int
 
-@KsSymbolName("kk_range_step")
+@KsSymbolName("__kk_range_step")
 private external fun intProgressionStep(progression: IntProgression): Int

@@ -222,6 +222,21 @@ extension DataFlowSemaPhase {
         }
         let memberName = interner.intern(name)
         let memberFQName = ownerInfo.fqName + [memberName]
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: memberFQName, work: { [self] in
+            registerInstantInstanceMethod(
+                named: name,
+                externalLinkName: externalLinkName,
+                returnType: returnType,
+                parameters: parameters,
+                ownerSymbol: ownerSymbol,
+                ownerType: ownerType,
+                isOperator: isOperator,
+                symbols: symbols,
+                interner: interner
+            )
+        }) {
+            return
+        }
         guard symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in
             guard let existingSignature = symbols.functionSignature(for: symbolID) else {
                 return false

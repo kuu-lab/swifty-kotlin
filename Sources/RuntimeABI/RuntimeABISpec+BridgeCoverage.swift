@@ -109,19 +109,19 @@ private let mapBridgeFunctions = [
 ]
 
 private let sequenceAndSetBridgeFunctions: [RuntimeABIFunctionSpec] = [
-    bridgeSpec("kk_range_hasNext", section: "Range", params: ["iterRaw"],
+    bridgeSpec("__kk_range_hasNext", section: "Range", params: ["iterRaw"],
             isThrowing: false),
-    bridgeSpec("kk_range_iterator", section: "Range", typedParams: [
+    bridgeSpec("__kk_range_iterator", section: "Range", typedParams: [
         ("rangeRaw", .intptr),
         ("outThrown", .nullableIntptrPointer),
     ]),
-    bridgeSpec("kk_range_next", section: "Range", params: ["iterRaw"],
+    bridgeSpec("__kk_range_next", section: "Range", params: ["iterRaw"],
             isThrowing: false),
-    bridgeSpec("kk_range_for_in_hasNext", section: "Range", params: ["iterRaw"],
+    bridgeSpec("__kk_range_for_in_hasNext", section: "Range", params: ["iterRaw"],
             isThrowing: false),
-    bridgeSpec("kk_range_for_in_iterator", section: "Range", params: ["rangeRaw"],
+    bridgeSpec("__kk_range_for_in_iterator", section: "Range", params: ["rangeRaw"],
             isThrowing: false),
-    bridgeSpec("kk_range_for_in_next", section: "Range", params: ["iterRaw"],
+    bridgeSpec("__kk_range_for_in_next", section: "Range", params: ["iterRaw"],
             isThrowing: false),
     RuntimeABISpec.sequenceFilterNotSpec,
     bridgeSpec("__kk_set_of_not_null", section: "Collection", params: ["arrayRaw", "count"],

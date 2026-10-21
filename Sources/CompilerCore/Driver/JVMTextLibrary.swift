@@ -23,13 +23,14 @@ extension JVMProgramBuilder {
             for id in ids {
                 guard case let .funDecl(f) = ast.arena.decl(id), let symbol = sema.bindings.declSymbol(for: id) else { continue }
                 let name = context.interner.resolve(f.name)
+                if owner == "java/util/Map", name == "set" { continue }
                 let aliases = ["get": "charAt", "set": "setCharAt", "deleteAt": "deleteCharAt", "deleteRange": "delete", "setRange": "replace"]
-                try method(symbol, owner: owner, name: owner == "java/lang/StringBuilder" ? aliases[name] ?? name : name, declarations: f.valueParams, interface: interface, adaptation: owner == "java/lang/StringBuilder" ? name : nil)
+                try method(symbol, owner: owner, name: owner == "java/util/List" && name == "removeAt" ? "remove" : owner == "java/lang/StringBuilder" ? aliases[name] ?? name : name, declarations: f.valueParams, interface: interface, adaptation: owner == "java/lang/StringBuilder" ? name : nil)
             }
             for id in properties {
                 guard case let .propertyDecl(p) = ast.arena.decl(id), let symbol = sema.bindings.declSymbol(for: id), let semantic = sema.symbols.propertyType(for: symbol) else { continue }
                 let name = context.interner.resolve(p.name), type = try type(semantic)
-                let jvmName = ["java/lang/StringBuilder", "kotlin/text/MatchGroupCollection", "java/util/Collection"].contains(owner) && ["length", "size"].contains(name) ? name : "get" + name.prefix(1).uppercased() + name.dropFirst()
+                let jvmName = owner.hasPrefix("java/util/") && ["size", "keys", "values"].contains(name) ? ["size": "size", "keys": "keySet", "values": "values"][name] ?? "get" + name.prefix(1).uppercased() + name.dropFirst() : ["java/lang/StringBuilder", "kotlin/text/MatchGroupCollection", "java/util/Collection"].contains(owner) && ["length", "size"].contains(name) ? name : "get" + name.prefix(1).uppercased() + name.dropFirst()
                 let result: JVMValueType = owner == "kotlin/ranges/IntRange" && ["start", "endInclusive"].contains(name) ? .reference("java/lang/Integer", nullable: false) : type
                 textLibraryProperties[symbol] = JVMForeignMethod(owner: owner, name: jvmName, descriptor: "()" + result.descriptor, parameters: [], result: result, isStatic: false, isInterface: interface, isAbstract: false)
             }
@@ -99,9 +100,10 @@ extension JVMProgramBuilder {
                     if f.isInline { inlineDeclarations[symbol] = f }
                 }
             }
+            if path == "<kswiftk-jvm>/javaCollections.kt" { try visit(file.topLevelDecls, path: path) }
             if path == "<kswiftk-jvm>/collections.kt" {
                 try visit(file.topLevelDecls.filter { id in
-                    if case let .interfaceDecl(declaration) = ast.arena.decl(id) { return ["Iterator", "Iterable", "Collection"].contains(context.interner.resolve(declaration.name)) }
+                    if case let .interfaceDecl(declaration) = ast.arena.decl(id) { return ["Iterator", "Iterable", "Collection", "MutableIterator", "MutableIterable", "MutableCollection", "List", "MutableList", "Set", "MutableSet", "Map", "MutableMap"].contains(context.interner.resolve(declaration.name)) }
                     return false
                 }, path: path)
                 let factories: Set<String> = ["arrayListOf", "listOf", "setOf", "mapOf", "mutableListOf", "mutableSetOf", "mutableMapOf", "emptyList", "emptySet", "emptyMap"]
@@ -137,11 +139,20 @@ extension JVMFunctionBuilder {
         return try jdkCall(method.owner, method.name, [], method.result, receiver: object, interface: method.isInterface, resolved: program.expressionType(id))
     }
 
-    func textLibraryCall(_ args: [CallArgument], receiver: ExprID? = nil, id: ExprID) throws -> JVMIntrinsicResult? {
+    func textLibraryCall(_ args: [CallArgument], receiver: ExprID? = nil, receiverValue: JVMValue? = nil, id: ExprID, expectedResult: JVMValueType? = nil) throws -> JVMIntrinsicResult? {
         guard let binding = program.sema.bindings.callBinding(for: id),
               program.inlineDeclarations[binding.chosenCallee] == nil,
               let entry = program.textLibraryMethods[binding.chosenCallee] else { return nil }
         let method = entry.method
+        if method.owner == "java/lang/Comparable", method.name == "compareTo", let receiver,
+           case .memberCall = arena.expr(id), case let .nameRef(name, _) = arena.expr(receiver),
+           let local = scopes.reversed().compactMap({ $0[name] }).first,
+           let origin = local.numericBoxingOrigin {
+            let saved = evaluatedOperands
+            evaluatedOperands[receiver] = origin
+            defer { evaluatedOperands = saved }
+            return try scalarMember(receiver, name: "compareTo", args: args, id: id)
+        }
         if method.owner == "java/lang/Comparable", method.name == "compareTo", let receiver,
            (evaluatedOperands[receiver]?.type ?? (try? program.expressionType(receiver)))?.numericCarrier != nil {
             return try scalarMember(receiver, name: "compareTo", args: args, id: id)
@@ -151,7 +162,7 @@ extension JVMFunctionBuilder {
            !kotlinBuilderOperations.contains(entry.adaptation ?? "") {
             throw fail("Named arguments are prohibited for Java StringBuilder constructors and methods.", id)
         }
-        let explicit = try method.isConstructor || method.isStatic && entry.extensionReceiver == nil ? nil : receiver.map(requireValue)
+        let explicit = try method.isConstructor || method.isStatic && entry.extensionReceiver == nil ? nil : receiverValue ?? receiver.map(requireValue)
         let implicit = implicitExtensionReceiver(id)
         let object = try method.isConstructor || method.isStatic && entry.extensionReceiver == nil ? nil : explicit ?? (entry.extensionReceiver != nil ? implicit : instance(id))
         let parameters = Array(method.parameters.dropFirst(entry.extensionReceiver == nil ? 0 : 1))
@@ -216,11 +227,11 @@ extension JVMFunctionBuilder {
             guard !usesDefaults else { throw fail("Unsupported JVM library suspend defaults.", id) }
             var converted: [JVMValue] = []
             for (argument, parameter) in zip(actual, params) { converted.append(try convert(argument, to: parameter)) }
-            let resultType = try program.expressionType(id)
+            let resultType = try expectedResult ?? program.expressionType(id)
             let result = resultType == .unit ? nil : try value(resultType)
             instructions.append(.foreignCall(method, receiver: method.isStatic ? nil : object, arguments: converted, result: result))
             return JVMIntrinsicResult(value: result)
         }
-        return JVMIntrinsicResult(value: try jdkCall(method.owner, method.name + (usesDefaults ? "$default" : ""), params, method.result, receiver: method.isStatic || usesDefaults ? nil : object, arguments: actual, interface: method.isInterface && !usesDefaults, resolved: program.expressionType(id)))
+        return JVMIntrinsicResult(value: try jdkCall(method.owner, method.name + (usesDefaults ? "$default" : ""), params, method.result, receiver: method.isStatic || usesDefaults ? nil : object, arguments: actual, interface: method.isInterface && !usesDefaults, resolved: expectedResult ?? program.expressionType(id)))
     }
 }

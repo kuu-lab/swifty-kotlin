@@ -19,6 +19,11 @@ extension DataFlowSemaPhase {
         guard let symbol = symbols.lookup(fqName: symbolFQName) else {
             return
         }
+        if symbols.deferUntilAfterImportedShellMaterializes(symbol, work: { [self] in
+            attachAnnotationIfNeeded(annotation, to: symbolFQName, symbols: symbols)
+        }) {
+            return
+        }
         var annotations = symbols.annotations(for: symbol)
         if !annotations.contains(annotation) {
             annotations.append(annotation)
@@ -80,6 +85,15 @@ extension DataFlowSemaPhase {
                 )
             }
             symbols.setParentSymbol(enumSymbol, for: entrySymbol)
+            // KUU-2673: the record supplies the entry type when the imported
+            // shell materializes; patch it then instead of decoding eagerly.
+            if symbols.deferUntilAfterImportedShellMaterializes(entrySymbol, work: {
+                if symbols.propertyType(for: entrySymbol) == nil {
+                    symbols.setPropertyType(enumType, for: entrySymbol)
+                }
+            }) {
+                continue
+            }
             if symbols.propertyType(for: entrySymbol) == nil {
                 symbols.setPropertyType(enumType, for: entrySymbol)
             }
@@ -138,6 +152,13 @@ extension DataFlowSemaPhase {
                 )
             }
             symbols.setParentSymbol(enumSymbol, for: entrySymbol)
+            if symbols.deferUntilAfterImportedShellMaterializes(entrySymbol, work: {
+                if symbols.propertyType(for: entrySymbol) == nil {
+                    symbols.setPropertyType(enumType, for: entrySymbol)
+                }
+            }) {
+                continue
+            }
             if symbols.propertyType(for: entrySymbol) == nil {
                 symbols.setPropertyType(enumType, for: entrySymbol)
             }
@@ -173,6 +194,21 @@ extension DataFlowSemaPhase {
 
         let initName = interner.intern("<init>")
         let constructorFQName = ownerFQName + [initName]
+        // KUU-2673: re-run once the first lazy imported candidate materializes
+        // instead of decoding its signature eagerly for the dedup check.
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: constructorFQName, work: { [self] in
+            registerSyntheticStringAnnotationPropertyAndConstructor(
+                ownerSymbol: ownerSymbol,
+                ownerFQName: ownerFQName,
+                propertyName: propertyName,
+                parameterHasDefaultValue: parameterHasDefaultValue,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        }) {
+            return
+        }
         let hasMatchingConstructor = symbols.lookupAll(fqName: constructorFQName).contains { symbolID in
             guard let symbol = symbols.symbol(symbolID),
                   symbol.kind == .constructor,
@@ -228,6 +264,11 @@ extension DataFlowSemaPhase {
         to symbol: SymbolID,
         symbols: SymbolTable
     ) {
+        if symbols.deferUntilAfterImportedShellMaterializes(symbol, work: { [self] in
+            appendSyntheticAnnotation(annotation, to: symbol, symbols: symbols)
+        }) {
+            return
+        }
         var annotations = symbols.annotations(for: symbol)
         if !annotations.contains(annotation) {
             annotations.append(annotation)

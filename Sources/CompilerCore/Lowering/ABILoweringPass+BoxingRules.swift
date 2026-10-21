@@ -84,7 +84,7 @@ extension ABILoweringPass {
         else {
             return false
         }
-        guard let linkName = symbols.externalLinkName(for: callSymbol), !linkName.isEmpty else {
+        guard let linkName = symbols.externalLinkNameIfKnown(for: callSymbol), !linkName.isEmpty else {
             return true
         }
         return linkName.hasPrefix("kk_fn_")

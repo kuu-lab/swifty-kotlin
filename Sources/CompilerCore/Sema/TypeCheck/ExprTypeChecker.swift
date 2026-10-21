@@ -600,12 +600,7 @@ final class ExprTypeChecker {
 
         case let .nullAssert(exprID, _):
             let operandType = driver.inferExpr(exprID, ctx: ctx, locals: &locals)
-            let type: TypeID
-            if case .typeParam = sema.types.kind(of: operandType) {
-                type = sema.types.make(.intersection([sema.types.makeNonNullable(operandType), sema.types.anyType]))
-            } else {
-                type = sema.types.makeNonNullable(operandType)
-            }
+            let type = sema.types.definitelyNonNullForm(of: operandType)
             if let assertSubjectExpr = ast.arena.expr(exprID),
                case let .nameRef(assertVarName, _) = assertSubjectExpr,
                let assertLocal = locals[assertVarName],

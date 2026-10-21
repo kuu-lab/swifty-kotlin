@@ -152,12 +152,13 @@ size引数の評価直後に配列を確保し、負サイズ時のinitializer�
 `mapOf`／`mutableMapOf`、`emptyList`／`emptySet`／`emptyMap` を生成する。
 factoryと対応済みcollection操作はKotlin JVM ABIに接続し、独自kswiftk-stdlib.jarで実行できる。
 `to` は kotlin.Pair を生成し、factory 以外でも利用できる。
-添字、`size`、`isEmpty`、`contains`、`add`、`remove`／`removeAt`、`set`／`put`、`clear`、
-Map の `keys`／`values`／`containsKey` と iterable の `for` を利用できる。
+添字、`size`、`isEmpty`、`contains`／`containsAll`、`add`、`remove`／`removeAt`、`set`／`put`、`clear`、
+Map の `keys`／`values`／`entries`／`containsKey` と iterable の `for` を利用できる。
 Map の取得結果は nullable なので、`!!`／`?:` で値を取り出せる。
 
 `throw` と、値を返す `try`／複数の `catch`／`finally` を JVM の exception table へ変換する。
 Throwable／Exception／RuntimeException と主要な標準例外、引数なし／String? 引数のコンストラクタ、`message`、ユーザー定義の例外クラスを扱う。
+Throwable／Exception／RuntimeException には Throwable? 引数と String?／Throwable? 引数のコンストラクタもある。
 `finally` は通常終了、例外、`return`／`break`／`continue` で実行し、内部の同名変数や
 ループに影響されず字句的な参照先を保持する。`finally` 内の return／throw は元の結果を置き換える。
 コンストラクタ引数内の try/catch でも初期化前の参照を JVM verifier に合わせて保持する。
@@ -469,6 +470,12 @@ interface のクラス委譲は、delegate 式を宣言順に一度だけ評価�
 既定引数、generic method／property、member extension method と bridge に対応する。
 constructor parameter の `var` を後で変更しても、保存済みの委譲先は変わらない。
 委譲先内部のメソッド呼び出しは、その委譲先自身の receiver へディスパッチする。
+`List`／`MutableList`、`Set`／`MutableSet`、`Map`／`MutableMap` の `by` 委譲では、
+JDK interface の型消去された bridge と `toArray` などの追加エントリも生成する。
+`toArray` はクラス自身の `size`／`iterator` の override を反映する。
+read-only の `add`／`remove`／`set`、`sort`、Map の `compute` などは
+`UnsupportedOperationException` を投げる。`removeIf` は JDK の既定実装に従う。
+Kotlin の可変 collection 判定に必要な marker interface も保持する。
 
 メンバー・トップレベル・ローカルの `val`／`var` に `by` を使用できる。
 独自の operator getValue／setValue／provideDelegate、トップレベル／メンバーの extension operator、
@@ -554,7 +561,11 @@ annotation の値は constructor 式で直接生成できる。省略した引�
 名前付き引数もソース順に評価する。生成する値は annotation interface を実装し、要素の読み取り・等値比較に対応する。
 
 value class を持つ inline／suspend の signature は M14 で対応する。
-外部 annotation の使用、file／type-use／receiver／delegate target、
+`Deprecated`／`ReplaceWith`／`DeprecationLevel` は独自stdlibとconsumer宣言で同じ契約を使う。
+message／replacement／level、JVM Deprecated属性、property carrierとaccessorへの配置を保存する。
+HIDDENの関数／constructor／accessorはclassfileでsyntheticとなり、Kotlin metadataには宣言を残す。
+
+上記以外の外部 annotation の使用、file／type-use／receiver／delegate target、
 typealias 自体の annotation、enum entry annotation は未対応。対応する reflection API は上記の範囲で、
 Java reflection の任意の getMethod／invoke や kotlin-reflect の全 API を提供するものではない。
 
@@ -919,7 +930,7 @@ fun main() {
 
 未列挙の Collection／Sequence API（groupingBy／destination 付き To 系／
 unzip／plus・minus／sumOf／Comparator を受ける overload 等）、Pair／標準コレクション関数そのものの関数参照、
-for ヘッダの分解代入、ユーザーによる Collection の実装は未対応。
+for ヘッダの分解代入、interface 委譲を使わないユーザーによる Collection の直接実装は未対応。
 
 ## M21: Sequence builder
 
@@ -1034,7 +1045,10 @@ Unit 型の通常のパラメータ宣言／型引数／配列要素（Any? 引�
 
 Native ライブラリ／非ホスト target triple、カスタム entry point、incremental、
 `-O1` 以上、`-g`、feature flag も拒否する（`time-phases` と `no-incremental` は使用可能）。
-関数・コンストラクタ・プロパティの公開型に `Nothing`／`Nothing?` は使用できない。
+関数の非nullableな `Nothing` 戻り値は `java.lang.Void` のJVM descriptorとKotlin metadataで保持する。
+通常の戻り先は専用の `KotlinNothingValueException` で終端する。own-JAR は同例外の引数なし、String?、String?／Throwable?、Throwable? の4コンストラクタを提供する。
+`Nothing?` の公開戻り値、関数・コンストラクタの `Nothing`／`Nothing?` 引数とreceiver、
+プロパティの `Nothing`／`Nothing?` 型は使用できない。null式とローカルの `Nothing?` はObject表現を使う。
 Java 8 が扱えない private interface メンバーも診断して拒否する。null だけを返す関数には
 `String?` など対応する戻り型を明示する。Maven／Gradle の依存解決、JAR Manifest の
 Class-Path、multi-release JAR のバージョン選択、JRT／module path は扱わない。

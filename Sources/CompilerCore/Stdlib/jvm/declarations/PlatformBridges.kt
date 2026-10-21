@@ -144,5 +144,24 @@ fun __jvmArrayCopy(source: Any?, sourceIndex: Int, target: Any?, targetIndex: In
 
 fun <T> __jvmNewArrayList(): java.util.ArrayList<T> = null!!
 
+fun <T> __jvmAddAllCollection(destination: kotlin.collections.MutableCollection<in T>, source: kotlin.collections.Collection<T>): Boolean = null!!
 fun __jvmRemoveAllCollection(destination: kotlin.collections.Collection<*>, source: kotlin.collections.Collection<*>): Boolean = null!!
 fun <T> __jvmCopySet(collection: kotlin.collections.Collection<T>): kotlin.collections.MutableSet<T> = null!!
+fun __jvmArrayCapacityError(): Throwable = null!!
+
+fun __jvmPowDouble(base: Double, exponent: Double): Double = 0.0
+// Collection builder platform edges; completion checks stay in Kotlin.
+fun <T> __jvmNewListCapacity(capacity: Int): MutableList<T> = null!!
+fun <K, V> __jvmNewMapCapacity(capacity: Int): MutableMap<K, V> = null!!
+fun <T> __jvmListAdd(list: MutableList<T>, index: Int, element: T) {}
+fun <T> __jvmListAddAll(list: MutableList<T>, index: Int, elements: Collection<T>): Boolean = false
+fun <T> __jvmListIterator(list: MutableList<T>, index: Int): java.util.ListIterator<T> = null!!
+fun <T> __jvmListSubList(list: MutableList<T>, fromIndex: Int, toIndex: Int): MutableList<T> = null!!
+fun <T> __jvmCollectionRemove(collection: Collection<T>, element: T): Boolean = false
+fun <T> __jvmCollectionClear(collection: Collection<T>) {}
+fun <T> __jvmCollectionAddAll(collection: Collection<T>, elements: Collection<T>): Boolean = false
+fun <T> __jvmCollectionRemoveAll(collection: Collection<T>, elements: Collection<T>): Boolean = false
+fun <T> __jvmCollectionRetainAll(collection: Collection<T>, elements: Collection<T>): Boolean = false
+fun <K, V> __jvmMapPutAll(map: MutableMap<K, V>, values: Map<K, V>) {}
+fun __jvmBuilderSerializationFailure(message: String): Throwable = null!!
+fun __jvmBuilderConcurrentModificationFailure(message: String?): Throwable = null!!

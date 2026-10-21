@@ -33,8 +33,8 @@ extension ABILoweringPass {
             }
         }
         // For-loop bridges accept both ranges and collections.
-        result[interner.intern("kk_range_iterator")] = [0]
-        result[interner.intern("kk_range_for_in_iterator")] = [0]
+        result[interner.intern("__kk_range_iterator")] = [0]
+        result[interner.intern("__kk_range_for_in_iterator")] = [0]
         return result
     }
 

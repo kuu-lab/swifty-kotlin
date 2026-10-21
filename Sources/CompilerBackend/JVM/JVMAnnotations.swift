@@ -33,8 +33,11 @@ enum JVMAnnotations {
         for (name, value) in annotation.values { b.u2(try pool.utf8(name)); b.data.append(try self.value(value, pool: pool)) }
         return b.data
     }
-    static func attributes(_ annotations: [JVMAnnotation], metadata: Data? = nil, pool: JVMConstantPool) throws -> [(UInt16, Data)] {
+    static func attributes(_ annotations: [JVMAnnotation], metadata: Data? = nil, deprecated: Bool = false, pool: JVMConstantPool) throws -> [(UInt16, Data)] {
         var result: [(UInt16, Data)] = []
+        if deprecated || annotations.contains(where: { $0.descriptor == "Lkotlin/Deprecated;" }) {
+            result.append((try pool.utf8("Deprecated"), Data()))
+        }
         for visible in [true, false] {
             let selected = annotations.filter { $0.visible == visible }
             let count = selected.count + (visible && metadata != nil ? 1 : 0)
@@ -48,7 +51,7 @@ enum JVMAnnotations {
         return result
     }
     static func methodAttributes(_ method: JVMMethodCode, pool: JVMConstantPool) throws -> [(UInt16, Data)] {
-        var attributes = try self.attributes(method.annotations, pool: pool)
+        var attributes = try self.attributes(method.annotations, deprecated: method.isDeprecated, pool: pool)
         if let value = method.annotationDefault { attributes.append((try pool.utf8("AnnotationDefault"), try self.value(value, pool: pool))) }
         if !method.parameterAnnotations.isEmpty {
             guard method.parameterAnnotations.count <= 255 else { throw JVMEmissionError.limit("Annotated parameter count exceeds JVM limits.") }

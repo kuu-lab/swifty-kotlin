@@ -978,27 +978,39 @@ extension DataFlowSemaPhase {
         if let kProperty0Symbol = symbols.lookup(fqName: reflectPkg + [interner.intern("KProperty0")]),
            let function0Symbol = symbols.lookup(fqName: functionPkg + [interner.intern("Function0")])
         {
-            let typeParams = types.nominalTypeParameterSymbols(for: kProperty0Symbol)
-            if typeParams.count == 1 {
-                let valueType = types.make(.typeParam(TypeParamType(symbol: typeParams[0], nullability: .nonNull)))
-                addSyntheticDirectSupertypes([function0Symbol], to: kProperty0Symbol, symbols: symbols, types: types)
-                let function0Args: [TypeArg] = [.out(valueType)]
-                symbols.setSupertypeTypeArgs(function0Args, for: kProperty0Symbol, supertype: function0Symbol)
-                types.setNominalSupertypeTypeArgs(function0Args, for: kProperty0Symbol, supertype: function0Symbol)
+            // KUU-2673: reading the imported shell's type parameters and
+            // supertypes decodes it; patch after materialization instead.
+            let patch = { [self] in
+                let typeParams = types.nominalTypeParameterSymbols(for: kProperty0Symbol)
+                if typeParams.count == 1 {
+                    let valueType = types.make(.typeParam(TypeParamType(symbol: typeParams[0], nullability: .nonNull)))
+                    addSyntheticDirectSupertypes([function0Symbol], to: kProperty0Symbol, symbols: symbols, types: types)
+                    let function0Args: [TypeArg] = [.out(valueType)]
+                    symbols.setSupertypeTypeArgs(function0Args, for: kProperty0Symbol, supertype: function0Symbol)
+                    types.setNominalSupertypeTypeArgs(function0Args, for: kProperty0Symbol, supertype: function0Symbol)
+                }
+            }
+            if !symbols.deferUntilAfterImportedShellMaterializes(kProperty0Symbol, work: patch) {
+                patch()
             }
         }
         if let kProperty1Symbol = symbols.lookup(fqName: reflectPkg + [interner.intern("KProperty1")]),
            let function1Symbol = symbols.lookup(fqName: functionPkg + [interner.intern("Function1")])
         {
-            let typeParams = types.nominalTypeParameterSymbols(for: kProperty1Symbol)
-            if typeParams.count == 2 {
-                let receiverType = types.make(.typeParam(TypeParamType(symbol: typeParams[0], nullability: .nonNull)))
-                let valueType = types.make(.typeParam(TypeParamType(symbol: typeParams[1], nullability: .nonNull)))
-                addSyntheticDirectSupertypes([function1Symbol], to: kProperty1Symbol, symbols: symbols, types: types)
-                // Function1<T, V>: args follow Kotlin declaration order [in P1, out R].
-                let function1Args: [TypeArg] = [.in(receiverType), .out(valueType)]
-                symbols.setSupertypeTypeArgs(function1Args, for: kProperty1Symbol, supertype: function1Symbol)
-                types.setNominalSupertypeTypeArgs(function1Args, for: kProperty1Symbol, supertype: function1Symbol)
+            let patch = { [self] in
+                let typeParams = types.nominalTypeParameterSymbols(for: kProperty1Symbol)
+                if typeParams.count == 2 {
+                    let receiverType = types.make(.typeParam(TypeParamType(symbol: typeParams[0], nullability: .nonNull)))
+                    let valueType = types.make(.typeParam(TypeParamType(symbol: typeParams[1], nullability: .nonNull)))
+                    addSyntheticDirectSupertypes([function1Symbol], to: kProperty1Symbol, symbols: symbols, types: types)
+                    // Function1<T, V>: args follow Kotlin declaration order [in P1, out R].
+                    let function1Args: [TypeArg] = [.in(receiverType), .out(valueType)]
+                    symbols.setSupertypeTypeArgs(function1Args, for: kProperty1Symbol, supertype: function1Symbol)
+                    types.setNominalSupertypeTypeArgs(function1Args, for: kProperty1Symbol, supertype: function1Symbol)
+                }
+            }
+            if !symbols.deferUntilAfterImportedShellMaterializes(kProperty1Symbol, work: patch) {
+                patch()
             }
         }
 
@@ -1007,16 +1019,21 @@ extension DataFlowSemaPhase {
         else {
             return
         }
-        let typeParams = types.nominalTypeParameterSymbols(for: kProperty2Symbol)
-        guard typeParams.count == 3 else { return }
-        let dType = types.make(.typeParam(TypeParamType(symbol: typeParams[0], nullability: .nonNull)))
-        let eType = types.make(.typeParam(TypeParamType(symbol: typeParams[1], nullability: .nonNull)))
-        let vType = types.make(.typeParam(TypeParamType(symbol: typeParams[2], nullability: .nonNull)))
-        addSyntheticDirectSupertypes([function2Symbol], to: kProperty2Symbol, symbols: symbols, types: types)
-        // Function2<D, E, V>: args follow Kotlin declaration order [in P1, in P2, out R].
-        let function2Args: [TypeArg] = [.in(dType), .in(eType), .out(vType)]
-        symbols.setSupertypeTypeArgs(function2Args, for: kProperty2Symbol, supertype: function2Symbol)
-        types.setNominalSupertypeTypeArgs(function2Args, for: kProperty2Symbol, supertype: function2Symbol)
+        let patch = { [self] in
+            let typeParams = types.nominalTypeParameterSymbols(for: kProperty2Symbol)
+            guard typeParams.count == 3 else { return }
+            let dType = types.make(.typeParam(TypeParamType(symbol: typeParams[0], nullability: .nonNull)))
+            let eType = types.make(.typeParam(TypeParamType(symbol: typeParams[1], nullability: .nonNull)))
+            let vType = types.make(.typeParam(TypeParamType(symbol: typeParams[2], nullability: .nonNull)))
+            addSyntheticDirectSupertypes([function2Symbol], to: kProperty2Symbol, symbols: symbols, types: types)
+            // Function2<D, E, V>: args follow Kotlin declaration order [in P1, in P2, out R].
+            let function2Args: [TypeArg] = [.in(dType), .in(eType), .out(vType)]
+            symbols.setSupertypeTypeArgs(function2Args, for: kProperty2Symbol, supertype: function2Symbol)
+            types.setNominalSupertypeTypeArgs(function2Args, for: kProperty2Symbol, supertype: function2Symbol)
+        }
+        if !symbols.deferUntilAfterImportedShellMaterializes(kProperty2Symbol, work: patch) {
+            patch()
+        }
     }
 
     func patchKMutableProperty0FunctionSupertype(
@@ -1031,13 +1048,18 @@ extension DataFlowSemaPhase {
         else {
             return
         }
-        let typeParams = types.nominalTypeParameterSymbols(for: kMutableProperty0Symbol)
-        guard typeParams.count == 1 else { return }
-        let valueType = types.make(.typeParam(TypeParamType(symbol: typeParams[0], nullability: .nonNull)))
-        addSyntheticDirectSupertypes([function0Symbol], to: kMutableProperty0Symbol, symbols: symbols, types: types)
-        let function0Args: [TypeArg] = [.out(valueType)]
-        symbols.setSupertypeTypeArgs(function0Args, for: kMutableProperty0Symbol, supertype: function0Symbol)
-        types.setNominalSupertypeTypeArgs(function0Args, for: kMutableProperty0Symbol, supertype: function0Symbol)
+        let patch = { [self] in
+            let typeParams = types.nominalTypeParameterSymbols(for: kMutableProperty0Symbol)
+            guard typeParams.count == 1 else { return }
+            let valueType = types.make(.typeParam(TypeParamType(symbol: typeParams[0], nullability: .nonNull)))
+            addSyntheticDirectSupertypes([function0Symbol], to: kMutableProperty0Symbol, symbols: symbols, types: types)
+            let function0Args: [TypeArg] = [.out(valueType)]
+            symbols.setSupertypeTypeArgs(function0Args, for: kMutableProperty0Symbol, supertype: function0Symbol)
+            types.setNominalSupertypeTypeArgs(function0Args, for: kMutableProperty0Symbol, supertype: function0Symbol)
+        }
+        if !symbols.deferUntilAfterImportedShellMaterializes(kMutableProperty0Symbol, work: patch) {
+            patch()
+        }
     }
 
     func patchKMutableProperty1FunctionSupertype(
@@ -1052,15 +1074,20 @@ extension DataFlowSemaPhase {
         else {
             return
         }
-        let typeParams = types.nominalTypeParameterSymbols(for: kMutableProperty1Symbol)
-        guard typeParams.count == 2 else { return }
-        let receiverType = types.make(.typeParam(TypeParamType(symbol: typeParams[0], nullability: .nonNull)))
-        let valueType = types.make(.typeParam(TypeParamType(symbol: typeParams[1], nullability: .nonNull)))
-        addSyntheticDirectSupertypes([function1Symbol], to: kMutableProperty1Symbol, symbols: symbols, types: types)
-        // Function1<T, V>: args follow Kotlin declaration order [in P1, out R].
-        let function1Args: [TypeArg] = [.in(receiverType), .out(valueType)]
-        symbols.setSupertypeTypeArgs(function1Args, for: kMutableProperty1Symbol, supertype: function1Symbol)
-        types.setNominalSupertypeTypeArgs(function1Args, for: kMutableProperty1Symbol, supertype: function1Symbol)
+        let patch = { [self] in
+            let typeParams = types.nominalTypeParameterSymbols(for: kMutableProperty1Symbol)
+            guard typeParams.count == 2 else { return }
+            let receiverType = types.make(.typeParam(TypeParamType(symbol: typeParams[0], nullability: .nonNull)))
+            let valueType = types.make(.typeParam(TypeParamType(symbol: typeParams[1], nullability: .nonNull)))
+            addSyntheticDirectSupertypes([function1Symbol], to: kMutableProperty1Symbol, symbols: symbols, types: types)
+            // Function1<T, V>: args follow Kotlin declaration order [in P1, out R].
+            let function1Args: [TypeArg] = [.in(receiverType), .out(valueType)]
+            symbols.setSupertypeTypeArgs(function1Args, for: kMutableProperty1Symbol, supertype: function1Symbol)
+            types.setNominalSupertypeTypeArgs(function1Args, for: kMutableProperty1Symbol, supertype: function1Symbol)
+        }
+        if !symbols.deferUntilAfterImportedShellMaterializes(kMutableProperty1Symbol, work: patch) {
+            patch()
+        }
     }
 
     private func addSyntheticDirectSupertypes(
@@ -1069,6 +1096,13 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem
     ) {
+        // KUU-2673: the read-merge-write below decodes imported shells; re-run
+        // after materialization so the record's own supertypes are visible.
+        if symbols.deferUntilAfterImportedShellMaterializes(symbol, work: { [self] in
+            addSyntheticDirectSupertypes(supertypes, to: symbol, symbols: symbols, types: types)
+        }) {
+            return
+        }
         var symbolSupertypes = symbols.directSupertypes(for: symbol)
         for supertype in supertypes where !symbolSupertypes.contains(supertype) {
             symbolSupertypes.append(supertype)
@@ -1398,6 +1432,16 @@ extension DataFlowSemaPhase {
             annotationFQName: "kotlin.annotation.Retention",
             arguments: ["AnnotationRetention.BINARY"]
         )
+        if symbols.deferUntilAfterImportedShellMaterializes(symbol, work: { [self] in
+            registerAssociatedObjectKeyAnnotation(
+                kotlinReflectPkg: kotlinReflectPkg,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        }) {
+            return
+        }
         var annotations = symbols.annotations(for: symbol)
         for record in [experimentalRecord, retentionRecord, targetRecord] {
             // swiftlint:disable:next for_where

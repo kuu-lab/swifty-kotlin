@@ -289,7 +289,7 @@ final class JVMClasspathIndex {
     func bind(in ctx: CompilationContext, sema: SemaModule) throws {
         func platform(_ type: TypeID) -> TypeID {
             switch sema.types.kind(of: type) {
-            case .classType, .stringStruct, .any: return sema.types.withNullability(.platformType, for: type)
+            case .classType, .stringStruct, .any, .typeParam: return sema.types.withNullability(.platformType, for: type)
             default: return type
             }
         }
@@ -310,10 +310,18 @@ final class JVMClasspathIndex {
             methods[symbol.id] = method
             let returnType = method.isConstructor ? signature.returnType : platform(signature.returnType)
             sema.symbols.setFunctionSignature(FunctionSignature(
-                receiverType: signature.receiverType.map(platform), parameterTypes: signature.parameterTypes.map(platform),
-                returnType: returnType, canThrow: false, valueParameterSymbols: signature.valueParameterSymbols,
+                receiverType: signature.receiverType.map(platform),
+                contextReceiverTypes: signature.contextReceiverTypes, contextParameterSymbols: signature.contextParameterSymbols,
+                contextParameterTypes: signature.contextParameterTypes, parameterTypes: signature.parameterTypes.map(platform),
+                returnType: returnType, isSuspend: signature.isSuspend, canThrow: false,
+                valueParameterSymbols: signature.valueParameterSymbols,
+                valueParameterUnsafeVarianceTypeParameterSymbols: signature.valueParameterUnsafeVarianceTypeParameterSymbols,
                 valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
-                valueParameterIsVararg: signature.valueParameterIsVararg
+                valueParameterIsVararg: signature.valueParameterIsVararg,
+                valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
+                hasExplicitInlineParameterMetadata: signature.hasExplicitInlineParameterMetadata,
+                typeParameterSymbols: signature.typeParameterSymbols, reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
+                typeParameterUpperBoundsList: signature.typeParameterUpperBoundsList, classTypeParameterCount: signature.classTypeParameterCount
             ), for: symbol.id)
         }
         for symbol in sema.symbols.allSymbols() where symbol.kind == .function {
@@ -348,7 +356,8 @@ final class JVMClasspathIndex {
             guard let concrete else { throw JVMFrontendError(message: "Empty JVM intersection type.") }
             return try Self.type(concrete, sema: sema, ctx: ctx)
         case let .kClassType(t): return .reference("kotlin/reflect/KClass", nullable: t.nullability != .nonNull)
-        case .unit, .nothing(.nonNull): return .unit
+        case .unit: return .unit
+        case .nothing(.nonNull): return .reference("java/lang/Void", nullable: false)
         case .nullableUnit: return .reference("kotlin/Unit", nullable: true)
         case .nothing(.nullable): return .reference("java/lang/Object", nullable: true)
         case let .any(nullability): return .reference("java/lang/Object", nullable: nullability != .nonNull, platform: nullability == .platformType)
@@ -359,7 +368,11 @@ final class JVMClasspathIndex {
         case let .typeParam(parameter):
             if let bound = sema.symbols.typeParameterUpperBound(for: parameter.symbol) {
                 if case let .typeParam(other) = sema.types.kind(of: bound), other.symbol == parameter.symbol { return .reference("java/lang/Object", nullable: true) }
-                let erased = boxed(try Self.type(bound, sema: sema, ctx: ctx))
+                let upper = try Self.type(bound, sema: sema, ctx: ctx)
+                // Final primitive bounds use primitive JVM descriptors. A
+                // nullable use or nullable bound still requires its wrapper.
+                let erased = parameter.nullability == .nonNull && (upper.isNumeric || upper == .boolean)
+                    ? upper : boxed(upper)
                 if parameter.nullability == .nullable, let name = erased.referenceName { return .reference(name, nullable: true) }
                 return erased
             }

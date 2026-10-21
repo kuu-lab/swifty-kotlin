@@ -40,10 +40,17 @@ extension DataFlowSemaPhase {
         let enumName = interner.intern("Enum")
         let enumFQName = kotlinPkg + [enumName]
         let enumSymbol = ensureEnumClassSymbol(symbols: symbols, interner: interner, kotlinPkg: kotlinPkg)
-        if types.nominalTypeParameterSymbols(for: enumSymbol).isEmpty {
-            let enumTypeParamSymbol = ensureEnumTypeParameter(symbols: symbols, interner: interner, enumFQName: enumFQName)
-            types.setNominalTypeParameterSymbols([enumTypeParamSymbol], for: enumSymbol)
-            types.setNominalTypeParameterVariances([.invariant], for: enumSymbol)
+        // KUU-2673: reading an imported shell's type parameters decodes it;
+        // run the check after materialization instead.
+        let ensureEnumTypeParameters = { [self] in
+            if types.nominalTypeParameterSymbols(for: enumSymbol).isEmpty {
+                let enumTypeParamSymbol = ensureEnumTypeParameter(symbols: symbols, interner: interner, enumFQName: enumFQName)
+                types.setNominalTypeParameterSymbols([enumTypeParamSymbol], for: enumSymbol)
+                types.setNominalTypeParameterVariances([.invariant], for: enumSymbol)
+            }
+        }
+        if !symbols.deferUntilAfterImportedShellMaterializes(enumSymbol, work: ensureEnumTypeParameters) {
+            ensureEnumTypeParameters()
         }
         registerEnumNameOrdinalProperties(
             symbols: symbols,

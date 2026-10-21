@@ -35,8 +35,26 @@ extension DataFlowSemaPhase {
     ) {
         let ownerInternedName = interner.intern(ownerName)
         let ownerFQName = kotlinCollectionsPkg + [ownerInternedName]
-        guard let ownerSymbol = symbols.lookup(fqName: ownerFQName),
-              let typeParamSymbol = types.nominalTypeParameterSymbols(for: ownerSymbol).first
+        guard let ownerSymbol = symbols.lookup(fqName: ownerFQName) else {
+            return
+        }
+        // KUU-2673: the owner is usually an imported shell; reading its type
+        // parameters decodes it, so defer the whole registration instead.
+        if symbols.deferUntilAfterImportedShellMaterializes(ownerSymbol, work: { [self] in
+            registerMutableCollectionArrayAddAllMember(
+                ownerName: ownerName,
+                externalLinkName: externalLinkName,
+                flags: flags,
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                kotlinCollectionsPkg: kotlinCollectionsPkg,
+                arraySymbol: arraySymbol
+            )
+        }) {
+            return
+        }
+        guard let typeParamSymbol = types.nominalTypeParameterSymbols(for: ownerSymbol).first
         else {
             return
         }

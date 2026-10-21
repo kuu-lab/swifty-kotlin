@@ -85,17 +85,14 @@ struct KlibManifestTests {
     }
 
     @Test
-    func compatibilityNewerAbiIsBestEffort() throws {
-        let manifest = try KlibManifest(contents: "unique_name=d\nabi_version=2.4.0\nir_signature_versions=1\n")
-        guard case .bestEffort = manifest.compatibility else {
-            Issue.record("expected bestEffort, got \(manifest.compatibility)")
-            return
-        }
+    func compatibilitySupportsLatestCompilerAbi() throws {
+        let manifest = try KlibManifest(contents: "unique_name=d\ncompiler_version=2.4.21\nabi_version=2.4.0\nir_signature_versions=1,2\n")
+        #expect(manifest.compatibility == .supported)
     }
 
     @Test
     func compatibilityRejectsForeignAbi() throws {
-        for abi in ["1.201.0", "2.5.0", "3.0.0"] {
+        for abi in ["1.201.0", "2.2.0", "2.4.1", "2.5.0", "3.0.0"] {
             let manifest = try KlibManifest(contents: "unique_name=d\nabi_version=\(abi)\nir_signature_versions=1\n")
             guard case .unsupported = manifest.compatibility else {
                 Issue.record("expected unsupported for abi \(abi), got \(manifest.compatibility)")
@@ -114,12 +111,57 @@ struct KlibManifestTests {
         #expect(reason.contains("abi_version"))
     }
 
+    @Test(arguments: ["2.3.0", "2.4.0"])
+    func compatibilityRejectsInvalidSignaturesOnEveryAbi(abi: String) throws {
+        for signatures in ["", "3", "0", "1,bad", "-1", "99999999999999999999999"] {
+            let manifest = try KlibManifest(contents: "unique_name=d\nabi_version=\(abi)\nir_signature_versions=\(signatures)\n")
+            guard case .unsupported = manifest.compatibility else {
+                Issue.record("expected unsupported for signatures '\(signatures)', got \(manifest.compatibility)")
+                continue
+            }
+        }
+    }
+
+    @Test(arguments: ["1", "2", "1,2", "2,3"])
+    func compatibilityAcceptsKnownSignatureVersions(signatures: String) throws {
+        let manifest = try KlibManifest(contents: "unique_name=d\nabi_version=2.4.0\nir_signature_versions=\(signatures)\n")
+        #expect(manifest.compatibility == .supported)
+    }
+
     @Test
-    func compatibilityRejectsMissingV1Signature() throws {
-        let manifest = try KlibManifest(contents: "unique_name=d\nabi_version=2.3.0\nir_signature_versions=2\n")
-        guard case .unsupported = manifest.compatibility else {
-            Issue.record("expected unsupported, got \(manifest.compatibility)")
+    func absentSignaturePropertyDefaultsToV1() throws {
+        let manifest = try KlibManifest(contents: "unique_name=d\nabi_version=2.4.0\n")
+        #expect(manifest.irSignatureVersions == [1])
+        #expect(manifest.compatibility == .supported)
+    }
+
+    @Test(arguments: ["2..4.0", "-2.4.0", "2.-4.0", "2.4.bad", "2.4.", "2.4.0-dev", "2.4.99999999999999999999999"])
+    func rejectsMalformedAbiVersions(abi: String) throws {
+        let manifest = try KlibManifest(contents: "unique_name=d\nabi_version=\(abi)\nir_signature_versions=1\n")
+        guard case .unsupported(let reason) = manifest.compatibility else {
+            Issue.record("accepted malformed ABI: \(abi)")
             return
         }
+        #expect(reason.contains("abi_version"))
+    }
+
+    @Test
+    func propertiesPreserveValueDelimitersAndCarriageReturnLines() throws {
+        let pairs = try JavaProperties.parse("a==one\rb : :two\rc three\r")
+        let dict = Dictionary(pairs, uniquingKeysWith: { _, last in last })
+        #expect(dict["a"] == "=one")
+        #expect(dict["b"] == ":two")
+        #expect(dict["c"] == "three")
+    }
+
+    @Test
+    func propertiesDecodeSurrogatePairs() throws {
+        let pairs = try JavaProperties.parse(#"name=\uD83D\uDE00"#)
+        #expect(pairs.first?.value == "😀")
+    }
+
+    @Test(arguments: [#"name=\u12"#, #"name=\uZZZZ"#])
+    func propertiesRejectMalformedUnicodeEscapes(text: String) {
+        #expect(throws: KlibFormatError.self) { _ = try JavaProperties.parse(text) }
     }
 }

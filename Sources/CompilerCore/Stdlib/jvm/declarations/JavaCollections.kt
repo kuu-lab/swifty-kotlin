@@ -34,3 +34,16 @@ interface ListIterator<T>: kotlin.collections.Iterator<T> {
     fun set(element: T)
     fun remove()
 }
+
+abstract class AbstractCollection<T> protected constructor() {
+    open val size: Int get() = 0
+    open fun isEmpty(): Boolean = false
+    open fun contains(element: T): Boolean = false
+    abstract fun iterator(): kotlin.collections.Iterator<T>
+}
+interface RandomAccess
+interface MapEntry<K, V> {
+    fun getKey(): K
+    fun getValue(): V
+    fun setValue(value: V): V
+}

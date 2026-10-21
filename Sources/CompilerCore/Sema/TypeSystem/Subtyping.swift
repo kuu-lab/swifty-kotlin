@@ -115,10 +115,8 @@ extension TypeSystem {
         // This allows `T : AutoCloseable` (which stores `Closeable` as its bound after
         // typealias expansion) to satisfy `T <: Closeable` in the constraint solver and
         // member-lookup paths.
-        if case let .typeParam(typeParam) = lhs,
-           let symbols = symbolTable
-        {
-            let upperBounds = symbols.typeParameterUpperBounds(for: typeParam.symbol)
+        if case let .typeParam(typeParam) = lhs {
+            let upperBounds = declaredUpperBounds(for: typeParam.symbol)
             if !upperBounds.isEmpty {
                 if upperBounds.contains(where: { isSubtype($0, supertype) }) {
                     return true
@@ -258,7 +256,7 @@ extension TypeSystem {
                 let lhsProjection: Projection
                 if case .star = leftArguments[index] {
                     let bounds = typeParameterSymbols.indices.contains(index)
-                        ? symbolTable?.typeParameterUpperBounds(for: typeParameterSymbols[index]) ?? [] : []
+                        ? declaredUpperBounds(for: typeParameterSymbols[index]) : []
                     let variables = makeTypeVarBySymbol(typeParameterSymbols)
                     var substitution: [TypeVarID: TypeID] = [:]
                     var unresolvedStars: [SymbolID: TypeVarID] = [:]
@@ -608,13 +606,15 @@ extension TypeSystem {
     }
 
     private func inferenceLubRetainingCommonTypeParameterUpperBounds(_ types: [TypeID]) -> TypeID? {
-        guard types.count > 1, let symbolTable else { return nil }
+        guard types.count > 1 else { return nil }
 
         var candidates: [TypeID] = []
         var pending = types
         var visitedParameters: Set<SymbolID> = []
         while let input = pending.popLast() {
-            guard case let .typeParam(parameter) = kind(of: input) else { continue }
+            // `T & Any` (the non-null narrowing of `T`) contributes `T`'s
+            // bounds to the shared-bound walk.
+            guard let parameter = typeParamPart(of: input) else { continue }
             if let capture = parameter.capture {
                 if !candidates.contains(capture.upper) {
                     candidates.append(capture.upper)
@@ -623,7 +623,7 @@ extension TypeSystem {
             }
             guard visitedParameters.insert(parameter.symbol).inserted else { continue }
 
-            for bound in symbolTable.typeParameterUpperBounds(for: parameter.symbol) {
+            for bound in declaredUpperBounds(for: parameter.symbol) {
                 let candidate = parameter.nullability == .nullable ? makeNullable(bound) : bound
                 if !candidates.contains(candidate) {
                     candidates.append(candidate)
@@ -635,7 +635,24 @@ extension TypeSystem {
         }
 
         let commonBounds = candidates.filter { candidate in
-            types.allSatisfy { isSubtype($0, candidate) }
+            types.allSatisfy { input in
+                // `T & Any` only satisfies a candidate through `T`'s bounds —
+                // its `Any` conjunct is a non-null marker, not a real bound.
+                let subtypeCheck = if case .intersection = kind(of: input) {
+                    isNonNullLubSubtype(input, candidate, visitedParameters: [])
+                } else {
+                    isSubtype(input, candidate)
+                }
+                guard subtypeCheck else { return false }
+                // A null-capable parameter can be instantiated with a
+                // nullable type, so a non-null candidate cannot be a bound
+                // of it (KUU-2693).
+                if isNullableCapableTypeParameter(input, visitedParameters: []) {
+                    return nullability(of: candidate) != .nonNull
+                        || isNullableCapableTypeParameter(candidate, visitedParameters: [])
+                }
+                return true
+            }
         }
         guard !commonBounds.isEmpty else { return nil }
 
@@ -847,7 +864,14 @@ extension TypeSystem {
         _ filtered: [TypeID],
         retainingCommonIntersection: Bool = false
     ) -> TypeID {
-        let anyNullable = filtered.contains { nullability(of: $0) == .nullable }
+        let anyMarkedNullable = filtered.contains { nullability(of: $0) == .nullable }
+        // A type parameter written without `?` is still nullable-capable
+        // unless an upper bound is definitely non-null — the implicit bound
+        // is `Any?`, so `lub(K, V)` for unrelated `K`, `V` must be `Any?`
+        // rather than `Any` (KUU-2693).
+        let anyNullable = anyMarkedNullable || filtered.contains {
+            isNullableCapableTypeParameter($0, visitedParameters: [])
+        }
         let nonNull = filtered.map { makeNonNullable($0) }
         let base: TypeID
         if let firstNonNull = nonNull.first, nonNull.dropFirst().allSatisfy({ $0 == firstNonNull }) {
@@ -862,7 +886,64 @@ extension TypeSystem {
         } else {
             base = anyType
         }
-        return anyNullable ? makeNullable(base) : base
+        guard anyNullable else { return base }
+        // The common bound being itself a null-capable type parameter (e.g.
+        // `K, V : R` with unbounded `R`) already covers null — keep it as-is.
+        if !anyMarkedNullable, isNullableCapableTypeParameter(base, visitedParameters: []) {
+            return base
+        }
+        return makeNullable(base)
+    }
+
+    /// True when a `.typeParam` may hold `null`: a parameter written without
+    /// `?` is still nullable-capable unless an upper bound is definitely
+    /// non-null, since its implicit upper bound is `Any?`. `T : Any` (or any
+    /// non-null bound, transitively) makes the parameter non-null again.
+    private func isNullableCapableTypeParameter(
+        _ type: TypeID,
+        visitedParameters: Set<SymbolID>
+    ) -> Bool {
+        guard case let .typeParam(parameter) = kind(of: type) else { return false }
+        if parameter.nullability == .nullable { return true }
+        let bounds: [TypeID]
+        if let capture = parameter.capture {
+            bounds = [capture.upper]
+        } else {
+            guard !visitedParameters.contains(parameter.symbol) else {
+                // A cyclic bound bottoms out: the implicit upper bound is
+                // `Any?`, so assume the parameter can hold null.
+                return true
+            }
+            bounds = declaredUpperBounds(for: parameter.symbol)
+        }
+        guard !bounds.isEmpty else { return true }
+        var visited = visitedParameters
+        visited.insert(parameter.symbol)
+        return bounds.allSatisfy { bound in
+            if case .typeParam = kind(of: bound) {
+                return isNullableCapableTypeParameter(bound, visitedParameters: visited)
+            }
+            return !isDefinitelyNonNull(bound)
+        }
+    }
+
+    /// The type parameter carried by `type`, looking through the `T & Any`
+    /// intersection produced by definitely-non-null narrowing (`?:`,
+    /// `x != null`). The parameter's declared bounds still drive the join.
+    private func typeParamPart(of type: TypeID) -> TypeParamType? {
+        switch kind(of: type) {
+        case let .typeParam(parameter):
+            return parameter
+        case let .intersection(parts):
+            for part in parts {
+                if case let .typeParam(parameter) = kind(of: part) {
+                    return parameter
+                }
+            }
+            return nil
+        default:
+            return nil
+        }
     }
 
     /// Finds a supertype of every element of `types` that is more specific
@@ -925,7 +1006,8 @@ extension TypeSystem {
         var pending = types
         var visitedParameters: Set<SymbolID> = []
         while let input = pending.popLast() {
-            guard case let .typeParam(parameter) = kind(of: input) else {
+            // `T & Any` contributes `T`'s bounds: it is `T`'s non-null view.
+            guard let parameter = typeParamPart(of: input) else {
                 continue
             }
             guard visitedParameters.insert(parameter.symbol).inserted else {
@@ -935,10 +1017,8 @@ extension TypeSystem {
             let bounds: [TypeID]
             if let capture = parameter.capture {
                 bounds = [capture.upper]
-            } else if let symbolTable {
-                bounds = symbolTable.typeParameterUpperBounds(for: parameter.symbol)
             } else {
-                continue
+                bounds = declaredUpperBounds(for: parameter.symbol)
             }
             for bound in bounds {
                 let candidate = makeNonNullable(bound)
@@ -982,8 +1062,30 @@ extension TypeSystem {
         visitedParameters: Set<SymbolID>
     ) -> Bool {
         if subtype == supertype { return true }
-        guard case let .typeParam(parameter) = kind(of: subtype) else {
-            return isSubtype(subtype, supertype)
+        // A `Nothing?` conjunct means "this value held null" — it must not
+        // satisfy a join candidate on the parameter's behalf: `Nothing? & K`
+        // is a subtype of `V` (null is a `V`), but the common supertype of
+        // `Nothing? & K` and `V` is `Any?`, not `V` (KUU-2693).
+        var effectiveSubtype = subtype
+        if case let .intersection(parts) = kind(of: subtype),
+           parts.contains(where: { kind(of: $0) == .nothing(.nullable) })
+        {
+            let rest = parts.filter { kind(of: $0) != .nothing(.nullable) }
+            effectiveSubtype = rest.count == 1 ? rest[0]
+                : rest.isEmpty ? nothingType
+                : make(.intersection(rest))
+        }
+        // `A & B <: X` holds when any conjunct does. Parameter conjuncts go
+        // through this function — not `isSubtype` — so their declared bounds
+        // are walked with the visited set that keeps cyclic bounds
+        // (`T : U, U : T`) terminating.
+        if case let .intersection(parts) = kind(of: effectiveSubtype) {
+            return parts.contains {
+                isNonNullLubSubtype($0, supertype, visitedParameters: visitedParameters)
+            }
+        }
+        guard let parameter = typeParamPart(of: effectiveSubtype) else {
+            return isSubtype(effectiveSubtype, supertype)
         }
         guard !visitedParameters.contains(parameter.symbol) else { return false }
 
@@ -992,10 +1094,8 @@ extension TypeSystem {
         let bounds: [TypeID]
         if let capture = parameter.capture {
             bounds = [capture.upper]
-        } else if let symbolTable {
-            bounds = symbolTable.typeParameterUpperBounds(for: parameter.symbol)
         } else {
-            return isSubtype(subtype, supertype)
+            bounds = declaredUpperBounds(for: parameter.symbol)
         }
         if bounds.isEmpty {
             return isSubtype(subtype, supertype)

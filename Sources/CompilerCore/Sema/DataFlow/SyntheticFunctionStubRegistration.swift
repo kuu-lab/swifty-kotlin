@@ -26,6 +26,37 @@ func registerSyntheticFunctionStub(
     let functionName = interner.intern(name)
     let functionFQName = ownerFQName + [functionName]
     let parameterTypes = parameters.map(\.type)
+    // KUU-2673: the dedup below reads every candidate's signature. When some
+    // of them are still lazy imported shells, re-run this whole registration
+    // once the first such candidate materializes instead of decoding it.
+    if symbols.deferWorkUntilImportedMemberMaterializes(at: functionFQName, work: {
+        _ = registerSyntheticFunctionStub(
+            named: name,
+            ownerFQName: ownerFQName,
+            parentSymbol: parentSymbol,
+            receiverType: receiverType,
+            parameters: parameters,
+            returnType: returnType,
+            externalLinkName: externalLinkName,
+            annotations: annotations,
+            flags: flags,
+            canThrow: canThrow,
+            typeParameterSymbols: typeParameterSymbols,
+            typeParameterUpperBoundsList: typeParameterUpperBoundsList,
+            classTypeParameterCount: classTypeParameterCount,
+            matchReturnType: matchReturnType,
+            updateExistingSignature: updateExistingSignature,
+            requireSyntheticOrNoDeclSiteForExisting: requireSyntheticOrNoDeclSiteForExisting,
+            existingFlagsToInsert: existingFlagsToInsert,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats,
+            types: types,
+            symbols: symbols,
+            interner: interner
+        )
+    }) {
+        return .invalid
+    }
     if let contextTypes = BundledSyntheticStubRegistration.types,
        BundledSyntheticStubRegistration.shouldSkipRegistration(
            declaredOwnerFQName: ownerFQName,

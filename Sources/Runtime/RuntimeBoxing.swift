@@ -297,7 +297,7 @@ public func kk_box_long(_ value: Int) -> Int {
     // to preserve null — see kk_box_long_nonnull below for the
     // counterpart used when the source's static type is provably non-null.
     // If the value is already a registered runtime object (e.g. RuntimeRangeBox
-    // produced by kk_op_rangeTo for LongRange), pass it through without
+    // produced by __kk_op_rangeTo for LongRange), pass it through without
     // double-boxing so that __kk_print_raw / runtimeElementToString can
     // recognise the original object type.
     return runtimeBoxPrimitive(

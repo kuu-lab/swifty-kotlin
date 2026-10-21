@@ -461,11 +461,25 @@ extension DataFlowSemaPhase {
                 )
                 symbols.setParentSymbol(enumSymbol, for: entrySymbol)
             }
-            if symbols.propertyType(for: entrySymbol) == nil {
-                symbols.setPropertyType(enumType, for: entrySymbol)
+            // KUU-2673: unconditional patches keep master's write-before-apply
+            // ordering (pre-materialization); the guarded property-type write
+            // must see the decoded record (post-materialization). Each defer
+            // falls back to inline execution when the shell is not pending.
+            let writeConstFlags = {
+                symbols.insertFlags([.constValue], for: entrySymbol)
+                symbols.setConstValueExprKind(.intLiteral(Int64(ordinal)), for: entrySymbol)
             }
-            symbols.insertFlags([.constValue], for: entrySymbol)
-            symbols.setConstValueExprKind(.intLiteral(Int64(ordinal)), for: entrySymbol)
+            let writeEntryType = {
+                if symbols.propertyType(for: entrySymbol) == nil {
+                    symbols.setPropertyType(enumType, for: entrySymbol)
+                }
+            }
+            if !symbols.deferUntilImportedShellMaterializes(entrySymbol, work: writeConstFlags) {
+                writeConstFlags()
+            }
+            if !symbols.deferUntilAfterImportedShellMaterializes(entrySymbol, work: writeEntryType) {
+                writeEntryType()
+            }
         }
     }
 

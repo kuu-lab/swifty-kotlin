@@ -178,9 +178,9 @@ struct CodegenBackendArrayForLoopIterationTests {
             callees.contains(try runtimeABICallee("array_get_inbounds")),
             "array for-loop should call kk_array_get_inbounds, got: \(callees)"
         )
-        #expect(!callees.contains(try runtimeABICallee("range_iterator")), "array for-loop must not use kk_range_iterator, got: \(callees)")
-        #expect(!callees.contains(try runtimeABICallee("range_hasNext")), "array for-loop must not use kk_range_hasNext, got: \(callees)")
-        #expect(!callees.contains(try runtimeABICallee("range_next")), "array for-loop must not use kk_range_next, got: \(callees)")
+        #expect(!callees.contains(try runtimeABICallee("range_iterator")), "array for-loop must not use __kk_range_iterator, got: \(callees)")
+        #expect(!callees.contains(try runtimeABICallee("range_hasNext")), "array for-loop must not use __kk_range_hasNext, got: \(callees)")
+        #expect(!callees.contains(try runtimeABICallee("range_next")), "array for-loop must not use __kk_range_next, got: \(callees)")
     }
 }
 

@@ -1,25 +1,25 @@
 package kotlin.collections
 interface Iterator<out T> { operator fun hasNext(): Boolean; operator fun next(): T }
-interface Iterable<out T> { operator fun iterator(): Iterator<T> }
+interface Iterable<out E> { operator fun iterator(): Iterator<E> }
 interface MutableIterator<out T>: Iterator<T> { fun remove() }
 interface MutableIterable<out T>: Iterable<T> { override operator fun iterator(): MutableIterator<T> }
-interface Collection<out T>: Iterable<T> {
+interface Collection<out E>: Iterable<E> {
     val size: Int
     fun isEmpty(): Boolean
-    operator fun contains(element: @UnsafeVariance T): Boolean
+    operator fun contains(element: @UnsafeVariance E): Boolean
 }
-interface List<out T>: Collection<T> { operator fun get(index: Int): T }
-interface MutableCollection<T>: Collection<T> {
-    fun add(element: T): Boolean
-    fun remove(element: T): Boolean
+interface List<out E>: Collection<E> { operator fun get(index: Int): E }
+interface MutableCollection<E>: Collection<E> {
+    fun add(element: E): Boolean
+    fun remove(element: E): Boolean
     fun clear()
 }
-interface MutableList<T>: List<T>, MutableCollection<T> {
-    operator fun set(index: Int, element: T): T
-    fun removeAt(index: Int): T
+interface MutableList<E>: List<E>, MutableCollection<E> {
+    operator fun set(index: Int, element: E): E
+    fun removeAt(index: Int): E
 }
-interface Set<out T>: Collection<T>
-interface MutableSet<T>: Set<T>, MutableCollection<T>
+interface Set<out E>: Collection<E>
+interface MutableSet<E>: Set<E>, MutableCollection<E>
 interface Map<K, out V> {
     val size: Int
     val keys: Set<K>

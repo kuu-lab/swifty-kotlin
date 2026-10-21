@@ -92,7 +92,7 @@ extension JVMFunctionBuilder {
                let type = try? program.type(propertyType) {
                 let name = context.interner.resolve(semanticSymbol.name)
                 let capital = String(name.prefix(1)).uppercased() + name.dropFirst()
-                let names = name.hasPrefix("is") && name.count > 2 ? [name, "get" + capital] : ["get" + capital]
+                let names = info.flags & 0x2000 != 0 ? [name] : (name.hasPrefix("is") && name.count > 2 ? [name, "get" + capital] : ["get" + capital])
                 if let imported = info.methods.first(where: {
                     names.contains($0.name) && !$0.isStatic && !$0.isConstructor && $0.parameters.isEmpty && $0.result.descriptor == type.descriptor
                 }) {
@@ -170,8 +170,16 @@ extension JVMFunctionBuilder {
         instructions.append(.foreignCall(setter, receiver: setter.isStatic ? nil : receiver, arguments: [converted], result: nil))
     }
     func propertyCompound(_ property: JVMProperty, receiver: JVMValue, op: CompoundAssignOp, rhs: ExprID, id: ExprID, special: Bool = false, superReceiver: ExprID? = nil) throws -> JVMValue? {
+        let originalReceiver = receiver, receiver = try value(receiver.type)
+        instructions.append(.copy(originalReceiver, receiver))
         let left = try arena.incrementDecrementCachedValue(for: id).map(requireValue)
             ?? readProperty(property, receiver: receiver, special: special, superReceiver: superReceiver)
+        if let call = try resolvedCompoundCall(op, receiver: left, rhs: rhs, id: id) {
+            if !call.mutatesReceiver, let result = call.value, !terminated {
+                try writeProperty(property, receiver: receiver, value: result, special: special, superReceiver: superReceiver)
+            }
+            return nil
+        }
         let right = try compoundOperand(rhs, target: left.type)
         if terminated { return nil }
         guard try permitsCompound(left.type, right.type) else { throw fail("Unsupported JVM property compound conversion.", id) }
@@ -192,9 +200,8 @@ extension JVMFunctionBuilder {
 
 extension JVMProgramBuilder {
     func emitAccessors(_ plan: JVMClassPlan, _ declaration: PropertyDecl, _ property: JVMProperty) throws -> [JVMFunction] {
-        if declaration.modifiers.contains(.const) { return [] }
         var functions: [JVMFunction] = []
-        for setter in [false, true] {
+        for setter in [false, true] where !declaration.modifiers.contains(.const) {
             guard let method = setter ? property.setter : property.getter else { continue }
             let accessor = setter ? declaration.setter : declaration.getter
             var modifiers = declaration.modifiers
@@ -250,6 +257,7 @@ extension JVMProgramBuilder {
             var f = function
             if let symbol = sema.bindings.declSymbol(for: plan.properties.first(where: { $0.2.name == property.name })!.0) {
                 f.annotations = try annotations(for: symbol, target: function.reference.result == .unit ? "set" : "get")
+                applyDeprecation(try annotations(for: symbol, target: nil) + annotations(for: symbol, target: "property") + f.annotations, to: &f)
                 if function.reference.result == .unit { f.parameterAnnotations = [try annotations(for: symbol, target: "setparam")] }
             }
             if plan.isFacade { f.access = (f.isPrivate ? 2 : 1) | 8 | 16; f.isSynthetic = false }
@@ -266,7 +274,7 @@ extension JVMProgramBuilder {
             return f
         }
         if let carrier = property.annotationsMethod, let symbol = sema.bindings.declSymbol(for: plan.properties.first(where: { $0.2.name == property.name })!.0) {
-            var f = rawFunction(plan.name, name: carrier.name, parameters: [], result: .unit, access: 0x1009, locals: [], instructions: [.returnValue(nil)])
+            var f = rawFunction(plan.name, name: carrier.name, parameters: [], result: .unit, access: access(declaration.modifiers) | 0x1008, locals: [], instructions: [.returnValue(nil)])
             f.annotations = try annotations(for: symbol, target: nil) + annotations(for: symbol, target: "property")
             decorated.append(f)
         }
@@ -383,7 +391,7 @@ extension JVMProgramBuilder {
             }
             if classes[symbol] == nil {
                 for child in sema.symbols.children(of: symbol) {
-                    if let method = methods[child] ?? textLibraryMethods[child]?.method, let signature = sema.symbols.functionSignature(for: child) {
+                    if let method = methods[child] ?? collectionInterfaceMethods[child] ?? textLibraryMethods[child]?.method, let signature = sema.symbols.functionSignature(for: child) {
                         specializedParameters[method.owner + method.name + method.descriptor] = try signature.parameterTypes.map { try parameterType($0, mapping) }
                     }
                 }
@@ -407,13 +415,23 @@ extension JVMProgramBuilder {
                 parents += parent.properties.flatMap { [$0.2.getter] + ($0.2.setter.map { [$0] } ?? []) }
             } else if let source = try? className(symbol) {
                 let name = JVMClasspathIndex.builtinName(source) ?? source
-                let known = Array(methods.values) + textLibraryMethods.values.map(\.method)
+                let known = Array(methods.values) + Array(collectionInterfaceMethods.values) + textLibraryMethods.values.map(\.method)
                 parents += context.jvmImports?.classes[name]?.methods.filter { !$0.isStatic && !$0.isConstructor } ?? known.filter { $0.owner == name && !$0.isStatic && !$0.isConstructor }.sorted { $0.name + $0.descriptor < $1.name + $1.descriptor }
             }
             for next in sema.symbols.directSupertypes(for: symbol) { visit(next) }
         }
         for parent in sema.symbols.directSupertypes(for: plan.symbol) { visit(parent) }
         var bridges: [JVMFunction] = [], signatures = Set(functions.map { $0.reference.name + $0.reference.descriptor })
+        let declaredPhysicalSignatures = Set(functions.map { function in
+            let name = function.reference.name
+            let physical = name.range(of: "$jvmName$").map { String(name[$0.upperBound...]) } ?? name
+            return physical + function.reference.descriptor
+        })
+        let inheritedPhysicalAliases = Set(parents.compactMap { method -> String? in
+            guard !method.isSpecial, !method.isStatic, !method.isAbstract,
+                  let alias = method.name.range(of: "$jvmName$") else { return nil }
+            return String(method.name[alias.upperBound...]) + method.descriptor
+        })
         var implementations = functions
         func dispatchKey(_ name: String, _ parameters: [JVMValueType]) -> String { name + "(" + parameters.map(\.descriptor).joined() + ")" }
         var selected = Set(functions.filter { !$0.isConstructor }.map { dispatchKey($0.reference.name, $0.reference.parameters) })
@@ -424,29 +442,81 @@ extension JVMProgramBuilder {
             guard selected.insert(dispatchKey(inherited.name, inherited.parameters)).inserted, !inherited.isAbstract else { continue }
             implementations.append(JVMFunction(reference: JVMFunctionReference(name: inherited.name, parameters: inherited.parameters, result: inherited.result), isPrivate: false, locals: [], parameterCount: 0, instructions: [], parameterNames: inherited.parameters.indices.map { "p\($0)" }, isInternal: false))
         }
+        func matchesSourceName(_ parent: JVMForeignMethod, _ function: JVMFunction) -> Bool {
+            let name = function.sourceName ?? function.reference.name
+            if parent.owner == "java/util/List", parent.name == "remove" {
+                // Kotlin's element removal and indexed removal are distinct
+                // overloads even when their specialized parameter is Int.
+                return name == (parent.parameters == [.int] ? "removeAt" : "remove")
+            }
+            return parent.name == name
+        }
         for function in implementations where !function.isConstructor && !function.isPrivate && !function.isAbstract {
             let ref = function.reference
-            for parent in parents where !parent.isSpecial && parent.name == (function.sourceName ?? ref.name) &&
+            for parent in parents where !parent.isSpecial && matchesSourceName(parent, function) &&
                 (specializedParameters[parent.owner + parent.name + parent.descriptor] ?? parent.parameters).map(\.descriptor) == ref.parameters.map(\.descriptor) && parent.descriptor != ref.descriptor {
                 guard (parent.result == .unit) == (ref.result == .unit), parent.parameters.count == ref.parameters.count else { throw JVMFrontendError(message: "Unsupported JVM override bridge.") }
+                let boxedResult = JVMClasspathIndex.boxed(ref.result)
+                if boxedResult != ref.result, parent.result.referenceName == "java/lang/Object",
+                   JVMClasspathIndex.collectionNames.values.contains(parent.owner) {
+                    let descriptor = "(" + ref.parameters.map(\.descriptor).joined() + ")" + boxedResult.descriptor
+                    if !declaredPhysicalSignatures.contains(parent.name + descriptor),
+                       !inheritedPhysicalAliases.contains(parent.name + descriptor),
+                       signatures.insert(parent.name + descriptor).inserted {
+                        // Kotlin consumers call a boxed specialization of a
+                        // collection element result as well as its Object bridge.
+                        let b = try nominalBuilder(plan, name: parent.name, parameters: ref.parameters, result: boxedResult)
+                        let result = try b.value(ref.result)
+                        let call = JVMForeignMethod(owner: plan.name, name: ref.name, descriptor: ref.descriptor, parameters: ref.parameters, result: ref.result, isStatic: false, isInterface: plan.isInterface, isAbstract: false)
+                        b.instructions.append(.foreignCall(call, receiver: b.thisValue!, arguments: Array(b.locals.dropFirst().prefix(ref.parameters.count)), result: result))
+                        b.instructions.append(.returnValue(try b.convert(result, to: boxedResult)))
+                        var boxed = b.finish(); boxed.access = 0x1041; bridges.append(boxed)
+                    }
+                }
                 guard signatures.insert(parent.name + parent.descriptor).inserted else { continue }
                 var locals = [JVMValue(slot: 0, type: .reference(plan.name, nullable: false))], slot = 1
                 for type in parent.parameters { locals.append(JVMValue(slot: slot, type: type)); slot += type.width }
                 let parameters = Array(locals.dropFirst())
                 var instructions: [JVMInstruction] = [], arguments: [JVMValue] = []
+                let collection = JVMClasspathIndex.collectionNames.values.contains(parent.owner)
+                let rejected: JVMConstant?
+                if collection && ["contains", "remove", "containsKey", "containsValue"].contains(parent.name) && parent.result == .boolean { rejected = .boolean(false) }
+                else if collection && ["indexOf", "lastIndexOf"].contains(parent.name) && parent.result == .int { rejected = .int(-1) }
+                else if parent.owner == "java/util/Map" && ["get", "remove"].contains(parent.name) && parent.result.referenceName != nil { rejected = .null }
+                else { rejected = nil }
+                var hasTypeBarrier = false
+                var nextLabel = 1
                 for (source, target) in zip(parameters, ref.parameters) {
+                    if rejected != nil, source.type.referenceName == "java/lang/Object",
+                       let expected = JVMClasspathIndex.boxed(target).referenceName, expected != "java/lang/Object" {
+                        // Collection lookup bridges reject unrelated element/key
+                        // types without entering a specialized implementation.
+                        let accepted = nextLabel; nextLabel += 1
+                        if target.isNullable {
+                            let null = JVMValue(slot: slot, type: source.type); slot += 1; locals.append(null)
+                            let nonNull = JVMValue(slot: slot, type: .boolean); slot += 1; locals.append(nonNull)
+                            instructions += [.constant(.null, null), .referenceCompare(.notEqual, source, null, nonNull), .jumpIfFalse(nonNull, accepted)]
+                        }
+                        let check = JVMValue(slot: slot, type: .boolean); slot += 1; locals.append(check)
+                        instructions += [.instanceOf(source, expected, check), .jumpIfFalse(check, 0), .label(accepted)]
+                        hasTypeBarrier = true
+                    }
                     let converted = JVMValue(slot: slot, type: target); slot += target.width; locals.append(converted)
                     instructions.append(.copy(source, converted)); arguments.append(converted)
                 }
                 let result = ref.result == .unit ? nil : JVMValue(slot: slot, type: ref.result)
                 if let result { slot += result.type.width; locals.append(result) }
                 let returned = parent.result == .unit ? nil : JVMValue(slot: slot, type: parent.result)
-                if let returned { locals.append(returned) }
+                if let returned { slot += returned.type.width; locals.append(returned) }
                 var call = JVMForeignMethod(owner: plan.name, name: ref.name, descriptor: ref.descriptor, parameters: ref.parameters, result: ref.result, isStatic: false, isInterface: plan.isInterface, isAbstract: false)
                 call.isSuspend = parent.isSuspend
                 instructions.append(.foreignCall(call, receiver: locals[0], arguments: arguments, result: result))
                 if let result, let returned { instructions.append(.copy(result, returned)) }
                 instructions.append(.returnValue(returned))
+                if hasTypeBarrier, let rejected {
+                    let fallback = JVMValue(slot: slot, type: parent.result); locals.append(fallback)
+                    instructions += [.label(0), .constant(rejected, fallback), .returnValue(fallback)]
+                }
                 var bridge = JVMFunction(reference: JVMFunctionReference(name: parent.name, parameters: parent.parameters, result: parent.result), isPrivate: false, locals: locals, parameterCount: parent.parameters.count + 1, instructions: instructions, parameterNames: function.parameterNames, isInternal: false)
                 bridge.owner = plan.name; bridge.access = 0x1041
                 bridge.isSuspend = parent.isSuspend

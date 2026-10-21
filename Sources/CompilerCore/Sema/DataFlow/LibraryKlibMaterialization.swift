@@ -230,6 +230,7 @@ private struct KlibRecordMaterializer {
         append(
             DataFlowSemaPhase.ImportedLibrarySymbolRecord(
                 kind: kind,
+                visibility: metadataVisibility(flags.visibility),
                 mangledName: mangledName(of: klass.base.symbol, fileIndex: fileIndex),
                 fqName: fqName.map { interner.intern($0) },
                 superFQName: supertypeFqNames.first.map { $0.map { interner.intern($0) } },
@@ -358,7 +359,7 @@ private struct KlibRecordMaterializer {
             signature += "R\(receiverSignature),"
         }
         for parameter in base.regularParameters {
-            guard let encoded = encodeType(parameter.nameType.typeIndex, fileIndex: fileIndex) else {
+            guard let encoded = encodeType(parameter.varargElementType ?? parameter.nameType.typeIndex, fileIndex: fileIndex) else {
                 skippedDeclarationCount += 1
                 return
             }
@@ -381,6 +382,7 @@ private struct KlibRecordMaterializer {
         append(
             DataFlowSemaPhase.ImportedLibrarySymbolRecord(
                 kind: kind,
+                visibility: metadataVisibility(base.base.flags.visibility),
                 mangledName: mangledName(of: base.base.symbol, fileIndex: fileIndex),
                 fqName: fqName.map { interner.intern($0) },
                 arity: base.regularParameters.count,
@@ -398,6 +400,7 @@ private struct KlibRecordMaterializer {
                 typeSignature: signature,
                 typeParameterUpperBoundsSignatures: upperBounds,
                 callableTypeParameterSignatures: callableTypeParameterSignatures,
+                modality: metadataModality(base.base.flags.modality),
                 isExpect: base.base.flags.isExpectFunction,
                 annotations: annotationRecords(base.base.annotations, fileIndex: fileIndex)
             )
@@ -432,6 +435,7 @@ private struct KlibRecordMaterializer {
         append(
             DataFlowSemaPhase.ImportedLibrarySymbolRecord(
                 kind: .property,
+                visibility: metadataVisibility(property.base.flags.visibility),
                 mangledName: mangledName(of: property.base.symbol, fileIndex: fileIndex),
                 fqName: fqName.map { interner.intern($0) },
                 // Override-ness lives on the serialized accessors, not the
@@ -488,6 +492,7 @@ private struct KlibRecordMaterializer {
         append(
             DataFlowSemaPhase.ImportedLibrarySymbolRecord(
                 kind: kind,
+                visibility: metadataVisibility(field.base.flags.visibility),
                 mangledName: mangledName(of: field.base.symbol, fileIndex: fileIndex),
                 fqName: fqName.map { interner.intern($0) },
                 typeSignature: signature,
@@ -515,6 +520,7 @@ private struct KlibRecordMaterializer {
         append(
             DataFlowSemaPhase.ImportedLibrarySymbolRecord(
                 kind: .field,
+                visibility: metadataVisibility(entry.base.flags.visibility),
                 mangledName: mangledName(of: entry.base.symbol, fileIndex: fileIndex),
                 fqName: fqName.map { interner.intern($0) },
                 typeSignature: "L\(containerFqName.joined(separator: "."));",
@@ -544,6 +550,7 @@ private struct KlibRecordMaterializer {
         append(
             DataFlowSemaPhase.ImportedLibrarySymbolRecord(
                 kind: .typeAlias,
+                visibility: metadataVisibility(alias.base.flags.visibility),
                 mangledName: mangledName(of: alias.base.symbol, fileIndex: fileIndex),
                 fqName: fqName.map { interner.intern($0) },
                 typeSignature: signature,
@@ -664,6 +671,16 @@ private struct KlibRecordMaterializer {
         if arguments.isEmpty, let token = Self.primitiveSignatureTokens[dotted] {
             return token
         }
+        if let shape = KlibFunctionTypeShape(classifierName: dotted) {
+            guard arguments.count == shape.arity + 1 else { return nil }
+            var encoded: [String] = []
+            for argument in arguments {
+                guard case .type(let index, _) = argument,
+                      let type = encodeType(index, fileIndex: fileIndex) else { return nil }
+                encoded.append(type)
+            }
+            return "\(shape.isSuspend ? "SF" : "F")\(shape.arity)<\(encoded.joined(separator: ","))>"
+        }
         if dotted == "kotlin.reflect.KClass" || dotted == "kotlin.KClass",
            arguments.count == 1, case .type(let index, _) = arguments[0],
            let inner = encodeType(index, fileIndex: fileIndex)
@@ -699,6 +716,15 @@ private struct KlibRecordMaterializer {
         case .invariant: "i"
         case .out: "o"
         case .in: "n"
+        }
+    }
+
+    private func metadataVisibility(_ visibility: KlibVisibility) -> Visibility {
+        switch visibility {
+        case .public: .public
+        case .internal: .internal
+        case .protected: .protected
+        case .private, .privateToThis, .local: .private
         }
     }
 
@@ -748,7 +774,7 @@ private struct KlibRecordMaterializer {
         case .constFloat(let bits): return "f:\(Double(Float(bitPattern: bits)).bitPattern)"
         case .constDouble(let bits): return "d:\(bits)"
         case .constString(let index):
-            guard let text = try? module.string(index, fileIndex: fileIndex) else { return nil }
+            guard let text = try? module.stringLiteral(index, fileIndex: fileIndex) else { return nil }
             return "s:\(Data(text.utf8).base64EncodedString())"
         default:
             return nil

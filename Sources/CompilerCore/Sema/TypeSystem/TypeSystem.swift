@@ -22,7 +22,7 @@ public final class TypeSystem {
     /// Preserves informative upper bounds when a star projection crosses a
     /// nominal substitution. Trivial or dependent bounds fall back to `Any?`.
     func capturedTypeForStarProjection(parameter: SymbolID, ownerTypeParameters: [SymbolID]) -> TypeID {
-        let upperBounds = symbolTable?.typeParameterUpperBounds(for: parameter) ?? []
+        let upperBounds = declaredUpperBounds(for: parameter)
         let hasDependentUpperBound = upperBounds.contains { bound in
             ownerTypeParameters.contains { typeContainsTypeParam(bound, symbol: $0) }
         }
@@ -45,6 +45,10 @@ public final class TypeSystem {
     private var nominalTypeParameterVariancesMap: [SymbolID: [TypeVariance]] = [:]
     private var nominalTypeParameterUpperBoundsMap: [SymbolID: [[TypeID]]] = [:]
     private var nominalTypeParameterSymbolsMap: [SymbolID: [SymbolID]] = [:]
+    /// Reverse lookup from a nominal's type-parameter symbol to its owning
+    /// nominal and position. Imported metadata keys bounds on the owner, so
+    /// star-projection bounds queries resolve them through this map.
+    private var nominalTypeParameterOwnerMap: [SymbolID: (owner: SymbolID, index: Int)] = [:]
     private var nominalSupertypeTypeArgsMap: [SymbolID: [SymbolID: [TypeArg]]] = [:]
     // Break recursive argument joins such as A : Producer<A>, B : Producer<B>.
     var activeNominalLUBInputs: Set<Set<TypeID>> = []
@@ -154,6 +158,7 @@ public final class TypeSystem {
         worker.nominalTypeParameterVariancesMap = nominalTypeParameterVariancesMap
         worker.nominalTypeParameterUpperBoundsMap = nominalTypeParameterUpperBoundsMap
         worker.nominalTypeParameterSymbolsMap = nominalTypeParameterSymbolsMap
+        worker.nominalTypeParameterOwnerMap = nominalTypeParameterOwnerMap
         worker.nominalSupertypeTypeArgsMap = nominalSupertypeTypeArgsMap
         worker.comparableInterfaceSymbol = comparableInterfaceSymbol
         worker.annotationInterfaceSymbol = annotationInterfaceSymbol
@@ -288,8 +293,11 @@ public final class TypeSystem {
         case let .kClassType(kc):
             kc.nullability == .nonNull
         case let .intersection(parts):
-            // T & Any is definitely non-null; any part being non-null suffices
-            parts.contains { isDefinitelyNonNull($0) }
+            // `Nothing? & T` holds only `null` — it is not definitely
+            // non-null even though `T`'s marker says non-null (KUU-2693).
+            !parts.contains { kind(of: $0) == .nothing(.nullable) }
+                // T & Any is definitely non-null; any part being non-null suffices
+                && parts.contains { isDefinitelyNonNull($0) }
         }
     }
 
@@ -314,7 +322,11 @@ public final class TypeSystem {
         case let .kClassType(kc):
             kc.nullability
         case let .intersection(parts):
-            parts.contains { nullability(of: $0) == .nonNull } ? .nonNull : .nullable
+            // `Nothing? & T` is a null-holding type — its only value is
+            // `null` in the `x == null` narrowing that produces it (KUU-2693).
+            parts.contains { kind(of: $0) == .nothing(.nullable) }
+                ? .nullable
+                : parts.contains { nullability(of: $0) == .nonNull } ? .nonNull : .nullable
         }
     }
 
@@ -348,13 +360,31 @@ public final class TypeSystem {
             }
         case let .intersection(parts):
             if nullability == .nonNull {
+                // Drop the null conjunct so the parameter's identity
+                // survives joins: `Nothing? & T` → `T` (KUU-2693).
+                if parts.contains(where: { kind(of: $0) == .nothing(.nullable) }) {
+                    let rest = parts.filter { kind(of: $0) != .nothing(.nullable) }
+                    if rest.isEmpty { return nothingType }
+                    return makeNonNullable(rest.count == 1 ? rest[0] : make(.intersection(rest)))
+                }
                 if parts.contains(where: { isDefinitelyNonNull($0) }) {
                     return type
                 }
                 // Add Any to make it definitely non-null
                 return make(.intersection(parts + [anyType]))
             }
-            return type // intersections don't become nullable directly
+            // `.nullable` drops the `Any` non-null conjunct and re-applies
+            // nullability to what remains — `T & Any` becomes `T?`, matching
+            // Kotlin's nullable view of a definitely-non-null parameter.
+            // A `Nothing?` conjunct absorbs the result: `Nothing? & T?` can
+            // only hold `null` (KUU-2693).
+            let remaining = parts.filter { kind(of: $0) != .any(.nonNull) }
+            if remaining.contains(where: { kind(of: $0) == .nothing(.nullable) }) {
+                return nullableNothingType
+            }
+            if remaining.isEmpty { return make(.any(.nullable)) }
+            if remaining.count == 1 { return makeNullable(remaining[0]) }
+            return make(.intersection(remaining.map { makeNullable($0) }))
         case let .nothing(existing):
             let normalized: Nullability = (nullability == .platformType) ? .nullable : nullability
             if existing == normalized { return type }
@@ -394,6 +424,17 @@ public final class TypeSystem {
 
     public func makeNonNullable(_ type: TypeID) -> TypeID {
         withNullability(.nonNull, for: type)
+    }
+
+    /// The definitely-non-null view of `type`: `T & Any` for a type
+    /// parameter (Kotlin's `T & Any` refinement used by `x != null` and
+    /// `x ?: ...` smart casts), otherwise the plain non-null marker. A bare
+    /// `T` stays null-capable through its implicit `Any?` bound (KUU-2693).
+    public func definitelyNonNullForm(of type: TypeID) -> TypeID {
+        if case .typeParam = kind(of: type) {
+            return make(.intersection([makeNonNullable(type), anyType]))
+        }
+        return makeNonNullable(type)
     }
 
     public func make(_ kind: TypeKind) -> TypeID {
@@ -440,6 +481,12 @@ public final class TypeSystem {
     }
 
     public func setNominalDirectSupertypes(_ supertypes: [SymbolID], for symbol: SymbolID) {
+        if let symbolTable,
+           symbolTable.deferUntilAfterImportedShellMaterializes(symbol, work: { [weak self] in
+               self?.setNominalDirectSupertypes(supertypes, for: symbol)
+           }) {
+            return
+        }
         let isImported = ensureImportedNominalMetadataLoaded(for: symbol)
         let existing = isImported ? nominalDirectSupertypes[symbol] ?? [] : []
         let unique = Array(Set(existing + supertypes)).sorted(by: { $0.rawValue < $1.rawValue })
@@ -452,6 +499,12 @@ public final class TypeSystem {
     }
 
     public func setNominalTypeParameterVariances(_ variances: [TypeVariance], for symbol: SymbolID) {
+        if let symbolTable,
+           symbolTable.deferUntilAfterImportedShellMaterializes(symbol, work: { [weak self] in
+               self?.setNominalTypeParameterVariances(variances, for: symbol)
+           }) {
+            return
+        }
         ensureImportedNominalMetadataLoaded(for: symbol)
         nominalTypeParameterVariancesMap[symbol] = variances
     }
@@ -471,13 +524,45 @@ public final class TypeSystem {
     }
 
     public func setNominalTypeParameterSymbols(_ symbols: [SymbolID], for nominal: SymbolID) {
+        if let symbolTable,
+           symbolTable.deferUntilAfterImportedShellMaterializes(nominal, work: { [weak self] in
+               self?.setNominalTypeParameterSymbols(symbols, for: nominal)
+           }) {
+            return
+        }
         ensureImportedNominalMetadataLoaded(for: nominal)
         nominalTypeParameterSymbolsMap[nominal] = symbols
+        for (index, parameter) in symbols.enumerated() {
+            nominalTypeParameterOwnerMap[parameter] = (nominal, index)
+        }
     }
 
     public func nominalTypeParameterSymbols(for nominal: SymbolID) -> [SymbolID] {
         ensureImportedNominalMetadataLoaded(for: nominal)
         return nominalTypeParameterSymbolsMap[nominal] ?? []
+    }
+
+    /// Owning nominal and declaration-site index of a type-parameter symbol,
+    /// when it was registered through `setNominalTypeParameterSymbols`.
+    public func nominalTypeParameterOwner(for symbol: SymbolID) -> (owner: SymbolID, index: Int)? {
+        nominalTypeParameterOwnerMap[symbol]
+    }
+
+    /// Declared upper bounds for a type parameter. Imported declarations keep
+    /// producer-local bounds on the owning nominal rather than the per-symbol
+    /// map (synthetic metadata ids are not unique across artifacts), so a
+    /// per-symbol miss resolves through the nominal registration — matching
+    /// `substitutingCovariantStarUpperBounds`.
+    public func declaredUpperBounds(for symbol: SymbolID) -> [TypeID] {
+        let symbolBounds = symbolTable?.typeParameterUpperBounds(for: symbol) ?? []
+        guard symbolBounds.isEmpty,
+              let owner = nominalTypeParameterOwnerMap[symbol],
+              let nominalBounds = nominalTypeParameterUpperBounds(for: owner.owner),
+              nominalBounds.indices.contains(owner.index)
+        else {
+            return symbolBounds
+        }
+        return nominalBounds[owner.index]
     }
 
     /// Type parameters captured from an `inner` class's enclosing class chain.
@@ -640,6 +725,12 @@ public final class TypeSystem {
     }
 
     public func setNominalSupertypeTypeArgs(_ args: [TypeArg], for child: SymbolID, supertype parent: SymbolID) {
+        if let symbolTable,
+           symbolTable.deferUntilAfterImportedShellMaterializes(child, work: { [weak self] in
+               self?.setNominalSupertypeTypeArgs(args, for: child, supertype: parent)
+           }) {
+            return
+        }
         ensureImportedNominalMetadataLoaded(for: child)
         nominalSupertypeTypeArgsMap[child, default: [:]][parent] = args
     }

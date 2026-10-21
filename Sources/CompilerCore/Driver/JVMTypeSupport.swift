@@ -6,9 +6,10 @@ extension JVMClasspathIndex {
     static let collectionNames = ["Iterable": "java/lang/Iterable", "MutableIterable": "java/lang/Iterable", "Iterator": "java/util/Iterator", "MutableIterator": "java/util/Iterator", "Collection": "java/util/Collection", "MutableCollection": "java/util/Collection", "List": "java/util/List", "MutableList": "java/util/List", "Set": "java/util/Set", "MutableSet": "java/util/Set", "Map": "java/util/Map", "MutableMap": "java/util/Map"]
     static let exceptionNames: Set<String> = ["NoSuchElementException", "UnsupportedOperationException", "Throwable", "Exception", "RuntimeException", "IllegalArgumentException", "IllegalStateException", "IndexOutOfBoundsException", "ArrayIndexOutOfBoundsException", "ArithmeticException", "NumberFormatException", "NullPointerException", "ClassCastException", "NegativeArraySizeException"]
     static func builtinName(_ name: String) -> String? {
-        if ["java/util/AbstractList", "java/util/AbstractSet", "java/util/AbstractMap", "java/util/ListIterator"].contains(name) { return name }
+        if name == "java/util/MapEntry" { return "java/util/Map$Entry" }
+        if ["java/util/AbstractCollection", "java/util/RandomAccess", "java/util/AbstractList", "java/util/AbstractSet", "java/util/AbstractMap", "java/util/ListIterator"].contains(name) { return name }
         if name == "kotlin/collections/AbstractSet" { return name }
-        if ["kotlin/Lazy", "kotlin/LazyThreadSafetyMode", "kotlin/reflect/KProperty", "kotlin/reflect/KMutableProperty", "kotlin/UninitializedPropertyAccessException", "kotlin/properties/ReadOnlyProperty", "kotlin/properties/ReadWriteProperty", "kotlin/properties/Delegates"].contains(name) { return name }
+        if ["kotlin/Function", "kotlin/Lazy", "kotlin/LazyThreadSafetyMode", "kotlin/reflect/KProperty", "kotlin/reflect/KMutableProperty", "kotlin/UninitializedPropertyAccessException", "kotlin/properties/ReadOnlyProperty", "kotlin/properties/ReadWriteProperty", "kotlin/properties/Delegates"].contains(name) { return name }
         if name.hasPrefix("kotlin/reflect/") || name == "java/lang/Class" { return name }
         if ["java/util/NoSuchElementException", "java/lang/StackTraceElement", "java/lang/reflect/Method", "java/lang/reflect/InvocationHandler"].contains(name) { return name }
         if name == "kotlin/Annotation" { return "java/lang/annotation/Annotation" }
@@ -16,6 +17,7 @@ extension JVMClasspathIndex {
         if name == "kotlin/Enum" { return "java/lang/Enum" }
         if name == "kotlin/enums/EnumEntries" { return "kotlin/enums/EnumEntries" }
         if ["kotlin/collections/IntIterator", "java/util/ArrayList"].contains(name) { return name }
+        if ["kotlin/collections/Map$Entry", "kotlin/collections/MutableMap$MutableEntry"].contains(name) { return "java/util/Map$Entry" }
         if name == "kotlin/Result" { return "java/lang/Object" }
         if ["kotlin/coroutines/Continuation", "kotlin/coroutines/CoroutineContext", "kotlin/coroutines/EmptyCoroutineContext"].contains(name) { return name }
         if name == "kotlin/text/StringBuilder" { return "java/lang/StringBuilder" }
@@ -46,6 +48,14 @@ extension JVMClasspathIndex {
 }
 
 extension JVMProgramBuilder {
+    func varargComponentType(_ id: TypeID) throws -> JVMValueType {
+        let component = try type(id)
+        // Generic varargs use Array<T>, even when a final primitive bound
+        // gives individual T values a primitive descriptor.
+        if case .typeParam = sema.types.kind(of: id) { return JVMClasspathIndex.boxed(component) }
+        return component
+    }
+
     func kotlinType(_ id: TypeID) throws -> JVMKotlinType {
         if sema.types.nullability(of: id) == .platformType {
             return .flexible(try kotlinType(sema.types.withNullability(.nonNull, for: id)), try kotlinType(sema.types.withNullability(.nullable, for: id)))
@@ -57,6 +67,7 @@ extension JVMProgramBuilder {
             return .function(try f.params.map(kotlinType), try kotlinType(f.returnType), receiver: try f.receiver.map(kotlinType), nullable: f.nullability != .nonNull, isSuspend: f.isSuspend)
         case .unit: return named("kotlin/Unit")
         case .nullableUnit: return named("kotlin/Unit", true)
+        case let .nothing(nullability): return named("kotlin/Nothing", nullability == .nullable)
         case let .primitive(p, n): return named("kotlin/" + p.kotlinName, n != .nonNull)
         case let .stringStruct(n): return named("kotlin/String", n != .nonNull)
         case let .any(n): return named("kotlin/Any", n != .nonNull)
@@ -136,16 +147,30 @@ extension JVMProgramBuilder {
         if f.reference.name.contains("$unsigned$") { f.sourceName = String(f.reference.name.components(separatedBy: "$unsigned$")[0]) }
         f.typeParameters = try typeParameters(Array(signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount)), declarations: parameters)
         f.kotlinParameters = try signature.parameterTypes.map(kotlinType)
-        let declaration = sourceDeclarations.first {
+        let sourceDeclaration = sourceDeclarations.first {
             if let ref = references[$0.key] { return ref.name == function.reference.name && ref.owner == function.owner && ref.descriptor == function.reference.descriptor }
             if let method = methods[$0.key] { return method.name == function.reference.name && method.owner == function.owner && method.descriptor == function.reference.descriptor }
             return false
-        }?.value
+        }
+        let declaration = sourceDeclaration?.value
+        if let symbol = sourceDeclaration?.key {
+            if let effect = sema.symbols.contractConditionEffect(for: symbol), effect.returnsValue == nil,
+               signature.parameterTypes.indices.contains(effect.conditionParameterIndex),
+               signature.parameterTypes[effect.conditionParameterIndex] == sema.types.booleanType {
+                f.normalReturnConditionParameter = effect.conditionParameterIndex
+            } else if let effect = sema.symbols.contractNonNullEffect(for: symbol), effect.appliesOnAnyReturn,
+                      let index = signature.valueParameterSymbols.firstIndex(of: effect.parameterSymbol),
+                      signature.parameterTypes.indices.contains(index), signature.parameterTypes[index] == sema.types.booleanType {
+                // Source-backed preconditions share this Boolean condition rail
+                // with Sema's post-call smart-cast analysis.
+                f.normalReturnConditionParameter = index
+            }
+        }
         if let declaration {
             f.sourceName = context.interner.resolve(declaration.name)
             f.parameterVarargTypes = try declaration.valueParams.enumerated().map { i, p in p.isVararg ? try kotlinType(signature.parameterTypes[i]) : nil }
             for (i, p) in declaration.valueParams.enumerated() where p.isVararg {
-                let element = try type(signature.parameterTypes[i])
+                let element = try varargComponentType(signature.parameterTypes[i])
                 if element.referenceName == nil, let primitive = JVMClasspathIndex.primitiveArrays.first(where: { $0.value == element }) {
                     f.kotlinParameters[i] = .named("kotlin/" + primitive.key, [], nullable: false)
                 } else { f.kotlinParameters[i] = .named("kotlin/Array", [JVMKotlinTypeArgument(type: f.parameterVarargTypes[i]!, variance: 1)], nullable: false) }

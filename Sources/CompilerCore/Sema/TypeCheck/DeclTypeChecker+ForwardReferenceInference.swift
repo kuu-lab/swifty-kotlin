@@ -349,7 +349,7 @@ extension DeclTypeChecker {
         return type != ctx.sema.types.nullableNothingType
     }
 
-    private func safePrecheckExpressionType(
+    func safePrecheckExpressionType(
         _ exprID: ExprID,
         in ctx: TypeInferenceContext,
         locals: LocalBindings
@@ -467,7 +467,6 @@ extension DeclTypeChecker {
         locals: LocalBindings
     ) -> TypeID? {
         guard case let .call(callee, typeArgs, args, _)? = ctx.ast.arena.expr(exprID),
-              typeArgs.isEmpty,
               case let .nameRef(name, _)? = ctx.ast.arena.expr(callee),
               locals[name] == nil
         else {
@@ -477,17 +476,48 @@ extension DeclTypeChecker {
         if namedCandidates.count == 1,
            let symbol = ctx.sema.symbols.symbol(namedCandidates[0]),
            symbol.kind == .class || symbol.kind == .enumClass,
-           ctx.sema.types.nominalTypeParameterSymbols(for: symbol.id).isEmpty,
            args.allSatisfy({ safePrecheckExpressionType($0.expr, in: ctx, locals: locals) != nil })
         {
             // Every constructor of this non-generic class returns the same
             // header-resolved type. The property checker still resolves the
             // overload and validates argument types and visibility once.
+            if typeArgs.isEmpty && ctx.sema.types.nominalTypeParameterSymbols(for: symbol.id).isEmpty {
+                return ctx.sema.types.make(.classType(ClassType(
+                    classSymbol: symbol.id, args: [], nullability: .nonNull
+                )))
+            }
+            // An explicit argument list pins a generic class's parameters, so
+            // a companion singleton such as `Node<Nothing, Nothing>(0)` is as
+            // safe to infer early as a non-generic constructor call. Default
+            // parameters may still read placeholder types; require every
+            // constructor to declare all of its parameters.
+            let typeParameters = ctx.sema.types.nominalTypeParameterSymbols(for: symbol.id)
+            let initName = ctx.interner.intern("<init>")
+            let constructorSymbols = ctx.sema.symbols.lookupAll(fqName: symbol.fqName + [initName])
+            guard typeArgs.count == typeParameters.count, !typeArgs.isEmpty,
+                  !constructorSymbols.isEmpty,
+                  constructorSymbols.allSatisfy({ ctor in
+                      guard let signature = ctx.sema.symbols.functionSignature(for: ctor) else {
+                          return false
+                      }
+                      return signature.valueParameterHasDefaultValues.allSatisfy { !$0 }
+                  })
+            else {
+                return nil
+            }
+            var resolvedArgs: [TypeArg] = []
+            resolvedArgs.reserveCapacity(typeArgs.count)
+            for typeArg in typeArgs {
+                guard let resolved = safePrecheckTypeRef(typeArg, in: ctx) else {
+                    return nil
+                }
+                resolvedArgs.append(.invariant(resolved))
+            }
             return ctx.sema.types.make(.classType(ClassType(
-                classSymbol: symbol.id, args: [], nullability: .nonNull
+                classSymbol: symbol.id, args: resolvedArgs, nullability: .nonNull
             )))
         }
-        guard args.isEmpty else { return nil }
+        guard args.isEmpty, typeArgs.isEmpty else { return nil }
         let candidates = namedCandidates.filter { candidate in
             guard let symbol = ctx.sema.symbols.symbol(candidate),
                   symbol.kind == .function,

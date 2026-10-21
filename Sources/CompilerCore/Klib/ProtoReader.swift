@@ -24,7 +24,7 @@ package struct ProtoFields {
             let tag = try cursor.readVarint()
             let field = Int(tag >> 3)
             let wire = tag & 7
-            guard field > 0 else {
+            guard field > 0, field <= 0x1FFF_FFFF else {
                 throw KlibFormatError.corruptProto("invalid field tag \(tag)")
             }
             switch wire {
@@ -33,7 +33,10 @@ package struct ProtoFields {
             case 1:
                 values[field, default: []].append(.fixed64(try cursor.readFixed64()))
             case 2:
-                let length = Int(try cursor.readVarint())
+                let rawLength = try cursor.readVarint()
+                guard let length = Int(exactly: rawLength) else {
+                    throw KlibFormatError.corruptProto("length-delimited field is too large")
+                }
                 values[field, default: []].append(.bytes(try cursor.readBytes(length)))
             case 5:
                 values[field, default: []].append(.fixed32(try cursor.readFixed32()))
@@ -169,6 +172,9 @@ package struct ProtoCursor {
         while position < bytes.endIndex {
             let byte = bytes[position]
             position += 1
+            guard shift < 63 || byte & 0xFE == 0 else {
+                throw KlibFormatError.corruptProto("varint exceeds 64 bits")
+            }
             result |= UInt64(byte & 0x7F) << shift
             if byte & 0x80 == 0 { return result }
             shift += 7
@@ -204,7 +210,7 @@ package struct ProtoCursor {
     }
 
     package mutating func readBytes(_ count: Int) throws -> ArraySlice<UInt8> {
-        guard count >= 0, position + count <= bytes.endIndex else {
+        guard count >= 0, count <= bytes.endIndex - position else {
             throw KlibFormatError.corruptProto("truncated length-delimited field")
         }
         let slice = bytes[position ..< position + count]

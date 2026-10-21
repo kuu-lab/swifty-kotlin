@@ -94,6 +94,7 @@
 
 - [x] KSP-714: RangeProgression / RangeInterface / RangeUntil クラス群を Kotlin 化し stub 群を削除する（ProgressionConstructors.kt と各型・インターフェースの source 宣言を正規経路にし、3つの synthetic stub ファイルと registry 登録を削除。lowering が必要とする `__kk_*` runtime bridge は private source bridge として維持。`ULongProgression` の範囲プロパティも opaque runtime handle 用 bridge に接続）
   - 検証: `swift build`、Sema source-backed declaration test 1/1、`range_progression.kt` / `range_until.kt` / `range_basic.kt` の kotlinc diff 3/3 が pass。全テストは未実行。
+  - 残余対応 (2026-10-21, KUU-2681): 移行済み bundled Kotlin source が内部で使う signed range の runtime bridge 37 シンボル（`kk_op_rangeTo` と `kk_range_step` を含む `kk_range_*` HOF / iterator / for-in / take・drop・average・sorted 群）を `__kk_*` へ降格し、Runtime の `@_cdecl`・RuntimeABISpec（+Range / +ABIParity / +BridgeCoverage）・KIR link name・bundled `.kt` の `@KsSymbolName`・テスト期待値を同期した。Swift 関数名と `functionName:` 診断ラベルは既存慣例どおり `kk_` のまま維持（KSP-457 / KSP-709 と同じ手順）。synthetic stub ファイルは既に削除済みのため再作成しない。
 
 ### バグバックログ（BUG-NNN。既存の未修正バグの記録。PR 状態は各タスクの記載時点）
 
@@ -193,6 +194,7 @@
 - [x] KSP-1307: kotlin.ranges.LongProgression.Companion.Companion の未実装 stdlib API を実装する（1 件）
   - **進捗確認（2026-10-19）**: `Stdlib/kotlin/ranges/ProgressionConstructors.kt` に `LongProgression.Companion.fromClosedRange` は実装済みだが、bundled source / runtime bridge とも `step: Int` で、監査対象の本家シグネチャ `fromClosedRange(Long, Long, Long)` は未充足（`step` に Long を渡す呼び出しは解決しない）。残件として継続。
   - **完了確認（2026-10-20）**: `ProgressionConstructors.kt` に `step: Long` overload と同一 Runtime bridge への宣言を追加し、`HeaderHelpers+SyntheticRangeProgressionStubs.swift` に Long step の fallback を登録。Sema Golden fixture を追加して artifact profile の `GoldenHarnessWorker` 単体描画と一致確認。`swift build --scratch-path /private/tmp/swift-build-ksp1307`、単一 `diff_kotlinc.sh` ケース、`check_todo_ids.sh`、`validate_runtime_abi_links.sh` PASS。Sema Golden suite 全件は未実行。
+  - **追補（2026-10-21）**: `__kk_long_progression_fromClosedRange` / `__kk_ulong_progression_fromClosedRange` の `step == MIN_VALUE` 例外メッセージが `Int.MIN_VALUE` のままだった（Int-step では到達不能で、Long-step overload 追加で初めて観測可能になった経路）。kotlinc の `Long.MIN_VALUE` 表記に合わせて修正し、diff ケースに `step=0` / `step=Long.MIN_VALUE` の catch＋メッセージ出力、Int リテラル step、オーバーフロー境界のピンを追加。`RuntimeRangeProgressionEdgeCaseTests` にもメッセージ本文の assert を追加。
   - 対象: `kotlin.ranges.LongProgression.Companion` / receiver `Companion`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/ProgressionConstructors.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。

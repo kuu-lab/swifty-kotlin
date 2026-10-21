@@ -68,11 +68,14 @@ extension JVMFunctionBuilder {
                 return try adaptedReference(id, symbol: symbol, receiver: receiver, unbound: unbound)
             }
         }
-        let method = program.methods[symbol] ?? context.jvmImports?.methods[symbol]
+        // Source-backed inline declarations also retain an ordinary runtime
+        // entry for references, independently of call-site body expansion.
+        let sourceBacked = program.inlineDeclarations[symbol] != nil ? program.textLibraryMethods[symbol] : nil
+        let method = program.methods[symbol] ?? context.jvmImports?.methods[symbol] ?? sourceBacked?.method
         let ref = program.references[symbol]
         guard method != nil || ref != nil else { throw fail("Unsupported JVM callable reference target.", id) }
         let constructor = method?.isConstructor == true
-        let isExtension = program.extensionSymbols.contains(symbol)
+        let isExtension = program.extensionSymbols.contains(symbol) || sourceBacked?.extensionReceiver != nil
         let ownerName = ref?.owner ?? method!.owner
         let staticTarget = ref != nil || method?.isStatic == true
         let bound = !unbound && !constructor && (!staticTarget || isExtension) ? try receiver.map(requireValue) ?? instance(id) : nil
