@@ -155,6 +155,105 @@ struct LibMetadataSerializationTests {
         #expect(!diagnostics.hasError)
     }
 
+    @Test func testCompactImportRegistersMachineryShellsOnDemand() throws {
+        let libDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString).appendingPathExtension("kklib")
+        try FileManager.default.createDirectory(at: libDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: libDir) }
+        try """
+        {"formatVersion": 2, "moduleName": "CompactShells", "metadata": "metadata.bin"}
+        """.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+
+        let records = [
+            MetadataRecord(
+                kind: .function,
+                mangledName: "_kk_echo",
+                fqName: "compact.echo",
+                arity: 1,
+                typeSignature: "F1<I,I>",
+                valueParameterNames: ["value"]
+            ),
+            MetadataRecord(kind: .valueParameter, fqName: "compact.echo.value", typeSignature: "I"),
+            MetadataRecord(kind: .local, fqName: "compact.echo.$local.0", typeSignature: "I"),
+            MetadataRecord(
+                kind: .property,
+                fqName: "compact.value",
+                typeSignature: "I",
+                propertyGetterExternalLinkName: "_kk_compact_value_get"
+            ),
+            MetadataRecord(
+                kind: .function,
+                mangledName: "_kk_phantom",
+                fqName: "compact.phantom",
+                typeSignature: "F0<Z>"
+            ),
+            MetadataRecord(kind: .typeParameter, fqName: "compact.phantom.$1.T"),
+            MetadataRecord(
+                kind: .function,
+                mangledName: "_kk_modern",
+                fqName: "compact.modern",
+                arity: 1,
+                typeSignature: "F1<T10,T10>",
+                callableTypeParameterSignatures: ["T10"]
+            ),
+            MetadataRecord(kind: .typeParameter, fqName: "compact.modern.$2.U"),
+        ]
+        try MetadataEncoder().serializeCompactIndexed(records)
+            .write(to: libDir.appendingPathComponent("metadata.bin"))
+
+        let ctx = makeCompilationContext(
+            inputs: [], moduleName: "CompactShellConsumer", emit: .kirDump,
+            searchPaths: [libDir.path], includeStdlib: false
+        )
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        let diagnostics = DiagnosticEngine()
+        let work = DataFlowSemaPhase().loadImportedLibrarySymbols(
+            options: ctx.options,
+            symbols: symbols,
+            types: types,
+            diagnostics: diagnostics,
+            interner: ctx.interner,
+            importedInlineFunctions: ImportedInlineFunctionStore()
+        )
+        let function = try #require(symbols.lookup(fqName: ["compact", "echo"].map(ctx.interner.intern)))
+        let parameterFQName = ["compact", "echo", "value"].map(ctx.interner.intern)
+        let propertyFQName = ["compact", "value"].map(ctx.interner.intern)
+        let getterFQName = ["compact", "value", "$get"].map(ctx.interner.intern)
+        let phantomFQName = ["compact", "phantom"].map(ctx.interner.intern)
+        let phantomParameterFQName = ["compact", "phantom", "$1", "T"].map(ctx.interner.intern)
+        let modernFQName = ["compact", "modern"].map(ctx.interner.intern)
+
+        func isMachineryBinding(_ binding: DataFlowSemaPhase.ImportedLibraryBinding) -> Bool {
+            binding.record.kind == .valueParameter || binding.record.kind == .local || binding.record.kind == .typeParameter
+        }
+        // Nothing has been looked up yet, so no machinery record may have been bound.
+        #expect(!work.importedBindings.contains(where: isMachineryBinding))
+
+        let property = try #require(symbols.lookup(fqName: propertyFQName))
+        let propertyBinding = try #require(work.importedBindings.first { $0.symbol == property })
+        #expect(!propertyBinding.isMaterialized)
+
+        let signature = try #require(symbols.functionSignature(for: function))
+        #expect(signature.valueParameterSymbols.count == 1)
+        #expect(symbols.lookup(fqName: parameterFQName) == signature.valueParameterSymbols.first)
+
+        symbols.ensureLazyImportedMetadataLoaded(for: property)
+        let getter = try #require(symbols.lookup(fqName: getterFQName))
+        #expect(symbols.externalLinkName(for: getter) == "_kk_compact_value_get")
+        #expect(try #require(symbols.functionSignature(for: getter)).parameterTypes.isEmpty)
+        #expect(propertyBinding.isMaterialized)
+
+        let phantom = try #require(symbols.lookup(fqName: phantomFQName))
+        let phantomSignature = try #require(symbols.functionSignature(for: phantom))
+        #expect(phantomSignature.typeParameterSymbols.count == 1)
+        #expect(symbols.lookup(fqName: phantomParameterFQName) == phantomSignature.typeParameterSymbols.first)
+        let modern = try #require(symbols.lookup(fqName: modernFQName))
+        let modernSignature = try #require(symbols.functionSignature(for: modern))
+        #expect(modernSignature.typeParameterSymbols.count == 1)
+        #expect(!diagnostics.hasError)
+    }
+
     @Test func testLazyImportedMetadataLoaderRunsOncePerSymbol() {
         let symbols = SymbolTable()
         let types = TypeSystem()
