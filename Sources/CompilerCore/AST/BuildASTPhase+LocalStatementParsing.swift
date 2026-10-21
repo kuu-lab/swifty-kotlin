@@ -151,9 +151,20 @@ extension BuildASTPhase {
         {
             afterKeyword += 1
         }
-        guard afterKeyword < statementTokens.count,
-              statementTokens[afterKeyword].kind == .symbol(.lParen)
-        else {
+        guard afterKeyword < statementTokens.count else {
+            return nil
+        }
+        let openKind = statementTokens[afterKeyword].kind
+        let openSymbol: Symbol
+        let closeSymbol: Symbol
+        switch openKind {
+        case .symbol(.lParen):
+            openSymbol = .lParen
+            closeSymbol = .rParen
+        case .symbol(.lBracket):
+            openSymbol = .lBracket
+            closeSymbol = .rBracket
+        default:
             return nil
         }
 
@@ -161,9 +172,9 @@ extension BuildASTPhase {
         var closeParenIndex: Int?
         for i in afterKeyword ..< statementTokens.count {
             switch statementTokens[i].kind {
-            case .symbol(.lParen):
+            case .symbol(openSymbol):
                 depth += 1
-            case .symbol(.rParen):
+            case .symbol(closeSymbol):
                 depth -= 1
                 if depth == 0 {
                     closeParenIndex = i

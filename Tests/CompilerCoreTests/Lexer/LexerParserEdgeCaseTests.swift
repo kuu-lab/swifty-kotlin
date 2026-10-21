@@ -6,6 +6,17 @@ import Testing
 @Suite
 struct LexerParserEdgeCaseTests {
     @Test
+    func testPositionalBracketDestructuringDeclarationHasNoMissingNameDiagnostic() {
+        let parsed = parse("""
+        fun main() {
+            val [a, b] = pair
+            var [c, _] = pair
+        }
+        """)
+        #expect(!parsed.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0002" })
+    }
+
+    @Test
     func testLexerConsumesTriviaIdentifiersAndAllSymbols() {
         let source = """
         #!/usr/bin/env kotlin
