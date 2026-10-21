@@ -14,8 +14,46 @@ extension ControlFlowTypeChecker {
         let interner = ctx.interner
 
         let rhsType = driver.inferExpr(initializer, ctx: ctx, locals: &locals)
+        let layout = ctx.ast.arena.destructuringDeclLayout(for: id)
+        let usesNameBasedDestructuring = layout.map { layout in
+            layout.syntax == .parentheses
+                && (sema.nameBasedDestructuringMode == .complete || layout.properties.contains { $0 != nil })
+        } ?? false
 
         for (index, name) in names.enumerated() {
+            let entryMutable = layout.flatMap { layout in
+                layout.mutableFlags.indices.contains(index) ? layout.mutableFlags[index] : nil
+            } ?? isMutable
+            if usesNameBasedDestructuring {
+                guard let name else { continue }
+                let propertyName = layout?.properties[index] ?? name
+                let property: (type: TypeID, binding: DestructuringPropertyBinding?)
+                if rhsType == sema.types.errorType {
+                    property = (sema.types.errorType, nil)
+                } else {
+                    property = inferNameBasedForDestructuringProperty(
+                        propertyName,
+                        loopExpr: id,
+                        receiverType: rhsType,
+                        range: range,
+                        ctx: ctx
+                    )
+                }
+                let symbol = sema.symbols.define(
+                    kind: .local,
+                    name: name,
+                    fqName: [interner.intern("__destructuring_\(id.rawValue)"), name],
+                    declSite: range,
+                    visibility: .private,
+                    flags: entryMutable ? [.mutable] : []
+                )
+                sema.symbols.setPropertyType(property.type, for: symbol)
+                locals[name] = (property.type, symbol, entryMutable, true)
+                if let binding = property.binding {
+                    sema.bindings.bindDestructuringProperty(id, index: index, binding: binding)
+                }
+                continue
+            }
             let componentIndex = index + 1
             let componentName = interner.intern("component\(componentIndex)")
 
@@ -73,7 +111,7 @@ extension ControlFlowTypeChecker {
                 continue
             }
 
-            let flags: SymbolFlags = isMutable ? [.mutable] : []
+            let flags: SymbolFlags = entryMutable ? [.mutable] : []
             let symbol = sema.symbols.define(
                 kind: .local,
                 name: name,
@@ -86,7 +124,7 @@ extension ControlFlowTypeChecker {
                 flags: flags
             )
             sema.symbols.setPropertyType(componentType, for: symbol)
-            locals[name] = (componentType, symbol, isMutable, true)
+            locals[name] = (componentType, symbol, entryMutable, true)
         }
 
         sema.bindings.bindExprType(id, type: sema.types.unitType)
