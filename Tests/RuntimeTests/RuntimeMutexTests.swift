@@ -305,4 +305,126 @@ struct RuntimeMutexTests {
             #expect(a2 < r2, "waiter-2 must release after acquiring")
         }
     }
+
+    // KUU-2686: Mutex.tryLock(owner) records the owner token like lock(owner)
+    // does, so holdsLock/unlock(owner) and the same-owner fast-fail apply.
+
+    @Test func mutexTryLockOwnerRecordsOwner() throws {
+        let handle = __kk_mutex_create()
+        #expect(handle != 0)
+
+        let owner: Int = 0x5157
+        let otherOwner: Int = 0x4F48
+        var thrown = 0
+
+        #expect(__kk_mutex_tryLock_owner(handle, owner, &thrown) == 1)
+        #expect(thrown == 0)
+        #expect(__kk_mutex_isLocked(handle) == 1)
+        #expect(__kk_mutex_holdsLock(handle, owner) == 1)
+        #expect(__kk_mutex_holdsLock(handle, otherOwner) == 0)
+
+        // A different owner observes a plain miss; the same owner gets the
+        // IllegalStateException fast-fail matching upstream tryLock(owner).
+        #expect(__kk_mutex_tryLock_owner(handle, otherOwner, &thrown) == 0)
+        #expect(thrown == 0)
+        #expect(__kk_mutex_tryLock_owner(handle, owner, &thrown) == 0)
+        let sameOwnerBox = try requireThrownBox(thrown)
+        #expect(sameOwnerBox.exceptionFQName == "kotlin.IllegalStateException")
+
+        // Owner validation applies on release as well.
+        thrown = 0
+        #expect(__kk_mutex_unlock_owner(handle, otherOwner, &thrown) == 0)
+        #expect(thrown != 0)
+        #expect(__kk_mutex_isLocked(handle) == 1)
+
+        thrown = 0
+        #expect(__kk_mutex_unlock_owner(handle, owner, &thrown) == 0)
+        #expect(thrown == 0)
+        #expect(__kk_mutex_isLocked(handle) == 0)
+    }
+
+    @Test func mutexTryLockNullOwnerMatchesAnonymousTryLock() {
+        let handle = __kk_mutex_create()
+        #expect(handle != 0)
+
+        var thrown = 0
+        // A null owner (0 across the ABI) behaves exactly like tryLock().
+        #expect(__kk_mutex_tryLock_owner(handle, 0, &thrown) == 1)
+        #expect(thrown == 0)
+        #expect(__kk_mutex_isLocked(handle) == 1)
+        #expect(__kk_mutex_holdsLock(handle, 0x5157) == 0)
+        #expect(kk_mutex_unlock(handle) == 0)
+    }
+
+    // select { mutex.onLock(owner) } polls commit the acquisition through the
+    // clause's atomic selection, so the mutex records the owner only while the
+    // clause owns the select.
+
+    @Test func selectLockPollAcquiresWithOwnerAndCommitsClause() {
+        let handle = __kk_mutex_create()
+        #expect(handle != 0)
+
+        let owner: Int = 0x5157
+        let state = __kk_select_state_new()
+        let clause = __kk_select_clause_new(state)
+
+        #expect(__kk_select_poll_lock(handle, clause, owner) == 1)
+        #expect(__kk_mutex_holdsLock(handle, owner) == 1)
+        #expect(__kk_select_selected_clause(state) == clause)
+        // Re-polling materializes the committed outcome without re-acquiring.
+        #expect(__kk_select_poll_lock(handle, clause, owner) == 1)
+
+        _ = __kk_mutex_unlock_owner(handle, owner, nil)
+        _ = __kk_select_state_finish(state)
+    }
+
+    @Test func selectLockPollReportsBusyWhileHeldElsewhere() {
+        let handle = __kk_mutex_create()
+        #expect(handle != 0)
+
+        let holder: Int = 0x5157
+        let waiter: Int = 0x4F48
+        #expect(__kk_mutex_tryLock_owner(handle, holder, nil) == 1)
+
+        let state = __kk_select_state_new()
+        let clause = __kk_select_clause_new(state)
+        // Busy mutex: the clause neither acquires nor claims the select.
+        #expect(__kk_select_poll_lock(handle, clause, waiter) == 0)
+        #expect(__kk_select_selected_clause(state) == runtimeNullSentinelInt)
+
+        _ = __kk_mutex_unlock_owner(handle, holder, nil)
+        #expect(__kk_select_poll_lock(handle, clause, waiter) == 1)
+        #expect(__kk_mutex_holdsLock(handle, waiter) == 1)
+
+        _ = __kk_mutex_unlock_owner(handle, waiter, nil)
+        _ = __kk_select_state_finish(state)
+    }
+
+    @Test func selectLockPollSameOwnerThrowsAndLosingClauseDoesNotAcquire() {
+        let handle = __kk_mutex_create()
+        #expect(handle != 0)
+
+        let owner: Int = 0x5157
+        #expect(__kk_mutex_tryLock_owner(handle, owner, nil) == 1)
+
+        let state = __kk_select_state_new()
+        let clause = __kk_select_clause_new(state)
+        // Already held by this owner: upstream tryLock(owner) throws, so the
+        // poll reports the error marker (2) and does not claim the select.
+        #expect(__kk_select_poll_lock(handle, clause, owner) == 2)
+        #expect(__kk_select_selected_clause(state) == runtimeNullSentinelInt)
+
+        _ = __kk_mutex_unlock_owner(handle, owner, nil)
+
+        // A clause that lost the selection never acquires the mutex.
+        let decided = __kk_select_state_new()
+        let winner = __kk_select_clause_new(decided)
+        let loser = __kk_select_clause_new(decided)
+        #expect(__kk_select_try_select(winner) == 1)
+        #expect(__kk_select_poll_lock(handle, loser, owner) == 0)
+        #expect(__kk_mutex_isLocked(handle) == 0)
+
+        _ = __kk_select_state_finish(decided)
+        _ = __kk_select_state_finish(state)
+    }
 }

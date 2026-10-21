@@ -178,6 +178,13 @@ struct RuntimeFIFOQueue<Element> {
         return queued
     }
 
+    /// Counts live entries matching `predicate` (dequeued slots are nil).
+    func count(where predicate: (Element) -> Bool) -> Int {
+        elements[head...].reduce(0) { total, element in
+            element.map(predicate) == true ? total + 1 : total
+        }
+    }
+
     /// Cancellation is rare; ordinary enqueue/dequeue remain amortized O(1).
     mutating func removeFirst(where matches: (Element) -> Bool) -> Bool {
         guard let index = elements.indices.dropFirst(head).first(where: {

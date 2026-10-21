@@ -210,6 +210,162 @@ struct RuntimeChannelTests {
         #expect(__kk_select_builder_current() == runtimeNullSentinelInt)
     }
 
+    // KUU-2686: select clauses park consumable offers in the channel queues;
+    // a send/receive claims them atomically through the select's single-shot
+    // trySelect, so one rendezvous feeds exactly one clause.
+
+    @Test func selectReceiveWaiterIsClaimedBySend() {
+        let channel = kk_channel_create(0)
+        let state = __kk_select_state_new()
+        let clause = __kk_select_clause_new(state)
+
+        // Nothing receivable yet: the poll parks a receive offer.
+        #expect(__kk_channel_result_status(__kk_select_poll_receive(channel, clause)) == kChannelResultFailed)
+        #expect(runtimeChannelHandle(channel).selectWaiterCountsSnapshot().receivers == 1)
+
+        // A send claims the parked offer and deposits the element for the clause.
+        #expect(kk_channel_try_send(channel, 42) == kChannelResultSuccess)
+        #expect(runtimeChannelHandle(channel).selectWaiterCountsSnapshot().receivers == 0)
+        #expect(__kk_select_selected_clause(state) == clause)
+
+        // The clause's next poll materializes the committed outcome.
+        let delivered = __kk_select_poll_receive(channel, clause)
+        #expect(__kk_channel_result_status(delivered) == kChannelResultSuccess)
+        #expect(__kk_channel_result_value_or_null(delivered) == 42)
+
+        _ = __kk_select_state_finish(state)
+        _ = kk_channel_close(channel)
+    }
+
+    @Test func selectSendWaiterIsClaimedByReceive() {
+        let channel = kk_channel_create(0)
+        let state = __kk_select_state_new()
+        let clause = __kk_select_clause_new(state)
+
+        // Empty rendezvous channel: the send poll parks an offer holding the element.
+        #expect(__kk_select_poll_send(channel, clause, 42) == kChannelResultFailed)
+        #expect(runtimeChannelHandle(channel).selectWaiterCountsSnapshot().senders == 1)
+
+        // A receive claims the parked offer; the clause owns the selection.
+        #expect(channelReceiveValue(channel) == 42)
+        #expect(runtimeChannelHandle(channel).selectWaiterCountsSnapshot().senders == 0)
+        #expect(__kk_select_selected_clause(state) == clause)
+        #expect(__kk_select_poll_send(channel, clause, 42) == kChannelResultSuccess)
+
+        _ = __kk_select_state_finish(state)
+        _ = kk_channel_close(channel)
+    }
+
+    @Test func selectWaitersCompeteForOneRendezvous() {
+        let channel = kk_channel_create(0)
+        let stateA = __kk_select_state_new()
+        let clauseA = __kk_select_clause_new(stateA)
+        let stateB = __kk_select_state_new()
+        let clauseB = __kk_select_clause_new(stateB)
+
+        _ = __kk_select_poll_receive(channel, clauseA)
+        _ = __kk_select_poll_receive(channel, clauseB)
+        #expect(runtimeChannelHandle(channel).selectWaiterCountsSnapshot().receivers == 2)
+
+        // One send resolves exactly one select — the oldest parked offer.
+        #expect(kk_channel_try_send(channel, 7) == kChannelResultSuccess)
+        #expect(__kk_select_selected_clause(stateA) == clauseA)
+        #expect(__kk_select_selected_clause(stateB) == runtimeNullSentinelInt)
+        #expect(__kk_channel_result_value_or_null(__kk_select_poll_receive(channel, clauseA)) == 7)
+
+        // B stays pending and is served by the next send.
+        #expect(__kk_channel_result_status(__kk_select_poll_receive(channel, clauseB)) == kChannelResultFailed)
+        #expect(kk_channel_try_send(channel, 8) == kChannelResultSuccess)
+        #expect(__kk_select_selected_clause(stateB) == clauseB)
+        #expect(__kk_channel_result_value_or_null(__kk_select_poll_receive(channel, clauseB)) == 8)
+
+        _ = __kk_select_state_finish(stateA)
+        _ = __kk_select_state_finish(stateB)
+        _ = kk_channel_close(channel)
+    }
+
+    @Test func selectSendOfferIsClaimedBySelectReceive() {
+        let channel = kk_channel_create(0)
+        let sendState = __kk_select_state_new()
+        let sendClause = __kk_select_clause_new(sendState)
+        let receiveState = __kk_select_state_new()
+        let receiveClause = __kk_select_clause_new(receiveState)
+
+        // One select parks a send offer; a peer select's receive poll claims
+        // it atomically — the element moves select-to-select with no suspended
+        // coroutine involved.
+        #expect(__kk_select_poll_send(channel, sendClause, 42) == kChannelResultFailed)
+        let received = __kk_select_poll_receive(channel, receiveClause)
+        #expect(__kk_channel_result_status(received) == kChannelResultSuccess)
+        #expect(__kk_channel_result_value_or_null(received) == 42)
+        #expect(__kk_select_poll_send(channel, sendClause, 42) == kChannelResultSuccess)
+        #expect(__kk_select_selected_clause(sendState) == sendClause)
+        #expect(__kk_select_selected_clause(receiveState) == receiveClause)
+
+        _ = __kk_select_state_finish(sendState)
+        _ = __kk_select_state_finish(receiveState)
+        _ = kk_channel_close(channel)
+    }
+
+    @Test func selectClausesShareOneAtomicDecision() {
+        let state = __kk_select_state_new()
+        let first = __kk_select_clause_new(state)
+        let second = __kk_select_clause_new(state)
+
+        // trySelect is single-shot: the first claim wins, a sibling clause
+        // loses, and the winner's claim stays idempotent.
+        #expect(__kk_select_try_select(first) == 1)
+        #expect(__kk_select_try_select(second) == 0)
+        #expect(__kk_select_try_select(first) == 1)
+        #expect(__kk_select_selected_clause(state) == first)
+
+        _ = __kk_select_state_finish(state)
+    }
+
+    @Test func selectFinishRemovesParkedWaiters() {
+        let inbox = kk_channel_create(0)
+        let outbox = kk_channel_create(0)
+        let receiveState = __kk_select_state_new()
+        let receiveClause = __kk_select_clause_new(receiveState)
+        let sendState = __kk_select_state_new()
+        let sendClause = __kk_select_clause_new(sendState)
+
+        // Distinct channels so the two offers cannot rendezvous with each other.
+        _ = __kk_select_poll_receive(inbox, receiveClause)
+        _ = __kk_select_poll_send(outbox, sendClause, 9)
+        #expect(runtimeChannelHandle(inbox).selectWaiterCountsSnapshot().receivers == 1)
+        #expect(runtimeChannelHandle(outbox).selectWaiterCountsSnapshot().senders == 1)
+
+        // Cancellation path: finishing the selects removes their offers so a
+        // later rendezvous cannot consume them.
+        _ = __kk_select_state_finish(receiveState)
+        _ = __kk_select_state_finish(sendState)
+        #expect(runtimeChannelHandle(inbox).selectWaiterCountsSnapshot().receivers == 0)
+        #expect(runtimeChannelHandle(outbox).selectWaiterCountsSnapshot().senders == 0)
+        #expect(kk_channel_try_send(inbox, 5) == kChannelResultFailed)
+        #expect(__kk_channel_result_status(__kk_channel_try_receive(outbox)) == kChannelResultFailed)
+
+        _ = kk_channel_close(inbox)
+        _ = kk_channel_close(outbox)
+    }
+
+    @Test func selectWaiterIsResolvedByChannelClose() {
+        let channel = kk_channel_create(0)
+        let state = __kk_select_state_new()
+        let clause = __kk_select_clause_new(state)
+
+        _ = __kk_select_poll_receive(channel, clause)
+        #expect(kk_channel_close(channel) == 1)
+
+        // The close claims the parked offer: the clause is selected with a
+        // closed outcome instead of staying pending.
+        #expect(__kk_select_selected_clause(state) == clause)
+        let delivered = __kk_select_poll_receive(channel, clause)
+        #expect(__kk_channel_result_status(delivered) == kChannelResultClosed)
+
+        _ = __kk_select_state_finish(state)
+    }
+
     @Test func blockingSendReturnsBoxedResult() {
         let channel = kk_channel_create(1)
         let sent = __kk_channel_send_blocking(channel, 42)

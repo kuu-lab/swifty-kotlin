@@ -41,6 +41,34 @@ final class RuntimeMutexHandle: @unchecked Sendable {
         return true
     }
 
+    /// `tryLock` outcome: acquired, busy (held or waiters queued), or held
+    /// by `owner` itself — upstream throws IllegalStateException on the
+    /// same-owner path instead of reporting a plain miss.
+    enum TryLockOutcome {
+        case acquired
+        case busy
+        case alreadyLockedByOwner
+    }
+
+    /// Owner-aware `tryLock`: records `owner` on success so `unlock(owner)`
+    /// and `holdsLock(owner)` see the acquirer, exactly like `lock(owner)`.
+    func tryLock(owner: Int) -> TryLockOutcome {
+        lock.lock()
+        defer { lock.unlock() }
+        if isHeld {
+            if owner != 0 && self.owner == owner {
+                return .alreadyLockedByOwner
+            }
+            return .busy
+        }
+        if !waiters.isEmpty {
+            return .busy
+        }
+        isHeld = true
+        self.owner = owner
+        return .acquired
+    }
+
     /// Used by `__kk_lock_withLock` which runs on a regular (non-coroutine) thread.
     func lockBlocking() {
         _ = lockSync(continuation: 0)
@@ -356,6 +384,69 @@ public func __kk_mutex_tryLock(_ handle: Int) -> Int {
     }
     let mutex = Unmanaged<RuntimeMutexHandle>.fromOpaque(ptr).takeUnretainedValue()
     return mutex.tryLock() ? 1 : 0
+}
+
+/// `Mutex.tryLock(owner)` bridge: records `owner` on acquisition so
+/// `unlock(owner)`/`holdsLock(owner)` apply; a mutex already held by the
+/// same owner reports IllegalStateException like `lock(owner)` does.
+@_cdecl("__kk_mutex_tryLock_owner")
+public func __kk_mutex_tryLock_owner(
+    _ handle: Int,
+    _ owner: Int,
+    _ outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int {
+    outThrown?.pointee = 0
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_mutex_tryLock_owner received invalid mutex handle")
+    }
+    let mutex = Unmanaged<RuntimeMutexHandle>.fromOpaque(ptr).takeUnretainedValue()
+    switch mutex.tryLock(owner: runtimeMutexNormalizeOwner(owner)) {
+    case .acquired:
+        return 1
+    case .busy:
+        return 0
+    case .alreadyLockedByOwner:
+        outThrown?.pointee = runtimeAllocateIllegalStateException(
+            message: "This mutex is already locked by the specified owner"
+        )
+        return 0
+    }
+}
+
+/// `select { mutex.onLock(owner) }` poll. The acquisition is committed
+/// through the clause's atomic selection: the mutex is taken only while
+/// this clause owns (or wins) the select, so a losing clause never holds
+/// the lock. Returns 1 when the clause owns the lock, 0 while the mutex is
+/// still held elsewhere or the select decided for another clause, and 2
+/// for the same-owner IllegalStateException upstream `tryLock(owner)`
+/// reports. Lock order: `runtimeSelectClaimLock` → mutex lock.
+@_cdecl("__kk_select_poll_lock")
+public func __kk_select_poll_lock(_ handle: Int, _ clauseRaw: Int, _ owner: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle),
+          let mutex = tryCast(ptr, to: RuntimeMutexHandle.self),
+          let clause = resolveRuntimeHandle(clauseRaw, as: RuntimeSelectClause.self),
+          let select = clause.select else {
+        return 0
+    }
+    runtimeSelectClaimLock.lock()
+    defer { runtimeSelectClaimLock.unlock() }
+    if clause.delivered {
+        return clause.deliveredStatus == kChannelResultSuccess ? 1 : 0
+    }
+    if select.isDecidedUnlocked {
+        return 0
+    }
+    switch mutex.tryLock(owner: runtimeMutexNormalizeOwner(owner)) {
+    case .acquired:
+        _ = select.trySelectUnlocked(clause)
+        clause.delivered = true
+        clause.deliveredStatus = kChannelResultSuccess
+        return 1
+    case .busy:
+        return 0
+    case .alreadyLockedByOwner:
+        return 2
+    }
 }
 
 @_cdecl("__kk_mutex_isLocked")

@@ -14,7 +14,6 @@ import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.tryLock
 import kotlinx.coroutines.yield
 
 public interface SelectClause0 {
@@ -34,7 +33,11 @@ public interface SelectClause2<in P, out Q> {
 // its result type from the clauses instead of introducing an independent R
 // per clause call.
 public interface SelectBuilder<R> {
-    public fun registerClause(ready: () -> Boolean, block: suspend () -> R)
+    // `ready` is invoked with the clause's runtime registration token.
+    // Channel and mutex clauses pass it to their poll bridge so the outcome
+    // is committed through the select's atomic claim — the same channel
+    // rendezvous cannot feed two clauses — instead of a bare try-operation.
+    public fun registerClause(ready: (clauseToken: Any) -> Boolean, block: suspend () -> R)
 
     public operator fun SelectClause0.invoke(block: suspend () -> R) {
         registerSelectClause0(this@SelectBuilder, block)
@@ -51,8 +54,8 @@ public interface SelectBuilder<R> {
     public fun <E> ReceiveChannel<E>.onReceive(block: suspend (E) -> R) {
         val channel = this
         var result: ChannelResult<Any?>? = null
-        this@SelectBuilder.registerClause({
-            val polled = __kkSelectTryReceive(channel)
+        this@SelectBuilder.registerClause({ token ->
+            val polled = __kkSelectPollReceive(channel, token)
             result = polled
             polled.isSuccess || polled.isClosed
         }) {
@@ -64,8 +67,8 @@ public interface SelectBuilder<R> {
     public fun <E> ReceiveChannel<E>.onReceiveCatching(block: suspend (ChannelResult<E>) -> R) {
         val channel = this
         var result: ChannelResult<Any?>? = null
-        this@SelectBuilder.registerClause({
-            val polled = __kkSelectTryReceive(channel)
+        this@SelectBuilder.registerClause({ token ->
+            val polled = __kkSelectPollReceive(channel, token)
             result = polled
             polled.isSuccess || polled.isClosed
         }) { block(result!! as ChannelResult<E>) }
@@ -73,8 +76,8 @@ public interface SelectBuilder<R> {
 
     public fun <E> Channel<E>.onSend(element: E, block: suspend (Channel<E>) -> R) {
         val channel = this
-        this@SelectBuilder.registerClause({
-            val status = __kkSelectTrySend(channel, element)
+        this@SelectBuilder.registerClause({ token ->
+            val status = __kkSelectPollSend(channel, token, element)
             if (status == 1 || status == 2) throw IllegalStateException("Channel was closed")
             status == 0
         }) { block(channel) }
@@ -82,8 +85,8 @@ public interface SelectBuilder<R> {
 
     public fun <E> SendChannel<E>.onSend(element: E, block: suspend (SendChannel<E>) -> R) {
         val channel = this
-        this@SelectBuilder.registerClause({
-            val status = __kkSelectTrySend(channel, element)
+        this@SelectBuilder.registerClause({ token ->
+            val status = __kkSelectPollSend(channel, token, element)
             if (status == 1 || status == 2) throw IllegalStateException("Channel was closed")
             status == 0
         }) { block(channel) }
@@ -101,7 +104,9 @@ public interface SelectBuilder<R> {
 
     public fun Mutex.onLock(owner: Any? = null, block: suspend (Mutex) -> R) {
         val mutex = this
-        this@SelectBuilder.registerClause({ mutex.tryLock() }) { block(mutex) }
+        this@SelectBuilder.registerClause({ token -> selectLockReady(__kkSelectPollLock(mutex, token, owner)) }) {
+            block(mutex)
+        }
     }
 
     public fun onTimeout(timeMillis: Long, block: suspend () -> R) {
@@ -120,6 +125,45 @@ internal external fun __kkSelectBuilderExchange(builder: Any?): Any?
 @KsSymbolName("__kk_select_builder_current")
 internal external fun __kkSelectBuilderCurrent(): Any?
 
+@KsSymbolName("__kk_select_state_new")
+internal external fun __kkSelectStateNew(): Any
+
+@KsSymbolName("__kk_select_clause_new")
+internal external fun __kkSelectClauseNew(state: Any): Any
+
+@KsSymbolName("__kk_select_try_select")
+internal external fun __kkSelectTrySelect(clause: Any): Int
+
+@KsSymbolName("__kk_select_try_select_result")
+internal external fun __kkSelectTrySelectResult(clause: Any, result: Any?): Int
+
+@KsSymbolName("__kk_select_mark_selected")
+internal external fun __kkSelectMarkSelected(state: Any): Int
+
+@KsSymbolName("__kk_select_selected_clause")
+internal external fun __kkSelectSelectedClause(state: Any): Any?
+
+@KsSymbolName("__kk_select_state_finish")
+internal external fun __kkSelectStateFinish(state: Any): Int
+
+@KsSymbolName("__kk_select_poll_receive")
+internal external fun __kkSelectPollReceive(channel: Channel<*>, clause: Any): ChannelResult<Any?>
+
+@KsSymbolName("__kk_select_poll_send")
+internal external fun __kkSelectPollSend(channel: Any, clause: Any, value: Any?): Int
+
+@KsSymbolName("__kk_select_poll_lock")
+internal external fun __kkSelectPollLock(mutex: Mutex, clause: Any, owner: Any?): Int
+
+// A lock poll returns 1 once the clause owns the mutex, 0 while the mutex is
+// held elsewhere or the select already decided for another clause, and 2 for
+// the same-owner IllegalStateException upstream `Mutex.tryLock(owner)`
+// reports.
+internal fun selectLockReady(status: Int): Boolean {
+    if (status == 2) throw IllegalStateException("This mutex is already locked by the specified owner")
+    return status == 1
+}
+
 @Suppress("UNCHECKED_CAST")
 internal fun <R> currentSelectBuilder(): SelectBuilder<R> =
     (__kkSelectBuilderCurrent() ?: error("Select clauses require a select builder")) as SelectBuilder<R>
@@ -135,27 +179,24 @@ public enum class TrySelectDetailedResult {
     SUCCESSFUL, REREGISTER, CANCELLED, ALREADY_SELECTED
 }
 
-internal class SelectAlternative<R>(val ready: () -> Boolean, val block: suspend () -> R)
+internal class SelectAlternative<R>(val reg: Any, val ready: (Any) -> Boolean, val block: suspend () -> R)
 
-// Readiness is polled in registration order; selectUnbiased uses the same order.
-// The runtime does not implement atomic rendezvous between two select waiters.
 public class SelectImplementation<R>(override val context: CoroutineContext) : SelectBuilder<R>, SelectInstance<R> {
+    private val selectState: Any = __kkSelectStateNew()
     private val clauses = mutableListOf<SelectAlternative<R>>()
     private val disposables = mutableListOf<DisposableHandle>()
     private var selected = false
 
-    public override fun registerClause(ready: () -> Boolean, block: suspend () -> R) {
-        clauses.add(SelectAlternative(ready, block))
+    public override fun registerClause(ready: (Any) -> Boolean, block: suspend () -> R) {
+        clauses.add(SelectAlternative(__kkSelectClauseNew(selectState), ready, block))
     }
 
-    public override fun trySelect(clauseObject: Any, result: Any?): Boolean {
-        if (selected) return false
-        selected = true
-        return true
-    }
+    public override fun trySelect(clauseObject: Any, result: Any?): Boolean =
+        __kkSelectTrySelectResult(clauseObject, result) != 0
 
     public override fun selectInRegistrationPhase(internalResult: Any?) {
         selected = true
+        __kkSelectMarkSelected(selectState)
     }
 
     public override fun disposeOnCompletion(handle: DisposableHandle) {
@@ -164,6 +205,9 @@ public class SelectImplementation<R>(override val context: CoroutineContext) : S
 
     internal fun complete() {
         selected = true
+        // Mark the state finished and drop every parked channel offer so a
+        // completed or cancelled select can no longer consume a rendezvous.
+        __kkSelectStateFinish(selectState)
         for (handle in disposables) handle.dispose()
         disposables.clear()
     }
@@ -173,16 +217,42 @@ public class SelectImplementation<R>(override val context: CoroutineContext) : S
             while (true) {
                 ensureActive()
                 for (clause in clauses) {
-                    if (clause.ready()) {
+                    // `ready` reports an outcome committed for this clause —
+                    // by its own poll or by an external claimant resolving a
+                    // parked offer. trySelect finalizes the selection
+                    // atomically: the first clause to claim the select wins
+                    // and a losing clause never executes its block.
+                    if (clause.ready(clause.reg) && __kkSelectTrySelect(clause.reg) != 0) {
                         complete()
                         return clause.block()
                     }
+                }
+                // A counterparty (send/receive/close) may have claimed one of
+                // this select's parked waiters between polls; dispatch its
+                // clause instead of spinning past it.
+                val winner = __kkSelectSelectedClause(selectState)
+                if (winner != null) {
+                    complete()
+                    return runSelectedClause(winner)
                 }
                 yield()
             }
         } finally {
             complete()
         }
+    }
+
+    private suspend fun runSelectedClause(reg: Any): R {
+        val clause = clauses.firstOrNull { it.reg === reg }
+            ?: error("select was selected by an unregistered clause")
+        return clause.block()
+    }
+
+    // Upstream `UnbiasedSelectImplementation` shuffles the clause
+    // registration list before selecting so simultaneously-ready clauses win
+    // with equal probability; `select` keeps registration order on purpose.
+    internal fun shuffleClauses() {
+        clauses.shuffle()
     }
 }
 
@@ -200,4 +270,17 @@ public suspend fun <R> select(builder: SelectBuilder<R>.() -> Unit): R {
     return implementation.doSelect()
 }
 
-public suspend fun <R> selectUnbiased(builder: SelectBuilder<R>.() -> Unit): R = select(builder)
+public suspend fun <R> selectUnbiased(builder: SelectBuilder<R>.() -> Unit): R {
+    val implementation = SelectImplementation<R>(coroutineContext)
+    val previous = __kkSelectBuilderExchange(implementation)
+    try {
+        builder(implementation)
+        implementation.shuffleClauses()
+    } catch (failure: Throwable) {
+        implementation.complete()
+        throw failure
+    } finally {
+        __kkSelectBuilderExchange(previous)
+    }
+    return implementation.doSelect()
+}
