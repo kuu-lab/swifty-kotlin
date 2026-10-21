@@ -315,6 +315,16 @@ extension CallLowerer {
         let callArgumentCount = sourceArgumentCount ?? argumentCount
         let fallbackName = interner.resolve(fallback)
         let receiverType = receiverTypeOverride ?? sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+        // Safe calls skip the legacy array-member lowering, so mirror its bridge mapping here.
+        if chosenCallee == nil,
+           fallbackName == "concatToString",
+           callArgumentCount == 0,
+           isConcreteArrayLikeType(
+               sema.types.makeNonNullable(receiverType), sema: sema, interner: interner
+           )
+        {
+            return interner.intern("kk_chararray_concatToString")
+        }
         let rangeDispatchKey = MemberRuntimeDispatch.rangeReceiverKind(
             receiverExpr: receiverExpr,
             receiverType: receiverType,
