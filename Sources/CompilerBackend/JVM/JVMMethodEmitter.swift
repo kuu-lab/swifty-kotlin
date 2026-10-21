@@ -381,10 +381,15 @@ final class JVMMethodEmitter {
         case let .print(argument, newline):
             assembler.code.u1(0xB2)
             assembler.code.u2(try pool.member(9, owner: "java/lang/System", name: "out", descriptor: "Ljava/io/PrintStream;"))
-            if let argument { load(argument); try conversion(argument.type, argument.type.stringParameter) }
+            // A non-null CharArray binds PrintStream.println(char[]), which
+            // prints the characters; the Object overload would print the
+            // [C@ identity string instead.
+            let parameterType = argument.map { arg in
+                arg.type.referenceName == "[C" && !arg.type.isNullable ? arg.type : arg.type.stringParameter
+            }
+            if let argument, let parameterType { load(argument); try conversion(argument.type, parameterType) }
             assembler.code.u1(0xB6)
-            let descriptor = argument.map { $0.type.stringParameter.descriptor } ?? ""
-            assembler.code.u2(try pool.member(10, owner: "java/io/PrintStream", name: newline ? "println" : "print", descriptor: "(" + descriptor + ")V"))
+            assembler.code.u2(try pool.member(10, owner: "java/io/PrintStream", name: newline ? "println" : "print", descriptor: "(" + (parameterType?.descriptor ?? "") + ")V"))
         case let .label(label): assembler.mark(label)
         case let .jump(label): assembler.jump(label)
         case let .jumpIfFalse(value, label): load(value); try assembler.branch(0x99, to: label)
