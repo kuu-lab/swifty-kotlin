@@ -297,6 +297,104 @@ struct LibraryMetadataImportIntegrationTests {
     }
 
     @Test
+    func testSourceCallableShadowsImportedSameSignatureOverload() throws {
+        let librarySource = """
+        package bbs.io
+        public class LibBuilder {
+            public fun libOnly(): Int = 0
+        }
+        public class LibByteString
+        public fun buildByteString(capacity: Int = 0, action: LibBuilder.() -> Unit): LibByteString = LibByteString()
+        """
+        let libraryBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .path
+        let libraryPath = libraryBase + ".kklib"
+        defer { try? FileManager.default.removeItem(atPath: libraryPath) }
+
+        try withTemporaryFile(contents: librarySource) { librarySourcePath in
+            let libraryCtx = CompilerTestSupport.makeCompilationContext(
+                inputs: [librarySourcePath],
+                moduleName: "BbsLib",
+                emit: .library,
+                outputPath: libraryBase,
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            try CompilerTestSupport.runToKIR(libraryCtx)
+            try LoweringPhase().run(libraryCtx)
+            try CodegenPhase().run(libraryCtx)
+
+            // Source `bbs.io.buildByteString` has the same FQ name and erased
+            // signature as the imported one. The imported twin must be dropped
+            // from scope candidates: if it stayed, the lambda's expected
+            // receiver could come from the imported signature, leaving
+            // source-only members (`written`, `append`) and the `this::append`
+            // callable reference unresolvable.
+            let appSource = """
+            package bbs.io
+            class LibBuilder {
+                var written: Int = 0
+                fun append(v: Int) { written += v }
+            }
+            class LibByteString
+            fun consume(f: (Int) -> Unit) {}
+            fun buildByteString(capacity: Int = 0, action: LibBuilder.() -> Unit): LibByteString = LibByteString()
+            fun probe(): Int {
+                var hit = 0
+                buildByteString(4) {
+                    written = 1
+                    consume(this::append)
+                    hit = written
+                }
+                return hit
+            }
+            """
+            try withTemporaryFile(contents: appSource) { appPath in
+                let appCtx = CompilerTestSupport.makeCompilationContext(
+                    inputs: [appPath],
+                    moduleName: "BbsConsumer",
+                    emit: .kirDump,
+                    searchPaths: [libraryPath],
+                    includeStdlib: false,
+                    allowDefaultStdlibLibrary: false
+                )
+                try CompilerTestSupport.runSema(appCtx)
+
+                #expect(!appCtx.diagnostics.hasError, "Unexpected diagnostics: \(appCtx.diagnostics.diagnostics)")
+            }
+        }
+    }
+
+    @Test
+    func testInaccessibleImportedCallableDoesNotBlockOuterScopeOverload() throws {
+        // The bundled stdlib vendors `internal` kotlinx.io.minOf/maxOf
+        // overloads. A file in `package kotlinx.io` sees them in its own
+        // package tier, but they are not callable from user code — the tower
+        // must continue to the default-imported `kotlin.comparisons` overloads
+        // instead of reporting 'cannot access' or 'no viable overload'.
+        let artifact = try testStdlibArtifactPath()
+        let source = """
+        package kotlinx.io
+        fun probe(a: Long, b: Long): Long = maxOf(a, b)
+        fun probeInts(a: Int, b: Int): Int = maxOf(a, b)
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "KxIoShadow",
+                emit: .kirDump,
+                includeStdlib: false,
+                stdlibLibraryPath: artifact,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test
     func testShortTargetMetadataSurvivesKklibImport() throws {
         let librarySource = """
         package targetprobe
