@@ -72,6 +72,31 @@ struct ExplicitImportResolutionTests {
     }
 
     @Test(arguments: [false, true])
+    func classCompanionMembersCanBeImportedThroughClassName(useArtifact: Bool) throws {
+        let source = """
+        import Foo.BAR
+        import Foo.answer as companionAnswer
+
+        class Foo {
+            companion object {
+                val BAR = 42
+                fun answer(): Int = BAR
+            }
+        }
+
+        fun importedProperty(): Int = BAR
+        fun importedFunction(): Int = companionAnswer()
+        """
+        let path = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".kt").path
+        let ctx = try context(inputs: [path], useArtifact: useArtifact)
+        _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
+        try runSema(ctx)
+        let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected diagnostics: \(errors.map(\.message))")
+    }
+
+    @Test(arguments: [false, true])
     func companionPropertyImportsResolveWithUnrelatedImplicitReceivers(useArtifact: Bool) throws {
         let source = """
         import kotlin.Int.Companion.MAX_VALUE

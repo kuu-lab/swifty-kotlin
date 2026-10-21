@@ -154,6 +154,27 @@ struct TypeCheckScopeBuilder {
             }
         }
         if !jvmStaticMembers.isEmpty { return jvmStaticMembers }
+        // Kotlin permits companion members to be imported through the owning
+        // class name, even though their declarations belong to the companion.
+        let companionMembers = sema.symbols.lookupAll(fqName: Array(path.dropLast())).flatMap { owner -> [SymbolID] in
+            guard let declaration = sema.symbols.symbol(owner) else { return [] }
+            switch declaration.kind {
+            case .class, .interface, .enumClass, .annotationClass:
+                break
+            default:
+                return []
+            }
+            guard let companionID = sema.symbols.companionObjectSymbol(for: owner),
+                  let companion = sema.symbols.symbol(companionID)
+            else { return [] }
+            return sema.symbols.lookupAll(fqName: companion.fqName + [name]).filter { member in
+                guard let kind = sema.symbols.symbol(member)?.kind else { return false }
+                return kind == .function || kind == .property || kind == .field
+            }
+        }
+        if !companionMembers.isEmpty {
+            return Array(Set(companionMembers)).sorted { $0.rawValue < $1.rawValue }
+        }
         // Bundled companion constants are package-owned extension properties.
         // Resolve the qualifier as a singleton and retain only its extensions,
         // rather than falling back to unrelated same-name package properties.
