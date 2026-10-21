@@ -419,6 +419,9 @@ extension DataFlowSemaPhase {
             let typeParamSymbol: SymbolID
             if reusesShellTypeParameters {
                 typeParamSymbol = existingTypeParamSymbols[index]
+                if typeParam.isReified {
+                    symbols.insertFlags(.reifiedTypeParameter, for: typeParamSymbol)
+                }
             } else {
                 let typeParamFQName = typeParamNamespace + [typeParam.name]
                 typeParamSymbol = symbols.define(
@@ -427,7 +430,14 @@ extension DataFlowSemaPhase {
                     fqName: typeParamFQName,
                     declSite: declSite,
                     visibility: .private,
-                    flags: []
+                    flags: typeParam.isReified ? [.reifiedTypeParameter] : []
+                )
+            }
+            if typeParam.isReified {
+                diagnostics.error(
+                    "KSWIFTK-SEMA-0020",
+                    "Only type parameters of inline functions can be reified",
+                    range: declSite
                 )
             }
             typeParamSymbols.append(typeParamSymbol)

@@ -1115,7 +1115,8 @@ extension DataFlowSemaPhase {
                 parentFQName: fqName,
                 declSite: typeAliasDecl.range,
                 symbols: symbols,
-                interner: interner
+                interner: interner,
+                diagnostics: diagnostics
             )
             if typeAliasDecl.underlyingType == nil {
                 diagnostics.error(

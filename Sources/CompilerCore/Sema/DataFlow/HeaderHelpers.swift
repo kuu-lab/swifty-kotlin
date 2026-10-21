@@ -1391,7 +1391,8 @@ extension DataFlowSemaPhase {
         parentFQName: [InternedString],
         declSite: SourceRange?,
         symbols: SymbolTable,
-        interner: StringInterner
+        interner: StringInterner,
+        diagnostics: DiagnosticEngine
     ) -> [InternedString: SymbolID] {
         var localTypeParameters: [InternedString: SymbolID] = [:]
         var typeParameterSymbols: [SymbolID] = []
@@ -1404,8 +1405,15 @@ extension DataFlowSemaPhase {
                 fqName: typeParamFQName,
                 declSite: declSite,
                 visibility: .private,
-                flags: []
+                flags: typeParam.isReified ? [.reifiedTypeParameter] : []
             )
+            if typeParam.isReified {
+                diagnostics.error(
+                    "KSWIFTK-SEMA-0020",
+                    "Applying reified modifier to a type parameter of a type alias makes no sense",
+                    range: declSite
+                )
+            }
             typeParameterSymbols.append(typeParamSymbol)
             localTypeParameters[typeParam.name] = typeParamSymbol
         }
