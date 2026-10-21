@@ -1,0 +1,25 @@
+class java.util.LinkedHashSet
+class java.util.Arrays$ArrayList
+class java.util.LinkedHashMap
+class java.util.Collections$SingletonSet
+class java.util.Collections$SingletonList
+class java.util.Collections$SingletonMap
+class kotlin.collections.EmptyList
+class kotlin.collections.EmptySet
+class kotlin.collections.EmptyMap
+class kotlin.collections.EmptyList
+class kotlin.collections.EmptySet
+class kotlin.collections.EmptyMap
+class java.util.ArrayList
+class java.util.LinkedHashSet
+class java.util.LinkedHashMap
+true
+class kotlin.collections.EmptyIterator
+class kotlin.collections.EmptySet
+class kotlin.collections.EmptyList
+[1, 7, 53]
+[1, 7, 53]
+{1=one, 2=two}
+3
+true
+one

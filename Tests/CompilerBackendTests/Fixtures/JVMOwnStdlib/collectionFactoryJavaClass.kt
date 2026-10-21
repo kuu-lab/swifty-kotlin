@@ -1,0 +1,30 @@
+// KUU-2756: read-only collection factories must expose the same runtime
+// classes as kotlinc (concrete JDK types and bundled Empty* singletons),
+// never Collections.unmodifiable* wrappers.
+fun main() {
+    println(setOf(1, 7, 53).javaClass)
+    println(listOf(1, 7, 53).javaClass)
+    println(mapOf(1 to "one", 7 to "seven", 53 to "fifty-three").javaClass)
+    println(setOf(1).javaClass)
+    println(listOf(1).javaClass)
+    println(mapOf(1 to "one").javaClass)
+    println(emptyList<Int>().javaClass)
+    println(emptySet<Int>().javaClass)
+    println(emptyMap<Int, Int>().javaClass)
+    println(listOf<Int>().javaClass)
+    println(setOf<Int>().javaClass)
+    println(mapOf<Int, Int>().javaClass)
+    println(mutableListOf(1).javaClass)
+    println(mutableSetOf(1).javaClass)
+    println(mutableMapOf(1 to "a").javaClass)
+    println(emptyList<Int>() === emptyList<Int>())
+    println(emptyList<Int>().iterator().javaClass)
+    println(emptyMap<Int, Int>().keys.javaClass)
+    println(emptyMap<Int, Int>().values.javaClass)
+    println(listOf(1, 7, 53))
+    println(setOf(1, 7, 53))
+    println(mapOf(1 to "one", 2 to "two"))
+    println(listOf(1, 7, 53).size)
+    println(setOf(1, 7, 53).contains(7))
+    println(mapOf(1 to "one")[1])
+}

@@ -85,17 +85,33 @@ extension JVMFunctionBuilder {
         }
         if fq.hasPrefix("kotlin/collections/"), ["listOf", "mutableListOf", "setOf", "mutableSetOf", "emptyList", "emptySet", "mutableMapOf", "mapOf", "emptyMap"].contains(name) {
             let map = name.lowercased().contains("map"), set = name.lowercased().contains("set")
-            let owner = map ? "java/util/LinkedHashMap" : (set ? "java/util/LinkedHashSet" : "java/util/ArrayList")
             // Kotlin evaluates the whole vararg before hashing keys/elements.
             let items = try args.map { try requireValue($0.expr) }
-            if items.count == 1, name == "mapOf" {
-                let key = try jdkCall("kotlin/Pair", "getFirst", [], object, receiver: items[0])!
-                let value = try jdkCall("kotlin/Pair", "getSecond", [], object, receiver: items[0])!
-                return JVMIntrinsicResult(value: try jdkCall("java/util/Collections", "singletonMap", [object, object], .reference("java/util/Map", nullable: false), arguments: [key, value], resolved: resultType))
+            if !name.hasPrefix("mutable") {
+                // kotlinc exposes concrete JDK/bundled classes through getClass():
+                // Empty{List,Set,Map}, Collections$Singleton{List,Set,Map},
+                // Arrays$ArrayList, LinkedHashSet, LinkedHashMap.
+                let kind = map ? "Map" : (set ? "Set" : "List")
+                if items.isEmpty {
+                    let owner = "kotlin/collections/Empty" + kind
+                    let emptyType: JVMValueType = .reference(owner, nullable: false)
+                    let result = try value(emptyType)
+                    instructions.append(.getStatic(JVMField(owner: owner, name: "INSTANCE", type: emptyType, access: 0x19), result))
+                    return JVMIntrinsicResult(value: try convert(result, to: resultType))
+                }
+                if items.count == 1 {
+                    if map {
+                        let key = try jdkCall("kotlin/Pair", "getFirst", [], object, receiver: items[0])!
+                        let value = try jdkCall("kotlin/Pair", "getSecond", [], object, receiver: items[0])!
+                        return JVMIntrinsicResult(value: try jdkCall("java/util/Collections", "singletonMap", [object, object], .reference("java/util/Map", nullable: false), arguments: [key, value], resolved: resultType))
+                    }
+                    return JVMIntrinsicResult(value: try jdkCall("java/util/Collections", set ? "singleton" : "singletonList", [object], .reference("java/util/" + kind, nullable: false), arguments: items, resolved: resultType))
+                }
+                if !map && !set {
+                    return JVMIntrinsicResult(value: try jdkCall("java/util/Arrays", "asList", [.reference("[Ljava/lang/Object;", nullable: false)], .reference("java/util/List", nullable: false), arguments: [try objectArray(items)], resolved: resultType))
+                }
             }
-            if items.count == 1, name == "setOf" {
-                return JVMIntrinsicResult(value: try jdkCall("java/util/Collections", "singleton", [object], .reference("java/util/Set", nullable: false), arguments: items, resolved: resultType))
-            }
+            let owner = map ? "java/util/LinkedHashMap" : (set ? "java/util/LinkedHashSet" : "java/util/ArrayList")
             let collection = try constructJDK(owner)
             for item in items {
                 if map {
@@ -104,10 +120,7 @@ extension JVMFunctionBuilder {
                     _ = try jdkCall(owner, "put", [object, object], object, receiver: collection, arguments: [key, value])
                 } else { _ = try jdkCall(owner, "add", [object], .boolean, receiver: collection, arguments: [item]) }
             }
-            let mutable = name.hasPrefix("mutable")
-            if mutable { return JVMIntrinsicResult(value: try convert(collection, to: resultType)) }
-            let interface = "java/util/" + (map ? "Map" : (set ? "Set" : "List"))
-            return JVMIntrinsicResult(value: try jdkCall("java/util/Collections", "unmodifiable" + (map ? "Map" : (set ? "Set" : "List")), [.reference(interface, nullable: false)], .reference(interface, nullable: false), arguments: [collection], resolved: resultType))
+            return JVMIntrinsicResult(value: try convert(collection, to: resultType))
         }
         return nil
     }

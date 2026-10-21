@@ -421,6 +421,10 @@
     "kotlin/jvm/internal/UByteArrayValue": "kotlin/UByteArray",
     "kotlin/jvm/internal/UShortValue": "kotlin/UShort",
     "kotlin/jvm/internal/UShortArrayValue": "kotlin/UShortArray",
-    "kotlin/jvm/internal/IntrinsicsKotlin": "kotlin/jvm/internal/Intrinsics$Kotlin"
+    "kotlin/jvm/internal/IntrinsicsKotlin": "kotlin/jvm/internal/Intrinsics$Kotlin",
+    "kotlin/collections/RepositoryEmptyIterator": "kotlin/collections/EmptyIterator",
+    "kotlin/collections/RepositoryEmptyList": "kotlin/collections/EmptyList",
+    "kotlin/collections/RepositoryEmptySet": "kotlin/collections/EmptySet",
+    "kotlin/collections/RepositoryEmptyMap": "kotlin/collections/EmptyMap"
   }
 }
