@@ -4,9 +4,9 @@ set -euo pipefail
 # Smoke-tests the mutation generator itself (determinism + operation
 # coverage) plus the fuzz runner's timeout classification via a stub kswiftc.
 # Compiling generated/corpus cases against a real kswiftc is the nightly
-# workflow's job (nightly-mutation-fuzzer.yml) — its "Replay committed crash
-# corpus" and "Run bounded mutation fuzzer" steps already cover that ground,
-# so this script needs no real kswiftc/stdlib inputs.
+# workflow's job (the mutation-fuzzer job in nightly-full.yml) — its "Replay
+# committed crash corpus" and "Run bounded mutation fuzzer" steps already
+# cover that ground, so this script needs no real kswiftc/stdlib inputs.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 PYTHON_BIN="${PYTHON_BIN:-python3}"

@@ -399,6 +399,38 @@ verification, `.github/workflows/nightly-full.yml`; pull requests and the merge
 queue do not run it. Trigger that workflow with `workflow_dispatch` on a branch
 to run the corpus before merging.
 
+### Backend diff lanes (JVM / WASM)
+
+`DIFF_BACKEND` (or `--backend`) switches the candidate side to a different
+backend while the kotlinc/JVM reference stays unchanged:
+
+```bash
+DIFF_BACKEND=jvm   bash Scripts/diff_kotlinc.sh Scripts/diff_cases
+DIFF_BACKEND=wasm DIFF_ENGINE=node     bash Scripts/diff_kotlinc.sh Scripts/diff_cases
+DIFF_BACKEND=wasm DIFF_ENGINE=wasmtime bash Scripts/diff_kotlinc.sh Scripts/diff_cases
+```
+
+Directory sweeps are opt-in per case: only files carrying `// DIFF_JVM`
+(resp. `// DIFF_WASM`) run in that lane; everything else reports
+`SKIP ... (DIFF_BACKEND=...)`, and a sweep that ends up running zero cases
+fails instead of reporting a vacuous pass. Naming a single `.kt` file runs
+it without a marker. Candidate-only case kinds (`DIFF_CANDIDATE_ONLY*`,
+`CANDIDATE-ONLY`, `DIFF_CANDIDATE_ONLY_FROM_SOURCE`) stay native-only.
+
+- `jvm` compiles each case with `--emit jar --classpath <jvm stdlib jar>` and
+  runs `java -Xverify:all -cp case.jar:stdlib.jar <Main-Class>` (the class is
+  read from the candidate jar manifest). The shared stdlib jar is built once
+  per run under `DIFF_ARTIFACT_ROOT` (reuse an existing one with
+  `DIFF_JVM_STDLIB_JAR`).
+- `wasm` compiles each case with `--target wasm32-wasi` (override via
+  `DIFF_WASM_TARGET`; the bundled stdlib still compiles from source inline)
+  and runs the module through `DIFF_ENGINE`: `node` (node:wasi via
+  `Scripts/wasi_node_runner.mjs`) or `wasmtime` (`wasmtime run`). Engine
+  binaries resolve from `NODE_BIN` / `WASMTIME_BIN`.
+
+Nightly runs both lanes: `verify-jvm-diff` and `verify-wasm` (a per-engine
+`node`/`wasmtime` matrix).
+
 You can control parallel execution. The worker count is set by `--jobs <n>`
 (or the equivalent `DIFF_WORKERS` env var); `0` means serial. By default the
 script runs in parallel with one worker per CPU:

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun choose(flag: Boolean) = when (flag) {
     true -> 10
     false -> 20

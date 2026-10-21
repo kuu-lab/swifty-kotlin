@@ -1029,6 +1029,8 @@ Collection ABI と readonly marker を継承する。size property は getSize()
 このprofileは対応済みのRegex／Sequence／Sequence builder／coroutine／reflection、unsigned runtimeと高階collection APIを含む。これらの実行に公式stdlib／reflect JARは不要。
 静的なKotlin参照閉包は`python3 Scripts/validate_jvm_stdlib.py kswiftk-stdlib.jar app.jar`で検査する。
 
+nightly CI（`nightly-full.yml` の `verify-jvm-diff`）はこの jar を毎晩生成して `validate_jvm_stdlib.py` を実行し、`// DIFF_JVM` マーカー付き `Scripts/diff_cases` ケースを `DIFF_BACKEND=jvm`（`Scripts/diff_kotlinc.sh`）で kotlinc 参照と差分実行する。
+
 ## 未対応と診断
 
 外部 field／property、

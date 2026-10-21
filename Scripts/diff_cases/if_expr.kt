@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun pick(flag: Boolean) = if (flag) 7 else 9
 
 fun main() {
