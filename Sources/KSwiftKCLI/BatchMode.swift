@@ -38,8 +38,7 @@ enum BatchMode {
     }
 
     private static func withRedirectedOutput(stdout: String, stderr: String, _ body: () -> Int32) -> Int32 {
-        fflush(Foundation.stdout)
-        fflush(Foundation.stderr)
+        fflush(nil)
         let outFD = open(stdout, O_WRONLY | O_CREAT | O_TRUNC, 0o644)
         let errFD = open(stderr, O_WRONLY | O_CREAT | O_TRUNC, 0o644)
         let savedOut = dup(STDOUT_FILENO)
@@ -47,8 +46,7 @@ enum BatchMode {
         if outFD >= 0 { dup2(outFD, STDOUT_FILENO) }
         if errFD >= 0 { dup2(errFD, STDERR_FILENO) }
         let code = body()
-        fflush(Foundation.stdout)
-        fflush(Foundation.stderr)
+        fflush(nil)
         dup2(savedOut, STDOUT_FILENO)
         dup2(savedErr, STDERR_FILENO)
         for fd in [outFD, errFD, savedOut, savedErr] where fd >= 0 { close(fd) }
