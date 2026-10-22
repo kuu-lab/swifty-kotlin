@@ -140,6 +140,37 @@ struct CodegenBackendArrayEdgeCasesTests {
         )
     }
 
+    @Test func testReifiedInlineGenericArraySortBoxesPrimitiveElements() throws {
+        let source = """
+        inline fun <reified T : Comparable<T>> sortThree(x: T, y: T, z: T): Triple<T, T, T> {
+            val a = arrayOf(x, y, z)
+            a.sort()
+            return Triple(a[0], a[1], a[2])
+        }
+
+        fun <T : Comparable<T>> sortThreeRegular(x: T, y: T, z: T): Triple<T, T, T> {
+            val a = arrayOf(x, y, z)
+            a.sort()
+            return Triple(a[0], a[1], a[2])
+        }
+
+        fun main() {
+            println(sortThree(77444, -12, 0))
+            println(sortThree("z", "a", "m"))
+            println(sortThreeRegular(77444, -12, 0))
+            val direct = arrayOf(77444, -12, 0)
+            direct.sort()
+            println(direct.toList())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ReifiedInlineGenericArraySort",
+            expected: "(-12, 0, 77444)\n(a, m, z)\n(-12, 0, 77444)\n[-12, 0, 77444]\n"
+        )
+    }
+
     @Test func testCodegenCompilesArrayOfNulls() throws {
         let source = """
         fun main() {
