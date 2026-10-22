@@ -462,6 +462,10 @@ extension DeclTypeChecker {
             var locals: LocalBindings = runningLocals
             var initCtx = ctx
             initCtx.allowsValPropertyInitialization = true
+            // `return` inside `init {}` targets the constructor, never the
+            // enclosing function the flag may describe (local classes can sit
+            // inside an expression body).
+            initCtx.enclosingFunctionProhibitsExpressionBodyReturn = false
             _ = inferFunctionBodyType(block, ctx: initCtx, locals: &locals, expectedType: nil)
             runningLocals.memberFlow = locals.memberFlow
         }
@@ -549,6 +553,7 @@ extension DeclTypeChecker {
                     lambdaDepth: 0,
                     enclosingFunctionReturnType: sema.types.unitType,
                     enclosingFunctionSymbol: currentCtorSymbolID,
+                    enclosingFunctionProhibitsExpressionBodyReturn: false,
                     enclosingLambdaExprIDs: [],
                     currentDeclSymbol: currentCtorSymbolID
                 )
@@ -975,6 +980,8 @@ extension DeclTypeChecker {
             lambdaDepth: 0,
             enclosingFunctionReturnType: signature.returnType,
             enclosingFunctionSymbol: symbol,
+            enclosingFunctionProhibitsExpressionBodyReturn: function.body.isExpressionBody
+                && function.returnType == nil,
             enclosingLambdaExprIDs: [],
             currentDeclSymbol: symbol
         )

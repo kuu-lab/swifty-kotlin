@@ -393,6 +393,13 @@ public enum FunctionBody: Equatable, Codable {
     case block([ExprID], SourceRange)
     case expr(ExprID, SourceRange)
     case unit
+
+    /// `fun f() = expr`-style expression bodies are the only bodies where a
+    /// `return` targeting the function is prohibited outright.
+    public var isExpressionBody: Bool {
+        if case .expr = self { return true }
+        return false
+    }
 }
 
 public enum PropertyAccessorKind: Equatable, Codable {

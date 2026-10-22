@@ -254,6 +254,25 @@ final class ExprTypeChecker {
                     range: range
                 )
             }
+            // `return` is not a real expression: it cannot appear in the body
+            // of an expression-body function that lacks an explicit return
+            // type (`fun f() = return`), whether directly or nested in an
+            // `if`/`when`/`try` branch. A `return@label` bound to a lambda
+            // stays legal, as does any `return` in a block body or in an
+            // expression body with a declared return type. kotlinc only
+            // warns (KTLC-288) when the `return` crosses an inline-lambda
+            // boundary, so non-local returns keep the ambient behavior and
+            // the error is limited to `lambdaDepth == 0`.
+            if ctx.enclosingFunctionProhibitsExpressionBodyReturn,
+               ctx.lambdaDepth == 0,
+               label == nil || targetsFunction
+            {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0311",
+                    "Returns are not allowed for functions with expression body.",
+                    range: range
+                )
+            }
             // An unlabeled `return` always targets the enclosing named
             // function, whether or not it sits inside a lambda -- so its
             // value must be inferred against *that* function's declared
