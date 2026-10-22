@@ -35,6 +35,8 @@ final class LLVMCAPIBindings {
     // LLVMLinkModules2(Dest, Src) -> LLVMBool (nonzero on failure). Destructively
     // merges Src into Dest; Src must not be used or disposed afterwards.
     typealias LLVMLinkModules2Fn = @convention(c) (LLVMModuleRef?, LLVMModuleRef?) -> LLVMBool
+    // LLVMWriteBitcodeToFile(M, Path) -> int (0 on success).
+    typealias LLVMWriteBitcodeToFileFn = @convention(c) (LLVMModuleRef?, UnsafePointer<CChar>?) -> Int32
     typealias LLVMPrintModuleToStringFn = @convention(c) (LLVMModuleRef?) -> UnsafeMutablePointer<CChar>?
     typealias LLVMDisposeMessageFn = @convention(c) (UnsafeMutablePointer<CChar>?) -> Void
     typealias LLVMSetTargetFn = @convention(c) (LLVMModuleRef?, UnsafePointer<CChar>?) -> Void
@@ -270,6 +272,7 @@ final class LLVMCAPIBindings {
     let moduleCreateFn: LLVMModuleCreateWithNameInContextFn
     let disposeModuleFn: LLVMDisposeModuleFn
     let linkModules2Fn: LLVMLinkModules2Fn?
+    let writeBitcodeToFileFn: LLVMWriteBitcodeToFileFn?
     let printModuleToStringFn: LLVMPrintModuleToStringFn
     let disposeMessageFn: LLVMDisposeMessageFn
     let setTargetFn: LLVMSetTargetFn
@@ -387,6 +390,7 @@ final class LLVMCAPIBindings {
         moduleCreateFn: @escaping LLVMModuleCreateWithNameInContextFn,
         disposeModuleFn: @escaping LLVMDisposeModuleFn,
         linkModules2Fn: LLVMLinkModules2Fn? = nil,
+        writeBitcodeToFileFn: LLVMWriteBitcodeToFileFn? = nil,
         printModuleToStringFn: @escaping LLVMPrintModuleToStringFn,
         disposeMessageFn: @escaping LLVMDisposeMessageFn,
         setTargetFn: @escaping LLVMSetTargetFn,
@@ -504,6 +508,7 @@ final class LLVMCAPIBindings {
         self.moduleCreateFn = moduleCreateFn
         self.disposeModuleFn = disposeModuleFn
         self.linkModules2Fn = linkModules2Fn
+        self.writeBitcodeToFileFn = writeBitcodeToFileFn
         self.printModuleToStringFn = printModuleToStringFn
         self.disposeMessageFn = disposeMessageFn
         self.setTargetFn = setTargetFn

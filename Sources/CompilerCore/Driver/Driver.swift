@@ -110,16 +110,23 @@ public final class CompilerDriver {
 
         executePhases(ctx: ctx, phases: phases, incrementalEnabled: prepared.incrementalEnabled)
 
+        var runExitCode: Int?
         if !ctx.diagnostics.hasError, !ctx.incrementalOutputRestored {
             if ctx.options.emit == .kirDump {
                 emitKIRDump(ctx: ctx)
+            } else if ctx.options.runsImmediately {
+                runExitCode = runImmediately(ctx: ctx)
             } else {
                 let backend = backendPhases()
                 executePhases(ctx: ctx, phases: backend, incrementalEnabled: false)
             }
         }
 
-        return finalizeRun(ctx: ctx, printDiagnostics: printDiagnostics, timePhasesEnabled: prepared.timePhasesEnabled)
+        let result = finalizeRun(ctx: ctx, printDiagnostics: printDiagnostics, timePhasesEnabled: prepared.timePhasesEnabled)
+        if let runExitCode, result.exitCode == 0 {
+            return (runExitCode, result.diagnostics)
+        }
+        return result
     }
 
     private func isIncrementalEnabled(options: CompilerOptions, generatedTestRun: Bool = false) -> Bool {
@@ -128,6 +135,8 @@ public final class CompilerDriver {
         // even under the default-on scope.
         guard !generatedTestRun else { return false }
         guard !options.emit.isJVM else { return false }
+        // `--run` must execute this compile's KIR, never restore a cached artifact.
+        if options.runsImmediately { return false }
         if options.frontendFlags.contains("no-incremental") {
             return false
         }
@@ -319,6 +328,36 @@ public final class CompilerDriver {
         }
 
         return (ctx.diagnostics.hasError ? 1 : 0, ctx.diagnostics.diagnostics)
+    }
+
+    /// `--run`: execute the lowered KIR in-process when the interpreter models
+    /// the whole program, otherwise compile natively and run the executable.
+    /// Returns the program's exit code, or nil when compilation failed (the
+    /// diagnostics already carry the error).
+    private func runImmediately(ctx: CompilationContext) -> Int? {
+        switch KIRInterpreter.run(context: ctx) {
+        case let .completed(stdout):
+            FileHandle.standardOutput.write(Data(stdout.utf8))
+            return 0
+        case let .fallback(reason):
+            FileHandle.standardError.write(Data("kswiftc: --run falling back to native execution (\(reason))\n".utf8))
+        }
+        executePhases(ctx: ctx, phases: backendPhases(), incrementalEnabled: false)
+        let isTemporaryOutput = ctx.options.frontendFlags.contains("run-temp-output")
+        defer {
+            if isTemporaryOutput { try? FileManager.default.removeItem(atPath: ctx.options.outputPath) }
+        }
+        guard !ctx.diagnostics.hasError else { return nil }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: ctx.options.outputPath)
+        do {
+            try process.run()
+        } catch {
+            ctx.diagnostics.error("KSWIFTK-PIPELINE-0004", "Could not run '\(ctx.options.outputPath)': \(error)", range: nil)
+            return nil
+        }
+        process.waitUntilExit()
+        return Int(process.terminationStatus)
     }
 
     private func emitKIRDump(ctx: CompilationContext) {
