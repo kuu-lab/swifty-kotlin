@@ -63,6 +63,7 @@ final class MetadataDecoder {
     /// avoids a temporary header, Unicode line splitting, and a token array
     /// for every declaration while sharing the legacy field/default semantics.
     func decodeIndexRecordLine(_ bytes: UnsafeBufferPointer<UInt8>) -> MetadataRecord? {
+        guard String(bytes: bytes, encoding: .utf8) != nil else { return nil }
         var cursor = 0
         var end = bytes.count
         func isWhitespace(_ byte: UInt8) -> Bool {

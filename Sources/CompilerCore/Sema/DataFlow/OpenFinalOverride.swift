@@ -398,6 +398,13 @@ extension DataFlowSemaPhase {
                     returnType: memberMeta.returnType,
                     ctx: ctx
                 )
+                validateValVarMutabilityOverride(
+                    memberName: memberMeta.name,
+                    memberRange: memberMeta.range,
+                    ownerSymbol: symbol,
+                    memberSymbol: memberSymbol,
+                    ctx: ctx
+                )
                 validateAbstractOverrideConstraints(
                     memberMeta: memberMeta,
                     ownerSymbol: symbol,
@@ -835,6 +842,44 @@ extension DataFlowSemaPhase {
             "'\(name)' in '\(ownerName)' is final and cannot be overridden.",
             range: memberRange
         )
+    }
+
+    /// Kotlin forbids a `val` property from overriding a `var` property:
+    /// the override would remove the inherited setter. The reverse
+    /// (`var` overriding `val`) is legal because it only adds a setter.
+    /// This check is independent of `validateOverrideTarget`'s overridability
+    /// verdict: a `final var` still reports this error alongside the
+    /// final-override error, matching kotlinc.
+    private func validateValVarMutabilityOverride(
+        memberName: InternedString,
+        memberRange: SourceRange,
+        ownerSymbol: SymbolID,
+        memberSymbol: SymbolID,
+        ctx: OpenFinalOverrideContext
+    ) {
+        guard let memberSym = ctx.symbols.symbol(memberSymbol),
+              memberSym.kind == .property,
+              !memberSym.flags.contains(.mutable)
+        else { return }
+
+        for parent in findAllInheritedMembers(
+            named: memberName,
+            for: ownerSymbol,
+            symbols: ctx.symbols
+        ) {
+            guard let parentSym = ctx.symbols.symbol(parent.memberID),
+                  parentSym.kind == .property,
+                  parentSym.flags.contains(.mutable)
+            else { continue }
+            let name = ctx.interner.resolve(memberName)
+            let ownerName = ctx.interner.resolve(parent.ownerName)
+            ctx.diagnostics.error(
+                "KSWIFTK-SEMA-OVERRIDE-MUTABILITY",
+                "'var' property '\(name)' defined in '\(ownerName)' cannot be overridden by 'val' property.",
+                range: memberRange
+            )
+            return
+        }
     }
 
     private func validateReturnTypeCovariance(

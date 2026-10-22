@@ -1,4 +1,4 @@
-public struct TypeID: Hashable, Sendable {
+public struct TypeID: Hashable, Sendable, Codable {
     public let rawValue: Int32
 
     public static let invalid = TypeID(rawValue: -1)
@@ -8,7 +8,7 @@ public struct TypeID: Hashable, Sendable {
     }
 }
 
-public enum PrimitiveType: String, Hashable, Sendable {
+public enum PrimitiveType: String, Hashable, Sendable, Codable {
     case boolean
     case char
     case int
@@ -58,7 +58,7 @@ public extension PrimitiveType {
     }
 }
 
-public enum Nullability: Hashable, Sendable {
+public enum Nullability: Hashable, Sendable, Codable {
     case nonNull
     case nullable
     case platformType // T! — nullability unknown (from external declarations)
@@ -75,7 +75,7 @@ public enum Nullability: Hashable, Sendable {
     }
 }
 
-public struct ClassType: Hashable, Sendable {
+public struct ClassType: Hashable, Sendable, Codable {
     public let classSymbol: SymbolID
     public let args: [TypeArg]
     /// Type arguments captured from enclosing owners of an `inner` class,
@@ -102,7 +102,7 @@ public enum TypeVariance: Hashable, Sendable, Codable {
     case `in`
 }
 
-public enum TypeArg: Hashable, Sendable {
+public enum TypeArg: Hashable, Sendable, Codable {
     case invariant(TypeID)
     case out(TypeID)
     case `in`(TypeID)
@@ -120,7 +120,7 @@ extension TypeArg {
     }
 }
 
-public struct TypeParamType: Hashable, Sendable {
+public struct TypeParamType: Hashable, Sendable, Codable {
     public let symbol: SymbolID
     public let nullability: Nullability
     /// An existential parameter captured from a use-site projection. Its identity
@@ -136,7 +136,7 @@ public struct TypeParamType: Hashable, Sendable {
 
 /// Identifies a projected receiver conversion that can be materialized at
 /// multiple member-call sites while denoting the same captured type.
-public struct CapturedTypeOrigin: Hashable, Sendable {
+public struct CapturedTypeOrigin: Hashable, Sendable, Codable {
     public let receiverType: TypeID
     public let parameter: SymbolID
     public let argumentIndex: Int
@@ -148,7 +148,7 @@ public struct CapturedTypeOrigin: Hashable, Sendable {
     }
 }
 
-public struct CapturedTypeBounds: Hashable, Sendable {
+public struct CapturedTypeBounds: Hashable, Sendable, Codable {
     public let identity: Int
     public let lower: TypeID
     public let upper: TypeID
@@ -176,7 +176,7 @@ public struct CapturedTypeBounds: Hashable, Sendable {
     }
 }
 
-public struct FunctionType: Hashable, Sendable, CustomStringConvertible {
+public struct FunctionType: Hashable, Sendable, Codable, CustomStringConvertible {
     public let contextReceivers: [TypeID]
     public let receiver: TypeID?
     public let params: [TypeID]
@@ -213,7 +213,7 @@ public struct FunctionType: Hashable, Sendable, CustomStringConvertible {
 
 /// Represents invariant `kotlin.reflect.KClass<T>`, including `T::class`.
 /// Use-site projections remain nominal `ClassType` arguments.
-public struct KClassType: Hashable, Sendable {
+public struct KClassType: Hashable, Sendable, Codable {
     public let argument: TypeID
     public let nullability: Nullability
 
@@ -223,7 +223,7 @@ public struct KClassType: Hashable, Sendable {
     }
 }
 
-public enum TypeKind: Hashable {
+public enum TypeKind: Hashable, Codable {
     case error
     case unit
     /// A value-bearing Unit slot that can also contain the null sentinel.
@@ -287,6 +287,47 @@ extension TypeKind {
             return .intersection(parts.map(transform))
         case let .kClassType(type):
             return .kClassType(KClassType(argument: transform(type.argument), nullability: type.nullability))
+        }
+    }
+
+    func mapSymbols(_ transform: (SymbolID) -> SymbolID) -> TypeKind {
+        switch self {
+        case .error, .unit, .nullableUnit, .platformUnit, .nothing, .any, .stringStruct, .primitive:
+            return self
+        case let .typeParam(type):
+            guard let capture = type.capture else {
+                return .typeParam(TypeParamType(
+                    symbol: transform(type.symbol),
+                    nullability: type.nullability
+                ))
+            }
+            let origin = capture.origin.map {
+                CapturedTypeOrigin(
+                    receiverType: $0.receiverType,
+                    parameter: transform($0.parameter),
+                    argumentIndex: $0.argumentIndex
+                )
+            }
+            return .typeParam(TypeParamType(
+                symbol: transform(type.symbol),
+                nullability: type.nullability,
+                capture: CapturedTypeBounds(
+                    identity: capture.identity,
+                    lower: capture.lower,
+                    upper: capture.upper,
+                    writeForbidden: capture.writeForbidden,
+                    origin: origin
+                )
+            ))
+        case let .classType(type):
+            return .classType(ClassType(
+                classSymbol: transform(type.classSymbol),
+                args: type.args,
+                enclosingTypeArgs: type.enclosingTypeArgs,
+                nullability: type.nullability
+            ))
+        case .functionType, .intersection, .kClassType:
+            return self
         }
     }
 }

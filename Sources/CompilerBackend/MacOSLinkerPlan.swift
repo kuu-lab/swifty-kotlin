@@ -19,9 +19,43 @@ struct MacOSLinkerPlan: Codable {
     private static let lock = NSLock()
     private static let outputMarker = "/__kswiftk_link_output__"
 
-    func linkArguments(inputs: [String], output: String, libraryPaths: [String], libraries: [String]) -> [String] {
-        inputs + arguments.map { $0 == Self.outputMarker ? output : $0 }
+    func linkArguments(inputs: [String], output: String, libraryPaths: [String], libraries: [String], droppingForceLoads: Bool = false) -> [String] {
+        let planArguments = droppingForceLoads ? argumentsWithoutForceLoads : arguments
+        return inputs + planArguments.map { $0 == Self.outputMarker ? output : $0 }
             + libraryPaths.map { "-L\($0)" } + libraries.map { "-l\($0)" }
+    }
+
+    /// Absolute paths the driver force-loads via `-force_load <path>` pairs.
+    /// `nil` when a `-force_load` token lacks an absolute-path argument — an
+    /// argument shape the caller must not rewrite.
+    var forceLoadedPaths: [String]? {
+        var paths: [String] = []
+        var index = arguments.startIndex
+        while index < arguments.endIndex {
+            if arguments[index] == "-force_load" {
+                guard index + 1 < arguments.endIndex, arguments[index + 1].hasPrefix("/")
+                else { return nil }
+                paths.append(arguments[index + 1])
+                index += 2
+            } else {
+                index += 1
+            }
+        }
+        return paths
+    }
+
+    private var argumentsWithoutForceLoads: [String] {
+        var kept: [String] = []
+        var index = arguments.startIndex
+        while index < arguments.endIndex {
+            if arguments[index] == "-force_load", index + 1 < arguments.endIndex {
+                index += 2
+            } else {
+                kept.append(arguments[index])
+                index += 1
+            }
+        }
+        return kept
     }
 
     static func load(

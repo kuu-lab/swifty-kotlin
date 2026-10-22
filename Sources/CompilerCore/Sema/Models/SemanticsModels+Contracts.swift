@@ -1,17 +1,17 @@
-public enum ContractReturnCondition: String, Equatable, Sendable {
+public enum ContractReturnCondition: String, Equatable, Sendable, Codable {
     case normally, returnsTrue, returnsFalse, returnsNull, returnsNotNull
 }
 
-public enum ContractArgumentCondition: String, Equatable, Sendable {
+public enum ContractArgumentCondition: String, Equatable, Sendable, Codable {
     case nonNull, booleanTrue, booleanFalse, isType
 }
 
-public enum ContractImplicationTarget: Equatable, Sendable {
+public enum ContractImplicationTarget: Equatable, Sendable, Codable {
     case valueParameter(Int)
     case extensionReceiver
 }
 
-public struct ContractImplicationEffect: Equatable, Sendable {
+public struct ContractImplicationEffect: Equatable, Sendable, Codable {
     public let target: ContractImplicationTarget
     public let returnCondition: ContractReturnCondition
     public let argumentCondition: ContractArgumentCondition
@@ -36,7 +36,7 @@ public struct ContractImplicationEffect: Equatable, Sendable {
     }
 }
 
-public struct ContractNonNullEffect: Equatable, Sendable {
+public struct ContractNonNullEffect: Equatable, Sendable, Codable {
     public let parameterSymbol: SymbolID
     public let appliesOnAnyReturn: Bool
 
@@ -46,7 +46,7 @@ public struct ContractNonNullEffect: Equatable, Sendable {
     }
 }
 
-public enum ContractReturnsEffect: Equatable, Sendable {
+public enum ContractReturnsEffect: Equatable, Sendable, Codable {
     case returnsNormally
     /// `conditionParameterIndex`: heuristic index of the first Boolean parameter,
     /// used by downstream smart-cast analysis (e.g. `require(condition)` patterns).
@@ -54,7 +54,7 @@ public enum ContractReturnsEffect: Equatable, Sendable {
     case returnsBooleanValue(expectedValue: Bool, conditionParameterIndex: Int?)
 }
 
-public struct ContractCallsInPlaceEffect: Equatable, Sendable, CustomStringConvertible {
+public struct ContractCallsInPlaceEffect: Equatable, Sendable, Codable, CustomStringConvertible {
     public let parameterSymbol: SymbolID
     public let kind: InvocationKind
 
@@ -68,14 +68,14 @@ public struct ContractCallsInPlaceEffect: Equatable, Sendable, CustomStringConve
     }
 }
 
-public enum InvocationKind: String, Equatable, Sendable {
+public enum InvocationKind: String, Equatable, Sendable, Codable {
     case atMostOnce = "AT_MOST_ONCE"
     case atLeastOnce = "AT_LEAST_ONCE"
     case exactlyOnce = "EXACTLY_ONCE"
     case unknown = "UNKNOWN"
 }
 
-public struct ContractConditionEffect: Equatable, Sendable, CustomStringConvertible {
+public struct ContractConditionEffect: Equatable, Sendable, Codable, CustomStringConvertible {
     /// Index into the function signature's value-parameter list whose argument
     /// expression is guaranteed true on normal return.
     public let conditionParameterIndex: Int
