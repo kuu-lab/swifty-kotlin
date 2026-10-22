@@ -61,6 +61,30 @@ struct LocalClassSiblingScopeTests {
         }
     }
 
+    @Test(arguments: [
+        """
+        fun main() {
+            class Node(val v: Int, var left: Node? = null) {
+                fun preOrder() { left?.preOrder() }
+            }
+            Node(1).preOrder()
+        }
+        """,
+        """
+        fun main() {
+            data class Node(val v: Int, var left: Node? = null)
+            Node(1)
+        }
+        """,
+    ])
+    func resolvesSelfTypesInLocalClassHeaders(_ source: String) throws {
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        }
+    }
+
     @Test(arguments: [false, true])
     func resolvesMembersOfEachLexicalClass(useCache: Bool) throws {
         let source = try diffCaseSource("local_class_sibling_scopes.kt", file: #filePath)
