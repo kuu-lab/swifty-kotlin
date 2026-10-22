@@ -248,6 +248,11 @@ extension DataFlowSemaPhase {
         _ annotationSymbol: SymbolID,
         symbols: SymbolTable
     ) {
+        if symbols.deferUntilAfterImportedShellMaterializes(annotationSymbol, work: { [self] in
+            ensureExperimentalTimeRequiresOptInMarker(annotationSymbol, symbols: symbols)
+        }) {
+            return
+        }
         var annotations = symbols.annotations(for: annotationSymbol)
         let requiresOptIn = MetadataAnnotationRecord(
             annotationFQName: "kotlin.RequiresOptIn",
@@ -299,6 +304,16 @@ extension DataFlowSemaPhase {
         }
         let initName = interner.intern("<init>")
         let constructorFQName = ownerInfo.fqName + [initName]
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: constructorFQName, work: { [self] in
+            registerSyntheticExperimentalTimeConstructor(
+                ownerSymbol: ownerSymbol,
+                ownerType: ownerType,
+                symbols: symbols,
+                interner: interner
+            )
+        }) {
+            return
+        }
         if symbols.lookupAll(fqName: constructorFQName).contains(where: { symbolID in
             guard symbols.symbol(symbolID)?.kind == .constructor,
                   let signature = symbols.functionSignature(for: symbolID)
@@ -372,6 +387,20 @@ extension DataFlowSemaPhase {
         let functionName = interner.intern(name)
         let functionFQName = packageFQName + [functionName]
         let desiredParameterTypes = parameters.map { $0.type }
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: functionFQName, work: { [self] in
+            registerExperimentalTimeExtensionFunction(
+                named: name,
+                externalLinkName: externalLinkName,
+                packageFQName: packageFQName,
+                receiverType: receiverType,
+                parameters: parameters,
+                returnType: returnType,
+                symbols: symbols,
+                interner: interner
+            )
+        }) {
+            return
+        }
         if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
             guard let signature = symbols.functionSignature(for: symbolID) else {
                 return false
@@ -445,6 +474,23 @@ extension DataFlowSemaPhase {
         let memberName = interner.intern(name)
         let memberFQName = ownerInfo.fqName + [memberName]
         let desiredParameterTypes = parameters.map { $0.type }
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: memberFQName, work: { [self] in
+            registerExperimentalTimeMemberFunction(
+                named: name,
+                externalLinkName: externalLinkName,
+                ownerSymbol: ownerSymbol,
+                ownerType: ownerType,
+                parameters: parameters,
+                returnType: returnType,
+                symbols: symbols,
+                interner: interner,
+                isOperator: isOperator,
+                visibility: visibility,
+                flags: explicitFlags
+            )
+        }) {
+            return
+        }
         if let existing = symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in
             guard let signature = symbols.functionSignature(for: symbolID) else {
                 return false

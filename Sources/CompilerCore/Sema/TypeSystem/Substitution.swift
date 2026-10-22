@@ -127,12 +127,14 @@ public extension TypeSystem {
         public let covariantSubstitution: [TypeVarID: TypeID]
         /// Type parameter symbols that are projected as `out` or `*` (write-forbidden).
         public let writeForbiddenSymbols: Set<SymbolID>
+        /// Projected inputs made explicitly nullable by a supertype argument.
+        public let nullableWriteSymbols: Set<SymbolID>
     }
 
     /// Resolve the effective upper bound for a type parameter, returning `Any?` when
     /// no explicit bounds exist and an intersection type when multiple bounds exist.
     private func effectiveUpperBound(for symbol: SymbolID, symbols: SymbolTable) -> TypeID {
-        let bounds = symbols.typeParameterUpperBounds(for: symbol)
+        let bounds = declaredUpperBounds(for: symbol)
         if bounds.isEmpty { return nullableAnyType }
         if bounds.count == 1 { return bounds[0] }
         return make(.intersection(bounds))
@@ -150,8 +152,92 @@ public extension TypeSystem {
         signature: FunctionSignature,
         symbols: SymbolTable
     ) -> VarianceProjectionResult? {
-        guard case let .classType(classType) = kind(of: receiverType) else {
+        if case let .intersection(parts) = kind(of: receiverType) {
+            let projections = parts.compactMap {
+                buildVarianceProjectionSubstitutions(receiverType: $0, signature: signature, symbols: symbols)
+            }
+            guard !projections.isEmpty else { return nil }
+            var covariantSubstitution: [TypeVarID: TypeID] = [:]
+            var writeForbiddenSymbols: Set<SymbolID> = []
+            var nullForbiddenSymbols: Set<SymbolID> = []
+            for projection in projections {
+                covariantSubstitution.merge(projection.covariantSubstitution) { glb([$0, $1]) }
+                writeForbiddenSymbols.formUnion(projection.writeForbiddenSymbols)
+                nullForbiddenSymbols.formUnion(projection.writeForbiddenSymbols.subtracting(projection.nullableWriteSymbols))
+            }
+            return VarianceProjectionResult(
+                covariantSubstitution: covariantSubstitution,
+                writeForbiddenSymbols: writeForbiddenSymbols,
+                nullableWriteSymbols: writeForbiddenSymbols.subtracting(nullForbiddenSymbols)
+            )
+        }
+        guard case var .classType(classType) = kind(of: receiverType) else {
             return nil
+        }
+        var nullableWriteSymbols: Set<SymbolID> = []
+        // An inherited member's parameters belong to its declaring receiver.
+        // Preserve the projections while lifting the actual subtype to it.
+        if signature.classTypeParameterCount > 0,
+           let receiver = signature.receiverType,
+           case let .classType(declared) = kind(of: receiver),
+           declared.classSymbol != classType.classSymbol
+        {
+            let parameters = allTypeParameterSymbols(for: classType.classSymbol)
+            var captureIdentities: Set<Int> = []
+            let capturedArguments = allTypeArguments(for: classType).enumerated().map { index, argument -> TypeArg in
+                guard parameters.indices.contains(index) else { return argument }
+                let parameter = parameters[index]
+                let lower: TypeID
+                let upper: TypeID
+                let writeForbidden: Bool
+                switch argument {
+                case .invariant:
+                    return argument
+                case let .out(type):
+                    lower = nothingType
+                    upper = type
+                    writeForbidden = true
+                case let .in(type):
+                    lower = type
+                    upper = effectiveUpperBound(for: parameter, symbols: symbols)
+                    writeForbidden = false
+                case .star:
+                    lower = nothingType
+                    upper = effectiveUpperBound(for: parameter, symbols: symbols)
+                    writeForbidden = true
+                }
+                let captured = makeProjectedReceiverCapture(
+                    receiverType: receiverType,
+                    parameter: parameter,
+                    lower: lower,
+                    upper: upper,
+                    writeForbidden: writeForbidden,
+                    argumentIndex: index
+                )
+                if case let .typeParam(parameter) = kind(of: captured), let capture = parameter.capture {
+                    captureIdentities.insert(capture.identity)
+                }
+                // Keep an explicit supertype T? separate from a nullable upper bound.
+                return .invariant(makeNonNullable(captured))
+            }
+            let capturedReceiver = self.classType(
+                for: classType.classSymbol, arguments: capturedArguments, nullability: classType.nullability
+            )
+            guard let lifted = liftedNominalSupertypeArgs(from: capturedReceiver, to: declared.classSymbol) else {
+                return nil
+            }
+            classType = self.classType(
+                for: declared.classSymbol, arguments: lifted, nullability: classType.nullability
+            )
+            let declaredParameters = allTypeParameterSymbols(for: declared.classSymbol)
+            for (index, argument) in lifted.enumerated() where declaredParameters.indices.contains(index) {
+                if case let .invariant(type) = argument,
+                   case let .typeParam(parameter) = kind(of: type),
+                   parameter.nullability == .nullable, let capture = parameter.capture,
+                   captureIdentities.contains(capture.identity) {
+                    nullableWriteSymbols.insert(declaredParameters[index])
+                }
+            }
         }
         let typeParamSymbols = allTypeParameterSymbols(for: classType.classSymbol)
         let arguments = allTypeArguments(for: classType)
@@ -160,7 +246,8 @@ public extension TypeSystem {
         let hasProjection = arguments.contains { arg in
             switch arg {
             case .out, .in, .star: true
-            case .invariant: false
+            case let .invariant(type):
+                if case let .typeParam(parameter) = kind(of: type) { parameter.capture != nil } else { false }
             }
         }
         guard hasProjection else { return nil }
@@ -180,7 +267,8 @@ public extension TypeSystem {
 
         return VarianceProjectionResult(
             covariantSubstitution: covariantSub,
-            writeForbiddenSymbols: writeForbidden
+            writeForbiddenSymbols: writeForbidden,
+            nullableWriteSymbols: nullableWriteSymbols
         )
     }
 
@@ -190,7 +278,8 @@ public extension TypeSystem {
         switch arg {
         case let .invariant(type):
             if case let .typeParam(parameter) = kind(of: type), let capture = parameter.capture {
-                return (capture.upper, capture.writeForbidden)
+                let upper = parameter.nullability == .nullable ? makeNullable(capture.upper) : capture.upper
+                return (upper, capture.writeForbidden)
             }
             return (type, false)
         case let .out(type):
@@ -204,10 +293,30 @@ public extension TypeSystem {
 
     func checkVarianceViolationInParameters(
         signature: FunctionSignature,
-        writeForbiddenSymbols: Set<SymbolID>
+        writeForbiddenSymbols: Set<SymbolID>,
+        nullableWriteSymbols: Set<SymbolID> = [],
+        argumentTypes: [TypeID] = [],
+        parameterMapping: [Int: Int] = [:]
     ) -> Int? {
         guard !writeForbiddenSymbols.isEmpty else { return nil }
         for (index, paramType) in signature.parameterTypes.enumerated() {
+            // Nothing can be passed to an existential input without producing
+            // a value. Every supplied argument for this parameter must be bottom.
+            let suppliedIndices = parameterMapping.compactMap { $0.value == index ? $0.key : nil }
+            let acceptsNull: Bool
+            if case let .typeParam(parameter) = kind(of: paramType) {
+                acceptsNull = parameter.nullability == .nullable || nullableWriteSymbols.contains(parameter.symbol)
+            } else {
+                acceptsNull = false
+            }
+            if !suppliedIndices.isEmpty,
+               suppliedIndices.allSatisfy({ argumentIndex in
+                   guard argumentTypes.indices.contains(argumentIndex) else { return false }
+                   let type = argumentTypes[argumentIndex]
+                   return type == nothingType || (acceptsNull && type == nullableNothingType)
+               }) {
+                continue
+            }
             let unsafeVarianceSymbols = signature.valueParameterUnsafeVarianceTypeParameterSymbols.indices.contains(index)
                 ? signature.valueParameterUnsafeVarianceTypeParameterSymbols[index]
                 : []

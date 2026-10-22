@@ -50,7 +50,7 @@ public fun CharProgression.isEmpty(): Boolean = rangeIsEmptyChar(first, last, st
 
 // Widening the subtraction to Long (Int) / staying in Long (Long) keeps
 // `value - first` from wrapping when first/value sit near Int.MIN_VALUE /
-// Int.MAX_VALUE, mirroring the overflow guards kk_range_contains applies before
+// Int.MAX_VALUE, mirroring the overflow guards __kk_range_contains applies before
 // its modulo check.
 private fun containsInt(value: Int, first: Int, last: Int, step: Int): Boolean {
     if (step > 0) {

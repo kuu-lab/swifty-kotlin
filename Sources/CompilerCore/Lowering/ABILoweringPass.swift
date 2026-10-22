@@ -142,9 +142,9 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         ]
 
         // The typed rangeUntil bridges back the `until` infix function (registered in
-        // HeaderHelpers+SyntheticRangeProgressionStubs.swift with a scalar
-        // Int/Long return type, matching the isRangeExpr duck-typing convention
-        // used for range operators) but always return boxed RuntimeRangeBox
+        // bundled Kotlin source with a scalar Int/Long return type, matching
+        // the isRangeExpr duck-typing convention used for range operators,
+        // but always return boxed RuntimeRangeBox
         // references at runtime (see the typed rangeUntil bridges in Runtime).
         // Unlike `..`/`downTo`/`step`, calls to the named `until` function carry a
         // resolved Sema symbol, so resolveUnboxForCall would otherwise see a
@@ -439,7 +439,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                           let syms = symbols
                     else { return nil }
                     let propSym = SyntheticSymbolScheme.originalPropertySymbolFromSetterAccessor(s)
-                    guard let getterLink = syms.externalLinkName(for: propSym),
+                    guard let getterLink = syms.externalLinkNameIfKnown(for: propSym),
                           getterLink.hasSuffix("_load")
                     else { return nil }
                     let storeLinkName = String(getterLink.dropLast("_load".count)) + "_store"
@@ -463,7 +463,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     }
                 }
                 let effectiveCallSymbol: SymbolID? = rewrittenCallee != nil ? nil : callSymbol
-                let runtimeLink = effectiveCallSymbol.flatMap { symbols?.externalLinkName(for: $0) }
+                let runtimeLink = effectiveCallSymbol.flatMap { symbols?.externalLinkNameIfKnown(for: $0) }
                     .map { ctx.interner.intern($0) } ?? effectiveCallee
                 let checkedIndices = listViewChecks[runtimeLink]
                     ?? (effectiveCallSymbol.map { listViewMembers.contains($0) } == true ? [0] : nil)
@@ -496,7 +496,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 // merely because its source name is absent from the runtime set.
                 let isNonThrowingExternalLink: Bool = {
                     guard let s = effectiveCallSymbol,
-                          let linkName = symbols?.externalLinkName(for: s)
+                          let linkName = symbols?.externalLinkNameIfKnown(for: s)
                     else {
                         return false
                     }
@@ -636,7 +636,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 // enum ordinal must be boxed here; otherwise enum ordinal zero
                 // loses its entry name and prints as `0`.
                 let generateSequenceBridgeLink = effectiveCallSymbol.flatMap { symbol in
-                    symbols?.externalLinkName(for: symbol)
+                    symbols?.externalLinkNameIfKnown(for: symbol)
                 }
                 if (effectiveCallee == ctx.interner.intern("__kk_sequence_generate")
                     || generateSequenceBridgeLink == "__kk_sequence_generate"),

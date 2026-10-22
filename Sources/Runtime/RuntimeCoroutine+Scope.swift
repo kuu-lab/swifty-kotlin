@@ -235,9 +235,10 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
         lock.lock()
         children.append(handle)
         let cancelled = isCancelled
+        let cause = cancellationCause
         lock.unlock()
         if cancelled {
-            runtimeCancelChild(handle)
+            runtimeCancelChild(handle, cause: cause)
         }
     }
 
@@ -255,7 +256,7 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
         lock.unlock()
         scopeJob?.cancel(message: message, cause: cause)
         for child in currentChildren {
-            runtimeCancelChild(child)
+            runtimeCancelChild(child, cause: cause)
         }
     }
 
@@ -275,7 +276,27 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
         lock.unlock()
         scopeJob?.cancel(message: message, cause: cause)
         for child in currentChildren {
-            runtimeCancelChild(child)
+            runtimeCancelChild(child, cause: cause)
+        }
+    }
+
+    /// KUU-2688: descriptions of the scope's still-active child coroutines,
+    /// rendered the way kotlinx-coroutines-test lists them inside
+    /// `UncompletedCoroutinesError` (kotlinx's `toDebugString()` shape).
+    /// kotlinx `Job.isActive` covers every non-terminal state including
+    /// `Cancelling`, so `!completedSnapshot()` — not `isActiveSnapshot()` —
+    /// is the matching filter.
+    func activeChildDescriptions() -> [String] {
+        lock.lock()
+        let snapshot = children
+        lock.unlock()
+        return snapshot.compactMap { handle in
+            let childJob = runtimeJobHandle(from: handle)
+                ?? runtimeAsyncTask(from: handle)?.completionJob
+            guard let childJob, !childJob.completedSnapshot() else {
+                return nil
+            }
+            return runtimeJobDebugString(childJob)
         }
     }
 
@@ -910,7 +931,7 @@ private func runtimeScopeAsync(
         if let scheduler = blockingChildScheduler {
             scheduler.scheduleChild(work)
         } else if context.dispatcher != 0 {
-            runtimeResolveDispatcher(from: context.dispatcher).queue.async(execute: work)
+            runtimeResolveDispatcher(from: context.dispatcher).dispatchAsync(execute: work)
         } else if let scheduler = scope.testSchedulerIfPresent() {
             scheduler.schedule(after: 0, action: work)
         } else {

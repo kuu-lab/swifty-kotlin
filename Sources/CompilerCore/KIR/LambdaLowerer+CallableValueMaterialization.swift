@@ -23,7 +23,7 @@ extension LambdaLowerer {
     }
 
     func materializeEscapingCallableValue(
-        exprID: ExprID,
+        exprID: ExprID? = nil,
         lambdaSymbol: SymbolID,
         lambdaName: InternedString,
         lambdaReturnType: TypeID,
@@ -34,7 +34,7 @@ extension LambdaLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        if functionType.receiver != nil, !functionType.isSuspend {
+        if let exprID, functionType.receiver != nil, !functionType.isSuspend {
             // Generic receiver callbacks already use the callee's erased return ABI.
             guard lambdaReturnType == functionType.returnType else { return nil }
             let callable = arena.appendExpr(.symbolRef(lambdaSymbol), type: sema.types.make(.functionType(functionType)))
@@ -80,14 +80,15 @@ extension LambdaLowerer {
         }
 
         let adapterSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
-        let adapterName = interner.intern("kk_function_value_adapter_\(exprID.rawValue)_\(adapterSymbol.rawValue)")
+        let adapterName = interner.intern("kk_function_value_adapter_\(exprID?.rawValue ?? -1)_\(adapterSymbol.rawValue)")
         let closureParam = KIRParameter(
             symbol: driver.ctx.allocateSyntheticGeneratedSymbol(),
             type: sema.types.intType
         )
         let valueParams: [KIRParameter] = invocationTypes.enumerated().map { index, type in
             KIRParameter(
-                symbol: syntheticLambdaParamSymbol(lambdaExprID: exprID, paramIndex: 100 + index),
+                symbol: exprID.map { syntheticLambdaParamSymbol(lambdaExprID: $0, paramIndex: 100 + index) }
+                    ?? driver.ctx.allocateSyntheticGeneratedSymbol(),
                 type: type
             )
         }
@@ -146,7 +147,15 @@ extension LambdaLowerer {
             )
         }
 
-        let callResult = arena.appendTemporary(type: lambdaReturnType)
+        let concreteReturnType = arena.function(for: lambdaSymbol)?.returnType ?? lambdaReturnType
+        let boxedReturnType = driver.callLowerer.functionValueBoxedReturnType(
+            concreteReturnType: concreteReturnType,
+            expectedReturnType: functionType.returnType,
+            sema: sema
+        )
+        let adapterReturnType = boxedReturnType ?? lambdaReturnType
+
+        let callResult = arena.appendTemporary(type: concreteReturnType)
         let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType)
         body.append(.constValue(result: thrownResult, value: .null))
         body.append(.call(
@@ -164,11 +173,26 @@ extension LambdaLowerer {
         body.append(.label(rethrowLabel))
         body.append(.rethrow(value: thrownResult))
         body.append(.label(continueLabel))
-        switch sema.types.kind(of: lambdaReturnType) {
+        var returnValue = callResult
+        if let boxedReturnType {
+            returnValue = boxValueForAnySlot(
+                callResult,
+                sourceType: concreteReturnType,
+                types: sema.types,
+                symbols: sema.symbols,
+                interner: interner,
+                arena: arena,
+                resultType: boxedReturnType,
+                requireNonNull: true,
+                sema: sema,
+                into: &body
+            )
+        }
+        switch sema.types.kind(of: adapterReturnType) {
         case .unit, .nothing(.nonNull), .nothing(.nullable):
             body.append(.returnUnit)
         default:
-            body.append(.returnValue(callResult))
+            body.append(.returnValue(returnValue))
         }
         body.append(.endBlock)
 
@@ -178,7 +202,7 @@ extension LambdaLowerer {
                     symbol: adapterSymbol,
                     name: adapterName,
                     params: [closureParam] + valueParams,
-                    returnType: lambdaReturnType,
+                    returnType: adapterReturnType,
                     body: body,
                     isSuspend: functionType.isSuspend,
                     isInline: false

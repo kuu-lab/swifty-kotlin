@@ -28,8 +28,10 @@ enum CLIParser {
       -l <name>              Link library
       --target <triple>      Target triple (arch-vendor-os[-version])
       --classpath <paths>    JVM JAR/class directories, separated by ':' (also -cp)
-      -Xfrontend <flag>      Frontend feature flag (e.g. time-phases, common-module)
-      --incremental         Enable incremental compilation (default: off)
+      -Xfrontend <flag>      Frontend feature flag (e.g. time-phases, incremental-stats,
+                             common-module)
+      --incremental         Enable incremental compilation (default: on for native
+                             compilation that uses a stdlib artifact)
       --incremental-cache <path>
                              Enable incremental compilation using a private cache directory
       --no-incremental      Disable incremental compilation; overrides enable flags and cache path
@@ -51,6 +53,7 @@ enum CLIParser {
       --stdlib-from-source   Debug fallback: inject bundled stdlib Kotlin sources
       --test                 Generate an executable runner for kotlin.test annotations
       -g                     Emit debug info
+      --batch <manifest>     Compile many cases in one process (see BatchMode.swift)
     """
 
     static func parse(args: [String]) throws -> CompilerOptions {
@@ -308,6 +311,17 @@ enum CLIParser {
     }
 
     private static func parseTargetTriple(_ value: String) -> TargetTriple? {
+        // WebAssembly spellings. `wasm32-wasi` / `wasm-js` are two-part
+        // shorthand; the unknown-vendor forms normalize to the same triple.
+        switch value {
+        case "wasm32-wasi", "wasm-wasi", "wasm32-unknown-wasi",
+             "wasm32-wasip1", "wasm32-unknown-wasip1":
+            return .wasmWASI
+        case "wasm-js", "wasm32-js", "wasm32-unknown-js", "wasm32-web":
+            return .wasmJS
+        default:
+            break
+        }
         let parts = value.split(separator: "-", omittingEmptySubsequences: false).map(String.init)
         guard parts.count >= 3 else {
             return nil

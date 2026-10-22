@@ -6,13 +6,17 @@ import Foundation
 ///
 /// ## Binary Format
 ///
-/// The serialized metadata blob is emitted as per-word i64 globals because the
-/// current LLVM bindings do not expose `LLVMConstArray` for i8 arrays.
+/// The serialized metadata blob is emitted as a single `[N x i8]` constant
+/// global. Earlier revisions emitted one `kk_reflection_metadata_w{N}` i64
+/// global per word, which scaled linearly in LLVM symbol emission and object
+/// symbol-table size (tens of thousands of symbols for hello.kt); nothing in
+/// the runtime reads those symbols by name, so the blob now travels as one
+/// array global instead.
 ///
 /// Globals emitted:
 /// - `<symbolPrefix>_?kk_reflection_metadata_size` (i64): total byte count of the serialized blob
 /// - `<symbolPrefix>_?kk_reflection_metadata_words` (i64): number of i64 words
-/// - `<symbolPrefix>_?kk_reflection_metadata_w{N}` (i64): each word of the blob (little-endian packed)
+/// - `<symbolPrefix>_?kk_reflection_metadata` ([N x i8]): the serialized blob
 ///
 /// Layout:
 /// ```
@@ -139,7 +143,7 @@ struct RuntimeReflectionMetadataEmitter {
         records: [MetadataRecord],
         bindings: LLVMCAPIBindings,
         module: LLVMCAPIBindings.LLVMModuleRef,
-        context _: LLVMCAPIBindings.LLVMContextRef,
+        context: LLVMCAPIBindings.LLVMContextRef,
         int64Type: LLVMCAPIBindings.LLVMTypeRef,
         symbolPrefix: String? = nil
     ) {
@@ -170,8 +174,35 @@ struct RuntimeReflectionMetadataEmitter {
             }
         }
 
-        // We store the metadata as an array of i64 values (padded to 8-byte alignment)
-        // because i8 array types are not available through the current binding surface.
+        // Emit the whole blob as a single [byteCount x i8] constant global.
+        // LLVMConstStringInContext accepts an explicit length (embedded NULs
+        // are fine) and DontNullTerminate keeps the array type an exact match.
+        // Older libLLVM builds without the const-string/array bindings keep
+        // the per-word encoding as a fallback.
+        if let int8Type = bindings.int8Type(context: context),
+           let arrayTypeFn = bindings.arrayTypeFn,
+           let constStringInContextFn = bindings.constStringInContextFn,
+           let blobType = arrayTypeFn(int8Type, UInt32(byteCount))
+        {
+            let blobValue = data.withUnsafeBytes { rawBuffer in
+                rawBuffer.bindMemory(to: CChar.self).baseAddress.flatMap {
+                    constStringInContextFn(context, $0, UInt32(byteCount), 1)
+                }
+            }
+            if let blobValue,
+               let blobGlobal = bindings.addGlobal(
+                   module: module,
+                   type: blobType,
+                   name: "\(namePrefix)kk_reflection_metadata"
+               )
+            {
+                bindings.setExternalLinkage(blobGlobal)
+                bindings.setGlobalConstantFn?(blobGlobal, 1)
+                bindings.setInitializer(blobGlobal, value: blobValue)
+                return
+            }
+        }
+
         var words: [UInt64] = []
         words.reserveCapacity(wordCount)
         for wordIdx in 0 ..< wordCount {
@@ -185,8 +216,6 @@ struct RuntimeReflectionMetadataEmitter {
             words.append(word)
         }
 
-        // Emit each word as a separate named global for simplicity, since the
-        // current LLVM bindings do not expose LLVMConstArray.
         for (i, word) in words.enumerated() {
             let name = "\(namePrefix)kk_reflection_metadata_w\(i)"
             if let wordGlobal = bindings.addGlobal(module: module, type: int64Type, name: name) {

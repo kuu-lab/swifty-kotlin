@@ -112,7 +112,8 @@ With a populated cache, `--offline` disables compiler dependency downloads.
 upstream tests and assertions.
 
 The Native result is also **reference-only**: candidate executions are UNMAPPED
-and paired passes are zero. `.github/workflows/kotlinx-io-reference.yml` runs the
+and paired passes are zero. The `kotlinx-io-reference` job in
+`.github/workflows/nightly-full.yml` runs the
 JVM suite and the common/Apple suite on the actual macOS runner architecture,
 and uploads raw logs, commands, hashes, discovery and execution maps even on
 failure. A local Linux success does not establish Apple or macOS success.

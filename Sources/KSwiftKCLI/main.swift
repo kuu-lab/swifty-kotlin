@@ -33,6 +33,10 @@ func printCLIError(_ error: CLIParseError) {
 
 let args = Array(ProcessInfo.processInfo.arguments.dropFirst())
 
+if args.count == 2, args[0] == "--batch" {
+    exit(BatchMode.run(manifestPath: args[1]))
+}
+
 do {
     let parsedOptions = try CLIParser.parse(args: args)
     if CompilerOptions.shouldUseDefaultStdlib(
@@ -54,6 +58,9 @@ do {
     }
 
     let options = try CLIParser.parse(args: args)
+    IncrementalCompilationCache.environmentFingerprintProvider = { options in
+        incrementalEnvironmentFingerprint(for: options)
+    }
     let driver = CompilerDriver(backendPhases: makeBackendPhases)
     let exitCode = driver.run(options: options)
     exit(Int32(exitCode))

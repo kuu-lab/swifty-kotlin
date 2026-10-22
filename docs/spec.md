@@ -248,13 +248,17 @@ ABI照合はvalue-class／JvmName lowering後の公開signatureで行い、静�
 
 
 
-インクリメンタルコンパイルは既定でオフ。CLI の `--incremental` は
-`incremental` frontend flag、`--incremental-cache <path>` は
-`incrementalCachePath` を設定し、それぞれ単独で有効化する。
+インクリメンタルコンパイルは stdlib artifact（`.kklib`）または `--no-stdlib` を使う
+非 JVM コンパイルで既定で有効。bundled stdlib をソース注入するコンパイル
+（`includeStdlib` 解決後）と `--stdlib-only`、JVM 出力は既定オフのまま。
+CLI の `--incremental` は `incremental` frontend flag、`--incremental-cache <path>` は
+`incrementalCachePath` を設定し、それぞれ単独で有効化する（既定対象外の経路を含む）。
 `--no-incremental` は `no-incremental` frontend flag を設定し、指定順に関係なく
 有効化 flag と保存先指定に優先する。Driver は無効化時にキャッシュを読み書きしない。
 `-Xfrontend incremental` は互換のため引き続き利用可能。
-詳細と既定オフを維持する根拠は [`incremental-compilation.md`](incremental-compilation.md) を参照。
+ヒット率は `-Xfrontend incremental-stats` が `incremental: runs=… restored=…` を
+stderr に出力し、`time-phases` は `incremental-prepare` サブフェーズを計測する。
+詳細と既定範囲の根拠は [`incremental-compilation.md`](incremental-compilation.md) を参照。
 
 * **CompilationSession**: 1回の `kswiftc` 実行
 * **Module**: Kotlin の “名前空間 + 生成物” 単位（`moduleName`）
@@ -1411,6 +1415,8 @@ public func kk_coroutine_suspended() -> UnsafeMutableRawPointer
 Sema は overload 解決とラムダ型推論の完了後、suspend 関数・suspend 関数値の呼び出し文脈を検査する。非 suspend 文脈からの呼び出しは `KSWIFTK-SEMA-0307` で拒否する。suspend 関数・suspend ラムダは呼び出しを許可し、通常のラムダは inline 引数（noinline / crossinline を除く）の場合だけ外側の文脈を継承する。名前付き関数、デフォルト引数、クラス・object の初期化処理はそれぞれ独立した文脈を持つ。関数参照の取得自体は suspension point ではない。
 
 関数参照を変数に保存した `val r = ::add; r.invoke(3, 4)` は、元の structural function type で引数・戻り値を検査し、通常の `r(3, 4)` と同じ callable-value 経路へ束縛する（KUU-1723）。反射メンバーや extension の解決用に作る `KFunction<R>` lookup view は `.invoke` の署名を置き換えない。束縛 receiver は参照に保持し、非束縛 receiver は第一引数として受け取る。safe-call は nullable receiver を unwrap して nullable の結果を返し、unsafe nullable 呼び出し、不正な引数数・型・named/spread 引数は従来どおり拒否する。通常の nominal `operator fun invoke` は member dispatch を維持する。
+
+直接指定した関数参照は、期待される関数型に合わせて default 引数省略、vararg 展開、Unit 戻り値化、non-suspend から suspend への変換を adapter に記録する。`val f: suspend (Int) -> Int = ::identity` も adapter を実体化し、変換済み参照は `KFunction` として扱わない。既に変数へ保存した通常の関数値を suspend 型へ代入することは subtype 関係にせず拒否する。
 
 `receiver.(expression)(args)` は括弧内 expression を callee とする明示 receiver の receiver-function-value invocation として解決する。callee expression を先に評価し、receiver、明示引数の順に一度ずつ評価してから関数本体を実行する。通常の function type の第一引数を receiver として流用せず、receiver 型・引数型・arity が function type と合わない呼び出しは拒否する。
 

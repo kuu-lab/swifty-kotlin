@@ -315,6 +315,16 @@ extension CallLowerer {
         let callArgumentCount = sourceArgumentCount ?? argumentCount
         let fallbackName = interner.resolve(fallback)
         let receiverType = receiverTypeOverride ?? sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+        // Safe calls skip the legacy array-member lowering, so mirror its bridge mapping here.
+        if chosenCallee == nil,
+           fallbackName == "concatToString",
+           callArgumentCount == 0,
+           isConcreteArrayLikeType(
+               sema.types.makeNonNullable(receiverType), sema: sema, interner: interner
+           )
+        {
+            return interner.intern("kk_chararray_concatToString")
+        }
         let rangeDispatchKey = MemberRuntimeDispatch.rangeReceiverKind(
             receiverExpr: receiverExpr,
             receiverType: receiverType,
@@ -347,8 +357,7 @@ extension CallLowerer {
 
         // KSP-1523: `contains`/`isEmpty` are also declared directly on the
         // `ClosedRange<T>`/`ClosedFloatingPointRange<T>` interfaces UIntRange
-        // conforms to (HeaderHelpers+SyntheticRangeInterfaceStubs.swift), with
-        // no externalLinkName of their own. Overload resolution sometimes picks
+        // conforms to, with no externalLinkName of their own. Overload resolution sometimes picks
         // that interface member over the per-type bundled/synthetic one (or leaves
         // no chosen callee for a scalar range representation), so check the
         // receiver's concrete element type before requiring `chosenCallee`.

@@ -216,6 +216,8 @@ final class DataFlowSemaPhase: CompilerPhase {
                 bundledIndex = mergeImportedStdlibSymbolsIntoBundledIndex(
                     bundledIndex: bundledIndex,
                     stdlibModuleName: stdlibModuleName,
+                    stdlibIndexSource: importDeferredWork.lazyLoaderState?.stdlibIndexSource,
+                    precomputedMemberIndex: importDeferredWork.lazyLoaderState?.stdlibMemberIndex,
                     symbols: symbols,
                     types: types,
                     interner: ctx.interner
@@ -243,12 +245,23 @@ final class DataFlowSemaPhase: CompilerPhase {
             }
         }
         withSubPhaseTiming("registerSyntheticDelegateStubs", timer: ctx.phaseTimer) {
-            registerSyntheticDelegateStubs(
-                symbols: symbols,
-                types: types,
-                interner: ctx.interner,
-                bundledIndex: bundledIndex
-            )
+            if importDeferredWork.stdlibHasPrecomputedSyntheticStubs,
+               restorePrecomputedStdlibSyntheticTypeSymbols(
+                   symbols: symbols,
+                   types: types,
+                   interner: ctx.interner
+               )
+            {
+                // The artifact owns these records; the registry would rebuild
+                // the same symbols and re-decode their lazy metadata here.
+            } else {
+                registerSyntheticDelegateStubs(
+                    symbols: symbols,
+                    types: types,
+                    interner: ctx.interner,
+                    bundledIndex: bundledIndex
+                )
+            }
         }
         // Apply imported class/interface layouts after synthetic bootstrap
         // registration and before bundled source headers are collected, so
@@ -417,16 +430,43 @@ final class DataFlowSemaPhase: CompilerPhase {
     /// re-parsing that file here. A second, independent read had no
     /// diagnostic on failure (unlike the first) and would silently return
     /// `bundledIndex` unchanged, so any suppression that depends on it
-    /// (e.g. `HeaderHelpers+SyntheticRangeUntilStubs`) would fail open —
-    /// registering a synthetic stub the artifact already provides, which
+    /// (e.g. source-backed coroutine and collection registrations) would fail
+    /// open — registering a synthetic stub the artifact already provides, which
     /// then wins overload resolution as the more specific candidate.
     func mergeImportedStdlibSymbolsIntoBundledIndex(
         bundledIndex: BundledDeclarationIndex,
         stdlibModuleName: InternedString,
+        stdlibIndexSource: IndexedLibrarySource? = nil,
+        precomputedMemberIndex: PrecomputedBundledMemberIndex? = nil,
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
     ) -> BundledDeclarationIndex {
+        if let precomputedMemberIndex {
+            var updatedIndex = bundledIndex
+            updatedIndex.insertImportedStdlibSymbols(
+                keys: [],
+                interner: interner,
+                precomputedMemberIndex: precomputedMemberIndex
+            )
+            return updatedIndex
+        }
+        // A compact-indexed stdlib artifact already carries every member's
+        // (owner, name, arity) key. Reading them straight from the index keeps
+        // the merge from scanning (and thereby registering) ~31k shells just
+        // to answer "an imported declaration exists here". The scan's other
+        // job — re-parenting extension functions to their receiver — is
+        // identical to the per-registration fixup the source performs when an
+        // entry drains, so already- and not-yet-registered records are both
+        // covered.
+        if let stdlibIndexSource {
+            var updatedIndex = bundledIndex
+            updatedIndex.insertImportedStdlibSymbols(
+                keys: stdlibIndexSource.memberKeys(),
+                interner: interner
+            )
+            return updatedIndex
+        }
         // Resolve each nominal FQName once, including receivers from other
         // modules and names shared with package records. Successful lookups
         // remain valid because new symbols append after existing candidates.
@@ -724,7 +764,8 @@ final class DataFlowSemaPhase: CompilerPhase {
                 types: types,
                 bindings: bindings,
                 diagnostics: ctx.diagnostics,
-                interner: ctx.interner
+                interner: ctx.interner,
+                sourceManager: ctx.sourceManager
             )
         }
         withSubPhaseTiming("validateJsExportDeclarations", timer: ctx.phaseTimer) {

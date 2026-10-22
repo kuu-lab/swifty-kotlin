@@ -4,17 +4,30 @@ extension JVMFunctionBuilder {
         if !arena.isExplicitCall(id), let value = try nominalValue(id) { return value }
         if let value = try nominalCall(id, receiver: receiver, name: context.interner.resolve(name), args: args) { return value.value }
         if !arena.isExplicitCall(id), let property = propertyBinding(id) {
-            if let literal = property.field?.constantValue, let symbol = program.sema.bindings.identifierSymbol(for: receiver), program.classes[symbol]?.isObject == true { return try constant(literal, property.type) }
-            let object = try property.getter.isStatic ? constant(.null, .reference("java/lang/Object", nullable: true)) : requireValue(receiver)
+            if let literal = property.field?.constantValue,
+               let symbol = program.sema.bindings.identifierSymbol(for: receiver),
+               program.classes[symbol]?.isObject == true || program.sema.symbols.companionObjectSymbol(for: symbol) != nil {
+                return try constant(literal, property.type)
+            }
+            let object: JVMValue
+            if property.getter.isStatic { object = try constant(.null, .reference("java/lang/Object", nullable: true)) }
+            else if case let .nameRef(qualifier, _) = arena.expr(receiver), !scopes.contains(where: { $0[qualifier] != nil }),
+                    let plan = program.classes.values.first(where: { $0.name == property.getter.owner && $0.isObject }),
+                    program.sema.symbols.symbol(plan.symbol)?.name == qualifier {
+                // A qualified delegated property can bind its owner without
+                // attaching a separate value binding to the object qualifier.
+                object = try singleton(plan)
+            } else { object = try requireValue(receiver) }
             return try convert(readProperty(property, receiver: object, special: isSuper(receiver), superReceiver: receiver), to: program.expressionType(id))
         }
         if !arena.isExplicitCall(id), let result = try textLibraryProperty(id, receiver: receiver) { return result }
+        if let result = try nominalPropertyInvocation(id, receiver: receiver, args: args) { return result.value }
         if let result = try textLibraryCall(args, receiver: receiver, id: id) { return result.value }
         if let result = try inlineCall(args, receiver: receiver, id: id) { return result.value }
         if let result = try sourceCall(args, receiver: receiver, id: id) { return result.value }
         if let result = try extensionOrInvoke(receiver, name: name, args: args, id: id) { return result.value }
         if let result = try intrinsicMember(receiver, name: name, args: args, id: id) { return result.value }
-        if let binding = program.sema.bindings.callBinding(for: id), var method = program.methods[binding.chosenCallee] ?? context.jvmImports?.methods[binding.chosenCallee] {
+        if let binding = program.sema.bindings.callBinding(for: id), var method = program.methods[binding.chosenCallee] ?? context.jvmImports?.methods[binding.chosenCallee] ?? program.builtinMethod(binding.chosenCallee) {
             guard args.allSatisfy({ $0.label == nil && !$0.isSpread }) else { throw fail("Unsupported JVM foreign arguments.", id) }
             if isSuper(receiver) { method = try superMethod(method, receiver: receiver) }
             let object = method.isStatic || method.isConstructor ? nil : try requireValue(receiver)

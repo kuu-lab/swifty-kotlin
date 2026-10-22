@@ -25,9 +25,9 @@ public fun <T, R> Sequence<T>.mapIndexed(transform: (Int, T) -> R): Sequence<R> 
             var index = 0
             override fun hasNext(): Boolean = sourceIterator.hasNext()
             override fun next(): R {
-                val result = transform(index, sourceIterator.next())
+                val currentIndex = index
                 index = index + 1
-                return result
+                return transform(currentIndex, sourceIterator.next())
             }
         }
     }
@@ -149,14 +149,14 @@ public fun <T> Sequence<T>.filterIndexed(predicate: (Int, T) -> Boolean): Sequen
                 if (nextState == -1) return false
                 if (nextState == 0) return true
                 while (sourceIterator.hasNext()) {
+                    val currentIndex = index
+                    index = index + 1
                     val item = sourceIterator.next()
-                    if (predicate(index, item)) {
+                    if (predicate(currentIndex, item)) {
                         nextItem = item
                         nextState = 0
-                        index = index + 1
                         return true
                     }
-                    index = index + 1
                 }
                 nextState = -1
                 return false
@@ -196,9 +196,10 @@ public fun <T> Sequence<T>.onEachIndexed(action: (Int, T) -> Unit): Sequence<T> 
             var index = 0
             override fun hasNext(): Boolean = sourceIterator.hasNext()
             override fun next(): T {
-                val item = sourceIterator.next()
-                action(index, item)
+                val currentIndex = index
                 index = index + 1
+                val item = sourceIterator.next()
+                action(currentIndex, item)
                 return item
             }
         }
@@ -217,9 +218,10 @@ public fun <T, R : Any> Sequence<T>.mapIndexedNotNull(transform: (Int, T) -> R?)
             fun compute() {
                 if (nextState == 0 || nextState == -1) return
                 while (sourceIterator.hasNext()) {
-                    val item = sourceIterator.next()
-                    val transformed = transform(index, item)
+                    val currentIndex = index
                     index = index + 1
+                    val item = sourceIterator.next()
+                    val transformed = transform(currentIndex, item)
                     if (transformed != null) {
                         nextItem = transformed
                         nextState = 0

@@ -141,7 +141,7 @@ extension DataFlowSemaPhase {
         pendingSupertypeEdges: inout [(subtype: SymbolID, superFQName: [InternedString])],
         cache: LibraryMetadataCache?,
         isStdlibArtifact: Bool,
-        phantomTypeParameterSymbolsByOwnerFQName: [[InternedString]: [SymbolID]] = [:]
+        phantomTypeParameterSymbols: [SymbolID] = []
     ) {
         binding.materialize()
         let record = binding.record
@@ -162,7 +162,7 @@ extension DataFlowSemaPhase {
             importedInlineFunctions: importedInlineFunctions,
             cache: cache,
             isStdlibArtifact: isStdlibArtifact,
-            phantomTypeParameterSymbolsByOwnerFQName: phantomTypeParameterSymbolsByOwnerFQName
+            phantomTypeParameterSymbols: phantomTypeParameterSymbols
         )
         applyImportedValueClassMetadata(
             binding,
@@ -219,7 +219,15 @@ extension DataFlowSemaPhase {
 
         let ownerFQName = Array(record.fqName.dropLast())
         let ownerCandidates = symbols.lookupAll(fqName: ownerFQName).compactMap { symbols.symbol($0) }
-        if let ownerSymbol = ownerCandidates.first(where: { isNominalLayoutTargetSymbol($0.kind) })?.id {
+        let nominalOwners = ownerCandidates.filter { isNominalLayoutTargetSymbol($0.kind) }
+        // A source declaration can shadow an imported nominal at the same
+        // fqName. Imported members still belong to the imported nominal;
+        // attaching them to the shadowing source class would merge two
+        // different member tables under one owner.
+        let ownerSymbol = preferredNominalOwnerSymbol(
+            among: nominalOwners, forMember: symbol, symbols: symbols
+        )
+        if let ownerSymbol {
             symbols.setParentSymbol(ownerSymbol, for: symbol)
         } else if (record.receiverOwnerFQName != nil || record.propertyReceiverTypeSignature != nil
                    || isNominalLayoutTargetSymbol(record.kind)),
@@ -232,6 +240,20 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// Nominal owner for a member record at `fqName`. Imported members prefer
+    /// the imported nominal so a shadowing source class does not absorb them;
+    /// when no imported nominal exists they get no nominal owner at all.
+    func preferredNominalOwnerSymbol(
+        among nominalOwners: [SemanticSymbol],
+        forMember member: SymbolID,
+        symbols: SymbolTable
+    ) -> SymbolID? {
+        guard symbols.symbol(member)?.flags.contains(.importedLibrary) == true else {
+            return nominalOwners.first?.id
+        }
+        return nominalOwners.first(where: { $0.flags.contains(.importedLibrary) })?.id
+    }
+
     private func applyImportedCallableMetadata(
         _ binding: ImportedLibraryBinding,
         symbols: SymbolTable,
@@ -241,7 +263,7 @@ extension DataFlowSemaPhase {
         importedInlineFunctions: ImportedInlineFunctionStore,
         cache: LibraryMetadataCache?,
         isStdlibArtifact: Bool = false,
-        phantomTypeParameterSymbolsByOwnerFQName: [[InternedString]: [SymbolID]] = [:]
+        phantomTypeParameterSymbols: [SymbolID] = []
     ) {
         let record = binding.record
         let symbol = binding.symbol
@@ -257,7 +279,7 @@ extension DataFlowSemaPhase {
                 metadataPath: binding.metadataPath,
                 cache: cache,
                 allowPlaceholders: isStdlibArtifact,
-                phantomTypeParameterSymbols: phantomTypeParameterSymbolsByOwnerFQName[record.fqName] ?? [],
+                phantomTypeParameterSymbols: phantomTypeParameterSymbols,
                 phantomTypeParameterSymbolCount: binding.deferredPhantomTypeParameterSymbolCount,
                 phantomTypeParameterSymbolsProvider: binding.deferredPhantomTypeParameterSymbolCount > 0
                     ? { binding.materializeDeferredPhantomTypeParameterSymbols() }
@@ -820,26 +842,16 @@ extension DataFlowSemaPhase {
             pendingSupertypeEdges.append((subtype: binding.symbol, superFQName: superFQName))
         }
 
-        // Import the precompiled enum static initializer link so the consumer
-        // can call it before `main`, ensuring enum entry globals are initialized.
-        if record.kind == .enumClass,
-           let enumStaticInitLink = record.enumStaticInitLinkName,
-           !enumStaticInitLink.isEmpty
-        {
-            let initName = interner.intern("__enum_static_init")
-            let initFQName = record.fqName + [initName]
-            let initSymbol = symbols.define(
-                kind: .function,
-                name: initName,
-                fqName: initFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .importedLibrary]
-            )
-            symbols.setExternalLinkName(enumStaticInitLink, for: initSymbol)
-            symbols.setParentSymbol(binding.symbol, for: initSymbol)
-            symbols.setEnumStaticInitSymbol(initSymbol, for: binding.symbol)
-        }
+        // The precompiled initializer stubs (object/companion/enum static)
+        // are compact-index facts and are already synthesized at shell
+        // registration; this call only fills any path that still lacks them.
+        applyImportedInitializerShells(
+            record: record,
+            symbol: binding.symbol,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
     }
 
     /// Restores the declaration-order type parameters of an imported generic

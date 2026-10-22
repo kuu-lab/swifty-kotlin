@@ -68,6 +68,11 @@ extension JVMProgramBuilder {
                  type: .reference(plan.name, nullable: false), access: 0x19)
     }
 
+    func interfaceCompanionStorage(_ plan: JVMClassPlan) -> JVMField? {
+        guard let owner = plan.companionOwner, classes[owner]?.isInterface == true else { return nil }
+        return JVMField(owner: plan.name, name: "$$INSTANCE", type: .reference(plan.name, nullable: false), access: 0x1018)
+    }
+
     func nominalBuilder(_ plan: JVMClassPlan, name: String, parameters: [JVMValueType] = [], result: JVMValueType = .unit, staticBody: Bool = false) throws -> JVMFunctionBuilder {
         let declaration = FunDecl(range: (plan.declaration?.range ?? plan.interface!.range), name: context.interner.intern(name), modifiers: [], valueParams: parameters.indices.map { ValueParamDecl(name: context.interner.intern("p\($0)"), type: nil) }, body: .unit)
         let builder = JVMFunctionBuilder(program: self, declaration: declaration, reference: JVMFunctionReference(name: name, parameters: parameters, result: result), owner: plan)
@@ -114,12 +119,12 @@ extension JVMProgramBuilder {
             method = JVMForeignMethod(owner: method.owner, name: "<init>", descriptor: "(" + types.map(\.descriptor).joined() + ")V", parameters: types, result: method.result, isStatic: false, isInterface: false, isAbstract: false)
         }
         b.instructions += [.foreignCall(method, receiver: b.thisValue, arguments: values, result: nil), .returnValue(nil)]
-        var function = b.finish(constructor: true); function.isPrivate = true; function.access = plan.companionOwner == nil ? 2 : 0; return function
+        var function = b.finish(constructor: true); function.isPrivate = true; function.access = plan.companionOwner == nil || interfaceCompanionStorage(plan) != nil ? 2 : 0; return function
     }
 
     func objectInitializer(_ plan: JVMClassPlan) throws -> JVMFunction {
         let b = try nominalBuilder(plan, name: "<clinit>", staticBody: true)
-        let field = singletonField(plan), object = try b.value(field.type)
+        let field = interfaceCompanionStorage(plan) ?? singletonField(plan), object = try b.value(field.type)
         let ctor = JVMForeignMethod(owner: plan.name, name: "<init>", descriptor: "()V", parameters: [], result: field.type, isStatic: false, isInterface: false, isAbstract: false)
         b.instructions += [.allocate(plan.name, object), .foreignCall(ctor, receiver: object, arguments: [], result: nil), .putStatic(field, object)]
         b.thisValue = object; b.initializingObject = true
@@ -144,9 +149,18 @@ extension JVMProgramBuilder {
         var functions: [JVMFunction] = []
         if !plan.propertyTokens.isEmpty { functions.append(try propertyTokenInitializer(plan)) }
         if plan.modifiers.contains(.data) { functions += try plan.isObject ? dataObjectMethods(plan, existing: existing) : dataMethods(plan, existing: existing) }
-        if plan.isObject && plan.companionOwner == nil { functions.append(try objectInitializer(plan)) }
+        if plan.isObject && (plan.companionOwner == nil || interfaceCompanionStorage(plan) != nil) { functions.append(try objectInitializer(plan)) }
         if plan.isEnum { functions += try enumMethods(plan) }
-        if let companion = classes.values.first(where: { $0.companionOwner == plan.symbol }) { functions.append(try objectInitializer(companion)) }
+        if let companion = classes.values.first(where: { $0.companionOwner == plan.symbol }) {
+            if let storage = interfaceCompanionStorage(companion) {
+                let b = try nominalBuilder(plan, name: "<clinit>", staticBody: true)
+                let object = try b.value(storage.type)
+                b.instructions += [.getStatic(storage, object), .putStatic(singletonField(companion), object), .returnValue(nil)]
+                var function = b.finish(); function.access = 8; functions.append(function)
+            } else {
+                functions.append(try objectInitializer(companion))
+            }
+        }
         if plan.modifiers.contains(.sealed) { functions += try sealedConstructors(plan, existing: existing) }
         let initializers = functions.filter { $0.reference.name == "<clinit>" }
         if initializers.count > 1 {
@@ -181,10 +195,21 @@ extension JVMProgramBuilder {
 
     func decorateNominal(_ plan: JVMClassPlan, result: inout JVMClass) throws {
         result.extraFields += plan.delegateFields.map { $0.2 } + Array(plan.propertyTokens.values).sorted { $0.name < $1.name } + plan.properties.compactMap { $0.2.delegateField }
-        if plan.companionOwner != nil {
+        if let companionOwner = plan.companionOwner {
             result.properties = result.properties.map { property in
-                guard property.field?.constantValue != nil else { return property }
-                var property = property; property.field = nil; return property
+                guard let field = property.field, field.constantValue != nil else { return property }
+                var property = property
+                if classes[companionOwner]?.isInterface == true {
+                    // Kotlin duplicates interface companion constants in both owners.
+                    var duplicate = JVMField(owner: plan.name, name: field.name, type: field.type, access: field.access)
+                    duplicate.annotations = field.annotations
+                    duplicate.constantValue = field.constantValue
+                    duplicate.isDeprecated = field.isDeprecated
+                    property.field = duplicate
+                } else {
+                    property.field = nil
+                }
+                return property
             }
         }
         result.isObject = plan.isObject; result.isCompanion = plan.companionOwner != nil
@@ -199,9 +224,14 @@ extension JVMProgramBuilder {
         result.companionName = classes.values.first(where: { $0.companionOwner == plan.symbol }).map { context.interner.resolve(sema.symbols.symbol($0.symbol)!.name) }
         result.sealedSubclasses = try (sema.symbols.sealedSubclasses(for: plan.symbol) ?? []).map(className).sorted()
         if plan.isObject && plan.companionOwner == nil { result.extraFields.append(singletonField(plan)) }
+        if let storage = interfaceCompanionStorage(plan) { result.extraFields.append(storage) }
         if let companion = classes.values.first(where: { $0.companionOwner == plan.symbol }) {
             result.extraFields.append(singletonField(companion))
-            result.extraFields += companion.properties.compactMap { $0.2.field?.constantValue == nil ? nil : $0.2.field }
+            result.extraFields += companion.properties.compactMap {
+                guard let field = $0.2.field, field.constantValue != nil,
+                      !plan.isInterface || field.access & 2 == 0 else { return nil }
+                return field
+            }
         }
         if plan.isEnum { try decorateEnum(plan, result: &result) }
         if plan.enumParent != nil { result.emitMetadata = false }

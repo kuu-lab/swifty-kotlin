@@ -41,14 +41,22 @@ extension BuildASTPhase.ExpressionParser {
         for (rangeIndex, (start, rangeEnd)) in ranges.enumerated() {
             let group = allTokens[start ..< rangeEnd]
             guard !group.isEmpty else { continue }
+            // A statement-initial annotation now reaches the group merged with
+            // its operand (`@Suppress("X")\nfun f()`); the fun/decl parsers
+            // need it stripped like parseStatementGroup does. Assignment and
+            // expression paths keep the raw group so annotations still attach
+            // to the parsed expression.
+            let strippedGroup = BuildASTPhase.skipLeadingLocalAnnotations(
+                Array(group), interner: interner
+            )
             if let localFun = localFunctionParser.parseLocalFunDeclExpr(
-                from: Array(group), interner: interner, astArena: astArena
+                from: strippedGroup, interner: interner, astArena: astArena
             ) {
                 statements.append(localFun)
             } else if let localDecl = parseLocalDeclFromSlice(group) {
                 statements.append(localDecl)
             } else if rangeIndex == ranges.count - 1,
-                      let postfixExpr = parseTrailingScalarPostfixMutation(group)
+                      let postfixExpr = parseTrailingScalarPostfixMutation(strippedGroup[...])
             {
                 statements.append(postfixExpr)
             } else if let localAssign = parseLocalAssignFromSlice(group) {
@@ -78,7 +86,7 @@ extension BuildASTPhase.ExpressionParser {
         return astArena.appendExpr(.blockExpr(statements: statements, trailingExpr: trailingExpr, range: range))
     }
 
-    private func parseTrailingScalarPostfixMutation(_ tokens: ArraySlice<Token>) -> ExprID? {
+    func parseTrailingScalarPostfixMutation(_ tokens: ArraySlice<Token>) -> ExprID? {
         var expressionTokens = Array(tokens)
         while expressionTokens.last?.kind == .symbol(.semicolon) {
             expressionTokens.removeLast()
@@ -192,6 +200,13 @@ extension BuildASTPhase.ExpressionParser {
     ) -> ExprID? {
         let interner = interner
         let astArena = astArena
+        // A statement-initial annotation merged with the declaration by the
+        // newline splitter (`@Suppress("X")\nval x = ...`) cannot reach the
+        // val/var head; strip it like parseStatementGroup does — the
+        // annotation itself is still dropped.
+        let tokens = BuildASTPhase.skipLeadingLocalAnnotations(
+            Array(tokens), interner: interner
+        )[...]
         // Nested blocks (if/while/lambda bodies) reach declarations through this
         // slice-based path, so destructuring has to be recognised here too;
         // otherwise `val (a, b) = expr` degrades into `val a = expr`.

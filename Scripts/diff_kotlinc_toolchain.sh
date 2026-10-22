@@ -194,3 +194,33 @@ build_stdlib_artifact() {
   stdlib_manifest_hash="$(stdlib_manifest_hash "$STDLIB_ARTIFACT")"
   echo "Stdlib artifact manifest hash: $stdlib_manifest_hash"
 }
+
+# DIFF_BACKEND=jvm compiles each case with `--emit jar --classpath
+# <jvm stdlib jar>` and runs it with `java -cp case.jar:stdlib.jar`. The
+# shared jar is built once per run (DIFF_JVM_STDLIB_JAR reuses an existing
+# one) instead of the native .kklib artifact.
+build_jvm_stdlib_jar() {
+  if [[ -n "$DIFF_JVM_STDLIB_JAR" ]]; then
+    if [[ ! -f "$DIFF_JVM_STDLIB_JAR" ]]; then
+      echo "JVM stdlib jar does not exist: $DIFF_JVM_STDLIB_JAR" >&2
+      return 1
+    fi
+    JVM_STDLIB_JAR="$DIFF_JVM_STDLIB_JAR"
+    return 0
+  fi
+
+  mkdir -p "$ARTIFACT_ROOT"
+  JVM_STDLIB_JAR="$ARTIFACT_ROOT/kswiftk-stdlib.jar"
+  local build_stdout="$ARTIFACT_ROOT/jvm_stdlib_build.stdout"
+  local build_stderr="$ARTIFACT_ROOT/jvm_stdlib_build.stderr"
+
+  echo "Building JVM stdlib jar: $JVM_STDLIB_JAR"
+  "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --stdlib-only --emit jar -o "$JVM_STDLIB_JAR" \
+    >"$build_stdout" 2>"$build_stderr" || {
+      echo "Failed to build JVM stdlib jar" >&2
+      if [[ -s "$build_stderr" ]]; then
+        cat "$build_stderr" >&2
+      fi
+      return 1
+    }
+}

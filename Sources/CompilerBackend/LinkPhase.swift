@@ -40,6 +40,9 @@ final class LinkPhase: CompilerPhase {
 
     func run(_ ctx: CompilationContext) throws {
         guard ctx.options.emit == .executable else { return }
+        // The wasm backend emits the final module itself; there is no host
+        // object link step.
+        guard !ctx.options.target.isWasm else { return }
         guard let objectPath = ctx.generatedObjectPath else {
             ctx.diagnostics.error(
                 "KSWIFTK-LINK-0004",
@@ -137,10 +140,24 @@ final class LinkPhase: CompilerPhase {
                    cacheDirectory: runtimeInputs.linkerCacheDirectory,
                    phaseTimer: ctx.phaseTimer
                ) {
+                var finalInputs = linkInputs
+                let prelinked = withSubPhaseTiming("prelinkedObjects", timer: ctx.phaseTimer) {
+                    MacOSPrelinkedObjects.resolve(
+                        inputs: Array(linkInputs.dropFirst(2)),
+                        cacheDirectory: runtimeInputs.linkerCacheDirectory
+                            .appendingPathComponent("prelinked", isDirectory: true),
+                        driver: plan.executable,
+                        target: linkerTargetTriple(ctx.options.target),
+                        phaseTimer: ctx.phaseTimer
+                    )
+                }
+                if let prelinked {
+                    finalInputs = [objectPath, entryWrapperObjectPath, prelinked]
+                }
                 _ = try CommandRunner.run(
                     executable: plan.executable,
                     arguments: plan.linkArguments(
-                        inputs: linkInputs, output: ctx.options.outputPath,
+                        inputs: finalInputs, output: ctx.options.outputPath,
                         libraryPaths: ctx.options.libraryPaths, libraries: ctx.options.linkLibraries
                     ),
                     phaseTimer: ctx.phaseTimer, subPhaseName: "Link/clang"

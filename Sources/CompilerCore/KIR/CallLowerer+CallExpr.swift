@@ -509,7 +509,7 @@ extension CallLowerer {
             case knownNames.list, knownNames.mutableList:
                 nil
             case interner.intern("Range"), interner.intern("IntRange"):
-                interner.intern("kk_range_toList")
+                interner.intern("__kk_range_toList")
             case interner.intern("LongRange"):
                 interner.intern("__kk_long_range_toList")
             case interner.intern("ULongRange"):

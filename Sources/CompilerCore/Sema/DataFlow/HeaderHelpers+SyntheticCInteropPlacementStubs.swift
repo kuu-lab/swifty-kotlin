@@ -8,6 +8,17 @@ extension DataFlowSemaPhase {
     ) {
         let memScopedName = interner.intern("memScoped")
         let memScopedFQName = cinteropPkg + [memScopedName]
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: memScopedFQName, work: { [self] in
+            registerCInteropMemScopedStub(
+                cinteropPkg: cinteropPkg,
+                memScopeType: memScopeType,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        }) {
+            return
+        }
         if symbols.lookupAll(fqName: memScopedFQName).contains(where: { symbolID in
             guard let sig = symbols.functionSignature(for: symbolID) else { return false }
             return sig.receiverType == nil && sig.parameterTypes.count == 1 && sig.typeParameterSymbols.count == 1

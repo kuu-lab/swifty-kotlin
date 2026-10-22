@@ -76,7 +76,7 @@ extension KIRLoweringDriver {
         let entrySymbols: [SymbolID] = classDecl.enumEntries.map { entry in
             sema.symbols.lookupAll(fqName: ownerInfo.fqName + [entry.name]).first(where: { candidate in
                 sema.symbols.symbol(candidate)?.kind == .field
-                    && sema.symbols.parentSymbol(for: candidate) == ownerSymbol
+                    && sema.symbols.parentSymbolIfKnown(for: candidate) == ownerSymbol
             }) ?? .invalid
         }
         guard !entrySymbols.contains(.invalid) else { return [] }
@@ -989,7 +989,7 @@ extension KIRLoweringDriver {
         // A companion is initialized after its enclosing enum. Other nested
         // objects have independent initialization and must not trigger it.
         for enumSymbol in sema.symbols.allSymbols() where enumSymbol.kind == .enumClass {
-            guard let companionSymbol = sema.symbols.companionObjectSymbol(for: enumSymbol.id) else {
+            guard let companionSymbol = sema.symbols.companionObjectSymbolIfKnown(for: enumSymbol.id) else {
                 continue
             }
             let companionLazyInit: (symbol: SymbolID, name: InternedString)?

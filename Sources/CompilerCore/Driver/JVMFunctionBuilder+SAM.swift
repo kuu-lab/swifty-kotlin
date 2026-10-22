@@ -6,11 +6,30 @@ extension JVMFunctionBuilder {
     func expression(_ id: ExprID, discarded: Bool = false) throws -> JVMValue? {
         if let operand = evaluatedOperands[id] { return operand }
         let pendingConstructor = !pendingAllocations.isEmpty, start = instructions.count
-        let result: JVMValue?
+        var result: JVMValue?
         do { result = try rawExpression(id, discarded: discarded) }
         catch is JVMTerminatedExpression { return nil }
         if pendingConstructor, instructions.dropFirst(start).contains(where: \.isSuspension) {
             throw fail("JVM suspension inside an uninitialized constructor argument is unsupported.", id)
+        }
+        if !terminated, let logicalType = program.sema.bindings.exprType(for: id),
+           case .nothing(.nonNull) = program.sema.types.kind(of: logicalType) {
+            // A Nothing-valued call has no normal source edge, even when its
+            // Void descriptor or an inline join appears to return a value.
+            let unreachable = try constructJDK("kotlin/KotlinNothingValueException", parameters: [], arguments: [])
+            instructions.append(.throwValue(unreachable)); terminated = true
+            return nil
+        }
+        if result == nil, !discarded, !terminated,
+           let logicalType = program.sema.bindings.exprType(for: id),
+           case .unit = program.sema.types.kind(of: logicalType) {
+            // A void-producing Unit expression still has a value when its
+            // surrounding expression expects an object, such as a lambda result.
+            program.functionArities.insert(0)
+            let unit: JVMValueType = .reference("kotlin/Unit", nullable: false)
+            let boxed = try value(unit)
+            instructions.append(.getStatic(JVMField(owner: "kotlin/Unit", name: "INSTANCE", type: unit, access: 0x19), boxed))
+            result = boxed
         }
         let target = program.sema.bindings.samInterfaceType(for: id) ?? (program.sema.bindings.samUnderlyingFunctionType(for: id) != nil ? program.sema.bindings.exprType(for: id) : nil)
         guard !terminated, let result, let target, case .classType = program.sema.types.kind(of: target) else { return result }
@@ -28,11 +47,25 @@ extension JVMFunctionBuilder {
         program.nextClosure += 1
         let immediateSuspend = method.isSuspend && function.type.referenceName == "kotlin/jvm/functions/Function" + String(method.parameters.count)
         program.closureClasses.append(program.samClass(name, target: try program.className(t.classSymbol), method: method, immediateSuspend: immediateSuspend))
+        let nullableResult = type.isNullable && function.type.isNullable ? try value(type) : nil
+        let nullCase = label(), end = label()
+        if nullableResult != nil {
+            // A null function converts to a null nullable SAM, without
+            // constructing an adapter or asserting that the function exists.
+            let null = try constant(.null, .reference("java/lang/Object", nullable: true)), present = try value(.boolean)
+            instructions.append(.referenceCompare(.notEqual, function, null, present))
+            instructions.append(.jumpIfFalse(present, nullCase))
+        }
         let object = try value(.reference(name, nullable: false))
         let callable = try convert(function, to: .reference("kotlin/jvm/functions/Function" + String(method.parameters.count + (method.isSuspend && !immediateSuspend ? 1 : 0)), nullable: false))
         instructions.append(.allocate(name, object))
         let ctor = JVMForeignMethod(owner: name, name: "<init>", descriptor: "(" + callable.type.descriptor + ")V", parameters: [callable.type], result: object.type, isStatic: false, isInterface: false, isAbstract: false)
         instructions.append(.foreignCall(ctor, receiver: object, arguments: [callable], result: nil))
+        if let nullableResult {
+            instructions.append(.copy(try convert(object, to: type), nullableResult)); jump(end)
+            mark(nullCase); instructions.append(.constant(.null, nullableResult)); mark(end)
+            return nullableResult
+        }
         return try convert(object, to: type)
     }
 }

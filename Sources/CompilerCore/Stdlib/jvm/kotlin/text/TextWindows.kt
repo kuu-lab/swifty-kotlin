@@ -2,7 +2,14 @@
 package kotlin.text
 fun CharSequence.windowed(size: Int, step: Int = 1, partialWindows: Boolean = false): List<String> = windowed(size, step, partialWindows) { it.toString() }
 fun <R> CharSequence.windowed(size: Int, step: Int = 1, partialWindows: Boolean = false, transform: (CharSequence) -> R): List<R> {
-    if (size <= 0 || step <= 0) throw IllegalArgumentException("Size and step must be positive")
+    if (size <= 0 || step <= 0) {
+        val message = if (size != step) {
+            "Both size $size and step $step must be greater than zero."
+        } else {
+            "size $size must be greater than zero."
+        }
+        throw IllegalArgumentException(message)
+    }
     val result = mutableListOf<R>()
     val inputLength = this.length
     var start = 0

@@ -6,6 +6,26 @@ import TestStdlibCache
 
 @Suite
 struct LibMetadataImportIntegrationTests {
+    @Test func testVTableOverloadSignaturesMatchAfterTypeParameterRebasing() {
+        let metadataReceiver = "RLkotlinx.coroutines.CancellableContinuation<T22804>;"
+        let importedReceiver = "RLkotlinx.coroutines.CancellableContinuation<T-1022804>;"
+        let metadataCallback = "F3<Lkotlin.Throwable;,T22813,Lkotlin.coroutines.CoroutineContext;,U>"
+        let importedCallback = "F3<Lkotlin.Throwable;,T-1022813,Lkotlin.coroutines.CoroutineContext;,U>"
+        let otherCallback = "Q<F1<Lkotlin.Throwable;,U>>"
+        let metadataSignature = "F2<\(metadataReceiver),T22813,\(metadataCallback),U>"
+        let importedSignature = "F2<\(importedReceiver),T-1022813,\(importedCallback),U>"
+        let otherOverload = "F2<\(importedReceiver),T-1022804,\(otherCallback),U>"
+
+        #expect(
+            canonicalizeMangledTypeParameterIDs(metadataSignature)
+                == canonicalizeMangledTypeParameterIDs(importedSignature)
+        )
+        #expect(
+            canonicalizeMangledTypeParameterIDs(importedSignature)
+                != canonicalizeMangledTypeParameterIDs(otherOverload)
+        )
+    }
+
     @Test(arguments: [false, true])
     func testInlineParameterReturnModesSurviveSignatureNormalization(indexed: Bool) throws {
         let libDir = FileManager.default.temporaryDirectory

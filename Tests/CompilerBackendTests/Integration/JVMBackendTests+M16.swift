@@ -222,6 +222,7 @@ extension JVMBackendTests {
                 val inner = Outer(4).Inner()
                 val f: (Int) -> Int = inner::add; println(f(3))
                 println(memberReference<Int, String>()("wrong")); println(memberReference<String, String>()("yes")); println(memberReference<String?, String?>()(null))
+                val e = 5.self(); val g = "word".self(); println(e.get()); println(g.get())
             }
             interface Box<T> { fun get(): T }
             inline fun <reified T> box(value: T): Box<T> = object: Box<T> { override fun get(): T = value }
@@ -249,10 +250,11 @@ extension JVMBackendTests {
                 val target = object { inline fun <reified C> matches(v: C): Boolean = v is A }
                 return target::matches
             }
+            inline fun <reified T> T.self(): Box<Any?> = object: Box<Any?> { override fun get(): Any? = this@self }
             class Outer(val value: Int) {
                 inner class Inner { inline fun <reified T> add(n: T): Int = if (n is Int) value + n else 0 }
             }
-            """, expected: "1\ntext\n7\nafter\ntrue\nfalse\ntrue\ntrue\nfalse\n7\nfalse\ntrue\ntrue\n", mode: mode, root: root)
+            """, expected: "1\ntext\n7\nafter\ntrue\nfalse\ntrue\ntrue\nfalse\n7\nfalse\ntrue\ntrue\n5\nword\n", mode: mode, root: root)
         }
     }
 

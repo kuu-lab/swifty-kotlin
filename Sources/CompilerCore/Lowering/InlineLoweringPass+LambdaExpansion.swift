@@ -148,7 +148,8 @@ extension InlineLoweringPass {
         allFunctionsBySymbol: [SymbolID: KIRFunction],
         ctx: KIRContext,
         labels: inout InlineLabelAllocator,
-        expansionBudget: InlineExpansionBudget? = nil
+        expansionBudget: InlineExpansionBudget? = nil,
+        externalLoopAliases: [InlineLoopLabelAliases] = []
     ) -> InlineExpansion? {
         let budget = expansionBudget ?? InlineExpansionBudget(arena: module.arena)
         guard budget.enter(lambdaFunction, arena: module.arena) else { return nil }
@@ -181,6 +182,7 @@ extension InlineLoweringPass {
         var localExprMap: [KIRExprID: KIRExprID] = [:]
         var lowered = KIRLoweringEmitContext()
         var callAncestries: [Int: [SymbolID]] = [:]
+        var callExternalLoopAliases: [Int: [InlineLoopLabelAliases]] = [:]
         // Caller-supplied lambdas may legitimately call their enclosing inline function.
         let lambdaAncestry = budget.ancestry.filter { !budget.inlineSymbols.contains($0) }
         lowered.instructions.reserveCapacity(lambdaFunction.body.count)
@@ -240,6 +242,12 @@ extension InlineLoweringPass {
                 labelRemap[id] = labels.allocateScratchLabel()
             }
         }
+        var enclosingCallAliases = externalLoopAliases
+        if !labelRemap.isEmpty {
+            enclosingCallAliases.insert(
+                InlineLoopLabelAliases(labels: labelRemap, needsRelocation: true), at: 0
+            )
+        }
         for instruction in lambdaFunction.body {
             guard budget.permitsOutput(lowered.instructions.count, arena: module.arena) else { return nil }
             let outputStart = lowered.instructions.count
@@ -247,6 +255,9 @@ extension InlineLoweringPass {
                 for offset in outputStart ..< lowered.instructions.count {
                     if case .call = lowered.instructions[offset], callAncestries[offset] == nil {
                         callAncestries[offset] = lambdaAncestry
+                    }
+                    if case .call = lowered.instructions[offset], callExternalLoopAliases[offset] == nil {
+                        callExternalLoopAliases[offset] = enclosingCallAliases
                     }
                 }
             }
@@ -331,116 +342,9 @@ extension InlineLoweringPass {
                     outputCount: lowered.instructions.count, arena: module.arena
                 ) else { return nil }
                 let resolvedArgs = args.map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
-                if let symbol,
-                   let nestedInlineTarget = allFunctionsBySymbol[symbol],
-                   nestedInlineTarget.isInline
-                {
-                    let inlineExpansion: InlineExpansion? = {
-                        let previousAncestry = budget.ancestry
-                        budget.ancestry = lambdaAncestry
-                        defer { budget.ancestry = previousAncestry }
-                        return expandInlineCall(
-                            inlineTarget: nestedInlineTarget,
-                            arguments: resolvedArgs,
-                            allFunctionsBySymbol: allFunctionsBySymbol,
-                            module: module,
-                            ctx: ctx,
-                            callerBody: lambdaFunction.body,
-                            labels: &labels,
-                            expansionBudget: budget
-                        )
-                    }()
-                    // Keep non-local returns in the caller's function-level pass.
-                    // Expanding them inside another lambda can alias the nested
-                    // call's normal result to the enclosing return slot.
-                    guard let inlineExpansion, !inlineExpansion.hasNonLocalReturn else {
-                        let loweredResult = result.map { expr -> KIRExprID in
-                            InlineExprCloning.cloneOrReuseExpr(expr, localExprMap: &localExprMap, in: module.arena)
-                        }
-                        let loweredThrownResult = thrownResult.map { expr -> KIRExprID in
-                            InlineExprCloning.cloneOrReuseExpr(expr, localExprMap: &localExprMap, in: module.arena)
-                        }
-                        lowered.append(.call(
-                            symbol: symbol,
-                            callee: callee,
-                            arguments: resolvedArgs,
-                            result: loweredResult,
-                            canThrow: canThrow,
-                            thrownResult: loweredThrownResult,
-                            isSuperCall: isSuperCall,
-                            qualifiedSuperType: qualifiedSuperType
-                        ))
-                        continue
-                    }
-                    let remappedExpansion = inlineExpansion.remappingExternalLoopTargets(using: labelRemap)
-                    hasNonLocalReturn = hasNonLocalReturn || remappedExpansion.hasNonLocalReturn
-                    hasNormalReturn = hasNormalReturn || remappedExpansion.hasNormalReturn
-                    appendInlinedLambdaExpansion(
-                        remappedExpansion,
-                        callThrownResult: thrownResult,
-                        localExprMap: localExprMap,
-                        labels: &labels,
-                        callAncestries: &callAncestries,
-                        into: &lowered
-                    )
-                    if let result {
-                        if let inlineReturn = remappedExpansion.returnedExpr {
-                            localExprMap[result] = inlineReturn
-                        } else {
-                            let unitExpr = module.arena.appendExpr(.unit, type: nil)
-                            lowered.append(.constValue(result: unitExpr, value: .unit))
-                            localExprMap[result] = unitExpr
-                        }
-                    }
-                    continue
-                }
-                if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2", "kk_suspend_function_invoke_3", "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5", "kk_suspend_function_invoke_6"].contains(ctx.interner.resolve(callee)),
-                   let callableExpr = resolvedArgs.first,
-                   let nestedLambdaFunction = resolveLambdaFunction(
-                       argExpr: callableExpr,
-                       arena: module.arena,
-                       allFunctionsBySymbol: allFunctionsBySymbol,
-                       callerBody: lambdaFunction.body,
-                       ctx: ctx
-                   )
-                {
-                    let captureArgs = lambdaCaptureArguments(
-                        for: callableExpr, symbol: nestedLambdaFunction.symbol,
-                        aliases: localExprMap, arena: module.arena, ctx: ctx, into: &lowered
-                    )
-                    let fullArgs = captureArgs + Array(resolvedArgs.dropFirst())
-                    if let rawLambdaExpansion = expandLambdaBody(
-                        lambdaFunction: nestedLambdaFunction,
-                        arguments: fullArgs,
-                        module: module,
-                        allFunctionsBySymbol: allFunctionsBySymbol,
-                        ctx: ctx,
-                        labels: &labels,
-                        expansionBudget: budget
-                    ) {
-                        let lambdaExpansion = rawLambdaExpansion.remappingExternalLoopTargets(using: labelRemap)
-                        hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
-                        hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
-                        appendInlinedLambdaExpansion(
-                            lambdaExpansion,
-                            callThrownResult: thrownResult,
-                            localExprMap: localExprMap,
-                            labels: &labels,
-                            callAncestries: &callAncestries,
-                            into: &lowered
-                        )
-                        if let result {
-                            if let lambdaReturn = lambdaExpansion.returnedExpr {
-                                localExprMap[result] = lambdaReturn
-                            } else {
-                                let unitExpr = module.arena.appendExpr(.unit, type: nil)
-                                lowered.append(.constValue(result: unitExpr, value: .unit))
-                                localExprMap[result] = unitExpr
-                            }
-                        }
-                        break
-                    }
-                }
+                // Keep nested calls in the caller's pending worklist. Recursively
+                // expanding inline and lambda bodies here grows the Swift stack
+                // with source nesting depth.
                 let loweredResult = result.map { expr -> KIRExprID in
                     InlineExprCloning.cloneOrReuseExpr(expr, localExprMap: &localExprMap, in: module.arena)
                 }
@@ -584,7 +488,8 @@ extension InlineLoweringPass {
             returnedExpr: returnedExpr,
             hasNonLocalReturn: hasNonLocalReturn,
             hasNormalReturn: hasNormalReturn,
-            callAncestries: callAncestries
+            callAncestries: callAncestries,
+            callExternalLoopAliases: callExternalLoopAliases
         )
     }
 
@@ -597,6 +502,7 @@ extension InlineLoweringPass {
         localExprMap: [KIRExprID: KIRExprID],
         labels: inout InlineLabelAllocator,
         callAncestries: inout [Int: [SymbolID]],
+        callExternalLoopAliases: inout [Int: [InlineLoopLabelAliases]],
         into lowered: inout KIRLoweringEmitContext
     ) {
         let routedSlot = callThrownResult.map {
@@ -616,10 +522,12 @@ extension InlineLoweringPass {
             dispatchLabel: dispatchLabel
         )
         let paths = lambdaExpansion.callPaths
+        let aliasPaths = lambdaExpansion.callExternalLoopAliasPaths
         var callIndex = 0
         for instruction in routed.instructions {
             if case .call = instruction {
                 callAncestries[lowered.instructions.count] = paths[callIndex]
+                callExternalLoopAliases[lowered.instructions.count] = aliasPaths[callIndex]
                 callIndex += 1
             }
             lowered.append(instruction)

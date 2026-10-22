@@ -119,6 +119,18 @@ extension DataFlowSemaPhase {
         }
         let initName = interner.intern("<init>")
         let ctorFQName = ownerInfo.fqName + [initName]
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: ctorFQName, work: { [self] in
+            registerSyntheticPlatformExceptionConstructor(
+                ownerSymbol: ownerSymbol,
+                ownerType: ownerType,
+                parameters: parameters,
+                externalLinkName: externalLinkName,
+                symbols: symbols,
+                interner: interner
+            )
+        }) {
+            return
+        }
         let hasMatchingConstructor = symbols.lookupAll(fqName: ctorFQName).contains { symbolID in
             guard let symbol = symbols.symbol(symbolID),
                   symbol.kind == .constructor,

@@ -77,12 +77,14 @@ persist_artifacts() {
     candidate_expected_stdout "$case_path" >"$destination/expected.stdout"
   fi
 
-  if [[ $cand_compile_exit -eq 0 ]]; then
+  # KIR re-emit and the lldb backtrace only describe the native pipeline;
+  # jvm/wasm candidates do not go through the LLVM backend.
+  if [[ "$DIFF_BACKEND" == "native" && $cand_compile_exit -eq 0 ]]; then
     "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --no-stdlib --stdlib-library "$STDLIB_ARTIFACT" "${KSWIFTC_ARGS[@]}" --emit kir "$case_path" -o "$destination/candidate.kir" \
       >"$destination/candidate_kir.stdout" \
       2>"$destination/candidate_kir.stderr" || true
   fi
-  if [[ $cand_compile_exit -eq 0 && $cand_run_exit -ge 128 ]]; then
+  if [[ "$DIFF_BACKEND" == "native" && $cand_compile_exit -eq 0 && $cand_run_exit -ge 128 ]]; then
     save_runtime_backtrace "$destination/candidate.out" "$destination/backtrace.txt"
   fi
 
@@ -98,8 +100,11 @@ ref_compile_exit: $ref_compile_exit
 candidate_compile_exit: $cand_compile_exit
 ref_run_exit: $ref_run_exit
 candidate_run_exit: $cand_run_exit
+backend: $DIFF_BACKEND
 stdlib_artifact: $STDLIB_ARTIFACT
 stdlib_manifest_hash: $(stdlib_manifest_hash "$STDLIB_ARTIFACT")
+jvm_stdlib_jar: ${JVM_STDLIB_JAR:-}
+wasm_engine: ${DIFF_ENGINE:-}
 kswiftc: $KSWIFTC
 kswiftc_flags: $DIFF_KSWIFTC_FLAGS
 kotlinc: $KOTLINC
@@ -113,7 +118,7 @@ EOF
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$ROOT_DIR"
-DIFF_STDLIB_LIBRARY="$STDLIB_ARTIFACT" DIFF_KSWIFTC_FLAGS=$escaped_kswiftc_flags DIFF_ARTIFACT_ROOT="$ARTIFACT_ROOT" bash Scripts/diff_kotlinc.sh --no-parallel --keep-temp --force-run-skipped --artifact-root "$ARTIFACT_ROOT" "$case_path"
+DIFF_BACKEND="$DIFF_BACKEND" DIFF_ENGINE="$DIFF_ENGINE" DIFF_STDLIB_LIBRARY="$STDLIB_ARTIFACT" DIFF_JVM_STDLIB_JAR="${JVM_STDLIB_JAR:-}" DIFF_KSWIFTC_FLAGS=$escaped_kswiftc_flags DIFF_ARTIFACT_ROOT="$ARTIFACT_ROOT" bash Scripts/diff_kotlinc.sh --no-parallel --keep-temp --force-run-skipped --artifact-root "$ARTIFACT_ROOT" "$case_path"
 EOF
   chmod +x "$destination/repro.sh"
 

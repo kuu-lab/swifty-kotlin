@@ -1,4 +1,20 @@
 extension CallTypeChecker {
+    func implicitMemberExtensionReceiverMatches(_ actual: TypeID, declared: TypeID, sema: SemaModule) -> Bool {
+        let actual = sema.types.makeNonNullable(actual)
+        let declared = sema.types.makeNonNullable(declared)
+        if sema.types.isSubtype(actual, declared) { return true }
+        guard case let .typeParam(parameter) = sema.types.kind(of: declared) else { return false }
+        // Match an unsolved receiver parameter against its bounds before
+        // overload resolution. The resolver still checks the complete call.
+        let variables = sema.types.makeTypeVarBySymbol([parameter.symbol])
+        guard let variable = variables[parameter.symbol] else { return false }
+        return sema.symbols.typeParameterUpperBounds(for: parameter.symbol).allSatisfy { bound in
+            let bound = sema.types.substituteTypeParameters(
+                in: bound, substitution: [variable: actual], typeVarBySymbol: variables
+            )
+            return sema.types.isSubtype(actual, sema.types.makeNonNullable(bound))
+        }
+    }
     /// A package extension with an incompatible receiver must not hide an
     /// imported extension before its arguments can be contextualized.
     func scopeCallCandidatesConsideringImplicitReceivers(
@@ -8,18 +24,50 @@ extension CallTypeChecker {
         // Same-package properties do not occupy the callable namespace, so
         // they must not hide default-imported functions in call syntax.
         let samePackage = ctx.currentASTFile?.packageFQName
-        let callableCandidates = ctx.scope.lookup(name, matching: { candidate in
-            guard let symbol = ctx.cachedSymbol(candidate),
-                  !ctx.isExpectDeclarationSupersededByActual(candidate)
+        // Top-level properties whose type has no function shape cannot be
+        // invoked, so they never occupy the callable namespace.
+        func isNonCallableTopLevelProperty(_ candidate: SymbolID) -> Bool {
+            guard let symbol = ctx.cachedSymbol(candidate), symbol.kind == .property,
+                  ctx.sema.symbols.parentSymbol(for: candidate)
+                  .map({ ctx.sema.symbols.symbol($0)?.kind == .package }) ?? true,
+                  let type = ctx.sema.symbols.propertyType(for: candidate)
             else { return false }
-            if symbol.kind == .property,
-               let samePackage,
-               Array(symbol.fqName.dropLast()) == samePackage
-            {
+            if case .functionType = ctx.sema.types.kind(of: ctx.sema.types.makeNonNullable(type)) {
                 return false
             }
-            return true
-        })
+            // A type with a member `invoke` is callable too.
+            return driver.helpers.collectMemberFunctionCandidates(
+                named: ctx.interner.intern("invoke"), receiverType: type, sema: ctx.sema, interner: ctx.interner
+            ).isEmpty
+        }
+        func scopeLookup(excludingAllProperties: Bool) -> [SymbolID] {
+            ctx.scope.lookup(name, matching: { candidate in
+                guard let symbol = ctx.cachedSymbol(candidate),
+                      !ctx.isExpectDeclarationSupersededByActual(candidate),
+                      !ctx.isImportedCallableShadowedBySource(candidate)
+                else { return false }
+                if symbol.kind == .property {
+                    if excludingAllProperties { return !isNonCallableTopLevelProperty(candidate) }
+                    if let samePackage, Array(symbol.fqName.dropLast()) == samePackage {
+                        return false
+                    }
+                }
+                return true
+            })
+        }
+        var callableCandidates = scopeLookup(excludingAllProperties: false)
+        // A star-imported property from another package must not hide an
+        // outer-tier function (e.g. default-imported `emptyMap()`) in call
+        // syntax. Keep the property when no function exists farther out, so
+        // function-typed property invocation still resolves.
+        if !callableCandidates.isEmpty,
+           callableCandidates.allSatisfy({ isNonCallableTopLevelProperty($0) })
+        {
+            let functionsOnly = scopeLookup(excludingAllProperties: true)
+            if !functionsOnly.isEmpty {
+                callableCandidates = functionsOnly
+            }
+        }
         let candidates = scopeCallCandidatesWithExplicitImportOverloads(
             named: name,
             candidates: callableCandidates,
@@ -592,10 +640,7 @@ extension CallTypeChecker {
                     continue
                 }
                 guard let picked = ctx.implicitReceiverMemberLookupEntries().first(where: { entry in
-                    sema.types.isSubtype(
-                        sema.types.makeNonNullable(entry.type),
-                        sema.types.makeNonNullable(declaredReceiver)
-                    )
+                    implicitMemberExtensionReceiverMatches(entry.type, declared: declaredReceiver, sema: sema)
                 })
                 else { continue }
                 if let groupIndex = memberExtensionGroups.firstIndex(where: {

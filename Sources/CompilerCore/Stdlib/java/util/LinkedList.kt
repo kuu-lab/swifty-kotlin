@@ -44,4 +44,9 @@ public class LinkedList<E> private constructor(
             if (isEmpty()) throw NoSuchElementException()
             return storage.first()
         }
+
+    override fun toString(): String =
+        storage.joinToString(", ", "[", "]") { element ->
+            if (element === this) "(this Collection)" else element.toString()
+        }
 }

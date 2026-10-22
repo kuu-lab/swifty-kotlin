@@ -28,8 +28,10 @@ public typealias TestResult = Unit
 
 /**
  * Delays in the test scope use virtual time, and remaining scheduled child
- * work is advanced before this function returns. [timeout] is accepted for
- * signature compatibility but is not enforced.
+ * work is advanced before this function returns. [timeout] is enforced in
+ * real time: when it elapses, the test scope and its child coroutines are
+ * cancelled and this function fails by throwing an
+ * `UncompletedCoroutinesError` (an [AssertionError] subtype).
  */
 @ExperimentalCoroutinesApi
 @KsSymbolName("kk_test_run_blocking")

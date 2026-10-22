@@ -68,12 +68,6 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "KTypeParameterUpperBoundsPatch") { phase, symbols, types, interner, _ in
             phase.patchKTypeParameterUpperBoundsType(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "RangeProgression") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticRangeProgressionStubs(symbols: symbols, types: types, interner: interner)
-        },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "RangeUntil") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticRangeUntilStubs(symbols: symbols, types: types, interner: interner)
-        },
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Comparable") { phase, symbols, types, interner, _ in
             if types.comparableInterfaceSymbol == nil {
                 phase.registerSyntheticComparableStub(symbols: symbols, types: types, interner: interner)
@@ -220,9 +214,16 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         context: SyntheticDelegateStubRegistryContext
     ) {
+        let stubTrace = ProcessInfo.processInfo.environment["KSWIFTK_DEBUG_STUB_TRACE"] == "1"
         for entry in delegateStubRegistryEntries() {
             _ = (entry.bucket, entry.name)
+            if stubTrace {
+                FileHandle.standardError.write(Data("STUBENTRY \(entry.name)\n".utf8))
+            }
             entry.register(self, symbols, types, interner, context)
+        }
+        if stubTrace {
+            FileHandle.standardError.write(Data("STUBEND delegate\n".utf8))
         }
     }
 
@@ -231,15 +232,25 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
+        let stubTrace = ProcessInfo.processInfo.environment["KSWIFTK_DEBUG_STUB_TRACE"] == "1"
         for entry in extendedStdlibRegistryEntries() {
             _ = (entry.bucket, entry.name)
+            if stubTrace {
+                FileHandle.standardError.write(Data("STUBENTRY ext.\(entry.name)\n".utf8))
+            }
             entry.register(self, symbols, types, interner)
         }
         // KSP-1205: EnumEntries is available after the Enum bucket has run.
+        if stubTrace {
+            FileHandle.standardError.write(Data("STUBENTRY ext.MemoryModelEnumMembers\n".utf8))
+        }
         registerSyntheticMemoryModelEnumMembers(
             symbols: symbols,
             types: types,
             interner: interner
         )
+        if stubTrace {
+            FileHandle.standardError.write(Data("STUBEND ext\n".utf8))
+        }
     }
 }

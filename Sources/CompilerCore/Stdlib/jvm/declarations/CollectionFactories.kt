@@ -11,3 +11,4 @@ fun <K, V> mapOf(pair: kotlin.Pair<K, V>): Map<K, V> = null!!
 fun <K, V> mapOf(vararg pairs: kotlin.Pair<K, V>): Map<K, V> = null!!
 fun <K, V> mutableMapOf(vararg pairs: kotlin.Pair<K, V>): MutableMap<K, V> = null!!
 fun <K, V> emptyMap(): Map<K, V> = null!!
+fun <T> arrayListOf(vararg elements: T): java.util.ArrayList<T> = null!!

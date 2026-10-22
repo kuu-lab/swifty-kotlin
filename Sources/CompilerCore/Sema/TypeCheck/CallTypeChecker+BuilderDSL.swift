@@ -121,6 +121,33 @@ extension CallTypeChecker {
             ctx.sema.diagnostics.emit(diagnostic)
             return driver.helpers.bindAndReturnErrorType(id, sema: ctx.sema)
         }
+        guard let signature = ctx.sema.symbols.functionSignature(for: match.symbol) else { return nil }
+        let variables = ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        var substitution: [TypeVarID: TypeID] = [:]
+        for (symbol, argument) in zip(signature.typeParameterSymbols, match.substitutedTypeArguments) {
+            if let variable = variables[symbol] { substitution[variable] = argument }
+        }
+        let argumentTypes = args.enumerated().map { index, argument -> TypeID in
+            if isValidBuilderLambdaArgument(argument.expr, ast: ctx.ast),
+               let type = ctx.sema.bindings.exprType(for: argument.expr) { return type }
+            let parameter = match.parameterMapping[index] ?? index
+            let expected = ctx.sema.types.substituteTypeParameters(
+                in: signature.parameterTypes[parameter], substitution: substitution, typeVarBySymbol: variables
+            )
+            return driver.inferExpr(argument.expr, ctx: ctx, locals: &locals, expectedType: expected)
+        }
+        let resolved = ctx.resolver.resolveCall(
+            candidates: [match.symbol],
+            call: CallExpr(range: range, calleeName: calleeName, args: zip(args, argumentTypes).map {
+                CallArg.source($0.0, type: $0.1, callRange: range, ast: ctx.ast)
+            }, explicitTypeArgs: match.substitutedTypeArguments),
+            expectedType: nil, implicitReceiverType: ctx.implicitReceiverType, ctx: ctx.sema
+        )
+        if let diagnostic = resolved.diagnostic {
+            ctx.sema.diagnostics.emit(diagnostic)
+            return driver.helpers.bindAndReturnErrorType(id, sema: ctx.sema)
+        }
+        guard resolved.chosenCallee == match.symbol else { return nil }
         ctx.sema.bindings.bindCall(
             id,
             binding: CallBinding(
@@ -131,6 +158,7 @@ extension CallTypeChecker {
         )
         ctx.sema.bindings.bindCallableTarget(id, target: .symbol(match.symbol))
         ctx.sema.bindings.bindExprType(id, type: match.returnType)
+        applyContractEffects(id: id, chosen: match.symbol, args: args, ctx: ctx, locals: &locals)
         return match.returnType
     }
 

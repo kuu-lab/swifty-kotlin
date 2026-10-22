@@ -97,4 +97,57 @@ extension BundledStdlibExecutionTests {
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }
+
+    /// The inline callee's own labels (`run2` below defines low-numbered ones)
+    /// must not capture the lambda's break/continue targets in the caller.
+    @Test(arguments: [true, false])
+    func testKUU2732InlineLambdaBreakContinueWithCalleeLabels(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            inline fun run2(block: () -> Unit) = block()
+
+            fun main() {
+                for (i in 1..3) { run2 { if (i == 2) break } }
+                println("done")
+                var s = 0
+                for (i in 1..3) { run2 { if (i == 2) continue }; s += i }
+                println(s)
+                outer@ for (i in 1..3) {
+                    for (j in 1..3) { run2 { if (j == 2) break@outer } }
+                    println("unreachable")
+                }
+                println("end")
+            }
+            """,
+            expectedOutput: "done\n4\nend\n",
+            moduleName: "KUU2732InlineLambdaBreakContinue",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
+    @Test(arguments: [true, false])
+    func testKUU2757NestedInlineContinueTracksRelocatedLoopLabel(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            inline fun invokeBlock(block: () -> Unit) { block() }
+
+            fun f1(): Int {
+                var count = 0
+                for (o in 0..1) {
+                    invokeBlock {
+                        for (i in 0..1) {
+                            invokeBlock { count += 10; continue }
+                        }
+                    }
+                }
+                return count
+            }
+
+            fun main() { println(f1()) }
+            """,
+            expectedOutput: "40\n",
+            moduleName: "KUU2757NestedInlineContinueLabelRemap",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
 }

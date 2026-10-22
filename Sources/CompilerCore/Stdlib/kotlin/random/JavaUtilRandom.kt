@@ -27,6 +27,10 @@ public class Random {
     // Plain expression position (as used below) resolves the alias correctly.
     // This looks like a general compiler bug in constructor-delegation-argument
     // resolution, not specific to Random; flagged separately for a proper fix.
+    public constructor() {
+        delegate = KotlinRandom.Default
+    }
+
     public constructor(seed: Int) {
         delegate = KotlinRandom(seed)
     }

@@ -331,8 +331,9 @@ struct BuildKIRCodegenRegressionTests {
             override fun iterator(): Iterator<T> = values.iterator()
         }
 
-        fun main(values: Iterable<Int>, custom: CustomIterable<Int>) {
+        fun main(values: Iterable<Int>, collection: Collection<Int>, custom: CustomIterable<Int>) {
             values.forEach { println(it) }
+            collection.forEach { println(it) }
             custom.forEach { println(it) }
         }
 

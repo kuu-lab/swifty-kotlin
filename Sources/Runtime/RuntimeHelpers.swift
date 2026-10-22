@@ -178,6 +178,13 @@ struct RuntimeFIFOQueue<Element> {
         return queued
     }
 
+    /// Counts live entries matching `predicate` (dequeued slots are nil).
+    func count(where predicate: (Element) -> Bool) -> Int {
+        elements[head...].reduce(0) { total, element in
+            element.map(predicate) == true ? total + 1 : total
+        }
+    }
+
     /// Cancellation is rare; ordinary enqueue/dequeue remain amortized O(1).
     mutating func removeFirst(where matches: (Element) -> Bool) -> Bool {
         guard let index = elements.indices.dropFirst(head).first(where: {
@@ -646,9 +653,11 @@ func normalizeNullableRuntimePointer(_ ptr: UnsafeMutableRawPointer?) -> UnsafeM
     return ptr
 }
 
-private final class KKInterceptedContinuation: KKContinuation, @unchecked Sendable {
+final class KKInterceptedContinuation: KKContinuation, @unchecked Sendable {
     public let context: UnsafeMutableRawPointer?
-    private let continuation: KKContinuation
+    /// The pre-interception continuation. `__kk_start_coroutine_cancellable`
+    /// unwraps it to flag a generated coroutine start as cancellable.
+    let continuation: KKContinuation
     private let dispatcher: RuntimeDispatcher
 
     init(
@@ -746,12 +755,9 @@ public enum KxMiniRuntime {
     }
 
     static func launch(on dispatcher: RuntimeDispatcher, block: @Sendable @escaping () -> Void) {
-        dispatcher.queue.async {
-            let saved = RuntimeDispatcher.current
-            RuntimeDispatcher.current = dispatcher
-            block()
-            RuntimeDispatcher.current = saved
-        }
+        // Route through `dispatchAsync` so limited-parallelism views gate this
+        // work and `RuntimeDispatcher.current` reflects the dispatcher element.
+        dispatcher.dispatchAsync(execute: block)
     }
 
     public static func async(_ block: @escaping () -> UnsafeMutableRawPointer?) -> KKContinuation {

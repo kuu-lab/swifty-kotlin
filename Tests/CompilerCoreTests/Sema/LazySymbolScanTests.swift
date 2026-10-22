@@ -273,6 +273,51 @@ struct LazySymbolScanTests {
         #expect(!diagnostics.hasError)
     }
 
+    /// KUU-2674: an indexed nominal an earlier pass already materialized must
+    /// also stay out of the eager batch — under the pending-only filter it was
+    /// still synthesized, decoding supertype shells nothing had used. The
+    /// batch leaves pending and materialized compact-index nominals alike to
+    /// the on-demand synthesizer behind `nominalLayout(for:)`.
+    @Test func materializedIndexedLayoutsAreSkippedByInitialBatch() throws {
+        let symbols = SymbolTable()
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let diagnostics = DiagnosticEngine()
+        func nominal(_ name: String) -> SymbolID {
+            let part = interner.intern(name)
+            return symbols.define(
+                kind: .class, name: part, fqName: [part], declSite: nil,
+                visibility: .public, flags: [.synthetic, .importedLibrary]
+            )
+        }
+        let eager = nominal("Eager")
+        let pending = nominal("Pending")
+        let unused = nominal("Unused")
+        symbols.setDirectSupertypes([pending], for: eager)
+        var loaded: [SymbolID] = []
+        symbols.setLazyImportedMetadataLoader(
+            alreadyLoaded: [eager],
+            indexedNominals: [eager, pending, unused],
+            lazyShells: [pending, unused]
+        ) { symbol in
+            loaded.append(symbol)
+        }
+
+        DataFlowSemaPhase().synthesizeNominalLayouts(
+            symbols: symbols, types: types, interner: interner, diagnostics: diagnostics
+        )
+        // `eager` passed the old pending filter, so the batch walked its
+        // supertypes and decoded `pending`; now the whole cone stays lazy.
+        #expect(loaded.isEmpty)
+
+        let layout = try #require(symbols.nominalLayout(for: eager))
+        #expect(layout.superClass == pending)
+        #expect(loaded == [pending])
+        #expect(symbols.nominalLayout(for: pending) != nil)
+        #expect(loaded == [pending])
+        #expect(!diagnostics.hasError)
+    }
+
     @Test func defaultArgumentScanLoadsDemandedBaseAndPreservesOriginalOwner() {
         let symbols = SymbolTable()
         let interner = StringInterner()
@@ -389,6 +434,76 @@ struct LazySymbolScanTests {
         #expect(loaded.isEmpty)
         #expect(symbols.functionSignatureIfKnown(for: baseFn) == nil)
         #expect(symbols.functionSignatureIfKnown(for: subFn) == nil)
+    }
+
+    /// Compact-index entries keep registering through provider drains after
+    /// the lazy loader installs, so the install-time `lazyShells` snapshot
+    /// misses them. They must still count as pending shells: the runtime
+    /// reflection projection would otherwise decode every nominal the program
+    /// never used, and member-existence checks would force the same decode.
+    @Test func postInstallDrainedShellsStayPendingForReflectionAndDeferral() throws {
+        let fm = FileManager.default
+        let libDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".kklib")
+        try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: libDir) }
+        let records = [
+            MetadataRecord(kind: .function, mangledName: "_member", fqName: "scan.Owner.member", arity: 0, isSuspend: false, typeSignature: "F0<I>", externalLinkName: "scan_member"),
+            MetadataRecord(kind: .class, mangledName: "_nested", fqName: "scan.Owner.Nested", arity: 0, isSuspend: false),
+            MetadataRecord(kind: .class, mangledName: "_owner", fqName: "scan.Owner", arity: 0, isSuspend: false),
+        ]
+        try "{\"formatVersion\":2,\"moduleName\":\"Scan\",\"metadata\":\"metadata.bin\"}".write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try MetadataEncoder().serializeCompactIndexed(records).write(to: libDir.appendingPathComponent("metadata.bin"))
+
+        try withTemporaryFile(contents: "fun main() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path], searchPaths: [libDir.path], includeStdlib: false)
+            try runFrontend(ctx)
+            let sourceContext = makeCompilationContext(inputs: [path], includeStdlib: false, interner: ctx.interner)
+            try runSema(sourceContext)
+            let sema = try #require(sourceContext.sema)
+            ctx.storeSema(sema)
+            let work = DataFlowSemaPhase().loadImportedLibrarySymbols(
+                options: ctx.options, symbols: sema.symbols, types: sema.types,
+                diagnostics: ctx.diagnostics, interner: ctx.interner,
+                importedInlineFunctions: ImportedInlineFunctionStore()
+            )
+            let symbols = sema.symbols
+            func id(_ fqName: String) throws -> SymbolID {
+                try #require(symbols.lookup(fqName: fqName.split(separator: ".").map { ctx.interner.intern(String($0)) }))
+            }
+            // These shells register through provider drains now — after the
+            // lazy loader's snapshot — and must still count as pending.
+            let owner = try id("scan.Owner")
+            let nested = try id("scan.Owner.Nested")
+            #expect(symbols.hasPendingImportedMetadata(for: owner))
+            #expect(symbols.hasPendingImportedMetadata(for: nested))
+            #expect(symbols.isUnmaterializedImportedShell(owner))
+            // The member entry has not even been looked up yet: the deferral
+            // check drains the path before deciding, so the work queues
+            // instead of forcing an eager signature decode.
+            var deferredRan = false
+            #expect(symbols.deferWorkUntilImportedMemberMaterializes(
+                at: ["scan", "Owner", "member"].map { ctx.interner.intern($0) },
+                work: { deferredRan = true }
+            ))
+            #expect(!deferredRan)
+            let member = try id("scan.Owner.member")
+            // The runtime projection omits pending shells and must not decode
+            // their bodies while deciding.
+            let projected = MetadataEncoder().buildRecords(
+                symbols: symbols, types: sema.types, moduleName: "Consumer",
+                interner: ctx.interner, functionLinkNames: [:],
+                runtimeReflectionOnly: true
+            )
+            #expect(!projected.contains { $0.fqName == "scan.Owner" })
+            #expect(!projected.contains { $0.fqName == "scan.Owner.Nested" })
+            #expect(!projected.contains { $0.fqName == "scan.Owner.member" })
+            let pendingSymbols = Set([owner, nested, member])
+            for binding in work.importedBindings where pendingSymbols.contains(binding.symbol) {
+                #expect(!binding.isMaterialized)
+            }
+            #expect(symbols.hasPendingImportedMetadata(for: owner))
+            #expect(!ctx.diagnostics.hasError)
+        }
     }
 }
 

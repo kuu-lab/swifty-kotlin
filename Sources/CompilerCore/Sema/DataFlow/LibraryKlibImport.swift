@@ -17,7 +17,7 @@ extension DataFlowSemaPhase {
             manifest = try container.manifest()
         } catch let error as KlibFormatError {
             switch error {
-            case .missingManifest, .missingManifestKey, .invalidKlibLayout,
+            case .missingManifest, .missingManifestKey, .invalidManifest, .invalidKlibLayout,
                  .entryNotFound:
                 diagnostics.error(
                     "KSWIFTK-LIB-0026",
@@ -44,8 +44,6 @@ extension DataFlowSemaPhase {
         switch manifest.compatibility {
         case .supported:
             break
-        case .bestEffort(let reason):
-            diagnostics.warning("KSWIFTK-LIB-0027", reason, range: nil)
         case .unsupported(let reason):
             diagnostics.error("KSWIFTK-LIB-0027", reason, range: nil)
             return nil
@@ -67,6 +65,7 @@ extension DataFlowSemaPhase {
         /// property getters/setters (they are emitted as KIR functions but
         /// are not real `SymbolTable` entries — mirroring source lowering).
         let symbolBySignature: [KlibSignatureKey: SymbolID]
+        let symbolByPublicSignature: [KlibPublicSignature: SymbolID]
 
         var uniqueName: String { module.uniqueName }
     }
@@ -121,7 +120,90 @@ extension DataFlowSemaPhase {
                 symbols: symbols
             )
         }
-        return LoadedKlibModule(module: module, ir: ir, symbolBySignature: symbolBySignature)
+        var symbolByPublicSignature: [KlibPublicSignature: SymbolID] = [:]
+        for (key, symbol) in symbolBySignature {
+            if let signature = try? ir.publicSignature(key.signatureIndex, fileIndex: key.fileIndex) {
+                symbolByPublicSignature[signature] = symbol
+            }
+        }
+        return LoadedKlibModule(
+            module: module, ir: ir, symbolBySignature: symbolBySignature,
+            symbolByPublicSignature: symbolByPublicSignature
+        )
+    }
+
+    /// Run after imported signatures have been bound, before source calls are
+    /// resolved. Finalizing the raw IR keys happens earlier than that binding.
+    func inheritKlibDefaultArguments(module: LoadedKlibModule, symbols: SymbolTable) {
+        let ir = module.ir
+        let symbolBySignature = module.symbolBySignature
+        let symbolByPublicSignature = module.symbolByPublicSignature
+        var overriddenBySymbol: [SymbolID: [SymbolID]] = [:]
+        func symbol(_ ref: KlibSymbolRef, fileIndex: Int) -> SymbolID? {
+            if let local = symbolBySignature[KlibSignatureKey(fileIndex: fileIndex, signatureIndex: ref.signatureIndex)] {
+                return local
+            }
+            guard let signature = try? ir.publicSignature(ref.signatureIndex, fileIndex: fileIndex) else { return nil }
+            return symbolByPublicSignature[signature]
+        }
+        func collect(_ declaration: KlibIrDeclaration, fileIndex: Int) {
+            switch declaration {
+            case .class(let klass):
+                for member in klass.declarations { collect(member, fileIndex: fileIndex) }
+            case .function(let function):
+                guard let owner = symbol(function.base.base.symbol, fileIndex: fileIndex),
+                      !function.overridden.isEmpty else { return }
+                overriddenBySymbol[owner] = function.overridden.compactMap { symbol($0, fileIndex: fileIndex) }
+            default:
+                break
+            }
+        }
+        for index in 0 ..< ir.fileCount {
+            for declaration in (try? ir.declarations(fileIndex: index)) ?? [] {
+                collect(declaration, fileIndex: index)
+            }
+        }
+        func defaultOwner(_ symbol: SymbolID, visiting: Set<SymbolID>) -> SymbolID? {
+            guard !visiting.contains(symbol) else { return nil }
+            if symbols.functionSignature(for: symbol)?.valueParameterHasDefaultValues.contains(true) == true {
+                return symbols.overrideDefaultsBaseSymbol(for: symbol) ?? symbol
+            }
+            var visiting = visiting
+            visiting.insert(symbol)
+            for base in overriddenBySymbol[symbol] ?? [] {
+                if let owner = defaultOwner(base, visiting: visiting) { return owner }
+            }
+            return nil
+        }
+        for symbol in overriddenBySymbol.keys {
+            guard let signature = symbols.functionSignature(for: symbol),
+                  !signature.valueParameterHasDefaultValues.contains(true),
+                  let owner = defaultOwner(symbol, visiting: []),
+                  let defaults = symbols.functionSignature(for: owner)?.valueParameterHasDefaultValues,
+                  defaults.count == signature.parameterTypes.count else { continue }
+            symbols.setFunctionSignature(FunctionSignature(
+                receiverType: signature.receiverType,
+                contextReceiverTypes: signature.contextReceiverTypes,
+                contextParameterSymbols: signature.contextParameterSymbols,
+                contextParameterTypes: signature.contextParameterTypes,
+                parameterTypes: signature.parameterTypes,
+                returnType: signature.returnType,
+                isSuspend: signature.isSuspend,
+                canThrow: signature.canThrow,
+                valueParameterSymbols: signature.valueParameterSymbols,
+                valueParameterUnsafeVarianceTypeParameterSymbols: signature.valueParameterUnsafeVarianceTypeParameterSymbols,
+                valueParameterHasDefaultValues: defaults,
+                valueParameterIsVararg: signature.valueParameterIsVararg,
+                valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
+                hasExplicitInlineParameterMetadata: signature.hasExplicitInlineParameterMetadata,
+                typeParameterSymbols: signature.typeParameterSymbols,
+                reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
+                typeParameterUpperBounds: signature.typeParameterUpperBounds,
+                typeParameterUpperBoundsList: signature.typeParameterUpperBoundsList,
+                classTypeParameterCount: signature.classTypeParameterCount
+            ), for: symbol)
+            symbols.setOverrideDefaultsBaseSymbol(owner, for: symbol)
+        }
     }
 
     /// Returns the `.klib`s ordered so dependencies come first. `depends` names

@@ -647,7 +647,7 @@ extension StdlibArtifactRegressionTests {
             val state = MutableStateFlow(5)
             val stateCount = state.subscriptionCount
             val stateView = state.asStateFlow()
-            stateView.collect { value ->
+            stateView.take(1).collect { value ->
                 state.value = 6
                 println("state=$value/count=${stateCount.value}")
             }
@@ -663,7 +663,7 @@ extension StdlibArtifactRegressionTests {
             } catch (e: IllegalStateException) {
                 println("state exception/count=${stateCount.value}")
             }
-            stateCount.collect { println("count snapshot=$it") }
+            stateCount.take(1).collect { println("count snapshot=$it") }
         }
         """
 
@@ -712,5 +712,42 @@ extension StdlibArtifactRegressionTests {
 
                 """)
         }
+    }
+
+    /// KUU-2685: `MutableStateFlow.compareAndSet`/`update` must be atomic, and
+    /// collector registration/notification must survive concurrent emit +
+    /// cancellation. The case shares one flow across four `Worker` threads via
+    /// `TransferMode.UNSAFE` so a lost CAS shows up as a short increment total,
+    /// and a live collector must still receive emissions in write order with
+    /// the latest value at the tail.
+    @Test(arguments: [false, true])
+    func testMutableStateFlowConcurrentUpdates(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/kuu2685_mutable_state_flow_concurrency.kt"
+        ), encoding: .utf8)
+        try expectFlowSharingOutput(source, artifactPath: artifactPath, expected: """
+            false
+            true
+            20
+            true
+            20
+            true
+            true
+            true
+            Box(number=2)
+            [0, 1]
+            0
+            1000
+            1000
+            200
+            0
+            200
+            true
+            0
+
+            """)
     }
 }

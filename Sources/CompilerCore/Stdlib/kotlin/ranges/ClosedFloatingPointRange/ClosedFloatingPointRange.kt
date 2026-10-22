@@ -9,10 +9,6 @@ package kotlin.ranges
 
 // KUU-763: the `ClosedFloatingPointRange<T>` member declarations are
 // source-backed here, moved out of Ranges.kt alongside the interface itself.
-// The declaration still reuses the synthetic shell registered by
-// `HeaderHelpers+SyntheticRangeInterfaceStubs.swift`, so `rangeTo` and the
-// conformances wired before bundled header collection keep resolving to the
-// same nominal symbol.
 //
 // Runtime range values (`1.0..2.0`, `x..<y`) are opaque
 // `RuntimeDoubleRangeBox`/`RuntimeFloatRangeBox` handles that do not register

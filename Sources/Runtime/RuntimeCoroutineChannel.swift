@@ -74,6 +74,40 @@ final class SuspendedReceiver: @unchecked Sendable {
     }
 }
 
+/// Entries in `senderQueue`/`receiverQueue`: real suspended operations and
+/// select-clause offers (`onSend`/`onReceive` waiters) share one FIFO each so
+/// a channel rendezvous resolves in registration order and a select offer can
+/// be claimed — through `runtimeSelectClaimLock` — instead of polled.
+enum ChannelSenderWaiter {
+    case suspended(SuspendedSender)
+    case select(RuntimeSelectWaiter)
+
+    var suspended: SuspendedSender? {
+        if case .suspended(let sender) = self { return sender }
+        return nil
+    }
+
+    var selectWaiter: RuntimeSelectWaiter? {
+        if case .select(let waiter) = self { return waiter }
+        return nil
+    }
+}
+
+enum ChannelReceiverWaiter {
+    case suspended(SuspendedReceiver)
+    case select(RuntimeSelectWaiter)
+
+    var suspended: SuspendedReceiver? {
+        if case .suspended(let receiver) = self { return receiver }
+        return nil
+    }
+
+    var selectWaiter: RuntimeSelectWaiter? {
+        if case .select(let waiter) = self { return waiter }
+        return nil
+    }
+}
+
 /// Runtime representation of `kotlinx.coroutines.channels.ClosedReceiveChannelException`
 /// (KUU-1404). Distinct `RuntimeThrowableBox` subclass so `kk_op_is` / catch-clause
 /// dispatch can discriminate it via `exceptionHierarchyFQNames`. On the JVM this
@@ -167,10 +201,15 @@ final class RuntimeChannelHandle: @unchecked Sendable {
 
     // Receivers set `delivered = true` before signaling the semaphore so that
     // senders can distinguish successful delivery from a close-induced wakeup.
-    private var senderQueue = RuntimeFIFOQueue<SuspendedSender>()
+    // Select `onSend` clauses park a `RuntimeSelectWaiter` here: the queued
+    // entry holds the element and is claimed atomically by a receiver instead
+    // of suspending the selecting coroutine.
+    private var senderQueue = RuntimeFIFOQueue<ChannelSenderWaiter>()
 
     // Senders deposit a value before signaling the semaphore.
-    private var receiverQueue = RuntimeFIFOQueue<SuspendedReceiver>()
+    // Select `onReceive` clauses park a `RuntimeSelectWaiter` here for a later
+    // send to claim atomically.
+    private var receiverQueue = RuntimeFIFOQueue<ChannelReceiverWaiter>()
     private var awaitCloseRegistered = false
     private var awaitCloseSignal: DispatchSemaphore?
     /// KUU-1439: the CoroutineScope facet minted when this channel backs a
@@ -258,12 +297,19 @@ final class RuntimeChannelHandle: @unchecked Sendable {
             return .closed
         }
 
-        if let receiver = receiverQueue.dequeue() {
-            receiver.result = value
-            lock.unlock()
-            // Preserve rendezvous handoff ordering: let the sender resume and
-            // return from `send` before the waiting receiver continues.
-            resumeReceiverAsync(receiver)
+        if let receiverEntry = withSelectClaimLock({ dequeueLiveReceiverUnlocked(deliverValue: value) }) {
+            switch receiverEntry {
+            case .suspended(let receiver):
+                receiver.result = value
+                lock.unlock()
+                // Preserve rendezvous handoff ordering: let the sender resume and
+                // return from `send` before the waiting receiver continues.
+                resumeReceiverAsync(receiver)
+            case .select:
+                // The parked select offer was claimed atomically inside
+                // dequeueLiveReceiver; no coroutine needs resuming.
+                lock.unlock()
+            }
             return .success
         }
 
@@ -297,20 +343,20 @@ final class RuntimeChannelHandle: @unchecked Sendable {
             let waiter = RuntimeCancellableContinuation(delegate: continuation)
             suspendedResult.pointee = waiter.getResult(nil)
             entry.waiter = waiter
-            senderQueue.enqueue(entry)
+            senderQueue.enqueue(.suspended(entry))
             waiter.initParent()
             lock.unlock()
             return .success
         }
 
-        senderQueue.enqueue(entry)
+        senderQueue.enqueue(.suspended(entry))
         lock.unlock()
 
         let job = callingJob(continuation: continuation)
         let cancellationHandler = job?.addCompletionHandler(onCancelling: true) { [weak self, weak entry, weak job] _ in
             guard job?.cancellationSnapshot() == true, let self, let entry else { return }
             self.lock.lock()
-            let removed = self.senderQueue.removeFirst { $0 === entry }
+            let removed = self.senderQueue.removeFirst { $0.suspended === entry }
             if removed { entry.cancelledWakeup = true }
             self.lock.unlock()
             if removed { self.resumeSender(entry) }
@@ -357,10 +403,15 @@ final class RuntimeChannelHandle: @unchecked Sendable {
             return .closed
         }
 
-        if let receiver = receiverQueue.dequeue() {
-            receiver.result = value
-            lock.unlock()
-            resumeReceiverAsync(receiver)
+        if let receiverEntry = withSelectClaimLock({ dequeueLiveReceiverUnlocked(deliverValue: value) }) {
+            switch receiverEntry {
+            case .suspended(let receiver):
+                receiver.result = value
+                lock.unlock()
+                resumeReceiverAsync(receiver)
+            case .select:
+                lock.unlock()
+            }
             return .success
         }
 
@@ -415,11 +466,19 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         if let value = buffer.dequeue() {
             // If a sender is suspended (backpressure), wake the oldest one and
             // move its value into the buffer to maintain ordering.
-            if let sender = dequeueLiveSender() {
-                buffer.enqueue(sender.value)
-                sender.delivered = true
-                lock.unlock()
-                resumeSender(sender)
+            if let senderEntry = withSelectClaimLock({ dequeueLiveSenderUnlocked() }) {
+                switch senderEntry {
+                case .suspended(let sender):
+                    buffer.enqueue(sender.value)
+                    sender.delivered = true
+                    lock.unlock()
+                    resumeSender(sender)
+                case .select(let waiter):
+                    // The parked select offer was claimed inside
+                    // dequeueLiveSender; its element refills the freed slot.
+                    buffer.enqueue(waiter.value)
+                    lock.unlock()
+                }
             } else {
                 lock.unlock()
             }
@@ -430,12 +489,19 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         // Buffer is empty -- try to pair directly with a waiting sender
         // (rendezvous fast-path, also applies to buffered when a sender
         // arrived while the buffer was full and then got drained completely).
-        if let sender = dequeueLiveSender() {
-            let value = sender.value
-            sender.delivered = true
-            lock.unlock()
-            resumeSender(sender)
-            outValue.pointee = value
+        if let senderEntry = withSelectClaimLock({ dequeueLiveSenderUnlocked() }) {
+            switch senderEntry {
+            case .suspended(let sender):
+                let value = sender.value
+                sender.delivered = true
+                lock.unlock()
+                resumeSender(sender)
+                outValue.pointee = value
+            case .select(let waiter):
+                let value = waiter.value
+                lock.unlock()
+                outValue.pointee = value
+            }
             return .success
         }
 
@@ -446,14 +512,14 @@ final class RuntimeChannelHandle: @unchecked Sendable {
 
         let receiverEntry = SuspendedReceiver(semaphore: DispatchSemaphore(value: 0), continuation: continuation)
 
-        receiverQueue.enqueue(receiverEntry)
+        receiverQueue.enqueue(.suspended(receiverEntry))
         lock.unlock()
 
         let job = callingJob(continuation: continuation)
         let cancellationHandler = job?.addCompletionHandler(onCancelling: true) { [weak self, weak receiverEntry, weak job] _ in
             guard job?.cancellationSnapshot() == true, let self, let receiverEntry else { return }
             self.lock.lock()
-            let removed = self.receiverQueue.removeFirst { $0 === receiverEntry }
+            let removed = self.receiverQueue.removeFirst { $0.suspended === receiverEntry }
             if removed { receiverEntry.cancelledWakeup = true }
             self.lock.unlock()
             if removed { self.resumeReceiver(receiverEntry) }
@@ -503,11 +569,17 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         // Take from the buffer, waking the oldest suspended sender
         // so its value keeps FIFO ordering behind the drained element.
         if let value = buffer.dequeue() {
-            if let sender = dequeueLiveSender() {
-                buffer.enqueue(sender.value)
-                sender.delivered = true
-                lock.unlock()
-                resumeSender(sender)
+            if let senderEntry = withSelectClaimLock({ dequeueLiveSenderUnlocked() }) {
+                switch senderEntry {
+                case .suspended(let sender):
+                    buffer.enqueue(sender.value)
+                    sender.delivered = true
+                    lock.unlock()
+                    resumeSender(sender)
+                case .select(let waiter):
+                    buffer.enqueue(waiter.value)
+                    lock.unlock()
+                }
             } else {
                 lock.unlock()
             }
@@ -515,12 +587,19 @@ final class RuntimeChannelHandle: @unchecked Sendable {
             return .success
         }
 
-        if let sender = dequeueLiveSender() {
-            let value = sender.value
-            sender.delivered = true
-            lock.unlock()
-            resumeSender(sender)
-            outValue.pointee = value
+        if let senderEntry = withSelectClaimLock({ dequeueLiveSenderUnlocked() }) {
+            switch senderEntry {
+            case .suspended(let sender):
+                let value = sender.value
+                sender.delivered = true
+                lock.unlock()
+                resumeSender(sender)
+                outValue.pointee = value
+            case .select(let waiter):
+                let value = waiter.value
+                lock.unlock()
+                outValue.pointee = value
+            }
             return .success
         }
 
@@ -621,13 +700,25 @@ final class RuntimeChannelHandle: @unchecked Sendable {
 
         // Wake all suspended senders -- they will see `closed == true` and
         // return the closed sentinel.
-        for sender in pendingSenders {
-            resumeSender(sender)
+        for entry in pendingSenders {
+            switch entry {
+            case .suspended(let sender):
+                resumeSender(sender)
+            case .select(let waiter):
+                // Closing resolves a parked select offer: the clause
+                // materializes the closed outcome on its next poll.
+                _ = claimSelectWaiter(waiter, status: .closed, cause: closeCause)
+            }
         }
         // Wake all suspended receivers -- they will find no result deposited
         // and return the closed sentinel.
-        for receiver in pendingReceivers {
-            resumeReceiver(receiver)
+        for entry in pendingReceivers {
+            switch entry {
+            case .suspended(let receiver):
+                resumeReceiver(receiver)
+            case .select(let waiter):
+                _ = claimSelectWaiter(waiter, status: .closed, cause: closeCause)
+            }
         }
         for handler in pendingCloseHandlers {
             guard handler.fnPtr != 0 else { continue }
@@ -681,13 +772,23 @@ final class RuntimeChannelHandle: @unchecked Sendable {
 
         closeSignal?.signal()
 
-        for sender in pendingSenders {
-            sender.cancelledWakeup = true
-            resumeSender(sender)
+        for entry in pendingSenders {
+            switch entry {
+            case .suspended(let sender):
+                sender.cancelledWakeup = true
+                resumeSender(sender)
+            case .select(let waiter):
+                _ = claimSelectWaiter(waiter, status: .cancelled, cause: closeCause)
+            }
         }
-        for receiver in pendingReceivers {
-            receiver.cancelledWakeup = true
-            resumeReceiver(receiver)
+        for entry in pendingReceivers {
+            switch entry {
+            case .suspended(let receiver):
+                receiver.cancelledWakeup = true
+                resumeReceiver(receiver)
+            case .select(let waiter):
+                _ = claimSelectWaiter(waiter, status: .cancelled, cause: closeCause)
+            }
         }
         for handler in pendingCloseHandlers {
             guard handler.fnPtr != 0 else { continue }
@@ -768,33 +869,351 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         let pendingReceivers = receiverQueue.drain()
         lock.unlock()
 
-        for sender in pendingSenders {
-            sender.cancelledWakeup = true
-            resumeSender(sender)
+        for entry in pendingSenders {
+            switch entry {
+            case .suspended(let sender):
+                sender.cancelledWakeup = true
+                resumeSender(sender)
+            case .select(let waiter):
+                // Select waiters are offers, not suspended coroutines: drop
+                // the registration so a later poll re-parks it instead of
+                // completing a clause with a status it did not earn.
+                evictSelectWaiter(waiter)
+            }
         }
-        for receiver in pendingReceivers {
-            receiver.cancelledWakeup = true
-            resumeReceiver(receiver)
+        for entry in pendingReceivers {
+            switch entry {
+            case .suspended(let receiver):
+                receiver.cancelledWakeup = true
+                resumeReceiver(receiver)
+            case .select(let waiter):
+                evictSelectWaiter(waiter)
+            }
         }
     }
 
     /// Runtime tests use this snapshot to synchronize with actual suspension
     /// instead of assuming a background queue has progressed after a fixed delay.
+    /// Select-clause waiters are parked offers, not suspended coroutines, so
+    /// they are not included in either count.
     func suspendedWaiterCountsSnapshot() -> (senders: Int, receivers: Int) {
         lock.lock()
         defer { lock.unlock() }
-        return (senderQueue.count, receiverQueue.count)
+        return (
+            senderQueue.count { $0.suspended != nil },
+            receiverQueue.count { $0.suspended != nil }
+        )
+    }
+
+    /// Test-facing snapshot of parked select-clause offers — the counterpart
+    /// of `suspendedWaiterCountsSnapshot` for `RuntimeSelectWaiter` entries.
+    func selectWaiterCountsSnapshot() -> (senders: Int, receivers: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (
+            senderQueue.count { $0.selectWaiter != nil },
+            receiverQueue.count { $0.selectWaiter != nil }
+        )
     }
 
 
-    /// Pops the oldest sender, skipping entries whose suspended continuation
-    /// was already cancelled (their value must not be delivered). Caller holds `lock`.
-    private func dequeueLiveSender() -> SuspendedSender? {
-        while let sender = senderQueue.dequeue() {
-            if sender.waiter?.stateValue == 2 { continue }
-            return sender
+    /// Runs `body` while holding `runtimeSelectClaimLock`, nested inside the
+    /// channel lock — channel → claim is the established order. Every
+    /// dequeue/claim helper below is the `Unlocked` variant so real channel
+    /// operations take the claim lock for exactly the claim section while
+    /// select polls (which already hold it) call them directly.
+    private func withSelectClaimLock<T>(_ body: () -> T) -> T {
+        runtimeSelectClaimLock.lock()
+        defer { runtimeSelectClaimLock.unlock() }
+        return body()
+    }
+
+    /// Pops the oldest live sender. Suspended entries whose continuation was
+    /// already cancelled are dead and skipped. A parked select offer is live
+    /// only while its select is undecided: claiming it goes through
+    /// `runtimeSelectClaimLock` — the first claimant wins the select — and
+    /// deposits `claimStatus`/`claimCause` so the owning clause materializes
+    /// the outcome on its next poll.
+    /// Caller holds `lock` AND `runtimeSelectClaimLock`.
+    private func dequeueLiveSenderUnlocked(
+        claimStatus: ChannelOperationStatus = .success,
+        claimCause: Int = 0
+    ) -> ChannelSenderWaiter? {
+        while let entry = senderQueue.dequeue() {
+            switch entry {
+            case .suspended(let sender):
+                if sender.waiter?.stateValue == 2 { continue }
+                return entry
+            case .select(let waiter):
+                if claimSelectWaiterUnlocked(waiter, status: claimStatus, cause: claimCause) {
+                    return entry
+                }
+            }
         }
         return nil
+    }
+
+    /// Pops the oldest live receiver — a suspended entry directly, or a
+    /// select receive-offer claimed through the select's atomic `trySelect`
+    /// with `deliverValue` deposited for its clause.
+    /// Caller holds `lock` AND `runtimeSelectClaimLock`.
+    private func dequeueLiveReceiverUnlocked(deliverValue: Int) -> ChannelReceiverWaiter? {
+        while let entry = receiverQueue.dequeue() {
+            switch entry {
+            case .suspended:
+                return entry
+            case .select(let waiter):
+                if claimSelectWaiterUnlocked(waiter, status: .success, value: deliverValue) {
+                    return entry
+                }
+            }
+        }
+        return nil
+    }
+
+    /// Claims a parked select waiter through the owning select's atomic
+    /// `trySelect`: only one clause of that select can win, so the same
+    /// channel rendezvous cannot feed two clauses. The entry is already
+    /// dequeued, so the clause is no longer registered either way.
+    /// Caller holds `runtimeSelectClaimLock` (and `lock` when the waiter was
+    /// just dequeued). Returns `true` when the waiter's clause won its
+    /// selection.
+    private func claimSelectWaiterUnlocked(
+        _ waiter: RuntimeSelectWaiter,
+        status: ChannelOperationStatus,
+        value: Int = 0,
+        cause: Int = 0
+    ) -> Bool {
+        guard let clause = waiter.clause, let select = clause.select else {
+            return false
+        }
+        clause.waiterRegistered = false
+        guard select.trySelectUnlocked(clause) else { return false }
+        clause.delivered = true
+        clause.deliveredStatus = status.rawValue
+        clause.deliveredValue = value
+        clause.deliveredCause = cause
+        return true
+    }
+
+    /// Locking wrapper for claim paths that run after the channel lock was
+    /// released (close/cancel drains).
+    private func claimSelectWaiter(
+        _ waiter: RuntimeSelectWaiter,
+        status: ChannelOperationStatus,
+        value: Int = 0,
+        cause: Int = 0
+    ) -> Bool {
+        withSelectClaimLock {
+            claimSelectWaiterUnlocked(waiter, status: status, value: value, cause: cause)
+        }
+    }
+
+    /// Drops a select waiter's registration without resolving it — the owning
+    /// select's next poll re-parks the offer. Used by `cancelAllWaiters`,
+    /// which only targets real suspended coroutines.
+    private func evictSelectWaiter(_ waiter: RuntimeSelectWaiter) {
+        runtimeSelectClaimLock.lock()
+        waiter.clause?.waiterRegistered = false
+        runtimeSelectClaimLock.unlock()
+    }
+
+    /// Removes a still-queued select waiter (finish/cancellation cleanup).
+    /// Already-claimed or dequeued entries are absent from both queues, so
+    /// the removal is a harmless no-op. Takes `lock` then the claim lock.
+    func removeSelectWaiter(_ waiter: RuntimeSelectWaiter) {
+        lock.lock()
+        _ = senderQueue.removeFirst { $0.selectWaiter === waiter }
+        _ = receiverQueue.removeFirst { $0.selectWaiter === waiter }
+        lock.unlock()
+        runtimeSelectClaimLock.lock()
+        waiter.clause?.waiterRegistered = false
+        runtimeSelectClaimLock.unlock()
+    }
+
+    /// `select { onReceive }` poll. Mirrors `tryReceive` — buffered elements
+    /// and waiting senders are consumed the same way — but the outcome is
+    /// committed through the clause's atomic selection: a rendezvous taken by
+    /// this poll cannot feed another clause, and when nothing is receivable a
+    /// receive waiter is parked for a later `send`/`trySend`/peer select to
+    /// claim. Returns a `ChannelResult` box like `__kk_channel_try_receive`.
+    /// The lock order is channel `lock` → `runtimeSelectClaimLock`.
+    func selectPollReceive(clause: RuntimeSelectClause) -> Int {
+        lock.lock()
+        runtimeSelectClaimLock.lock()
+        var resume: SuspendedSender?
+        defer {
+            runtimeSelectClaimLock.unlock()
+            lock.unlock()
+            if let resume {
+                resumeSender(resume)
+            }
+        }
+        guard let select = clause.select else {
+            return runtimeSelectPollResultBox(status: kChannelResultFailed)
+        }
+        // A committed outcome materializes verbatim — whether this poll made
+        // it or an external claimant delivered it while the clause waited.
+        if clause.delivered {
+            return runtimeSelectPollResultBox(
+                status: clause.deliveredStatus,
+                value: clause.deliveredValue,
+                cause: clause.deliveredCause
+            )
+        }
+        if select.isDecidedUnlocked {
+            return runtimeSelectPollResultBox(status: kSelectResultDecided)
+        }
+        if let buffered = buffer.dequeue() {
+            // Refill the freed slot from the oldest live sender (same as
+            // `tryReceive`): suspended senders keep FIFO order; a select
+            // offer is already claimed inside `dequeueLiveSenderUnlocked`.
+            if let senderEntry = dequeueLiveSenderUnlocked() {
+                switch senderEntry {
+                case .suspended(let sender):
+                    buffer.enqueue(sender.value)
+                    sender.delivered = true
+                    resume = sender
+                case .select(let waiter):
+                    buffer.enqueue(waiter.value)
+                }
+            }
+            _ = select.trySelectUnlocked(clause)
+            clause.delivered = true
+            clause.deliveredStatus = kChannelResultSuccess
+            clause.deliveredValue = buffered
+            return runtimeSelectPollResultBox(status: kChannelResultSuccess, value: buffered)
+        }
+        while let senderEntry = dequeueLiveSenderUnlocked() {
+            switch senderEntry {
+            case .suspended(let sender):
+                sender.delivered = true
+                resume = sender
+                _ = select.trySelectUnlocked(clause)
+                clause.delivered = true
+                clause.deliveredStatus = kChannelResultSuccess
+                clause.deliveredValue = sender.value
+                return runtimeSelectPollResultBox(status: kChannelResultSuccess, value: sender.value)
+            case .select(let waiter):
+                // The peer send-offer was already claimed and committed
+                // inside `dequeueLiveSender`; this clause still has to win
+                // its own select to consume the element. A lost claim means
+                // a sibling clause (e.g. `select { ch.onSend; ch.onReceive }`
+                // on this channel) owns the selection — the element stays
+                // consumed, matching upstream's atomic-rendezvous rule.
+                guard select.trySelectUnlocked(clause) else {
+                    return runtimeSelectPollResultBox(status: kSelectResultDecided)
+                }
+                clause.delivered = true
+                clause.deliveredStatus = kChannelResultSuccess
+                clause.deliveredValue = waiter.value
+                return runtimeSelectPollResultBox(status: kChannelResultSuccess, value: waiter.value)
+            }
+        }
+        if closed {
+            _ = select.trySelectUnlocked(clause)
+            clause.delivered = true
+            clause.deliveredStatus = kChannelResultClosed
+            clause.deliveredCause = closeCause
+            return runtimeSelectPollResultBox(status: kChannelResultClosed, cause: closeCause)
+        }
+        if !clause.waiterRegistered {
+            let waiter = RuntimeSelectWaiter(clause: clause, value: 0)
+            receiverQueue.enqueue(.select(waiter))
+            clause.waiterRegistered = true
+            select.pendingWaiters.append((channel: self, waiter: waiter))
+        }
+        return runtimeSelectPollResultBox(status: kChannelResultFailed)
+    }
+
+    /// `select { onSend }` poll. Mirrors `trySend` — receivers, buffer slots,
+    /// and overflow policies resolve identically — but the outcome is
+    /// committed through the clause's atomic selection, and when no delivery
+    /// is possible a send waiter carrying the element is parked for a later
+    /// `receive`/`tryReceive`/peer select to claim. Returns a bare
+    /// `ChannelOperationStatus` (the send result carries no payload) plus the
+    /// internal `kSelectResultDecided` marker.
+    func selectPollSend(clause: RuntimeSelectClause, value: Int) -> Int {
+        lock.lock()
+        runtimeSelectClaimLock.lock()
+        var resume: SuspendedReceiver?
+        defer {
+            runtimeSelectClaimLock.unlock()
+            lock.unlock()
+            if let resume {
+                resumeReceiverAsync(resume)
+            }
+        }
+        guard let select = clause.select else {
+            return kChannelResultFailed
+        }
+        if clause.delivered {
+            return clause.deliveredStatus
+        }
+        if select.isDecidedUnlocked {
+            return kSelectResultDecided
+        }
+        if cancelled {
+            _ = select.trySelectUnlocked(clause)
+            clause.delivered = true
+            clause.deliveredStatus = kChannelResultCancelled
+            clause.deliveredCause = closeCause
+            return kChannelResultCancelled
+        }
+        if closed {
+            _ = select.trySelectUnlocked(clause)
+            clause.delivered = true
+            clause.deliveredStatus = kChannelResultClosed
+            clause.deliveredCause = closeCause
+            return kChannelResultClosed
+        }
+        if let receiverEntry = dequeueLiveReceiverUnlocked(deliverValue: value) {
+            if case .suspended(let receiver) = receiverEntry {
+                receiver.result = value
+                resume = receiver
+            }
+            // A `.select` counterpart already claimed its offer inside
+            // `dequeueLiveReceiver` and took the element. This clause still
+            // has to win its own select to complete the send.
+            guard select.trySelectUnlocked(clause) else {
+                return kSelectResultDecided
+            }
+            clause.delivered = true
+            clause.deliveredStatus = kChannelResultSuccess
+            return kChannelResultSuccess
+        }
+        if capacity > 0, buffer.count < capacity {
+            buffer.enqueue(value)
+            _ = select.trySelectUnlocked(clause)
+            clause.delivered = true
+            clause.deliveredStatus = kChannelResultSuccess
+            return kChannelResultSuccess
+        }
+        if capacity > 0, buffer.count >= capacity {
+            switch bufferOverflow {
+            case .suspend:
+                break
+            case .dropOldest:
+                _ = buffer.dequeue()
+                buffer.enqueue(value)
+                _ = select.trySelectUnlocked(clause)
+                clause.delivered = true
+                clause.deliveredStatus = kChannelResultSuccess
+                return kChannelResultSuccess
+            case .dropLatest:
+                _ = select.trySelectUnlocked(clause)
+                clause.delivered = true
+                clause.deliveredStatus = kChannelResultSuccess
+                return kChannelResultSuccess
+            }
+        }
+        if !clause.waiterRegistered {
+            let waiter = RuntimeSelectWaiter(clause: clause, value: value)
+            senderQueue.enqueue(.select(waiter))
+            clause.waiterRegistered = true
+            select.pendingWaiters.append((channel: self, waiter: waiter))
+        }
+        return kChannelResultFailed
     }
 
     func resumeSender(_ sender: SuspendedSender) {
@@ -1250,6 +1669,17 @@ private func runtimeChannelResultBox(status: ChannelOperationStatus, value: Int,
     )
 }
 
+/// Result-box factory for select polls, which can also report the internal
+/// `kSelectResultDecided` marker — a poll-only status outside
+/// `ChannelOperationStatus` that never escapes to Kotlin `ChannelResult`
+/// consumers beyond the select clause predicates.
+func runtimeSelectPollResultBox(status: Int, value: Int = 0, cause: Int = 0) -> Int {
+    registerRuntimeObject(
+        RuntimeChannelResultBox(status: status, value: value, cause: cause),
+        typeID: runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.channels.ChannelResult")
+    )
+}
+
 /// Close cause for a send-side operation result box: the channel's retained
 /// close cause when present, otherwise upstream's `sendException` — upstream
 /// bakes `closeCause ?: ClosedSendChannelException` into send results at
@@ -1405,7 +1835,7 @@ public func __kk_channel_result_get_or_throw(
 
 //
 // A lightweight wrapper that allows channels to participate in the
-// `kk_range_iterator` / `kk_range_hasNext` / `kk_range_next` loop protocol.
+// `__kk_range_iterator` / `__kk_range_hasNext` / `__kk_range_next` loop protocol.
 //
 // The iterator holds the channel handle (strongly retained) and caches the
 // result of the most recent `receive()` call.  `hasNext` must be called before

@@ -1630,7 +1630,7 @@ func resolveVirtualDispatchKind(
         // no user subtype can ever materialize as a real object — the only
         // subtype a progression can gain (e.g. `UIntRange : UIntProgression`)
         // is box-backed itself. Direct calls to the resolved source member
-        // lower through the `kk_range_*` handle bridges and are correct.
+        // lower through the `__kk_range_*` handle bridges and are correct.
         if isRuntimeRangeBoxNominal(parentSymbol, interner: interner) { return nil }
         return resolveVtableDispatchKind(callee: callee, parentID: parentID, layout: layout, sema: sema)
     }

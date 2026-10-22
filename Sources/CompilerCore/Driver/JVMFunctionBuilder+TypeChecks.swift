@@ -36,7 +36,23 @@ extension JVMFunctionBuilder {
             mark(no); instructions.append(.constant(.null, result)); mark(end)
             return result
         }
-        if !safe { return try convert(object, to: type) }
+        if !safe {
+            // `as` against a null value throws an NPE naming the Kotlin target
+            // type; the shared conversion's bare requireNonNull lacks it.
+            if !type.isNullable, object.type.isNullable, let semantic = program.sema.bindings.castTargetType(for: id) {
+                let nonNull = label(), result = try value(type)
+                let null = try constant(.null, object.type), check = try value(.boolean)
+                instructions.append(.referenceCompare(.equal, object, null, check))
+                instructions.append(.jumpIfFalse(check, nonNull))
+                let message = try constant(.string("null cannot be cast to non-null type " + castTargetKotlinName(semantic)), .string)
+                instructions.append(.throwValue(try constructJDK("java/lang/NullPointerException", parameters: [.string], arguments: [message])))
+                terminated = true
+                mark(nonNull)
+                instructions.append(.copy(try convert(object, to: type), result))
+                return result
+            }
+            return try convert(object, to: type)
+        }
         let target = JVMClasspathIndex.boxed(type)
         guard let name = target.referenceName else { throw fail("Unsupported JVM safe cast.", id) }
         let result = try value(type), check = try value(.boolean), no = label(), end = label()
@@ -80,6 +96,21 @@ extension JVMFunctionBuilder {
         }
         if negated { instructions.append(.unary(.not, result, result)) }
         return result
+    }
+
+    func castTargetKotlinName(_ semantic: TypeID) -> String {
+        switch program.sema.types.kind(of: program.specialized(semantic)) {
+        case let .classType(type):
+            return program.sema.symbols.symbol(type.classSymbol)?.fqName.map(context.interner.resolve).joined(separator: ".") ?? "kotlin.Any"
+        case let .primitive(primitive, _): return "kotlin." + primitive.kotlinName
+        case .stringStruct: return "kotlin.String"
+        case let .typeParam(parameter):
+            return program.sema.symbols.symbol(parameter.symbol).map { context.interner.resolve($0.name) } ?? "T"
+        case let .functionType(function):
+            return "kotlin.Function" + String(function.params.count + (function.receiver == nil ? 0 : 1))
+        case .unit: return "kotlin.Unit"
+        default: return "kotlin.Any"
+        }
     }
 
     func mutableCollectionKind(_ semantic: TypeID) -> String? {

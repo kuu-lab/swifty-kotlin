@@ -711,6 +711,9 @@ extension CallTypeChecker {
                     nullability: .nonNull
                 )))
                 for index in 2..<args.count {
+                    if case .lambdaLiteral = ast.arena.expr(args[index].expr) {
+                        sema.bindings.bindFunctionValueExpectedType(args[index].expr, type: selectorExpectedType)
+                    }
                     _ = driver.inferExpr(args[index].expr, ctx: ctx, locals: &locals, expectedType: selectorExpectedType)
                 }
 

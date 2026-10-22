@@ -4,10 +4,16 @@ struct JVMIntrinsicResult { let value: JVMValue? }
 
 extension JVMProgramBuilder {
     func builtinMethod(_ symbolID: SymbolID) -> JVMForeignMethod? {
+        if let symbol = sema.symbols.symbol(symbolID),
+           symbol.fqName.map(context.interner.resolve) == ["java", "lang", "System", "Companion", "arraycopy"],
+           symbol.declSite.map({ context.sourceManager.origin(of: $0.start.file) != .user }) == true {
+            let object: JVMValueType = .reference("java/lang/Object", nullable: true)
+            return JVMForeignMethod(owner: "java/lang/System", name: "arraycopy", descriptor: "(Ljava/lang/Object;ILjava/lang/Object;II)V", parameters: [object, .int, object, .int, .int], result: .unit, isStatic: true, isInterface: false, isAbstract: false)
+        }
         guard let symbol = sema.symbols.symbol(symbolID), symbol.kind == .constructor,
               let parent = sema.symbols.parentSymbol(for: symbolID), classes[parent] == nil,
               let source = try? className(parent), let name = JVMClasspathIndex.builtinName(source),
-              (name.hasPrefix("java/lang/") || ["java/util/NoSuchElementException", "java/util/AbstractList", "java/util/AbstractSet", "java/util/AbstractMap", "kotlin/UninitializedPropertyAccessException"].contains(name)), let signature = sema.symbols.functionSignature(for: symbolID),
+              (name.hasPrefix("java/lang/") || ["java/util/NoSuchElementException", "java/util/AbstractCollection", "java/util/AbstractList", "java/util/AbstractSet", "java/util/AbstractMap", "kotlin/collections/AbstractSet", "kotlin/UninitializedPropertyAccessException"].contains(name)), let signature = sema.symbols.functionSignature(for: symbolID),
               let parameters = try? signature.parameterTypes.map(type) else { return nil }
         return JVMForeignMethod(owner: name, name: "<init>", descriptor: "(" + parameters.map(\.descriptor).joined() + ")V", parameters: parameters, result: .reference(name, nullable: false), isStatic: false, isInterface: false, isAbstract: false)
     }
@@ -79,17 +85,33 @@ extension JVMFunctionBuilder {
         }
         if fq.hasPrefix("kotlin/collections/"), ["listOf", "mutableListOf", "setOf", "mutableSetOf", "emptyList", "emptySet", "mutableMapOf", "mapOf", "emptyMap"].contains(name) {
             let map = name.lowercased().contains("map"), set = name.lowercased().contains("set")
-            let owner = map ? "java/util/LinkedHashMap" : (set ? "java/util/LinkedHashSet" : "java/util/ArrayList")
             // Kotlin evaluates the whole vararg before hashing keys/elements.
             let items = try args.map { try requireValue($0.expr) }
-            if items.count == 1, name == "mapOf" {
-                let key = try jdkCall("kotlin/Pair", "getFirst", [], object, receiver: items[0])!
-                let value = try jdkCall("kotlin/Pair", "getSecond", [], object, receiver: items[0])!
-                return JVMIntrinsicResult(value: try jdkCall("java/util/Collections", "singletonMap", [object, object], .reference("java/util/Map", nullable: false), arguments: [key, value], resolved: resultType))
+            if !name.hasPrefix("mutable") {
+                // kotlinc exposes concrete JDK/bundled classes through getClass():
+                // Empty{List,Set,Map}, Collections$Singleton{List,Set,Map},
+                // Arrays$ArrayList, LinkedHashSet, LinkedHashMap.
+                let kind = map ? "Map" : (set ? "Set" : "List")
+                if items.isEmpty {
+                    let owner = "kotlin/collections/Empty" + kind
+                    let emptyType: JVMValueType = .reference(owner, nullable: false)
+                    let result = try value(emptyType)
+                    instructions.append(.getStatic(JVMField(owner: owner, name: "INSTANCE", type: emptyType, access: 0x19), result))
+                    return JVMIntrinsicResult(value: try convert(result, to: resultType))
+                }
+                if items.count == 1 {
+                    if map {
+                        let key = try jdkCall("kotlin/Pair", "getFirst", [], object, receiver: items[0])!
+                        let value = try jdkCall("kotlin/Pair", "getSecond", [], object, receiver: items[0])!
+                        return JVMIntrinsicResult(value: try jdkCall("java/util/Collections", "singletonMap", [object, object], .reference("java/util/Map", nullable: false), arguments: [key, value], resolved: resultType))
+                    }
+                    return JVMIntrinsicResult(value: try jdkCall("java/util/Collections", set ? "singleton" : "singletonList", [object], .reference("java/util/" + kind, nullable: false), arguments: items, resolved: resultType))
+                }
+                if !map && !set {
+                    return JVMIntrinsicResult(value: try jdkCall("java/util/Arrays", "asList", [.reference("[Ljava/lang/Object;", nullable: false)], .reference("java/util/List", nullable: false), arguments: [try objectArray(items)], resolved: resultType))
+                }
             }
-            if items.count == 1, name == "setOf" {
-                return JVMIntrinsicResult(value: try jdkCall("java/util/Collections", "singleton", [object], .reference("java/util/Set", nullable: false), arguments: items, resolved: resultType))
-            }
+            let owner = map ? "java/util/LinkedHashMap" : (set ? "java/util/LinkedHashSet" : "java/util/ArrayList")
             let collection = try constructJDK(owner)
             for item in items {
                 if map {
@@ -98,10 +120,7 @@ extension JVMFunctionBuilder {
                     _ = try jdkCall(owner, "put", [object, object], object, receiver: collection, arguments: [key, value])
                 } else { _ = try jdkCall(owner, "add", [object], .boolean, receiver: collection, arguments: [item]) }
             }
-            let mutable = name.hasPrefix("mutable")
-            if mutable { return JVMIntrinsicResult(value: try convert(collection, to: resultType)) }
-            let interface = "java/util/" + (map ? "Map" : (set ? "Set" : "List"))
-            return JVMIntrinsicResult(value: try jdkCall("java/util/Collections", "unmodifiable" + (map ? "Map" : (set ? "Set" : "List")), [.reference(interface, nullable: false)], .reference(interface, nullable: false), arguments: [collection], resolved: resultType))
+            return JVMIntrinsicResult(value: try convert(collection, to: resultType))
         }
         return nil
     }
@@ -198,11 +217,18 @@ extension JVMFunctionBuilder {
         if owner.hasPrefix("["), member == "set", args.count == 2 {
             try indexedSet(receiverID, [args[0].expr], args[1].expr, id); return JVMIntrinsicResult(value: nil)
         }
+        if member == "indices", args.isEmpty, owner == "[I" || owner.hasPrefix("[L") || owner.hasPrefix("[[") {
+            let array: JVMValueType = .reference(owner == "[I" ? "[I" : "[Ljava/lang/Object;", nullable: false)
+            return JVMIntrinsicResult(value: try jdkCall("kotlin/collections/ArraysKt", "getIndices", [array], .reference("kotlin/ranges/IntRange", nullable: false), arguments: [requireValue(receiverID)]))
+        }
+        if owner == "[I", member == "lastIndex", args.isEmpty {
+            return JVMIntrinsicResult(value: try jdkCall("kotlin/collections/ArraysKt", "getLastIndex", [.reference("[I", nullable: false)], .int, arguments: [requireValue(receiverID)]))
+        }
         if owner.hasPrefix("["), member == "size", args.isEmpty {
             let source = try requireValue(receiverID), result = try value(.int)
             instructions.append(.arrayLength(source, result)); return JVMIntrinsicResult(value: result)
         }
-        let collections: Set<String> = ["java/lang/Iterable", "java/util/Iterator", "java/util/Collection", "java/util/List", "kotlin/enums/EnumEntries", "java/util/Set", "java/util/Map", "kotlin/text/MatchGroupCollection"]
+        let collections: Set<String> = ["java/util/ArrayList", "java/lang/Iterable", "java/util/Iterator", "java/util/Collection", "java/util/List", "kotlin/enums/EnumEntries", "java/util/Set", "java/util/Map", "kotlin/text/MatchGroupCollection"]
         if collections.contains(owner) {
             // JDK collection interfaces retain the virtual Object contract;
             // their implementations provide structural equality and hashing.
@@ -214,8 +240,9 @@ extension JVMFunctionBuilder {
                 return JVMIntrinsicResult(value: try jdkCall("java/lang/Object", member, [object], .boolean, receiver: receiver, arguments: [argument]))
             }
             if let selected = try mappedBuiltinMemberOwner(id), collections.contains(selected) { owner = selected }
-            if ["set", "add", "remove", "removeAt", "put", "clear"].contains(member) { try requireMutableCollection(receiverID, at: id) }
-            if ["set", "add", "put"].contains(member) { try requireWritableArguments(receiverID, at: id) }
+            if owner == "java/util/ArrayList" { owner = "java/util/List" }
+            if ["set", "add", "addAll", "remove", "removeAll", "removeAt", "put", "clear"].contains(member) { try requireMutableCollection(receiverID, at: id) }
+            if ["set", "add", "addAll", "put"].contains(member) { try requireWritableArguments(receiverID, at: id) }
             let source = try convert(requireValue(receiverID), to: .reference(owner, nullable: false))
             let result = try program.expressionType(id)
             var values: [JVMValue] = []
@@ -223,14 +250,17 @@ extension JVMFunctionBuilder {
             let parameters: [JVMValueType], returns: JVMValueType, actual: String
             switch member {
             case "size": actual = "size"; parameters = []; returns = .int
+            case "entries": actual = "entrySet"; parameters = []; returns = .reference("java/util/Set", nullable: false)
             case "keys": actual = "keySet"; parameters = []; returns = .reference("java/util/Set", nullable: false)
             case "values": actual = "values"; parameters = []; returns = .reference("java/util/Collection", nullable: false)
+            case "containsAll": actual = member; parameters = [.reference("java/util/Collection", nullable: false)]; returns = .boolean
             case "isEmpty", "hasNext": actual = member; parameters = []; returns = .boolean
             case "iterator": actual = member; parameters = []; returns = .reference("java/util/Iterator", nullable: false)
             case "next": actual = member; parameters = []; returns = object
             case "get": actual = member; parameters = [["java/util/List", "kotlin/enums/EnumEntries"].contains(owner) ? .int : object]; returns = object
             case "set": actual = owner == "java/util/Map" ? "put" : "set"; parameters = [["java/util/List", "kotlin/enums/EnumEntries"].contains(owner) ? .int : object, object]; returns = object
             case "add", "remove", "contains", "containsKey": actual = member; parameters = [object]; returns = owner == "java/util/Map" && member == "remove" ? object : .boolean
+            case "addAll", "removeAll": actual = member; parameters = [.reference("java/util/Collection", nullable: false)]; returns = .boolean
             case "removeAt": actual = "remove"; parameters = [.int]; returns = object
             case "put": actual = member; parameters = [object, object]; returns = object
             case "clear": actual = member; parameters = []; returns = .unit
@@ -295,9 +325,16 @@ extension JVMFunctionBuilder {
             return .reference(String(descriptor.dropFirst().dropLast()), nullable: true)
         }
     }
-    func indexedGet(_ receiver: ExprID, _ indices: [ExprID], _ id: ExprID) throws -> JVMValue {
+    func indexedGet(_ receiver: ExprID, _ indices: [ExprID], _ id: ExprID) throws -> JVMValue? {
+        let args = indices.map { CallArgument(expr: $0) }
+        if let call = try inlineCall(args, receiver: receiver, id: id)
+            ?? sourceCall(args, receiver: receiver, id: id) { return call.value }
         guard indices.count == 1 else { throw fail("JVM indexing requires one index.", id) }
-        if let call = try textLibraryCall(indices.map { CallArgument(expr: $0) }, receiver: receiver, id: id), let value = call.value { return value }
+        let arguments = indices.map { CallArgument(expr: $0) }
+        if let call = try textLibraryCall(arguments, receiver: receiver, id: id), let value = call.value { return value }
+        if let call = try sourceCall(arguments, receiver: receiver, id: id), let value = call.value {
+            return try convert(value, to: program.expressionType(id))
+        }
         var object = try requireValue(receiver)
         // An intersection can retain Iterable as its erased local type while
         // Sema selects List.get from a smart-cast branch.
@@ -308,6 +345,9 @@ extension JVMFunctionBuilder {
         return try indexedRead(object, index: requireValue(indices[0]), type: program.expressionType(id))
     }
     func indexedRead(_ object: JVMValue, index: JVMValue, type: JVMValueType) throws -> JVMValue {
+        if object.type.referenceName == "java/util/ArrayList" {
+            return try indexedRead(convert(object, to: .reference("java/util/List", nullable: false)), index: index, type: type)
+        }
         if object.type.isCharSequence {
             let owner = object.type.referenceName!, source = try convert(object, to: .reference(owner, nullable: false))
             return try jdkCall(owner, "charAt", [.int], .char, receiver: source, arguments: [index], interface: owner == "java/lang/CharSequence")!
@@ -341,6 +381,9 @@ extension JVMFunctionBuilder {
         guard let type = program.sema.bindings.exprType(for: receiver), mutable(type) else { throw fail("Cannot mutate a read-only JVM collection.", id) }
     }
     func indexedSet(_ receiver: ExprID, _ indices: [ExprID], _ source: ExprID, _ id: ExprID) throws {
+        let args = (indices + [source]).map { CallArgument(expr: $0) }
+        if let _ = try inlineCall(args, receiver: receiver, id: id)
+            ?? sourceCall(args, receiver: receiver, id: id) { return }
         guard indices.count == 1 else { throw fail("JVM indexing requires one index.", id) }
         let object = try requireValue(receiver), index = try requireValue(indices[0]), value = try requireValue(source)
         try requireWritableArguments(receiver, at: id)
@@ -348,6 +391,9 @@ extension JVMFunctionBuilder {
         try indexedWrite(object, index: index, source: value)
     }
     func indexedWrite(_ object: JVMValue, index: JVMValue, source: JVMValue) throws {
+        if object.type.referenceName == "java/util/ArrayList" {
+            try indexedWrite(convert(object, to: .reference("java/util/List", nullable: false)), index: index, source: source); return
+        }
         if object.type.referenceName == "java/lang/StringBuilder" {
             _ = try jdkCall("java/lang/StringBuilder", "setCharAt", [.int, .char], .unit, receiver: object, arguments: [index, source]); return
         }
@@ -382,14 +428,19 @@ extension JVMFunctionBuilder {
 extension JVMFunctionBuilder {
     func sequenceLoop(_ name: InternedString, _ iterable: ExprID, _ body: ExprID, _ id: ExprID) throws {
         let source = try requireValue(iterable)
+        // An Iterator receiver is its own cursor: the stdlib Iterator<T>.iterator()
+        // operator returns `this`, so Sema leaves iteratorCall nil for it.
+        let loopBinding = program.sema.bindings.loopIterationBinding(for: id)
         let elementType: JVMValueType
         if source.type.isCharSequence { elementType = .char }
+        else if source.type.referenceName == "kotlin/ranges/IntRange" { elementType = .int }
         else if let semantic = program.sema.bindings.exprType(for: iterable), case let .classType(t) = program.sema.types.kind(of: semantic), let arg = t.args.first {
             switch arg {
             case let .invariant(t), let .out(t): elementType = try program.type(t)
             default: elementType = .reference("java/lang/Object", nullable: true)
             }
         } else if source.type.referenceName?.hasPrefix("[") == true { elementType = try arrayComponent(source.type) }
+        else if let loopBinding, loopBinding.iteratorCall == nil { elementType = try program.type(loopBinding.elementType) }
         else { throw fail("JVM for requires an array or iterable collection.", id) }
         let local = try value(elementType), test = label(), advance = label(), exit = label()
         scopes.append([name: Local(value: local, mutable: false)]); defer { scopes.removeLast() }
@@ -408,7 +459,14 @@ extension JVMFunctionBuilder {
             let one = try constant(.int(1), .int)
             instructions.append(.binary(.add, index, one, index)); jump(test)
         } else {
-            let iterator = try jdkCall(source.type.referenceName == "kotlin/sequences/Sequence" ? "kotlin/sequences/Sequence" : "java/lang/Iterable", "iterator", [], .reference("java/util/Iterator", nullable: false), receiver: source, interface: true)!
+            let iteratorType: JVMValueType = .reference("java/util/Iterator", nullable: false)
+            let iterator: JVMValue
+            if let loopBinding, loopBinding.iteratorCall == nil {
+                iterator = try convert(source, to: iteratorType)
+            } else {
+                let owner = source.type.referenceName == "kotlin/sequences/Sequence" ? "kotlin/sequences/Sequence" : "java/lang/Iterable"
+                iterator = try jdkCall(owner, "iterator", [], iteratorType, receiver: source, interface: true)!
+            }
             mark(test)
             let check = try jdkCall("java/util/Iterator", "hasNext", [], .boolean, receiver: iterator, interface: true)!
             instructions.append(.jumpIfFalse(check, exit))

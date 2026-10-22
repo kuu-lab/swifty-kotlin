@@ -937,7 +937,7 @@ extension CallTypeChecker {
         return finalType
     }
 
-    private func bindMutableCollectionSourceExtension(
+    func bindMutableCollectionSourceExtension(
         exprID: ExprID,
         memberName: InternedString,
         receiverID: ExprID,
@@ -972,6 +972,20 @@ extension CallTypeChecker {
             )
         }
         let isMutableSetReceiver = mutableSetArguments != nil
+        let mutableCollectionArguments = sema.requiresResolvedLibraryCalls
+            ? sema.symbols.lookup(fqName: knownNames.kotlinCollectionsMutableCollectionFQName).flatMap {
+                sema.types.liftedNominalSupertypeArgs(
+                    from: receiverClassType.classSymbol,
+                    childArgs: receiverClassType.args.map { argument in
+                        switch argument {
+                        case .out, .star: .invariant(sema.types.nothingType)
+                        case let .in(type): .invariant(type)
+                        case .invariant: argument
+                        }
+                    },
+                    to: $0
+                )
+            } : nil
         guard receiverFQName == knownNames.kotlinCollectionsMutableCollectionFQName
             || receiverFQName == knownNames.kotlinCollectionsMutableListFQName
             || isMutableSetReceiver
@@ -983,11 +997,7 @@ extension CallTypeChecker {
             return nil
         }
         let isMutableListReceiver = receiverFQName == knownNames.kotlinCollectionsMutableListFQName
-        guard !isMutableListReceiver || memberName == knownNames.addAll else {
-            return nil
-        }
-        guard !isMutableSetReceiver || memberName == knownNames.addAll else { return nil }
-        if isMutableSetReceiver, !safeCall, sema.types.nullability(of: receiverType) == .nullable {
+        if isMutableSetReceiver || sema.requiresResolvedLibraryCalls, !safeCall, sema.types.nullability(of: receiverType) == .nullable {
             sema.diagnostics.error(
                 "KSWIFTK-SEMA-0026",
                 "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
@@ -1050,7 +1060,24 @@ extension CallTypeChecker {
         guard let parameterID else {
             return nil
         }
-        guard !isMutableSetReceiver || parameterID != knownNames.array else { return nil }
+        // The native List/Set collection bridge expects a Collection. Keep the
+        // source Iterable overload for non-Collection iterables so ranges are
+        // materialized before reaching that bridge.
+        guard sema.requiresResolvedLibraryCalls
+                || !isMutableListReceiver
+                || memberName == knownNames.addAll
+                || parameterID == knownNames.iterable
+        else {
+            return nil
+        }
+        guard sema.requiresResolvedLibraryCalls
+                || !isMutableSetReceiver
+                || memberName == knownNames.addAll
+                || parameterID == knownNames.iterable
+        else {
+            return nil
+        }
+        guard sema.requiresResolvedLibraryCalls || !isMutableSetReceiver || parameterID != knownNames.array else { return nil }
 
         let sourceFQName = knownNames.kotlinCollectionsPackage + [memberName]
         let candidate = sema.symbols.lookupAll(fqName: sourceFQName).first { candidate in
@@ -1084,19 +1111,57 @@ extension CallTypeChecker {
         guard let signature = sema.symbols.functionSignature(for: candidate) else {
             return nil
         }
+        if sema.requiresResolvedLibraryCalls, let label = args[0].label,
+           signature.valueParameterSymbols.first.flatMap({ sema.symbols.symbol($0)?.name }) != label
+        {
+            sema.diagnostics.error(
+                "KSWIFTK-SEMA-0002",
+                "No parameter with the supplied name exists for this collection bulk overload.",
+                range: ctx.ast.arena.exprRange(argument)
+            )
+            sema.bindings.bindExprType(exprID, type: sema.types.errorType)
+            return sema.types.errorType
+        }
         // The source declaration is generic in the receiver element type. The
         // regular resolver cannot unify that type parameter reliably when the
         // declaration came from imported stdlib metadata, so bind the exact
         // source overload after the nominal receiver/argument classification
         // above has selected it.
         let receiverElementType: TypeID
-        if isMutableSetReceiver, let elementArgument = mutableSetArguments?.first {
-            // The writable lower bound of out/star-projected sets is Nothing.
+        if let elementArgument = (sema.requiresResolvedLibraryCalls ? mutableCollectionArguments : mutableSetArguments)?.first {
+            // The writable lower bound of out/star-projected collections is Nothing.
             // Lift through supertypes so a source class's own generic arguments
-            // cannot be mistaken for its MutableSet element type.
-            receiverElementType = switch elementArgument {
+            // cannot be mistaken for its mutable collection element type.
+            let elementType = switch elementArgument {
             case let .invariant(type), let .in(type): type
             case .out, .star: sema.types.nothingType
+            }
+            if sema.requiresResolvedLibraryCalls,
+               case let .typeParam(parameter) = sema.types.kind(of: elementType), let capture = parameter.capture {
+                // A capture's nullable upper bound does not make its writable
+                // lower bound nullable. Only an explicit T? in the original
+                // property/getter declaration permits a null write here.
+                let receiverDeclaration = sema.bindings.identifierSymbol(for: receiverID)
+                    ?? sema.bindings.callBinding(for: receiverID)?.chosenCallee
+                let declaredReceiverType = receiverDeclaration.flatMap {
+                    sema.symbols.propertyType(for: $0) ?? sema.symbols.functionSignature(for: $0)?.returnType
+                }
+                let nullableTemplate = declaredReceiverType.flatMap { declared -> Bool? in
+                    guard let (declaredClass, _) = resolveClassTypeSymbol(declared, sema: sema),
+                          let mutableCollection = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsMutableCollectionFQName),
+                          let declaredArguments = sema.types.liftedNominalSupertypeArgs(from: declaredClass, to: mutableCollection),
+                          let declaredArgument = declaredArguments.first else { return nil }
+                    let declaredElement: TypeID
+                    switch declaredArgument {
+                    case let .invariant(type), let .in(type), let .out(type): declaredElement = type
+                    case .star: return false
+                    }
+                    guard case let .typeParam(template) = sema.types.kind(of: declaredElement) else { return false }
+                    return template.capture == nil && template.symbol == parameter.symbol && template.nullability == .nullable
+                } == true
+                receiverElementType = nullableTemplate ? sema.types.makeNullable(capture.lower) : capture.lower
+            } else {
+                receiverElementType = elementType
             }
         } else {
             receiverElementType = collectionFallbackElementType(
@@ -1109,7 +1174,7 @@ extension CallTypeChecker {
         let substitutions = Dictionary(uniqueKeysWithValues: typeVarBySymbol.values.map {
             ($0, receiverElementType)
         })
-        if isMutableSetReceiver {
+        if isMutableSetReceiver || sema.requiresResolvedLibraryCalls {
             let expectedArgumentType = sema.types.substituteTypeParameters(
                 in: signature.parameterTypes[0],
                 substitution: substitutions,
@@ -1118,7 +1183,7 @@ extension CallTypeChecker {
             guard sema.types.isSubtype(argumentType, expectedArgumentType) else {
                 sema.diagnostics.error(
                     "KSWIFTK-TYPE-0001",
-                    "Type mismatch for MutableSet.addAll elements.",
+                    sema.requiresResolvedLibraryCalls ? "Type mismatch for mutable collection bulk elements." : "Type mismatch for MutableSet.addAll elements.",
                     range: ctx.ast.arena.exprRange(argument)
                 )
                 sema.bindings.bindExprType(exprID, type: sema.types.errorType)

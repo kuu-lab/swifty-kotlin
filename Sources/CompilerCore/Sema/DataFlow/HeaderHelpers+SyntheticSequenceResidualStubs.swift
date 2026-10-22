@@ -117,6 +117,29 @@ extension DataFlowSemaPhase {
             fallback: externalLinkName
         )
 
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: memberFQName, work: { [self] in
+            registerSequenceMemberStub(
+                named: name,
+                externalLinkName: externalLinkName,
+                receiverType: receiverType,
+                parameters: parameters,
+                returnType: returnType,
+                sequenceSymbol: sequenceSymbol,
+                sequenceFQName: sequenceFQName,
+                typeParamSymbol: typeParamSymbol,
+                symbols: symbols,
+                interner: interner,
+                annotations: annotations,
+                canThrow: canThrow,
+                typeParameterUpperBounds: typeParameterUpperBounds,
+                typeParameterUpperBoundsList: typeParameterUpperBoundsList,
+                additionalTypeParameterSymbols: additionalTypeParameterSymbols,
+                additionalTypeParameterUpperBoundsList: additionalTypeParameterUpperBoundsList,
+                flags: flags
+            )
+        }) {
+            return
+        }
         if let existing = symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in
             guard let signature = symbols.functionSignature(for: symbolID) else {
                 return false

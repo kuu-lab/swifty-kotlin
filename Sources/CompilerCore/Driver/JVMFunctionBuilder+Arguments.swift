@@ -64,30 +64,34 @@ extension JVMFunctionBuilder {
         try masks.map { try constant(.int(Int32(bitPattern: $0)), .int) } + [constant(.null, .reference(constructor ? "kotlin/jvm/internal/DefaultConstructorMarker" : "java/lang/Object", nullable: true))]
     }
 
-    func sourceCall(_ args: [CallArgument], receiver: ExprID? = nil, id: ExprID) throws -> JVMIntrinsicResult? {
-        guard let binding = program.sema.bindings.callBinding(for: id),
-              let parameters = program.sourceParameters[binding.chosenCallee] else { return nil }
-        let symbol = binding.chosenCallee, reference = program.references[symbol], method = program.methods[symbol]
+    func sourceCall(_ args: [CallArgument], receiver: ExprID? = nil, receiverValue: JVMValue? = nil, id: ExprID, expectedResult: JVMValueType? = nil) throws -> JVMIntrinsicResult? {
+        let binding = program.sema.bindings.callBinding(for: id)
+        guard let symbol = binding?.chosenCallee ?? program.sema.bindings.identifierSymbol(for: id) else { return nil }
+        if let local = program.localFunctions[symbol] {
+            return try localFunctionCall(local, symbol: symbol, args: args, receiver: receiver, id: id, expectedResult: expectedResult)
+        }
+        let reference = program.references[symbol]
+        let method = program.methods[symbol] ?? context.jvmImports?.methods[symbol]
         guard reference != nil || method != nil else { return nil }
         let constructor = method?.isConstructor == true
         let plan = method.flatMap { m in program.classes.values.first { $0.name == m.owner } }
         if constructor, plan?.isEnum == true { throw fail("JVM enum constructors can only initialize enum entries.", id) }
-        let extensionCall = program.extensionSymbols.contains(symbol)
+        let extensionCall = program.extensionSymbols.contains(symbol) || context.jvmImports?.extensionSymbols.contains(symbol) == true
         var dispatch: JVMValue?, prefix: [JVMValue] = []
         if constructor, let plan, plan.isInner {
-            prefix = [try receiver.map(requireValue) ?? enclosingInstance(plan.outer!)]
-        } else if method != nil && !constructor {
-            dispatch = try receiver != nil && !extensionCall ? requireValue(receiver!) : instance(id)
+            prefix = [try receiverValue ?? receiver.map(requireValue) ?? enclosingInstance(plan.outer!)]
+        } else if let method, !method.isStatic && !constructor {
+            dispatch = try (receiver != nil || receiverValue != nil) && !extensionCall ? receiverValue ?? requireValue(receiver!) : instance(id)
         }
         if extensionCall {
-            let implicit = program.sema.bindings.implicitExtensionReceiver(for: id).flatMap { contextualReceivers[$0] } ?? extensionValue ?? thisValue
-            guard let value = try receiver.map(requireValue) ?? implicit else { throw fail("Missing JVM extension receiver.", id) }
+            let implicit = implicitExtensionReceiver(id)
+            guard let value = try receiverValue ?? receiver.map(requireValue) ?? implicit else { throw fail("Missing JVM extension receiver.", id) }
             prefix.append(value)
         }
         let allTypes = reference?.parameters ?? method!.parameters
         let types = Array(allTypes.dropFirst(prefix.count))
-        let defaultSymbol = program.defaultOwner(binding.defaultArgumentOwner ?? symbol)
-        let defaultParameters = program.sourceParameters[defaultSymbol] ?? parameters
+        let defaultSymbol = program.defaultOwner(binding?.defaultArgumentOwner ?? symbol)
+        let defaultParameters = program.sourceParameters[defaultSymbol] ?? program.sourceParameters[symbol]
         // Value constructors are static source operations: evaluate their
         // arguments before allocating the internal box, including suspension.
         let deferredValueBox = constructor && plan?.isValue == true
@@ -97,7 +101,10 @@ extension JVMFunctionBuilder {
         let ordered = try arguments(args, binding: binding, parameters: types, declarations: defaultParameters, id: id)
         var values = try zip(prefix, allTypes).map { try convert($0.0, to: $0.1) } + ordered.values
         let usesDefaults = ordered.masks.contains { $0 != 0 }
-        let resultType = try program.expressionType(id)
+        if try emitTailrec(id, symbol: symbol, dispatch: dispatch, prefix: prefix, values: ordered.values, masks: ordered.masks) {
+            return JVMIntrinsicResult(value: nil)
+        }
+        let resultType = try expectedResult ?? program.expressionType(id)
         let physicalResult = reference?.result ?? method!.result
         // A safe Unit call has logical type Unit?, but its ordinary entry
         // still returns void. The safe-call join materializes Unit afterward.
@@ -112,6 +119,10 @@ extension JVMFunctionBuilder {
             } else {
                 let target = try program.defaultReference(defaultSymbol)
                 values = (dispatch.map { [$0] } ?? []) + values + (try maskArguments(ordered.masks, constructor: false))
+                // An inherited default can belong to a generic interface even
+                // when the concrete implementation takes primitive arguments.
+                guard values.count == target.parameters.count else { throw fail("Invalid JVM default argument count.", id) }
+                values = try zip(values, target.parameters).map { try convert($0.0, to: $0.1) }
                 instructions.append(.call(target, values, result))
             }
         } else if var method {

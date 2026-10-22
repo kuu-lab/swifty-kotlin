@@ -42,6 +42,9 @@ extension CallTypeChecker {
                     guard let declaredReceiver = sema.symbols.functionSignature(for: candidate)?.receiverType else {
                         return false
                     }
+                    if sema.symbols.memberExtensionOwnerSymbol(for: candidate) != nil {
+                        return implicitMemberExtensionReceiverMatches(entry.type, declared: declaredReceiver, sema: sema)
+                    }
                     return extensionSyntheticFallbackReceiverMatches(
                         callSiteReceiver: entry.type,
                         declaredReceiver: declaredReceiver,
@@ -57,6 +60,26 @@ extension CallTypeChecker {
             candidates = vis
             implicitReceiverScopeCandidates = vis
             callInvisible = invis
+            if candidates.isEmpty, !invis.isEmpty {
+                // A scope tier that only offers inaccessible declarations must
+                // not stop the call tower — keep looking in outer tiers so a
+                // bundled-internal `maxOf` cannot hide `kotlin.math.maxOf`.
+                // Restrict the retry to plain callables; receiver-bearing
+                // candidates need the implicit-receiver matching done above.
+                let blocked = Set(allCallCandidates).union(invis.map(\.id))
+                let outerTierCandidates = ctx.scope.lookup(calleeName, matching: { candidate in
+                    guard !blocked.contains(candidate),
+                          let symbol = ctx.cachedSymbol(candidate) else { return false }
+                    return (symbol.kind == .function || symbol.kind == .constructor)
+                        && sema.symbols.functionSignature(for: candidate)?.receiverType == nil
+                }).filter { !ctx.isCandidateBlockedByDslMarker($0) }
+                let outerVisible = ctx.filterByVisibility(outerTierCandidates).visible
+                if !outerVisible.isEmpty {
+                    candidates = outerVisible
+                    implicitReceiverScopeCandidates = outerVisible
+                    callInvisible = []
+                }
+            }
             if locals[calleeName] == nil,
                let receiverType = ctx.implicitReceiverType
             {
@@ -89,10 +112,7 @@ extension CallTypeChecker {
                               sema.symbols.memberExtensionOwnerSymbol(for: candidate) != nil,
                               let declaredReceiver = signature.receiverType,
                               let picked = ctx.implicitReceiverMemberLookupEntries().first(where: { entry in
-                                  sema.types.isSubtype(
-                                      sema.types.makeNonNullable(entry.type),
-                                      sema.types.makeNonNullable(declaredReceiver)
-                                  )
+                                  implicitMemberExtensionReceiverMatches(entry.type, declared: declaredReceiver, sema: sema)
                               })
                         else {
                             regularMembers.append(candidate)
@@ -173,10 +193,7 @@ extension CallTypeChecker {
                         guard let signature = sema.symbols.functionSignature(for: candidate),
                               let declaredReceiver = signature.receiverType,
                               let picked = ctx.implicitReceiverMemberLookupEntries().first(where: { entry in
-                                  sema.types.isSubtype(
-                                      sema.types.makeNonNullable(entry.type),
-                                      sema.types.makeNonNullable(declaredReceiver)
-                                  )
+                                  implicitMemberExtensionReceiverMatches(entry.type, declared: declaredReceiver, sema: sema)
                               })
                         else { continue }
                         memberExtensionCandidates.append((candidate, picked.type))

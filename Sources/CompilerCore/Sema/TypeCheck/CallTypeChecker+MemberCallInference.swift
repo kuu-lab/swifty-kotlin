@@ -167,6 +167,18 @@ extension CallTypeChecker {
         default:
             false
         }
+        if isDottedMemberAccess,
+           request.ctx.ast.arena.isExplicitCall(request.id),
+           let chosen = sema.bindings.callBinding(for: request.id)?.chosenCallee,
+           isSyntheticCharPropertyFacadeFunction(chosen, ctx: request.ctx)
+        {
+            sema.diagnostics.error(
+                "KSWIFTK-SEMA-0022",
+                "Expression '\(request.ctx.interner.resolve(request.calleeName))' cannot be invoked as a function.",
+                range: request.range
+            )
+            return driver.helpers.bindAndReturnErrorType(request.id, sema: sema)
+        }
         guard isDottedMemberAccess,
               request.args.isEmpty,
               request.explicitTypeArgs.isEmpty,
@@ -200,6 +212,18 @@ extension CallTypeChecker {
         )
         sema.bindings.bindExprType(request.id, type: sema.types.errorType)
         return sema.types.errorType
+    }
+
+    /// Synthetic Char property facades participate only in property syntax.
+    /// Ordinary same-named user functions remain callable extensions.
+    func isSyntheticCharPropertyFacadeFunction(
+        _ candidate: SymbolID,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        guard let symbol = ctx.sema.symbols.symbol(candidate),
+              ["code", "category", "directionality"].contains(ctx.interner.resolve(symbol.name))
+        else { return false }
+        return isBundledPropertyStyleFacadeFunction(candidate, ctx: ctx)
     }
 
     /// The bundled stdlib models a small, fixed set of upstream Kotlin
@@ -381,6 +405,21 @@ extension CallTypeChecker {
             return inferRegularMemberCall(request, receiverType: receiverType, locals: &locals)
         }
 
+        let memberName = request.ctx.interner.resolve(request.calleeName)
+        if memberName == "removeAll" || memberName == "retainAll",
+           let result = bindMutableCollectionSourceExtension(
+               exprID: request.id,
+               memberName: request.calleeName,
+               receiverID: request.receiverID,
+               args: request.args,
+               safeCall: request.safeCall,
+               ctx: request.ctx,
+               locals: &locals
+           )
+        {
+            return result
+        }
+
         if let result = tryInferMemberCallCollectionFlowSpecials(
             request,
             receiverType: receiverType,
@@ -454,8 +493,16 @@ extension CallTypeChecker {
                 // The annotation survives library serialization; ordinary imported
                 // defaults also have link names, so a link name alone is insufficient.
                 guard let owner = sema.symbols.parentSymbol(for: member),
-                      sema.symbols.symbol(owner)?.kind == .interface
+                      sema.symbols.symbol(owner)?.kind == .interface,
+                      let memberSymbol = sema.symbols.symbol(member)
                 else { return true }
+                // Compiler-synthesized interface members are runtime bridge
+                // stubs (e.g. the `MutableSet.addAll(array)` residual), not
+                // Kotlin default implementations. Imported declarations also
+                // carry `.synthetic`, so only genuine in-module stubs count.
+                guard !memberSymbol.flags.contains(.synthetic)
+                        || memberSymbol.flags.contains(.importedLibrary)
+                else { return false }
                 return !sema.symbols.annotations(for: member).contains {
                     KnownCompilerAnnotation.ksSymbolName.matches($0.annotationFQName)
                 }

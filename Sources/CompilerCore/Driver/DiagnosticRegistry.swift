@@ -260,6 +260,12 @@ enum DiagnosticRegistry {
             summary: "Unexpected token after expression."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0019",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Unexpected '?' after declaration name."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-PARSE-TYPE-DEPTH",
             pass: "PARSE",
             defaultSeverity: .error,
@@ -774,6 +780,12 @@ enum DiagnosticRegistry {
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "Restricted SequenceScope suspension requires the same receiver."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0311",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Returns are not allowed for functions with expression body."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-PLATFORM",

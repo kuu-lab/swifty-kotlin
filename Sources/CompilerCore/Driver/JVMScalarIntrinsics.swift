@@ -25,10 +25,29 @@ extension JVMFunctionBuilder {
               let declaration = program.sema.symbols.symbol(symbol) else { return nil }
         var path = declaration.fqName.map(context.interner.resolve)
         if path.last == "Companion" { path.removeLast() }
-        guard path.count == 2, path[0] == "kotlin", let primitive = [PrimitiveType.char, .byte, .short, .uint, .ulong, .ubyte, .ushort, .int, .long].first(where: { $0.kotlinName == path[1] }) else { return nil }
+        if path == ["java", "lang", "Math"], declaration.declSite.map({ context.sourceManager.origin(of: $0.start.file) != .user }) == true {
+            switch context.interner.resolve(name) {
+            case "PI": return try constant(.double(.pi), .double)
+            case "E": return try constant(.double(2.718281828459045), .double)
+            default: return nil
+            }
+        }
+        guard path.count == 2, path[0] == "kotlin", let primitive = [PrimitiveType.char, .byte, .short, .uint, .ulong, .ubyte, .ushort, .int, .long, .float, .double].first(where: { $0.kotlinName == path[1] }) else { return nil }
         let member = context.interner.resolve(name), type = JVMValueType.primitive(primitive)
         let bits = [.byte, .ubyte].contains(type) ? 8 : ([.char, .short, .ushort].contains(type) ? 16 : (type.width == 2 ? 64 : 32))
         if member == "SIZE_BITS" || member == "SIZE_BYTES" { return try constant(.int(Int32(member == "SIZE_BITS" ? bits : bits / 8)), .int) }
+        if type == .float || type == .double {
+            let number: Double
+            switch member {
+            case "NaN": number = .nan
+            case "POSITIVE_INFINITY": number = .infinity
+            case "NEGATIVE_INFINITY": number = -.infinity
+            case "MIN_VALUE": number = type == .float ? Double(Float.leastNonzeroMagnitude) : Double.leastNonzeroMagnitude
+            case "MAX_VALUE": number = type == .float ? Double(Float.greatestFiniteMagnitude) : Double.greatestFiniteMagnitude
+            default: return nil
+            }
+            return try constant(type == .float ? .float(Float(number)) : .double(number), type)
+        }
         guard member == "MIN_VALUE" || member == "MAX_VALUE" else { return nil }
         let minimum = member == "MIN_VALUE"
         let unsigned = type.unsignedName != nil || type == .char
@@ -43,14 +62,37 @@ extension JVMFunctionBuilder {
     }
 
     func scalarMember(_ receiver: ExprID, name: String, args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult? {
-        guard let sourceType = evaluatedOperands[receiver]?.type ?? (try? program.expressionType(receiver)) else { return nil }
+        guard let rawType = evaluatedOperands[receiver]?.type ?? (try? program.expressionType(receiver)) else { return nil }
+        let sourceType = rawType.numericCarrier ?? rawType
         if let target = Self.numericConversions[name], sourceType.isNumeric, args.isEmpty {
             return JVMIntrinsicResult(value: try convert(requireValue(receiver), to: target))
         }
         if sourceType == .char, name == "code", args.isEmpty {
             return JVMIntrinsicResult(value: try convert(requireValue(receiver), to: .int))
         }
+        if sourceType == .char, name == "plus", args.count == 1, try program.expressionType(id).isText {
+            let source = try requireValue(receiver)
+            guard let argument = try stringPart(args[0].expr) else { throw JVMTerminatedExpression() }
+            return JVMIntrinsicResult(value: try concatenate(source, argument))
+        }
         if sourceType.isNumeric || sourceType == .boolean {
+            let object: JVMValueType = .reference("java/lang/Object", nullable: true)
+            if rawType.isNullable {
+                // Nullable receivers reach Any?.hashCode/toString/equals, which
+                // are null-safe; the boxed value must not be unboxed here.
+                if name == "hashCode", args.isEmpty {
+                    let source = try requireValue(receiver)
+                    return JVMIntrinsicResult(value: try jdkCall("java/util/Objects", "hashCode", [object], .int, arguments: [source]))
+                }
+                if name == "toString", args.isEmpty {
+                    let source = try requireValue(receiver)
+                    return JVMIntrinsicResult(value: try jdkCall("java/util/Objects", "toString", [object], .string, arguments: [source]))
+                }
+                if name == "equals", args.count == 1 {
+                    let source = try requireValue(receiver), argument = try requireValue(args[0].expr)
+                    return JVMIntrinsicResult(value: try jdkCall("java/util/Objects", "equals", [object, object], .boolean, arguments: [source, argument]))
+                }
+            }
             if name == "toString", args.isEmpty {
                 let source = try requireValue(receiver)
                 if let owner = sourceType.unsignedName {
@@ -71,7 +113,7 @@ extension JVMFunctionBuilder {
                 return JVMIntrinsicResult(value: try jdkCall(owner, unsigned ? "compareUnsigned" : "compare", [parameter, parameter], .int, arguments: [convert(source, to: type), convert(argument, to: type)]))
             }
             if name == "inv", args.isEmpty {
-                let source = try requireValue(receiver), result = try value(sourceType)
+                let source = try convert(requireValue(receiver), to: sourceType), result = try value(sourceType)
                 let bits = try constant(sourceType.width == 2 ? .long(-1) : .int(-1), sourceType)
                 instructions.append(.binary(.bitwiseXor, source, bits, result)); return JVMIntrinsicResult(value: result)
             }

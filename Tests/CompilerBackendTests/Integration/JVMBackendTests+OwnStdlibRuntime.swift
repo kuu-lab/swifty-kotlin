@@ -23,12 +23,52 @@ private final class JVMOwnStdlibCache: @unchecked Sendable {
 }
 
 extension JVMBackendTests {
+    func ownStdlibLibrary() throws -> URL { try JVMOwnStdlibCache.shared.library() }
+    // Exercise both runtimes independently, then compare an official consumer.
+    func runRuntimeParity(_ source: String, expected: String, mode: EmitMode, root: URL) throws {
+        let official = try m11Runtime()
+        let library = try JVMOwnStdlibCache.shared.library()
+        for (name, runtime) in [("official", official), ("own", library.path)] {
+            let app = try m22Build(root: root, sources: [("hello.kt", source)], name: name + (mode == .jvmJar ? ".jar" : "-classes"), mode: mode, classpath: runtime.components(separatedBy: ":"))
+            try #require(app.1 == 0, "\(app.2.map(\.message))")
+            let result = try java(["-cp", app.0.path + ":" + runtime, "HelloKt"])
+            #expect(result.stdout == expected)
+            #expect(result.stderr.isEmpty)
+        }
+        _ = try jvmTool("kotlinc", ["hello.kt", "-cp", official, "-d", "reference.jar"], root: root)
+        let reference = try java(["-cp", root.appendingPathComponent("reference.jar").path + ":" + official, "HelloKt"])
+        #expect(reference.stdout == expected)
+        #expect(reference.stderr.isEmpty)
+        let foreignConsumer = try java(["-cp", root.appendingPathComponent("reference.jar").path + ":" + library.path, "HelloKt"])
+        #expect(foreignConsumer.stdout == expected)
+        #expect(foreignConsumer.stderr.isEmpty)
+    }
+
+    func ownStdlibRuntime() throws -> URL {
+        try JVMOwnStdlibCache.shared.library()
+    }
+
     private static let ownStdlibCases = [
+        "inferredMutableCallableReferences",
+        "reflectionParameterNames",
+        "nonReifiedCallableReferenceAdapters",
+        "defaultedVarargCallableReferenceAdapters",
+        "inheritedGenericDefaultReferenceAdapters",
+        "inheritedOnlyGenericDefaultReferenceAdapters",
+        "iteratorForUsesCursor",
+        "arrayListFactoryABI",
+        "intArrayToList",
+        "intArrayLastIndex",
+        "referenceAndIntArrayIndices",
+        "referenceArrayIsEmpty",
+        "referenceArrayToList",
+        "intRangeIteratorABI",
         "boundedNestedGenericOverloads",
         "callableReferenceCallByExtensionContracts",
         "reifiedCapturedCollectionChecks",
         "arrayConstructorInlineAndReifiedContracts",
         "collectionMutableTypeChecksAndRegexGroups",
+        "collectionFactoryJavaClass",
         "reflectionOverloadedDefaultsAndInheritedContracts",
         "sequenceIndependentIterators",
         "sequenceDropWhileConsumption",
@@ -105,6 +145,7 @@ extension JVMBackendTests {
         "nullLiteralComparisonDoesNotCallUserEquals",
         "genericClassesAndFunctionsExecute",
         "primitiveAndReferenceArraysExecute",
+        "deferredLocalInitialization",
         "collectionsAndIterationExecute",
         "exceptionsCatchFinallyAndEscapingControlFlow",
         "genericInterfaceBridgesAndBounds",
@@ -268,5 +309,19 @@ extension JVMBackendTests {
         }
     }
 
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func deferredLocalsExecuteWithRepositoryStdlib(mode: EmitMode) throws {
+        let library = try JVMOwnStdlibCache.shared.library()
+        let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/JVMOwnStdlib")
+        let source = try String(contentsOf: fixtures.appendingPathComponent("deferredLocalInitialization.kt"), encoding: .utf8)
+        let expected = try String(contentsOf: fixtures.appendingPathComponent("deferredLocalInitialization.out"), encoding: .utf8)
+        try withWorkspace { root in
+            let app = try m22Build(root: root, sources: [("hello.kt", source)], name: mode == .jvmJar ? "app.jar" : "classes", mode: mode, classpath: [library.path])
+            try #require(app.1 == 0, "\(app.2.map(\.message))")
+            let result = try java(["-cp", app.0.path + ":" + library.path, "HelloKt"])
+            #expect(result.stdout == expected)
+            #expect(result.stderr.isEmpty)
+        }
+    }
 }
 #endif

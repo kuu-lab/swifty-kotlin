@@ -33,6 +33,8 @@ public object System {
     public fun getProperty(propertyName: String, defaultValue: String): String =
         java.lang.System.getProperty(propertyName, defaultValue)
 
+    public fun lineSeparator(): String = java.lang.System.lineSeparator()
+
     public fun arraycopy(
         src: Any?,
         srcPos: Int,

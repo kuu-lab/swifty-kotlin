@@ -95,6 +95,16 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// against the actual return target.
     var enclosingFunctionReturnType: TypeID?
     var enclosingFunctionSymbol: SymbolID?
+    /// Whether the return target — the nearest named function or accessor,
+    /// which an unlabeled `return` and `return@name` bind to — has an
+    /// `= expression` body *without* an explicitly declared return type.
+    /// Kotlin rejects `return` in that position (`fun f() = return`, including
+    /// `return` inside `if`/`when`/`try` branches of the body), reported as
+    /// KSWIFTK-SEMA-0311; kotlinc only warns when the return crosses an
+    /// inline-lambda boundary, so the diagnostic additionally requires
+    /// `lambdaDepth == 0` at the return site. Each nested named function,
+    /// accessor, constructor, or init block re-derives it for its own target.
+    var enclosingFunctionProhibitsExpressionBodyReturn: Bool = false
     /// Unit getters return a value through their reference ABI; ordinary
     /// Unit functions discard their result.
     var isPropertyGetterReturn: Bool {
@@ -131,6 +141,10 @@ struct TypeInferenceContext: CustomStringConvertible {
     var outerReceiverTypes: [(label: InternedString, type: TypeID, symbol: SymbolID?)]
     /// Context receiver types available to `contextOf<A>()` in the current lambda body.
     var contextReceiverTypes: [TypeID] = []
+    /// Supertype constructor arguments run before `this` exists, so the
+    /// enclosing class must not act as an implicit receiver there (it still
+    /// drives visibility checks).
+    var excludesEnclosingClassReceiver = false
     /// When true, the current scope is a builder DSL lambda body.
     /// Used to scope `append`/`add`/`put` fallback resolution.
     var isBuilderLambdaScope: Bool = false
@@ -256,6 +270,12 @@ struct TypeInferenceContext: CustomStringConvertible {
         return nil
     }
 
+    func excludingEnclosingClassReceiver() -> TypeInferenceContext {
+        var copy = self
+        copy.excludesEnclosingClassReceiver = true
+        return copy
+    }
+
     func withoutSuspensionContext() -> TypeInferenceContext {
         var copy = self
         copy.suspensionContext = SuspensionContext()
@@ -319,6 +339,7 @@ struct TypeInferenceContext: CustomStringConvertible {
         lambdaLoopScopes: [(exprID: ExprID, loopDepth: Int, labels: [InternedString])]? = nil,
         enclosingFunctionReturnType: TypeID?? = nil,
         enclosingFunctionSymbol: SymbolID?? = nil,
+        enclosingFunctionProhibitsExpressionBodyReturn: Bool? = nil,
         enclosingLambdaExprIDs: [ExprID]? = nil,
         exportBlockLocalsForExpr: ExprID?? = nil,
         flowState: DataFlowState? = nil,
@@ -352,6 +373,9 @@ struct TypeInferenceContext: CustomStringConvertible {
             copy.enclosingFunctionReturnType = enclosingFunctionReturnType
         }
         if let enclosingFunctionSymbol { copy.enclosingFunctionSymbol = enclosingFunctionSymbol }
+        if let enclosingFunctionProhibitsExpressionBodyReturn {
+            copy.enclosingFunctionProhibitsExpressionBodyReturn = enclosingFunctionProhibitsExpressionBodyReturn
+        }
         if let enclosingLambdaExprIDs { copy.enclosingLambdaExprIDs = enclosingLambdaExprIDs }
         if let exportBlockLocalsForExpr { copy.exportBlockLocalsForExpr = exportBlockLocalsForExpr }
         if let flowState { copy.flowState = flowState }
@@ -442,7 +466,7 @@ struct TypeInferenceContext: CustomStringConvertible {
         for entry in outerReceiverTypes.reversed() {
             appendUnique(entry.type, symbol: entry.symbol)
         }
-        if let enclosingClassSymbol {
+        if let enclosingClassSymbol, !excludesEnclosingClassReceiver {
             let ownerArgs = sema.types.nominalTypeParameterSymbols(for: enclosingClassSymbol).map {
                 TypeArg.invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0))))
             }
@@ -482,7 +506,7 @@ struct TypeInferenceContext: CustomStringConvertible {
         for entry in outerReceiverTypes.reversed() {
             appendUnique(entry.type)
         }
-        if let enclosingClassSymbol {
+        if let enclosingClassSymbol, !excludesEnclosingClassReceiver {
             let ownerArgs = sema.types.nominalTypeParameterSymbols(for: enclosingClassSymbol).map {
                 TypeArg.invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0))))
             }
@@ -541,7 +565,112 @@ struct TypeInferenceContext: CustomStringConvertible {
         } else {
             scope.lookup(name)
         }
-        return results.filter { !isExpectDeclarationSupersededByActual($0) }
+        return results.filter {
+            !isExpectDeclarationSupersededByActual($0)
+                && !isImportedCallableShadowedBySource($0)
+        }
+    }
+
+    /// A source callable shadows an imported callable at the same FQ name when
+    /// their erased signatures match — e.g. upstream `kotlinx.io` sources
+    /// vendored over the bundled stdlib copy. Keeping both as call candidates
+    /// merges two declarations that must behave as one and can leak
+    /// library-side member types into lambda expected types, so the imported
+    /// twin is dropped from scope results here.
+    func isImportedCallableShadowedBySource(_ id: SymbolID) -> Bool {
+        guard let symbol = cachedSymbol(id),
+              symbol.flags.contains(.importedLibrary),
+              symbol.kind == .function || symbol.kind == .constructor,
+              let signature = sema.symbols.functionSignature(for: id)
+        else {
+            return false
+        }
+        return sema.symbols.lookupAll(fqName: symbol.fqName).contains { other in
+            guard other != id,
+                  let otherSymbol = cachedSymbol(other),
+                  !otherSymbol.flags.contains(.importedLibrary),
+                  otherSymbol.kind == symbol.kind,
+                  let otherSignature = sema.symbols.functionSignature(for: other)
+            else {
+                return false
+            }
+            return hasSameSourceErasedSignature(signature, otherSignature)
+        }
+    }
+
+    private func hasSameSourceErasedSignature(
+        _ lhs: FunctionSignature,
+        _ rhs: FunctionSignature
+    ) -> Bool {
+        guard lhs.parameterTypes.count == rhs.parameterTypes.count,
+              lhs.typeParameterSymbols.count == rhs.typeParameterSymbols.count,
+              lhs.isSuspend == rhs.isSuspend
+        else {
+            return false
+        }
+        switch (lhs.receiverType, rhs.receiverType) {
+        case (nil, nil):
+            break
+        case let (lhsReceiver?, rhsReceiver?):
+            guard erasedTypeEqual(lhsReceiver, in: lhs, rhsReceiver, in: rhs) else {
+                return false
+            }
+        default:
+            return false
+        }
+        return zip(lhs.parameterTypes, rhs.parameterTypes).allSatisfy { lhsType, rhsType in
+            erasedTypeEqual(lhsType, in: lhs, rhsType, in: rhs)
+        }
+    }
+
+    /// Erased type equality across the source/imported boundary: nominal types
+    /// compare by FQ name (the shadowing pair has different symbols), type
+    /// parameters by position within each signature.
+    private func erasedTypeEqual(
+        _ lhs: TypeID,
+        in lhsSignature: FunctionSignature,
+        _ rhs: TypeID,
+        in rhsSignature: FunctionSignature
+    ) -> Bool {
+        switch (sema.types.kind(of: sema.types.makeNonNullable(lhs)),
+                sema.types.kind(of: sema.types.makeNonNullable(rhs))) {
+        case let (.classType(lhsType), .classType(rhsType)):
+            return sema.symbols.symbol(lhsType.classSymbol)?.fqName
+                == sema.symbols.symbol(rhsType.classSymbol)?.fqName
+        case let (.typeParam(lhsParam), .typeParam(rhsParam)):
+            guard let lhsIndex = lhsSignature.typeParameterSymbols.firstIndex(of: lhsParam.symbol),
+                  let rhsIndex = rhsSignature.typeParameterSymbols.firstIndex(of: rhsParam.symbol)
+            else {
+                return false
+            }
+            return lhsIndex == rhsIndex
+        case let (.functionType(lhsType), .functionType(rhsType)):
+            guard lhsType.params.count == rhsType.params.count else {
+                return false
+            }
+            let receiverEqual = switch (lhsType.receiver, rhsType.receiver) {
+            case (nil, nil):
+                true
+            case let (lhsReceiver?, rhsReceiver?):
+                erasedTypeEqual(lhsReceiver, in: lhsSignature, rhsReceiver, in: rhsSignature)
+            default:
+                false
+            }
+            return receiverEqual
+                && zip(lhsType.params, rhsType.params).allSatisfy {
+                    erasedTypeEqual($0, in: lhsSignature, $1, in: rhsSignature)
+                }
+                && erasedTypeEqual(lhsType.returnType, in: lhsSignature, rhsType.returnType, in: rhsSignature)
+        case let (.primitive(lhsPrimitive, _), .primitive(rhsPrimitive, _)):
+            return lhsPrimitive == rhsPrimitive
+        case let (.kClassType(lhsClass), .kClassType(rhsClass)):
+            return erasedTypeEqual(lhsClass.argument, in: lhsSignature, rhsClass.argument, in: rhsSignature)
+        case (.unit, .unit), (.nullableUnit, .nullableUnit), (.platformUnit, .platformUnit),
+             (.nothing, .nothing), (.any, .any), (.stringStruct, .stringStruct):
+            return true
+        default:
+            return false
+        }
     }
 
     func isExpectDeclarationSupersededByActual(_ id: SymbolID) -> Bool {

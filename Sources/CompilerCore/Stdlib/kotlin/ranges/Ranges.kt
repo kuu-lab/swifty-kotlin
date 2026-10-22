@@ -7,12 +7,6 @@
 
 package kotlin.ranges
 
-// KSP-652: the nominal `ClosedRange`/`ClosedFloatingPointRange`/`OpenEndRange`
-// declarations migrated out of the synthetic self-registration; on bundle load
-// they reuse the synthetic shells registered by
-// `HeaderHelpers+SyntheticRangeInterfaceStubs.swift` /
-// `HeaderHelpers+SyntheticRangeProgressionStubs.swift`.
-//
 // KSP-1311 moved the `OpenEndRange` declaration and its `start`/`endExclusive`/
 // `contains`/`isEmpty` members into `OpenEndRange/OpenEndRange.kt` (runtime
 // `__kk_range_*` links retained — the range boxes have no interface itables).

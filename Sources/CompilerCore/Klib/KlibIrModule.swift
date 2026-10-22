@@ -42,6 +42,31 @@ package struct KlibIrModule {
         signatures = try read("signatures.knt").map { try KlibIrMultiTable(bytes: $0) }
         strings = try read("strings.knt").map { try KlibIrMultiTable(bytes: $0) }
         signatureDebugInfos = try read("debugInfo.knd").map { try KlibIrMultiTable(bytes: $0) }
+
+        let requiredTables: [(String, Int?)] = [
+            ("irDeclarations.knd", declarations?.fileCount),
+            ("bodies.knb", bodies?.rowCount),
+            ("types.knt", types?.rowCount),
+            ("signatures.knt", signatures?.rowCount),
+            ("strings.knt", strings?.rowCount),
+        ]
+        guard let files else {
+            guard requiredTables.allSatisfy({ $0.1 == nil }),
+                  fileEntries == nil, signatureDebugInfos == nil else {
+                throw KlibFormatError.corruptChunk("IR tables exist without files.knf")
+            }
+            return
+        }
+        for (name, rows) in requiredTables {
+            guard rows == files.count else {
+                throw KlibFormatError.corruptChunk("\(name) must have one row per IR file")
+            }
+        }
+        for (name, rows) in [("fileEntries.knf", fileEntries?.rowCount), ("debugInfo.knd", signatureDebugInfos?.rowCount)] {
+            if let rows, rows != files.count {
+                throw KlibFormatError.corruptChunk("\(name) must have one row per IR file")
+            }
+        }
     }
 
     package var hasIR: Bool { files != nil }
@@ -88,9 +113,41 @@ package struct KlibIrModule {
         return try KlibIrDecoding.idSignature(ProtoFields(signatures.element(row: fileIndex, column: signatureIndex)))
     }
 
+    package func publicSignature(_ signatureIndex: Int, fileIndex: Int) throws -> KlibPublicSignature? {
+        try publicSignature(signatureIndex, fileIndex: fileIndex, depth: 0)
+    }
+
+    private func publicSignature(_ signatureIndex: Int, fileIndex: Int, depth: Int) throws -> KlibPublicSignature? {
+        guard depth < 64 else { throw KlibFormatError.corruptProto("recursive IR signature") }
+        switch try signature(signatureIndex, fileIndex: fileIndex) {
+        case .common(let packageName, let declarationName, let memberId, let flags, _):
+            return try .common(
+                packageName: packageName.map { try string($0, fileIndex: fileIndex) },
+                declarationName: declarationName.map { try string($0, fileIndex: fileIndex) },
+                memberId: memberId, flags: flags
+            )
+        case .accessor(let property, let name, let hash, let flags, _):
+            guard let property = try publicSignature(Int(property), fileIndex: fileIndex, depth: depth + 1) else { return nil }
+            return try .accessor(property: property, name: string(name, fileIndex: fileIndex), hashId: hash, flags: flags)
+        case .composite(let container, let inner):
+            guard let container = try publicSignature(Int(container), fileIndex: fileIndex, depth: depth + 1),
+                  let inner = try publicSignature(Int(inner), fileIndex: fileIndex, depth: depth + 1) else { return nil }
+            return .composite(container: container, inner: inner)
+        case .fileLocal, .scopedLocal, .local, .file:
+            return nil
+        }
+    }
+
     package func string(_ index: Int32, fileIndex: Int) throws -> String {
         guard let strings else { throw KlibFormatError.corruptChunk("no strings table") }
-        return String(decoding: try strings.element(row: fileIndex, column: Int(index)), as: UTF8.self)
+        return try KlibStringEncoding.text(strings.element(row: fileIndex, column: Int(index)))
+    }
+
+    /// Runtime string constants must preserve isolated surrogates and escape
+    /// literal internal marker characters. Names and paths use ``string``.
+    package func stringLiteral(_ index: Int32, fileIndex: Int) throws -> String {
+        guard let strings else { throw KlibFormatError.corruptChunk("no strings table") }
+        return try KlibStringEncoding.literal(strings.element(row: fileIndex, column: Int(index)))
     }
 
     package func fileEntry(_ entryIndex: Int32, fileIndex: Int) throws -> KlibFileEntry {
@@ -103,7 +160,7 @@ package struct KlibIrModule {
         guard let signatureDebugInfos, index >= 0,
               index < (try signatureDebugInfos.columnCount(row: fileIndex))
         else { return nil }
-        return String(decoding: try signatureDebugInfos.element(row: fileIndex, column: Int(index)), as: UTF8.self)
+        return try KlibStringEncoding.text(signatureDebugInfos.element(row: fileIndex, column: Int(index)))
     }
 
     package func fqName(_ segments: [Int32], fileIndex: Int) throws -> String {

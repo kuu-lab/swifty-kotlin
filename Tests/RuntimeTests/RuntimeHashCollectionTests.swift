@@ -1,3 +1,4 @@
+import Foundation
 @testable import Runtime
 import Testing
 
@@ -172,12 +173,12 @@ struct RuntimeHashCollectionTests {
         let set = RuntimeSetBox(elements: [])
         let map = RuntimeMapBox(keys: [], values: [])
 
-        let startTime = ContinuousClock.now
+        let startTime = ProcessInfo.processInfo.systemUptime
         for (i, handle) in stringHandles.enumerated() {
             #expect(set.insert(rawValue: handle))
             #expect(map.put(key: handle, value: i) == nil)
         }
-        let elapsed = ContinuousClock.now - startTime
+        let elapsed = ProcessInfo.processInfo.systemUptime - startTime
 
         #expect(set.count == count)
         #expect(map.count == count)
@@ -193,7 +194,7 @@ struct RuntimeHashCollectionTests {
         }
 
         // 4096 inserts in O(N) takes under 0.2s on modern hardware; O(N^2) with full string checks would take multiple seconds.
-        #expect(elapsed < .seconds(2))
+        #expect(elapsed < 2)
     }
 
     @Test

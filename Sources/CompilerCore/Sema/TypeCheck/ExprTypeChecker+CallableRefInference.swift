@@ -21,7 +21,7 @@ extension ExprTypeChecker {
 
     private func bindCallableReferenceBinding(
         _ expression: ExprID, target: SymbolID, specialization: ContextualCallableReferenceBinding,
-        range: SourceRange, ctx: TypeInferenceContext
+        range: SourceRange, ctx: TypeInferenceContext, requiresFunctionConversion: Bool = false
     ) {
         guard let signature = ctx.sema.symbols.functionSignature(for: target) else { return }
         for index in signature.reifiedTypeParameterIndices.sorted() where index < specialization.typeArguments.count {
@@ -36,7 +36,8 @@ extension ExprTypeChecker {
             chosenCallee: target,
             substitutedTypeArguments: specialization.typeArguments,
             parameterMapping: specialization.parameterMapping,
-            isCallableReferenceAdapter: specialization.requiresAdapter,
+            defaultArgumentOwner: specialization.defaultArgumentOwner,
+            isCallableReferenceAdapter: specialization.requiresAdapter || requiresFunctionConversion,
             boundContextParameterTypes: specialization.boundContextParameterTypes
         ))
     }
@@ -1243,14 +1244,15 @@ extension ExprTypeChecker {
             }
             let resultType: TypeID
             func resultTypePreservingSuspendConversionSource(_ fallback: TypeID) -> TypeID {
-                guard ctx.isCallableReferenceArgument,
-                      expectedSamInterfaceType == nil,
+                guard expectedSamInterfaceType == nil,
                       let expectedFunctionType,
-                      sema.types.suspendConversionType(from: inferredType, to: expectedFunctionType) != nil
+                      let convertedType = sema.types.suspendConversionType(from: inferredType, to: expectedFunctionType)
                 else {
                     return fallback
                 }
-                return inferredType
+                // Arguments retain their source shape for call adaptation;
+                // directly typed references materialize the suspend adapter.
+                return ctx.isCallableReferenceArgument ? inferredType : convertedType
             }
             // An expected type that still mentions type parameters belongs to a
             // generic signature whose type arguments are inferred from this very
@@ -1390,11 +1392,18 @@ extension ExprTypeChecker {
                 sema.bindings.bindSamInterfaceType(id, type: expectedSamInterfaceType)
                 sema.bindings.bindSamUnderlyingFunctionType(id, type: expectedFunctionType ?? inferredType)
             }
+            let requiresFunctionConversion: Bool = {
+                guard case let .functionType(function) = sema.types.kind(of: resultType) else { return false }
+                return function.isSuspend != signature.isSuspend
+                    || (function.returnType == sema.types.unitType && signature.returnType != sema.types.unitType)
+            }()
             if let contextualSpecialization,
                contextualSpecialization.requiresAdapter || !contextualSpecialization.typeArguments.isEmpty
+                   || requiresFunctionConversion
             {
                 bindCallableReferenceBinding(
-                    id, target: chosen, specialization: contextualSpecialization, range: range, ctx: ctx
+                    id, target: chosen, specialization: contextualSpecialization, range: range, ctx: ctx,
+                    requiresFunctionConversion: requiresFunctionConversion
                 )
             }
             sema.bindings.bindIdentifier(id, symbol: chosen)

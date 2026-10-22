@@ -550,7 +550,7 @@ extension CallTypeChecker {
                         ctx: ctx
                     )
                     if let diagnostic = resolved.diagnostic {
-                        if !expectedTypeHintIndices.isEmpty {
+                        if ctx.allowsLiftedCallExpectedTypeHints, !expectedTypeHintIndices.isEmpty {
                             sema.diagnostics.rollback(to: argumentDiagnosticsCheckpoint)
                             locals = originalArgumentLocals
                             var retryContext = ctx

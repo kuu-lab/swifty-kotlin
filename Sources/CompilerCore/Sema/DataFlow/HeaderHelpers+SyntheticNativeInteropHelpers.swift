@@ -5,6 +5,16 @@ extension DataFlowSemaPhase {
         retention: String,
         symbols: SymbolTable
     ) {
+        if symbols.deferUntilAfterImportedShellMaterializes(symbol, work: { [self] in
+            appendStandardAnnotationMetadata(
+                to: symbol,
+                targets: targets,
+                retention: retention,
+                symbols: symbols
+            )
+        }) {
+            return
+        }
         var annotations = symbols.annotations(for: symbol)
         let targetRecord = MetadataAnnotationRecord(
             annotationFQName: "kotlin.annotation.Target",
@@ -29,6 +39,11 @@ extension DataFlowSemaPhase {
         to symbol: SymbolID,
         symbols: SymbolTable
     ) {
+        if symbols.deferUntilAfterImportedShellMaterializes(symbol, work: { [self] in
+            appendMetadataAnnotations(records, to: symbol, symbols: symbols)
+        }) {
+            return
+        }
         var annotations = symbols.annotations(for: symbol)
         var didAppend = false
         for record in records where !annotations.contains(record) {
@@ -243,6 +258,28 @@ extension DataFlowSemaPhase {
         let functionName = interner.intern(name)
         let functionFQName = ownerInfo.fqName + [functionName]
         let parameterTypes = parameters.map(\.type)
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: functionFQName, work: { [self] in
+            registerSyntheticNativeMemberFunction(
+                named: name,
+                ownerSymbol: ownerSymbol,
+                receiverType: receiverType,
+                parameters: parameters,
+                returnType: returnType,
+                defaultValues: defaultValues,
+                typeParameterSymbols: typeParameterSymbols,
+                typeParameterUpperBoundsList: typeParameterUpperBoundsList,
+                classTypeParameterCount: classTypeParameterCount,
+                reifiedTypeParameterIndices: reifiedTypeParameterIndices,
+                flags: flags,
+                annotations: annotations,
+                externalLinkName: externalLinkName,
+                canThrow: canThrow,
+                symbols: symbols,
+                interner: interner
+            )
+        }) {
+            return
+        }
         if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
             guard let signature = symbols.functionSignature(for: symbolID) else {
                 return false
@@ -338,6 +375,30 @@ extension DataFlowSemaPhase {
         let functionName = interner.intern(name)
         let functionFQName = packageFQName + [functionName]
         let parameterTypes = parameters.map(\.type)
+        // KUU-2673: re-run once the first lazy imported candidate materializes
+        // instead of decoding its signature eagerly for the dedup check.
+        if symbols.deferWorkUntilImportedMemberMaterializes(at: functionFQName, work: { [self] in
+            registerSyntheticNativeTopLevelFunction(
+                named: name,
+                packageFQName: packageFQName,
+                receiverType: receiverType,
+                parameters: parameters,
+                returnType: returnType,
+                defaultValues: defaultValues,
+                varargs: varargs,
+                typeParameterSymbols: typeParameterSymbols,
+                typeParameterUpperBoundsList: typeParameterUpperBoundsList,
+                reifiedTypeParameterIndices: reifiedTypeParameterIndices,
+                annotations: annotations,
+                externalLinkName: externalLinkName,
+                flags: flags,
+                canThrow: canThrow,
+                symbols: symbols,
+                interner: interner
+            )
+        }) {
+            return
+        }
         let functionSymbol: SymbolID
         if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
             guard let signature = symbols.functionSignature(for: symbolID) else {

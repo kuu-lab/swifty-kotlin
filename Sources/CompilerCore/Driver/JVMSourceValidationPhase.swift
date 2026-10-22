@@ -50,7 +50,8 @@ private struct JVMSourceGrammar {
         if take(.symbol(.semicolon)) { semicolons(); return }
         guard kind == .eof || kind == .symbol(.rBrace) || newlineBeforeCurrent() else { throw Unsupported() }
     }
-    mutating func type(nullable: Bool = true) throws {
+    mutating func type(nullable: Bool = true, receiverSuffix: Bool = true) throws {
+        while kind == .symbol(.at) { try annotation() }
         _ = take(.keyword(.suspend))
         if take(.symbol(.lParen)) {
             if !take(.symbol(.rParen)) {
@@ -59,7 +60,7 @@ private struct JVMSourceGrammar {
             }
             if take(.symbol(.arrow)) { try type() }
             if nullable { _ = take(.symbol(.question)) }
-            if take(.symbol(.dot)) { try type() }
+            if receiverSuffix, take(.symbol(.dot)) { try type() }
             return
         }
         try name()
@@ -67,15 +68,16 @@ private struct JVMSourceGrammar {
         if take(.symbol(.lessThan)) {
             repeat {
                 if !take(.symbol(.star)) {
+                    while kind == .symbol(.at) { try annotation() }
                     _ = take(.keyword(.in)) || take(.softKeyword(.out))
                     try type()
                 }
             } while take(.symbol(.comma))
             try require(.symbol(.greaterThan))
         }
-        if nullable, take(.symbol(.questionDot)) { try type(); return }
+        if nullable, receiverSuffix, take(.symbol(.questionDot)) { try type(); return }
         if nullable { _ = take(.symbol(.question)) }
-        if take(.symbol(.dot)) { try type() }
+        if receiverSuffix, take(.symbol(.dot)) { try type() }
     }
     mutating func annotation() throws {
         try require(.symbol(.at)); try name()
@@ -122,21 +124,26 @@ private struct JVMSourceGrammar {
         }
     }
     mutating func modifiers() {
-        while [.public, .private, .internal, .protected, .open, .final, .abstract, .override, .inline, .suspend, .sealed, .data, .enum, .companion, .inner, .operator, .infix, .lateinit, .annotation, .value, .const].contains(where: { kind == .keyword($0) }) {
+        while [.public, .private, .internal, .protected, .open, .final, .abstract, .override, .inline, .tailrec, .suspend, .sealed, .data, .enum, .companion, .inner, .operator, .infix, .lateinit, .annotation, .value, .const].contains(where: { kind == .keyword($0) }) {
             // "value" is also a valid parameter/property name.
             if kind == .keyword(.value), tokens[min(index + 1, tokens.count - 1)].kind != .keyword(.class) { break }
             index += 1
         }
     }
-    mutating func parameters(properties: Bool = false) throws {
+    mutating func parameters(properties: Bool = false, requireTypes: Bool = true, allowDefaults: Bool = true) throws {
         try require(.symbol(.lParen))
         if !take(.symbol(.rParen)) {
             repeat {
                 while kind == .symbol(.at) { try annotation() }
                 while take(.keyword(.noinline)) || take(.keyword(.crossinline)) || take(.keyword(.vararg)) {}
                 if properties { modifiers(); _ = take(.keyword(.val)) || take(.keyword(.var)) }
-                try name(); try require(.symbol(.colon)); try type()
-                if take(.symbol(.assign)) { try expression() }
+                try name()
+                if requireTypes { try require(.symbol(.colon)); try type() }
+                else if take(.symbol(.colon)) { try type() }
+                if take(.symbol(.assign)) {
+                    guard allowDefaults else { throw Unsupported() }
+                    try expression()
+                }
             } while take(.symbol(.comma)) && kind != .symbol(.rParen)
             try require(.symbol(.rParen))
         }
@@ -144,7 +151,7 @@ private struct JVMSourceGrammar {
     mutating func argument() throws {
         if kind.isLabelName, tokens[min(index + 1, tokens.count - 1)].kind == .symbol(.assign) { index += 2 }
         _ = take(.symbol(.star))
-        try expression()
+        try expression(allowNewlines: true)
     }
     mutating func arguments() throws {
         try require(.symbol(.lParen))
@@ -254,12 +261,14 @@ private struct JVMSourceGrammar {
         }
     }
     mutating func body() throws {
+        while kind == .symbol(.at) { try annotation() }
         if kind == .symbol(.lBrace) { try block() } else { try statement() }
     }
     mutating func condition() throws {
-        try require(.symbol(.lParen)); try expression(); try require(.symbol(.rParen))
+        try require(.symbol(.lParen)); try expression(allowNewlines: true); try require(.symbol(.rParen))
     }
     mutating func statement() throws {
+        while kind == .symbol(.at) { try annotation() }
         let late = take(.keyword(.lateinit))
         if late, kind != .keyword(.val), kind != .keyword(.var) { throw Unsupported() }
         if take(.keyword(.val)) || take(.keyword(.var)) {
@@ -276,13 +285,17 @@ private struct JVMSourceGrammar {
                 if take(.symbol(.assign)) || take(.softKeyword(.by)) { try expression() }
                 else if !hasTypeAnnotation { throw Unsupported() }
             }
+        } else if kind == .keyword(.fun) {
+            let start = index
+            do { try anonymousFunction() }
+            catch { index = start; try declaration(member: false) }
         } else if take(.keyword(.while)) {
             try condition(); try body()
         } else if take(.keyword(.do)) {
             try body(); try require(.keyword(.while)); try condition()
         } else if take(.keyword(.for)) {
             try require(.symbol(.lParen)); try name(); try require(.keyword(.in))
-            try expression(); try require(.symbol(.rParen)); try body()
+            try expression(allowNewlines: true); try require(.symbol(.rParen)); try body()
         } else if take(.keyword(.return)) {
             if take(.symbol(.at)) { try name() }
             if kind != .symbol(.rBrace), kind != .symbol(.semicolon), !newlineBeforeCurrent() { try expression() }
@@ -311,16 +324,16 @@ private struct JVMSourceGrammar {
         default: nil
         }
     }
-    mutating func expression(_ minimum: Int = 0) throws {
+    mutating func expression(_ minimum: Int = 0, allowNewlines: Bool = false) throws {
         try primary()
-        while let level = precedence(), level >= minimum, !newlineBeforeCurrent() {
+        while let level = precedence(), level >= minimum, allowNewlines || !newlineBeforeCurrent() {
             if take(.keyword(.as)) { _ = take(.symbol(.question)); try type(); continue }
             if take(.keyword(.is)) { try type(); continue }
             if take(.symbol(.bang)) {
                 if take(.keyword(.is)) { try type(); continue }
                 try require(.keyword(.in))
             } else { index += 1 }
-            try expression(level + 1)
+            try expression(level + 1, allowNewlines: allowNewlines)
         }
     }
     mutating func lambda() throws {
@@ -344,7 +357,26 @@ private struct JVMSourceGrammar {
             try statement(); try separator(); semicolons()
         }
     }
+    mutating func anonymousFunction() throws {
+        try require(.keyword(.fun))
+        if kind != .symbol(.lParen) {
+            try type(receiverSuffix: false)
+            guard take(.symbol(.dot)) || take(.symbol(.questionDot)) else { throw Unsupported() }
+        }
+        try parameters(requireTypes: false, allowDefaults: false)
+        if take(.symbol(.colon)) { try type() }
+        if take(.symbol(.assign)) { try expression() }
+        else { try block() }
+    }
+    func startsTrailingLambda() -> Bool {
+        guard !newlineBeforeCurrent(), !inDelegationHeader else { return false }
+        if kind == .symbol(.lBrace) { return true }
+        return kind.isLabelName && tokens.indices.contains(index + 2)
+            && tokens[index + 1].kind == .symbol(.at)
+            && tokens[index + 2].kind == .symbol(.lBrace)
+    }
     mutating func primary() throws {
+        while kind == .symbol(.at) { try annotation() }
         if take(.keyword(.return)) {
             if take(.symbol(.at)) { try name() }
             if kind != .templateExprEnd, kind != .symbol(.rBrace), kind != .symbol(.semicolon), !newlineBeforeCurrent() { try expression() }
@@ -368,7 +400,7 @@ private struct JVMSourceGrammar {
             if kind == .symbol(.lParen) {
                 try require(.symbol(.lParen))
                 if take(.keyword(.val)) { try name(); if take(.symbol(.colon)) { try type() }; try require(.symbol(.assign)) }
-                try expression(); try require(.symbol(.rParen))
+                try expression(allowNewlines: true); try require(.symbol(.rParen))
             }
             try require(.symbol(.lBrace)); semicolons()
             while !take(.symbol(.rBrace)) {
@@ -392,6 +424,8 @@ private struct JVMSourceGrammar {
             index += 1; try primary(); return
         }
         if take(.symbol(.doubleColon)) { try name()
+        } else if kind == .keyword(.fun) {
+            try anonymousFunction()
         } else if kind == .keyword(.object) {
             try declaration(member: false)
         } else if take(.keyword(.super)) {
@@ -413,13 +447,13 @@ private struct JVMSourceGrammar {
         case .symbol(.lBracket):
             index += 1
             if !take(.symbol(.rBracket)) {
-                repeat { try expression() } while take(.symbol(.comma)) && kind != .symbol(.rBracket)
+                repeat { try expression(allowNewlines: true) } while take(.symbol(.comma)) && kind != .symbol(.rBracket)
                 try require(.symbol(.rBracket))
             }
         case .symbol(.lBrace): try lambda()
         case .symbol(.lParen):
             let header = inDelegationHeader; inDelegationHeader = false
-            index += 1; try expression(); try require(.symbol(.rParen))
+            index += 1; try expression(allowNewlines: true); try require(.symbol(.rParen))
             inDelegationHeader = header
         default:
             guard kind.isLabelName else { throw Unsupported() }
@@ -432,10 +466,10 @@ private struct JVMSourceGrammar {
                     index += 1
                     repeat { try type() } while take(.symbol(.comma))
                     try require(.symbol(.greaterThan))
-                    guard kind == .symbol(.lParen) else { throw Unsupported() }
+                    guard kind == .symbol(.lParen) || startsTrailingLambda() else { throw Unsupported() }
                 } catch { index = saved; break }
             } else if take(.symbol(.lBracket)) {
-                try expression(); try require(.symbol(.rBracket))
+                try expression(allowNewlines: true); try require(.symbol(.rBracket))
             } else if take(.symbol(.lParen)) {
                 let header = inDelegationHeader; inDelegationHeader = false
                 if !take(.symbol(.rParen)) {
@@ -443,7 +477,9 @@ private struct JVMSourceGrammar {
                     try require(.symbol(.rParen))
                 }
                 inDelegationHeader = header
-            } else if kind == .symbol(.lBrace), !newlineBeforeCurrent(), !inDelegationHeader { try lambda()
+            } else if startsTrailingLambda() {
+                if kind.isLabelName { index += 2 }
+                try lambda()
             } else if kind == .symbol(.at), !newlineBeforeCurrent() { index += 1; try lambda()
             } else if take(.symbol(.dot)) || take(.symbol(.questionDot)) { try name()
             } else if take(.symbol(.doubleColon)) {

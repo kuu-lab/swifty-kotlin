@@ -303,11 +303,7 @@ extension DataFlowSemaPhase {
                 ]
             ),
         ]
-        var existingAnnotations = symbols.annotations(for: enumSymbol)
-        for annotation in annotations where !existingAnnotations.contains(annotation) {
-            existingAnnotations.append(annotation)
-        }
-        symbols.setAnnotations(existingAnnotations, for: enumSymbol)
+        appendSyntheticMetadataAnnotations(annotations, to: enumSymbol, symbols: symbols)
 
         let valuesName = interner.intern("values")
         let valuesFQName = enumInfo.fqName + [valuesName]

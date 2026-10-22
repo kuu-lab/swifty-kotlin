@@ -9,6 +9,7 @@ final class LLVMBackend {
     let diagnostics: DiagnosticEngine
     private let bindings: LLVMCAPIBindings
     private let phaseTimer: PhaseTimer?
+    private let parallelJobs: Int
 
     init(
         target: TargetTriple,
@@ -17,11 +18,13 @@ final class LLVMBackend {
         diagnostics: DiagnosticEngine,
         moduleName: String = "main",
         phaseTimer: PhaseTimer? = nil,
+        parallelJobs: Int = 1,
         session: LLVMBackendSession = LLVMBackendSession()
     ) throws {
         self.target = target
         self.moduleName = moduleName
         self.phaseTimer = phaseTimer
+        self.parallelJobs = parallelJobs
         self.optLevel = optLevel
         self.debugInfo = debugInfo
         self.diagnostics = diagnostics
@@ -68,6 +71,7 @@ final class LLVMBackend {
                         reflectionMetadataRecords: reflectionMetadataRecords,
                         reflectionMetadataSymbolPrefix: reflectionMetadataSymbolPrefix,
                         linkOnceODRSymbols: linkOnceODRSymbols,
+                        parallelJobs: parallelJobs,
                         phaseTimer: phaseTimer
                     )
                 }
@@ -105,6 +109,7 @@ final class LLVMBackend {
                         fileFacadeNamesByFileID: fileFacadeNamesByFileID,
                         reflectionMetadataRecords: reflectionMetadataRecords,
                         reflectionMetadataSymbolPrefix: reflectionMetadataSymbolPrefix,
+                        parallelJobs: parallelJobs,
                         phaseTimer: phaseTimer
                     )
                 }

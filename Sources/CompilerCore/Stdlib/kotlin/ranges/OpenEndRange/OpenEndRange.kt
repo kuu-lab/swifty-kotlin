@@ -9,11 +9,6 @@ package kotlin.ranges
 
 import kotlin.internal.KsSymbolName
 
-// KSP-1311: the `OpenEndRange<T>` declaration still reuses the synthetic shell
-// registered by `HeaderHelpers+SyntheticRangeProgressionStubs.swift`, so
-// `rangeUntil` and the concrete range conformances wired before bundled header
-// collection keep resolving to the same nominal symbol.
-//
 // Runtime range values (`1..<5`, `x..<y`) are opaque `RuntimeRangeBox` handles
 // that do not register interface itables, so interface-typed member access
 // cannot dispatch through `.itableDynamic`. The `start`/`endExclusive`

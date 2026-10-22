@@ -615,12 +615,19 @@ final class LambdaLowerer {
            !sema.bindings.rawSuspendEntryLambdaExprIDs.contains(exprID),
            let functionType
         {
+            let functionValueType = sema.bindings.functionValueExpectedType(for: exprID)
+                .flatMap { typeID -> FunctionType? in
+                    guard case let .functionType(expectedType) = sema.types.kind(of: typeID) else {
+                        return nil
+                    }
+                    return expectedType
+                } ?? functionType
             if let materialized = materializeEscapingCallableValue(
                 exprID: exprID,
                 lambdaSymbol: lambdaSymbol,
                 lambdaName: syntheticLambdaName(for: exprID, interner: interner),
                 lambdaReturnType: lambdaReturnType,
-                functionType: functionType,
+                functionType: functionValueType,
                 captureArguments: captureArgs,
                 sema: sema,
                 arena: arena,
@@ -828,7 +835,7 @@ final class LambdaLowerer {
                     returnType: lambdaReturnType,
                     body: lambdaBody,
                     isSuspend: effectiveIsSuspend,
-                    isInline: true,
+                    isInline: !effectiveIsSuspend || hasNonLocalReturn || hasNonLocalLoopJump,
                     isInlineOnly: hasNonLocalReturn || hasNonLocalLoopJump
                 )
             )

@@ -150,6 +150,24 @@ final class TypeCheckDriver {
         return type
     }
 
+    func diagnoseLocalValueOrClassifierRedeclaration(
+        named name: InternedString,
+        expression: ExprID,
+        range: SourceRange,
+        ctx: TypeInferenceContext
+    ) {
+        guard let scope = ctx.scope as? BaseScope,
+              scope.registerLocalValueOrClassifierDeclaration(named: name, expression: expression)
+        else {
+            return
+        }
+        diagnostics.error(
+            "KSWIFTK-SEMA-0001",
+            "Conflicting local declarations for '\(interner.resolve(name))'.",
+            range: range
+        )
+    }
+
     /// Unbounded T can contain null even though its type-parameter node is
     /// spelled non-null. Only concrete non-null targets or non-null bounds
     /// need an assertion when accepting a flexible Java return.
@@ -260,19 +278,25 @@ final class TypeCheckDriver {
             )
         }
 
-        func hasHeaderResolvedConstructorInitializer(_ property: PropertyDecl, in file: ASTFile) -> Bool {
+        func hasHeaderResolvedConstructorInitializer(_ property: PropertyDecl, in file: ASTFile, ctx: TypeInferenceContext) -> Bool {
             guard property.type == nil,
                   let initializer = property.initializer,
                   let initializerExpr = ast.arena.expr(initializer),
-                  case let .call(calleeID, _, _, _) = initializerExpr,
+                  case let .call(calleeID, _, args, _) = initializerExpr,
                   let calleeExpr = ast.arena.expr(calleeID),
                   case let .nameRef(name, _) = calleeExpr,
                   let symbolID = sema.symbols.lookup(fqName: file.packageFQName + [name]),
-                  let symbol = sema.symbols.symbol(symbolID)
+                  let symbol = sema.symbols.symbol(symbolID),
+                  symbol.kind == .class || symbol.kind == .enumClass
             else {
                 return false
             }
-            return symbol.kind == .class || symbol.kind == .enumClass
+            // Arguments may read inferred member properties still holding the
+            // nullable-Any placeholder (`Node.EMPTY` ahead of the companion
+            // body). Defer unless every argument's type is already safe.
+            return args.allSatisfy {
+                declChecker.safePrecheckExpressionType($0.expr, in: ctx, locals: [:]) != nil
+            }
         }
 
         // Active declarations are file roots, so include their member trees.
@@ -375,7 +399,7 @@ final class TypeCheckDriver {
             for declID in file.topLevelDecls {
                 guard let decl = ast.arena.decl(declID),
                       case let .propertyDecl(property) = decl,
-                      hasHeaderResolvedConstructorInitializer(property, in: file),
+                      hasHeaderResolvedConstructorInitializer(property, in: file, ctx: inferCtx),
                       let symbol = sema.bindings.declSymbols[declID]
                 else {
                     continue

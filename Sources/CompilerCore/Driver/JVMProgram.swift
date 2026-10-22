@@ -23,6 +23,25 @@ public enum JVMValueType: Hashable, Sendable {
     }
     public var width: Int { self == .unit ? 0 : (self == .long || self == .ulong || self == .double ? 2 : 1) }
     public var isNumeric: Bool { [.int, .long, .float, .double, .byte, .short, .char, .uint, .ulong, .ubyte, .ushort].contains(self) }
+    /// The primitive carrier used for numeric operations, without changing the
+    /// reference descriptor required by generic bounds and nullable values.
+    var numericCarrier: JVMValueType? {
+        if isNumeric { return self }
+        return switch referenceName {
+        case "java/lang/Byte": .byte
+        case "java/lang/Short": .short
+        case "java/lang/Character": .char
+        case "java/lang/Integer": .int
+        case "java/lang/Long": .long
+        case "java/lang/Float": .float
+        case "java/lang/Double": .double
+        case "kotlin/UByte": .ubyte
+        case "kotlin/UShort": .ushort
+        case "kotlin/UInt": .uint
+        case "kotlin/ULong": .ulong
+        default: nil
+        }
+    }
     public var referenceName: String? {
         if self == .string { return "java/lang/String" }
         if case .unsignedArray = self { return descriptor }
@@ -171,8 +190,11 @@ public struct JVMFunction {
     public var typeParameters: [JVMTypeParameter] = []
     public var kotlinParameters: [JVMKotlinType] = []
     public var kotlinResult: JVMKotlinType? = nil
+    /// The indexed Boolean value parameter is true after any normal return.
+    public var normalReturnConditionParameter: Int? = nil
     public var kotlinReceiver: JVMKotlinType? = nil
     public var isSynthetic: Bool = false
+    public var isMetadataHidden: Bool = false
     public var isSuspend = false
     public var suspendValueResult: JVMSuspendValueResult? = nil
     public var forwardedSuspendValueResult: JVMSuspendValueResult? = nil
@@ -182,6 +204,7 @@ public struct JVMFunction {
     public var parameterDefaultFlags: [Bool] = []
     public var kotlinParameterOffset = 0
     public var isInline = false
+    public var callsInPlaceEffects: [Int: InvocationKind] = [:]
     public var inlineContinuation: JVMValue? = nil
     public var inlineSuspendValueResults: [String: JVMSuspendValueResult] = [:]
     public var parameterInlineFlags: [Int] = []
@@ -192,6 +215,8 @@ public struct JVMFunction {
     public var annotations: [JVMAnnotation] = []
     public var parameterAnnotations: [[JVMAnnotation]] = []
     public var annotationDefault: JVMAnnotationValue? = nil
+    public var isDeprecated = false
+    public var isHiddenByDeprecation = false
     public var parameterVarargTypes: [JVMKotlinType?] = []
 }
 
@@ -234,6 +259,7 @@ public struct JVMField {
     public let type: JVMValueType
     public let access: UInt16
     public var annotations: [JVMAnnotation] = []
+    public var isDeprecated = false
     public var constantValue: JVMConstant? = nil
 }
 

@@ -2,13 +2,14 @@ package kotlin.reflect.jvm.internal
 import kotlin.jvm.internal.*
 import kotlin.reflect.*
 
-internal class RuntimeType(private val metadata: RuntimeMetadata, private val type: Proto): KType {
+internal class RuntimeType(private val metadata: RuntimeMetadata, private val type: Proto, private val parameters: List<Proto> = emptyList()): KType {
     override val annotations: List<Annotation> get() = emptyList()
     override val isMarkedNullable: Boolean get() = type.number(3) != 0
     override val classifier: KClassifier? get() {
         if (!type.has(6)) return null
         return ClassReference(loadMetadataType(metadata.string(type.number(6)), metadata.owner) as java.lang.Class<Any>)
     }
+    override fun toString(): String = renderRuntimeType(metadata, type, parameters)
 }
 internal class RuntimeTypeParameter(private val metadata: RuntimeMetadata, private val node: Proto): KTypeParameter {
     override val name: String get() = metadata.string(node.number(2))
@@ -23,6 +24,7 @@ internal class RuntimeClassType(private val owner: Any): KType {
     override val annotations: List<Annotation> get() = emptyList()
     override val isMarkedNullable: Boolean get() = false
     override val classifier: KClassifier get() = ClassReference(owner as java.lang.Class<Any>)
+    override fun toString(): String = ClassReference(owner as java.lang.Class<Any>).qualifiedName ?: __jvmClassName(owner)
 }
 internal class RuntimeParameter(private val key: RuntimeCallable, override val index: Int, override val name: String?, override val isOptional: Boolean, override val annotations: List<Annotation>): KParameter {
     override fun equals(other: Any?): Boolean = other is RuntimeParameter && key == other.key && index == other.index
@@ -75,7 +77,7 @@ open class RuntimeCallable(
     }
     override val name: String get() = displayName
     override val isSuspend: Boolean get() = (node.number(9) and 8192) != 0
-    override val returnType: KType get() = if (displayName == "<init>") RuntimeClassType(ownerClass) else RuntimeType(metadata, metadata.type(node, 3, 7))
+    override val returnType: KType get() = if (displayName == "<init>") RuntimeClassType(ownerClass) else RuntimeType(metadata, metadata.type(node, 3, 7), node.children(4))
     override val typeParameters: List<KTypeParameter> get() {
         val result = mutableListOf<KTypeParameter>()
         for (parameter in node.children(4)) result.add(RuntimeTypeParameter(metadata, parameter))
@@ -125,13 +127,16 @@ open class RuntimeCallable(
         }
         val method = method
         val instance = !constructor && (__jvmExecutableModifiers(method) and 8) == 0
+        val parameterTypes = __jvmExecutableParams(method)
+        val receiverCount = if (instance && !bound) 1 else 0
+        val boundCount = if (bound && !instance && !constructor) 1 else 0
+        val arity = parameterTypes.size + receiverCount - boundCount
+        if (args.size != arity) throw IllegalArgumentException("Callable expects $arity arguments, but ${args.size} were provided.")
         var offset = 0
         val receiver = if (instance) { if (bound) boundReceiver else args[offset++] } else null
-        val parameterTypes = __jvmExecutableParams(method)
         val actual = arrayOfNulls<Any?>(parameterTypes.size)
         var index = 0
         if (bound && !instance && !constructor) { actual[0] = adaptArgument(boundReceiver, parameterTypes[0]); index = 1 }
-        if (args.size - offset != parameterTypes.size - index) throw IllegalArgumentException("Callable expects ${parameterTypes.size} arguments")
         while (index < parameterTypes.size) { actual[index] = adaptArgument(args[offset++], parameterTypes[index]); index++ }
         val value: Any? = if (constructor) __jvmConstructorInvoke(method, actual) else if (unwrapException) invokeMethod(method, receiver, actual) else __jvmMethodInvoke(method, receiver, actual)
         if (displayName == "<init>" && !constructor) {
@@ -234,7 +239,32 @@ open class RuntimeCallable(
     }
     override fun equals(other: Any?): Boolean = other is RuntimeCallable && ownerClass == other.ownerClass && signatureString == other.signatureString && bound == other.bound && boundReceiver == other.boundReceiver
     override fun hashCode(): Int = ownerClass.hashCode() * 31 + signatureString.hashCode()
-    override fun toString(): String = "fun $displayName"
+    override fun toString(): String {
+        if (constructor) return "fun <init>"
+        val typeParameters = node.children(4)
+        var result = if (isSuspend) "suspend fun " else "fun "
+        if (!typeParameters.isEmpty()) {
+            result += "<"
+            var index = 0
+            while (index < typeParameters.size) {
+                if (index != 0) result += ", "
+                result += metadata.string(typeParameters[index].number(2))
+                index++
+            }
+            result += "> "
+        }
+        if (node.has(5)) result += renderRuntimeType(metadata, metadata.type(node, 5, 8), typeParameters) + "."
+        else if (metadata.isClass) result += (ClassReference(ownerClass as java.lang.Class<Any>).qualifiedName ?: displayName) + "."
+        result += displayName + "("
+        val declarations = node.children(6)
+        var index = 0
+        while (index < declarations.size) {
+            if (index != 0) result += ", "
+            result += renderRuntimeType(metadata, metadata.type(declarations[index], 3, 5), typeParameters)
+            index++
+        }
+        return result + "): " + renderRuntimeType(metadata, resultType(), typeParameters)
+    }
 }
 internal fun defaultValue(type: Any): Any? = when (__jvmClassName(type)) {
     "boolean" -> false

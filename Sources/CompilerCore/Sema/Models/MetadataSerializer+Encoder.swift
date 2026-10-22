@@ -18,6 +18,7 @@ package final class MetadataEncoder {
         requiredNonPublicSymbols: Set<SymbolID> = [],
         includeSynthetic: Bool = true,
         includeSyntheticNominalAnchors: Bool = false,
+        includePrecomputedStdlibSynthesis: Bool = false,
         excludeSourceFileIDs: Set<Int32> = [],
         runtimeCallbackRawReturnSymbolIDs: Set<SymbolID> = [],
         objectInitializerLinkNames: [SymbolID: String] = [:],
@@ -28,12 +29,28 @@ package final class MetadataEncoder {
     ) -> [MetadataRecord] {
         let exported = symbols.allSymbols()
             .filter { symbol in
+                if runtimeReflectionOnly,
+                   symbol.flags.contains(.precomputedRuntimeReflection)
+                {
+                    return false
+                }
                 // KUU-2675: the runtime blob only needs declarations this
                 // program can still reference at runtime. An imported shell
                 // whose body was never decoded is definitionally unreachable
                 // from the compiled code — materializing it here would decode
                 // the whole imported surface for metadata nobody reads.
                 if runtimeReflectionOnly, symbols.hasPendingImportedMetadata(for: symbol.id) {
+                    return false
+                }
+                // A matched expect declaration is not part of the module's ABI:
+                // its actual counterpart carries the exported API, and emitting both
+                // under the same FQ name produces duplicate nominal metadata that
+                // consumers reject (KSWIFTK-LIB-0024). Members of expect declarations
+                // inherit the flag, so this also covers their actual-matched members.
+                // Unmatched expects (e.g. common-module artifacts) stay exported so a
+                // later platform compilation can still pair them.
+                if symbol.flags.contains(.expectDeclaration),
+                   symbols.actualSymbol(for: symbol.id) != nil {
                     return false
                 }
                 let includeNonPublicSymbol = includeNonPublic || requiredNonPublicSymbols.contains(symbol.id)
@@ -100,7 +117,9 @@ package final class MetadataEncoder {
                     || symbol.kind == .function
                     && symbols.classDelegationForwardingMethodInfo(for: symbol.id) != nil)
                     && symbol.declSite.map { !excludeSourceFileIDs.contains($0.start.file.rawValue) } == true
-                if !includeSynthetic && symbol.flags.contains(.synthetic) && !keepAsDataOrAnnotationClassMember && !keepAsEnumClassMember && !keepAsEnumCtorPropHelper && !keepAsDelegatedMember {
+                let keepAsPrecomputedStdlibSynthesis = includePrecomputedStdlibSynthesis
+                    && symbol.flags.contains(.precomputedStdlibSynthetic)
+                if !includeSynthetic && symbol.flags.contains(.synthetic) && !keepAsDataOrAnnotationClassMember && !keepAsEnumClassMember && !keepAsEnumCtorPropHelper && !keepAsDelegatedMember && !keepAsPrecomputedStdlibSynthesis {
                     let keepAsSyntheticNominalAnchor = includeSyntheticNominalAnchors && Self.nominalKinds.contains(symbol.kind)
                     let keepAsSyntheticTypeAlias = includeSyntheticNominalAnchors && symbol.kind == .typeAlias
                     if !(keepAsSyntheticNominalAnchor || keepAsSyntheticTypeAlias) {
@@ -120,7 +139,7 @@ package final class MetadataEncoder {
                 // Source-backed declarations (e.g. bundled stdlib functions under a
                 // synthetic package stub) are still exported; only synthesized helpers
                 // without a source declSite are pruned by parent synthetics.
-                if !includeSynthetic, symbol.declSite == nil, !keepAsDataOrAnnotationClassMember, !keepAsEnumClassMember {
+                if !includeSynthetic, symbol.declSite == nil, !keepAsDataOrAnnotationClassMember, !keepAsEnumClassMember, !keepAsPrecomputedStdlibSynthesis {
                     var parentID = symbols.parentSymbolIfKnown(for: symbol.id)
                     while let p = parentID, let parent = symbols.symbol(p) {
                         if parent.flags.contains(.synthetic) {
@@ -191,10 +210,14 @@ package final class MetadataEncoder {
                 ))
                 continue
             }
+            let isPrecomputedStdlibSyntheticNominal = includePrecomputedStdlibSynthesis
+                && symbol.flags.contains(.precomputedStdlibSynthetic)
+                && Self.nominalKinds.contains(symbol.kind)
             let isSyntheticNominalAnchor = !includeSynthetic
                 && includeSyntheticNominalAnchors
                 && symbol.flags.contains(.synthetic)
                 && Self.nominalKinds.contains(symbol.kind)
+                && !isPrecomputedStdlibSyntheticNominal
             let built = buildRecord(
                 for: symbol,
                 symbols: symbols,

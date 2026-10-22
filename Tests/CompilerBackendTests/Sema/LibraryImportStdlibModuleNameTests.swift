@@ -13,12 +13,10 @@ import Testing
 /// The second, independent read had no diagnostic on failure (unlike the
 /// first, in `loadImportedLibrarySymbols` / `resolveLibraryManifestInfo`,
 /// which emits KSWIFTK-LIB-0015/0020) — it silently returned `bundledIndex`
-/// unchanged. Any synthetic-stub suppression keyed off that index (e.g.
-/// `HeaderHelpers+SyntheticRangeUntilStubs`, which checks
-/// `bundledIndex.contains(...)` before registering a concrete fallback stub)
-/// would then fail open: the stub gets registered even though the artifact
-/// already provides the real declaration, and the stub — being more
-/// specific — wins overload resolution over the intended generic/imported
+/// unchanged. Any synthetic-stub suppression keyed off that index would then
+/// fail open: the stub gets registered even though the artifact already
+/// provides the real declaration, and the stub — being more specific — wins
+/// overload resolution over the intended generic/imported
 /// member. That is the shape of the CI-observed golden divergences this fix
 /// targets (e.g. `in_range_operators.kt` resolving to the concrete
 /// `Int.rangeUntil` stub instead of the generic `T.rangeUntil` member).

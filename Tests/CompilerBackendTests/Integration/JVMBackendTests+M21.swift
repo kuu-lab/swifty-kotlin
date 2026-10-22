@@ -204,5 +204,29 @@ extension JVMBackendTests {
             #expect(try java(["-cp", root.path + ":" + jar + ":" + runtime, "JavaConsumer"]).stdout == "[1, 10, 2, 20]\na\nb\nc\n")
         }
     }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func m21ForLoopOverIteratorUsesItAsCursor(mode: EmitMode) throws {
+        try withWorkspace { root in
+            try runM11(#"""
+            fun <I : Iterator<Int>> drain(it: I): Int { var sum = 0; for (n in it) sum += n; return sum }
+            fun main() {
+                val values = iterator<Int> { yield(1); yield(2) }
+                for (value in values) println(value)
+                var total = 0
+                for (n in listOf(1, 2, 3).iterator()) total += n
+                println(total)
+                for (n in mutableListOf(4, 5).iterator()) println(n + 10)
+                val halted = iterator<String> { yield("x"); yield("y"); yield("z") }
+                for (s in halted) { if (s == "y") break; println(s) }
+                println(drain(listOf(8, 9).iterator()))
+                val exhausted = listOf(3).iterator()
+                for (n in exhausted) println(n)
+                println(exhausted.hasNext())
+                for (n in sequenceOf(10, 11)) println(n)
+            }
+            """#, expected: "1\n2\n6\n14\n15\nx\n17\n3\nfalse\n10\n11\n", mode: mode, root: root)
+        }
+    }
 }
 #endif

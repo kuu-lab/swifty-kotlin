@@ -321,7 +321,6 @@ extension JVMBackendTests {
         "fun main() { val f: (Int) -> Int = { x, y -> x + y }; println(f(1)) }",
         "fun main() { val n = 0; val f = { n += 1 }; f() }",
         "fun take(block: () -> Int): Int = block(); fun bad(): Int = take { return 1 }",
-        "fun main() { fun local(): Int = 1; println(local()) }",
         "fun main() { mapOf(\"a\" to 1).forEach { key, value -> println(value) } }",
     ])
     func rejectsUnsupportedOrInvalidM6ProgramsWithoutReplacingOutput(source: String) throws {

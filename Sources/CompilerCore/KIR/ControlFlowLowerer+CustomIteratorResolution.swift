@@ -91,7 +91,7 @@ extension ControlFlowLowerer {
     /// classes in `kotlin.ranges` that now provide bundled Kotlin `iterator()`
     /// operators. These synthetic classes are allowed to resolve a custom iterator
     /// so that `for-in` over a range is lowered through `.iterator()` instead of
-    /// the legacy `kk_range_iterator` runtime path.
+    /// the legacy `__kk_range_iterator` runtime path.
     func isRangeLikeClass(_ classSymbol: SemanticSymbol, sema: SemaModule, interner: StringInterner) -> Bool {
         KnownCompilerNames(interner: interner).isRangeLikeSymbol(classSymbol)
     }

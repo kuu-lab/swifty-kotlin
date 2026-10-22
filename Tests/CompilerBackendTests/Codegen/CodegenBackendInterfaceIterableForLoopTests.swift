@@ -272,11 +272,11 @@ struct CodegenBackendInterfaceIterableForLoopTests {
         )
         #expect(
             !callees.contains(try runtimeABICallee("range_hasNext")),
-            "Iterable for-loop must not use kk_range_hasNext, got: \(callees)"
+            "Iterable for-loop must not use __kk_range_hasNext, got: \(callees)"
         )
         #expect(
             !callees.contains(try runtimeABICallee("range_next")),
-            "Iterable for-loop must not use kk_range_next, got: \(callees)"
+            "Iterable for-loop must not use __kk_range_next, got: \(callees)"
         )
     }
 
@@ -336,7 +336,7 @@ struct CodegenBackendInterfaceIterableForLoopTests {
     // (`kk_list_iterator`) only recognized native list/set/array boxes and
     // fell back to an iterator over zero elements for anything else, instead
     // of dispatching to the object's own `iterator()` override like the
-    // sibling bridges (`kk_iterable_iterator`, `kk_range_iterator`) already
+    // sibling bridges (`kk_iterable_iterator`, `__kk_range_iterator`) already
     // do for bare `Iterable<T>`.
 
     @Test
@@ -542,7 +542,7 @@ struct CodegenBackendInterfaceIterableForLoopTests {
     @Test
     func testConcreteListInterfaceSourceClassThrowingIteratorTraps() throws {
         // kk_list_iterator has no throwing channel (unlike kk_iterable_iterator
-        // / kk_range_iterator), so a hand-written List/Set whose iterator()
+        // / __kk_range_iterator), so a hand-written List/Set whose iterator()
         // throws cannot propagate that exception as a catchable Kotlin
         // exception through this fast path today — it traps instead. This
         // pins that known, intentional limitation (loud failure, not a

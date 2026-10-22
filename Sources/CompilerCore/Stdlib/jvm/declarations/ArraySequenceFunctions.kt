@@ -17,3 +17,9 @@ fun kotlin.ByteArray.asSequence(): kotlin.sequences.Sequence<Byte> = null!!
 fun kotlin.ByteArray.joinToString(separator: CharSequence = ", ", prefix: CharSequence = "", postfix: CharSequence = "", limit: Int = -1, truncated: CharSequence = "...", transform: ((Byte) -> CharSequence)? = null): String = null!!
 fun kotlin.ShortArray.asSequence(): kotlin.sequences.Sequence<Short> = null!!
 fun kotlin.ShortArray.joinToString(separator: CharSequence = ", ", prefix: CharSequence = "", postfix: CharSequence = "", limit: Int = -1, truncated: CharSequence = "...", transform: ((Short) -> CharSequence)? = null): String = null!!
+fun <T> kotlin.Array<out T>.toList(): List<T> = null!!
+fun <T> kotlin.Array<out T>.isEmpty(): Boolean = null!!
+val <T> kotlin.Array<out T>.indices: kotlin.ranges.IntRange get() = null!!
+val kotlin.IntArray.indices: kotlin.ranges.IntRange get() = null!!
+val kotlin.IntArray.lastIndex: Int get() = null!!
+fun kotlin.IntArray.toList(): List<Int> = null!!

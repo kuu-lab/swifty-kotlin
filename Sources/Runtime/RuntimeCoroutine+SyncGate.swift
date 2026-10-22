@@ -103,6 +103,12 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// Set only by the canonical context-aware runBlocking boundary and its
     /// structured descendants. nil preserves legacy invocation scheduling.
     var blockingScheduler: RuntimeBlockingScheduler?
+    /// KUU-2687: dispatcher resolved from this coroutine's own context, used
+    /// when neither a blocking scheduler nor an event loop owns its resumptions.
+    /// A standalone `launch(dispatcher)`/`withContext(dispatcher)` continuation
+    /// hops back through it (and through a limited view's permit gate) on every
+    /// resume, matching kotlinx's intercepted-continuation dispatch.
+    var resumeDispatcher: RuntimeDispatcher?
     // Public builders leave scheduling to the intercepted continuation itself.
     var resumesInline = false
     var builderContext: RuntimeCoroutineContext?
@@ -112,7 +118,27 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// use their caller as the completion continuation, while unintercepted
     /// coroutine builders set the same source explicitly.
     private var contextContinuationRaw: Int = 0
+    /// KUU-2750: the suspend-entry point currently driving this continuation's
+    /// state machine, recorded by runSuspendEntryLoopWithContinuation and
+    /// startCoroutineUninterceptedOrReturn. The DeepRecursive trampoline needs
+    /// it to resume a continuation parked at callRecursive when the parked
+    /// frame is a nested suspend call rather than the coroutine root.
+    var suspendDriveEntryPointRaw: Int = 0
+    /// KUU-2750: the continuation this state reports completion to — the caller
+    /// for direct suspend calls, the completion continuation for unintercepted
+    /// coroutine values. Lets the DeepRecursive trampoline keep unwinding the
+    /// frame chain after a nested callRecursive frame finishes.
+    var suspendCallerContinuationRaw: Int {
+        interceptionLock.lock()
+        defer { interceptionLock.unlock() }
+        return contextContinuationRaw
+    }
     private var hasStartedUninterceptedCoroutine = false
+    /// KUU-2689: kotlinx's MODE_CANCELLABLE start flag. Set only when the
+    /// intercepted continuation is a native dispatch wrapper (upstream's
+    /// `is DispatchedContinuation` gate) so the Job check at the first-resume
+    /// boundary decides whether the block ever runs.
+    private var cancellableCoroutineStart = false
     // Cancellation must wake the innermost call and let it unwind before its caller.
     private var suspendedCallChild: RuntimeContinuationState?
     private let interceptionLock = NSRecursiveLock()
@@ -152,7 +178,19 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// True if signalResume() was called before any continuation or wait was
     /// installed (edge case: timer fires immediately).
     private var resumeSignalPending = false
+    /// KUU-2724: a suspend-point callee already completed exceptionally before
+    /// the caller's state machine reached the suspend return -- e.g. a direct
+    /// suspend call whose child finished thrown inside
+    /// `kk_coroutine_call_direct_suspend`, or an await on an already-failed
+    /// task. The suspend-entry loop consumes this marker and re-enters the
+    /// machine inline so the failure lands on the catch label inside the same
+    /// burst; an enqueued resume would let already-queued siblings observe and
+    /// drain state the failure was meant to discard. `signalResume()` still
+    /// runs alongside it, so drivers without the inline check keep the
+    /// enqueued resume.
+    private var inlineExceptionalDeliveryPending = false
     private var cancellationShieldDepth = 0
+    private var didExit = false
 
     // CORO-003: Task-local continuation state registry (replaces TLS).
     // Maps an opaque task token (assigned by the suspend-entry loop on entry) to
@@ -236,7 +274,13 @@ final class RuntimeContinuationState: @unchecked Sendable {
         interceptionLock.unlock()
     }
 
-    func takeUninterceptedCoroutineStart() -> (entryPointRaw: Int, completionContinuation: Int)? {
+    func markCancellableCoroutineStart() {
+        stateLock.lock()
+        cancellableCoroutineStart = true
+        stateLock.unlock()
+    }
+
+    func takeUninterceptedCoroutineStart() -> (entryPointRaw: Int, completionContinuation: Int, cancellableStart: Bool)? {
         stateLock.lock()
         defer { stateLock.unlock() }
         guard uninterceptedEntryPointRaw != 0, !hasStartedUninterceptedCoroutine else {
@@ -245,8 +289,28 @@ final class RuntimeContinuationState: @unchecked Sendable {
         hasStartedUninterceptedCoroutine = true
         return (
             entryPointRaw: uninterceptedEntryPointRaw,
-            completionContinuation: uninterceptedCompletionContinuation
+            completionContinuation: uninterceptedCompletionContinuation,
+            cancellableStart: cancellableCoroutineStart
         )
+    }
+
+    /// KUU-2689: the CancellationException a MODE_CANCELLABLE coroutine start
+    /// delivers to its completion instead of running the block, or nil when
+    /// the coroutine context's Job is absent or still active. This mirrors
+    /// `DispatchedContinuation.resumeCancelled` / `DispatchedTask.run`'s
+    /// `!job.isActive` check, evaluated at the first-resume boundary.
+    func unstartedCoroutineCancellationException() -> Int? {
+        guard let contextRaw = generatedCoroutineContext(outThrown: nil), contextRaw != 0 else {
+            return nil
+        }
+        let jobRaw = kk_context_get_job(contextRaw)
+        guard jobRaw != 0,
+              let job = runtimeJobHandle(from: jobRaw) ?? runtimeAsyncTask(from: jobRaw)?.completionJob,
+              !job.isActiveSnapshot()
+        else {
+            return nil
+        }
+        return kk_job_get_cancellation_exception(jobRaw)
     }
 
     func generatedCoroutineContext(outThrown: UnsafeMutablePointer<Int>?) -> Int? {
@@ -383,10 +447,15 @@ final class RuntimeContinuationState: @unchecked Sendable {
             resumeSignalPending = false
             let loop = eventLoop
             let scheduler = blockingScheduler
+            let dispatcher = resumeDispatcher
             let inlineResume = resumesInline
             stateLock.unlock()
             if let scheduler {
                 scheduler.enqueueResume { boxedContinuation.invoke() }
+                return
+            }
+            if let dispatcher {
+                dispatcher.dispatchAsync { boxedContinuation.invoke() }
                 return
             }
             if inlineResume {
@@ -419,6 +488,33 @@ final class RuntimeContinuationState: @unchecked Sendable {
             return false
         }
         resumeSignalPending = false
+        inlineExceptionalDeliveryPending = false
+        hasResumed = false
+        return true
+    }
+
+    /// Mark that the pending resume signal carries an already-known failure
+    /// (see `inlineExceptionalDeliveryPending`). Callers still invoke
+    /// `signalResume()` so continuation drivers without the inline check fall
+    /// back to an ordinary enqueued resume.
+    func markInlineExceptionalDelivery() {
+        stateLock.lock()
+        inlineExceptionalDeliveryPending = true
+        stateLock.unlock()
+    }
+
+    /// The suspend-entry loop consumes the inline marker and re-enters the
+    /// state machine so the failure reaches the catch label inside the same
+    /// burst (KUU-2724). Clears the pending signal/one-shot guard the same way
+    /// `consumePendingExceptionalResume` does.
+    func consumeInlineExceptionalDelivery() -> Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        guard inlineExceptionalDeliveryPending else {
+            return false
+        }
+        inlineExceptionalDeliveryPending = false
+        resumeSignalPending = false
         hasResumed = false
         return true
     }
@@ -433,9 +529,26 @@ final class RuntimeContinuationState: @unchecked Sendable {
         return thrown
     }
 
-    func installCancellableDelivery(_ continuation: RuntimeCancellableContinuation) {
+    func installCancellableDelivery(_ continuation: RuntimeCancellableContinuation) -> Bool {
         stateLock.lock()
+        guard !didExit else {
+            stateLock.unlock()
+            return false
+        }
         cancellableDelivery = continuation
+        stateLock.unlock()
+        return true
+    }
+
+    var isExited: Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return didExit
+    }
+
+    func markExited() {
+        stateLock.lock()
+        didExit = true
         stateLock.unlock()
     }
 
@@ -450,6 +563,14 @@ final class RuntimeContinuationState: @unchecked Sendable {
         completion = Int64(runtimeResultValueOrNull(result))
         thrownException = runtimeResultIsSuccess(result) ? 0 : runtimeResultExceptionOrNull(result)
         stateLock.unlock()
+    }
+
+    func retireCancellableDeliveryOnExit() {
+        stateLock.lock()
+        let delivery = cancellableDelivery
+        cancellableDelivery = nil
+        stateLock.unlock()
+        delivery?.delegateDidExit()
     }
 
     /// Legacy blocking wait.  Used only when no continuation has been installed
@@ -499,9 +620,14 @@ final class RuntimeContinuationState: @unchecked Sendable {
             let loop = eventLoop
             let inlineResume = resumesInline
             let scheduler = blockingScheduler
+            let dispatcher = resumeDispatcher
             stateLock.unlock()
             if let scheduler {
                 scheduler.enqueueResume { cont.invoke() }
+                return
+            }
+            if let dispatcher {
+                dispatcher.dispatchAsync { cont.invoke() }
                 return
             }
             // Queue the resumption on the coroutine's event loop when it has
@@ -653,6 +779,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
         resumeContinuation = nil
         fallbackSemaphore = nil
         resumeSignalPending = false
+        inlineExceptionalDeliveryPending = false
         hasResumed = false
         stateLock.unlock()
     }
@@ -997,7 +1124,10 @@ final class RuntimeAsyncTask: @unchecked Sendable {
             if thrown != 0, let callerState {
                 // Already completed exceptionally: resume the caller's continuation
                 // with the exception and report suspension so the state machine
-                // throws after it returns.
+                // throws after it returns. Marked inline (KUU-2724): the failure
+                // is already known, so the burst loop delivers it to the catch
+                // label without an event-loop turn.
+                callerState.markInlineExceptionalDelivery()
                 _ = callerState.resume(withException: thrown)
                 return .suspended
             }

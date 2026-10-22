@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val x = 3
     println(if (x != 2) 10 else 20)

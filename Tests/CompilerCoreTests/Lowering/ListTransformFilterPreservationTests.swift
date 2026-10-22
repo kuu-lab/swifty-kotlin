@@ -29,7 +29,7 @@ import Testing
 /// `+CallRewriteHandlers.swift` (`kk_map_map` / `kk_map_filter` /
 /// `kk_map_flatMap`), `mapIndexed` / `mapNotNull` / `filterIndexed` /
 /// `filterNot` for the Range/progression rewrite in
-/// `+VirtualCallRewrite+Range.swift` (`kk_range_mapIndexed` and friends —
+/// `+VirtualCallRewrite+Range.swift` (`__kk_range_mapIndexed` and friends —
 /// `RangeHOF.kt` implements these on `IntRange`/`IntProgression` too, so they
 /// really do resolve source-backed there), and `flatMapIndexed` / `flatten`
 /// for the Sequence pipeline/terminal rewrites. Dropping any of those nine
@@ -310,7 +310,7 @@ struct ListTransformFilterPreservationTests {
     /// the allowlist because `RangeHOF.kt` implements all four on
     /// `IntRange`/`IntProgression` too, and
     /// `+VirtualCallRewrite+Range.swift` has a live, unconditional
-    /// `kk_range_*` rewrite for each — unlike the List family's dead
+    /// `__kk_range_*` rewrite for each — unlike the List family's dead
     /// `.list`-owner lookup, this one is not gated by a possibly-empty
     /// surface spec. Dropping any of these four for the List family would
     /// hand the source-backed Range declaration straight to that rewrite.

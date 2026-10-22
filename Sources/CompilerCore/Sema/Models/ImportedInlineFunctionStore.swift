@@ -1,3 +1,39 @@
+/// Resolves producer link names and imported FQ names to consumer symbols.
+///
+/// The populated maps answer first; a miss falls through to drain closures
+/// that register pending compact-index entries, so a declaration that only
+/// became reachable after the import phase still resolves for a late inline
+/// body parse.
+struct ImportedSymbolResolver {
+    private let linkNameLookup: (String) -> SymbolID?
+    private let fqNameLookup: (String) -> SymbolID?
+
+    init(
+        linkNameLookup: @escaping (String) -> SymbolID?,
+        fqNameLookup: @escaping (String) -> SymbolID?
+    ) {
+        self.linkNameLookup = linkNameLookup
+        self.fqNameLookup = fqNameLookup
+    }
+
+    /// Fixed-map resolver for imports that never drain pending entries.
+    init(
+        externalLinkNameToSymbol: [String: SymbolID],
+        importedSymbolByFQName: [String: SymbolID]
+    ) {
+        linkNameLookup = { externalLinkNameToSymbol[$0] }
+        fqNameLookup = { importedSymbolByFQName[$0] }
+    }
+
+    func symbol(forLinkName name: String) -> SymbolID? {
+        linkNameLookup(name)
+    }
+
+    func symbol(forFQName name: String) -> SymbolID? {
+        fqNameLookup(name)
+    }
+}
+
 /// Lazily-resolved imported inline function bodies.
 ///
 /// Library import registers one `Descriptor` per imported inline symbol —
@@ -51,13 +87,13 @@ public final class ImportedInlineFunctionStore {
 
     /// The state a deferred parse needs, captured once after every imported
     /// binding has been applied so lazy parses see the same callee-resolution
-    /// maps the eager parse did.
+    /// maps the eager parse did. The resolver keeps reading the import-phase
+    /// maps live so symbols registered on demand still resolve.
     private struct ParseContext {
         let types: TypeSystem
         let interner: StringInterner
         let diagnostics: DiagnosticEngine
-        let externalLinkNameToSymbol: [String: SymbolID]
-        let importedSymbolByFQName: [String: SymbolID]
+        let resolver: ImportedSymbolResolver
     }
 
     private var parseContext: ParseContext?
@@ -103,15 +139,13 @@ public final class ImportedInlineFunctionStore {
         types: TypeSystem,
         interner: StringInterner,
         diagnostics: DiagnosticEngine,
-        externalLinkNameToSymbol: [String: SymbolID],
-        importedSymbolByFQName: [String: SymbolID]
+        resolver: ImportedSymbolResolver
     ) {
         parseContext = ParseContext(
             types: types,
             interner: interner,
             diagnostics: diagnostics,
-            externalLinkNameToSymbol: externalLinkNameToSymbol,
-            importedSymbolByFQName: importedSymbolByFQName
+            resolver: resolver
         )
     }
 
@@ -137,8 +171,7 @@ public final class ImportedInlineFunctionStore {
                   types: parseContext.types,
                   interner: parseContext.interner,
                   diagnostics: parseContext.diagnostics,
-                  externalLinkNameToSymbol: parseContext.externalLinkNameToSymbol,
-                  importedSymbolByFQName: parseContext.importedSymbolByFQName,
+                  resolver: parseContext.resolver,
                   reifiedComponentTokens: descriptor.reifiedComponentTokens,
                   packedValueParameterTypes: descriptor.packedValueParameterTypes
               )

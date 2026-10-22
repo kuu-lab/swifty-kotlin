@@ -85,6 +85,71 @@ extension BundledStdlibExecutionTests {
         )
     }
 
+    /// KUU-2688: `runTest`'s `timeout` is enforced on the wall clock: the
+    /// watchdog cancels the test scope and the caller sees an
+    /// `UncompletedCoroutinesError` (an `AssertionError` subtype) carrying
+    /// upstream's message shape, while virtual-time delays and non-positive
+    /// or infinite budgets behave the way kotlinx-coroutines-test does.
+    @Test(arguments: [false, true])
+    func testRunTestTimeoutEnforced(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            import kotlinx.coroutines.*
+            import kotlinx.coroutines.test.*
+            import kotlin.time.Duration
+            import kotlin.time.Duration.Companion.milliseconds
+            import kotlin.time.Duration.Companion.seconds
+
+            @OptIn(ExperimentalCoroutinesApi::class)
+            fun main() {
+                // Body suspended forever: watchdog cancels it and reports
+                // the timeout as an AssertionError-family failure.
+                try {
+                    runTest(timeout = 50.milliseconds) { awaitCancellation() }
+                    println("FAIL-1")
+                } catch (e: AssertionError) {
+                    println("timeout-1")
+                    println(e.message?.startsWith("After waiting for 50ms, the test body") == true)
+                }
+                // A child still active at fire time is listed in the
+                // diagnostic (the @hex identity is not stable to compare).
+                try {
+                    runTest(timeout = 50.milliseconds) {
+                        launch { awaitCancellation() }
+                    }
+                    println("FAIL-2")
+                } catch (e: AssertionError) {
+                    println("timeout-2")
+                    println(e.message?.contains("active child jobs") == true)
+                    println(e.message?.contains("StandaloneCoroutine") == true)
+                }
+                // Virtual-time delay completes far under the real budget.
+                runTest(timeout = 500.milliseconds) {
+                    delay(10000)
+                    println("virtual-done")
+                }
+                // Non-positive timeout: upstream never enforces it either.
+                runTest(timeout = 0.milliseconds) { println("zero-done") }
+                // Duration.INFINITE disables the watchdog.
+                runTest(timeout = Duration.INFINITE) {
+                    delay(5)
+                    println("inf-done")
+                }
+                // A body failure surfacing before any expiry is preserved.
+                try {
+                    runTest(timeout = 10.seconds) { throw IllegalStateException("boom") }
+                    println("FAIL-3")
+                } catch (e: IllegalStateException) {
+                    println("body-fail " + e.message)
+                }
+                println("done")
+            }
+            """,
+            expectedOutput: "timeout-1\ntrue\ntimeout-2\ntrue\ntrue\nvirtual-done\nzero-done\ninf-done\nbody-fail boom\ndone\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     @Test(arguments: [false, true])
     func testTestSchedulerLongClockABI(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
@@ -136,7 +201,7 @@ extension BundledStdlibExecutionTests {
                 try { throwing.immediate } catch (e: IllegalArgumentException) { println("caught getter") }
             }
             """,
-            expectedOutput: "true\ntrue\ninvalid parallelism\ncustom immediate\ntrue\ncaught getter\n",
+            expectedOutput: "false\ntrue\ninvalid parallelism\ncustom immediate\ntrue\ncaught getter\n",
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }

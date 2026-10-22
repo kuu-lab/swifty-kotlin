@@ -8,6 +8,20 @@ import Testing
 /// declaration's CST range reaches.
 @Suite
 struct DeclarationBoundaryTests {
+    @Test(arguments: [
+        "fun f() = 8",
+        "val k = 3; fun f() = k",
+        "companion object { fun f() = 8 }",
+    ])
+    func sameLineMemberAfterInitBlockStartsNewDeclaration(member: String) {
+        let parsed = parse("class D { init { } \(member) }")
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 1)
+        #expect(nodeCount(in: parsed.arena, kind: .propertyDecl) == (member.contains("val") ? 1 : 0))
+        #expect(nodeCount(in: parsed.arena, kind: .objectDecl) == (member.contains("companion") ? 1 : 0))
+    }
+
     @Test
     func anonymousFunctionAtLambdaBlockStartIsAnExpression() {
         let parsed = parse("""

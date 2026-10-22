@@ -71,8 +71,7 @@ extension JVMFunctionBuilder {
         let function = try requireValue(callee)
         var values: [JVMValue] = []
         if signature.receiver != nil, args.count == signature.params.count {
-            let symbol = program.sema.bindings.implicitExtensionReceiver(for: id)
-            guard let receiver = symbol.flatMap({ contextualReceivers[$0] }) ?? extensionValue ?? thisValue else { throw fail("Function with receiver requires an argument.", id) }
+            guard let receiver = implicitExtensionReceiver(id) else { throw fail("Function with receiver requires an argument.", id) }
             values.append(receiver)
         }
         for arg in args { values.append(try requireValue(arg.expr)) }
@@ -82,6 +81,27 @@ extension JVMFunctionBuilder {
         guard args.allSatisfy({ !$0.isSpread }) else { return nil }
         if let result = try inlineCall(args, receiver: receiver, id: id) { return result }
         if context.interner.resolve(name) == "invoke", case let .nameRef(n, _) = arena.expr(receiver), let lambda = inlineArgument(n) { return JVMIntrinsicResult(value: try expandLambda(lambda, args: args, id: id)) }
+        // An explicit invoke receiver is already the function value. Reading
+        // its property again would use that function as the getter's owner.
+        if context.interner.resolve(name) == "invoke", let signature = functionType(receiver) {
+            let function = try requireValue(receiver)
+            var values: [JVMValue] = []
+            for arg in args { values.append(try requireValue(arg.expr)) }
+            return JVMIntrinsicResult(value: try invoke(function, signature: signature, arguments: values, resultType: program.expressionType(id)))
+        }
+        if let lambda = inlineArgument(name), functionType(lambda.id)?.receiver != nil {
+            return JVMIntrinsicResult(value: try expandLambda(lambda, args: args, id: id, receiver: requireValue(receiver)))
+        }
+        if let bound = program.sema.bindings.callableValueCallBinding(for: id),
+           let callee = bound.extensionCallableExpr,
+           case let .functionType(signature) = program.sema.types.kind(of: bound.functionType) {
+            // Sema's lexical reference preserves the property's dispatch owner;
+            // the call-site receiver belongs only to the returned function.
+            let object = try requireValue(receiver), function = try requireValue(callee)
+            var values = [object]
+            for arg in args { values.append(try requireValue(arg.expr)) }
+            return JVMIntrinsicResult(value: try invoke(function, signature: signature, arguments: values, resultType: program.expressionType(id)))
+        }
         if let bound = program.sema.bindings.callableValueCallBinding(for: id),
            case let .localValue(symbol) = bound.target,
            let property = program.properties[symbol],
@@ -97,15 +117,6 @@ extension JVMFunctionBuilder {
             var values: [JVMValue] = []
             for arg in args { values.append(try requireValue(arg.expr)) }
             return JVMIntrinsicResult(value: try invoke(function, signature: signature, arguments: values, resultType: program.expressionType(id)))
-        }
-        if context.interner.resolve(name) == "invoke", let signature = functionType(receiver) {
-            let function = try requireValue(receiver)
-            var values: [JVMValue] = []
-            for arg in args { values.append(try requireValue(arg.expr)) }
-            return JVMIntrinsicResult(value: try invoke(function, signature: signature, arguments: values, resultType: program.expressionType(id)))
-        }
-        if let lambda = inlineArgument(name), functionType(lambda.id)?.receiver != nil {
-            return JVMIntrinsicResult(value: try expandLambda(lambda, args: args, id: id, receiver: requireValue(receiver)))
         }
         if let bound = program.sema.bindings.callableValueCallBinding(for: id),
            case let .localValue(symbol) = bound.target,
@@ -142,10 +153,10 @@ extension JVMFunctionBuilder {
         let number = program.nextClosure; program.nextClosure += 1
         let container = owner?.name ?? program.facadeName
         let name = container + "$Lambda" + String(number)
-        var visible: [InternedString: Local] = [:]
-        for scope in scopes { visible.merge(scope, uniquingKeysWith: { _, new in new }) }
+        let visible = localCaptureEnvironment()
         let symbols = Set(visible.values.compactMap(\.symbol))
         var free = Set(CaptureAnalyzer().collectCapturedOuterSymbols(in: body, ast: program.ast, sema: program.sema, outerSymbols: symbols, skipNestedClosures: false))
+        free.formUnion(localReferenceCaptureSymbols(in: body))
         // Receiver-style calls to function locals have no nameRef AST child.
         // Retain the semantically selected callable, including in nested lambdas.
         if let range = arena.exprRange(body) {
@@ -242,9 +253,7 @@ extension JVMFunctionBuilder {
     func implicitExtensionCall(_ symbol: SymbolID, args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult? {
         guard program.extensionSymbols.contains(symbol), let signature = program.sema.symbols.functionSignature(for: symbol), signature.receiverType != nil,
               program.references[symbol] != nil || program.methods[symbol] != nil else { return nil }
-        let binding = program.sema.bindings
-        let receiverSymbol = binding.implicitExtensionReceiver(for: id)
-        guard let receiver = receiverSymbol.flatMap({ contextualReceivers[$0] }) ?? extensionValue ?? thisValue else { throw fail("Missing implicit JVM extension receiver.", id) }
+        guard let receiver = implicitExtensionReceiver(id) else { throw fail("Missing implicit JVM extension receiver.", id) }
         let reference = program.references[symbol]
         let method = program.methods[symbol]
         let parameters = reference?.parameters ?? method!.parameters

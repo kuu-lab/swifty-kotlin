@@ -38,6 +38,7 @@ extension LinkPhaseIntegrationTests {
             }
             let second = try #require(timer.phaseRecords.last)
             #expect(second.subRecords.contains { $0.name == "Link/clang" })
+            #expect(second.subRecords.contains { $0.name == "prelinkedObjects" })
             #expect(!second.subRecords.contains { $0.name == "Link/swiftc-plan" || $0.name == "Link/swiftc" })
         }
     }

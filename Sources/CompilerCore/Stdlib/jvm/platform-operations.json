@@ -894,5 +894,180 @@
     "name": "arraycopy",
     "descriptor": "(Ljava/lang/Object;ILjava/lang/Object;II)V",
     "kind": "static"
+  },
+  {
+    "symbol": "__jvmNewArrayList",
+    "owner": "java/util/ArrayList",
+    "name": "<init>",
+    "descriptor": "()V",
+    "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmCopyMap",
+    "owner": "java/util/LinkedHashMap",
+    "name": "<init>",
+    "descriptor": "(Ljava/util/Map;)V",
+    "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmPutAllMap",
+    "owner": "java/util/Map",
+    "name": "putAll",
+    "descriptor": "(Ljava/util/Map;)V",
+    "kind": "interface"
+  },
+  {
+    "symbol": "__jvmAddAllCollection",
+    "owner": "java/util/Collection",
+    "name": "addAll",
+    "descriptor": "(Ljava/util/Collection;)Z",
+    "kind": "interface"
+  },
+  {
+    "symbol": "__jvmNewListCapacity",
+    "owner": "java/util/ArrayList",
+    "name": "<init>",
+    "descriptor": "(I)V",
+    "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmNewMapCapacity",
+    "owner": "java/util/LinkedHashMap",
+    "name": "<init>",
+    "descriptor": "(I)V",
+    "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmListAdd",
+    "owner": "java/util/List",
+    "name": "add",
+    "descriptor": "(ILjava/lang/Object;)V",
+    "kind": "interface"
+  },
+  {
+    "symbol": "__jvmListAddAll",
+    "owner": "java/util/List",
+    "name": "addAll",
+    "descriptor": "(ILjava/util/Collection;)Z",
+    "kind": "interface"
+  },
+  {
+    "symbol": "__jvmListIterator",
+    "owner": "java/util/List",
+    "name": "listIterator",
+    "descriptor": "(I)Ljava/util/ListIterator;",
+    "kind": "interface"
+  },
+  {
+    "symbol": "__jvmListSubList",
+    "owner": "java/util/List",
+    "name": "subList",
+    "descriptor": "(II)Ljava/util/List;",
+    "kind": "interface"
+  },
+  {
+    "symbol": "__jvmCollectionRemove",
+    "owner": "java/util/Collection",
+    "name": "remove",
+    "descriptor": "(Ljava/lang/Object;)Z",
+    "kind": "interface"
+  },
+  {
+    "symbol": "__jvmCollectionClear",
+    "owner": "java/util/Collection",
+    "name": "clear",
+    "descriptor": "()V",
+    "kind": "interface"
+  },
+  {
+    "symbol": "__jvmCollectionAddAll",
+    "owner": "java/util/Collection",
+    "name": "addAll",
+    "descriptor": "(Ljava/util/Collection;)Z",
+    "kind": "interface"
+  },
+  {
+    "symbol": "__jvmRemoveAllCollection",
+    "owner": "java/util/Collection",
+    "name": "removeAll",
+    "descriptor": "(Ljava/util/Collection;)Z",
+    "kind": "interface"
+  },
+  {
+    "symbol": "__jvmCollectionRemoveAll",
+    "owner": "java/util/Collection",
+    "name": "removeAll",
+    "descriptor": "(Ljava/util/Collection;)Z",
+    "kind": "interface"
+  },
+  {
+    "symbol": "__jvmCopySet",
+    "owner": "java/util/LinkedHashSet",
+    "name": "<init>",
+    "descriptor": "(Ljava/util/Collection;)V",
+    "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmCollectionRetainAll",
+    "owner": "java/util/Collection",
+    "name": "retainAll",
+    "descriptor": "(Ljava/util/Collection;)Z",
+    "kind": "interface"
+  },
+  {
+    "symbol": "__jvmMapPutAll",
+    "owner": "java/util/Map",
+    "name": "putAll",
+    "descriptor": "(Ljava/util/Map;)V",
+    "kind": "interface"
+  },
+  {
+    "symbol": "__jvmMapEntries",
+    "owner": "java/util/Map",
+    "name": "entrySet",
+    "descriptor": "()Ljava/util/Set;",
+    "kind": "interface"
+  },
+  {
+    "symbol": "__jvmMapEntryKey",
+    "owner": "java/util/Map$Entry",
+    "name": "getKey",
+    "descriptor": "()Ljava/lang/Object;",
+    "kind": "interface"
+  },
+  {
+    "symbol": "__jvmMapEntryValue",
+    "owner": "java/util/Map$Entry",
+    "name": "getValue",
+    "descriptor": "()Ljava/lang/Object;",
+    "kind": "interface"
+  },
+  {
+    "symbol": "__jvmArrayCapacityError",
+    "owner": "java/lang/OutOfMemoryError",
+    "name": "<init>",
+    "descriptor": "()V",
+    "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmPowDouble",
+    "owner": "java/lang/Math",
+    "name": "pow",
+    "descriptor": "(DD)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmBuilderSerializationFailure",
+    "owner": "java/io/NotSerializableException",
+    "name": "<init>",
+    "descriptor": "(Ljava/lang/String;)V",
+    "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmBuilderConcurrentModificationFailure",
+    "owner": "java/util/ConcurrentModificationException",
+    "name": "<init>",
+    "descriptor": "(Ljava/lang/String;)V",
+    "kind": "constructor"
   }
 ]

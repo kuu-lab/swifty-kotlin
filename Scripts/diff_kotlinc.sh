@@ -28,6 +28,22 @@ KSWIFTC_ARGS=()
 if [[ -n "$DIFF_KSWIFTC_FLAGS" ]]; then
   read -r -a KSWIFTC_ARGS <<< "$DIFF_KSWIFTC_FLAGS"
 fi
+# Candidate backend lane: native (default) links executables against the
+# shared .kklib; jvm emits runnable jars compiled against a shared kswiftk
+# stdlib jar; wasm emits WASI modules run through DIFF_ENGINE. Non-native
+# lanes are opt-in: directory sweeps only run cases carrying a
+# `// DIFF_<BACKEND>` marker; an explicitly named single file always runs.
+DIFF_BACKEND="${DIFF_BACKEND:-native}"
+DIFF_ENGINE_SET=0
+[[ -v DIFF_ENGINE ]] && DIFF_ENGINE_SET=1
+DIFF_ENGINE="${DIFF_ENGINE:-node}"
+DIFF_JVM_STDLIB_JAR="${DIFF_JVM_STDLIB_JAR:-}"
+JVM_STDLIB_JAR=""
+JVM_STDLIB_REQUIRED=0
+DIFF_WASM_TARGET="${DIFF_WASM_TARGET:-wasm32-wasi}"
+NODE_BIN="${NODE_BIN:-node}"
+WASMTIME_BIN="${WASMTIME_BIN:-wasmtime}"
+WASM_RUN_CMD=()
 KOTLINC="${KOTLINC:-kotlinc}"
 KOTLINC_CLASSPATH="${KOTLINC_CLASSPATH:-${KOTLINC_CP:-}}"
 JAVA_BIN="${JAVA_BIN:-java}"
@@ -126,6 +142,14 @@ Options:
                      Use an existing KSwiftKStdlib.kklib instead of building one
   --force-run-skipped
                      Run cases marked with // SKIP-DIFF or // KSWIFTK_DIFF_IGNORE
+  --backend <name>   Candidate backend: native (default), jvm, or wasm.
+                     Non-native lanes only run directory cases marked with a
+                     matching // DIFF_JVM / // DIFF_WASM directive; a single
+                     named file always runs
+  --wasm-engine <name>
+                     WASI engine for --backend wasm: node (node:wasi via
+                     Scripts/wasi_node_runner.mjs) or wasmtime (wasmtime run)
+                     (default: $DIFF_ENGINE or node)
   --candidate-only   Run one candidate-only case without a kotlinc reference
                      (source-only marker or expected-output sidecar)
   --expected-output <path>
@@ -171,6 +195,18 @@ Environment:
   DIFF_KSWIFTC_FLAGS
                      Space-separated arguments appended to the candidate
                      kswiftc invocation (default: empty)
+  DIFF_BACKEND       Candidate backend lane: native (default), jvm, or wasm
+  DIFF_ENGINE        WASI engine for DIFF_BACKEND=wasm: node or wasmtime
+                     (default: node)
+  DIFF_JVM_STDLIB_JAR
+                     Reuse an existing kswiftc JVM stdlib jar for
+                     DIFF_BACKEND=jvm instead of building one under
+                     DIFF_ARTIFACT_ROOT
+  DIFF_WASM_TARGET   kswiftc --target for DIFF_BACKEND=wasm
+                     (default: wasm32-wasi)
+  NODE_BIN / WASMTIME_BIN
+                     Engine binaries for DIFF_BACKEND=wasm (default: resolved
+                     from PATH)
   KOTLINC_ATOMICFU_VERSION / KOTLINC_ATOMICFU_SHA256 / KOTLINC_ATOMICFU_JAR
                      atomicfu-jvm reference dependency (default: pinned 0.33.0);
                      custom versions require an explicit SHA-256
@@ -306,6 +342,30 @@ while [[ $# -gt 0 ]]; do
       ;;
     --stdlib-library=*)
       DIFF_STDLIB_LIBRARY="${1#*=}"
+      ;;
+    --backend)
+      shift
+      if [[ $# -eq 0 ]]; then
+        echo "--backend requires an argument" >&2
+        exit 1
+      fi
+      DIFF_BACKEND="$1"
+      ;;
+    --backend=*)
+      DIFF_BACKEND="${1#*=}"
+      ;;
+    --wasm-engine)
+      shift
+      if [[ $# -eq 0 ]]; then
+        echo "--wasm-engine requires an argument" >&2
+        exit 1
+      fi
+      DIFF_ENGINE="$1"
+      DIFF_ENGINE_SET=1
+      ;;
+    --wasm-engine=*)
+      DIFF_ENGINE="${1#*=}"
+      DIFF_ENGINE_SET=1
       ;;
     --force-run-skipped)
       FORCE_RUN_SKIPPED=1
@@ -666,6 +726,15 @@ fi
 
 if [[ $CLEAN_RUNTIME_CACHE -eq 1 ]]; then
   rm -rf "$ROOT_DIR/.runtime-build"
+  # Runtime objects live in a cache shared by all worktrees (see
+  # CodegenRuntimeSupport.runtimeSharedScratchRoot).
+  if [[ -n "${KSWIFTK_RUNTIME_CACHE_DIR:-}" ]]; then
+    rm -rf "$KSWIFTK_RUNTIME_CACHE_DIR"
+  elif [[ "$(uname -s)" == "Darwin" ]]; then
+    rm -rf "$HOME/Library/Caches/kswiftk/runtime-build"
+  else
+    rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/kswiftk/runtime-build"
+  fi
 fi
 
 # A single candidate-only target has no JVM reference by design. Delegate
@@ -743,6 +812,36 @@ if ! [[ "$SCRIPT_TIMEOUT" =~ ^[1-9][0-9]*$ ]]; then
   exit 1
 fi
 
+case "$DIFF_BACKEND" in
+  native|jvm|wasm) ;;
+  *)
+    echo "DIFF_BACKEND must be native, jvm, or wasm: $DIFF_BACKEND" >&2
+    exit 1
+    ;;
+esac
+
+if [[ "$DIFF_BACKEND" == "wasm" ]]; then
+  case "$DIFF_ENGINE" in
+    node|wasmtime) ;;
+    *)
+      echo "DIFF_ENGINE must be node or wasmtime: $DIFF_ENGINE" >&2
+      exit 1
+      ;;
+  esac
+elif [[ "$DIFF_ENGINE_SET" -eq 1 ]]; then
+  echo "warning: DIFF_ENGINE/--wasm-engine is only used with DIFF_BACKEND=wasm" >&2
+fi
+
+if [[ "$DIFF_BACKEND" != "jvm" && -n "$DIFF_JVM_STDLIB_JAR" ]]; then
+  echo "warning: DIFF_JVM_STDLIB_JAR is only used with DIFF_BACKEND=jvm" >&2
+fi
+
+# --stdlib-library prebuilds the native .kklib; jvm and wasm lanes resolve
+# their own stdlib (shared jar / bundled sources) and ignore it.
+if [[ "$DIFF_BACKEND" != "native" && -n "$DIFF_STDLIB_LIBRARY" ]]; then
+  echo "warning: --stdlib-library/DIFF_STDLIB_LIBRARY is only used with DIFF_BACKEND=native" >&2
+fi
+
 if [[ -n "$REPORT_PATH" ]]; then
   : >"$REPORT_PATH"
 fi
@@ -762,6 +861,17 @@ while IFS= read -r test_case; do
   [[ -z "$test_case" ]] && continue
   if is_master_candidate_only_case "$test_case" || should_skip_diff_case "$test_case" "$FORCE_RUN_SKIPPED" || is_candidate_only_from_source_case "$test_case"; then
     continue
+  fi
+  # Non-native backend lanes only need toolchains for marked cases; the wasm
+  # lane prebuilds nothing (bundled stdlib compiles inline per case), while
+  # the jvm lane needs its shared stdlib jar.
+  if [[ "$DIFF_BACKEND" != "native" ]]; then
+    if backend_lane_skips_case "$test_case"; then
+      continue
+    fi
+    REFERENCE_CASES_REQUIRED=1
+    [[ "$DIFF_BACKEND" == "jvm" ]] && JVM_STDLIB_REQUIRED=1
+    break
   fi
   if [[ "$CANDIDATE_ONLY_EXPECTED" -eq 1 ]] || is_pr_candidate_only_case "$test_case"; then
     CANDIDATE_EXPECTED_OUTPUT_REQUIRED=1
@@ -831,6 +941,33 @@ else
     "CI uses JDK 21; older JDKs format Double/Float.toString() differently and cause false FAILs."
 fi
 
+# Backend-specific toolchain checks: the jvm lane needs unzip to read the
+# candidate jar's Main-Class manifest entry; the wasm lane needs its selected
+# WASI engine binary.
+if [[ "$REFERENCE_CASES_REQUIRED" -eq 1 && "$DIFF_BACKEND" == "jvm" ]] \
+  && ! command -v unzip >/dev/null 2>&1; then
+  echo "unzip is required for DIFF_BACKEND=jvm (candidate jar manifests)" >&2
+  exit 1
+fi
+
+if [[ "$DIFF_BACKEND" == "wasm" ]]; then
+  if [[ "$REFERENCE_CASES_REQUIRED" -eq 0 ]]; then
+    WASM_RUN_CMD=()
+  elif [[ "$DIFF_ENGINE" == "node" ]]; then
+    if ! command -v "$NODE_BIN" >/dev/null 2>&1; then
+      echo "node not found for DIFF_ENGINE=node: $NODE_BIN (install Node or use DIFF_ENGINE=wasmtime)" >&2
+      exit 1
+    fi
+    WASM_RUN_CMD=("$NODE_BIN" "$SCRIPT_DIR/wasi_node_runner.mjs")
+  else
+    if ! command -v "$WASMTIME_BIN" >/dev/null 2>&1; then
+      echo "wasmtime not found for DIFF_ENGINE=wasmtime: $WASMTIME_BIN" >&2
+      exit 1
+    fi
+    WASM_RUN_CMD=("$WASMTIME_BIN" run)
+  fi
+fi
+
 if [[ "$REFERENCE_CASES_REQUIRED" -eq 1 ]]; then
   configure_kotlinc_ref_cache
 fi
@@ -871,6 +1008,10 @@ echo "Force run skipped: $FORCE_RUN_SKIPPED"
 echo "Candidate-only: $CANDIDATE_ONLY"
 echo "kswiftc flags: ${DIFF_KSWIFTC_FLAGS:-<none>}"
 echo "Clean runtime cache: $CLEAN_RUNTIME_CACHE"
+echo "Backend: $DIFF_BACKEND"
+if [[ "$DIFF_BACKEND" == "wasm" ]]; then
+  echo "WASM engine: $DIFF_ENGINE (target $DIFF_WASM_TARGET)"
+fi
 if [[ -n "$KOTLINC_REF_CACHE_FINGERPRINT" ]]; then
   echo "Kotlinc reference cache: $KOTLINC_REF_CACHE_DIR"
 else
@@ -881,7 +1022,9 @@ echo "Reference JAVA_FLAGS: ${DIFF_REFERENCE_JAVA_FLAGS:-<empty>}"
 if [[ "$CANDIDATE_EXPECTED_OUTPUT_REQUIRED" -eq 1 ]]; then
   echo "Comparison mode: candidate-only expected output"
 fi
-if [[ -n "$DIFF_STDLIB_LIBRARY" ]]; then
+if [[ "$DIFF_BACKEND" != "native" ]]; then
+  echo "Stdlib artifact: not used by $DIFF_BACKEND backend"
+elif [[ -n "$DIFF_STDLIB_LIBRARY" ]]; then
   echo "Stdlib artifact: $DIFF_STDLIB_LIBRARY (provided)"
 elif [[ "$STDLIB_ARTIFACT_REQUIRED" -eq 1 ]]; then
   echo "Stdlib artifact: pending build under $ARTIFACT_ROOT"
@@ -905,6 +1048,11 @@ if [[ "$STDLIB_ARTIFACT_REQUIRED" -eq 1 ]]; then
   build_stdlib_artifact || exit 1
   echo "Stdlib artifact: $STDLIB_ARTIFACT"
   echo "Stdlib artifact manifest hash: $(stdlib_manifest_hash "$STDLIB_ARTIFACT")"
+fi
+
+if [[ "$JVM_STDLIB_REQUIRED" -eq 1 ]]; then
+  build_jvm_stdlib_jar || exit 1
+  echo "JVM stdlib jar: $JVM_STDLIB_JAR"
 fi
 
 if [[ "$CANDIDATE_ONLY" -eq 1 ]]; then
@@ -939,6 +1087,14 @@ if [[ "$DIFF_PARALLEL" -eq 0 || "$WORKER_COUNT" -le 1 ]]; then
     fi
     if should_skip_regular_diff_case "$test_case"; then
       print_skipped_case "$test_case"
+      SKIPPED=$((SKIPPED + 1))
+      if [[ -n "$REPORT_PATH" ]]; then
+        printf '%s\tSKIP\t\n' "$test_case" >>"$REPORT_PATH"
+      fi
+      continue
+    fi
+    if backend_lane_skips_case "$test_case"; then
+      echo "SKIP $test_case (DIFF_BACKEND=$DIFF_BACKEND)"
       SKIPPED=$((SKIPPED + 1))
       if [[ -n "$REPORT_PATH" ]]; then
         printf '%s\tSKIP\t\n' "$test_case" >>"$REPORT_PATH"
@@ -981,6 +1137,11 @@ else
       SKIPPED=$((SKIPPED + 1))
       continue
     fi
+    if backend_lane_skips_case "$test_case"; then
+      CASE_KIND[$i]="BACKEND-SKIP"
+      SKIPPED=$((SKIPPED + 1))
+      continue
+    fi
     TOTAL=$((TOTAL + 1))
     CASE_KIND[$i]="RUN"
     CASE_NUM[$i]="$TOTAL"
@@ -1017,9 +1178,11 @@ else
 
   for i in "${!TEST_CASES[@]}"; do
     test_case="${TEST_CASES[$i]}"
-    if [[ "${CASE_KIND[$i]:-}" == "SKIP" || "${CASE_KIND[$i]:-}" == "CANDIDATE-ONLY" ]]; then
+    if [[ "${CASE_KIND[$i]:-}" == "SKIP" || "${CASE_KIND[$i]:-}" == "CANDIDATE-ONLY" || "${CASE_KIND[$i]:-}" == "BACKEND-SKIP" ]]; then
       if [[ "${CASE_KIND[$i]:-}" == "CANDIDATE-ONLY" ]]; then
         echo "SKIP $test_case (candidate-only; run Scripts/run_candidate_only.sh)"
+      elif [[ "${CASE_KIND[$i]:-}" == "BACKEND-SKIP" ]]; then
+        echo "SKIP $test_case (DIFF_BACKEND=$DIFF_BACKEND)"
       else
         print_skipped_case "$test_case"
       fi
@@ -1065,6 +1228,15 @@ fi
 
 if [[ $TOTAL -eq 0 && $SKIPPED -eq 0 ]]; then
   handle_empty_cases
+fi
+
+# A non-native lane that ran zero cases must not report green: for directory
+# sweeps that means nothing carries the // DIFF_<BACKEND> marker (or every
+# marked case was candidate-only/skipped). Sharded runs are exempt because a
+# shard can legitimately receive no marked cases.
+if [[ "$DIFF_BACKEND" != "native" && $TOTAL -eq 0 && $DIFF_SHARD_COUNT -eq 1 ]]; then
+  echo "DIFF_BACKEND=$DIFF_BACKEND ran zero cases (directory sweeps require a // DIFF_${DIFF_BACKEND^^} marker; candidate-only cases are native-only)" >&2
+  exit 1
 fi
 
 echo "Summary: total=$TOTAL failed=$FAILED passed=$((TOTAL - FAILED)) skipped=$SKIPPED"

@@ -790,6 +790,30 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Coroutine"
         ),
+        // KUU-2687: limitedParallelism view / immediate resolution / Unconfined
+        // rejection backing for the bundled CoroutineDispatcher API.
+        RuntimeABIFunctionSpec(
+            name: "__kk_dispatcher_limited_parallelism",
+            parameters: [
+                RuntimeABIParameter(name: "dispatcher", type: .intptr),
+                RuntimeABIParameter(name: "parallelism", type: .intptr),
+                RuntimeABIParameter(name: "nameRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_dispatcher_immediate_or_self",
+            parameters: [RuntimeABIParameter(name: "dispatcher", type: .intptr)],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_dispatcher_is_unconfined",
+            parameters: [RuntimeABIParameter(name: "dispatcher", type: .intptr)],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_with_context",
             parameters: [
@@ -998,6 +1022,17 @@ public extension RuntimeABISpec {
             isThrowing: true
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_start_coroutine_cancellable",
+            parameters: [
+                RuntimeABIParameter(name: "functionRaw", type: .intptr),
+                RuntimeABIParameter(name: "completionRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .void,
+            section: "Coroutine",
+            isThrowing: true
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_continuation_interceptor_intercept_continuation",
             parameters: [
                 RuntimeABIParameter(name: "interceptorRaw", type: .intptr),
@@ -1072,6 +1107,94 @@ public extension RuntimeABISpec {
         RuntimeABIFunctionSpec(
             name: "__kk_select_builder_current",
             parameters: [],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        // KUU-2686: atomic select state/clause handles. Reason code:
+        // GC・continuation — selection state lives behind the runtime's
+        // claim lock and channel/mutex waiter queues, which Kotlin source
+        // cannot reach.
+        RuntimeABIFunctionSpec(
+            name: "__kk_select_state_new",
+            parameters: [],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_select_clause_new",
+            parameters: [RuntimeABIParameter(name: "state", type: .intptr)],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_select_try_select",
+            parameters: [RuntimeABIParameter(name: "clause", type: .intptr)],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_select_try_select_result",
+            parameters: [
+                RuntimeABIParameter(name: "clause", type: .intptr),
+                RuntimeABIParameter(name: "result", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_select_mark_selected",
+            parameters: [RuntimeABIParameter(name: "state", type: .intptr)],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_select_selected_clause",
+            parameters: [RuntimeABIParameter(name: "state", type: .intptr)],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_select_state_finish",
+            parameters: [RuntimeABIParameter(name: "state", type: .intptr)],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_select_poll_receive",
+            parameters: [
+                RuntimeABIParameter(name: "handle", type: .intptr),
+                RuntimeABIParameter(name: "clause", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_select_poll_send",
+            parameters: [
+                RuntimeABIParameter(name: "handle", type: .intptr),
+                RuntimeABIParameter(name: "clause", type: .intptr),
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_select_poll_lock",
+            parameters: [
+                RuntimeABIParameter(name: "handle", type: .intptr),
+                RuntimeABIParameter(name: "clause", type: .intptr),
+                RuntimeABIParameter(name: "owner", type: .intptr),
+            ],
             returnType: .intptr,
             section: "Coroutine",
             isThrowing: false
@@ -1365,10 +1488,13 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Coroutine"
         ),
+        // KUU-2688: `timeoutRaw` mirrors the boxed variant — the literal path
+        // forwards `runTest`'s Duration so the runtime can enforce it.
         RuntimeABIFunctionSpec(
             name: "kk_test_run_blocking_with_cont",
             parameters: [
                 RuntimeABIParameter(name: "contextRaw", type: .intptr),
+                RuntimeABIParameter(name: "timeoutRaw", type: .intptr),
                 RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
                 RuntimeABIParameter(name: "continuation", type: .intptr),
                 RuntimeABIParameter(name: "scopeSlotRaw", type: .intptr),
@@ -1895,6 +2021,19 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         bridgeMutexTryLockSpec,
+        // KUU-2686: owner-aware tryLock for `Mutex.tryLock(owner)` and
+        // `select { onLock(owner) }`. Reason code: GC・continuation — the
+        // owner token lives in the runtime mutex handle's waiter state.
+        RuntimeABIFunctionSpec(
+            name: "__kk_mutex_tryLock_owner",
+            parameters: [
+                RuntimeABIParameter(name: "handle", type: .intptr),
+                RuntimeABIParameter(name: "owner", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
         bridgeMutexIsLockedSpec,
         bridgeMutexHoldsLockSpec,
         // KSP-677: Lock.withLock is Kotlin source delegating to this demoted

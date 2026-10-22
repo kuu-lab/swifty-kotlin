@@ -351,6 +351,7 @@ func runSuspendEntryLoopWithContinuation(
     // task-scope map so that child launches dispatched on this thread can
     // discover their parent scope without TLS.
     let contState = runtimeContinuationState(from: continuation)
+    contState?.suspendDriveEntryPointRaw = entryPointRaw
     let cancellationJob = contState?.jobHandle
     let cancellationHandler = cancellationJob?.addCompletionHandler(onCancelling: true) { [weak contState, weak cancellationJob] _ in
         guard let contState, let cancellationJob, cancellationJob.cancellationSnapshot() else { return }
@@ -378,6 +379,20 @@ func runSuspendEntryLoopWithContinuation(
     }
     if let contState, contState.blockingScheduler == nil, contState.eventLoop == nil {
         contState.eventLoop = callerEventLoop
+    }
+    // KUU-2687: a coroutine bound to a real dispatcher (tag or limited/named
+    // view object) but owned by no runBlocking scheduler hops back through that
+    // dispatcher on every resumption — required for a limited view's permits to
+    // actually bound its concurrency after a suspension.
+    if let contState, contState.blockingScheduler == nil, contState.eventLoop == nil,
+       contState.resumeDispatcher == nil {
+        let handle = contState.makeContinuationContext().dispatcherElementHandle
+        if handle != 0 {
+            let resolved = runtimeResolveDispatcher(from: handle)
+            if resolved.blockingEventLoop == nil, !resolved.isUnconfined {
+                contState.resumeDispatcher = resolved
+            }
+        }
     }
     let boundEventLoop = contState?.eventLoop
     // Capture this thread's ambient bindings before minting a fresh key so a
@@ -434,9 +449,21 @@ func runSuspendEntryLoopWithContinuation(
         // for the duration of `entryPoint`'s call below, so RuntimePendingLaunchQueue
         // knows any `launch{}` it makes has a real burst to be flushed at.
         RuntimeCoroutineBurstDepth.enter()
-        contState?.consumeCancellableDelivery()
         var thrownValue = 0
-        let result = entryPoint(continuation, &thrownValue)
+        var result: Int
+        repeat {
+            thrownValue = 0
+            contState?.consumeCancellableDelivery()
+            result = entryPoint(continuation, &thrownValue)
+            // A suspend-point callee that already completed exceptionally
+            // before the machine suspended (a thrown direct suspend call, an
+            // await on an already-failed task) marks the state for inline
+            // delivery. Re-enter the machine so the failure lands on the
+            // caller's catch label inside this burst -- manufacturing an
+            // enqueued resume would let already-queued siblings observe and
+            // drain state the failure was meant to discard (KUU-2724).
+        } while thrownValue == 0 && result == suspendedToken
+            && (contState?.consumeInlineExceptionalDelivery() ?? false)
         if thrownValue != 0 {
             // BUG-041: this burst is ending (with a thrown exception); dispatch
             // anything it `launch`-ed for real now that no more synchronous

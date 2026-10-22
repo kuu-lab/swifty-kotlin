@@ -77,6 +77,22 @@ struct SuspendConversionTests {
         }
     }
 
+    @Test func acceptsDirectlyTypedSuspendCallableReferences() throws {
+        let source = """
+        fun regular(value: Int = 42): Int = value
+        fun identity(value: Int): Int = value
+        fun forward() {
+            val defaulted: suspend () -> Int = ::regular
+            val direct: suspend (Int) -> Int = ::identity
+        }
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map { $0.message })")
+        }
+    }
+
     @Test(arguments: [
         "fun bad(action: (String) -> Unit) { consume(action) }",
         "fun number(action: suspend (Int) -> Int) {}\nfun bad(action: (Int) -> String) { number(action) }",

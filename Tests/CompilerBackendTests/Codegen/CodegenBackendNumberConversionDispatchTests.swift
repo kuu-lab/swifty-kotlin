@@ -210,5 +210,26 @@ struct CodegenBackendNumberConversionDispatchTests {
             expected: "A\nZ\n"
         )
     }
+
+    @Test
+    func testNullableGenericNumberSafeCallHandlesNullAndBoxedPrimitive() throws {
+        let source = """
+        fun <T : Number?> convert(value: T): Int? = value?.toInt()
+        fun <T : Number?> convertAfterNullCheck(value: T): Int? =
+            if (value == null) null else value.toInt()
+
+        fun main() {
+            println(convert<Int?>(null))
+            println(convert<Int?>(42))
+            println(convertAfterNullCheck<Int?>(null))
+            println(convertAfterNullCheck<Int?>(42))
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "NullableGenericNumberSafeCall",
+            expected: "null\n42\nnull\n42\n"
+        )
+    }
 }
 #endif

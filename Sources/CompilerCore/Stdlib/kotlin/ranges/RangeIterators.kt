@@ -5,7 +5,7 @@ package kotlin.ranges
 // IntProgression, LongProgression, CharProgression, UIntProgression, and
 // ULongProgression.
 // Migration source: Sources/Runtime/RuntimeRangeAndDispatch.swift
-//   (kk_range_iterator, kk_range_hasNext, kk_range_next)
+//   (__kk_range_iterator, __kk_range_hasNext, __kk_range_next)
 //   Sources/Runtime/RuntimeRangeLongRange.swift (__kk_long_range_iterator,
 //   __kk_ulong_range_iterator, __kk_ulong_range_hasNext, __kk_ulong_range_next)
 //   Sources/Runtime/RuntimeRangeUIntULongRange.swift

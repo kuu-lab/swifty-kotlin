@@ -1,0 +1,16 @@
+window:size 0 must be greater than zero.
+transform:size 0 must be greater than zero.
+window:Both size 0 and step 1 must be greater than zero.
+transform:Both size 0 and step 1 must be greater than zero.
+window:Both size 2 and step 0 must be greater than zero.
+transform:Both size 2 and step 0 must be greater than zero.
+window:Both size -1 and step 2 must be greater than zero.
+transform:Both size -1 and step 2 must be greater than zero.
+window:Both size 2 and step -1 must be greater than zero.
+transform:Both size 2 and step -1 must be greater than zero.
+[ab, cd, e]
+[2, 2, 1]
+[ab, de]
+[2, 2]
+chunk:size -1 must be greater than zero.
+0

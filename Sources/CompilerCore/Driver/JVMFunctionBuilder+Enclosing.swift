@@ -85,8 +85,7 @@ extension JVMFunctionBuilder {
     func anonymousObject(_ id: ExprID) throws -> JVMValue {
         guard case let .objectLiteral(_, decl?, range) = arena.expr(id), let symbol = program.sema.bindings.declSymbol(for: decl), let plan = program.classes[symbol] else { throw fail("Missing JVM anonymous object declaration.", id) }
         plan.escapesInline = plan.escapesInline || declaration.isInline || !inlineStack.isEmpty
-        var visible: [InternedString: Local] = [:]
-        for scope in scopes { visible.merge(scope, uniquingKeysWith: { _, new in new }) }
+        let visible = localCaptureEnvironment()
         var used: Set<SymbolID> = []
         for i in arena.snapshot().expressions.indices {
             let exprID = ExprID(rawValue: Int32(i))
@@ -94,12 +93,13 @@ extension JVMFunctionBuilder {
             if let symbol = program.sema.bindings.identifierSymbol(for: exprID) { used.insert(symbol) }
             if let binding = program.sema.bindings.callableValueCallBinding(for: exprID), case let .localValue(symbol) = binding.target { used.insert(symbol) }
         }
+        used.formUnion(localReferenceCaptureSymbols(in: id))
         var captures: [JVMAnonymousCapture] = [], values: [JVMValue] = []
         for (name, local) in visible.sorted(by: { context.interner.resolve($0.key) < context.interner.resolve($1.key) }) where local.symbol.map({ used.contains($0) }) ?? true {
             var source = local.cell ?? local.value, template = local
             if let symbol = local.symbol,
                let semantic = program.sema.bindings.capturedLocalType(for: symbol) ?? program.sema.symbols.propertyType(for: symbol) {
-                let type = try JVMClasspathIndex.type(semantic, sema: program.sema, ctx: context)
+                let type = try erasedLocalStorageType(semantic)
                 let storage = local.cell == nil ? type : (local.delegateSymbol == nil ? .reference("[" + type.descriptor, nullable: false) : source.type)
                 source = try convert(source, to: storage)
                 template = Local(value: JVMValue(slot: local.value.slot, type: type), mutable: local.mutable, cell: local.cell, functionType: local.functionType, symbol: local.symbol)
@@ -117,7 +117,15 @@ extension JVMFunctionBuilder {
         for (symbol, input) in receivers where !beforeDelegation || input.slot != thisValue?.slot { groups[input.slot, default: []].append(symbol); receiverValues[input.slot] = input }
         if let extensionValue { groups[extensionValue.slot, default: []] += []; receiverValues[extensionValue.slot] = extensionValue }
         for slot in groups.keys.sorted() {
-            let source = receiverValues[slot]!, field = JVMField(owner: plan.name, name: "$receiver" + String(captures.count), type: source.type, access: 0x1012)
+            var erased: JVMValueType?, conflict = false
+            for symbol in groups[slot]! {
+                guard let owner = SyntheticSymbolScheme.receiverParameterOwner(for: symbol),
+                      let receiverType = program.sema.symbols.functionSignature(for: owner)?.receiverType else { continue }
+                let type = try erasedLocalStorageType(receiverType)
+                if erased == nil { erased = type } else if erased != type { conflict = true }
+            }
+            let fieldType = conflict ? JVMValueType.reference("java/lang/Object", nullable: false) : erased ?? receiverValues[slot]!.type
+            let source = try convert(receiverValues[slot]!, to: fieldType), field = JVMField(owner: plan.name, name: "$receiver" + String(captures.count), type: fieldType, access: 0x1012)
             captures.append(JVMAnonymousCapture(field: field, receiverSymbols: groups[slot]!, extensionReceiver: slot == extensionValue?.slot)); values.append(source)
         }
         let tokenTypes = reifiedCaptureTypes(id, specialize: false)

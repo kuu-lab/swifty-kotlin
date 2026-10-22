@@ -23,11 +23,7 @@ struct KlibContainerTests {
 
         let manifest = try container.manifest()
         #expect(manifest.uniqueName == "demo2")
-        // Kotlin 2.4.20 fixture: newer than the 2.3.x support track.
-        guard case .bestEffort = manifest.compatibility else {
-            Issue.record("expected bestEffort, got \(manifest.compatibility)")
-            return
-        }
+        #expect(manifest.compatibility == .supported)
 
         let paths = container.entryPaths()
         #expect(paths.contains("ir/irDeclarations.knd"))
@@ -181,7 +177,7 @@ struct KlibContainerTests {
             #expect(!diagnostics.hasError,
                     "unexpected errors: \(diagnostics.diagnostics.map(\.code))")
             let codes = Set(diagnostics.diagnostics.map(\.code))
-            #expect(codes.contains("KSWIFTK-LIB-0027")) // bestEffort: abi 2.4
+            #expect(!codes.contains("KSWIFTK-LIB-0027"))
             // Declaration materialization is implemented; no import warnings.
             #expect(!codes.contains("KSWIFTK-LIB-0028"))
         }

@@ -240,6 +240,20 @@ final class DataFlowAnalyzer {
     ) -> ConditionBranch {
         switch op {
         case .equal, .notEqual, .identityEqual, .notIdentityEqual:
+            let safeCallBranch = branchOnSafeCallComparison(
+                op: op, lhsID: lhsID, rhsID: rhsID,
+                base: base, locals: locals, ast: ast, sema: sema, interner: interner
+            )
+            let equalityTrueBase: DataFlowState = if let safeCallBranch {
+                op == .equal || op == .identityEqual ? safeCallBranch.trueState : safeCallBranch.falseState
+            } else {
+                base
+            }
+            let equalityFalseBase: DataFlowState = if let safeCallBranch {
+                op == .equal || op == .identityEqual ? safeCallBranch.falseState : safeCallBranch.trueState
+            } else {
+                base
+            }
             let testedCall: ExprID?
             let trueResult: ContractReturnCondition
             var falseResult: ContractReturnCondition
@@ -269,8 +283,14 @@ final class DataFlowAnalyzer {
                     falseResult = .normally
                 }
                 let branch = ConditionBranch(
-                    trueState: applyContractImplications(testedCall, result: trueResult, base: base, locals: locals, ast: ast, sema: sema, interner: interner, scope: scope),
-                    falseState: applyContractImplications(testedCall, result: falseResult, base: base, locals: locals, ast: ast, sema: sema, interner: interner, scope: scope)
+                    trueState: applyContractImplications(
+                        testedCall, result: trueResult, base: equalityTrueBase,
+                        locals: locals, ast: ast, sema: sema, interner: interner, scope: scope
+                    ),
+                    falseState: applyContractImplications(
+                        testedCall, result: falseResult, base: equalityFalseBase,
+                        locals: locals, ast: ast, sema: sema, interner: interner, scope: scope
+                    )
                 )
                 if op == .notEqual || op == .notIdentityEqual {
                     return ConditionBranch(trueState: branch.falseState, falseState: branch.trueState)
@@ -289,6 +309,9 @@ final class DataFlowAnalyzer {
                     return ConditionBranch(trueState: nullResult.falseState, falseState: nullResult.trueState)
                 }
                 return nullResult
+            }
+            if let safeCallBranch {
+                return safeCallBranch
             }
             return ConditionBranch(trueState: base, falseState: base)
         case .logicalAnd:
@@ -318,6 +341,62 @@ final class DataFlowAnalyzer {
         default:
             return ConditionBranch(trueState: base, falseState: base)
         }
+    }
+
+    private func branchOnSafeCallComparison(
+        op: BinaryOp,
+        lhsID: ExprID,
+        rhsID: ExprID,
+        base: DataFlowState,
+        locals: LocalBindings,
+        ast: ASTModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> ConditionBranch? {
+        let equalityIsTrue = op == .equal || op == .identityEqual
+        let receiver: ExprID
+        let comparedValueID: ExprID
+        if let safeReceiver = safeCallReceiver(of: lhsID, ast: ast) {
+            receiver = safeReceiver
+            comparedValueID = rhsID
+        } else if let safeReceiver = safeCallReceiver(of: rhsID, ast: ast),
+                  op == .identityEqual || op == .notIdentityEqual || isNullLiteral(lhsID, ast: ast)
+        {
+            // A user-defined equals() on the non-null left operand may report
+            // equality with a null right operand, so structural equality is
+            // only useful when the safe-call is on the left (or left is null).
+            receiver = safeReceiver
+            comparedValueID = lhsID
+        } else {
+            return nil
+        }
+
+        let equalityRequiresNonNullResult: Bool
+        if isNullLiteral(comparedValueID, ast: ast) {
+            equalityRequiresNonNullResult = false
+        } else if let comparedType = sema.bindings.exprTypes[comparedValueID],
+                  sema.types.nullability(of: comparedType) == .nonNull
+        {
+            equalityRequiresNonNullResult = true
+        } else {
+            return nil
+        }
+
+        let nonNullResultOnTrueBranch = equalityIsTrue == equalityRequiresNonNullResult
+        let narrowedState = narrowNonNull(
+            receiver, base: base, locals: locals, ast: ast, sema: sema, interner: interner
+        )
+        return ConditionBranch(
+            trueState: nonNullResultOnTrueBranch ? narrowedState : base,
+            falseState: nonNullResultOnTrueBranch ? base : narrowedState
+        )
+    }
+
+    private func safeCallReceiver(of id: ExprID, ast: ASTModule) -> ExprID? {
+        guard case let .safeMemberCall(receiver, _, _, _, _) = ast.arena.expr(id) else {
+            return nil
+        }
+        return receiver
     }
 
     private func booleanLiteral(_ id: ExprID, ast: ASTModule, interner: StringInterner) -> Bool? {
@@ -363,7 +442,16 @@ final class DataFlowAnalyzer {
             currentType
         }
         let nonNullType = makeTypeNonNullable(effectiveType, types: sema.types)
-        let nullType = sema.types.nullableNothingType
+        // `x == null` narrows a type parameter to `Nothing? & T` — Kotlin's
+        // smart cast keeps `T`'s identity, so `arrayOf(k, v)` still joins at
+        // `Any?` rather than `V?` (KUU-2693). Concrete nullable types keep
+        // `Nothing?`.
+        let nullType: TypeID
+        if case .typeParam = sema.types.kind(of: effectiveType) {
+            nullType = sema.types.make(.intersection([sema.types.nullableNothingType, effectiveType]))
+        } else {
+            nullType = sema.types.nullableNothingType
+        }
 
         let nullStable = resolveStableReference(
             variableID, locals: locals, ast: ast, sema: sema, interner: interner, narrowingType: nullType
@@ -526,8 +614,17 @@ final class DataFlowAnalyzer {
         switch conditionExpr {
         case .nullLiteral:
             var vars = base
+            // See `branchOnNullComparison`: a type parameter narrows to
+            // `Nothing? & T`, preserving its identity for later joins
+            // (KUU-2693).
+            let nullType: TypeID
+            if case .typeParam = sema.types.kind(of: subjectType) {
+                nullType = sema.types.make(.intersection([sema.types.nullableNothingType, subjectType]))
+            } else {
+                nullType = sema.types.nullableNothingType
+            }
             vars[subjectSymbol] = VariableFlowState(
-                possibleTypes: [sema.types.nullableNothingType],
+                possibleTypes: [nullType],
                 nullability: .nullable,
                 isStable: true
             )
@@ -740,7 +837,10 @@ final class DataFlowAnalyzer {
     }
 
     private func makeTypeNonNullable(_ type: TypeID, types: TypeSystem) -> TypeID {
-        types.makeNonNullable(type)
+        // A type parameter narrows to `T & Any` — Kotlin's definitely
+        // non-null refinement — because bare `T` stays null-capable through
+        // its implicit `Any?` bound (KUU-2693).
+        types.definitelyNonNullForm(of: type)
     }
 
     private func nominalSymbolID(of type: TypeID, types: TypeSystem) -> SymbolID? {
@@ -1055,8 +1155,20 @@ final class DataFlowAnalyzer {
         priorType: TypeID,
         sema: SemaModule
     ) -> TypeID {
-        guard case let .classType(targetClass) = sema.types.kind(of: rawTargetType),
-              targetClass.args.isEmpty,
+        guard case let .classType(targetClass) = sema.types.kind(of: rawTargetType) else {
+            return rawTargetType
+        }
+        // Read-only covariant targets retain the element information already
+        // known through their supertype. Invariant targets keep their stars
+        // so a mutable view never gains permission to write a wider value.
+        let variances = sema.types.nominalTypeParameterVariances(for: targetClass.classSymbol)
+        let preservesCovariantStars = !targetClass.args.isEmpty
+            && targetClass.args.count == variances.count
+            && zip(targetClass.args, variances).allSatisfy { argument, variance in
+                if case .star = argument { return variance == .out }
+                return false
+            }
+        guard targetClass.args.isEmpty || preservesCovariantStars,
               !sema.types.nominalTypeParameterSymbols(for: targetClass.classSymbol).isEmpty,
               case let .classType(priorClass) = sema.types.kind(of: sema.types.makeNonNullable(priorType)),
               let narrowedArgs = sema.types.narrowedSubtypeArgs(

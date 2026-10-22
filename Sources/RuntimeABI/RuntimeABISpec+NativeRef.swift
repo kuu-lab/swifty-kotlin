@@ -47,6 +47,15 @@ public extension RuntimeABISpec {
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_gc_last_gc_info",
+            parameters: [
+                RuntimeABIParameter(name: "gcRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "NativeRef",
+            isThrowing: false,
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_gc_target_heap_bytes",
             parameters: [
                 RuntimeABIParameter(name: "gcRaw", type: .intptr),

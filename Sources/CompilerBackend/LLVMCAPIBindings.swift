@@ -32,6 +32,9 @@ final class LLVMCAPIBindings {
     typealias LLVMContextDisposeFn = @convention(c) (LLVMContextRef?) -> Void
     typealias LLVMModuleCreateWithNameInContextFn = @convention(c) (UnsafePointer<CChar>?, LLVMContextRef?) -> LLVMModuleRef?
     typealias LLVMDisposeModuleFn = @convention(c) (LLVMModuleRef?) -> Void
+    // LLVMLinkModules2(Dest, Src) -> LLVMBool (nonzero on failure). Destructively
+    // merges Src into Dest; Src must not be used or disposed afterwards.
+    typealias LLVMLinkModules2Fn = @convention(c) (LLVMModuleRef?, LLVMModuleRef?) -> LLVMBool
     typealias LLVMPrintModuleToStringFn = @convention(c) (LLVMModuleRef?) -> UnsafeMutablePointer<CChar>?
     typealias LLVMDisposeMessageFn = @convention(c) (UnsafeMutablePointer<CChar>?) -> Void
     typealias LLVMSetTargetFn = @convention(c) (LLVMModuleRef?, UnsafePointer<CChar>?) -> Void
@@ -160,6 +163,10 @@ final class LLVMCAPIBindings {
     typealias LLVMInitializeAArch64TargetFn = @convention(c) () -> Void
     typealias LLVMInitializeAArch64TargetMCFn = @convention(c) () -> Void
     typealias LLVMInitializeAArch64AsmPrinterFn = @convention(c) () -> Void
+    typealias LLVMInitializeWebAssemblyTargetInfoFn = @convention(c) () -> Void
+    typealias LLVMInitializeWebAssemblyTargetFn = @convention(c) () -> Void
+    typealias LLVMInitializeWebAssemblyTargetMCFn = @convention(c) () -> Void
+    typealias LLVMInitializeWebAssemblyAsmPrinterFn = @convention(c) () -> Void
     typealias LLVMDIBuilderRef = OpaquePointer
     typealias LLVMMetadataRef = OpaquePointer
     typealias LLVMCreateDIBuilderFn = @convention(c) (LLVMModuleRef?) -> LLVMDIBuilderRef?
@@ -262,6 +269,7 @@ final class LLVMCAPIBindings {
     let contextDisposeFn: LLVMContextDisposeFn
     let moduleCreateFn: LLVMModuleCreateWithNameInContextFn
     let disposeModuleFn: LLVMDisposeModuleFn
+    let linkModules2Fn: LLVMLinkModules2Fn?
     let printModuleToStringFn: LLVMPrintModuleToStringFn
     let disposeMessageFn: LLVMDisposeMessageFn
     let setTargetFn: LLVMSetTargetFn
@@ -340,6 +348,10 @@ final class LLVMCAPIBindings {
     let initializeAArch64TargetFn: LLVMInitializeAArch64TargetFn?
     let initializeAArch64TargetMCFn: LLVMInitializeAArch64TargetMCFn?
     let initializeAArch64AsmPrinterFn: LLVMInitializeAArch64AsmPrinterFn?
+    let initializeWebAssemblyTargetInfoFn: LLVMInitializeWebAssemblyTargetInfoFn?
+    let initializeWebAssemblyTargetFn: LLVMInitializeWebAssemblyTargetFn?
+    let initializeWebAssemblyTargetMCFn: LLVMInitializeWebAssemblyTargetMCFn?
+    let initializeWebAssemblyAsmPrinterFn: LLVMInitializeWebAssemblyAsmPrinterFn?
     let addGlobalFn: LLVMAddGlobalFn?
     let setInitializerFn: LLVMSetInitializerFn?
     let positionBuilderBeforeFn: LLVMPositionBuilderBeforeFn?
@@ -374,6 +386,7 @@ final class LLVMCAPIBindings {
         contextDisposeFn: @escaping LLVMContextDisposeFn,
         moduleCreateFn: @escaping LLVMModuleCreateWithNameInContextFn,
         disposeModuleFn: @escaping LLVMDisposeModuleFn,
+        linkModules2Fn: LLVMLinkModules2Fn? = nil,
         printModuleToStringFn: @escaping LLVMPrintModuleToStringFn,
         disposeMessageFn: @escaping LLVMDisposeMessageFn,
         setTargetFn: @escaping LLVMSetTargetFn,
@@ -452,6 +465,10 @@ final class LLVMCAPIBindings {
         initializeAArch64TargetFn: LLVMInitializeAArch64TargetFn?,
         initializeAArch64TargetMCFn: LLVMInitializeAArch64TargetMCFn?,
         initializeAArch64AsmPrinterFn: LLVMInitializeAArch64AsmPrinterFn?,
+        initializeWebAssemblyTargetInfoFn: LLVMInitializeWebAssemblyTargetInfoFn? = nil,
+        initializeWebAssemblyTargetFn: LLVMInitializeWebAssemblyTargetFn? = nil,
+        initializeWebAssemblyTargetMCFn: LLVMInitializeWebAssemblyTargetMCFn? = nil,
+        initializeWebAssemblyAsmPrinterFn: LLVMInitializeWebAssemblyAsmPrinterFn? = nil,
         addGlobalFn: LLVMAddGlobalFn? = nil,
         setInitializerFn: LLVMSetInitializerFn? = nil,
         positionBuilderBeforeFn: LLVMPositionBuilderBeforeFn? = nil,
@@ -486,6 +503,7 @@ final class LLVMCAPIBindings {
         self.contextDisposeFn = contextDisposeFn
         self.moduleCreateFn = moduleCreateFn
         self.disposeModuleFn = disposeModuleFn
+        self.linkModules2Fn = linkModules2Fn
         self.printModuleToStringFn = printModuleToStringFn
         self.disposeMessageFn = disposeMessageFn
         self.setTargetFn = setTargetFn
@@ -564,6 +582,10 @@ final class LLVMCAPIBindings {
         self.initializeAArch64TargetFn = initializeAArch64TargetFn
         self.initializeAArch64TargetMCFn = initializeAArch64TargetMCFn
         self.initializeAArch64AsmPrinterFn = initializeAArch64AsmPrinterFn
+        self.initializeWebAssemblyTargetInfoFn = initializeWebAssemblyTargetInfoFn
+        self.initializeWebAssemblyTargetFn = initializeWebAssemblyTargetFn
+        self.initializeWebAssemblyTargetMCFn = initializeWebAssemblyTargetMCFn
+        self.initializeWebAssemblyAsmPrinterFn = initializeWebAssemblyAsmPrinterFn
         self.addGlobalFn = addGlobalFn
         self.setInitializerFn = setInitializerFn
         self.positionBuilderBeforeFn = positionBuilderBeforeFn

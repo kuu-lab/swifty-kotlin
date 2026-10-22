@@ -6,10 +6,12 @@ final class JVMProgramBuilder {
     let sema: SemaModule
     var classes: [SymbolID: JVMClassPlan] = [:]
     var methods: [SymbolID: JVMForeignMethod] = [:]
+    var collectionInterfaceMethods: [SymbolID: JVMForeignMethod] = [:]
     var properties: [SymbolID: JVMProperty] = [:]
     var facadeName = ""
     var facadePlan: JVMClassPlan?
     var references: [SymbolID: JVMFunctionReference] = [:]
+    var localFunctions: [SymbolID: JVMLocalFunctionPlan] = [:]
     var syntheticFunctions: [String: [JVMFunction]] = [:]
     var closureClasses: [JVMClass] = []
     var functionArities: Set<Int> = []
@@ -39,11 +41,27 @@ final class JVMProgramBuilder {
         noteFunctionTypes(actual)
         return try JVMClasspathIndex.type(actual, sema: sema, ctx: context)
     }
+    /// The declared type without the active inline substitution. Storage that
+    /// outlives one instantiation (anonymous object capture fields, shared
+    /// mutable-variable cells) is emitted once, so it must erase reified type
+    /// parameters to their bounds rather than adopt a call site's argument.
+    func erasedType(_ id: TypeID) throws -> JVMValueType {
+        noteFunctionTypes(id)
+        return try JVMClasspathIndex.type(id, sema: sema, ctx: context)
+    }
     func expressionType(_ id: ExprID) throws -> JVMValueType {
         guard let type = sema.bindings.exprType(for: id) else {
             throw JVMFrontendError(message: "JVM expression has no resolved type.", range: ast.arena.exprRange(id))
         }
-        return try self.type(type)
+        let mapped = try self.type(type)
+        // Range expressions carry the runtime-box element type (Int) in
+        // exprTypes, but the JVM backend materializes a real IntRange
+        // reference. Reads of range-marked expressions must keep the nominal
+        // type or the value would be unboxed like an Int.
+        if mapped == .int, sema.bindings.isRangeExpr(id) {
+            return .reference("kotlin/ranges/IntRange", nullable: false)
+        }
+        return mapped
     }
     static func isIdentifier(_ value: String) -> Bool {
         let bytes = Array(value.utf8)
@@ -88,8 +106,10 @@ final class JVMProgramBuilder {
         try prepareTextLibrary()
         try prepareDelegateInterfaces()
         try prepareLazyProperty()
+        try prepareCollectionInterfaces()
         try prepareClasses(files.flatMap(\.topLevelDecls))
         try prepareClassDelegates()
+        try prepareCollectionDelegationMarkers()
         var plans: [JVMClassPlan?] = []
         var declarationsByFile: [[(FunDecl, JVMFunctionReference)]] = []
         for (index, file) in files.enumerated() {
@@ -205,7 +225,7 @@ final class JVMProgramBuilder {
 }
 
 final class JVMFunctionBuilder {
-    struct Local { let value: JVMValue; let mutable: Bool; var cell: JVMValue? = nil; var functionType: FunctionType? = nil; var symbol: SymbolID? = nil; var delegateSymbol: SymbolID? = nil; var lateName: String? = nil; var deferredInitialization = false }
+    struct Local { let value: JVMValue; let mutable: Bool; var cell: JVMValue? = nil; var functionType: FunctionType? = nil; var symbol: SymbolID? = nil; var delegateSymbol: SymbolID? = nil; var lateName: String? = nil; var deferredInitialization = false; var numericBoxingOrigin: JVMValue? = nil }
     let program: JVMProgramBuilder
     let declaration: FunDecl
     let reference: JVMFunctionReference
@@ -214,6 +234,8 @@ final class JVMFunctionBuilder {
     var extensionValue: JVMValue?
     var semanticSignature: FunctionSignature?
     var functionSymbol: SymbolID?
+    var leadingCaptureCount = 0
+    var parameterInputs: [JVMValue]?
     var isStaticBody = false
     var isSuspendBody = false
     var lambdaID: ExprID?
@@ -248,6 +270,9 @@ final class JVMFunctionBuilder {
     var finalizers: [FinallyFrame] = []
     var activeRegions: [(start: Int?, segments: [(Int, Int)])] = []
     var evaluatedOperands: [ExprID: JVMValue] = [:]
+    var tailrecEntry: Int?
+    var tailrecCalls: Set<ExprID> = []
+    var tailrecParameters: [JVMValue] = []
     var nextSlot = 0
     var nextLabel = 0
     var terminated = false
@@ -274,11 +299,39 @@ final class JVMFunctionBuilder {
     func requireValue(_ id: ExprID) throws -> JVMValue {
         let result = try expression(id)
         if terminated { throw JVMTerminatedExpression() }
+        if result == nil, program.sema.bindings.exprType(for: id) == program.sema.types.unitType {
+            program.functionArities.insert(0)
+            let unit: JVMValueType = .reference("kotlin/Unit", nullable: false), result = try value(unit)
+            instructions.append(.getStatic(JVMField(owner: "kotlin/Unit", name: "INSTANCE", type: unit, access: 0x19), result))
+            return result
+        }
         guard let result else { throw fail("JVM value expression does not produce a supported value.", id) }
         return result
     }
+    func localStorageType(_ semantic: TypeID) throws -> JVMValueType {
+        let type = try program.type(semantic)
+        if type == .unit {
+            program.functionArities.insert(0)
+            return .reference("kotlin/Unit", nullable: false)
+        }
+        return type
+    }
+    func erasedLocalStorageType(_ semantic: TypeID) throws -> JVMValueType {
+        let type = try program.erasedType(semantic)
+        if type == .unit {
+            program.functionArities.insert(0)
+            return .reference("kotlin/Unit", nullable: false)
+        }
+        return type
+    }
     func convert(_ source: JVMValue, to type: JVMValueType) throws -> JVMValue {
         if source.type == type { return source }
+        if source.type.referenceName != nil, type.isNumeric,
+           let carrier = source.type.numericCarrier, carrier != type {
+            // Unbox the actual wrapper before widening; casting Byte to
+            // Integer (or Float to Double) would fail at runtime.
+            return try convert(convert(source, to: carrier), to: type)
+        }
         guard (source.type.isNumeric && type.isNumeric) || (source.type.referenceName != nil && type.referenceName != nil) || (type.referenceName != nil && source.type != .unit) || (source.type.referenceName != nil && (type.isNumeric || type == .boolean)) else { throw fail("Unsupported JVM value conversion.") }
         let result = try value(type); instructions.append(.copy(source, result)); return result
     }
@@ -287,10 +340,13 @@ final class JVMFunctionBuilder {
     }
     func prepareParameters() throws {
         if let owner, !isStaticBody { thisValue = try value(.reference(owner.name, nullable: false)) }
-        var parameters = reference.parameters
+        var parameters = Array(reference.parameters.dropFirst(leadingCaptureCount))
+        var supplied = parameterInputs
+        guard supplied == nil || supplied!.count == parameters.count else { throw fail("JVM prepared parameter count mismatch.") }
         if declaration.receiverType != nil {
             guard let first = parameters.first else { throw fail("Missing JVM extension receiver.") }
-            extensionValue = try value(first); parameters.removeFirst()
+            extensionValue = try supplied == nil ? value(first) : supplied!.removeFirst()
+            parameters.removeFirst()
         }
         if let owner, let thisValue {
             contextualReceivers[owner.symbol] = thisValue
@@ -299,7 +355,7 @@ final class JVMFunctionBuilder {
         if let functionSymbol, let receiver = extensionValue ?? thisValue { contextualReceivers[SyntheticSymbolScheme.receiverParameterSymbol(for: functionSymbol)] = receiver }
         for (i, pair) in zip(declaration.valueParams, parameters).enumerated() {
             let (param, type) = pair
-            var local = Local(value: try value(type), mutable: false)
+            var local = Local(value: try supplied?[i] ?? value(type), mutable: false)
             if let signature = semanticSignature, signature.parameterTypes.indices.contains(i), case let .functionType(f) = program.sema.types.kind(of: signature.parameterTypes[i]) { local.functionType = f }
             if let signature = semanticSignature, signature.valueParameterSymbols.indices.contains(i) { local.symbol = signature.valueParameterSymbols[i] }
             scopes[0][param.name] = local
@@ -317,8 +373,10 @@ final class JVMFunctionBuilder {
         if isStaticBody { function.access = 0x1009; function.isSynthetic = true }
         function.isSuspend = declaration.isSuspend || isSuspendBody
         function.isInline = declaration.isInline
-        function.isOperator = declaration.modifiers.contains(.operator)
-        function.isInfix = declaration.modifiers.contains(.infix)
+        // Sema includes modifiers inherited by overrides in the symbol flags.
+        let semanticFlags = functionSymbol.flatMap { program.sema.symbols.symbol($0)?.flags }
+        function.isOperator = declaration.modifiers.contains(.operator) || semanticFlags?.contains(.operatorFunction) == true
+        function.isInfix = declaration.modifiers.contains(.infix) || semanticFlags?.contains(.infixFunction) == true
         // This backend retains crossinline callbacks as function objects.
         // Export that physical requirement as noinline so Kotlin's bytecode
         // inliner does not erase an object passed to a lifted lambda helper.
@@ -331,6 +389,7 @@ final class JVMFunctionBuilder {
     func build() throws -> JVMFunction {
         try prepareParameters()
         if declaration.modifiers.contains(.abstract) || (owner?.isInterface == true && declaration.body == .unit) { return finish(abstract: true) }
+        try prepareTailrec()
         // A function body may shadow a parameter, as ordinary nested blocks do.
         scopes.append([:])
         switch declaration.body {
@@ -356,6 +415,7 @@ final class JVMFunctionBuilder {
     }
 
     func rawExpression(_ id: ExprID, discarded: Bool = false) throws -> JVMValue? {
+        if program.sema.bindings.stdlibSpecialCallKinds[id] == .contract { return nil }
         guard let expr = arena.expr(id) else { throw fail("Missing JVM expression.", id) }
         switch expr {
         case let .inExpr(lhs, rhs, _), let .notInExpr(lhs, rhs, _):
@@ -421,6 +481,7 @@ final class JVMFunctionBuilder {
                 if property.getter.isStatic { instructions.append(.getStatic(field, result)) }
                 else { instructions.append(.getField(field, thisValue!, result)) }; return result
             }
+            if let result = try implicitTextProperty(id, name: name) { return result }
             if !scopes.contains(where: { $0[name] != nil }), let property = propertyBinding(id) {
                 if let literal = property.field?.constantValue { return try constant(literal, property.type) }
                 return try convert(readProperty(property, receiver: instance(id), special: false), to: program.expressionType(id))
@@ -429,30 +490,48 @@ final class JVMFunctionBuilder {
             // Snapshot reads before evaluating later operands/arguments, which
             // may mutate the same source variable (for example f(x, x++)).
             let local = try readLocal(lookup(name))
-            return try convert(local, to: program.expressionType(id))
+            let type = try program.expressionType(id)
+            return type == .unit ? local : try convert(local, to: type)
+        case .localFunDecl:
+            try localFunction(id); return nil
         case let .localDecl(name, mutable, annotation, initializer, delegated, late, _):
             if delegated || late { try specialLocal(id, name: name, mutable: mutable, initializer: initializer, delegated: delegated, late: late); return nil }
             guard scopes[scopes.count - 1][name] == nil else { throw fail("JVM locals require a unique name in their scope.", id) }
+            let symbol = program.sema.bindings.identifierSymbol(for: id)
+            let semanticType = symbol.flatMap { program.sema.symbols.propertyType(for: $0) }
+                ?? initializer.flatMap { program.sema.bindings.exprType(for: $0) }
             let declaredType: JVMValueType?
             if annotation != nil {
-                guard let symbol = program.sema.bindings.identifierSymbol(for: id), let type = program.sema.symbols.propertyType(for: symbol) else { throw fail("Missing JVM local type binding.", id) }
-                declaredType = try program.type(type)
+                guard let type = semanticType else { throw fail("Missing JVM local type binding.", id) }
+                declaredType = try localStorageType(type)
+            } else if let semanticType, case .functionType = program.sema.types.kind(of: semanticType) {
+                // Distinct generated callable classes share their inferred function storage.
+                declaredType = try localStorageType(semanticType)
             } else { declaredType = nil }
             let initial = try initializer.map { try requireValue($0) }
-            guard let localType = declaredType ?? initial?.type else { throw fail("JVM locals without an initializer require an explicit type.", id) }
-            let local = try value(localType)
+            guard let storageType = declaredType ?? initial?.type else { throw fail("Missing JVM local type binding.", id) }
+            let local = try value(storageType)
             if let initial { instructions.append(.copy(try convert(initial, to: local.type), local)) }
             var binding = Local(value: local, mutable: mutable)
-            binding.symbol = program.sema.bindings.identifierSymbol(for: id)
+            binding.symbol = symbol
+            if !mutable, local.type.referenceName == "java/lang/Comparable",
+               let initial, initial.type.isNumeric {
+                // Retain the evaluated primitive behind this immutable box.
+                // Closure helpers deliberately reconstruct locals without it.
+                binding.numericBoxingOrigin = initial
+            }
             binding.deferredInitialization = initial == nil && !mutable
-            if mutable {
-                let element = try binding.symbol.flatMap { program.sema.bindings.capturedLocalType(for: $0) }.map { try JVMClasspathIndex.type($0, sema: program.sema, ctx: context) } ?? local.type
+            // Sema owns definite assignment, including mutually exclusive val
+            // writes. Deferred callback initialization needs the same shared
+            // storage as a mutable captured local.
+            if mutable || (initializer == nil && symbol.map { program.sema.bindings.isContractCallsInPlaceInitializedSymbol($0) } == true) {
+                let element = try binding.symbol.flatMap { program.sema.bindings.capturedLocalType(for: $0) }.map { try erasedLocalStorageType($0) } ?? local.type
                 let cell = try value(.reference("[" + element.descriptor, nullable: false)), count = try constant(.int(1), .int), index = try constant(.int(0), .int)
                 instructions.append(.newArray(element, count: count, result: cell))
                 if initial != nil { instructions.append(.arraySet(cell, index, local)) }
                 binding.cell = cell
             }
-            if let initializer, let semantic = program.sema.bindings.exprType(for: initializer), case let .functionType(f) = program.sema.types.kind(of: semantic) { binding.functionType = f }
+            if let semantic = semanticType ?? initializer.flatMap({ program.sema.bindings.exprType(for: $0) }), case let .functionType(f) = program.sema.types.kind(of: semantic) { binding.functionType = f }
             scopes[scopes.count - 1][name] = binding
             return nil
         case let .localAssign(name, rhs, _):
@@ -476,6 +555,13 @@ final class JVMFunctionBuilder {
                 guard let field = property.field else { throw fail("Missing JVM backing field.", id) }
                 let left = try value(field.type)
                 instructions.append(property.getter.isStatic ? .getStatic(field, left) : .getField(field, thisValue!, left))
+                if let call = try resolvedCompoundCall(op, receiver: left, rhs: rhs, id: id) {
+                    if !call.mutatesReceiver, let result = call.value, !terminated {
+                        let converted = try convert(result, to: field.type)
+                        instructions.append(property.getter.isStatic ? .putStatic(field, converted) : .putField(field, thisValue!, converted))
+                    }
+                    return nil
+                }
                 let right = try compoundOperand(rhs, target: field.type)
                 if terminated { return nil }
                 guard try permitsCompound(left.type, right.type) else { throw fail("Unsupported JVM backing field conversion.", id) }
@@ -489,8 +575,17 @@ final class JVMFunctionBuilder {
                 return try propertyCompound(property, receiver: instance(id), op: op, rhs: rhs, id: id)
             }
             let local = try lookup(name)
+            let loaded = try readLocal(local), old = try value(loaded.type)
+            // The RHS may reassign this local before the operator call executes.
+            instructions.append(.copy(loaded, old))
+            if let call = try resolvedCompoundCall(op, receiver: old, rhs: rhs, id: id) {
+                if !call.mutatesReceiver, !terminated {
+                    guard local.mutable, let result = call.value else { throw fail("Cannot reassign JVM val.", id) }
+                    try writeLocal(local, convert(result, to: local.value.type))
+                }
+                return nil
+            }
             guard local.mutable, local.value.type.isNumeric || local.value.type.isText else { throw fail("JVM compound assignment requires a mutable numeric local.", id) }
-            let old = try readLocal(local)
             let rawRight = try compoundOperand(rhs, target: old.type)
             if terminated { return nil }
             guard try permitsCompound(old.type, rawRight.type) else { throw fail("JVM compound assignment cannot narrow its numeric result.", id) }
@@ -508,6 +603,8 @@ final class JVMFunctionBuilder {
             return arena.incrementDecrementReturnsValue(id) ? result : nil
         case let .binary(op, lhs, rhs, _): return try binary(op, lhs, rhs, id)
         case let .unaryExpr(op, operand, _):
+            if let call = try inlineCall([], receiver: operand, id: id)
+                ?? sourceCall([], receiver: operand, id: id) { return call.value }
             if op == .unaryMinus, case let .intLiteral(n, _) = arena.expr(operand), n == 2_147_483_648,
                try program.expressionType(id) == .int { return try constant(.int(.min), .int) }
             let source = try requireValue(operand)
@@ -530,6 +627,7 @@ final class JVMFunctionBuilder {
             if let result = try inlineCall(args, receiver: invokeReceiver, id: id) { return result.value }
             if let result = try textLibraryCall(args, receiver: invokeReceiver, id: id) { return result.value }
             if let result = try sourceCall(args, receiver: invokeReceiver, id: id) { return result.value }
+            if invokeReceiver == nil, let result = try implicitTextCall(callee, args: args, id: id) { return result.value }
             if let function = try functionValueCall(callee, args: args, id: id) { return function.value }
             guard args.allSatisfy({ !$0.isSpread }),
                   let binding = program.sema.bindings.callBinding(for: id) else { throw fail("Unsupported JVM call.", id) }

@@ -22,21 +22,25 @@ extension SymbolTable {
     /// Member extensions use [dispatch, extension, value arguments], while
     /// their semantic signature stores only the extension receiver.
     public func memberExtensionOwnerSymbol(for callee: SymbolID) -> SymbolID? {
+        // The owner edges below are restored at shell registration, so the
+        // non-forcing reads answer pending imports the same as decoded ones.
         // Property accessors are parented by their property, not its owner.
-        if let property = parentSymbol(for: callee),
+        if let property = parentSymbolIfKnown(for: callee),
            symbol(property)?.kind == .property,
            symbol(property)?.flags.contains(.memberExtension) == true,
-           let owner = parentSymbol(for: property),
+           let owner = parentSymbolIfKnown(for: property),
            let ownerInfo = symbol(owner),
            [.class, .interface, .enumClass, .object].contains(ownerInfo.kind)
         {
             return owner
         }
+        guard symbol(callee)?.flags.contains(.memberExtension) == true else {
+            return nil
+        }
         // A member-extension *property* itself (e.g. `val String.cstr` declared
         // on MemScope) has its dispatch owner as its direct parent.
         if symbol(callee)?.kind == .property,
-           symbol(callee)?.flags.contains(.memberExtension) == true,
-           let owner = parentSymbol(for: callee),
+           let owner = parentSymbolIfKnown(for: callee),
            let ownerInfo = symbol(owner),
            [.class, .interface, .enumClass, .object].contains(ownerInfo.kind)
         {
@@ -44,8 +48,7 @@ extension SymbolTable {
         }
         guard let signature = functionSignature(for: callee),
               signature.receiverType != nil,
-              symbol(callee)?.flags.contains(.memberExtension) == true,
-              let owner = parentSymbol(for: callee),
+              let owner = parentSymbolIfKnown(for: callee),
               let ownerInfo = symbol(owner),
               [.class, .interface, .enumClass, .object].contains(ownerInfo.kind),
               symbol(callee)?.flags.contains(.extensionMemberAlias) != true
@@ -66,6 +69,35 @@ struct ImportedMemberIndexShape {
         self.receiverOwnerFQName = receiverOwnerFQName
         self.hasDefaultArguments = hasDefaultArguments
     }
+}
+
+/// A compact-indexed imported library whose records register on demand.
+///
+/// SymbolTable query paths drain matching entries through these hooks before
+/// reading their indexes, so a shell is defined only when a lookup can
+/// actually reach it — the eager `registerShells` pass over every index entry
+/// is replaced by per-query registration.
+protocol IndexedLibraryEntryProvider: AnyObject {
+    /// Position on the library search path. Drains issued while an earlier
+    /// library is still being imported must not see records from later
+    /// libraries, so each drain is capped by `SymbolTable.importDrainEpoch`.
+    var importOrder: Int { get }
+    /// Register every pending entry whose FQ name equals `fqName`.
+    func drainEntries(fqName: [InternedString], into symbols: SymbolTable)
+    /// Register every pending entry declared directly under `parentFQName`,
+    /// including extension records reparented to that nominal owner.
+    func drainChildren(parentFQName: [InternedString], into symbols: SymbolTable)
+    /// Register every pending declaration-kind entry with this simple name.
+    func drainEntries(shortName: InternedString, into symbols: SymbolTable)
+    /// Whether the index contains declarations nested under `fqName` — the
+    /// signal that justifies synthesizing a package shell for that path.
+    func containsEntriesNested(under fqName: [InternedString]) -> Bool
+    /// Package-prefix paths nested directly under `parentFQName`, in index
+    /// order. Used when a children drain must expose child package shells.
+    func packagePrefixes(under parentFQName: [InternedString]) -> [[InternedString]]
+    /// Module name stamped onto a synthesized package for `fqName`, or nil
+    /// when this library does not contribute that prefix (or has no module).
+    func packageModuleFQN(for fqName: [InternedString]) -> InternedString?
 }
 
 public final class SymbolTable {
@@ -110,6 +142,10 @@ public final class SymbolTable {
     private var delegateProvideDelegateSymbols: [SymbolID: SymbolID] = [:]
     private var accessorOwnerProperties: [SymbolID: SymbolID] = [:]
     private var extensionPropertyReceiverTypes: [SymbolID: TypeID] = [:]
+    /// Imported properties whose compact-index record carries a receiver
+    /// signature. Registration records the fact so membership checks stay
+    /// correct for shells whose receiver type has not been decoded yet.
+    private var importedExtensionReceiverProperties: Set<SymbolID> = []
     private var declaredExtensionProperties: Set<SymbolID> = []
     private var extensionPropertyGetterAccessors: [SymbolID: SymbolID] = [:]
     private var extensionPropertySetterAccessors: [SymbolID: SymbolID] = [:]
@@ -147,6 +183,14 @@ public final class SymbolTable {
     private var lazyImportedMetadataLoader: ((SymbolID) -> Void)?
     private var lazyImportedMetadataLoaded: Set<SymbolID> = []
     private var lazyImportedMetadataLoadInProgress: Set<SymbolID> = []
+    /// Synthetic-bootstrap work postponed until the imported shell it touches
+    /// is materialized (KUU-2673). The pre-materialization queue runs just
+    /// before the shell's record is applied — matching the eager bootstrap's
+    /// "synthetic state first, metadata merge second" ordering — while the
+    /// post-materialization queue runs after the record is fully applied so
+    /// deferred reads observe the decoded signatures and annotations.
+    private var pendingShellWorkBeforeMaterialization: [SymbolID: [() -> Void]] = [:]
+    private var pendingShellWorkAfterMaterialization: [SymbolID: [() -> Void]] = [:]
     private var indexedImportedNominals: Set<SymbolID> = []
     /// Compact-index shells whose complete record has not been applied yet.
     /// Unlike `lazyImportedMetadataLoaded` (which only tracks symbols that
@@ -154,9 +198,27 @@ public final class SymbolTable {
     /// loader registration, so membership minus `lazyImportedMetadataLoaded`
     /// identifies shells still decodable on demand.
     private var lazyImportedShells: Set<SymbolID> = []
+    /// Compact-index libraries whose records register on demand. Each lookup
+    /// path drains pending entries for the queried key before reading its
+    /// index, so unreferenced records never allocate a symbol.
+    private var indexedLibraryProviders: [IndexedLibraryEntryProvider] = []
+    /// Drains only see providers at or before this search-path position while
+    /// library import is in flight; `.max` afterwards.
+    var importDrainEpoch: Int = .max
+    /// Reentrancy guards: a drain registers symbols, whose own parent/link
+    /// restoration queries other keys and must not re-drain the key already
+    /// in flight. Claimed entries are consumed, so an in-flight key simply
+    /// has nothing left to register.
+    private var fqNameDrainInProgress: Set<[InternedString]> = []
+    private var childrenDrainInProgress: Set<[InternedString]> = []
+    private var shortNameDrainInProgress: Set<InternedString> = []
     private var importedLayoutSynthesizer: ((SymbolID) -> Void)?
     private var importedLayoutSynthesisInProgress = false
     private var importedNominalsWithoutInitializers: Set<SymbolID> = []
+    /// Nominals whose index record predates the initializer section: the
+    /// index can neither list nor rule out eager initializers, so scans must
+    /// retain the semantic-loader fallback for these symbols only.
+    private var importedNominalsWithIncompleteInitializerInfo: Set<SymbolID> = []
     /// Consulted by arity-key builders so they never force body materialization.
     private var importedMemberIndexShapes: [SymbolID: ImportedMemberIndexShape] = [:]
     private var delegatedInterfacesByClass: [SymbolID: Set<SymbolID>] = [:]
@@ -230,6 +292,7 @@ public final class SymbolTable {
         worker.delegateProvideDelegateSymbols = delegateProvideDelegateSymbols
         worker.accessorOwnerProperties = accessorOwnerProperties
         worker.extensionPropertyReceiverTypes = extensionPropertyReceiverTypes
+        worker.importedExtensionReceiverProperties = importedExtensionReceiverProperties
         worker.declaredExtensionProperties = declaredExtensionProperties
         worker.extensionPropertyGetterAccessors = extensionPropertyGetterAccessors
         worker.extensionPropertySetterAccessors = extensionPropertySetterAccessors
@@ -264,6 +327,7 @@ public final class SymbolTable {
         worker.lazyImportedMetadataLoadInProgress = lazyImportedMetadataLoadInProgress
         worker.lazyImportedShells = lazyImportedShells
         worker.importedNominalsWithoutInitializers = importedNominalsWithoutInitializers
+        worker.importedNominalsWithIncompleteInitializerInfo = importedNominalsWithIncompleteInitializerInfo
         worker.importedMemberIndexShapes = importedMemberIndexShapes
         worker.delegatedInterfacesByClass = delegatedInterfacesByClass
         worker.klibDefinedGlobalSymbols = klibDefinedGlobalSymbols
@@ -318,7 +382,10 @@ public final class SymbolTable {
         lock.lock()
         defer { lock.unlock() }
         indexedImportedNominals = indexedNominals
-        lazyImportedShells = lazyShells
+        // Union, not replace: `appendImportedBinding` already marks shells
+        // registered ahead of the install (and tail-pass lookups between the
+        // `importedBindings` snapshot and here can add more).
+        lazyImportedShells.formUnion(lazyShells)
         importedLayoutSynthesizer = nil
         importedLayoutSynthesisInProgress = false
         lazyImportedMetadataLoader = loader
@@ -328,6 +395,133 @@ public final class SymbolTable {
 
     var hasLazyImportedMetadataLoader: Bool {
         lazyImportedMetadataLoader != nil
+    }
+
+    /// True while a table query can still lazily materialize imported state:
+    /// compact-index drains register symbols on demand, lazy metadata shells
+    /// decode bodies, and the imported-layout synthesizer writes nominal
+    /// layouts — each of which mutates TypeSystem without synchronization.
+    /// Parallel codegen workers therefore only run once this is false.
+    public var hasLazySymbolMaterialization: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return lazyImportedMetadataLoader != nil
+            || importedLayoutSynthesizer != nil
+            || !indexedLibraryProviders.isEmpty
+    }
+
+    /// Attaches a compact-index library whose entries register on demand.
+    /// Providers must be added in search-path order.
+    func addIndexedLibraryProvider(_ provider: IndexedLibraryEntryProvider) {
+        lock.lock()
+        defer { lock.unlock() }
+        indexedLibraryProviders.append(provider)
+    }
+
+    /// Registration-time mark for nominal shells drained after the lazy
+    /// loader was installed — the set passed to
+    /// `setLazyImportedMetadataLoader` only covers bindings already created
+    /// at that point.
+    func markIndexedImportedNominal(_ symbol: SymbolID) {
+        lock.lock()
+        defer { lock.unlock() }
+        indexedImportedNominals.insert(symbol)
+    }
+
+    /// Same growth for lazy shells of every kind: index providers keep
+    /// appending pending bindings after `setLazyImportedMetadataLoader` took
+    /// its `lazyShells` snapshot, and every pending-shell predicate
+    /// (deferral, `hasPendingImportedMetadata`) must see them too.
+    func markLazyImportedShell(_ symbol: SymbolID) {
+        lock.lock()
+        defer { lock.unlock() }
+        lazyImportedShells.insert(symbol)
+    }
+
+    /// Register pending index entries for `fqName`, then synthesize a package
+    /// shell when the path only exists as a declaration prefix. Every lookup
+    /// path that reads `byFQName` calls this first so unregistered shells
+    /// stay invisible until they are actually reachable.
+    ///
+    /// `define` passes `synthesizePackage: false`: it drains pending entries
+    /// so shadow and overload checks see them, but must not append a package
+    /// ahead of the symbol it is mid-way through registering — the eager pass
+    /// always placed packages after same-path declarations in `byFQName`.
+    private func drainIndexedEntries(fqName: [InternedString], synthesizePackage: Bool = true) {
+        guard !indexedLibraryProviders.isEmpty, !fqName.isEmpty,
+              fqNameDrainInProgress.insert(fqName).inserted
+        else { return }
+        defer { fqNameDrainInProgress.remove(fqName) }
+        for provider in indexedLibraryProviders where provider.importOrder <= importDrainEpoch {
+            provider.drainEntries(fqName: fqName, into: self)
+        }
+        guard synthesizePackage else { return }
+        let alreadyHasPackage = byFQName[fqName]?.contains(where: { symbol($0)?.kind == .package }) == true
+        guard !alreadyHasPackage,
+              indexedLibraryProviders.contains(where: {
+                  $0.importOrder <= importDrainEpoch && $0.containsEntriesNested(under: fqName)
+              })
+        else { return }
+        let package = define(
+            kind: .package,
+            name: fqName.last ?? .invalid,
+            fqName: fqName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        // The latest library on the search path contributing this prefix owns
+        // the package's module tag, matching the eager synthetic-package pass.
+        if let moduleFQN = indexedLibraryProviders.last(where: {
+            $0.importOrder <= importDrainEpoch && $0.packageModuleFQN(for: fqName) != nil
+        }).flatMap({ $0.packageModuleFQN(for: fqName) }) {
+            setModuleFQN(moduleFQN, for: package)
+        }
+    }
+
+    /// Register pending index entries declared directly under `parentFQName`
+    /// (member declarations plus extension records reparented to a nominal
+    /// owner at that path) and materialize child package shells, so
+    /// `children(ofFQName:)`/`children(of:)` see the same membership the eager
+    /// registration produced.
+    private func drainIndexedChildren(parentFQName: [InternedString]) {
+        guard !indexedLibraryProviders.isEmpty,
+              childrenDrainInProgress.insert(parentFQName).inserted
+        else { return }
+        defer { childrenDrainInProgress.remove(parentFQName) }
+        var claimedPrefixes: Set<[InternedString]> = []
+        for provider in indexedLibraryProviders where provider.importOrder <= importDrainEpoch {
+            provider.drainChildren(parentFQName: parentFQName, into: self)
+            for prefix in provider.packagePrefixes(under: parentFQName) {
+                claimedPrefixes.insert(prefix)
+            }
+        }
+        // Each package prefix drains through the FQ-name path, which
+        // synthesizes the package shell itself.
+        for prefix in claimedPrefixes {
+            drainIndexedEntries(fqName: prefix)
+        }
+    }
+
+    private func drainIndexedEntries(shortName: InternedString) {
+        guard !indexedLibraryProviders.isEmpty,
+              shortNameDrainInProgress.insert(shortName).inserted
+        else { return }
+        defer { shortNameDrainInProgress.remove(shortName) }
+        for provider in indexedLibraryProviders where provider.importOrder <= importDrainEpoch {
+            provider.drainEntries(shortName: shortName, into: self)
+        }
+    }
+
+    /// Whether any compact-index provider has entries nested under `fqName` —
+    /// answers "this path is a package" for import validation without
+    /// registering anything.
+    func libraryIndexContainsEntriesNested(under fqName: [InternedString]) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return indexedLibraryProviders.contains {
+            $0.importOrder <= importDrainEpoch && $0.containsEntriesNested(under: fqName)
+        }
     }
 
     func hasPendingImportedNominalMetadata(for symbol: SymbolID) -> Bool {
@@ -349,6 +543,19 @@ public final class SymbolTable {
         return lazyImportedMetadataLoader != nil
             && lazyImportedShells.contains(symbol)
             && !lazyImportedMetadataLoaded.contains(symbol)
+    }
+
+    /// True when `nominalLayout(for:)` owns this nominal's layout through the
+    /// imported-layout synthesizer — a compact-index nominal (pending shell
+    /// or already materialized) while a lazy imported-metadata loader is
+    /// installed. `synthesizeNominalLayouts` skips these symbols: eagerly
+    /// synthesizing them decodes member records the program may never use,
+    /// and the on-demand callback produces the same layout at first real use.
+    func hasOnDemandImportedNominalLayout(_ symbol: SymbolID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return lazyImportedMetadataLoader != nil
+            && indexedImportedNominals.contains(symbol)
     }
 
     func setImportedLayoutSynthesizer(_ synthesizer: @escaping (SymbolID) -> Void) {
@@ -375,6 +582,17 @@ public final class SymbolTable {
         !importedNominalsWithoutInitializers.contains(symbol)
     }
 
+    func recordImportedNominalIncompleteInitializerInfo(_ symbol: SymbolID) {
+        importedNominalsWithIncompleteInitializerInfo.insert(symbol)
+    }
+
+    /// True for shells whose index entry cannot enumerate eager initializers
+    /// (pre-v3 records and eager imports): only a body decode can discover
+    /// them, so callers must use the forcing getters for these symbols.
+    func importedInitializerInfoIsIncomplete(for symbol: SymbolID) -> Bool {
+        importedNominalsWithIncompleteInitializerInfo.contains(symbol)
+    }
+
     func ensureLazyImportedMetadataLoaded(for symbol: SymbolID) {
         lock.lock()
         defer { lock.unlock() }
@@ -390,6 +608,109 @@ public final class SymbolTable {
         lazyImportedMetadataLoadInProgress.remove(loadSymbol)
         lazyImportedMetadataLoaded.insert(loadSymbol)
         lazyImportedMetadataLoaded.insert(symbol)
+    }
+
+    /// True while `symbol` is an imported-library record whose body has not
+    /// been materialized yet — the cheap check shared by every
+    /// defer-until-materialization callsite. Membership is keyed on
+    /// `lazyImportedShells` (registered at loader install) rather than the
+    /// `.importedLibrary` flag so eagerly applied imported records — which
+    /// have no pending record to drain against — still run their work
+    /// inline instead of losing it. `loadInProgress` membership is
+    /// load-bearing: a deferred item that re-invokes its guarded call
+    /// while its own shell is mid-load must run inline (for post-queue
+    /// work the record is already applied by then), otherwise it
+    /// re-enqueues against the same drain and loops forever.
+    public func isUnmaterializedImportedShell(_ symbol: SymbolID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return isUnmaterializedImportedShellLocked(symbol)
+    }
+
+    private func isUnmaterializedImportedShellLocked(_ symbol: SymbolID) -> Bool {
+        lazyImportedMetadataLoader != nil
+            && lazyImportedShells.contains(symbol)
+            && !lazyImportedMetadataLoaded.contains(symbol)
+            && !lazyImportedMetadataLoadInProgress.contains(symbol)
+    }
+
+    /// If `symbol` is an unmaterialized imported shell, enqueue `work` so it
+    /// runs immediately before the shell's imported record is applied — the
+    /// same point where the eager synthetic bootstrap wrote this data — and
+    /// return true. Otherwise return false; the caller must run `work` itself.
+    func deferUntilImportedShellMaterializes(_ symbol: SymbolID, work: @escaping () -> Void) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard isUnmaterializedImportedShellLocked(symbol) else {
+            return false
+        }
+        pendingShellWorkBeforeMaterialization[symbol, default: []].append(work)
+        return true
+    }
+
+    /// Same as `deferUntilImportedShellMaterializes`, but `work` runs after
+    /// the shell's record has been fully applied, so it can read the decoded
+    /// signatures, annotations and member metadata it patches.
+    func deferUntilAfterImportedShellMaterializes(_ symbol: SymbolID, work: @escaping () -> Void) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard isUnmaterializedImportedShellLocked(symbol) else {
+            return false
+        }
+        pendingShellWorkAfterMaterialization[symbol, default: []].append(work)
+        return true
+    }
+
+    /// Convenience for the synthetic bootstrap's "does a member already exist
+    /// at `fqName`" checks: when any candidate is still an unmaterialized
+    /// imported shell, enqueues `work` on the first such shell so the check
+    /// re-runs once its signature is available, and returns true. When every
+    /// candidate is already materialized (or absent), returns false and the
+    /// caller performs the check inline.
+    func deferWorkUntilImportedMemberMaterializes(
+        at fqName: [InternedString],
+        work: @escaping () -> Void
+    ) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        // Shells register through index-provider drains on lookup, so the
+        // pending check must drain this path first — otherwise a member whose
+        // shell has not been requested yet looks absent and the caller decodes
+        // it eagerly instead of deferring.
+        drainIndexedEntries(fqName: fqName, synthesizePackage: false)
+        guard let pending = (byFQName[fqName] ?? []).first(where: {
+            isUnmaterializedImportedShellLocked($0)
+        }) else {
+            return false
+        }
+        pendingShellWorkAfterMaterialization[pending, default: []].append(work)
+        return true
+    }
+
+    /// Runs everything queued by `deferUntilImportedShellMaterializes` for
+    /// `symbol`. Called by the lazy metadata loader right before the imported
+    /// record is applied; deferred items re-check `defer` guards, so
+    /// re-enqueueing from inside a drained item keeps ordering FIFO.
+    func drainPendingShellWorkBeforeMaterialization(for symbol: SymbolID) {
+        lock.lock()
+        defer { lock.unlock() }
+        while let pending = pendingShellWorkBeforeMaterialization.removeValue(forKey: symbol) {
+            for work in pending {
+                work()
+            }
+        }
+    }
+
+    /// Runs everything queued by `deferUntilAfterImportedShellMaterializes`
+    /// for `symbol`, after its record has been applied.
+    func drainPendingShellWorkAfterMaterialization(for symbol: SymbolID) {
+        lock.lock()
+        defer { lock.unlock() }
+        while let pending = pendingShellWorkAfterMaterialization.removeValue(forKey: symbol) {
+            for work in pending {
+                work()
+            }
+        }
     }
 
     public var count: Int {
@@ -462,18 +783,21 @@ public final class SymbolTable {
     public func lookup(fqName: [InternedString]) -> SymbolID? {
         lock.lock()
         defer { lock.unlock() }
+        drainIndexedEntries(fqName: fqName)
         return byFQName[fqName]?.first
     }
 
     public func lookupAll(fqName: [InternedString]) -> [SymbolID] {
         lock.lock()
         defer { lock.unlock() }
+        drainIndexedEntries(fqName: fqName)
         return byFQName[fqName] ?? []
     }
 
     public func lookupByShortName(_ name: InternedString) -> [SymbolID] {
         lock.lock()
         defer { lock.unlock() }
+        drainIndexedEntries(shortName: name)
         return byShortName[name] ?? []
     }
 
@@ -489,6 +813,14 @@ public final class SymbolTable {
     ) -> SymbolID {
         lock.lock()
         defer { lock.unlock() }
+
+        // A define against an imported FQ name must see the pending index
+        // entries first: shadowing and overload coexistence are decided
+        // against the same symbol set eager registration produced. Package
+        // synthesis stays with query paths so a claim arriving through the
+        // children/short-name maps cannot order a package ahead of the
+        // declaration this define is registering.
+        drainIndexedEntries(fqName: fqName, synthesizePackage: false)
 
         if let existing = byFQName[fqName], !existing.isEmpty {
             // File-private callables in other files do not occupy this declaration's scope.
@@ -1097,6 +1429,9 @@ public final class SymbolTable {
     public func children(of parent: SymbolID) -> [SymbolID] {
         lock.lock()
         defer { lock.unlock() }
+        if let parentInfo = symbol(parent) {
+            drainIndexedChildren(parentFQName: parentInfo.fqName)
+        }
         return (childrenByParent[parent] ?? []).sorted { $0.rawValue < $1.rawValue }
     }
 
@@ -1162,8 +1497,17 @@ public final class SymbolTable {
         return extensionPropertyReceiverTypes[property]
     }
 
+    /// Compact-index registration fact: the record carries a receiver
+    /// signature, so body decoding will restore an extension receiver.
+    /// `hasExtensionPropertyReceiver` answers from this without loading it.
+    public func markImportedExtensionReceiverProperty(_ property: SymbolID) {
+        importedExtensionReceiverProperties.insert(property)
+    }
+
     public func hasExtensionPropertyReceiver(_ property: SymbolID) -> Bool {
-        declaredExtensionProperties.contains(property) || extensionPropertyReceiverTypes[property] != nil
+        declaredExtensionProperties.contains(property)
+            || extensionPropertyReceiverTypes[property] != nil
+            || importedExtensionReceiverProperties.contains(property)
     }
 
     public func setExtensionPropertyGetterAccessor(_ accessor: SymbolID, for property: SymbolID) {
@@ -1275,6 +1619,12 @@ public final class SymbolTable {
         return companionObjectSymbols[owner]
     }
 
+    /// Companion edges are restored from the compact index at shell
+    /// registration; this read never invokes the imported metadata loader.
+    public func companionObjectSymbolIfKnown(for owner: SymbolID) -> SymbolID? {
+        companionObjectSymbols[owner]
+    }
+
     public func setOuterInstanceFieldSymbol(_ field: SymbolID, for innerClass: SymbolID) {
         outerInstanceFieldSymbols[innerClass] = field
     }
@@ -1291,6 +1641,12 @@ public final class SymbolTable {
     public func objectInitializerSymbol(for object: SymbolID) -> SymbolID? {
         ensureLazyImportedMetadataLoaded(for: object)
         return objectInitializerSymbols[object]
+    }
+
+    /// Initializer shells are synthesized from compact-index link names at
+    /// shell registration, so this read never invokes the metadata loader.
+    public func objectInitializerSymbolIfKnown(for object: SymbolID) -> SymbolID? {
+        objectInitializerSymbols[object]
     }
 
     public func setObjectLazyInitializerSymbol(_ initializer: SymbolID, for object: SymbolID) {
@@ -1310,6 +1666,12 @@ public final class SymbolTable {
         return companionObjectInitializerSymbols[owner]
     }
 
+    /// Initializer shells are synthesized from compact-index link names at
+    /// shell registration, so this read never invokes the metadata loader.
+    public func companionObjectInitializerSymbolIfKnown(for owner: SymbolID) -> SymbolID? {
+        companionObjectInitializerSymbols[owner]
+    }
+
     public func setEnumStaticInitSymbol(_ initializer: SymbolID, for owner: SymbolID) {
         enumStaticInitSymbols[owner] = initializer
     }
@@ -1317,6 +1679,12 @@ public final class SymbolTable {
     public func enumStaticInitSymbol(for owner: SymbolID) -> SymbolID? {
         ensureLazyImportedMetadataLoaded(for: owner)
         return enumStaticInitSymbols[owner]
+    }
+
+    /// Initializer shells are synthesized from compact-index link names at
+    /// shell registration, so this read never invokes the metadata loader.
+    public func enumStaticInitSymbolIfKnown(for owner: SymbolID) -> SymbolID? {
+        enumStaticInitSymbols[owner]
     }
 
     public func setValueClassUnderlyingType(_ type: TypeID, for symbol: SymbolID) {
@@ -1456,7 +1824,10 @@ public final class SymbolTable {
     }
 
     public func children(ofFQName parentFQName: [InternedString]) -> [SymbolID] {
-        byParentFQName[parentFQName] ?? []
+        lock.lock()
+        defer { lock.unlock() }
+        drainIndexedChildren(parentFQName: parentFQName)
+        return byParentFQName[parentFQName] ?? []
     }
 
     public func symbols(atDeclSite site: SourceRange) -> [SymbolID] {

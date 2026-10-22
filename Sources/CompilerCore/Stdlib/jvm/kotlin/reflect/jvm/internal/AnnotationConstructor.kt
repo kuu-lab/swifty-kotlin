@@ -8,7 +8,19 @@ internal fun constructAnnotation(type: Any, arguments: Map<String, Any?>): Any {
         val name = __jvmMethodName(method)
         val value = if (arguments.containsKey(name)) arguments[name] else __jvmMethodDefault(method)
         if (value == null) throw IllegalArgumentException("Missing annotation argument: $name")
-        values[name] = if (value is KClass<*>) getJavaClass(value) else value
+        val resultType = __jvmMethodReturn(method)
+        values[name] = if (value is KClass<*>) getJavaClass(value)
+        else if (value is Array<*> && __jvmClassIsArray(resultType) && __jvmClassName(__jvmComponentType(resultType)) == "java.lang.Class") {
+            // Annotation methods expose Class[], including empty/default arrays.
+            val classes = arrayOfNulls<java.lang.Class<*>>(value.size)
+            var index = 0
+            while (index < value.size) {
+                val element = value[index]
+                classes[index] = if (element is KClass<*>) getJavaClass(element) else element as java.lang.Class<*>
+                index++
+            }
+            classes
+        } else value
     }
     return __jvmProxy(__jvmClassLoader(type), arrayOf(type as java.lang.Class<*>), AnnotationHandler(type, values))
 }

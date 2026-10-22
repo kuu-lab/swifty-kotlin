@@ -7,6 +7,35 @@
   ],
   "declarations": [
     {
+      "path": "kotlin/Deprecation.kt",
+      "virtualPath": "<kswiftk-jvm>/deprecation.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "kotlin/Numbers.kt",
+      "virtualPath": "<kswiftk-jvm>/number-predicates.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/NumbersKt"
+    },
+    {
+      "path": "kotlin/Standard.kt",
+      "virtualPath": "<kswiftk-jvm>/standard.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/StandardKt"
+    },
+    {
+      "path": "kotlin/Preconditions.kt",
+      "virtualPath": "<kswiftk-jvm>/preconditions.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/PreconditionsKt"
+    },
+    {
+      "path": "declarations/Math.kt",
+      "virtualPath": "<kswiftk-jvm>/math.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/math/MathKt"
+    },
+    {
       "path": "declarations/JavaCollections.kt",
       "virtualPath": "<kswiftk-jvm>/javaCollections.kt",
       "excludeFromStdlibBuild": false,
@@ -116,6 +145,11 @@
       "path": "declarations/Numbers.kt",
       "virtualPath": "<kswiftk-jvm>/numbers.kt",
       "excludeFromStdlibBuild": false
+    },
+    {
+      "path": "declarations/AbstractSet.kt",
+      "virtualPath": "<kswiftk-jvm>/abstractSet.kt",
+      "excludeFromStdlibBuild": true
     },
     {
       "path": "declarations/Collections.kt",
@@ -247,6 +281,12 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "declarations/CollectionFirstPredicate.kt",
+      "virtualPath": "<kswiftk-jvm>/collection-first-predicate.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
       "path": "declarations/Comparator.kt",
       "virtualPath": "<kswiftk-jvm>/comparator.kt",
       "excludeFromStdlibBuild": false,
@@ -297,6 +337,79 @@
       "virtualPath": "<kswiftk-jvm>/text-platform.kt",
       "excludeFromStdlibBuild": false,
       "onlyForStdlibBuild": true
+    },
+    {
+      "path": "declarations/IntIterator.kt",
+      "virtualPath": "<kswiftk-jvm>/m19-int-iterator.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/JavaArrayList.kt",
+      "virtualPath": "<kswiftk-jvm>/javaArrayList.kt",
+      "excludeFromStdlibBuild": false
+    },
+    {
+      "path": "declarations/CollectionsOperators.kt",
+      "virtualPath": "<kswiftk-jvm>/collection-operators.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
+      "path": "declarations/SetsOperators.kt",
+      "virtualPath": "<kswiftk-jvm>/set-operators.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/SetsKt"
+    },
+    {
+      "path": "kotlin/collections/CollectionAssignments.kt",
+      "virtualPath": "<kswiftk-jvm>/collection-assignments.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
+      "path": "declarations/MapsOperators.kt",
+      "virtualPath": "<kswiftk-jvm>/map-operators.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/MapsKt"
+    },
+    {
+      "path": "declarations/CollectionElements.kt",
+      "virtualPath": "<kswiftk-jvm>/collection-elements.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
+      "path": "declarations/JavaLang.kt",
+      "virtualPath": "<kswiftk-jvm>/javaLang.kt",
+      "excludeFromStdlibBuild": false
+    },
+    {
+      "path": "declarations/RangeFunctions.kt",
+      "virtualPath": "<kswiftk-jvm>/rangeFunctions.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/ranges/RangesKt"
+    },
+    {
+      "path": "declarations/ListBuilders.kt",
+      "virtualPath": "<kswiftk-jvm>/list-builders.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
+      "path": "declarations/MapBuilders.kt",
+      "virtualPath": "<kswiftk-jvm>/map-builders.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/MapsKt"
+    },
+    {
+      "path": "declarations/BuilderContracts.kt",
+      "virtualPath": "<kswiftk-jvm>/builder-contracts.kt",
+      "excludeFromStdlibBuild": false
+    },
+    {
+      "path": "declarations/Function.kt",
+      "virtualPath": "<kswiftk-jvm>/function-root.kt",
+      "excludeFromStdlibBuild": true
     }
   ],
   "runtimeClassAliases": {
@@ -308,6 +421,10 @@
     "kotlin/jvm/internal/UByteArrayValue": "kotlin/UByteArray",
     "kotlin/jvm/internal/UShortValue": "kotlin/UShort",
     "kotlin/jvm/internal/UShortArrayValue": "kotlin/UShortArray",
-    "kotlin/jvm/internal/IntrinsicsKotlin": "kotlin/jvm/internal/Intrinsics$Kotlin"
+    "kotlin/jvm/internal/IntrinsicsKotlin": "kotlin/jvm/internal/Intrinsics$Kotlin",
+    "kotlin/collections/RepositoryEmptyIterator": "kotlin/collections/EmptyIterator",
+    "kotlin/collections/RepositoryEmptyList": "kotlin/collections/EmptyList",
+    "kotlin/collections/RepositoryEmptySet": "kotlin/collections/EmptySet",
+    "kotlin/collections/RepositoryEmptyMap": "kotlin/collections/EmptyMap"
   }
 }

@@ -2,6 +2,50 @@ import Foundation
 
 let maximumImportedNominalLayoutValue = 1_000_000
 
+/// KLIB signatures can retain source type-parameter IDs while imported symbols
+/// use rebased IDs. Compare their type-parameter relationships instead.
+func canonicalizeMangledTypeParameterIDs(_ signature: String) -> String {
+    let bytes = Array(signature.utf8)
+    var canonicalIndices: [String: Int] = [:]
+    var output: [UInt8] = []
+    output.reserveCapacity(bytes.count)
+
+    var index = 0
+    while index < bytes.count {
+        guard bytes[index] == 0x54, index + 1 < bytes.count else {
+            output.append(bytes[index])
+            index += 1
+            continue
+        }
+
+        var digitStart = index + 1
+        if bytes[digitStart] == 0x2D {
+            digitStart += 1
+        }
+        guard digitStart < bytes.count, (0x30 ... 0x39).contains(bytes[digitStart]) else {
+            output.append(bytes[index])
+            index += 1
+            continue
+        }
+
+        var tokenEnd = digitStart + 1
+        while tokenEnd < bytes.count, (0x30 ... 0x39).contains(bytes[tokenEnd]) {
+            tokenEnd += 1
+        }
+        let rawID = String(decoding: bytes[(index + 1) ..< tokenEnd], as: UTF8.self)
+        let canonicalIndex = canonicalIndices[rawID] ?? {
+            let nextIndex = canonicalIndices.count
+            canonicalIndices[rawID] = nextIndex
+            return nextIndex
+        }()
+        output.append(0x54)
+        output.append(contentsOf: String(canonicalIndex).utf8)
+        index = tokenEnd
+    }
+
+    return String(decoding: output, as: UTF8.self)
+}
+
 extension DataFlowSemaPhase {
     func parseImportedFieldOffsets(
         token: String,
@@ -410,6 +454,48 @@ extension DataFlowSemaPhase {
         let functionSymbols = allSymbolIDs
             .compactMap { symbols.symbol($0) }
             .filter { $0.kind == .function }
+
+        // Decoding a member signature can recursively materialize its nominal
+        // owner before that member's signature has been stored. Resolve the
+        // owner's vtable entry from the compact index shape/body in that case
+        // instead of treating the in-progress member as missing.
+        let indexedCandidates = functionSymbols
+            .filter { symbol in
+                guard let record = indexedBindingsBySymbol?[symbol.id]?.record else {
+                    return false
+                }
+                return record.kind == .function
+                    && record.arity == arity
+                    && record.isSuspend == isSuspend
+            }
+            .sorted(by: { $0.id.rawValue < $1.id.rawValue })
+        let unindexedSymbols = functionSymbols.filter {
+            indexedBindingsBySymbol?[$0.id] == nil
+        }
+
+        // KUU-2673: when every same-named symbol is index-verified, the result
+        // is decided without materializing any member body — a unique match
+        // wins the arity fallback below even when its signature differs, and
+        // multiple matches only need decoding when a `typeSignature` must
+        // disambiguate them and no materialized record can.
+        if unindexedSymbols.isEmpty {
+            if indexedCandidates.isEmpty {
+                return nil
+            }
+            if indexedCandidates.count == 1 {
+                return indexedCandidates[0].id
+            }
+            if let typeSignature, !typeSignature.isEmpty,
+               let exact = indexedCandidates.first(where: {
+                   indexedBindingsBySymbol?[$0.id]?.record.typeSignature == typeSignature
+               }) {
+                return exact.id
+            }
+            if typeSignature == nil || typeSignature!.isEmpty {
+                return indexedCandidates.first?.id
+            }
+        }
+
         let candidates = functionSymbols
             .filter { symbol in
                 // Reject impossible overloads from routing shape before a
@@ -426,21 +512,6 @@ extension DataFlowSemaPhase {
             }
             .sorted(by: { $0.id.rawValue < $1.id.rawValue })
 
-        // Decoding a member signature can recursively materialize its nominal
-        // owner before that member's signature has been stored. Resolve the
-        // owner's vtable entry from the compact index shape/body in that case
-        // instead of treating the in-progress member as missing.
-        let indexedCandidates = functionSymbols
-            .filter { symbol in
-                guard let record = indexedBindingsBySymbol?[symbol.id]?.record else {
-                    return false
-                }
-                return record.kind == .function
-                    && record.arity == arity
-                    && record.isSuspend == isSuspend
-            }
-            .sorted(by: { $0.id.rawValue < $1.id.rawValue })
-
         if let typeSignature, !typeSignature.isEmpty {
             let mangler = NameMangler()
             let nameResolver: (InternedString) -> String = { interner.resolve($0) }
@@ -452,6 +523,18 @@ extension DataFlowSemaPhase {
                     nameResolver: nameResolver
                 )
                 return candidateSig == typeSignature
+            }) {
+                return exact.id
+            }
+            let canonicalTypeSignature = canonicalizeMangledTypeParameterIDs(typeSignature)
+            if let exact = candidates.first(where: { candidate in
+                let candidateSig = mangler.mangledSignature(
+                    for: candidate,
+                    symbols: symbols,
+                    types: types,
+                    nameResolver: nameResolver
+                )
+                return canonicalizeMangledTypeParameterIDs(candidateSig) == canonicalTypeSignature
             }) {
                 return exact.id
             }

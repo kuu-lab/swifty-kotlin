@@ -252,7 +252,7 @@ extension CallTypeChecker {
         // passes or runtime helpers. All numeric ranges (Int, Long, UInt, ULong)
         // share the same RuntimeRangeBox representation (first/last/step stored as
         // Swift Int, which is platform-sized -- 64-bit on all supported platforms).
-        // The existing kk_range_* runtime functions handle unsigned values correctly for the
+        // The existing __kk_range_* runtime functions handle unsigned values correctly for the
         // common case because:
         //   - UInt values (0..UInt32.max) fit in the non-negative half of Int64
         //   - rangeTo/rangeUntil always produce non-negative step (+1)

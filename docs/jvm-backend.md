@@ -40,7 +40,7 @@ java -Xverify:all -jar hello.jar
 
 - 入力は Kotlin ファイル 1 個。トップレベル関数を複数宣言でき、実行用の `main` は引数なし・Unit 戻り値。ライブラリでは省略できる。
 - 型は`Int`、`Long`、`Float`、`Double`、`Boolean`、`String`、`Any` と classpath の参照型。nullable primitive は wrapper に boxing し、参照型とともに `null`、`!!`、`?:` に対応する。関数の戻り値には `Unit` も使用できる。数値／Boolean を `Any` に渡す場合は JVM の wrapper に boxing する。
-- 初期化を伴うローカル `val` / `var`、型推論、型注釈、代入、数値の `+=` / `-=` / `*=` / `/=` / `%=`、前置／後置 `++` / `--`。
+- ローカル `val` / `var`、型推論、型注釈、代入、数値の `+=` / `-=` / `*=` / `/=` / `%=`、前置／後置 `++` / `--`。型注釈があれば宣言と初回代入を分けられる。
 - 数値の `+` / `-` / `*` / `/` / `%`、単項符号、比較。数値型の混合演算と `toInt` / `toLong` / `toFloat` / `toDouble`。
 - Boolean の `!` / `&&` / `||` と短絡評価。数値・Boolean・参照型の `==` / `!=`。
 - トップレベル関数の位置引数呼び出し、オーバーロード、再帰、`return`、ブロック本体と式本体。
@@ -50,6 +50,10 @@ java -Xverify:all -jar hello.jar
 - package 宣言、`public` / `private` / `internal` の関数。ファイル名（拡張子を除く）・package・クラス名・関数名・プロパティ名・module 名は ASCII 識別子に限定する。
 
 ローカル変数はブロックのスコープを持つ。関数本体ではパラメータを shadow できる。
+初期値のないローカルも固定の保存先を持ち、分岐・ループ・例外処理の代入を合流後に読み出せる。
+初期化前の読み出し、不完全な経路の初期化、`val` の再代入は共有 Sema で拒否する。
+関数型ローカル、closure／匿名 object の capture、suspend をまたぐ保存にも対応する。
+ローカルの `Unit` は `kotlin.Unit` オブジェクトとして保存し、関数の `Unit` 戻り値は引き続き JVM の `void` とする。
 `do-while` の条件は、その本体で宣言したローカル変数を参照できる。
 非 Unit のブロック本体は全経路で明示的に戻る必要がある。ループが常に終了しないことの
 証明には対応しないため、ループだけで戻り値を保証する形は拒否する。
@@ -148,12 +152,13 @@ size引数の評価直後に配列を確保し、負サイズ時のinitializer�
 `mapOf`／`mutableMapOf`、`emptyList`／`emptySet`／`emptyMap` を生成する。
 factoryと対応済みcollection操作はKotlin JVM ABIに接続し、独自kswiftk-stdlib.jarで実行できる。
 `to` は kotlin.Pair を生成し、factory 以外でも利用できる。
-添字、`size`、`isEmpty`、`contains`、`add`、`remove`／`removeAt`、`set`／`put`、`clear`、
-Map の `keys`／`values`／`containsKey` と iterable の `for` を利用できる。
+添字、`size`、`isEmpty`、`contains`／`containsAll`、`add`、`remove`／`removeAt`、`set`／`put`、`clear`、
+Map の `keys`／`values`／`entries`／`containsKey` と iterable の `for` を利用できる。
 Map の取得結果は nullable なので、`!!`／`?:` で値を取り出せる。
 
 `throw` と、値を返す `try`／複数の `catch`／`finally` を JVM の exception table へ変換する。
 Throwable／Exception／RuntimeException と主要な標準例外、引数なし／String? 引数のコンストラクタ、`message`、ユーザー定義の例外クラスを扱う。
+Throwable／Exception／RuntimeException には Throwable? 引数と String?／Throwable? 引数のコンストラクタもある。
 `finally` は通常終了、例外、`return`／`break`／`continue` で実行し、内部の同名変数や
 ループに影響されず字句的な参照先を保持する。`finally` 内の return／throw は元の結果を置き換える。
 コンストラクタ引数内の try/catch でも初期化前の参照を JVM verifier に合わせて保持する。
@@ -379,6 +384,8 @@ JDK のクラスは自動検索しない。参照先の宣言に必要な依存�
 
 public なトップレベルクラス／interface のコンストラクタ・static／instance／interface
 メソッドと、公開 superclass／interface 経由の継承メソッドに対応する。
+非公開 superclass／interface から継承する public メソッドも、アクセス可能な公開クラスを
+JVM 呼び出しの owner として利用できる。非公開の型や protected／package-private メンバーは公開しない。
 import alias、オーバーロード、参照型の引数・戻り値も使用できる。
 公式 Kotlin が生成したクラスも Java の JVM signature として読み込める。
 KSwiftK 生成のファイル facade は `import demo.ApiKt` → `ApiKt.add(...)` で再利用できる。
@@ -463,6 +470,12 @@ interface のクラス委譲は、delegate 式を宣言順に一度だけ評価�
 既定引数、generic method／property、member extension method と bridge に対応する。
 constructor parameter の `var` を後で変更しても、保存済みの委譲先は変わらない。
 委譲先内部のメソッド呼び出しは、その委譲先自身の receiver へディスパッチする。
+`List`／`MutableList`、`Set`／`MutableSet`、`Map`／`MutableMap` の `by` 委譲では、
+JDK interface の型消去された bridge と `toArray` などの追加エントリも生成する。
+`toArray` はクラス自身の `size`／`iterator` の override を反映する。
+read-only の `add`／`remove`／`set`、`sort`、Map の `compute` などは
+`UnsupportedOperationException` を投げる。`removeIf` は JDK の既定実装に従う。
+Kotlin の可変 collection 判定に必要な marker interface も保持する。
 
 メンバー・トップレベル・ローカルの `val`／`var` に `by` を使用できる。
 独自の operator getValue／setValue／provideDelegate、トップレベル／メンバーの extension operator、
@@ -512,13 +525,15 @@ Boolean／String、enum、KClass、入れ子の annotation、これらの配列�
 parameter annotations に保存し、SOURCE retention は出力しない。Kotlin／Java 両方の Retention／Target と
 MustBeDocumented を記録する。class／function／constructor／parameter、field／get／set／property／
 param／setparam の use-site target、property の `$annotations` carrier、`@JvmName` に対応する。
-annotation 引数には primitive／String の定数式と const val を使える。トップレベル／named object の const field は ConstantValue を持つ。companion の const は未対応。
+annotation 引数には primitive／String の定数式と const val を使える。トップレベル／named object／companion の const field は ConstantValue を持つ。class companion の const field は外側のクラスへ配置し、interface companion は外側とcompanion双方へ配置する。直接参照は定数値、独自reflection runtimeのプロパティ参照はそのfieldを読み出す。
 
 `Type::class`／`value::class`、bound／unbound な関数・コンストラクタ・property 参照を生成する。
 class literal は ldc を使い、対象クラスの static initializer を実行しない。
 KClass の名前・フラグ・isInstance・members／constructors、KCallable の name／parameters／returnType／call、
 property の get／set、`kotlin.reflect.full` の memberProperties／memberFunctions／createInstance／findAnnotation、
 `.java`／`.kotlin`／`.javaClass` と Class.getAnnotation を独自stdlibのJDK連携へ接続する。
+KCallable の returnType.toString は metadata の Kotlin 型名、nullability、型引数・projection、
+関数型と型パラメータ名を表示する。constructor の戻り型も Kotlin のクラス名を返す。
 
 ```kotlin
 import kotlin.reflect.full.findAnnotation
@@ -542,8 +557,15 @@ java -Xverify:all -cp "hello.jar:kswiftk-stdlib.jar" HelloKt
 
 参照の生成、クラスのフラグ・メンバー列挙・annotation・reflective call・propertyのget／set・関数参照のinvokeは、独自stdlibのJava reflection／metadata実装を使う。生成JARとkswiftk-stdlib.jarを実行classpathへ指定する。
 
+annotation の値は constructor 式で直接生成できる。省略した引数には annotation element の default を使い、
+名前付き引数もソース順に評価する。生成する値は annotation interface を実装し、要素の読み取り・等値比較に対応する。
+
 value class を持つ inline／suspend の signature は M14 で対応する。
-annotation の実行時の直接構築、外部 annotation の使用、file／type-use／receiver／delegate target、
+`Deprecated`／`ReplaceWith`／`DeprecationLevel` は独自stdlibとconsumer宣言で同じ契約を使う。
+message／replacement／level、JVM Deprecated属性、property carrierとaccessorへの配置を保存する。
+HIDDENの関数／constructor／accessorはclassfileでsyntheticとなり、Kotlin metadataには宣言を残す。
+
+上記以外の外部 annotation の使用、file／type-use／receiver／delegate target、
 typealias 自体の annotation、enum entry annotation は未対応。対応する reflection API は上記の範囲で、
 Java reflection の任意の getMethod／invoke や kotlin-reflect の全 API を提供するものではない。
 
@@ -908,7 +930,7 @@ fun main() {
 
 未列挙の Collection／Sequence API（groupingBy／destination 付き To 系／
 unzip／plus・minus／sumOf／Comparator を受ける overload 等）、Pair／標準コレクション関数そのものの関数参照、
-for ヘッダの分解代入、ユーザーによる Collection の実装は未対応。
+for ヘッダの分解代入、interface 委譲を使わないユーザーによる Collection の直接実装は未対応。
 
 ## M21: Sequence builder
 
@@ -1000,20 +1022,24 @@ source vararg は単独 parameter の通常関数に対応し、Java ACC_VARARGS
 配列 descriptor／generic signature を出力する。複数parameterのsource varargはstdlibの実装用に受け付ける。通常ユーザーの複数parameter source varargとvararg constructorは未対応。
 
 文字列の検索・trim・置換・数値変換、collectionの基本変換・distinct・take/drop・joinToStringもソースから生成する。
+AbstractSet のユーザー派生クラスは size と iterator を実装でき、Set の等値比較・hashCode・
+Collection ABI と readonly marker を継承する。size property は getSize() と JVM size() bridge を使う。
 詳細な実装範囲と検証方法は [JVM stdlib のソース化](jvm-stdlib.md) を参照。
 
 このprofileは対応済みのRegex／Sequence／Sequence builder／coroutine／reflection、unsigned runtimeと高階collection APIを含む。これらの実行に公式stdlib／reflect JARは不要。
 静的なKotlin参照閉包は`python3 Scripts/validate_jvm_stdlib.py kswiftk-stdlib.jar app.jar`で検査する。
 
+nightly CI（`nightly-full.yml` の `verify-jvm-diff`）はこの jar を毎晩生成して `validate_jvm_stdlib.py` を実行し、`// DIFF_JVM` マーカー付き `Scripts/diff_cases` ケースを `DIFF_BACKEND=jvm`（`Scripts/diff_kotlinc.sh`）で kotlinc 参照と差分実行する。
+
 ## 未対応と診断
 
 外部 field／property、
-明示的な backing field 宣言、lateinit 以外の未初期化ローカル変数、
+明示的な backing field 宣言、
 main の配列引数、複数上限の where 制約、
 拡張プロパティ、ローカル関数、
 複数 parameter のユーザー定義 vararg と vararg constructor（単独 vararg 関数・対応済み API の spread は使用可能）、
 enum の secondary constructor、when の guard／範囲条件、ループラベル、`until` / `step` は未対応。
-Unit 型の通常のパラメータ宣言／型引数／配列要素（Any? 引数へ渡す Unit 式、関数型の戻り値、Continuation／Result の型引数と resume(Unit) を除く）、collection のユーザー実装、kotlin.Number のユーザー派生クラス、
+Unit 型の通常のパラメータ宣言／型引数／配列要素（Any? 引数へ渡す Unit 式、関数型の戻り値、Continuation／Result の型引数と resume(Unit) を除く）、AbstractSet 派生以外の collection のユーザー実装、kotlin.Number のユーザー派生クラス、
 上記以外の高階 collection 操作・builder、data class／Pair／MatchGroup／MatchResult.Destructured 以外や for ヘッダでの destructuring は未対応。
 関数型は context receiver なし、receiver を含め22引数まで（suspend 関数型は Continuation 分を除き21引数まで）。
 対応範囲外の構文・型は `KSWIFTK-JVM-0001`、共有の意味解析エラーは既存の Sema 診断で拒否する。
@@ -1021,7 +1047,10 @@ Unit 型の通常のパラメータ宣言／型引数／配列要素（Any? 引�
 
 Native ライブラリ／非ホスト target triple、カスタム entry point、incremental、
 `-O1` 以上、`-g`、feature flag も拒否する（`time-phases` と `no-incremental` は使用可能）。
-関数・コンストラクタ・プロパティの公開型に `Nothing`／`Nothing?` は使用できない。
+関数の非nullableな `Nothing` 戻り値は `java.lang.Void` のJVM descriptorとKotlin metadataで保持する。
+通常の戻り先は専用の `KotlinNothingValueException` で終端する。own-JAR は同例外の引数なし、String?、String?／Throwable?、Throwable? の4コンストラクタを提供する。
+`Nothing?` の公開戻り値、関数・コンストラクタの `Nothing`／`Nothing?` 引数とreceiver、
+プロパティの `Nothing`／`Nothing?` 型は使用できない。null式とローカルの `Nothing?` はObject表現を使う。
 Java 8 が扱えない private interface メンバーも診断して拒否する。null だけを返す関数には
 `String?` など対応する戻り型を明示する。Maven／Gradle の依存解決、JAR Manifest の
 Class-Path、multi-release JAR のバージョン選択、JRT／module path は扱わない。
@@ -1055,7 +1084,7 @@ Native 用の KIR／Lowering／ABI は通らない。
 Signature 属性はクラスの superclass を先頭にし、interface と型引数を後に記録する。
 各メソッドの scratch locals を冒頭で既定値に初期化し、全分岐先へ固定型の full
 `StackMapTable` frame を出力する。これは JVM verifier のための初期化であり、ソースでの
-未初期化変数を許可する機能ではない。条件分岐は反転した短距離 test と `goto_w` を組み合わせ、
+初期化前の読み出しを許可する機能ではなく、ソースの definite assignment は Sema が検証する。条件分岐は反転した短距離 test と `goto_w` を組み合わせ、
 大きなメソッドでも分岐 offset を切り詰めない。
 コンストラクタの `new` は引数より前に評価し、初期化前の参照は allocation offset とともに
 frame に記録する。引数から break／continue する辺では未完了の allocation slot を null に戻す。256 以上のローカルスロットには `wide` を使う。

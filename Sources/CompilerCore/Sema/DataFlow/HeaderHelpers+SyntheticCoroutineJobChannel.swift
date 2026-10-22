@@ -72,43 +72,51 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
-        registerSyntheticCoroutineMember(
-            ownerSymbol: jobSymbol,
-            ownerType: jobType,
-            name: "cancel",
-            externalLinkName: "kk_job_cancel",
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: jobSymbol,
-            ownerType: jobType,
-            name: "cancel",
-            externalLinkName: "kk_job_cancel_with_cause",
-            returnType: types.unitType,
-            parameters: [(name: "cause", type: types.nullableAnyType)],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: jobSymbol,
-            ownerType: jobType,
-            name: "join",
-            externalLinkName: "kk_job_join",
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: jobSymbol,
-            ownerType: jobType,
-            name: "awaitCompletion",
-            externalLinkName: "kk_job_await_completion",
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
+        if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("Job")], name: interner.intern("cancel"), arity: 0) {
+            registerSyntheticCoroutineMember(
+                ownerSymbol: jobSymbol,
+                ownerType: jobType,
+                name: "cancel",
+                externalLinkName: "kk_job_cancel",
+                returnType: types.unitType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+        if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("Job")], name: interner.intern("cancel"), arity: 1) {
+            registerSyntheticCoroutineMember(
+                ownerSymbol: jobSymbol,
+                ownerType: jobType,
+                name: "cancel",
+                externalLinkName: "kk_job_cancel_with_cause",
+                returnType: types.unitType,
+                parameters: [(name: "cause", type: types.nullableAnyType)],
+                symbols: symbols,
+                interner: interner
+            )
+        }
+        if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("Job")], name: interner.intern("join"), arity: 0) {
+            registerSyntheticCoroutineMember(
+                ownerSymbol: jobSymbol,
+                ownerType: jobType,
+                name: "join",
+                externalLinkName: "kk_job_join",
+                returnType: types.unitType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+        if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("Job")], name: interner.intern("awaitCompletion"), arity: 0) {
+            registerSyntheticCoroutineMember(
+                ownerSymbol: jobSymbol,
+                ownerType: jobType,
+                name: "awaitCompletion",
+                externalLinkName: "kk_job_await_completion",
+                returnType: types.unitType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
         if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("Job")], name: interner.intern("complete"), arity: 0) {
             registerSyntheticCoroutineMember(
                 ownerSymbol: jobSymbol,
@@ -121,16 +129,18 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
-        registerSyntheticCoroutineMember(
-            ownerSymbol: jobSymbol,
-            ownerType: jobType,
-            name: "completeExceptionally",
-            externalLinkName: "kk_job_complete_exceptionally",
-            returnType: types.booleanType,
-            parameters: [(name: "exception", type: types.nullableAnyType)],
-            symbols: symbols,
-            interner: interner
-        )
+        if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("Job")], name: interner.intern("completeExceptionally"), arity: 1) {
+            registerSyntheticCoroutineMember(
+                ownerSymbol: jobSymbol,
+                ownerType: jobType,
+                name: "completeExceptionally",
+                externalLinkName: "kk_job_complete_exceptionally",
+                returnType: types.booleanType,
+                parameters: [(name: "exception", type: types.nullableAnyType)],
+                symbols: symbols,
+                interner: interner
+            )
+        }
 
         // STDLIB-CORO-BUG-04: bare `isActive` reference (no explicit
         // CoroutineScope receiver) inside a coroutine builder body, e.g.

@@ -133,6 +133,11 @@ public func kk_coroutine_call_direct_suspend(
     if let outcome = completion.markReturned() {
         if outcome.thrown != 0 {
             // The state machine reads the thrown exception after a resume.
+            // The child already failed inside this call, so mark the delivery
+            // inline: a suspend-entry loop then re-enters the machine within
+            // this burst and the catch label runs before queued siblings can
+            // drain state the failure was meant to discard (KUU-2724).
+            callerState.markInlineExceptionalDelivery()
             callerState.signalResume()
             return suspendedToken
         }
@@ -321,6 +326,7 @@ private func startCoroutineUninterceptedOrReturn(
         outThrown?.pointee = 0
         return 0
     }
+    state.suspendDriveEntryPointRaw = entryPointRaw
 
     let outerTaskKey = RuntimeCoroutineScopeTaskKey.installedKey
     let outerJob = RuntimeJobHandle.current
@@ -395,7 +401,11 @@ public func kk_coroutine_state_set_label(_ continuation: Int, _ label: Int) -> I
 
 @_cdecl("kk_coroutine_state_exit")
 public func kk_coroutine_state_exit(_ continuation: Int, _ value: Int) -> Int {
-    runtimeContinuationState(from: continuation)?.releaseInterception(continuationRaw: continuation)
+    if let state = runtimeContinuationState(from: continuation) {
+        state.markExited()
+        state.retireCancellableDeliveryOnExit()
+        state.releaseInterception(continuationRaw: continuation)
+    }
     _ = runtimeReleaseObject(continuation)
     return value
 }
@@ -567,6 +577,24 @@ public func __kk_coroutine_continuation_resume_with(
                 __kk_coroutine_continuation_resume_with(
                     start.completionContinuation,
                     runtimeResultFailure(resultBox.exception),
+                    outThrown
+                )
+            }
+            _ = kk_coroutine_state_exit(continuation, 0)
+            return
+        }
+        // KUU-2689: a MODE_CANCELLABLE start whose context Job is no longer
+        // active at this resume boundary (inline or on the dispatcher queue)
+        // completes the continuation with the job's CancellationException
+        // without running the block.
+        if start.cancellableStart,
+           let cancellationException = state.unstartedCoroutineCancellationException()
+        {
+            state.releaseInterception(continuationRaw: continuation)
+            if start.completionContinuation != 0 {
+                __kk_coroutine_continuation_resume_with(
+                    start.completionContinuation,
+                    runtimeResultFailure(cancellationException),
                     outThrown
                 )
             }

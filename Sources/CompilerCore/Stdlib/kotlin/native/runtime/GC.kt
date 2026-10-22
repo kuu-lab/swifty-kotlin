@@ -107,14 +107,62 @@ public object GC {
     @Deprecated("No-op in modern GC implementation")
     public fun detectCycles(): Array<Any>? = null
 
-    // KSP-1262: lastGCInfo has no last-run data to report until a real GC-pass
-    // recorder lands (tracked by GCInfo's own property-surface migration).
+    /**
+     * Returns statistics of the last finished garbage collection run.
+     * This information is supposed to be used for testing and debugging purposes only.
+     *
+     * Can return null, if there was no garbage collection runs yet.
+     */
     @ExperimentalStdlibApi
-    public val lastGCInfo: GCInfo? = null
+    public val lastGCInfo: GCInfo?
+        get() = __lastGCInfo()
 
     @Deprecated("No-op in modern GC implementation")
     @Suppress("UNUSED_PARAMETER")
     public fun findCycle(root: Any): Array<Any>? = null
+
+    // The runtime records one RuntimeGCInfoSnapshot per completed pass and
+    // serializes it as a flat List<Long>; absent optional timestamps decode
+    // from Long.MIN_VALUE. Index order is part of the ABI — keep it in sync
+    // with RuntimeGCInfoSnapshot.serializedFieldValues in RuntimeGC.swift.
+    private fun __lastGCInfo(): GCInfo? {
+        val snapshot = __gcLastGCInfoSnapshot() ?: return null
+        fun optionalNs(index: Int): Long? =
+            snapshot[index].let { if (it == Long.MIN_VALUE) null else it }
+        return GCInfo(
+            epoch = snapshot[0],
+            startTimeNs = snapshot[1],
+            endTimeNs = snapshot[2],
+            firstPauseRequestTimeNs = snapshot[3],
+            firstPauseStartTimeNs = snapshot[4],
+            firstPauseEndTimeNs = snapshot[5],
+            secondPauseRequestTimeNs = optionalNs(6),
+            secondPauseStartTimeNs = optionalNs(7),
+            secondPauseEndTimeNs = optionalNs(8),
+            postGcCleanupTimeNs = optionalNs(9),
+            rootSet = RootSetStatistics(
+                threadLocalReferences = snapshot[10],
+                stackReferences = snapshot[11],
+                globalReferences = snapshot[12],
+                stableReferences = snapshot[13],
+            ),
+            markedCount = snapshot[14],
+            // This collector manages a single heap pool; it is reported under
+            // the same "heap" name as Kotlin/Native's default allocator pool.
+            sweepStatistics = mapOf(
+                "heap" to SweepStatistics(sweptCount = snapshot[15], keptCount = snapshot[16])
+            ),
+            memoryUsageBefore = mapOf(
+                "heap" to MemoryUsage(totalObjectsSizeBytes = snapshot[17])
+            ),
+            memoryUsageAfter = mapOf(
+                "heap" to MemoryUsage(totalObjectsSizeBytes = snapshot[18])
+            ),
+        )
+    }
+
+    @KsSymbolName("kk_gc_last_gc_info")
+    private external fun __gcLastGCInfoSnapshot(): List<Long>?
 
 
     private var __autotune: Boolean = true

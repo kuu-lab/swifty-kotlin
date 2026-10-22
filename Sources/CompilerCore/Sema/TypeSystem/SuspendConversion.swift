@@ -1,5 +1,5 @@
 extension TypeSystem {
-    /// Suspend conversion is an argument adaptation, not a subtype relation.
+    /// Suspend conversion is a contextual adaptation, not a subtype relation.
     func suspendConversionType(from source: TypeID, to target: TypeID) -> TypeID? {
         guard case let .functionType(sourceFunction) = kind(of: source),
               !sourceFunction.isSuspend,

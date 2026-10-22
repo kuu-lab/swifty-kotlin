@@ -32,10 +32,19 @@ extension JVMFunctionBuilder {
             let field = program.enumField(plan, name: context.interner.resolve(entry.name)), result = try value(field.type)
             instructions.append(.getStatic(field, result)); return result
         }
+        if let entry = program.sema.symbols.symbol(symbol), entry.kind == .field,
+           let parent = program.sema.symbols.parentSymbol(for: symbol),
+           program.sema.symbols.symbol(parent)?.kind == .enumClass,
+           let owner = try? program.className(parent),
+           let imported = context.jvmImports?.classes[owner], imported.flags & 0x4000 != 0 {
+            let field = JVMField(owner: owner, name: context.interner.resolve(entry.name), type: .reference(owner, nullable: false), access: 0x4019)
+            let result = try value(field.type); instructions.append(.getStatic(field, result)); return result
+        }
         return nil
     }
 
     func nominalCall(_ id: ExprID, receiver: ExprID?, name: String?, args: [CallArgument]) throws -> JVMIntrinsicResult? {
+        if let annotation = try annotationConstruction(args, id: id) { return annotation }
         if let binding = program.sema.bindings.callBinding(for: id),
            let method = program.methods[binding.chosenCallee], method.name == "copy", program.sema.symbols.symbol(binding.chosenCallee)?.flags.contains(.synthetic) == true,
            let plan = program.classes.values.first(where: { $0.name == method.owner && $0.modifiers.contains(.data) }) {
@@ -81,8 +90,8 @@ extension JVMFunctionBuilder {
             let result = name == "entries" ? program.enumEntriesField(plan).type : (name == "values" ? program.enumValuesField(plan).type : .reference(plan.name, nullable: false))
             return JVMIntrinsicResult(value: try jdkCall(plan.name, name == "entries" ? "getEntries" : name, params, result, arguments: args.map { try requireValue($0.expr) }))
         }
-        if let semantic = program.sema.bindings.exprType(for: receiver), case let .classType(t) = program.sema.types.kind(of: semantic), program.classes[t.classSymbol]?.isEnum == true {
-            if args.isEmpty, ["name", "ordinal"].contains(name) { return JVMIntrinsicResult(value: try jdkCall("java/lang/Enum", name, [], name == "name" ? .string : .int, receiver: requireValue(receiver))) }
+        if let semantic = program.sema.bindings.exprType(for: receiver), case let .classType(t) = program.sema.types.kind(of: semantic), program.sema.symbols.symbol(t.classSymbol)?.kind == .enumClass {
+            if !arena.isExplicitCall(id), args.isEmpty, ["name", "ordinal"].contains(name) { return JVMIntrinsicResult(value: try jdkCall("java/lang/Enum", name, [], name == "name" ? .string : .int, receiver: requireValue(receiver))) }
             if name == "compareTo", args.count == 1 { return JVMIntrinsicResult(value: try jdkCall("java/lang/Enum", "compareTo", [.reference("java/lang/Enum", nullable: false)], .int, receiver: requireValue(receiver), arguments: [requireValue(args[0].expr)])) }
         }
         return nil

@@ -67,6 +67,27 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    @Test(arguments: [true, false])
+    func testStringVarargTrimOverloadsReturnString(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            class Q(val value: String)
+
+            fun main() {
+                val start = "0x".trimStart('0')
+                val both = "[x]".trim('[', ']')
+                val end = "x0".trimEnd('0')
+                println(Q(start).value)
+                println(Q(both).value)
+                println(Q(end).value)
+            }
+            """,
+            expectedOutput: "x\nx\nx\n",
+            moduleName: "KUU2795StringVarargTrim",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     @Test
     func testThrowableGetStackTraceAddressesUsesReceiverState() throws {
         try compileAndRunKotlin(
@@ -84,6 +105,62 @@ struct BundledStdlibExecutionTests {
             }
             """,
             expectedOutput: "true\n"
+        )
+    }
+
+    // KUU-2691: GC.lastGCInfo must surface the recorded pass statistics
+    // end-to-end — null before any pass, an immutable snapshot after, and an
+    // epoch bump per collection (including via GC.schedule()).
+    @Test(arguments: [true, false])
+    func testGCLastGCInfoReportsRecordedPass(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            @file:OptIn(kotlin.native.runtime.NativeRuntimeApi::class, ExperimentalStdlibApi::class)
+            import kotlin.native.runtime.GC
+
+            fun main() {
+                println(GC.lastGCInfo == null)
+                GC.collect()
+                println(GC.lastGCInfo != null)
+                val first = GC.lastGCInfo ?: return
+                println(first.epoch == 1L)
+                println(first.startTimeNs <= first.firstPauseRequestTimeNs)
+                println(first.firstPauseRequestTimeNs <= first.firstPauseStartTimeNs)
+                println(first.firstPauseStartTimeNs <= first.firstPauseEndTimeNs)
+                println(first.firstPauseEndTimeNs <= first.endTimeNs)
+                println(first.secondPauseRequestTimeNs == null)
+                println(first.secondPauseStartTimeNs == null)
+                println(first.secondPauseEndTimeNs == null)
+                println(first.postGcCleanupTimeNs != null && first.endTimeNs <= first.postGcCleanupTimeNs!!)
+                println(first.sweepStatistics.size == 1)
+                println(first.sweepStatistics["heap"] != null)
+                println(first.memoryUsageBefore.size == 1)
+                println(first.memoryUsageBefore["heap"] != null)
+                println(first.memoryUsageAfter.size == 1)
+                println(first.memoryUsageAfter["heap"] != null)
+                println(first.memoryUsageAfter["heap"]!!.totalObjectsSizeBytes <= first.memoryUsageBefore["heap"]!!.totalObjectsSizeBytes)
+                println(first.markedCount == first.sweepStatistics["heap"]!!.keptCount)
+                println(first.rootSet.threadLocalReferences >= 0L)
+                println(first.rootSet.stackReferences >= 0L)
+                println(first.rootSet.globalReferences >= 0L)
+                println(first.rootSet.stableReferences >= 0L)
+                GC.collect()
+                println(GC.lastGCInfo != null)
+                val second = GC.lastGCInfo ?: return
+                println(second.epoch == first.epoch + 1)
+                println(first !== second)
+                println(GC.lastGCInfo != null)
+                val again = GC.lastGCInfo ?: return
+                println(again.epoch == second.epoch)
+                GC.schedule()
+                println(GC.lastGCInfo != null)
+                val third = GC.lastGCInfo ?: return
+                println(third.epoch == second.epoch + 1)
+            }
+            """,
+            expectedOutput: String(repeating: "true\n", count: 30),
+            moduleName: "KUU2691GCLastGCInfo",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }
 
@@ -233,6 +310,32 @@ struct BundledStdlibExecutionTests {
             }
             """,
             expectedOutput: "42\n1\nhello\nboom\n"
+        )
+    }
+
+    // KUU-2791: synchronized is inline, so a bare return inside its block exits the caller.
+    @Test(arguments: [true, false])
+    func testSynchronizedAllowsNonLocalReturn(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            fun find(data: IntArray): Int {
+                synchronized(data) {
+                    return 42
+                }
+            }
+
+            fun findLocal(data: IntArray): Int = synchronized(data) {
+                return@synchronized 5
+            }
+
+            fun main() {
+                println(find(intArrayOf(1)))
+                println(findLocal(intArrayOf(1)))
+            }
+            """,
+            expectedOutput: "42\n5\n",
+            moduleName: "KUU2791SynchronizedNonLocalReturn",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }
 

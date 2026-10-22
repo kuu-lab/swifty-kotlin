@@ -40,6 +40,9 @@ extension JVMFunctionBuilder {
             return try jdkCall("kotlin/jvm/internal/Reflection", "getOrCreateKotlinClass", [klass.type], .reference("kotlin/reflect/KClass", nullable: false), arguments: [klass])!
         }
         guard let symbol = program.sema.bindings.callableReferenceBinding(for: id)?.chosenCallee ?? program.sema.bindings.identifierSymbol(for: id) else { throw fail("Missing JVM callable reference binding.", id) }
+        if let local = program.localFunctions[symbol] {
+            return try localFunctionReference(id, symbol: symbol, receiver: receiver, plan: local)
+        }
         let unbound = program.sema.bindings.isUnboundCallableRef(id)
         if let property = program.properties[symbol] {
             let bound = property.getter.isStatic || unbound ? nil : try receiver.map(requireValue) ?? instance(id)
@@ -58,11 +61,21 @@ extension JVMFunctionBuilder {
         if program.sema.symbols.functionSignature(for: symbol)?.reifiedTypeParameterIndices.isEmpty == false {
             return try reifiedReference(id, symbol: symbol, receiver: receiver, unbound: unbound)
         }
-        let method = program.methods[symbol] ?? context.jvmImports?.methods[symbol]
+        if let binding = program.sema.bindings.callableReferenceBinding(for: id), let function = functionType(id),
+           let signature = program.sema.symbols.functionSignature(for: symbol) {
+            let unitConversion = try program.type(function.returnType) == .unit && program.type(signature.returnType) != .unit
+            if binding.isCallableReferenceAdapter || function.isSuspend != signature.isSuspend || unitConversion {
+                return try adaptedReference(id, symbol: symbol, receiver: receiver, unbound: unbound)
+            }
+        }
+        // Source-backed inline declarations also retain an ordinary runtime
+        // entry for references, independently of call-site body expansion.
+        let sourceBacked = program.inlineDeclarations[symbol] != nil ? program.textLibraryMethods[symbol] : nil
+        let method = program.methods[symbol] ?? context.jvmImports?.methods[symbol] ?? sourceBacked?.method
         let ref = program.references[symbol]
         guard method != nil || ref != nil else { throw fail("Unsupported JVM callable reference target.", id) }
         let constructor = method?.isConstructor == true
-        let isExtension = program.extensionSymbols.contains(symbol)
+        let isExtension = program.extensionSymbols.contains(symbol) || sourceBacked?.extensionReceiver != nil
         let ownerName = ref?.owner ?? method!.owner
         let staticTarget = ref != nil || method?.isStatic == true
         let bound = !unbound && !constructor && (!staticTarget || isExtension) ? try receiver.map(requireValue) ?? instance(id) : nil
@@ -204,8 +217,8 @@ extension JVMFunctionBuilder {
             if name == "annotations" { declaring = "kotlin/reflect/KAnnotatedElement"; result = .reference("java/util/List", nullable: false) }
             else if isClass, classProperties.contains(name) { declaring = ownerName }
             else if ownerName == "java/lang/Class", ["name", "simpleName", "isAnnotation"].contains(name) { declaring = ownerName }
-            else if callableProperties.contains(name) { declaring = ["isInline", "isOperator", "isSuspend"].contains(name) ? "kotlin/reflect/KFunction" : (["isLateinit", "isConst"].contains(name) ? "kotlin/reflect/KProperty" : "kotlin/reflect/KCallable") }
             else if ["kotlin/reflect/KParameter", "kotlin/reflect/KType"].contains(ownerName) { declaring = ownerName }
+            else if callableProperties.contains(name) { declaring = ["isInline", "isOperator", "isSuspend"].contains(name) ? "kotlin/reflect/KFunction" : (["isLateinit", "isConst"].contains(name) ? "kotlin/reflect/KProperty" : "kotlin/reflect/KCallable") }
             if let declaring {
                 if name == "objectInstance" { result = object }
                 if name == "classifier" { result = .reference("kotlin/reflect/KClassifier", nullable: true) }

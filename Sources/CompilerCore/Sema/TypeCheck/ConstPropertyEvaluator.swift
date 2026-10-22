@@ -123,6 +123,9 @@ final class ConstPropertyEvaluator {
             return args.count == 1
                 && ConstantCollector.isBuiltinStringPlusCallee(expr, sema: sema, interner: interner)
         }
+        if name == "length", nonNullReceiverType == sema.types.stringType {
+            return args.isEmpty && isBuiltinStringLengthProperty(expr)
+        }
         guard !isSourceBackedMemberExtensionCall(expr) else { return false }
         if name == "not" {
             return args.isEmpty && nonNullReceiverType == sema.types.booleanType
@@ -160,6 +163,22 @@ final class ConstPropertyEvaluator {
             return args.isEmpty && nonNullReceiverType == sema.types.charType
         }
         return false
+    }
+
+    private func isBuiltinStringLengthProperty(_ expr: ExprID) -> Bool {
+        guard let callee = sema.bindings.callBinding(for: expr)?.chosenCallee,
+              let calleeSymbol = sema.symbols.symbol(callee)
+        else { return false }
+        let propertySymbol = sema.symbols.accessorOwnerProperty(for: callee)
+            ?? (calleeSymbol.kind == .property ? callee : sema.symbols.parentSymbol(for: callee))
+        guard let propertySymbol,
+              let property = sema.symbols.symbol(propertySymbol),
+              property.kind == .property,
+              property.name == interner.intern("length"),
+              property.fqName == [interner.intern("kotlin"), interner.intern("length")],
+              sema.symbols.extensionPropertyReceiverType(for: propertySymbol) == sema.types.stringType
+        else { return false }
+        return sema.symbols.isSourceBackedSymbol(propertySymbol)
     }
 
     private func isNumericPrimitiveType(_ type: TypeID) -> Bool {

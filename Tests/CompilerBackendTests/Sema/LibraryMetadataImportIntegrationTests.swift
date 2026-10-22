@@ -100,6 +100,301 @@ struct LibraryMetadataImportIntegrationTests {
     }
 
     @Test
+    func testMatchedExpectActualClassEmitsSingleNominalMetadata() throws {
+        let librarySource = """
+        package test.pool
+        public interface ObjectPool<T : Any> {
+            public fun borrow(): T
+        }
+        public expect abstract class DefaultPool<T : Any>(capacity: Int) : ObjectPool<T> {
+            public abstract override fun borrow(): T
+        }
+        public actual abstract class DefaultPool<T : Any> actual constructor(
+            capacity: Int
+        ) : ObjectPool<T> {
+            public actual abstract override fun borrow(): T
+        }
+        """
+        let libraryBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .path
+        let libraryPath = libraryBase + ".kklib"
+        defer { try? FileManager.default.removeItem(atPath: libraryPath) }
+
+        try withTemporaryFile(contents: librarySource) { librarySourcePath in
+            let libraryCtx = CompilerTestSupport.makeCompilationContext(
+                inputs: [librarySourcePath],
+                moduleName: "PoolLib",
+                emit: .library,
+                outputPath: libraryBase,
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            try CompilerTestSupport.runToKIR(libraryCtx)
+            try LoweringPhase().run(libraryCtx)
+            try CodegenPhase().run(libraryCtx)
+
+            let appSource = """
+            package consumer
+            import test.pool.DefaultPool
+            fun use(pool: DefaultPool<Int>) = pool
+            """
+            try withTemporaryFile(contents: appSource) { appPath in
+                let appCtx = CompilerTestSupport.makeCompilationContext(
+                    inputs: [appPath],
+                    moduleName: "PoolConsumer",
+                    emit: .kirDump,
+                    searchPaths: [libraryPath],
+                    includeStdlib: false,
+                    allowDefaultStdlibLibrary: false
+                )
+                try CompilerTestSupport.runSema(appCtx)
+
+                #expect(!appCtx.diagnostics.hasError, "Unexpected diagnostics: \(appCtx.diagnostics.diagnostics)")
+                #expect(!appCtx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-LIB-0024" })
+                let sema = try #require(appCtx.sema)
+                let nominalCount = sema.symbols.lookupAll(fqName: [
+                    appCtx.interner.intern("test"), appCtx.interner.intern("pool"),
+                    appCtx.interner.intern("DefaultPool"),
+                ]).compactMap { sema.symbols.symbol($0) }
+                    .filter { $0.kind == .class && $0.flags.contains(.importedLibrary) }
+                #expect(nominalCount.count == 1)
+                #expect(nominalCount.first?.flags.contains(.actualDeclaration) == true)
+            }
+        }
+    }
+
+    @Test
+    func testImportedMemberDoesNotAttachToShadowingSourceClass() throws {
+        let librarySource = """
+        package shadow.pool
+        public class Node
+        public open class Box {
+            public var head: Node? = null
+        }
+        """
+        let libraryBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .path
+        let libraryPath = libraryBase + ".kklib"
+        defer { try? FileManager.default.removeItem(atPath: libraryPath) }
+
+        try withTemporaryFile(contents: librarySource) { librarySourcePath in
+            let libraryCtx = CompilerTestSupport.makeCompilationContext(
+                inputs: [librarySourcePath],
+                moduleName: "ShadowLib",
+                emit: .library,
+                outputPath: libraryBase,
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            try CompilerTestSupport.runToKIR(libraryCtx)
+            try LoweringPhase().run(libraryCtx)
+            try CodegenPhase().run(libraryCtx)
+
+            // The source module redeclares `shadow.pool.Box`, shadowing the
+            // imported class. The imported `head: Node?` member must stay
+            // attached to the imported Box — if it were reparented to the
+            // source Box, write lookup would merge `Node?` with `Int` and
+            // reject `head = 1` as an immutable-property assignment.
+            let appSource = """
+            package shadow.pool
+            public open class Box {
+                public var head: Int = 0
+            }
+            public class Sub : Box() {
+                public fun bump() {
+                    head = 1
+                }
+            }
+            """
+            try withTemporaryFile(contents: appSource) { appPath in
+                let appCtx = CompilerTestSupport.makeCompilationContext(
+                    inputs: [appPath],
+                    moduleName: "ShadowConsumer",
+                    emit: .kirDump,
+                    searchPaths: [libraryPath],
+                    includeStdlib: false,
+                    allowDefaultStdlibLibrary: false
+                )
+                try CompilerTestSupport.runSema(appCtx)
+
+                #expect(!appCtx.diagnostics.hasError, "Unexpected diagnostics: \(appCtx.diagnostics.diagnostics)")
+                let sema = try #require(appCtx.sema)
+                let interner = appCtx.interner
+                let heads = sema.symbols.lookupAll(fqName: [
+                    interner.intern("shadow"), interner.intern("pool"),
+                    interner.intern("Box"), interner.intern("head"),
+                ]).compactMap { sema.symbols.symbol($0) }
+                let sourceBox = try #require(sema.symbols.lookupAll(fqName: [
+                    interner.intern("shadow"), interner.intern("pool"), interner.intern("Box"),
+                ]).first { symbolID in
+                    sema.symbols.symbol(symbolID)?.flags.contains(.importedLibrary) == false
+                })
+                for head in heads where head.flags.contains(.importedLibrary) {
+                    #expect(sema.symbols.parentSymbol(for: head.id) != sourceBox)
+                }
+            }
+        }
+    }
+
+    @Test
+    func testTypeAnnotationPrefersSourceClassOverImportedSameFqName() throws {
+        let librarySource = """
+        package shadow.io
+        public class Segment {
+            public fun libOnly(): Int = 0
+        }
+        """
+        let libraryBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .path
+        let libraryPath = libraryBase + ".kklib"
+        defer { try? FileManager.default.removeItem(atPath: libraryPath) }
+
+        try withTemporaryFile(contents: librarySource) { librarySourcePath in
+            let libraryCtx = CompilerTestSupport.makeCompilationContext(
+                inputs: [librarySourcePath],
+                moduleName: "ShadowIoLib",
+                emit: .library,
+                outputPath: libraryBase,
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            try CompilerTestSupport.runToKIR(libraryCtx)
+            try LoweringPhase().run(libraryCtx)
+            try CodegenPhase().run(libraryCtx)
+
+            // The source module redeclares `shadow.io.Segment` in the same
+            // package. Classifier references must resolve to the source
+            // declaration even though the imported symbol has a lower ID:
+            // `Segment()` must bind the source constructor and `marker()`
+            // only exists on the source class.
+            let appSource = """
+            package shadow.io
+            class Segment {
+                fun marker(): Int = 42
+            }
+            fun probe(): Int {
+                val x: Segment? = Segment()
+                return x?.marker() ?: -1
+            }
+            """
+            try withTemporaryFile(contents: appSource) { appPath in
+                let appCtx = CompilerTestSupport.makeCompilationContext(
+                    inputs: [appPath],
+                    moduleName: "ShadowIoConsumer",
+                    emit: .kirDump,
+                    searchPaths: [libraryPath],
+                    includeStdlib: false,
+                    allowDefaultStdlibLibrary: false
+                )
+                try CompilerTestSupport.runSema(appCtx)
+
+                #expect(!appCtx.diagnostics.hasError, "Unexpected diagnostics: \(appCtx.diagnostics.diagnostics)")
+            }
+        }
+    }
+
+    @Test
+    func testSourceCallableShadowsImportedSameSignatureOverload() throws {
+        let librarySource = """
+        package bbs.io
+        public class LibBuilder {
+            public fun libOnly(): Int = 0
+        }
+        public class LibByteString
+        public fun buildByteString(capacity: Int = 0, action: LibBuilder.() -> Unit): LibByteString = LibByteString()
+        """
+        let libraryBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .path
+        let libraryPath = libraryBase + ".kklib"
+        defer { try? FileManager.default.removeItem(atPath: libraryPath) }
+
+        try withTemporaryFile(contents: librarySource) { librarySourcePath in
+            let libraryCtx = CompilerTestSupport.makeCompilationContext(
+                inputs: [librarySourcePath],
+                moduleName: "BbsLib",
+                emit: .library,
+                outputPath: libraryBase,
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            try CompilerTestSupport.runToKIR(libraryCtx)
+            try LoweringPhase().run(libraryCtx)
+            try CodegenPhase().run(libraryCtx)
+
+            // Source `bbs.io.buildByteString` has the same FQ name and erased
+            // signature as the imported one. The imported twin must be dropped
+            // from scope candidates: if it stayed, the lambda's expected
+            // receiver could come from the imported signature, leaving
+            // source-only members (`written`, `append`) and the `this::append`
+            // callable reference unresolvable.
+            let appSource = """
+            package bbs.io
+            class LibBuilder {
+                var written: Int = 0
+                fun append(v: Int) { written += v }
+            }
+            class LibByteString
+            fun consume(f: (Int) -> Unit) {}
+            fun buildByteString(capacity: Int = 0, action: LibBuilder.() -> Unit): LibByteString = LibByteString()
+            fun probe(): Int {
+                var hit = 0
+                buildByteString(4) {
+                    written = 1
+                    consume(this::append)
+                    hit = written
+                }
+                return hit
+            }
+            """
+            try withTemporaryFile(contents: appSource) { appPath in
+                let appCtx = CompilerTestSupport.makeCompilationContext(
+                    inputs: [appPath],
+                    moduleName: "BbsConsumer",
+                    emit: .kirDump,
+                    searchPaths: [libraryPath],
+                    includeStdlib: false,
+                    allowDefaultStdlibLibrary: false
+                )
+                try CompilerTestSupport.runSema(appCtx)
+
+                #expect(!appCtx.diagnostics.hasError, "Unexpected diagnostics: \(appCtx.diagnostics.diagnostics)")
+            }
+        }
+    }
+
+    @Test
+    func testInaccessibleImportedCallableDoesNotBlockOuterScopeOverload() throws {
+        // The bundled stdlib vendors `internal` kotlinx.io.minOf/maxOf
+        // overloads. A file in `package kotlinx.io` sees them in its own
+        // package tier, but they are not callable from user code — the tower
+        // must continue to the default-imported `kotlin.comparisons` overloads
+        // instead of reporting 'cannot access' or 'no viable overload'.
+        let artifact = try testStdlibArtifactPath()
+        let source = """
+        package kotlinx.io
+        fun probe(a: Long, b: Long): Long = maxOf(a, b)
+        fun probeInts(a: Int, b: Int): Int = maxOf(a, b)
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "KxIoShadow",
+                emit: .kirDump,
+                includeStdlib: false,
+                stdlibLibraryPath: artifact,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test
     func testShortTargetMetadataSurvivesKklibImport() throws {
         let librarySource = """
         package targetprobe

@@ -22,6 +22,7 @@ public struct ASTArenaSnapshot: Codable {
     public let expressionAnnotations: [ExprID: [AnnotationNode]]
     public let anonymousFunctionExpressions: Set<ExprID>
     public let localFunContextReceivers: [ExprID: [ContextReceiverDecl]]
+    public let destructuringDeclLayouts: [ExprID: DestructuringDeclLayout]
 
     private enum CodingKeys: String, CodingKey {
         case declarations
@@ -45,6 +46,7 @@ public struct ASTArenaSnapshot: Codable {
         case expressionAnnotations
         case anonymousFunctionExpressions
         case localFunContextReceivers
+        case destructuringDeclLayouts
     }
 
     public init(
@@ -68,7 +70,8 @@ public struct ASTArenaSnapshot: Codable {
         incrementDecrementCachedValues: [ExprID: ExprID] = [:],
         expressionAnnotations: [ExprID: [AnnotationNode]] = [:],
         anonymousFunctionExpressions: Set<ExprID> = [],
-        localFunContextReceivers: [ExprID: [ContextReceiverDecl]] = [:]
+        localFunContextReceivers: [ExprID: [ContextReceiverDecl]] = [:],
+        destructuringDeclLayouts: [ExprID: DestructuringDeclLayout] = [:]
     ) {
         self.declarations = declarations
         self.expressions = expressions
@@ -91,6 +94,7 @@ public struct ASTArenaSnapshot: Codable {
         self.expressionAnnotations = expressionAnnotations
         self.anonymousFunctionExpressions = anonymousFunctionExpressions
         self.localFunContextReceivers = localFunContextReceivers
+        self.destructuringDeclLayouts = destructuringDeclLayouts
     }
 
     public init(from decoder: Decoder) throws {
@@ -143,6 +147,9 @@ public struct ASTArenaSnapshot: Codable {
         ) ?? []
         localFunContextReceivers = try container.decodeIfPresent(
             [ExprID: [ContextReceiverDecl]].self, forKey: .localFunContextReceivers
+        ) ?? [:]
+        destructuringDeclLayouts = try container.decodeIfPresent(
+            [ExprID: DestructuringDeclLayout].self, forKey: .destructuringDeclLayouts
         ) ?? [:]
     }
 }
@@ -234,6 +241,7 @@ public final class ASTArena: @unchecked Sendable {
     private var _expressionAnnotations: [ExprID: [AnnotationNode]] = [:]
     private var _anonymousFunctionExpressions: Set<ExprID> = []
     private var _localFunContextReceivers: [ExprID: [ContextReceiverDecl]] = [:]
+    private var _destructuringDeclLayouts: [ExprID: DestructuringDeclLayout] = [:]
 
     public var decls: [Decl] {
         lock.lock()
@@ -271,6 +279,7 @@ public final class ASTArena: @unchecked Sendable {
         _expressionAnnotations = snapshot.expressionAnnotations
         _anonymousFunctionExpressions = snapshot.anonymousFunctionExpressions
         _localFunContextReceivers = snapshot.localFunContextReceivers
+        _destructuringDeclLayouts = snapshot.destructuringDeclLayouts
     }
 
     public func snapshot() -> ASTArenaSnapshot {
@@ -297,7 +306,8 @@ public final class ASTArena: @unchecked Sendable {
             incrementDecrementCachedValues: _incrementDecrementCachedValues,
             expressionAnnotations: _expressionAnnotations,
             anonymousFunctionExpressions: _anonymousFunctionExpressions,
-            localFunContextReceivers: _localFunContextReceivers
+            localFunContextReceivers: _localFunContextReceivers,
+            destructuringDeclLayouts: _destructuringDeclLayouts
         )
     }
 
@@ -345,6 +355,13 @@ public final class ASTArena: @unchecked Sendable {
         }
         for (key, value) in snapshot.localFunContextReceivers {
             _localFunContextReceivers[remapper.remap(key)] = value.map { remapper.remap($0) }
+        }
+        for (key, value) in snapshot.destructuringDeclLayouts {
+            _destructuringDeclLayouts[remapper.remap(key)] = DestructuringDeclLayout(
+                syntax: value.syntax,
+                properties: value.properties.map { $0.map { remapper.remap($0) } },
+                mutableFlags: value.mutableFlags
+            )
         }
         _anonymousFunctionExpressions.formUnion(snapshot.anonymousFunctionExpressions.map { remapper.remap($0) })
         _infixCallExpressions.formUnion(snapshot.infixCallExpressions.map { remapper.remap($0) })
@@ -401,6 +418,18 @@ public final class ASTArena: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         _localFunContextReceivers[exprID] = receivers
+    }
+
+    public func setDestructuringDeclLayout(_ layout: DestructuringDeclLayout, for exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _destructuringDeclLayouts[exprID] = layout
+    }
+
+    public func destructuringDeclLayout(for exprID: ExprID) -> DestructuringDeclLayout? {
+        lock.lock()
+        defer { lock.unlock() }
+        return _destructuringDeclLayouts[exprID]
     }
 
     public func localFunContextReceivers(for exprID: ExprID) -> [ContextReceiverDecl] {

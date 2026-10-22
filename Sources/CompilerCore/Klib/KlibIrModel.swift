@@ -143,6 +143,14 @@ package enum KlibIdSignature: Equatable {
     case file
 }
 
+/// File-independent identity of a public IR symbol. Table indices and debug
+/// strings differ between files; the member hash distinguishes overloads.
+package indirect enum KlibPublicSignature: Hashable {
+    case common(packageName: [String], declarationName: [String], memberId: Int64?, flags: Int64)
+    case accessor(property: KlibPublicSignature, name: String, hashId: Int64, flags: Int64)
+    case composite(container: KlibPublicSignature, inner: KlibPublicSignature)
+}
+
 package enum KlibVisibility: Int { case `internal` = 0, `private` = 1, protected = 2, `public` = 3, privateToThis = 4, local = 5 }
 package enum KlibModality: Int { case final = 0, open = 1, abstract = 2, sealed = 3 }
 package enum KlibMemberKind: Int { case declaration = 0, fakeOverride = 1, delegation = 2, synthesized = 3 }
@@ -247,6 +255,7 @@ package struct KlibAnnotation {
     /// Indices into `types` (packed int64? no — `type_argument` is packed int32).
     package var typeArguments: [Int32]
     package var originName: Int32?
+    package var localCoordinates: KlibCoordinates?
 }
 
 package enum KlibIrType {

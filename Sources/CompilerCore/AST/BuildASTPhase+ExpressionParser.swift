@@ -433,15 +433,16 @@ extension BuildASTPhase {
         }
 
         func tokenText(_ token: Token) -> InternedString? {
+            guard token.kind.isLabelName else { return nil }
             switch token.kind {
             case let .identifier(name), let .backtickedIdentifier(name):
-                name
+                return name
             case let .keyword(keyword):
-                interner.intern(keyword.rawValue)
+                return interner.intern(keyword.rawValue)
             case let .softKeyword(keyword):
-                interner.intern(keyword.rawValue)
+                return interner.intern(keyword.rawValue)
             default:
-                nil
+                return nil
             }
         }
 

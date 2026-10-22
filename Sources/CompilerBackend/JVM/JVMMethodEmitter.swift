@@ -14,6 +14,7 @@ struct JVMMethodCode {
     var annotations: [JVMAnnotation] = []
     var parameterAnnotations: [[JVMAnnotation]] = []
     var annotationDefault: JVMAnnotationValue? = nil
+    var isDeprecated = false
 }
 
 final class JVMMethodEmitter {
@@ -134,7 +135,7 @@ final class JVMMethodEmitter {
     }
     func emit() throws -> JVMMethodCode {
         if function.isAbstract {
-            return JVMMethodCode(name: try pool.utf8(function.reference.name), descriptor: try pool.utf8(function.reference.descriptor), access: function.access ?? 0x0401, code: Data(), stack: 0, locals: 0, frames: nil, exceptions: [], signature: function.genericSignature)
+            return JVMMethodCode(name: try pool.utf8(function.reference.name), descriptor: try pool.utf8(function.reference.descriptor), access: (function.access ?? 0x0401) | (function.isHiddenByDeprecation ? 0x1000 : 0), code: Data(), stack: 0, locals: 0, frames: nil, exceptions: [], signature: function.genericSignature)
         }
         if function.isConstructor { uninitialized[0] = -1 }
         // Fixed-type, eagerly initialized scratch locals keep all CFG joins
@@ -173,7 +174,7 @@ final class JVMMethodEmitter {
         let frames = try stackMaps(codeSize: code.count)
         return JVMMethodCode(
             name: try pool.utf8(function.reference.name), descriptor: try pool.utf8(function.reference.descriptor),
-            access: (function.access ?? (function.isPrivate ? 0x000A : 0x0009)) | (function.typeParameters.contains(where: \.isReified) ? 0x1000 : 0), code: code, stack: UInt16(maxStack),
+            access: (function.access ?? (function.isPrivate ? 0x000A : 0x0009)) | (function.typeParameters.contains(where: \.isReified) || function.isHiddenByDeprecation ? 0x1000 : 0), code: code, stack: UInt16(maxStack),
             locals: UInt16(function.locals.last.map { $0.slot + $0.type.width } ?? 0), frames: frames,
             exceptions: try function.handlers.compactMap { h in
                 guard let start = assembler.labels[h.start], let end = assembler.labels[h.end], let handler = assembler.labels[h.handler], start <= end else { throw JVMEmissionError.limit("Invalid JVM exception range.") }
@@ -277,6 +278,7 @@ final class JVMMethodEmitter {
             assembler.code.u1(0xB8)
             assembler.code.u2(try pool.member(ref.ownerIsInterface ? 11 : 10, owner: ref.owner ?? owner, name: ref.name, descriptor: ref.descriptor))
             if let result { try conversion(ref.result, result.type); store(result) }
+            else if ref.result != .unit { assembler.code.u1(ref.result.width == 2 ? 0x58 : 0x57) }
         case let .abandonAllocations(objects):
             // Clear only this escaping edge. The other arm of an if still
             // owns the allocation until its invokespecial initializes it.
@@ -379,10 +381,15 @@ final class JVMMethodEmitter {
         case let .print(argument, newline):
             assembler.code.u1(0xB2)
             assembler.code.u2(try pool.member(9, owner: "java/lang/System", name: "out", descriptor: "Ljava/io/PrintStream;"))
-            if let argument { load(argument); try conversion(argument.type, argument.type.stringParameter) }
+            // A non-null CharArray binds PrintStream.println(char[]), which
+            // prints the characters; the Object overload would print the
+            // [C@ identity string instead.
+            let parameterType = argument.map { arg in
+                arg.type.referenceName == "[C" && !arg.type.isNullable ? arg.type : arg.type.stringParameter
+            }
+            if let argument, let parameterType { load(argument); try conversion(argument.type, parameterType) }
             assembler.code.u1(0xB6)
-            let descriptor = argument.map { $0.type.stringParameter.descriptor } ?? ""
-            assembler.code.u2(try pool.member(10, owner: "java/io/PrintStream", name: newline ? "println" : "print", descriptor: "(" + descriptor + ")V"))
+            assembler.code.u2(try pool.member(10, owner: "java/io/PrintStream", name: newline ? "println" : "print", descriptor: "(" + (parameterType?.descriptor ?? "") + ")V"))
         case let .label(label): assembler.mark(label)
         case let .jump(label): assembler.jump(label)
         case let .jumpIfFalse(value, label): load(value); try assembler.branch(0x99, to: label)

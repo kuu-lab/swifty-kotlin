@@ -17,6 +17,22 @@ struct CustomGetterTypeRegressionTests {
     }
 
     @Test
+    func blockGetterReturnTypeIsAvailableWithoutExpectedType() throws {
+        let ctx = makeContextFromSource("""
+        val allDone get(): Boolean { return true }
+        fun inferred() = allDone
+        fun negated() = !allDone
+        fun stringified() = allDone.toString()
+        """)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let property = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("allDone")]))
+        #expect(sema.symbols.propertyType(for: property) == sema.types.booleanType)
+    }
+
+    @Test
     func trailingLambdaGetterPreservesCallAndDeclaredPropertyType() throws {
         let ctx = makeContextFromSource("""
         class C(private val p: String) {

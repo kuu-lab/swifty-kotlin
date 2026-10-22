@@ -25,7 +25,7 @@ struct LibraryInlineImportLabelTests {
                 path: path, importedSymbol: SymbolID(rawValue: 100),
                 signature: FunctionSignature(parameterTypes: [callback], returnType: types.booleanType),
                 types: types, interner: StringInterner(), diagnostics: DiagnosticEngine(),
-                externalLinkNameToSymbol: [:], importedSymbolByFQName: [name: SymbolID(rawValue: 900)]
+                resolver: ImportedSymbolResolver(externalLinkNameToSymbol: [:], importedSymbolByFQName: [name: SymbolID(rawValue: 900)])
             )
         }
         let function = try #require(imported)
@@ -58,7 +58,7 @@ struct LibraryInlineImportLabelTests {
             imported = DataFlowSemaPhase.parseImportedInlineFunction(
                 path: path, importedSymbol: SymbolID(rawValue: 100), signature: signature,
                 types: types, interner: StringInterner(), diagnostics: DiagnosticEngine(),
-                externalLinkNameToSymbol: [:], importedSymbolByFQName: [:]
+                resolver: ImportedSymbolResolver(externalLinkNameToSymbol: [:], importedSymbolByFQName: [:])
             )
         }
         let function = try #require(imported)
@@ -81,8 +81,7 @@ struct LibraryInlineImportLabelTests {
                 types: types,
                 interner: interner,
                 diagnostics: diagnostics,
-                externalLinkNameToSymbol: [:],
-                importedSymbolByFQName: [:]
+                resolver: ImportedSymbolResolver(externalLinkNameToSymbol: [:], importedSymbolByFQName: [:])
             )
         }
         return (resultFunction, diagnostics)

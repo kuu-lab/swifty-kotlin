@@ -799,6 +799,21 @@ struct TypeCheckHelpers {
                         return false
                     }
                 }
+                // A source declaration shadows an imported-library declaration
+                // with the same FQ name (e.g. a module vendoring `kotlinx.io`
+                // sources while the bundled stdlib exports the same types).
+                // Sorting candidate lists by rawValue alone would put the
+                // imported symbol first, since imported symbols occupy lower
+                // IDs, so prefer non-imported candidates and use rawValue only
+                // as the deterministic tie-break.
+                let sourceFirstThenID: (SymbolID, SymbolID) -> Bool = { lhs, rhs in
+                    let lhsImported = sema.symbols.symbol(lhs)?.flags.contains(.importedLibrary) == true
+                    let rhsImported = sema.symbols.symbol(rhs)?.flags.contains(.importedLibrary) == true
+                    if lhsImported != rhsImported {
+                        return !lhsImported
+                    }
+                    return lhs.rawValue < rhs.rawValue
+                }
                 // Prefer the lexically-scoped candidate (which encodes import
                 // priority: explicit imports > same-package declarations >
                 // wildcard imports > default imports for classifiers, KUU-1423)
@@ -809,7 +824,7 @@ struct TypeCheckHelpers {
                 // internal ID, since the short-name fallback below has no
                 // notion of scope.
                 let scopeCandidates: [SymbolID] = if path.count == 1, let scope {
-                    scope.lookupClassifier(shortName, matching: isTypeLikeSymbol).sorted(by: { $0.rawValue < $1.rawValue })
+                    scope.lookupClassifier(shortName, matching: isTypeLikeSymbol).sorted(by: sourceFirstThenID)
                 } else {
                     []
                 }
@@ -820,14 +835,14 @@ struct TypeCheckHelpers {
                 let qualifiedScopeCandidates: [SymbolID] = {
                     guard path.count > 1, let scope else { return [] }
                     var current = scope.lookupClassifier(path[0], matching: isTypeLikeSymbol)
-                        .sorted(by: { $0.rawValue < $1.rawValue })
+                        .sorted(by: sourceFirstThenID)
                     for component in path.dropFirst() {
                         current = current.flatMap { ownerID -> [SymbolID] in
                             guard let owner = sema.symbols.symbol(ownerID) else { return [] }
                             return sema.symbols.lookupAll(fqName: owner.fqName + [component])
                                 .filter(isTypeLikeSymbol)
                         }
-                        .sorted(by: { $0.rawValue < $1.rawValue })
+                        .sorted(by: sourceFirstThenID)
                         if current.isEmpty {
                             break
                         }
@@ -835,7 +850,7 @@ struct TypeCheckHelpers {
                     return current
                 }()
                 let fqCandidates = sema.symbols.lookupAll(fqName: path).filter(isTypeLikeSymbol)
-                    .sorted(by: { $0.rawValue < $1.rawValue })
+                    .sorted(by: sourceFirstThenID)
                 // Resolve nested types through the imported or package-scoped
                 // nominal root before falling back to the short name. This is
                 // required when several nominal types expose the same nested
@@ -853,7 +868,7 @@ struct TypeCheckHelpers {
                             fqName: rootInfo.fqName + Array(path.dropFirst())
                         ).filter(isTypeLikeSymbol)
                     }
-                    .sorted(by: { $0.rawValue < $1.rawValue })
+                    .sorted(by: sourceFirstThenID)
                 }()
                 // Fall back to short-name lookup so that packaged types
                 // (e.g. `package test; class Foo`) resolve when referenced
@@ -881,7 +896,7 @@ struct TypeCheckHelpers {
                         }
                         return true
                     }
-                        .sorted(by: { $0.rawValue < $1.rawValue })
+                        .sorted(by: sourceFirstThenID)
                 }
                 if let symbolID = candidates.first {
                     if let symbol = sema.symbols.symbol(symbolID),

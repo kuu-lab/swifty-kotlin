@@ -123,7 +123,13 @@ final class CallSupportLowerer {
     /// `defaultStubSymbol(for:)`/`externalLinkName(for:)` must resolve
     /// through this first, or it looks up a stub that was never emitted.
     func defaultStubOwnerSymbol(for symbol: SymbolID, sema: SemaModule, callBinding: CallBinding? = nil) -> SymbolID {
-        callBinding?.defaultArgumentOwner ?? sema.symbols.overrideDefaultsBaseSymbol(for: symbol) ?? symbol
+        var owner = callBinding?.defaultArgumentOwner ?? symbol
+        var visited: Set<SymbolID> = []
+        while visited.insert(owner).inserted,
+              let base = sema.symbols.overrideDefaultsBaseSymbol(for: owner) {
+            owner = base
+        }
+        return owner
     }
 
     /// The default ABI receives the same packed storage as the original body.

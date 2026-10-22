@@ -55,7 +55,16 @@ enum JVMMetadata {
             switch t {
             case let .function(parameters, result, receiver, nullable, suspend):
                 let inputs = [receiver].compactMap { $0 } + parameters
-                p.bytes = sourceType(.named((suspend ? "kotlin/coroutines/SuspendFunction" : "kotlin/Function") + String(inputs.count), (inputs + [result]).map { JVMKotlinTypeArgument(type: $0, variance: 2) }, nullable: nullable))
+                if suspend {
+                    // Kotlin metadata records the lowered FunctionN shape and
+                    // marks it as suspend so foreign reflection restores R.
+                    let continuation = JVMKotlinType.named("kotlin/coroutines/Continuation", [JVMKotlinTypeArgument(type: result, variance: 2)], nullable: false)
+                    let runtime = inputs + [continuation, .named("kotlin/Any", [], nullable: true)]
+                    p.bytes = sourceType(.named("kotlin/Function" + String(inputs.count + 1), runtime.map { JVMKotlinTypeArgument(type: $0, variance: 2) }, nullable: nullable))
+                    p.int(1, 1)
+                } else {
+                    p.bytes = sourceType(.named("kotlin/Function" + String(inputs.count), (inputs + [result]).map { JVMKotlinTypeArgument(type: $0, variance: 2) }, nullable: nullable))
+                }
                 if receiver != nil { var annotation = Proto(); annotation.int(1, index("kotlin/ExtensionFunctionType")); p.data(100, annotation.bytes) }
             case let .flexible(lower, upper):
                 p.bytes = sourceType(lower); p.int(4, index("kotlin.jvm.PlatformType")); p.data(5, sourceType(upper))
@@ -92,6 +101,33 @@ enum JVMMetadata {
         func parameter(_ name: String, _ parameterType: JVMValueType, _ source: JVMKotlinType? = nil, flags: Int = 0, vararg: JVMKotlinType? = nil) -> Data {
             var proto = Proto(); if flags != 0 { proto.int(1, flags) }; proto.int(2, index(name)); proto.data(3, source.map(sourceType) ?? type(parameterType)); if let vararg { proto.data(4, sourceType(vararg)) }; return proto.bytes
         }
+        func contract(_ function: JVMFunction) -> Data? {
+            var effects: [Data] = []
+            if let condition = function.normalReturnConditionParameter,
+               function.parameterNames.indices.contains(condition) {
+                // A normal return implies that this one-based value parameter
+                // is true. These fields follow metadata.proto's Contract model.
+                var expression = Proto(); expression.int(2, condition + 1)
+                var effect = Proto(); effect.int(1, 0); effect.data(3, expression.bytes)
+                effects.append(effect.bytes)
+            }
+            for (parameter, kind) in function.callsInPlaceEffects.sorted(by: { $0.key < $1.key }) {
+                let invocation: Int
+                switch kind {
+                case .atMostOnce: invocation = 0
+                case .exactlyOnce: invocation = 1
+                case .atLeastOnce: invocation = 2
+                case .unknown: continue
+                }
+                var argument = Proto(); argument.int(2, parameter + 1)
+                var effect = Proto(); effect.int(1, 1); effect.data(2, argument.bytes); effect.int(4, invocation)
+                effects.append(effect.bytes)
+            }
+            guard !effects.isEmpty else { return nil }
+            var result = Proto()
+            for effect in effects { result.data(1, effect) }
+            return result.bytes
+        }
         func function(_ function: JVMFunction) -> Data {
             let ref = function.reference
             var proto = Proto(); proto.int(9, functionFlags(function))
@@ -99,13 +135,14 @@ enum JVMMetadata {
             proto.int(2, index(function.sourceName ?? ref.name)); proto.data(3, function.kotlinResult.map(sourceType) ?? type(ref.result))
             for t in function.typeParameters { proto.data(4, typeParameter(t)) }
             for (i, pair) in zip(function.parameterNames, Array(ref.parameters.dropFirst(function.metadataParameterOffset + (function.kotlinReceiver == nil ? 0 : 1)))).enumerated() { proto.data(6, parameter(pair.0, pair.1, function.kotlinParameters.indices.contains(i) ? function.kotlinParameters[i] : nil, flags: (function.parameterInlineFlags.indices.contains(i) ? function.parameterInlineFlags[i] : 0) | (function.parameterDefaultFlags.indices.contains(i) && function.parameterDefaultFlags[i] ? 2 : 0) | (function.parameterAnnotations.indices.contains(i + function.metadataParameterOffset + (function.kotlinReceiver == nil ? 0 : 1)) && !function.parameterAnnotations[i + function.metadataParameterOffset + (function.kotlinReceiver == nil ? 0 : 1)].isEmpty ? 1 : 0), vararg: function.parameterVarargTypes.indices.contains(i) ? function.parameterVarargTypes[i] : nil)) }
+            if let effects = contract(function) { proto.data(32, effects) }
             proto.data(100, signature(ref.name, ref.descriptor)); return proto.bytes
         }
         func propertyMetadata(_ property: JVMProperty, functions: [JVMFunction]) -> Data {
             let getter = functions.first { $0.reference.name == property.getter.name && $0.reference.descriptor == property.getter.descriptor }
             let setter = property.setter.flatMap { method in functions.first { $0.reference.name == method.name && $0.reference.descriptor == method.descriptor } }
             var proto = Proto()
-            let flags = visibility(property.modifiers) | (getter?.isAbstract == true ? 32 : ((getter?.access ?? 0) & 16 == 0 ? 16 : 0))
+            let flags = visibility(property.modifiers) | (property.modifiers.contains(.const) ? 0 : (getter?.isAbstract == true ? 32 : ((getter?.access ?? 0) & 16 == 0 ? 16 : 0)))
             proto.int(11, flags | (property.modifiers.contains(.const) ? 2048 | 8192 : 0) | (property.annotationsMethod == nil ? 0 : 1) | 512 | (setter == nil ? 0 : 256 | 1024) | (property.modifiers.contains(.lateinit) ? 4096 : 0) | (property.delegateSymbol != nil ? 32768 : 0))
             proto.int(2, index(property.name)); proto.data(3, property.kotlinType.map(sourceType) ?? type(property.type))
             if !property.modifiers.contains(.const), let getter { proto.int(7, functionFlags(getter) | (property.customGetter ? 64 : 0)) }
@@ -115,6 +152,7 @@ enum JVMMetadata {
             }
             var jvm = Proto()
             if let field = property.delegateField ?? property.field { jvm.data(1, signature(field.name, field.type.descriptor)) }
+            else if property.modifiers.contains(.const) { jvm.data(1, signature(property.name, property.type.descriptor)) }
             if let carrier = property.annotationsMethod { jvm.data(2, signature(carrier.name, carrier.descriptor)) }
             if !property.modifiers.contains(.const) { jvm.data(3, signature(property.getter.name, property.getter.descriptor)) }
             if let method = property.setter { jvm.data(4, signature(method.name, method.descriptor)) }
@@ -141,7 +179,7 @@ enum JVMMetadata {
             if !declaration.kotlinSupertypes.isEmpty { for t in declaration.kotlinSupertypes { package.data(6, sourceType(t)) } }
             else { for parent in [declaration.superclass] + declaration.interfaces { package.data(6, type(.reference(parent, nullable: false))) } }
             let accessorNames = Set(declaration.properties.flatMap { [$0.getter.name + $0.getter.descriptor] + ($0.setter.map { [$0.name + $0.descriptor] } ?? []) })
-            for member in declaration.functions + [declaration.annotationConstructor].compactMap({ $0 }) where (member.access ?? 0) & 0x1000 == 0 && member.reference.name != "<clinit>" {
+            for member in declaration.functions + [declaration.annotationConstructor].compactMap({ $0 }) where !member.isMetadataHidden && (member.access ?? 0) & 0x1000 == 0 && member.reference.name != "<clinit>" {
                 if member.isConstructor || member.isValueConstructor {
                     if member.isSynthetic { continue }
                     var proto = Proto()
@@ -156,7 +194,7 @@ enum JVMMetadata {
         } else {
             for alias in program.typeAliases { package.data(5, typeAlias(alias)) }
             let accessors = Set(program.properties.flatMap { [$0.getter.name + $0.getter.descriptor] + ($0.setter.map { [$0.name + $0.descriptor] } ?? []) })
-            for member in program.functions where !member.isSynthetic && member.reference.name != "<clinit>" && !accessors.contains(member.reference.name + member.reference.descriptor) { package.data(3, function(member)) }
+            for member in program.functions where !member.isMetadataHidden && !member.isSynthetic && member.reference.name != "<clinit>" && !accessors.contains(member.reference.name + member.reference.descriptor) { package.data(3, function(member)) }
             for property in program.properties { package.data(4, propertyMetadata(property, functions: program.functions)) }
             package.int(101, index(program.moduleName))
         }

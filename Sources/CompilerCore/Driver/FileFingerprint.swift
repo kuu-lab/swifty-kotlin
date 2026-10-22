@@ -1,5 +1,11 @@
 import Foundation
 
+#if canImport(CryptoKit)
+import CryptoKit
+#elseif canImport(Crypto)
+import Crypto
+#endif
+
 /// The content hash is the comparison key; mtime is retained as diagnostic
 /// metadata and for future cache optimizations.
 public struct FileFingerprint: Equatable, Codable {
@@ -40,11 +46,17 @@ public struct FileFingerprint: Equatable, Codable {
     }
 
     static func sha256Bytes(_ data: Data) -> [UInt8] {
-        sha256(Array(data))
+#if canImport(CryptoKit) || canImport(Crypto)
+        return Array(SHA256.hash(data: data))
+#else
+        return data.withUnsafeBytes { sha256(input: $0) }
+#endif
     }
 
-    /// Minimal SHA-256 implementation (no external dependency).
-    private static func sha256(_ input: [UInt8]) -> [UInt8] {
+    /// Minimal SHA-256 implementation (no external dependency). Hashes the
+    /// buffer in place — only the final padded block(s) are staged — so
+    /// artifact-sized inputs are not copied byte-by-byte first.
+    private static func sha256(input: UnsafeRawBufferPointer) -> [UInt8] {
         let k: [UInt32] = [
             0x428A_2F98, 0x7137_4491, 0xB5C0_FBCF, 0xE9B5_DBA5,
             0x3956_C25B, 0x59F1_11F1, 0x923F_82A4, 0xAB1C_5ED5,
@@ -73,26 +85,11 @@ public struct FileFingerprint: Equatable, Codable {
         var h6: UInt32 = 0x1F83_D9AB
         var h7: UInt32 = 0x5BE0_CD19
 
-        var message = input
-        let originalLength = message.count
-        message.append(0x80)
-        while message.count % 64 != 56 {
-            message.append(0x00)
-        }
-        let bitLength = UInt64(originalLength) * 8
-        for i in stride(from: 56, through: 0, by: -8) {
-            message.append(UInt8((bitLength >> i) & 0xFF))
-        }
-
-        let blockCount = message.count / 64
-        for blockIndex in 0 ..< blockCount {
-            var w = [UInt32](repeating: 0, count: 64)
+        var w = [UInt32](repeating: 0, count: 64)
+        func processBlock(at blockOffset: Int, in buffer: UnsafeRawBufferPointer) {
             for t in 0 ..< 16 {
-                let offset = blockIndex * 64 + t * 4
-                w[t] = UInt32(message[offset]) << 24
-                    | UInt32(message[offset + 1]) << 16
-                    | UInt32(message[offset + 2]) << 8
-                    | UInt32(message[offset + 3])
+                w[t] = UInt32(bigEndian: buffer.loadUnaligned(
+                    fromByteOffset: blockOffset + t * 4, as: UInt32.self))
             }
             for t in 16 ..< 64 {
                 let s0 = rightRotate(w[t - 15], by: 7) ^ rightRotate(w[t - 15], by: 18) ^ (w[t - 15] >> 3)
@@ -117,6 +114,33 @@ public struct FileFingerprint: Equatable, Codable {
 
             h0 = h0 &+ a; h1 = h1 &+ b; h2 = h2 &+ c; h3 = h3 &+ d
             h4 = h4 &+ e; h5 = h5 &+ f; h6 = h6 &+ g; h7 = h7 &+ h
+        }
+
+        let fullBlockCount = input.count / 64
+        for blockIndex in 0 ..< fullBlockCount {
+            processBlock(at: blockIndex * 64, in: input)
+        }
+
+        var tail = [UInt8](repeating: 0, count: 128)
+        let tailLength = input.count - fullBlockCount * 64
+        for index in 0 ..< tailLength {
+            tail[index] = input[fullBlockCount * 64 + index]
+        }
+        tail[tailLength] = 0x80
+        var paddedEnd = tailLength + 1
+        while paddedEnd % 64 != 56 {
+            paddedEnd += 1
+        }
+        let bitLength = UInt64(input.count) &* 8
+        for shift in stride(from: 56, through: 0, by: -8) {
+            tail[paddedEnd] = UInt8((bitLength >> UInt32(shift)) & 0xFF)
+            paddedEnd += 1
+        }
+        tail.withUnsafeBufferPointer { tailBuffer in
+            let rawTail = UnsafeRawBufferPointer(tailBuffer)
+            for blockIndex in 0 ..< paddedEnd / 64 {
+                processBlock(at: blockIndex * 64, in: rawTail)
+            }
         }
 
         let result: [UInt32] = [h0, h1, h2, h3, h4, h5, h6, h7]

@@ -26,21 +26,47 @@ open class BaseScope: Scope {
     public let parent: Scope?
     private let symbols: SymbolTable
     private var locals: [InternedString: [SymbolID]] = [:]
+    // Tracks declarations kept outside the symbol lookup table, such as locals.
+    private var localValueOrClassifierDeclarations: [InternedString: Set<ExprID>] = [:]
 
     public init(parent: Scope?, symbols: SymbolTable) {
         self.parent = parent
         self.symbols = symbols
     }
 
+    /// Additional same-tier bindings supplied lazily by subclasses. Imported
+    /// package members register on demand, so a package scope resolves its
+    /// members from the symbol table instead of a pre-collected mapping.
+    /// Inserted bindings keep priority so source declarations still precede
+    /// imported ones in the merged candidate order.
+    open func deferredCandidates(for name: InternedString) -> [SymbolID] {
+        []
+    }
+
+    /// Bound symbols plus lazily supplied same-tier candidates, deduplicated.
+    func candidates(for name: InternedString) -> [SymbolID] {
+        let bound = locals[name] ?? []
+        let deferred = deferredCandidates(for: name)
+        guard !deferred.isEmpty else { return bound }
+        guard !bound.isEmpty else { return deferred }
+        var merged = bound
+        var seen = Set(bound)
+        for symbol in deferred where seen.insert(symbol).inserted {
+            merged.append(symbol)
+        }
+        return merged
+    }
+
     open func lookup(_ name: InternedString) -> [SymbolID] {
-        if let local = locals[name], !local.isEmpty {
+        let local = candidates(for: name)
+        if !local.isEmpty {
             return local
         }
         return parent?.lookup(name) ?? []
     }
 
     open func lookup(_ name: InternedString, matching predicate: (SymbolID) -> Bool) -> [SymbolID] {
-        let local = (locals[name] ?? []).filter(predicate)
+        let local = candidates(for: name).filter(predicate)
         if !local.isEmpty {
             return local
         }
@@ -52,7 +78,7 @@ open class BaseScope: Scope {
         var seen: Set<SymbolID> = []
         var current: Scope? = self
         while let scope = current as? BaseScope {
-            for sym in scope.locals[name] ?? [] where seen.insert(sym).inserted {
+            for sym in scope.candidates(for: name) where seen.insert(sym).inserted {
                 result.append(sym)
             }
             current = scope.parent
@@ -65,7 +91,7 @@ open class BaseScope: Scope {
         var reachedFileScope = false
         var fileLevelMatches: [SymbolID] = []
         while let scope = current {
-            let matches = (scope.locals[name] ?? []).filter(predicate)
+            let matches = scope.candidates(for: name).filter(predicate)
             if !reachedFileScope && !(scope is FileScope) {
                 if !matches.isEmpty {
                     return matches
@@ -110,6 +136,18 @@ open class BaseScope: Scope {
         locals[symbol.name] = bucket
     }
 
+    func registerLocalValueOrClassifierDeclaration(
+        named name: InternedString,
+        expression: ExprID
+    ) -> Bool {
+        var declarations = localValueOrClassifierDeclarations[name, default: []]
+        guard !declarations.contains(expression) else { return false }
+        let isRedeclaration = !declarations.isEmpty
+        declarations.insert(expression)
+        localValueOrClassifierDeclarations[name] = declarations
+        return isRedeclaration
+    }
+
     open func insertWithAlias(_ sym: SymbolID, asName: InternedString) {
         var bucket = locals[asName, default: []]
         if !bucket.contains(sym) {
@@ -122,6 +160,47 @@ open class BaseScope: Scope {
 final class FileScope: BaseScope {}
 final class PackageScope: BaseScope {}
 class ImportScope: BaseScope {}
+
+/// Package-level members resolved on demand. Inserted bindings behave like
+/// any `BaseScope` local; a name that misses additionally asks the symbol
+/// table for `<package> + name`, which drains pending compact-index entries
+/// for the queried name only. Each `(path, include)` pair reproduces one of
+/// the filters the eager package mapping applied (default-import skips,
+/// wildcard accessibility, same-file-private routing).
+final class PackageMembersScope: BaseScope {
+    private var memberSources: [(path: [InternedString], include: (SymbolID) -> Bool)] = []
+    private let symbols: SymbolTable
+
+    init(
+        parent: Scope?,
+        symbols: SymbolTable,
+        packages: [(path: [InternedString], include: (SymbolID) -> Bool)] = []
+    ) {
+        self.symbols = symbols
+        super.init(parent: parent, symbols: symbols)
+        memberSources = packages
+    }
+
+    /// Adds a package path whose members become visible through this scope.
+    /// Wildcard imports append each imported path instead of eagerly
+    /// inserting every member the package provides.
+    func addPackage(_ path: [InternedString], include: @escaping (SymbolID) -> Bool) {
+        memberSources.append((path: path, include: include))
+    }
+
+    override func deferredCandidates(for name: InternedString) -> [SymbolID] {
+        var result: [SymbolID] = []
+        var seen: Set<SymbolID> = []
+        for source in memberSources {
+            for symbol in symbols.lookupAll(fqName: source.path + [name])
+            where symbols.symbol(symbol)?.kind != .package
+                && source.include(symbol) && seen.insert(symbol).inserted {
+                result.append(symbol)
+            }
+        }
+        return result
+    }
+}
 /// The scope holding a file's single-type and alias imports. Kotlin ranks
 /// this tier above same-package declarations for classifier lookup, so
 /// `lookupClassifier` needs to tell it apart from wildcard/default scopes.

@@ -51,29 +51,12 @@ extension TypeCheckSemaPhase {
     private func containsTailCall(
         _ exprID: ExprID, isValuePosition: Bool, functionSymbol: SymbolID, ast: ASTModule, bindings: BindingTable
     ) -> Bool {
-        guard let expr = ast.arena.expr(exprID) else { return false }
-        func recurse(_ id: ExprID, _ valuePosition: Bool) -> Bool {
-            containsTailCall(
-                id, isValuePosition: valuePosition, functionSymbol: functionSymbol, ast: ast, bindings: bindings
-            )
+        var found = false
+        TailrecPositionWalker.visit(
+            exprID, in: ast.arena, isValuePosition: isValuePosition, includeLabeledReturns: true
+        ) { candidate in
+            if bindings.callBinding(for: candidate)?.chosenCallee == functionSymbol { found = true }
         }
-        switch expr {
-        case let .returnExpr(value, _, _):
-            return value.map { recurse($0, true) } ?? false
-        case .call, .memberCall, .safeMemberCall:
-            return isValuePosition && bindings.callBinding(for: exprID)?.chosenCallee == functionSymbol
-        case let .ifExpr(_, thenExpr, elseExpr, _):
-            return recurse(thenExpr, isValuePosition) || (elseExpr.map { recurse($0, isValuePosition) } ?? false)
-        case let .whenExpr(_, branches, elseExpr, _):
-            return branches.contains { recurse($0.body, isValuePosition) }
-                || (elseExpr.map { recurse($0, isValuePosition) } ?? false)
-        case let .blockExpr(statements, trailingExpr, _):
-            return statements.contains { recurse($0, false) }
-                || (trailingExpr.map { recurse($0, isValuePosition) } ?? false)
-        case let .binary(op, _, rhs, _):
-            return op == .elvis && recurse(rhs, isValuePosition)
-        default:
-            return false
-        }
+        return found
     }
 }

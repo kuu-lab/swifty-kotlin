@@ -72,6 +72,31 @@ struct ExplicitImportResolutionTests {
     }
 
     @Test(arguments: [false, true])
+    func classCompanionMembersCanBeImportedThroughClassName(useArtifact: Bool) throws {
+        let source = """
+        import Foo.BAR
+        import Foo.answer as companionAnswer
+
+        class Foo {
+            companion object {
+                val BAR = 42
+                fun answer(): Int = BAR
+            }
+        }
+
+        fun importedProperty(): Int = BAR
+        fun importedFunction(): Int = companionAnswer()
+        """
+        let path = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".kt").path
+        let ctx = try context(inputs: [path], useArtifact: useArtifact)
+        _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
+        try runSema(ctx)
+        let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected diagnostics: \(errors.map(\.message))")
+    }
+
+    @Test(arguments: [false, true])
     func companionPropertyImportsResolveWithUnrelatedImplicitReceivers(useArtifact: Bool) throws {
         let source = """
         import kotlin.Int.Companion.MAX_VALUE
@@ -223,6 +248,27 @@ struct ExplicitImportResolutionTests {
             let errors = diagnosticsForPath(paths[1], in: ctx).filter { $0.severity == .error }
             #expect(errors.count == 1, "Unexpected diagnostics: \(errors)")
             #expect(errors.first?.code == "KSWIFTK-SEMA-0022")
+        }
+    }
+
+    /// KUU-2731: a star-imported non-callable property must not hide a
+    /// same-named default-imported function in call syntax.
+    @Test(arguments: [false, true])
+    func starImportedPropertyDoesNotShadowDefaultImportedFunctionCall(useArtifact: Bool) throws {
+        let owner = """
+        package kk
+        val emptyMap: Map<String, String> = mapOf()
+        """
+        let usage = """
+        package kk.impl
+        import kk.*
+        class DM { var backing: Map<String, String> = emptyMap() }
+        """
+        try withTemporaryFiles(contents: [owner, usage]) { paths in
+            let ctx = try context(inputs: paths, useArtifact: useArtifact)
+            try runSema(ctx)
+            let errors = diagnosticsForPath(paths[1], in: ctx).filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
         }
     }
 
