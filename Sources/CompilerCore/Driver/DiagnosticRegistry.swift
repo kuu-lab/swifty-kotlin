@@ -281,6 +281,12 @@ enum DiagnosticRegistry {
             code: "KSWIFTK-PARSE-0022",
             pass: "PARSE",
             defaultSeverity: .error,
+            summary: "Expected an argument."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0023",
+            pass: "PARSE",
+            defaultSeverity: .error,
             summary: "Expecting member name after '.'."
         ),
         DiagnosticDescriptor(
@@ -1009,6 +1015,12 @@ enum DiagnosticRegistry {
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "Operator convention call requires the 'operator' modifier on the convention function."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0434",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "'if' used as an expression must have an 'else' branch."
         ),
     ]
 

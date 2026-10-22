@@ -18,12 +18,12 @@ struct TrailingDotNumericLiteralTests {
 
     @Test(arguments: ["println(1.)", "1.", "x."])
     func rejectsDotWithoutMember(_ source: String) {
-        #expect(parseDiagnosticCodes(source).contains("KSWIFTK-PARSE-0022"))
+        #expect(parseDiagnosticCodes(source).contains("KSWIFTK-PARSE-0023"))
     }
 
     @Test(arguments: ["println(.5)", "1.5", "1.toString()", "x.y"])
     func acceptsValidForms(_ source: String) {
-        #expect(!parseDiagnosticCodes(source).contains("KSWIFTK-PARSE-0022"))
+        #expect(!parseDiagnosticCodes(source).contains("KSWIFTK-PARSE-0023"))
     }
 }
 #endif

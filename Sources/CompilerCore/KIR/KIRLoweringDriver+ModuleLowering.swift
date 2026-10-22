@@ -314,6 +314,7 @@ extension KIRLoweringDriver {
                 ))
 
             case let .funDecl(function):
+                if sema.unreachableTopLevelFunctionDecls.contains(declID) { continue }
                 declIDs.append(contentsOf: lowerTopLevelFunDecl(
                     function,
                     symbol: symbol,
