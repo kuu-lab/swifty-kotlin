@@ -492,6 +492,7 @@ extension MemberLowerer {
             sema: sema,
             arena: arena,
             interner: interner,
+            isLocal: true,
             body: &body
         )
         instructions = body.instructions
@@ -503,6 +504,7 @@ extension MemberLowerer {
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
+        isLocal: Bool = false,
         body: inout KIRLoweringEmitContext
     ) -> KIRExprID {
         driver.emitKPropertyStubCreate(
@@ -510,6 +512,7 @@ extension MemberLowerer {
             sema: sema,
             arena: arena,
             interner: interner,
+            isLocal: isLocal,
             emit: &body
         )
     }
