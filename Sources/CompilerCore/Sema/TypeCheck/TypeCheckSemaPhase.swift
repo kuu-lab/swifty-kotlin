@@ -21,6 +21,14 @@ final class TypeCheckSemaPhase: CompilerPhase {
         let semaCacheEnabled = ctx.options.frontendFlags.contains("sema-cache")
         let semaCacheContext: SemaCacheContext? = semaCacheEnabled ? SemaCacheContext() : nil
 
+        if ctx.options.frontendFlags.contains("reachability-sema"), ctx.options.emit == .executable {
+            sema.unreachableTopLevelFunctionDecls = withSemaSubPhaseTiming("reachability", ctx: ctx) {
+                TopLevelFunctionReachability.unreachableFunctionDecls(
+                    ast: ast, sourceManager: ctx.sourceManager, interner: ctx.interner
+                )
+            }
+        }
+
         let solver = ConstraintSolver()
         let resolver = OverloadResolver()
         if let semaCacheContext {
