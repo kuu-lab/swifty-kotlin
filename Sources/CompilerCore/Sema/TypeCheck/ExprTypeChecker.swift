@@ -1961,6 +1961,17 @@ final class ExprTypeChecker {
             )
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
+        if sema.types.nullability(of: operandType) == .nullable,
+           operandType != sema.types.errorType
+        {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0026",
+                "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
         if (!lhsIsPrimitive || sema.types.isUnsigned(operandType)),
            operandType != sema.types.anyType,
            operandType != sema.types.nullableAnyType,
