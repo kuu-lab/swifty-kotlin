@@ -479,6 +479,7 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
         guard let value = parseExpression(minPrecedence: 0) else {
+            diagnostics?.error("KSWIFTK-PARSE-0001", "Expected expression.", range: throwToken.range)
             return nil
         }
         let end = astArena.exprRange(value)?.end ?? throwToken.range.end
