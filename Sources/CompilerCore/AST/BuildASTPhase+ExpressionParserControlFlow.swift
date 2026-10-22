@@ -152,6 +152,9 @@ extension BuildASTPhase.ExpressionParser {
                 _ = consume()
                 isElseBranch = true
             } else {
+                if matches(.symbol(.arrow)) {
+                    diagnostics?.error("KSWIFTK-PARSE-0011", "Expected when branch condition.", range: token.range)
+                }
                 if let firstCond = parseWhenBranchCondition(subject: subject) {
                     conditions.append(firstCond)
                 }
