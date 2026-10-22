@@ -2,7 +2,11 @@ import CompilerCore
 import Foundation
 
 public func makeBackendPhases() -> [CompilerPhase] {
-    let session = LLVMBackendSession()
+    makeBackendPhases(keepLLVMContextAlive: false)
+}
+
+public func makeBackendPhases(keepLLVMContextAlive: Bool) -> [CompilerPhase] {
+    let session = LLVMBackendSession(keepContextAlive: keepLLVMContextAlive)
     return [CodegenPhase(session: session), LinkPhase(session: session)]
 }
 

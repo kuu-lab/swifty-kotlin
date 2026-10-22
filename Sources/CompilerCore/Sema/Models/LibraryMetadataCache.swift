@@ -188,11 +188,11 @@ final class LibraryMetadataCache {
     }
 }
 
-/// Process-wide reuse of decoded compact `.kklib` indexes for batch compile
-/// sessions (`kswiftc --batch`). Only the interner-independent
+/// Process-wide reuse of decoded compact `.kklib` indexes for persistent compile
+/// sessions (`kswiftc --batch` or `kswiftc --daemon`). Only the interner-independent
 /// `IndexedMetadataFile` is shared — SymbolTable/TypeSystem/StringInterner
 /// state stays per-compilation, so no semantic state leaks between cases.
-/// Disabled by default; single-threaded use only (batch cases run sequentially).
+/// Disabled by default; requests must be serialized because the cache is not locked.
 public enum KklibBatchSession {
     nonisolated(unsafe) public static var isEnabled = false
     nonisolated(unsafe) private static var indexedFiles: [String: (mtimeNanos: Int64, file: IndexedMetadataFile)] = [:]

@@ -30,7 +30,7 @@ enum BatchMode {
             let fields = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
             guard fields.count >= 4 else { continue }
             let exitCode = withRedirectedOutput(stdout: fields[0], stderr: fields[1]) {
-                compileOne(args: Array(fields.dropFirst(3)))
+                CLICompilerService.shared.run(args: Array(fields.dropFirst(3)))
             }
             try? "\(exitCode)\n".write(toFile: fields[2], atomically: true, encoding: .utf8)
         }
@@ -53,38 +53,4 @@ enum BatchMode {
         return code
     }
 
-    private static func compileOne(args: [String]) -> Int32 {
-        do {
-            let parsed = try CLIParser.parse(args: args)
-            if CompilerOptions.shouldUseDefaultStdlib(
-                allowDefaultStdlibLibrary: parsed.allowDefaultStdlibLibrary,
-                includeStdlib: parsed.includeStdlib,
-                stdlibOnly: parsed.stdlibOnly,
-                stdlibLibraryPath: parsed.stdlibLibraryPath,
-                emit: parsed.emit
-            ) {
-                do {
-                    CompilerOptions.defaultStdlibLibraryPath = try StdlibArtifactCache.resolveOrBuild(target: parsed.target)
-                } catch {
-                    FileHandle.standardError.write(
-                        Data("KSWIFTK-LIB-0023: Cannot prepare the default bundled stdlib artifact: \(error)\n".utf8)
-                    )
-                    return 1
-                }
-            }
-            let options = try CLIParser.parse(args: args)
-            IncrementalCompilationCache.environmentFingerprintProvider = { options in
-                incrementalEnvironmentFingerprint(for: options)
-            }
-            return Int32(CompilerDriver(backendPhases: makeBackendPhases).run(options: options))
-        } catch let error as CLIParseError {
-            if error == .usageRequested { printUsage(); return 0 }
-            printCLIError(error)
-            printUsage()
-            return 1
-        } catch {
-            print("Compiler internal error: \(error)")
-            return 1
-        }
-    }
 }
