@@ -285,7 +285,9 @@ extension ExprTypeChecker {
         if op == .identityEqual || op == .notIdentityEqual {
             let lhsType = equalityDeclaredType(lhsID, inferred: lhs, sema: sema)
             let rhsType = equalityDeclaredType(rhsID, inferred: rhs, sema: sema)
-            if identityEqualityHasValueClassOperand(lhsType, rhsType, sema: sema) {
+            if identityEqualityHasValueClassOperand(lhsType, rhsType, sema: sema)
+                || identityEqualityHasDistinctPrimitiveTypes(lhsType, rhsType, sema: sema)
+            {
                 let lhsName = sema.types.displayName(of: lhsType, symbols: sema.symbols, interner: interner)
                 let rhsName = sema.types.displayName(of: rhsType, symbols: sema.symbols, interner: interner)
                 ctx.sema.diagnostics.error(
@@ -1190,6 +1192,15 @@ extension ExprTypeChecker {
         return [lhs, rhs].contains { type in
             resolveClassTypeSymbol(type, sema: sema)?.symbol.flags.contains(.valueType) == true
         }
+    }
+
+    /// kotlinc rejects `===` between different non-null primitive types
+    /// (e.g. `Int === Long`) with the same diagnostic as value classes.
+    private func identityEqualityHasDistinctPrimitiveTypes(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {
+        guard case let .primitive(left, .nonNull) = sema.types.kind(of: lhs),
+              case let .primitive(right, .nonNull) = sema.types.kind(of: rhs)
+        else { return false }
+        return left != right
     }
 
     private func identityEqualityHasDistinctSingletonTypes(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {
