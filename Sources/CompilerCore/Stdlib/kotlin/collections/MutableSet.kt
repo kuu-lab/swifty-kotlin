@@ -50,22 +50,6 @@ public interface MutableSet<E> : Set<E>, MutableCollection<E>, MutableIterable<E
     @IgnorableReturnValue
     public override external fun retainAll(elements: Collection<out E>): Boolean
 
-    public operator fun plusAssign(element: E) {
-        add(element)
-    }
-
-    public operator fun plusAssign(elements: Collection<out E>) {
-        addAll(elements)
-    }
-
-    public operator fun minusAssign(element: E) {
-        remove(element)
-    }
-
-    public operator fun minusAssign(elements: Collection<out E>) {
-        removeAll(elements)
-    }
-
     @ExperimentalJsExport
     @ExperimentalJsCollectionsApi
     @SinceKotlin("2.0")
