@@ -450,12 +450,28 @@ extension ExprTypeChecker {
             expectedReturnType: expectedLambdaReturnType
         )
         bodyCtx.lambdaReturnScopes.append(returnScope)
+        // A bare `if` without `else` occupying the lambda body's tail is a
+        // statement in Kotlin: the lambda simply returns Unit and any mismatch
+        // is reported as a return-type mismatch on the lambda itself, not as
+        // INVALID_IF_AS_EXPRESSION. Statement context here only reaches that
+        // trailing `if` — block statements already infer as statements, and an
+        // else-less `if` forces its own branches into statement context anyway.
+        let lambdaTailIsElselessIf: Bool = {
+            let tailExpr: ExprID = if case let .blockExpr(_, trailingExpr, _) = ast.arena.expr(body),
+                                      let trailingExpr {
+                trailingExpr
+            } else {
+                body
+            }
+            guard case let .ifExpr(_, _, elseExpr, _) = ast.arena.expr(tailExpr) else { return false }
+            return elseExpr == nil
+        }()
         let fallthroughType = driver.inferExpr(
             body,
             ctx: bodyCtx,
             locals: &lambdaLocals,
             expectedType: bodyExpectedType,
-            isStatementContext: lambdaUsesUnitCoercion
+            isStatementContext: lambdaUsesUnitCoercion || lambdaTailIsElselessIf
         )
         if expectedLambdaReturnType == sema.types.unitType,
            sema.types.makeNonNullable(fallthroughType) == sema.types.unitType

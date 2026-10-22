@@ -278,6 +278,18 @@ enum DiagnosticRegistry {
             summary: "A for-loop variable cannot be declared with 'val' or 'var'."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0022",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Expected an argument."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0023",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Expecting member name after '.'."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-PARSE-TYPE-DEPTH",
             pass: "PARSE",
             defaultSeverity: .error,
@@ -1009,6 +1021,12 @@ enum DiagnosticRegistry {
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "Lambda parameter count does not match the expected function type."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0434",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "'if' used as an expression must have an 'else' branch."
         ),
     ]
 
