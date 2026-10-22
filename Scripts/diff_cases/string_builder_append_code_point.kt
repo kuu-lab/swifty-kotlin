@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2040: preserve the independently typed reproducer and UTF-16 boundaries.
 fun append(builder: StringBuilder, cp: Int): StringBuilder = builder.appendCodePoint(cp)
 

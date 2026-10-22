@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
   val a: String? = null
   val b: String? = "hello"

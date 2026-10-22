@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     var arr = intArrayOf(1, 2, 3)
     for (x in arr) { arr = intArrayOf(10, 20, 30, 40); print("$x ") }

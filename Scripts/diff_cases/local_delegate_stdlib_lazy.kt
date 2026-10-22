@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-147: local `by lazy` used to bind the local to the Lazy handle itself.
 fun main() {
     val x by lazy { 42 }

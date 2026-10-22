@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1429: function types are valid `as`/`as?` targets, including for
 // labeled lambdas in call-argument position. All lambdas are invoked so the
 // output stays deterministic (function-object toString is not portable).

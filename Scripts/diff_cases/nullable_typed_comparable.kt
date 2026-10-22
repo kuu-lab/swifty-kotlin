@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1938: Nullable builtins implement nullable Comparable of their non-null type.
 fun intComparable(value: Int?): Comparable<Int>? = value
 fun stringComparable(value: String?): Comparable<in String>? = value

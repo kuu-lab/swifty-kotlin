@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Adapted from Kotlin 2.3.10 compiler/testData/codegen/box/constructorCall/regularConstructorCallEvaluationOrder.kt.
 var log = ""
 

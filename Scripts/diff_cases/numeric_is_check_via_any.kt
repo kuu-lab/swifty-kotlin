@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val i: Any = 42
     println(i is Int)

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val x = 42
     println("x = $x")

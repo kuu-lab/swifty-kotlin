@@ -1,3 +1,4 @@
+// DIFF_JVM
 class E : RuntimeException()
 
 fun throwOrValue(flag: Boolean): String {

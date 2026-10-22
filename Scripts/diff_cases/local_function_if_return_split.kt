@@ -1,3 +1,4 @@
+// DIFF_JVM
 // A local (statement-position) function whose body has a braceless early
 // return (`if (cond) return x`) followed by another statement used to lose
 // that trailing statement entirely: `BuildASTPhase.splitTokensIntoStatements`

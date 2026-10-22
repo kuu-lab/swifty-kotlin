@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println("a,b,c,d".split(",", limit = 2))
     println("aXbXc".split("x", ignoreCase = true))

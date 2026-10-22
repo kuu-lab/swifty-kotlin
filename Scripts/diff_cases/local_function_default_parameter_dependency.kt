@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun foo(): String {
     fun bar(x: String, y: String = x): String {
         return y

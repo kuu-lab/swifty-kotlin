@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun classify(c: Int): Int {
     val x: Int
     when (c) {

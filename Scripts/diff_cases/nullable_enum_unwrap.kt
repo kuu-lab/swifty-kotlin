@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1970: nullable enum properties and methods after safe calls and smart casts.
 enum class Mode(val tag: Int) {
     FAST(1), SLOW(2);

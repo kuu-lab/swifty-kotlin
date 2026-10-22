@@ -1,3 +1,4 @@
+// DIFF_JVM
 // NumberFormatException messages match java.lang.Integer/Long/Short/Byte
 // parsing: the radix is mentioned when != 10, narrow types report range errors.
 fun check(f: () -> Any) {

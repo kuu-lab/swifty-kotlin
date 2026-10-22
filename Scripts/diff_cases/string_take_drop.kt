@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // take basic cases
     println("hello".take(2))

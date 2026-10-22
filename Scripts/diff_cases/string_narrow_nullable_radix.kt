@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun parse(value: String, radix: Int) {
     println("$value:$radix:${value.toByteOrNull(radix)}:${value.toShortOrNull(radix)}")
 }

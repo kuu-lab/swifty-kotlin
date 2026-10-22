@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val t: Boolean? = true
     val f: Boolean? = false

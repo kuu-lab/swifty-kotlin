@@ -1,3 +1,4 @@
+// DIFF_JVM
 private const val LF: Byte = 10
 
 fun byteSubjectWhen(b: Byte): Int {

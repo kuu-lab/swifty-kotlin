@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2146: inherited concrete members use defaults from the leaf's interface scope.
 interface LabelApi {
     fun label(value: String = "ok"): String

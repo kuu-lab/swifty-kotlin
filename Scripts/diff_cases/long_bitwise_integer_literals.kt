@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun matchesMask(x: Long): Boolean = (x and 3) == 0L
 
 fun main() {

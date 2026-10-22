@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val chars = charArrayOf('a', 'b', 'c', 'd')
     println(chars.concatToString(1, 3))

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2148: ordinary recursive callbacks need emitted native bodies.
 fun process(value: Int, handler: (Int) -> Int): Int {
     return if (value == 0) handler(value) else process(value - 1, handler)

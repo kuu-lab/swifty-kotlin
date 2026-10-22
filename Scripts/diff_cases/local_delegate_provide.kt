@@ -1,3 +1,4 @@
+// DIFF_JVM
 import kotlin.reflect.KProperty
 
 // BUG-146: `provideDelegate` on a delegate used in a *local* declaration
