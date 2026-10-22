@@ -5,6 +5,7 @@ extension BuildASTPhase {
         interner: StringInterner,
         astArena: ASTArena
     ) -> ExprID? {
+        let statementTokens = Self.skipLeadingLocalDeclarationLabels(statementTokens)
         guard !statementTokens.isEmpty else {
             return nil
         }
