@@ -661,12 +661,20 @@ final class ObjectLiteralLowerer {
             let isReifiedTypeParameter = sema.symbols.symbol(capturedSymbol).map {
                 $0.kind == .typeParameter && $0.flags.contains(.reifiedTypeParameter)
             } ?? false
-            // Mutable captures hold boxed cells, and reified captures hold a
-            // pair of raw tokens. Keep either generic until it is unwrapped;
-            // ordinary immutable captures can use their logical type directly.
+            // A delegated local (`var x by Prop()`/`val x by lazy {}`) stores
+            // its delegate *instance* in the capture field, not a boxed cell
+            // and not the property value — exactly what `captureValueExpr`
+            // materialized and what `bindCapturedLambdaValue` restores for
+            // lambdas. Mutable captures hold boxed cells, and reified
+            // captures hold a pair of raw tokens. Keep all three generic
+            // until they are unwrapped; ordinary immutable captures can use
+            // their logical type directly.
+            let isDelegatedLocal = sema.symbols.delegateGetValueSymbol(for: capturedSymbol) != nil
             let logicalType = sema.bindings.capturedLocalType(for: capturedSymbol)
                 ?? driver.lambdaLowerer.typeForSymbolReference(capturedSymbol, sema: sema)
-            let loadedType = isMutableLocal || isReifiedTypeParameter ? sema.types.anyType : logicalType
+            let loadedType = isMutableLocal || isDelegatedLocal || isReifiedTypeParameter
+                ? sema.types.anyType
+                : logicalType
 
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: intType)
             instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
@@ -679,7 +687,9 @@ final class ObjectLiteralLowerer {
                 canThrow: false,
                 thrownResult: nil
             ))
-            if isMutableLocal {
+            if isDelegatedLocal {
+                driver.ctx.setLocalDelegateStorage(loadedExpr, for: capturedSymbol)
+            } else if isMutableLocal {
                 driver.ctx.setMutableCaptureCell(loadedExpr, for: capturedSymbol)
             } else {
                 driver.ctx.setLocalValue(loadedExpr, for: capturedSymbol)
