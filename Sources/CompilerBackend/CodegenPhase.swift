@@ -245,6 +245,9 @@ public final class CodegenPhase: CompilerPhase {
             "objects": ["objects/\(ctx.options.moduleName)_0.o"],
             "metadata": "metadata.bin",
             "inlineKIRDir": "inline-kir",
+            "runtimeReflectionMetadataScope": ctx.options.includeNonPublicReflectionMetadata || ctx.options.stdlibOnly
+                ? "all"
+                : "public",
             "precomputedReflectionRecords": true
         ]
         if ctx.options.stdlibOnly {
@@ -767,7 +770,7 @@ public final class CodegenPhase: CompilerPhase {
             interner: ctx.interner,
             functionLinkNames: functionLinkInfo.functionLinkNamesBySymbol,
             inlineFunctionSymbols: functionLinkInfo.inlineFunctionSymbols,
-            includeNonPublic: ctx.options.includeNonPublicReflectionMetadata,
+            includeNonPublic: ctx.options.includeNonPublicReflectionMetadata || ctx.options.stdlibOnly,
             runtimeReflectionOnly: true
         )
     }

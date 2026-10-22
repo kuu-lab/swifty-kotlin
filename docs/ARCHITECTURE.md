@@ -525,9 +525,18 @@ module.kklib/
   metadata.bin         -- シンボル/型/レイアウト情報のシリアライズ
   objects/
     module_0.o         -- コンパイル済みオブジェクト
+    KSwiftKStdlibRuntime_prelinked.o -- macOS stdlib artifact: stdlib + Runtime の relocatable object (optional)
   inline-kir/
     *.kirbin           -- inline 関数の KIR シリアライズ (跨モジュール inline 展開用)
 ```
+
+macOS の stdlib artifact は `prelinkedObject` と compiler / Runtime / Swift
+link-plan fingerprints を持つことがある。Runtime source fingerprint は source
+tree が利用できる場合に照合し、source-less packaged install では manifest に値が
+あることを確認する。適合時は executable link で Runtime objects の再列挙・再リンクを
+省き、欠落や識別情報の不一致時は通常の object list と Runtime inputs に戻る。
+reflection metadata scope が一致する imported
+stdlib records は consumer 側で再生成しない。
 
 消費側: `-I path/to/module.kklib` でインポート。`Sema/DataFlow/LibraryImport.swift` 系ファイルで読み込み。
 manifest スキーマ・metadata.bin の詳細仕様は [`docs/spec.md`](spec.md) Doc J14 を正とする。

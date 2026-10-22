@@ -125,6 +125,101 @@ struct LinkPhaseIntegrationTests {
     }
 
     @Test
+    func testLinkPhaseUsesCompatiblePrelinkedStdlibAndFallsBackWhenStale() throws {
+        let fm = FileManager.default
+        let directory = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".kklib")
+        let objects = directory.appendingPathComponent("objects")
+        try fm.createDirectory(at: objects, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: directory) }
+
+        let stdlibObject = objects.appendingPathComponent("KSwiftKStdlib_0.o")
+        let prelinkedObject = objects.appendingPathComponent("KSwiftKStdlibRuntime_prelinked.o")
+        try Data("stdlib".utf8).write(to: stdlibObject)
+        try Data("prelinked".utf8).write(to: prelinkedObject)
+        let target = TargetTriple(arch: "arm64", vendor: "apple", os: "macosx", osVersion: nil)
+        let runtimeFingerprint = try CodegenRuntimeSupport.runtimeBuildCacheKey(
+            target: target,
+            configuration: .release
+        )
+        let phase = LinkPhase()
+        let swiftcPath = CommandRunner.resolveExecutable("swiftc", fallback: "/usr/bin/swiftc")
+        let linkPlanKey = MacOSLinkerPlan.cacheIdentity(
+            swiftcPath: swiftcPath,
+            driverArguments: phase.linkerDriverArgs(for: target),
+            environment: ProcessInfo.processInfo.environment
+        )
+
+        func writeManifest(
+            prelinkedCompilerVersion: String,
+            prelinkedRuntimeFingerprint: String,
+            prelinkedLinkPlanKey: String
+        ) throws {
+            let manifest: [String: Any] = [
+                "formatVersion": 2,
+                "moduleName": "KSwiftKStdlib",
+                "libraryKind": "stdlib",
+                "stdlibManifestHash": BundledStdlib.manifestHash(),
+                "target": "\(target.arch)-\(target.vendor)-\(target.os)",
+                "compilerVersion": CompilerBuildInfo.version,
+                "objects": ["objects/KSwiftKStdlib_0.o"],
+                "prelinkedObject": "objects/KSwiftKStdlibRuntime_prelinked.o",
+                "prelinkedObjectIncludesRuntime": true,
+                "prelinkedCompilerVersion": prelinkedCompilerVersion,
+                "prelinkedFormatVersion": 1,
+                "prelinkedRuntimeFingerprint": prelinkedRuntimeFingerprint,
+                "prelinkedLinkPlanKey": prelinkedLinkPlanKey,
+            ]
+            let data = try JSONSerialization.data(withJSONObject: manifest, options: [.sortedKeys])
+            try data.write(to: directory.appendingPathComponent("manifest.json"), options: .atomic)
+        }
+
+        try writeManifest(
+            prelinkedCompilerVersion: CompilerBuildInfo.version,
+            prelinkedRuntimeFingerprint: runtimeFingerprint,
+            prelinkedLinkPlanKey: linkPlanKey
+        )
+        let compatible = phase.discoverLibraryLinkInputs(
+            searchPaths: [directory.path], target: target
+        )
+        #expect(compatible.objects == [prelinkedObject.path])
+        #expect(compatible.includesRuntime)
+
+        try writeManifest(
+            prelinkedCompilerVersion: "stale-compiler",
+            prelinkedRuntimeFingerprint: runtimeFingerprint,
+            prelinkedLinkPlanKey: linkPlanKey
+        )
+        let stale = phase.discoverLibraryLinkInputs(
+            searchPaths: [directory.path], target: target
+        )
+        #expect(stale.objects == [stdlibObject.path])
+        #expect(!stale.includesRuntime)
+
+        try writeManifest(
+            prelinkedCompilerVersion: CompilerBuildInfo.version,
+            prelinkedRuntimeFingerprint: "stale-runtime-fingerprint",
+            prelinkedLinkPlanKey: linkPlanKey
+        )
+        let staleRuntime = phase.discoverLibraryLinkInputs(
+            searchPaths: [directory.path], target: target
+        )
+        #expect(staleRuntime.objects == [stdlibObject.path])
+        #expect(!staleRuntime.includesRuntime)
+
+        try writeManifest(
+            prelinkedCompilerVersion: CompilerBuildInfo.version,
+            prelinkedRuntimeFingerprint: runtimeFingerprint,
+            prelinkedLinkPlanKey: linkPlanKey
+        )
+        try fm.removeItem(at: prelinkedObject)
+        let missingPrelinkedObject = phase.discoverLibraryLinkInputs(
+            searchPaths: [directory.path], target: target
+        )
+        #expect(missingPrelinkedObject.objects == [stdlibObject.path])
+        #expect(!missingPrelinkedObject.includesRuntime)
+    }
+
+    @Test
     func testImportedObjectAndCompanionLazyInitializersRunThroughKklib() throws {
         let librarySource = """
         package extdemo

@@ -94,7 +94,7 @@ extension CodegenRuntimeSupport {
     static func runtimeLinkInputs(
         target: TargetTriple,
         configuration: RuntimeBuildConfiguration = .release
-    ) throws -> (objects: [String], linkerCacheDirectory: URL) {
+    ) throws -> (objects: [String], linkerCacheDirectory: URL, fingerprint: String) {
         let packageRoot = try runtimePackageRootURL()
         let cacheKey = try runtimeBuildCacheKey(target: target, configuration: configuration, packageRoot: packageRoot)
         let scratchRoot = runtimeSharedScratchRoot()
@@ -134,7 +134,22 @@ extension CodegenRuntimeSupport {
         }
         // Link plans embed per-checkout toolchain state, so they stay beside
         // the package rather than in the shared object cache.
-        return (objects, packageRoot.appendingPathComponent(".runtime-build/link-plans", isDirectory: true))
+        return (objects, runtimeLinkerCacheDirectory(packageRoot: packageRoot), cacheKey)
+    }
+
+    static func runtimeLinkerCacheDirectory() -> URL {
+        if let packageRoot = try? runtimePackageRootURL() {
+            return runtimeLinkerCacheDirectory(packageRoot: packageRoot)
+        }
+        let cacheRoot = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        return cacheRoot
+            .appendingPathComponent("kswiftk", isDirectory: true)
+            .appendingPathComponent("link-plans", isDirectory: true)
+    }
+
+    private static func runtimeLinkerCacheDirectory(packageRoot: URL) -> URL {
+        packageRoot.appendingPathComponent(".runtime-build/link-plans", isDirectory: true)
     }
 
     private static func buildRuntimeObjects(packageRoot: URL, arguments: [String]) throws {
