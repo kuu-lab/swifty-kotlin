@@ -77,6 +77,9 @@ extension BuildASTPhase.ExpressionParser {
             _ = consume()
             let expr = parseExpression(minPrecedence: 0)
             _ = consumeIf(.symbol(.rParen))
+            if let expr {
+                astArena.markParenthesized(expr)
+            }
             return expr
         case .symbol(.lBrace):
             return parseLambdaLiteral() ?? parseBlockExpression()

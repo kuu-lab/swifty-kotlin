@@ -21,6 +21,7 @@ public struct ASTArenaSnapshot: Codable {
     public let incrementDecrementCachedValues: [ExprID: ExprID]
     public let expressionAnnotations: [ExprID: [AnnotationNode]]
     public let anonymousFunctionExpressions: Set<ExprID>
+    public let parenthesizedExpressions: Set<ExprID>
     public let localFunContextReceivers: [ExprID: [ContextReceiverDecl]]
     public let destructuringDeclLayouts: [ExprID: DestructuringDeclLayout]
 
@@ -45,6 +46,7 @@ public struct ASTArenaSnapshot: Codable {
         case incrementDecrementCachedValues
         case expressionAnnotations
         case anonymousFunctionExpressions
+        case parenthesizedExpressions
         case localFunContextReceivers
         case destructuringDeclLayouts
     }
@@ -70,6 +72,7 @@ public struct ASTArenaSnapshot: Codable {
         incrementDecrementCachedValues: [ExprID: ExprID] = [:],
         expressionAnnotations: [ExprID: [AnnotationNode]] = [:],
         anonymousFunctionExpressions: Set<ExprID> = [],
+        parenthesizedExpressions: Set<ExprID> = [],
         localFunContextReceivers: [ExprID: [ContextReceiverDecl]] = [:],
         destructuringDeclLayouts: [ExprID: DestructuringDeclLayout] = [:]
     ) {
@@ -93,6 +96,7 @@ public struct ASTArenaSnapshot: Codable {
         self.incrementDecrementCachedValues = incrementDecrementCachedValues
         self.expressionAnnotations = expressionAnnotations
         self.anonymousFunctionExpressions = anonymousFunctionExpressions
+        self.parenthesizedExpressions = parenthesizedExpressions
         self.localFunContextReceivers = localFunContextReceivers
         self.destructuringDeclLayouts = destructuringDeclLayouts
     }
@@ -144,6 +148,9 @@ public struct ASTArenaSnapshot: Codable {
         ) ?? [:]
         anonymousFunctionExpressions = try container.decodeIfPresent(
             Set<ExprID>.self, forKey: .anonymousFunctionExpressions
+        ) ?? []
+        parenthesizedExpressions = try container.decodeIfPresent(
+            Set<ExprID>.self, forKey: .parenthesizedExpressions
         ) ?? []
         localFunContextReceivers = try container.decodeIfPresent(
             [ExprID: [ContextReceiverDecl]].self, forKey: .localFunContextReceivers
@@ -240,6 +247,7 @@ public final class ASTArena: @unchecked Sendable {
     // Prefix annotations belong to the operand without changing its AST shape.
     private var _expressionAnnotations: [ExprID: [AnnotationNode]] = [:]
     private var _anonymousFunctionExpressions: Set<ExprID> = []
+    private var _parenthesizedExpressions: Set<ExprID> = []
     private var _localFunContextReceivers: [ExprID: [ContextReceiverDecl]] = [:]
     private var _destructuringDeclLayouts: [ExprID: DestructuringDeclLayout] = [:]
 
@@ -278,6 +286,7 @@ public final class ASTArena: @unchecked Sendable {
         _incrementDecrementCachedValues = snapshot.incrementDecrementCachedValues
         _expressionAnnotations = snapshot.expressionAnnotations
         _anonymousFunctionExpressions = snapshot.anonymousFunctionExpressions
+        _parenthesizedExpressions = snapshot.parenthesizedExpressions
         _localFunContextReceivers = snapshot.localFunContextReceivers
         _destructuringDeclLayouts = snapshot.destructuringDeclLayouts
     }
@@ -306,6 +315,7 @@ public final class ASTArena: @unchecked Sendable {
             incrementDecrementCachedValues: _incrementDecrementCachedValues,
             expressionAnnotations: _expressionAnnotations,
             anonymousFunctionExpressions: _anonymousFunctionExpressions,
+            parenthesizedExpressions: _parenthesizedExpressions,
             localFunContextReceivers: _localFunContextReceivers,
             destructuringDeclLayouts: _destructuringDeclLayouts
         )
@@ -373,6 +383,7 @@ public final class ASTArena: @unchecked Sendable {
         _incrementDecrementValueExpressions.formUnion(snapshot.incrementDecrementValueExpressions.map { remapper.remap($0) })
         _callResultCompoundAssignmentBlocks.formUnion(snapshot.callResultCompoundAssignmentBlocks.map { remapper.remap($0) })
         _nonFunctionLambdaLabels.formUnion(snapshot.nonFunctionLambdaLabels.map { remapper.remap($0) })
+        _parenthesizedExpressions.formUnion(snapshot.parenthesizedExpressions.map { remapper.remap($0) })
         return remapper
     }
 
@@ -762,6 +773,18 @@ public final class ASTArena: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return _nonFunctionLambdaLabels.contains(exprID)
+    }
+
+    public func markParenthesized(_ exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _parenthesizedExpressions.insert(exprID)
+    }
+
+    public func isParenthesized(_ exprID: ExprID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _parenthesizedExpressions.contains(exprID)
     }
 
     public func appendTypeRef(_ typeRef: TypeRef) -> TypeRefID {
