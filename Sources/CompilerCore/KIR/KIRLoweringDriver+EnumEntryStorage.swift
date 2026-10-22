@@ -230,7 +230,12 @@ extension KIRLoweringDriver {
 
         // Even literal/empty varargs are arrays with observable identity and
         // mutation. Pack them once in the entry initializer, never in a getter.
+        // A mutable stored property likewise needs a real slot: the literal
+        // path only emits getter helpers that re-lower the constructor
+        // argument per read, so `var` writes (`M.P.v = 99`, property-ref
+        // `set`) would have nowhere to go.
         let needsStorage = params.contains(where: \.isVararg)
+            || storedProperties.contains(where: \.isMutable)
             || entryConstructorBindings.contains { binding in
                 guard let chosen = binding?.chosenCallee else { return false }
                 return chosen != primaryConstructorSymbol
