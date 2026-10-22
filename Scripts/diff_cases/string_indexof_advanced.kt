@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val s = "hello world hello"
     println(s.indexOf("hello"))

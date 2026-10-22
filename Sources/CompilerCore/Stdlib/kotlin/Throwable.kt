@@ -1,5 +1,6 @@
 package kotlin
 
+import java.lang.StackTraceElement
 import kotlin.internal.KsSymbolName
 
 /**
@@ -66,6 +67,23 @@ public fun Throwable.getSuppressed(): Array<Throwable> = __kkThrowableSuppressed
 
 public val Throwable.suppressedExceptions: List<Throwable>
     get() = __kkThrowableSuppressedRaw(this).toList()
+
+/**
+ * Saved frames without the leading header line. The runtime captures the trace
+ * when the throwable is created, so `fillInStackTrace()` has nothing to refresh
+ * and returns the receiver.
+ */
+public val Throwable.stackTrace: Array<StackTraceElement>
+    get() {
+        val frames = __kkThrowableRawStackFrames(this)
+        val count = if (frames.size > 0) frames.size - 1 else 0
+        return Array<StackTraceElement>(count) { i -> StackTraceElement("", "", null, -1, frames[i + 1].removePrefix("\tat ")) }
+    }
+
+public val Throwable.localizedMessage: String?
+    get() = this.message
+
+public fun Throwable.fillInStackTrace(): Throwable = this
 
 public fun Throwable.stackTraceToString(): String {
     val lines = mutableListOf<String>()

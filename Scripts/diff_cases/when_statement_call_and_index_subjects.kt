@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1027: discarded when values do not require exhaustive Int/Char subjects.
 const val SUCCESS: Int = 1
 const val FAILURE: Int = 2

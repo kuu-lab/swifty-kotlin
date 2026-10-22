@@ -1,3 +1,4 @@
+// DIFF_JVM
 private fun code(value: Char?): Int? = value?.code
 
 fun main() {

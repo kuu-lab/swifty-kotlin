@@ -41,6 +41,7 @@ public enum StdlibArtifactCache {
         }
     }
 
+    private static let artifactLayoutVersion = "prelinked-runtime-v1"
     private static let kotlinLanguageVersion = "2.4.20"
     private static let compilerVersion = CompilerBuildInfo.version
 
@@ -86,7 +87,12 @@ public enum StdlibArtifactCache {
             fileManager: fileManager,
             profile: profile
         ) { outputBase in
-            try StdlibArtifactBuilder.build(outputBase: outputBase, target: target, profile: profile)
+            try StdlibArtifactBuilder.build(
+                outputBase: outputBase,
+                target: target,
+                includeRuntimePrelink: true,
+                profile: profile
+            )
         }
     }
 
@@ -249,7 +255,7 @@ public enum StdlibArtifactCache {
             .appendingPathComponent("kswiftk", isDirectory: true)
             .appendingPathComponent("stdlib", isDirectory: true)
             .appendingPathComponent(
-                "\(kotlinLanguageVersion)-\(compilerVersion)-\(targetKey)-\(stdlibManifestHash)-\(fingerprintKey)",
+                "\(kotlinLanguageVersion)-\(compilerVersion)-\(targetKey)-\(stdlibManifestHash)-\(artifactLayoutVersion)-\(fingerprintKey)",
                 isDirectory: true
             )
             .appendingPathComponent(profile.artifactFileName, isDirectory: true)
@@ -400,6 +406,23 @@ public enum StdlibArtifactCache {
             }
         }
 
+        if let prelinkedObject = manifest["prelinkedObject"] as? String {
+            guard let prelinkedURL = CompilerFileSystem.containedURL(
+                relativePath: prelinkedObject,
+                under: rootURL
+            ), CompilerFileSystem.isRegularFile(at: prelinkedURL, fileManager: fileManager),
+               manifest["prelinkedObjectIncludesRuntime"] as? Bool == true,
+               manifest["prelinkedCompilerVersion"] as? String == compilerVersion,
+               manifest["prelinkedFormatVersion"] as? Int == 1,
+               let runtimeFingerprint = manifest["prelinkedRuntimeFingerprint"] as? String,
+               !runtimeFingerprint.isEmpty,
+               let linkPlanKey = manifest["prelinkedLinkPlanKey"] as? String,
+               !linkPlanKey.isEmpty
+            else {
+                return .invalid("prelinked runtime object is missing, escapes the artifact, or has an incompatible fingerprint")
+            }
+        }
+
         // Optional thin-LTO bitcode (KUU-2814). Artifacts built before the key
         // existed simply lack it; one that declares bitcode must still carry it.
         if let bitcode = manifest["bitcode"] as? [String] {
@@ -544,6 +567,7 @@ public enum StdlibArtifactBuilder {
     public static func build(
         outputBase: String,
         target: TargetTriple,
+        includeRuntimePrelink: Bool = false,
         profile: StdlibProfile = .full
     ) throws -> String {
         let options = CompilerOptions(
@@ -552,6 +576,7 @@ public enum StdlibArtifactBuilder {
             outputPath: outputBase,
             emit: .library,
             target: target,
+            runtimeFlags: ["reflection-metadata=all"],
             includeStdlib: true,
             stdlibOnly: true,
             allowDefaultStdlibLibrary: false,
@@ -591,7 +616,57 @@ public enum StdlibArtifactBuilder {
         guard FileManager.default.fileExists(atPath: artifactPath) else {
             throw Error.artifactMissing(artifactPath)
         }
+        if includeRuntimePrelink {
+            attachRuntimePrelinkIfAvailable(outputBase: artifactPath, target: target)
+        }
         try StdlibSemaSnapshotArchive.write(forArtifactAt: artifactPath, target: target, profile: profile)
         return artifactPath
+    }
+
+    public static func attachRuntimePrelinkIfAvailable(outputBase: String, target: TargetTriple) {
+        let artifactPath = outputBase.hasSuffix(".kklib") ? outputBase : outputBase + ".kklib"
+        try? attachRuntimePrelinkedObject(to: artifactPath, target: target)
+    }
+
+    private static func attachRuntimePrelinkedObject(to artifactPath: String, target: TargetTriple) throws {
+        guard target.vendor == "apple", target.os == "macosx" else { return }
+        let fileManager = FileManager.default
+        let manifestURL = URL(fileURLWithPath: artifactPath).appendingPathComponent("manifest.json")
+        guard let manifestData = try? Data(contentsOf: manifestURL),
+              var manifest = try? JSONSerialization.jsonObject(with: manifestData) as? [String: Any],
+              let objectPaths = manifest["objects"] as? [String], !objectPaths.isEmpty
+        else { return }
+
+        let artifactRoot = URL(fileURLWithPath: artifactPath)
+        let stdlibObjects = objectPaths.map { artifactRoot.appendingPathComponent($0).path }
+        guard stdlibObjects.allSatisfy({ fileManager.fileExists(atPath: $0) }) else { return }
+
+        let runtime = try CodegenRuntimeSupport.runtimeLinkInputs(target: target, configuration: .release)
+        let linker = LinkPhase()
+        let swiftcPath = CommandRunner.resolveExecutable("swiftc", fallback: "/usr/bin/swiftc")
+        guard let plan = try MacOSLinkerPlan.load(
+            swiftcPath: swiftcPath,
+            driverArguments: linker.linkerDriverArgs(for: target),
+            cacheDirectory: runtime.linkerCacheDirectory
+        ) else { return }
+        guard let prelinked = MacOSPrelinkedObjects.resolve(
+            inputs: runtime.objects + stdlibObjects,
+            cacheDirectory: runtime.linkerCacheDirectory.appendingPathComponent("stdlib-prelinked", isDirectory: true),
+            driver: plan.executable,
+            target: linker.linkerTargetTriple(target)
+        ) else { return }
+
+        let relativePath = "objects/KSwiftKStdlibRuntime_prelinked.o"
+        let destination = artifactRoot.appendingPathComponent(relativePath)
+        try fileManager.copyItem(atPath: prelinked, toPath: destination.path)
+        try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: destination.path)
+        manifest["prelinkedObject"] = relativePath
+        manifest["prelinkedObjectIncludesRuntime"] = true
+        manifest["prelinkedCompilerVersion"] = CompilerBuildInfo.version
+        manifest["prelinkedFormatVersion"] = 1
+        manifest["prelinkedRuntimeFingerprint"] = runtime.fingerprint
+        manifest["prelinkedLinkPlanKey"] = plan.cacheKey
+        let updatedManifest = try JSONSerialization.data(withJSONObject: manifest, options: [.sortedKeys, .prettyPrinted])
+        try updatedManifest.write(to: manifestURL, options: .atomic)
     }
 }

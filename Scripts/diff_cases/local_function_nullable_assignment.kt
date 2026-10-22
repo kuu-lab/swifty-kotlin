@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1289: establish non-nullness for a mutable capture within a local function.
 class Buf {
     fun write(count: Long) { println(count) }

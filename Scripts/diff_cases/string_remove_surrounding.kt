@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // 1-arg overload: removeSurrounding(delimiter)
     // Removes delimiter from both start and end if present

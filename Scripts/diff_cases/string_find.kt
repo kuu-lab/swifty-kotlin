@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val text = "a1b2"
     println(text.find { it >= '0' && it <= '9' })

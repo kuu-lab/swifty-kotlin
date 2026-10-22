@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun classifyInt(x: Int): String = when (x) {
     1, 2, 3 -> "few"
     else -> "many"

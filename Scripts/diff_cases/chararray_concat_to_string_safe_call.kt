@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val chars: CharArray? = charArrayOf('h', 'i')
     val missing: CharArray? = null

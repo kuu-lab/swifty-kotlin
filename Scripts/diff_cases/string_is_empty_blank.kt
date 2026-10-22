@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println(if ("".isEmpty()) "true" else "false")
     println(if ("x".isEmpty()) "true" else "false")

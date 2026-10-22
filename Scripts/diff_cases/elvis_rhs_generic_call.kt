@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2454: an Elvis RHS generic call can use the LHS non-null type to infer
 // otherwise-unconstrained result variables, without constraining input-inferred
 // type variables that participate in the Elvis LUB.

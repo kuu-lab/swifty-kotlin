@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1334: primitive operations and const references remain compile-time constants.
 const val A = 1 + 2
 const val B = "x" + "y"

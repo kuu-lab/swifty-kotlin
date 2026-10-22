@@ -1,3 +1,4 @@
+// DIFF_JVM
 @Target(AnnotationTarget.PROPERTY)
 annotation class PropertyOnly
 

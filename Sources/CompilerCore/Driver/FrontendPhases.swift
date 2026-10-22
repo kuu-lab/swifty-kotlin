@@ -268,7 +268,14 @@ public final class LexPhase: CompilerPhase {
 public final class ParsePhase: CompilerPhase {
     public static let name = "Parse"
 
-    public init() {}
+    /// Reject top-level statements in non-`.kts` user sources. Enabled by the
+    /// compile pipelines; phase-level harnesses (golden dumps, parser tests)
+    /// keep parsing script-shaped `.kt` fixtures without the diagnostic.
+    private let rejectsTopLevelStatementsOutsideScripts: Bool
+
+    public init(rejectsTopLevelStatementsOutsideScripts: Bool = false) {
+        self.rejectsTopLevelStatementsOutsideScripts = rejectsTopLevelStatementsOutsideScripts
+    }
 
     public func run(_ ctx: CompilationContext) throws {
         let interner = ctx.interner
@@ -292,9 +299,45 @@ public final class ParsePhase: CompilerPhase {
             (fileID, parsed.0, parsed.1)
         }
 
+        if rejectsTopLevelStatementsOutsideScripts {
+            reportTopLevelStatementsOutsideScripts(syntaxTrees, ctx: ctx)
+        }
+
         ctx.storeSyntaxTrees(syntaxTrees)
 
         ctx.diagnostics.sortBySourceLocation()
+    }
+}
+
+extension ParsePhase {
+    /// Top-level statements make the parser pick script mode, which is only a
+    /// valid compilation unit for `.kts` sources. In a regular `.kt` file
+    /// kotlinc rejects every statement with "expecting a top level declaration",
+    /// so a forgotten `fun main` can no longer become an executable by accident.
+    private func reportTopLevelStatementsOutsideScripts(
+        _ syntaxTrees: [(FileID, SyntaxArena, NodeID)],
+        ctx: CompilationContext
+    ) {
+        for (fileID, arena, root) in syntaxTrees {
+            guard arena.node(root).kind == .script,
+                  ctx.sourceManager.origin(of: fileID) == .user,
+                  !ctx.sourceManager.path(of: fileID).lowercased().hasSuffix(".kts") else { continue }
+            for child in arena.children(of: root) {
+                guard case let .node(nodeID) = child else { continue }
+                switch arena.node(nodeID).kind {
+                case .packageHeader, .importHeader, .importList, .classDecl, .interfaceDecl, .objectDecl,
+                     .funDecl, .propertyDecl, .typeAliasDecl, .enumEntry:
+                    continue
+                default:
+                    break
+                }
+                ctx.diagnostics.error(
+                    "KSWIFTK-PARSE-0025",
+                    "Expecting a top level declaration; top-level statements are only allowed in '.kts' script files.",
+                    range: arena.node(nodeID).range
+                )
+            }
+        }
     }
 }
 

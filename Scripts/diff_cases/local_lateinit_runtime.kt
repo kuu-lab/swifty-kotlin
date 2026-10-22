@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     lateinit var local: String
     println("declared")

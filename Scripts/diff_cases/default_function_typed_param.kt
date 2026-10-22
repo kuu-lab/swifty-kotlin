@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun trailing(n: Int = 1, block: (Int) -> String = { "d$it" }) = block(n)
 
 fun withCapture(prefix: String, f: (String) -> String = { prefix + it }) = f("!")

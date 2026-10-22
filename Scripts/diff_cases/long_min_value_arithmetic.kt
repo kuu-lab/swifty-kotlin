@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println(Long.MIN_VALUE)
     var lmin = Long.MIN_VALUE

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // padStart/padEnd reject negative lengths with IllegalArgumentException.
 fun main() {
     try {

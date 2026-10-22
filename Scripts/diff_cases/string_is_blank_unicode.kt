@@ -1,3 +1,4 @@
+// DIFF_JVM
 // SLOP-007: `CharSequence.isBlank` in the bundled stdlib used an ASCII-only
 // private whitespace helper (space/tab/LF/CR), so vertical tab (U+000B), the
 // 0x1C-0x1F separators, and NBSP (U+00A0, SPACE_SEPARATOR category) were not

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1240: an unsuffixed index must adapt to get(Long), preserving its Byte result.
 class Buf {
     operator fun get(position: Long): Byte = (position + 40L).toByte()

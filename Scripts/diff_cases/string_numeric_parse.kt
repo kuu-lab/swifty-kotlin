@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println("42".toByte())
     println("-42".toByte())

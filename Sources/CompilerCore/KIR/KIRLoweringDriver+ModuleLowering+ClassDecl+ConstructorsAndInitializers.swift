@@ -238,6 +238,14 @@ extension KIRLoweringDriver {
         guard let superCtorSymbol else {
             return
         }
+        // Any's compiler-provided constructor is allocation-only. A kklib
+        // import marks it source-backed, which would otherwise emit a call to
+        // a bare `<init>` that nothing defines.
+        if sema.symbols.symbol(superCtorSymbol)?.flags.contains(.synthetic) == true,
+           sema.symbols.parentSymbol(for: superCtorSymbol) == sema.types.anyClassSymbol
+        {
+            return
+        }
 
         let resolvedSuperclassFQName = superclassInfo.fqName.map(shared.interner.resolve)
         let isSourceBackedTimeSource =
