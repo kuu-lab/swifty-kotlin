@@ -231,6 +231,40 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// The stdlib Sema snapshot serialises only `importedInlineFunctions`
+    /// descriptors, so the capture build must register one per deferred
+    /// inline binding — otherwise the restored import resolves no bodies at
+    /// all and inline calls (e.g. `run`, `let`, `map`) reach codegen as raw
+    /// symbol references whose lambda arguments never get a capture
+    /// environment.
+    func registerAllPendingInlineDescriptors(
+        state: ImportedLibraryLazyLoaderState,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner
+    ) {
+        for (symbol, binding) in state.pendingInlineBindings.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
+            guard let inlinePath = resolvedImportedInlineKIRPath(
+                binding,
+                diagnostics: diagnostics
+            ) else {
+                continue
+            }
+            let signature = symbols.functionSignature(for: symbol)
+            state.importedInlineFunctions.register(
+                ImportedInlineFunctionStore.Descriptor(
+                    path: inlinePath,
+                    signature: signature,
+                    name: binding.record.fqName.last ?? interner.intern("_"),
+                    reifiedComponentTokens: importedInlineUsesComponentTokens(binding, symbol: symbol, symbols: symbols),
+                    packedValueParameterTypes: importedInlinePackedValueTypes(signature, binding: binding, symbol: symbol, symbols: symbols, types: types, interner: interner)
+                ),
+                for: symbol
+            )
+        }
+    }
+
     private func resolvedImportedInlineKIRPath(
         _ binding: ImportedLibraryBinding,
         diagnostics: DiagnosticEngine

@@ -84,6 +84,19 @@ final class DataFlowSemaPhase: CompilerPhase {
             importDeferredWork.lazyLoaderState?.resolveDemandedInlineBodies
         if capturesImportedStdlibSnapshot {
             symbols.materializeAllIndexedLibraryState()
+            // The snapshot serialises descriptors only; pending bindings are
+            // a runtime index concept that is not persisted. Register every
+            // deferred inline body now so consumer compiles can still expand
+            // calls to them.
+            if let lazyLoaderState = importDeferredWork.lazyLoaderState {
+                registerAllPendingInlineDescriptors(
+                    state: lazyLoaderState,
+                    symbols: symbols,
+                    types: types,
+                    diagnostics: ctx.diagnostics,
+                    interner: ctx.interner
+                )
+            }
         }
 
         // KSP-706: when compiling against bundled stdlib source rather than a
