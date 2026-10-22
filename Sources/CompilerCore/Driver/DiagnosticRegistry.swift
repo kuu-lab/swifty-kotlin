@@ -260,6 +260,12 @@ enum DiagnosticRegistry {
             summary: "Unexpected token after expression."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0019",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Unexpected '?' after declaration name."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-PARSE-TYPE-DEPTH",
             pass: "PARSE",
             defaultSeverity: .error,
