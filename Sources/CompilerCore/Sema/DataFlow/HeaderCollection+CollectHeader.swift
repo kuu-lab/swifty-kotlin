@@ -262,6 +262,16 @@ extension DataFlowSemaPhase {
                 )
             }
 
+            checkAndReportClassConstructorFunctionConflict(
+                classFQName: fqName,
+                range: classDecl.range,
+                symbols: symbols,
+                types: types,
+                sourceManager: sourceManager,
+                diagnostics: diagnostics,
+                interner: interner
+            )
+
             if isValueClassDeclaration(classDecl) {
                 let valParams = classDecl.primaryConstructorParams
                 if valParams.count > 1 {
@@ -842,14 +852,28 @@ extension DataFlowSemaPhase {
                 }
             }
 
-            checkAndReportJVMErasedCallableConflict(
-                for: symbol,
-                fqName: fqName,
-                range: funDecl.range,
-                symbols: symbols,
-                types: types,
-                diagnostics: diagnostics
-            )
+            // The synthesized script `main` wrapper is not a source-declared
+            // callable: exempting it here lets a script that also declares
+            // `fun main` compile instead of self-colliding on SEMA-0001.
+            if !funDecl.isScriptEntryPoint {
+                checkAndReportClassConstructorFunctionConflict(
+                    classFQName: fqName,
+                    range: funDecl.range,
+                    symbols: symbols,
+                    types: types,
+                    sourceManager: sourceManager,
+                    diagnostics: diagnostics,
+                    interner: interner
+                )
+                checkAndReportJVMErasedCallableConflict(
+                    for: symbol,
+                    fqName: fqName,
+                    range: funDecl.range,
+                    symbols: symbols,
+                    types: types,
+                    diagnostics: diagnostics
+                )
+            }
 
         case let .propertyDecl(propertyDecl):
             let typeParamResult = collectFunctionTypeParameters(

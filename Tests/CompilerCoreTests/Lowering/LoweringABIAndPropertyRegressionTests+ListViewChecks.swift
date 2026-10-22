@@ -85,9 +85,15 @@ extension LoweringABIAndPropertyRegressionTests {
             fqName: ["example", "MutableList", "remove"].map(interner.intern),
             declSite: nil, visibility: .public
         )
-        let members = ABILoweringPass().listViewMemberSymbols(symbols: symbols, interner: interner)
+        let checkedGet = symbols.define(
+            kind: .function, name: interner.intern("get"),
+            fqName: ["kotlin", "collections", "MutableList", "get"].map(interner.intern),
+            declSite: nil, visibility: .public
+        )
+        let members = ABILoweringPass().listViewMemberMatcher(symbols: symbols, interner: interner)
         #expect(members.contains(stdlibMember))
         #expect(!members.contains(userMember))
+        #expect(!members.contains(checkedGet))
     }
 }
 #endif

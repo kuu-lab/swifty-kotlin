@@ -922,6 +922,18 @@ final class ControlFlowTypeChecker {
             ].compactMap { $0 }
             locals.memberFlow = joinMemberFlow(from: reachingBranchLocals, base: locals.memberFlow, sema: sema)
         } else {
+            // An `if` without `else` is a statement in Kotlin; using it where a
+            // value is consumed must fail like kotlinc's INVALID_IF_AS_EXPRESSION.
+            // Parenthesizing the `if` also makes it an expression even in an
+            // otherwise-discarded statement slot (kotlinc rejects `(if (c) {})`
+            // in every position).
+            if !isStatementContext || ast.arena.isParenthesized(id) {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0434",
+                    "'if' must have both main and 'else' branches when used as an expression.",
+                    range: ast.arena.exprRange(id)
+                )
+            }
             resolvedType = sema.types.unitType
             if thenType == sema.types.nothingType {
                 // The then-branch never completes normally (return/throw/break/continue),

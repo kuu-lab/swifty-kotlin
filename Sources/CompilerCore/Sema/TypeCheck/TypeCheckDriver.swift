@@ -508,7 +508,9 @@ final class TypeCheckDriver {
                 else {
                     continue
                 }
-                if precheckedPropertyDecls.contains(declID) {
+                if precheckedPropertyDecls.contains(declID)
+                    || sema.unreachableTopLevelFunctionDecls.contains(declID)
+                {
                     continue
                 }
                 if let result = independentBodies[declID] {

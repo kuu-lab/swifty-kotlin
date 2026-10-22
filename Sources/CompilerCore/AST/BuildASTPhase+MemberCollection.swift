@@ -506,6 +506,19 @@ extension BuildASTPhase {
             // degrades to positional assignment expressions.
             if let argument = parser.parseCallArgument() {
                 args.append(argument)
+                if let unexpected = parser.current() {
+                    diagnostics?.error(
+                        "KSWIFTK-PARSE-0015",
+                        "Expected ',' or ')' after call argument.",
+                        range: unexpected.range
+                    )
+                }
+            } else {
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0022",
+                    "Expected an argument.",
+                    range: current.last?.range
+                )
             }
             current.removeAll(keepingCapacity: true)
         }
@@ -515,7 +528,18 @@ extension BuildASTPhase {
                 isParsingObjectLiteralHeader = true
             }
             if token.kind == .symbol(.comma), depth.isAtTopLevel, !isParsingObjectLiteralHeader {
-                flush()
+                // An empty slot before the comma (`Base(,1)`, `Base(1,,2)`,
+                // `Base(,)`) is not a legal argument — only a trailing comma
+                // after a real argument is allowed (Kotlin 1.4+).
+                if current.isEmpty {
+                    diagnostics?.error(
+                        "KSWIFTK-PARSE-0022",
+                        "Expected an argument.",
+                        range: token.range
+                    )
+                } else {
+                    flush()
+                }
                 continue
             }
             if token.kind == .symbol(.lBrace), depth.isAtTopLevel, isParsingObjectLiteralHeader {

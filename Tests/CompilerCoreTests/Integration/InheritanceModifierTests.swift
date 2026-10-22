@@ -705,5 +705,90 @@ import TestStdlibCache
         }
     }
 
+    @Test func testValCannotOverrideVar() throws {
+        let sources: [String] = [
+            // val cannot override var (KUU-2993)
+            """
+            package sample0
+            open class P { open var v = 1 }
+            class C : P() { override val v = 2 }
+            """,
+            // var property in an interface is still a var override target
+            """
+            package sample1
+            interface I { var v: Int }
+            class C : I { override val v = 2 }
+            """,
+            // final var reports the final-override error plus the mutability error
+            """
+            package sample2
+            open class P { var v = 1 }
+            class C : P() { override val v = 2 }
+            """,
+            // a primary-constructor val cannot override a var either
+            """
+            package sample3
+            open class P { open var v = 1 }
+            class C(override val v: Int) : P()
+            """,
+            // the val must satisfy every overridden member, not only the first match
+            """
+            package sample4
+            interface A { var v: Int }
+            interface B { val v: Int }
+            class C : A, B { override val v = 2 }
+            """,
+            // controls: var-over-val, var-over-var and val-over-val are all legal
+            """
+            package sample5
+            open class P { open val v = 1 }
+            class C : P() { override var v = 2 }
+            """,
+            """
+            package sample6
+            open class P { open var v = 1 }
+            class C : P() { override var v = 2 }
+            """,
+            """
+            package sample7
+            open class P { open val v = 1 }
+            class C : P() { override val v = 2 }
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            for index in 0..<5 {
+                let sampleDiags = diagnosticsForPath(paths[index], in: ctx)
+                assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-MUTABILITY", in: sampleDiags)
+            }
+            let finalVarDiags = diagnosticsForPath(paths[2], in: ctx)
+            assertHasDiagnostic("KSWIFTK-SEMA-FINAL", in: finalVarDiags)
+
+            for index in 5..<8 {
+                let sampleDiags = diagnosticsForPath(paths[index], in: ctx)
+                assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE-MUTABILITY", in: sampleDiags)
+                #expect(!sampleDiags.hasError)
+            }
+        }
+    }
+
+    @Test func companionObjectInsideInnerClassIsRejected() throws {
+        let sources = [
+            "package s0\nclass O { inner class I { companion object { fun f() = 1 } } }",
+            "package s1\nclass O { class N { companion object { fun f() = 1 } } }",
+            "package s2\nclass O { inner class I { object K { fun f() = 1 } } }",
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            assertHasDiagnostic("KSWIFTK-SEMA-INNER-COMPANION", in: diagnosticsForPath(paths[0], in: ctx))
+            for index in 1..<3 {
+                assertNoDiagnostic("KSWIFTK-SEMA-INNER-COMPANION", in: diagnosticsForPath(paths[index], in: ctx))
+            }
+        }
+    }
 }
 #endif

@@ -616,6 +616,16 @@ extension KotlinParser {
         switch loopToken.kind {
         case .keyword(.for), .keyword(.while):
             if case .symbol(.lParen) = stream.peek().kind {
+                if case .keyword(.for) = loopToken.kind {
+                    let modifier = stream.peek(1)
+                    if modifier.kind == .keyword(.val) || modifier.kind == .keyword(.var) {
+                        diagnostics.error(
+                            "KSWIFTK-PARSE-0021",
+                            "A for-loop variable cannot be declared with 'val' or 'var'.",
+                            range: modifier.range
+                        )
+                    }
+                }
                 let header = parseBalancedGroup(opening: .lParen, closing: .rParen)
                 children.append(.node(header))
                 range.append(arena.node(header).range)
@@ -1011,7 +1021,13 @@ extension KotlinParser {
         case .keyword(.in):
             return true
         case .symbol(.bang):
-            return stream.peek(1).kind == .keyword(.in)
+            // `!in` and `!is` are the only infix operators that start with `!`.
+            let next = stream.peek(1).kind
+            return next == .keyword(.in) || next == .keyword(.is)
+        case .symbol(.bangBang):
+            // `!!` is the not-null postfix operator; it can only apply to the
+            // trailing-lambda call here, never start a statement.
+            return true
         case .identifier, .backtickedIdentifier:
             return canStartInfixCallArgument(stream.peek(1).kind)
         default:

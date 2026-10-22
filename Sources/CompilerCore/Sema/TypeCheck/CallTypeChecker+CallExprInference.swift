@@ -25,7 +25,13 @@ extension CallTypeChecker {
         } else {
             nil
         }
-        let calleePath = qualifiedCalleePath(for: calleeID, ast: ast)
+        // `(D::f)(x)` invokes the reference value; `D::f` is not the qualified
+        // function name `D.f`, so it must not feed FQ-name candidate lookup.
+        let calleePath: [InternedString]? = if case .callableRef = calleeExpr {
+            nil
+        } else {
+            qualifiedCalleePath(for: calleeID, ast: ast)
+        }
         if calleeName.map(interner.resolve) == "$annotationArrayLiteral" {
             if expectedType == nil, let boundType = sema.bindings.exprTypes[id],
                sema.bindings.callBindings[id] != nil { return boundType }

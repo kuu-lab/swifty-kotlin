@@ -131,7 +131,8 @@ extension TypeCheckDriver {
         let work = files.compactMap { file -> IndependentFileInput? in
             guard let fileScope = fileScopes[file.fileID.rawValue] else { return nil }
             let declarations = file.topLevelDecls.compactMap { declaration -> (DeclID, FunDecl, SymbolID, [ExprID])? in
-                guard case let .funDecl(function)? = ast.arena.decl(declaration),
+                guard !sema.unreachableTopLevelFunctionDecls.contains(declaration),
+                      case let .funDecl(function)? = ast.arena.decl(declaration),
                       let symbol = sema.bindings.declSymbols[declaration],
                       let expressions = independentScalarExpressions(function, symbol: symbol)
                 else { return nil }

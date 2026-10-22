@@ -48,6 +48,12 @@ extension BuildASTPhase {
         var index: Int
         var allowAnnotationArrayLiterals = false
 
+        /// `parse()` normally diagnoses a `=`/`+=`/... left over after the
+        /// expression (assignments are not expressions). Callers that
+        /// speculatively reparse the same tokens as a statement-level
+        /// assignment — a legal form their fallback handles — disable it.
+        var reportsTrailingAssignmentOperator = true
+
         // Bounded declaration prefixes must not accept recovered expressions
         // whose operand or control-flow branch was cut off by the slice.
         private(set) var hasIncompleteExpression = false
@@ -117,6 +123,8 @@ extension BuildASTPhase {
                let unexpected = current(),
                let expressionRange = astArena.exprRange(expression),
                isUnexpectedTokenAfterExpression(unexpected, expressionEnd: expressionRange.end.offset)
+                || (reportsTrailingAssignmentOperator
+                    && isAssignmentOperatorToken(unexpected))
             {
                 diagnostics?.error(
                     "KSWIFTK-PARSE-0018",
@@ -504,6 +512,20 @@ extension BuildASTPhase {
                 return true
             default:
                 return expressionEnd == token.range.start.offset && isInfixIdentifierToken(token)
+            }
+        }
+
+        /// `=`/`+=`/... are statements, never part of an expression (kotlinc:
+        /// "Assignments are not expressions"). Any such token left unconsumed
+        /// after the expression means the slice was not a single expression —
+        /// e.g. the value of `x = y = 5` or the inside of `x = (x += 5)`.
+        private func isAssignmentOperatorToken(_ token: Token) -> Bool {
+            switch token.kind {
+            case .symbol(.assign), .symbol(.plusAssign), .symbol(.minusAssign),
+                 .symbol(.starAssign), .symbol(.slashAssign), .symbol(.percentAssign):
+                true
+            default:
+                false
             }
         }
 

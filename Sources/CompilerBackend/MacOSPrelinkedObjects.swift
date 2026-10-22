@@ -14,6 +14,13 @@ import Glibc
 /// link hands the driver three inputs (user object, entry wrapper, merged
 /// object) instead of hundreds (KUU-2677).
 ///
+/// Archives the link plan force-loads unconditionally are merged into the
+/// object as well: their members carry no symbols the user object can
+/// reference, so folding them in preserves `-force_load` semantics while
+/// removing the driver's per-link archive scan. Lazily loaded archives stay
+/// out — they exist to satisfy user-object references that do not exist at
+/// partial-link time.
+///
 /// Any failure — an unreadable input, an untrusted or unwritable cache
 /// directory, a failed partial link — resolves to `nil` and the caller falls
 /// back to passing the original inputs to the driver.
@@ -23,12 +30,13 @@ enum MacOSPrelinkedObjects {
 
     static func resolve(
         inputs: [String],
+        forceLoadPaths: [String] = [],
         cacheDirectory: URL,
         driver: String,
         target: String,
         phaseTimer: PhaseTimer? = nil,
         environment: [String: String] = ProcessInfo.processInfo.environment,
-        build: (([String], URL) throws -> Void)? = nil
+        build: (([String], [String], URL) throws -> Void)? = nil
     ) -> String? {
         // Below three objects a partial link cannot shrink the input count.
         guard inputs.count > 2,
@@ -44,6 +52,12 @@ enum MacOSPrelinkedObjects {
         for input in inputs {
             guard let signature = fileSignature(input) else { return nil }
             keyParts.append(input)
+            keyParts.append(signature)
+        }
+        for path in forceLoadPaths {
+            guard let signature = fileSignature(path) else { return nil }
+            keyParts.append("force_load")
+            keyParts.append(path)
             keyParts.append(signature)
         }
         let key = CodegenRuntimeSupport.stableFNV1a64Hex(keyParts.joined(separator: "\u{0}"))
@@ -67,11 +81,13 @@ enum MacOSPrelinkedObjects {
         defer { try? FileManager.default.removeItem(at: temporary) }
         do {
             if let build {
-                try build(inputs, temporary)
+                try build(inputs, forceLoadPaths, temporary)
             } else {
                 _ = try CommandRunner.run(
                     executable: driver,
-                    arguments: ["-r", "-nostdlib", "-target", target] + inputs + ["-o", temporary.path],
+                    arguments: ["-r", "-nostdlib", "-target", target] + inputs
+                        + forceLoadPaths.map { "-Wl,-force_load,\($0)" }
+                        + ["-o", temporary.path],
                     phaseTimer: phaseTimer, subPhaseName: "Link/clang-prelink"
                 )
             }
