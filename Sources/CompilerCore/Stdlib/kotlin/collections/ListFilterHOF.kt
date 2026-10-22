@@ -2,7 +2,7 @@ package kotlin.collections
 
 // MIGRATION-COL-003
 
-public fun <T> List<T>.filter(predicate: (T) -> Boolean): List<T> {
+public inline fun <T> List<T>.filter(predicate: (T) -> Boolean): List<T> {
     val result = mutableListOf<T>()
     var i = 0
     val sz = size
@@ -14,7 +14,7 @@ public fun <T> List<T>.filter(predicate: (T) -> Boolean): List<T> {
     return result
 }
 
-public fun <T> List<T>.filterNot(predicate: (T) -> Boolean): List<T> {
+public inline fun <T> List<T>.filterNot(predicate: (T) -> Boolean): List<T> {
     val result = mutableListOf<T>()
     var i = 0
     val sz = size
@@ -38,7 +38,7 @@ public fun <T : Any> List<T?>.filterNotNull(): List<T> {
     return result
 }
 
-public fun <T> List<T>.filterIndexed(predicate: (Int, T) -> Boolean): List<T> {
+public inline fun <T> List<T>.filterIndexed(predicate: (Int, T) -> Boolean): List<T> {
     val result = mutableListOf<T>()
     var i = 0
     val sz = size
