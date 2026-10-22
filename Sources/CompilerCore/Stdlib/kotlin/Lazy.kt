@@ -16,9 +16,11 @@ public interface Lazy<out T> {
 public operator fun <T> Lazy<T>.getValue(thisRef: Any?, property: KProperty<*>): T = value
 
 @KsSymbolName("__kk_lazy_sync_lock")
+@PublishedApi
 internal external fun __lazySyncLock(lock: Any): Unit
 
 @KsSymbolName("__kk_lazy_sync_unlock")
+@PublishedApi
 internal external fun __lazySyncUnlock(lock: Any): Unit
 
 // `initializer` is kept non-nullable (rather than nulled out after first use
