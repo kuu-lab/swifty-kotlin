@@ -354,6 +354,25 @@ struct CLIParserTests {
     }
 
     @Test
+    func runFlagSelectsExecutableWithTemporaryOutput() throws {
+        let options = try CLIParser.parse(args: ["--run", "main.kt"])
+        #expect(options.runsImmediately)
+        #expect(options.emit == .executable)
+        #expect(options.frontendFlags.contains("run-temp-output"))
+        #expect(options.outputPath != "./a.out")
+    }
+
+    @Test
+    func runFlagHonorsExplicitOutputAndRejectsOtherEmitModes() throws {
+        let options = try CLIParser.parse(args: ["--run", "-o", "out", "main.kt"])
+        #expect(options.outputPath == "out")
+        #expect(!options.frontendFlags.contains("run-temp-output"))
+        #expect(throws: CLIParseError.runRequiresExecutableEmit) {
+            try CLIParser.parse(args: ["--run", "--emit", "kir", "main.kt"])
+        }
+    }
+
+    @Test
     func rejectsStdlibOnlyWithInput() {
         #expect(throws: CLIParseError.incompatibleStdlibOptions("--stdlib-only cannot be combined with input files")) {
             try CLIParser.parse(args: ["--stdlib-only", "main.kt"])

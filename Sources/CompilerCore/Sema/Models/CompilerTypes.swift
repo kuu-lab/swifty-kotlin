@@ -112,6 +112,12 @@ public struct CompilerOptions: Equatable {
     /// JVM classpath entries, in lookup order (JAR files or class directories).
     public var jvmClasspath: [String]
 
+    /// `kswiftc --run`: execute the program right after compiling it, using the
+    /// KIR interpreter when it covers the program (see `KIRInterpreter`).
+    public var runsImmediately: Bool {
+        frontendFlags.contains("run")
+    }
+
     public var nameBasedDestructuringMode: NameBasedDestructuringMode {
         frontendFlags.contains("name-based-destructuring=complete")
             || frontendFlags.contains("-Xname-based-destructuring=complete")

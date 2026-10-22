@@ -775,5 +775,20 @@ import TestStdlibCache
         }
     }
 
+    @Test func companionObjectInsideInnerClassIsRejected() throws {
+        let sources = [
+            "package s0\nclass O { inner class I { companion object { fun f() = 1 } } }",
+            "package s1\nclass O { class N { companion object { fun f() = 1 } } }",
+            "package s2\nclass O { inner class I { object K { fun f() = 1 } } }",
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            assertHasDiagnostic("KSWIFTK-SEMA-INNER-COMPANION", in: diagnosticsForPath(paths[0], in: ctx))
+            for index in 1..<3 {
+                assertNoDiagnostic("KSWIFTK-SEMA-INNER-COMPANION", in: diagnosticsForPath(paths[index], in: ctx))
+            }
+        }
+    }
 }
 #endif

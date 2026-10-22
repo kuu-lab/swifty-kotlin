@@ -28,6 +28,8 @@ func printCLIError(_ error: CLIParseError) {
         print("--stdlib-only requires --emit library")
     case let .unsupportedStdlibProfile(value):
         print("Unsupported stdlib profile: \(value) (expected full or minimal)")
+    case .runRequiresExecutableEmit:
+        print("--run cannot be combined with --emit other than executable")
     }
 }
 

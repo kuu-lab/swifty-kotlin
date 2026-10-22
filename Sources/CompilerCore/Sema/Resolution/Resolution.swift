@@ -2098,6 +2098,9 @@ extension OverloadResolver {
         if prefersExplicitFunctionTypeParameter(lhs, than: rhs, call: call, typeSystem: typeSystem) {
             return true
         }
+        if prefersDeclaredShapeOverBareTypeParameter(lhs, than: rhs, typeSystem: typeSystem) {
+            return true
+        }
 
         // If parameter types are not strictly more specific, check whether they
         // are pairwise equivalent and the receiver type is a subtype (override
@@ -2141,6 +2144,38 @@ extension OverloadResolver {
             return !lhs.usesVararg && rhs.usesVararg
         }
         return false
+    }
+
+    /// Kotlin compares overloads by their declared (uninstantiated) signatures:
+    /// `minus(elements: Iterable<T>)` beats `minus(element: T)` because
+    /// `Iterable<T>` can be passed to a bare `T` but not vice versa. Instantiated
+    /// parameter types can be incomparable (e.g. `T` inferred as `List<*>` for
+    /// nested lists), so fall back to the declared shapes: every parameter is
+    /// identical or the other side is a bare type parameter, with at least one
+    /// strict case.
+    private func prefersDeclaredShapeOverBareTypeParameter(
+        _ lhs: ViableCandidate,
+        than rhs: ViableCandidate,
+        typeSystem: TypeSystem
+    ) -> Bool {
+        let lhsDeclared = lhs.signature.parameterTypes
+        let rhsDeclared = rhs.signature.parameterTypes
+        guard lhsDeclared.count == rhsDeclared.count, !lhsDeclared.isEmpty else { return false }
+        func isBareTypeParameter(_ type: TypeID) -> Bool {
+            if case .typeParam = typeSystem.kind(of: typeSystem.makeNonNullable(type)) { return true }
+            return false
+        }
+        var sawStrict = false
+        for (l, r) in zip(lhsDeclared, rhsDeclared) {
+            if isBareTypeParameter(r), !isBareTypeParameter(l) {
+                sawStrict = true
+            } else if isBareTypeParameter(l) != isBareTypeParameter(r) {
+                return false
+            } else if !isBareTypeParameter(l), l != r {
+                return false
+            }
+        }
+        return sawStrict
     }
 
     /// Prefer a declared function-type parameter over a direct type parameter

@@ -1512,6 +1512,16 @@ extension DataFlowSemaPhase {
                     interner: interner
                 )
             }
+            if nestedClass.isInner,
+               let companionDeclID = nestedClass.companionObject,
+               case let .objectDecl(companionObject)? = ast.arena.decl(companionDeclID)
+            {
+                diagnostics.error(
+                    "KSWIFTK-SEMA-INNER-COMPANION",
+                    "Companion object is not allowed inside inner class '\(interner.resolve(nestedClass.name))'.",
+                    range: companionObject.range
+                )
+            }
             if let companionDeclID = nestedClass.companionObject {
                 collectCompanionObjectHeader(
                     companionDeclID: companionDeclID,

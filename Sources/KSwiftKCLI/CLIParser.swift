@@ -1,4 +1,5 @@
 import CompilerCore
+import Foundation
 
 enum CLIParseError: Error, Equatable {
     case usageRequested
@@ -13,6 +14,7 @@ enum CLIParseError: Error, Equatable {
     case incompatibleStdlibOptions(String)
     case stdlibOnlyRequiresLibraryEmit
     case unsupportedStdlibProfile(String)
+    case runRequiresExecutableEmit
 }
 
 enum CLIParser {
@@ -54,7 +56,10 @@ enum CLIParser {
       --stdlib-from-source   Debug fallback: inject bundled stdlib Kotlin sources
       --profile <name>       Stdlib profile: full (default) | minimal
                              minimal: default-import packages only; importing an excluded
-                             package (kotlinx.*, kotlin.concurrent, kotlin.test, ...) is an error
+                             package (kotlinx.coroutines, kotlin.test, kotlin.uuid, ...) is an error
+      --run                  Compile and run immediately. Pure-logic programs are executed by the
+                             in-process KIR interpreter (no codegen/link); anything it does not
+                             model falls back to native compilation + execution
       --test                 Generate an executable runner for kotlin.test annotations
       -g                     Emit debug info
       --daemon               Run a persistent local compile daemon
@@ -88,6 +93,7 @@ enum CLIParser {
         var explicitIncludeStdlib: Bool? = nil
         var target = TargetTriple.hostDefault()
         var jvmClasspath: [String] = []
+        var runImmediately = false
 
         if args.isEmpty {
             throw CLIParseError.noInputFiles
@@ -201,6 +207,8 @@ enum CLIParser {
                 explicitIncludeStdlib = true
             case "-g":
                 debugInfo = true
+            case "--run":
+                runImmediately = true
             case "--test", "-generate-test-runner":
                 frontendFlags.append("generate-test-runner")
             default:
@@ -252,6 +260,19 @@ enum CLIParser {
             throw CLIParseError.noInputFiles
         }
 
+        if runImmediately {
+            guard explicitEmitMode == nil || explicitEmitMode == .executable else {
+                throw CLIParseError.runRequiresExecutableEmit
+            }
+            emitMode = .executable
+            frontendFlags.append("run")
+            if !explicitOutputPath {
+                // Only used when the interpreter falls back to a native build.
+                outputPath = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("kswiftc-run-\(UUID().uuidString)").path
+                frontendFlags.append("run-temp-output")
+            }
+        }
         if emitMode.isJVM, !explicitOutputPath {
             outputPath = emitMode == .jvmClass ? "./classes" : (stdlibOnly ? "./kswiftk-stdlib.jar" : "./main.jar")
         }
