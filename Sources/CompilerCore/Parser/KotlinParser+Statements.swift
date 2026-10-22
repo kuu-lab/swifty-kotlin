@@ -980,7 +980,13 @@ extension KotlinParser {
         case .keyword(.in):
             return true
         case .symbol(.bang):
-            return stream.peek(1).kind == .keyword(.in)
+            // `!in` and `!is` are the only infix operators that start with `!`.
+            let next = stream.peek(1).kind
+            return next == .keyword(.in) || next == .keyword(.is)
+        case .symbol(.bangBang):
+            // `!!` is the not-null postfix operator; it can only apply to the
+            // trailing-lambda call here, never start a statement.
+            return true
         case .identifier, .backtickedIdentifier:
             return canStartInfixCallArgument(stream.peek(1).kind)
         default:

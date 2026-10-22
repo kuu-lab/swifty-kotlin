@@ -316,6 +316,10 @@ public struct FunDecl: Codable {
     public let isSuspend: Bool
     public let isInline: Bool
     public let isTailrec: Bool
+    /// Marks the compiler-synthesized `main` wrapper for top-level script
+    /// statements. It is not a source-declared callable, so package-scope
+    /// duplicate checks must not compare it against a user-declared `main`.
+    public let isScriptEntryPoint: Bool
 
     public init(
         range: SourceRange,
@@ -330,7 +334,8 @@ public struct FunDecl: Codable {
         body: FunctionBody = .unit,
         isSuspend: Bool = false,
         isInline: Bool = false,
-        isTailrec: Bool = false
+        isTailrec: Bool = false,
+        isScriptEntryPoint: Bool = false
     ) {
         self.range = range
         self.name = name
@@ -345,6 +350,7 @@ public struct FunDecl: Codable {
         self.isSuspend = isSuspend
         self.isInline = isInline
         self.isTailrec = isTailrec
+        self.isScriptEntryPoint = isScriptEntryPoint
     }
 
     public init(from decoder: Decoder) throws {
@@ -362,6 +368,7 @@ public struct FunDecl: Codable {
         isSuspend = try container.decode(Bool.self, forKey: .isSuspend)
         isInline = try container.decode(Bool.self, forKey: .isInline)
         isTailrec = try container.decode(Bool.self, forKey: .isTailrec)
+        isScriptEntryPoint = try container.decodeIfPresent(Bool.self, forKey: .isScriptEntryPoint) ?? false
     }
 }
 
