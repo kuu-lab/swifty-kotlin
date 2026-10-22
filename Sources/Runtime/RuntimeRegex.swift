@@ -185,7 +185,95 @@ private func matchResultBoxFromRaw(_ raw: Int) -> RuntimeMatchResultBox? {
 /// every position. `NSRegularExpression` rejects an empty pattern string, so
 /// the equivalent non-capturing empty group `(?:)` is compiled instead.
 private func compileRegexPattern(_ pattern: String, options: NSRegularExpression.Options) throws -> NSRegularExpression {
-    try NSRegularExpression(pattern: pattern.isEmpty ? "(?:)" : pattern, options: options)
+    try NSRegularExpression(pattern: pattern.isEmpty ? "(?:)" : stripJavaOnlyInlineFlags(pattern), options: options)
+}
+
+/// Removes the `java.util.regex` inline flags that ICU does not know about.
+///
+/// Kotlin/JVM accepts `(?u)` (UNICODE_CASE) and `(?U)` (UNICODE_CHARACTER_CLASS)
+/// next to the `i d m s x` flags ICU also understands; ICU rejects the former as
+/// an invalid pattern. ICU already folds case and classifies `\w` / `\d` / `\b`
+/// by Unicode properties, so those two flags are semantically a no-op here and
+/// are dropped from flag groups such as `(?U)`, `(?iU)`, `(?U-i:...)`.
+/// Escapes, `\Q...\E` quotes and character classes are copied verbatim.
+func stripJavaOnlyInlineFlags(_ pattern: String) -> String {
+    guard pattern.contains("(?") else { return pattern }
+    let chars = Array(pattern)
+    var out = ""
+    out.reserveCapacity(chars.count)
+    var index = 0
+    var classDepth = 0
+    func isFlag(_ c: Character) -> Bool { "idmsuxU".contains(c) }
+    while index < chars.count {
+        let c = chars[index]
+        if c == "\\" {
+            if index + 1 < chars.count, chars[index + 1] == "Q" {
+                // \Q ... \E literal quote (an unterminated quote runs to the end).
+                var end = index + 2
+                while end < chars.count, !(chars[end] == "\\" && end + 1 < chars.count && chars[end + 1] == "E") {
+                    end += 1
+                }
+                end = min(end + 2, chars.count)
+                out.append(contentsOf: chars[index..<end])
+                index = end
+            } else {
+                let end = min(index + 2, chars.count)
+                out.append(contentsOf: chars[index..<end])
+                index = end
+            }
+            continue
+        }
+        if classDepth > 0 {
+            if c == "[" { classDepth += 1 } else if c == "]" { classDepth -= 1 }
+            out.append(c)
+            index += 1
+            continue
+        }
+        if c == "[" {
+            classDepth = 1
+            out.append(c)
+            index += 1
+            // A leading `^` and a leading `]` are literal members of the class.
+            if index < chars.count, chars[index] == "^" { out.append("^"); index += 1 }
+            if index < chars.count, chars[index] == "]" { out.append("]"); index += 1 }
+            continue
+        }
+        if c == "(", index + 1 < chars.count, chars[index + 1] == "?" {
+            var cursor = index + 2
+            var on = ""
+            var off = ""
+            var seenMinus = false
+            while cursor < chars.count {
+                let f = chars[cursor]
+                if f == "-", !seenMinus { seenMinus = true; cursor += 1; continue }
+                guard isFlag(f) else { break }
+                if f != "u" && f != "U" {
+                    if seenMinus { off.append(f) } else { on.append(f) }
+                }
+                cursor += 1
+            }
+            let isFlagGroup = cursor > index + 2
+                && cursor < chars.count
+                && (chars[cursor] == ")" || chars[cursor] == ":")
+            if isFlagGroup {
+                let terminator = chars[cursor]
+                if on.isEmpty && off.isEmpty {
+                    // `(?U)` vanishes entirely; `(?U:...)` becomes a plain non-capturing group.
+                    if terminator == ":" { out.append("(?:") }
+                } else {
+                    out.append("(?")
+                    out.append(on)
+                    if !off.isEmpty { out.append("-"); out.append(off) }
+                    out.append(terminator)
+                }
+                index = cursor + 1
+                continue
+            }
+        }
+        out.append(c)
+        index += 1
+    }
+    return out
 }
 
 /// Defense-in-depth bounds for regex evaluation.
