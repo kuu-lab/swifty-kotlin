@@ -986,6 +986,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Declaration kind cannot be local."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0433",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Lambda parameter count does not match the expected function type."
+        ),
     ]
 
 
