@@ -1017,6 +1017,12 @@ enum DiagnosticRegistry {
             summary: "Operator convention call requires the 'operator' modifier on the convention function."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0433",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Lambda parameter count does not match the expected function type."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0434",
             pass: "SEMA",
             defaultSeverity: .error,
