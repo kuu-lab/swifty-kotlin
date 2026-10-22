@@ -998,6 +998,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Operator convention call requires the 'operator' modifier on the convention function."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0434",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "'if' used as an expression must have an 'else' branch."
+        ),
     ]
 
 

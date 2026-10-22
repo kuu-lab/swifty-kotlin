@@ -55,6 +55,7 @@ struct BuildASTDeterminismTests {
             #expect(try encoded(actual.expressionAnnotations[id]) == encoded(expected.expressionAnnotations[id]))
         }
         #expect(actual.anonymousFunctionExpressions == expected.anonymousFunctionExpressions)
+        #expect(actual.parenthesizedExpressions == expected.parenthesizedExpressions)
     }
 
     private func expectSameAST(_ actual: CompilationContext, _ expected: CompilationContext) throws {
