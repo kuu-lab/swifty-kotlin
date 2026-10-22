@@ -942,6 +942,22 @@ public final class SymbolTable {
         return byFQName[fqName]?.first
     }
 
+    /// Like `lookup(fqName:)`, but prefers a nominal type symbol over a
+    /// same-named function. `kotlin.collections.List` names both the `List`
+    /// interface and the `List(size, init)` factory; picking the factory as a
+    /// class symbol yields a type that is not a subtype of the real `List<T>`.
+    public func lookupNominal(fqName: [InternedString]) -> SymbolID? {
+        let candidates = lookupAll(fqName: fqName)
+        return candidates.first(where: { id in
+            switch symbol(id)?.kind {
+            case .class, .interface, .object, .enumClass, .annotationClass:
+                true
+            default:
+                false
+            }
+        }) ?? candidates.first
+    }
+
     public func lookupAll(fqName: [InternedString]) -> [SymbolID] {
         lock.lock()
         defer { lock.unlock() }
