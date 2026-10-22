@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-145: substring(...) with an implicit receiver inside a String extension
 // must behave identically to the explicit this.substring(...) form.
 fun String.dropPrefix(n: Int): String = substring(n)

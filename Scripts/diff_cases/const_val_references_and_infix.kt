@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Limits {
     companion object {
         const val MIN: Long = Long.MIN_VALUE

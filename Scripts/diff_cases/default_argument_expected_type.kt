@@ -1,3 +1,4 @@
+// DIFF_JVM
 class G<T, R>(val t: T, val r: R? = null)
 class W<T>(val g: G<T, T>)
 

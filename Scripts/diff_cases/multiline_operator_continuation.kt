@@ -1,3 +1,4 @@
+// DIFF_JVM
 val total: Int = 1 +
     (2 + 3)
 

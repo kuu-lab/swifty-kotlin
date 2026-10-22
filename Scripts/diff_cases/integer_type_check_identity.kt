@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun tag(x: Any): String = when (x) {
     is Byte -> "Byte:${x.toInt()}"
     is Short -> "Short:${x.toInt()}"

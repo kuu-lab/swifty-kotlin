@@ -1,3 +1,4 @@
+// DIFF_JVM
 // JetBrains/Kotlin compiler/testData/codegen/box/elvis/kt6694ExactAnnotationForElvis.kt
 // Pinned to 679366a83f99851b42f64795f10ed803ff011c73.
 interface PsiElement {

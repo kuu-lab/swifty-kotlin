@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println(65601.toChar().code)
     println(70000.toChar().code)

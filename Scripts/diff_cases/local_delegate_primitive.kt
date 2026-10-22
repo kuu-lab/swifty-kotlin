@@ -1,3 +1,4 @@
+// DIFF_JVM
 class IntProp {
     operator fun getValue(thisRef: Any?, property: Any?): Int = 42
 }

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-655: an `override` inherits the *base* declaration's default
 // parameter values even when the override itself declares none of its own.
 // kotlinc accepts and runs all of the calls below; before this fix kswiftc

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun boolWhen(b: Boolean?) = when (b) { true -> "T"; false -> "F"; null -> "N" }
 
 data class Point(val x: Int)

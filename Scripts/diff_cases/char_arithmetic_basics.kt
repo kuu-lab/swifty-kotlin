@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Char.code
     println('A'.code)

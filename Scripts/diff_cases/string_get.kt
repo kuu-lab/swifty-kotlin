@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val s = "hello"
     println(s.get(0))

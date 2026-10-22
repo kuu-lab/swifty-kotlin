@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun printLength(cs: CharSequence) {
     println(cs.length)
 }

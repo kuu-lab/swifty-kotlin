@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-B: an actually-null String must behave like any other null reference:
 // `.length` throws NullPointerException (catchable), and string templates /
 // `+` concatenation render it as the text "null", exactly like every other

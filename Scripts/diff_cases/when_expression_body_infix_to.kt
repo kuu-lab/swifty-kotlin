@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1927: keep the when suffix and following declarations in their own bodies.
 // KOTLINC_FLAGS: -jvm-target 17
 class WhenToDemo1894 {
