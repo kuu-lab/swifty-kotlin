@@ -412,7 +412,8 @@ extension BuildASTPhase {
             modifiers: modifiers,
             annotations: annotations,
             typeParams: typeParams,
-            type: declarationPropertyType(from: nodeID, in: arena, interner: interner, astArena: astArena),
+            type: declarationPropertyType(from: nodeID, in: arena, interner: interner, astArena: astArena)
+                ?? accessors.getter?.returnType,
             isVar: declarationIsVar(from: nodeID, in: arena),
             initializer: declarationPropertyInitializer(from: nodeID, in: arena, interner: interner, astArena: astArena),
             getter: accessors.getter,
