@@ -4,13 +4,14 @@ import Foundation
 
 /// `kswiftc --batch <manifest>`: compiles many cases in one process so the
 /// fixed `.kklib` import cost (process start, stdlib artifact resolution,
-/// compact-index decode, and imported Sema state) is paid once instead of per case.
+/// and compact-index decode) is amortized across cases.
 ///
 /// Manifest: one case per line, tab-separated —
 /// `<stdout-file>\t<stderr-file>\t<exit-code-file>\t<kswiftc arg>...`.
 /// Each case's stdout/stderr (including child processes such as the linker)
 /// are redirected to the given files and its exit code is written to the
-/// exit-code file. Only the decoded kklib index is shared between cases.
+/// exit-code file. The decoded kklib index is shared; imported symbols remain
+/// request-local so their registration order matches standalone compilation.
 enum BatchMode {
     static func run(manifestPath: String) -> Int32 {
         guard let text = try? String(contentsOfFile: manifestPath, encoding: .utf8) else {

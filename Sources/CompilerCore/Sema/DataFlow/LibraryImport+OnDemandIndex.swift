@@ -241,13 +241,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        func drainAllEntries(into symbols: SymbolTable) {
-            buildMapsIfNeeded()
-            for index in indexedFile.entries.indices where !rejectedIndices.contains(index) {
-                claim(index: index)
-            }
-        }
-
         /// Claims the initializer-bearing entries once, at import time. The
         /// module-init emission enumerates registered owner symbols to emit
         /// object/companion/enum init calls before `main`; an entry that

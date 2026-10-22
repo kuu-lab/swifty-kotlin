@@ -897,15 +897,6 @@ extension DataFlowSemaPhase {
         // Import-time registration is done; later drains may see every
         // library's index in search-path order.
         symbols.importDrainEpoch = .max
-        if KklibSemaSession.shouldCache(options: options),
-           stdlibIndexSource != nil,
-           !diagnostics.hasError
-        {
-            // A persistent snapshot cannot retain providers whose registration
-            // closures point into this compilation. Drain the compact index in
-            // full before taking the import binding list.
-            symbols.drainAllIndexedLibraryEntries()
-        }
         // Tail passes iterate a snapshot: lookups inside them can still drain
         // pending entries, and appending during iteration would be a mutation
         // error. Bindings claimed mid-tail already ran every per-registration
@@ -1362,19 +1353,6 @@ extension DataFlowSemaPhase {
             diagnostics: diagnostics,
             resolver: resolver
         )
-
-        if KklibSemaSession.shouldCache(options: options),
-           stdlibIndexSource != nil,
-           !diagnostics.hasError
-        {
-            // The snapshot owns a complete, immutable imported baseline. Decode
-            // each remaining record once here, then detach request-local
-            // callbacks and providers before the user declarations are added.
-            for binding in lazyLoaderState.allImportedBindings {
-                symbols.ensureLazyImportedMetadataLoaded(for: binding.symbol)
-            }
-            symbols.sealImportedStateForPersistentSession()
-        }
 
         // `depends` ordering: a dependency's module init (top-level field
         // stores, object pre-allocations) must run before its dependents'.
@@ -2374,10 +2352,11 @@ extension DataFlowSemaPhase {
     }
 }
 
-/// Process-local cache of the fully imported bundled stdlib baseline. The CLI
-/// daemon serializes requests, so snapshots are replaced atomically between
-/// compilations and each request receives copy-on-write SymbolTable/TypeSystem
-/// storage plus a private interner branch.
+/// Process-local cache of imported-library baselines that have no request-local
+/// lazy providers. The CLI daemon serializes requests, so snapshots are replaced
+/// atomically and each request receives copy-on-write storage plus a private
+/// interner branch. Compact-index imports stay request-local to preserve symbol
+/// registration order; their decoded files are cached separately.
 public enum KklibSemaSession {
     nonisolated(unsafe) public static var isEnabled = false
     nonisolated(unsafe) private static var storedSnapshot: CachedSemaImportSnapshot?
@@ -2414,6 +2393,9 @@ public enum KklibSemaSession {
         work: DataFlowSemaPhase.LibraryImportDeferredWork,
         importDiagnostics: [Diagnostic]
     ) {
+        // Compact-index providers must stay request-local: draining one into
+        // a persistent snapshot changes demand registration order and therefore
+        // symbol IDs in emitted artifacts. Their decoded index is cached separately.
         guard let key = cacheKey(options: options), !symbols.hasLazySymbolMaterialization,
               work.klibModules.isEmpty, let lazyState = work.lazyLoaderState,
               let stdlibMemberKeys = work.stdlibMemberKeys
