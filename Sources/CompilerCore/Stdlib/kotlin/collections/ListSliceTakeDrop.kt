@@ -39,7 +39,7 @@ public fun <T> List<T>.takeLast(n: Int): List<T> {
     return result
 }
 
-public fun <T> List<T>.takeWhile(predicate: (T) -> Boolean): List<T> {
+public inline fun <T> List<T>.takeWhile(predicate: (T) -> Boolean): List<T> {
     val result = mutableListOf<T>()
     var i = 0
     val sz = size
@@ -76,7 +76,7 @@ public fun <T> List<T>.dropLast(n: Int): List<T> {
     return subList(0, size - n)
 }
 
-public fun <T> List<T>.dropWhile(predicate: (T) -> Boolean): List<T> {
+public inline fun <T> List<T>.dropWhile(predicate: (T) -> Boolean): List<T> {
     var i = 0
     while (i < size) {
         if (!predicate(this[i])) {

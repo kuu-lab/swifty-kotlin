@@ -113,7 +113,7 @@ public fun <T> Iterable<T>.distinct(): List<T> {
     return result
 }
 
-public fun <T, K> Iterable<T>.distinctBy(selector: (T) -> K): List<T> {
+public inline fun <T, K> Iterable<T>.distinctBy(selector: (T) -> K): List<T> {
     val result = mutableListOf<T>()
     val seen = mutableSetOf<K>()
     for (element in this) {
@@ -233,7 +233,7 @@ public fun List<Int>.sum(): Int {
 }
 
 @Deprecated("Use sumOf instead.", ReplaceWith("sumOf(selector)"))
-public fun <T> Iterable<T>.sumBy(selector: (T) -> Int): Int {
+public inline fun <T> Iterable<T>.sumBy(selector: (T) -> Int): Int {
     var sum = 0
     for (element in this) sum += selector(element)
     return sum
