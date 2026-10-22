@@ -72,6 +72,20 @@ struct KIRFunctionFingerprintTests {
     }
 
     @Test
+    func genericClassMembersAreStableUnderUnrelatedInsertions() throws {
+        // A class type parameter's FQ name embeds the class's raw SymbolID.
+        let box = "class Box<T>(val value: T) { fun get(): T = value }\nfun use(b: Box<Int>): Int = b.get()"
+        let before = try fingerprints(box)
+        let after = try fingerprints("class Pair2<A, B>(val a: A, val b: B)\nfun noise(): Int = 1\n\(box)")
+        for needle in [".get(", "|use"] {
+            let lhs = try #require(before.values.first { $0.key.contains(needle) })
+            let rhs = try #require(after.values.first { $0.key.contains(needle) })
+            #expect(lhs.hash == rhs.hash, "\(needle) must not depend on declaration order")
+            #expect(lhs.key == rhs.key)
+        }
+    }
+
+    @Test
     func bodyEditChangesOnlyTheEditedFunction() throws {
         let before = try fingerprints(base)
         let after = try fingerprints(base.replacingOccurrences(of: "x + 1", with: "x + 2"))

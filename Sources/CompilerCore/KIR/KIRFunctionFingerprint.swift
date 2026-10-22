@@ -92,21 +92,60 @@ final class KIRCanonicalizer {
         return key
     }
 
+    private var baseKeys: [SymbolID: String] = [:]
+
     private func computeSymbolKey(_ id: SymbolID) -> String {
-        guard let symbol = symbols.symbol(id) else { return "?unknown" }
+        // Not in the table: compiler-synthesized IDs (e.g. lambda parameters,
+        // derived from the lambda's ExprID). Their raw value is the only
+        // identity available; keeping it can over-invalidate when ExprIDs shift
+        // but never merges two distinct synthetic symbols.
+        guard let symbol = symbols.symbol(id) else { return "?synthetic#\(id.rawValue)" }
         let base = baseKey(of: symbol)
         // Distinct symbols can share a base key (two lambdas in one function,
-        // overloads whose signatures erase equally). Number them in definition
-        // order so they stay distinguishable, which can only over-invalidate.
-        let peers = symbols.lookupAll(fqName: symbol.fqName)
-            .filter { peer in symbols.symbol(peer).map { baseKey(of: $0) == base } ?? false }
+        // overloads whose signatures erase equally, same-named type parameters
+        // of different classes once ID-derived name parts are normalized).
+        // Number them in definition order so they stay distinguishable, which
+        // can only over-invalidate.
+        let peers = candidates(fqName: symbol.fqName, shortName: symbol.name)
+            .filter { baseKey(ofID: $0) == base }
             .sorted { $0.rawValue < $1.rawValue }
         guard peers.count > 1, let ordinal = peers.firstIndex(of: id) else { return base }
         return "\(base)#\(ordinal)"
     }
 
+    /// Symbols that might share a key with one named `fqName`: those registered
+    /// under the exact FQ name plus those with the same short name (the FQ
+    /// name of some symbols contains an ID-derived part, and constructors are
+    /// not in the short-name index).
+    func candidates(fqName: [InternedString], shortName: InternedString) -> Set<SymbolID> {
+        var result = Set(symbols.lookupAll(fqName: fqName))
+        result.formUnion(symbols.lookupByShortName(shortName))
+        return result
+    }
+
+    private func baseKey(ofID id: SymbolID) -> String? {
+        if let cached = baseKeys[id] { return cached }
+        guard let symbol = symbols.symbol(id) else { return nil }
+        return baseKey(of: symbol)
+    }
+
+    /// Name components embed raw IDs for some compiler-created symbols (a class
+    /// type parameter's FQ name contains `$class<SymbolID>`); drop the digits
+    /// so the key does not move when unrelated declarations are added.
+    static func normalizedComponent(_ component: String) -> String {
+        guard component.hasPrefix("$") else { return component }
+        var trimmed = Substring(component)
+        while let last = trimmed.last, last.isNumber { trimmed = trimmed.dropLast() }
+        return String(trimmed)
+    }
+
+    func normalizedFQName(of symbol: SemanticSymbol) -> [String] {
+        symbol.fqName.map { Self.normalizedComponent(interner.resolve($0)) }
+    }
+
     private func baseKey(of symbol: SemanticSymbol) -> String {
-        var key = "\(symbol.kind)|" + symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
+        if let cached = baseKeys[symbol.id] { return cached }
+        var key = "\(symbol.kind)|" + normalizedFQName(of: symbol).joined(separator: ".")
         switch symbol.kind {
         case .function, .constructor:
             if let signature = symbols.functionSignatureIfKnown(for: symbol.id) {
@@ -119,6 +158,7 @@ final class KIRCanonicalizer {
         default:
             break
         }
+        baseKeys[symbol.id] = key
         return key
     }
 

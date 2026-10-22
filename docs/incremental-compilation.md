@@ -260,3 +260,27 @@ fingerprint / シグネチャ、(b) 構造体レイアウト・vtable/itable ス
 stdlib artifact などの環境入力、(c) ソース位置を生成物に埋め込むならその位置、を別途キーに含める必要がある
 （vtable/itable スロット番号は命令に含まれるためレイアウト変化は hash に現れるが、十分条件ではない）。
 スキップ経路本体（Sema 結果の直列化、object 単位のキャッシュとリンク設計、CAS のパイプライン組み込み）は未実装。
+
+### 宣言単位 Sema スナップショット（KUU-3019、第3段階・検証用）
+
+[FunctionBodySemaSnapshot.swift](../Sources/CompilerCore/Sema/Incremental/FunctionBodySemaSnapshot.swift)
+と [SemaSnapshotCodec.swift](../Sources/CompilerCore/Sema/Incremental/SemaSnapshotCodec.swift) が、
+関数 1 つの本体の型検査結果を `SymbolID` / `TypeID` / `ExprID` を一切含まない `Codable` として
+保存し、別のコンパイル（ID がずれている）へ復元する。式は宣言内の先頭式からの相対位置、
+シンボルは名前キー（`SnapshotSymbol.global`）・宣言内の定義順序（`.local`）・lambda 相対位置
+（`.lambdaParameter`）、型は構造的表現（`SnapshotType`）で表す。対象は `exprTypes` /
+`identifierSymbols` / `callBindings` のみ。**まだ型検査の代わりには使えない**:
+`BindingTable` の残り 98 プロパティは未対応で、テスト `everyBindingTablePropertyIsClassifiedAsCoveredOrPending`
+が新規プロパティの分類漏れを検出する。現状は「capture → 復元 → 別コンパイルの実際の型検査結果と比較」
+までで、表現できない参照があれば capture は nil を返し、その宣言は uncacheable として扱う。
+
+この過程で見つかった ID 依存（将来のスキップ経路が避けるべきもの）:
+
+* lambda パラメータのシンボルはシンボル表に無く、lambda の `ExprID` から
+  `-1_000_000 - expr * 256 - slot` で導出される（型検査・KIR lowering の双方）。
+* クラス型パラメータの FQ 名に `$class<SymbolID>` が埋め込まれる。KIR fingerprint /
+  スナップショットのキーでは `$` 始まり成分の末尾数字を除去して正規化する。
+
+**復元は未実装**: 現在の `restore` は復元先のコンパイルに既に存在する local シンボルへ解決するだけで、
+型検査をスキップした場合に必要な local / lambda シンボルとその付随テーブル（`propertyType`、
+`functionSignature` など）の再生成は第4段階以降。
