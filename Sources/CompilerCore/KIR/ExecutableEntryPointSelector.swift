@@ -10,6 +10,20 @@ public enum ExecutableEntryPointSelector {
         entryPointFQName: String?
     ) -> SymbolID? {
         let mainName = interner.intern("main")
+        if entryPointFQName == nil {
+            // A file with top-level statements runs its synthesized script
+            // body as the entry point (matching `kotlinc -script`), so prefer
+            // it over a user-declared `fun main` in the same file.
+            for file in ast.sortedFiles {
+                for declID in file.topLevelDecls {
+                    guard case let .funDecl(funDecl)? = ast.arena.decl(declID),
+                          funDecl.isScriptEntryPoint,
+                          let symbol = bindings.declSymbols[declID],
+                          arena.function(for: symbol) != nil else { continue }
+                    return symbol
+                }
+            }
+        }
         for file in ast.sortedFiles {
             for declID in file.topLevelDecls {
                 guard case .funDecl? = ast.arena.decl(declID),
