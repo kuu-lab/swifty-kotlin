@@ -4,6 +4,96 @@ import Testing
 
 @Suite
 struct ImportedStdlibIndexMergeTests {
+    @Test
+    func precomputedStdlibSyntheticAnchorsRestoreTypeSystemLookups() {
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        let fixedPaths = [
+            ["kotlin", "Any"], ["kotlin", "Annotation"], ["kotlin", "Comparable"],
+            ["kotlin", "CharSequence"], ["kotlin", "String"], ["kotlin", "Char"],
+            ["kotlin", "reflect", "KCallable"], ["kotlin", "reflect", "KFunction"],
+            ["kotlin", "reflect", "KClass"],
+        ]
+        let functionPaths = (0 ... 22).flatMap { arity in
+            [
+                ["kotlin", "Function", "Function\(arity)"],
+                ["kotlin", "coroutines", "SuspendFunction\(arity)"],
+            ]
+        }
+        var symbolsByPath: [[String]: SymbolID] = [:]
+        for path in fixedPaths + functionPaths {
+            let name = interner.intern(path.last!)
+            let symbol = symbols.define(
+                kind: .interface,
+                name: name,
+                fqName: path.map { interner.intern($0) },
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .importedLibrary]
+            )
+            symbols.markImportedStdlibSymbol(symbol)
+            symbolsByPath[path] = symbol
+        }
+
+        #expect(DataFlowSemaPhase().restorePrecomputedStdlibSyntheticTypeSymbols(
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ))
+        #expect(types.anyClassSymbol == symbolsByPath[["kotlin", "Any"]])
+        #expect(types.annotationInterfaceSymbol == symbolsByPath[["kotlin", "Annotation"]])
+        #expect(types.comparableInterfaceSymbol == symbolsByPath[["kotlin", "Comparable"]])
+        #expect(types.charSequenceInterfaceSymbol == symbolsByPath[["kotlin", "CharSequence"]])
+        #expect(types.stringClassSymbol == symbolsByPath[["kotlin", "String"]])
+        #expect(types.charClassSymbol == symbolsByPath[["kotlin", "Char"]])
+        #expect(types.kCallableInterfaceSymbol == symbolsByPath[["kotlin", "reflect", "KCallable"]])
+        #expect(types.kFunctionInterfaceSymbol == symbolsByPath[["kotlin", "reflect", "KFunction"]])
+        #expect(types.kClassInterfaceSymbol == symbolsByPath[["kotlin", "reflect", "KClass"]])
+        #expect(types.functionNInterfaceSymbols[22] == symbolsByPath[["kotlin", "Function", "Function22"]])
+        #expect(types.suspendFunctionNInterfaceSymbols[22]
+            == symbolsByPath[["kotlin", "coroutines", "SuspendFunction22"]])
+    }
+
+    @Test
+    func precomputedMemberIndexPreservesMemberAndAliasLookups() throws {
+        let interner = StringInterner()
+        let records = [
+            MetadataRecord(kind: .function, mangledName: "_map", fqName: "kotlin.collections.List.map", arity: 1),
+            MetadataRecord(kind: .function, mangledName: "_first0", fqName: "kotlin.collections.List.first", arity: 0),
+            MetadataRecord(kind: .function, mangledName: "_first1", fqName: "kotlin.collections.List.first", arity: 1),
+            MetadataRecord(
+                kind: .function,
+                mangledName: "_extension",
+                fqName: "kotlin.collections.extension",
+                arity: 2,
+                receiverOwnerFQName: "kotlin.collections.List"
+            ),
+            MetadataRecord(kind: .constructor, mangledName: "_ctor", fqName: "demo.Widget.<init>", arity: 2),
+        ]
+        let data = BundledDeclarationIndex.precomputedMemberIndexData(records: records, interner: interner)
+        let decoded = try #require(PrecomputedBundledMemberIndex(data: data, interner: interner))
+        var index = BundledDeclarationIndex.empty
+        index.insertImportedStdlibSymbols(
+            keys: [],
+            interner: interner,
+            precomputedMemberIndex: decoded
+        )
+
+        let list = ["kotlin", "collections", "List"].map { interner.intern($0) }
+        let iterable = ["kotlin", "collections", "Iterable"].map { interner.intern($0) }
+        #expect(index.contains(owner: list, name: interner.intern("map"), arity: 1))
+        #expect(index.contains(owner: iterable, name: interner.intern("map"), arity: 1))
+        #expect(index.contains(owner: iterable, name: interner.intern("extension"), arity: 2))
+        #expect(index.contains(owner: list, name: interner.intern("first"), arity: 0))
+        #expect(index.contains(owner: iterable, name: interner.intern("first"), arity: 1))
+        #expect(!index.contains(owner: iterable, name: interner.intern("first"), arity: 0))
+        #expect(index.contains(owner: [interner.intern("demo"), interner.intern("Widget")],
+                               name: interner.intern("<init>"), arity: 2))
+        #expect(index.contains(ownerFQName: list, name: interner.intern("map")))
+        #expect(PrecomputedBundledMemberIndex(data: Data("invalid".utf8), interner: interner) == nil)
+    }
+
     @Test(arguments: [false, true])
     func constructorKeysPreserveArityAndDeferIndexedSignatures(indexed: Bool) throws {
         let libDir = FileManager.default.temporaryDirectory

@@ -6,22 +6,26 @@ struct BundledMemberKey: Hashable, Sendable {
     let arity: Int
 }
 
-struct BundledDeclarationIndex: Sendable {
+package struct BundledDeclarationIndex: Sendable {
     static let empty = BundledDeclarationIndex(keys: [], nominalFQNames: [])
 
     private let keys: Set<BundledMemberKey>
     private let nominalFQNames: Set<[InternedString]>
+    private let importedMemberIndex: PrecomputedBundledMemberIndex?
 
     init(
         keys: Set<BundledMemberKey> = [],
-        nominalFQNames: Set<[InternedString]> = []
+        nominalFQNames: Set<[InternedString]> = [],
+        importedMemberIndex: PrecomputedBundledMemberIndex? = nil
     ) {
         self.keys = keys
         self.nominalFQNames = nominalFQNames
+        self.importedMemberIndex = importedMemberIndex
     }
 
     func contains(_ key: BundledMemberKey) -> Bool {
         keys.contains(key)
+            || importedMemberIndex?.contains(owner: key.ownerFQName, name: key.name, arity: key.arity) == true
     }
 
     func contains(owner: [InternedString], name: InternedString, arity: Int) -> Bool {
@@ -34,6 +38,7 @@ struct BundledDeclarationIndex: Sendable {
 
     func contains(ownerFQName: [InternedString], name: InternedString) -> Bool {
         keys.contains { $0.ownerFQName == ownerFQName && $0.name == name }
+            || importedMemberIndex?.contains(owner: ownerFQName, name: name) == true
     }
 
     func containsNominal(fqName: [InternedString]) -> Bool {
@@ -43,20 +48,57 @@ struct BundledDeclarationIndex: Sendable {
     mutating func insert(_ key: BundledMemberKey) {
         self = BundledDeclarationIndex(
             keys: keys.union([key]),
-            nominalFQNames: nominalFQNames
+            nominalFQNames: nominalFQNames,
+            importedMemberIndex: importedMemberIndex
         )
     }
 
     mutating func insertImportedStdlibSymbols(
         keys: Set<BundledMemberKey>,
-        interner: StringInterner
+        interner: StringInterner,
+        precomputedMemberIndex: PrecomputedBundledMemberIndex? = nil
     ) {
         var merged = self.keys.union(keys)
         Self.addListIterableAliases(to: &merged, interner: interner)
         self = BundledDeclarationIndex(
             keys: merged,
-            nominalFQNames: nominalFQNames
+            nominalFQNames: nominalFQNames,
+            importedMemberIndex: precomputedMemberIndex ?? importedMemberIndex
         )
+    }
+
+    package static func precomputedMemberIndexData(
+        records: [MetadataRecord],
+        interner: StringInterner
+    ) -> Data {
+        var keys: Set<BundledMemberKey> = []
+        for record in records {
+            let arity: Int
+            switch record.kind {
+            case .function, .constructor:
+                arity = record.arity
+            case .property, .field:
+                arity = 0
+            default:
+                continue
+            }
+
+            let ownerString = record.receiverOwnerFQName.flatMap { $0.isEmpty ? nil : $0 }
+                ?? record.fqName.lastIndex(of: ".").map { String(record.fqName[..<$0]) } ?? ""
+            let nameString = record.fqName.lastIndex(of: ".")
+                .map { String(record.fqName[record.fqName.index(after: $0)...]) }
+                ?? record.fqName
+            let owner = ownerString.isEmpty
+                ? []
+                : ownerString.split(separator: ".").map { interner.intern(String($0)) }
+            keys.insert(BundledMemberKey(
+                ownerFQName: owner,
+                name: interner.intern(nameString),
+                arity: arity
+            ))
+        }
+        addListIterableAliases(to: &keys, interner: interner)
+        return PrecomputedBundledMemberIndex.encode(keys: keys, interner: interner)
     }
 
     /// Build from AST bundled sources before SymbolTable header collection.
