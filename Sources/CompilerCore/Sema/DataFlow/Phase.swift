@@ -17,8 +17,9 @@ final class DataFlowSemaPhase: CompilerPhase {
 
         let setupStart = ctx.phaseTimer.map { _ in DispatchTime.now().uptimeNanoseconds }
 
-        let symbols = SymbolTable()
-        let types = TypeSystem()
+        let cachedImportSnapshot = KklibSemaSession.cachedSnapshot(options: ctx.options)
+        let symbols = cachedImportSnapshot?.makeSymbols() ?? SymbolTable()
+        let types = cachedImportSnapshot?.makeTypes(symbols: symbols) ?? TypeSystem()
         types.symbolTable = symbols
         let bindings = BindingTable()
 
@@ -47,10 +48,29 @@ final class DataFlowSemaPhase: CompilerPhase {
         )
 
         sema.requiresResolvedLibraryCalls = ctx.options.emit.isJVM
-        let fileScopes = buildFileScopes(ast: ast, symbols: symbols, interner: ctx.interner)
-        let (importedInlineFunctions, importDeferredWork) = withSubPhaseTiming("loadImports", timer: ctx.phaseTimer) {
-            loadImports(ctx: ctx, symbols: symbols, types: types)
+        let fileScopesBeforeImports = KklibSemaSession.shouldCache(options: ctx.options)
+            ? nil
+            : buildFileScopes(ast: ast, symbols: symbols, interner: ctx.interner)
+        let (importedInlineFunctions, importDeferredWork) = withSubPhaseTiming(
+            cachedImportSnapshot == nil ? "loadImports" : "restoreImports",
+            timer: ctx.phaseTimer
+        ) {
+            if let cachedImportSnapshot {
+                for diagnostic in cachedImportSnapshot.importDiagnostics {
+                    ctx.diagnostics.emit(diagnostic)
+                }
+                return cachedImportSnapshot.makeDeferredWork(
+                    phase: self,
+                    symbols: symbols,
+                    types: types,
+                    diagnostics: ctx.diagnostics,
+                    interner: ctx.interner
+                )
+            }
+            return loadImports(ctx: ctx, symbols: symbols, types: types)
         }
+        let fileScopes = fileScopesBeforeImports
+            ?? buildFileScopes(ast: ast, symbols: symbols, interner: ctx.interner)
         sema.importedInlineFunctions = importedInlineFunctions
         sema.klibModules = importDeferredWork.klibModules
         importDeferredWork.lazyLoaderState?.descriptorSink = { [weak sema] symbol, descriptor in
@@ -218,6 +238,7 @@ final class DataFlowSemaPhase: CompilerPhase {
                     stdlibModuleName: stdlibModuleName,
                     stdlibIndexSource: importDeferredWork.lazyLoaderState?.stdlibIndexSource,
                     precomputedMemberIndex: importDeferredWork.lazyLoaderState?.stdlibMemberIndex,
+                    stdlibMemberKeys: importDeferredWork.stdlibMemberKeys,
                     symbols: symbols,
                     types: types,
                     interner: ctx.interner
@@ -412,6 +433,7 @@ final class DataFlowSemaPhase: CompilerPhase {
     private func loadImports(
         ctx: CompilationContext, symbols: SymbolTable, types: TypeSystem
     ) -> (ImportedInlineFunctionStore, LibraryImportDeferredWork) {
+        let diagnosticStart = ctx.diagnostics.diagnostics.count
         let importedInlineFunctions = ImportedInlineFunctionStore()
         let deferredWork = loadImportedLibrarySymbols(
             options: ctx.options, symbols: symbols, types: types,
@@ -419,6 +441,16 @@ final class DataFlowSemaPhase: CompilerPhase {
             importedInlineFunctions: importedInlineFunctions,
             phaseTimer: ctx.phaseTimer
         )
+        if KklibSemaSession.shouldCache(options: ctx.options), !ctx.diagnostics.hasError {
+            KklibSemaSession.store(
+                options: ctx.options,
+                symbols: symbols,
+                types: types,
+                interner: ctx.interner,
+                work: deferredWork,
+                importDiagnostics: Array(ctx.diagnostics.diagnostics.dropFirst(diagnosticStart))
+            )
+        }
         return (importedInlineFunctions, deferredWork)
     }
 
@@ -438,6 +470,7 @@ final class DataFlowSemaPhase: CompilerPhase {
         stdlibModuleName: InternedString,
         stdlibIndexSource: IndexedLibrarySource? = nil,
         precomputedMemberIndex: PrecomputedBundledMemberIndex? = nil,
+        stdlibMemberKeys: Set<BundledMemberKey>? = nil,
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
@@ -459,6 +492,14 @@ final class DataFlowSemaPhase: CompilerPhase {
         // identical to the per-registration fixup the source performs when an
         // entry drains, so already- and not-yet-registered records are both
         // covered.
+        if let stdlibMemberKeys {
+            var updatedIndex = bundledIndex
+            updatedIndex.insertImportedStdlibSymbols(
+                keys: stdlibMemberKeys,
+                interner: interner
+            )
+            return updatedIndex
+        }
         if let stdlibIndexSource {
             var updatedIndex = bundledIndex
             updatedIndex.insertImportedStdlibSymbols(
