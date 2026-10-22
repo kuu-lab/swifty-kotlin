@@ -47,6 +47,10 @@ struct DeclarationPositionValidator {
         /// including initializers that may prevent later declarations from
         /// being reached.
         var defersPropertyInitialization: Bool = false
+        /// `true` for anonymous object expressions. Unlike named objects an
+        /// anonymous object can capture an enclosing instance, so `inner`
+        /// members are legal inside it (kotlinc accepts them).
+        var isAnonymousObjectLiteral: Bool = false
 
         var name: String {
             switch kind {
@@ -838,7 +842,8 @@ struct DeclarationPositionValidator {
             ownerModifiers: decl.modifiers,
             allowsImperativeInit: !decl.initBlocks.isEmpty,
             defersPropertyInitialization: !decl.initBlocks.isEmpty
-                || hasPropertyInitializationExpression(decl.memberProperties)
+                || hasPropertyInitializationExpression(decl.memberProperties),
+            isAnonymousObjectLiteral: true
         )
         validateObjectMembers(decl, site: memberSite)
     }
@@ -890,6 +895,8 @@ struct DeclarationPositionValidator {
         case .nominal(let nominal):
             switch nominal.kind {
             case .class, .enum, .enumEntry:
+                break
+            case .object where nominal.isAnonymousObjectLiteral:
                 break
             case .interface, .object, .companionObject, .annotationClass:
                 emitInside("inner", inside: nominal.name, range: range)
