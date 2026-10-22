@@ -84,7 +84,7 @@ extension KotlinParser {
 
     func reportUnclosedBlock(lastRange: SourceRange?) {
         diagnostics.error(
-            "KSWIFTK-PARSE-0023",
+            "KSWIFTK-PARSE-0025",
             "Expected '}' to close block.",
             range: lastRange.map { SourceRange(start: $0.end, end: $0.end) } ?? invalidRange
         )

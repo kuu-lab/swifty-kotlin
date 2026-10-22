@@ -276,6 +276,15 @@ extension KotlinParser {
             let params = parseBalancedGroup(opening: .lParen, closing: .rParen, allowsValueParameters: true)
             children.append(.node(params))
             range.append(childRange(.node(params)))
+        } else if isIdentifierLike(stream.peek().kind), !hasLeadingNewline(stream.peek()) {
+            // `fun infix f(x: Int)`: a modifier written after `fun` is parsed as
+            // the function name and the real name follows it. kotlinc rejects
+            // this with "Expecting '('".
+            diagnostics.error(
+                "KSWIFTK-PARSE-0002",
+                "Expecting '('.",
+                range: stream.peek().range
+            )
         }
 
         if case .symbol(.lBrace) = stream.peek().kind {

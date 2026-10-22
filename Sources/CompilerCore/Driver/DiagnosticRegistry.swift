@@ -287,6 +287,18 @@ enum DiagnosticRegistry {
             code: "KSWIFTK-PARSE-0023",
             pass: "PARSE",
             defaultSeverity: .error,
+            summary: "Expecting member name after '.'."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0024",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Unexpected token after type reference."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0025",
+            pass: "PARSE",
+            defaultSeverity: .error,
             summary: "Expected '}' to close block."
         ),
         DiagnosticDescriptor(
@@ -1015,6 +1027,12 @@ enum DiagnosticRegistry {
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "Operator convention call requires the 'operator' modifier on the convention function."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0433",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Lambda parameter count does not match the expected function type."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0434",

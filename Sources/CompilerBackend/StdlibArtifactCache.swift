@@ -381,6 +381,18 @@ public enum StdlibArtifactCache {
             }
         }
 
+        // Optional thin-LTO bitcode (KUU-2814). Artifacts built before the key
+        // existed simply lack it; one that declares bitcode must still carry it.
+        if let bitcode = manifest["bitcode"] as? [String] {
+            for bitcodePath in bitcode {
+                guard let bitcodeURL = CompilerFileSystem.containedURL(relativePath: bitcodePath, under: rootURL),
+                      CompilerFileSystem.isRegularFile(at: bitcodeURL, fileManager: fileManager)
+                else {
+                    return .invalid("a bitcode path is missing or escapes the artifact")
+                }
+            }
+        }
+
         // The manifest lists only object files; inline-KIR blobs are
         // referenced indirectly through the metadata index (`inline=1`
         // records). A cache entry left by an interrupted or racing build can

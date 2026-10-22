@@ -216,3 +216,28 @@ FrontendPhasesTests 20）。
 全 Swift テスト、全 Golden、`diff_kotlinc.sh` の全ケース、stdlib 差替え・
 環境差替えの E2E invalidation は未実行であり、対象ゲートの成功に含めない。
 nightly CI の diff 系ジョブには `--no-incremental` を渡すようにした。
+
+## 宣言単位の依存グラフ（KUU-2810、第1段階）
+
+ファイル単位の `DependencyGraph` に加えて、トップレベル宣言単位の `DeclarationDependencyGraph`
+（[DeclarationDependencyGraph.swift](../Sources/CompilerCore/Driver/DeclarationDependencyGraph.swift)、
+[DeclarationGraphBuilder.swift](../Sources/CompilerCore/Driver/DeclarationGraphBuilder.swift)）を
+`deps.json` に永続化する。`-Xfrontend incremental-stats` で
+`declarations: total=N invalidated=M` を stderr に出す（前回との差分で再処理が必要な宣言数）。
+
+* hash は**ソーステキスト**由来（SymbolID・arena 添字を使わない）で、無関係な編集に影響されない。
+* 関数は signature / body を分離。ただし `inline`、戻り型省略の式本体（推論型が呼び出し側に見える）は
+  body も signature に含める。クラス・プロパティ等は全文を両 hash とする。
+* 参照は「宣言済み単純名が識別子として現れる」過剰近似。`plus`/`get`/`invoke` 等の演算子規約名は
+  構文上名前が現れないため全宣言の参照に含める。
+* signature 変更は直接の依存元のみを無効化し、依存元の signature が変われば連鎖する。
+* `ContentAddressedStore` は破損検出（ペイロード SHA-256）・原子的書き込み・所有者/symlink 検査付きの
+  content-addressed 保存先。`DeclarationDependencyGraph.cacheKey(for:environment:)` が宣言単位のキーを返す。
+
+**未実装（この段階の範囲外）**: 宣言単位で Sema/KIR/LLVM の仕事を実際にスキップする経路。
+`hello.kt`（stdlib `.kklib` 使用、debug）の計測ではバックエンド（emit/opt/write）は合計数十 ms で、
+時間の約 99% は `DataFlowSema`（stdlib import）だった。ユーザーコードのバックエンド結果を
+キャッシュしても現状は効果が測れず、一方 `declareExternalFunction` の名前共有キャッシュや
+partition の extern 宣言が全関数に依存するため、キー設計を誤ると誤コンパイルになる。
+実際にスキップするには、(1) 宣言単位の Sema 結果の直列化、(2) KIR 関数の SymbolID 正規化、
+(3) 全体最適化と整合する object 単位のリンク設計が必要。

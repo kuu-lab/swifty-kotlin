@@ -833,12 +833,12 @@ public func __kk_math_atanh(_ value: Int) -> Int {
 
 @_cdecl("__kk_math_asin")
 public func __kk_math_asin(_ value: Int) -> Int {
-    kk_double_to_bits(asin(kk_bits_to_double(value)))
+    kk_double_to_bits(fdlibmAsin(kk_bits_to_double(value)))
 }
 
 @_cdecl("__kk_math_acos")
 public func __kk_math_acos(_ value: Int) -> Int {
-    kk_double_to_bits(acos(kk_bits_to_double(value)))
+    kk_double_to_bits(fdlibmAcos(kk_bits_to_double(value)))
 }
 
 @_cdecl("__kk_math_atan")
@@ -854,7 +854,7 @@ public func __kk_math_atan2(_ y: Int, _ x: Int) -> Int {
 
 @_cdecl("__kk_math_exp")
 public func __kk_math_exp(_ value: Int) -> Int {
-    kk_double_to_bits(exp(kk_bits_to_double(value)))
+    kk_double_to_bits(fdlibmExp(kk_bits_to_double(value)))
 }
 
 @_cdecl("__kk_math_expm1")
@@ -977,12 +977,12 @@ public func __kk_math_atanh_float(_ v: Int) -> Int {
 
 @_cdecl("__kk_math_asin_float")
 public func __kk_math_asin_float(_ v: Int) -> Int {
-    applyFloatUnaryOp(v, asinf)
+    kk_float_to_bits(Float(fdlibmAsin(Double(kk_bits_to_float(v)))))
 }
 
 @_cdecl("__kk_math_acos_float")
 public func __kk_math_acos_float(_ v: Int) -> Int {
-    applyFloatUnaryOp(v, acosf)
+    kk_float_to_bits(Float(fdlibmAcos(Double(kk_bits_to_float(v)))))
 }
 
 @_cdecl("__kk_math_atan_float")
@@ -1020,7 +1020,7 @@ public func __kk_math_floor_float(_ v: Int) -> Int {
 
 @_cdecl("__kk_math_exp_float")
 public func __kk_math_exp_float(_ value: Int) -> Int {
-    kk_float_to_bits(exp(kk_bits_to_float(value)))
+    kk_float_to_bits(Float(fdlibmExp(Double(kk_bits_to_float(value)))))
 }
 
 @_cdecl("__kk_math_expm1_float")

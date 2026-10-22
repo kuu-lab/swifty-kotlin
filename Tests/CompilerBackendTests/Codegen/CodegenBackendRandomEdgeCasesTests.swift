@@ -39,5 +39,30 @@ struct CodegenBackendRandomEdgeCasesTests {
 
         try assertKotlinOutput(source, moduleName: "RandomAsJavaRandom", expected: "ok\n")
     }
+
+    @Test
+    func testCodegenJavaUtilRandomNoArgAndInstanceMethods() throws {
+        let source = """
+        import java.util.Random
+
+        fun main() {
+            println(Random().nextInt(100) in 0..99)
+            val r = Random(42)
+            println(r.nextInt(100))
+            println(r.nextInt(100))
+            println(Random(42).nextInt())
+            println(Random(42L).nextLong())
+            println(Random(42).nextDouble())
+            println(Random(42).nextBoolean())
+            println(Random(42).nextInt(5, 10))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "JavaUtilRandomMembers",
+            expected: "true\n30\n63\n-1170105035\n-5025562857975149833\n0.7275636800328681\ntrue\n5\n"
+        )
+    }
 }
 #endif
