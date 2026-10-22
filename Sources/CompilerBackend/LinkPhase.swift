@@ -141,9 +141,15 @@ final class LinkPhase: CompilerPhase {
                    phaseTimer: ctx.phaseTimer
                ) {
                 var finalInputs = linkInputs
+                // Force-loaded archives carry no user-referenced symbols, so a
+                // successful partial link absorbs them; the final link then
+                // drops the pairs instead of rescanning the archives.
+                let forceLoadPaths = plan.forceLoadedPaths ?? []
+                var dropForceLoads = false
                 let prelinked = withSubPhaseTiming("prelinkedObjects", timer: ctx.phaseTimer) {
                     MacOSPrelinkedObjects.resolve(
                         inputs: Array(linkInputs.dropFirst(2)),
+                        forceLoadPaths: forceLoadPaths,
                         cacheDirectory: runtimeInputs.linkerCacheDirectory
                             .appendingPathComponent("prelinked", isDirectory: true),
                         driver: plan.executable,
@@ -153,12 +159,14 @@ final class LinkPhase: CompilerPhase {
                 }
                 if let prelinked {
                     finalInputs = [objectPath, entryWrapperObjectPath, prelinked]
+                    dropForceLoads = plan.forceLoadedPaths != nil
                 }
                 _ = try CommandRunner.run(
                     executable: plan.executable,
                     arguments: plan.linkArguments(
                         inputs: finalInputs, output: ctx.options.outputPath,
-                        libraryPaths: ctx.options.libraryPaths, libraries: ctx.options.linkLibraries
+                        libraryPaths: ctx.options.libraryPaths, libraries: ctx.options.linkLibraries,
+                        droppingForceLoads: dropForceLoads
                     ),
                     phaseTimer: ctx.phaseTimer, subPhaseName: "Link/clang"
                 )
