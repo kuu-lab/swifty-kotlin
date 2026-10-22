@@ -536,6 +536,7 @@ public enum StdlibArtifactBuilder {
         guard FileManager.default.fileExists(atPath: artifactPath) else {
             throw Error.artifactMissing(artifactPath)
         }
+        try StdlibSemaSnapshotArchive.write(forArtifactAt: artifactPath, target: target)
         return artifactPath
     }
 }

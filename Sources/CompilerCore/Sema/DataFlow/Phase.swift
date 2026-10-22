@@ -4,11 +4,15 @@ import Dispatch
 final class DataFlowSemaPhase: CompilerPhase {
     static let name = "DataFlowSema"
 
+    private let capturesImportedStdlibSnapshot: Bool
+
     func builtinTypeNames(interner: StringInterner) -> BuiltinTypeNames {
         BuiltinTypeNames(interner: interner)
     }
 
-    init() {}
+    init(capturingImportedStdlibSnapshot: Bool = false) {
+        capturesImportedStdlibSnapshot = capturingImportedStdlibSnapshot
+    }
 
     func run(_ ctx: CompilationContext) throws {
         guard let ast = ctx.ast else {
@@ -58,6 +62,9 @@ final class DataFlowSemaPhase: CompilerPhase {
         }
         sema.resolveDemandedImportedInlineBodies =
             importDeferredWork.lazyLoaderState?.resolveDemandedInlineBodies
+        if capturesImportedStdlibSnapshot {
+            symbols.materializeAllIndexedLibraryState()
+        }
 
         // KSP-706: when compiling against bundled stdlib source rather than a
         // prebuilt library artifact, forward-declare `kotlin.Pair`/`kotlin.Triple`
@@ -243,13 +250,15 @@ final class DataFlowSemaPhase: CompilerPhase {
                 }
             }
         }
-        withSubPhaseTiming("registerSyntheticDelegateStubs", timer: ctx.phaseTimer) {
-            registerSyntheticDelegateStubs(
-                symbols: symbols,
-                types: types,
-                interner: ctx.interner,
-                bundledIndex: bundledIndex
-            )
+        if !importDeferredWork.loadedStdlibSemaSnapshot {
+            withSubPhaseTiming("registerSyntheticDelegateStubs", timer: ctx.phaseTimer) {
+                registerSyntheticDelegateStubs(
+                    symbols: symbols,
+                    types: types,
+                    interner: ctx.interner,
+                    bundledIndex: bundledIndex
+                )
+            }
         }
         // Apply imported class/interface layouts after synthetic bootstrap
         // registration and before bundled source headers are collected, so
@@ -281,6 +290,11 @@ final class DataFlowSemaPhase: CompilerPhase {
                     interner: ctx.interner
                 )
             }
+        }
+        if capturesImportedStdlibSnapshot {
+            sema.bundledIndex = bundledIndex
+            ctx.storeSema(sema)
+            return
         }
         // Keep overlap diagnostics as an explicit guard test helper. Emitting
         // them during normal Sema pollutes user diagnostics for unaffected code.

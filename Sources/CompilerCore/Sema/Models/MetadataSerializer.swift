@@ -1,6 +1,6 @@
 import Foundation
 
-package enum MetadataModality: String {
+package enum MetadataModality: String, Codable {
     case final
     case open
     case abstract
@@ -274,7 +274,7 @@ package struct MetadataRecord {
 }
 
 /// Annotation metadata that survives the export/import round-trip (P5-86).
-public struct MetadataAnnotationRecord: Equatable {
+public struct MetadataAnnotationRecord: Equatable, Codable {
     /// Fully-qualified name of the annotation class (e.g. "kotlin.Deprecated").
     public let annotationFQName: String
     /// Serialized argument values.
