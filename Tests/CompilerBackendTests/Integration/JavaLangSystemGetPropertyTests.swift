@@ -89,4 +89,59 @@ struct JavaLangSystemGetPropertyTests {
         #expect(result.stdout == "configured\nconfigured\nconfigured\ntrue\nfallback\ndefault-import-fallback\n0\n37\n12\ngc\n")
         #expect(result.stderr.isEmpty, "stderr: \(result.stderr)")
     }
+
+    @Test(arguments: [0, 2])
+    func standardSystemPropertiesAndLineSeparatorAreAvailable(optimization: Int) throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let consumerPath = directory.appendingPathComponent("consumer.kt").path
+        let outputPath = directory.appendingPathComponent("consumer").path
+        let source = """
+        fun main() {
+            println(java.lang.System.getProperty("java.vm.name")?.isNotEmpty() == true)
+            println(java.lang.System.getProperty("java.version")?.isNotEmpty() == true)
+            println(java.lang.System.getProperty("java.class.path") != null)
+            println(java.lang.System.getProperty("sun.java.command")?.isNotEmpty() == true)
+            println(java.lang.System.getProperty("sun.arch.data.model") == "\(Int.bitWidth)")
+            println(java.lang.System.getProperty("sun.cpu.endian") == "little" || java.lang.System.getProperty("sun.cpu.endian") == "big")
+            println(java.lang.System.getProperty("os.name")?.isNotEmpty() == true)
+            println(java.lang.System.getProperty("os.version")?.isNotEmpty() == true)
+            println(java.lang.System.getProperty("os.arch")?.isNotEmpty() == true)
+            println(java.lang.System.getProperty("user.name")?.isNotEmpty() == true)
+            println(java.lang.System.getProperty("user.home")?.isNotEmpty() == true)
+            println(java.lang.System.getProperty("user.dir")?.isNotEmpty() == true)
+            println(java.lang.System.getProperty("java.io.tmpdir")?.isNotEmpty() == true)
+            println(java.lang.System.getProperty("file.separator") == "/")
+            println(java.lang.System.getProperty("path.separator") == ":")
+            println(java.lang.System.getProperty("line.separator")?.length == 1)
+            println(java.lang.System.lineSeparator() == java.lang.System.getProperty("line.separator"))
+            println(kotlin.system.System.lineSeparator() == java.lang.System.lineSeparator())
+            println(java.lang.System.getProperty("KSWIFTK_KUU2798_CUSTOM") == "configured")
+            println(java.lang.System.getProperty("KSWIFTK_KUU2798_UNKNOWN") == null)
+        }
+        """
+        try source.write(toFile: consumerPath, atomically: true, encoding: .utf8)
+
+        let options = CompilerOptions(
+            moduleName: "KUU2798SystemProperties",
+            inputs: [consumerPath],
+            outputPath: outputPath,
+            emit: .executable,
+            target: defaultTargetTriple(),
+            optLevel: try #require(OptimizationLevel(rawValue: optimization)),
+            stdlibLibraryPath: try testStdlibArtifactPath(),
+            allowDefaultStdlibLibrary: false
+        )
+        try assertCompilationSucceeded(makeTestDriver().runForTesting(options: options))
+
+        let result = try CommandRunner.run(
+            executable: "/usr/bin/env",
+            arguments: ["KSWIFTK_KUU2798_CUSTOM=configured", outputPath]
+        )
+        #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+        #expect(result.stdout == Array(repeating: "true", count: 20).joined(separator: "\n") + "\n")
+        #expect(result.stderr.isEmpty, "stderr: \(result.stderr)")
+    }
 }

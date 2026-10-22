@@ -8,6 +8,79 @@ import Testing
 struct MetadataSerializerTests {
     private static let expectedVisibilityNames: Set<String> = ["Outer", "Outer.Inner", "Outer.Inner.member", "Outer.Inner.value"]
 
+    @Test
+    func precomputedStdlibSyntheticRecordsAreExportedOnlyForStdlibArtifacts() {
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        let ownerName = interner.intern("Lazy")
+        let owner = symbols.define(
+            kind: .interface,
+            name: ownerName,
+            fqName: [interner.intern("kotlin"), interner.intern("properties"), ownerName],
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic, .precomputedStdlibSynthetic]
+        )
+        let memberName = interner.intern("getValue")
+        let member = symbols.define(
+            kind: .function,
+            name: memberName,
+            fqName: [interner.intern("kotlin"), interner.intern("properties"), ownerName, memberName],
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic, .precomputedStdlibSynthetic]
+        )
+        symbols.setParentSymbol(owner, for: member)
+        symbols.setFunctionSignature(
+            FunctionSignature(parameterTypes: [], returnType: types.unitType),
+            for: member
+        )
+        symbols.setNominalLayout(
+            NominalLayout(
+                objectHeaderWords: 2,
+                instanceFieldCount: 0,
+                instanceSizeWords: 2,
+                vtableSlots: [member: 0],
+                itableSlots: [:],
+                vtableSize: 1,
+                itableSize: 0,
+                superClass: nil
+            ),
+            for: owner
+        )
+
+        let encoder = MetadataEncoder()
+        let compatibilityRecords = encoder.buildRecords(
+            symbols: symbols,
+            types: types,
+            moduleName: "Consumer",
+            interner: interner,
+            functionLinkNames: [:],
+            includeSynthetic: false,
+            includeSyntheticNominalAnchors: true
+        )
+        #expect(compatibilityRecords.contains { $0.fqName == "kotlin.properties.Lazy" })
+        #expect(!compatibilityRecords.contains { $0.fqName == "kotlin.properties.Lazy.getValue" })
+        #expect(compatibilityRecords.first { $0.fqName == "kotlin.properties.Lazy" }?.vtableSlots == nil)
+
+        let stdlibRecords = encoder.buildRecords(
+            symbols: symbols,
+            types: types,
+            moduleName: "KSwiftKStdlib",
+            interner: interner,
+            functionLinkNames: [:],
+            includeNonPublic: true,
+            includeSynthetic: false,
+            includeSyntheticNominalAnchors: true,
+            includePrecomputedStdlibSynthesis: true
+        )
+        #expect(stdlibRecords.contains { $0.fqName == "kotlin.properties.Lazy" })
+        #expect(stdlibRecords.contains { $0.fqName == "kotlin.properties.Lazy.getValue" })
+        #expect(stdlibRecords.first { $0.fqName == "kotlin.properties.Lazy" }?.vtableSlots != nil)
+        #expect(stdlibRecords.first { $0.fqName == "kotlin.properties.Lazy" }?.declaredVtableSize == 1)
+    }
+
     @Test(arguments: [
         (Visibility.private, Set<String>()),
         (.internal, Set<String>()),

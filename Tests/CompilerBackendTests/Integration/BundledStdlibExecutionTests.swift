@@ -67,6 +67,27 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    @Test(arguments: [true, false])
+    func testStringVarargTrimOverloadsReturnString(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            class Q(val value: String)
+
+            fun main() {
+                val start = "0x".trimStart('0')
+                val both = "[x]".trim('[', ']')
+                val end = "x0".trimEnd('0')
+                println(Q(start).value)
+                println(Q(both).value)
+                println(Q(end).value)
+            }
+            """,
+            expectedOutput: "x\nx\nx\n",
+            moduleName: "KUU2795StringVarargTrim",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     @Test
     func testThrowableGetStackTraceAddressesUsesReceiverState() throws {
         try compileAndRunKotlin(
@@ -289,6 +310,32 @@ struct BundledStdlibExecutionTests {
             }
             """,
             expectedOutput: "42\n1\nhello\nboom\n"
+        )
+    }
+
+    // KUU-2791: synchronized is inline, so a bare return inside its block exits the caller.
+    @Test(arguments: [true, false])
+    func testSynchronizedAllowsNonLocalReturn(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            fun find(data: IntArray): Int {
+                synchronized(data) {
+                    return 42
+                }
+            }
+
+            fun findLocal(data: IntArray): Int = synchronized(data) {
+                return@synchronized 5
+            }
+
+            fun main() {
+                println(find(intArrayOf(1)))
+                println(findLocal(intArrayOf(1)))
+            }
+            """,
+            expectedOutput: "42\n5\n",
+            moduleName: "KUU2791SynchronizedNonLocalReturn",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }
 

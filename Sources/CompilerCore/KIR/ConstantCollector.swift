@@ -411,6 +411,11 @@ struct ConstantCollector {
         }
         guard args.isEmpty else { return nil }
         switch name {
+        case "length" where canFoldMemberCall != nil:
+            if case let .stringLiteral(value) = receiverConst {
+                return .intLiteral(Int64(interner.resolve(value).utf16.count))
+            }
+            return nil
         case "inv" where canFoldMemberCall != nil:
             switch receiverConst {
             case let .intLiteral(value): return .intLiteral(Int64(~Int32(truncatingIfNeeded: value)))

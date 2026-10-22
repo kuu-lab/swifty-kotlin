@@ -4,11 +4,14 @@ extension DataFlowSemaPhase {
     struct LibraryManifestInfo {
         let metadataPath: String
         let inlineKIRDir: String?
+        var bundledMemberIndexPath: String? = nil
         let moduleName: String?
         let isValid: Bool
         var topLevelInitializerLinkName: String? = nil
         var sourceArrayComponentABI: Bool = false
         var formatVersion: Int? = nil
+        var hasPrecomputedSyntheticStubs: Bool = false
+        var hasPrecomputedReflectionRecords: Bool = false
     }
 
     struct LibraryImportDeferredWork {
@@ -25,6 +28,7 @@ extension DataFlowSemaPhase {
         /// second independent read has no diagnostic on failure and is
         /// redundant with the validation already performed here.
         let stdlibModuleName: InternedString?
+        let stdlibHasPrecomputedSyntheticStubs: Bool
         /// Kotlin `.klib` modules discovered on the search path: manifest
         /// parsed and version-gated, container and decoded IR kept open for
         /// the body materialization that runs during KIR lowering.
@@ -39,6 +43,7 @@ extension DataFlowSemaPhase {
             lazyLoaderState: ImportedLibraryLazyLoaderState?,
             stdlibModuleName: InternedString?,
             klibModules: [LoadedKlibModule],
+            stdlibHasPrecomputedSyntheticStubs: Bool = false,
             loadedStdlibSemaSnapshot: Bool = false
         ) {
             self.pendingSupertypeEdges = pendingSupertypeEdges
@@ -46,6 +51,7 @@ extension DataFlowSemaPhase {
             self.lazyLoaderState = lazyLoaderState
             self.stdlibModuleName = stdlibModuleName
             self.klibModules = klibModules
+            self.stdlibHasPrecomputedSyntheticStubs = stdlibHasPrecomputedSyntheticStubs
             self.loadedStdlibSemaSnapshot = loadedStdlibSemaSnapshot
         }
 
@@ -93,6 +99,7 @@ extension DataFlowSemaPhase {
         /// its member keys straight from the index instead of materializing
         /// every imported stdlib shell.
         var stdlibIndexSource: IndexedLibrarySource?
+        var stdlibMemberIndex: PrecomputedBundledMemberIndex?
 
         init(importedInlineFunctions: ImportedInlineFunctionStore = ImportedInlineFunctionStore()) {
             self.importedInlineFunctions = importedInlineFunctions
@@ -132,6 +139,7 @@ extension DataFlowSemaPhase {
         /// library that reference the declaration keep resolving.
         var boundSymbolOrigins: [SymbolID: (origin: String, metadataPath: String)] = [:]
         var sourceArrayComponentABIByMetadataPath: [String: Bool] = [:]
+        var precomputedReflectionRecordsByMetadataPath: [String: Bool] = [:]
         var shadowedDuplicateRecords: [(record: ImportedLibrarySymbolRecord, symbol: SymbolID)] = []
         /// FQ names of records that were shadowed — the duplicates
         /// themselves plus the member records hidden underneath them — so
@@ -227,6 +235,7 @@ extension DataFlowSemaPhase {
         var recognizedKlibs: [KlibModule] = []
         var stdlibArtifactLoaded = false
         var stdlibModuleName: InternedString?
+        var stdlibHasPrecomputedSyntheticStubs = false
 
         func isStdlibArtifact(_ libraryDir: String) -> Bool {
             guard let stdlibLibraryPath = options.stdlibLibraryPath else { return false }
@@ -302,6 +311,9 @@ extension DataFlowSemaPhase {
             if sourceArrayComponentABIByMetadataPath[metadataPath] != true {
                 flags.insert(.legacyReifiedClassTokenABI)
             }
+            if precomputedReflectionRecordsByMetadataPath[metadataPath] == true {
+                flags.insert(.precomputedRuntimeReflection)
+            }
             if record.isSuspend, record.kind == .function {
                 flags.insert(.suspendFunction)
             }
@@ -369,6 +381,9 @@ extension DataFlowSemaPhase {
                 }
                 if let linkName = record.propertyGetterExternalLinkName, !linkName.isEmpty {
                     shadowedGetterLinks[linkName] = symbol
+                }
+                if precomputedReflectionRecordsByMetadataPath[metadataPath] == true {
+                    symbols.insertFlags(.precomputedRuntimeReflection, for: symbol)
                 }
                 return symbol
             }
@@ -541,9 +556,41 @@ extension DataFlowSemaPhase {
             }
             let metadataPath = manifestInfo.metadataPath
             sourceArrayComponentABIByMetadataPath[metadataPath] = manifestInfo.sourceArrayComponentABI
+            precomputedReflectionRecordsByMetadataPath[metadataPath] = manifestInfo.hasPrecomputedReflectionRecords
             let libraryModuleFQN: InternedString? = manifestInfo.moduleName.map { interner.intern($0) }
             if stdlibArtifact {
                 stdlibModuleName = libraryModuleFQN
+                stdlibHasPrecomputedSyntheticStubs = manifestInfo.hasPrecomputedSyntheticStubs
+            }
+            var precomputedMemberIndex: PrecomputedBundledMemberIndex?
+            if let memberIndexPath = manifestInfo.bundledMemberIndexPath {
+                guard let memberIndexData = try? Data(contentsOf: URL(fileURLWithPath: memberIndexPath)),
+                      let decodedMemberIndex = PrecomputedBundledMemberIndex(
+                          data: memberIndexData,
+                          interner: interner
+                      )
+                else {
+                    diagnostics.error(
+                        "KSWIFTK-LIB-0024",
+                        "Malformed bundled member index at \(memberIndexPath)",
+                        range: nil
+                    )
+                    if stdlibArtifact { stdlibArtifactLoaded = false }
+                    continue
+                }
+                precomputedMemberIndex = decodedMemberIndex
+            }
+            if manifestInfo.hasPrecomputedSyntheticStubs, precomputedMemberIndex == nil {
+                diagnostics.error(
+                    "KSWIFTK-LIB-0024",
+                    "Stdlib artifact at \(metadataPath) declares precomputed synthetic stubs without a valid bundled member index",
+                    range: nil
+                )
+                if stdlibArtifact { stdlibArtifactLoaded = false }
+                continue
+            }
+            if stdlibArtifact {
+                lazyLoaderState.stdlibMemberIndex = precomputedMemberIndex
             }
             if stdlibArtifact,
                let snapshot = StdlibSemaSnapshotArchive.load(
@@ -1371,6 +1418,7 @@ extension DataFlowSemaPhase {
             lazyLoaderState: lazyMetadataEnabled ? lazyLoaderState : nil,
             stdlibModuleName: stdlibModuleName,
             klibModules: klibModules,
+            stdlibHasPrecomputedSyntheticStubs: stdlibHasPrecomputedSyntheticStubs,
             loadedStdlibSemaSnapshot: loadedStdlibSemaSnapshot
         )
     }

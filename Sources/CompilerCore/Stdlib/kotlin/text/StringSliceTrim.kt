@@ -39,6 +39,10 @@ public fun CharSequence.trim(vararg chars: Char): CharSequence = trim { it in ch
 public fun CharSequence.trimStart(vararg chars: Char): CharSequence = trimStart { it in chars }
 public fun CharSequence.trimEnd(vararg chars: Char): CharSequence = trimEnd { it in chars }
 
+public fun String.trim(vararg chars: Char): String = trim { it in chars }
+public fun String.trimStart(vararg chars: Char): String = trimStart { it in chars }
+public fun String.trimEnd(vararg chars: Char): String = trimEnd { it in chars }
+
 public fun CharSequence.trim(): CharSequence = trim { it.isWhitespace() }
 public fun CharSequence.trimStart(): CharSequence = trimStart { it.isWhitespace() }
 public fun CharSequence.trimEnd(): CharSequence = trimEnd { it.isWhitespace() }

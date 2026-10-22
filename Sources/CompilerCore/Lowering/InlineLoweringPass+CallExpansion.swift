@@ -438,6 +438,37 @@ extension InlineLoweringPass {
                 }
                 var loweredArgs = args.map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
 
+                // `Array<T>` stores erased values. A non-inlined generic body
+                // receives boxed type-parameter values, but inlining can
+                // substitute a primitive at this store and otherwise leave a
+                // raw word in the reference array.
+                if calleeStr == "kk_array_set",
+                   args.count > 2,
+                   loweredArgs.count > 2,
+                   let types = ctx.sema?.types,
+                   let originalElementType = module.arena.exprType(args[2]),
+                   case .typeParam = types.kind(of: originalElementType),
+                   let substitutedElementType = inlineTypeSubstitution?.applying(
+                       to: originalElementType,
+                       in: ctx
+                   ),
+                   substitutedElementType != originalElementType,
+                   module.arena.exprType(loweredArgs[2]) == substitutedElementType
+                {
+                    loweredArgs[2] = boxValueForAnySlot(
+                        loweredArgs[2],
+                        sourceType: substitutedElementType,
+                        types: types,
+                        symbols: ctx.sema?.symbols,
+                        interner: ctx.interner,
+                        arena: module.arena,
+                        resultType: types.anyType,
+                        sema: ctx.sema,
+                        cache: ctx.nominalDispatchCache,
+                        into: &lowered
+                    )
+                }
+
                 // The nullable seed branch of bundled `generateSequence` can
                 // leave the bridge argument typed only as `T` after inlining.
                 // Recover the concrete call-site type before the erased bridge

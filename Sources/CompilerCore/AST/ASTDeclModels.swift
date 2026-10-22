@@ -393,6 +393,13 @@ public enum FunctionBody: Equatable, Codable {
     case block([ExprID], SourceRange)
     case expr(ExprID, SourceRange)
     case unit
+
+    /// `fun f() = expr`-style expression bodies are the only bodies where a
+    /// `return` targeting the function is prohibited outright.
+    public var isExpressionBody: Bool {
+        if case .expr = self { return true }
+        return false
+    }
 }
 
 public enum PropertyAccessorKind: Equatable, Codable {
@@ -408,6 +415,7 @@ public struct PropertyAccessorDecl: Equatable, Codable {
     public let visibility: Visibility?
     public let isInline: Bool
     public let parameterName: InternedString?
+    public let returnType: TypeRefID?
     public let body: FunctionBody
 
     public init(
@@ -417,6 +425,7 @@ public struct PropertyAccessorDecl: Equatable, Codable {
         visibility: Visibility? = nil,
         isInline: Bool = false,
         parameterName: InternedString? = nil,
+        returnType: TypeRefID? = nil,
         body: FunctionBody = .unit
     ) {
         self.range = range
@@ -425,6 +434,7 @@ public struct PropertyAccessorDecl: Equatable, Codable {
         self.visibility = visibility
         self.isInline = isInline
         self.parameterName = parameterName
+        self.returnType = returnType
         self.body = body
     }
 }

@@ -181,6 +181,7 @@ struct ASTIDRemapper {
             visibility: value.visibility,
             isInline: value.isInline,
             parameterName: value.parameterName.map { remap($0) },
+            returnType: value.returnType.map { remap($0) },
             body: remap(value.body)
         )
     }

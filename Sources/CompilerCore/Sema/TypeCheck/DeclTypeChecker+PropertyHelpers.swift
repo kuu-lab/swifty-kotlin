@@ -91,6 +91,8 @@ extension DeclTypeChecker {
                 lambdaDepth: 0,
                 enclosingFunctionReturnType: inferredPropertyType,
                 enclosingFunctionSymbol: accessorSymbol,
+                enclosingFunctionProhibitsExpressionBodyReturn: getter.body.isExpressionBody
+                    && property.type == nil,
                 enclosingLambdaExprIDs: []
             ), locals: &getterLocals,
             expectedType: inferredPropertyType
@@ -1051,6 +1053,9 @@ extension DeclTypeChecker {
                 lambdaDepth: 0,
                 enclosingFunctionReturnType: sema.types.unitType,
                 enclosingFunctionSymbol: accessorSymbol,
+                // Setters cannot declare a return type, so an expression
+                // body always prohibits `return`.
+                enclosingFunctionProhibitsExpressionBodyReturn: setter.body.isExpressionBody,
                 enclosingLambdaExprIDs: []
             ), locals: &setterLocals,
             expectedType: sema.types.unitType

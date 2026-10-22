@@ -86,15 +86,13 @@ extension CallLowerer {
                 return interner.intern("__kk_mutable_set_remove")
             case "clear":
                 return interner.intern("__kk_mutable_set_clear")
-            case "addAll", "plusAssign", "removeAll", "minusAssign":
+            case "addAll", "plusAssign", "removeAll", "minusAssign", "retainAll":
                 return mutableSetBulkMutationCallee(
                     memberName: memberName,
                     chosenCallee: chosenCallee,
                     sema: sema,
                     interner: interner
                 )
-            case "retainAll":
-                return interner.intern("__kk_mutable_set_retainAll")
             default:
                 break
             }
@@ -121,14 +119,18 @@ extension CallLowerer {
         }
         // KUU-2154: source extension bodies own Iterable/Sequence traversal and
         // throwing mutation dispatch. Do not rewrite them to native-only bridges.
-        if memberName == "addAll",
+        if memberName == "addAll" || memberName == "removeAll" || memberName == "retainAll",
            parameterName == "Iterable" || parameterName == "Sequence",
            let chosenCallee,
            sema.symbols.isSourceBackedSymbol(chosenCallee)
         {
             return nil
         }
-        let operation = memberName == "addAll" || memberName == "plusAssign" ? "addAll" : "removeAll"
+        let operation = switch memberName {
+        case "addAll", "plusAssign": "addAll"
+        case "retainAll": "retainAll"
+        default: "removeAll"
+        }
         switch parameterName {
         case "Sequence":
             return interner.intern("__kk_mutable_set_\(operation)_sequence")
