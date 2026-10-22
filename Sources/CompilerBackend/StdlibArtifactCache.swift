@@ -368,7 +368,7 @@ public enum StdlibArtifactCache {
         // keep the manifest while losing blobs, after which consumers fail
         // lazily with KSWIFTK-LIB-0019 or undefined link symbols. Verify every
         // referenced blob instead of trusting the directory layout.
-        guard let metadataData = try? Data(contentsOf: metadataURL) else {
+        guard let metadataData = try? Data(contentsOf: metadataURL, options: .mappedIfSafe) else {
             return .invalid("metadata file is unreadable")
         }
         let inlineNames: Set<String>

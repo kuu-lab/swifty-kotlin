@@ -542,7 +542,8 @@ extension DataFlowSemaPhase {
             let indexedFile = withSubPhaseTiming("indexDecode", timer: phaseTimer) {
                 cache?.cachedIndexedMetadataFile(metadataPath: metadataPath)
                     ?? KklibBatchSession.cachedIndexedFile(metadataPath: metadataPath)
-                    ?? (try? Data(contentsOf: URL(fileURLWithPath: metadataPath))).flatMap(IndexedMetadataFile.init(data:))
+                    ?? (try? Data(contentsOf: URL(fileURLWithPath: metadataPath), options: .mappedIfSafe))
+                        .flatMap(IndexedMetadataFile.init(data:))
             }
             if manifestInfo.formatVersion == 2, indexedFile?.metadataVersion != 3 {
                 diagnostics.error("KSWIFTK-LIB-0024", "Malformed compact metadata index at \(metadataPath)", range: nil)

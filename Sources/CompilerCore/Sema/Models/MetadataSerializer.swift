@@ -473,9 +473,11 @@ final class IndexedMetadataFile {
         }
         let start = bodyStart + entry.offset
         let end = start + entry.length
-        let body = data.subdata(in: data.startIndex + start ..< data.startIndex + end)
-        guard let line = String(data: body, encoding: .utf8) else { return nil }
-        let record = MetadataDecoder().decode("symbols=1\n\(line)\n").first
+        let record = data.withUnsafeBytes { rawBytes -> MetadataRecord? in
+            let bytes = rawBytes.bindMemory(to: UInt8.self)
+            let line = UnsafeBufferPointer(rebasing: bytes[start ..< end])
+            return MetadataDecoder().decodeIndexRecordLine(line)
+        }
         if let record {
             decodedRecords[entry.offset] = record
         }
