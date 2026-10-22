@@ -72,12 +72,17 @@ extension BuildASTPhase.ExpressionParser {
         tokens: [Token]
     ) -> [ExprID] {
         var statements: [ExprID] = []
-        for (start, end) in ranges {
+        for (rangeIndex, (start, end)) in ranges.enumerated() {
             let group = ArraySlice(tokens[start ..< end])
             guard !group.isEmpty else {
                 continue
             }
-            if let statementExpr = parseLambdaBodyStatement(from: group) {
+            // Keep a final postfix mutation as an expression so the lambda returns its old value.
+            if rangeIndex == ranges.count - 1,
+               let postfixExpr = parseTrailingScalarPostfixMutation(group)
+            {
+                statements.append(postfixExpr)
+            } else if let statementExpr = parseLambdaBodyStatement(from: group) {
                 statements.append(statementExpr)
             }
         }

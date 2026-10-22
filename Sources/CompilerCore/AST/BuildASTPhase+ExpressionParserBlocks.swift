@@ -86,7 +86,7 @@ extension BuildASTPhase.ExpressionParser {
         return astArena.appendExpr(.blockExpr(statements: statements, trailingExpr: trailingExpr, range: range))
     }
 
-    private func parseTrailingScalarPostfixMutation(_ tokens: ArraySlice<Token>) -> ExprID? {
+    func parseTrailingScalarPostfixMutation(_ tokens: ArraySlice<Token>) -> ExprID? {
         var expressionTokens = Array(tokens)
         while expressionTokens.last?.kind == .symbol(.semicolon) {
             expressionTokens.removeLast()
