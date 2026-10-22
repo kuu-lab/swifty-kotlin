@@ -218,12 +218,16 @@ extension BuildASTPhase.ExpressionParser {
                 expr = call
                 continue
             }
-            guard let dotToken = consume(),
-                  let memberToken = consume(),
-                  let memberName = tokenText(memberToken)
-            else {
+            guard let dotToken = consume() else { break }
+            guard let memberToken = current(), let memberName = tokenText(memberToken) else {
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0022",
+                    "Expecting member name after '.'.",
+                    range: dotToken.range
+                )
                 break
             }
+            _ = consume()
             var args: [CallArgument] = []
             var typeArgs: [TypeRefID] = []
             var memberEndRange = memberToken.range
