@@ -108,7 +108,7 @@ struct GCState {
     var nextForeignResourceToken: Int = 1
     var foreignResources: [Int: RuntimeForeignResourceLease] = [:]
     var retiredForeignResources: [RuntimeForeignResourceLease] = []
-    var objectPointers: Set<UInt> = []
+    var objectPointers = RuntimePointerSet()
     /// Existing retained reference cells are external owners, not swept boxes.
     /// Trace their direct kk_alloc payloads until replacement or owner release.
     var retainedAtomicReferenceHandles: Set<UInt> = []
@@ -204,19 +204,85 @@ struct DelegateState {
     var functionEnclosingClassNamesByPointer: [Int: String] = [:]
 }
 
+/// Non-reentrant mutual-exclusion lock for the runtime's global state tables.
+///
+/// `NSLock` dispatches `lock`/`unlock` through `objc_msgSend` on Darwin, which
+/// showed up as `objc_msgSend$unlock` next to `pthread_mutex_unlock` in the
+/// hot path profile (KUU-3018). `os_unfair_lock` is acquired and released with
+/// a single atomic operation when uncontended and needs no ObjC dispatch. The
+/// storage is heap-allocated once because the lock must never move.
+final class RuntimeFastLock: @unchecked Sendable {
+    #if canImport(Darwin)
+        private let storage: UnsafeMutablePointer<os_unfair_lock>
+
+        init() {
+            storage = UnsafeMutablePointer<os_unfair_lock>.allocate(capacity: 1)
+            storage.initialize(to: os_unfair_lock())
+        }
+
+        deinit {
+            storage.deallocate()
+        }
+
+        @inline(__always)
+        func lock() {
+            os_unfair_lock_lock(storage)
+        }
+
+        @inline(__always)
+        func unlock() {
+            os_unfair_lock_unlock(storage)
+        }
+    #else
+        private let storage: UnsafeMutablePointer<pthread_mutex_t>
+
+        init() {
+            storage = UnsafeMutablePointer<pthread_mutex_t>.allocate(capacity: 1)
+            storage.initialize(to: pthread_mutex_t())
+            pthread_mutex_init(storage, nil)
+        }
+
+        deinit {
+            pthread_mutex_destroy(storage)
+            storage.deallocate()
+        }
+
+        @inline(__always)
+        func lock() {
+            pthread_mutex_lock(storage)
+        }
+
+        @inline(__always)
+        func unlock() {
+            pthread_mutex_unlock(storage)
+        }
+    #endif
+}
+
 final class RuntimeStorageBox: @unchecked Sendable {
-    private let gcLock = NSLock()
-    private let metadataLock = NSLock()
-    private let flowLock = NSLock()
-    private let threadLocalLock = NSLock()
-    private let delegateLock = NSLock()
+    private let gcLock = RuntimeFastLock()
+    private let metadataLock = RuntimeFastLock()
+    private let flowLock = RuntimeFastLock()
+    private let threadLocalLock = RuntimeFastLock()
+    private let delegateLock = RuntimeFastLock()
     private let delegatedPropertyStubLock = NSLock()
 
-    private var gcState = GCState()
-    private var metadataState = MetadataState()
-    private var flowState = FlowState()
-    private var threadLocalState = ThreadLocalState()
-    private var delegateState = DelegateState()
+    // Each state table is guarded by its lock above and lives behind a stable
+    // heap pointer. Reaching a table through a class stored property would make
+    // every `body(&state)` call pay `swift_beginAccess`/`swift_endAccess`
+    // (dynamic exclusivity enforcement); the lock already provides the
+    // exclusivity, so the pointer indirection removes that overhead (KUU-3018).
+    private let gcState = RuntimeStorageBox.makeState(GCState())
+    private let metadataState = RuntimeStorageBox.makeState(MetadataState())
+    private let flowState = RuntimeStorageBox.makeState(FlowState())
+    private let threadLocalState = RuntimeStorageBox.makeState(ThreadLocalState())
+    private let delegateState = RuntimeStorageBox.makeState(DelegateState())
+
+    private static func makeState<State>(_ initial: State) -> UnsafeMutablePointer<State> {
+        let pointer = UnsafeMutablePointer<State>.allocate(capacity: 1)
+        pointer.initialize(to: initial)
+        return pointer
+    }
 
     let coroutineSuspendedBox = RuntimeStringBox("COROUTINE_SUSPENDED")
     let flowStopSentinelBox = RuntimeStringBox("FLOW_STOP_SENTINEL")
@@ -231,7 +297,7 @@ final class RuntimeStorageBox: @unchecked Sendable {
     func withGCLock<R>(_ body: (inout GCState) -> R) -> R {
         gcLock.lock()
         defer { gcLock.unlock() }
-        return body(&gcState)
+        return body(&gcState.pointee)
     }
 
     @discardableResult
@@ -239,7 +305,7 @@ final class RuntimeStorageBox: @unchecked Sendable {
     func withMetadataLock<R>(_ body: (inout MetadataState) -> R) -> R {
         metadataLock.lock()
         defer { metadataLock.unlock() }
-        return body(&metadataState)
+        return body(&metadataState.pointee)
     }
 
     @discardableResult
@@ -247,7 +313,7 @@ final class RuntimeStorageBox: @unchecked Sendable {
     func withFlowLock<R>(_ body: (inout FlowState) -> R) -> R {
         flowLock.lock()
         defer { flowLock.unlock() }
-        return body(&flowState)
+        return body(&flowState.pointee)
     }
 
     @discardableResult
@@ -259,7 +325,7 @@ final class RuntimeStorageBox: @unchecked Sendable {
             gcLock.unlock()
             flowLock.unlock()
         }
-        return body(&flowState, &gcState)
+        return body(&flowState.pointee, &gcState.pointee)
     }
 
     @discardableResult
@@ -267,7 +333,7 @@ final class RuntimeStorageBox: @unchecked Sendable {
     func withThreadLocalLock<R>(_ body: (inout ThreadLocalState) -> R) -> R {
         threadLocalLock.lock()
         defer { threadLocalLock.unlock() }
-        return body(&threadLocalState)
+        return body(&threadLocalState.pointee)
     }
 
     @discardableResult
@@ -275,7 +341,7 @@ final class RuntimeStorageBox: @unchecked Sendable {
     func withDelegateLock<R>(_ body: (inout DelegateState) -> R) -> R {
         delegateLock.lock()
         defer { delegateLock.unlock() }
-        return body(&delegateState)
+        return body(&delegateState.pointee)
     }
 
     @discardableResult
