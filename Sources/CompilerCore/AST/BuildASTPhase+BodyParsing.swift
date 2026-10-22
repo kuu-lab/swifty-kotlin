@@ -710,6 +710,19 @@ extension BuildASTPhase {
         return index == 0 ? tokens : Array(tokens[index...])
     }
 
+    /// Local declaration dispatch consumes leading labels as part of the statement.
+    /// Strip them only on the declaration path so expression labels remain intact.
+    static func skipLeadingLocalDeclarationLabels(_ tokens: [Token]) -> [Token] {
+        var index = 0
+        while index + 1 < tokens.count,
+              tokens[index].kind.isLabelName,
+              tokens[index + 1].kind == .symbol(.at)
+        {
+            index += 2
+        }
+        return index == 0 ? tokens : Array(tokens[index...])
+    }
+
     private func isDeclarationStart(_ kind: TokenKind) -> Bool {
         switch kind {
         case .keyword(.class), .keyword(.object), .keyword(.interface),
