@@ -131,6 +131,21 @@ struct TypeCheckScopeBuilder {
         return mapping
     }
 
+    /// `java.lang.Math` is a static-member class on the JVM, so both
+    /// `import java.lang.Math.*` and `import java.lang.Math.sqrt` are valid.
+    /// The bundled stub is an `object` (not importable on demand) that only
+    /// carries constants, so route those imports to the `kotlin.math` package
+    /// that owns the shared function implementations.
+    private func rewritingJavaLangMathFacade(_ decl: ImportDecl, interner: StringInterner) -> ImportDecl {
+        let facade = ["java", "lang", "Math"].map { interner.intern($0) }
+        let path = decl.path
+        guard path.count == facade.count + (decl.isWildcard ? 0 : 1),
+              Array(path.prefix(facade.count)) == facade
+        else { return decl }
+        let rewritten = ["kotlin", "math"].map { interner.intern($0) } + path.dropFirst(facade.count)
+        return ImportDecl(range: decl.range, path: rewritten, alias: decl.alias, isWildcard: decl.isWildcard)
+    }
+
     private func resolveExplicitImport(
         _ path: [InternedString],
         sema: SemaModule,
@@ -360,7 +375,8 @@ struct TypeCheckScopeBuilder {
             return false
         }
 
-        for importDecl in file.imports {
+        for declaredImport in file.imports {
+            let importDecl = rewritingJavaLangMathFacade(declaredImport, interner: interner)
             if let alias = importDecl.alias {
                 if interner.resolve(alias).isEmpty {
                     continue

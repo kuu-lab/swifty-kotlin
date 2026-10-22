@@ -552,6 +552,33 @@ extension LocalDeclTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
+        // Read-only receivers (List, Map, String, ...) have no `set`; the
+        // built-in fallback below only exists for arrays and mutable collections.
+        if sema.types.makeNonNullable(receiverType) == sema.types.stringType {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0024",
+                "Unresolved member function 'set'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
+        if let (_, receiverSymbol) = resolveClassTypeSymbol(sema.types.makeNonNullable(receiverType), sema: sema) {
+            let readOnlyFQNames: Set<[InternedString]> = Set(
+                ["kotlin.collections.List", "kotlin.collections.Map", "kotlin.collections.Collection",
+                 "kotlin.collections.Set", "kotlin.collections.Iterable", "kotlin.String", "kotlin.CharSequence"]
+                    .map { $0.split(separator: ".").map { interner.intern(String($0)) } }
+            )
+            if readOnlyFQNames.contains(receiverSymbol.fqName) {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0024",
+                    "Unresolved member function 'set'.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
+        }
         driver.emitSubtypeConstraint(
             left: indexTypes[0],
             right: intType,

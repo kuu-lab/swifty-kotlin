@@ -671,7 +671,7 @@ extension BuildASTPhase {
                 ? "Platform type suffix '!' is not valid in source type references."
                 : "Unexpected token after type reference."
             diagnostics?.error(
-                "KSWIFTK-PARSE-0022",
+                "KSWIFTK-PARSE-0024",
                 message,
                 range: unexpectedToken.range
             )

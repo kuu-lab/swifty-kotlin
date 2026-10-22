@@ -1,6 +1,12 @@
 public final class SemaModule {
     var independentBodyCount = 0
 
+    /// KUU-2813: top-level functions proven unreferenced from the entry point
+    /// (see `TopLevelFunctionReachability`). Only populated under the opt-in
+    /// `reachability-sema` frontend flag; their bodies are neither type
+    /// checked nor lowered.
+    var unreachableTopLevelFunctionDecls: Set<DeclID> = []
+
     /// The JVM emitter needs resolved source declarations, including default and
     /// inline parameter information, rather than Native collection shortcuts.
     var requiresResolvedLibraryCalls = false

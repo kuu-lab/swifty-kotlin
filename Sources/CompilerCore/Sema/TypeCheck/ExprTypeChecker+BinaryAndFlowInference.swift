@@ -285,7 +285,9 @@ extension ExprTypeChecker {
         if op == .identityEqual || op == .notIdentityEqual {
             let lhsType = equalityDeclaredType(lhsID, inferred: lhs, sema: sema)
             let rhsType = equalityDeclaredType(rhsID, inferred: rhs, sema: sema)
-            if identityEqualityHasValueClassOperand(lhsType, rhsType, sema: sema) {
+            if identityEqualityHasValueClassOperand(lhsType, rhsType, sema: sema)
+                || identityEqualityHasDistinctPrimitiveTypes(lhsType, rhsType, sema: sema)
+            {
                 let lhsName = sema.types.displayName(of: lhsType, symbols: sema.symbols, interner: interner)
                 let rhsName = sema.types.displayName(of: rhsType, symbols: sema.symbols, interner: interner)
                 ctx.sema.diagnostics.error(
@@ -765,6 +767,26 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
+        // The switch below implements only the built-in numeric and range
+        // operators. Restrict it to builtin arithmetic operands (numeric
+        // primitives and Char): Boolean has no `plus`/`rangeTo` member in
+        // Kotlin, and a class/String/Any operand can never promote into a
+        // numeric result. Without this gate `true + true` silently coerces
+        // true to 1. `Nothing` passes through as a subtype of every operand.
+        if [.add, .subtract, .multiply, .divide, .modulo,
+            .rangeTo, .rangeUntil, .downTo, .step].contains(op),
+           lhs != sema.types.errorType, rhs != sema.types.errorType,
+           (!(sema.types.isBuiltinArithmeticOperand(lhs) || lhs == sema.types.nothingType)
+               || !(sema.types.isBuiltinArithmeticOperand(rhs) || rhs == sema.types.nothingType))
+        {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0002",
+                "No viable overload found for operator '\(interner.resolve(operatorName))'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
         var type: TypeID
 
         let lhsIsSigned = sema.types.isSigned(lhs)
@@ -1190,6 +1212,15 @@ extension ExprTypeChecker {
         return [lhs, rhs].contains { type in
             resolveClassTypeSymbol(type, sema: sema)?.symbol.flags.contains(.valueType) == true
         }
+    }
+
+    /// kotlinc rejects `===` between different non-null primitive types
+    /// (e.g. `Int === Long`) with the same diagnostic as value classes.
+    private func identityEqualityHasDistinctPrimitiveTypes(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {
+        guard case let .primitive(left, .nonNull) = sema.types.kind(of: lhs),
+              case let .primitive(right, .nonNull) = sema.types.kind(of: rhs)
+        else { return false }
+        return left != right
     }
 
     private func identityEqualityHasDistinctSingletonTypes(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {

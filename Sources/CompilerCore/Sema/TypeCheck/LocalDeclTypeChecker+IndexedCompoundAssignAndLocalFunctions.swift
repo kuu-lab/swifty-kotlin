@@ -899,7 +899,13 @@ extension LocalDeclTypeChecker {
             for (index, expr) in exprs.enumerated() {
                 let isLast = index == exprs.count - 1
                 let expected = isLast && returnTypeRef != nil ? resolvedReturnType : nil
-                lastType = driver.inferExpr(expr, ctx: bodyCtx, locals: &bodyLocals, expectedType: expected)
+                lastType = driver.inferExpr(
+                    expr,
+                    ctx: bodyCtx,
+                    locals: &bodyLocals,
+                    expectedType: expected,
+                    isStatementContext: true
+                )
             }
             inferredBodyType = lastType
         case let .expr(exprID, _):

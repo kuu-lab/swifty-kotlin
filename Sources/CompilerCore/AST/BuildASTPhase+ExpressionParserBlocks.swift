@@ -99,6 +99,10 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
 
+        // This whole parse is speculative: on bail the token group is reparsed
+        // as a local assignment or a plain expression, so diagnostics it
+        // emitted (e.g. on the `=` of `x = y++`) must not leak.
+        let diagnosticsCheckpoint = diagnostics?.checkpoint()
         let parser = BuildASTPhase.ExpressionParser(
             tokens: expressionTokens,
             interner: interner,
@@ -114,6 +118,9 @@ extension BuildASTPhase.ExpressionParser {
               let mutation = statements.last,
               astArena.isIncrementDecrement(mutation)
         else {
+            if let diagnosticsCheckpoint {
+                diagnostics?.rollback(to: diagnosticsCheckpoint)
+            }
             return nil
         }
 
