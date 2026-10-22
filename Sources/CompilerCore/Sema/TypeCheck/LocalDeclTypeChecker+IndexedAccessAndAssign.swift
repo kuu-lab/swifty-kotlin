@@ -24,6 +24,36 @@ extension LocalDeclTypeChecker {
             || symbol.name == interner.intern("AtomicArray")
     }
 
+    /// Returns the element type only for Kotlin's built-in array classes.
+    /// Generic type arguments alone do not make an arbitrary class indexable.
+    func builtinArrayElementType(
+        for receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
+            return nil
+        }
+        let names = KnownCompilerNames(interner: interner)
+        let builtinArrayNames = [
+            names.kotlinArrayFQName,
+            names.kotlinIntArrayFQName,
+            names.kotlinLongArrayFQName,
+            names.kotlinShortArrayFQName,
+            names.kotlinByteArrayFQName,
+            names.kotlinUByteArrayFQName,
+            names.kotlinUShortArrayFQName,
+            names.kotlinUIntArrayFQName,
+            names.kotlinULongArrayFQName,
+            names.kotlinDoubleArrayFQName,
+            names.kotlinFloatArrayFQName,
+            names.kotlinBooleanArrayFQName,
+            names.kotlinCharArrayFQName,
+        ]
+        guard builtinArrayNames.contains(symbol.fqName) else { return nil }
+        return driver.helpers.arrayElementType(for: receiverType, sema: sema, interner: interner)
+    }
+
     /// When the sole shape-matching get()/set() candidate expects a non-Int
     /// integer primitive (Long, UInt, ULong, Byte, Short) at `parameterIndex`
     /// and `indexExpr` is a bare integer literal, Kotlin contextualizes the
@@ -246,9 +276,17 @@ extension LocalDeclTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
-        let elementType = driver.helpers.arrayElementType(
+        guard let elementType = builtinArrayElementType(
             for: receiverType, sema: sema, interner: interner
-        ) ?? sema.types.anyType
+        ) else {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0024",
+                "Unresolved member function 'get'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
         sema.bindings.bindExprType(id, type: elementType)
         return elementType
     }
