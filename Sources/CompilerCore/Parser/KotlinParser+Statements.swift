@@ -201,13 +201,35 @@ extension KotlinParser {
             let conditionGroup = parseBalancedGroup(opening: .lParen, closing: .rParen)
             children.append(.node(conditionGroup))
             range.append(arena.node(conditionGroup).range)
+        } else {
+            diagnostics.error(
+                "KSWIFTK-PARSE-0004",
+                "Expected parenthesized condition after 'if'.",
+                range: stream.peek().rangeIfAvailable
+            )
         }
 
+        let thenBranchStart = stream.index
         appendBranchBody(inBlock: inBlock, into: &children, range: &range, stopBeforeElse: true)
+        if stream.index == thenBranchStart {
+            diagnostics.error(
+                "KSWIFTK-PARSE-0004",
+                "Expected then branch after 'if' condition.",
+                range: stream.peek().rangeIfAvailable
+            )
+        }
 
         if case .keyword(.else) = stream.peek().kind {
             _ = consumeToken(into: &children, range: &range)
+            let elseBranchStart = stream.index
             appendBranchBody(inBlock: inBlock, into: &children, range: &range, stopBeforeElse: false)
+            if stream.index == elseBranchStart {
+                diagnostics.error(
+                    "KSWIFTK-PARSE-0004",
+                    "Expected branch after 'else'.",
+                    range: stream.peek().rangeIfAvailable
+                )
+            }
         }
 
         return arena.appendNode(kind: .ifExpr, range: range.value ?? invalidRange, children)
