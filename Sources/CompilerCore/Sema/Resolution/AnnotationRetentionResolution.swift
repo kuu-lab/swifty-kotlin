@@ -1,6 +1,6 @@
 import Foundation
 
-public enum AnnotationRetentionKind: String {
+public enum AnnotationRetentionKind: String, Codable {
     case source = "SOURCE"
     case binary = "BINARY"
     case runtime = "RUNTIME"

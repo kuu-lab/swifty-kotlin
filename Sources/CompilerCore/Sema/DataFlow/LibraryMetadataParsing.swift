@@ -12,7 +12,7 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) -> [ImportedLibrarySymbolRecord]? {
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else {
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe) else {
             diagnostics.warning(
                 "KSWIFTK-LIB-0001",
                 "Unable to read library metadata: \(path)",

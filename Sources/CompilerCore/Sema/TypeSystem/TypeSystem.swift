@@ -1,3 +1,35 @@
+struct TypeSystemSemaSnapshot: Codable {
+    struct TypeEntry: Codable {
+        let id: TypeID
+        let kind: TypeKind
+    }
+
+    let nextCaptureIdentity: Int
+    let types: [TypeEntry]
+    let nominalDirectSupertypes: [SymbolID: [SymbolID]]
+    let nominalTypeParameterVariances: [SymbolID: [TypeVariance]]
+    let nominalTypeParameterUpperBounds: [SymbolID: [[TypeID]]]
+    let nominalTypeParameterSymbols: [SymbolID: [SymbolID]]
+    let nominalSupertypeTypeArgs: [SymbolID: [SymbolID: [TypeArg]]]
+    let comparableInterfaceSymbol: SymbolID?
+    let annotationInterfaceSymbol: SymbolID?
+    let closeableInterfaceSymbol: SymbolID?
+    let ioCloseableInterfaceSymbol: SymbolID?
+    let charSequenceInterfaceSymbol: SymbolID?
+    let closeableTypeID: TypeID?
+    let kFunctionInterfaceSymbol: SymbolID?
+    let kCallableInterfaceSymbol: SymbolID?
+    let functionInterfaceSymbol: SymbolID?
+    let functionNInterfaceSymbols: [Int: SymbolID]
+    let suspendFunctionNInterfaceSymbols: [Int: SymbolID]
+    let kClassInterfaceSymbol: SymbolID?
+    let numberClassSymbol: SymbolID?
+    let stringClassSymbol: SymbolID?
+    let charClassSymbol: SymbolID?
+    let anyClassSymbol: SymbolID?
+    let unitClassSymbol: SymbolID?
+}
+
 public final class TypeSystem {
     private var nextCaptureIdentity = 0
 
@@ -1015,5 +1047,115 @@ public final class TypeSystem {
             substitution: substitution,
             typeVarBySymbol: typeVarBySymbol
         )
+    }
+}
+
+extension TypeSystem {
+    func makeSemaSnapshot() -> TypeSystemSemaSnapshot {
+        TypeSystemSemaSnapshot(
+            nextCaptureIdentity: nextCaptureIdentity,
+            types: idToKind.enumerated().map { index, kind in
+                TypeSystemSemaSnapshot.TypeEntry(id: TypeID(rawValue: Int32(index)), kind: kind)
+            },
+            nominalDirectSupertypes: nominalDirectSupertypes,
+            nominalTypeParameterVariances: nominalTypeParameterVariancesMap,
+            nominalTypeParameterUpperBounds: nominalTypeParameterUpperBoundsMap,
+            nominalTypeParameterSymbols: nominalTypeParameterSymbolsMap,
+            nominalSupertypeTypeArgs: nominalSupertypeTypeArgsMap,
+            comparableInterfaceSymbol: comparableInterfaceSymbol,
+            annotationInterfaceSymbol: annotationInterfaceSymbol,
+            closeableInterfaceSymbol: closeableInterfaceSymbol,
+            ioCloseableInterfaceSymbol: ioCloseableInterfaceSymbol,
+            charSequenceInterfaceSymbol: charSequenceInterfaceSymbol,
+            closeableTypeID: closeableTypeID,
+            kFunctionInterfaceSymbol: kFunctionInterfaceSymbol,
+            kCallableInterfaceSymbol: kCallableInterfaceSymbol,
+            functionInterfaceSymbol: functionInterfaceSymbol,
+            functionNInterfaceSymbols: functionNInterfaceSymbols,
+            suspendFunctionNInterfaceSymbols: suspendFunctionNInterfaceSymbols,
+            kClassInterfaceSymbol: kClassInterfaceSymbol,
+            numberClassSymbol: numberClassSymbol,
+            stringClassSymbol: stringClassSymbol,
+            charClassSymbol: charClassSymbol,
+            anyClassSymbol: anyClassSymbol,
+            unitClassSymbol: unitClassSymbol
+        )
+    }
+
+    @discardableResult
+    func restoreSemaSnapshot(
+        _ snapshot: TypeSystemSemaSnapshot,
+        symbolMap: [SymbolID: SymbolID]
+    ) -> [TypeID: TypeID] {
+        func mapSymbol(_ symbol: SymbolID) -> SymbolID { symbolMap[symbol] ?? symbol }
+        var typeMap: [TypeID: TypeID] = [:]
+        typeMap.reserveCapacity(snapshot.types.count)
+        for entry in snapshot.types.sorted(by: { $0.id.rawValue < $1.id.rawValue }) {
+            let kind = entry.kind
+                .mapSymbols(mapSymbol)
+                .mapTypes { typeMap[$0] ?? $0 }
+            typeMap[entry.id] = make(kind)
+        }
+
+        func mapTypes(_ values: [TypeID]) -> [TypeID] {
+            values.map { typeMap[$0] ?? $0 }
+        }
+        func mapArgs(_ values: [TypeArg]) -> [TypeArg] {
+            values.map { $0.mapTypes { typeMap[$0] ?? $0 } }
+        }
+        func mapNestedArgs(_ source: [SymbolID: [SymbolID: [TypeArg]]]) -> [SymbolID: [SymbolID: [TypeArg]]] {
+            var result: [SymbolID: [SymbolID: [TypeArg]]] = [:]
+            for child in source.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
+                var parents: [SymbolID: [TypeArg]] = [:]
+                for parent in (source[child] ?? [:]).keys.sorted(by: { $0.rawValue < $1.rawValue }) {
+                    parents[mapSymbol(parent)] = mapArgs(source[child]?[parent] ?? [])
+                }
+                result[mapSymbol(child)] = parents
+            }
+            return result
+        }
+
+        nextCaptureIdentity = max(nextCaptureIdentity, snapshot.nextCaptureIdentity)
+        nominalDirectSupertypes = [:]
+        for symbol in snapshot.nominalDirectSupertypes.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
+            nominalDirectSupertypes[mapSymbol(symbol)] = snapshot.nominalDirectSupertypes[symbol]?.map(mapSymbol)
+        }
+        nominalTypeParameterVariancesMap = [:]
+        for symbol in snapshot.nominalTypeParameterVariances.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
+            nominalTypeParameterVariancesMap[mapSymbol(symbol)] = snapshot.nominalTypeParameterVariances[symbol]
+        }
+        nominalTypeParameterUpperBoundsMap = [:]
+        for symbol in snapshot.nominalTypeParameterUpperBounds.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
+            nominalTypeParameterUpperBoundsMap[mapSymbol(symbol)] = snapshot.nominalTypeParameterUpperBounds[symbol]?.map(mapTypes)
+        }
+        nominalTypeParameterSymbolsMap = [:]
+        for symbol in snapshot.nominalTypeParameterSymbols.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
+            nominalTypeParameterSymbolsMap[mapSymbol(symbol)] = snapshot.nominalTypeParameterSymbols[symbol]?.map(mapSymbol)
+        }
+        nominalTypeParameterOwnerMap.removeAll(keepingCapacity: true)
+        for (owner, parameters) in nominalTypeParameterSymbolsMap {
+            for (index, parameter) in parameters.enumerated() {
+                nominalTypeParameterOwnerMap[parameter] = (owner, index)
+            }
+        }
+        nominalSupertypeTypeArgsMap = mapNestedArgs(snapshot.nominalSupertypeTypeArgs)
+        comparableInterfaceSymbol = snapshot.comparableInterfaceSymbol.map(mapSymbol)
+        annotationInterfaceSymbol = snapshot.annotationInterfaceSymbol.map(mapSymbol)
+        closeableInterfaceSymbol = snapshot.closeableInterfaceSymbol.map(mapSymbol)
+        ioCloseableInterfaceSymbol = snapshot.ioCloseableInterfaceSymbol.map(mapSymbol)
+        charSequenceInterfaceSymbol = snapshot.charSequenceInterfaceSymbol.map(mapSymbol)
+        closeableTypeID = snapshot.closeableTypeID.map { typeMap[$0] ?? $0 }
+        kFunctionInterfaceSymbol = snapshot.kFunctionInterfaceSymbol.map(mapSymbol)
+        kCallableInterfaceSymbol = snapshot.kCallableInterfaceSymbol.map(mapSymbol)
+        functionInterfaceSymbol = snapshot.functionInterfaceSymbol.map(mapSymbol)
+        functionNInterfaceSymbols = snapshot.functionNInterfaceSymbols.mapValues(mapSymbol)
+        suspendFunctionNInterfaceSymbols = snapshot.suspendFunctionNInterfaceSymbols.mapValues(mapSymbol)
+        kClassInterfaceSymbol = snapshot.kClassInterfaceSymbol.map(mapSymbol)
+        numberClassSymbol = snapshot.numberClassSymbol.map(mapSymbol)
+        stringClassSymbol = snapshot.stringClassSymbol.map(mapSymbol)
+        charClassSymbol = snapshot.charClassSymbol.map(mapSymbol)
+        anyClassSymbol = snapshot.anyClassSymbol.map(mapSymbol)
+        unitClassSymbol = snapshot.unitClassSymbol.map(mapSymbol)
+        return typeMap
     }
 }
