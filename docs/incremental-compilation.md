@@ -241,3 +241,22 @@ nightly CI の diff 系ジョブには `--no-incremental` を渡すようにし�
 partition の extern 宣言が全関数に依存するため、キー設計を誤ると誤コンパイルになる。
 実際にスキップするには、(1) 宣言単位の Sema 結果の直列化、(2) KIR 関数の SymbolID 正規化、
 (3) 全体最適化と整合する object 単位のリンク設計が必要。
+
+### KIR 関数の正規化 fingerprint（KUU-3019、第2段階）
+
+[KIRFunctionFingerprint.swift](../Sources/CompilerCore/KIR/KIRFunctionFingerprint.swift) の
+`KIRModule.functionFingerprints(interner:symbols:types:)` が、KIR 関数ごとに採番順に依存しない
+内容 hash を返す。`SymbolID` / `TypeID` / `InternedString` / `KIRExprID` / ラベル番号は
+いずれも出現順の連番で、無関係な宣言を前に足しただけでずれるため、次の名前ベース表現に置き換える。
+
+* シンボル → 種別 + FQ 名（呼び出し可能なら消去済みシグネチャ付き。同一キーが複数あれば定義順の序数）。
+  関数自身のパラメータは位置 (`param#i`)。
+* 型 → クラスを FQ 名で呼ぶ構造的表現（captured type の `identity` は除外）。
+* 式 ID・ラベル → 本体内の初出順。
+* `references` に参照先シンボルの正規キーを収集（自身のパラメータは除く）。
+
+**この hash が保証しないこと**: 関数自身の内容のみ。キャッシュとして使うには (a) `references` 先の
+fingerprint / シグネチャ、(b) 構造体レイアウト・vtable/itable スロット・型タグ・runtime callback ABI・
+stdlib artifact などの環境入力、(c) ソース位置を生成物に埋め込むならその位置、を別途キーに含める必要がある
+（vtable/itable スロット番号は命令に含まれるためレイアウト変化は hash に現れるが、十分条件ではない）。
+スキップ経路本体（Sema 結果の直列化、object 単位のキャッシュとリンク設計、CAS のパイプライン組み込み）は未実装。
