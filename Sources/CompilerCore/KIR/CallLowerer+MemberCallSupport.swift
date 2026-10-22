@@ -656,6 +656,13 @@ extension CallLowerer {
         "fill",
         "firstOrNull", "lastOrNull", "singleOrNull",
         "addAll", "removeAll", "retainAll",
+        // Mutating members that resolve to receiver-first `__kk_mutable_*`
+        // runtime bridges (unresolvedSyntheticMemberCallee). Without the
+        // receiver the emitted call shifts every argument left and the
+        // bridge reads the element as the collection handle.
+        "add", "set", "remove", "removeAt", "clear", "listIterator",
+        "removeFirst", "removeFirstOrNull", "removeLast", "removeLastOrNull",
+        "plusAssign", "minusAssign",
         "intersect", "union", "subtract",
         "toHashSet",
         "containsAll", "binarySearch", "average",
