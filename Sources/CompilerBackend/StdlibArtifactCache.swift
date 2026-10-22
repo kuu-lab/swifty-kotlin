@@ -351,6 +351,25 @@ public enum StdlibArtifactCache {
         else {
             return .invalid("inlineKIRDir is missing or escapes the artifact")
         }
+        let bundledMemberIndexURL: URL?
+        if let bundledMemberIndex = manifest["bundledMemberIndex"] as? String {
+            guard let resolved = CompilerFileSystem.containedURL(
+                relativePath: bundledMemberIndex,
+                under: rootURL
+            ),
+                CompilerFileSystem.isRegularFile(at: resolved, fileManager: fileManager)
+            else {
+                return .invalid("bundled member index is missing or escapes the artifact")
+            }
+            bundledMemberIndexURL = resolved
+        } else {
+            bundledMemberIndexURL = nil
+        }
+        if manifest["precomputedSyntheticStubs"] as? Bool == true,
+           bundledMemberIndexURL == nil
+        {
+            return .invalid("precomputed synthetic stubs require a bundled member index")
+        }
         var inlineIsDirectory: ObjCBool = false
         guard fileManager.fileExists(atPath: inlineURL.path, isDirectory: &inlineIsDirectory), inlineIsDirectory.boolValue else {
             return .invalid("inline-KIR directory is missing")

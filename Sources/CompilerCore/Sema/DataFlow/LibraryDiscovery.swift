@@ -20,6 +20,9 @@ package struct LibraryManifest: Decodable {
     let sourceVarargStorageABI: String?
     let metadata: String?
     let inlineKIRDir: String?
+    let bundledMemberIndex: String?
+    let precomputedSyntheticStubs: Bool?
+    let precomputedReflectionRecords: Bool?
     let topLevelInitializerLinkName: String?
     let runtimeReflectionMetadataScope: String?
     package let prelinkedObject: String?
@@ -34,7 +37,9 @@ package struct LibraryManifest: Decodable {
         case formatVersion, moduleName, libraryKind, stdlibManifestHash
         case kotlinLanguageVersion, target
         case sourceVarargStorageABI
-        case compilerVersion, metadata, inlineKIRDir, topLevelInitializerLinkName, objects
+        case compilerVersion, metadata, inlineKIRDir, bundledMemberIndex
+        case precomputedSyntheticStubs, precomputedReflectionRecords
+        case topLevelInitializerLinkName, objects
         case runtimeReflectionMetadataScope, prelinkedObject, prelinkedObjectIncludesRuntime
         case prelinkedCompilerVersion, prelinkedFormatVersion, prelinkedRuntimeFingerprint, prelinkedLinkPlanKey
     }
@@ -51,6 +56,9 @@ package struct LibraryManifest: Decodable {
         sourceVarargStorageABI = try? container.decodeIfPresent(String.self, forKey: .sourceVarargStorageABI)
         metadata = try? container.decodeIfPresent(String.self, forKey: .metadata)
         inlineKIRDir = try? container.decodeIfPresent(String.self, forKey: .inlineKIRDir)
+        bundledMemberIndex = try? container.decodeIfPresent(String.self, forKey: .bundledMemberIndex)
+        precomputedSyntheticStubs = try? container.decodeIfPresent(Bool.self, forKey: .precomputedSyntheticStubs)
+        precomputedReflectionRecords = try? container.decodeIfPresent(Bool.self, forKey: .precomputedReflectionRecords)
         topLevelInitializerLinkName = try? container.decodeIfPresent(String.self, forKey: .topLevelInitializerLinkName)
         runtimeReflectionMetadataScope = try? container.decodeIfPresent(String.self, forKey: .runtimeReflectionMetadataScope)
         prelinkedObject = try? container.decodeIfPresent(String.self, forKey: .prelinkedObject)
@@ -208,12 +216,18 @@ extension DataFlowSemaPhase {
         } else {
             nil
         }
+        let bundledMemberIndexPath: String? = if let relativePath = manifest.bundledMemberIndex, !relativePath.isEmpty {
+            URL(fileURLWithPath: libraryDir).appendingPathComponent(relativePath).path
+        } else {
+            nil
+        }
 
         isValid = validateManifestPaths(
             manifest: manifest,
             libraryDir: libraryDir,
             metadataPath: metadataPath,
             inlineKIRDir: inlineKIRDir,
+            bundledMemberIndexPath: bundledMemberIndexPath,
             diagnostics: diagnostics,
             isStdlibArtifact: isStdlibArtifact
         ) && isValid
@@ -225,9 +239,13 @@ extension DataFlowSemaPhase {
         let canonicalInlineKIRDir = inlineKIRDir.map {
             URL(fileURLWithPath: $0).resolvingSymlinksInPath().standardizedFileURL.path
         }
+        let canonicalBundledMemberIndexPath = bundledMemberIndexPath.map {
+            URL(fileURLWithPath: $0).resolvingSymlinksInPath().standardizedFileURL.path
+        }
         return LibraryManifestInfo(
             metadataPath: canonicalMetadataPath,
             inlineKIRDir: canonicalInlineKIRDir,
+            bundledMemberIndexPath: canonicalBundledMemberIndexPath,
             moduleName: manifest.moduleName,
             isValid: isValid,
             topLevelInitializerLinkName: manifest.topLevelInitializerLinkName,
@@ -235,7 +253,9 @@ extension DataFlowSemaPhase {
             formatVersion: manifest.formatVersion,
             runtimeReflectionMetadataScope: isStdlibArtifact && manifest.objects?.isEmpty == false
                 ? manifest.runtimeReflectionMetadataScope
-                : nil
+                : nil,
+            hasPrecomputedSyntheticStubs: manifest.precomputedSyntheticStubs == true,
+            hasPrecomputedReflectionRecords: manifest.precomputedReflectionRecords == true
         )
     }
 
@@ -378,6 +398,7 @@ extension DataFlowSemaPhase {
         libraryDir: String,
         metadataPath: String,
         inlineKIRDir: String?,
+        bundledMemberIndexPath: String?,
         diagnostics: DiagnosticEngine,
         isStdlibArtifact: Bool
     ) -> Bool {
@@ -471,6 +492,51 @@ extension DataFlowSemaPhase {
                     )
                 }
             }
+        }
+
+        if let memberIndexPath = bundledMemberIndexPath {
+            let memberIndexURL = URL(fileURLWithPath: memberIndexPath)
+                .resolvingSymlinksInPath().standardizedFileURL
+            if !CompilerFileSystem.isContained(memberIndexURL, in: libraryRoot) {
+                diagnostics.error(
+                    "KSWIFTK-LIB-0018",
+                    "Bundled member index path '\(memberIndexPath)' escapes library directory \(libName)",
+                    range: nil
+                )
+                isValid = false
+            } else if !CompilerFileSystem.isRegularFile(at: memberIndexURL, fileManager: fm) {
+                reportManifestPathIssue(
+                    "Bundled member index is missing or is not a regular file at '\(memberIndexPath)' referenced by \(libName)/manifest.json"
+                )
+            }
+        }
+
+        if manifest.precomputedSyntheticStubs == true {
+            if !isStdlibArtifact {
+                diagnostics.error(
+                    "KSWIFTK-LIB-0014",
+                    "Only a stdlib artifact may declare precomputedSyntheticStubs",
+                    range: nil
+                )
+                isValid = false
+            }
+            if bundledMemberIndexPath == nil {
+                diagnostics.error(
+                    "KSWIFTK-LIB-0014",
+                    "Stdlib artifact \(libName) declares precomputedSyntheticStubs without bundledMemberIndex",
+                    range: nil
+                )
+                isValid = false
+            }
+        }
+
+        if manifest.precomputedReflectionRecords == true, manifest.objects?.isEmpty != false {
+            diagnostics.error(
+                "KSWIFTK-LIB-0014",
+                "Library \(libName) declares precomputedReflectionRecords without object files",
+                range: nil
+            )
+            isValid = false
         }
 
         return isValid

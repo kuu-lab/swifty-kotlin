@@ -45,6 +45,10 @@ struct StdlibArtifactCacheTests {
         #expect(manifest["kotlinLanguageVersion"] as? String == "2.4.20")
         #expect(manifest["target"] as? String == "\(TargetTriple.hostDefault().arch)-\(TargetTriple.hostDefault().vendor)-\(TargetTriple.hostDefault().os)")
         #expect(manifest["stdlibManifestHash"] as? String == BundledStdlib.manifestHash())
+        #expect(manifest["bundledMemberIndex"] as? String == "bundled-members.bin")
+        #expect(manifest["precomputedSyntheticStubs"] as? Bool == true)
+        #expect(manifest["precomputedReflectionRecords"] as? Bool == true)
+        #expect(FileManager.default.fileExists(atPath: artifactPath + "/bundled-members.bin"))
     }
 
     // MARK: - Cache recovery (KUU-1426)

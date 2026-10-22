@@ -1,4 +1,5 @@
 import kotlin.random.Random
+import kotlin.random.nextLong
 
 fun useRandomNextLongRange() {
     val r = Random(42)

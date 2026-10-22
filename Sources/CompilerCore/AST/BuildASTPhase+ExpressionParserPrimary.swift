@@ -442,6 +442,12 @@ extension BuildASTPhase.ExpressionParser {
                     if let exprRange = astArena.exprRange(exprID) {
                         end = exprRange.end
                     }
+                } else {
+                    diagnostics?.error(
+                        "KSWIFTK-PARSE-0004",
+                        "Expected expression.",
+                        range: current()?.range ?? token.range
+                    )
                 }
                 if let closeToken = current(), case .templateExprEnd = closeToken.kind {
                     end = closeToken.range.end

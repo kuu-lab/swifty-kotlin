@@ -672,7 +672,7 @@ public fun <T> Iterable<T>.elementAtOrNull(index: Int): T? {
     return null
 }
 
-public fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T> {
+public inline fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T> {
     val result = mutableListOf<T>()
     for (element in this) {
         if (predicate(element)) result.add(element)
@@ -1015,14 +1015,14 @@ public fun <T> Iterable<T>.any(): Boolean {
     return false
 }
 
-public fun <T> Iterable<T>.any(predicate: (T) -> Boolean): Boolean {
+public inline fun <T> Iterable<T>.any(predicate: (T) -> Boolean): Boolean {
     for (element in this) {
         if (predicate(element)) return true
     }
     return false
 }
 
-public fun <T> Iterable<T>.all(predicate: (T) -> Boolean): Boolean {
+public inline fun <T> Iterable<T>.all(predicate: (T) -> Boolean): Boolean {
     for (element in this) {
         if (!predicate(element)) return false
     }

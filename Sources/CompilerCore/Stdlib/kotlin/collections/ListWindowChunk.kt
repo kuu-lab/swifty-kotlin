@@ -71,8 +71,19 @@ public fun <T, R> Iterable<T>.windowed(
 public fun <T> Iterable<T>.zipWithNext(): List<Pair<T, T>> =
     __kk_list_zipWithNext(this)
 
-public fun <T, R> Iterable<T>.zipWithNext(transform: (T, T) -> R): List<R> =
-    __kk_list_zipWithNextTransform(this, transform)
+public inline fun <T, R> Iterable<T>.zipWithNext(transform: (T, T) -> R): List<R> {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return emptyList()
+
+    var previous = iterator.next()
+    val result = mutableListOf<R>()
+    while (iterator.hasNext()) {
+        val current = iterator.next()
+        result.add(transform(previous, current))
+        previous = current
+    }
+    return result
+}
 
 // Result length equals the shorter of the two iterables, matching Kotlin
 // stdlib and the Swift ABI implementation (min(lhs.count, rhs.count)).
@@ -87,7 +98,7 @@ public infix fun <T, R> Iterable<T>.zip(other: Iterable<R>): List<Pair<T, R>> {
     return result
 }
 
-public fun <T, R, V> Iterable<T>.zip(other: Iterable<R>, transform: (T, R) -> V): List<V> {
+public inline fun <T, R, V> Iterable<T>.zip(other: Iterable<R>, transform: (T, R) -> V): List<V> {
     val first = iterator()
     val second = other.iterator()
     val result = mutableListOf<V>()
