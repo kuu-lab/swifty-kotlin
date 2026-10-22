@@ -76,8 +76,6 @@ public abstract class Random : RandomSource, RandomLongSource, RandomIntBitsSour
         return result
     }
 
-    public open fun nextInt(range: IntRange): Int = __kk_random_nextInt_rangeObject(this, range)
-
     // Keep both operands as Long to preserve Kotlin's sign extension of the
     // low Int when composing the 64-bit result.
     public open fun nextLong(): Long = nextInt().toLong().shl(32) + nextInt().toLong()
@@ -117,8 +115,6 @@ public abstract class Random : RandomSource, RandomLongSource, RandomIntBitsSour
         } while (result !in from until until)
         return result
     }
-
-    public open fun nextLong(range: LongRange): Long = __kk_random_nextLong_rangeObject(this, range)
 
     public open override fun nextIntBelow(until: Int): Int = nextInt(until)
 
@@ -216,11 +212,9 @@ public abstract class Random : RandomSource, RandomLongSource, RandomIntBitsSour
         override fun nextInt(): Int = defaultRandom.nextInt()
         override fun nextInt(until: Int): Int = defaultRandom.nextInt(until)
         override fun nextInt(from: Int, until: Int): Int = defaultRandom.nextInt(from, until)
-        override fun nextInt(range: IntRange): Int = defaultRandom.nextInt(range)
         override fun nextLong(): Long = defaultRandom.nextLong()
         override fun nextLong(until: Long): Long = defaultRandom.nextLong(until)
         override fun nextLong(from: Long, until: Long): Long = defaultRandom.nextLong(from, until)
-        override fun nextLong(range: LongRange): Long = defaultRandom.nextLong(range)
         override fun nextBoolean(): Boolean = defaultRandom.nextBoolean()
         override fun nextDouble(): Double = defaultRandom.nextDouble()
         override fun nextDouble(until: Double): Double = defaultRandom.nextDouble(until)
@@ -234,6 +228,10 @@ public abstract class Random : RandomSource, RandomLongSource, RandomIntBitsSour
         override fun nextBytes(size: Int): ByteArray = defaultRandom.nextBytes(size)
     }
 }
+
+public fun Random.nextInt(range: IntRange): Int = __kk_random_nextInt_rangeObject(this, range)
+
+public fun Random.nextLong(range: LongRange): Long = __kk_random_nextLong_rangeObject(this, range)
 
 internal class XorWowRandom internal constructor(
     private var x: Int,

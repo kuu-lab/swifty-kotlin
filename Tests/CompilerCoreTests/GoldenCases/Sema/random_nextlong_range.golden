@@ -3,12 +3,12 @@ symbol fq=__local_1.a[kind=local;type=Long;origin=fixture] kind=local vis=privat
 symbol fq=useRandomNextLongRange[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file frandom_nextlong_range package=_
   decl useRandomNextLongRange[kind=fun;params=;ret=Unit;origin=fixture] fun useRandomNextLongRange sym=useRandomNextLongRange[kind=fun;params=;ret=Unit;origin=fixture]
-expr e@4:20 int(42) type=Int
-expr e@4:13 call callee=e@4:13#1 args=[_:e@4:20] type=kotlin.random.Random call=kotlin.random.Random[kind=fun;params=Int;ret=kotlin.random.Random;names=[seed]]
-expr e@4:5 localDecl r mutable=0 type=_ init=e@4:13 type=Unit ref=__local_0.r[kind=local;type=kotlin.random.Random;origin=fixture]
-expr e@5:13 name(r) type=kotlin.random.Random ref=__local_0.r[kind=local;type=kotlin.random.Random;origin=fixture]
-expr e@5:24 long(10) type=Long
-expr e@5:29 long(15) type=Long
-expr e@5:24#1 binary(rangeTo) lhs=e@5:24 rhs=e@5:29 type=kotlin.ranges.LongRange call=kotlin.ranges.rangeTo[kind=fun;recv=Long;params=Long;ret=kotlin.ranges.LongRange;names=[to]]
-expr e@5:13#1 memberCall recv=e@5:13 callee=nextLong args=[_:e@5:24#1] type=Long call=kotlin.random.Random.nextLong[kind=fun;recv=kotlin.random.Random;params=kotlin.ranges.LongRange;ret=Long;names=[range]]
-expr e@5:5 localDecl a mutable=0 type=_ init=e@5:13#1 type=Unit ref=__local_1.a[kind=local;type=Long;origin=fixture]
+expr e@5:20 int(42) type=Int
+expr e@5:13 call callee=e@5:13#1 args=[_:e@5:20] type=kotlin.random.Random call=kotlin.random.Random[kind=fun;params=Int;ret=kotlin.random.Random;names=[seed]]
+expr e@5:5 localDecl r mutable=0 type=_ init=e@5:13 type=Unit ref=__local_0.r[kind=local;type=kotlin.random.Random;origin=fixture]
+expr e@6:13 name(r) type=kotlin.random.Random ref=__local_0.r[kind=local;type=kotlin.random.Random;origin=fixture]
+expr e@6:24 long(10) type=Long
+expr e@6:29 long(15) type=Long
+expr e@6:24#1 binary(rangeTo) lhs=e@6:24 rhs=e@6:29 type=kotlin.ranges.LongRange call=kotlin.ranges.rangeTo[kind=fun;recv=Long;params=Long;ret=kotlin.ranges.LongRange;names=[to]]
+expr e@6:13#1 memberCall recv=e@6:13 callee=nextLong args=[_:e@6:24#1] type=Long call=kotlin.random.nextLong[kind=fun;recv=kotlin.random.Random;params=kotlin.ranges.LongRange;ret=Long;names=[range]]
+expr e@6:5 localDecl a mutable=0 type=_ init=e@6:13#1 type=Unit ref=__local_1.a[kind=local;type=Long;origin=fixture]

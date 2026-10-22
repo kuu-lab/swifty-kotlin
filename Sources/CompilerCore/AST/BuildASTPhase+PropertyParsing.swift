@@ -443,6 +443,7 @@ extension BuildASTPhase {
                 remaining = remaining[(startIdx + 1)...]
                 continue
             }
+            let accessorTokens = Array(remaining[startIdx...])
 
             var closeParenIdx = startIdx + 2
             var depth = 1
@@ -589,6 +590,12 @@ extension BuildASTPhase {
                 visibility: accessorVisibility(in: tokensBeforeAccessor),
                 isInline: accessorIsInline(in: tokensBeforeAccessor),
                 parameterName: parameterName,
+                returnType: accessorReturnType(
+                    from: accessorTokens,
+                    kind: kind,
+                    interner: interner,
+                    astArena: astArena
+                ),
                 body: body
             )
             switch kind {
@@ -660,6 +667,57 @@ extension BuildASTPhase {
         }
     }
 
+    func accessorReturnType(
+        from tokens: [Token],
+        kind: PropertyAccessorKind,
+        interner: StringInterner,
+        astArena: ASTArena
+    ) -> TypeRefID? {
+        guard kind == .getter,
+              let openParenIndex = tokens.firstIndex(where: { $0.kind == .symbol(.lParen) })
+        else {
+            return nil
+        }
+        let afterParen = skipBalancedBracket(
+            in: tokens,
+            from: openParenIndex,
+            open: .symbol(.lParen),
+            close: .symbol(.rParen)
+        )
+        guard afterParen < tokens.endIndex,
+              tokens[afterParen].kind == .symbol(.colon)
+        else {
+            return nil
+        }
+
+        let typeStart = afterParen + 1
+        var typeEnd = typeStart
+        var depth = BracketDepth()
+        while typeEnd < tokens.endIndex {
+            let token = tokens[typeEnd]
+            if depth.isAtTopLevel {
+                switch token.kind {
+                case .symbol(.assign), .symbol(.lBrace), .symbol(.semicolon),
+                     .softKeyword(.get), .softKeyword(.set):
+                    return parseTypeRef(
+                        from: Array(tokens[typeStart ..< typeEnd]),
+                        interner: interner,
+                        astArena: astArena
+                    )
+                default:
+                    break
+                }
+            }
+            depth.track(token.kind)
+            typeEnd += 1
+        }
+        return parseTypeRef(
+            from: Array(tokens[typeStart ..< typeEnd]),
+            interner: interner,
+            astArena: astArena
+        )
+    }
+
     private func topLevelAccessorKeywordIndex(in tokens: ArraySlice<Token>) -> Int? {
         var depth = BracketDepth()
         for index in tokens.indices {
@@ -722,6 +780,12 @@ extension BuildASTPhase {
             visibility: accessorVisibility(in: Array(rawHeaderTokens[..<accessorStart])),
             isInline: accessorIsInline(in: Array(rawHeaderTokens[..<accessorStart])),
             parameterName: parameterName,
+            returnType: accessorReturnType(
+                from: headerTokens,
+                kind: kind,
+                interner: interner,
+                astArena: astArena
+            ),
             body: body
         )
         switch kind {
@@ -779,6 +843,12 @@ extension BuildASTPhase {
             visibility: accessorVisibility(in: Array(rawHeaderTokens[..<accessorStart])),
             isInline: accessorIsInline(in: Array(rawHeaderTokens[..<accessorStart])),
             parameterName: parameterName,
+            returnType: accessorReturnType(
+                from: headerTokens,
+                kind: kind,
+                interner: interner,
+                astArena: astArena
+            ),
             body: body
         )
         switch kind {
@@ -918,6 +988,12 @@ extension BuildASTPhase {
                 parameterName: kind == .setter
                     ? setterParameterName(from: headerTokens, interner: interner)
                     : nil,
+                returnType: accessorReturnType(
+                    from: headerTokens,
+                    kind: kind,
+                    interner: interner,
+                    astArena: astArena
+                ),
                 body: accessorBody(
                     headerTokens: headerTokens, accessorTokens: accessorTokens, firstBlock: firstBlock,
                     in: arena, interner: interner, astArena: astArena

@@ -233,11 +233,14 @@ public final class CodegenPhase: CompilerPhase {
             "target": targetString,
             "objects": ["objects/\(ctx.options.moduleName)_0.o"],
             "metadata": "metadata.bin",
-            "inlineKIRDir": "inline-kir"
+            "inlineKIRDir": "inline-kir",
+            "precomputedReflectionRecords": true
         ]
         if ctx.options.stdlibOnly {
             manifestDict["libraryKind"] = "stdlib"
             manifestDict["stdlibManifestHash"] = BundledStdlib.manifestHash()
+            manifestDict["bundledMemberIndex"] = "bundled-members.bin"
+            manifestDict["precomputedSyntheticStubs"] = true
         }
         if let topLevelInitializer = module.arena.declarations.compactMap({ declaration -> KIRFunction? in
             guard case let .function(function) = declaration,
@@ -255,7 +258,13 @@ public final class CodegenPhase: CompilerPhase {
 
         try withSubPhaseTiming("libraryMetadata", timer: ctx.phaseTimer) {
             let metadata = makeMetadata(ctx: ctx, module: module, functionLinkInfo: functionLinkInfo)
-            try metadata.write(to: URL(fileURLWithPath: metadataPath), options: .atomic)
+            try metadata.data.write(to: URL(fileURLWithPath: metadataPath), options: .atomic)
+            if let bundledMemberIndex = metadata.bundledMemberIndex {
+                try bundledMemberIndex.write(
+                    to: URL(fileURLWithPath: outputDir + "/bundled-members.bin"),
+                    options: .atomic
+                )
+            }
         }
     }
 
@@ -658,9 +667,9 @@ public final class CodegenPhase: CompilerPhase {
         ctx: CompilationContext,
         module: KIRModule,
         functionLinkInfo: FunctionLinkInfo
-    ) -> Data {
+    ) -> (data: Data, bundledMemberIndex: Data?) {
         guard let sema = ctx.sema else {
-            return MetadataEncoder().serializeCompactIndexed([])
+            return (MetadataEncoder().serializeCompactIndexed([]), nil)
         }
         let functionLinkNamesBySymbol = functionLinkInfo.functionLinkNamesBySymbol
         let inlineFunctionSymbols = functionLinkInfo.inlineFunctionSymbols
@@ -716,6 +725,7 @@ public final class CodegenPhase: CompilerPhase {
             requiredNonPublicSymbols: requiredNonPublicSymbols,
             includeSynthetic: false,
             includeSyntheticNominalAnchors: ctx.options.stdlibOnly,
+            includePrecomputedStdlibSynthesis: ctx.options.stdlibOnly,
             excludeSourceFileIDs: excludeSourceFileIDs,
             runtimeCallbackRawReturnSymbolIDs: runtimeCallbackRawReturnSymbolIDs,
             objectInitializerLinkNames: objectInitializerLinkNames,
@@ -723,7 +733,10 @@ public final class CodegenPhase: CompilerPhase {
             objectLazyInitializerLinkNames: objectLazyInitializerLinkNames,
             enumStaticInitLinkNames: enumStaticInitLinkNames
         )
-        return encoder.serializeCompactIndexed(records)
+        let memberIndex = ctx.options.stdlibOnly
+            ? BundledDeclarationIndex.precomputedMemberIndexData(records: records, interner: ctx.interner)
+            : nil
+        return (encoder.serializeCompactIndexed(records), memberIndex)
     }
     private func buildReflectionMetadataRecords(
         ctx: CompilationContext,

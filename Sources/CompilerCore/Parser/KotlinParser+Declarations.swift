@@ -342,6 +342,23 @@ extension KotlinParser {
         }
         if isIdentifierLike(stream.peek().kind) {
             _ = consumeToken(into: &children, range: &range)
+            let token = stream.peek()
+            let isStrayQuestion: Bool
+            switch token.kind {
+            case .symbol(.questionColon):
+                isStrayQuestion = true
+            case .symbol(.question):
+                isStrayQuestion = stream.peek(1).kind != .symbol(.dot)
+            default:
+                isStrayQuestion = false
+            }
+            if isStrayQuestion {
+                diagnostics.error(
+                    "KSWIFTK-PARSE-0019",
+                    "Unexpected '?' after property name.",
+                    range: token.range
+                )
+            }
         } else if case .symbol(.lParen) = stream.peek().kind {
             // Destructuring declaration: val (a, b) = expr
             // Don't emit a missing-name diagnostic; the AST builder handles this pattern.

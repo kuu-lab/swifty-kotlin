@@ -89,6 +89,7 @@ extension CallTypeChecker {
         explicitTypeArgs: [TypeID],
         calleeName: InternedString?,
         candidates: [SymbolID],
+        preInferredArgumentTypes: [Int: TypeID] = [:],
         withContextExpectedLambdaType: TypeID?,
         expectedTypeOverrides: inout [Int: TypeID],
         lambdaContextOverrides: inout [Int: TypeInferenceContext]
@@ -557,6 +558,7 @@ extension CallTypeChecker {
             args: args,
             callRange: callRange,
             candidates: candidates,
+            preInferredArgumentTypes: preInferredArgumentTypes,
             ctx: ctx,
             expectedTypeOverrides: &expectedTypeOverrides
         )

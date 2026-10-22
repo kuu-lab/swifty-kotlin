@@ -181,6 +181,19 @@ struct PropertyAccessorParsingTests {
         #expect(statements.count == 1)
     }
 
+    @Test
+    func blockGetterReturnTypeIsRetainedAsPropertyType() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        val value get(): String { return "OK" }
+        """, includeStdlib: false)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let property = try #require(topLevelProperty(named: "value", in: ast, interner: ctx.interner))
+        let getterReturnType = try #require(property.getter?.returnType)
+        #expect(property.type == getterReturnType)
+        #expect(property.initializer == nil)
+    }
+
     @Test(arguments: [
         "object { val inner: Int get() = 42 }",
         "run { 42 }",

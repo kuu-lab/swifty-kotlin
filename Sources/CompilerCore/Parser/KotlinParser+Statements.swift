@@ -99,6 +99,9 @@ extension KotlinParser {
         }
 
         let leadingKind = classifyStatementLeadingToken(stream.peek())
+        let isInitializerBlock = inBlock
+            && stream.peek().kind == .softKeyword(.`init`)
+            && stream.peek(1).kind == .symbol(.lBrace)
 
         let startCount = stream.index
         var children: [SyntaxChild] = []
@@ -152,6 +155,12 @@ extension KotlinParser {
             }
             if case .symbol(.lBrace) = token.kind, inBlock {
                 children.append(.node(parseBlock()))
+                if isInitializerBlock {
+                    if case .symbol(.semicolon) = stream.peek().kind {
+                        _ = consumeToken(into: &children, range: &range)
+                    }
+                    break
+                }
                 continue
             }
 

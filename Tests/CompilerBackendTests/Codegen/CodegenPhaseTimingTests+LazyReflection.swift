@@ -4,6 +4,40 @@ import Foundation
 import Testing
 
 extension CodegenPhaseTimingTests {
+    @Test
+    func reflectionProjectionOmitsRecordsAlreadyEmbeddedByImportedArtifacts() {
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        let interner = StringInterner()
+        let name = interner.intern("ArtifactType")
+        _ = symbols.define(
+            kind: .class,
+            name: name,
+            fqName: [interner.intern("library"), name],
+            declSite: nil,
+            visibility: .public,
+            flags: [.importedLibrary, .precomputedRuntimeReflection]
+        )
+        let encoder = MetadataEncoder()
+        let projected = encoder.buildRecords(
+            symbols: symbols,
+            types: types,
+            moduleName: "Consumer",
+            interner: interner,
+            functionLinkNames: [:],
+            runtimeReflectionOnly: true
+        )
+        let complete = encoder.buildRecords(
+            symbols: symbols,
+            types: types,
+            moduleName: "Consumer",
+            interner: interner,
+            functionLinkNames: [:]
+        )
+        #expect(!projected.contains { $0.fqName == "library.ArtifactType" })
+        #expect(complete.contains { $0.fqName == "library.ArtifactType" })
+    }
+
     @Test func reflectionUsesUpdatedSignaturesAndLegacyFallback() {
         let symbols = SymbolTable()
         let types = TypeSystem()

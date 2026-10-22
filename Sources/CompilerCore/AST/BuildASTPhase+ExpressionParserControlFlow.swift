@@ -1,5 +1,14 @@
 
 extension BuildASTPhase.ExpressionParser {
+    private func parseRequiredControlFlowCondition() -> ExprID? {
+        if let token = current(), token.kind == .symbol(.rParen) {
+            diagnostics?.error("KSWIFTK-PARSE-0001", "Expected expression.", range: token.range)
+            // Preserve the control-flow node so surrounding declarations don't cascade into name errors.
+            return astArena.appendExpr(.boolLiteral(false, token.range))
+        }
+        return parseExpression(minPrecedence: 0)
+    }
+
     private func parseControlFlowBodyExpression() -> ExprID? {
         if let token = current(), token.kind == .symbol(.semicolon) {
             _ = consume()
@@ -96,7 +105,13 @@ extension BuildASTPhase.ExpressionParser {
                     return nil
                 }
             }
-            subject = parseExpression(minPrecedence: 0)
+            if matches(.symbol(.rParen)) {
+                if let token = current() {
+                    diagnostics?.error("KSWIFTK-PARSE-0001", "Expected expression.", range: token.range)
+                }
+            } else {
+                subject = parseExpression(minPrecedence: 0)
+            }
             _ = consumeIf(.symbol(.rParen))
         }
         guard consumeIf(.symbol(.lBrace)) != nil else {
@@ -589,7 +604,7 @@ extension BuildASTPhase.ExpressionParser {
         guard consumeIf(.symbol(.lParen)) != nil else {
             return nil
         }
-        guard let condition = parseExpression(minPrecedence: 0) else {
+        guard let condition = parseRequiredControlFlowCondition() else {
             return nil
         }
         _ = consumeIf(.symbol(.rParen))
@@ -641,11 +656,11 @@ extension BuildASTPhase.ExpressionParser {
         }
         guard matches(.keyword(.while)),
               consume() != nil,
-              consumeIf(.symbol(.lParen)) != nil,
-              let condition = parseExpression(minPrecedence: 0)
+              consumeIf(.symbol(.lParen)) != nil
         else {
             return nil
         }
+        guard let condition = parseRequiredControlFlowCondition() else { return nil }
         _ = consumeIf(.symbol(.rParen))
         let end = astArena.exprRange(condition)?.end ?? astArena.exprRange(body)?.end ?? doToken.range.end
         let range = SourceRange(start: start ?? doToken.range.start, end: end)
@@ -700,7 +715,7 @@ extension BuildASTPhase.ExpressionParser {
         guard consumeIf(.symbol(.lParen)) != nil else {
             return nil
         }
-        guard let condition = parseExpression(minPrecedence: 0) else {
+        guard let condition = parseRequiredControlFlowCondition() else {
             return nil
         }
         _ = consumeIf(.symbol(.rParen))
