@@ -594,6 +594,16 @@ extension KotlinParser {
         switch loopToken.kind {
         case .keyword(.for), .keyword(.while):
             if case .symbol(.lParen) = stream.peek().kind {
+                if case .keyword(.for) = loopToken.kind {
+                    let modifier = stream.peek(1)
+                    if modifier.kind == .keyword(.val) || modifier.kind == .keyword(.var) {
+                        diagnostics.error(
+                            "KSWIFTK-PARSE-0020",
+                            "A for-loop variable cannot be declared with 'val' or 'var'.",
+                            range: modifier.range
+                        )
+                    }
+                }
                 let header = parseBalancedGroup(opening: .lParen, closing: .rParen)
                 children.append(.node(header))
                 range.append(arena.node(header).range)
