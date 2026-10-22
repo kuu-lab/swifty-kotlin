@@ -61,7 +61,11 @@ public enum StdlibSemaSnapshotArchive {
     /// Builds a clean import context and writes its complete Sema state into
     /// the artifact. This runs once while producing an artifact, not during a
     /// consumer compilation.
-    public static func write(forArtifactAt artifactPath: String, target: TargetTriple) throws {
+    public static func write(
+        forArtifactAt artifactPath: String,
+        target: TargetTriple,
+        profile: StdlibProfile = .full
+    ) throws {
         let root = URL(fileURLWithPath: artifactPath).standardizedFileURL
         let manifestURL = root.appendingPathComponent("manifest.json")
         guard let manifestData = try? Data(contentsOf: manifestURL),
@@ -88,7 +92,8 @@ public enum StdlibSemaSnapshotArchive {
             target: target,
             includeStdlib: false,
             stdlibLibraryPath: root.path,
-            allowDefaultStdlibLibrary: false
+            allowDefaultStdlibLibrary: false,
+            stdlibProfile: profile
         )
         let context = CompilationContext(
             options: options,

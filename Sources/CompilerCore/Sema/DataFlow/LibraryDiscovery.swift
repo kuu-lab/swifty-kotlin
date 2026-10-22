@@ -14,6 +14,8 @@ package struct LibraryManifest: Decodable {
     let moduleName: String?
     let libraryKind: String?
     let stdlibManifestHash: String?
+    /// Absent in artifacts that predate profiles; those are `full`.
+    let stdlibProfile: String?
     let kotlinLanguageVersion: String?
     let target: String?
     let compilerVersion: String?
@@ -27,7 +29,7 @@ package struct LibraryManifest: Decodable {
     package let objects: [String]?
 
     private enum CodingKeys: String, CodingKey {
-        case formatVersion, moduleName, libraryKind, stdlibManifestHash
+        case formatVersion, moduleName, libraryKind, stdlibManifestHash, stdlibProfile
         case kotlinLanguageVersion, target
         case sourceVarargStorageABI
         case compilerVersion, metadata, inlineKIRDir, bundledMemberIndex
@@ -41,6 +43,7 @@ package struct LibraryManifest: Decodable {
         moduleName = try? container.decodeIfPresent(String.self, forKey: .moduleName)
         libraryKind = try? container.decodeIfPresent(String.self, forKey: .libraryKind)
         stdlibManifestHash = try? container.decodeIfPresent(String.self, forKey: .stdlibManifestHash)
+        stdlibProfile = try? container.decodeIfPresent(String.self, forKey: .stdlibProfile)
         kotlinLanguageVersion = try? container.decodeIfPresent(String.self, forKey: .kotlinLanguageVersion)
         target = try? container.decodeIfPresent(String.self, forKey: .target)
         compilerVersion = try? container.decodeIfPresent(String.self, forKey: .compilerVersion)
@@ -236,8 +239,16 @@ extension DataFlowSemaPhase {
             sourceArrayComponentABI: manifest.sourceVarargStorageABI == "array-v1",
             formatVersion: manifest.formatVersion,
             hasPrecomputedSyntheticStubs: manifest.precomputedSyntheticStubs == true,
-            hasPrecomputedReflectionRecords: manifest.precomputedReflectionRecords == true
+            hasPrecomputedReflectionRecords: manifest.precomputedReflectionRecords == true,
+            stdlibProfile: Self.declaredStdlibProfile(of: manifest) ?? .full
         )
+    }
+
+    /// The profile an artifact manifest declares; `nil` for an unknown name.
+    /// A manifest without the field predates profiles and is `full`.
+    static func declaredStdlibProfile(of manifest: LibraryManifest) -> StdlibProfile? {
+        guard let name = manifest.stdlibProfile, !name.isEmpty else { return .full }
+        return StdlibProfile(rawValue: name)
     }
 
     private func validateManifestSchema(
@@ -342,8 +353,21 @@ extension DataFlowSemaPhase {
                 )
                 isValid = false
             }
+            if manifest.stdlibProfile != nil, Self.declaredStdlibProfile(of: manifest) == nil {
+                diagnostics.error(
+                    "KSWIFTK-LIB-0035",
+                    "Stdlib artifact \(libName) declares unknown stdlibProfile '\(manifest.stdlibProfile ?? "")'",
+                    range: nil
+                )
+                isValid = false
+            }
             if let stdlibManifestHash = manifest.stdlibManifestHash, !stdlibManifestHash.isEmpty {
-                let expectedHash = BundledStdlib.manifestHash()
+                // The artifact's own profile decides which source set its hash
+                // must match; whether that profile is the one this compilation
+                // asked for is checked by the importer (cache-safe).
+                let expectedHash = BundledStdlib.manifestHash(
+                    profile: Self.declaredStdlibProfile(of: manifest) ?? .full
+                )
                 if stdlibManifestHash != expectedHash {
                     diagnostics.error(
                         "KSWIFTK-LIB-0022",

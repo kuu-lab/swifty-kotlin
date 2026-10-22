@@ -41,16 +41,18 @@ public enum StdlibArtifactCache {
         }
     }
 
-    private static let artifactFileName = "KSwiftKStdlib.kklib"
     private static let kotlinLanguageVersion = "2.4.20"
     private static let compilerVersion = CompilerBuildInfo.version
 
-    public static func resolveOrBuild(target: TargetTriple) throws -> String {
+    public static func resolveOrBuild(
+        target: TargetTriple,
+        profile: StdlibProfile = .full
+    ) throws -> String {
         let fileManager = FileManager.default
         let environment = ProcessInfo.processInfo.environment
 
         if let explicit = environment["KSWIFTK_STDLIB_LIBRARY"], !explicit.isEmpty {
-            switch validateArtifact(at: explicit, target: target) {
+            switch validateArtifact(at: explicit, target: target, profile: profile) {
             case .valid:
                 return normalizedPath(explicit)
             case let .invalid(reason):
@@ -58,9 +60,9 @@ public enum StdlibArtifactCache {
             }
         }
 
-        for candidate in packagedArtifactCandidates() {
+        for candidate in packagedArtifactCandidates(profile: profile) {
             guard fileManager.fileExists(atPath: candidate) else { continue }
-            if case .valid = validateArtifact(at: candidate, target: target) {
+            if case .valid = validateArtifact(at: candidate, target: target, profile: profile) {
                 return normalizedPath(candidate)
             }
         }
@@ -81,9 +83,10 @@ public enum StdlibArtifactCache {
         return try resolveOrBuildCached(
             target: target,
             cacheDirectory: cacheDirectory,
-            fileManager: fileManager
+            fileManager: fileManager,
+            profile: profile
         ) { outputBase in
-            try StdlibArtifactBuilder.build(outputBase: outputBase, target: target)
+            try StdlibArtifactBuilder.build(outputBase: outputBase, target: target, profile: profile)
         }
     }
 
@@ -106,6 +109,7 @@ public enum StdlibArtifactCache {
         cacheDirectory: URL,
         fileManager: FileManager = .default,
         compilerFingerprint: String? = nil,
+        profile: StdlibProfile = .full,
         builder: (_ outputBase: String) throws -> String
     ) throws -> String {
         let currentFingerprint = compilerFingerprint ?? currentCompilerFingerprint()
@@ -113,8 +117,9 @@ public enum StdlibArtifactCache {
         let artifactURL = cacheArtifactURL(
             for: target,
             cacheDirectory: cacheDirectory,
-            stdlibManifestHash: BundledStdlib.manifestHash(),
-            compilerFingerprint: cacheFingerprint
+            stdlibManifestHash: BundledStdlib.manifestHash(profile: profile),
+            compilerFingerprint: cacheFingerprint,
+            profile: profile
         )
         let artifactPath = artifactURL.path
         let lockPath = artifactPath + ".lock"
@@ -125,7 +130,7 @@ public enum StdlibArtifactCache {
         )
 
         return try withFileLock(at: lockPath) {
-            if case .valid = validateArtifact(at: artifactPath, target: target) {
+            if case .valid = validateArtifact(at: artifactPath, target: target, profile: profile) {
                 return artifactPath
             }
 
@@ -146,8 +151,8 @@ public enum StdlibArtifactCache {
                 throw Error.buildFailed(String(describing: error))
             }
 
-            guard case .valid = validateArtifact(at: builtArtifactPath, target: target) else {
-                let reason = validationReason(at: builtArtifactPath, target: target)
+            guard case .valid = validateArtifact(at: builtArtifactPath, target: target, profile: profile) else {
+                let reason = validationReason(at: builtArtifactPath, target: target, profile: profile)
                 try? fileManager.removeItem(atPath: buildingBase)
                 try? fileManager.removeItem(atPath: builtArtifactPath)
                 throw Error.artifactInvalid(
@@ -169,7 +174,7 @@ public enum StdlibArtifactCache {
                 // lock file can split the critical section and let another
                 // builder publish first. Prefer whatever landed when it
                 // validates instead of reporting a spurious failure.
-                if case .valid = validateArtifact(at: artifactPath, target: target) {
+                if case .valid = validateArtifact(at: artifactPath, target: target, profile: profile) {
                     try? fileManager.removeItem(atPath: buildingBase)
                     try? fileManager.removeItem(atPath: builtArtifactPath)
                     return artifactPath
@@ -186,7 +191,11 @@ public enum StdlibArtifactCache {
 
     /// `KSWIFTK_STDLIB_LIBRARY` is handled separately because it is explicit
     /// and must fail loudly when it points at an incompatible artifact.
-    public static func packagedArtifactCandidates(executablePath: String? = nil) -> [String] {
+    public static func packagedArtifactCandidates(
+        executablePath: String? = nil,
+        profile: StdlibProfile = .full
+    ) -> [String] {
+        let artifactFileName = profile.artifactFileName
         var candidates: [String] = []
 
         func append(_ url: URL) {
@@ -224,7 +233,8 @@ public enum StdlibArtifactCache {
         for target: TargetTriple,
         cacheDirectory: URL,
         stdlibManifestHash: String,
-        compilerFingerprint: String
+        compilerFingerprint: String,
+        profile: StdlibProfile
     ) -> URL {
         let targetKey = [target.arch, target.vendor, target.os, target.osVersion ?? "none"]
             .map { component in
@@ -242,7 +252,7 @@ public enum StdlibArtifactCache {
                 "\(kotlinLanguageVersion)-\(compilerVersion)-\(targetKey)-\(stdlibManifestHash)-\(fingerprintKey)",
                 isDirectory: true
             )
-            .appendingPathComponent(artifactFileName, isDirectory: true)
+            .appendingPathComponent(profile.artifactFileName, isDirectory: true)
     }
 
     /// A leftover staging tree from a build interrupted more than this long
@@ -258,7 +268,7 @@ public enum StdlibArtifactCache {
         fileManager: FileManager
     ) {
         let parentPath = URL(fileURLWithPath: artifactPath).deletingLastPathComponent().path
-        let prefix = artifactFileName + ".building"
+        let prefix = URL(fileURLWithPath: artifactPath).lastPathComponent + ".building"
         guard let entries = try? fileManager.contentsOfDirectory(atPath: parentPath) else { return }
         let cutoff = Date().addingTimeInterval(-staleStagingAge)
         for entry in entries where entry.hasPrefix(prefix) {
@@ -280,14 +290,18 @@ public enum StdlibArtifactCache {
         case invalid(String)
     }
 
-    private static func validationReason(at path: String, target: TargetTriple) -> String {
-        if case let .invalid(reason) = validateArtifact(at: path, target: target) {
+    private static func validationReason(at path: String, target: TargetTriple, profile: StdlibProfile) -> String {
+        if case let .invalid(reason) = validateArtifact(at: path, target: target, profile: profile) {
             return reason
         }
         return "unknown validation failure"
     }
 
-    private static func validateArtifact(at path: String, target: TargetTriple) -> ValidationResult {
+    private static func validateArtifact(
+        at path: String,
+        target: TargetTriple,
+        profile: StdlibProfile
+    ) -> ValidationResult {
         let fileManager = FileManager.default
         let rootURL = URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL
         var isDirectory: ObjCBool = false
@@ -331,7 +345,12 @@ public enum StdlibArtifactCache {
         guard manifest["target"] as? String == targetString else {
             return .invalid("manifest target does not match \(targetString)")
         }
-        guard manifest["stdlibManifestHash"] as? String == BundledStdlib.manifestHash() else {
+        // A manifest without `stdlibProfile` predates profiles and is `full`.
+        let declaredProfile = (manifest["stdlibProfile"] as? String).flatMap { StdlibProfile(rawValue: $0) } ?? .full
+        guard declaredProfile == profile else {
+            return .invalid("manifest stdlibProfile '\(declaredProfile.rawValue)' does not match requested '\(profile.rawValue)'")
+        }
+        guard manifest["stdlibManifestHash"] as? String == BundledStdlib.manifestHash(profile: profile) else {
             return .invalid("manifest stdlibManifestHash does not match bundled sources")
         }
 
@@ -510,7 +529,11 @@ public enum StdlibArtifactBuilder {
         }
     }
 
-    public static func build(outputBase: String, target: TargetTriple) throws -> String {
+    public static func build(
+        outputBase: String,
+        target: TargetTriple,
+        profile: StdlibProfile = .full
+    ) throws -> String {
         let options = CompilerOptions(
             moduleName: "KSwiftKStdlib",
             inputs: [],
@@ -519,7 +542,8 @@ public enum StdlibArtifactBuilder {
             target: target,
             includeStdlib: true,
             stdlibOnly: true,
-            allowDefaultStdlibLibrary: false
+            allowDefaultStdlibLibrary: false,
+            stdlibProfile: profile
         )
         let context = CompilationContext(
             options: options,
@@ -555,7 +579,7 @@ public enum StdlibArtifactBuilder {
         guard FileManager.default.fileExists(atPath: artifactPath) else {
             throw Error.artifactMissing(artifactPath)
         }
-        try StdlibSemaSnapshotArchive.write(forArtifactAt: artifactPath, target: target)
+        try StdlibSemaSnapshotArchive.write(forArtifactAt: artifactPath, target: target, profile: profile)
         return artifactPath
     }
 }

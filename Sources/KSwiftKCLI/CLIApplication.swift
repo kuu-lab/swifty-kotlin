@@ -26,6 +26,8 @@ func printCLIError(_ error: CLIParseError) {
         print(message)
     case .stdlibOnlyRequiresLibraryEmit:
         print("--stdlib-only requires --emit library")
+    case let .unsupportedStdlibProfile(value):
+        print("Unsupported stdlib profile: \(value) (expected full or minimal)")
     }
 }
 

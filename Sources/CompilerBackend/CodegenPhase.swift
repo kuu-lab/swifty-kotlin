@@ -238,7 +238,10 @@ public final class CodegenPhase: CompilerPhase {
         ]
         if ctx.options.stdlibOnly {
             manifestDict["libraryKind"] = "stdlib"
-            manifestDict["stdlibManifestHash"] = BundledStdlib.manifestHash()
+            manifestDict["stdlibManifestHash"] = BundledStdlib.manifestHash(profile: ctx.options.stdlibProfile)
+            if ctx.options.stdlibProfile != .full {
+                manifestDict["stdlibProfile"] = ctx.options.stdlibProfile.rawValue
+            }
             manifestDict["bundledMemberIndex"] = "bundled-members.bin"
             manifestDict["precomputedSyntheticStubs"] = true
         }

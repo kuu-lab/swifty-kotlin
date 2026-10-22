@@ -212,6 +212,34 @@ public fun ByteArray.decodeToString(): String = __stringFromUtf8(this, 0, size)
 選択する。`--no-stdlib`、`--stdlib-only`、明示的な `--stdlib-library` は既定解決の対象外。
 ソースを introspect する API 呼び出しは `allowDefaultStdlibLibrary: false` を指定する。
 
+### stdlib プロファイル (`--profile`, KUU-3016)
+
+`--profile full|minimal`（既定 `full`）で、stdlib artifact に収録する bundled source の範囲を選ぶ。
+`minimal` は、明示 `import` が必要で、かつ他の収録 source から参照されない領域を除いた小さい artifact を使う。
+
+- 範囲の定義: `StdlibProfile.minimalExcludedPackagePrefixes`（`Driver/StdlibProfile.swift`）。ファイル先頭の
+  `package` 宣言で収録を判定し（ディレクトリ名ではない）、prefix はパッケージ区切り単位で照合する。
+  現在の除外は `kotlinx.coroutines` / `kotlinx.serialization` / `kotlinx.atomicfu` / `kswiftk.atomicfu` /
+  `kotlin.test` / `kotlin.uuid` / `kotlin.io.path` / `java.sql|net|security|text`。
+  既定 import 範囲（root・collections・ranges・sequences・text・io・comparisons・coroutines・reflect・time …）は
+  すべて収録する。`kotlinx.io`・`kotlinx.cinterop`・`platform.*`・`kotlin.concurrent`・`kotlin.experimental`・
+  `kotlin.io.encoding`・`kotlin.js`・`java.nio`・`java.math` は収録側 source が参照するため除外できない
+  （除外すると `--stdlib-only --profile minimal` のビルドが unresolved reference で失敗する。
+  除外を増やすときはこのビルドが通ることが条件）。
+- artifact: manifest に `stdlibProfile: "minimal"` を書き（`full` は従来どおり省略）、`stdlibManifestHash` は
+  プロファイルごとに別の値になる。既定解決の artifact 名は `KSwiftKStdlibMinimal.kklib`、cache directory も
+  hash で別になる。`--stdlib-library` で渡す artifact は `--profile` と一致している必要があり、
+  不一致は `KSWIFTK-LIB-0035`。incremental cache の設定ハッシュにもプロファイルが入る。
+- 不足シンボルの方針: **暗黙に full へフォールバックしない**（§7 の方針と同じ）。minimal で除外パッケージを
+  `import` すると `KSWIFTK-LIB-0036` で停止し、`--profile minimal` を外すよう案内する。判定は「解決できたか」ではなく
+  「ユーザー宣言ではないか」で行う。`kotlinx.coroutines.runBlocking` のように Swift 側の合成スタブが Sema を
+  通ってしまうものは、そのままではリンク時の未定義シンボルになるため。完全修飾名での直接参照
+  （`import` なし）は検出対象外で、通常の unresolved reference になる。
+- `--emit class|jar`（JVM）とは併用できない。
+- 効果の注意: artifact のサイズ・index 件数は収録範囲に比例して減るが、`loadImports` の時間の大半は
+  index の件数に依存しない部分（合成スタブ登録 `registerSyntheticDelegateStubs` など）が占める。
+  実測値は PR 本文を参照。
+
 ### Native の `java.lang.Class.desiredAssertionStatus()` 契約
 
 JVM-shaped `Class<T>` facade の `desiredAssertionStatus(): Boolean` は、既存の

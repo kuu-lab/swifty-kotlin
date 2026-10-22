@@ -159,7 +159,10 @@ public final class LoadSourcesPhase: CompilerPhase {
         resourcePath: String? = Bundle.module.resourcePath
     ) throws {
         do {
-            let sources = try BundledStdlib.collectBundledStdlibSources(resourcePath: resourcePath)
+            let sources = try BundledStdlib.collectBundledStdlibSources(
+                resourcePath: resourcePath,
+                profile: ctx.options.stdlibProfile
+            )
             for source in sources {
                 guard !ctx.sourceManager.containsFile(path: source.path) else { continue }
                 _ = ctx.sourceManager.addFile(path: source.path, contents: source.contents, origin: .bundledStdlib)

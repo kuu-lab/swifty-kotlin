@@ -1150,6 +1150,18 @@ enum DiagnosticRegistry {
             defaultSeverity: .warning,
             summary: "Duplicate library declaration ignored; first on the search path wins."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0035",
+            pass: "LIB",
+            defaultSeverity: .error,
+            summary: "Stdlib artifact was built for a different --profile than this compilation uses."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0036",
+            pass: "LIB",
+            defaultSeverity: .error,
+            summary: "Import refers to a stdlib package excluded from the minimal profile."
+        ),
     ]
 
 
