@@ -82,13 +82,13 @@ extension LocalDeclTypeChecker {
         let receiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
 
         let getName = interner.intern("get")
-        var getCandidates = driver.helpers.collectMemberFunctionCandidates(
+        let allGetMembers = driver.helpers.collectMemberFunctionCandidates(
             named: getName,
             receiverType: receiverType,
             sema: sema,
             interner: interner
         )
-        getCandidates = ctx.filterByVisibility(getCandidates).visible.filter {
+        var getCandidates = ctx.filterByVisibility(allGetMembers).visible.filter {
             ctx.cachedSymbol($0)?.flags.contains(.operatorFunction) == true
         }
         if getCandidates.isEmpty {
@@ -221,6 +221,20 @@ extension LocalDeclTypeChecker {
             }
         }
 
+        // A member `get` that merely shares the convention name without the
+        // `operator` modifier cannot serve `x[i]`; reaching this point means no
+        // operator candidate resolved, so reject instead of letting the
+        // built-in array fallback silently bind (kotlinc: 'operator' modifier
+        // is required).
+        if allGetMembers.contains(where: { driver.helpers.isNonOperatorConventionFunction($0, sema: sema) }) {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0432",
+                "'operator' modifier is required on 'get' in '\(driver.helpers.conventionReceiverDisplayName(receiverType, sema: sema, interner: interner))'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
         guard indices.count == 1 else {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
@@ -270,12 +284,15 @@ extension LocalDeclTypeChecker {
         let receiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
 
         let setName = interner.intern("set")
-        var setCandidates = driver.helpers.collectMemberFunctionCandidates(
+        let allSetMembers = driver.helpers.collectMemberFunctionCandidates(
             named: setName,
             receiverType: receiverType,
             sema: sema,
             interner: interner
         )
+        var setCandidates = ctx.filterByVisibility(allSetMembers).visible.filter {
+            ctx.cachedSymbol($0)?.flags.contains(.operatorFunction) == true
+        }
         if setCandidates.isEmpty {
             let nonNullReceiver = sema.types.makeNonNullable(receiverType)
             // An unrelated nearer extension must not hide an applicable set
@@ -473,6 +490,17 @@ extension LocalDeclTypeChecker {
             }
         }
 
+        // A member `set` without the `operator` modifier cannot serve
+        // `x[i] = v`; reject before the built-in array fallback swallows it.
+        if allSetMembers.contains(where: { driver.helpers.isNonOperatorConventionFunction($0, sema: sema) }) {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0432",
+                "'operator' modifier is required on 'set' in '\(driver.helpers.conventionReceiverDisplayName(receiverType, sema: sema, interner: interner))'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
         guard indices.count == 1 else {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType

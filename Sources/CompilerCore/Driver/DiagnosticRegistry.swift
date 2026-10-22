@@ -968,6 +968,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Declaration kind cannot be local."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0432",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Operator convention call requires the 'operator' modifier on the convention function."
+        ),
     ]
 
 

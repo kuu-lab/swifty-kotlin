@@ -15,10 +15,10 @@ extension LocalDeclTypeChecker {
 
         let receiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
         let getName = interner.intern("get")
-        var getCandidates = driver.helpers.collectMemberFunctionCandidates(
+        let allGetMembers = driver.helpers.collectMemberFunctionCandidates(
             named: getName, receiverType: receiverType, sema: sema, interner: interner
         )
-        getCandidates = ctx.filterByVisibility(getCandidates).visible.filter {
+        var getCandidates = ctx.filterByVisibility(allGetMembers).visible.filter {
             ctx.cachedSymbol($0)?.flags.contains(.operatorFunction) == true
         }
         if getCandidates.isEmpty {
@@ -90,6 +90,21 @@ extension LocalDeclTypeChecker {
             id: id, receiverType: receiverType, getCandidates: getCandidates, getCall: getCall,
             ctx: ctx
         )
+
+        // A member `get` sharing only the convention name (no `operator`
+        // modifier) cannot serve `x[i] op= v`; reject instead of falling back
+        // to the built-in array path.
+        if !operatorResolved,
+           allGetMembers.contains(where: { driver.helpers.isNonOperatorConventionFunction($0, sema: sema) })
+        {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0432",
+                "'operator' modifier is required on 'get' in '\(driver.helpers.conventionReceiverDisplayName(receiverType, sema: sema, interner: interner))'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
 
         let isBuiltinNumericIncrement = isIncrementDecrement
             && driver.exprChecker.isBuiltinNumericIncrementDecrementTarget(elementType, sema: sema)
@@ -391,10 +406,10 @@ extension LocalDeclTypeChecker {
         if isConcreteArrayLikeReceiverType(receiverType, sema: ctx.sema, interner: ctx.interner) {
             return true
         }
-        return !driver.helpers.collectMemberFunctionCandidates(
+        return driver.helpers.collectMemberFunctionCandidates(
             named: ctx.interner.intern("set"), receiverType: receiverType,
             sema: ctx.sema, interner: ctx.interner
-        ).isEmpty
+        ).contains { ctx.cachedSymbol($0)?.flags.contains(.operatorFunction) == true }
     }
 
     /// Mirrors CallLowerer+Operators.swift's isGenericArrayReceiverType/
@@ -452,7 +467,9 @@ extension LocalDeclTypeChecker {
         let setName = interner.intern("set")
         var setCandidates = driver.helpers.collectMemberFunctionCandidates(
             named: setName, receiverType: receiverType, sema: sema, interner: interner
-        )
+        ).filter {
+            ctx.cachedSymbol($0)?.flags.contains(.operatorFunction) == true
+        }
         var callArgs = zip(indexExprs, indexTypes).map { expr, type in
             let literal = driver.callChecker.integerLiteralValues(expr, ast: ctx.ast)
             return CallArg(type: type, signedIntegerLiteral: literal.signed, unsignedIntegerLiteral: literal.unsigned)
@@ -469,7 +486,7 @@ extension LocalDeclTypeChecker {
             if !extensions.isEmpty { setCandidates = extensions }
         }
         guard !setCandidates.isEmpty else {
-            reportMissingIndexedSetOperator(range: range, ctx: ctx)
+            reportMissingIndexedSetOperator(range: range, receiverType: receiverType, ctx: ctx)
             return false
         }
 
@@ -479,7 +496,7 @@ extension LocalDeclTypeChecker {
             expectedType: nil, implicitReceiverType: receiverType, ctx: ctx.sema
         )
         guard let chosenSet = resolved.chosenCallee else {
-            reportMissingIndexedSetOperator(range: range, ctx: ctx)
+            reportMissingIndexedSetOperator(range: range, receiverType: receiverType, ctx: ctx)
             return false
         }
 
@@ -498,7 +515,21 @@ extension LocalDeclTypeChecker {
         return true
     }
 
-    private func reportMissingIndexedSetOperator(range: SourceRange, ctx: TypeInferenceContext) {
+    private func reportMissingIndexedSetOperator(range: SourceRange, receiverType: TypeID, ctx: TypeInferenceContext) {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        let hasNonOperatorSetMember = driver.helpers.collectMemberFunctionCandidates(
+            named: interner.intern("set"), receiverType: receiverType,
+            sema: sema, interner: interner
+        ).contains { driver.helpers.isNonOperatorConventionFunction($0, sema: sema) }
+        if hasNonOperatorSetMember {
+            sema.diagnostics.error(
+                "KSWIFTK-SEMA-0432",
+                "'operator' modifier is required on 'set' in '\(driver.helpers.conventionReceiverDisplayName(receiverType, sema: sema, interner: interner))'.",
+                range: range
+            )
+            return
+        }
         ctx.sema.diagnostics.error(
             "KSWIFTK-SEMA-0002",
             "No viable overload found for operator 'set'.",
