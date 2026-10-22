@@ -818,6 +818,14 @@ extension BuildASTPhase {
         if let colonIndex {
             let typeTokens = Array(withoutDefault[(colonIndex + 1)...])
             typeRef = parseTypeRef(from: typeTokens, interner: interner, astArena: astArena)
+            if typeRef == nil {
+                let following = colonIndex + 1 < withoutDefault.count ? withoutDefault[colonIndex + 1] : nil
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0020",
+                    "Expected type after ':'.",
+                    range: following?.range ?? withoutDefault[colonIndex].range
+                )
+            }
         } else {
             typeRef = nil
         }

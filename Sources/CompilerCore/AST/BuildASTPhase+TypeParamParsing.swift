@@ -124,6 +124,7 @@ extension BuildASTPhase {
         guard tokenIndex < tokens.count,
               tokens[tokenIndex].kind == .symbol(.colon)
         else { return nil }
+        let colonToken = tokens[tokenIndex]
         tokenIndex += 1
         var boundTokens: [Token] = []
         var innerDepth = BracketDepth()
@@ -139,7 +140,16 @@ extension BuildASTPhase {
             tokenIndex += 1
         }
         guard let astArena else { return nil }
-        return parseTypeRef(from: boundTokens, interner: interner, astArena: astArena)
+        guard let bound = parseTypeRef(from: boundTokens, interner: interner, astArena: astArena) else {
+            let following = tokenIndex < tokens.count ? tokens[tokenIndex] : nil
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0020",
+                "Expected type after ':'.",
+                range: following?.range ?? colonToken.range
+            )
+            return nil
+        }
+        return bound
     }
 
     func declarationWhereClauses(
@@ -191,6 +201,7 @@ extension BuildASTPhase {
             guard index < tokens.count, tokens[index].kind == .symbol(.colon) else {
                 continue
             }
+            let colonToken = tokens[index]
             index += 1
             let boundTokens = collectBoundTokens(tokens: tokens, index: &index)
             if let parsed = TypeRefParserCore.parseTypeRefPrefix(
@@ -202,6 +213,12 @@ extension BuildASTPhase {
                 ))
             {
                 result.append((name: name, bound: parsed.ref))
+            } else {
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0020",
+                    "Expected type after ':'.",
+                    range: boundTokens.first?.range ?? colonToken.range
+                )
             }
             if index < tokens.count, tokens[index].kind == .symbol(.comma) {
                 index += 1

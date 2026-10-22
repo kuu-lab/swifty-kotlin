@@ -65,7 +65,8 @@ extension BuildASTPhase {
                     return nil
                 }
                 return self.internedIdentifier(from: token, interner: interner)
-            }
+            },
+            diagnostics: self.diagnostics
         )
         return LocalStatementCore.parseLocalDeclaration(
             from: statementTokens,
@@ -88,7 +89,8 @@ extension BuildASTPhase {
                 ).parse()
             },
             parseTypeReference: { _ in nil },
-            resolveDeclarationName: { _, _ in nil }
+            resolveDeclarationName: { _, _ in nil },
+            diagnostics: self.diagnostics
         )
         return LocalStatementCore.parseLocalAssignment(
             from: statementTokens,
