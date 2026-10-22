@@ -438,6 +438,12 @@ enum DiagnosticRegistry {
             summary: "Worker.execute requires a non-capturing job."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0431",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "'infix' modifier is inapplicable to this function."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0042",
             pass: "SEMA",
             defaultSeverity: .error,
