@@ -62,4 +62,31 @@ struct LocalRedeclarationTests {
             #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
         }
     }
+
+    @Test
+    func separateTopLevelAccessorBodiesHaveIndependentLocalScopes() throws {
+        let source = """
+        val first: Int
+            get() {
+                val value = 1
+                return value
+            }
+        val second: Int
+            get() {
+                val value = 2
+                return value
+            }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        }
+    }
 }
