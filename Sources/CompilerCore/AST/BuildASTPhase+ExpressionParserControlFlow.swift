@@ -1,5 +1,20 @@
 
 extension BuildASTPhase.ExpressionParser {
+    private func diagnoseAssignmentOperatorAfterConditionExpression() {
+        guard let token = current() else { return }
+        switch token.kind {
+        case .symbol(.assign), .symbol(.plusAssign), .symbol(.minusAssign),
+             .symbol(.starAssign), .symbol(.slashAssign), .symbol(.percentAssign):
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0018",
+                "Unexpected token after expression.",
+                range: token.range
+            )
+        default:
+            break
+        }
+    }
+
     private func parseControlFlowBodyExpression() -> ExprID? {
         if let token = current(), token.kind == .symbol(.semicolon) {
             _ = consume()
@@ -581,6 +596,7 @@ extension BuildASTPhase.ExpressionParser {
         guard let condition = parseExpression(minPrecedence: 0) else {
             return nil
         }
+        diagnoseAssignmentOperatorAfterConditionExpression()
         _ = consumeIf(.symbol(.rParen))
         guard let body = parseControlFlowBodyExpression() else {
             return nil
@@ -635,6 +651,7 @@ extension BuildASTPhase.ExpressionParser {
         else {
             return nil
         }
+        diagnoseAssignmentOperatorAfterConditionExpression()
         _ = consumeIf(.symbol(.rParen))
         let end = astArena.exprRange(condition)?.end ?? astArena.exprRange(body)?.end ?? doToken.range.end
         let range = SourceRange(start: start ?? doToken.range.start, end: end)
@@ -692,6 +709,7 @@ extension BuildASTPhase.ExpressionParser {
         guard let condition = parseExpression(minPrecedence: 0) else {
             return nil
         }
+        diagnoseAssignmentOperatorAfterConditionExpression()
         _ = consumeIf(.symbol(.rParen))
 
         guard let thenExpr = parseControlFlowBodyExpression() else {
