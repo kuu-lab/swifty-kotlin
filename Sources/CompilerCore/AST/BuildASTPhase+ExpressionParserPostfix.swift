@@ -218,12 +218,16 @@ extension BuildASTPhase.ExpressionParser {
                 expr = call
                 continue
             }
-            guard let dotToken = consume(),
-                  let memberToken = consume(),
-                  let memberName = tokenText(memberToken)
-            else {
+            guard let dotToken = consume() else { break }
+            guard let memberToken = current(), let memberName = tokenText(memberToken) else {
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0023",
+                    "Expecting member name after '.'.",
+                    range: dotToken.range
+                )
                 break
             }
+            _ = consume()
             var args: [CallArgument] = []
             var typeArgs: [TypeRefID] = []
             var memberEndRange = memberToken.range
@@ -311,14 +315,29 @@ extension BuildASTPhase.ExpressionParser {
         var args: [CallArgument] = []
         if !matches(.symbol(.rParen)) {
             while true {
+                let argumentStart = index
+                var missingArgument = false
                 if let argument = parseCallArgument(implicitLambdaLabel: implicitLambdaLabel) {
                     args.append(argument)
+                } else if matches(.symbol(.comma)) || index > argumentStart {
+                    // An argument slot with no expression (`f(,1)`, `f(1,,2)`,
+                    // `f(,)`), or a label/spread consumed without an expression
+                    // (`f(x = ,1)`, `f(x = )`, `f(*)`). Only a trailing comma
+                    // after a real argument is legal (Kotlin 1.4+).
+                    diagnostics?.error(
+                        "KSWIFTK-PARSE-0022",
+                        "Expected an argument.",
+                        range: current()?.range
+                    )
+                    missingArgument = true
                 }
                 if matches(.symbol(.comma)) {
                     _ = consume()
                     continue
                 }
-                if let unexpected = current(), unexpected.kind != .symbol(.rParen) {
+                if !missingArgument,
+                   let unexpected = current(), unexpected.kind != .symbol(.rParen)
+                {
                     diagnostics?.error(
                         "KSWIFTK-PARSE-0015",
                         "Expected ',' or ')' after call argument.",

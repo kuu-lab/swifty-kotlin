@@ -234,12 +234,11 @@ extension CallTypeChecker {
             }
             return receiverPath + [member]
         case let .callableRef(receiver, member, _):
-            if let receiver {
-                guard let receiverPath = qualifiedCalleePath(for: receiver, ast: ast) else {
-                    return nil
-                }
-                return receiverPath + [member]
-            }
+            // `(D::f)(d)` invokes a callable-reference *value*; it is not the
+            // static call `D.f(d)`, so a receiver-qualified reference must not
+            // contribute a callee path (it would collect `D.f` as a candidate
+            // and reject the dispatch-receiver argument by arity).
+            if receiver != nil { return nil }
             return [member]
         default:
             return nil

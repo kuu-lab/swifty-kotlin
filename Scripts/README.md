@@ -593,3 +593,13 @@ bash Scripts/ktor_build.sh                  # fetch + compile all modules
 bash Scripts/ktor_build.sh --no-fetch        # reuse an existing checkout
 bash Scripts/ktor_build.sh --module ktor_io  # compile a single module
 ```
+
+## diff_run_interpreter.sh
+
+`kswiftc --run`（KIR インタプリタ、未対応プログラムは native へフォールバック）と、通常コンパイルした実行ファイルの stdout / 終了コードを比較する。ケースごとに `[interpreted]` か `[fallback (理由)]` を表示する。
+
+```bash
+bash Scripts/diff_run_interpreter.sh Scripts/diff_cases/hello.kt [more.kt ...]
+```
+
+インタプリタが扱うのは Int / Boolean / String、制御フロー、ユーザー関数呼び出し、トップレベル変数、`print`/`println` のみ（`Sources/CompilerCore/Driver/KIRInterpreter.swift`）。それ以外の runtime / stdlib 呼び出しは実行前の静的解析でフォールバックし、0 除算・深い再帰など値依存の脱出は出力をバッファしたまま native 再実行へ切り替える。

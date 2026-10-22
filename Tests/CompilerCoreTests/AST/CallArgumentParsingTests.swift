@@ -29,6 +29,76 @@ struct CallArgumentParsingTests {
     }
 
     @Test(arguments: [
+        "f(,1)", "f(1,,2)", "f(,)", "f(,,)", "f(1,,)",
+        "f(x = ,1)", "f(x = )", "f(*)", "f(*,)", "f(,,1)",
+        "obj.f(,1)", "obj?.f(,1)", "f<Int>(,1)", "println(f(,1))",
+        "g(f(,1), 2)",
+    ])
+    func rejectsEmptyArgumentElement(_ source: String) throws {
+        let lexed = lex(source)
+        let parser = BuildASTPhase.ExpressionParser(
+            tokens: lexed.tokens.dropLast(),
+            interner: lexed.interner,
+            astArena: ASTArena(),
+            diagnostics: lexed.diagnostics
+        )
+        _ = parser.parse()
+
+        let diagnostic = try #require(lexed.diagnostics.diagnostics.first {
+            $0.code == "KSWIFTK-PARSE-0022"
+        })
+        #expect(diagnostic.severity == .error)
+        #expect(diagnostic.message == "Expected an argument.")
+    }
+
+    @Test(arguments: [
+        "fun main() { println(f(,1)) }",
+        "fun main() { val v = f(1,,2) }",
+        "fun main() { println(obj.f(,1)) }",
+        "fun f(x: Int) = x\nfun main() { println(f(x = ,1)) }",
+        "enum class E(val x: Int) { A(,1) }",
+        "open class Base(x: Int)\nclass C : Base(,1)",
+        "open class Base(x: Int, y: Int)\nclass C : Base(1,,2)",
+        "open class Base()\nclass C : Base(,)",
+        "open class Base(x: Int)\nclass C : Base(x = ,1)",
+        "open class Base(x: Int)\nclass C : Base {\n    constructor() : super(,1)\n}",
+    ])
+    func frontendReportsEmptyArgumentElement(_ source: String) throws {
+        let (_, context) = try buildASTModule(from: source, includeStdlib: false)
+        #expect(context.diagnostics.diagnostics.contains {
+            $0.code == "KSWIFTK-PARSE-0022" && $0.severity == .error
+        })
+    }
+
+    @Test(arguments: [
+        "open class Base(x: Int)\nclass C : Base(1 2)",
+        "open class Base(x: Int)\nclass C : Base(x = 1 2)",
+    ])
+    func frontendReportsMissingSupertypeArgSeparator(_ source: String) throws {
+        let (_, context) = try buildASTModule(from: source, includeStdlib: false)
+        #expect(context.diagnostics.diagnostics.contains {
+            $0.code == "KSWIFTK-PARSE-0015" && $0.severity == .error
+        })
+    }
+
+    @Test
+    func emptyArgumentElementDiagnosticPointsToComma() throws {
+        let lexed = lex("f(,1)")
+        let parser = BuildASTPhase.ExpressionParser(
+            tokens: lexed.tokens.dropLast(),
+            interner: lexed.interner,
+            astArena: ASTArena(),
+            diagnostics: lexed.diagnostics
+        )
+        _ = parser.parse()
+        let diagnostic = try #require(lexed.diagnostics.diagnostics.first {
+            $0.code == "KSWIFTK-PARSE-0022"
+        })
+        #expect(diagnostic.primaryRange?.start.offset == 2)
+        #expect(diagnostic.primaryRange?.end.offset == 3)
+    }
+
+    @Test(arguments: [
         "f()", "f(1)", "f(1, 2)", "f(1,)", "f(1,\n2,\n)",
         "f(value = 1, other = 2)", "f(*items, 2)", "f(1 + 2)",
         "f(a to b)", "f(1L, 2u, 3UL, 4f)", "f(g(1, 2).size, 3)",

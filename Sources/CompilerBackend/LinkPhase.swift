@@ -100,10 +100,11 @@ final class LinkPhase: CompilerPhase {
                 linkerCacheDirectory = CodegenRuntimeSupport.runtimeLinkerCacheDirectory()
             } else {
                 let runtimeInputs = try withSubPhaseTiming("runtimeObjects", timer: ctx.phaseTimer) {
-                    try CodegenRuntimeSupport.runtimeLinkInputs(
-                        target: ctx.options.target,
-                        configuration: .release
-                    )
+                    try RuntimeLinkInputPrefetch.shared.take(target: ctx.options.target, configuration: .release)
+                        ?? CodegenRuntimeSupport.runtimeLinkInputs(
+                            target: ctx.options.target,
+                            configuration: .release
+                        )
                 }
                 runtimeObjects = runtimeInputs.objects
                 linkerCacheDirectory = runtimeInputs.linkerCacheDirectory

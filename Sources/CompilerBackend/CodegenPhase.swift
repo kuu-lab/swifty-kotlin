@@ -187,6 +187,16 @@ public final class CodegenPhase: CompilerPhase {
         try fm.createDirectory(atPath: inlineDir, withIntermediateDirectories: true)
 
         let objectPath = objectsDir + "/\(ctx.options.moduleName)_0.o"
+        // KUU-2814: `-Xfrontend stdlib-bitcode` also ships the optimized LLVM
+        // module as bitcode (~2x the object size) for LTO experiments. Opt-in
+        // because no consumer reads it: measured on hello.kt, importing the
+        // needed stdlib bitcode and re-running codegen costs ~6s versus 0.42s
+        // for the current prebuilt-object link.
+        let bitcodeRelativePath = "bitcode/\(ctx.options.moduleName)_0.bc"
+        let bitcodePath: String? = (ctx.options.stdlibOnly && ctx.options.frontendFlags.contains("stdlib-bitcode")) ? outputDir + "/" + bitcodeRelativePath : nil
+        if bitcodePath != nil {
+            try fm.createDirectory(atPath: outputDir + "/bitcode", withIntermediateDirectories: true)
+        }
         // Bundled stdlib functions appear in every source-backed compilation unit. Use
         // linkonce_odr there so the linker can deduplicate them. A stdlib artifact is the
         // provider of those symbols, however; keeping its definitions externally visible
@@ -212,7 +222,8 @@ public final class CodegenPhase: CompilerPhase {
             fileFacadeNamesByFileID: fileFacadeNamesByFileID,
             reflectionMetadataRecords: reflectionMetadataRecords,
             reflectionMetadataSymbolPrefix: reflectionMetadataSymbolPrefix,
-            linkOnceODRSymbols: ctx.options.stdlibOnly ? [] : bundledSymbolIDs
+            linkOnceODRSymbols: ctx.options.stdlibOnly ? [] : bundledSymbolIDs,
+            bitcodeOutputPath: bitcodePath
         )
         ctx.storeGeneratedObjectPath(objectPath)
 
@@ -241,6 +252,9 @@ public final class CodegenPhase: CompilerPhase {
         ]
         if ctx.options.stdlibOnly {
             manifestDict["libraryKind"] = "stdlib"
+            if bitcodePath != nil {
+                manifestDict["bitcode"] = [bitcodeRelativePath]
+            }
             manifestDict["stdlibManifestHash"] = BundledStdlib.manifestHash()
             manifestDict["bundledMemberIndex"] = "bundled-members.bin"
             manifestDict["precomputedSyntheticStubs"] = true

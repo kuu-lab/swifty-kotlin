@@ -19,7 +19,10 @@ final class CLICompilerService: @unchecked Sendable {
     private init() {
         KklibBatchSession.isEnabled = true
         let phaseBox = CLIBackendPhaseBox(makeBackendPhases(keepLLVMContextAlive: true))
-        driver = CompilerDriver(backendPhases: { phaseBox.phases })
+        driver = CompilerDriver(
+            backendPhases: { phaseBox.phases },
+            backendPrefetch: { prefetchBackendLinkInputs(for: $0) }
+        )
     }
 
     func run(args: [String]) -> Int32 {
