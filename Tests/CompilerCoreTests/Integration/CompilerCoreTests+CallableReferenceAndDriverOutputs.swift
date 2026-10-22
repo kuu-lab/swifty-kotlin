@@ -310,6 +310,19 @@ extension CompilerCoreTests {
         #expect(sema.bindings.callableTargets[callableRefExprID] == .symbol(intOverloadSymbol))
     }
 
+    @Test func testParenthesizedUnboundMemberReferenceImmediateCallHasNoDiagnostics() throws {
+        let source = """
+        class D { fun f() = 3 }
+        class E { fun g(x: Int) = x + 3 }
+        fun use(): Int = (D::f)(D()) + (E::g)(E(), 1)
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0003", in: ctx)
+    }
+
     @Test func testDirectCallableReferenceCallPropagatesSymbolTargetBinding() throws {
         let source = """
         fun target(x: String): String = x
