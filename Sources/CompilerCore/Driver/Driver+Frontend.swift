@@ -43,7 +43,7 @@ public extension CompilerDriver {
             options: options,
             sourceManager: SourceManager(),
             diagnostics: DiagnosticEngine(),
-            interner: StringInterner()
+            interner: KklibSemaSession.makeInterner(options: options) ?? StringInterner()
         )
 
         for (path, data) in inMemorySources {

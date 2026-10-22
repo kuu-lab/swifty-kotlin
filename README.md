@@ -28,7 +28,10 @@ swift build
 [`docs/incremental-compilation.md`](docs/incremental-compilation.md) を参照してください。
 
 開発中に常駐コンパイルプロセスを利用するには、別のターミナルで daemon を起動してから
-`--watch` で入力ファイルを監視します。daemon はデコード済み kklib index と LLVM context を保持します。
+`--watch` で入力ファイルを監視します。daemon はデコード済み kklib index、import 済み bundled stdlib の
+`SymbolTable` / `TypeSystem` snapshot、LLVM context を保持します。snapshot は各要求で copy-on-write 分岐し、
+ユーザー宣言は要求間で共有しません。初回 import 後に stdlib metadata を materialize して再利用可能な状態を作ります。
+この Sema snapshot の対象は bundled stdlib artifact のみで、追加の `-I` library がある場合は通常の import 経路を使います。
 
 ```bash
 # Terminal 1

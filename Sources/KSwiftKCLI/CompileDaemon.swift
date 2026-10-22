@@ -1,4 +1,5 @@
 import Foundation
+import CompilerCore
 
 #if canImport(Darwin)
 import Darwin
@@ -181,6 +182,9 @@ final class CompileDaemonServer: @unchecked Sendable {
         handler: ((CompileDaemonRequest) -> CompileDaemonResponse?)? = nil
     ) {
         self.socketPath = socketPath ?? CompileDaemonSocket.defaultPath
+        if handler == nil {
+            KklibSemaSession.isEnabled = true
+        }
         self.handler = handler ?? { CompileDaemonServer.compile($0) }
     }
 

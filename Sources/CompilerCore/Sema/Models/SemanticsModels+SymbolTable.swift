@@ -89,6 +89,9 @@ protocol IndexedLibraryEntryProvider: AnyObject {
     func drainChildren(parentFQName: [InternedString], into symbols: SymbolTable)
     /// Register every pending declaration-kind entry with this simple name.
     func drainEntries(shortName: InternedString, into symbols: SymbolTable)
+    /// Register every entry from the index. Persistent Sema snapshots use this
+    /// once before detaching the request-local provider.
+    func drainAllEntries(into symbols: SymbolTable)
     /// Whether the index contains declarations nested under `fqName` — the
     /// signal that justifies synthesizing a package shell for that path.
     func containsEntriesNested(under fqName: [InternedString]) -> Bool
@@ -416,6 +419,35 @@ public final class SymbolTable {
         lock.lock()
         defer { lock.unlock() }
         indexedLibraryProviders.append(provider)
+    }
+
+    func drainAllIndexedLibraryEntries() {
+        lock.lock()
+        defer { lock.unlock() }
+        for provider in indexedLibraryProviders where provider.importOrder <= importDrainEpoch {
+            provider.drainAllEntries(into: self)
+        }
+    }
+
+    /// Removes callbacks and index providers after all imported records have
+    /// been applied, leaving a stable table that can be copied between daemon
+    /// requests.
+    func sealImportedStateForPersistentSession() {
+        lock.lock()
+        defer { lock.unlock() }
+        lazyImportedMetadataLoader = nil
+        importedLayoutSynthesizer = nil
+        importedLayoutSynthesisInProgress = false
+        indexedLibraryProviders.removeAll(keepingCapacity: false)
+        indexedImportedNominals.removeAll(keepingCapacity: false)
+        lazyImportedShells.removeAll(keepingCapacity: false)
+        lazyImportedMetadataLoadInProgress.removeAll(keepingCapacity: false)
+        pendingShellWorkBeforeMaterialization.removeAll(keepingCapacity: false)
+        pendingShellWorkAfterMaterialization.removeAll(keepingCapacity: false)
+        fqNameDrainInProgress.removeAll(keepingCapacity: false)
+        childrenDrainInProgress.removeAll(keepingCapacity: false)
+        shortNameDrainInProgress.removeAll(keepingCapacity: false)
+        importDrainEpoch = .max
     }
 
     /// Registration-time mark for nominal shells drained after the lazy

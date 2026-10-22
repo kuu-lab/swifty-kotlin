@@ -4,7 +4,7 @@ import Foundation
 
 /// `kswiftc --batch <manifest>`: compiles many cases in one process so the
 /// fixed `.kklib` import cost (process start, stdlib artifact resolution,
-/// compact-index decode) is paid once instead of per case.
+/// compact-index decode, and imported Sema state) is paid once instead of per case.
 ///
 /// Manifest: one case per line, tab-separated —
 /// `<stdout-file>\t<stderr-file>\t<exit-code-file>\t<kswiftc arg>...`.
@@ -18,6 +18,7 @@ enum BatchMode {
             return 1
         }
         KklibBatchSession.isEnabled = true
+        KklibSemaSession.isEnabled = true
         let savedOut = dup(STDOUT_FILENO)
         let savedErr = dup(STDERR_FILENO)
         defer {
