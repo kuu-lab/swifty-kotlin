@@ -361,7 +361,7 @@ extension ExprTypeChecker {
                 },
                 classDecl.primaryConstructorParams.filter(\.isProperty)
             )),
-            ctx: ctx
+            ctx: classCtx
         )
         for propertySymbol in propertySymbolsByDecl.values {
             classScope.insert(propertySymbol)
