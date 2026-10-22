@@ -937,7 +937,7 @@ extension CallTypeChecker {
         return finalType
     }
 
-    private func bindMutableCollectionSourceExtension(
+    func bindMutableCollectionSourceExtension(
         exprID: ExprID,
         memberName: InternedString,
         receiverID: ExprID,
@@ -997,12 +997,6 @@ extension CallTypeChecker {
             return nil
         }
         let isMutableListReceiver = receiverFQName == knownNames.kotlinCollectionsMutableListFQName
-        // JVM bulk overloads are Kotlin extensions for every mutable receiver;
-        // the native List/Set shortcuts must not hide those declarations.
-        guard sema.requiresResolvedLibraryCalls || !isMutableListReceiver || memberName == knownNames.addAll else {
-            return nil
-        }
-        guard sema.requiresResolvedLibraryCalls || !isMutableSetReceiver || memberName == knownNames.addAll else { return nil }
         if isMutableSetReceiver || sema.requiresResolvedLibraryCalls, !safeCall, sema.types.nullability(of: receiverType) == .nullable {
             sema.diagnostics.error(
                 "KSWIFTK-SEMA-0026",
@@ -1064,6 +1058,23 @@ extension CallTypeChecker {
             parameterID = nil
         }
         guard let parameterID else {
+            return nil
+        }
+        // The native List/Set collection bridge expects a Collection. Keep the
+        // source Iterable overload for non-Collection iterables so ranges are
+        // materialized before reaching that bridge.
+        guard sema.requiresResolvedLibraryCalls
+                || !isMutableListReceiver
+                || memberName == knownNames.addAll
+                || parameterID == knownNames.iterable
+        else {
+            return nil
+        }
+        guard sema.requiresResolvedLibraryCalls
+                || !isMutableSetReceiver
+                || memberName == knownNames.addAll
+                || parameterID == knownNames.iterable
+        else {
             return nil
         }
         guard sema.requiresResolvedLibraryCalls || !isMutableSetReceiver || parameterID != knownNames.array else { return nil }
