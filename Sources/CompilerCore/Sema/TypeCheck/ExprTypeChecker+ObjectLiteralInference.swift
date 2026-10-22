@@ -935,7 +935,12 @@ extension ExprTypeChecker {
                         in: initializer,
                         ast: ast,
                         sema: sema,
-                        outerSymbols: captureOuterSymbols
+                        outerSymbols: captureOuterSymbols,
+                        // These roots lower inside `<init>`, so an outer local
+                        // referenced only from a nested lambda/init-block body
+                        // still needs a capture field for the lambda to load
+                        // (KUU-2944: `{ x + y }` on `val x by Delegate()`).
+                        skipNestedClosures: false
                     ))
                 }
             }
@@ -945,7 +950,8 @@ extension ExprTypeChecker {
                 inBody: body,
                 ast: ast,
                 sema: sema,
-                outerSymbols: captureOuterSymbols
+                outerSymbols: captureOuterSymbols,
+                skipNestedClosures: false
             ))
         }
         for exprID in extraExprRoots {
