@@ -524,7 +524,7 @@ struct NativeEmitter {
         }
     }
 
-    func emitObject(outputPath: String) throws {
+    func emitObject(outputPath: String, bitcodeOutputPath: String? = nil) throws {
         let built = try withSubPhaseTiming("emit", timer: phaseTimer) {
             try buildModule()
         }
@@ -550,6 +550,16 @@ struct NativeEmitter {
             try withSubPhaseTiming("opt", timer: phaseTimer) {
                 if let error = bindings.optimizeModule(built.module, targetMachine: targetMachine, optLevel: optLevel) {
                     throw LLVMBackendError.nativeEmissionFailed(error)
+                }
+            }
+            if let bitcodeOutputPath {
+                // Post-optimization, pre-codegen module: what a thin-LTO
+                // consumer would merge. Written before object emission so the
+                // two artifacts describe the same IR.
+                try withSubPhaseTiming("writeBitcode", timer: phaseTimer) {
+                    if let errorMessage = bindings.writeBitcode(built.module, to: bitcodeOutputPath) {
+                        throw LLVMBackendError.nativeEmissionFailed(errorMessage)
+                    }
                 }
             }
             try withSubPhaseTiming("write", timer: phaseTimer) {

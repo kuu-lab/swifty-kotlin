@@ -329,7 +329,7 @@ extension ParsePhase {
                     break
                 }
                 ctx.diagnostics.error(
-                    "KSWIFTK-PARSE-0023",
+                    "KSWIFTK-PARSE-0025",
                     "Expecting a top level declaration; top-level statements are only allowed in '.kts' script files.",
                     range: arena.node(nodeID).range
                 )

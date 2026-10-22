@@ -194,6 +194,7 @@ extension LLVMCAPIBindings {
                 moduleCreateFn: moduleCreate,
                 disposeModuleFn: disposeModule,
                 linkModules2Fn: loadSymbol(handle: handle, name: "LLVMLinkModules2", as: LLVMLinkModules2Fn.self),
+                writeBitcodeToFileFn: loadSymbol(handle: handle, name: "LLVMWriteBitcodeToFile", as: LLVMWriteBitcodeToFileFn.self),
                 printModuleToStringFn: printModule,
                 disposeMessageFn: disposeMessage,
                 setTargetFn: setTarget,

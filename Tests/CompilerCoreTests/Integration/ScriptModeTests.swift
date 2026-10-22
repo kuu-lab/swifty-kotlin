@@ -35,7 +35,7 @@ struct ScriptModeTests {
         println(i)
         """
         let diagnostics = try compileDiagnostics(source, fileExtension: "kt")
-        let rejected = diagnostics.filter { $0.code == "KSWIFTK-PARSE-0023" }
+        let rejected = diagnostics.filter { $0.code == "KSWIFTK-PARSE-0025" }
         #expect(rejected.count == 2, "while and println are statements, the val/var are declarations: \(diagnostics)")
         #expect(rejected.allSatisfy { $0.severity == .error })
     }
@@ -49,7 +49,7 @@ struct ScriptModeTests {
         println(i)
         """
         let diagnostics = try compileDiagnostics(source, fileExtension: "kts")
-        #expect(!diagnostics.contains { $0.code == "KSWIFTK-PARSE-0023" })
+        #expect(!diagnostics.contains { $0.code == "KSWIFTK-PARSE-0025" })
         #expect(!diagnostics.contains { $0.severity == .error }, "\(diagnostics)")
     }
 
@@ -61,7 +61,7 @@ struct ScriptModeTests {
         }
         """
         let diagnostics = try compileDiagnostics(source, fileExtension: "kt")
-        #expect(!diagnostics.contains { $0.code == "KSWIFTK-PARSE-0023" })
+        #expect(!diagnostics.contains { $0.code == "KSWIFTK-PARSE-0025" })
     }
 
     @Test func testScriptTopLevelStatementsCompileToKIR() throws {
