@@ -207,5 +207,60 @@ struct IntegerLiteralRangeTests {
         #expect(errors.contains { $0.code == "KSWIFTK-TYPE-0001" },
                 "Expected non-constant Int expression to be rejected with KSWIFTK-TYPE-0001")
     }
+
+    @Test
+    func intConstantExpressionsWidenToLongArgumentsAndInitializers() throws {
+        let source = """
+        class Box(val a: Long)
+        fun take(x: Long) = x
+        fun probe(n: Int) {
+            Box(1 shl 31)
+            take(1 shl 16)
+            take(2 * 3 + 1)
+            take(-(1 shl 3))
+            take(-(1 shl 31))
+            take(7 and 3 xor 1)
+            val x: Long = 1 shl 31
+        }
+        """
+        let (ctx, ast, fileID) = try buildFrontend(source)
+        try SemaPhase().run(ctx)
+        let sema = try #require(ctx.sema)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Int literal-only constant expressions must coerce to Long: \(errors)")
+
+        // kotlinc evaluates the expression with Int semantics, then widens it.
+        let expected: [Int64] = [-2147483648, 65536, 7, -8, -2147483648, 2, -2147483648]
+        let widened = ast.arena.exprs.enumerated().compactMap { (index, expr) -> Int64? in
+            let exprID = ExprID(rawValue: Int32(index))
+            switch expr {
+            case .binary, .memberCall, .unaryExpr:
+                guard ast.arena.exprRange(exprID)?.start.file == fileID,
+                      sema.bindings.exprType(for: exprID) == sema.types.longType,
+                      case let .longLiteral(value)? = sema.bindings.constExprValue(for: exprID)
+                else { return nil }
+                return value
+            default:
+                return nil
+            }
+        }
+        #expect(widened.sorted() == expected.sorted(), "Widened constant values: \(widened)")
+    }
+
+    @Test
+    func nonLiteralIntConstantExpressionStillRejectedForLongArgument() throws {
+        let source = """
+        fun take(x: Long) = x
+        fun probe(n: Int) {
+            take(n shl 2)
+            take(Int.MAX_VALUE + 1)
+        }
+        """
+        let (ctx, _, _) = try buildFrontend(source)
+        try SemaPhase().run(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.contains { $0.code == "KSWIFTK-SEMA-0002" },
+                "Non-literal Int expressions must not be widened to Long: \(errors)")
+    }
 }
 #endif

@@ -1,3 +1,4 @@
+// DIFF_JVM
 const val LF: Byte = 10
 
 fun classify(b: Byte, n: Int): Int {

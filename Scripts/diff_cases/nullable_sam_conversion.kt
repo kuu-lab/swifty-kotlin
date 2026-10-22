@@ -1,3 +1,4 @@
+// DIFF_JVM
 // WITH_STDLIB
 
 fun interface KRunnable {

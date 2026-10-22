@@ -6,13 +6,71 @@ import Testing
 @Suite
 struct ScriptModeTests {
 
+    /// KUU-2786: kotlinc rejects top-level statements in a regular `.kt`
+    /// ("expecting a top level declaration"); only `.kts` sources are scripts.
+    private func compileDiagnostics(_ source: String, fileExtension: String) throws -> [Diagnostic] {
+        var diagnostics: [Diagnostic] = []
+        try withTemporaryFile(contents: source, fileExtension: fileExtension) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let options = makeTestOptions(
+                moduleName: "TopLevelStatementKind",
+                inputs: [path],
+                outputPath: outputBase,
+                emit: .kirDump
+            )
+            diagnostics = makeTestDriver().runForTesting(options: options).diagnostics
+            try? FileManager.default.removeItem(atPath: outputBase + ".kir")
+        }
+        return diagnostics
+    }
+
+    @Test func testTopLevelStatementsAreRejectedInKtFile() throws {
+        let source = """
+        val results = mutableListOf<() -> Int>()
+        var i = 0
+        while (i < 10) {
+            i++
+        }
+        println(i)
+        """
+        let diagnostics = try compileDiagnostics(source, fileExtension: "kt")
+        let rejected = diagnostics.filter { $0.code == "KSWIFTK-PARSE-0025" }
+        #expect(rejected.count == 2, "while and println are statements, the val/var are declarations: \(diagnostics)")
+        #expect(rejected.allSatisfy { $0.severity == .error })
+    }
+
+    @Test func testTopLevelStatementsAreAcceptedInKtsFile() throws {
+        let source = """
+        var i = 0
+        while (i < 3) {
+            i++
+        }
+        println(i)
+        """
+        let diagnostics = try compileDiagnostics(source, fileExtension: "kts")
+        #expect(!diagnostics.contains { $0.code == "KSWIFTK-PARSE-0025" })
+        #expect(!diagnostics.contains { $0.severity == .error }, "\(diagnostics)")
+    }
+
+    @Test func testDeclarationsOnlyKtFileIsNotReportedAsScript() throws {
+        let source = """
+        val answer = 42
+        fun main() {
+            println(answer)
+        }
+        """
+        let diagnostics = try compileDiagnostics(source, fileExtension: "kt")
+        #expect(!diagnostics.contains { $0.code == "KSWIFTK-PARSE-0025" })
+    }
+
     @Test func testScriptTopLevelStatementsCompileToKIR() throws {
         let source = """
         println("hello from script")
         val x = 1 + 2
         println(x)
         """
-        try assertKotlinCompilesToKIR(source, moduleName: "ScriptTopLevelStmts")
+        try assertKotlinCompilesToKIR(source, moduleName: "ScriptTopLevelStmts", fileExtension: "kts")
     }
 
     @Test func testScriptFrontendPipeline() throws {
@@ -37,7 +95,7 @@ struct ScriptModeTests {
         a * b
         """
 
-        try withTemporaryFiles(contents: [regular, script]) { paths in
+        try withTemporaryFiles(contents: [regular, script], fileExtension: "kts") { paths in
             let ctx = makeCompilationContext(inputs: paths)
             try runFrontend(ctx)
 
@@ -94,7 +152,7 @@ struct ScriptModeTests {
             println(double(21))
         }
         """
-        try assertKotlinCompilesToKIR(source, moduleName: "ScriptHelperFun")
+        try assertKotlinCompilesToKIR(source, moduleName: "ScriptHelperFun", fileExtension: "kts")
     }
 
     @Test func testParserRootKindIsScriptForExpressionStatements() throws {
@@ -123,7 +181,7 @@ struct ScriptModeTests {
         val b = 7
         a * b
         """
-        try assertKotlinCompilesToKIR(source, moduleName: "ScriptArithLastExpr")
+        try assertKotlinCompilesToKIR(source, moduleName: "ScriptArithLastExpr", fileExtension: "kts")
     }
 
     @Test func testScriptStringConcatenationCompilesToKIR() throws {
@@ -132,7 +190,7 @@ struct ScriptModeTests {
         val greeting = "hi"
         println(greeting + "!")
         """
-        try assertKotlinCompilesToKIR(source, moduleName: "ScriptStringConcat")
+        try assertKotlinCompilesToKIR(source, moduleName: "ScriptStringConcat", fileExtension: "kts")
     }
 
     @Test func testScriptMixedValAndExpressionStatementsCompileToKIR() throws {
@@ -144,7 +202,7 @@ struct ScriptModeTests {
         val z = x + y
         z
         """
-        try assertKotlinCompilesToKIR(source, moduleName: "ScriptMixedValsAndExprs")
+        try assertKotlinCompilesToKIR(source, moduleName: "ScriptMixedValsAndExprs", fileExtension: "kts")
     }
 
 
@@ -179,7 +237,7 @@ struct ScriptModeTests {
         println(greet("World"))
         println(add(5, 3))
         """
-        try assertKotlinCompilesToKIR(source, moduleName: "ScriptTopLevelFunAlongsideStatement")
+        try assertKotlinCompilesToKIR(source, moduleName: "ScriptTopLevelFunAlongsideStatement", fileExtension: "kts")
     }
 
     @Test func testScriptRecursiveTopLevelFunctionCompilesToKIR() throws {
@@ -189,7 +247,7 @@ struct ScriptModeTests {
         println(factorial(5))
         println(factorial(6))
         """
-        try assertKotlinCompilesToKIR(source, moduleName: "ScriptRecursiveTopLevelFun")
+        try assertKotlinCompilesToKIR(source, moduleName: "ScriptRecursiveTopLevelFun", fileExtension: "kts")
     }
 
     @Test func testScriptTopLevelDataClassAndExtensionFunctionsCompileToKIR() throws {
@@ -208,7 +266,7 @@ struct ScriptModeTests {
         println("'" + text + "' is palindrome: " + text.isPalindrome())
         println(person.name + " is adult: " + person.isAdult())
         """
-        try assertKotlinCompilesToKIR(source, moduleName: "ScriptTopLevelDataClassAndExtension")
+        try assertKotlinCompilesToKIR(source, moduleName: "ScriptTopLevelDataClassAndExtension", fileExtension: "kts")
     }
 
     @Test func testScriptTopLevelGenericExtensionAndVarargFunctionsCompileToKIR() throws {
@@ -231,7 +289,7 @@ struct ScriptModeTests {
         println(calculate(10))
         println(calculate(10, 3))
         """
-        try assertKotlinCompilesToKIR(source, moduleName: "ScriptTopLevelGenericExtensionAndVararg")
+        try assertKotlinCompilesToKIR(source, moduleName: "ScriptTopLevelGenericExtensionAndVararg", fileExtension: "kts")
     }
 
 

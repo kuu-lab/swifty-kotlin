@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // removePrefix basic cases
     println("hello".removePrefix("he"))

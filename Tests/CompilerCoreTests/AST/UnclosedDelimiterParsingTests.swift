@@ -31,7 +31,7 @@ struct UnclosedDelimiterParsingTests {
     func reportsUnclosedBlockAtEndOfFile(_ source: String) throws {
         let (_, context) = try buildASTModule(from: source, includeStdlib: false)
         #expect(context.diagnostics.diagnostics.contains {
-            $0.code == "KSWIFTK-PARSE-0025" && $0.severity == .error
+            $0.code == "KSWIFTK-PARSE-0026" && $0.severity == .error
         })
     }
 
@@ -46,7 +46,7 @@ struct UnclosedDelimiterParsingTests {
     func acceptsBalancedDelimiters(_ source: String) throws {
         let (_, context) = try buildASTModule(from: source, includeStdlib: false)
         #expect(!context.diagnostics.diagnostics.contains {
-            $0.code == "KSWIFTK-PARSE-0015" || $0.code == "KSWIFTK-PARSE-0025"
+            $0.code == "KSWIFTK-PARSE-0015" || $0.code == "KSWIFTK-PARSE-0026"
         })
     }
 }

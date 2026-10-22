@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // KUU-1065: explicit capacity and ensureCapacity must reserve real storage.
     println(StringBuilder(100).capacity())

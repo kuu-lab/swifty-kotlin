@@ -1,3 +1,4 @@
+// DIFF_JVM
 const val MAX = 100
 const val GREETING = "hello"
 const val NEG = -42

@@ -142,6 +142,15 @@ run_case() {
     is_script=1
   fi
 
+  # Top-level statements are only a valid compilation unit in `.kts` sources
+  # (kswiftc rejects them in `.kt`, like kotlinc), so script cases hand the
+  # candidate a `.kts` copy as well.
+  local cand_src="$kt_file"
+  if [[ $is_script -eq 1 ]]; then
+    cand_src="$tmp_dir/${basename%.kt}.kts"
+    cp "$kt_file" "$cand_src"
+  fi
+
   local has_expected_script_exit=0
   local expected_script_exit_directive=""
   local expected_ref_script_exit=""
@@ -172,8 +181,7 @@ run_case() {
   if [[ "$candidate_only" -eq 1 ]]; then
     : # The expected output is the reference; no JVM compiler or runtime is used.
   elif [[ $is_script -eq 1 ]]; then
-    local kts_tmp="$tmp_dir/${basename%.kt}.kts"
-    cp "$kt_file" "$kts_tmp"
+    local kts_tmp="$cand_src"
     # kotlinc -script bundles compile+run into a single JVM process, so there
     # is no independently observable compile-phase exit to split out here —
     # ref_compile_exit stays 0 and the whole outcome (success, a compile
@@ -260,7 +268,7 @@ run_case() {
   case "$DIFF_BACKEND" in
     jvm)
       local cand_jar="$tmp_dir/candidate.jar"
-      "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --emit jar --classpath "$JVM_STDLIB_JAR" "${KSWIFTC_ARGS[@]}" "$kt_file" -o "$cand_jar" >"$cand_compile_stdout" 2>"$cand_compile_stderr" || cand_compile_exit=$?
+      "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --emit jar --classpath "$JVM_STDLIB_JAR" "${KSWIFTC_ARGS[@]}" "$cand_src" -o "$cand_jar" >"$cand_compile_stdout" 2>"$cand_compile_stderr" || cand_compile_exit=$?
       if [[ $cand_compile_exit -eq 0 ]]; then
         local cand_main_class
         cand_main_class="$(jar_main_class "$cand_jar")"
@@ -278,7 +286,7 @@ run_case() {
       ;;
     wasm)
       local cand_wasm="$tmp_dir/candidate.wasm"
-      "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --target "$DIFF_WASM_TARGET" "${KSWIFTC_ARGS[@]}" "$kt_file" -o "$cand_wasm" >"$cand_compile_stdout" 2>"$cand_compile_stderr" || cand_compile_exit=$?
+      "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --target "$DIFF_WASM_TARGET" "${KSWIFTC_ARGS[@]}" "$cand_src" -o "$cand_wasm" >"$cand_compile_stdout" 2>"$cand_compile_stderr" || cand_compile_exit=$?
       if [[ $cand_compile_exit -eq 0 ]]; then
         if needs_stdin_eof "$kt_file"; then
           "$TIMEOUT_CMD" "$RUN_TIMEOUT" "${WASM_RUN_CMD[@]}" "$cand_wasm" < /dev/null >"$cand_run_stdout" 2>"$cand_run_stderr" || cand_run_exit=$?
@@ -288,7 +296,7 @@ run_case() {
       fi
       ;;
     *)
-      "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --no-stdlib --stdlib-library "$STDLIB_ARTIFACT" "${KSWIFTC_ARGS[@]}" "$kt_file" -o "$cand_bin" >"$cand_compile_stdout" 2>"$cand_compile_stderr" || cand_compile_exit=$?
+      "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --no-stdlib --stdlib-library "$STDLIB_ARTIFACT" "${KSWIFTC_ARGS[@]}" "$cand_src" -o "$cand_bin" >"$cand_compile_stdout" 2>"$cand_compile_stderr" || cand_compile_exit=$?
       if [[ $cand_compile_exit -eq 0 ]]; then
         if needs_stdin_eof "$kt_file"; then
           "${candidate_assert_env[@]}" "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$cand_bin" < /dev/null >"$cand_run_stdout" 2>"$cand_run_stderr" || cand_run_exit=$?

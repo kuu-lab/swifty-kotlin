@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Regression for BUG-171: bare (implicit-receiver) member calls inside
 // String extension functions must resolve the same as explicit `this.` calls.
 

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun computeValue(flag: Boolean): Int {
     return if (flag) 42 else 0
 }

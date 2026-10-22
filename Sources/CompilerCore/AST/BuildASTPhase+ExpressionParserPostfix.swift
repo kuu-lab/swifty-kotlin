@@ -82,7 +82,7 @@ extension BuildASTPhase.ExpressionParser {
                     if matches(.symbol(.lParen)) {
                         guard let open = consume() else { break }
                         var args = parseCallArguments(implicitLambdaLabel: calleeNameForImplicitLabel(expr))
-                        let close = consumeCallClose(after: open)
+                        let close = consumeCallArgumentsClose(open: open)
                         var callEndRange = close?.range ?? open.range
                         if let trailingLambda = parseTrailingLambda(implicitLabel: calleeNameForImplicitLabel(expr)) {
                             args.append(CallArgument(isTrailingLambda: true, expr: trailingLambda))
@@ -114,7 +114,7 @@ extension BuildASTPhase.ExpressionParser {
             if matches(.symbol(.lParen)) {
                 guard let open = consume() else { break }
                 var args = parseCallArguments(implicitLambdaLabel: calleeNameForImplicitLabel(expr))
-                let close = consumeCallClose(after: open)
+                let close = consumeCallArgumentsClose(open: open)
                 var callEndRange = close?.range ?? open.range
                 if let trailingLambda = parseTrailingLambda(implicitLabel: calleeNameForImplicitLabel(expr)) {
                     args.append(CallArgument(isTrailingLambda: true, expr: trailingLambda))
@@ -196,7 +196,7 @@ extension BuildASTPhase.ExpressionParser {
                 var callEndRange = calleeClose.range
                 if matches(.symbol(.lParen)), let open = consume() {
                     args.append(contentsOf: parseCallArguments(implicitLambdaLabel: calleeNameForImplicitLabel(callee)))
-                    let close = consumeCallClose(after: open)
+                    let close = consumeCallArgumentsClose(open: open)
                     callEndRange = close?.range ?? open.range
                     if let trailingLambda = parseTrailingLambda(implicitLabel: calleeNameForImplicitLabel(callee)) {
                         args.append(CallArgument(isTrailingLambda: true, expr: trailingLambda))
@@ -252,7 +252,7 @@ extension BuildASTPhase.ExpressionParser {
             {
                 hasExplicitCall = true
                 args = parseCallArguments(implicitLambdaLabel: memberName)
-                let close = consumeCallClose(after: open)
+                let close = consumeCallArgumentsClose(open: open)
                 memberEndRange = close?.range ?? open.range
             }
             if let trailingLambda = parseTrailingLambda(implicitLabel: memberName) {
@@ -311,26 +311,6 @@ extension BuildASTPhase.ExpressionParser {
         return astArena.appendExpr(.indexedAccess(receiver: receiver, indices: indices, range: range))
     }
 
-    /// Consumes the `)` that closes a call's argument list. When the token
-    /// stream ends first (the enclosing statement, lambda or block was cut at
-    /// its `}` / EOF), the call is unterminated: report it instead of silently
-    /// completing the call. A non-`)` token that is still present was already
-    /// reported by `parseCallArguments` (KSWIFTK-PARSE-0015 / 0022).
-    func consumeCallClose(after open: Token) -> Token? {
-        if let close = consumeIf(.symbol(.rParen)) {
-            return close
-        }
-        if current() == nil {
-            let last = index > tokens.startIndex ? tokens[index - 1].range : open.range
-            diagnostics?.error(
-                "KSWIFTK-PARSE-0015",
-                "Expected ',' or ')' after call argument.",
-                range: last
-            )
-        }
-        return nil
-    }
-
     func parseCallArguments(implicitLambdaLabel: InternedString? = nil) -> [CallArgument] {
         var args: [CallArgument] = []
         if !matches(.symbol(.rParen)) {
@@ -368,6 +348,24 @@ extension BuildASTPhase.ExpressionParser {
             }
         }
         return args
+    }
+
+    /// Consumes the `)` that closes a call's argument list. When the token
+    /// stream ends before a `)` (e.g. `{ f(g(it) }`, where the enclosing
+    /// lambda body ends first), reports the missing `)`; a stray non-`)` token
+    /// after an argument is already reported by `parseCallArguments`.
+    func consumeCallArgumentsClose(open: Token) -> Token? {
+        if let close = consumeIf(.symbol(.rParen)) {
+            return close
+        }
+        if current() == nil {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0015",
+                "Expected ',' or ')' after call argument.",
+                range: open.range
+            )
+        }
+        return nil
     }
 
     func parseCallArgument(implicitLambdaLabel: InternedString? = nil) -> CallArgument? {

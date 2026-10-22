@@ -1,3 +1,4 @@
+// DIFF_JVM
 sealed class Result {
     data class Ok(val v: Int) : Result()
     data class Err(val msg: String) : Result()

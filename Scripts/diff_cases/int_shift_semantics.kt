@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Kotlin shift operators: `Int` uses only the low 5 bits of the shift
 // distance and produces 32-bit results; `Long` uses the low 6 bits.
 // Verified against kotlinc.

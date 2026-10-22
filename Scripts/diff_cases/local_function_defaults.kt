@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     fun sumTo(n: Int, acc: Int = 0): Int = if (n == 0) acc else sumTo(n - 1, acc + n)
     println(sumTo(100))

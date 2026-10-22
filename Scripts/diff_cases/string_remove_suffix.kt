@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Basic removeSuffix
     println("hello world".removeSuffix("world"))

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
   var x = 1
   x = 2

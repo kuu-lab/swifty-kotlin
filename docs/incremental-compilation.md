@@ -241,3 +241,46 @@ nightly CI の diff 系ジョブには `--no-incremental` を渡すようにし�
 partition の extern 宣言が全関数に依存するため、キー設計を誤ると誤コンパイルになる。
 実際にスキップするには、(1) 宣言単位の Sema 結果の直列化、(2) KIR 関数の SymbolID 正規化、
 (3) 全体最適化と整合する object 単位のリンク設計が必要。
+
+### KIR 関数の正規化 fingerprint（KUU-3019、第2段階）
+
+[KIRFunctionFingerprint.swift](../Sources/CompilerCore/KIR/KIRFunctionFingerprint.swift) の
+`KIRModule.functionFingerprints(interner:symbols:types:)` が、KIR 関数ごとに採番順に依存しない
+内容 hash を返す。`SymbolID` / `TypeID` / `InternedString` / `KIRExprID` / ラベル番号は
+いずれも出現順の連番で、無関係な宣言を前に足しただけでずれるため、次の名前ベース表現に置き換える。
+
+* シンボル → 種別 + FQ 名（呼び出し可能なら消去済みシグネチャ付き。同一キーが複数あれば定義順の序数）。
+  関数自身のパラメータは位置 (`param#i`)。
+* 型 → クラスを FQ 名で呼ぶ構造的表現（captured type の `identity` は除外）。
+* 式 ID・ラベル → 本体内の初出順。
+* `references` に参照先シンボルの正規キーを収集（自身のパラメータは除く）。
+
+**この hash が保証しないこと**: 関数自身の内容のみ。キャッシュとして使うには (a) `references` 先の
+fingerprint / シグネチャ、(b) 構造体レイアウト・vtable/itable スロット・型タグ・runtime callback ABI・
+stdlib artifact などの環境入力、(c) ソース位置を生成物に埋め込むならその位置、を別途キーに含める必要がある
+（vtable/itable スロット番号は命令に含まれるためレイアウト変化は hash に現れるが、十分条件ではない）。
+スキップ経路本体（Sema 結果の直列化、object 単位のキャッシュとリンク設計、CAS のパイプライン組み込み）は未実装。
+
+### 宣言単位 Sema スナップショット（KUU-3019、第3段階・検証用）
+
+[FunctionBodySemaSnapshot.swift](../Sources/CompilerCore/Sema/Incremental/FunctionBodySemaSnapshot.swift)
+と [SemaSnapshotCodec.swift](../Sources/CompilerCore/Sema/Incremental/SemaSnapshotCodec.swift) が、
+関数 1 つの本体の型検査結果を `SymbolID` / `TypeID` / `ExprID` を一切含まない `Codable` として
+保存し、別のコンパイル（ID がずれている）へ復元する。式は宣言内の先頭式からの相対位置、
+シンボルは名前キー（`SnapshotSymbol.global`）・宣言内の定義順序（`.local`）・lambda 相対位置
+（`.lambdaParameter`）、型は構造的表現（`SnapshotType`）で表す。対象は `exprTypes` /
+`identifierSymbols` / `callBindings` のみ。**まだ型検査の代わりには使えない**:
+`BindingTable` の残り 98 プロパティは未対応で、テスト `everyBindingTablePropertyIsClassifiedAsCoveredOrPending`
+が新規プロパティの分類漏れを検出する。現状は「capture → 復元 → 別コンパイルの実際の型検査結果と比較」
+までで、表現できない参照があれば capture は nil を返し、その宣言は uncacheable として扱う。
+
+この過程で見つかった ID 依存（将来のスキップ経路が避けるべきもの）:
+
+* lambda パラメータのシンボルはシンボル表に無く、lambda の `ExprID` から
+  `-1_000_000 - expr * 256 - slot` で導出される（型検査・KIR lowering の双方）。
+* クラス型パラメータの FQ 名に `$class<SymbolID>` が埋め込まれる。KIR fingerprint /
+  スナップショットのキーでは `$` 始まり成分の末尾数字を除去して正規化する。
+
+**復元は未実装**: 現在の `restore` は復元先のコンパイルに既に存在する local シンボルへ解決するだけで、
+型検査をスキップした場合に必要な local / lambda シンボルとその付随テーブル（`propertyType`、
+`functionSignature` など）の再生成は第4段階以降。

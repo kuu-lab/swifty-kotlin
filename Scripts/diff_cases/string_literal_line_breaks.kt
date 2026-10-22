@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println("  indented\n  text")
     println("line\r\ntext")

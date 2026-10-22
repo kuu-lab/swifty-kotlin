@@ -1,3 +1,4 @@
+// DIFF_JVM
 open class Method(val value: String) {
     object Get : Method("GET")
     object Post : Method("POST")

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-206: `?:` must not evaluate its fallback when the left operand is
 // non-null. The strict lowering evaluated both sides, so a `return`/`throw`/
 // `continue` fallback always fired and side effects always ran.

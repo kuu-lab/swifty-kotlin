@@ -50,22 +50,6 @@ public interface MutableList<E> : List<E>, MutableCollection<E> {
     @IgnorableReturnValue
     public override external fun retainAll(elements: Collection<out E>): Boolean
 
-    public operator fun plusAssign(element: E) {
-        add(element)
-    }
-
-    public operator fun plusAssign(elements: Collection<out E>) {
-        addAll(elements)
-    }
-
-    public operator fun minusAssign(element: E) {
-        remove(element)
-    }
-
-    public operator fun minusAssign(elements: Collection<out E>) {
-        removeAll(elements)
-    }
-
     @KsSymbolName("__kk_mutable_list_listIterator")
     public override fun listIterator(): MutableListIterator<E>
 

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun noElseGuard(x: Int): Int {
     val result = 0
     when {

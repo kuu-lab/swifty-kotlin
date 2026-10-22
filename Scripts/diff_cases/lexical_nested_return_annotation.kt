@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1305: Resolve qualified nested return annotations in the enclosing class.
 class Ch {
     private sealed interface Slot {

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun String?.isNullOrEmptyCompat(): Boolean = this == null || this.length == 0
 fun <T> T?.isPresentCompat(): Boolean = this != null
 fun String.tagCompat(): Int = 1

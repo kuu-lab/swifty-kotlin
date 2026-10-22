@@ -609,6 +609,10 @@ public final class KotlinParser {
 }
 ```
 
+### トップレベル文とスクリプト（`.kts`）
+
+`parseFile()` はトップレベルに宣言以外の文（式文・`while` など）を見つけると、ルートを `.script` にして暗黙の `main` 本体へ束ねる。これは `kotlinc -script` と同じ `.kts` 向けの意味論であり、通常の `.kt` では不正。`ParsePhase` は `.kt`（`.kts` 以外のユーザー入力）の `.script` ルートに対し、文ごとに `KSWIFTK-PARSE-0025`（kotlinc の `expecting a top level declaration` 相当）を報告する。`fun main` の書き忘れや不完全なファイルが実行可能バイナリになることを防ぐため。`Scripts/diff_cases/script_*.kt` は diff ハーネスが `.kts` コピーを kotlinc / kswiftc の両方へ渡す。
+
 ## J5.3 TokenStream 補助
 
 ```swift
@@ -1172,7 +1176,31 @@ Foo.kklib/
   "target": "arm64-apple-macosx",
   "objects": ["objects/Foo_0.o"],
   "metadata": "metadata.bin",
-  "inlineKIRDir": "inline-kir"
+  "inlineKIRDir": "inline-kir",
+  "runtimeReflectionMetadataScope": "public"
+}
+```
+
+macOS stdlib artifacts may also carry a single relocatable object containing
+the stdlib and Runtime objects. Its optional fields identify the artifact,
+compiler, Runtime source fingerprint, and Swift link-plan fingerprint; consumers
+use it only when compiler, stdlib, target, and Swift link-plan identities match,
+the Runtime source fingerprint matches when the Runtime source tree is available,
+and the file remains inside the `.kklib` directory. Packaged compiler installs
+without that source tree still require a nonempty Runtime fingerprint in the
+manifest. Missing or stale prelinked data falls back to the ordinary `objects[]`
+and Runtime link inputs. `runtimeReflectionMetadataScope` is
+`public` or `all`; a consumer can omit reflection records already present in
+the linked stdlib object while still generating records outside that scope.
+
+```json
+{
+  "prelinkedObject": "objects/KSwiftKStdlibRuntime_prelinked.o",
+  "prelinkedObjectIncludesRuntime": true,
+  "prelinkedCompilerVersion": "0.1.0",
+  "prelinkedFormatVersion": 1,
+  "prelinkedRuntimeFingerprint": "<runtime source fingerprint>",
+  "prelinkedLinkPlanKey": "<Swift toolchain link-plan fingerprint>"
 }
 ```
 

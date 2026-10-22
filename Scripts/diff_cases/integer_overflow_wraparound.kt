@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     var imax = Int.MAX_VALUE
     var imin = Int.MIN_VALUE

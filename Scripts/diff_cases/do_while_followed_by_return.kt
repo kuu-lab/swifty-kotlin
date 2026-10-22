@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun countDown(start: Int): Int {
     var value = start
     while (value > 2)

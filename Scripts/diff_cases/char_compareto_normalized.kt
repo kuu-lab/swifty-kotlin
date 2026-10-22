@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun compareChars(lhs: Char, rhs: Char): Int = lhs.compareTo(rhs)
 
 fun <T : Comparable<T>> compareGeneric(lhs: T, rhs: T): Int = lhs.compareTo(rhs)

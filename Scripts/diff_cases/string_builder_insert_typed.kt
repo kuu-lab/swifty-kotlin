@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // insert(Int, Char)
     val sb1 = StringBuilder("hello")

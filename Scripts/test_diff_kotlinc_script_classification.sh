@@ -85,7 +85,7 @@ for arg in "$@"; do
   if [[ "$prev" == "-o" ]]; then
     out="$arg"
   fi
-  if [[ "$arg" == *.kt ]]; then
+  if [[ "$arg" == *.kt || "$arg" == *.kts ]]; then
     src="$arg"
   fi
   prev="$arg"

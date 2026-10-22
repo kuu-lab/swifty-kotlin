@@ -843,7 +843,7 @@ private enum AtomicRefWordValue {
     }
 }
 
-private func runtimeAtomicRefWordValue(_ word: Int, objectPointers: Set<UInt>) -> AtomicRefWordValue {
+private func runtimeAtomicRefWordValue(_ word: Int, objectPointers: RuntimePointerSet) -> AtomicRefWordValue {
     let isObject = objectPointers.contains(UInt(bitPattern: word))
     guard isObject, let ptr = UnsafeMutableRawPointer(bitPattern: word) else {
         return .raw(word)
@@ -882,7 +882,7 @@ private func runtimeAtomicRefIsNullWord(_ word: Int) -> Bool {
 /// primitive kind match by payload, and a bare stored word matches a box
 /// carrying the same payload. Distinct string and other object handles never
 /// match; flat String bridges preserve their canonical box identity.
-private func runtimeAtomicRefValuesMatch(_ lhs: Int, _ rhs: Int, objectPointers: Set<UInt>) -> Bool {
+private func runtimeAtomicRefValuesMatch(_ lhs: Int, _ rhs: Int, objectPointers: RuntimePointerSet) -> Bool {
     if lhs == rhs {
         return true
     }

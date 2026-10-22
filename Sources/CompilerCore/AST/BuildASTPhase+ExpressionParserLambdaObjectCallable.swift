@@ -80,9 +80,11 @@ extension BuildASTPhase.ExpressionParser {
                 superTypes.append(superType)
                 var constructorArgs: [CallArgument] = []
                 if matches(.symbol(.lParen)) {
-                    _ = consume()
+                    let open = consume()
                     constructorArgs = parseCallArguments()
-                    _ = consumeIf(.symbol(.rParen))
+                    if let open {
+                        _ = consumeCallArgumentsClose(open: open)
+                    }
                     if !constructorArgs.isEmpty {
                         superTypeConstructorArgs = constructorArgs
                     }
