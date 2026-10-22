@@ -702,6 +702,26 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
+        // The switch below implements only the built-in numeric and range
+        // operators. Restrict it to builtin arithmetic operands (numeric
+        // primitives and Char): Boolean has no `plus`/`rangeTo` member in
+        // Kotlin, and a class/String/Any operand can never promote into a
+        // numeric result. Without this gate `true + true` silently coerces
+        // true to 1. `Nothing` passes through as a subtype of every operand.
+        if [.add, .subtract, .multiply, .divide, .modulo,
+            .rangeTo, .rangeUntil, .downTo, .step].contains(op),
+           lhs != sema.types.errorType, rhs != sema.types.errorType,
+           (!(sema.types.isBuiltinArithmeticOperand(lhs) || lhs == sema.types.nothingType)
+               || !(sema.types.isBuiltinArithmeticOperand(rhs) || rhs == sema.types.nothingType))
+        {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0002",
+                "No viable overload found for operator '\(interner.resolve(operatorName))'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
         var type: TypeID
 
         let lhsIsSigned = sema.types.isSigned(lhs)

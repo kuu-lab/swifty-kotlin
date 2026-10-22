@@ -2016,6 +2016,21 @@ final class ExprTypeChecker {
             )
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
+        // unaryMinus/unaryPlus exist only on numeric primitives: Boolean and
+        // Char declare no such member in Kotlin, so `-true`/`+'a'` must not
+        // reach the builtin numeric path below.
+        if op == .unaryPlus || op == .unaryMinus,
+           case let .primitive(primitive, _) = sema.types.kind(of: operandType),
+           primitive == .boolean || primitive == .char
+        {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0002",
+                "No viable overload found for operator '\(displayOperatorName)'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
         if (!lhsIsPrimitive || sema.types.isUnsigned(operandType)),
            operandType != sema.types.anyType,
            operandType != sema.types.nullableAnyType,
