@@ -67,6 +67,27 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    @Test(arguments: [true, false])
+    func testStringVarargTrimOverloadsReturnString(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            class Q(val value: String)
+
+            fun main() {
+                val start = "0x".trimStart('0')
+                val both = "[x]".trim('[', ']')
+                val end = "x0".trimEnd('0')
+                println(Q(start).value)
+                println(Q(both).value)
+                println(Q(end).value)
+            }
+            """,
+            expectedOutput: "x\nx\nx\n",
+            moduleName: "KUU2795StringVarargTrim",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     @Test
     func testThrowableGetStackTraceAddressesUsesReceiverState() throws {
         try compileAndRunKotlin(
