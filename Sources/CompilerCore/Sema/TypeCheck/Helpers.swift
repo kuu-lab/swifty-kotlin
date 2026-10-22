@@ -563,6 +563,40 @@ struct TypeCheckHelpers {
         )))
     }
 
+    /// True when `candidate` is a function that shares an operator-convention
+    /// name (get/set/componentN/...) but lacks the `operator` modifier —
+    /// the shape kotlinc reports as "'operator' modifier is required".
+    /// Property accessors share the short names `get`/`set` and are excluded
+    /// via their property parent, matching the bundled-stdlib fallback's
+    /// accessor guard.
+    func isNonOperatorConventionFunction(_ candidate: SymbolID, sema: SemaModule) -> Bool {
+        guard let symbol = sema.symbols.symbol(candidate),
+              symbol.kind == .function,
+              !symbol.flags.contains(.operatorFunction)
+        else {
+            return false
+        }
+        if let parent = sema.symbols.parentSymbol(for: candidate),
+           sema.symbols.symbol(parent)?.kind == .property
+        {
+            return false
+        }
+        return true
+    }
+
+    /// Receiver display name for operator-convention diagnostics: the nominal
+    /// class name when resolvable, else the full type display name.
+    func conventionReceiverDisplayName(
+        _ receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> String {
+        if let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) {
+            return interner.resolve(symbol.name)
+        }
+        return sema.types.displayName(of: receiverType, symbols: sema.symbols, interner: interner)
+    }
+
     func arrayElementType(
         for arrayType: TypeID,
         sema: SemaModule,
