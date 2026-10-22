@@ -266,6 +266,12 @@ enum DiagnosticRegistry {
             summary: "Unexpected '?' after declaration name."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0020",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Expected type after ':'."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-PARSE-TYPE-DEPTH",
             pass: "PARSE",
             defaultSeverity: .error,
@@ -430,6 +436,12 @@ enum DiagnosticRegistry {
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "Worker.execute requires a non-capturing job."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0431",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "'infix' modifier is inapplicable to this function."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0042",
@@ -979,6 +991,12 @@ enum DiagnosticRegistry {
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "Declaration kind cannot be local."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0432",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Operator convention call requires the 'operator' modifier on the convention function."
         ),
     ]
 

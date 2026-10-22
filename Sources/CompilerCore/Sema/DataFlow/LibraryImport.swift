@@ -29,6 +29,13 @@ extension DataFlowSemaPhase {
         /// redundant with the validation already performed here.
         let stdlibModuleName: InternedString?
         let stdlibHasPrecomputedSyntheticStubs: Bool
+        /// Compact member keys retained independently of the request-local
+        /// on-demand index provider.
+        let stdlibMemberKeys: Set<BundledMemberKey>?
+        /// Finalized resolver maps used to rebuild a per-request inline-KIR
+        /// parse context from a persistent import snapshot.
+        let importedExternalLinkNames: [String: SymbolID]
+        let importedSymbolsByFQName: [String: SymbolID]
         /// Kotlin `.klib` modules discovered on the search path: manifest
         /// parsed and version-gated, container and decoded IR kept open for
         /// the body materialization that runs during KIR lowering.
@@ -44,6 +51,9 @@ extension DataFlowSemaPhase {
             stdlibModuleName: InternedString?,
             klibModules: [LoadedKlibModule],
             stdlibHasPrecomputedSyntheticStubs: Bool = false,
+            stdlibMemberKeys: Set<BundledMemberKey>? = nil,
+            importedExternalLinkNames: [String: SymbolID] = [:],
+            importedSymbolsByFQName: [String: SymbolID] = [:],
             loadedStdlibSemaSnapshot: Bool = false
         ) {
             self.pendingSupertypeEdges = pendingSupertypeEdges
@@ -52,6 +62,9 @@ extension DataFlowSemaPhase {
             self.stdlibModuleName = stdlibModuleName
             self.klibModules = klibModules
             self.stdlibHasPrecomputedSyntheticStubs = stdlibHasPrecomputedSyntheticStubs
+            self.stdlibMemberKeys = stdlibMemberKeys
+            self.importedExternalLinkNames = importedExternalLinkNames
+            self.importedSymbolsByFQName = importedSymbolsByFQName
             self.loadedStdlibSemaSnapshot = loadedStdlibSemaSnapshot
         }
 
@@ -103,6 +116,32 @@ extension DataFlowSemaPhase {
 
         init(importedInlineFunctions: ImportedInlineFunctionStore = ImportedInlineFunctionStore()) {
             self.importedInlineFunctions = importedInlineFunctions
+        }
+    }
+
+    struct CachedImportedLibraryBinding {
+        let record: ImportedLibrarySymbolRecord
+        let symbol: SymbolID
+        let metadataPath: String
+        let inlineKIRDir: String?
+        let isStdlibArtifact: Bool
+
+        init(_ binding: ImportedLibraryBinding) {
+            record = binding.record
+            symbol = binding.symbol
+            metadataPath = binding.metadataPath
+            inlineKIRDir = binding.inlineKIRDir
+            isStdlibArtifact = binding.isStdlibArtifact
+        }
+
+        func makeBinding() -> ImportedLibraryBinding {
+            ImportedLibraryBinding(
+                record: record,
+                symbol: symbol,
+                metadataPath: metadataPath,
+                inlineKIRDir: inlineKIRDir,
+                isStdlibArtifact: isStdlibArtifact
+            )
         }
     }
 
@@ -1419,6 +1458,9 @@ extension DataFlowSemaPhase {
             stdlibModuleName: stdlibModuleName,
             klibModules: klibModules,
             stdlibHasPrecomputedSyntheticStubs: stdlibHasPrecomputedSyntheticStubs,
+            stdlibMemberKeys: stdlibIndexSource?.memberKeys(),
+            importedExternalLinkNames: externalLinkNameToSymbol,
+            importedSymbolsByFQName: importedSymbolByFQName,
             loadedStdlibSemaSnapshot: loadedStdlibSemaSnapshot
         )
     }
@@ -2381,5 +2423,252 @@ extension DataFlowSemaPhase {
 
     func renderFQName(_ fqName: [InternedString], interner: StringInterner) -> String {
         fqName.map { interner.resolve($0) }.joined(separator: ".")
+    }
+}
+
+/// Process-local cache of imported-library baselines that have no request-local
+/// lazy providers. The CLI daemon serializes requests, so snapshots are replaced
+/// atomically and each request receives copy-on-write storage plus a private
+/// interner branch. Compact-index imports stay request-local to preserve symbol
+/// registration order; their decoded files are cached separately.
+public enum KklibSemaSession {
+    nonisolated(unsafe) public static var isEnabled = false
+    nonisolated(unsafe) private static var storedSnapshot: CachedSemaImportSnapshot?
+
+    static func shouldCache(options: CompilerOptions) -> Bool {
+        guard isEnabled, !options.emit.isJVM, !options.includeStdlib, !options.stdlibOnly,
+              let stdlibPath = options.stdlibLibraryPath
+        else { return false }
+        let normalizedStdlibPath = URL(fileURLWithPath: stdlibPath).standardizedFileURL.path
+        guard options.effectiveLibrarySearchPaths == [normalizedStdlibPath],
+              let manifest = libraryManifest(at: normalizedStdlibPath),
+              manifest.formatVersion == 2,
+              manifest.metadata == "metadata.bin"
+        else { return false }
+        return fileStamp(path: URL(fileURLWithPath: normalizedStdlibPath).appendingPathComponent("metadata.bin").path) != nil
+    }
+
+    static func cachedSnapshot(options: CompilerOptions) -> CachedSemaImportSnapshot? {
+        guard let key = cacheKey(options: options), let storedSnapshot,
+              storedSnapshot.key == key
+        else { return nil }
+        return storedSnapshot
+    }
+
+    static func makeInterner(options: CompilerOptions) -> StringInterner? {
+        cachedSnapshot(options: options)?.interner.makeSemaWorkerInterner()
+    }
+
+    static func store(
+        options: CompilerOptions,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        work: DataFlowSemaPhase.LibraryImportDeferredWork,
+        importDiagnostics: [Diagnostic]
+    ) {
+        // Compact-index providers must stay request-local: draining one into
+        // a persistent snapshot changes demand registration order and therefore
+        // symbol IDs in emitted artifacts. Their decoded index is cached separately.
+        guard let key = cacheKey(options: options), !symbols.hasLazySymbolMaterialization,
+              work.klibModules.isEmpty, let lazyState = work.lazyLoaderState,
+              let stdlibMemberKeys = work.stdlibMemberKeys
+        else { return }
+
+        let symbolSnapshot = symbols.makeSemaWorkerSymbols()
+        let typeSnapshot = types.makeSemaWorkerTypes()
+        typeSnapshot.symbolTable = symbolSnapshot
+
+        let bindings = work.importedBindings.map(DataFlowSemaPhase.CachedImportedLibraryBinding.init)
+        let inlineSymbols = Set(lazyState.pendingInlineBindings.keys)
+        let pendingInlineSymbolsByName = lazyState.pendingInlineSymbolsByName
+        let pendingLayoutRetrySymbols = lazyState.pendingLayoutRetries.map(\.symbol)
+        let preloadedPropertiesByOwner = lazyState.preloadedPropertiesByOwner.mapValues { $0.map(\.symbol) }
+
+        storedSnapshot = CachedSemaImportSnapshot(
+            key: key,
+            symbols: symbolSnapshot,
+            types: typeSnapshot,
+            interner: interner.makeSemaWorkerInterner(),
+            pendingSupertypeEdges: work.pendingSupertypeEdges,
+            bindings: bindings,
+            pendingInlineSymbols: inlineSymbols,
+            pendingInlineSymbolsByName: pendingInlineSymbolsByName,
+            pendingLayoutRetrySymbols: pendingLayoutRetrySymbols,
+            preloadedPropertiesByOwner: preloadedPropertiesByOwner,
+            importedInlineDescriptors: lazyState.importedInlineFunctions.descriptors,
+            stdlibModuleName: work.stdlibModuleName,
+            stdlibMemberKeys: stdlibMemberKeys,
+            importedExternalLinkNames: work.importedExternalLinkNames,
+            importedSymbolsByFQName: work.importedSymbolsByFQName,
+            importDiagnostics: importDiagnostics
+        )
+    }
+
+    private static func cacheKey(options: CompilerOptions) -> String? {
+        guard shouldCache(options: options), let stdlibPath = options.stdlibLibraryPath else { return nil }
+        let normalizedPath = URL(fileURLWithPath: stdlibPath).standardizedFileURL.path
+        guard libraryManifest(at: normalizedPath) != nil,
+              let manifestStamp = fileStamp(path: URL(fileURLWithPath: normalizedPath).appendingPathComponent("manifest.json").path),
+              let metadataStamp = fileStamp(path: URL(fileURLWithPath: normalizedPath).appendingPathComponent("metadata.bin").path)
+        else { return nil }
+        let target = options.target
+        return [
+            normalizedPath,
+            options.emit.rawValue,
+            target.arch,
+            target.vendor,
+            target.os,
+            target.osVersion ?? "",
+            manifestStamp,
+            metadataStamp,
+        ].joined(separator: "|")
+    }
+
+    private static func fileStamp(path: String) -> String? {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: path),
+              let modified = attributes[.modificationDate] as? Date,
+              let size = attributes[.size] as? NSNumber
+        else { return nil }
+        return "\(Int64(modified.timeIntervalSince1970 * 1_000_000_000)):\(size)"
+    }
+
+    private static func libraryManifest(at libraryPath: String) -> LibraryManifest? {
+        let path = URL(fileURLWithPath: libraryPath).appendingPathComponent("manifest.json").path
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { return nil }
+        return try? JSONDecoder().decode(LibraryManifest.self, from: data)
+    }
+
+}
+
+final class CachedSemaImportSnapshot {
+    let key: String
+    let symbols: SymbolTable
+    let types: TypeSystem
+    let interner: StringInterner
+    let pendingSupertypeEdges: [(subtype: SymbolID, superFQName: [InternedString])]
+    let bindings: [DataFlowSemaPhase.CachedImportedLibraryBinding]
+    let pendingInlineSymbols: Set<SymbolID>
+    let pendingInlineSymbolsByName: [InternedString: [SymbolID]]
+    let pendingLayoutRetrySymbols: [SymbolID]
+    let preloadedPropertiesByOwner: [SymbolID: [SymbolID]]
+    let importedInlineDescriptors: [SymbolID: ImportedInlineFunctionStore.Descriptor]
+    let stdlibModuleName: InternedString?
+    let stdlibMemberKeys: Set<BundledMemberKey>
+    let importedExternalLinkNames: [String: SymbolID]
+    let importedSymbolsByFQName: [String: SymbolID]
+    let importDiagnostics: [Diagnostic]
+
+    init(
+        key: String,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        pendingSupertypeEdges: [(subtype: SymbolID, superFQName: [InternedString])],
+        bindings: [DataFlowSemaPhase.CachedImportedLibraryBinding],
+        pendingInlineSymbols: Set<SymbolID>,
+        pendingInlineSymbolsByName: [InternedString: [SymbolID]],
+        pendingLayoutRetrySymbols: [SymbolID],
+        preloadedPropertiesByOwner: [SymbolID: [SymbolID]],
+        importedInlineDescriptors: [SymbolID: ImportedInlineFunctionStore.Descriptor],
+        stdlibModuleName: InternedString?,
+        stdlibMemberKeys: Set<BundledMemberKey>,
+        importedExternalLinkNames: [String: SymbolID],
+        importedSymbolsByFQName: [String: SymbolID],
+        importDiagnostics: [Diagnostic]
+    ) {
+        self.key = key
+        self.symbols = symbols
+        self.types = types
+        self.interner = interner
+        self.pendingSupertypeEdges = pendingSupertypeEdges
+        self.bindings = bindings
+        self.pendingInlineSymbols = pendingInlineSymbols
+        self.pendingInlineSymbolsByName = pendingInlineSymbolsByName
+        self.pendingLayoutRetrySymbols = pendingLayoutRetrySymbols
+        self.preloadedPropertiesByOwner = preloadedPropertiesByOwner
+        self.importedInlineDescriptors = importedInlineDescriptors
+        self.stdlibModuleName = stdlibModuleName
+        self.stdlibMemberKeys = stdlibMemberKeys
+        self.importedExternalLinkNames = importedExternalLinkNames
+        self.importedSymbolsByFQName = importedSymbolsByFQName
+        self.importDiagnostics = importDiagnostics
+    }
+
+    func makeSymbols() -> SymbolTable {
+        symbols.makeSemaWorkerSymbols()
+    }
+
+    func makeTypes(symbols: SymbolTable) -> TypeSystem {
+        let copy = types.makeSemaWorkerTypes()
+        copy.symbolTable = symbols
+        return copy
+    }
+
+    func makeDeferredWork(
+        phase: DataFlowSemaPhase,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner
+    ) -> (ImportedInlineFunctionStore, DataFlowSemaPhase.LibraryImportDeferredWork) {
+        let importedInlineFunctions = ImportedInlineFunctionStore()
+        for (symbol, descriptor) in importedInlineDescriptors {
+            importedInlineFunctions.register(descriptor, for: symbol)
+        }
+        let bindings = self.bindings.map { $0.makeBinding() }
+        let bindingsBySymbol = Dictionary(uniqueKeysWithValues: bindings.map { ($0.symbol, $0) })
+        let lazyState = DataFlowSemaPhase.ImportedLibraryLazyLoaderState(
+            importedInlineFunctions: importedInlineFunctions
+        )
+        lazyState.allImportedBindings = bindings
+        lazyState.indexedBindingsBySymbol = bindingsBySymbol
+        lazyState.pendingLayoutRetries = pendingLayoutRetrySymbols.compactMap { bindingsBySymbol[$0] }
+        lazyState.preloadedPropertiesByOwner = preloadedPropertiesByOwner.mapValues { symbols in
+            symbols.compactMap { bindingsBySymbol[$0] }
+        }
+        lazyState.pendingInlineSymbolsByName = pendingInlineSymbolsByName
+        for symbol in pendingInlineSymbols {
+            if let binding = bindingsBySymbol[symbol] {
+                lazyState.pendingInlineBindings[symbol] = binding
+            }
+        }
+
+        let resolver = ImportedSymbolResolver(
+            externalLinkNameToSymbol: importedExternalLinkNames,
+            importedSymbolByFQName: importedSymbolsByFQName
+        )
+        importedInlineFunctions.bindParseContext(
+            types: types,
+            interner: interner,
+            diagnostics: diagnostics,
+            resolver: resolver
+        )
+        lazyState.resolveDemandedInlineBodies = { [phase, weak symbols, weak lazyState] module in
+            guard let symbols, let lazyState else { return }
+            phase.resolveDemandedImportedInlineBodies(
+                module: module,
+                state: lazyState,
+                symbols: symbols,
+                types: types,
+                diagnostics: diagnostics,
+                interner: interner,
+                resolver: resolver
+            )
+        }
+
+        return (
+            importedInlineFunctions,
+            DataFlowSemaPhase.LibraryImportDeferredWork(
+                pendingSupertypeEdges: pendingSupertypeEdges,
+                importedBindings: bindings,
+                lazyLoaderState: lazyState,
+                stdlibModuleName: stdlibModuleName,
+                klibModules: [],
+                stdlibMemberKeys: stdlibMemberKeys,
+                importedExternalLinkNames: importedExternalLinkNames,
+                importedSymbolsByFQName: importedSymbolsByFQName
+            )
+        )
     }
 }

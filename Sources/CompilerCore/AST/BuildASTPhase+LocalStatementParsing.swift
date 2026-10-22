@@ -5,6 +5,7 @@ extension BuildASTPhase {
         interner: StringInterner,
         astArena: ASTArena
     ) -> ExprID? {
+        let statementTokens = Self.skipLeadingLocalDeclarationLabels(statementTokens)
         guard !statementTokens.isEmpty else {
             return nil
         }
@@ -65,7 +66,8 @@ extension BuildASTPhase {
                     return nil
                 }
                 return self.internedIdentifier(from: token, interner: interner)
-            }
+            },
+            diagnostics: self.diagnostics
         )
         return LocalStatementCore.parseLocalDeclaration(
             from: statementTokens,
@@ -88,7 +90,8 @@ extension BuildASTPhase {
                 ).parse()
             },
             parseTypeReference: { _ in nil },
-            resolveDeclarationName: { _, _ in nil }
+            resolveDeclarationName: { _, _ in nil },
+            diagnostics: self.diagnostics
         )
         return LocalStatementCore.parseLocalAssignment(
             from: statementTokens,

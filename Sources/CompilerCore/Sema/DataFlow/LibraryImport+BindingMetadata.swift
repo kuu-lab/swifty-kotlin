@@ -1,6 +1,70 @@
 import Foundation
 
 extension DataFlowSemaPhase {
+    func predeclareImportedPropertyAccessorShells(
+        _ binding: ImportedLibraryBinding,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> [(property: SymbolID, symbol: SymbolID, fqName: String, externalLinkName: String, isGetter: Bool)] {
+        let record = binding.record
+        let baseFQName = binding.qualifiedNameString
+            ?? record.fqName.map { interner.resolve($0) }.joined(separator: ".")
+        var accessors: [(property: SymbolID, symbol: SymbolID, fqName: String, externalLinkName: String, isGetter: Bool)] = []
+
+        func predeclare(
+            suffix: String,
+            shortName: String,
+            visibility: Visibility,
+            externalLinkName: String,
+            isGetter: Bool
+        ) {
+            let fqName = record.fqName + [interner.intern(suffix)]
+            let symbol = symbols.lookupAll(fqName: fqName)
+                .first(where: { symbols.symbol($0)?.kind == .function })
+                ?? symbols.define(
+                    kind: .function,
+                    name: interner.intern(shortName),
+                    fqName: fqName,
+                    declSite: nil,
+                    visibility: visibility,
+                    flags: [.synthetic, .importedLibrary]
+                )
+            symbols.setParentSymbol(binding.symbol, for: symbol)
+            symbols.setAccessorOwnerProperty(binding.symbol, for: symbol)
+            if isGetter {
+                symbols.setExtensionPropertyGetterAccessor(symbol, for: binding.symbol)
+            } else {
+                symbols.setExtensionPropertySetterAccessor(symbol, for: binding.symbol)
+            }
+            symbols.setExternalLinkName(externalLinkName, for: symbol)
+            if binding.isStdlibArtifact { symbols.markImportedStdlibSymbol(symbol) }
+            accessors.append((binding.symbol, symbol, "\(baseFQName).\(suffix)", externalLinkName, isGetter))
+        }
+
+        if let getterLink = record.propertyGetterExternalLinkName, !getterLink.isEmpty {
+            predeclare(
+                suffix: "$get",
+                shortName: "get",
+                visibility: record.propertyReceiverTypeSignature == nil ? record.visibility : .public,
+                externalLinkName: getterLink,
+                isGetter: true
+            )
+        }
+        if record.isMutable,
+           let setterLink = record.propertySetterExternalLinkName,
+           !setterLink.isEmpty
+        {
+            predeclare(
+                suffix: "$set",
+                shortName: "set",
+                visibility: .public,
+                externalLinkName: setterLink,
+                isGetter: false
+            )
+        }
+        return accessors
+    }
+
     /// Returns the symbols sorted by index order (T0, T1, T2, ...) matching the
     /// original generic parameter list.
     private func collectSyntheticTypeParameters(_ typeID: TypeID, types: TypeSystem) -> [SymbolID] {
@@ -216,6 +280,10 @@ extension DataFlowSemaPhase {
                 cache: cache,
                 allowPlaceholders: isStdlibArtifact,
                 phantomTypeParameterSymbols: phantomTypeParameterSymbols,
+                phantomTypeParameterSymbolCount: binding.deferredPhantomTypeParameterSymbolCount,
+                phantomTypeParameterSymbolsProvider: binding.deferredPhantomTypeParameterSymbolCount > 0
+                    ? { binding.materializeDeferredPhantomTypeParameterSymbols() }
+                    : nil,
                 isStdlibArtifact: isStdlibArtifact
             )
             let usesLegacyABI = symbols.symbol(symbol)?.flags.contains(.legacyReifiedClassTokenABI) == true
@@ -425,7 +493,7 @@ extension DataFlowSemaPhase {
             // `get` while its FQ name is `<property>.$get` (HeaderCollection).
             let getName = interner.intern("get")
             let getterFQName = record.fqName + [interner.intern("$get")]
-            let getterSymbol = symbols.define(
+            let getterSymbol = symbols.extensionPropertyGetterAccessor(for: symbol) ?? symbols.define(
                 kind: .function,
                 name: getName,
                 fqName: getterFQName,
@@ -470,7 +538,7 @@ extension DataFlowSemaPhase {
             if record.isMutable {
                 let setName = interner.intern("set")
                 let setterFQName = record.fqName + [interner.intern("$set")]
-                let setterSymbol = symbols.define(
+                let setterSymbol = symbols.extensionPropertySetterAccessor(for: symbol) ?? symbols.define(
                     kind: .function,
                     name: setName,
                     fqName: setterFQName,
@@ -521,7 +589,7 @@ extension DataFlowSemaPhase {
             }
             let getName = interner.intern("get")
             let getterFQName = record.fqName + [interner.intern("$get")]
-            let getterSymbol = symbols.define(
+            let getterSymbol = symbols.extensionPropertyGetterAccessor(for: symbol) ?? symbols.define(
                 kind: .function,
                 name: getName,
                 fqName: getterFQName,
@@ -579,7 +647,7 @@ extension DataFlowSemaPhase {
             }
             let setName = interner.intern("set")
             let setterFQName = record.fqName + [interner.intern("$set")]
-            let setterSymbol = symbols.define(
+            let setterSymbol = symbols.extensionPropertySetterAccessor(for: symbol) ?? symbols.define(
                 kind: .function,
                 name: setName,
                 fqName: setterFQName,

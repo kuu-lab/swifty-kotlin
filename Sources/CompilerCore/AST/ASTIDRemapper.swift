@@ -161,7 +161,8 @@ struct ASTIDRemapper {
             body: remap(value.body),
             isSuspend: value.isSuspend,
             isInline: value.isInline,
-            isTailrec: value.isTailrec
+            isTailrec: value.isTailrec,
+            isScriptEntryPoint: value.isScriptEntryPoint
         )
     }
 

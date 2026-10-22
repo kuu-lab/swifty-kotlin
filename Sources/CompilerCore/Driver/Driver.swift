@@ -197,7 +197,7 @@ public final class CompilerDriver {
             options: options,
             sourceManager: SourceManager(),
             diagnostics: DiagnosticEngine(),
-            interner: StringInterner()
+            interner: KklibSemaSession.makeInterner(options: options) ?? StringInterner()
         )
 
         let timePhasesEnabled = options.frontendFlags.contains("time-phases")

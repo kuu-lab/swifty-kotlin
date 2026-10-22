@@ -1,5 +1,20 @@
 
 extension BuildASTPhase.ExpressionParser {
+    private func diagnoseAssignmentOperatorAfterConditionExpression() {
+        guard let token = current() else { return }
+        switch token.kind {
+        case .symbol(.assign), .symbol(.plusAssign), .symbol(.minusAssign),
+             .symbol(.starAssign), .symbol(.slashAssign), .symbol(.percentAssign):
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0018",
+                "Unexpected token after expression.",
+                range: token.range
+            )
+        default:
+            break
+        }
+    }
+
     private func parseRequiredControlFlowCondition() -> ExprID? {
         if let token = current(), token.kind == .symbol(.rParen) {
             diagnostics?.error("KSWIFTK-PARSE-0001", "Expected expression.", range: token.range)
@@ -314,7 +329,8 @@ extension BuildASTPhase.ExpressionParser {
                 ).parse()
             },
             parseTypeReference: { _ in nil },
-            resolveDeclarationName: { _, _ in nil }
+            resolveDeclarationName: { _, _ in nil },
+            diagnostics: self.diagnostics
         )
         return BuildASTPhase.LocalStatementCore.parseLocalAssignment(
             from: branchTokens,
@@ -563,6 +579,16 @@ extension BuildASTPhase.ExpressionParser {
         {
             loopVariable = name
             _ = consume()
+            if consumeIf(.symbol(.colon)) != nil,
+               let following = current(),
+               following.kind == .keyword(.in) || following.kind == .symbol(.rParen)
+            {
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0020",
+                    "Expected type after ':'.",
+                    range: following.range
+                )
+            }
         }
 
         while let token = current(),
@@ -596,6 +622,7 @@ extension BuildASTPhase.ExpressionParser {
         guard let condition = parseRequiredControlFlowCondition() else {
             return nil
         }
+        diagnoseAssignmentOperatorAfterConditionExpression()
         _ = consumeIf(.symbol(.rParen))
         guard let body = parseControlFlowBodyExpression() else {
             return nil
@@ -650,6 +677,7 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
         guard let condition = parseRequiredControlFlowCondition() else { return nil }
+        diagnoseAssignmentOperatorAfterConditionExpression()
         _ = consumeIf(.symbol(.rParen))
         let end = astArena.exprRange(condition)?.end ?? astArena.exprRange(body)?.end ?? doToken.range.end
         let range = SourceRange(start: start ?? doToken.range.start, end: end)
@@ -707,6 +735,7 @@ extension BuildASTPhase.ExpressionParser {
         guard let condition = parseRequiredControlFlowCondition() else {
             return nil
         }
+        diagnoseAssignmentOperatorAfterConditionExpression()
         _ = consumeIf(.symbol(.rParen))
 
         guard let thenExpr = parseControlFlowBodyExpression() else {
@@ -791,6 +820,13 @@ extension BuildASTPhase.ExpressionParser {
             if matches(.symbol(.colon)) {
                 let colonToken = consume()!
                 paramType = parseTypeReference(colonToken.range)
+                if paramType == nil {
+                    diagnostics?.error(
+                        "KSWIFTK-PARSE-0020",
+                        "Expected type after ':'.",
+                        range: current()?.range ?? colonToken.range
+                    )
+                }
             }
         }
         var depth = 1

@@ -319,6 +319,7 @@ extension BuildASTPhase {
         guard index < tokens.count, tokens[index].kind == .symbol(.colon) else {
             return []
         }
+        let colonToken = tokens[index]
         index += 1
 
         var entries: [SuperTypeEntry] = []
@@ -336,6 +337,12 @@ extension BuildASTPhase {
                 if token.kind == .symbol(.comma) {
                     if let entry = parseSuperTypeEntry(from: current, interner: interner, astArena: astArena) {
                         entries.append(entry)
+                    } else {
+                        diagnostics?.error(
+                            "KSWIFTK-PARSE-0020",
+                            "Expected type after ':'.",
+                            range: current.first?.range ?? token.range
+                        )
                     }
                     current.removeAll(keepingCapacity: true)
                     index += 1
@@ -349,6 +356,13 @@ extension BuildASTPhase {
         }
         if let entry = parseSuperTypeEntry(from: current, interner: interner, astArena: astArena) {
             entries.append(entry)
+        } else {
+            let following = index < tokens.count ? tokens[index] : nil
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0020",
+                "Expected type after ':'.",
+                range: current.first?.range ?? following?.range ?? colonToken.range
+            )
         }
         return entries
     }

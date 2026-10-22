@@ -204,8 +204,9 @@ extension BuildASTPhase.ExpressionParser {
         // newline splitter (`@Suppress("X")\nval x = ...`) cannot reach the
         // val/var head; strip it like parseStatementGroup does — the
         // annotation itself is still dropped.
+        let labeledTokens = BuildASTPhase.skipLeadingLocalDeclarationLabels(Array(tokens))
         let tokens = BuildASTPhase.skipLeadingLocalAnnotations(
-            Array(tokens), interner: interner
+            labeledTokens, interner: interner
         )[...]
         // Nested blocks (if/while/lambda bodies) reach declarations through this
         // slice-based path, so destructuring has to be recognised here too;
@@ -264,7 +265,8 @@ extension BuildASTPhase.ExpressionParser {
                 default:
                     return nil
                 }
-            }
+            },
+            diagnostics: self.diagnostics
         )
         return BuildASTPhase.LocalStatementCore.parseLocalDeclaration(
             from: tokens,
@@ -285,7 +287,8 @@ extension BuildASTPhase.ExpressionParser {
                 ).parse()
             },
             parseTypeReference: { _ in nil },
-            resolveDeclarationName: { _, _ in nil }
+            resolveDeclarationName: { _, _ in nil },
+            diagnostics: self.diagnostics
         )
         return BuildASTPhase.LocalStatementCore.parseLocalAssignment(
             from: tokens,

@@ -33,6 +33,6 @@ java -ea -jar reference.jar
 java -da -jar reference.jar
 ```
 
-Native defaults to enabled assertions (`java -ea` output). Run with
-`KK_ASSERTIONS_ENABLED=0` to compare against `java -da` output. The backend test
+Native defaults to disabled assertions (`java -da` output, KUU-2751). Run with
+`KK_ASSERTIONS_ENABLED=1` to compare against `java -ea` output. The backend test
 runs both source and fresh artifact routes at O0/O2 with isolated environments.

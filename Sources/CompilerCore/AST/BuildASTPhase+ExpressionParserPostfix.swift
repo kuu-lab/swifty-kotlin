@@ -391,12 +391,7 @@ extension BuildASTPhase.ExpressionParser {
     }
 
     func isArgumentLabelToken(_ kind: TokenKind) -> Bool {
-        switch kind {
-        case .identifier, .backtickedIdentifier, .keyword, .softKeyword:
-            true
-        default:
-            false
-        }
+        kind.isLabelName
     }
 
     func isPostfixSuffixStart(_ kind: TokenKind) -> Bool {

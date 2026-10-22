@@ -45,6 +45,12 @@ extension BuildASTPhase.ExpressionParser {
             return lambdaID
         }
 
+        // `{ x: -> x }` — a `:` that introduces a parameter type annotation
+        // with no type before `->` is rejected by kotlinc. Without this the
+        // brace falls through to statement parsing and reports a misleading
+        // unresolved-name error for the body instead.
+        reportEmptyLambdaParamType(in: bodyTokens)
+
         // In expression position Kotlin treats bare braces as lambda literals,
         // including zero-argument lambdas like `{ 42 }`. Both trailing-lambda
         // call sites and plain expression contexts accept the same syntax.
@@ -146,9 +152,22 @@ extension BuildASTPhase.ExpressionParser {
         guard let opToken = consume() else {
             return nil
         }
-        guard let memberToken = current(),
-              let memberName = tokenText(memberToken)
-        else {
+        guard let memberToken = current() else {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0014",
+                "Expected an identifier after '::'.",
+                range: opToken.range
+            )
+            return nil
+        }
+        // `::class` is Kotlin's keyword-based class-literal form.
+        let memberName: InternedString?
+        if case .keyword(.class) = memberToken.kind {
+            memberName = interner.intern("class")
+        } else {
+            memberName = tokenText(memberToken)
+        }
+        guard let memberName else {
             diagnostics?.error(
                 "KSWIFTK-PARSE-0014",
                 "Expected an identifier after '::'.",
@@ -300,12 +319,7 @@ extension BuildASTPhase.ExpressionParser {
                 continue
             }
             guard let nameIndex = segment.firstIndex(where: { token in
-                switch token.kind {
-                case .identifier, .backtickedIdentifier, .keyword, .softKeyword:
-                    true
-                default:
-                    false
-                }
+                token.kind.isLabelName
             }), let name = tokenText( segment[nameIndex]) else {
                 continue
             }
@@ -325,14 +339,23 @@ extension BuildASTPhase.ExpressionParser {
         }
         var options = TypeRefParserCore.Options.expressionInline
         options.allowFunctionType = true
-        return TypeRefParserCore.parseTypeRefPrefix(
+        guard let parsed = TypeRefParserCore.parseTypeRefPrefix(
             segment[(colonIndex + 1)...],
             interner: interner,
             astArena: astArena,
             options: options,
             diagnostics: diagnostics,
             recursionDepth: recursionDepth
-        )?.ref
+        ) else {
+            let following = colonIndex + 1 < segment.count ? segment[colonIndex + 1] : nil
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0020",
+                "Expected type after ':'.",
+                range: following?.range ?? segment[colonIndex].range
+            )
+            return nil
+        }
+        return parsed.ref
     }
 
     private func stripEnclosingParentheses(from tokens: [Token]) -> [Token] {
@@ -378,7 +401,7 @@ extension BuildASTPhase.ExpressionParser {
             case .symbol(.comma):
                 idx += 1
                 continue
-            case .identifier, .backtickedIdentifier, .keyword, .softKeyword:
+            case let kind where kind.isLabelName:
                 guard let name = tokenText( token) else {
                     idx += 1
                     continue
@@ -498,6 +521,26 @@ extension BuildASTPhase.ExpressionParser {
             return false
         }
         return parsed.consumed == typeTokens.count
+    }
+
+    private func reportEmptyLambdaParamType(in tokens: [Token]) {
+        var depth = BuildASTPhase.BracketDepth()
+        var previous: Token?
+        for token in tokens {
+            if depth.isAtTopLevel,
+               token.kind == .symbol(.arrow),
+               previous?.kind == .symbol(.colon)
+            {
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0020",
+                    "Expected type after ':'.",
+                    range: token.range
+                )
+                return
+            }
+            depth.track(token.kind)
+            previous = token
+        }
     }
 
     private func lambdaDestructuringCloseIndex(in tokens: ArraySlice<Token>) -> Int? {
