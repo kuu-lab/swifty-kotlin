@@ -37,7 +37,7 @@ extension CallTypeChecker {
             return (nil, value)
         case let .unaryExpr(op, operand, _) where op == .unaryMinus || op == .unaryPlus:
             guard case let .intLiteral(value, _) = ast.arena.expr(operand) else {
-                return (nil, nil)
+                return (integerConstantExpressionValue(exprID, ast: ast), nil)
             }
             if op == .unaryMinus {
                 let (negated, overflow) = value.multipliedReportingOverflow(by: -1)
@@ -45,7 +45,57 @@ extension CallTypeChecker {
             }
             return (value, nil)
         default:
+            // `1 shl 31` / `2 * 3 + 1` are Int constant expressions that kotlinc
+            // accepts wherever a wider integer type is expected, like a literal.
+            if let value = integerConstantExpressionValue(exprID, ast: ast) {
+                return (value, nil)
+            }
             return (nil, nil)
+        }
+    }
+
+    /// Folds an Int constant expression built only from unsuffixed integer
+    /// literals (arithmetic operators, `-`/`+`, and the `shl`/`shr`/`ushr`/`and`/
+    /// `or`/`xor` infix calls) using Int (32-bit wrapping) semantics. Plain
+    /// literals are excluded: they are handled by the literal path itself.
+    func integerConstantExpressionValue(_ exprID: ExprID, ast: ASTModule) -> Int64? {
+        switch ast.arena.expr(exprID) {
+        case .binary, .memberCall, .unaryExpr:
+            guard isIntegerLiteralOnlyExpression(exprID, ast: ast) else { return nil }
+            let collector = ConstantCollector(canFoldMemberCall: { _ in true })
+            guard case let .intLiteral(value) = collector.literalConstantExpr(exprID, ast: ast, interner: driver.interner) else {
+                return nil
+            }
+            return value
+        default:
+            return nil
+        }
+    }
+
+    private func isIntegerLiteralOnlyExpression(_ exprID: ExprID, ast: ASTModule) -> Bool {
+        switch ast.arena.expr(exprID) {
+        case .intLiteral:
+            return true
+        case let .unaryExpr(op, operand, _):
+            return (op == .unaryMinus || op == .unaryPlus) && isIntegerLiteralOnlyExpression(operand, ast: ast)
+        case let .binary(op, lhs, rhs, _):
+            switch op {
+            case .add, .subtract, .multiply, .divide, .modulo:
+                return isIntegerLiteralOnlyExpression(lhs, ast: ast) && isIntegerLiteralOnlyExpression(rhs, ast: ast)
+            default:
+                return false
+            }
+        case let .memberCall(receiver, callee, typeArgs, args, _):
+            guard typeArgs.isEmpty, args.count == 1, args[0].label == nil, !args[0].isSpread else { return false }
+            switch driver.interner.resolve(callee) {
+            case "shl", "shr", "ushr", "and", "or", "xor":
+                return isIntegerLiteralOnlyExpression(receiver, ast: ast)
+                    && isIntegerLiteralOnlyExpression(args[0].expr, ast: ast)
+            default:
+                return false
+            }
+        default:
+            return false
         }
     }
 

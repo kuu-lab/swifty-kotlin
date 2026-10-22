@@ -24,6 +24,14 @@ final class ExprTypeChecker {
 
         validateExpressionAnnotationVisibility(id, ctx: ctx)
 
+        // An Int constant expression (`1 shl 31`) takes a wider integer expected
+        // type the way a plain literal does; its Int value is computed first.
+        if let expectedType,
+           let widened = inferWidenedIntegerConstantExpression(id, ctx: ctx, locals: &locals, expectedType: expectedType)
+        {
+            return widened
+        }
+
         let boolType = sema.types.booleanType
         let intType = sema.types.intType
         let longType = sema.types.longType
@@ -2065,6 +2073,28 @@ final class ExprTypeChecker {
     /// receiving a plain `1500`); values outside the Int32 range infer `Long`.
     /// `literalValue` is used to reject out-of-range constants for `Byte`/`Short`
     /// and negative constants for unsigned types.
+    private func inferWidenedIntegerConstantExpression(
+        _ id: ExprID,
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings,
+        expectedType: TypeID
+    ) -> TypeID? {
+        let sema = ctx.sema
+        guard case let .primitive(primitive, _) = sema.types.kind(of: sema.types.makeNonNullable(expectedType)),
+              primitive == .long || primitive == .byte || primitive == .short,
+              let value = driver.callChecker.integerConstantExpressionValue(id, ast: ctx.ast)
+        else { return nil }
+        let widenedType = intLiteralType(
+            expectedType: expectedType, sema: sema, defaultType: sema.types.intType, literalValue: value
+        )
+        guard widenedType != sema.types.intType else { return nil }
+        // Type the operands normally, then retype the whole expression.
+        _ = driver.inferExpr(id, ctx: ctx, locals: &locals, expectedType: nil)
+        sema.bindings.bindConstExprValue(id, value: primitive == .long ? .longLiteral(value) : .intLiteral(value))
+        sema.bindings.bindExprType(id, type: widenedType)
+        return widenedType
+    }
+
     private func intLiteralType(expectedType: TypeID?, sema: SemaModule, defaultType: TypeID, literalValue: Int64 = 0) -> TypeID {
         let inferredType = literalValue >= Int64(Int32.min) && literalValue <= Int64(Int32.max)
             ? defaultType
