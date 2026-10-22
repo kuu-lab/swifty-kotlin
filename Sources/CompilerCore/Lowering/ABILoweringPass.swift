@@ -31,7 +31,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
 
         let types = ctx.sema?.types
         let symbols = ctx.sema?.symbols
-        let listViewMembers = listViewMemberSymbols(symbols: symbols, interner: ctx.interner)
+        let listViewMembers = listViewMemberMatcher(symbols: symbols, interner: ctx.interner)
 
         let inlineArithmeticCallees: Set<InternedString> = [
             ctx.interner.intern("kk_op_add"),
