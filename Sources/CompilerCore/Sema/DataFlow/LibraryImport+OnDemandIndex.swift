@@ -280,6 +280,17 @@ extension DataFlowSemaPhase {
             containsEntriesNested(under: fqName) ? moduleFQN : nil
         }
 
+        func materializeAll(into symbols: SymbolTable) {
+            buildMapsIfNeeded()
+            for index in indexedFile.entries.indices {
+                claim(index: index)
+            }
+            for prefix in packagePrefixes.sorted() {
+                let fqName = prefix.split(separator: ".").map { interner.intern(String($0)) }
+                _ = symbols.lookupAll(fqName: fqName)
+            }
+        }
+
         // MARK: - Import-phase resolvers
 
         /// Claims every entry at `fqName` by its raw index string — the

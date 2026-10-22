@@ -59,7 +59,7 @@ extension SymbolTable {
 
 /// Arity-based member keys (bundled-overlap checks) can be answered from this
 /// shape without materializing the declaration body.
-struct ImportedMemberIndexShape {
+struct ImportedMemberIndexShape: Codable {
     let arity: Int
     let receiverOwnerFQName: [InternedString]?
     let hasDefaultArguments: Bool
@@ -69,6 +69,141 @@ struct ImportedMemberIndexShape {
         self.receiverOwnerFQName = receiverOwnerFQName
         self.hasDefaultArguments = hasDefaultArguments
     }
+}
+
+struct SemaSnapshotSymbol: Codable {
+    let id: SymbolID
+    let kind: SymbolKind
+    let name: String
+    let fqName: [String]
+    let visibility: Visibility
+    let flags: SymbolFlags
+}
+
+struct SemaSnapshotConstValue: Codable {
+    enum Value: Codable {
+        case int(Int64)
+        case long(Int64)
+        case uint(UInt64)
+        case ulong(UInt64)
+        case float(Double)
+        case double(Double)
+        case char(UInt32)
+        case bool(Bool)
+        case string(String)
+        case symbol(SymbolID)
+        case externAddress(String)
+        case temporary(Int32)
+        case null
+        case unit
+    }
+
+    let value: Value
+
+    init(_ kind: KIRExprKind, interner: StringInterner) {
+        value = switch kind {
+        case let .intLiteral(value): .int(value)
+        case let .longLiteral(value): .long(value)
+        case let .uintLiteral(value): .uint(value)
+        case let .ulongLiteral(value): .ulong(value)
+        case let .floatLiteral(value): .float(value)
+        case let .doubleLiteral(value): .double(value)
+        case let .charLiteral(value): .char(value)
+        case let .boolLiteral(value): .bool(value)
+        case let .stringLiteral(value): .string(interner.resolve(value))
+        case let .symbolRef(value): .symbol(value)
+        case let .externSymbolAddress(value): .externAddress(interner.resolve(value))
+        case let .temporary(value): .temporary(value)
+        case .null: .null
+        case .unit: .unit
+        }
+    }
+
+    func materialize(interner: StringInterner, mapSymbol: (SymbolID) -> SymbolID) -> KIRExprKind {
+        switch value {
+        case let .int(value): .intLiteral(value)
+        case let .long(value): .longLiteral(value)
+        case let .uint(value): .uintLiteral(value)
+        case let .ulong(value): .ulongLiteral(value)
+        case let .float(value): .floatLiteral(value)
+        case let .double(value): .doubleLiteral(value)
+        case let .char(value): .charLiteral(value)
+        case let .bool(value): .boolLiteral(value)
+        case let .string(value): .stringLiteral(interner.intern(value))
+        case let .symbol(value): .symbolRef(mapSymbol(value))
+        case let .externAddress(value): .externSymbolAddress(interner.intern(value))
+        case let .temporary(value): .temporary(value)
+        case .null: .null
+        case .unit: .unit
+        }
+    }
+}
+
+struct SemaSnapshotMemberIndexShape: Codable {
+    let arity: Int
+    let receiverOwnerFQName: [String]?
+    let hasDefaultArguments: Bool
+}
+
+struct SymbolTableSemaSnapshot: Codable {
+    let symbols: [SemaSnapshotSymbol]
+    let functionSignatures: [SymbolID: FunctionSignature]
+    let propertyTypes: [SymbolID: TypeID]
+    let propertyHasCustomGetter: [SymbolID: Bool]
+    let propertySetterVisibilities: [SymbolID: Visibility]
+    let directSupertypes: [SymbolID: [SymbolID]]
+    let supertypeTypeArgsMap: [SymbolID: [SymbolID: [TypeArg]]]
+    let nominalLayouts: [SymbolID: NominalLayout]
+    let nominalLayoutHints: [SymbolID: NominalLayoutHint]
+    let externalLinkNames: [SymbolID: String]
+    let functionABIReturnTypes: [SymbolID: TypeID]
+    let stdlibSpecialCallKindsBySymbol: [SymbolID: StdlibSpecialCallKind]
+    let typeAliasUnderlyingTypes: [SymbolID: TypeID]
+    let typeAliasTypeParameters: [SymbolID: [SymbolID]]
+    let parentSymbols: [SymbolID: SymbolID]
+    let backingFieldSymbols: [SymbolID: SymbolID]
+    let delegateStorageSymbols: [SymbolID: SymbolID]
+    let delegatePropertiesByStorageSymbol: [SymbolID: SymbolID]
+    let delegateGetValueSymbols: [SymbolID: SymbolID]
+    let delegateSetValueSymbols: [SymbolID: SymbolID]
+    let delegateProvideDelegateSymbols: [SymbolID: SymbolID]
+    let accessorOwnerProperties: [SymbolID: SymbolID]
+    let extensionPropertyReceiverTypes: [SymbolID: TypeID]
+    let importedExtensionReceiverProperties: Set<SymbolID>
+    let declaredExtensionProperties: Set<SymbolID>
+    let extensionPropertyGetterAccessors: [SymbolID: SymbolID]
+    let extensionPropertySetterAccessors: [SymbolID: SymbolID]
+    let typeParameterUpperBoundsMap: [SymbolID: [TypeID]]
+    let importedStdlibSymbolIDs: Set<SymbolID>
+    let moduleFQNames: [SymbolID: String]
+    let annotationsStorage: [SymbolID: [MetadataAnnotationRecord]]
+    let companionObjectSymbols: [SymbolID: SymbolID]
+    let outerInstanceFieldSymbols: [SymbolID: SymbolID]
+    let objectInitializerSymbols: [SymbolID: SymbolID]
+    let objectLazyInitializerSymbols: [SymbolID: SymbolID]
+    let companionObjectInitializerSymbols: [SymbolID: SymbolID]
+    let enumStaticInitSymbols: [SymbolID: SymbolID]
+    let enumEntryDispatchTargets: [SymbolID: [EnumEntryDispatchTarget]]
+    let enumEntryDispatchBaseSymbols: [SymbolID: SymbolID]
+    let valueClassUnderlyingTypes: [SymbolID: TypeID]
+    let sealedSubclassesStorage: [SymbolID: [SymbolID]]
+    let constValueExprKinds: [SymbolID: SemaSnapshotConstValue]
+    let delegateHasProvideDelegate: Set<SymbolID>
+    let expectActualLinks: [SymbolID: SymbolID]
+    let expectActualDefaultArgumentOwners: [SymbolID: SymbolID]
+    let contractNonNullEffects: [SymbolID: ContractNonNullEffect]
+    let contractImplicationEffects: [SymbolID: [ContractImplicationEffect]]
+    let contractReturnsEffects: [SymbolID: ContractReturnsEffect]
+    let contractCallsInPlaceEffects: [SymbolID: [ContractCallsInPlaceEffect]]
+    let contractReturnsNotNullEffects: Set<SymbolID>
+    let contractConditionEffects: [SymbolID: ContractConditionEffect]
+    let importedNominalsWithoutInitializers: Set<SymbolID>
+    let importedNominalsWithIncompleteInitializerInfo: Set<SymbolID>
+    let importedMemberIndexShapes: [SymbolID: SemaSnapshotMemberIndexShape]
+    let delegatedInterfacesByClass: [SymbolID: Set<SymbolID>]
+    let klibDefinedGlobalSymbols: Set<SymbolID>
+    let overrideDefaultsBaseSymbols: [SymbolID: SymbolID]
+    let inheritedDefaultsByReceiver: [TypeID: [SymbolID: SymbolID]]
 }
 
 /// A compact-indexed imported library whose records register on demand.
@@ -98,6 +233,9 @@ protocol IndexedLibraryEntryProvider: AnyObject {
     /// Module name stamped onto a synthesized package for `fqName`, or nil
     /// when this library does not contribute that prefix (or has no module).
     func packageModuleFQN(for fqName: [InternedString]) -> InternedString?
+    /// Register every record from this library. Used only when producing a
+    /// persistent stdlib snapshot, where the import-time graph must be complete.
+    func materializeAll(into symbols: SymbolTable)
 }
 
 public final class SymbolTable {
@@ -416,6 +554,23 @@ public final class SymbolTable {
         lock.lock()
         defer { lock.unlock() }
         indexedLibraryProviders.append(provider)
+    }
+
+    /// Forces compact-index registration and metadata decoding for snapshot
+    /// production. Ordinary compilations keep the indexed import lazy.
+    func materializeAllIndexedLibraryState() {
+        lock.lock()
+        defer { lock.unlock() }
+        importDrainEpoch = .max
+        for provider in indexedLibraryProviders.sorted(by: { $0.importOrder < $1.importOrder }) {
+            provider.materializeAll(into: self)
+        }
+        let pending = symbolsStorage
+            .filter { $0.flags.contains(.importedLibrary) }
+            .map(\.id)
+        for symbol in pending where isUnmaterializedImportedShellLocked(symbol) {
+            ensureLazyImportedMetadataLoaded(for: symbol)
+        }
     }
 
     /// Registration-time mark for nominal shells drained after the lazy
@@ -1845,5 +2000,330 @@ public final class SymbolTable {
         guard let symbol = self.symbol(symbolID) else { return false }
         if symbol.flags.contains(.importedLibrary) { return true }
         return symbol.declSite != nil
+    }
+}
+
+extension SymbolTable {
+    func makeSemaSnapshot(interner: StringInterner) -> SymbolTableSemaSnapshot {
+        SymbolTableSemaSnapshot(
+            symbols: symbolsStorage.map { symbol in
+                SemaSnapshotSymbol(
+                    id: symbol.id,
+                    kind: symbol.kind,
+                    name: interner.resolve(symbol.name),
+                    fqName: symbol.fqName.map(interner.resolve),
+                    visibility: symbol.visibility,
+                    flags: symbol.flags
+                )
+            },
+            functionSignatures: functionSignatures,
+            propertyTypes: propertyTypes,
+            propertyHasCustomGetter: propertyHasCustomGetter,
+            propertySetterVisibilities: propertySetterVisibilities,
+            directSupertypes: directSupertypes,
+            supertypeTypeArgsMap: supertypeTypeArgsMap,
+            nominalLayouts: nominalLayouts,
+            nominalLayoutHints: nominalLayoutHints,
+            externalLinkNames: externalLinkNames,
+            functionABIReturnTypes: functionABIReturnTypes,
+            stdlibSpecialCallKindsBySymbol: stdlibSpecialCallKindsBySymbol,
+            typeAliasUnderlyingTypes: typeAliasUnderlyingTypes,
+            typeAliasTypeParameters: typeAliasTypeParameters,
+            parentSymbols: parentSymbols,
+            backingFieldSymbols: backingFieldSymbols,
+            delegateStorageSymbols: delegateStorageSymbols,
+            delegatePropertiesByStorageSymbol: delegatePropertiesByStorageSymbol,
+            delegateGetValueSymbols: delegateGetValueSymbols,
+            delegateSetValueSymbols: delegateSetValueSymbols,
+            delegateProvideDelegateSymbols: delegateProvideDelegateSymbols,
+            accessorOwnerProperties: accessorOwnerProperties,
+            extensionPropertyReceiverTypes: extensionPropertyReceiverTypes,
+            importedExtensionReceiverProperties: importedExtensionReceiverProperties,
+            declaredExtensionProperties: declaredExtensionProperties,
+            extensionPropertyGetterAccessors: extensionPropertyGetterAccessors,
+            extensionPropertySetterAccessors: extensionPropertySetterAccessors,
+            typeParameterUpperBoundsMap: typeParameterUpperBoundsMap,
+            importedStdlibSymbolIDs: importedStdlibSymbolIDs,
+            moduleFQNames: moduleFQNames.mapValues(interner.resolve),
+            annotationsStorage: annotationsStorage,
+            companionObjectSymbols: companionObjectSymbols,
+            outerInstanceFieldSymbols: outerInstanceFieldSymbols,
+            objectInitializerSymbols: objectInitializerSymbols,
+            objectLazyInitializerSymbols: objectLazyInitializerSymbols,
+            companionObjectInitializerSymbols: companionObjectInitializerSymbols,
+            enumStaticInitSymbols: enumStaticInitSymbols,
+            enumEntryDispatchTargets: enumEntryDispatchTargets,
+            enumEntryDispatchBaseSymbols: enumEntryDispatchBaseSymbols,
+            valueClassUnderlyingTypes: valueClassUnderlyingTypes,
+            sealedSubclassesStorage: sealedSubclassesStorage,
+            constValueExprKinds: constValueExprKinds.mapValues { SemaSnapshotConstValue($0, interner: interner) },
+            delegateHasProvideDelegate: delegateHasProvideDelegate,
+            expectActualLinks: expectActualLinks,
+            expectActualDefaultArgumentOwners: expectActualDefaultArgumentOwners,
+            contractNonNullEffects: contractNonNullEffects,
+            contractImplicationEffects: contractImplicationEffects,
+            contractReturnsEffects: contractReturnsEffects,
+            contractCallsInPlaceEffects: contractCallsInPlaceEffects,
+            contractReturnsNotNullEffects: contractReturnsNotNullEffects,
+            contractConditionEffects: contractConditionEffects,
+            importedNominalsWithoutInitializers: importedNominalsWithoutInitializers,
+            importedNominalsWithIncompleteInitializerInfo: importedNominalsWithIncompleteInitializerInfo,
+            importedMemberIndexShapes: importedMemberIndexShapes.mapValues { shape in
+                SemaSnapshotMemberIndexShape(
+                    arity: shape.arity,
+                    receiverOwnerFQName: shape.receiverOwnerFQName?.map(interner.resolve),
+                    hasDefaultArguments: shape.hasDefaultArguments
+                )
+            },
+            delegatedInterfacesByClass: delegatedInterfacesByClass,
+            klibDefinedGlobalSymbols: klibDefinedGlobalSymbols,
+            overrideDefaultsBaseSymbols: overrideDefaultsBaseSymbols,
+            inheritedDefaultsByReceiver: inheritedDefaultsByReceiver
+        )
+    }
+
+    func registerSemaSnapshotSymbols(
+        _ snapshot: SymbolTableSemaSnapshot,
+        interner: StringInterner
+    ) -> [SymbolID: SymbolID] {
+        var symbolMap: [SymbolID: SymbolID] = [:]
+        symbolMap.reserveCapacity(snapshot.symbols.count * 2)
+        reserveAdditionalSymbols(snapshot.symbols.count)
+        for entry in snapshot.symbols.sorted(by: { $0.id.rawValue < $1.id.rawValue }) {
+            let fqName = entry.fqName.map(interner.intern)
+            let name = interner.intern(entry.name)
+            let isExtensionProperty = snapshot.importedExtensionReceiverProperties.contains(entry.id)
+                || snapshot.declaredExtensionProperties.contains(entry.id)
+            let existing = (byFQName[fqName] ?? []).compactMap(symbol)
+            let matchingPackage = entry.kind == .package
+                ? existing.first(where: { $0.kind == .package })?.id
+                : nil
+            let matchingLinkedSymbol: SymbolID? = snapshot.externalLinkNames[entry.id].flatMap { linkName in
+                existing.first(where: {
+                    $0.kind == entry.kind
+                        && $0.name == name
+                        && $0.visibility == entry.visibility
+                        && $0.flags == entry.flags
+                        && externalLinkNames[$0.id] == linkName
+                })?.id
+            }
+            let restored = matchingPackage ?? matchingLinkedSymbol ?? define(
+                kind: entry.kind,
+                name: name,
+                fqName: fqName,
+                declSite: nil,
+                visibility: entry.visibility,
+                flags: entry.flags,
+                isExtensionProperty: isExtensionProperty
+            )
+            symbolMap[entry.id] = restored
+            if snapshot.importedExtensionReceiverProperties.contains(entry.id) {
+                markImportedExtensionReceiverProperty(restored)
+            }
+        }
+        let baseMappings = Array(symbolMap)
+        for (old, new) in baseMappings where old.rawValue >= 0 {
+            symbolMap[SyntheticSymbolScheme.defaultStubSymbol(for: old)] = SyntheticSymbolScheme.defaultStubSymbol(for: new)
+            symbolMap[SyntheticSymbolScheme.defaultMaskSymbol(for: old)] = SyntheticSymbolScheme.defaultMaskSymbol(for: new)
+            symbolMap[SyntheticSymbolScheme.setterValueParameterSymbol(for: old)] = SyntheticSymbolScheme.setterValueParameterSymbol(for: new)
+            symbolMap[SyntheticSymbolScheme.semaSetterValueSymbol(for: old)] = SyntheticSymbolScheme.semaSetterValueSymbol(for: new)
+            symbolMap[SyntheticSymbolScheme.receiverParameterSymbol(for: old)] = SyntheticSymbolScheme.receiverParameterSymbol(for: new)
+            symbolMap[SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: old)] = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: new)
+            symbolMap[SyntheticSymbolScheme.propertySetterAccessorSymbol(for: old)] = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: new)
+            symbolMap[SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: old)] = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: new)
+            symbolMap[SyntheticSymbolScheme.reifiedArrayComponentTokenSymbol(for: old)] = SyntheticSymbolScheme.reifiedArrayComponentTokenSymbol(for: new)
+        }
+        for (old, new) in baseMappings where old.rawValue >= 0 {
+            for index in 0 ..< 3 {
+                let oldDerived = SyntheticSymbolScheme.delegateLambdaParameterSymbol(for: old, at: index)
+                let newDerived = SyntheticSymbolScheme.delegateLambdaParameterSymbol(for: new, at: index)
+                symbolMap[oldDerived] = newDerived
+            }
+        }
+        return symbolMap
+    }
+
+    func restoreSemaSnapshotState(
+        _ snapshot: SymbolTableSemaSnapshot,
+        symbolMap: [SymbolID: SymbolID],
+        typeMap: [TypeID: TypeID],
+        interner: StringInterner
+    ) {
+
+        func mapSymbol(_ symbol: SymbolID) -> SymbolID { symbolMap[symbol] ?? symbol }
+        func mapSymbols(_ symbols: [SymbolID]) -> [SymbolID] { symbols.map(mapSymbol) }
+        func mapType(_ type: TypeID, using typeMap: [TypeID: TypeID]) -> TypeID { typeMap[type] ?? type }
+        func mapArgs(_ args: [TypeArg], using typeMap: [TypeID: TypeID]) -> [TypeArg] {
+            args.map { $0.mapTypes { mapType($0, using: typeMap) } }
+        }
+        func mapSignature(_ signature: FunctionSignature, using typeMap: [TypeID: TypeID]) -> FunctionSignature {
+            FunctionSignature(
+                receiverType: signature.receiverType.map { mapType($0, using: typeMap) },
+                contextReceiverTypes: signature.contextReceiverTypes.map { mapType($0, using: typeMap) },
+                contextParameterSymbols: mapSymbols(signature.contextParameterSymbols),
+                contextParameterTypes: signature.contextParameterTypes.map { mapType($0, using: typeMap) },
+                parameterTypes: signature.parameterTypes.map { mapType($0, using: typeMap) },
+                returnType: mapType(signature.returnType, using: typeMap),
+                isSuspend: signature.isSuspend,
+                canThrow: signature.canThrow,
+                valueParameterSymbols: mapSymbols(signature.valueParameterSymbols),
+                valueParameterUnsafeVarianceTypeParameterSymbols: signature.valueParameterUnsafeVarianceTypeParameterSymbols.map { Set(mapSymbols(Array($0))) },
+                valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
+                valueParameterIsVararg: signature.valueParameterIsVararg,
+                valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
+                hasExplicitInlineParameterMetadata: signature.hasExplicitInlineParameterMetadata,
+                typeParameterSymbols: mapSymbols(signature.typeParameterSymbols),
+                reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
+                typeParameterUpperBounds: signature.typeParameterUpperBounds.map { $0.map { mapType($0, using: typeMap) } },
+                typeParameterUpperBoundsList: signature.typeParameterUpperBoundsList.map { $0.map { mapType($0, using: typeMap) } },
+                classTypeParameterCount: signature.classTypeParameterCount
+            )
+        }
+        func mapContractImplication(_ effect: ContractImplicationEffect, using typeMap: [TypeID: TypeID]) -> ContractImplicationEffect {
+            ContractImplicationEffect(
+                target: effect.target,
+                returnCondition: effect.returnCondition,
+                argumentCondition: effect.argumentCondition,
+                targetType: effect.targetType.map { mapType($0, using: typeMap) },
+                targetTypeSignature: effect.targetTypeSignature
+            )
+        }
+        func mapLayout(_ layout: NominalLayout) -> NominalLayout {
+            func mapOffsets(_ source: [SymbolID: Int]) -> [SymbolID: Int] {
+                var result: [SymbolID: Int] = [:]
+                for key in source.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
+                    result[mapSymbol(key)] = source[key]
+                }
+                return result
+            }
+            return NominalLayout(
+                objectHeaderWords: layout.objectHeaderWords,
+                instanceFieldCount: layout.instanceFieldCount,
+                instanceSizeWords: layout.instanceSizeWords,
+                fieldOffsets: mapOffsets(layout.fieldOffsets),
+                vtableSlots: mapOffsets(layout.vtableSlots),
+                itableSlots: mapOffsets(layout.itableSlots),
+                vtableSize: layout.vtableSize,
+                itableSize: layout.itableSize,
+                superClass: layout.superClass.map(mapSymbol)
+            )
+        }
+
+        for (symbol, signature) in snapshot.functionSignatures {
+            let id = mapSymbol(symbol)
+            let mapped = mapSignature(signature, using: typeMap)
+            functionSignatures[id] = mapped
+            for parameter in mapped.valueParameterSymbols where valueParameterOwners[parameter] == nil {
+                valueParameterOwners[parameter] = id
+            }
+        }
+        for (symbol, type) in snapshot.propertyTypes { propertyTypes[mapSymbol(symbol)] = mapType(type, using: typeMap) }
+        for (symbol, value) in snapshot.propertyHasCustomGetter { propertyHasCustomGetter[mapSymbol(symbol)] = value }
+        for (symbol, visibility) in snapshot.propertySetterVisibilities { propertySetterVisibilities[mapSymbol(symbol)] = visibility }
+        for (symbol, supertypes) in snapshot.directSupertypes {
+            let mappedSymbol = mapSymbol(symbol)
+            let mappedSupertypes = mapSymbols(supertypes)
+            directSupertypes[mappedSymbol] = mappedSupertypes
+            for supertype in mappedSupertypes where directSubtypesIndex[supertype]?.contains(mappedSymbol) != true {
+                directSubtypesIndex[supertype, default: []].append(mappedSymbol)
+            }
+        }
+        for (child, parents) in snapshot.supertypeTypeArgsMap {
+            let mappedChild = mapSymbol(child)
+            for (parent, args) in parents {
+                supertypeTypeArgsMap[mappedChild, default: [:]][mapSymbol(parent)] = mapArgs(args, using: typeMap)
+            }
+        }
+        for (symbol, layout) in snapshot.nominalLayouts { nominalLayouts[mapSymbol(symbol)] = mapLayout(layout) }
+        for (symbol, hint) in snapshot.nominalLayoutHints { nominalLayoutHints[mapSymbol(symbol)] = hint }
+        for (symbol, name) in snapshot.externalLinkNames { externalLinkNames[mapSymbol(symbol)] = name }
+        for (symbol, type) in snapshot.functionABIReturnTypes { functionABIReturnTypes[mapSymbol(symbol)] = mapType(type, using: typeMap) }
+        for (symbol, kind) in snapshot.stdlibSpecialCallKindsBySymbol { stdlibSpecialCallKindsBySymbol[mapSymbol(symbol)] = kind }
+        for (symbol, type) in snapshot.typeAliasUnderlyingTypes { typeAliasUnderlyingTypes[mapSymbol(symbol)] = mapType(type, using: typeMap) }
+        for (symbol, parameters) in snapshot.typeAliasTypeParameters { typeAliasTypeParameters[mapSymbol(symbol)] = mapSymbols(parameters) }
+        for (child, parent) in snapshot.parentSymbols {
+            let mappedChild = mapSymbol(child)
+            let mappedParent = mapSymbol(parent)
+            parentSymbols[mappedChild] = mappedParent
+            childrenByParent[mappedParent, default: []].insert(mappedChild)
+        }
+        for (symbol, backing) in snapshot.backingFieldSymbols { backingFieldSymbols[mapSymbol(symbol)] = mapSymbol(backing) }
+        for (symbol, storage) in snapshot.delegateStorageSymbols { delegateStorageSymbols[mapSymbol(symbol)] = mapSymbol(storage) }
+        for (storage, property) in snapshot.delegatePropertiesByStorageSymbol { delegatePropertiesByStorageSymbol[mapSymbol(storage)] = mapSymbol(property) }
+        for (symbol, getter) in snapshot.delegateGetValueSymbols { delegateGetValueSymbols[mapSymbol(symbol)] = mapSymbol(getter) }
+        for (symbol, setter) in snapshot.delegateSetValueSymbols { delegateSetValueSymbols[mapSymbol(symbol)] = mapSymbol(setter) }
+        for (symbol, provider) in snapshot.delegateProvideDelegateSymbols { delegateProvideDelegateSymbols[mapSymbol(symbol)] = mapSymbol(provider) }
+        for (accessor, property) in snapshot.accessorOwnerProperties { accessorOwnerProperties[mapSymbol(accessor)] = mapSymbol(property) }
+        for (symbol, type) in snapshot.extensionPropertyReceiverTypes { extensionPropertyReceiverTypes[mapSymbol(symbol)] = mapType(type, using: typeMap) }
+        importedExtensionReceiverProperties.formUnion(snapshot.importedExtensionReceiverProperties.map(mapSymbol))
+        for symbol in snapshot.declaredExtensionProperties { declaredExtensionProperties.insert(mapSymbol(symbol)) }
+        for (property, accessor) in snapshot.extensionPropertyGetterAccessors { extensionPropertyGetterAccessors[mapSymbol(property)] = mapSymbol(accessor) }
+        for (property, accessor) in snapshot.extensionPropertySetterAccessors { extensionPropertySetterAccessors[mapSymbol(property)] = mapSymbol(accessor) }
+        for (symbol, bounds) in snapshot.typeParameterUpperBoundsMap { typeParameterUpperBoundsMap[mapSymbol(symbol)] = bounds.map { mapType($0, using: typeMap) } }
+        importedStdlibSymbolIDs.formUnion(snapshot.importedStdlibSymbolIDs.map(mapSymbol))
+        for (symbol, module) in snapshot.moduleFQNames {
+            let id = mapSymbol(symbol)
+            let moduleID = interner.intern(module)
+            moduleFQNames[id] = moduleID
+            if byModuleFQN[moduleID]?.contains(id) != true {
+                byModuleFQN[moduleID, default: []].append(id)
+            }
+        }
+        for (symbol, annotations) in snapshot.annotationsStorage {
+            annotationsStorage[mapSymbol(symbol)] = annotations.map { annotation in
+                MetadataAnnotationRecord(
+                    annotationFQName: annotation.annotationFQName,
+                    arguments: annotation.arguments,
+                    useSiteTarget: annotation.useSiteTarget,
+                    retention: annotation.retention,
+                    usageID: annotation.usageID,
+                    factorySymbol: annotation.factorySymbol.map(mapSymbol),
+                    factoryLinkName: annotation.factoryLinkName
+                )
+            }
+        }
+        for (owner, companion) in snapshot.companionObjectSymbols { companionObjectSymbols[mapSymbol(owner)] = mapSymbol(companion) }
+        for (symbol, field) in snapshot.outerInstanceFieldSymbols { outerInstanceFieldSymbols[mapSymbol(symbol)] = mapSymbol(field) }
+        for (symbol, initializer) in snapshot.objectInitializerSymbols { objectInitializerSymbols[mapSymbol(symbol)] = mapSymbol(initializer) }
+        for (symbol, initializer) in snapshot.objectLazyInitializerSymbols { objectLazyInitializerSymbols[mapSymbol(symbol)] = mapSymbol(initializer) }
+        for (symbol, initializer) in snapshot.companionObjectInitializerSymbols { companionObjectInitializerSymbols[mapSymbol(symbol)] = mapSymbol(initializer) }
+        for (symbol, initializer) in snapshot.enumStaticInitSymbols { enumStaticInitSymbols[mapSymbol(symbol)] = mapSymbol(initializer) }
+        for (symbol, targets) in snapshot.enumEntryDispatchTargets {
+            enumEntryDispatchTargets[mapSymbol(symbol)] = targets.map { EnumEntryDispatchTarget(entrySymbol: mapSymbol($0.entrySymbol), functionSymbol: mapSymbol($0.functionSymbol)) }
+        }
+        for (symbol, base) in snapshot.enumEntryDispatchBaseSymbols { enumEntryDispatchBaseSymbols[mapSymbol(symbol)] = mapSymbol(base) }
+        for (symbol, type) in snapshot.valueClassUnderlyingTypes { valueClassUnderlyingTypes[mapSymbol(symbol)] = mapType(type, using: typeMap) }
+        for (symbol, subclasses) in snapshot.sealedSubclassesStorage { sealedSubclassesStorage[mapSymbol(symbol)] = mapSymbols(subclasses) }
+        for (symbol, value) in snapshot.constValueExprKinds { constValueExprKinds[mapSymbol(symbol)] = value.materialize(interner: interner, mapSymbol: mapSymbol) }
+        delegateHasProvideDelegate.formUnion(snapshot.delegateHasProvideDelegate.map(mapSymbol))
+        for (expect, actual) in snapshot.expectActualLinks { expectActualLinks[mapSymbol(expect)] = mapSymbol(actual) }
+        for (actual, owner) in snapshot.expectActualDefaultArgumentOwners { expectActualDefaultArgumentOwners[mapSymbol(actual)] = mapSymbol(owner) }
+        for (symbol, effect) in snapshot.contractNonNullEffects {
+            contractNonNullEffects[mapSymbol(symbol)] = ContractNonNullEffect(parameterSymbol: mapSymbol(effect.parameterSymbol), appliesOnAnyReturn: effect.appliesOnAnyReturn)
+        }
+        for (symbol, effects) in snapshot.contractImplicationEffects { contractImplicationEffects[mapSymbol(symbol)] = effects.map { mapContractImplication($0, using: typeMap) } }
+        for (symbol, effect) in snapshot.contractReturnsEffects { contractReturnsEffects[mapSymbol(symbol)] = effect }
+        for (symbol, effects) in snapshot.contractCallsInPlaceEffects {
+            contractCallsInPlaceEffects[mapSymbol(symbol)] = effects.map { ContractCallsInPlaceEffect(parameterSymbol: mapSymbol($0.parameterSymbol), kind: $0.kind) }
+        }
+        contractReturnsNotNullEffects.formUnion(snapshot.contractReturnsNotNullEffects.map(mapSymbol))
+        for (symbol, effect) in snapshot.contractConditionEffects { contractConditionEffects[mapSymbol(symbol)] = effect }
+        importedNominalsWithoutInitializers.formUnion(snapshot.importedNominalsWithoutInitializers.map(mapSymbol))
+        importedNominalsWithIncompleteInitializerInfo.formUnion(snapshot.importedNominalsWithIncompleteInitializerInfo.map(mapSymbol))
+        for (symbol, shape) in snapshot.importedMemberIndexShapes {
+            let receiver = shape.receiverOwnerFQName?.map(interner.intern)
+            importedMemberIndexShapes[mapSymbol(symbol)] = ImportedMemberIndexShape(arity: shape.arity, receiverOwnerFQName: receiver, hasDefaultArguments: shape.hasDefaultArguments)
+        }
+        for (classSymbol, interfaces) in snapshot.delegatedInterfacesByClass {
+            delegatedInterfacesByClass[mapSymbol(classSymbol), default: []].formUnion(interfaces.map(mapSymbol))
+        }
+        klibDefinedGlobalSymbols.formUnion(snapshot.klibDefinedGlobalSymbols.map(mapSymbol))
+        for (symbol, base) in snapshot.overrideDefaultsBaseSymbols { overrideDefaultsBaseSymbols[mapSymbol(symbol)] = mapSymbol(base) }
+        for (receiver, defaults) in snapshot.inheritedDefaultsByReceiver {
+            let mappedReceiver = mapType(receiver, using: typeMap)
+            for (implementation, owner) in defaults {
+                inheritedDefaultsByReceiver[mappedReceiver, default: [:]][mapSymbol(implementation)] = mapSymbol(owner)
+            }
+        }
     }
 }
