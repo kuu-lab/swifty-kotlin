@@ -292,6 +292,32 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    // KUU-2791: synchronized is inline, so a bare return inside its block exits the caller.
+    @Test(arguments: [true, false])
+    func testSynchronizedAllowsNonLocalReturn(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            fun find(data: IntArray): Int {
+                synchronized(data) {
+                    return 42
+                }
+            }
+
+            fun findLocal(data: IntArray): Int = synchronized(data) {
+                return@synchronized 5
+            }
+
+            fun main() {
+                println(find(intArrayOf(1)))
+                println(findLocal(intArrayOf(1)))
+            }
+            """,
+            expectedOutput: "42\n5\n",
+            moduleName: "KUU2791SynchronizedNonLocalReturn",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     // KSP-781 regression: PUBLICATION may evaluate an initializer more than
     // once under contention, but every read must observe the first published
     // value rather than a later initializer result.
