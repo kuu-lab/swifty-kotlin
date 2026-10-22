@@ -233,7 +233,10 @@ public final class CodegenPhase: CompilerPhase {
             "target": targetString,
             "objects": ["objects/\(ctx.options.moduleName)_0.o"],
             "metadata": "metadata.bin",
-            "inlineKIRDir": "inline-kir"
+            "inlineKIRDir": "inline-kir",
+            "runtimeReflectionMetadataScope": ctx.options.includeNonPublicReflectionMetadata || ctx.options.stdlibOnly
+                ? "all"
+                : "public"
         ]
         if ctx.options.stdlibOnly {
             manifestDict["libraryKind"] = "stdlib"
@@ -740,7 +743,7 @@ public final class CodegenPhase: CompilerPhase {
             interner: ctx.interner,
             functionLinkNames: functionLinkInfo.functionLinkNamesBySymbol,
             inlineFunctionSymbols: functionLinkInfo.inlineFunctionSymbols,
-            includeNonPublic: ctx.options.includeNonPublicReflectionMetadata,
+            includeNonPublic: ctx.options.includeNonPublicReflectionMetadata || ctx.options.stdlibOnly,
             runtimeReflectionOnly: true
         )
     }

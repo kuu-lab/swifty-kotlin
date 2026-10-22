@@ -76,7 +76,14 @@ enum BatchMode {
             IncrementalCompilationCache.environmentFingerprintProvider = { options in
                 incrementalEnvironmentFingerprint(for: options)
             }
-            return Int32(CompilerDriver(backendPhases: makeBackendPhases).run(options: options))
+            let exitCode = CompilerDriver(backendPhases: makeBackendPhases).run(options: options)
+            if exitCode == 0, options.stdlibOnly {
+                StdlibArtifactBuilder.attachRuntimePrelinkIfAvailable(
+                    outputBase: options.outputPath,
+                    target: options.target
+                )
+            }
+            return Int32(exitCode)
         } catch let error as CLIParseError {
             if error == .usageRequested { printUsage(); return 0 }
             printCLIError(error)

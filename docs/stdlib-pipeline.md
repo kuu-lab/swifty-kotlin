@@ -207,6 +207,16 @@ public fun ByteArray.decodeToString(): String = __stringFromUtf8(this, 0, size)
 3. manifest、metadata、object、inline-KIR、target、stdlib hash の不一致は source injection へ
    暗黙に落とさず、明確な診断で停止する。互換性のある packaged artifact がない場合は cache を再生成する。
 
+macOS の生成 artifact は、stdlib object と release Runtime objects を 1 つの
+relocatable object にまとめて `.kklib` 内に保存する。manifest は object path に加え、
+compiler version、Runtime source fingerprint、Swift link-plan fingerprint を持つ。
+Link は compiler / target / link-plan identity が一致し、Runtime source tree がある場合は
+Runtime fingerprint も一致し、object が artifact 内にある場合だけこれを使う。source-less
+packaged install では Runtime fingerprint の manifest presence を要求する。
+それ以外は通常の stdlib / Runtime inputs に戻る。stdlib artifact は reflection metadata
+scope を `all` として生成するため、consumer は同じ records を再生成しない。
+`--stdlib-only --emit library` も同じ optional prelink を生成する。
+
 既定artifactは `executable`、`object`、`llvm`、`kir`、`library` の全モードで解決する。
 `--stdlib-from-source` は既定artifactの発見・生成を無効化し、bundled source 経路を明示的に
 選択する。`--no-stdlib`、`--stdlib-only`、明示的な `--stdlib-library` は既定解決の対象外。

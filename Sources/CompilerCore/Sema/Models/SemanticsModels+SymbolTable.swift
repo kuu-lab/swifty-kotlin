@@ -155,6 +155,8 @@ public final class SymbolTable {
     /// Selected symbols imported from the validated stdlib artifact, including
     /// indexed declarations whose bodies have not been materialized yet.
     private var importedStdlibSymbolIDs: Set<SymbolID> = []
+    /// Runtime reflection records already embedded in a linked native library object.
+    private var importedRuntimeReflectionScopes: [SymbolID: String] = [:]
     private var moduleFQNames: [SymbolID: InternedString] = [:]
     private var byModuleFQN: [InternedString: [SymbolID]] = [:]
     private var annotationsStorage: [SymbolID: [MetadataAnnotationRecord]] = [:]
@@ -300,6 +302,7 @@ public final class SymbolTable {
         worker.pendingTypeParameterBoundConflictChecks = pendingTypeParameterBoundConflictChecks
         worker.sourceFileIDs = sourceFileIDs
         worker.importedStdlibSymbolIDs = importedStdlibSymbolIDs
+        worker.importedRuntimeReflectionScopes = importedRuntimeReflectionScopes
         worker.moduleFQNames = moduleFQNames
         worker.byModuleFQN = byModuleFQN
         worker.annotationsStorage = annotationsStorage
@@ -1571,6 +1574,18 @@ public final class SymbolTable {
 
     func isImportedStdlibSymbol(_ symbol: SymbolID) -> Bool {
         importedStdlibSymbolIDs.contains(symbol)
+    }
+
+    func markImportedRuntimeReflectionMetadata(_ scope: String, for symbol: SymbolID) {
+        guard scope == "public" || scope == "all" else { return }
+        importedRuntimeReflectionScopes[symbol] = scope
+    }
+
+    func hasImportedRuntimeReflectionMetadata(for symbol: SymbolID) -> Bool {
+        guard let scope = importedRuntimeReflectionScopes[symbol] else { return false }
+        if scope == "all" { return true }
+        guard let imported = self.symbol(symbol) else { return false }
+        return imported.visibility == .public || imported.visibility == .protected
     }
 
     public func setSourceFileID(_ fileID: FileID, for symbol: SymbolID) {

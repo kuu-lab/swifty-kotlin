@@ -12,15 +12,22 @@ import Foundation
 package struct LibraryManifest: Decodable {
     let formatVersion: Int?
     let moduleName: String?
-    let libraryKind: String?
-    let stdlibManifestHash: String?
+    package let libraryKind: String?
+    package let stdlibManifestHash: String?
     let kotlinLanguageVersion: String?
-    let target: String?
+    package let target: String?
     let compilerVersion: String?
     let sourceVarargStorageABI: String?
     let metadata: String?
     let inlineKIRDir: String?
     let topLevelInitializerLinkName: String?
+    let runtimeReflectionMetadataScope: String?
+    package let prelinkedObject: String?
+    package let prelinkedObjectIncludesRuntime: Bool?
+    package let prelinkedCompilerVersion: String?
+    package let prelinkedFormatVersion: Int?
+    package let prelinkedRuntimeFingerprint: String?
+    package let prelinkedLinkPlanKey: String?
     package let objects: [String]?
 
     private enum CodingKeys: String, CodingKey {
@@ -28,6 +35,8 @@ package struct LibraryManifest: Decodable {
         case kotlinLanguageVersion, target
         case sourceVarargStorageABI
         case compilerVersion, metadata, inlineKIRDir, topLevelInitializerLinkName, objects
+        case runtimeReflectionMetadataScope, prelinkedObject, prelinkedObjectIncludesRuntime
+        case prelinkedCompilerVersion, prelinkedFormatVersion, prelinkedRuntimeFingerprint, prelinkedLinkPlanKey
     }
 
     package init(from decoder: Decoder) throws {
@@ -43,6 +52,13 @@ package struct LibraryManifest: Decodable {
         metadata = try? container.decodeIfPresent(String.self, forKey: .metadata)
         inlineKIRDir = try? container.decodeIfPresent(String.self, forKey: .inlineKIRDir)
         topLevelInitializerLinkName = try? container.decodeIfPresent(String.self, forKey: .topLevelInitializerLinkName)
+        runtimeReflectionMetadataScope = try? container.decodeIfPresent(String.self, forKey: .runtimeReflectionMetadataScope)
+        prelinkedObject = try? container.decodeIfPresent(String.self, forKey: .prelinkedObject)
+        prelinkedObjectIncludesRuntime = try? container.decodeIfPresent(Bool.self, forKey: .prelinkedObjectIncludesRuntime)
+        prelinkedCompilerVersion = try? container.decodeIfPresent(String.self, forKey: .prelinkedCompilerVersion)
+        prelinkedFormatVersion = try? container.decodeIfPresent(Int.self, forKey: .prelinkedFormatVersion)
+        prelinkedRuntimeFingerprint = try? container.decodeIfPresent(String.self, forKey: .prelinkedRuntimeFingerprint)
+        prelinkedLinkPlanKey = try? container.decodeIfPresent(String.self, forKey: .prelinkedLinkPlanKey)
         objects = try? container.decodeIfPresent([String].self, forKey: .objects)
     }
 }
@@ -216,7 +232,10 @@ extension DataFlowSemaPhase {
             isValid: isValid,
             topLevelInitializerLinkName: manifest.topLevelInitializerLinkName,
             sourceArrayComponentABI: manifest.sourceVarargStorageABI == "array-v1",
-            formatVersion: manifest.formatVersion
+            formatVersion: manifest.formatVersion,
+            runtimeReflectionMetadataScope: isStdlibArtifact && manifest.objects?.isEmpty == false
+                ? manifest.runtimeReflectionMetadataScope
+                : nil
         )
     }
 

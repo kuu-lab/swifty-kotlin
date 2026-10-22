@@ -36,6 +36,13 @@ package final class MetadataEncoder {
                 if runtimeReflectionOnly, symbols.hasPendingImportedMetadata(for: symbol.id) {
                     return false
                 }
+                // Linked native libraries already contribute their own runtime
+                // reflection blob. Rebuilding those records in every consumer
+                // duplicates the producer's work and can decode the full API.
+                if runtimeReflectionOnly,
+                   symbols.hasImportedRuntimeReflectionMetadata(for: symbol.id) {
+                    return false
+                }
                 // A matched expect declaration is not part of the module's ABI:
                 // its actual counterpart carries the exported API, and emitting both
                 // under the same FQ name produces duplicate nominal metadata that

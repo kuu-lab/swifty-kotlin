@@ -86,15 +86,27 @@ final class LinkPhase: CompilerPhase {
     }
 
     private func performLink(objectPath: String, entrySymbol: String, takesArguments: Bool, ctx: CompilationContext) throws {
-        let autoLinkedObjects = withSubPhaseTiming("libraryObjects", timer: ctx.phaseTimer) {
-            discoverLibraryObjects(searchPaths: ctx.options.effectiveLibrarySearchPaths)
+        let libraryInputs = withSubPhaseTiming("libraryObjects", timer: ctx.phaseTimer) {
+            discoverLibraryLinkInputs(
+                searchPaths: ctx.options.effectiveLibrarySearchPaths,
+                target: ctx.options.target
+            )
         }
         do {
-            let runtimeInputs = try withSubPhaseTiming("runtimeObjects", timer: ctx.phaseTimer) {
-                try CodegenRuntimeSupport.runtimeLinkInputs(
-                    target: ctx.options.target,
-                    configuration: .release
-                )
+            let runtimeObjects: [String]
+            let linkerCacheDirectory: URL
+            if libraryInputs.includesRuntime {
+                runtimeObjects = []
+                linkerCacheDirectory = CodegenRuntimeSupport.runtimeLinkerCacheDirectory()
+            } else {
+                let runtimeInputs = try withSubPhaseTiming("runtimeObjects", timer: ctx.phaseTimer) {
+                    try CodegenRuntimeSupport.runtimeLinkInputs(
+                        target: ctx.options.target,
+                        configuration: .release
+                    )
+                }
+                runtimeObjects = runtimeInputs.objects
+                linkerCacheDirectory = runtimeInputs.linkerCacheDirectory
             }
             let entryWrapperObjectPath = try withSubPhaseTiming("entryWrapper", timer: ctx.phaseTimer) {
                 try LLVMEntryPointObjectEmitter(target: ctx.options.target, takesArguments: takesArguments, phaseTimer: ctx.phaseTimer, session: session ?? LLVMBackendSession())
@@ -120,7 +132,7 @@ final class LinkPhase: CompilerPhase {
             }
             let linkInputs = buildLinkInputs(
                 objectPath: objectPath, entryWrapperObjectPath: entryWrapperObjectPath,
-                runtimeObjects: runtimeInputs.objects, autoLinkedObjects: autoLinkedObjects
+                runtimeObjects: runtimeObjects, autoLinkedObjects: libraryInputs.objects
             )
             var args = linkInputs
             if let autolinkStubPath {
@@ -137,14 +149,14 @@ final class LinkPhase: CompilerPhase {
                let plan = try? MacOSLinkerPlan.load(
                    swiftcPath: swiftcPath,
                    driverArguments: linkerDriverArgs(for: ctx.options.target),
-                   cacheDirectory: runtimeInputs.linkerCacheDirectory,
+                   cacheDirectory: linkerCacheDirectory,
                    phaseTimer: ctx.phaseTimer
                ) {
                 var finalInputs = linkInputs
                 let prelinked = withSubPhaseTiming("prelinkedObjects", timer: ctx.phaseTimer) {
                     MacOSPrelinkedObjects.resolve(
                         inputs: Array(linkInputs.dropFirst(2)),
-                        cacheDirectory: runtimeInputs.linkerCacheDirectory
+                        cacheDirectory: linkerCacheDirectory
                             .appendingPathComponent("prelinked", isDirectory: true),
                         driver: plan.executable,
                         target: linkerTargetTriple(ctx.options.target),
@@ -326,7 +338,7 @@ final class LinkPhase: CompilerPhase {
         return args
     }
 
-    private func linkerTargetTriple(_ target: TargetTriple) -> String {
+    func linkerTargetTriple(_ target: TargetTriple) -> String {
         if let version = target.osVersion, !version.isEmpty {
             return CodegenRuntimeSupport.targetTripleString(target)
         }
@@ -338,6 +350,13 @@ final class LinkPhase: CompilerPhase {
     }
 
     func discoverLibraryObjects(searchPaths: [String]) -> [String] {
+        discoverLibraryLinkInputs(searchPaths: searchPaths, target: nil).objects
+    }
+
+    func discoverLibraryLinkInputs(
+        searchPaths: [String],
+        target: TargetTriple?
+    ) -> (objects: [String], includesRuntime: Bool) {
         let fileManager = FileManager.default
         var libraryDirs: [String] = []
         var libraryDirSeen: Set<String> = []
@@ -364,22 +383,67 @@ final class LinkPhase: CompilerPhase {
             }
         }
 
+        let hasPrelinkedStdlibCandidate = target.map { $0.vendor == "apple" && $0.os == "macosx" } == true
+            && libraryDirs.contains { hasPrelinkedRuntimeObject(in: $0) }
+        let runtimeFingerprint: String?
+        let linkPlanKey: String?
+        if hasPrelinkedStdlibCandidate, let target {
+            runtimeFingerprint = try? CodegenRuntimeSupport.runtimeBuildCacheKey(
+                target: target,
+                configuration: .release
+            )
+            let swiftcPath = CommandRunner.resolveExecutable("swiftc", fallback: "/usr/bin/swiftc")
+            linkPlanKey = MacOSLinkerPlan.cacheIdentity(
+                swiftcPath: swiftcPath,
+                driverArguments: linkerDriverArgs(for: target),
+                environment: ProcessInfo.processInfo.environment
+            )
+        } else {
+            runtimeFingerprint = nil
+            linkPlanKey = nil
+        }
+
         var collected: [String] = []
         var seen: Set<String> = []
+        var includesRuntime = false
         for libraryDir in libraryDirs {
             // objectPaths already resolves symlinks and verifies containment
             // and regular-file status. Repeating that work for every returned
             // object made large imported libraries needlessly expensive.
-            for objectPath in objectPaths(from: libraryDir) {
+            let libraryObjects = objectPaths(
+                from: libraryDir,
+                target: target,
+                runtimeFingerprint: runtimeFingerprint,
+                linkPlanKey: linkPlanKey
+            )
+            includesRuntime = includesRuntime || libraryObjects.includesRuntime
+            for objectPath in libraryObjects.objects {
                 if seen.insert(objectPath).inserted {
                     collected.append(objectPath)
                 }
             }
         }
-        return collected
+        return (collected, includesRuntime)
     }
 
-    private func objectPaths(from libraryDir: String) -> [String] {
+    private func hasPrelinkedRuntimeObject(in libraryDir: String) -> Bool {
+        let root = URL(fileURLWithPath: libraryDir).resolvingSymlinksInPath().standardizedFileURL
+        let manifestURL = root.appendingPathComponent("manifest.json")
+        guard let safeManifest = containedRegularFileURL(manifestURL, under: root, fileManager: .default),
+              let data = try? Data(contentsOf: safeManifest),
+              let manifest = try? JSONDecoder().decode(LibraryManifest.self, from: data)
+        else { return false }
+        return manifest.libraryKind == "stdlib"
+            && manifest.prelinkedObjectIncludesRuntime == true
+            && manifest.prelinkedObject != nil
+    }
+
+    private func objectPaths(
+        from libraryDir: String,
+        target: TargetTriple?,
+        runtimeFingerprint: String?,
+        linkPlanKey: String?
+    ) -> (objects: [String], includesRuntime: Bool) {
         let fileManager = FileManager.default
         let libraryRoot = URL(fileURLWithPath: libraryDir).resolvingSymlinksInPath().standardizedFileURL
         let manifestURL = libraryRoot.appendingPathComponent("manifest.json")
@@ -388,6 +452,25 @@ final class LinkPhase: CompilerPhase {
            let manifest = try? JSONDecoder().decode(LibraryManifest.self, from: data),
            let manifestObjects = manifest.objects
         {
+            if manifest.libraryKind == "stdlib",
+               manifest.stdlibManifestHash == BundledStdlib.manifestHash(),
+               manifest.prelinkedObjectIncludesRuntime == true,
+               manifest.prelinkedFormatVersion == 1,
+               manifest.prelinkedCompilerVersion == CompilerBuildInfo.version,
+               manifest.prelinkedRuntimeFingerprint.map({ !$0.isEmpty }) == true,
+               runtimeFingerprint.map({ manifest.prelinkedRuntimeFingerprint == $0 }) ?? true,
+               manifest.prelinkedLinkPlanKey.map({ !$0.isEmpty }) == true,
+               manifest.prelinkedLinkPlanKey == linkPlanKey,
+               target.map({ manifest.target == "\($0.arch)-\($0.vendor)-\($0.os)" }) ?? true,
+               let relativePath = manifest.prelinkedObject,
+               let url = containedRegularFileURL(
+                   libraryRoot.appendingPathComponent(relativePath),
+                   under: libraryRoot,
+                   fileManager: fileManager
+               )
+            {
+                return ([url.path], true)
+            }
             let mapped = manifestObjects
                 .filter { !$0.isEmpty }
                 .compactMap {
@@ -398,15 +481,15 @@ final class LinkPhase: CompilerPhase {
                     )?.path
                 }
             if !mapped.isEmpty {
-                return mapped
+                return (mapped, false)
             }
         }
 
         let objectsDir = URL(fileURLWithPath: libraryDir).appendingPathComponent("objects").path
         guard let entries = try? fileManager.contentsOfDirectory(atPath: objectsDir) else {
-            return []
+            return ([], false)
         }
-        return entries
+        return (entries
             .filter { $0.hasSuffix(".o") }
             .sorted()
             .compactMap {
@@ -415,7 +498,7 @@ final class LinkPhase: CompilerPhase {
                     under: libraryRoot,
                     fileManager: fileManager
                 )?.path
-            }
+            }, false)
     }
 
     private func containedRegularFileURL(

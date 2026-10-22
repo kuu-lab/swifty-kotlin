@@ -9,6 +9,7 @@ extension DataFlowSemaPhase {
         var topLevelInitializerLinkName: String? = nil
         var sourceArrayComponentABI: Bool = false
         var formatVersion: Int? = nil
+        var runtimeReflectionMetadataScope: String? = nil
     }
 
     struct LibraryImportDeferredWork {
@@ -229,6 +230,7 @@ extension DataFlowSemaPhase {
         }
 
         var seenLibraryMetadataPaths: Set<String> = []
+        var runtimeReflectionScopesByMetadataPath: [String: String] = [:]
         var activeLibraryMetadataPath: String?
         var activePathHasCrossLibraryOwners = false
         var originByModuleFQName: [InternedString: String] = [:]
@@ -368,6 +370,9 @@ extension DataFlowSemaPhase {
             }
             boundSymbolOrigins[symbol] = (origin: origin, metadataPath: metadataPath)
             if isStdlibArtifact { symbols.markImportedStdlibSymbol(symbol) }
+            if let scope = runtimeReflectionScopesByMetadataPath[metadataPath] {
+                symbols.markImportedRuntimeReflectionMetadata(scope, for: symbol)
+            }
             if let setterVisibility = record.propertySetterVisibility {
                 symbols.setPropertySetterVisibility(setterVisibility, for: symbol)
             }
@@ -514,6 +519,9 @@ extension DataFlowSemaPhase {
             }
             guard manifestInfo.isValid else {
                 continue
+            }
+            if stdlibArtifact, let scope = manifestInfo.runtimeReflectionMetadataScope {
+                runtimeReflectionScopesByMetadataPath[manifestInfo.metadataPath] = scope
             }
             if let linkName = manifestInfo.topLevelInitializerLinkName,
                !linkName.isEmpty,

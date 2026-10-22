@@ -63,6 +63,12 @@ do {
     }
     let driver = CompilerDriver(backendPhases: makeBackendPhases)
     let exitCode = driver.run(options: options)
+    if exitCode == 0, options.stdlibOnly {
+        StdlibArtifactBuilder.attachRuntimePrelinkIfAvailable(
+            outputBase: options.outputPath,
+            target: options.target
+        )
+    }
     exit(Int32(exitCode))
 } catch let error as CLIParseError {
     if error == .usageRequested {
