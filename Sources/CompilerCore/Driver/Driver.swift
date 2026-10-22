@@ -9,8 +9,18 @@ public final class CompilerDriver {
 
     private let backendPhases: @Sendable () -> [CompilerPhase]
 
-    public init(backendPhases: @escaping @Sendable () -> [CompilerPhase] = { [] }) {
+    /// Starts program-independent backend work (e.g. resolving runtime link
+    /// inputs) in the background while the frontend runs, so Link finds it
+    /// ready instead of paying for it after Codegen. Must not block, throw, or
+    /// trigger expensive builds; failures are left for the real phase to report.
+    private let backendPrefetch: @Sendable (CompilerOptions) -> Void
+
+    public init(
+        backendPhases: @escaping @Sendable () -> [CompilerPhase] = { [] },
+        backendPrefetch: @escaping @Sendable (CompilerOptions) -> Void = { _ in }
+    ) {
         self.backendPhases = backendPhases
+        self.backendPrefetch = backendPrefetch
     }
 
     public func run(options: CompilerOptions) -> Int {
@@ -71,6 +81,9 @@ public final class CompilerDriver {
         }
         let prepared = prepareContext(options: options, generatedTestRun: generatedTestRun)
         let ctx = prepared.context
+        if options.emit == .executable {
+            backendPrefetch(options)
+        }
         // Preserve CLI input order; dictionary iteration must not assign file IDs.
         for path in options.inputs {
             if let data = inMemorySources[path] {
