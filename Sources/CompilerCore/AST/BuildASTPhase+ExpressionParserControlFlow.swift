@@ -177,6 +177,9 @@ extension BuildASTPhase.ExpressionParser {
                 _ = consume()
                 isElseBranch = true
             } else {
+                if matches(.symbol(.arrow)) {
+                    diagnostics?.error("KSWIFTK-PARSE-0011", "Expected when branch condition.", range: token.range)
+                }
                 let firstCond = parseWhenBranchCondition(subject: subject)
                 diagnoseAssignmentOperatorAfterExpression()
                 if let firstCond {
@@ -317,6 +320,12 @@ extension BuildASTPhase.ExpressionParser {
             astArena: astArena,
             diagnostics: diagnostics
         )
+        // A bare (non-block) branch body may be an assignment
+        // (`1 -> x = 10`, `1 -> counter += 1`, `1 -> arr[i] = v`), which is a
+        // statement form the generic expression parser below doesn't know —
+        // it only consumes the assignment's target and stops at `=`. The
+        // leftover `=` is therefore expected here, not a stray token.
+        parser.reportsTrailingAssignmentOperator = false
         var body: ExprID?
         if branchTokens.first?.kind == .symbol(.at) || branchTokens.first?.kind == .symbol(.lBrace) {
             body = parser.parseControlFlowBodyExpression()
@@ -324,11 +333,6 @@ extension BuildASTPhase.ExpressionParser {
             body = parser.parse()
         }
         var consumedCount = parser.index - parser.tokens.startIndex
-        // A bare (non-block) branch body may be an assignment
-        // (`1 -> x = 10`, `1 -> counter += 1`, `1 -> arr[i] = v`), which is a
-        // statement form the generic expression parser above doesn't know —
-        // it only consumes the assignment's target and stops at `=`. Retry as
-        // a local assignment when the generic parse left tokens unconsumed.
         if body == nil || consumedCount < branchTokens.count {
             if let assignBody = parseWhenBranchAssignmentBody(branchTokens) {
                 body = assignBody
@@ -508,6 +512,7 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
         guard let value = parseExpression(minPrecedence: 0) else {
+            diagnostics?.error("KSWIFTK-PARSE-0001", "Expected expression.", range: throwToken.range)
             return nil
         }
         let end = astArena.exprRange(value)?.end ?? throwToken.range.end
@@ -574,6 +579,7 @@ extension BuildASTPhase.ExpressionParser {
                     index = savedIndex
                     return parseForExpressionFallback(forToken: forToken, label: label, start: start)
                 }
+                diagnoseAssignmentOperatorAfterExpression()
                 _ = consumeIf(.symbol(.rParen))
                 guard let body = parseControlFlowBodyExpression() else {
                     index = savedIndex
@@ -631,6 +637,9 @@ extension BuildASTPhase.ExpressionParser {
         guard let iterable = parseExpression(minPrecedence: 0) else {
             return nil
         }
+        // The iterable is an expression: `for (i in x = 1..3)` must not
+        // silently drop the assignment and iterate the bare `x`.
+        diagnoseAssignmentOperatorAfterExpression()
         _ = consumeIf(.symbol(.rParen))
 
         guard let body = parseControlFlowBodyExpression() else {

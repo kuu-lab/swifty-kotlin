@@ -52,7 +52,8 @@ final class LLVMBackend {
         fileFacadeNamesByFileID: [Int32: String] = [:],
         reflectionMetadataRecords: [MetadataRecord] = [],
         reflectionMetadataSymbolPrefix: String? = nil,
-        linkOnceODRSymbols: Set<SymbolID> = []
+        linkOnceODRSymbols: Set<SymbolID> = [],
+        bitcodeOutputPath: String? = nil
     ) throws {
         try emitNative(
             context: "object",
@@ -78,7 +79,7 @@ final class LLVMBackend {
                         phaseTimer: phaseTimer
                     )
                 }
-                try emitter.emitObject(outputPath: outputObjectPath)
+                try emitter.emitObject(outputPath: outputObjectPath, bitcodeOutputPath: bitcodeOutputPath)
             }
         )
     }

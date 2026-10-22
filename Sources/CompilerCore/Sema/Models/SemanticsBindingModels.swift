@@ -182,7 +182,7 @@ public enum ScopeFunctionKind: Equatable {
     case scopeMemScoped
 }
 
-public enum StdlibSpecialCallKind: Equatable {
+public enum StdlibSpecialCallKind: Equatable, Codable {
     /// Compiler-only contract DSL; its lambda is recorded by Sema and must
     /// not be emitted into KIR.
     case contract

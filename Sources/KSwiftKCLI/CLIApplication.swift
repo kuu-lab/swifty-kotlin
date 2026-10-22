@@ -26,6 +26,8 @@ func printCLIError(_ error: CLIParseError) {
         print(message)
     case .stdlibOnlyRequiresLibraryEmit:
         print("--stdlib-only requires --emit library")
+    case .runRequiresExecutableEmit:
+        print("--run cannot be combined with --emit other than executable")
     }
 }
 
