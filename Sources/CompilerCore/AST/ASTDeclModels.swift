@@ -408,6 +408,7 @@ public struct PropertyAccessorDecl: Equatable, Codable {
     public let visibility: Visibility?
     public let isInline: Bool
     public let parameterName: InternedString?
+    public let returnType: TypeRefID?
     public let body: FunctionBody
 
     public init(
@@ -417,6 +418,7 @@ public struct PropertyAccessorDecl: Equatable, Codable {
         visibility: Visibility? = nil,
         isInline: Bool = false,
         parameterName: InternedString? = nil,
+        returnType: TypeRefID? = nil,
         body: FunctionBody = .unit
     ) {
         self.range = range
@@ -425,6 +427,7 @@ public struct PropertyAccessorDecl: Equatable, Codable {
         self.visibility = visibility
         self.isInline = isInline
         self.parameterName = parameterName
+        self.returnType = returnType
         self.body = body
     }
 }

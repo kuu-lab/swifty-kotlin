@@ -381,7 +381,7 @@ extension BuildASTPhase.ExpressionParser {
             range: propertyRange,
             name: prefix.name,
             modifiers: modifiers,
-            type: prefix.typeAnnotation,
+            type: prefix.typeAnnotation ?? getter?.returnType,
             isVar: prefix.isMutable,
             initializer: prefix.initializer,
             getter: getter,
@@ -546,6 +546,13 @@ extension BuildASTPhase.ExpressionParser {
                 range: accessorRange,
                 kind: kind,
                 parameterName: parameterName,
+                returnType: BuildASTPhase(diagnostics: diagnostics ?? DiagnosticEngine())
+                    .accessorReturnType(
+                        from: Array(tokens[accessorStart ..< body.nextIndex]),
+                        kind: kind,
+                        interner: interner,
+                        astArena: astArena
+                    ),
                 body: body.functionBody
             )
 
