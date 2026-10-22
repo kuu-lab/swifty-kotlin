@@ -35,9 +35,10 @@ func assertKotlinCompilesToKIR(
     _ source: String,
     moduleName: String = "TestMod",
     sourceLocation: Testing.SourceLocation = #_sourceLocation,
-    allowDefaultStdlibLibrary: Bool = false
+    allowDefaultStdlibLibrary: Bool = false,
+    fileExtension: String = "kt"
 ) throws {
-    try withTemporaryFile(contents: source) { path in
+    try withTemporaryFile(contents: source, fileExtension: fileExtension) { path in
         try assertKotlinInputsToKIR(
             inputs: [path],
             moduleName: moduleName,

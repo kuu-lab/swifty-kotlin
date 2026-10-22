@@ -155,6 +155,36 @@ extension ExprTypeChecker {
             samConversion = false
         }
 
+        // A lambda's declared parameter count must match the expected function
+        // type — the implicit `it` parameter exists only when the expected type
+        // takes exactly one parameter, so `{ }` against `(Int, Int) -> Unit`
+        // and `{ a, b -> }` against `(Int) -> Unit` are both errors. Hint-only
+        // expected types (the elvis RHS hint) and the synthetic `() -> Any`
+        // pushed to directly-invoked lambdas carry no arity contract.
+        if !expectedTypeIsHintOnly,
+           let expectedType,
+           let expectedFunctionType,
+           !sema.bindings.isDirectlyInvokedLambdaExpr(id)
+        {
+            let expectedCount = expectedFunctionType.params.count
+            if params.isEmpty, expectedCount > 1 {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0433",
+                    "Lambda literal has no declared parameters, but the expected type "
+                        + "'\(describe(expectedType, ctx: ctx))' takes \(expectedCount) "
+                        + "(an implicit 'it' parameter requires exactly one).",
+                    range: ast.arena.exprRange(id)
+                )
+            } else if !params.isEmpty, params.count != expectedCount {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0433",
+                    "Lambda literal declares \(params.count) parameter(s), "
+                        + "but the expected type '\(describe(expectedType, ctx: ctx))' takes \(expectedCount).",
+                    range: ast.arena.exprRange(id)
+                )
+            }
+        }
+
         var lambdaLocals = locals
         // Outer receiver `this` symbols are reachable inside the lambda even
         // though the enclosing member's `this` shadows them in `locals` — the

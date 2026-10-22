@@ -104,6 +104,9 @@ extension CodegenPhaseTimingTests {
             symbols: symbols, types: types, diagnostics: diagnostics, interner: interner,
             importedInlineFunctions: ImportedInlineFunctionStore()
         )
+        #expect(work.importedBindings.map {
+            $0.record.fqName.map(interner.resolve).joined(separator: ".")
+        }.contains("provider.Internal"))
         // Nominals are required by layout synthesis independently of reflection.
         for binding in work.importedBindings where binding.record.kind == .class {
             _ = symbols.nominalLayout(for: binding.symbol)
@@ -144,6 +147,89 @@ extension CodegenPhaseTimingTests {
             functionLinkNames: [:], includeNonPublic: includeNonPublic
         )
         #expect(RuntimeReflectionMetadataEmitter.serialize(loadedProjected) == RuntimeReflectionMetadataEmitter.serialize(full))
+        #expect(!diagnostics.hasError)
+    }
+
+    @Test
+    func importedNativeLibraryReflectionRecordsAreReusedByScope() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".kklib")
+        try FileManager.default.createDirectory(at: directory.appendingPathComponent("objects"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: directory.appendingPathComponent("inline-kir"), withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let encoder = MetadataEncoder()
+        let records = [
+            MetadataRecord(kind: .class, mangledName: "_Public", fqName: "provider.Public", arity: 0, isSuspend: false),
+            MetadataRecord(kind: .class, visibility: .internal, mangledName: "_Internal", fqName: "provider.Internal", arity: 0, isSuspend: false),
+        ]
+        try encoder.serializeCompactIndexed(records).write(
+            to: directory.appendingPathComponent("metadata.bin"), options: .atomic
+        )
+        try Data().write(to: directory.appendingPathComponent("objects/provider.o"))
+        let manifest: [String: Any] = [
+            "formatVersion": 2,
+            "moduleName": "KSwiftKStdlib",
+            "libraryKind": "stdlib",
+            "stdlibManifestHash": BundledStdlib.manifestHash(),
+            "kotlinLanguageVersion": "2.4.20",
+            "target": "\(TargetTriple.hostDefault().arch)-\(TargetTriple.hostDefault().vendor)-\(TargetTriple.hostDefault().os)",
+            "compilerVersion": CompilerBuildInfo.version,
+            "sourceVarargStorageABI": "array-v1",
+            "metadata": "metadata.bin",
+            "inlineKIRDir": "inline-kir",
+            "objects": ["objects/provider.o"],
+            "runtimeReflectionMetadataScope": "public"
+        ]
+        try JSONSerialization.data(withJSONObject: manifest, options: [.sortedKeys])
+            .write(to: directory.appendingPathComponent("manifest.json"))
+
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        let interner = StringInterner()
+        let diagnostics = DiagnosticEngine()
+        let work = DataFlowSemaPhase().loadImportedLibrarySymbols(
+            options: CompilerOptions(
+                moduleName: "Consumer", inputs: [], outputPath: "unused", emit: .llvmIR,
+                target: .hostDefault(), includeStdlib: false, stdlibLibraryPath: directory.path
+            ),
+            symbols: symbols, types: types, diagnostics: diagnostics, interner: interner,
+            importedInlineFunctions: ImportedInlineFunctionStore()
+        )
+        _ = symbols.lookup(fqName: ["provider", "Public"].map { interner.intern($0) })
+        _ = symbols.lookup(fqName: ["provider", "Internal"].map { interner.intern($0) })
+        for binding in work.importedBindings where binding.record.kind == .class {
+            _ = symbols.nominalLayout(for: binding.symbol)
+        }
+        let publicBinding = work.importedBindings.first {
+            $0.record.fqName.map(interner.resolve).joined(separator: ".") == "provider.Public"
+        }
+        let internalBinding = work.importedBindings.first {
+            $0.record.fqName.map(interner.resolve).joined(separator: ".") == "provider.Internal"
+        }
+        #expect(publicBinding?.record.visibility == .public)
+        #expect(internalBinding?.record.visibility == .internal)
+        if let publicBinding {
+            #expect(symbols.hasImportedRuntimeReflectionMetadata(for: publicBinding.symbol))
+        }
+        if let internalBinding {
+            #expect(symbols.symbol(internalBinding.symbol)?.visibility == .internal)
+            #expect(!symbols.hasPendingImportedMetadata(for: internalBinding.symbol))
+            #expect(!symbols.hasImportedRuntimeReflectionMetadata(for: internalBinding.symbol))
+        }
+
+        let publicOnly = encoder.buildRecords(
+            symbols: symbols, types: types, moduleName: "Consumer", interner: interner,
+            functionLinkNames: [:], runtimeReflectionOnly: true
+        )
+        #expect(!publicOnly.contains { $0.fqName == "provider.Public" })
+
+        let withNonPublic = encoder.buildRecords(
+            symbols: symbols, types: types, moduleName: "Consumer", interner: interner,
+            functionLinkNames: [:], includeNonPublic: true, runtimeReflectionOnly: true
+        )
+        #expect(withNonPublic.map(\.fqName).contains("provider.Internal"))
+        #expect(!withNonPublic.map(\.fqName).contains("provider.Public"))
         #expect(!diagnostics.hasError)
     }
 }

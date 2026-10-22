@@ -693,6 +693,94 @@ public fun List<Byte>.toByteArray(): ByteArray {
     return result
 }
 
+public fun Array<out Boolean>.toBooleanArray(): BooleanArray {
+    val size = this.size
+    val result = BooleanArray(size)
+    var i = 0
+    while (i < size) {
+        result[i] = this[i]
+        i++
+    }
+    return result
+}
+
+public fun Array<out Byte>.toByteArray(): ByteArray {
+    val size = this.size
+    val result = ByteArray(size)
+    var i = 0
+    while (i < size) {
+        result[i] = this[i]
+        i++
+    }
+    return result
+}
+
+public fun Array<out Char>.toCharArray(): CharArray {
+    val size = this.size
+    val result = CharArray(size)
+    var i = 0
+    while (i < size) {
+        result[i] = this[i]
+        i++
+    }
+    return result
+}
+
+public fun Array<out Double>.toDoubleArray(): DoubleArray {
+    val size = this.size
+    val result = DoubleArray(size)
+    var i = 0
+    while (i < size) {
+        result[i] = this[i]
+        i++
+    }
+    return result
+}
+
+public fun Array<out Float>.toFloatArray(): FloatArray {
+    val size = this.size
+    val result = FloatArray(size)
+    var i = 0
+    while (i < size) {
+        result[i] = this[i]
+        i++
+    }
+    return result
+}
+
+public fun Array<out Int>.toIntArray(): IntArray {
+    val size = this.size
+    val result = IntArray(size)
+    var i = 0
+    while (i < size) {
+        result[i] = this[i]
+        i++
+    }
+    return result
+}
+
+public fun Array<out Long>.toLongArray(): LongArray {
+    val size = this.size
+    val result = LongArray(size)
+    var i = 0
+    while (i < size) {
+        result[i] = this[i]
+        i++
+    }
+    return result
+}
+
+public fun Array<out Short>.toShortArray(): ShortArray {
+    val size = this.size
+    val result = ShortArray(size)
+    var i = 0
+    while (i < size) {
+        result[i] = this[i]
+        i++
+    }
+    return result
+}
+
 @ExperimentalUnsignedTypes
 public fun List<UByte>.toUByteArray(): UByteArray {
     val size = this.size
