@@ -101,6 +101,27 @@ struct TypeRefParserTests {
         try checkReceiverFunctionType(try #require(typeArgs.first), in: ast.arena, source: "T?.() -> Int")
     }
 
+    @Test(arguments: [
+        "val x: Int! = 1",
+        "fun f(x: Int!) {}",
+    ])
+    func platformTypeSuffixIsRejectedInSource(_ source: String) throws {
+        let (_, ctx) = try buildASTModule(from: source, includeStdlib: false)
+        let diagnostics = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-PARSE-0020"
+        }
+
+        #expect(diagnostics.count == 1)
+        #expect(diagnostics.first?.severity == .error)
+    }
+
+    @Test
+    func nullableTypeSuffixRemainsAcceptedInSource() throws {
+        let (_, ctx) = try buildASTModule(from: "val x: Int? = null", includeStdlib: false)
+
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0020" })
+    }
+
     private func checkReceiverFunctionType(_ ref: TypeRefID, in arena: ASTArena, source: String) throws {
         guard case let .functionType(_, receiver, params, returnType, isSuspend, nullable) = arena.typeRef(ref) else {
             Issue.record("Expected a receiver function type for \(source)")

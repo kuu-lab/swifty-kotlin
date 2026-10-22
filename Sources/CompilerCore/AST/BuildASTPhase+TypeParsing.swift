@@ -637,6 +637,18 @@ extension BuildASTPhase {
         ) else {
             return nil
         }
-        return parsed.consumed == tokens.count ? parsed.ref : nil
+        guard parsed.consumed == tokens.count else {
+            let unexpectedToken = tokens[parsed.consumed]
+            let message = unexpectedToken.kind == .symbol(.bang)
+                ? "Platform type suffix '!' is not valid in source type references."
+                : "Unexpected token after type reference."
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0020",
+                message,
+                range: unexpectedToken.range
+            )
+            return nil
+        }
+        return parsed.ref
     }
 }
