@@ -108,7 +108,7 @@ struct TypeRefParserTests {
     func platformTypeSuffixIsRejectedInSource(_ source: String) throws {
         let (_, ctx) = try buildASTModule(from: source, includeStdlib: false)
         let diagnostics = ctx.diagnostics.diagnostics.filter {
-            $0.code == "KSWIFTK-PARSE-0020"
+            $0.code == "KSWIFTK-PARSE-0021"
         }
 
         #expect(diagnostics.count == 1)
@@ -119,7 +119,7 @@ struct TypeRefParserTests {
     func nullableTypeSuffixRemainsAcceptedInSource() throws {
         let (_, ctx) = try buildASTModule(from: "val x: Int? = null", includeStdlib: false)
 
-        #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0020" })
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0021" })
     }
 
     private func checkReceiverFunctionType(_ ref: TypeRefID, in arena: ASTArena, source: String) throws {

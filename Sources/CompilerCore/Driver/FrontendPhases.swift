@@ -548,7 +548,8 @@ public final class BuildASTPhase: CompilerPhase {
                 range: rootNode.range,
                 name: mainName,
                 modifiers: [],
-                body: .block(scriptExprs, rootNode.range)
+                body: .block(scriptExprs, rootNode.range),
+                isScriptEntryPoint: true
             )
             let declID = arena.appendDecl(.funDecl(mainDecl))
             declarations.append(declID)

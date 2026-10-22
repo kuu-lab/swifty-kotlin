@@ -505,6 +505,28 @@ extension ExprTypeChecker {
                 break
             }
         }
+        // kotlinc requires the `operator` modifier on `compareTo` for
+        // `<`/`<=`/`>`/`>=` syntax. A member named `compareTo` without the
+        // modifier cannot serve the comparison; report it explicitly instead
+        // of letting the expression fall through to the built-in numeric
+        // fallback below.
+        if isComparisonOperator, operatorCandidates.isEmpty, !lhsIsPrimitive, lhs != sema.types.errorType {
+            let hasNonOperatorCompareTo = driver.helpers.collectMemberFunctionCandidates(
+                named: interner.intern("compareTo"),
+                receiverType: lhs,
+                sema: sema,
+                interner: interner
+            ).contains { driver.helpers.isNonOperatorConventionFunction($0, sema: sema) }
+            if hasNonOperatorCompareTo {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0432",
+                    "'operator' modifier is required on 'compareTo' in '\(driver.helpers.conventionReceiverDisplayName(lhs, sema: sema, interner: interner))'.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
+        }
         if !operatorCandidates.isEmpty {
             let operatorCall = CallExpr(
                 range: range,

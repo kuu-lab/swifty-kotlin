@@ -53,6 +53,8 @@ enum CLIParser {
       --stdlib-from-source   Debug fallback: inject bundled stdlib Kotlin sources
       --test                 Generate an executable runner for kotlin.test annotations
       -g                     Emit debug info
+      --daemon               Run a persistent local compile daemon
+      --watch                Recompile input files when they change
       --batch <manifest>     Compile many cases in one process (see BatchMode.swift)
     """
 

@@ -472,7 +472,9 @@ extension BuildASTPhase {
             if afterParen < remaining.endIndex,
                remaining[afterParen].kind == .symbol(.colon)
             {
+                let colonToken = remaining[afterParen]
                 afterParen += 1
+                var sawTypeToken = false
                 var typeDepth = BracketDepth()
                 while afterParen < remaining.endIndex {
                     if typeDepth.isAtTopLevel {
@@ -481,13 +483,23 @@ extension BuildASTPhase {
                             break
                         default:
                             typeDepth.track(remaining[afterParen].kind)
+                            sawTypeToken = true
                             afterParen += 1
                             continue
                         }
                         break
                     }
                     typeDepth.track(remaining[afterParen].kind)
+                    sawTypeToken = true
                     afterParen += 1
+                }
+                if !sawTypeToken {
+                    let following = afterParen < remaining.endIndex ? remaining[afterParen] : nil
+                    diagnostics?.error(
+                        "KSWIFTK-PARSE-0020",
+                        "Expected type after ':'.",
+                        range: following?.range ?? colonToken.range
+                    )
                 }
             }
             let body: FunctionBody
@@ -852,17 +864,48 @@ extension BuildASTPhase {
         guard let openParenIndex = headerTokens.firstIndex(where: { $0.kind == .symbol(.lParen) }) else {
             return nil
         }
-        for token in headerTokens[(openParenIndex + 1)...] {
-            if token.kind == .symbol(.rParen) {
+        var depth = 0
+        var nameToken: Token?
+        var colonIndex: Int?
+        var sawTokenAfterColon = false
+        for index in (openParenIndex + 1) ..< headerTokens.count {
+            let token = headerTokens[index]
+            if token.kind == .symbol(.rParen), depth == 0 {
                 break
             }
-            if let name = internedIdentifier(from: token, interner: interner),
-               TypeRefParserCore.isDeclarationNameToken(token.kind)
+            switch token.kind {
+            case .symbol(.lParen), .symbol(.lBracket):
+                depth += 1
+            case .symbol(.rParen), .symbol(.rBracket):
+                depth -= 1
+            default:
+                break
+            }
+            if depth == 0, token.kind == .symbol(.colon), colonIndex == nil {
+                colonIndex = index
+                continue
+            }
+            if colonIndex != nil {
+                sawTokenAfterColon = true
+            } else if nameToken == nil,
+                      internedIdentifier(from: token, interner: interner) != nil,
+                      TypeRefParserCore.isDeclarationNameToken(token.kind)
             {
-                return name
+                nameToken = token
             }
         }
-        return nil
+        if let colonIndex, !sawTokenAfterColon {
+            let following = colonIndex + 1 < headerTokens.count ? headerTokens[colonIndex + 1] : nil
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0020",
+                "Expected type after ':'.",
+                range: following?.range ?? headerTokens[colonIndex].range
+            )
+        }
+        guard let nameToken else {
+            return nil
+        }
+        return internedIdentifier(from: nameToken, interner: interner)
     }
 
     private func siblingBlockAccessors(
@@ -983,6 +1026,50 @@ extension BuildASTPhase {
         )
     }
 
+    /// `get(): = x` / `set(v): { }` — the `:` after an accessor's parameter list
+    /// introduces a required return type, so an empty one is a parse error.
+    private func reportEmptyAccessorReturnType(in headerTokens: [Token]) {
+        var index = 1
+        var parenDepth = 0
+        while index < headerTokens.count {
+            let token = headerTokens[index]
+            if token.kind == .symbol(.lParen) {
+                parenDepth += 1
+            } else if token.kind == .symbol(.rParen) {
+                parenDepth -= 1
+                if parenDepth == 0 {
+                    index += 1
+                    break
+                }
+            }
+            index += 1
+        }
+        guard index < headerTokens.count, headerTokens[index].kind == .symbol(.colon) else {
+            return
+        }
+        let colonToken = headerTokens[index]
+        var sawTypeToken = false
+        var typeDepth = BracketDepth()
+        var cursor = index + 1
+        while cursor < headerTokens.count {
+            let token = headerTokens[cursor]
+            if typeDepth.isAtTopLevel, token.kind == .symbol(.assign) {
+                break
+            }
+            typeDepth.track(token.kind)
+            sawTypeToken = true
+            cursor += 1
+        }
+        if !sawTypeToken {
+            let following = cursor < headerTokens.count ? headerTokens[cursor] : nil
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0020",
+                "Expected type after ':'.",
+                range: following?.range ?? colonToken.range
+            )
+        }
+    }
+
     private func accessorBody(
         headerTokens: [Token],
         accessorTokens: [Token],
@@ -991,6 +1078,7 @@ extension BuildASTPhase {
         interner: StringInterner,
         astArena: ASTArena
     ) -> FunctionBody {
+        reportEmptyAccessorReturnType(in: headerTokens)
         // Expression accessors can contain several trailing lambdas, separated
         // by operators or calls. Keep every block in its original token order,
         // including semicolons separating statements inside lambda bodies.
@@ -1069,6 +1157,7 @@ extension BuildASTPhase {
 
         var fieldType: TypeRefID?
         if tokens[index].kind == .symbol(.colon) {
+            let colonToken = tokens[index]
             index += 1
             var typeTokens: [Token] = []
             var depth = BracketDepth()
@@ -1081,8 +1170,14 @@ extension BuildASTPhase {
                 typeTokens.append(token)
                 index += 1
             }
-            if !typeTokens.isEmpty {
-                fieldType = parseTypeRef(from: typeTokens, interner: interner, astArena: astArena)
+            fieldType = parseTypeRef(from: typeTokens, interner: interner, astArena: astArena)
+            if fieldType == nil {
+                let following = index < tokens.count ? tokens[index] : nil
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0020",
+                    "Expected type after ':'.",
+                    range: following?.range ?? colonToken.range
+                )
             }
         }
 

@@ -147,5 +147,85 @@ struct ContextualKeywordParameterNameTests {
         #expect(param.name == ctx.interner.intern("name"))
         #expect(param.isOverrideProperty)
     }
+
+    /// KUU-2994: hard keywords (`this`, `super`, `object`, `when`, ...) are
+    /// never valid parameter names — kotlinc reports "Parameter name expected."
+    /// They previously slipped through because the name lookup accepted any
+    /// keyword token as an identifier.
+    @Test(arguments: ["this", "super", "object", "when", "class", "fun"])
+    func testHardKeywordParameterNameIsRejected(_ keyword: String) throws {
+        let source = """
+        package demo
+        class Box { fun f(\(keyword): Int) = 0 }
+        """
+        let (_, ctx) = try buildAST(from: source)
+        #expect(ctx.diagnostics.hasError, "Expected '\(keyword)' as parameter name to be rejected")
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0002" })
+    }
+
+    @Test
+    func testParameterNamedThisWithoutTypeIsRejected() throws {
+        let source = """
+        package demo
+        class Box { fun f(this) { } }
+        """
+        let (_, ctx) = try buildAST(from: source)
+        #expect(ctx.diagnostics.hasError)
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0002" })
+    }
+
+    @Test(arguments: [
+        "class Box(val this: Int)",
+        "class Box(this: Int)",
+        "class Box { constructor(this: Int) {} }",
+        "class Box { fun f(vararg this: Int) = 0 }",
+        "class Box { fun f(@Suppress(\"x\") this: Int) = 0 }",
+    ])
+    func testThisParameterNameIsRejectedAcrossDeclarationShapes(_ declaration: String) throws {
+        let source = """
+        package demo
+        \(declaration)
+        """
+        let (_, ctx) = try buildAST(from: source)
+        #expect(ctx.diagnostics.hasError, "Expected 'this' parameter to be rejected in: \(declaration)")
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0002" })
+    }
+
+    @Test
+    func testLocalAndAnonymousFunctionParameterNamedThisIsRejected() throws {
+        let source = """
+        package demo
+        fun outer() {
+            fun f(this: Int) = 0
+            val g = fun(this: Int) = 0
+        }
+        """
+        let (_, ctx) = try buildAST(from: source)
+        #expect(ctx.diagnostics.hasError)
+        #expect(ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-PARSE-0002" }.count == 2)
+    }
+
+    @Test
+    func testBacktickedThisParameterNameIsAccepted() throws {
+        let source = """
+        package demo
+        class Box { fun f(`this`: Int) = 0 }
+        """
+        let (ast, ctx) = try buildAST(from: source)
+        let funDecl = try #require(firstFunDecl(named: "f", in: ast, interner: ctx.interner))
+        #expect(!ctx.diagnostics.hasError, "Backticked `this` should stay valid: \(ctx.diagnostics.diagnostics)")
+        #expect(funDecl.valueParams.map(\.name) == [ctx.interner.intern("this")])
+    }
+
+    @Test
+    func testParameterSegmentWithoutANameIsRejected() throws {
+        let source = """
+        package demo
+        class Box { fun f(123) = 0 }
+        """
+        let (_, ctx) = try buildAST(from: source)
+        #expect(ctx.diagnostics.hasError)
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0002" })
+    }
 }
 #endif

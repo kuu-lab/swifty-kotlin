@@ -205,6 +205,14 @@ extension BuildASTPhase {
             }
         }
         guard let ref = parseTypeRef(from: typeTokens, interner: interner, astArena: astArena) else {
+            if tokens.count > 1, tokens[1].kind == .symbol(.colon) {
+                let following = isContextParameter ? typeTokens.first : nil
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0020",
+                    "Expected type after ':'.",
+                    range: following?.range ?? tokens[1].range
+                )
+            }
             return nil
         }
         return (name, ref, isContextParameter)
@@ -221,6 +229,7 @@ extension BuildASTPhase {
             return nil
         }
 
+        var colonIndex: Int?
         var index = closeParenIndex + 1
         while index < tokens.count {
             let token = tokens[index]
@@ -232,13 +241,14 @@ extension BuildASTPhase {
                 return nil
             }
             if token.kind == .symbol(.colon) {
+                colonIndex = index
                 index += 1
                 break
             }
             index += 1
         }
 
-        guard index < tokens.count else {
+        guard let colonIndex else {
             return nil
         }
 
@@ -262,7 +272,16 @@ extension BuildASTPhase {
             index += 1
         }
 
-        return parseTypeRef(from: typeTokens, interner: interner, astArena: astArena)
+        guard let returnType = parseTypeRef(from: typeTokens, interner: interner, astArena: astArena) else {
+            let following = colonIndex + 1 < tokens.count ? tokens[colonIndex + 1] : nil
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0020",
+                "Expected type after ':'.",
+                range: following?.range ?? tokens[colonIndex].range
+            )
+            return nil
+        }
+        return returnType
     }
 
     func declarationPropertyReceiverType(
@@ -396,7 +415,16 @@ extension BuildASTPhase {
         }
 
         let typeTokens = collectPropertyTypeTokens(afterColonIndex: colonIndex, tokens: tokens)
-        return parseTypeRef(from: typeTokens, interner: interner, astArena: astArena)
+        guard let typeRef = parseTypeRef(from: typeTokens, interner: interner, astArena: astArena) else {
+            let following = colonIndex + 1 < tokens.count ? tokens[colonIndex + 1] : nil
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0020",
+                "Expected type after ':'.",
+                range: following?.range ?? tokens[colonIndex].range
+            )
+            return nil
+        }
+        return typeRef
     }
 
     private func isSiblingBlockAccessorHeader(
@@ -643,7 +671,7 @@ extension BuildASTPhase {
                 ? "Platform type suffix '!' is not valid in source type references."
                 : "Unexpected token after type reference."
             diagnostics?.error(
-                "KSWIFTK-PARSE-0020",
+                "KSWIFTK-PARSE-0021",
                 message,
                 range: unexpectedToken.range
             )

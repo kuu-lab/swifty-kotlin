@@ -138,6 +138,30 @@ get_java_extra_flags() {
   grep -E '^[[:space:]]*//[[:space:]]*JAVA_FLAGS:' "$kt_file" 2>/dev/null | sed 's/.*JAVA_FLAGS:[[:space:]]*//' | tr '\n' ' ' | sed 's/[[:space:]]*$//'
 }
 
+# True (exit 0) when a JVM flag payload enables assertions for the kotlin
+# package, i.e. kotlin.assert actually throws on the reference run. The
+# candidate binary mirrors that with KK_ASSERTIONS_ENABLED=1 (KUU-2751: the
+# default policy on both sides is assertions disabled). Class/package-scoped
+# forms (-ea:pkg...) only count when they cover kotlin._Assertions; -esa is a
+# system-class switch and never applies to the kotlin stdlib. Applicable rules
+# resolve left to right like the JVM: a later -da overrides an earlier -ea.
+java_flags_enable_assertions() {
+    local flags="$1" token enabled=1
+    for token in $flags; do
+        case "$token" in
+            -ea|-enableassertions|\
+            -ea:kotlin|-ea:kotlin...|-ea:kotlin._Assertions|\
+            -enableassertions:kotlin|-enableassertions:kotlin...|\
+            -enableassertions:kotlin._Assertions) enabled=0 ;;
+            -da|-disableassertions|\
+            -da:kotlin|-da:kotlin...|-da:kotlin._Assertions|\
+            -disableassertions:kotlin|-disableassertions:kotlin...|\
+            -disableassertions:kotlin._Assertions) enabled=1 ;;
+        esac
+    done
+    return "$enabled"
+}
+
 # Normalize stdout: replace lines matching pattern with placeholder for diff.
 # The pattern is passed through the environment (not awk -v) so backslashes in
 # the regex are not mangled by awk's escape-sequence processing.

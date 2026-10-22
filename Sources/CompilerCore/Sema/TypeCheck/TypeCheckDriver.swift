@@ -150,6 +150,24 @@ final class TypeCheckDriver {
         return type
     }
 
+    func diagnoseLocalValueOrClassifierRedeclaration(
+        named name: InternedString,
+        expression: ExprID,
+        range: SourceRange,
+        ctx: TypeInferenceContext
+    ) {
+        guard let scope = ctx.scope as? BaseScope,
+              scope.registerLocalValueOrClassifierDeclaration(named: name, expression: expression)
+        else {
+            return
+        }
+        diagnostics.error(
+            "KSWIFTK-SEMA-0001",
+            "Conflicting local declarations for '\(interner.resolve(name))'.",
+            range: range
+        )
+    }
+
     /// Unbounded T can contain null even though its type-parameter node is
     /// spelled non-null. Only concrete non-null targets or non-null bounds
     /// need an assertion when accepting a flexible Java return.
