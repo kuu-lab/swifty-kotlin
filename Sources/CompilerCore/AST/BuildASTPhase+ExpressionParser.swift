@@ -122,8 +122,7 @@ extension BuildASTPhase {
             if let expression,
                let unexpected = current(),
                let expressionRange = astArena.exprRange(expression),
-               (expressionRange.end.offset == unexpected.range.start.offset
-                && isInfixIdentifierToken(unexpected))
+               isUnexpectedTokenAfterExpression(unexpected, expressionEnd: expressionRange.end.offset)
                 || (reportsTrailingAssignmentOperator
                     && isAssignmentOperatorToken(unexpected))
             {
@@ -499,6 +498,21 @@ extension BuildASTPhase {
                 cursor = tokens.index(after: cursor)
             }
             return parenDepth > 0 || bracketDepth > 0
+        }
+
+        /// A `++`/`--` left over after an expression can never be legal Kotlin:
+        /// the postfix form is already consumed when its operand is assignable,
+        /// and the prefix form must precede an operand. `x++ ++x` or `f()--`
+        /// therefore always flag the token, regardless of whitespace — unlike
+        /// the infix-identifier case, which requires the token to directly abut
+        /// the expression end before it is diagnosed.
+        private func isUnexpectedTokenAfterExpression(_ token: Token, expressionEnd: Int) -> Bool {
+            switch token.kind {
+            case .symbol(.plusPlus), .symbol(.minusMinus):
+                return true
+            default:
+                return expressionEnd == token.range.start.offset && isInfixIdentifierToken(token)
+            }
         }
 
         /// `=`/`+=`/... are statements, never part of an expression (kotlinc:
