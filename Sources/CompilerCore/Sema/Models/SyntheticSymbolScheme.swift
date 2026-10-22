@@ -185,6 +185,15 @@ enum SyntheticSymbolScheme {
         makeSymbol(kind: .getter, original: propertySymbol)
     }
 
+    /// Inverse of `propertyGetterAccessorSymbol(for:)`: recovers the property a
+    /// synthetic getter accessor was derived from, or nil when `symbol` is not
+    /// one. Lets callers walk the (few) emitted getters instead of scanning the
+    /// whole symbol table for properties.
+    static func propertyOwnerOfGetterAccessor(_ symbol: SymbolID) -> SymbolID? {
+        guard let (kind, original) = decode(symbol), kind == .getter else { return nil }
+        return original
+    }
+
     static func propertySetterAccessorSymbol(for propertySymbol: SymbolID) -> SymbolID {
         makeSymbol(kind: .setter, original: propertySymbol)
     }

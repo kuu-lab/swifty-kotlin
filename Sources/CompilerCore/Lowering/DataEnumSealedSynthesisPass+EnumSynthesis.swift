@@ -3,7 +3,10 @@ extension DataEnumSealedSynthesisPass {
     /// Redirect them to the actual slots that the enum initializer populates.
     func rewriteExpectEnumEntryReferences(module: KIRModule, sema: SemaModule) {
         var actualEntries: [SymbolID: SymbolID] = [:]
-        for entry in sema.symbols.allSymbols() where entry.kind == .field {
+        // Only symbols the module actually references can be rewritten, so
+        // probe those instead of scanning every field in the symbol table.
+        for entryID in referencedEntrySymbols(in: module) {
+            guard let entry = sema.symbols.symbol(entryID), entry.kind == .field else { continue }
             // `parentSymbolIfKnown` answers imported field shells from their
             // registered owner edge; expect/actual pairs are always source
             // declarations, so a pending import can only be skipped safely.
@@ -57,6 +60,31 @@ extension DataEnumSealedSynthesisPass {
             updated.replaceBody(body, locations: function.instructionLocations)
             return updated
         }
+    }
+
+    /// Symbols the module reads, writes or names through `symbolRef`
+    /// expressions / constants. Enum entry rewrites only ever touch these.
+    func referencedEntrySymbols(in module: KIRModule) -> Set<SymbolID> {
+        var referenced = Set<SymbolID>()
+        for expression in module.arena.expressions {
+            if case let .symbolRef(symbol) = expression {
+                referenced.insert(symbol)
+            }
+        }
+        for declaration in module.arena.declarations {
+            guard case let .function(function) = declaration else { continue }
+            for instruction in function.body {
+                switch instruction {
+                case let .constValue(_, .symbolRef(symbol)),
+                     let .loadGlobal(_, symbol),
+                     let .storeGlobal(_, symbol):
+                    referenced.insert(symbol)
+                default:
+                    break
+                }
+            }
+        }
+        return referenced
     }
 
     func appendSyntheticEnumValuesIfNeeded(
