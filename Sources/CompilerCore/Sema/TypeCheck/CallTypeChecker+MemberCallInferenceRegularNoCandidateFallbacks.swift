@@ -387,6 +387,7 @@ extension CallTypeChecker {
             return staticMember.type
         }
         if args.isEmpty,
+           !ast.arena.isExplicitCall(id),
            calleeStr == "length"
         {
             let receiverTypeForCheck = safeCall
