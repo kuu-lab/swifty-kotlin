@@ -60,6 +60,7 @@ extension BuildASTPhase.ExpressionParser {
         case .keyword(.in), .keyword(.is), .keyword(.as):
             return nil
         case let .keyword(keyword):
+            guard token.kind.isLabelName else { return nil }
             _ = consume()
             return astArena.appendExpr(.nameRef(interner.intern(keyword.rawValue), token.range))
         case let .softKeyword(softKeyword):

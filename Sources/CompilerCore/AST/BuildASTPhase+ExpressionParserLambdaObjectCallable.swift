@@ -300,12 +300,7 @@ extension BuildASTPhase.ExpressionParser {
                 continue
             }
             guard let nameIndex = segment.firstIndex(where: { token in
-                switch token.kind {
-                case .identifier, .backtickedIdentifier, .keyword, .softKeyword:
-                    true
-                default:
-                    false
-                }
+                token.kind.isLabelName
             }), let name = tokenText( segment[nameIndex]) else {
                 continue
             }
@@ -378,7 +373,7 @@ extension BuildASTPhase.ExpressionParser {
             case .symbol(.comma):
                 idx += 1
                 continue
-            case .identifier, .backtickedIdentifier, .keyword, .softKeyword:
+            case let kind where kind.isLabelName:
                 guard let name = tokenText( token) else {
                     idx += 1
                     continue

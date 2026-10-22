@@ -332,12 +332,7 @@ extension BuildASTPhase {
         from at: C.Index, in tokens: C
     ) -> C.Index? where C.Element == Token {
         func isNameToken(_ kind: TokenKind) -> Bool {
-            switch kind {
-            case .identifier, .backtickedIdentifier, .softKeyword, .keyword:
-                return true
-            default:
-                return false
-            }
+            kind.isLabelName
         }
         var index = tokens.index(after: at)
         guard index < tokens.endIndex else { return nil }
