@@ -95,6 +95,16 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// against the actual return target.
     var enclosingFunctionReturnType: TypeID?
     var enclosingFunctionSymbol: SymbolID?
+    /// Whether the return target — the nearest named function or accessor,
+    /// which an unlabeled `return` and `return@name` bind to — has an
+    /// `= expression` body *without* an explicitly declared return type.
+    /// Kotlin rejects `return` in that position (`fun f() = return`, including
+    /// `return` inside `if`/`when`/`try` branches of the body), reported as
+    /// KSWIFTK-SEMA-0311; kotlinc only warns when the return crosses an
+    /// inline-lambda boundary, so the diagnostic additionally requires
+    /// `lambdaDepth == 0` at the return site. Each nested named function,
+    /// accessor, constructor, or init block re-derives it for its own target.
+    var enclosingFunctionProhibitsExpressionBodyReturn: Bool = false
     /// Unit getters return a value through their reference ABI; ordinary
     /// Unit functions discard their result.
     var isPropertyGetterReturn: Bool {
@@ -329,6 +339,7 @@ struct TypeInferenceContext: CustomStringConvertible {
         lambdaLoopScopes: [(exprID: ExprID, loopDepth: Int, labels: [InternedString])]? = nil,
         enclosingFunctionReturnType: TypeID?? = nil,
         enclosingFunctionSymbol: SymbolID?? = nil,
+        enclosingFunctionProhibitsExpressionBodyReturn: Bool? = nil,
         enclosingLambdaExprIDs: [ExprID]? = nil,
         exportBlockLocalsForExpr: ExprID?? = nil,
         flowState: DataFlowState? = nil,
@@ -362,6 +373,9 @@ struct TypeInferenceContext: CustomStringConvertible {
             copy.enclosingFunctionReturnType = enclosingFunctionReturnType
         }
         if let enclosingFunctionSymbol { copy.enclosingFunctionSymbol = enclosingFunctionSymbol }
+        if let enclosingFunctionProhibitsExpressionBodyReturn {
+            copy.enclosingFunctionProhibitsExpressionBodyReturn = enclosingFunctionProhibitsExpressionBodyReturn
+        }
         if let enclosingLambdaExprIDs { copy.enclosingLambdaExprIDs = enclosingLambdaExprIDs }
         if let exportBlockLocalsForExpr { copy.exportBlockLocalsForExpr = exportBlockLocalsForExpr }
         if let flowState { copy.flowState = flowState }

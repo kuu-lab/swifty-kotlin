@@ -312,27 +312,35 @@ extension CallTypeChecker {
             argumentExpectedTypeOverrides[0] = sema.types.ulongType
         }
         let directArgumentExpectedTypeOverrides = argumentExpectedTypeOverrides
-        prepareUnambiguousNestedCallExpectedTypes(
-            args: args,
-            callRange: range,
-            candidates: candidates,
-            preInferredArgumentTypes: cachedNonLambdaArgTypes,
-            ctx: ctx,
-            expectedTypeOverrides: &argumentExpectedTypeOverrides
-        )
         let argumentContextTypeArgs = typeAliasConstructor.map {
             aliasConstructorArgumentContextTypes($0, explicitTypeArgs: explicitTypeArgs, sema: sema)
         } ?? explicitTypeArgs
+        var lambdaContextOverrides: [Int: TypeInferenceContext] = [:]
+        let expectedTypeHintIndices = prepareCallExprArgumentContexts(
+            args: args,
+            callRange: range,
+            ctx: ctx,
+            expectedType: expectedType,
+            explicitTypeArgs: argumentContextTypeArgs,
+            calleeName: calleeName,
+            candidates: candidates,
+            preInferredArgumentTypes: cachedNonLambdaArgTypes,
+            withContextExpectedLambdaType: nil,
+            expectedTypeOverrides: &argumentExpectedTypeOverrides,
+            lambdaContextOverrides: &lambdaContextOverrides
+        )
         let preparedArgs = prepareCallArguments(
             args: args,
             callRange: range,
             candidates: candidates,
             preInferredNonLambdaArgTypes: cachedNonLambdaArgTypes,
             expectedTypeOverrides: argumentExpectedTypeOverrides,
+            expectedTypeHintIndices: expectedTypeHintIndices,
             contextualCallResultType: ctx.isCallResultDiscarded && ctx.isUnitCoercionContext
                 ? sema.types.unitType : expectedType,
             explicitTypeArgs: argumentContextTypeArgs,
             receiverType: effectiveReceiverType,
+            lambdaContextOverrides: lambdaContextOverrides,
             ctx: ctx,
             locals: &locals
         )

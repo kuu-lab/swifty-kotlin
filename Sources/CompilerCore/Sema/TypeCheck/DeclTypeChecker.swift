@@ -120,31 +120,34 @@ final class DeclTypeChecker {
             return type
 
         case let .block(exprIDs, _):
+            let bodyCtx = ctx.copying(
+                scope: BlockScope(parent: ctx.scope, symbols: ctx.sema.symbols)
+            )
             var canComplete = true
             for exprID in exprIDs {
                 if !canComplete {
-                    if let stmtRange = ctx.ast.arena.exprRange(exprID) {
-                        ctx.sema.diagnostics.warning(
+                    if let stmtRange = bodyCtx.ast.arena.exprRange(exprID) {
+                        bodyCtx.sema.diagnostics.warning(
                             "KSWIFTK-SEMA-0096",
                             "Unreachable code.",
                             range: stmtRange
                         )
                     }
-                    _ = driver.inferExpr(exprID, ctx: ctx, locals: &locals, expectedType: nil, isStatementContext: true)
+                    _ = driver.inferExpr(exprID, ctx: bodyCtx, locals: &locals, expectedType: nil, isStatementContext: true)
                     continue
                 }
                 // Pass expectedType to return expressions (so the return value is
                 // checked against the function return type), but NOT to the last
                 // expression of a block body (where it's just a statement).
-                let exprExpectedType: TypeID? = if let expr = ctx.ast.arena.expr(exprID),
+                let exprExpectedType: TypeID? = if let expr = bodyCtx.ast.arena.expr(exprID),
                                                    case .returnExpr = expr
                 {
                     expectedType
                 } else {
                     nil
                 }
-                _ = driver.inferExpr(exprID, ctx: ctx, locals: &locals, expectedType: exprExpectedType, isStatementContext: true)
-                canComplete = driver.controlFlowChecker.canCompleteNormally(exprID, ctx: ctx)
+                _ = driver.inferExpr(exprID, ctx: bodyCtx, locals: &locals, expectedType: exprExpectedType, isStatementContext: true)
+                canComplete = driver.controlFlowChecker.canCompleteNormally(exprID, ctx: bodyCtx)
             }
             if !canComplete {
                 return ctx.sema.types.nothingType

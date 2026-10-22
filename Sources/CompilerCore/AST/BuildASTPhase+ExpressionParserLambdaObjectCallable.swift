@@ -146,9 +146,22 @@ extension BuildASTPhase.ExpressionParser {
         guard let opToken = consume() else {
             return nil
         }
-        guard let memberToken = current(),
-              let memberName = tokenText(memberToken)
-        else {
+        guard let memberToken = current() else {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0014",
+                "Expected an identifier after '::'.",
+                range: opToken.range
+            )
+            return nil
+        }
+        // `::class` is Kotlin's keyword-based class-literal form.
+        let memberName: InternedString?
+        if case .keyword(.class) = memberToken.kind {
+            memberName = interner.intern("class")
+        } else {
+            memberName = tokenText(memberToken)
+        }
+        guard let memberName else {
             diagnostics?.error(
                 "KSWIFTK-PARSE-0014",
                 "Expected an identifier after '::'.",
@@ -300,12 +313,7 @@ extension BuildASTPhase.ExpressionParser {
                 continue
             }
             guard let nameIndex = segment.firstIndex(where: { token in
-                switch token.kind {
-                case .identifier, .backtickedIdentifier, .keyword, .softKeyword:
-                    true
-                default:
-                    false
-                }
+                token.kind.isLabelName
             }), let name = tokenText( segment[nameIndex]) else {
                 continue
             }
@@ -378,7 +386,7 @@ extension BuildASTPhase.ExpressionParser {
             case .symbol(.comma):
                 idx += 1
                 continue
-            case .identifier, .backtickedIdentifier, .keyword, .softKeyword:
+            case let kind where kind.isLabelName:
                 guard let name = tokenText( token) else {
                     idx += 1
                     continue

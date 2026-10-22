@@ -1,12 +1,12 @@
 package kotlin
 
-import kotlin.internal.KsSymbolName
-
-// Locking needs per-object reentrant locks owned by the runtime, so it stays
-// behind the demoted __kk_synchronized bridge (Sources/Runtime/RuntimePreconditions.swift),
-// which acquires the lock, runs the block and propagates a thrown exception.
-
-@KsSymbolName("__kk_synchronized")
-internal external fun <R> __kkSynchronized(lock: Any, block: () -> R): R
-
-public fun <R> synchronized(lock: Any, block: () -> R): R = __kkSynchronized(lock, block)
+// The lock helpers share the runtime monitor table with lazy. Keep the block
+// invocation inside this inline body so non-local returns still unlock in finally.
+public inline fun <R> synchronized(lock: Any, block: () -> R): R {
+    __lazySyncLock(lock)
+    try {
+        return block()
+    } finally {
+        __lazySyncUnlock(lock)
+    }
+}

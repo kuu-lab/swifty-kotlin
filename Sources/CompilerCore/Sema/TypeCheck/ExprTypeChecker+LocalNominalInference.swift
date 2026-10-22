@@ -19,6 +19,12 @@ extension ExprTypeChecker {
         let fqNamePrefix = [interner.intern("__localdecl_\(id.rawValue)")]
         switch decl {
         case let .objectDecl(objectDecl):
+            driver.diagnoseLocalValueOrClassifierRedeclaration(
+                named: objectDecl.name,
+                expression: id,
+                range: range,
+                ctx: ctx
+            )
             let objectSymbol = ensureObjectLiteralSymbol(
                 declID: declID,
                 objectDecl: objectDecl,
@@ -44,6 +50,12 @@ extension ExprTypeChecker {
             return sema.types.unitType
 
         case let .classDecl(classDecl):
+            driver.diagnoseLocalValueOrClassifierRedeclaration(
+                named: classDecl.name,
+                expression: id,
+                range: range,
+                ctx: ctx
+            )
             let classSymbol = ensureLocalClassSymbol(
                 declID: declID,
                 classDecl: classDecl,
@@ -361,7 +373,7 @@ extension ExprTypeChecker {
                 },
                 classDecl.primaryConstructorParams.filter(\.isProperty)
             )),
-            ctx: ctx
+            ctx: classCtx
         )
         for propertySymbol in propertySymbolsByDecl.values {
             classScope.insert(propertySymbol)

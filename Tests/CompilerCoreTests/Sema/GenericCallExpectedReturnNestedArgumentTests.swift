@@ -60,6 +60,49 @@ struct GenericCallExpectedReturnNestedArgumentTests {
         }
     }
 
+    @Test
+    func infixToUsesExpectedPairFunctionTypeForLambdaArgument() throws {
+        let source = """
+        package sample
+
+        fun sample(): Int {
+            val pair: Pair<String, (Int) -> Int> = "e" to { value -> value + 1 }
+            return pair.second(3)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let infixCall = try #require(ast.arena.snapshot().infixCallExpressions.first { id in
+                guard let range = ast.arena.exprRange(id),
+                      ctx.sourceManager.path(of: range.start.file) == path,
+                      case let .memberCall(_, callee, _, args, _) = ast.arena.expr(id),
+                      ctx.interner.resolve(callee) == "to",
+                      args.count == 1,
+                      case .lambdaLiteral = ast.arena.expr(args[0].expr)
+                else {
+                    return false
+                }
+                return true
+            })
+            guard case let .memberCall(_, _, _, args, _) = ast.arena.expr(infixCall),
+                  let lambda = args.first?.expr,
+                  let lambdaType = sema.bindings.exprType(for: lambda),
+                  case let .functionType(functionType) = sema.types.kind(of: lambdaType)
+            else {
+                Issue.record("Expected the infix lambda to have a contextual function type")
+                return
+            }
+            #expect(functionType.params == [sema.types.intType])
+            #expect(functionType.returnType == sema.types.intType)
+        }
+    }
+
     @Test(arguments: [
         "tryPartitionTo(ArrayList<Other>(), ArrayList(), predicate)",
         "tryPartitionTo(ReadOnlyList<Input>(), ArrayList(), predicate)",

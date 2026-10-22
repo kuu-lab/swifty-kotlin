@@ -22,6 +22,13 @@ final class LocalDeclTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
 
+        driver.diagnoseLocalValueOrClassifierRedeclaration(
+            named: name,
+            expression: id,
+            range: range,
+            ctx: ctx
+        )
+
         var declaredType: TypeID?
         if let typeAnnotation {
             declaredType = driver.helpers.resolveTypeRef(

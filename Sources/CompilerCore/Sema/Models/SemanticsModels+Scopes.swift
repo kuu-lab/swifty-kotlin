@@ -26,6 +26,8 @@ open class BaseScope: Scope {
     public let parent: Scope?
     private let symbols: SymbolTable
     private var locals: [InternedString: [SymbolID]] = [:]
+    // Tracks declarations kept outside the symbol lookup table, such as locals.
+    private var localValueOrClassifierDeclarations: [InternedString: Set<ExprID>] = [:]
 
     public init(parent: Scope?, symbols: SymbolTable) {
         self.parent = parent
@@ -132,6 +134,18 @@ open class BaseScope: Scope {
             bucket.append(sym)
         }
         locals[symbol.name] = bucket
+    }
+
+    func registerLocalValueOrClassifierDeclaration(
+        named name: InternedString,
+        expression: ExprID
+    ) -> Bool {
+        var declarations = localValueOrClassifierDeclarations[name, default: []]
+        guard !declarations.contains(expression) else { return false }
+        let isRedeclaration = !declarations.isEmpty
+        declarations.insert(expression)
+        localValueOrClassifierDeclarations[name] = declarations
+        return isRedeclaration
     }
 
     open func insertWithAlias(_ sym: SymbolID, asName: InternedString) {
