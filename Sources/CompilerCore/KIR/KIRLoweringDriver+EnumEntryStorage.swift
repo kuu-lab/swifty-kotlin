@@ -682,6 +682,26 @@ extension KIRLoweringDriver {
                 ctx.clearImplicitReceiver()
             }
 
+            // Kotlin runs the enum's companion object initializer as part of
+            // the enum's <clinit>, after the enum entries. Folding the call
+            // here lets every enum-API surface trigger full first-access
+            // initialization by calling `$enumEnsureInit$` alone — including
+            // paths the entry-reference trigger pass cannot see (the
+            // synthesized values/valueOf/entries bodies and enumValues).
+            if let companionSymbol = sema.symbols.companionObjectSymbolIfKnown(for: ownerSymbol),
+               let companionLazyInit = ctx.objectLazyInit(for: companionSymbol)
+            {
+                let companionInitResult = arena.appendTemporary(type: sema.types.unitType)
+                body.append(.call(
+                    symbol: companionLazyInit.ensureInitSymbol,
+                    callee: companionLazyInit.ensureInitName,
+                    arguments: [],
+                    result: companionInitResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+            }
+
             body.append(.label(doneLabel))
             body.append(.returnUnit)
             body.append(.endBlock)
