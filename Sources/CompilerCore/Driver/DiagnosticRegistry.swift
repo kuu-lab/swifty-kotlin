@@ -278,6 +278,12 @@ enum DiagnosticRegistry {
             summary: "A for-loop variable cannot be declared with 'val' or 'var'."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0022",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Expected an argument."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-PARSE-TYPE-DEPTH",
             pass: "PARSE",
             defaultSeverity: .error,
