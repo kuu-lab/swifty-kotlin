@@ -609,6 +609,10 @@ public final class KotlinParser {
 }
 ```
 
+### トップレベル文とスクリプト（`.kts`）
+
+`parseFile()` はトップレベルに宣言以外の文（式文・`while` など）を見つけると、ルートを `.script` にして暗黙の `main` 本体へ束ねる。これは `kotlinc -script` と同じ `.kts` 向けの意味論であり、通常の `.kt` では不正。`ParsePhase` は `.kt`（`.kts` 以外のユーザー入力）の `.script` ルートに対し、文ごとに `KSWIFTK-PARSE-0025`（kotlinc の `expecting a top level declaration` 相当）を報告する。`fun main` の書き忘れや不完全なファイルが実行可能バイナリになることを防ぐため。`Scripts/diff_cases/script_*.kt` は diff ハーネスが `.kts` コピーを kotlinc / kswiftc の両方へ渡す。
+
 ## J5.3 TokenStream 補助
 
 ```swift

@@ -94,7 +94,7 @@ public final class CompilerDriver {
         let syntaxPhases: [CompilerPhase] = [LoadSourcesPhase()]
             + (options.emit.isJVM ? [JVMPreparationPhase()] : []) + [
             LexPhase(),
-            ParsePhase(),
+            ParsePhase(rejectsTopLevelStatementsOutsideScripts: true),
             BuildASTPhase(),
         ]
         // JVM shares semantic analysis, but has its own typed IR and lowering.

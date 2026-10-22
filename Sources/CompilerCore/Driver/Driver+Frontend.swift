@@ -53,7 +53,7 @@ public extension CompilerDriver {
         let phases: [CompilerPhase] = [LoadSourcesPhase()]
             + (options.emit.isJVM ? [JVMPreparationPhase()] : []) + [
             LexPhase(),
-            ParsePhase(),
+            ParsePhase(rejectsTopLevelStatementsOutsideScripts: true),
             BuildASTPhase(),
         ] + (options.emit.isJVM ? [JVMSourceValidationPhase(), SemaPhase(), JVMFrontendPhase()] : [SemaPhase()])
 
