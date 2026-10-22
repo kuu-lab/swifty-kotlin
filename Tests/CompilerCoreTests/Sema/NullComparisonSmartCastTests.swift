@@ -1,9 +1,18 @@
 #if canImport(Testing)
 @testable import CompilerCore
+import Foundation
 import Testing
 
 @Suite
 struct NullComparisonSmartCastTests {
+    private func makeContextWithoutStdlib(_ source: String) -> CompilationContext {
+        let path = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".kt").path
+        let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+        _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
+        return ctx
+    }
+
     @Test func nullSmartCastOriginal() throws {
         let ctx = makeContextFromSource("""
         fun String?.foo() = this ?: "OK"
@@ -58,6 +67,52 @@ struct NullComparisonSmartCastTests {
         """)
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func safeCallEqualityWithNonNullValueNarrowsReceiver() throws {
+        let ctx = makeContextWithoutStdlib("""
+        class N(var color: Int)
+        fun test(u: N?) {
+            if (u?.color == 1) {
+                u.color = 0
+                val read = u.color
+            }
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func safeCallNullComparisonNarrowsOnlyTheNonNullResultBranch() throws {
+        let ctx = makeContextWithoutStdlib("""
+        class N(var color: Int)
+        fun test(u: N?) {
+            if (u?.color != null) {
+                u.color = 0
+            }
+            if (u?.color == null) {
+                u.color = 1
+            }
+        }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0026" }.count == 1)
+    }
+
+    @Test func safeCallEqualityDoesNotNarrowForNullableOrUnequalComparands() throws {
+        let ctx = makeContextWithoutStdlib("""
+        class N(val color: Int)
+        fun test(u: N?, expected: Int?) {
+            if (u?.color == expected) {
+                u.color
+            }
+            if (u?.color != 1) {
+                u.color
+            }
+        }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0026" }.count == 2)
     }
 
     @Test func notNullBranchDoesNotSmartCastToNothing() throws {
