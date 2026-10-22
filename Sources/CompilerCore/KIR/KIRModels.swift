@@ -50,7 +50,7 @@ public enum KIRUnaryOp: Equatable, Sendable {
     case unaryMinus
 }
 
-public enum KIRExprKind: Equatable, Sendable {
+public enum KIRExprKind: Equatable, Sendable, Codable {
     case intLiteral(Int64)
     case longLiteral(Int64)
     case uintLiteral(UInt64)

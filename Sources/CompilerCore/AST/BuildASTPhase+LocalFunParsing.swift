@@ -177,6 +177,21 @@ extension BuildASTPhase {
             }
         }
 
+        // kotlinc requires `infix` functions to be members or extension
+        // functions with exactly one non-vararg value parameter; a local
+        // function is only eligible through an extension receiver.
+        if isInfix,
+           isAnonymousFunction || receiverType == nil
+               || valueParams.count != 1
+               || valueParams[0].isVararg
+        {
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0431",
+                "'infix' modifier is inapplicable to this function.",
+                range: leadingModifiers.first(where: { $0.name == "infix" })?.range ?? head.range
+            )
+        }
+
         let returnType = parseReturnTypeAnnotation(
             from: funTokens, index: &index, interner: interner, astArena: astArena
         )

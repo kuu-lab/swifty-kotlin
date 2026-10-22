@@ -24,7 +24,8 @@ struct TypeCheckDelegateCoverageTests {
             name: fixture.interner.intern("get"),
             fqName: [fixture.interner.intern("Box"), fixture.interner.intern("get")],
             declSite: nil,
-            visibility: .public
+            visibility: .public,
+            flags: [.operatorFunction]
         )
         fixture.symbols.setParentSymbol(boxClass, for: getSymbol)
         fixture.symbols.setFunctionSignature(
@@ -47,7 +48,8 @@ struct TypeCheckDelegateCoverageTests {
             name: fixture.interner.intern("set"),
             fqName: [fixture.interner.intern("Box"), fixture.interner.intern("set")],
             declSite: nil,
-            visibility: .public
+            visibility: .public,
+            flags: [.operatorFunction]
         )
         fixture.symbols.setParentSymbol(boxClass, for: setSymbol)
         fixture.symbols.setFunctionSignature(
@@ -128,7 +130,8 @@ struct TypeCheckDelegateCoverageTests {
             name: fixture.interner.intern("get"),
             fqName: [fixture.interner.intern("GetOnlyBox"), fixture.interner.intern("get")],
             declSite: nil,
-            visibility: .public
+            visibility: .public,
+            flags: [.operatorFunction]
         )
         fixture.symbols.setParentSymbol(boxClass, for: getSymbol)
         fixture.symbols.setFunctionSignature(
@@ -526,7 +529,8 @@ struct TypeCheckDelegateCoverageTests {
             name: fixture.interner.intern("component1"),
             fqName: [fixture.interner.intern("Pair"), fixture.interner.intern("component1")],
             declSite: nil,
-            visibility: .public
+            visibility: .public,
+            flags: [.operatorFunction]
         )
         fixture.symbols.setParentSymbol(pairClass, for: component1)
         fixture.symbols.setFunctionSignature(
@@ -539,7 +543,8 @@ struct TypeCheckDelegateCoverageTests {
             name: fixture.interner.intern("component2"),
             fqName: [fixture.interner.intern("Pair"), fixture.interner.intern("component2")],
             declSite: nil,
-            visibility: .public
+            visibility: .public,
+            flags: [.operatorFunction]
         )
         fixture.symbols.setParentSymbol(pairClass, for: component2)
         fixture.symbols.setFunctionSignature(
@@ -586,7 +591,8 @@ struct TypeCheckDelegateCoverageTests {
             name: fixture.interner.intern("component1"),
             fqName: [fixture.interner.intern("component1")],
             declSite: nil,
-            visibility: .public
+            visibility: .public,
+            flags: [.operatorFunction]
         )
         fixture.symbols.setFunctionSignature(
             FunctionSignature(receiverType: otherType, parameterTypes: [], returnType: fixture.types.booleanType),
