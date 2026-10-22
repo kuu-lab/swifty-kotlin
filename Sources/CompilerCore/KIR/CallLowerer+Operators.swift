@@ -358,6 +358,17 @@ extension CallLowerer {
             ))
             return result
         }
+        // Distinct non-null primitive types (e.g. `Int === Long`) box to
+        // different JVM classes, so identity is always false.
+        if op == .identityEqual || op == .notIdentityEqual,
+           let lhsType, let rhsType,
+           case let .primitive(primitive, .nonNull) = sema.types.kind(of: lhsType),
+           case let .primitive(rhsPrimitive, .nonNull) = sema.types.kind(of: rhsType),
+           primitive != rhsPrimitive
+        {
+            instructions.append(.constValue(result: result, value: .boolLiteral(op == .notIdentityEqual)))
+            return result
+        }
         let nullableStringType = sema.types.makeNullable(stringType)
         let lhsIsString = lhsType == stringType || lhsType == nullableStringType
         let rhsIsString = rhsType == stringType || rhsType == nullableStringType
