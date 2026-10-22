@@ -1,5 +1,6 @@
 // JAVA_FLAGS: -ea
-// Match the default Native assertion policy when running the JVM reference.
+// Exercise the assertions-enabled policy on both sides; the harness maps -ea
+// to KK_ASSERTIONS_ENABLED=1 on the candidate run.
 private class Assertions
 fun enabled(): Boolean = Assertions::class.java.desiredAssertionStatus()
 
