@@ -30,6 +30,13 @@ extension ExprLowerer {
                 instructions: &instructions
             )
         }
+        // A folded Int constant expression widened to Long (`-(1 shl 31)`) must not
+        // be re-evaluated from its Int operand at the wider type.
+        if let constValue = sema.bindings.constExprValue(for: exprID) {
+            let constResult = arena.appendExpr(constValue, type: boundType ?? sema.types.anyType)
+            instructions.append(.constValue(result: constResult, value: constValue))
+            return constResult
+        }
         let operandID = lowerExpr(
             operandExpr,
             ast: ast,
