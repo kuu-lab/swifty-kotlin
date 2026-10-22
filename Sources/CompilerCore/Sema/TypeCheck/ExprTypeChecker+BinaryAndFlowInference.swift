@@ -655,6 +655,26 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: effectiveType)
             return effectiveType
         }
+        let isRelationalComparison: Bool = switch op {
+        case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
+            true
+        default:
+            false
+        }
+        if isRelationalComparison, lhs != sema.types.errorType, rhs != sema.types.errorType {
+            let isBuiltinComparisonPair = sema.types.isBuiltinArithmeticOperand(lhs)
+                && sema.types.isBuiltinArithmeticOperand(rhs)
+                && ((lhs == charType) == (rhs == charType))
+            if !isBuiltinComparisonPair {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0002",
+                    "No viable overload found for operator '\(interner.resolve(operatorName))'.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
+        }
         // Char concatenation and applicable operator overloads return above.
         // A textual RHS alone must not enable the primitive arithmetic fallback.
         if sema.types.containsCapturedTypes(inferredLhs) || sema.types.containsCapturedTypes(inferredRhs),
