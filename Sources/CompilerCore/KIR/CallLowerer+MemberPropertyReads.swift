@@ -1647,8 +1647,8 @@ extension CallLowerer {
             else {
                 continue
             }
-            if let getter = propertyDecl.getter {
-                return getter.body != .unit
+            if let getter = propertyDecl.getter, getter.body != .unit {
+                return true
             }
             return propertyDecl.delegateExpression != nil
         }

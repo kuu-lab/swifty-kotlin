@@ -1344,6 +1344,57 @@ struct KIRDelegateLoweringTests {
             }
         }
     }
+
+    /// KUU-2946: a `private set` (or `protected`/`internal set`) records a
+    /// setter accessor node whose body is `.unit`, so the write-path
+    /// predicate treated the delegated var like a stored var and lowered
+    /// `x = v` to a direct store into a backing-field slot that reads never
+    /// observe. Writes must route through the synthesized `set` accessor so
+    /// the delegate's `setValue` actually runs.
+    @Test func testDelegatedVarWithPrivateSetInitWriteCallsSetterAccessor() throws {
+        let source = """
+        package sample0
+
+        class MyDelegate {
+            var stored: Int = 0
+            operator fun getValue(thisRef: Any?, property: Any?): Int = stored
+            operator fun setValue(thisRef: Any?, property: Any?, value: Int) { stored = value }
+        }
+
+        class Foo {
+            var x: Int by MyDelegate()
+                private set
+            init { x = 7 }
+        }
+
+        class FooQualified {
+            var x: Int by MyDelegate()
+                private set
+            init { this.x = 7 }
+        }
+        """
+
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let interner = ctx.interner
+            let fileID = try #require(fileID(for: paths[0], ctx: ctx), "Missing fileID for sample0")
+
+            for className in ["Foo", "FooQualified"] {
+                let constructors = kirFunctions(in: module, interner: interner, fileID: fileID, name: className)
+                #expect(!constructors.isEmpty, "Expected a \(className) constructor in KIR")
+                let setterCallCount = constructors.reduce(into: 0) { count, fn in
+                    count += extractCallees(from: fn.body, interner: interner).filter { $0 == "set" }.count
+                }
+                #expect(
+                    setterCallCount >= 1,
+                    "init write to a `private set` delegated var must call the `set` accessor, got callees: \(constructors.map { extractCallees(from: $0.body, interner: interner) })"
+                )
+            }
+        }
+    }
 }
 
 #endif
