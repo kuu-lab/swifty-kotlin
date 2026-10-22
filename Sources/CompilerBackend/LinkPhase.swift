@@ -91,10 +91,11 @@ final class LinkPhase: CompilerPhase {
         }
         do {
             let runtimeInputs = try withSubPhaseTiming("runtimeObjects", timer: ctx.phaseTimer) {
-                try CodegenRuntimeSupport.runtimeLinkInputs(
-                    target: ctx.options.target,
-                    configuration: .release
-                )
+                try RuntimeLinkInputPrefetch.shared.take(target: ctx.options.target, configuration: .release)
+                    ?? CodegenRuntimeSupport.runtimeLinkInputs(
+                        target: ctx.options.target,
+                        configuration: .release
+                    )
             }
             let entryWrapperObjectPath = try withSubPhaseTiming("entryWrapper", timer: ctx.phaseTimer) {
                 try LLVMEntryPointObjectEmitter(target: ctx.options.target, takesArguments: takesArguments, phaseTimer: ctx.phaseTimer, session: session ?? LLVMBackendSession())
