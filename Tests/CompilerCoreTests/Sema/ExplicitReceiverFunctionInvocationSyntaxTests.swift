@@ -34,6 +34,37 @@ struct ExplicitReceiverFunctionInvocationSyntaxTests {
     }
 
     @Test
+    func toStringFunctionPropertySyntaxIsRejected() throws {
+        let diagnostics = try compileAndCollectDiagnostics("""
+        class C { override fun toString(): String = "C" }
+        class PropertyHolder { val toString: String = "property" }
+
+        fun main() {
+            val number = 1.toString
+            val c = C()
+            val member = c.toString
+            val any: Any = c
+            val anyToString = any.toString
+            val nullable: Any? = c
+            val safeToString = nullable?.toString
+            val propertyToString = PropertyHolder().toString
+            println(1.toString())
+            println(c.toString())
+        }
+        """)
+
+        let invocationErrors = diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0309" }
+        #expect(
+            invocationErrors.count == 4,
+            "Expected SEMA-0309 for each bare toString member access, got: \(diagnostics.diagnostics.map(\.code))"
+        )
+        #expect(
+            diagnostics.diagnostics.filter { $0.severity == .error }.count == 4,
+            "Explicit toString() calls should remain valid, got: \(diagnostics.diagnostics)"
+        )
+    }
+
+    @Test
     func userExtensionFunctionPropertySyntaxIsRejected() throws {
         let diagnostics = try compileAndCollectDiagnostics("""
         fun <T> List<T>.myProp(): Int = 99

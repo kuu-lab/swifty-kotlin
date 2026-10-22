@@ -4,13 +4,14 @@ import Foundation
 
 /// `kswiftc --batch <manifest>`: compiles many cases in one process so the
 /// fixed `.kklib` import cost (process start, stdlib artifact resolution,
-/// compact-index decode) is paid once instead of per case.
+/// and compact-index decode) is amortized across cases.
 ///
 /// Manifest: one case per line, tab-separated —
 /// `<stdout-file>\t<stderr-file>\t<exit-code-file>\t<kswiftc arg>...`.
 /// Each case's stdout/stderr (including child processes such as the linker)
 /// are redirected to the given files and its exit code is written to the
-/// exit-code file. Only the decoded kklib index is shared between cases.
+/// exit-code file. The decoded kklib index is shared; imported symbols remain
+/// request-local so their registration order matches standalone compilation.
 enum BatchMode {
     static func run(manifestPath: String) -> Int32 {
         guard let text = try? String(contentsOfFile: manifestPath, encoding: .utf8) else {
@@ -18,6 +19,7 @@ enum BatchMode {
             return 1
         }
         KklibBatchSession.isEnabled = true
+        KklibSemaSession.isEnabled = true
         let savedOut = dup(STDOUT_FILENO)
         let savedErr = dup(STDERR_FILENO)
         defer {
@@ -30,7 +32,7 @@ enum BatchMode {
             let fields = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
             guard fields.count >= 4 else { continue }
             let exitCode = withRedirectedOutput(stdout: fields[0], stderr: fields[1]) {
-                compileOne(args: Array(fields.dropFirst(3)))
+                CLICompilerService.shared.run(args: Array(fields.dropFirst(3)))
             }
             try? "\(exitCode)\n".write(toFile: fields[2], atomically: true, encoding: .utf8)
         }
@@ -53,45 +55,4 @@ enum BatchMode {
         return code
     }
 
-    private static func compileOne(args: [String]) -> Int32 {
-        do {
-            let parsed = try CLIParser.parse(args: args)
-            if CompilerOptions.shouldUseDefaultStdlib(
-                allowDefaultStdlibLibrary: parsed.allowDefaultStdlibLibrary,
-                includeStdlib: parsed.includeStdlib,
-                stdlibOnly: parsed.stdlibOnly,
-                stdlibLibraryPath: parsed.stdlibLibraryPath,
-                emit: parsed.emit
-            ) {
-                do {
-                    CompilerOptions.defaultStdlibLibraryPath = try StdlibArtifactCache.resolveOrBuild(target: parsed.target)
-                } catch {
-                    FileHandle.standardError.write(
-                        Data("KSWIFTK-LIB-0023: Cannot prepare the default bundled stdlib artifact: \(error)\n".utf8)
-                    )
-                    return 1
-                }
-            }
-            let options = try CLIParser.parse(args: args)
-            IncrementalCompilationCache.environmentFingerprintProvider = { options in
-                incrementalEnvironmentFingerprint(for: options)
-            }
-            let exitCode = CompilerDriver(backendPhases: makeBackendPhases).run(options: options)
-            if exitCode == 0, options.stdlibOnly {
-                StdlibArtifactBuilder.attachRuntimePrelinkIfAvailable(
-                    outputBase: options.outputPath,
-                    target: options.target
-                )
-            }
-            return Int32(exitCode)
-        } catch let error as CLIParseError {
-            if error == .usageRequested { printUsage(); return 0 }
-            printCLIError(error)
-            printUsage()
-            return 1
-        } catch {
-            print("Compiler internal error: \(error)")
-            return 1
-        }
-    }
 }

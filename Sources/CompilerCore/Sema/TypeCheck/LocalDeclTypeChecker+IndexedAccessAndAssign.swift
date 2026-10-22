@@ -24,6 +24,36 @@ extension LocalDeclTypeChecker {
             || symbol.name == interner.intern("AtomicArray")
     }
 
+    /// Returns the element type only for Kotlin's built-in array classes.
+    /// Generic type arguments alone do not make an arbitrary class indexable.
+    func builtinArrayElementType(
+        for receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
+            return nil
+        }
+        let names = KnownCompilerNames(interner: interner)
+        let builtinArrayNames = [
+            names.kotlinArrayFQName,
+            names.kotlinIntArrayFQName,
+            names.kotlinLongArrayFQName,
+            names.kotlinShortArrayFQName,
+            names.kotlinByteArrayFQName,
+            names.kotlinUByteArrayFQName,
+            names.kotlinUShortArrayFQName,
+            names.kotlinUIntArrayFQName,
+            names.kotlinULongArrayFQName,
+            names.kotlinDoubleArrayFQName,
+            names.kotlinFloatArrayFQName,
+            names.kotlinBooleanArrayFQName,
+            names.kotlinCharArrayFQName,
+        ]
+        guard builtinArrayNames.contains(symbol.fqName) else { return nil }
+        return driver.helpers.arrayElementType(for: receiverType, sema: sema, interner: interner)
+    }
+
     /// When the sole shape-matching get()/set() candidate expects a non-Int
     /// integer primitive (Long, UInt, ULong, Byte, Short) at `parameterIndex`
     /// and `indexExpr` is a bare integer literal, Kotlin contextualizes the
@@ -82,13 +112,13 @@ extension LocalDeclTypeChecker {
         let receiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
 
         let getName = interner.intern("get")
-        var getCandidates = driver.helpers.collectMemberFunctionCandidates(
+        let allGetMembers = driver.helpers.collectMemberFunctionCandidates(
             named: getName,
             receiverType: receiverType,
             sema: sema,
             interner: interner
         )
-        getCandidates = ctx.filterByVisibility(getCandidates).visible.filter {
+        var getCandidates = ctx.filterByVisibility(allGetMembers).visible.filter {
             ctx.cachedSymbol($0)?.flags.contains(.operatorFunction) == true
         }
         if getCandidates.isEmpty {
@@ -221,6 +251,20 @@ extension LocalDeclTypeChecker {
             }
         }
 
+        // A member `get` that merely shares the convention name without the
+        // `operator` modifier cannot serve `x[i]`; reaching this point means no
+        // operator candidate resolved, so reject instead of letting the
+        // built-in array fallback silently bind (kotlinc: 'operator' modifier
+        // is required).
+        if allGetMembers.contains(where: { driver.helpers.isNonOperatorConventionFunction($0, sema: sema) }) {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0432",
+                "'operator' modifier is required on 'get' in '\(driver.helpers.conventionReceiverDisplayName(receiverType, sema: sema, interner: interner))'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
         guard indices.count == 1 else {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
@@ -246,9 +290,17 @@ extension LocalDeclTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
-        let elementType = driver.helpers.arrayElementType(
+        guard let elementType = builtinArrayElementType(
             for: receiverType, sema: sema, interner: interner
-        ) ?? sema.types.anyType
+        ) else {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0024",
+                "Unresolved member function 'get'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
         sema.bindings.bindExprType(id, type: elementType)
         return elementType
     }
@@ -270,12 +322,15 @@ extension LocalDeclTypeChecker {
         let receiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
 
         let setName = interner.intern("set")
-        var setCandidates = driver.helpers.collectMemberFunctionCandidates(
+        let allSetMembers = driver.helpers.collectMemberFunctionCandidates(
             named: setName,
             receiverType: receiverType,
             sema: sema,
             interner: interner
         )
+        var setCandidates = ctx.filterByVisibility(allSetMembers).visible.filter {
+            ctx.cachedSymbol($0)?.flags.contains(.operatorFunction) == true
+        }
         if setCandidates.isEmpty {
             let nonNullReceiver = sema.types.makeNonNullable(receiverType)
             // An unrelated nearer extension must not hide an applicable set
@@ -473,6 +528,17 @@ extension LocalDeclTypeChecker {
             }
         }
 
+        // A member `set` without the `operator` modifier cannot serve
+        // `x[i] = v`; reject before the built-in array fallback swallows it.
+        if allSetMembers.contains(where: { driver.helpers.isNonOperatorConventionFunction($0, sema: sema) }) {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0432",
+                "'operator' modifier is required on 'set' in '\(driver.helpers.conventionReceiverDisplayName(receiverType, sema: sema, interner: interner))'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
         guard indices.count == 1 else {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType

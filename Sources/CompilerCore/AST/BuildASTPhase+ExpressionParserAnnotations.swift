@@ -8,7 +8,14 @@ extension BuildASTPhase.ExpressionParser {
         while next < remaining.count, remaining[next].kind == .symbol(.at) {
             guard let parsed = AnnotationParsingSupport.parseAnnotation(
                 from: remaining, start: next, interner: interner, allowUseSiteTarget: false
-            ), parsed.nextIndex > next else { return nil }
+            ), parsed.nextIndex > next else {
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0001",
+                    "Expected annotation name after '@'.",
+                    range: remaining[next].range
+                )
+                return nil
+            }
             if let range = parsed.invalidUseSiteTargetRange {
                 diagnostics?.error(
                     "KSWIFTK-PARSE-ANNOTATION-TARGET",

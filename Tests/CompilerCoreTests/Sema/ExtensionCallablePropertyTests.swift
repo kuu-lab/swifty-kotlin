@@ -105,6 +105,21 @@ struct ExtensionCallablePropertyTests {
     }
 
     @Test
+    func stringLengthPropertyCannotBeInvoked() throws {
+        let propertyRead = makeContextFromSource("""
+        fun readLength(): Int = "x".length
+        """)
+        try runSema(propertyRead)
+        #expect(!propertyRead.diagnostics.hasError, "Property access should remain valid: \(propertyRead.diagnostics.diagnostics)")
+
+        let propertyCall = makeContextFromSource("""
+        fun callLength(): Int = "x".length()
+        """)
+        try runSema(propertyCall)
+        #expect(propertyCall.diagnostics.hasError, "A non-callable Int property must not be accepted as a function call")
+    }
+
+    @Test
     func memberExtensionWithSameNameAsGenericPropertyIsAccepted() throws {
         let ctx = makeContextFromSource("""
         class Converter<From, To>(private val convert: To.() -> From) {

@@ -74,6 +74,9 @@ extension BuildASTPhase.ExpressionParser {
             nestedClasses: nestedClassDeclIDs,
             nestedObjects: nestedObjectDeclIDs
         )
+        DeclarationPositionValidator(
+            astArena: astArena, interner: interner, diagnostics: diagnostics
+        ).validateAnonymousObjectLiteralMembers(objectDecl)
         return astArena.appendDecl(.objectDecl(objectDecl))
     }
 

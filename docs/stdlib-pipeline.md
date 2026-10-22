@@ -233,12 +233,15 @@ Native は JVM の ClassLoader・クラス別・パッケージ別の assertion 
 このメソッドを呼び出した時点の共通状態を返し、consumer が初期化時に保存した値は
 consumer の Kotlin ソースどおりに保持される。
 
-既定は **有効**。起動時に `KK_ASSERTIONS_ENABLED`、`KOTLIN_ASSERTIONS_ENABLED` の順で
-空でない認識可能な値を探す。前後の空白と大文字小文字を無視し、`0/false/no/off` は無効、
-`1/true/yes/on` は有効とする。認識できない値は次の変数に進み、どちらも指定がなければ
-有効になる。JVM の無効な既定値とは異なるため、出力・例外の比較には Native の既定値と
-`java -ea`、Native の `KK_ASSERTIONS_ENABLED=0` と `java -da` をそれぞれ対応させる。
-O0/O2 および source/artifact によってこの契約は変わらない。
+既定は **無効**（KUU-2751: kotlinc JVM の `-ea` なし既定、kotlinc-native の
+`-enable-assertions` 既定値 false と同じ）。起動時に `KK_ASSERTIONS_ENABLED`、
+`KOTLIN_ASSERTIONS_ENABLED` の順で空でない認識可能な値を探す。前後の空白と大文字小文字を
+無視し、`0/false/no/off` は無効、`1/true/yes/on` は有効とする。認識できない値は次の変数に
+進み、どちらも指定がなければ無効になる。出力・例外の比較では Native の既定値と `java`（`-ea`
+なし）、Native の `KK_ASSERTIONS_ENABLED=1` と `java -ea` をそれぞれ対応させる。
+diff ケースは `// JAVA_FLAGS: -ea` を書くだけでよく、harness が候補側の実行に
+`KK_ASSERTIONS_ENABLED=1` を渡して対応づける。O0/O2 および source/artifact によって
+この契約は変わらない。
 
 Golden ハーネスはケースの `stdlib-profile` を優先する。`source` はソース注入、`artifact` は
 渡された artifact、`no-stdlib` は stdlib なしで実行する。spec 無しケースもテストハーネスが

@@ -95,6 +95,34 @@ struct IndexedGetExtensionApplicabilityTests {
         #expect(rejected == 7)
     }
 
+    @Test
+    func receiverWithoutGetIsNotTreatedAsAnArray() throws {
+        let ctx = makeContextFromSource("""
+        class Box<T>(val value: T)
+        fun probe() {
+            val scalar = 1
+            scalar[0]
+            val box = Box("value")
+            box[0]
+        }
+        """)
+        try runSema(ctx)
+
+        let diagnostics = ctx.diagnostics.diagnostics
+        #expect(diagnostics.filter { $0.code == "KSWIFTK-SEMA-0024" }.count == 2,
+                "Expected unresolved get diagnostics: \(diagnostics)")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let indexedAccesses = ast.arena.exprs.enumerated().compactMap { index, expr -> ExprID? in
+            guard case let .indexedAccess(_, _, range) = expr,
+                  ctx.sourceManager.origin(of: range.start.file) == .user
+            else { return nil }
+            return ExprID(rawValue: Int32(index))
+        }
+        #expect(indexedAccesses.count == 2)
+        #expect(indexedAccesses.allSatisfy { sema.bindings.exprType(for: $0) == sema.types.errorType })
+    }
+
     @Test(arguments: ["private", "public"])
     func extensionVisibilityIsPreserved(visibility: String) throws {
         let ctx = makeContextFromSources([

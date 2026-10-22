@@ -499,12 +499,7 @@ extension KotlinParser {
     }
 
     func isIdentifierLike(_ kind: TokenKind) -> Bool {
-        switch kind {
-        case .identifier, .backtickedIdentifier, .keyword, .softKeyword:
-            true
-        default:
-            false
-        }
+        kind.isLabelName
     }
 
     func isLoopStart(_ kind: TokenKind) -> Bool {
@@ -536,10 +531,20 @@ extension KotlinParser {
         into children: inout [SyntaxChild],
         range: inout RangeAccumulator,
         code: String,
-        message: String
+        message: String,
+        severity: DiagnosticSeverity = .warning
     ) {
         let missingRange = zeroWidthRange(at: stream.peek())
-        diagnostics.warning(code, message, range: missingRange)
+        switch severity {
+        case .error:
+            diagnostics.error(code, message, range: missingRange)
+        case .warning:
+            diagnostics.warning(code, message, range: missingRange)
+        case .note:
+            diagnostics.note(code, message, range: missingRange)
+        case .info:
+            diagnostics.info(code, message, range: missingRange)
+        }
         let missingToken = Token(kind: .missing(expected: expected), range: missingRange)
         let tokenID = arena.appendToken(missingToken)
         children.append(.token(tokenID))

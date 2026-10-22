@@ -97,7 +97,11 @@ extension KotlinParser {
             if atTypeTopLevel {
                 switch token.kind {
                 case .symbol(.assign), .symbol(.lBrace):
-                    return sawTypeToken ? offset : nil
+                    // `get(): = x` has no type after the colon; absorb it as an
+                    // accessor anyway so the AST builder can diagnose the
+                    // missing return type instead of losing the header to a
+                    // `get(...)` expression parse.
+                    return offset
                 case .symbol(.semicolon), .symbol(.rBrace):
                     return nil
                 default:
