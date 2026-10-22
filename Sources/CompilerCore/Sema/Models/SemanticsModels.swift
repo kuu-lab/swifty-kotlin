@@ -79,6 +79,12 @@ public struct SymbolFlags: OptionSet, Sendable {
     public static let infixFunction = SymbolFlags(rawValue: 1 << 27)
     /// Imported before allocation-component descriptors were part of source ABI.
     public static let legacyReifiedClassTokenABI = SymbolFlags(rawValue: 1 << 28)
+    /// This declaration was synthesized by the compiler's stdlib bootstrap
+    /// registry and is serialized into newly built stdlib artifacts.
+    public static let precomputedStdlibSynthetic = SymbolFlags(rawValue: 1 << 29)
+    /// The owning library object already contains this symbol's runtime
+    /// reflection record, so consumers must not rebuild it.
+    public static let precomputedRuntimeReflection = SymbolFlags(rawValue: 1 << 30)
 }
 
 extension SymbolFlags {

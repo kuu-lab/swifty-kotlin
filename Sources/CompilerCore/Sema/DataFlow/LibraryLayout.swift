@@ -2,6 +2,50 @@ import Foundation
 
 let maximumImportedNominalLayoutValue = 1_000_000
 
+/// KLIB signatures can retain source type-parameter IDs while imported symbols
+/// use rebased IDs. Compare their type-parameter relationships instead.
+func canonicalizeMangledTypeParameterIDs(_ signature: String) -> String {
+    let bytes = Array(signature.utf8)
+    var canonicalIndices: [String: Int] = [:]
+    var output: [UInt8] = []
+    output.reserveCapacity(bytes.count)
+
+    var index = 0
+    while index < bytes.count {
+        guard bytes[index] == 0x54, index + 1 < bytes.count else {
+            output.append(bytes[index])
+            index += 1
+            continue
+        }
+
+        var digitStart = index + 1
+        if bytes[digitStart] == 0x2D {
+            digitStart += 1
+        }
+        guard digitStart < bytes.count, (0x30 ... 0x39).contains(bytes[digitStart]) else {
+            output.append(bytes[index])
+            index += 1
+            continue
+        }
+
+        var tokenEnd = digitStart + 1
+        while tokenEnd < bytes.count, (0x30 ... 0x39).contains(bytes[tokenEnd]) {
+            tokenEnd += 1
+        }
+        let rawID = String(decoding: bytes[(index + 1) ..< tokenEnd], as: UTF8.self)
+        let canonicalIndex = canonicalIndices[rawID] ?? {
+            let nextIndex = canonicalIndices.count
+            canonicalIndices[rawID] = nextIndex
+            return nextIndex
+        }()
+        output.append(0x54)
+        output.append(contentsOf: String(canonicalIndex).utf8)
+        index = tokenEnd
+    }
+
+    return String(decoding: output, as: UTF8.self)
+}
+
 extension DataFlowSemaPhase {
     func parseImportedFieldOffsets(
         token: String,
@@ -479,6 +523,18 @@ extension DataFlowSemaPhase {
                     nameResolver: nameResolver
                 )
                 return candidateSig == typeSignature
+            }) {
+                return exact.id
+            }
+            let canonicalTypeSignature = canonicalizeMangledTypeParameterIDs(typeSignature)
+            if let exact = candidates.first(where: { candidate in
+                let candidateSig = mangler.mangledSignature(
+                    for: candidate,
+                    symbols: symbols,
+                    types: types,
+                    nameResolver: nameResolver
+                )
+                return canonicalizeMangledTypeParameterIDs(candidateSig) == canonicalTypeSignature
             }) {
                 return exact.id
             }

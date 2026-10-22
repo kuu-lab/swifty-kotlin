@@ -258,6 +258,45 @@ struct ConstPropertyEvaluationTests {
     }
 
     @Test
+    func foldsLengthOfStringLiteralsAndConstProperties() throws {
+        let ctx = makeContextFromSource("""
+        package stringLengthConstants
+        const val BARS = "▁▂▃▄▅▆▇█"
+        const val BARS_LENGTH = BARS.length
+        const val LAST_BAR_INDEX = BARS.length - 1
+        const val LITERAL_LENGTH = "abc".length
+        const val UTF16_LENGTH = "😀".length
+        const val CONCAT_LENGTH = ("a" + BARS).length
+        val runtimeText = "abc"
+        const val NOT_CONSTANT = runtimeText.length
+        """)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 1)
+        #expect(errors.first?.code == "KSWIFTK-SEMA-0083")
+
+        let sema = try #require(ctx.sema)
+        let expected: [String: Int64] = [
+            "BARS_LENGTH": 8,
+            "LAST_BAR_INDEX": 7,
+            "LITERAL_LENGTH": 3,
+            "UTF16_LENGTH": 2,
+            "CONCAT_LENGTH": 9,
+        ]
+        for (name, value) in expected {
+            let symbol = try #require(sema.symbols.lookup(
+                fqName: ["stringLengthConstants", name].map { ctx.interner.intern($0) }
+            ))
+            #expect(sema.symbols.constValueExprKind(for: symbol) == .intLiteral(value), "Incorrect constant for \(name)")
+        }
+        let rejected = try #require(sema.symbols.lookup(
+            fqName: ["stringLengthConstants", "NOT_CONSTANT"].map { ctx.interner.intern($0) }
+        ))
+        #expect(sema.symbols.constValueExprKind(for: rejected) == nil)
+    }
+
+    @Test
     func foldsMixedTypeStringConcatenationConstInitializers() throws {
         let ctx = makeContextFromSource("""
         package mixedStringConstants

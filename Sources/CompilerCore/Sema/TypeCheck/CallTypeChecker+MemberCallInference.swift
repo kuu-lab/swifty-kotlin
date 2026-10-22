@@ -405,6 +405,21 @@ extension CallTypeChecker {
             return inferRegularMemberCall(request, receiverType: receiverType, locals: &locals)
         }
 
+        let memberName = request.ctx.interner.resolve(request.calleeName)
+        if memberName == "removeAll" || memberName == "retainAll",
+           let result = bindMutableCollectionSourceExtension(
+               exprID: request.id,
+               memberName: request.calleeName,
+               receiverID: request.receiverID,
+               args: request.args,
+               safeCall: request.safeCall,
+               ctx: request.ctx,
+               locals: &locals
+           )
+        {
+            return result
+        }
+
         if let result = tryInferMemberCallCollectionFlowSpecials(
             request,
             receiverType: receiverType,

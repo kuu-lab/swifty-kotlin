@@ -10,6 +10,50 @@ import Glibc
 
 @Suite
 struct LibraryMetadataManifestValidationTests {
+    @Test
+    func precomputedStdlibManifestResolvesItsMemberIndexAndCapabilities() throws {
+        let fm = FileManager.default
+        let directory = fm.temporaryDirectory
+            .appendingPathComponent("precomputed-stdlib-\(UUID().uuidString).kklib", isDirectory: true)
+        defer { try? fm.removeItem(at: directory) }
+        try fm.createDirectory(at: directory.appendingPathComponent("objects"), withIntermediateDirectories: true)
+        try fm.createDirectory(at: directory.appendingPathComponent("inline-kir"), withIntermediateDirectories: true)
+        for path in ["metadata.bin", "bundled-members.bin", "objects/KSwiftKStdlib_0.o"] {
+            try Data().write(to: directory.appendingPathComponent(path))
+        }
+        let target = TargetTriple.hostDefault()
+        let manifest: [String: Any] = [
+            "formatVersion": 2,
+            "moduleName": "KSwiftKStdlib",
+            "libraryKind": "stdlib",
+            "stdlibManifestHash": BundledStdlib.manifestHash(),
+            "kotlinLanguageVersion": "2.4.20",
+            "target": "\(target.arch)-\(target.vendor)-\(target.os)",
+            "compilerVersion": "0.1.0",
+            "metadata": "metadata.bin",
+            "inlineKIRDir": "inline-kir",
+            "objects": ["objects/KSwiftKStdlib_0.o"],
+            "bundledMemberIndex": "bundled-members.bin",
+            "precomputedSyntheticStubs": true,
+            "precomputedReflectionRecords": true,
+        ]
+        try JSONSerialization.data(withJSONObject: manifest)
+            .write(to: directory.appendingPathComponent("manifest.json"))
+
+        let diagnostics = DiagnosticEngine()
+        let info = DataFlowSemaPhase().resolveLibraryManifestInfo(
+            libraryDir: directory.path,
+            currentTarget: target,
+            diagnostics: diagnostics,
+            isStdlibArtifact: true
+        )
+        #expect(info.isValid)
+        #expect(info.bundledMemberIndexPath == directory.appendingPathComponent("bundled-members.bin").path)
+        #expect(info.hasPrecomputedSyntheticStubs)
+        #expect(info.hasPrecomputedReflectionRecords)
+        #expect(!diagnostics.hasError)
+    }
+
     // MARK: - P5-54: Missing/Invalid manifest.json
 
     @Test func testMissingManifestJsonEmitsErrorAndSkipsLibrary() throws {

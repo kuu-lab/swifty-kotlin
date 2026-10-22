@@ -326,6 +326,7 @@ private func startCoroutineUninterceptedOrReturn(
         outThrown?.pointee = 0
         return 0
     }
+    state.suspendDriveEntryPointRaw = entryPointRaw
 
     let outerTaskKey = RuntimeCoroutineScopeTaskKey.installedKey
     let outerJob = RuntimeJobHandle.current
@@ -400,7 +401,11 @@ public func kk_coroutine_state_set_label(_ continuation: Int, _ label: Int) -> I
 
 @_cdecl("kk_coroutine_state_exit")
 public func kk_coroutine_state_exit(_ continuation: Int, _ value: Int) -> Int {
-    runtimeContinuationState(from: continuation)?.releaseInterception(continuationRaw: continuation)
+    if let state = runtimeContinuationState(from: continuation) {
+        state.markExited()
+        state.retireCancellableDeliveryOnExit()
+        state.releaseInterception(continuationRaw: continuation)
+    }
     _ = runtimeReleaseObject(continuation)
     return value
 }

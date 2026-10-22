@@ -7,7 +7,8 @@ extension InlineLoweringPass {
         ctx: KIRContext,
         callerBody: [KIRInstruction],
         labels: inout InlineLabelAllocator,
-        expansionBudget: InlineExpansionBudget? = nil
+        expansionBudget: InlineExpansionBudget? = nil,
+        externalLoopAliases: [InlineLoopLabelAliases] = []
     ) -> InlineExpansion? {
         guard arguments.count == inlineTarget.params.count else {
             return nil
@@ -72,6 +73,7 @@ extension InlineLoweringPass {
         var unitResultAliasExprs: Set<KIRExprID> = []
         var lowered = KIRLoweringEmitContext()
         var callAncestries: [Int: [SymbolID]] = [:]
+        var callExternalLoopAliases: [Int: [InlineLoopLabelAliases]] = [:]
         lowered.instructions.reserveCapacity(inlineTarget.body.count)
         for param in inlineTarget.params {
             guard let argument = parameterValues[param.symbol] else { continue }
@@ -142,6 +144,9 @@ extension InlineLoweringPass {
                 for offset in outputStart ..< lowered.instructions.count {
                     if case .call = lowered.instructions[offset], callAncestries[offset] == nil {
                         callAncestries[offset] = budget.ancestry
+                    }
+                    if case .call = lowered.instructions[offset], callExternalLoopAliases[offset] == nil {
+                        callExternalLoopAliases[offset] = externalLoopAliases
                     }
                 }
             }
@@ -289,9 +294,15 @@ extension InlineLoweringPass {
                         allFunctionsBySymbol: allFunctionsBySymbol,
                         ctx: ctx,
                         labels: &labels,
-                        expansionBudget: budget
+                        expansionBudget: budget,
+                        externalLoopAliases: externalLoopAliases
                     ) {
-                        let lambdaExpansion = rawLambdaExpansion.remappingExternalLoopTargets(using: labelRemap)
+                        // External loop markers name loops of the lambda's lexical scope, never
+                        // of the inline callee, so the callee's `labelRemap` must not touch them
+                        // (its local labels share the same numeric space).
+                        let lambdaExpansion = rawLambdaExpansion.remappingExternalLoopTargets(
+                            using: externalLoopAliases
+                        )
                         hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
                         hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
                         appendInlinedLambdaExpansion(
@@ -300,6 +311,7 @@ extension InlineLoweringPass {
                             localExprMap: localExprMap,
                             labels: &labels,
                             callAncestries: &callAncestries,
+                            callExternalLoopAliases: &callExternalLoopAliases,
                             into: &lowered
                         )
                         if let result {
@@ -367,9 +379,15 @@ extension InlineLoweringPass {
                         allFunctionsBySymbol: allFunctionsBySymbol,
                         ctx: ctx,
                         labels: &labels,
-                        expansionBudget: budget
+                        expansionBudget: budget,
+                        externalLoopAliases: externalLoopAliases
                     ) {
-                        let lambdaExpansion = rawLambdaExpansion.remappingExternalLoopTargets(using: labelRemap)
+                        // External loop markers name loops of the lambda's lexical scope, never
+                        // of the inline callee, so the callee's `labelRemap` must not touch them
+                        // (its local labels share the same numeric space).
+                        let lambdaExpansion = rawLambdaExpansion.remappingExternalLoopTargets(
+                            using: externalLoopAliases
+                        )
                         hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
                         hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
                         appendInlinedLambdaExpansion(
@@ -378,6 +396,7 @@ extension InlineLoweringPass {
                             localExprMap: localExprMap,
                             labels: &labels,
                             callAncestries: &callAncestries,
+                            callExternalLoopAliases: &callExternalLoopAliases,
                             into: &lowered
                         )
                         if let result {
@@ -418,6 +437,37 @@ extension InlineLoweringPass {
                     InlineExprCloning.cloneOrReuseExpr(expr, localExprMap: &localExprMap, in: module.arena, substituteType: substituteType)
                 }
                 var loweredArgs = args.map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
+
+                // `Array<T>` stores erased values. A non-inlined generic body
+                // receives boxed type-parameter values, but inlining can
+                // substitute a primitive at this store and otherwise leave a
+                // raw word in the reference array.
+                if calleeStr == "kk_array_set",
+                   args.count > 2,
+                   loweredArgs.count > 2,
+                   let types = ctx.sema?.types,
+                   let originalElementType = module.arena.exprType(args[2]),
+                   case .typeParam = types.kind(of: originalElementType),
+                   let substitutedElementType = inlineTypeSubstitution?.applying(
+                       to: originalElementType,
+                       in: ctx
+                   ),
+                   substitutedElementType != originalElementType,
+                   module.arena.exprType(loweredArgs[2]) == substitutedElementType
+                {
+                    loweredArgs[2] = boxValueForAnySlot(
+                        loweredArgs[2],
+                        sourceType: substitutedElementType,
+                        types: types,
+                        symbols: ctx.sema?.symbols,
+                        interner: ctx.interner,
+                        arena: module.arena,
+                        resultType: types.anyType,
+                        sema: ctx.sema,
+                        cache: ctx.nominalDispatchCache,
+                        into: &lowered
+                    )
+                }
 
                 // The nullable seed branch of bundled `generateSequence` can
                 // leave the bridge argument typed only as `T` after inlining.
@@ -705,7 +755,8 @@ extension InlineLoweringPass {
             returnedExpr: returnedExpr,
             hasNonLocalReturn: hasNonLocalReturn,
             hasNormalReturn: hasNormalReturn,
-            callAncestries: callAncestries
+            callAncestries: callAncestries,
+            callExternalLoopAliases: callExternalLoopAliases
         )
     }
 

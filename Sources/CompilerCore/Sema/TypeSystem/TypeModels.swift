@@ -134,17 +134,45 @@ public struct TypeParamType: Hashable, Sendable {
     }
 }
 
+/// Identifies a projected receiver conversion that can be materialized at
+/// multiple member-call sites while denoting the same captured type.
+public struct CapturedTypeOrigin: Hashable, Sendable {
+    public let receiverType: TypeID
+    public let parameter: SymbolID
+    public let argumentIndex: Int
+
+    public init(receiverType: TypeID, parameter: SymbolID, argumentIndex: Int) {
+        self.receiverType = receiverType
+        self.parameter = parameter
+        self.argumentIndex = argumentIndex
+    }
+}
+
 public struct CapturedTypeBounds: Hashable, Sendable {
     public let identity: Int
     public let lower: TypeID
     public let upper: TypeID
     public let writeForbidden: Bool
+    public let origin: CapturedTypeOrigin?
 
-    public init(identity: Int, lower: TypeID, upper: TypeID, writeForbidden: Bool = false) {
+    public init(
+        identity: Int,
+        lower: TypeID,
+        upper: TypeID,
+        writeForbidden: Bool = false,
+        origin: CapturedTypeOrigin? = nil
+    ) {
         self.identity = identity
         self.lower = lower
         self.upper = upper
         self.writeForbidden = writeForbidden
+        self.origin = origin
+    }
+
+    func isSameProjectedCapture(as other: CapturedTypeBounds) -> Bool {
+        if self == other { return true }
+        guard let origin, let otherOrigin = other.origin, origin == otherOrigin else { return false }
+        return lower == other.lower && upper == other.upper && writeForbidden == other.writeForbidden
     }
 }
 
@@ -218,17 +246,37 @@ extension TypeKind {
     /// Rewrites nested TypeIDs while preserving nominal SymbolIDs.
     func mapTypes(_ transform: (TypeID) -> TypeID) -> TypeKind {
         switch self {
-        case .error, .unit, .nullableUnit, .platformUnit, .nothing, .any, .stringStruct, .primitive, .typeParam:
-            self
+        case .error, .unit, .nullableUnit, .platformUnit, .nothing, .any, .stringStruct, .primitive:
+            return self
+        case let .typeParam(type):
+            guard let capture = type.capture else { return self }
+            let origin = capture.origin.map {
+                CapturedTypeOrigin(
+                    receiverType: transform($0.receiverType),
+                    parameter: $0.parameter,
+                    argumentIndex: $0.argumentIndex
+                )
+            }
+            return .typeParam(TypeParamType(
+                symbol: type.symbol,
+                nullability: type.nullability,
+                capture: CapturedTypeBounds(
+                    identity: capture.identity,
+                    lower: transform(capture.lower),
+                    upper: transform(capture.upper),
+                    writeForbidden: capture.writeForbidden,
+                    origin: origin
+                )
+            ))
         case let .classType(type):
-            .classType(ClassType(
+            return .classType(ClassType(
                 classSymbol: type.classSymbol,
                 args: type.args.map { $0.mapTypes(transform) },
                 enclosingTypeArgs: type.enclosingTypeArgs.map { $0.mapTypes(transform) },
                 nullability: type.nullability
             ))
         case let .functionType(type):
-            .functionType(FunctionType(
+            return .functionType(FunctionType(
                 contextReceivers: type.contextReceivers.map(transform),
                 receiver: type.receiver.map(transform), params: type.params.map(transform),
                 returnType: transform(type.returnType), isSuspend: type.isSuspend,
@@ -236,9 +284,9 @@ extension TypeKind {
                 throws: type.throws.map(transform)
             ))
         case let .intersection(parts):
-            .intersection(parts.map(transform))
+            return .intersection(parts.map(transform))
         case let .kClassType(type):
-            .kClassType(KClassType(argument: transform(type.argument), nullability: type.nullability))
+            return .kClassType(KClassType(argument: transform(type.argument), nullability: type.nullability))
         }
     }
 }

@@ -151,6 +151,17 @@ extension BuildASTPhase {
         guard let last = previousTail.last else {
             return false
         }
+        if last.kind == .symbol(.at),
+           previousTail.dropLast().last?.kind.isLabelName == true,
+           let next = nextHead.first
+        {
+            switch next.kind {
+            case .keyword(.for), .keyword(.while), .keyword(.do):
+                return true
+            default:
+                break
+            }
+        }
         let lastIndex = previousTail.index(before: previousTail.endIndex)
         let endsWithLabelReference = last.kind.isLabelName
             && lastIndex > previousTail.startIndex
@@ -321,12 +332,7 @@ extension BuildASTPhase {
         from at: C.Index, in tokens: C
     ) -> C.Index? where C.Element == Token {
         func isNameToken(_ kind: TokenKind) -> Bool {
-            switch kind {
-            case .identifier, .backtickedIdentifier, .softKeyword, .keyword:
-                return true
-            default:
-                return false
-            }
+            kind.isLabelName
         }
         var index = tokens.index(after: at)
         guard index < tokens.endIndex else { return nil }

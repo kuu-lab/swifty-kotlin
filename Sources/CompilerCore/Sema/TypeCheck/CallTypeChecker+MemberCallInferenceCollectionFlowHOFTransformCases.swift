@@ -542,8 +542,10 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     if bindBundledIterableSourceFunction(
                         typeArguments: [collectionElementType],
                         allowNominalIterableReceiver: true,
-                        allowConcreteForEachReceiver: true
-                    , locals: &locals),
+                        allowCollectionReceiver: !isListReceiver && !isSetReceiver,
+                        allowConcreteForEachReceiver: true,
+                        locals: &locals
+                    ),
                        let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef
                     {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)

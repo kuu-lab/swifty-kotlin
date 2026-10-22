@@ -1391,7 +1391,8 @@ extension DataFlowSemaPhase {
         parentFQName: [InternedString],
         declSite: SourceRange?,
         symbols: SymbolTable,
-        interner: StringInterner
+        interner: StringInterner,
+        diagnostics: DiagnosticEngine
     ) -> [InternedString: SymbolID] {
         var localTypeParameters: [InternedString: SymbolID] = [:]
         var typeParameterSymbols: [SymbolID] = []
@@ -1404,8 +1405,15 @@ extension DataFlowSemaPhase {
                 fqName: typeParamFQName,
                 declSite: declSite,
                 visibility: .private,
-                flags: []
+                flags: typeParam.isReified ? [.reifiedTypeParameter] : []
             )
+            if typeParam.isReified {
+                diagnostics.error(
+                    "KSWIFTK-SEMA-0020",
+                    "Applying reified modifier to a type parameter of a type alias makes no sense",
+                    range: declSite
+                )
+            }
             typeParameterSymbols.append(typeParamSymbol)
             localTypeParameters[typeParam.name] = typeParamSymbol
         }
@@ -1427,6 +1435,7 @@ extension DataFlowSemaPhase {
         bundledIndex: BundledDeclarationIndex = .empty
     ) {
         let skipStats = SyntheticStubSkipStatsCollector()
+        let firstGeneratedSymbol = symbols.count
         defer {
             BundledSyntheticStubRegistration.clear()
         }
@@ -1447,7 +1456,80 @@ extension DataFlowSemaPhase {
             interner: interner,
             context: registryContext
         )
+        if firstGeneratedSymbol < symbols.count {
+            for index in firstGeneratedSymbol ..< symbols.count where index <= Int(Int32.max) {
+                symbols.insertFlags(
+                    .precomputedStdlibSynthetic,
+                    for: SymbolID(rawValue: Int32(index))
+                )
+            }
+        }
         skipStats.logIfEnabled()
+    }
+
+    /// Restores the TypeSystem anchors that the bootstrap registry normally
+    /// installs after importing a stdlib artifact that already serializes its
+    /// synthetic declarations and their metadata.
+    func restorePrecomputedStdlibSyntheticTypeSymbols(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> Bool {
+        defer { BundledSyntheticStubRegistration.clear() }
+
+        func importedNominal(_ path: [String]) -> SymbolID? {
+            let fqName = path.map { interner.intern($0) }
+            guard let symbol = symbols.lookupAll(fqName: fqName).first(where: { id in
+                guard let candidate = symbols.symbol(id) else { return false }
+                return symbols.isImportedStdlibSymbol(id)
+                    && Self.isNominalKind(candidate.kind)
+            }) else {
+                return nil
+            }
+            symbols.ensureLazyImportedMetadataLoaded(for: symbol)
+            return symbol
+        }
+
+        guard let any = importedNominal(["kotlin", "Any"]),
+              let annotation = importedNominal(["kotlin", "Annotation"]),
+              let comparable = importedNominal(["kotlin", "Comparable"]),
+              let charSequence = importedNominal(["kotlin", "CharSequence"]),
+              let string = importedNominal(["kotlin", "String"]),
+              let char = importedNominal(["kotlin", "Char"]),
+              let kCallable = importedNominal(["kotlin", "reflect", "KCallable"]),
+              let kFunction = importedNominal(["kotlin", "reflect", "KFunction"]),
+              let kClass = importedNominal(["kotlin", "reflect", "KClass"])
+        else {
+            return false
+        }
+
+        types.anyClassSymbol = any
+        types.annotationInterfaceSymbol = annotation
+        types.comparableInterfaceSymbol = comparable
+        types.charSequenceInterfaceSymbol = charSequence
+        types.stringClassSymbol = string
+        types.charClassSymbol = char
+        types.kCallableInterfaceSymbol = kCallable
+        types.kFunctionInterfaceSymbol = kFunction
+        types.kClassInterfaceSymbol = kClass
+
+        for arity in 0 ... 22 {
+            guard let function = importedNominal(["kotlin", "Function", "Function\(arity)"]),
+                  let suspendFunction = importedNominal(["kotlin", "coroutines", "SuspendFunction\(arity)"])
+            else {
+                return false
+            }
+            types.functionNInterfaceSymbols[arity] = function
+            types.suspendFunctionNInterfaceSymbols[arity] = suspendFunction
+        }
+        return true
+    }
+
+    private static func isNominalKind(_ kind: SymbolKind) -> Bool {
+        switch kind {
+        case .class, .interface, .object, .enumClass, .annotationClass: true
+        default: false
+        }
     }
 
     /// Register the synthetic `kotlin.Any` and `kotlin.Annotation` built-in stubs.

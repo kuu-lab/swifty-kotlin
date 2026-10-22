@@ -68,6 +68,7 @@ extension JVMBackendTests {
         "reifiedCapturedCollectionChecks",
         "arrayConstructorInlineAndReifiedContracts",
         "collectionMutableTypeChecksAndRegexGroups",
+        "collectionFactoryJavaClass",
         "reflectionOverloadedDefaultsAndInheritedContracts",
         "sequenceIndependentIterators",
         "sequenceDropWhileConsumption",

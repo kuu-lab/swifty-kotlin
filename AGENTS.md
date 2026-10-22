@@ -58,11 +58,12 @@ git diff -- Tests/CompilerCoreTests/GoldenCases
 ```bash
 bash Scripts/diff_kotlinc.sh Scripts/diff_cases/hello.kt  # 単一ケース
 bash Scripts/diff_kotlinc.sh Scripts/diff_cases            # 全ケース
+DIFF_BACKEND=jvm bash Scripts/diff_kotlinc.sh Scripts/diff_cases/foo.kt   # JVM バックエンドレーン（`// DIFF_JVM` マーカー対象。wasm は DIFF_BACKEND=wasm）
 ```
 
 CI で diff が落ちたとき: GitHub 上はジョブ **Summary** と **Artifacts**（TSV・失敗ケースディレクトリ）を優先。`gh run view RUN_ID --log-failed` だけだと、kotlinc diff ステップは `continue-on-error` のため **本体ログが含まれない**ことがある。全文ログでは `FAIL ` を grep。
 
-CI は 2 段構成。PR と merge_group では最小ゲート（`.github/workflows/ci.yml`: リポジトリチェック + 全ターゲットのデバッグビルド + `SmokeTests`、必須チェックは `CI gate` 1 つ）だけが走る。CompilerCore/Backend/Runtime/CLI/LSP の全テストと kotlinc diff（O0 / O2 全件）は `.github/workflows/nightly-full.yml` が毎朝 04:00 JST に master で 1 回実行する。マージ前に全件を確認したい PR は `gh workflow run nightly-full.yml --ref <branch>` で手動実行する（失敗 artifact 名は `kotlinc-diff-regression-<run id>-{O0,O2}-shard-<n>`）。
+CI は 2 段構成。PR と merge_group では最小ゲート（`.github/workflows/ci.yml`: リポジトリチェック + 全ターゲットのデバッグビルド + `SmokeTests`、必須チェックは `CI gate` 1 つ）だけが走る。それ以外のバッチ処理はすべて `.github/workflows/nightly-full.yml`（毎朝 04:00 JST、master）に集約されている: CompilerCore/Backend/Runtime/CLI/LSP の全テスト、kotlinc diff（O0 / O2 全件）とその JVM / WASM バックエンドレーン（`// DIFF_JVM` / `// DIFF_WASM` マーカー付きケースのみ）、JS annotation evidence、bounded mutation fuzzer + crash corpus replay、dead-code / fiction audit、kotlinx-io 上流リファレンス（JVM / Native）と Apple candidate ゲート。マージ前に全件を確認したい PR は `gh workflow run nightly-full.yml --ref <branch>` で手動実行する（失敗 artifact 名は `kotlinc-diff-regression-<run id>-{O0,O2}-shard-<n>`）。
 
 ### リファクタ PR のゲート
 

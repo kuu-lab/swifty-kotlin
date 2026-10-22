@@ -20,6 +20,8 @@ public final class CompilationContext: @unchecked Sendable {
     var jvmRuntimeClassAliases: [String: String] = [:]
     public internal(set) var generatedObjectPath: String?
     public internal(set) var generatedLLVMIRPath: String?
+    /// Set when the wasm backend wrote a `.wasm` module for an executable emit.
+    public internal(set) var generatedWasmPath: String?
 
     public internal(set) var incrementalCache: IncrementalCompilationCache?
 
@@ -107,6 +109,10 @@ public final class CompilationContext: @unchecked Sendable {
 
     public func storeGeneratedLLVMIRPath(_ path: String) {
         generatedLLVMIRPath = path
+    }
+
+    public func storeGeneratedWasmPath(_ path: String) {
+        generatedWasmPath = path
     }
 
     public func installIncrementalCache(_ cache: IncrementalCompilationCache) {

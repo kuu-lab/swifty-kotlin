@@ -452,9 +452,11 @@ extension ControlFlowLowerer {
     }
 
     /// ARCH-012: Restrict the LLVM induction-variable loop to the exact
-    /// IntRange contract. Direct `..` expressions are represented as an Int
-    /// element type plus a semantic range marker, while a value held in an
-    /// IntRange variable retains its nominal class type. `until`, `downTo`,
+    /// IntRange contract. A direct `..` expression is proven either by the
+    /// legacy scalar range-handle convention (Int element type plus a
+    /// semantic range marker) or by the nominal `IntRange` class type that
+    /// the bundled `kotlin.ranges.rangeTo` returns — the same nominal type a
+    /// value held in an IntRange variable carries. `until`, `downTo`,
     /// `step`, Long/Char ranges, and unsigned ranges keep their iterator path.
     private func isBuiltInIntRange(
         iterableExpr: ExprID,
@@ -475,18 +477,75 @@ extension ControlFlowLowerer {
             return false
         }
 
-        if case let .binary(op, _, _, _) = ast.arena.expr(iterableExpr), op == .rangeTo {
-            return nonNullType == sema.types.intType
-                && (sema.bindings.isRangeExpr(iterableExpr)
-                    || ControlFlowTypeChecker.isRangeExpression(iterableExpr, ast: ast))
+        if nonNullType == sema.types.intType {
+            // Scalar range-handle convention: only a direct `..` expression is
+            // a proven Int range.
+            guard case let .binary(op, _, _, _) = ast.arena.expr(iterableExpr), op == .rangeTo else {
+                return false
+            }
+            return sema.bindings.isRangeExpr(iterableExpr)
+                || ControlFlowTypeChecker.isRangeExpression(iterableExpr, ast: ast)
         }
 
+        // Source-backed typing: `a..b` resolves to kotlin.ranges.rangeTo and
+        // carries the nominal IntRange class type, so a direct `..` expression
+        // reaches the same nominal check as a value held in an IntRange
+        // variable.
         guard let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema),
               isRangeLikeClass(symbol, sema: sema, interner: interner)
         else {
             return false
         }
         return symbol.name == KnownCompilerNames(interner: interner).intRange
+    }
+
+    /// True when a direct `a..b` expression may feed its operands straight
+    /// into the induction loop instead of materializing the range object.
+    /// The scalar range-handle convention already proves the bounds are Int,
+    /// so only the nominal `IntRange` form needs extra checks: both operands
+    /// must be Int-typed (mixed-width overloads such as `Byte.rangeTo(Int)`
+    /// widen inside the source body, which only runs when the range is
+    /// materialized), and the resolved `rangeTo` must be the bundled
+    /// `kotlin.ranges` overload or the legacy range intrinsic — a
+    /// user-declared `rangeTo` returning `IntRange` computes its own bounds,
+    /// so its call is emitted and the loop bounds are read back from the
+    /// materialized range.
+    private func canLowerRangeToOperandsDirectly(
+        exprID: ExprID,
+        lhs: ExprID,
+        rhs: ExprID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        let exprType = sema.types.makeNonNullable(
+            sema.bindings.exprType(for: exprID) ?? sema.types.anyType
+        )
+        guard resolveClassTypeSymbol(exprType, sema: sema) != nil else {
+            return true
+        }
+        guard sema.types.makeNonNullable(sema.bindings.exprType(for: lhs) ?? sema.types.anyType) == sema.types.intType,
+              sema.types.makeNonNullable(sema.bindings.exprType(for: rhs) ?? sema.types.anyType) == sema.types.intType
+        else {
+            return false
+        }
+        guard let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee,
+              chosenCallee != .invalid
+        else {
+            return true
+        }
+        if let symbol = sema.symbols.symbol(chosenCallee),
+           symbol.fqName == [
+               interner.intern("kotlin"),
+               interner.intern("ranges"),
+               interner.intern("rangeTo"),
+           ]
+        {
+            return true
+        }
+        if let linkName = sema.symbols.externalLinkName(for: chosenCallee) {
+            return linkName == "kk_op_rangeTo" || linkName == "__kk_op_rangeTo"
+        }
+        return false
     }
 
     /// The explicit last-element flag avoids incrementing Int.MAX_VALUE and also
@@ -507,7 +566,15 @@ extension ControlFlowLowerer {
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let firstID: KIRExprID
         let lastID: KIRExprID
-        if case let .binary(op, lhs, rhs, _) = ast.arena.expr(iterableExpr), op == .rangeTo {
+        if case let .binary(op, lhs, rhs, _) = ast.arena.expr(iterableExpr),
+           op == .rangeTo,
+           canLowerRangeToOperandsDirectly(
+               exprID: iterableExpr,
+               lhs: lhs,
+               rhs: rhs,
+               sema: sema,
+               interner: interner
+           ) {
             // A direct `Int..Int` expression has no observable range object
             // between evaluating its operands and entering the loop.
             firstID = driver.lowerExpr(

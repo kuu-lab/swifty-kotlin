@@ -287,6 +287,7 @@ struct CodegenBackendRandomOverloadEdgeCasesTests {
     func testCodegenCompilesRandomNextLongRange() throws {
         let source = """
         import kotlin.random.Random
+        import kotlin.random.nextLong
 
         fun main() {
             val r = Random(7)
@@ -316,6 +317,7 @@ struct CodegenBackendRandomOverloadEdgeCasesTests {
     func testCodegenCompilesRandomNextIntRange() throws {
         let source = """
         import kotlin.random.Random
+        import kotlin.random.nextInt
 
         fun main() {
             val r = Random(7)

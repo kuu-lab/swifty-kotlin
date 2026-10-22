@@ -77,8 +77,8 @@ LoadSources --> Lex --> Parse --> BuildAST --> SemaPasses --> BuildKIR --> Lower
 | 5 | **SemaPasses** | AST | `ctx.sema` (SemaModule) | `Sema/Infrastructure/SemaPhase.swift` -> `DataFlow/Phase.swift` + `TypeCheck/TypeCheckSemaPhase.swift` |
 | 6 | **BuildKIR** | AST + Sema | `ctx.kir` (KIRModule) | `KIR/BuildKIRPhase.swift`, `KIR/KIRLoweringDriver.swift` |
 | 7 | **Lowering** | KIR | KIR (in-place 変換) | `Lowering/LoweringPhase.swift` + 各 `*LoweringPass.swift` |
-| 8 | **Codegen** | KIR | `.o` / `.ll` / `.kir` / `.kklib` | `CompilerBackend/CodegenPhase.swift`, `CompilerBackend/LLVMBackend.swift`, `CompilerBackend/NativeEmitter.swift` |
-| 9 | **Link** | `.o` ファイル | 実行ファイル (macOS 通常リンクは clang、debug / Linux 等は swiftc) | `CompilerBackend/LinkPhase.swift` |
+| 8 | **Codegen** | KIR | `.o` / `.ll` / `.kir` / `.kklib` / `.wasm` (wasm ターゲット時) | `CompilerBackend/CodegenPhase.swift`, `CompilerBackend/LLVMBackend.swift`, `CompilerBackend/NativeEmitter.swift`, `CompilerBackend/Wasm/WasmEmitter.swift` |
+| 9 | **Link** | `.o` ファイル | 実行ファイル (macOS 通常リンクは clang、debug / Linux 等は swiftc。wasm ターゲットはリンクせず Codegen の `.wasm` をそのまま出力) | `CompilerBackend/LinkPhase.swift` |
 
 ---
 
@@ -113,6 +113,7 @@ LoadSources --> Lex --> Parse --> BuildAST --> SemaPasses --> BuildKIR --> Lower
 | `RuntimeReflectionMetadataEmitter.swift` | `KClass` 向け実行時リフレクションメタデータを LLVM グローバル定数として発行 |
 | `CodegenRuntimeSupport.swift` (+`+RuntimeObjects`) | ランタイムサポート関数 |
 | `CodegenSymbolSupport.swift` | シンボルサポート |
+| `Wasm/` (`WasmModule.swift`, `WasmEmitter.swift`, `WasmEmitter+Function.swift`, `WasmEmitter+Runtime.swift`) | wasm バックエンド（LLVM 非依存の自前バイナリエンコーダ + KIR→wasm エミッタ）。`--target wasm32-wasi` で linear-memory MVP の `.wasm` を生成（現状は全値 i64 表現の縮小版。計画は [`wasm-support-plan.md`](wasm-support-plan.md)） |
 | `StdlibArtifactCache.swift` | 実行ファイル生成時に使う stdlib `.kklib` の生成・探索（パッケージ同梱を優先、無ければユーザーキャッシュに生成） |
 
 ### `Sources/KSwiftKCLI/`
@@ -379,7 +380,7 @@ KIRModule (lowered)
 
 ## 10. CI ジョブ構成
 
-CI は 2 つの workflow に分かれる。`.github/workflows/ci.yml` は PR と merge_group で走る最小ゲート、`.github/workflows/nightly-full.yml` は毎朝 04:00 JST（`cron: '0 19 * * *'`）に master で 1 回走る全件検証で、`workflow_dispatch` で任意のブランチに対しても実行できる。どちらも Ubuntu runner、Swift 6.3、`SWIFT_XSWIFTC_FLAGS` による言語モード 6 + strict concurrency、`SWIFT_BUILD_SYSTEM=native` を共有する。
+CI は 2 つの workflow に分かれる。`.github/workflows/ci.yml` は PR と merge_group で走る最小ゲート、`.github/workflows/nightly-full.yml` は毎朝 04:00 JST（`cron: '0 19 * * *'`）に master で 1 回走る集約バッチで、全件検証に加えて mutation fuzzer・監査・kotlinx-io レーンなどのスケジュール系処理もすべてここに入る。`workflow_dispatch` で任意のブランチに対しても実行できる。Ubuntu 系ジョブは Swift 6.3、`SWIFT_XSWIFTC_FLAGS` による言語モード 6 + strict concurrency、`SWIFT_BUILD_SYSTEM=native` を共有する（kotlinx-io の 2 レーンだけ macOS runner を使う）。
 
 `ci.yml`（ruleset の必須チェックは `CI gate` だけ）:
 
@@ -398,17 +399,23 @@ CI は 2 つの workflow に分かれる。`.github/workflows/ci.yml` は PR と
 | `verify-self-hosted` | 同じ成果物で `CompilerBackendTests` を静的シャード（4 分割）で実行。shard 1 だけ `RuntimeTests`（直列・チャンク）/ `RuntimeTestsParallel` / `KSwiftKCLITests` / `LSPServerTests` も実行。`setup-llvm` で LLVM を導入 |
 | `refactoring-metrics` | `Scripts/loc_report.sh`（artifact `refactoring-metrics-<run id>`） |
 | `build-release-kswiftc` | `swift build -c release --product kswiftc` を 1 回だけ実行し `kswiftc-release-<run id>` artifact にする |
-| `verify-diff` | release `kswiftc` を展開し、JDK 21 + kotlinc 2.3.10 で `Scripts/diff_kotlinc.sh` を O0 / O2 それぞれ 4 シャード実行。O0 shard 1 は `Scripts/diff_diagnostics.sh` も実行。失敗時は `kotlinc-diff-regression-<run id>-<O0\|O2>-shard-<n>` artifact |
+| `verify-diff` | release `kswiftc` を展開し、JDK 21 + kotlinc 2.4.20 で `Scripts/diff_kotlinc.sh` を O0 / O2 それぞれ 4 シャード実行。O0 shard 1 は `Scripts/diff_diagnostics.sh` も実行。失敗時は `kotlinc-diff-regression-<run id>-<O0\|O2>-shard-<n>` artifact |
+| `verify-jvm-diff` | `DIFF_BACKEND=jvm` で `// DIFF_JVM` マーカー付きケースを `kswiftc --emit jar` + `java -Xverify:all -cp` で実行し kotlinc 参照と diff。JVM stdlib jar を `Scripts/validate_jvm_stdlib.py` で静的検証。artifact `kotlinc-diff-jvm-<run id>` |
+| `verify-wasm` | `DIFF_BACKEND=wasm` で `// DIFF_WASM` マーカー付きケースを `kswiftc --target wasm32-wasi` + `node:wasi` / `wasmtime`（engine マトリクス）で実行し kotlinc 参照と diff。artifact `kotlinc-diff-wasm-<run id>-<engine>` |
+| `mutation-fuzzer` | `build-release-kswiftc` の release artifact を再利用し、`Scripts/mutate_diff_cases.py` でコミット済み crash corpus（`Tests/CrashCorpus`）を replay してから bounded fuzz を実行（seed 23023・64 ケース・900 秒）。artifact `nightly-mutation-fuzzer-<run id>` |
+| `audits` | `build-debug-tests` のバンドルを `--skip-build` で再利用し、`Scripts/dead_code_audit.sh` と `DUMP_SURFACE=1` の `FictionAuditDumpTests` を実行。artifact `nightly-audits-<run id>` |
+| `kotlinx-io-reference` | `Scripts/kotlinx_io_upstream` の上流リファレンスを JVM（ubuntu-latest）と Native common/Apple（macos-14）で実行。artifact `kotlinx-io-reference-<kind>-<run id>` |
+| `kotlinx-io-apple-candidate` | macos-26 で Darwin SDK + brew LLVM を構成し、`kotlinx_io_upstream/apple/run_candidate.py` の Apple IO 候補ゲートを実行。artifact `io-apple-candidate-<run id>-<attempt>` |
 
-`.github/workflows/macos-ci.yml` の `macos-build-smoke-link` は、Homebrew LLVM 20 と macOS SDK を明示して `CompilerCoreTests` / `CompilerBackendTests` の test product をビルドし、`SmokeTests` と `LinkPhaseIntegrationTests` を直列実行する。これは一次プラットフォームの最小常設レーン（ARCH-027）であり、Ubuntu の共有 debug artifact とは独立に macOS 上でコンパイル・リンクを検証する。
+macOS runner 上での検証は `nightly-full.yml` の `kotlinx-io-reference`（native, macos-14）と `kotlinx-io-apple-candidate`（macos-26、brew LLVM + Darwin SDK を明示）が担う。
 
 セットアップアクション（`.github/actions/`）:
 - [`setup-self-hosted`](../.github/actions/setup-self-hosted/action.yml) — Linux / macOS ランナーの共通準備
 - [`setup-swift`](../.github/actions/setup-swift/action.yml) — 指定バージョン（6.3）の Swift ツールチェーンを用意し、バージョン一致を検証
 - [`setup-llvm`](../.github/actions/setup-llvm/action.yml) — `llvm-dev` を導入し `llvm-config` から `KSWIFTK_LLVM_DYLIB` 等を導出（`verify-self-hosted` のみ）
-- [`setup-swiftpm-cache`](../.github/actions/setup-swiftpm-cache/action.yml) — `.build` を actions/cache から復元。`build-debug-tests` / `build-release-kswiftc` / `macos-build-smoke-link` が `save: "false"`（restore-only）で使用
+- [`setup-swiftpm-cache`](../.github/actions/setup-swiftpm-cache/action.yml) — `.build` を actions/cache から復元。`build-and-smoke`（ci.yml）と `build-debug-tests` / `build-release-kswiftc`（nightly-full.yml）が `save: "false"`（restore-only）で使用
 
-LLVM を明示的に導入するのは Ubuntu の `verify-self-hosted` と macOS の `macos-build-smoke-link`。`verify-diff` は `setup-llvm` を使わず、release `kswiftc` が実行時に `KSWIFTK_LLVM_DYLIB` または既定候補パスから `libLLVM` を `dlopen` する（§2）。
+`setup-llvm` で LLVM を明示的に導入するのは `verify-self-hosted` と `mutation-fuzzer`（`kotlinx-io-apple-candidate` は brew の LLVM を `KSWIFTK_LLVM_DYLIB` に設定する）。`verify-diff` / `verify-jvm-diff` / `verify-wasm` は `setup-llvm` を使わず、release `kswiftc` が実行時に `KSWIFTK_LLVM_DYLIB` または既定候補パスから `libLLVM` を `dlopen` する（§2。WASM エミッタは LLVM 非依存）。
 
 ### ビルドとテスト実行の分離
 
@@ -420,7 +427,7 @@ LLVM を明示的に導入するのは Ubuntu の `verify-self-hosted` と macOS
 
 `SWIFT_ENABLE_COMPILE_CACHE=1` を設定すると、`Scripts/lib/common.sh` が `-Xswiftc -explicit-module-build -Xswiftc -cache-compile-job -Xswiftc -cas-path -Xswiftc <SWIFT_CAS_PATH>` を `build_swift_tests.sh` と `swift_test.sh` / `shard_swift_tests.sh` に渡す。`-explicit-module-build` は必須で、これがないと swift-driver が `warning: -cache-compile-job cannot be used without explicit module build, turn off caching` を出してキャッシュを**黙って無効化**する（ビルド自体は成功する）。`build_swift_tests.sh` はこの警告を検出するとビルドを失敗させる。
 
-CI では `build-and-smoke`（`ci.yml`）と `build-debug-tests` / `verify-core` / `verify-self-hosted`（`nightly-full.yml`）が `SWIFT_ENABLE_COMPILE_CACHE=1` と `SWIFT_CAS_PATH=.build/out/CompilationCache.noindex` を設定する。`setup-swiftpm-cache` は現在 restore-only（`save: "false"`）で呼ばれているため、CAS を含む `.build` が actions/cache に保存されるのは同アクションを `save: "true"` で呼ぶ run に限られる（現行の workflow にはない）。
+CI では `build-and-smoke`（`ci.yml`）と `build-debug-tests` / `verify-core` / `verify-self-hosted` / `audits`（`nightly-full.yml`）が `SWIFT_ENABLE_COMPILE_CACHE=1` と `SWIFT_CAS_PATH=.build/out/CompilationCache.noindex` を設定する。`setup-swiftpm-cache` は現在 restore-only（`save: "false"`）で呼ばれているため、CAS を含む `.build` が actions/cache に保存されるのは同アクションを `save: "true"` で呼ぶ run に限られる（現行の workflow にはない）。
 
 `swiftbuild` を使う場合は、`kswiftk_setup_compile_cache_env` が `EnableSwiftCachingByDefault=true` / `EnableClangCachingByDefault=true` / `EnableSwiftExplicitModulesByDefault=true` を追加でエクスポートし、`.build/out/CompilationCache.noindex` / `ModuleCache.noindex` に成果物を蓄える。ローカル計測例（Swift 6.3.1、`CompilerCoreTests-test-runner`）: キャッシュなし初回ビルド約 170 秒、復元後の再ビルド約 7 秒。
 
@@ -429,7 +436,7 @@ CI では `build-and-smoke`（`ci.yml`）と `build-debug-tests` / `verify-core`
 ### CI 失敗時のデバッグ（短い手順）
 
 - **kotlinc diff が落ちた場合**: `verify-diff` ジョブの **Summary**（`Scripts/diff_kotlinc_ci_summary.sh` が生成）と **Artifacts**（`kotlinc-diff-regression-<run id>-shard-<n>`、TSV と失敗ケースディレクトリ）を確認。全文ログでは `FAIL ` で検索。`gh run view <id> --log-failed` だけでは、`continue-on-error` により diff 本体のステップが「失敗扱い」にならず **差分ログが出ない**ことがある。
-- **テスト / スモーク**: 各 verify ジョブの Summary（"Reproduce hints"）にローカル再現用コマンドを記載。`jscpd` 失敗時も `verify-repository-checks` の Summary に再現コマンドを追記。
+- **テスト / スモーク**: 各 verify ジョブの Summary（"Reproduce hints"）にローカル再現用コマンドを記載。`jscpd` 失敗時も `repository-checks` の Summary を確認。
 
 ---
 

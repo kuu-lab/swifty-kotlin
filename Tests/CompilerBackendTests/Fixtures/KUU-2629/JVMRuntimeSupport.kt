@@ -1,12 +1,5 @@
 package kotlin
 
-import kotlin.ranges.IntRange
-
-fun <T> T.also(block: (T) -> Unit): T {
-    block(this)
-    return this
-}
-
 fun require(value: Boolean): Unit {
     if (!value) throw IllegalArgumentException("Failed requirement.")
 }
@@ -23,7 +16,6 @@ fun check(value: Boolean, lazyMessage: () -> Any): Unit {
     if (!value) throw IllegalStateException(lazyMessage().toString())
 }
 
-infix fun Int.until(other: Int): IntRange = IntRange(this, other - 1)
 infix fun Int.and(other: Int): Int = this and other
 infix fun Int.or(other: Int): Int = this or other
 infix fun Int.shl(count: Int): Int = this shl count

@@ -50,13 +50,9 @@ enum TypeRefParserCore {
         isTypeNameToken(kind, options: .declaration)
     }
 
-    /// Deliberately wider than `isTypeLikeNameToken`: that predicate
-    /// answers for a *type* position, where `out` is the declaration-site
-    /// variance modifier and must stay reserved (`List<out T>`). A declaration
-    /// *name* position has no variance, so `out` is an ordinary identifier
-    /// there — `val out = 1` and `fun out() = 1` are valid Kotlin. `in` is not
-    /// added: it is a hard keyword, so naming something `in` needs backticks,
-    /// which arrive as `.backtickedIdentifier`.
+    /// Declaration names use Kotlin's `simpleIdentifier` grammar. `out` is
+    /// accepted here even though it is reserved as declaration-site variance
+    /// in type positions; hard keywords still require backticks.
     static func isDeclarationNameToken(_ kind: TokenKind) -> Bool {
         if case .softKeyword(.out) = kind {
             return true
@@ -825,12 +821,7 @@ enum TypeRefParserCore {
             return segmentStart
         }
         let nameIndex = colonIndex - 1
-        switch tokens[nameIndex].kind {
-        case .identifier, .backtickedIdentifier, .keyword, .softKeyword:
-            return colonIndex + 1
-        default:
-            return segmentStart
-        }
+        return tokens[nameIndex].kind.isLabelName ? colonIndex + 1 : segmentStart
     }
 
     /// Used when a `?` suffix follows a parenthesized type group, e.g.
@@ -895,14 +886,12 @@ enum TypeRefParserCore {
         switch kind {
         case .identifier, .backtickedIdentifier:
             true
-        case .keyword(.in):
-            options.allowKeywordIdentifiers && !options.reserveVarianceKeywords
         case .keyword:
-            options.allowKeywordIdentifiers
+            options.allowKeywordIdentifiers && kind.isLabelName
         case .softKeyword(.out):
-            options.allowKeywordIdentifiers && !options.reserveVarianceKeywords
+            options.allowKeywordIdentifiers && !options.reserveVarianceKeywords && kind.isLabelName
         case .softKeyword:
-            options.allowKeywordIdentifiers
+            options.allowKeywordIdentifiers && kind.isLabelName
         default:
             false
         }

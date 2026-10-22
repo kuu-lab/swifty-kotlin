@@ -361,6 +361,47 @@ extension CallTypeChecker {
                     resolved = retried
                     resolvedImplicitReceiverType = ctx.implicitReceiverType
                 }
+                // The innermost scope tier produced no viable — or only
+                // inaccessible — candidates. Kotlin's call tower continues to
+                // outer tiers in that case: a package-level `minOf(Long, Int)`
+                // must not hide the default-imported `kotlin.math.minOf` for
+                // `(Long, Long)` arguments, and a bundled-internal overload a
+                // module cannot call must not report 'cannot access' when a
+                // visible outer overload applies. Lambda arguments carry
+                // per-candidate expected types, so only retry plain calls.
+                if let calleeName,
+                   resolved.diagnostic?.code == "KSWIFTK-SEMA-0002"
+                       || resolved.diagnostic?.code == "KSWIFTK-SEMA-0044",
+                   !args.contains(where: { isLambdaOrCallableRefArg($0.expr, ast: ast) })
+                {
+                    let mergedCandidates = ctx.scope.lookupMergingChain(calleeName).filter { candidate in
+                        !resolvedCandidates.contains(candidate)
+                            && !ctx.isCandidateBlockedByDslMarker(candidate)
+                            && [.function, .constructor].contains(ctx.cachedSymbol(candidate)?.kind)
+                    }
+                    let outerTierCandidates = ctx.filterByVisibility(mergedCandidates).visible
+                    if !outerTierCandidates.isEmpty {
+                        let retried = resolveCallRespectingLambdaReturnType(
+                            candidates: outerTierCandidates,
+                            args: args,
+                            argTypes: argTypes,
+                            range: range,
+                            calleeName: calleeName,
+                            explicitTypeArgs: explicitTypeArgs,
+                            expectedType: expectedType,
+                            implicitReceiverType: callImplicitReceiverType,
+                            bindsObjectDispatchReceiver: true,
+                            lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
+                            inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
+                            blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
+                            hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
+                            ctx: ctx
+                        )
+                        if retried.chosenCallee != nil, retried.diagnostic == nil {
+                            resolved = retried
+                        }
+                    }
+                }
             }
             if resolved.diagnostic == nil,
                let chosen = resolved.chosenCallee,

@@ -163,6 +163,10 @@ final class LLVMCAPIBindings {
     typealias LLVMInitializeAArch64TargetFn = @convention(c) () -> Void
     typealias LLVMInitializeAArch64TargetMCFn = @convention(c) () -> Void
     typealias LLVMInitializeAArch64AsmPrinterFn = @convention(c) () -> Void
+    typealias LLVMInitializeWebAssemblyTargetInfoFn = @convention(c) () -> Void
+    typealias LLVMInitializeWebAssemblyTargetFn = @convention(c) () -> Void
+    typealias LLVMInitializeWebAssemblyTargetMCFn = @convention(c) () -> Void
+    typealias LLVMInitializeWebAssemblyAsmPrinterFn = @convention(c) () -> Void
     typealias LLVMDIBuilderRef = OpaquePointer
     typealias LLVMMetadataRef = OpaquePointer
     typealias LLVMCreateDIBuilderFn = @convention(c) (LLVMModuleRef?) -> LLVMDIBuilderRef?
@@ -344,6 +348,10 @@ final class LLVMCAPIBindings {
     let initializeAArch64TargetFn: LLVMInitializeAArch64TargetFn?
     let initializeAArch64TargetMCFn: LLVMInitializeAArch64TargetMCFn?
     let initializeAArch64AsmPrinterFn: LLVMInitializeAArch64AsmPrinterFn?
+    let initializeWebAssemblyTargetInfoFn: LLVMInitializeWebAssemblyTargetInfoFn?
+    let initializeWebAssemblyTargetFn: LLVMInitializeWebAssemblyTargetFn?
+    let initializeWebAssemblyTargetMCFn: LLVMInitializeWebAssemblyTargetMCFn?
+    let initializeWebAssemblyAsmPrinterFn: LLVMInitializeWebAssemblyAsmPrinterFn?
     let addGlobalFn: LLVMAddGlobalFn?
     let setInitializerFn: LLVMSetInitializerFn?
     let positionBuilderBeforeFn: LLVMPositionBuilderBeforeFn?
@@ -457,6 +465,10 @@ final class LLVMCAPIBindings {
         initializeAArch64TargetFn: LLVMInitializeAArch64TargetFn?,
         initializeAArch64TargetMCFn: LLVMInitializeAArch64TargetMCFn?,
         initializeAArch64AsmPrinterFn: LLVMInitializeAArch64AsmPrinterFn?,
+        initializeWebAssemblyTargetInfoFn: LLVMInitializeWebAssemblyTargetInfoFn? = nil,
+        initializeWebAssemblyTargetFn: LLVMInitializeWebAssemblyTargetFn? = nil,
+        initializeWebAssemblyTargetMCFn: LLVMInitializeWebAssemblyTargetMCFn? = nil,
+        initializeWebAssemblyAsmPrinterFn: LLVMInitializeWebAssemblyAsmPrinterFn? = nil,
         addGlobalFn: LLVMAddGlobalFn? = nil,
         setInitializerFn: LLVMSetInitializerFn? = nil,
         positionBuilderBeforeFn: LLVMPositionBuilderBeforeFn? = nil,
@@ -570,6 +582,10 @@ final class LLVMCAPIBindings {
         self.initializeAArch64TargetFn = initializeAArch64TargetFn
         self.initializeAArch64TargetMCFn = initializeAArch64TargetMCFn
         self.initializeAArch64AsmPrinterFn = initializeAArch64AsmPrinterFn
+        self.initializeWebAssemblyTargetInfoFn = initializeWebAssemblyTargetInfoFn
+        self.initializeWebAssemblyTargetFn = initializeWebAssemblyTargetFn
+        self.initializeWebAssemblyTargetMCFn = initializeWebAssemblyTargetMCFn
+        self.initializeWebAssemblyAsmPrinterFn = initializeWebAssemblyAsmPrinterFn
         self.addGlobalFn = addGlobalFn
         self.setInitializerFn = setInitializerFn
         self.positionBuilderBeforeFn = positionBuilderBeforeFn

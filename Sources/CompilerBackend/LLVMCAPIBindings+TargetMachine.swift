@@ -100,6 +100,13 @@ extension LLVMCAPIBindings {
             initializeAArch64TargetFn?()
             initializeAArch64TargetMCFn?()
             initializeAArch64AsmPrinterFn?()
+            return
+        }
+        if triple.hasPrefix("wasm") {
+            initializeWebAssemblyTargetInfoFn?()
+            initializeWebAssemblyTargetFn?()
+            initializeWebAssemblyTargetMCFn?()
+            initializeWebAssemblyAsmPrinterFn?()
         }
     }
 

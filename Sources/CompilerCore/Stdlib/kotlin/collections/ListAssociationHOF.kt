@@ -9,7 +9,7 @@ package kotlin.collections
 // These implementations reuse the List indexing path (this[i] / size) and the
 // MutableMap / MutableList factory bridges in CollectionFactories.kt.
 
-public fun <T, K, V> List<T>.associate(transform: (T) -> Pair<K, V>): Map<K, V> {
+public inline fun <T, K, V> List<T>.associate(transform: (T) -> Pair<K, V>): Map<K, V> {
     val result = mutableMapOf<K, V>()
     var i = 0
     while (i < size) {
@@ -20,7 +20,7 @@ public fun <T, K, V> List<T>.associate(transform: (T) -> Pair<K, V>): Map<K, V> 
     return result as Map<K, V>
 }
 
-public fun <T, K> List<T>.associateBy(keySelector: (T) -> K): Map<K, T> {
+public inline fun <T, K> List<T>.associateBy(keySelector: (T) -> K): Map<K, T> {
     val result = mutableMapOf<K, T>()
     var i = 0
     while (i < size) {
@@ -31,7 +31,7 @@ public fun <T, K> List<T>.associateBy(keySelector: (T) -> K): Map<K, T> {
     return result as Map<K, T>
 }
 
-public fun <T, K, V> List<T>.associateBy(
+public inline fun <T, K, V> List<T>.associateBy(
     keySelector: (T) -> K,
     valueTransform: (T) -> V
 ): Map<K, V> {
@@ -113,7 +113,7 @@ public fun <T, V, M : MutableMap<T, V>> List<T>.associateWithTo(
     return destination
 }
 
-public fun <T, K> List<T>.groupBy(keySelector: (T) -> K): Map<K, List<T>> {
+public inline fun <T, K> List<T>.groupBy(keySelector: (T) -> K): Map<K, List<T>> {
     val result = mutableMapOf<K, MutableList<T>>()
     var i = 0
     while (i < size) {
@@ -132,7 +132,7 @@ public fun <T, K> List<T>.groupBy(keySelector: (T) -> K): Map<K, List<T>> {
     return result as Map<K, List<T>>
 }
 
-public fun <T, K, V> List<T>.groupBy(
+public inline fun <T, K, V> List<T>.groupBy(
     keySelector: (T) -> K,
     valueTransform: (T) -> V
 ): Map<K, List<V>> {
@@ -201,7 +201,7 @@ public fun <T, K, V, M : MutableMap<K, MutableList<V>>> List<T>.groupByTo(
     return destination
 }
 
-public fun <T> List<T>.onEach(action: (T) -> Unit): List<T> {
+public inline fun <T> List<T>.onEach(action: (T) -> Unit): List<T> {
     var i = 0
     while (i < size) {
         action(this[i])
@@ -210,7 +210,7 @@ public fun <T> List<T>.onEach(action: (T) -> Unit): List<T> {
     return this
 }
 
-public fun <T> List<T>.onEachIndexed(action: (Int, T) -> Unit): List<T> {
+public inline fun <T> List<T>.onEachIndexed(action: (Int, T) -> Unit): List<T> {
     var i = 0
     while (i < size) {
         action(i, this[i])
@@ -219,7 +219,7 @@ public fun <T> List<T>.onEachIndexed(action: (Int, T) -> Unit): List<T> {
     return this
 }
 
-public fun <T> List<T>.partition(predicate: (T) -> Boolean): Pair<List<T>, List<T>> {
+public inline fun <T> List<T>.partition(predicate: (T) -> Boolean): Pair<List<T>, List<T>> {
     val first = mutableListOf<T>()
     val second = mutableListOf<T>()
     var i = 0

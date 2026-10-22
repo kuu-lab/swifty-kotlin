@@ -23,6 +23,8 @@ public object System {
     public fun getProperty(propertyName: String, defaultValue: String): String =
         __getProperty(propertyName) ?: defaultValue
 
+    public fun lineSeparator(): String = __getProperty("line.separator") ?: "\n"
+
     public fun gc(): Unit = __gc()
 
     public fun arraycopy(

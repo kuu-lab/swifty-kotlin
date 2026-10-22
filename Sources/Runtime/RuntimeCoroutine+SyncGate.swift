@@ -118,6 +118,21 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// use their caller as the completion continuation, while unintercepted
     /// coroutine builders set the same source explicitly.
     private var contextContinuationRaw: Int = 0
+    /// KUU-2750: the suspend-entry point currently driving this continuation's
+    /// state machine, recorded by runSuspendEntryLoopWithContinuation and
+    /// startCoroutineUninterceptedOrReturn. The DeepRecursive trampoline needs
+    /// it to resume a continuation parked at callRecursive when the parked
+    /// frame is a nested suspend call rather than the coroutine root.
+    var suspendDriveEntryPointRaw: Int = 0
+    /// KUU-2750: the continuation this state reports completion to — the caller
+    /// for direct suspend calls, the completion continuation for unintercepted
+    /// coroutine values. Lets the DeepRecursive trampoline keep unwinding the
+    /// frame chain after a nested callRecursive frame finishes.
+    var suspendCallerContinuationRaw: Int {
+        interceptionLock.lock()
+        defer { interceptionLock.unlock() }
+        return contextContinuationRaw
+    }
     private var hasStartedUninterceptedCoroutine = false
     /// KUU-2689: kotlinx's MODE_CANCELLABLE start flag. Set only when the
     /// intercepted continuation is a native dispatch wrapper (upstream's
@@ -175,6 +190,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// enqueued resume.
     private var inlineExceptionalDeliveryPending = false
     private var cancellationShieldDepth = 0
+    private var didExit = false
 
     // CORO-003: Task-local continuation state registry (replaces TLS).
     // Maps an opaque task token (assigned by the suspend-entry loop on entry) to
@@ -513,9 +529,26 @@ final class RuntimeContinuationState: @unchecked Sendable {
         return thrown
     }
 
-    func installCancellableDelivery(_ continuation: RuntimeCancellableContinuation) {
+    func installCancellableDelivery(_ continuation: RuntimeCancellableContinuation) -> Bool {
         stateLock.lock()
+        guard !didExit else {
+            stateLock.unlock()
+            return false
+        }
         cancellableDelivery = continuation
+        stateLock.unlock()
+        return true
+    }
+
+    var isExited: Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return didExit
+    }
+
+    func markExited() {
+        stateLock.lock()
+        didExit = true
         stateLock.unlock()
     }
 
@@ -530,6 +563,14 @@ final class RuntimeContinuationState: @unchecked Sendable {
         completion = Int64(runtimeResultValueOrNull(result))
         thrownException = runtimeResultIsSuccess(result) ? 0 : runtimeResultExceptionOrNull(result)
         stateLock.unlock()
+    }
+
+    func retireCancellableDeliveryOnExit() {
+        stateLock.lock()
+        let delivery = cancellableDelivery
+        cancellableDelivery = nil
+        stateLock.unlock()
+        delivery?.delegateDidExit()
     }
 
     /// Legacy blocking wait.  Used only when no continuation has been installed

@@ -15,6 +15,7 @@ import kotlinx.io.bytestring.decodeToString
 import kotlinx.io.readByteArray
 import kotlinx.io.readString
 import kotlinx.io.unsafe.UnsafeBufferOperations
+import kotlinx.io.writeString
 
 fun main() = runBlocking {
     val packet = ByteReadPacket("packet".encodeToByteArray())

@@ -67,6 +67,15 @@ public final class CodegenPhase: CompilerPhase {
                 ctx.storeGeneratedObjectPath(path)
 
             case .executable:
+                if ctx.options.target.isWasm {
+                    // WebAssembly executables are modules, not host objects:
+                    // the wasm emitter writes the final .wasm directly and the
+                    // Link phase is bypassed.
+                    let path = outputPath(base: ctx.options.outputPath, defaultExtension: "wasm")
+                    try emitWasmModule(module: kir, outputPath: path, ctx: ctx)
+                    ctx.storeGeneratedWasmPath(path)
+                    return
+                }
                 let path = executableObjectPath(base: ctx.options.outputPath)
                 try backend.emitObject(
                     module: kir,
@@ -113,6 +122,33 @@ public final class CodegenPhase: CompilerPhase {
             return fileURL.appendingPathExtension(defaultExtension).path
         }
         return base
+    }
+
+    /// Runs the custom KIR→wasm emitter and writes the module. The entry
+    /// symbol is resolved the same way Link does so `_start`/`main` wraps the
+    /// real `main` function.
+    private func emitWasmModule(module kir: KIRModule, outputPath: String, ctx: CompilationContext) throws {
+        var entrySymbol: SymbolID?
+        if let ast = ctx.ast, let sema = ctx.sema {
+            entrySymbol = ExecutableEntryPointSelector.firstFileLevelSymbol(
+                ast: ast,
+                bindings: sema.bindings,
+                arena: kir.arena,
+                interner: ctx.interner,
+                symbols: sema.symbols,
+                entryPointFQName: ctx.options.entryPointFQName
+            )
+        }
+        let result = try WasmEmitter().emitModule(
+            module: kir,
+            interner: ctx.interner,
+            symbols: ctx.sema?.symbols,
+            types: ctx.sema?.types,
+            entrySymbol: entrySymbol,
+            target: ctx.options.target,
+            diagnostics: ctx.diagnostics
+        )
+        try Data(result.bytes).write(to: URL(fileURLWithPath: outputPath), options: .atomic)
     }
 
     private func executableObjectPath(base: String) -> String {
@@ -197,11 +233,14 @@ public final class CodegenPhase: CompilerPhase {
             "target": targetString,
             "objects": ["objects/\(ctx.options.moduleName)_0.o"],
             "metadata": "metadata.bin",
-            "inlineKIRDir": "inline-kir"
+            "inlineKIRDir": "inline-kir",
+            "precomputedReflectionRecords": true
         ]
         if ctx.options.stdlibOnly {
             manifestDict["libraryKind"] = "stdlib"
             manifestDict["stdlibManifestHash"] = BundledStdlib.manifestHash()
+            manifestDict["bundledMemberIndex"] = "bundled-members.bin"
+            manifestDict["precomputedSyntheticStubs"] = true
         }
         if let topLevelInitializer = module.arena.declarations.compactMap({ declaration -> KIRFunction? in
             guard case let .function(function) = declaration,
@@ -219,7 +258,13 @@ public final class CodegenPhase: CompilerPhase {
 
         try withSubPhaseTiming("libraryMetadata", timer: ctx.phaseTimer) {
             let metadata = makeMetadata(ctx: ctx, module: module, functionLinkInfo: functionLinkInfo)
-            try metadata.write(to: URL(fileURLWithPath: metadataPath), options: .atomic)
+            try metadata.data.write(to: URL(fileURLWithPath: metadataPath), options: .atomic)
+            if let bundledMemberIndex = metadata.bundledMemberIndex {
+                try bundledMemberIndex.write(
+                    to: URL(fileURLWithPath: outputDir + "/bundled-members.bin"),
+                    options: .atomic
+                )
+            }
         }
     }
 
@@ -622,9 +667,9 @@ public final class CodegenPhase: CompilerPhase {
         ctx: CompilationContext,
         module: KIRModule,
         functionLinkInfo: FunctionLinkInfo
-    ) -> Data {
+    ) -> (data: Data, bundledMemberIndex: Data?) {
         guard let sema = ctx.sema else {
-            return MetadataEncoder().serializeCompactIndexed([])
+            return (MetadataEncoder().serializeCompactIndexed([]), nil)
         }
         let functionLinkNamesBySymbol = functionLinkInfo.functionLinkNamesBySymbol
         let inlineFunctionSymbols = functionLinkInfo.inlineFunctionSymbols
@@ -680,6 +725,7 @@ public final class CodegenPhase: CompilerPhase {
             requiredNonPublicSymbols: requiredNonPublicSymbols,
             includeSynthetic: false,
             includeSyntheticNominalAnchors: ctx.options.stdlibOnly,
+            includePrecomputedStdlibSynthesis: ctx.options.stdlibOnly,
             excludeSourceFileIDs: excludeSourceFileIDs,
             runtimeCallbackRawReturnSymbolIDs: runtimeCallbackRawReturnSymbolIDs,
             objectInitializerLinkNames: objectInitializerLinkNames,
@@ -687,7 +733,10 @@ public final class CodegenPhase: CompilerPhase {
             objectLazyInitializerLinkNames: objectLazyInitializerLinkNames,
             enumStaticInitLinkNames: enumStaticInitLinkNames
         )
-        return encoder.serializeCompactIndexed(records)
+        let memberIndex = ctx.options.stdlibOnly
+            ? BundledDeclarationIndex.precomputedMemberIndexData(records: records, interner: ctx.interner)
+            : nil
+        return (encoder.serializeCompactIndexed(records), memberIndex)
     }
     private func buildReflectionMetadataRecords(
         ctx: CompilationContext,

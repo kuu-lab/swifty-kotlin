@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Class-body stored property initializers (`var`/`val ... = expr` declared in
 // the class body, not as a primary-constructor parameter) must actually run
 // and land in the per-instance field. Covers: a class with no primary

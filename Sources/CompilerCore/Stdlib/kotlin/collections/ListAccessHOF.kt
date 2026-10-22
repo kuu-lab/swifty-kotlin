@@ -41,7 +41,7 @@ public fun <T> List<T>.elementAtOrNull(index: Int): T? {
     return null
 }
 
-public fun <T> List<T>.elementAtOrElse(index: Int, defaultValue: (Int) -> T): T {
+public inline fun <T> List<T>.elementAtOrElse(index: Int, defaultValue: (Int) -> T): T {
     if (index >= 0 && index < size) {
         return this[index]
     }

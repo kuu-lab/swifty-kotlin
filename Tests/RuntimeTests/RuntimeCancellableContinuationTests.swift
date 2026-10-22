@@ -119,6 +119,67 @@ struct RuntimeCancellableContinuationTests {
         #expect(discardProbe.causes == [cause])
     }
 
+    @Test func parentCancellationAfterDelegateExitDoesNotResumeReleasedState() {
+        let parent = RuntimeJobHandle()
+        let delegate = kk_coroutine_continuation_new(9003)
+        runtimeContinuationState(from: delegate)?.jobHandle = parent
+        let continuation = RuntimeCancellableContinuation(delegate: delegate)
+        continuation.initParent()
+        var thrown = 0
+        #expect(continuation.getResult(&thrown) == Int(bitPattern: kk_coroutine_suspended()))
+        #expect(thrown == 0)
+
+        _ = kk_coroutine_state_exit(delegate, 0)
+        #expect(runtimeContinuationState(from: delegate) == nil)
+        #expect(continuation.stateValue == 2)
+        _ = parent.cancel(cause: runtimeAllocateCancellationException(message: "parent"))
+        #expect(continuation.stateValue == 2)
+    }
+
+    @Test func resultRequestedAfterDelegateExitDoesNotInstallDelivery() {
+        let parent = RuntimeJobHandle()
+        let delegate = kk_coroutine_continuation_new(9003)
+        runtimeContinuationState(from: delegate)?.jobHandle = parent
+        let continuation = RuntimeCancellableContinuation(delegate: delegate)
+        continuation.initParent()
+
+        _ = kk_coroutine_state_exit(delegate, 0)
+        var thrown = 0
+        _ = continuation.getResult(&thrown)
+        #expect(thrown != 0)
+        #expect(continuation.stateValue == 2)
+        #expect(runtimeContinuationState(from: delegate) == nil)
+        _ = parent.cancel(cause: runtimeAllocateCancellationException(message: "parent"))
+    }
+
+    @Test func parentCancellationRacingDelegateExitDoesNotResumeReleasedState() {
+        for _ in 0 ..< 128 {
+            let parent = RuntimeJobHandle()
+            let delegate = kk_coroutine_continuation_new(9003)
+            runtimeContinuationState(from: delegate)?.jobHandle = parent
+            let continuation = RuntimeCancellableContinuation(delegate: delegate)
+            continuation.initParent()
+            var thrown = 0
+            _ = continuation.getResult(&thrown)
+            #expect(thrown == 0)
+
+            let group = DispatchGroup()
+            group.enter()
+            DispatchQueue.global().async {
+                _ = parent.cancel(cause: runtimeAllocateCancellationException(message: "parent"))
+                group.leave()
+            }
+            group.enter()
+            DispatchQueue.global().async {
+                _ = kk_coroutine_state_exit(delegate, 0)
+                group.leave()
+            }
+            group.wait()
+            #expect(continuation.stateValue == 2)
+            #expect(runtimeContinuationState(from: delegate) == nil)
+        }
+    }
+
     @Test func concurrentResumeHasOneWinner() {
         let handle = makeHandle()
         DispatchQueue.concurrentPerform(iterations: 16) { value in

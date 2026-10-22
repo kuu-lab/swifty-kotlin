@@ -412,7 +412,8 @@ extension BuildASTPhase {
             modifiers: modifiers,
             annotations: annotations,
             typeParams: typeParams,
-            type: declarationPropertyType(from: nodeID, in: arena, interner: interner, astArena: astArena),
+            type: declarationPropertyType(from: nodeID, in: arena, interner: interner, astArena: astArena)
+                ?? accessors.getter?.returnType,
             isVar: declarationIsVar(from: nodeID, in: arena),
             initializer: declarationPropertyInitializer(from: nodeID, in: arena, interner: interner, astArena: astArena),
             getter: accessors.getter,
@@ -779,7 +780,7 @@ extension BuildASTPhase {
                 return true
             }
             return false
-        })
+        }) ?? topLevelQuestionColonIndex(in: withoutDefault, startingAt: afterAnnotations)
 
         let nameSearchTokens: ArraySlice<Token> = if let colonIndex {
             withoutDefault[..<colonIndex]
@@ -797,6 +798,16 @@ extension BuildASTPhase {
             internedIdentifier(from: token, interner: interner) != nil
         }) else {
             return
+        }
+        if nameIndex + 1 < withoutDefault.endIndex,
+           isStrayQuestionAfterName(withoutDefault[nameIndex + 1].kind)
+        {
+            let token = withoutDefault[nameIndex + 1]
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0019",
+                "Unexpected '?' after value parameter name.",
+                range: token.range
+            )
         }
         let nameToken = nameSearchTokens[nameIndex]
         guard let name = internedIdentifier(from: nameToken, interner: interner) else {
@@ -857,6 +868,21 @@ extension BuildASTPhase {
             defaultValue: defaultValueExpr,
             annotations: parsedAnnotations
         ))
+    }
+
+    private func topLevelQuestionColonIndex(in tokens: [Token], startingAt startIndex: Int) -> Int? {
+        var depth = BracketDepth()
+        for index in startIndex..<tokens.endIndex {
+            if depth.isAtTopLevel, tokens[index].kind == .symbol(.questionColon) {
+                return index
+            }
+            depth.track(tokens[index].kind)
+        }
+        return nil
+    }
+
+    private func isStrayQuestionAfterName(_ kind: TokenKind) -> Bool {
+        kind == .symbol(.question) || kind == .symbol(.questionColon)
     }
 
     private func primaryConstructorPropertyDecls(

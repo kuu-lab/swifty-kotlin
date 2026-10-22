@@ -66,6 +66,13 @@ extension CallLowerer {
             break
         case .typeParam:
             break
+        case let .intersection(parts) where parts.contains(where: {
+            if case .typeParam = sema.types.kind(of: $0) { return true }
+            return false
+        }):
+            // A successful null check narrows nullable-bound T to T & Any.
+            // Preserve erased Number dispatch through that definitely-non-null view.
+            break
         default:
             return nil
         }

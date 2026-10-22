@@ -240,6 +240,20 @@ final class DataFlowAnalyzer {
     ) -> ConditionBranch {
         switch op {
         case .equal, .notEqual, .identityEqual, .notIdentityEqual:
+            let safeCallBranch = branchOnSafeCallComparison(
+                op: op, lhsID: lhsID, rhsID: rhsID,
+                base: base, locals: locals, ast: ast, sema: sema, interner: interner
+            )
+            let equalityTrueBase: DataFlowState = if let safeCallBranch {
+                op == .equal || op == .identityEqual ? safeCallBranch.trueState : safeCallBranch.falseState
+            } else {
+                base
+            }
+            let equalityFalseBase: DataFlowState = if let safeCallBranch {
+                op == .equal || op == .identityEqual ? safeCallBranch.falseState : safeCallBranch.trueState
+            } else {
+                base
+            }
             let testedCall: ExprID?
             let trueResult: ContractReturnCondition
             var falseResult: ContractReturnCondition
@@ -269,8 +283,14 @@ final class DataFlowAnalyzer {
                     falseResult = .normally
                 }
                 let branch = ConditionBranch(
-                    trueState: applyContractImplications(testedCall, result: trueResult, base: base, locals: locals, ast: ast, sema: sema, interner: interner, scope: scope),
-                    falseState: applyContractImplications(testedCall, result: falseResult, base: base, locals: locals, ast: ast, sema: sema, interner: interner, scope: scope)
+                    trueState: applyContractImplications(
+                        testedCall, result: trueResult, base: equalityTrueBase,
+                        locals: locals, ast: ast, sema: sema, interner: interner, scope: scope
+                    ),
+                    falseState: applyContractImplications(
+                        testedCall, result: falseResult, base: equalityFalseBase,
+                        locals: locals, ast: ast, sema: sema, interner: interner, scope: scope
+                    )
                 )
                 if op == .notEqual || op == .notIdentityEqual {
                     return ConditionBranch(trueState: branch.falseState, falseState: branch.trueState)
@@ -289,6 +309,9 @@ final class DataFlowAnalyzer {
                     return ConditionBranch(trueState: nullResult.falseState, falseState: nullResult.trueState)
                 }
                 return nullResult
+            }
+            if let safeCallBranch {
+                return safeCallBranch
             }
             return ConditionBranch(trueState: base, falseState: base)
         case .logicalAnd:
@@ -318,6 +341,62 @@ final class DataFlowAnalyzer {
         default:
             return ConditionBranch(trueState: base, falseState: base)
         }
+    }
+
+    private func branchOnSafeCallComparison(
+        op: BinaryOp,
+        lhsID: ExprID,
+        rhsID: ExprID,
+        base: DataFlowState,
+        locals: LocalBindings,
+        ast: ASTModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> ConditionBranch? {
+        let equalityIsTrue = op == .equal || op == .identityEqual
+        let receiver: ExprID
+        let comparedValueID: ExprID
+        if let safeReceiver = safeCallReceiver(of: lhsID, ast: ast) {
+            receiver = safeReceiver
+            comparedValueID = rhsID
+        } else if let safeReceiver = safeCallReceiver(of: rhsID, ast: ast),
+                  op == .identityEqual || op == .notIdentityEqual || isNullLiteral(lhsID, ast: ast)
+        {
+            // A user-defined equals() on the non-null left operand may report
+            // equality with a null right operand, so structural equality is
+            // only useful when the safe-call is on the left (or left is null).
+            receiver = safeReceiver
+            comparedValueID = lhsID
+        } else {
+            return nil
+        }
+
+        let equalityRequiresNonNullResult: Bool
+        if isNullLiteral(comparedValueID, ast: ast) {
+            equalityRequiresNonNullResult = false
+        } else if let comparedType = sema.bindings.exprTypes[comparedValueID],
+                  sema.types.nullability(of: comparedType) == .nonNull
+        {
+            equalityRequiresNonNullResult = true
+        } else {
+            return nil
+        }
+
+        let nonNullResultOnTrueBranch = equalityIsTrue == equalityRequiresNonNullResult
+        let narrowedState = narrowNonNull(
+            receiver, base: base, locals: locals, ast: ast, sema: sema, interner: interner
+        )
+        return ConditionBranch(
+            trueState: nonNullResultOnTrueBranch ? narrowedState : base,
+            falseState: nonNullResultOnTrueBranch ? base : narrowedState
+        )
+    }
+
+    private func safeCallReceiver(of id: ExprID, ast: ASTModule) -> ExprID? {
+        guard case let .safeMemberCall(receiver, _, _, _, _) = ast.arena.expr(id) else {
+            return nil
+        }
+        return receiver
     }
 
     private func booleanLiteral(_ id: ExprID, ast: ASTModule, interner: StringInterner) -> Bool? {

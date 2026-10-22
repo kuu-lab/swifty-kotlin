@@ -162,6 +162,29 @@ struct CodegenBackendComparatorCompositionEdgeCasesTests {
         try assertKotlinOutput(source, moduleName: "CompareValuesByVarargSelectors", expected: "1\n")
     }
 
+    @Test(arguments: [0, 2])
+    func testCompareValuesByVarargBoxesCapturedPrimitiveSelectorResult(optimization: Int) throws {
+        let source = """
+        data class T(val n: String, val a: Int, val c: Int, val d: Int)
+
+        fun main() {
+            val t1 = T("x", 1, 1, 1)
+            val t2 = T("x", 1, 1, 2)
+            var calls = 0
+            println(compareValuesBy(t1, t2, { it.n }, { calls++; it.a }, { it.c }, { it.d }))
+            println(calls)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "CompareValuesByCapturedPrimitiveSelector",
+            expected: "-1\n2\n",
+            optLevel: try #require(OptimizationLevel(rawValue: optimization)),
+            allowDefaultStdlibLibrary: true
+        )
+    }
+
     // A selector bound to a local variable (rather than an inline lambda literal at the
     // call site) lowers to a boxed Function1 value (kk_function_create_1) instead of a bare
     // fnPtr symbolRef. makeCollectionHOFSelectorArgument used to return that boxed reference

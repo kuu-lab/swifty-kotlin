@@ -13,7 +13,7 @@ public fun <T> List<T>.first(): T {
     return this[0]
 }
 
-public fun <T> List<T>.first(predicate: (T) -> Boolean): T {
+public inline fun <T> List<T>.first(predicate: (T) -> Boolean): T {
     var i = 0
     val sz = size
     while (i < sz) {
@@ -29,7 +29,7 @@ public fun <T> List<T>.firstOrNull(): T? {
     return this[0]
 }
 
-public fun <T> List<T>.firstOrNull(predicate: (T) -> Boolean): T? {
+public inline fun <T> List<T>.firstOrNull(predicate: (T) -> Boolean): T? {
     var i = 0
     val sz = size
     while (i < sz) {
@@ -40,7 +40,7 @@ public fun <T> List<T>.firstOrNull(predicate: (T) -> Boolean): T? {
     return null
 }
 
-public fun <T> List<T>.find(predicate: (T) -> Boolean): T? {
+public inline fun <T> List<T>.find(predicate: (T) -> Boolean): T? {
     var i = 0
     val sz = size
     while (i < sz) {
@@ -56,7 +56,7 @@ public fun <T> List<T>.last(): T {
     return this[size - 1]
 }
 
-public fun <T> List<T>.last(predicate: (T) -> Boolean): T {
+public inline fun <T> List<T>.last(predicate: (T) -> Boolean): T {
     var i = size - 1
     while (i >= 0) {
         val element = this[i]
@@ -98,7 +98,7 @@ public fun <T> List<T>.single(): T {
     throw IllegalArgumentException("Collection has more than one element.")
 }
 
-public fun <T> List<T>.single(predicate: (T) -> Boolean): T {
+public inline fun <T> List<T>.single(predicate: (T) -> Boolean): T {
     var matchIndex = -1
     var i = 0
     val sz = size
@@ -120,7 +120,7 @@ public fun <T> List<T>.singleOrNull(): T? {
     return null
 }
 
-public fun <T> List<T>.singleOrNull(predicate: (T) -> Boolean): T? {
+public inline fun <T> List<T>.singleOrNull(predicate: (T) -> Boolean): T? {
     var matchIndex = -1
     var i = 0
     val sz = size
@@ -145,7 +145,7 @@ public fun <T> List<T>.indexOf(element: T): Int {
     return -1
 }
 
-public fun <T> List<T>.indexOfFirst(predicate: (T) -> Boolean): Int {
+public inline fun <T> List<T>.indexOfFirst(predicate: (T) -> Boolean): Int {
     var i = 0
     val sz = size
     while (i < sz) {
@@ -188,7 +188,7 @@ public fun <T> List<T>.any(): Boolean = size > 0
 
 public fun <T> List<T>.none(): Boolean = size == 0
 
-public fun <T> List<T>.count(predicate: (T) -> Boolean): Int {
+public inline fun <T> List<T>.count(predicate: (T) -> Boolean): Int {
     var count = 0
     var i = 0
     val sz = size
@@ -199,7 +199,7 @@ public fun <T> List<T>.count(predicate: (T) -> Boolean): Int {
     return count
 }
 
-public fun <T> List<T>.any(predicate: (T) -> Boolean): Boolean {
+public inline fun <T> List<T>.any(predicate: (T) -> Boolean): Boolean {
     var i = 0
     val sz = size
     while (i < sz) {
@@ -209,7 +209,7 @@ public fun <T> List<T>.any(predicate: (T) -> Boolean): Boolean {
     return false
 }
 
-public fun <T> List<T>.all(predicate: (T) -> Boolean): Boolean {
+public inline fun <T> List<T>.all(predicate: (T) -> Boolean): Boolean {
     var i = 0
     val sz = size
     while (i < sz) {
@@ -219,7 +219,7 @@ public fun <T> List<T>.all(predicate: (T) -> Boolean): Boolean {
     return true
 }
 
-public fun <T> List<T>.none(predicate: (T) -> Boolean): Boolean {
+public inline fun <T> List<T>.none(predicate: (T) -> Boolean): Boolean {
     var i = 0
     val sz = size
     while (i < sz) {

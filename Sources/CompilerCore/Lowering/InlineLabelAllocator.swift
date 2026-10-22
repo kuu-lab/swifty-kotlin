@@ -77,6 +77,13 @@ struct InlineLabelAllocator {
     }
 
     mutating func relocate(_ instructions: [KIRInstruction]) -> [KIRInstruction] {
+        var labelMapping: [Int32: Int32] = [:]
+        return relocate(instructions, labelMapping: &labelMapping)
+    }
+
+    mutating func relocate(
+        _ instructions: [KIRInstruction], labelMapping: inout [Int32: Int32]
+    ) -> [KIRInstruction] {
         var labelIDs: Set<Int32> = []
         let locallyDefinedLabels = Set(instructions.compactMap { instruction -> Int32? in
             if case let .label(id) = instruction { return id }
@@ -91,12 +98,16 @@ struct InlineLabelAllocator {
                 labelIDs.insert(externalTarget)
             }
         }
-        guard !labelIDs.isEmpty else { return instructions }
+        guard !labelIDs.isEmpty else {
+            labelMapping = [:]
+            return instructions
+        }
 
         var mapping: [Int32: Int32] = [:]
         for id in labelIDs.sorted() {
             mapping[id] = allocateCallerLabel()
         }
+        labelMapping = mapping
         return instructions.map { KIRLabelRelocation.rewriteLabels(of: $0, mapping: mapping) }
     }
 }

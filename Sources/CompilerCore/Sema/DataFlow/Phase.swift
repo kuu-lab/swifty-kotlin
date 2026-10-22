@@ -217,6 +217,7 @@ final class DataFlowSemaPhase: CompilerPhase {
                     bundledIndex: bundledIndex,
                     stdlibModuleName: stdlibModuleName,
                     stdlibIndexSource: importDeferredWork.lazyLoaderState?.stdlibIndexSource,
+                    precomputedMemberIndex: importDeferredWork.lazyLoaderState?.stdlibMemberIndex,
                     symbols: symbols,
                     types: types,
                     interner: ctx.interner
@@ -244,12 +245,23 @@ final class DataFlowSemaPhase: CompilerPhase {
             }
         }
         withSubPhaseTiming("registerSyntheticDelegateStubs", timer: ctx.phaseTimer) {
-            registerSyntheticDelegateStubs(
-                symbols: symbols,
-                types: types,
-                interner: ctx.interner,
-                bundledIndex: bundledIndex
-            )
+            if importDeferredWork.stdlibHasPrecomputedSyntheticStubs,
+               restorePrecomputedStdlibSyntheticTypeSymbols(
+                   symbols: symbols,
+                   types: types,
+                   interner: ctx.interner
+               )
+            {
+                // The artifact owns these records; the registry would rebuild
+                // the same symbols and re-decode their lazy metadata here.
+            } else {
+                registerSyntheticDelegateStubs(
+                    symbols: symbols,
+                    types: types,
+                    interner: ctx.interner,
+                    bundledIndex: bundledIndex
+                )
+            }
         }
         // Apply imported class/interface layouts after synthetic bootstrap
         // registration and before bundled source headers are collected, so
@@ -425,10 +437,20 @@ final class DataFlowSemaPhase: CompilerPhase {
         bundledIndex: BundledDeclarationIndex,
         stdlibModuleName: InternedString,
         stdlibIndexSource: IndexedLibrarySource? = nil,
+        precomputedMemberIndex: PrecomputedBundledMemberIndex? = nil,
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
     ) -> BundledDeclarationIndex {
+        if let precomputedMemberIndex {
+            var updatedIndex = bundledIndex
+            updatedIndex.insertImportedStdlibSymbols(
+                keys: [],
+                interner: interner,
+                precomputedMemberIndex: precomputedMemberIndex
+            )
+            return updatedIndex
+        }
         // A compact-indexed stdlib artifact already carries every member's
         // (owner, name, arity) key. Reading them straight from the index keeps
         // the merge from scanning (and thereby registering) ~31k shells just
