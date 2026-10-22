@@ -443,6 +443,16 @@ extension BuildASTPhase.ExpressionParser {
                     if let exprRange = astArena.exprRange(exprID) {
                         end = exprRange.end
                     }
+                    // `${}` holds a single expression (kotlinc: "only
+                    // expressions are allowed in this context"); `=` or any
+                    // other leftover is a stray token, not more template.
+                    if let unexpected = current(), unexpected.kind != .templateExprEnd {
+                        diagnostics?.error(
+                            "KSWIFTK-PARSE-0018",
+                            "Unexpected token after expression.",
+                            range: unexpected.range
+                        )
+                    }
                 } else {
                     diagnostics?.error(
                         "KSWIFTK-PARSE-0004",
