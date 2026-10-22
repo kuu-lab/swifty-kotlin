@@ -137,6 +137,29 @@ struct DeclarationPositionValidator {
             )
         }
 
+        if modifiers.contains(.infix) {
+            // kotlinc requires `infix` functions to be members or extension
+            // functions with exactly one non-vararg value parameter. A
+            // default value on that parameter is accepted.
+            let hasReceiver: Bool
+            switch site {
+            case .nominal:
+                hasReceiver = true
+            case .file, .function:
+                hasReceiver = decl.receiverType != nil
+            }
+            if !hasReceiver
+                || decl.valueParams.count != 1
+                || decl.valueParams[0].isVararg
+            {
+                diagnostics?.error(
+                    "KSWIFTK-SEMA-0431",
+                    "'infix' modifier is inapplicable to this function.",
+                    range: decl.range
+                )
+            }
+        }
+
         emitIncompatiblePairs(
             modifiers,
             pairs: [(.final, "final", .open, "open"), (.private, "private", .open, "open")],
@@ -798,6 +821,21 @@ struct DeclarationPositionValidator {
             kind: isCompanion ? .companionObject : .object,
             isLocal: site == .function,
             ownerModifiers: modifiers,
+            allowsImperativeInit: !decl.initBlocks.isEmpty,
+            defersPropertyInitialization: !decl.initBlocks.isEmpty
+                || hasPropertyInitializationExpression(decl.memberProperties)
+        )
+        validateObjectMembers(decl, site: memberSite)
+    }
+
+    /// Anonymous object expressions carry no source modifiers of their own,
+    /// so only their members are checked — at the same member site a named
+    /// local object would produce.
+    func validateAnonymousObjectLiteralMembers(_ decl: ObjectDecl) {
+        let memberSite = NominalSite(
+            kind: .object,
+            isLocal: true,
+            ownerModifiers: decl.modifiers,
             allowsImperativeInit: !decl.initBlocks.isEmpty,
             defersPropertyInitialization: !decl.initBlocks.isEmpty
                 || hasPropertyInitializationExpression(decl.memberProperties)
