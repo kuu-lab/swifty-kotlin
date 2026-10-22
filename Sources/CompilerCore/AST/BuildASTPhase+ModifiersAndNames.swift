@@ -123,17 +123,18 @@ extension BuildASTPhase {
     }
 
     func internedIdentifier(from token: Token, interner: StringInterner) -> InternedString? {
+        guard token.kind.isLabelName else { return nil }
         switch token.kind {
         case let .identifier(interned):
-            interned
+            return interned
         case let .backtickedIdentifier(interned):
-            interned
+            return interned
         case let .keyword(keyword):
-            interner.intern(keyword.rawValue)
+            return interner.intern(keyword.rawValue)
         case let .softKeyword(soft):
-            interner.intern(soft.rawValue)
+            return interner.intern(soft.rawValue)
         default:
-            nil
+            return nil
         }
     }
 

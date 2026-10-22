@@ -160,7 +160,7 @@ extension KotlinParser {
         } else if !isCompanionObject {
             // Companion objects may omit the name (defaults to "Companion"),
             // so only emit a diagnostic for non-companion declarations.
-            insertMissingToken(expected: .identifier(.invalid), into: &children, range: &range, code: "KSWIFTK-PARSE-0002", message: "Expected declaration name.")
+            insertMissingToken(expected: .identifier(.invalid), into: &children, range: &range, code: "KSWIFTK-PARSE-0002", message: "Expected declaration name.", severity: .error)
         }
         if supportsTypeParameters, canStartTypeArgumentsInternal(hasAnchorToken: lastConsumedToken != nil) {
             children.append(.node(parseTypeArguments()))
@@ -269,7 +269,7 @@ extension KotlinParser {
         if isIdentifierLike(stream.peek().kind) {
             _ = consumeToken(into: &children, range: &range)
         } else {
-            insertMissingToken(expected: .identifier(.invalid), into: &children, range: &range, code: "KSWIFTK-PARSE-0002", message: "Expected function name.")
+            insertMissingToken(expected: .identifier(.invalid), into: &children, range: &range, code: "KSWIFTK-PARSE-0002", message: "Expected function name.", severity: .error)
         }
 
         if case .symbol(.lParen) = stream.peek().kind {
@@ -366,7 +366,7 @@ extension KotlinParser {
             // Positional destructuring declaration (Kotlin 2.4): val [a, b] = expr
             // Don't emit a missing-name diagnostic; the AST builder handles this pattern.
         } else {
-            insertMissingToken(expected: .identifier(.invalid), into: &children, range: &range, code: "KSWIFTK-PARSE-0002", message: "Expected property name.")
+            insertMissingToken(expected: .identifier(.invalid), into: &children, range: &range, code: "KSWIFTK-PARSE-0002", message: "Expected property name.", severity: .error)
         }
 
         if case .symbol(.lBrace) = stream.peek().kind {
@@ -446,7 +446,7 @@ extension KotlinParser {
         if isIdentifierLike(stream.peek().kind) {
             _ = consumeToken(into: &children, range: &range)
         } else {
-            insertMissingToken(expected: .identifier(.invalid), into: &children, range: &range, code: "KSWIFTK-PARSE-0002", message: "Expected typealias name.")
+            insertMissingToken(expected: .identifier(.invalid), into: &children, range: &range, code: "KSWIFTK-PARSE-0002", message: "Expected typealias name.", severity: .error)
         }
         if canStartTypeArgumentsInternal(hasAnchorToken: lastConsumedToken != nil) {
             children.append(.node(parseTypeArguments()))
@@ -476,7 +476,7 @@ extension KotlinParser {
         if isIdentifierLike(stream.peek().kind) {
             _ = consumeToken(into: &children, range: &range)
         } else {
-            insertMissingToken(expected: .identifier(.invalid), into: &children, range: &range, code: "KSWIFTK-PARSE-0002", message: "Expected enum name.")
+            insertMissingToken(expected: .identifier(.invalid), into: &children, range: &range, code: "KSWIFTK-PARSE-0002", message: "Expected enum name.", severity: .error)
         }
 
         if canStartTypeArgumentsInternal(hasAnchorToken: lastConsumedToken != nil) {
