@@ -1,10 +1,14 @@
 package java.util
 
+import kotlin.system.System
+
 /**
- * The epoch-millisecond value is kept internal until the rest of the Date API
- * is implemented. This is enough to expose Date in signatures such as
- * SimpleDateFormat.parse.
+ * Minimal `java.util.Date`: an instant held as epoch milliseconds.
  */
-public class Date internal constructor(
+public class Date(
     internal val epochMilliseconds: Long,
-)
+) {
+    public constructor() : this(System.currentTimeMillis())
+
+    public fun getTime(): Long = epochMilliseconds
+}
