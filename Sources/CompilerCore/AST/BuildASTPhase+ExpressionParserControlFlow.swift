@@ -299,7 +299,8 @@ extension BuildASTPhase.ExpressionParser {
                 ).parse()
             },
             parseTypeReference: { _ in nil },
-            resolveDeclarationName: { _, _ in nil }
+            resolveDeclarationName: { _, _ in nil },
+            diagnostics: self.diagnostics
         )
         return BuildASTPhase.LocalStatementCore.parseLocalAssignment(
             from: branchTokens,
@@ -548,6 +549,16 @@ extension BuildASTPhase.ExpressionParser {
         {
             loopVariable = name
             _ = consume()
+            if consumeIf(.symbol(.colon)) != nil,
+               let following = current(),
+               following.kind == .keyword(.in) || following.kind == .symbol(.rParen)
+            {
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0020",
+                    "Expected type after ':'.",
+                    range: following.range
+                )
+            }
         }
 
         while let token = current(),
@@ -776,6 +787,13 @@ extension BuildASTPhase.ExpressionParser {
             if matches(.symbol(.colon)) {
                 let colonToken = consume()!
                 paramType = parseTypeReference(colonToken.range)
+                if paramType == nil {
+                    diagnostics?.error(
+                        "KSWIFTK-PARSE-0020",
+                        "Expected type after ':'.",
+                        range: current()?.range ?? colonToken.range
+                    )
+                }
             }
         }
         var depth = 1

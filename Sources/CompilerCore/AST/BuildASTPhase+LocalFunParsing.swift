@@ -251,6 +251,7 @@ extension BuildASTPhase {
         guard index < statementTokens.count, statementTokens[index].kind == .symbol(.colon) else {
             return nil
         }
+        let colonToken = statementTokens[index]
         index += 1
         var typeTokens: [Token] = []
         var typeDepth = BracketDepth()
@@ -265,7 +266,16 @@ extension BuildASTPhase {
             typeTokens.append(token)
             index += 1
         }
-        return parseTypeRef(from: typeTokens, interner: interner, astArena: astArena)
+        guard let returnType = parseTypeRef(from: typeTokens, interner: interner, astArena: astArena) else {
+            let following = index < statementTokens.count ? statementTokens[index] : nil
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0020",
+                "Expected type after ':'.",
+                range: following?.range ?? colonToken.range
+            )
+            return nil
+        }
+        return returnType
     }
 
     private func parseBraceBody(

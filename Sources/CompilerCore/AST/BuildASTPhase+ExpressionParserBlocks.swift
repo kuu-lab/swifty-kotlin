@@ -264,7 +264,8 @@ extension BuildASTPhase.ExpressionParser {
                 default:
                     return nil
                 }
-            }
+            },
+            diagnostics: self.diagnostics
         )
         return BuildASTPhase.LocalStatementCore.parseLocalDeclaration(
             from: tokens,
@@ -285,7 +286,8 @@ extension BuildASTPhase.ExpressionParser {
                 ).parse()
             },
             parseTypeReference: { _ in nil },
-            resolveDeclarationName: { _, _ in nil }
+            resolveDeclarationName: { _, _ in nil },
+            diagnostics: self.diagnostics
         )
         return BuildASTPhase.LocalStatementCore.parseLocalAssignment(
             from: tokens,
