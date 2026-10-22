@@ -782,6 +782,12 @@ enum DiagnosticRegistry {
             summary: "Restricted SequenceScope suspension requires the same receiver."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0311",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Returns are not allowed for functions with expression body."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-PLATFORM",
             pass: "SEMA",
             defaultSeverity: .warning,
