@@ -1,19 +1,40 @@
 import RuntimeABI
 
 extension ABILoweringPass {
-    func listViewMemberSymbols(symbols: SymbolTable?, interner: StringInterner) -> Set<SymbolID> {
-        guard let symbols else { return [] }
-        let owners: Set<[InternedString]> = Set([
-            "List", "MutableList", "Collection", "MutableCollection",
-            "Iterable", "MutableIterable", "AbstractList", "AbstractMutableList",
-        ].map { ["kotlin", "collections", $0].map(interner.intern) })
-        let checkedMembers: Set<InternedString> = Set(["get", "set", "add", "removeAt", "subList"].map(interner.intern))
-        let listOwners: Set<InternedString> = Set(["List", "MutableList"].map(interner.intern))
-        return Set(symbols.allSymbols().compactMap {
-            guard owners.contains(Array($0.fqName.dropLast())) else { return nil }
-            if listOwners.contains($0.fqName[2]), checkedMembers.contains($0.name) { return nil }
-            return $0.id
-        })
+    /// Per-symbol predicate equivalent to membership in the set of every
+    /// `kotlin.collections` list-view owner member. Evaluated on demand so the
+    /// pass no longer scans the whole symbol table up front.
+    struct ListViewMemberMatcher {
+        let symbols: SymbolTable?
+        let kotlin: InternedString
+        let collections: InternedString
+        let owners: Set<InternedString>
+        let checkedMembers: Set<InternedString>
+        let listOwners: Set<InternedString>
+
+        func contains(_ id: SymbolID) -> Bool {
+            guard let symbols, let symbol = symbols.symbol(id) else { return false }
+            let fqName = symbol.fqName
+            guard fqName.count == 4, fqName[0] == kotlin, fqName[1] == collections,
+                  owners.contains(fqName[2])
+            else { return false }
+            if listOwners.contains(fqName[2]), checkedMembers.contains(symbol.name) { return false }
+            return true
+        }
+    }
+
+    func listViewMemberMatcher(symbols: SymbolTable?, interner: StringInterner) -> ListViewMemberMatcher {
+        ListViewMemberMatcher(
+            symbols: symbols,
+            kotlin: interner.intern("kotlin"),
+            collections: interner.intern("collections"),
+            owners: Set([
+                "List", "MutableList", "Collection", "MutableCollection",
+                "Iterable", "MutableIterable", "AbstractList", "AbstractMutableList",
+            ].map(interner.intern)),
+            checkedMembers: Set(["get", "set", "add", "removeAt", "subList"].map(interner.intern)),
+            listOwners: Set(["List", "MutableList"].map(interner.intern))
+        )
     }
 
     func listViewCheckedArguments(interner: StringInterner) -> [InternedString: [Int]] {

@@ -91,10 +91,11 @@ final class LinkPhase: CompilerPhase {
         }
         do {
             let runtimeInputs = try withSubPhaseTiming("runtimeObjects", timer: ctx.phaseTimer) {
-                try CodegenRuntimeSupport.runtimeLinkInputs(
-                    target: ctx.options.target,
-                    configuration: .release
-                )
+                try RuntimeLinkInputPrefetch.shared.take(target: ctx.options.target, configuration: .release)
+                    ?? CodegenRuntimeSupport.runtimeLinkInputs(
+                        target: ctx.options.target,
+                        configuration: .release
+                    )
             }
             let entryWrapperObjectPath = try withSubPhaseTiming("entryWrapper", timer: ctx.phaseTimer) {
                 try LLVMEntryPointObjectEmitter(target: ctx.options.target, takesArguments: takesArguments, phaseTimer: ctx.phaseTimer, session: session ?? LLVMBackendSession())
@@ -141,9 +142,15 @@ final class LinkPhase: CompilerPhase {
                    phaseTimer: ctx.phaseTimer
                ) {
                 var finalInputs = linkInputs
+                // Force-loaded archives carry no user-referenced symbols, so a
+                // successful partial link absorbs them; the final link then
+                // drops the pairs instead of rescanning the archives.
+                let forceLoadPaths = plan.forceLoadedPaths ?? []
+                var dropForceLoads = false
                 let prelinked = withSubPhaseTiming("prelinkedObjects", timer: ctx.phaseTimer) {
                     MacOSPrelinkedObjects.resolve(
                         inputs: Array(linkInputs.dropFirst(2)),
+                        forceLoadPaths: forceLoadPaths,
                         cacheDirectory: runtimeInputs.linkerCacheDirectory
                             .appendingPathComponent("prelinked", isDirectory: true),
                         driver: plan.executable,
@@ -153,12 +160,14 @@ final class LinkPhase: CompilerPhase {
                 }
                 if let prelinked {
                     finalInputs = [objectPath, entryWrapperObjectPath, prelinked]
+                    dropForceLoads = plan.forceLoadedPaths != nil
                 }
                 _ = try CommandRunner.run(
                     executable: plan.executable,
                     arguments: plan.linkArguments(
                         inputs: finalInputs, output: ctx.options.outputPath,
-                        libraryPaths: ctx.options.libraryPaths, libraries: ctx.options.linkLibraries
+                        libraryPaths: ctx.options.libraryPaths, libraries: ctx.options.linkLibraries,
+                        droppingForceLoads: dropForceLoads
                     ),
                     phaseTimer: ctx.phaseTimer, subPhaseName: "Link/clang"
                 )

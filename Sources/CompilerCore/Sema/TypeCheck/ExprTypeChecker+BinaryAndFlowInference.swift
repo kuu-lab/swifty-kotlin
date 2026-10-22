@@ -285,7 +285,9 @@ extension ExprTypeChecker {
         if op == .identityEqual || op == .notIdentityEqual {
             let lhsType = equalityDeclaredType(lhsID, inferred: lhs, sema: sema)
             let rhsType = equalityDeclaredType(rhsID, inferred: rhs, sema: sema)
-            if identityEqualityHasValueClassOperand(lhsType, rhsType, sema: sema) {
+            if identityEqualityHasValueClassOperand(lhsType, rhsType, sema: sema)
+                || identityEqualityHasDistinctPrimitiveTypes(lhsType, rhsType, sema: sema)
+            {
                 let lhsName = sema.types.displayName(of: lhsType, symbols: sema.symbols, interner: interner)
                 let rhsName = sema.types.displayName(of: rhsType, symbols: sema.symbols, interner: interner)
                 ctx.sema.diagnostics.error(
@@ -444,13 +446,13 @@ extension ExprTypeChecker {
             let rhsIsNumeric = if case .primitive = sema.types.kind(of: sema.types.makeNonNullable(rhs)) { true } else { false }
             let isPrimitiveArithmeticOperator = [.add, .subtract, .multiply, .divide, .modulo].contains(op)
             let shouldSearchForScopedExtension = isPrimitiveArithmeticOperator
-                && (!rhsIsNumeric || hasInvalidBuiltinCharArithmetic(op: op, lhs: lhs, rhs: rhs, sema: sema))
+                && (!rhsIsNumeric || isNullablePrimitiveReceiver || hasInvalidBuiltinCharArithmetic(op: op, lhs: lhs, rhs: rhs, sema: sema))
                 || isNullablePrimitiveReceiver && isComparisonOperator
             if shouldSearchForScopedExtension {
                 let extensionCandidates = collectScopedOperatorExtensionCandidates(
                     names: operatorNames,
                     receiverType: lhs,
-                    argumentType: isComparisonOperator
+                    argumentType: isComparisonOperator || (isPrimitiveArithmeticOperator && isNullablePrimitiveReceiver)
                         ? rhs
                         : lhs == charType && op == .add && sema.types.isString(rhs) ? rhs : nil,
                     ctx: ctx
@@ -487,6 +489,31 @@ extension ExprTypeChecker {
                 sema.bindings.bindExprType(id, type: lhs)
                 sema.bindings.markCollectionExpr(id)
                 return lhs
+            }
+        }
+        if operatorCandidates.isEmpty {
+            if [.add, .subtract, .multiply, .divide, .modulo,
+                .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual,
+                .rangeTo, .rangeUntil, .downTo, .step].contains(op)
+            {
+                if sema.types.nullability(of: lhs) == .nullable {
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0026",
+                        "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+                        range: range
+                    )
+                    sema.bindings.bindExprType(id, type: sema.types.errorType)
+                    return sema.types.errorType
+                }
+                if sema.types.nullability(of: rhs) == .nullable {
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0002",
+                        "No viable overload found for operator '\(interner.resolve(operatorName))'.",
+                        range: range
+                    )
+                    sema.bindings.bindExprType(id, type: sema.types.errorType)
+                    return sema.types.errorType
+                }
             }
         }
         let lhsIsAny = lhs == sema.types.anyType || lhs == sema.types.nullableAnyType
@@ -595,7 +622,15 @@ extension ExprTypeChecker {
                     return fallbackType
                 }
                 if lhs != sema.types.errorType, rhs != sema.types.errorType {
-                    ctx.sema.diagnostics.emit(diagnostic)
+                    if sema.types.nullability(of: lhs) == .nullable, op != .equal, op != .notEqual {
+                        ctx.sema.diagnostics.error(
+                            "KSWIFTK-SEMA-0026",
+                            "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+                            range: range
+                        )
+                    } else {
+                        ctx.sema.diagnostics.emit(diagnostic)
+                    }
                 }
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
@@ -612,11 +647,19 @@ extension ExprTypeChecker {
                     return fallbackType
                 }
                 if lhs != sema.types.errorType, rhs != sema.types.errorType {
-                    ctx.sema.diagnostics.error(
-                        "KSWIFTK-SEMA-0002",
-                        "No viable overload found for operator '\(interner.resolve(operatorName))'.",
-                        range: range
-                    )
+                    if sema.types.nullability(of: lhs) == .nullable, op != .equal, op != .notEqual {
+                        ctx.sema.diagnostics.error(
+                            "KSWIFTK-SEMA-0026",
+                            "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+                            range: range
+                        )
+                    } else {
+                        ctx.sema.diagnostics.error(
+                            "KSWIFTK-SEMA-0002",
+                            "No viable overload found for operator '\(interner.resolve(operatorName))'.",
+                            range: range
+                        )
+                    }
                 }
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
@@ -716,6 +759,26 @@ extension ExprTypeChecker {
                 } == true
         )
         if hasInvalidTextAddition || hasInvalidBuiltinCharArithmetic(op: op, lhs: lhs, rhs: rhs, sema: sema) {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0002",
+                "No viable overload found for operator '\(interner.resolve(operatorName))'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
+        // The switch below implements only the built-in numeric and range
+        // operators. Restrict it to builtin arithmetic operands (numeric
+        // primitives and Char): Boolean has no `plus`/`rangeTo` member in
+        // Kotlin, and a class/String/Any operand can never promote into a
+        // numeric result. Without this gate `true + true` silently coerces
+        // true to 1. `Nothing` passes through as a subtype of every operand.
+        if [.add, .subtract, .multiply, .divide, .modulo,
+            .rangeTo, .rangeUntil, .downTo, .step].contains(op),
+           lhs != sema.types.errorType, rhs != sema.types.errorType,
+           (!(sema.types.isBuiltinArithmeticOperand(lhs) || lhs == sema.types.nothingType)
+               || !(sema.types.isBuiltinArithmeticOperand(rhs) || rhs == sema.types.nothingType))
+        {
             ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0002",
                 "No viable overload found for operator '\(interner.resolve(operatorName))'.",
@@ -1149,6 +1212,15 @@ extension ExprTypeChecker {
         return [lhs, rhs].contains { type in
             resolveClassTypeSymbol(type, sema: sema)?.symbol.flags.contains(.valueType) == true
         }
+    }
+
+    /// kotlinc rejects `===` between different non-null primitive types
+    /// (e.g. `Int === Long`) with the same diagnostic as value classes.
+    private func identityEqualityHasDistinctPrimitiveTypes(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {
+        guard case let .primitive(left, .nonNull) = sema.types.kind(of: lhs),
+              case let .primitive(right, .nonNull) = sema.types.kind(of: rhs)
+        else { return false }
+        return left != right
     }
 
     private func identityEqualityHasDistinctSingletonTypes(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {

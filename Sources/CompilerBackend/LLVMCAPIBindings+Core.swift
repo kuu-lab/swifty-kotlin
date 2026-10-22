@@ -37,6 +37,17 @@ extension LLVMCAPIBindings {
         return linkModules2Fn(destination, source) == 0
     }
 
+    /// Serializes `module` as LLVM bitcode. Returns an error message, or nil on
+    /// success. Used to ship stdlib bitcode inside `.kklib` artifacts (KUU-2814).
+    func writeBitcode(_ module: LLVMModuleRef?, to path: String) -> String? {
+        guard let writeBitcodeToFileFn else {
+            return "LLVMWriteBitcodeToFile is unavailable in the loaded LLVM library."
+        }
+        return path.withCString { writeBitcodeToFileFn(module, $0) } == 0
+            ? nil
+            : "LLVMWriteBitcodeToFile failed for '\(path)'."
+    }
+
     func printModule(_ module: LLVMModuleRef?) -> String? {
         guard let raw = printModuleToStringFn(module) else {
             return nil

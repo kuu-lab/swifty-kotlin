@@ -77,6 +77,9 @@ extension BuildASTPhase.ExpressionParser {
             _ = consume()
             let expr = parseExpression(minPrecedence: 0)
             _ = consumeIf(.symbol(.rParen))
+            if let expr {
+                astArena.markParenthesized(expr)
+            }
             return expr
         case .symbol(.lBrace):
             return parseLambdaLiteral() ?? parseBlockExpression()
@@ -442,6 +445,16 @@ extension BuildASTPhase.ExpressionParser {
                     parts.append(.expression(exprID))
                     if let exprRange = astArena.exprRange(exprID) {
                         end = exprRange.end
+                    }
+                    // `${}` holds a single expression (kotlinc: "only
+                    // expressions are allowed in this context"); `=` or any
+                    // other leftover is a stray token, not more template.
+                    if let unexpected = current(), unexpected.kind != .templateExprEnd {
+                        diagnostics?.error(
+                            "KSWIFTK-PARSE-0018",
+                            "Unexpected token after expression.",
+                            range: unexpected.range
+                        )
                     }
                 } else {
                     diagnostics?.error(
