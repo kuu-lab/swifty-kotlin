@@ -278,6 +278,22 @@ public final class CompilerDriver {
     ) -> (exitCode: Int, diagnostics: [Diagnostic]) {
         if !ctx.diagnostics.hasError, let cache = ctx.incrementalCache, !ctx.incrementalOutputRestored {
             let depGraph = buildDependencyGraph(ctx: ctx)
+            if let ast = ctx.ast {
+                let declarations = DeclarationGraphBuilder.build(
+                    ast: ast, sourceManager: ctx.sourceManager, interner: ctx.interner
+                )
+                depGraph.declarationGraph = declarations
+                if ctx.options.frontendFlags.contains("incremental-stats") {
+                    let line: String
+                    if let previous = cache.dependencyGraph?.declarationGraph {
+                        let invalidated = declarations.invalidated(since: previous).count
+                        line = "declarations: total=\(declarations.units.count) invalidated=\(invalidated)\n"
+                    } else {
+                        line = "declarations: total=\(declarations.units.count) invalidated=all (no previous graph)\n"
+                    }
+                    FileHandle.standardError.write(Data(line.utf8))
+                }
+            }
             let buildHash = cache.buildConfigurationHash(for: ctx.options)
             let frontendState = IncrementalFrontendState(context: ctx, buildConfigurationHash: buildHash)
             cache.saveState(
