@@ -531,6 +531,15 @@ extension ExprTypeChecker {
                 ownerSymbol: receiverOwnerSymbol
             )
         }
+        // KUU-2959: the object's layout inherits a local superclass's capture
+        // fields verbatim; inherited member functions and the super
+        // constructor's own capture-restore pass read them through `this`, so
+        // the construction site must materialize the same symbols the
+        // superclass captured (mirrors the local-class path in
+        // `typeCheckLocalClassDecl`).
+        for superSymbol in directSuperSymbols where sema.symbols.symbol(superSymbol)?.kind == .class {
+            capturedSymbols.formUnion(sema.bindings.objectLiteralCaptureSymbols(for: superSymbol))
+        }
         bindLocalNominalCaptures(
             capturedSymbols,
             ownerSymbol: objectSymbol,
@@ -1048,7 +1057,24 @@ extension ExprTypeChecker {
             }
             return actualSymbolID
         }
-        let inheritedLayout = layoutSuperClass.flatMap { sema.symbols.nominalLayout(for: $0) }
+        // A nested nominal declared inside a local class gets its layout from
+        // `synthesizeNominalLayouts`, which runs only after the enclosing
+        // local nominal's body inference completes — too late for an object
+        // literal (or nested local class) declared inside that body
+        // (KUU-2959). Synthesize the superclass layout on demand so inherited
+        // fields such as an inner class's `$outer` keep their offsets.
+        var inheritedLayout = layoutSuperClass.flatMap { sema.symbols.nominalLayout(for: $0) }
+        if inheritedLayout == nil, let layoutSuperClass {
+            DataFlowSemaPhase().synthesizeNominalLayouts(
+                for: [layoutSuperClass],
+                symbols: sema.symbols,
+                types: sema.types,
+                interner: interner,
+                diagnostics: sema.diagnostics,
+                includeAncestors: true
+            )
+            inheritedLayout = sema.symbols.nominalLayout(for: layoutSuperClass)
+        }
         var fieldOffsets = inheritedLayout?.fieldOffsets ?? [:]
         let objectHeaderWords = inheritedLayout?.objectHeaderWords ?? 2
         var nextFieldOffset = (fieldOffsets.values.max() ?? (objectHeaderWords - 1)) + 1
