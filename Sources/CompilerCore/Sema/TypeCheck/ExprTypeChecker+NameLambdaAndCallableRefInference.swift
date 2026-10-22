@@ -18,6 +18,11 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: receiverType)
             return receiverType
         }
+        if let local = locals[name], !isQualifier,
+           sema.symbols.symbol(local.symbol)?.kind == .function
+        {
+            return rejectBareFunctionValue(id, name: name, nameRange: nameRange, ctx: ctx)
+        }
         if let local = locals[name],
            !isQualifier || sema.symbols.symbol(local.symbol)?.kind != .function
         {
@@ -322,6 +327,9 @@ extension ExprTypeChecker {
         let preferredCandidate = preferredCandidate0.flatMap {
             expandTypeAliasValueTarget($0, sema: sema)
         } ?? preferredCandidate0
+        if !isQualifier, preferredCandidate?.kind == .function {
+            return rejectBareFunctionValue(id, name: name, nameRange: nameRange, ctx: ctx)
+        }
         if let preferredCandidate {
             sema.bindings.bindIdentifier(id, symbol: preferredCandidate.id)
             if let receiverType = ctx.implicitReceiverType.map({
@@ -372,6 +380,22 @@ extension ExprTypeChecker {
         }
         sema.bindings.bindExprType(id, type: resolvedType)
         return resolvedType
+    }
+
+    private func rejectBareFunctionValue(
+        _ id: ExprID,
+        name: InternedString,
+        nameRange: SourceRange?,
+        ctx: TypeInferenceContext
+    ) -> TypeID {
+        let sema = ctx.sema
+        sema.diagnostics.error(
+            "KSWIFTK-SEMA-0309",
+            "function invocation '\(ctx.interner.resolve(name))()' expected.",
+            range: nameRange
+        )
+        sema.bindings.bindExprType(id, type: sema.types.errorType)
+        return sema.types.errorType
     }
 
     private func resolveImplicitReceiverMember(

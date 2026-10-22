@@ -8,6 +8,7 @@ final class LLVMBackend {
     private let debugInfo: Bool
     let diagnostics: DiagnosticEngine
     private let bindings: LLVMCAPIBindings
+    private let reusableContext: LLVMCAPIBindings.LLVMContextRef?
     private let phaseTimer: PhaseTimer?
     private let parallelJobs: Int
 
@@ -38,6 +39,7 @@ final class LLVMBackend {
             throw LLVMBackendError.bindingsUnavailable
         }
         self.bindings = bindings
+        self.reusableContext = session.reusableContext(for: bindings)
     }
 
     func emitObject(
@@ -61,6 +63,7 @@ final class LLVMBackend {
                         optLevel: optLevel,
                         debugInfo: debugInfo,
                         bindings: bindings,
+                        reusableContext: reusableContext,
                         module: module,
                         interner: interner,
                         moduleName: moduleName,
@@ -100,6 +103,7 @@ final class LLVMBackend {
                         optLevel: optLevel,
                         debugInfo: debugInfo,
                         bindings: bindings,
+                        reusableContext: reusableContext,
                         module: module,
                         interner: interner,
                         moduleName: moduleName,

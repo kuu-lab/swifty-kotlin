@@ -6,6 +6,7 @@ extension BuildASTPhase {
         let parseExpression: (ArraySlice<Token>) -> ExprID?
         let parseTypeReference: ([Token]) -> TypeRefID?
         let resolveDeclarationName: (Token, StringInterner) -> InternedString?
+        let diagnostics: DiagnosticEngine?
     }
 
     struct LocalStatementCoreOptions {
@@ -121,8 +122,14 @@ extension BuildASTPhase {
                     typeTokens.append(token)
                     index = statementTokens.index(after: index)
                 }
-                if !typeTokens.isEmpty {
-                    typeAnnotation = context.parseTypeReference(typeTokens)
+                typeAnnotation = context.parseTypeReference(typeTokens)
+                if typeAnnotation == nil {
+                    let following = index < statementTokens.endIndex ? statementTokens[index] : nil
+                    context.diagnostics?.error(
+                        "KSWIFTK-PARSE-0020",
+                        "Expected type after ':'.",
+                        range: following?.range ?? statementTokens[colonIndex].range
+                    )
                 }
             }
 

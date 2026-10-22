@@ -28,7 +28,10 @@ private func runtimeInitialAssertionsEnabled() -> Bool {
             continue
         }
     }
-    return true
+    // kotlinc (JVM without -ea, Kotlin/Native without -ea) ships assertions
+    // disabled; matching that default keeps generated binaries byte-parity
+    // with the JVM reference unless the environment opts in (KUU-2751).
+    return false
 }
 
 func runtimeAreAssertionsEnabled() -> Bool {

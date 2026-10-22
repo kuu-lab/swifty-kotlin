@@ -66,7 +66,7 @@ struct JavaLangClassAssertionStatusTests {
         // Run separate processes so environment initialization is tested without
         // mutating the assertion state shared by the Swift test runner.
         let policies: [(environment: [String], enabled: Bool)] = [
-            ([], true),
+            ([], false),
             (["KK_ASSERTIONS_ENABLED=0"], false),
             (["KK_ASSERTIONS_ENABLED=1"], true),
             (["KOTLIN_ASSERTIONS_ENABLED=false"], false),

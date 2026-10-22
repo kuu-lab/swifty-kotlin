@@ -63,6 +63,7 @@ struct NativeEmitter {
     let optLevel: OptimizationLevel
     let debugInfo: Bool
     let bindings: LLVMCAPIBindings
+    let reusableContext: LLVMCAPIBindings.LLVMContextRef?
     let module: KIRModule
     let interner: StringInterner
     let moduleName: String
@@ -86,6 +87,7 @@ struct NativeEmitter {
         optLevel: OptimizationLevel,
         debugInfo: Bool,
         bindings: LLVMCAPIBindings,
+        reusableContext: LLVMCAPIBindings.LLVMContextRef? = nil,
         module: KIRModule,
         interner: StringInterner,
         moduleName: String = "main",
@@ -104,6 +106,7 @@ struct NativeEmitter {
         self.optLevel = optLevel
         self.debugInfo = debugInfo
         self.bindings = bindings
+        self.reusableContext = reusableContext
         self.module = module
         self.interner = interner
         self.moduleName = moduleName
@@ -484,7 +487,9 @@ struct NativeEmitter {
             for partitionContext in built.partitionContexts {
                 bindings.disposeContext(partitionContext)
             }
-            bindings.disposeContext(built.context)
+            if built.ownsContext {
+                bindings.disposeContext(built.context)
+            }
         }
 
         let triple = targetTripleString()
@@ -528,7 +533,9 @@ struct NativeEmitter {
             for partitionContext in built.partitionContexts {
                 bindings.disposeContext(partitionContext)
             }
-            bindings.disposeContext(built.context)
+            if built.ownsContext {
+                bindings.disposeContext(built.context)
+            }
         }
 
         // LLVM target registration and native emission use process-global state
@@ -726,24 +733,26 @@ struct NativeEmitter {
     func buildModule() throws -> (
         context: LLVMCAPIBindings.LLVMContextRef,
         module: LLVMCAPIBindings.LLVMModuleRef,
-        partitionContexts: [LLVMCAPIBindings.LLVMContextRef]
+        partitionContexts: [LLVMCAPIBindings.LLVMContextRef],
+        ownsContext: Bool
     ) {
-        guard let context = bindings.createContext() else {
+        let usesReusableContext = reusableContext != nil
+        guard let context = reusableContext ?? bindings.createContext() else {
             throw LLVMBackendError.nativeEmissionFailed("LLVMContextCreate returned null")
         }
         guard let llvmModule = bindings.createModule(name: "kswiftk_module", context: context) else {
-            bindings.disposeContext(context)
+            if !usesReusableContext { bindings.disposeContext(context) }
             throw LLVMBackendError.nativeEmissionFailed("LLVMModuleCreateWithNameInContext returned null")
         }
 
         guard let int64Type = bindings.int64Type(context: context) else {
             bindings.disposeModule(llvmModule)
-            bindings.disposeContext(context)
+            if !usesReusableContext { bindings.disposeContext(context) }
             throw LLVMBackendError.nativeEmissionFailed("LLVMInt64TypeInContext returned null")
         }
         guard let outThrownPointerType = bindings.pointerType(int64Type, addressSpace: 0) else {
             bindings.disposeModule(llvmModule)
-            bindings.disposeContext(context)
+            if !usesReusableContext { bindings.disposeContext(context) }
             throw LLVMBackendError.nativeEmissionFailed("LLVMPointerType returned null")
         }
         let typeLowering = makeLLVMTypeLowering(context: context, int64Type: int64Type)
@@ -847,7 +856,7 @@ struct NativeEmitter {
             for partitionContext in partitionContexts {
                 bindings.disposeContext(partitionContext)
             }
-            bindings.disposeContext(context)
+            if !usesReusableContext { bindings.disposeContext(context) }
             throw error
         }
 
@@ -862,7 +871,12 @@ struct NativeEmitter {
             )
         }
 
-        return (context: context, module: llvmModule, partitionContexts: partitionContexts)
+        return (
+            context: context,
+            module: llvmModule,
+            partitionContexts: partitionContexts,
+            ownsContext: !usesReusableContext
+        )
     }
 
     /// Declares an LLVM global for every KIR global declaration. With

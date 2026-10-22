@@ -85,6 +85,32 @@ import Testing
         #expect(labelReferences.isEmpty, "Expression labels must not remain as value references")
     }
 
+    @Test(arguments: ["val", "var"])
+    func labelBeforeLocalPropertyKeepsItAsADeclaration(keyword: String) throws {
+        let source = """
+        fun test(): Int {
+            x@ \(keyword) a = 1; return a
+        }
+        """
+        let fakePath = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".kt").path
+        let ctx = makeCompilationContext(inputs: [fakePath], includeStdlib: false)
+        _ = ctx.sourceManager.addFile(path: fakePath, contents: Data(source.utf8))
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let ast = try #require(ctx.ast)
+        let function = try #require(topLevelFunction(named: "test", in: ast, interner: ctx.interner))
+        guard case let .block(statements, _) = function.body,
+              statements.count == 2,
+              case let .localDecl(name, isMutable, _, _, _, _, _) = ast.arena.expr(statements[0]) else {
+            Issue.record("Expected the labeled property to remain a local declaration")
+            return
+        }
+        #expect(ctx.interner.resolve(name) == "a")
+        #expect(isMutable == (keyword == "var"))
+    }
+
     @Test(arguments: ["catch", "finally"])
     func labelAfterTryIsANewStatement(name: String) throws {
         let (ast, ctx) = try buildASTModule(from: """

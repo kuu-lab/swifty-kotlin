@@ -113,12 +113,10 @@ extension KotlinParser {
              .symbol(.lBrace), .symbol(.rParen), .symbol(.rBrace), .symbol(.question),
              .symbol(.assign), .symbol(.at):
             true
-        case .identifier, .backtickedIdentifier, .keyword, .softKeyword:
-            true
         case .eof:
             true
         default:
-            false
+            token.kind.isLabelName
         }
     }
 

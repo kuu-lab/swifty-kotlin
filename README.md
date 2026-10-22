@@ -27,6 +27,23 @@ swift build
 `--no-incremental` を指定します。利用例・計測結果・既定有効化の判断は
 [`docs/incremental-compilation.md`](docs/incremental-compilation.md) を参照してください。
 
+開発中に常駐コンパイルプロセスを利用するには、別のターミナルで daemon を起動してから
+`--watch` で入力ファイルを監視します。daemon はデコード済み kklib index と LLVM context を保持します。
+stdlib の SymbolTable は要求ごとに作り、宣言を参照時に登録します。これにより通常の直接コンパイルと同じ
+symbol 登録順・出力を保ちます。ユーザー宣言は要求間で共有しません。
+
+```bash
+# Terminal 1
+.build/debug/kswiftc --daemon
+
+# Terminal 2
+.build/debug/kswiftc --watch hello.kt -o hello
+```
+
+通常のコンパイルコマンドも起動中の daemon があれば接続し、なければ従来どおり直接コンパイルします。
+`--watch` はネイティブ出力で incremental compilation を自動的に有効にします。daemon は Ctrl-C で停止できます。
+socket の場所を変更する場合は `KSWIFTK_DAEMON_SOCKET` を設定してください。
+
 ---
 
 ## ビルド & テスト

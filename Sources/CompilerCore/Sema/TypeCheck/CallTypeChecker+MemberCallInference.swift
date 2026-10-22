@@ -183,27 +183,44 @@ extension CallTypeChecker {
               request.args.isEmpty,
               request.explicitTypeArgs.isEmpty,
               !request.ctx.ast.arena.isExplicitCall(request.id),
-              result != sema.types.errorType,
-              let chosen = sema.bindings.callBinding(for: request.id)?.chosenCallee,
-              let symbol = sema.symbols.symbol(chosen),
-              symbol.kind == .function || symbol.kind == .constructor
+              result != sema.types.errorType
         else {
             return result
         }
-        // A property read binds its accessor call — the property itself,
-        // not a function invocation. `accessorOwnerProperty` covers
-        // registered accessors; a `.property` parent marks source-level
-        // getter/setter helpers that share the property's name.
-        if sema.symbols.accessorOwnerProperty(for: chosen) != nil {
-            return result
-        }
-        if let parent = sema.symbols.parentSymbol(for: chosen),
-           sema.symbols.symbol(parent)?.kind == .property
+
+        if let chosen = sema.bindings.callBinding(for: request.id)?.chosenCallee,
+           let symbol = sema.symbols.symbol(chosen)
         {
-            return result
-        }
-        if isBundledPropertyStyleFacadeFunction(chosen, ctx: request.ctx) {
-            return result
+            guard symbol.kind == .function || symbol.kind == .constructor else {
+                return result
+            }
+            // A property read binds its accessor call — the property itself,
+            // not a function invocation. `accessorOwnerProperty` covers
+            // registered accessors; a `.property` parent marks source-level
+            // getter/setter helpers that share the property's name.
+            if sema.symbols.accessorOwnerProperty(for: chosen) != nil {
+                return result
+            }
+            if let parent = sema.symbols.parentSymbol(for: chosen),
+               sema.symbols.symbol(parent)?.kind == .property
+            {
+                return result
+            }
+            if isBundledPropertyStyleFacadeFunction(chosen, ctx: request.ctx) {
+                return result
+            }
+        } else {
+            // Intrinsic `toString` resolution can bind only the expression
+            // type, without a CallBinding. Preserve actual properties with
+            // that name, but still require invocation syntax for the method.
+            let isProperty = sema.bindings.identifierSymbol(for: request.id)
+                .flatMap(sema.symbols.symbol)
+                .map { $0.kind == .property || $0.kind == .field } ?? false
+            guard request.ctx.interner.resolve(request.calleeName) == "toString",
+                  !isProperty
+            else {
+                return result
+            }
         }
         request.ctx.sema.diagnostics.error(
             "KSWIFTK-SEMA-0309",

@@ -332,12 +332,7 @@ extension BuildASTPhase {
         from at: C.Index, in tokens: C
     ) -> C.Index? where C.Element == Token {
         func isNameToken(_ kind: TokenKind) -> Bool {
-            switch kind {
-            case .identifier, .backtickedIdentifier, .softKeyword, .keyword:
-                return true
-            default:
-                return false
-            }
+            kind.isLabelName
         }
         var index = tokens.index(after: at)
         guard index < tokens.endIndex else { return nil }
@@ -706,6 +701,19 @@ extension BuildASTPhase {
                 break
             }
             index = parsed.nextIndex
+        }
+        return index == 0 ? tokens : Array(tokens[index...])
+    }
+
+    /// Local declaration dispatch consumes leading labels as part of the statement.
+    /// Strip them only on the declaration path so expression labels remain intact.
+    static func skipLeadingLocalDeclarationLabels(_ tokens: [Token]) -> [Token] {
+        var index = 0
+        while index + 1 < tokens.count,
+              tokens[index].kind.isLabelName,
+              tokens[index + 1].kind == .symbol(.at)
+        {
+            index += 2
         }
         return index == 0 ? tokens : Array(tokens[index...])
     }

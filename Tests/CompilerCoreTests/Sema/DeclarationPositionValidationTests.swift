@@ -152,6 +152,45 @@ struct DeclarationPositionValidationTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0416", in: ctx)
     }
 
+    // MARK: - infix function requirements (KUU-2996)
+
+    @Test(arguments: [
+        "infix fun f(a: Int) = a",
+        "infix fun g() = 0",
+        "infix fun Int.f(a: Int, b: Int) = a",
+        "infix fun Int.j(vararg a: Int) = a.size",
+        "class C { infix fun m(a: Int, b: Int) = a }",
+        "class C { infix fun m() = 0 }",
+        "class C { infix fun m(vararg a: Int) = a.size }",
+        "interface I { infix fun m(a: Int, b: Int): Int }",
+        "object O { infix fun m(a: Int, b: Int) = a }",
+        "fun outer() { infix fun f(a: Int) = a }",
+        "fun outer() { infix fun Int.f(a: Int, b: Int) = a }",
+        "fun outer() { class L { infix fun m(a: Int, b: Int) = a } }",
+        "fun make() = object { infix fun m(a: Int, b: Int) = a }",
+    ])
+    func infixRequirementViolationsAreRejected(source: String) throws {
+        let ctx = try semaContextWithoutStdlib(for: source)
+        assertHasDiagnostic("KSWIFTK-SEMA-0431", in: ctx)
+    }
+
+    @Test(arguments: [
+        "infix fun Int.f(a: Int) = a",
+        "infix fun Int.k(a: Int = 0) = a",
+        "class C { infix fun m(a: Int) = a }",
+        "class C { infix fun Int.m(a: Int) = a }",
+        "interface I { infix fun m(a: Int): Int }",
+        "abstract class A { abstract infix fun m(a: Int): Int }",
+        "object O { infix fun m(a: Int) = a }",
+        "fun outer() { infix fun Int.f(a: Int) = a }",
+        "fun outer() { class L { infix fun m(a: Int) = a } }",
+        "fun make() = object { infix fun m(a: Int) = a }",
+    ])
+    func infixFunctionsSatisfyingRequirementsAreAccepted(source: String) throws {
+        let ctx = try semaContextWithoutStdlib(for: source)
+        assertNoDiagnostic("KSWIFTK-SEMA-0431", in: ctx)
+    }
+
     // MARK: - Annotation classes
 
     @Test func annotationMemberWithInvalidTypeIsRejected() throws {

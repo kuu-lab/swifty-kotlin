@@ -57,12 +57,15 @@ extension ControlFlowTypeChecker {
             let componentIndex = index + 1
             let componentName = interner.intern("component\(componentIndex)")
 
-            let candidates = driver.helpers.collectMemberFunctionCandidates(
+            let allComponentMembers = driver.helpers.collectMemberFunctionCandidates(
                 named: componentName,
                 receiverType: rhsType,
                 sema: sema,
                 interner: interner
             )
+            let candidates = allComponentMembers.filter {
+                ctx.cachedSymbol($0)?.flags.contains(.operatorFunction) == true
+            }
 
             let componentType: TypeID
             if let candidate = candidates.first,
@@ -97,6 +100,15 @@ extension ControlFlowTypeChecker {
                         sema: sema
                     )
                     sema.bindings.bindDestructuringComponentCallee(id, index: index, symbol: candidate)
+                } else if allComponentMembers.contains(where: { driver.helpers.isNonOperatorConventionFunction($0, sema: sema) }) {
+                    // A member `componentN` without `operator` cannot serve
+                    // destructuring (kotlinc: 'operator' modifier is required).
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0432",
+                        "'operator' modifier is required on 'component\(componentIndex)' in '\(driver.helpers.conventionReceiverDisplayName(rhsType, sema: sema, interner: interner))'.",
+                        range: range
+                    )
+                    componentType = sema.types.errorType
                 } else {
                     ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0086",
@@ -195,12 +207,15 @@ extension ControlFlowTypeChecker {
             let componentIndex = index + 1
             let componentName = interner.intern("component\(componentIndex)")
 
-            let candidates = driver.helpers.collectMemberFunctionCandidates(
+            let allComponentMembers = driver.helpers.collectMemberFunctionCandidates(
                 named: componentName,
                 receiverType: elementType,
                 sema: sema,
                 interner: interner
-            ) + componentOperatorExtensionCandidates(
+            )
+            let candidates = allComponentMembers.filter {
+                ctx.cachedSymbol($0)?.flags.contains(.operatorFunction) == true
+            } + componentOperatorExtensionCandidates(
                 named: componentName,
                 receiverType: elementType,
                 ctx: ctx
@@ -219,6 +234,13 @@ extension ControlFlowTypeChecker {
                     sema: sema
                 )
                 sema.bindings.bindDestructuringComponentCallee(id, index: index, symbol: candidate)
+            } else if allComponentMembers.contains(where: { driver.helpers.isNonOperatorConventionFunction($0, sema: sema) }) {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0432",
+                    "'operator' modifier is required on 'component\(componentIndex)' in '\(driver.helpers.conventionReceiverDisplayName(elementType, sema: sema, interner: interner))'.",
+                    range: range
+                )
+                componentType = sema.types.errorType
             } else {
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0087",
@@ -411,7 +433,7 @@ extension ControlFlowTypeChecker {
             return scoped
         }
         return sema.symbols.lookupByShortName(componentName)
-            .filter { matchesReceiver($0, requireOperator: false) }
+            .filter { matchesReceiver($0, requireOperator: true) }
             .sorted { $0.rawValue < $1.rawValue }
     }
 

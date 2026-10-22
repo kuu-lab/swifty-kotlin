@@ -244,6 +244,15 @@ run_case() {
     fi
   fi
 
+  # JAVA_FLAGS: -ea makes the reference run enable kotlin.assert; the
+  # candidate mirrors that through its runtime env flag (KUU-2751). Only the
+  # native backend consumes the env var — the jvm lane gets -ea through
+  # JAVA_FLAGS and wasm runs under its own engine.
+  local candidate_assert_env=()
+  if java_flags_enable_assertions "$DIFF_REFERENCE_JAVA_FLAGS $java_extra_flags"; then
+    candidate_assert_env=(env KK_ASSERTIONS_ENABLED=1)
+  fi
+
   # Candidate side. The reference half above is always kotlinc/JVM; only the
   # candidate pipeline changes with DIFF_BACKEND: native links against the
   # shared .kklib, jvm emits a runnable jar compiled against kswiftk's
@@ -282,9 +291,9 @@ run_case() {
       "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --no-stdlib --stdlib-library "$STDLIB_ARTIFACT" "${KSWIFTC_ARGS[@]}" "$kt_file" -o "$cand_bin" >"$cand_compile_stdout" 2>"$cand_compile_stderr" || cand_compile_exit=$?
       if [[ $cand_compile_exit -eq 0 ]]; then
         if needs_stdin_eof "$kt_file"; then
-          "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$cand_bin" < /dev/null >"$cand_run_stdout" 2>"$cand_run_stderr" || cand_run_exit=$?
+          "${candidate_assert_env[@]}" "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$cand_bin" < /dev/null >"$cand_run_stdout" 2>"$cand_run_stderr" || cand_run_exit=$?
         else
-          "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$cand_bin" >"$cand_run_stdout" 2>"$cand_run_stderr" || cand_run_exit=$?
+          "${candidate_assert_env[@]}" "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$cand_bin" >"$cand_run_stdout" 2>"$cand_run_stderr" || cand_run_exit=$?
         fi
       fi
       ;;

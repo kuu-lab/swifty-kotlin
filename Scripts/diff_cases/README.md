@@ -102,6 +102,7 @@ retain the stdout diff, KIR, crash diagnostics, and a reproduction script.
 - `deprecated_error.kt`: `@Deprecated(level = DeprecationLevel.ERROR)` 呼び出しの compile-error parity
 - `property_based_test.kt`: seeded samples, shrinking, statistics report を持つ property-based style parity
 - `assertions.kt`: stdlib `assert(...)` / `assert(...) { ... }` の基本 parity
+- `assert_disabled_default.kt`: `kotlin.assert` が既定無効（JVM `-ea` 無し既定）でも条件式は評価されるが lazyMessage と throw は走らない parity（KUU-2751）
 - `uuid_put_uuid.kt`: `java.nio.ByteBuffer.putUuid(index, uuid)` / `ByteBuffer.getUuid(index)` の round-trip と offset 書き込み parity（STDLIB-UUID-FN-002）
 - `java_nio_files.kt`: 管理下 fixture の `Files.readAllBytes`、`Paths.get` の相対パス・複数セグメント、IOException 捕捉の parity（KUU-2015）。空・バイナリ file と source / fresh `.kklib` × O0/O2 は `testJavaNioFilesAcrossSourceAndFreshLibrary` がカバーする。
 - `member_compound_assign.kt`: 明示的レシーバ経由のフィールド複合代入・インクリメント/デクリメント（`obj.field += x` / `obj.field++` / `obj.field--`、暗黙 `this` 経由・ネストレシーバ・関数引数レシーバ・レシーバ式の単一評価）の parity

@@ -11,7 +11,7 @@ struct ForLoopVariableSyntaxTests {
         let diagnostic = try #require(parsed.diagnostics.diagnostics.first)
 
         #expect(parsed.diagnostics.diagnostics.count == 1)
-        #expect(diagnostic.code == "KSWIFTK-PARSE-0020")
+        #expect(diagnostic.code == "KSWIFTK-PARSE-0021")
         #expect(diagnostic.severity == .error)
         #expect(diagnostic.message == "A for-loop variable cannot be declared with 'val' or 'var'.")
         let range = try #require(diagnostic.primaryRange)

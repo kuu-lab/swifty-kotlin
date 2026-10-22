@@ -842,14 +842,19 @@ extension DataFlowSemaPhase {
                 }
             }
 
-            checkAndReportJVMErasedCallableConflict(
-                for: symbol,
-                fqName: fqName,
-                range: funDecl.range,
-                symbols: symbols,
-                types: types,
-                diagnostics: diagnostics
-            )
+            // The synthesized script `main` wrapper is not a source-declared
+            // callable: exempting it here lets a script that also declares
+            // `fun main` compile instead of self-colliding on SEMA-0001.
+            if !funDecl.isScriptEntryPoint {
+                checkAndReportJVMErasedCallableConflict(
+                    for: symbol,
+                    fqName: fqName,
+                    range: funDecl.range,
+                    symbols: symbols,
+                    types: types,
+                    diagnostics: diagnostics
+                )
+            }
 
         case let .propertyDecl(propertyDecl):
             let typeParamResult = collectFunctionTypeParameters(

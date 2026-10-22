@@ -86,12 +86,19 @@ run_candidate_only_from_source_case() {
     fi
   fi
 
+  # This lane has no JVM reference, but a // JAVA_FLAGS: -ea directive still
+  # declares "assertions enabled" intent; honor it via the env flag (KUU-2751).
+  local candidate_assert_env=()
+  if java_flags_enable_assertions "$(get_java_extra_flags "$kt_file")"; then
+    candidate_assert_env=(env KK_ASSERTIONS_ENABLED=1)
+  fi
+
   KSWIFTK_STDLIB_CACHE_DIR="$tmp_dir/stdlib-cache" "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --stdlib-from-source "${KSWIFTC_ARGS[@]}" "$kt_file" -o "$candidate_bin" \
     >"$tmp_dir/candidate_compile.stdout" 2>"$tmp_dir/candidate_compile.stderr" || compile_exit=$?
 
   if [[ $compile_exit -eq 0 ]]; then
     run_exit=0
-    "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$candidate_bin" \
+    "${candidate_assert_env[@]}" "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$candidate_bin" \
       >"$tmp_dir/candidate.stdout" 2>"$tmp_dir/candidate.stderr" || run_exit=$?
   else
     : >"$tmp_dir/candidate.stdout"
@@ -173,10 +180,14 @@ run_candidate_only_case() {
 
     if [[ "$compile_exit" -eq 0 ]]; then
       run_exit=0
+      local candidate_assert_env=()
+      if java_flags_enable_assertions "$(get_java_extra_flags "$kt_file")"; then
+        candidate_assert_env=(env KK_ASSERTIONS_ENABLED=1)
+      fi
       if needs_stdin_eof "$kt_file"; then
-        "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$candidate_bin" < /dev/null >"$run_stdout" 2>"$run_stderr" || run_exit=$?
+        "${candidate_assert_env[@]}" "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$candidate_bin" < /dev/null >"$run_stdout" 2>"$run_stderr" || run_exit=$?
       else
-        "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$candidate_bin" >"$run_stdout" 2>"$run_stderr" || run_exit=$?
+        "${candidate_assert_env[@]}" "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$candidate_bin" >"$run_stdout" 2>"$run_stderr" || run_exit=$?
       fi
     fi
   else
