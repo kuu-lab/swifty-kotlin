@@ -34,7 +34,7 @@ struct MacOSPrelinkedObjectsTests {
             #expect(MacOSPrelinkedObjects.resolve(
                 inputs: inputs, cacheDirectory: directory, driver: driver,
                 target: "arm64-apple-macosx11.0", environment: [:],
-                build: { _, _ in builds += 1 }
+                build: { _, _, _ in builds += 1 }
             ) == nil)
             #expect(builds == 0)
         }
@@ -50,7 +50,7 @@ struct MacOSPrelinkedObjectsTests {
             inputs: inputs, cacheDirectory: directory,
             driver: try makeDriver(in: directory), target: "arm64-apple-macosx11.0",
             environment: ["KSWIFTK_NO_LINK_PRELINK": "1"],
-            build: { _, _ in builds += 1 }
+            build: { _, _, _ in builds += 1 }
         ) == nil)
         #expect(builds == 0)
     }
@@ -69,7 +69,7 @@ struct MacOSPrelinkedObjectsTests {
             MacOSPrelinkedObjects.resolve(
                 inputs: inputs, cacheDirectory: cache, driver: driver,
                 target: "arm64-apple-macosx11.0", environment: [:]
-            ) { _, temporary in
+            ) { _, _, temporary in
                 builds += 1
                 try Data("merged".utf8).write(to: temporary)
             }
@@ -107,7 +107,7 @@ struct MacOSPrelinkedObjectsTests {
             inputs: inputs, cacheDirectory: cache,
             driver: try makeDriver(in: directory), target: "arm64-apple-macosx11.0",
             environment: [:],
-            build: { _, _ in throw BuildFailure() }
+            build: { _, _, _ in throw BuildFailure() }
         ) == nil)
         #expect(try FileManager.default.contentsOfDirectory(atPath: cache.path).isEmpty)
     }
@@ -125,7 +125,7 @@ struct MacOSPrelinkedObjectsTests {
             inputs: inputs, cacheDirectory: cache,
             driver: try makeDriver(in: directory), target: "arm64-apple-macosx11.0",
             environment: [:],
-            build: { _, _ in builds += 1 }
+            build: { _, _, _ in builds += 1 }
         ) == nil)
         #expect(builds == 0)
     }
@@ -141,10 +141,65 @@ struct MacOSPrelinkedObjectsTests {
             inputs: inputs, cacheDirectory: cache,
             driver: try makeDriver(in: directory), target: "arm64-apple-macosx11.0",
             environment: [:]
-        ) { _, temporary in
+        ) { _, _, temporary in
             try Data("merged".utf8).write(to: temporary)
         })
         let attributes = try FileManager.default.attributesOfItem(atPath: resolved)
         #expect((attributes[.posixPermissions] as? NSNumber)?.uint16Value == 0o600)
+    }
+
+    @Test
+    func mergesForceLoadedArchivesAndKeysOnTheirContent() throws {
+        let directory = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: cache) }
+        let driver = try makeDriver(in: directory)
+        let inputs = try makeInputs(3, in: directory)
+        let archive = directory.appendingPathComponent("compatibility.a")
+        try Data("archive".utf8).write(to: archive)
+
+        var builds = 0
+        var receivedArchives: [String] = []
+        func resolve() -> String? {
+            MacOSPrelinkedObjects.resolve(
+                inputs: inputs, forceLoadPaths: [archive.path], cacheDirectory: cache,
+                driver: driver, target: "arm64-apple-macosx11.0", environment: [:]
+            ) { _, archives, temporary in
+                builds += 1
+                receivedArchives = archives
+                try Data("merged".utf8).write(to: temporary)
+            }
+        }
+
+        let first = try #require(resolve())
+        #expect(receivedArchives == [archive.path])
+        #expect(resolve() == first)
+        #expect(builds == 1)
+
+        // Archive content changes produce a fresh merged object, just like
+        // object inputs do.
+        try Data("archive-changed".utf8).write(to: archive)
+        let second = try #require(resolve())
+        #expect(second != first)
+        #expect(builds == 2)
+    }
+
+    @Test
+    func fallsBackWhenAForceLoadedArchiveIsMissing() throws {
+        let directory = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: cache) }
+        let inputs = try makeInputs(3, in: directory)
+        var builds = 0
+        #expect(MacOSPrelinkedObjects.resolve(
+            inputs: inputs,
+            forceLoadPaths: [directory.appendingPathComponent("missing.a").path],
+            cacheDirectory: cache, driver: try makeDriver(in: directory),
+            target: "arm64-apple-macosx11.0", environment: [:],
+            build: { _, _, _ in builds += 1 }
+        ) == nil)
+        #expect(builds == 0)
     }
 }

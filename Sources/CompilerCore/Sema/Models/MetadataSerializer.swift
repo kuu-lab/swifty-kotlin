@@ -1,6 +1,6 @@
 import Foundation
 
-package enum MetadataModality: String {
+package enum MetadataModality: String, Codable {
     case final
     case open
     case abstract
@@ -274,7 +274,7 @@ package struct MetadataRecord {
 }
 
 /// Annotation metadata that survives the export/import round-trip (P5-86).
-public struct MetadataAnnotationRecord: Equatable {
+public struct MetadataAnnotationRecord: Equatable, Codable {
     /// Fully-qualified name of the annotation class (e.g. "kotlin.Deprecated").
     public let annotationFQName: String
     /// Serialized argument values.
@@ -473,9 +473,11 @@ final class IndexedMetadataFile {
         }
         let start = bodyStart + entry.offset
         let end = start + entry.length
-        let body = data.subdata(in: data.startIndex + start ..< data.startIndex + end)
-        guard let line = String(data: body, encoding: .utf8) else { return nil }
-        let record = MetadataDecoder().decode("symbols=1\n\(line)\n").first
+        let record = data.withUnsafeBytes { rawBytes -> MetadataRecord? in
+            let bytes = rawBytes.bindMemory(to: UInt8.self)
+            let line = UnsafeBufferPointer(rebasing: bytes[start ..< end])
+            return MetadataDecoder().decodeIndexRecordLine(line)
+        }
         if let record {
             decodedRecords[entry.offset] = record
         }

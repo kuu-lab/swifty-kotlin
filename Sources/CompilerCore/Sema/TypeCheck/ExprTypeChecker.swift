@@ -2016,6 +2016,17 @@ final class ExprTypeChecker {
             )
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
+        if sema.types.nullability(of: operandType) == .nullable,
+           operandType != sema.types.errorType
+        {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0026",
+                "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
         // unaryMinus/unaryPlus exist only on numeric primitives: Boolean and
         // Char declare no such member in Kotlin, so `-true`/`+'a'` must not
         // reach the builtin numeric path below.

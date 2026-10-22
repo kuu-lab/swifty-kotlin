@@ -783,9 +783,9 @@ extension BuildASTPhase {
         }) ?? topLevelQuestionColonIndex(in: withoutDefault, startingAt: afterAnnotations)
 
         let nameSearchTokens: ArraySlice<Token> = if let colonIndex {
-            withoutDefault[..<colonIndex]
+            withoutDefault[afterAnnotations..<colonIndex]
         } else {
-            withoutDefault[...]
+            withoutDefault[afterAnnotations...]
         }
 
         // A modifier keyword (`inner`, `sealed`, `vararg`, `override`, ...) is only
@@ -797,6 +797,11 @@ extension BuildASTPhase {
         guard let nameIndex = nameSearchTokens.lastIndex(where: { token in
             internedIdentifier(from: token, interner: interner) != nil
         }) else {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0002",
+                "Expected parameter name.",
+                range: nameSearchTokens.first?.range ?? withoutDefault.first?.range
+            )
             return
         }
         if nameIndex + 1 < withoutDefault.endIndex,
@@ -810,6 +815,14 @@ extension BuildASTPhase {
             )
         }
         let nameToken = nameSearchTokens[nameIndex]
+        guard nameToken.kind.isLabelName else {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0002",
+                "Expected parameter name.",
+                range: nameToken.range
+            )
+            return
+        }
         guard let name = internedIdentifier(from: nameToken, interner: interner) else {
             return
         }

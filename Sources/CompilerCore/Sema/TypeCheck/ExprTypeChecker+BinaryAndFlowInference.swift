@@ -444,13 +444,13 @@ extension ExprTypeChecker {
             let rhsIsNumeric = if case .primitive = sema.types.kind(of: sema.types.makeNonNullable(rhs)) { true } else { false }
             let isPrimitiveArithmeticOperator = [.add, .subtract, .multiply, .divide, .modulo].contains(op)
             let shouldSearchForScopedExtension = isPrimitiveArithmeticOperator
-                && (!rhsIsNumeric || hasInvalidBuiltinCharArithmetic(op: op, lhs: lhs, rhs: rhs, sema: sema))
+                && (!rhsIsNumeric || isNullablePrimitiveReceiver || hasInvalidBuiltinCharArithmetic(op: op, lhs: lhs, rhs: rhs, sema: sema))
                 || isNullablePrimitiveReceiver && isComparisonOperator
             if shouldSearchForScopedExtension {
                 let extensionCandidates = collectScopedOperatorExtensionCandidates(
                     names: operatorNames,
                     receiverType: lhs,
-                    argumentType: isComparisonOperator
+                    argumentType: isComparisonOperator || (isPrimitiveArithmeticOperator && isNullablePrimitiveReceiver)
                         ? rhs
                         : lhs == charType && op == .add && sema.types.isString(rhs) ? rhs : nil,
                     ctx: ctx
@@ -489,6 +489,31 @@ extension ExprTypeChecker {
                 return lhs
             }
         }
+        if operatorCandidates.isEmpty {
+            if [.add, .subtract, .multiply, .divide, .modulo,
+                .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual,
+                .rangeTo, .rangeUntil, .downTo, .step].contains(op)
+            {
+                if sema.types.nullability(of: lhs) == .nullable {
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0026",
+                        "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+                        range: range
+                    )
+                    sema.bindings.bindExprType(id, type: sema.types.errorType)
+                    return sema.types.errorType
+                }
+                if sema.types.nullability(of: rhs) == .nullable {
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0002",
+                        "No viable overload found for operator '\(interner.resolve(operatorName))'.",
+                        range: range
+                    )
+                    sema.bindings.bindExprType(id, type: sema.types.errorType)
+                    return sema.types.errorType
+                }
+            }
+        }
         let lhsIsAny = lhs == sema.types.anyType || lhs == sema.types.nullableAnyType
         let rhsIsAny = rhs == sema.types.anyType || rhs == sema.types.nullableAnyType
         if !lhsIsPrimitive, !lhsIsAny, !rhsIsAny, operatorCandidates.isEmpty, lhs != sema.types.errorType, rhs != sema.types.errorType {
@@ -503,6 +528,28 @@ extension ExprTypeChecker {
                 return sema.types.errorType
             default:
                 break
+            }
+        }
+        // kotlinc requires the `operator` modifier on `compareTo` for
+        // `<`/`<=`/`>`/`>=` syntax. A member named `compareTo` without the
+        // modifier cannot serve the comparison; report it explicitly instead
+        // of letting the expression fall through to the built-in numeric
+        // fallback below.
+        if isComparisonOperator, operatorCandidates.isEmpty, !lhsIsPrimitive, lhs != sema.types.errorType {
+            let hasNonOperatorCompareTo = driver.helpers.collectMemberFunctionCandidates(
+                named: interner.intern("compareTo"),
+                receiverType: lhs,
+                sema: sema,
+                interner: interner
+            ).contains { driver.helpers.isNonOperatorConventionFunction($0, sema: sema) }
+            if hasNonOperatorCompareTo {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0432",
+                    "'operator' modifier is required on 'compareTo' in '\(driver.helpers.conventionReceiverDisplayName(lhs, sema: sema, interner: interner))'.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
             }
         }
         if !operatorCandidates.isEmpty {
@@ -573,7 +620,15 @@ extension ExprTypeChecker {
                     return fallbackType
                 }
                 if lhs != sema.types.errorType, rhs != sema.types.errorType {
-                    ctx.sema.diagnostics.emit(diagnostic)
+                    if sema.types.nullability(of: lhs) == .nullable, op != .equal, op != .notEqual {
+                        ctx.sema.diagnostics.error(
+                            "KSWIFTK-SEMA-0026",
+                            "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+                            range: range
+                        )
+                    } else {
+                        ctx.sema.diagnostics.emit(diagnostic)
+                    }
                 }
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
@@ -590,11 +645,19 @@ extension ExprTypeChecker {
                     return fallbackType
                 }
                 if lhs != sema.types.errorType, rhs != sema.types.errorType {
-                    ctx.sema.diagnostics.error(
-                        "KSWIFTK-SEMA-0002",
-                        "No viable overload found for operator '\(interner.resolve(operatorName))'.",
-                        range: range
-                    )
+                    if sema.types.nullability(of: lhs) == .nullable, op != .equal, op != .notEqual {
+                        ctx.sema.diagnostics.error(
+                            "KSWIFTK-SEMA-0026",
+                            "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+                            range: range
+                        )
+                    } else {
+                        ctx.sema.diagnostics.error(
+                            "KSWIFTK-SEMA-0002",
+                            "No viable overload found for operator '\(interner.resolve(operatorName))'.",
+                            range: range
+                        )
+                    }
                 }
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType

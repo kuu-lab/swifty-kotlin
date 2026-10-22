@@ -1,4 +1,4 @@
-public struct SymbolID: Hashable, Sendable {
+public struct SymbolID: Hashable, Sendable, Codable {
     public let rawValue: Int32
 
     public static let invalid = SymbolID(rawValue: -1)
@@ -8,7 +8,7 @@ public struct SymbolID: Hashable, Sendable {
     }
 }
 
-public enum SymbolKind: Hashable, Sendable {
+public enum SymbolKind: Hashable, Sendable, Codable {
     case package
     case `class`
     case interface
@@ -27,7 +27,7 @@ public enum SymbolKind: Hashable, Sendable {
     case label
 }
 
-public struct SymbolFlags: OptionSet, Sendable {
+public struct SymbolFlags: OptionSet, Sendable, Codable {
     public let rawValue: UInt32
 
     public init(rawValue: UInt32) {
@@ -153,7 +153,7 @@ func isCompatibleExpectActualPair(
         || (newKind == .typeAlias && (existing.kind == .annotationClass || existing.kind == .class))
 }
 
-public struct FunctionSignature: Hashable, Sendable {
+public struct FunctionSignature: Hashable, Sendable, Codable {
     public let receiverType: TypeID?
     public let contextReceiverTypes: [TypeID]
     public let contextParameterSymbols: [SymbolID]
@@ -234,7 +234,7 @@ public struct FunctionSignature: Hashable, Sendable {
     }
 }
 
-public struct EnumEntryDispatchTarget: Hashable, Sendable {
+public struct EnumEntryDispatchTarget: Hashable, Sendable, Codable {
     public let entrySymbol: SymbolID
     public let functionSymbol: SymbolID
 
@@ -244,7 +244,7 @@ public struct EnumEntryDispatchTarget: Hashable, Sendable {
     }
 }
 
-public struct NominalLayout: Equatable, Sendable {
+public struct NominalLayout: Equatable, Sendable, Codable {
     public let objectHeaderWords: Int
     public let instanceFieldCount: Int
     public let instanceSizeWords: Int
@@ -285,7 +285,7 @@ public struct NominalLayout: Equatable, Sendable {
     }
 }
 
-public struct NominalLayoutHint: Equatable, Sendable {
+public struct NominalLayoutHint: Equatable, Sendable, Codable {
     public let declaredFieldCount: Int?
     public let declaredInstanceSizeWords: Int?
     public let declaredVtableSize: Int?
