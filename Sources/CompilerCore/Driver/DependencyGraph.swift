@@ -12,6 +12,10 @@ public final class DependencyGraph: Codable {
 
     private var wildcardImportedPackages: [String: Set<String>] = [:]
 
+    /// Declaration-granularity graph persisted next to the file-level one.
+    /// Optional so caches written before it existed still decode.
+    public var declarationGraph: DeclarationDependencyGraph?
+
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
@@ -19,6 +23,7 @@ public final class DependencyGraph: Codable {
         case dependedSymbols
         case providedPackages
         case wildcardImportedPackages
+        case declarationGraph
     }
 
     public init(from decoder: Decoder) throws {
@@ -27,6 +32,7 @@ public final class DependencyGraph: Codable {
         dependedSymbols = try container.decodeIfPresent([String: Set<String>].self, forKey: .dependedSymbols) ?? [:]
         providedPackages = try container.decodeIfPresent([String: String].self, forKey: .providedPackages) ?? [:]
         wildcardImportedPackages = try container.decodeIfPresent([String: Set<String>].self, forKey: .wildcardImportedPackages) ?? [:]
+        declarationGraph = try container.decodeIfPresent(DeclarationDependencyGraph.self, forKey: .declarationGraph)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -35,6 +41,7 @@ public final class DependencyGraph: Codable {
         try container.encode(dependedSymbols, forKey: .dependedSymbols)
         try container.encode(providedPackages, forKey: .providedPackages)
         try container.encode(wildcardImportedPackages, forKey: .wildcardImportedPackages)
+        try container.encodeIfPresent(declarationGraph, forKey: .declarationGraph)
     }
 
     public func recordProvided(filePath: String, symbols: Set<String>) {
