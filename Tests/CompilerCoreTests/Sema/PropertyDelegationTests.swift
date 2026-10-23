@@ -1380,10 +1380,10 @@ struct KIRDelegateLoweringTests {
 
             let module = try #require(ctx.kir)
             let interner = ctx.interner
-            let fileID = try #require(fileID(for: paths[0], ctx: ctx), "Missing fileID for sample0")
+            let sampleFileID = try #require(fileID(for: paths[0], ctx: ctx), "Missing fileID for sample0")
 
             for className in ["Foo", "FooQualified"] {
-                let constructors = kirFunctions(in: module, interner: interner, fileID: fileID, name: className)
+                let constructors = kirFunctions(in: module, interner: interner, fileID: sampleFileID, name: className)
                 #expect(!constructors.isEmpty, "Expected a \(className) constructor in KIR")
                 let setterCallCount = constructors.reduce(into: 0) { count, fn in
                     count += extractCallees(from: fn.body, interner: interner).filter { $0 == "set" }.count
