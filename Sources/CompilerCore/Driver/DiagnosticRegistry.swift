@@ -308,6 +308,12 @@ enum DiagnosticRegistry {
             summary: "Expected '}' to close block."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0027",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "The 'else' branch must be the last branch in a 'when' expression."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-PARSE-TYPE-DEPTH",
             pass: "PARSE",
             defaultSeverity: .error,
