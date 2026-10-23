@@ -2,6 +2,9 @@ extension JVMFunctionBuilder {
     func memberExpression(_ id: ExprID, receiver: ExprID, name: InternedString, typeArgs: [TypeRefID], args: [CallArgument]) throws -> JVMValue? {
         if context.interner.resolve(name) == "isInitialized", args.isEmpty, let result = try lateinitInitialized(receiver) { return result }
         if !arena.isExplicitCall(id), let value = try nominalValue(id) { return value }
+        if !arena.isExplicitCall(id), context.interner.resolve(name) == "Companion",
+           let receiverSymbol = program.sema.bindings.identifierSymbol(for: receiver),
+           let value = try importedCompanionValue(for: receiverSymbol) { return value }
         if let value = try nominalCall(id, receiver: receiver, name: context.interner.resolve(name), args: args) { return value.value }
         if !arena.isExplicitCall(id), let property = propertyBinding(id) {
             if let literal = property.field?.constantValue,
