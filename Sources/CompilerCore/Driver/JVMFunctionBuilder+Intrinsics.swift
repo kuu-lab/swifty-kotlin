@@ -13,7 +13,7 @@ extension JVMProgramBuilder {
         guard let symbol = sema.symbols.symbol(symbolID), symbol.kind == .constructor,
               let parent = sema.symbols.parentSymbol(for: symbolID), classes[parent] == nil,
               let source = try? className(parent), let name = JVMClasspathIndex.builtinName(source),
-              (name.hasPrefix("java/lang/") || ["java/util/NoSuchElementException", "java/util/AbstractCollection", "java/util/AbstractList", "java/util/AbstractSet", "java/util/AbstractMap", "kotlin/collections/AbstractSet", "kotlin/collections/IntIterator", "kotlin/UninitializedPropertyAccessException"].contains(name)), let signature = sema.symbols.functionSignature(for: symbolID),
+              (name.hasPrefix("java/lang/") || ["java/util/NoSuchElementException", "java/util/AbstractCollection", "java/util/AbstractList", "java/util/AbstractSet", "java/util/AbstractMap", "kotlin/collections/AbstractSet", "kotlin/collections/IntIterator", "kotlin/NotImplementedError", "kotlin/UninitializedPropertyAccessException"].contains(name)), let signature = sema.symbols.functionSignature(for: symbolID),
               let parameters = try? signature.parameterTypes.map(type) else { return nil }
         return JVMForeignMethod(owner: name, name: "<init>", descriptor: "(" + parameters.map(\.descriptor).joined() + ")V", parameters: parameters, result: .reference(name, nullable: false), isStatic: false, isInterface: false, isAbstract: false)
     }
@@ -38,6 +38,7 @@ extension JVMFunctionBuilder {
     func intrinsicCall(_ symbolID: SymbolID, args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult? {
         if let method = program.builtinMethod(symbolID) { return JVMIntrinsicResult(value: try foreign(method, receiver: nil, args: args, id: id)) }
         guard let symbol = program.sema.symbols.symbol(symbolID), symbol.declSite.map({ context.sourceManager.origin(of: $0.start.file) != .user }) ?? true else { return nil }
+        if let result = try resultCompanionCall(symbolID, args: args, id: id) { return result }
         if let delegate = try delegationIntrinsic(symbol, args: args, id: id) { return delegate }
         if let coroutine = try coroutineCall(symbol, args: args, id: id) { return coroutine }
         let fq = symbol.fqName.map(context.interner.resolve).joined(separator: "/")
@@ -139,6 +140,31 @@ extension JVMFunctionBuilder {
         if let scalar = try scalarMember(receiverID, name: member, args: args, id: id) { return scalar }
         if let reflection = try reflectionMember(receiverID, name: member, args: args, id: id) { return reflection }
         guard let sourceType = try? program.expressionType(receiverID) else { return nil }
+        if sourceType.referenceName == "kotlin/ranges/ClosedFloatingPointRange" {
+            // The JVM ABI erases generic range elements to Comparable; concrete
+            // Float/Double range classes provide bridges for these interface calls.
+            let comparable: JVMValueType = .reference("java/lang/Comparable", nullable: false)
+            let receiver = try requireValue(receiverID)
+            switch member {
+            case "contains" where args.count == 1 && args.allSatisfy({ $0.label == nil && !$0.isSpread }):
+                return JVMIntrinsicResult(value: try jdkCall(
+                    "kotlin/ranges/ClosedFloatingPointRange", member, [comparable], .boolean,
+                    receiver: receiver, arguments: [requireValue(args[0].expr)], interface: true
+                ))
+            case "isEmpty" where args.isEmpty:
+                return JVMIntrinsicResult(value: try jdkCall(
+                    "kotlin/ranges/ClosedFloatingPointRange", member, [], .boolean,
+                    receiver: receiver, interface: true
+                ))
+            case "lessThanOrEquals" where args.count == 2 && args.allSatisfy({ $0.label == nil && !$0.isSpread }):
+                return JVMIntrinsicResult(value: try jdkCall(
+                    "kotlin/ranges/ClosedFloatingPointRange", member, [comparable, comparable], .boolean,
+                    receiver: receiver, arguments: try args.map { try requireValue($0.expr) }, interface: true
+                ))
+            default:
+                break
+            }
+        }
         if sourceType.referenceName == "kotlin/properties/Delegates", ["notNull", "observable", "vetoable"].contains(member) {
             let receiver = try requireValue(receiverID)
             let object: JVMValueType = .reference("java/lang/Object", nullable: true)
@@ -257,7 +283,8 @@ extension JVMFunctionBuilder {
             }
             if let selected = try mappedBuiltinMemberOwner(id), collections.contains(selected) { owner = selected }
             if owner == "java/util/ArrayList" { owner = "java/util/List" }
-            if ["set", "add", "addAll", "remove", "removeAll", "removeAt", "put", "clear"].contains(member), owner != "java/util/ListIterator" { try requireMutableCollection(receiverID, at: id) }
+            let isIteratorRemove = owner == "java/util/Iterator" && member == "remove"
+            if ["set", "add", "addAll", "remove", "removeAll", "removeAt", "put", "clear"].contains(member), owner != "java/util/ListIterator", !isIteratorRemove { try requireMutableCollection(receiverID, at: id) }
             if ["set", "add", "addAll", "put"].contains(member), owner != "java/util/ListIterator" { try requireWritableArguments(receiverID, at: id) }
             if ["getOrElse", "getOrPut"].contains(member), ["java/util/List", "java/util/Map"].contains(owner) {
                 return try collectionDefaultValueMember(receiverID, owner: owner, member: member, args: args, id: id)
@@ -350,7 +377,7 @@ extension JVMFunctionBuilder {
                 else { parameters = [object]; returns = .boolean }
             case "remove":
                 actual = member
-                if owner == "java/util/Iterator" || owner == "java/util/ListIterator" { parameters = []; returns = .unit }
+                if ["java/util/Iterator", "java/util/ListIterator"].contains(owner), args.isEmpty { parameters = []; returns = .unit }
                 else { parameters = [object]; returns = owner == "java/util/Map" ? object : .boolean }
             case "contains", "containsKey", "containsValue": actual = member; parameters = [object]; returns = .boolean
             case "addAll":
@@ -636,6 +663,9 @@ extension JVMFunctionBuilder {
             }
         } else if let loopBinding { elementType = try program.type(loopBinding.elementType) }
         else if let jvmIterableElementType { elementType = try program.type(jvmIterableElementType) }
+        else if let iterableElementType = iterableElementTypeFromSemanticType(iterable) {
+            elementType = try program.type(iterableElementType)
+        }
         else { throw fail("JVM for requires an array or iterable collection.", id) }
 
         let indexedElementType: JVMValueType?
@@ -733,5 +763,33 @@ extension JVMFunctionBuilder {
             mark(advance); jump(test)
         }
         mark(exit)
+    }
+
+    private func iterableElementTypeFromSemanticType(_ iterable: ExprID) -> TypeID? {
+        let interner = context.interner
+        guard let semanticType = program.sema.bindings.exprType(for: iterable),
+              case let .classType(classType) = program.sema.types.kind(
+                  of: program.sema.types.makeNonNullable(semanticType)
+              ),
+              let iterableSymbol = program.sema.symbols.lookup(fqName: [
+                  interner.intern("kotlin"),
+                  interner.intern("collections"),
+                  interner.intern("Iterable"),
+              ]),
+              let iterableArguments = program.sema.types.liftedNominalSupertypeArgs(
+                  from: classType,
+                  to: iterableSymbol
+              ),
+              let elementArgument = iterableArguments.first
+        else {
+            return nil
+        }
+
+        switch elementArgument {
+        case let .invariant(type), let .out(type), let .in(type):
+            return type
+        case .star:
+            return program.sema.types.anyType
+        }
     }
 }

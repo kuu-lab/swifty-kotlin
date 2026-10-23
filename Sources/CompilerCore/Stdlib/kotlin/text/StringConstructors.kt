@@ -8,6 +8,7 @@
 package kotlin
 
 import kotlin.internal.KsSymbolName
+import kotlin.text.StringBuilder
 import java.nio.charset.Charset
 
 // String remains a compiler/runtime nominal shell. These source declarations
@@ -15,6 +16,12 @@ import java.nio.charset.Charset
 // in the private __kk_* runtime bridges used by StringEncoding.kt. The
 // internal List<Int> overloads preserve KSwiftK's ByteArray representation
 // without widening the public Kotlin API.
+public fun String(chars: CharArray): String =
+    StringBuilder().append(chars).toString()
+
+public fun String(chars: CharArray, offset: Int, length: Int): String =
+    StringBuilder().append(chars, offset, length).toString()
+
 @KsSymbolName("__kk_bytearray_decodeToString")
 public external fun String(bytes: ByteArray): String
 

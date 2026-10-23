@@ -35,6 +35,8 @@ public object System {
 
     public fun lineSeparator(): String = java.lang.System.lineSeparator()
 
+    public fun identityHashCode(value: Any?): Int = java.lang.System.identityHashCode(value)
+
     public fun arraycopy(
         src: Any?,
         srcPos: Int,

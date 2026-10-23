@@ -112,6 +112,12 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "declarations/StringFormattingCaseFunctions.kt",
+      "virtualPath": "<kswiftk-jvm>/string-formatting-case-functions.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/text/StringsKt"
+    },
+    {
       "path": "declarations/StringBuilder.kt",
       "virtualPath": "<kswiftk-jvm>/m19-builder.kt",
       "excludeFromStdlibBuild": false
@@ -166,6 +172,11 @@
       "virtualPath": "<kswiftk-jvm>/collections.kt",
       "excludeFromStdlibBuild": false,
       "appendForConsumers": "declarations/CollectionFactories.kt"
+    },
+    {
+      "path": "declarations/IndexedValue.kt",
+      "virtualPath": "<kswiftk-jvm>/indexed-value.kt",
+      "excludeFromStdlibBuild": true
     },
     {
       "path": "declarations/Pair.kt",
@@ -233,6 +244,11 @@
       "excludeFromStdlibBuild": false
     },
     {
+      "path": "declarations/ArrayUtilities.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-arrays-utility-runtime.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "declarations/UnsignedArrayOperations.kt",
       "virtualPath": "<kswiftk-jvm>/m20-unsigned-array-operations.kt",
       "excludeFromStdlibBuild": true,
@@ -251,7 +267,8 @@
     {
       "path": "declarations/Result.kt",
       "virtualPath": "<kswiftk-jvm>/result.kt",
-      "excludeFromStdlibBuild": true
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/ResultKt"
     },
     {
       "path": "declarations/Coroutines.kt",
@@ -297,10 +314,22 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "declarations/CollectionIndexing.kt",
+      "virtualPath": "<kswiftk-jvm>/collection-indexing.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
       "path": "declarations/CollectionFirstPredicate.kt",
       "virtualPath": "<kswiftk-jvm>/collection-first-predicate.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
+      "path": "declarations/TextIndexing.kt",
+      "virtualPath": "<kswiftk-jvm>/text-indexing.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/text/StringsKt"
     },
     {
       "path": "declarations/CollectionAggregates.kt",
@@ -312,7 +341,7 @@
       "path": "declarations/Comparator.kt",
       "virtualPath": "<kswiftk-jvm>/comparator.kt",
       "excludeFromStdlibBuild": false,
-      "onlyForStdlibBuild": true
+      "onlyForStdlibBuild": false
     },
     {
       "path": "declarations/OptIn.kt",
@@ -328,12 +357,6 @@
     {
       "path": "declarations/SuspendCoroutine.kt",
       "virtualPath": "<kswiftk-jvm>/suspend-coroutine.kt",
-      "excludeFromStdlibBuild": false,
-      "onlyForStdlibBuild": true
-    },
-    {
-      "path": "declarations/StackTraceElement.kt",
-      "virtualPath": "<kswiftk-jvm>/stack-trace.kt",
       "excludeFromStdlibBuild": false,
       "onlyForStdlibBuild": true
     },
@@ -391,6 +414,12 @@
     {
       "path": "declarations/MapsOperators.kt",
       "virtualPath": "<kswiftk-jvm>/map-operators.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/MapsKt"
+    },
+    {
+      "path": "declarations/Maps.kt",
+      "virtualPath": "<kswiftk-jvm>/map-factories.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/collections/MapsKt"
     },

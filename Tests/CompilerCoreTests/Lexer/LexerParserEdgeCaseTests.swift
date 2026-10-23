@@ -300,6 +300,21 @@ struct LexerParserEdgeCaseTests {
         assertHasDiagnostic("KSWIFTK-LEX-0006", in: result.diagnostics.diagnostics)
     }
 
+    @Test(arguments: ["012", "00", "000", "01L", "01u", "01uL", "0_1"])
+    func testLexerRejectsLeadingZeroIntegerLiterals(literal: String) {
+        let result = lex("val x = \(literal)")
+
+        assertHasDiagnostic("KSWIFTK-LEX-0005", in: result.diagnostics.diagnostics)
+    }
+
+    @Test(arguments: ["0", "0L", "0u", "0uL", "10", "10L", "1_000", "0.5", "01.5", "1e3", "01e3", "0x1F", "0b101"])
+    func testLexerAcceptsLegalNumericLiterals(literal: String) {
+        let result = lex("val x = \(literal)")
+
+        assertNoDiagnostic("KSWIFTK-LEX-0005", in: result.diagnostics.diagnostics)
+        #expect(!result.diagnostics.hasError)
+    }
+
     @Test
     func testParserParsesDeclarationsTypeArgsAndEmitsWarningsForBrokenInput() {
         let source = """
@@ -588,6 +603,21 @@ struct LexerParserEdgeCaseTests {
         #expect(stored.filter { $0.code == "KSWIFTK-LEX-0001" }.count == DiagnosticEngine.defaultMaxDiagnosticsPerFile)
         #expect(stored.filter { $0.code == "KSWIFTK-PIPELINE-0005" }.count == 1)
         #expect(result.diagnostics.hasError)
+    }
+
+    @Test(arguments: ["\n", "\r"])
+    func testLexerRejectsRawLineBreakAsCharLiteralContent(lineBreak: String) {
+        // kotlinc reports the unterminated `'` and the orphaned closing `'` separately.
+        let result = lex("val c = '\(lineBreak)'")
+
+        assertDiagnosticCount("KSWIFTK-LEX-0002", expected: 2, in: result.diagnostics.diagnostics)
+    }
+
+    @Test(arguments: ["\n", "\r"])
+    func testLexerRejectsRawLineBreakAsCharLiteralContentUnclosed(lineBreak: String) {
+        let result = lex("val c = '\(lineBreak)")
+
+        assertDiagnosticCount("KSWIFTK-LEX-0002", expected: 1, in: result.diagnostics.diagnostics)
     }
 }
 #endif

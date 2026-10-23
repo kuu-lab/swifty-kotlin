@@ -54,20 +54,20 @@ extension BundledStdlibExecutionTests {
         try compileAndRunKotlin(
             """
             import kotlinx.coroutines.runBlocking
+            import kotlinx.coroutines.channels.Channel
             import kotlinx.coroutines.flow.*
 
             fun main() = runBlocking {
-                // Sequential snapshot model: transform runs on indexed tuples,
-                // shorter flows retain their last value. Transforms are bound
-                // through explicitly-typed vals: a lambda literal cannot yet be
-                // checked against a FlowCollector-receiver parameter at a call
+                // Use explicitly typed transform values because lambda literals
+                // cannot yet be checked against a FlowCollector-receiver parameter at a call
                 // site (KUU-1378 builder-inference gap).
                 val pairSum: suspend FlowCollector<Int>.(Int, Int) -> Unit = { a, b -> emit(a + b) }
                 println(flowOf(1).combineTransform(flowOf(2), pairSum).toList())
                 val pairTwice: suspend FlowCollector<Int>.(Int, Int) -> Unit = { a, b -> emit(0); emit(a + b) }
                 println(flowOf(1).combineTransform(flowOf(2), pairTwice).toList())
                 val pairDash: suspend FlowCollector<String>.(Int, Int) -> Unit = { a, b -> emit("$a-$b") }
-                println(flowOf(1, 2).combineTransform(flowOf(3), pairDash).toList())
+                val pairCombined = flowOf(1, 2).combineTransform(flowOf(3), pairDash).toList()
+                println(pairCombined.last())
                 val tripleSum: suspend FlowCollector<Int>.(Int, Int, Int) -> Unit =
                     { a, b, c -> emit(a + b + c) }
                 println(combineTransform(flowOf(1), flowOf(2), flowOf(3), tripleSum).toList())
@@ -84,23 +84,99 @@ extension BundledStdlibExecutionTests {
                 val arraySum: suspend FlowCollector<Int>.(Array<Int>) -> Unit =
                     { values -> emit(values.sum()) }
                 println(combineTransform(flowOf(1), flowOf(2), transform = arraySum).toList())
-                println(combineTransform(listOf(flowOf(1, 2), flowOf(3, 4)), arraySum).toList())
+                val iterableCombined = combineTransform(listOf(flowOf(1, 2), flowOf(3, 4)), arraySum).toList()
+                println(iterableCombined.last())
                 // An empty input flow yields no emissions.
                 println(combineTransform(listOf(flowOf(1), emptyFlow<Int>()), arraySum).toList())
+
+                val leftReady = Channel<Unit>(0)
+                val allowLeftUpdate = Channel<Unit>(0)
+                val leftUpdated = Channel<Unit>(0)
+                val liveLeft = flow {
+                    emit(1)
+                    leftReady.send(Unit)
+                    allowLeftUpdate.receive()
+                    emit(2)
+                    leftUpdated.send(Unit)
+                }
+                val liveRight = flow {
+                    leftReady.receive()
+                    emit(10)
+                    allowLeftUpdate.send(Unit)
+                    leftUpdated.receive()
+                    emit(20)
+                }
+                println(liveLeft.combineTransform(liveRight, pairDash).toList())
             }
             """,
             expectedOutput: """
             [3]
             [0, 3]
-            [1-3, 2-3]
+            2-3
             [6]
             [10]
             [15]
             [3]
-            [4, 6]
+            6
             []
+            [1-10, 2-10, 2-20]
 
             """,
+            allowDefaultStdlibLibrary: artifact
+        )
+    }
+
+    @Test(arguments: [true, false])
+    func testFlowCombineAndZipCancellation(artifact: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            import kotlinx.coroutines.runBlocking
+            import kotlinx.coroutines.flow.*
+
+            fun main() = runBlocking {
+                var infinitePeerCancelled = false
+                val infiniteFlow = flow<Int> {
+                    try {
+                        while (true) emit(1)
+                    } finally {
+                        infinitePeerCancelled = true
+                    }
+                }
+
+                println(infiniteFlow.zip(flowOf(10, 20)) { left, right -> left + right }.toList())
+                println(infinitePeerCancelled)
+                infinitePeerCancelled = false
+                println(flowOf(100, 200).zip(infiniteFlow) { left, right -> left + right }.toList())
+                println(infinitePeerCancelled)
+                infinitePeerCancelled = false
+                println(infiniteFlow.combine(flowOf(10)) { left, right -> left + right }.take(3).toList())
+                println(infinitePeerCancelled)
+                infinitePeerCancelled = false
+                println(infiniteFlow.combine(emptyFlow<Int>()) { left, right -> left + right }.toList())
+                println(infinitePeerCancelled)
+
+                infinitePeerCancelled = false
+                try {
+                    infiniteFlow.combine(flowOf(10)) { _, _ ->
+                        throw IllegalStateException("transform")
+                    }.toList()
+                } catch (failure: IllegalStateException) {
+                    println(failure.message)
+                }
+                println(infinitePeerCancelled)
+
+                infinitePeerCancelled = false
+                try {
+                    flowOf(1, 2).zip(infiniteFlow) { _, _ ->
+                        throw IllegalStateException("zip transform")
+                    }.toList()
+                } catch (failure: IllegalStateException) {
+                    println(failure.message)
+                }
+                println(infinitePeerCancelled)
+            }
+            """,
+            expectedOutput: "[11, 21]\ntrue\n[101, 201]\ntrue\n[11, 11, 11]\ntrue\n[]\ntrue\ntransform\ntrue\nzip transform\ntrue\n",
             allowDefaultStdlibLibrary: artifact
         )
     }

@@ -86,7 +86,7 @@ extension JVMClasspathIndex {
             return owner
         }
 
-        let functions = snapshot.declarations.enumerated().compactMap { index, declaration -> (range: SourceRange, name: String, owner: SymbolID?)? in
+        let functions = snapshot.declarations.enumerated().compactMap { index, declaration -> (range: SourceRange, name: String, owner: SymbolID?, parent: SymbolID?, symbol: SymbolID)? in
             guard case let .funDecl(function) = declaration,
                   contains(function.range, objectRange)
             else {
@@ -94,13 +94,39 @@ extension JVMClasspathIndex {
             }
             let declID = DeclID(rawValue: Int32(index))
             guard let functionSymbol = sema.bindings.declSymbols[declID] else { return nil }
+            let parent = sema.symbols.parentSymbol(for: functionSymbol)
             return (
                 function.range,
                 ctx.interner.resolve(function.name),
-                nominalOwner(sema.symbols.parentSymbol(for: functionSymbol))
+                nominalOwner(parent),
+                parent,
+                functionSymbol
             )
         }.sorted { span($0.range) < span($1.range) }
         let function = functions.first
+        let overloadIndex: Int? = function.flatMap { selected in
+            let sameName = snapshot.declarations.enumerated().compactMap { index, declaration -> (range: SourceRange, symbol: SymbolID)? in
+                guard case let .funDecl(candidate) = declaration,
+                      ctx.interner.resolve(candidate.name) == selected.name
+                else {
+                    return nil
+                }
+                let declID = DeclID(rawValue: Int32(index))
+                guard let symbol = sema.bindings.declSymbols[declID] else { return nil }
+                let parent = sema.symbols.parentSymbol(for: symbol)
+                guard nominalOwner(parent) == selected.owner else { return nil }
+                if selected.owner == nil,
+                   (parent != selected.parent || candidate.range.start.file != selected.range.start.file) {
+                    return nil
+                }
+                return (candidate.range, symbol)
+            }.sorted { $0.range.start.offset < $1.range.start.offset }
+            guard sameName.count > 1,
+                  let index = sameName.firstIndex(where: { $0.symbol == selected.symbol }) else {
+                return nil
+            }
+            return index + 1
+        }
 
         let localNames = snapshot.expressions.compactMap { expression -> (range: SourceRange, name: String)? in
             guard case let .localDecl(name, _, _, initializer?, _, _, range) = expression,
@@ -149,6 +175,9 @@ extension JVMClasspathIndex {
             count += 1
         }
         var suffix = function.map { [$0.name] } ?? []
+        if let overloadIndex {
+            suffix.append("overload" + String(overloadIndex))
+        }
         if let localName {
             suffix.append(localName)
         } else if let property {

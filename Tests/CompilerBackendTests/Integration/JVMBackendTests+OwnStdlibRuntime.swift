@@ -290,6 +290,25 @@ extension JVMBackendTests {
         }
     }
 
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func repeatRunsFromBundledJvmStdlib(mode: EmitMode) throws {
+        let library = try JVMOwnStdlibCache.shared.library()
+        try withWorkspace { root in
+            let result = try compile(
+                "fun main() { repeat(3) { print(it) }; println() }",
+                root: root,
+                mode: mode,
+                classpath: [library.path]
+            )
+            #expect(result.0 == 0, "\(result.1.map(\.message))")
+            let execution = try java(mode == .jvmJar
+                ? ["-cp", root.appendingPathComponent("hello.jar").path + ":" + library.path, "HelloKt"]
+                : ["-cp", root.appendingPathComponent("classes").path + ":" + library.path, "HelloKt"])
+            #expect(execution.stdout == "012\n")
+            #expect(execution.stderr.isEmpty)
+        }
+    }
+
     @Test(arguments: [false, true])
     func officialKotlinConsumerUsesOnlyRepositoryStdlib(withoutOfficialCompileClasspath: Bool) throws {
         let library = try JVMOwnStdlibCache.shared.library()

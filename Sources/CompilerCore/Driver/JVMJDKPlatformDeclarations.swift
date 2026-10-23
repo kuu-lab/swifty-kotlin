@@ -10,6 +10,68 @@ extension JVMClasspathIndex {
         func method(_ owner: String, _ name: String, _ parameters: [JVMValueType], _ result: JVMValueType, staticMember: Bool = false, interface: Bool = false) -> JVMForeignMethod {
             JVMForeignMethod(owner: owner, name: name, descriptor: "(" + parameters.map(\.descriptor).joined() + ")" + (name == "<init>" ? "V" : result.descriptor), parameters: parameters, result: result, isStatic: staticMember, isInterface: interface, isAbstract: interface && !staticMember)
         }
+        let objectArray = JVMValueType.reference("[Ljava/lang/Object;", nullable: false)
+        let nullableObjectArray = JVMValueType.reference("[Ljava/lang/Object;", nullable: true)
+        var arraysMethods = [
+            method("java/util/Arrays", "copyOf", [objectArray, .int], objectArray, staticMember: true),
+            method("java/util/Arrays", "equals", [nullableObjectArray, nullableObjectArray], .boolean, staticMember: true),
+            method("java/util/Arrays", "hashCode", [nullableObjectArray], .int, staticMember: true),
+            method("java/util/Arrays", "toString", [nullableObjectArray], .string, staticMember: true),
+            method("java/util/Arrays", "deepEquals", [nullableObjectArray, nullableObjectArray], .boolean, staticMember: true),
+            method("java/util/Arrays", "deepHashCode", [nullableObjectArray], .int, staticMember: true),
+            method("java/util/Arrays", "deepToString", [nullableObjectArray], .string, staticMember: true),
+            method("java/util/Arrays", "sort", [objectArray], .unit, staticMember: true),
+            method("java/util/Arrays", "sort", [objectArray, .int, .int], .unit, staticMember: true),
+            method("java/util/Arrays", "binarySearch", [objectArray, .int, .int, .reference("java/lang/Object", nullable: true)], .int, staticMember: true),
+        ]
+        var arraysSource = """
+            package java.util
+            class Arrays private constructor() {
+                companion object {
+                    external fun <T> copyOf(a: Array<out T>, newLength: Int): Array<T>
+                    external fun equals(a: Array<out Any?>?, b: Array<out Any?>?): Boolean
+                    external fun hashCode(a: Array<out Any?>?): Int
+                    external fun toString(a: Array<out Any?>?): String
+                    external fun deepEquals(a: Array<out Any?>?, b: Array<out Any?>?): Boolean
+                    external fun deepHashCode(a: Array<out Any?>?): Int
+                    external fun deepToString(a: Array<out Any?>?): String
+                    external fun sort(a: Array<out Any?>): Unit
+                    external fun sort(a: Array<out Any?>, fromIndex: Int, toIndex: Int): Unit
+                    external fun binarySearch(a: Array<out Any?>, fromIndex: Int, toIndex: Int, key: Any?): Int
+            """
+        let primitiveArraySpecs: [(name: String, type: String, descriptor: String, element: JVMValueType, canSort: Bool, canSearch: Bool)] = [
+            ("Byte", "ByteArray", "[B", .byte, true, true),
+            ("Short", "ShortArray", "[S", .short, true, true),
+            ("Int", "IntArray", "[I", .int, true, true),
+            ("Long", "LongArray", "[J", .long, true, true),
+            ("Float", "FloatArray", "[F", .float, true, true),
+            ("Double", "DoubleArray", "[D", .double, true, true),
+            ("Char", "CharArray", "[C", .char, true, true),
+            ("Boolean", "BooleanArray", "[Z", .boolean, false, false),
+        ]
+        for spec in primitiveArraySpecs {
+            let array = JVMValueType.reference(spec.descriptor, nullable: false)
+            let nullableArray = JVMValueType.reference(spec.descriptor, nullable: true)
+            arraysSource += "\n                    external fun equals(a: \(spec.type)?, b: \(spec.type)?): Boolean"
+            arraysSource += "\n                    external fun hashCode(a: \(spec.type)?): Int"
+            arraysSource += "\n                    external fun toString(a: \(spec.type)?): String"
+            arraysSource += "\n                    external fun copyOf(a: \(spec.type), newLength: Int): \(spec.type)"
+            arraysMethods.append(method("java/util/Arrays", "equals", [nullableArray, nullableArray], .boolean, staticMember: true))
+            arraysMethods.append(method("java/util/Arrays", "hashCode", [nullableArray], .int, staticMember: true))
+            arraysMethods.append(method("java/util/Arrays", "toString", [nullableArray], .string, staticMember: true))
+            arraysMethods.append(method("java/util/Arrays", "copyOf", [array, .int], array, staticMember: true))
+            if spec.canSort {
+                arraysSource += "\n                    external fun sort(a: \(spec.type)): Unit"
+                arraysSource += "\n                    external fun sort(a: \(spec.type), fromIndex: Int, toIndex: Int): Unit"
+                arraysMethods.append(method("java/util/Arrays", "sort", [array], .unit, staticMember: true))
+                arraysMethods.append(method("java/util/Arrays", "sort", [array, .int, .int], .unit, staticMember: true))
+            }
+            if spec.canSearch {
+                arraysSource += "\n                    external fun binarySearch(a: \(spec.type), fromIndex: Int, toIndex: Int, key: \(spec.name)): Int"
+                arraysMethods.append(method("java/util/Arrays", "binarySearch", [array, .int, .int, spec.element], .int, staticMember: true))
+            }
+        }
+        arraysSource += "\n                }\n            }\n"
         let declarations: [(String, String, UInt16, String?, [JVMForeignMethod])] = [
             ("java/lang/Math", """
             package java.lang
@@ -79,12 +141,7 @@ extension JVMClasspathIndex {
                 method("java/lang/Character", "isDigit", [.char], .boolean, staticMember: true),
                 method("java/lang/Character", "isDigit", [.int], .boolean, staticMember: true),
             ]),
-            ("java/util/Arrays", """
-            package java.util
-            class Arrays private constructor() {
-                companion object { external fun sort(a: IntArray): Unit }
-            }
-            """, 0x0031, "java/lang/Object", [method("java/util/Arrays", "sort", [.reference("[I", nullable: false)], .unit, staticMember: true)]),
+            ("java/util/Arrays", arraysSource, 0x0031, "java/lang/Object", arraysMethods),
             ("java/util/function/ToIntFunction", """
             package java.util.function
             fun interface ToIntFunction<T> { fun applyAsInt(value: T): Int }
@@ -98,6 +155,61 @@ extension JVMClasspathIndex {
                 }
             }
             """, 0x0601, "java/lang/Object", [method("java/util/Comparator", "compare", [object, object], .int, interface: true), method("java/util/Comparator", "comparingInt", [extractor], comparator, staticMember: true, interface: true)]),
+            ("java/util/LinkedHashMap", """
+            package java.util
+            open class LinkedHashMap<K, V> : kotlin.collections.MutableMap<K, V> {
+                constructor()
+                override val size: Int get() = 0
+                override val keys: kotlin.collections.Set<K> get() = null!!
+                override val values: kotlin.collections.Collection<V> get() = null!!
+                override val entries: kotlin.collections.MutableSet<kotlin.collections.MutableMap.MutableEntry<K, V>> get() = null!!
+                override fun get(key: K): V? = null
+                override fun containsKey(key: K): Boolean = false
+                override fun containsValue(value: V): Boolean = false
+                override fun isEmpty(): Boolean = false
+                override fun put(key: K, value: V): V? = null
+                override operator fun set(key: K, value: V) {}
+                override fun remove(key: K): V? = null
+                override fun clear() {}
+            }
+            """, 0x0001, "java/util/HashMap", [method("java/util/LinkedHashMap", "<init>", [], .reference("java/util/LinkedHashMap", nullable: false))]),
+            ("java/util/SortedMap", """
+            package java.util
+            interface SortedMap<K, V> : kotlin.collections.MutableMap<K, V> {
+                fun comparator(): kotlin.Comparator<in K>?
+                fun firstKey(): K
+                fun lastKey(): K
+            }
+            """, 0x0601, "java/lang/Object", [
+                method("java/util/SortedMap", "comparator", [], .reference("java/util/Comparator", nullable: true), interface: true),
+                method("java/util/SortedMap", "firstKey", [], object, interface: true),
+                method("java/util/SortedMap", "lastKey", [], object, interface: true),
+            ]),
+            ("java/util/TreeMap", """
+            package java.util
+            open class TreeMap<K, V> : SortedMap<K, V> {
+                constructor()
+                constructor(comparator: kotlin.Comparator<in K>?)
+                override fun comparator(): kotlin.Comparator<in K>? = null
+                override fun firstKey(): K = null!!
+                override fun lastKey(): K = null!!
+                override val size: Int get() = 0
+                override val keys: kotlin.collections.Set<K> get() = null!!
+                override val values: kotlin.collections.Collection<V> get() = null!!
+                override val entries: kotlin.collections.MutableSet<kotlin.collections.MutableMap.MutableEntry<K, V>> get() = null!!
+                override fun get(key: K): V? = null
+                override fun containsKey(key: K): Boolean = false
+                override fun containsValue(value: V): Boolean = false
+                override fun isEmpty(): Boolean = false
+                override fun put(key: K, value: V): V? = null
+                override operator fun set(key: K, value: V) {}
+                override fun remove(key: K): V? = null
+                override fun clear() {}
+            }
+            """, 0x0001, "java/util/AbstractMap", [
+                method("java/util/TreeMap", "<init>", [], .reference("java/util/TreeMap", nullable: false)),
+                method("java/util/TreeMap", "<init>", [.reference("java/util/Comparator", nullable: true)], .reference("java/util/TreeMap", nullable: false)),
+            ]),
             ("java/util/Collections", """
             package java.util
             class Collections private constructor() {

@@ -2,6 +2,8 @@ package kotlin.collections
 
 public fun <T> Array<out T>.distinct(): List<T> = asIterable().distinct()
 
+public fun <T> Array<out T>.minusElement(element: T): List<T> = asList().minusElement(element)
+
 public fun <T> Array<out T>.toSet(): Set<T> = asIterable().toSet()
 
 public fun <T> Array<out T>.toHashSet(): HashSet<T> = asIterable().toHashSet()

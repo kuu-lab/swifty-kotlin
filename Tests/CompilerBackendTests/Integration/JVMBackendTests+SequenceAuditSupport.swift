@@ -34,7 +34,7 @@ extension JVMBackendTests {
     func runSequenceAuditFixture(_ name: String, lane: JVMSequenceAuditLane) throws {
         let library = try JVMSequenceAuditStdlibCache.shared.library()
         let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/JVMSequenceAudit")
-        let source = try String(contentsOf: fixtures.appendingPathComponent(name + ".kt"), encoding: .utf8)
+        let source = try fixtureOrDiffCaseSource(fixtures, name)
         let expected = try String(contentsOf: fixtures.appendingPathComponent(name + ".out"), encoding: .utf8)
         try withWorkspace { root in
             let artifact: URL

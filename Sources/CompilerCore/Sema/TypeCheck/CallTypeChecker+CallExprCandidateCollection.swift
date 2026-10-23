@@ -692,7 +692,55 @@ extension CallTypeChecker {
         } else {
             candidates = []
         }
+        candidates = preferKotlinStringConstructorFactories(
+            candidates,
+            calleeName: calleeName,
+            calleePath: calleePath,
+            ctx: ctx
+        )
         return nil
+    }
+
+    private func preferKotlinStringConstructorFactories(
+        _ candidates: [SymbolID],
+        calleeName: InternedString?,
+        calleePath: [InternedString]?,
+        ctx: TypeInferenceContext
+    ) -> [SymbolID] {
+        let interner = ctx.interner
+        guard calleePath.map({ $0.count <= 1 }) ?? true,
+              calleeName == interner.intern("String")
+        else {
+            return candidates
+        }
+
+        let kotlinStringFQName = [interner.intern("kotlin"), interner.intern("String")]
+        let kotlinTextStringFQName = [
+            interner.intern("kotlin"), interner.intern("text"), interner.intern("String"),
+        ]
+        let preferredParameterTypes = Set(candidates.compactMap { candidate -> [TypeID]? in
+            guard let symbol = ctx.cachedSymbol(candidate),
+                  symbol.kind == .function,
+                  symbol.fqName == kotlinStringFQName
+            else {
+                return nil
+            }
+            return ctx.sema.symbols.functionSignature(for: candidate)?.parameterTypes
+        })
+        guard !preferredParameterTypes.isEmpty else {
+            return candidates
+        }
+
+        return candidates.filter { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate),
+                  symbol.kind == .function,
+                  symbol.fqName == kotlinTextStringFQName,
+                  let signature = ctx.sema.symbols.functionSignature(for: candidate)
+            else {
+                return true
+            }
+            return !preferredParameterTypes.contains(signature.parameterTypes)
+        }
     }
 
     func aliasConstructorArgumentContextTypes(

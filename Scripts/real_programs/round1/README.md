@@ -31,8 +31,7 @@ SHA-256、期待終了コード、関連子課題を保持する。各ケース�
 ## 2026-10-13 JST の再検証
 
 compiler commit `3858ce74e43330e31d416daa921eb0095896f878`、Kotlin 2.3.10 / OpenJDK 27、
-同じfresh stdlib `.kklib` で全69実行を確認した。[実測サマリ](validation.json)に
-compiler・コーパス・stdlibのSHA-256と子課題の対応を記録する。
+同じfresh stdlib `.kklib` で全69実行を確認した。
 
 | レーン | 出力・終了コード一致 | compile失敗 | 誤計算 |
 |---|---:|---:|---:|

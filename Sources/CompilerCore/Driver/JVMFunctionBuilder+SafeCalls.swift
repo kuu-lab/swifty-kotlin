@@ -1,6 +1,8 @@
 extension JVMFunctionBuilder {
     func memberExpression(_ id: ExprID, receiver: ExprID, name: InternedString, typeArgs: [TypeRefID], args: [CallArgument]) throws -> JVMValue? {
         if context.interner.resolve(name) == "isInitialized", args.isEmpty, let result = try lateinitInitialized(receiver) { return result }
+        if let symbol = program.sema.bindings.callBinding(for: id)?.chosenCallee,
+           let result = try resultCompanionCall(symbol, args: args, id: id) { return result.value }
         if !arena.isExplicitCall(id), let value = try nominalValue(id) { return value }
         if !arena.isExplicitCall(id), context.interner.resolve(name) == "Companion",
            let receiverSymbol = program.sema.bindings.identifierSymbol(for: receiver),
@@ -43,6 +45,15 @@ extension JVMFunctionBuilder {
             if isSuper(receiver) { method = try superMethod(method, receiver: receiver) }
             let object = method.isStatic || method.isConstructor ? nil : try requireValue(receiver)
             return try foreign(method, receiver: object, args: args, id: id)
+        }
+        if member == "compare", args.count == 2,
+           let receiverType = try? program.expressionType(receiver),
+           receiverType.referenceName == "java/util/Comparator",
+           args.allSatisfy({ $0.label == nil && !$0.isSpread }) {
+            let comparator = try convert(requireValue(receiver), to: .reference("java/util/Comparator", nullable: false))
+            let object = JVMValueType.reference("java/lang/Object", nullable: true)
+            let values = try args.map { try convert(requireValue($0.expr), to: object) }
+            return try jdkCall("java/util/Comparator", "compare", [object, object], .int, receiver: comparator, arguments: values, interface: true)
         }
         let source = try requireValue(receiver)
         let targets = Self.numericConversions

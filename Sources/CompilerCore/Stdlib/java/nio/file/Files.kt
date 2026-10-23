@@ -11,7 +11,12 @@ private external fun readInto(fd: Int, bytes: ByteArray, offset: Int, count: Int
 @KsSymbolName("__kk_io_fs_close")
 private external fun closeRead(fd: Int)
 
+@KsSymbolName("__kk_io_fs_exists")
+private external fun pathExists(path: String): Boolean
+
 public object Files {
+    public fun exists(path: Path): Boolean = pathExists(path.toString())
+
     public fun readAllBytes(path: Path): ByteArray {
         val fd = openRead(path.toString())
         try {

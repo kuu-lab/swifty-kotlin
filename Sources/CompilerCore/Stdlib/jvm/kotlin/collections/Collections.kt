@@ -23,6 +23,10 @@ public fun <T> mutableListOf(vararg elements: T): MutableList<T> {
     return result
 }
 
+public fun Collection<*>.indices(): IntRange = 0..this.size - 1
+public fun <T> List<T>.indices(): IntRange = 0..this.size - 1
+public fun <T> List<T>.lastIndex(): Int = this.size - 1
+
 public operator fun <T> List<T>.component1(): T = this[0]
 public operator fun <T> List<T>.component2(): T = this[1]
 public operator fun <T> List<T>.component3(): T = this[2]
@@ -263,8 +267,7 @@ public fun <T> arrayListOf(vararg elements: T): java.util.ArrayList<T> {
 }
 
 public operator fun <T> Collection<T>.plus(element: T): List<T> {
-    val result = mutableListOf<T>()
-    for (item in this) result.add(item)
+    val result = this.toMutableList()
     result.add(element)
     return result
 }
@@ -275,8 +278,7 @@ public operator fun <T> Iterable<T>.plus(element: T): List<T> {
     return result
 }
 public operator fun <T> Collection<T>.plus(elements: Iterable<T>): List<T> {
-    val result = mutableListOf<T>()
-    for (item in this) result.add(item)
+    val result = this.toMutableList()
     for (item in elements) result.add(item)
     return result
 }
@@ -302,8 +304,7 @@ public operator fun <T> Iterable<T>.minus(elements: Iterable<T>): List<T> {
 }
 
 public operator fun <T> Collection<T>.plus(elements: Array<out T>): List<T> {
-    val result = mutableListOf<T>()
-    for (item in this) result.add(item)
+    val result = this.toMutableList()
     for (item in elements) result.add(item)
     return result
 }
@@ -324,8 +325,7 @@ public operator fun <T> Iterable<T>.minus(elements: Array<out T>): List<T> {
 }
 
 public operator fun <T> Collection<T>.plus(elements: kotlin.sequences.Sequence<T>): List<T> {
-    val result = mutableListOf<T>()
-    for (item in this) result.add(item)
+    val result = this.toMutableList()
     for (item in elements) result.add(item)
     return result
 }
