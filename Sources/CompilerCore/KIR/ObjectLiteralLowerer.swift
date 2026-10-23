@@ -983,6 +983,14 @@ final class ObjectLiteralLowerer {
             canThrow: false,
             thrownResult: nil
         ))
+        driver.callLowerer.emitClassEnclosingMetadataRegistration(
+            for: objectSymbol,
+            typeTokenExpr: typeTokenExpr,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
         emitKClassDisplayNameRegistration(
             symbol: objectSymbol, typeTokenExpr: typeTokenExpr,
             sema: sema, arena: arena, interner: interner, instructions: &instructions

@@ -107,6 +107,65 @@ private let runtimeBuiltinSupertypes: [String: [String]] = {
     return table
 }()
 
+private let runtimeBuiltinTypeParameterNames: [String: [String]] = [
+    "kotlin.Enum": ["E"],
+    "kotlin.Comparable": ["T"],
+    "kotlin.collections.Iterable": ["T"],
+    "kotlin.collections.Collection": ["E"],
+    "kotlin.collections.MutableCollection": ["E"],
+    "kotlin.collections.List": ["E"],
+    "kotlin.collections.MutableList": ["E"],
+    "kotlin.collections.Set": ["E"],
+    "kotlin.collections.MutableSet": ["E"],
+    "kotlin.collections.Map": ["K", "V"],
+    "kotlin.collections.MutableMap": ["K", "V"],
+    "kotlin.collections.Map.Entry": ["K", "V"],
+    "kotlin.collections.MutableMap.MutableEntry": ["K", "V"],
+    "kotlin.collections.Iterator": ["T"],
+    "kotlin.collections.MutableIterator": ["T"],
+    "kotlin.collections.ListIterator": ["T"],
+    "kotlin.collections.MutableListIterator": ["T"],
+    "kotlin.Array": ["T"],
+    "kotlin.reflect.KClass": ["T"],
+]
+
+func runtimeKClassTypeParameterMetadata(
+    qualifiedName: String,
+    metadata: RuntimeKClassMetadataEntry?
+) -> [RuntimeKTypeParameterMetadata] {
+    if let parameters = metadata?.typeParameters, !parameters.isEmpty {
+        return parameters
+    }
+    let names = runtimeBuiltinTypeParameterNames[qualifiedName] ?? []
+    let count = max(metadata?.typeParameterCount ?? 0, names.count)
+    return (0..<count).map { index in
+        let name = names.indices.contains(index) ? names[index] : "T\(index)"
+        let identity = Int(truncatingIfNeeded: runtimeStableNominalTypeID(
+            fqName: "\(qualifiedName).<type-parameter-\(index)>"
+        ))
+        return RuntimeKTypeParameterMetadata(identity: identity, name: name, varianceOrdinal: 0)
+    }
+}
+
+func runtimeKClassTypeParameterHandles(
+    qualifiedName: String,
+    metadata: RuntimeKClassMetadataEntry?
+) -> [Int] {
+    runtimeKClassTypeParameterMetadata(qualifiedName: qualifiedName, metadata: metadata)
+        .map { parameter in
+            let identity = parameter.identity == 0
+                ? Int(truncatingIfNeeded: runtimeStableNominalTypeID(
+                    fqName: "\(qualifiedName).<type-parameter-\(parameter.name)>"
+                ))
+                : parameter.identity
+            return runtimeKTypeParameterHandle(
+                identity: identity,
+                name: parameter.name,
+                varianceOrdinal: parameter.varianceOrdinal
+            )
+        }
+}
+
 /// Resolves a qualified type name to its runtime type token, mirroring the
 /// builtin-base table in `__kk_type_token_qualified_name` and falling back to
 /// a nominal token whose payload is the FNV name hash used by
@@ -194,16 +253,29 @@ private func runtimeSplitTypeDisplayName(_ display: String) -> (base: String, ar
 
 /// Type-parameter display names like `E` produce a
 /// nominal classifier placeholder — there is no KTypeParameter box yet.
-private func runtimeKTypeForSupertypeDisplayName(_ display: String) -> Int {
+private func runtimeKTypeForSupertypeDisplayName(
+    _ display: String,
+    typeParameterClassifiers: [String: Int]
+) -> Int {
     guard let (base, argDisplays) = runtimeSplitTypeDisplayName(display) else {
         return 0
+    }
+    if argDisplays.isEmpty, let typeParameterRaw = typeParameterClassifiers[base] {
+        return registerRuntimeObject(RuntimeKTypeBox(
+            classifierRaw: typeParameterRaw,
+            argumentRaws: [],
+            isMarkedNullable: display.trimmingCharacters(in: .whitespaces).hasSuffix("?")
+        ))
     }
     let baseRaw = runtimeReflectionStringRaw(base)
     let token = runtimeTypeToken(forQualifiedName: base)
     let classifierRaw = __kk_kclass_create(Int(token), baseRaw)
     var argumentRaws: [Int] = []
     for argDisplay in argDisplays {
-        let argRaw = runtimeKTypeForSupertypeDisplayName(argDisplay)
+        let argRaw = runtimeKTypeForSupertypeDisplayName(
+            argDisplay,
+            typeParameterClassifiers: typeParameterClassifiers
+        )
         let projection = RuntimeKTypeProjectionBox(typeRaw: argRaw, variance: .invariant)
         argumentRaws.append(registerRuntimeObject(projection))
     }
@@ -229,8 +301,23 @@ public func __kk_kclass_supertypes(_ kclassRaw: Int) -> Int {
     let displays = runtimeBuiltinSupertypes[qualifiedName]
         ?? box.metadata?.supertypeDisplayNames
         ?? []
+    let parameters = runtimeKClassTypeParameterMetadata(
+        qualifiedName: qualifiedName,
+        metadata: box.metadata
+    )
+    let parameterHandles = runtimeKClassTypeParameterHandles(
+        qualifiedName: qualifiedName,
+        metadata: box.metadata
+    )
+    let parameterClassifiers = Dictionary(
+        zip(parameters.map(\.name), parameterHandles),
+        uniquingKeysWith: { first, _ in first }
+    )
     let elements = displays.compactMap { display -> Int? in
-        let raw = runtimeKTypeForSupertypeDisplayName(display)
+        let raw = runtimeKTypeForSupertypeDisplayName(
+            display,
+            typeParameterClassifiers: parameterClassifiers
+        )
         return raw == 0 ? nil : raw
     }
     return registerRuntimeObject(RuntimeListBox(elements: elements))
