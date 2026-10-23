@@ -22,6 +22,7 @@ final class JVMProgramBuilder {
     var inlineDeclarations: [SymbolID: FunDecl] = [:]
     var sourceParameters: [SymbolID: [ValueParamDecl]] = [:]
     var sourceDeclarations: [SymbolID: FunDecl] = [:]
+    var sourceRangeResultSymbols: Set<SymbolID> = []
     var inlineTypeArguments: [SymbolID: TypeID] = [:]
     var textLibraryMethods: [SymbolID: JVMTextLibraryMethod] = [:]
     var textLibraryProperties: [SymbolID: JVMForeignMethod] = [:]
@@ -41,6 +42,13 @@ final class JVMProgramBuilder {
         noteFunctionTypes(actual)
         return try JVMClasspathIndex.type(actual, sema: sema, ctx: context)
     }
+    func hasSourceRangeOperator(_ id: ExprID) -> Bool {
+        if let symbol = sema.bindings.callBinding(for: id)?.chosenCallee,
+           methods[symbol] != nil || references[symbol] != nil || inlineDeclarations[symbol] != nil {
+            return true
+        }
+        return sema.bindings.identifierSymbol(for: id).map(sourceRangeResultSymbols.contains) ?? false
+    }
     /// The declared type without the active inline substitution. Storage that
     /// outlives one instantiation (anonymous object capture fields, shared
     /// mutable-variable cells) is emitted once, so it must erase reified type
@@ -54,11 +62,11 @@ final class JVMProgramBuilder {
             throw JVMFrontendError(message: "JVM expression has no resolved type.", range: ast.arena.exprRange(id))
         }
         let mapped = try self.type(type)
-        // Range expressions carry the runtime-box element type (Int) in
-        // exprTypes, but the JVM backend materializes a real IntRange
-        // reference. Reads of range-marked expressions must keep the nominal
-        // type or the value would be unboxed like an Int.
-        if mapped == .int, sema.bindings.isRangeExpr(id) {
+        // Primitive range expressions carry their element type (Int) in
+        // exprTypes, but the JVM backend materializes an IntRange reference.
+        // A source-backed rangeTo may instead return Int or another declared
+        // type, so preserve its resolved result type.
+        if mapped == .int, sema.bindings.isRangeExpr(id), !hasSourceRangeOperator(id) {
             return .reference("kotlin/ranges/IntRange", nullable: false)
         }
         return mapped
@@ -504,6 +512,9 @@ final class JVMFunctionBuilder {
             if delegated || late { try specialLocal(id, name: name, mutable: mutable, initializer: initializer, delegated: delegated, late: late); return nil }
             guard scopes[scopes.count - 1][name] == nil else { throw fail("JVM locals require a unique name in their scope.", id) }
             let symbol = program.sema.bindings.identifierSymbol(for: id)
+            if let symbol, let initializer, program.hasSourceRangeOperator(initializer) {
+                program.sourceRangeResultSymbols.insert(symbol)
+            }
             let semanticType = symbol.flatMap { program.sema.symbols.propertyType(for: $0) }
                 ?? initializer.flatMap { program.sema.bindings.exprType(for: $0) }
             let declaredType: JVMValueType?
