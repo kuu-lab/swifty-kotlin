@@ -191,6 +191,7 @@ final class ConstPropertyEvaluator {
     private func isSourceBackedMemberExtensionCall(_ expr: ExprID) -> Bool {
         guard let callee = sema.bindings.callBinding(for: expr)?.chosenCallee,
               sema.symbols.isSourceBackedSymbol(callee),
+              sema.symbols.symbol(callee)?.flags.contains(.synthetic) != true,
               sema.symbols.functionSignature(for: callee)?.receiverType != nil
         else {
             return false
