@@ -28,7 +28,10 @@ internal struct RuntimeElementKey: Hashable {
         if lhs.isCharScalar || rhs.isCharScalar {
             return runtimeCharScalarKeyEqual(lhs, rhs)
         }
-        return runtimeValuesEqual(lhs.value, rhs.value)
+        // Probing equality, not `==`: an enum argument may reach this key
+        // unboxed (a bare ordinal) while the stored element is the canonical
+        // enum-tagged box (KUU-3027).
+        return runtimeLookupValuesEqual(lhs.value, rhs.value)
     }
 }
 
@@ -107,10 +110,11 @@ func runtimeElementKeyHash(_ value: Int, into hasher: inout Hasher, depth: Int =
     }
     if let intBox = tryCast(pointer, to: RuntimeIntBox.self) {
         // Enum ordinals cross call sites as both `RuntimeIntBox` (optionally
-        // carrying `enumClassID`) and raw unboxed `Int`s. `runtimeValuesEqual`
-        // unboxes both sides and reports such pairs equal, so the internal
-        // hash must be keyed by value only — hashing `enumClassID` here would
-        // send equal keys to different buckets and break `Set.contains`.
+        // carrying `enumClassID`) and raw unboxed `Int`s. The probing equality
+        // (`runtimeLookupValuesEqual`, KUU-3027) still reports such pairs
+        // equal, so the internal hash must be keyed by value only — hashing
+        // `enumClassID` here would send equal keys to different buckets and
+        // break `Set.contains`.
         hasher.combine(1)
         hasher.combine(intBox.value)
         return
@@ -1044,6 +1048,36 @@ public func kk_mutable_list_add(
 @_cdecl("__kk_mutable_list_remove")
 public func kk_mutable_list_remove(_ listRaw: Int, _ elem: Int) -> Int {
     kk_mutable_list_remove_dispatch(listRaw, elem, nil)
+}
+
+/// Erased `List<T>.indexOf` behind the special-builtins contract: list boxes
+/// search their storage directly, while source-defined List implementations
+/// dispatch through the List itable so an override's type-safe barrier still
+/// applies before the element reaches a narrowed parameter.
+@_cdecl("__kk_list_index_of")
+public func kk_list_index_of(
+    _ listRaw: Int,
+    _ element: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    if let list = runtimeListBox(from: listRaw) {
+        return list.values.firstIndex(where: { list.elementsEqual($0.legacyRawValue, element) }) ?? -1
+    }
+    return runtimeSourceListIndexOf(listRaw, element: element, outThrown: outThrown) ?? -1
+}
+
+@_cdecl("__kk_list_lastIndexOf")
+public func kk_list_lastIndexOf(
+    _ listRaw: Int,
+    _ element: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    if let list = runtimeListBox(from: listRaw) {
+        return list.values.lastIndex(where: { list.elementsEqual($0.legacyRawValue, element) }) ?? -1
+    }
+    return runtimeSourceListLastIndexOf(listRaw, element: element, outThrown: outThrown) ?? -1
 }
 
 @_cdecl("__kk_mutable_list_remove_dispatch")

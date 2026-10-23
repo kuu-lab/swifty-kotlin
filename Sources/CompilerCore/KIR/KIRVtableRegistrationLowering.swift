@@ -909,12 +909,11 @@ public extension SymbolTable {
     }
 }
 
-/// Returns a bridge symbol for `implementation` when its ABI (String aggregate
-/// vs raw pointer) does not match the erased dispatch signature used by the
-/// vtable or itable. The bridge has the dispatch ABI, forwards to the
-/// implementation, checks narrowed erased reference arguments, and relies on
-/// the backend's String bridging in `.call` and `returnValue` to convert across
-/// the boundary.
+/// Returns a bridge symbol for `implementation` when its ABI does not match
+/// the vtable or itable dispatch signature. The bridge adapts erased generic
+/// values, String aggregate/raw-pointer representation, and member-extension
+/// receiver lists, then forwards to the implementation after checking narrowed
+/// erased reference arguments.
 func itableBridgeSymbolForMethod(
     interfaceMethod: SymbolID,
     implementation: SymbolID,
@@ -926,7 +925,12 @@ func itableBridgeSymbolForMethod(
     sema: SemaModule,
     interner: StringInterner
 ) -> SymbolID {
-    guard implementation != interfaceMethod,
+    let barrierDefault = kirSpecialBuiltinBarrierDefault(
+        for: interfaceMethod,
+        sema: sema,
+        interner: interner
+    )
+    guard implementation != interfaceMethod || barrierDefault != nil,
           implementation.rawValue >= 0 || SyntheticSymbolScheme.decodedPropertyAccessor(implementation) != nil,
           let interfaceSig = interfaceSignature ?? sema.symbols.functionSignature(for: interfaceMethod),
           let implSig = implementationSignature ?? sema.symbols.functionSignature(for: implementation)
@@ -968,6 +972,22 @@ func itableBridgeSymbolForMethod(
         return false
     }
 
+    let memberExtensionOwner = sema.symbols.symbol(interfaceMethod)?.kind == .function
+        ? sema.symbols.memberExtensionOwnerSymbol(for: interfaceMethod)
+        : nil
+    func dispatchReceiverType(owner: SymbolID, signature: FunctionSignature) -> TypeID {
+        let ownerTypeArgs = signature.typeParameterSymbols
+            .prefix(signature.classTypeParameterCount)
+            .map { TypeArg.invariant(sema.types.make(.typeParam(TypeParamType(
+                symbol: $0, nullability: .nonNull
+            )))) }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: owner, args: ownerTypeArgs, nullability: .nonNull
+        )))
+    }
+    let interfaceDispatchReceiver = memberExtensionOwner.map {
+        dispatchReceiverType(owner: $0, signature: interfaceSig)
+    }
     let interfaceReceiver = interfaceSig.receiverType
     let interfaceValueParamTypes = interfaceSig.parameterTypes.enumerated().map { index, elementType in
         guard interfaceSig.valueParameterIsVararg.indices.contains(index),
@@ -979,26 +999,48 @@ func itableBridgeSymbolForMethod(
             ?? referenceVarargArrayType(elementType: elementType, sema: sema, interner: interner)
             ?? elementType
     }
-    let interfaceParamTypes = [interfaceReceiver].compactMap { $0 } + interfaceValueParamTypes
+    let interfaceParamTypes = [interfaceDispatchReceiver, interfaceReceiver].compactMap { $0 }
+        + interfaceValueParamTypes
+    let implementationDispatchOwner = sema.symbols.memberExtensionOwnerSymbol(for: implementation)
+    let implementationDispatchReceiver = implementationDispatchOwner.map { owner in
+        implementationFn?.params.first?.type
+            ?? dispatchReceiverType(owner: owner, signature: implSig)
+    }
+    let implementationValueParamTypes = implSig.parameterTypes.enumerated().map { index, elementType in
+        guard implSig.valueParameterIsVararg.indices.contains(index),
+              implSig.valueParameterIsVararg[index]
+        else {
+            return elementType
+        }
+        return primitiveVarargArrayType(elementType: elementType, sema: sema, interner: interner)
+            ?? referenceVarargArrayType(elementType: elementType, sema: sema, interner: interner)
+            ?? elementType
+    }
     let implementationParamTypes = implementationFn?.params.map(\.type)
-        ?? ([implSig.receiverType].compactMap { $0 } + implSig.parameterTypes.enumerated().map { index, elementType in
-            guard implSig.valueParameterIsVararg.indices.contains(index),
-                  implSig.valueParameterIsVararg[index]
-            else {
-                return elementType
-            }
-            return primitiveVarargArrayType(elementType: elementType, sema: sema, interner: interner)
-                ?? referenceVarargArrayType(elementType: elementType, sema: sema, interner: interner)
-                ?? elementType
-        })
+        ?? ([implementationDispatchReceiver, implSig.receiverType].compactMap { $0 }
+            + implementationValueParamTypes)
 
     guard implementationParamTypes.count == interfaceParamTypes.count else {
         return implementation
     }
 
-    let receiverCount = interfaceReceiver == nil ? 0 : 1
+    let receiverCount = interfaceDispatchReceiver == nil
+        ? (interfaceReceiver == nil ? 0 : 1)
+        : 2
+    // KUU-2954: special-builtins collection members carry a JVM type-safe
+    // barrier — the erased `Object` slot answers the member's default instead
+    // of reaching an implementation whose parameter cannot hold the value.
+    // The barrier replaces the checkcast on those parameters: a rejected
+    // argument returns the default rather than trapping.
+    let barrierCheckTypes: [TypeID?] = implementationParamTypes.enumerated().map { index, implType -> TypeID? in
+        guard barrierDefault != nil, index >= receiverCount else { return nil }
+        return kirErasedDispatchBarrierCheckType(
+            implementationParamType: implType,
+            sema: sema
+        )
+    }
     let argumentCastTargets = implementationParamTypes.enumerated().map { index, implType -> TypeID? in
-        guard index >= receiverCount else { return nil }
+        guard index >= receiverCount, barrierCheckTypes[index] == nil else { return nil }
         return kirErasedDispatchArgumentCastTarget(
             implementationType: implType,
             dispatchType: interfaceParamTypes[index],
@@ -1007,30 +1049,60 @@ func itableBridgeSymbolForMethod(
     }
 
     var needsBridge = argumentCastTargets.contains { $0 != nil }
+        || barrierCheckTypes.contains { $0 != nil }
     if isStringAggregate(implementationReturnType) != isStringAggregate(interfaceSig.returnType) {
         needsBridge = true
     }
-    let needsErasedPrimitiveReturnBoxing: Bool = {
-        guard case .typeParam = sema.types.kind(of: interfaceSig.returnType) else {
+    func isErasedValueSlot(_ type: TypeID) -> Bool {
+        switch sema.types.kind(of: type) {
+        case .typeParam, .any:
+            return true
+        default:
             return false
         }
-        let rawKind = sema.types.kind(of: implementationReturnType)
-        let resolvedKind = resolveValueClassKind(rawKind, types: sema.types, symbols: sema.symbols)
+    }
+    func hasBoxableValueRepresentation(_ type: TypeID) -> Bool {
+        let resolvedKind = resolveValueClassKind(
+            sema.types.kind(of: type),
+            types: sema.types,
+            symbols: sema.symbols
+        )
         return BoxingCalleeTable(interner: interner).boxCallee(for: resolvedKind, requireNonNull: true) != nil
+    }
+    let needsErasedValueReturnBoxing = isErasedValueSlot(interfaceSig.returnType)
+        && hasBoxableValueRepresentation(implementationReturnType)
+    let needsErasedValueReturnUnboxing: Bool = {
+        guard isErasedValueSlot(implementationReturnType),
+              case .primitive(_, .nonNull) = sema.types.kind(of: interfaceSig.returnType)
+        else {
+            return false
+        }
+        return true
     }()
-    if needsErasedPrimitiveReturnBoxing {
+    if needsErasedValueReturnBoxing || needsErasedValueReturnUnboxing {
         needsBridge = true
     }
-    // Callers of the erased signature box `T`-typed arguments, but the
-    // implementation body expects the raw primitive (direct calls pass raw
-    // values), so the bridge must unbox them before forwarding.
-    func needsErasedPrimitiveParamUnboxing(implType: TypeID, ifaceType: TypeID) -> Bool {
-        guard case .typeParam = sema.types.kind(of: ifaceType),
+    // Erased `T` and `Any` slots carry primitive arguments as boxes, while a
+    // specialized implementation expects the raw primitive word.
+    func needsErasedValueParamUnboxing(implType: TypeID, ifaceType: TypeID) -> Bool {
+        guard isErasedValueSlot(ifaceType),
               case .primitive(_, .nonNull) = sema.types.kind(of: implType)
         else {
             return false
         }
         return true
+    }
+    func needsErasedValueParamBoxing(implType: TypeID, ifaceType: TypeID) -> Bool {
+        guard isErasedValueSlot(implType),
+              case .primitive(_, .nonNull) = sema.types.kind(of: ifaceType)
+        else {
+            return false
+        }
+        return true
+    }
+    func needsErasedValueParamAdaptation(implType: TypeID, ifaceType: TypeID) -> Bool {
+        needsErasedValueParamUnboxing(implType: implType, ifaceType: ifaceType)
+            || needsErasedValueParamBoxing(implType: implType, ifaceType: ifaceType)
     }
     // Enum values are raw ordinals everywhere except behind an interface or
     // `Any` slot, where they are `kk_enum_box_ordinal` boxes. An enum member
@@ -1056,7 +1128,7 @@ func itableBridgeSymbolForMethod(
     if !needsBridge {
         for (implType, ifaceType) in zip(implementationParamTypes, interfaceParamTypes) {
             if isStringAggregate(implType) != isStringAggregate(ifaceType)
-                || needsErasedPrimitiveParamUnboxing(implType: implType, ifaceType: ifaceType)
+                || needsErasedValueParamAdaptation(implType: implType, ifaceType: ifaceType)
             {
                 needsBridge = true
                 break
@@ -1093,11 +1165,7 @@ func itableBridgeSymbolForMethod(
             declSite: nil, visibility: .private, flags: [.synthetic]
         )
     }
-    if let receiverType = interfaceSig.receiverType {
-        let receiverSymbol = parameterSymbol(bridgeParams.count)
-        bridgeParams.append(KIRParameter(symbol: receiverSymbol, type: receiverType))
-    }
-    for paramType in interfaceSig.parameterTypes {
+    for paramType in interfaceParamTypes {
         let paramSymbol = parameterSymbol(bridgeParams.count)
         bridgeParams.append(KIRParameter(symbol: paramSymbol, type: paramType))
     }
@@ -1116,6 +1184,29 @@ func itableBridgeSymbolForMethod(
         if let driver { return driver.ctx.makeLoopLabel() }
         defer { nextLocalLabel += 1 }
         return nextLocalLabel
+    }
+    let barrierFailLabel: Int32? = barrierCheckTypes.contains(where: { $0 != nil })
+        ? makeBridgeLabel()
+        : nil
+    if let barrierFailLabel {
+        for (index, checkType) in barrierCheckTypes.enumerated() {
+            guard let checkType else { continue }
+            let token = RuntimeTypeCheckToken.encode(type: checkType, sema: sema, interner: interner)
+            let tokenExpr = arena.appendExpr(.intLiteral(token), type: sema.types.intType)
+            body.append(.constValue(result: tokenExpr, value: .intLiteral(token)))
+            let isResult = arena.appendTemporary(type: sema.types.booleanType)
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_op_is"),
+                arguments: [bridgeParamExprs[index], tokenExpr],
+                result: isResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+            body.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+            body.append(.jumpIfEqual(lhs: isResult, rhs: zeroExpr, target: barrierFailLabel))
+        }
     }
     for (index, target) in argumentCastTargets.enumerated() {
         guard let target else { continue }
@@ -1156,7 +1247,7 @@ func itableBridgeSymbolForMethod(
         forwardedArgExprs[0] = ordinal
     }
     for (index, implType) in implementationParamTypes.enumerated() {
-        guard needsErasedPrimitiveParamUnboxing(implType: implType, ifaceType: interfaceParamTypes[index]),
+        guard needsErasedValueParamUnboxing(implType: implType, ifaceType: interfaceParamTypes[index]),
               let unboxCallee = unboxingTable.unboxCallee(
                   for: implType, types: sema.types, requireNonNull: true, preferStaticPrimitive: true
               ) ?? unboxingTable.unboxCallee(for: implType, types: sema.types, requireNonNull: true)
@@ -1165,12 +1256,31 @@ func itableBridgeSymbolForMethod(
         body.append(.call(
             symbol: nil,
             callee: unboxCallee,
-            arguments: [bridgeParamExprs[index]],
+            arguments: [forwardedArgExprs[index]],
             result: unboxed,
             canThrow: false,
             thrownResult: nil
         ))
         forwardedArgExprs[index] = unboxed
+    }
+    for (index, implType) in implementationParamTypes.enumerated() {
+        guard needsErasedValueParamBoxing(implType: implType, ifaceType: interfaceParamTypes[index]) else {
+            continue
+        }
+        // An inherited generic implementation receives the boxed form even
+        // when its concrete interface slot supplies a raw primitive.
+        forwardedArgExprs[index] = boxValueForAnySlot(
+            forwardedArgExprs[index],
+            sourceType: interfaceParamTypes[index],
+            types: sema.types,
+            symbols: sema.symbols,
+            interner: interner,
+            arena: arena,
+            resultType: implType,
+            requireNonNull: true,
+            sema: sema,
+            into: &body
+        )
     }
 
     let callResult = arena.appendTemporary(type: implementationReturnType)
@@ -1200,7 +1310,7 @@ func itableBridgeSymbolForMethod(
     }
 
     let bridgeResult: KIRExprID
-    if needsErasedPrimitiveReturnBoxing {
+    if needsErasedValueReturnBoxing {
         bridgeResult = boxValueForAnySlot(
             callResult,
             sourceType: implementationReturnType,
@@ -1213,10 +1323,44 @@ func itableBridgeSymbolForMethod(
             sema: sema,
             into: &body
         )
+    } else if needsErasedValueReturnUnboxing,
+              let unboxCallee = unboxingTable.unboxCallee(
+                  for: interfaceSig.returnType,
+                  types: sema.types,
+                  requireNonNull: true,
+                  preferStaticPrimitive: true
+              )
+    {
+        let unboxed = arena.appendTemporary(type: interfaceSig.returnType)
+        body.append(.call(
+            symbol: nil,
+            callee: unboxCallee,
+            arguments: [callResult],
+            result: unboxed,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        bridgeResult = unboxed
     } else {
         bridgeResult = callResult
     }
     body.append(.returnValue(bridgeResult))
+    if let barrierFailLabel, let barrierDefault {
+        body.append(.label(barrierFailLabel))
+        let defaultExpr: KIRExprID
+        switch barrierDefault {
+        case .booleanFalse:
+            defaultExpr = arena.appendExpr(.boolLiteral(false), type: interfaceSig.returnType)
+            body.append(.constValue(result: defaultExpr, value: .boolLiteral(false)))
+        case .indexNegativeOne:
+            defaultExpr = arena.appendExpr(.intLiteral(-1), type: interfaceSig.returnType)
+            body.append(.constValue(result: defaultExpr, value: .intLiteral(-1)))
+        case .nullValue:
+            defaultExpr = arena.appendExpr(.null, type: interfaceSig.returnType)
+            body.append(.constValue(result: defaultExpr, value: .null))
+        }
+        body.append(.returnValue(defaultExpr))
+    }
     body.append(.endBlock)
 
     let bridgeDecl = arena.appendDecl(
@@ -1234,7 +1378,14 @@ func itableBridgeSymbolForMethod(
     )
     driver?.ctx.appendGeneratedCallableDecl(bridgeDecl)
     if driver == nil {
-        sema.symbols.setFunctionSignature(interfaceSig, for: bridgeSymbol)
+        let bridgeSignature = interfaceDispatchReceiver == nil
+            ? interfaceSig
+            : FunctionSignature(
+                parameterTypes: interfaceParamTypes,
+                returnType: interfaceSig.returnType,
+                canThrow: interfaceSig.canThrow
+            )
+        sema.symbols.setFunctionSignature(bridgeSignature, for: bridgeSymbol)
     }
 
     return bridgeSymbol
@@ -1429,11 +1580,14 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
                 interner: interner
             )
             if implementationSymbol == methodSymbol,
-               sema.symbols.symbol(interfaceSymbol)?.fqName == ["kotlin", "collections", "MutableSet"].map(interner.intern),
-               let method = sema.symbols.symbol(methodSymbol),
-               ["removeAll", "retainAll"].contains(interner.resolve(method.name))
+               sema.symbols.externalLinkName(for: methodSymbol) != nil
             {
-                // Default bulk bodies re-enter their runtime bridge, not an override.
+                // No override exists and the interface member itself is a
+                // runtime `__kk_*` bridge: registering it would re-enter the
+                // same runtime op through this very itable slot and recurse.
+                // Leave the slot empty so the op's own fallback answers the
+                // call (e.g. MutableSet's default bulk bodies, or Map members
+                // such as containsKey/containsValue left unimplemented).
                 continue
             }
             let bridgeSymbol = itableBridgeSymbolForMethod(

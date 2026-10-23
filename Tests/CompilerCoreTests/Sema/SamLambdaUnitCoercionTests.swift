@@ -7,8 +7,6 @@ import Testing
 struct SamLambdaUnitCoercionTests {
     @Test
     func nullableFunctionCompareAndSetInsideDisposableHandle() throws {
-        // atomicfu is not bundled; preserve its generic API in a source fixture.
-        let atomicfu = KotlinSourceFixtures.atomicfuAtomicRefStub
         let source = """
         import kotlinx.atomicfu.*
         import kotlinx.coroutines.*
@@ -21,7 +19,7 @@ struct SamLambdaUnitCoercionTests {
             }
         }
         """
-        let ctx = makeContextFromSources([atomicfu, source])
+        let ctx = makeContextFromSource(source)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.isEmpty, "AtomicRef inside a Unit SAM should type-check: \(errors)")

@@ -550,7 +550,19 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        let receiverType = sema.types.makeNonNullable(sema.bindings.exprTypes[argumentExpr] ?? sema.types.anyType)
+        let rawReceiverType = sema.types.makeNonNullable(sema.bindings.exprTypes[argumentExpr] ?? sema.types.anyType)
+        // A smartcast intersection (`Interface & Char`) keeps the primitive
+        // as one part; resolve to it so the conversion table sees the
+        // concrete primitive receiver type.
+        let receiverType = smartcastNarrowedPrimitiveType(of: rawReceiverType, sema: sema) ?? rawReceiverType
+        // The argument can still carry its erased/boxed representation
+        // while the bound type names a non-null primitive; materialize the
+        // raw value so conversion callees and the identity path consume
+        // the primitive payload, not the box handle.
+        let conversionArgumentID = materializePrimitiveValue(
+            loweredArgumentID, toType: receiverType, sema: sema,
+            arena: arena, instructions: &instructions
+        ) ?? loweredArgumentID
         let calleeStr = interner.resolve(sourceCalleeName)
 
         let runtimeCallee: InternedString? = switch (calleeStr, receiverType, boundType) {
@@ -644,7 +656,7 @@ extension CallLowerer {
            runtimeCallee == nil,
            !isCharNarrowingConversion
         {
-            return loweredArgumentID
+            return conversionArgumentID
         }
         guard let runtimeCallee else {
             return nil
@@ -653,7 +665,7 @@ extension CallLowerer {
         let result = arena.appendTemporary(type: boundType)
         emitNonThrowingCall(
             callee: runtimeCallee,
-            arg: loweredArgumentID,
+            arg: conversionArgumentID,
             result: result,
             into: &instructions
         )

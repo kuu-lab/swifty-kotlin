@@ -21,6 +21,23 @@ struct CLIParserTests {
         }
     }
 
+    @Test
+    func parsesStdlibProfile() throws {
+        #expect(try CLIParser.parse(args: ["hello.kt"]).stdlibProfile == .full)
+        #expect(try CLIParser.parse(args: ["--profile", "full", "hello.kt"]).stdlibProfile == .full)
+        #expect(try CLIParser.parse(args: ["--profile", "minimal", "hello.kt"]).stdlibProfile == .minimal)
+        #expect(try CLIParser.parse(args: ["--stdlib-only", "--profile", "minimal"]).stdlibProfile == .minimal)
+        #expect(throws: CLIParseError.unsupportedStdlibProfile("tiny")) {
+            try CLIParser.parse(args: ["--profile", "tiny", "hello.kt"])
+        }
+        #expect(throws: CLIParseError.missingValue("--profile")) {
+            try CLIParser.parse(args: ["--profile"])
+        }
+        #expect(throws: CLIParseError.incompatibleStdlibOptions("--profile minimal is not supported with --emit class or jar")) {
+            try CLIParser.parse(args: ["--profile", "minimal", "--emit", "jar", "hello.kt"])
+        }
+    }
+
     @Test(arguments: ["class", "jar"])
     func parsesJVMOutputModes(mode: String) throws {
         let options = try CLIParser.parse(args: ["--emit", mode, "hello.kt"])

@@ -1,7 +1,8 @@
 package kotlin.collections
 
 import kotlin.comparisons.compareValuesUnchecked
-import kotlin.internal.__valuesEqual
+import kotlin.internal.__kk_list_index_of
+import kotlin.internal.__kk_list_lastIndexOf
 
 // MIGRATION-COL-005
 // Migration source:
@@ -135,15 +136,7 @@ public inline fun <T> List<T>.singleOrNull(predicate: (T) -> Boolean): T? {
     return null
 }
 
-public fun <T> List<T>.indexOf(element: T): Int {
-    var i = 0
-    val sz = size
-    while (i < sz) {
-        if (__valuesEqual(this[i], element)) return i
-        i++
-    }
-    return -1
-}
+public fun <T> List<T>.indexOf(element: T): Int = __kk_list_index_of(this, element)
 
 public inline fun <T> List<T>.indexOfFirst(predicate: (T) -> Boolean): Int {
     var i = 0
@@ -164,14 +157,7 @@ public fun <T> List<T>.indexOfLast(predicate: (T) -> Boolean): Int {
     return -1
 }
 
-public fun <T> List<T>.lastIndexOf(element: T): Int {
-    var i = size - 1
-    while (i >= 0) {
-        if (__valuesEqual(this[i], element)) return i
-        i--
-    }
-    return -1
-}
+public fun <T> List<T>.lastIndexOf(element: T): Int = __kk_list_lastIndexOf(this, element)
 
 public operator fun <@kotlin.internal.OnlyInputTypes T> List<T>.contains(element: T): Boolean = indexOf(element) >= 0
 

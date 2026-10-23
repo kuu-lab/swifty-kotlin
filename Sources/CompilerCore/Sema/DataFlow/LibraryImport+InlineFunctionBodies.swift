@@ -169,24 +169,17 @@ extension DataFlowSemaPhase {
                     state.pendingInlineSymbolsByName[name] = siblings
                 }
             }
-            guard let inlinePath = resolvedImportedInlineKIRPath(
-                binding,
-                diagnostics: diagnostics
-            ) else {
-                return nil
-            }
-            let signature = symbols.functionSignature(for: symbol)
-            let descriptor = ImportedInlineFunctionStore.Descriptor(
-                path: inlinePath,
-                signature: signature,
-                name: binding.record.fqName.last ?? interner.intern("_"),
-                reifiedComponentTokens: importedInlineUsesComponentTokens(binding, symbol: symbol, symbols: symbols),
-                packedValueParameterTypes: importedInlinePackedValueTypes(signature, binding: binding, symbol: symbol, symbols: symbols, types: types, interner: interner)
-            )
-            state.importedInlineFunctions.register(descriptor, for: symbol)
-            state.descriptorSink?(symbol, descriptor)
-
-            guard let signature,
+            guard let signature = symbols.functionSignature(for: symbol),
+                  registerImportedInlineFunctionDescriptor(
+                      binding,
+                      symbol: symbol,
+                      signature: signature,
+                      state: state,
+                      symbols: symbols,
+                      types: types,
+                      diagnostics: diagnostics,
+                      interner: interner
+                  ) != nil,
                   let function = loadImportedInlineFunctionBody(
                       binding,
                       symbol: symbol,
@@ -229,6 +222,88 @@ extension DataFlowSemaPhase {
                 }
             }
         }
+    }
+
+    /// Snapshot archives bypass the compact-index provider on consumer loads,
+    /// so persist descriptors for every imported inline body while building
+    /// the archive. The bodies remain lazy and are parsed only if a consumer
+    /// actually expands the corresponding call.
+    func registerAllImportedInlineFunctionDescriptors(
+        state: ImportedLibraryLazyLoaderState,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner
+    ) {
+        for symbol in state.pendingInlineBindings.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
+            guard let binding = state.pendingInlineBindings[symbol],
+                  let signature = symbols.functionSignature(for: symbol)
+            else {
+                continue
+            }
+            _ = registerImportedInlineFunctionDescriptor(
+                binding,
+                symbol: symbol,
+                signature: signature,
+                state: state,
+                symbols: symbols,
+                types: types,
+                diagnostics: diagnostics,
+                interner: interner
+            )
+        }
+        // A snapshot missing a descriptor silently degrades to an unresolved
+        // external call at link time. Fail the capture build instead of
+        // writing an under-registered snapshot.
+        let missing = state.pendingInlineBindings.keys.filter {
+            state.importedInlineFunctions.descriptors[$0] == nil
+        }
+        for symbol in missing.sorted(by: { $0.rawValue < $1.rawValue }) {
+            let record = state.pendingInlineBindings[symbol]?.record
+            let name = record?.fqName.map { interner.resolve($0) }.joined(separator: ".")
+                ?? "#\(symbol.rawValue)"
+            diagnostics.error(
+                "KSWIFTK-LIB-0032",
+                "Could not register inline KIR descriptor for '\(name)' in the stdlib Sema snapshot",
+                range: nil
+            )
+        }
+    }
+
+    private func registerImportedInlineFunctionDescriptor(
+        _ binding: ImportedLibraryBinding,
+        symbol: SymbolID,
+        signature: FunctionSignature,
+        state: ImportedLibraryLazyLoaderState,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner
+    ) -> ImportedInlineFunctionStore.Descriptor? {
+        let record = binding.record
+        guard record.isInline,
+              !record.mangledName.isEmpty,
+              let inlinePath = resolvedImportedInlineKIRPath(binding, diagnostics: diagnostics)
+        else {
+            return nil
+        }
+        let descriptor = ImportedInlineFunctionStore.Descriptor(
+            path: inlinePath,
+            signature: signature,
+            name: record.fqName.last ?? interner.intern("_"),
+            reifiedComponentTokens: importedInlineUsesComponentTokens(binding, symbol: symbol, symbols: symbols),
+            packedValueParameterTypes: importedInlinePackedValueTypes(
+                signature,
+                binding: binding,
+                symbol: symbol,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        )
+        state.importedInlineFunctions.register(descriptor, for: symbol)
+        state.descriptorSink?(symbol, descriptor)
+        return descriptor
     }
 
     private func resolvedImportedInlineKIRPath(

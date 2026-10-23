@@ -275,6 +275,79 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
+    /// STDLIB-ARTIFACT-006: entries of the synthetic `CoroutineStart` enum come
+    /// from the artifact's precomputed synthesis but have no static initializer
+    /// there, so the consumer must not leave their root slots as undefined
+    /// external references (`kk_global_root_slot_kotlinx_coroutines_CoroutineStart_*`).
+    /// Source-backed enum entries keep the strong library definition.
+    @Test
+    func testSyntheticEnumEntrySharedPathLinks() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        import kotlinx.coroutines.*
+
+        fun main() = runBlocking {
+            val undispatched = launch(start = CoroutineStart.UNDISPATCHED) {
+                println("undispatched1")
+                yield()
+                println("undispatched2")
+            }
+            println("after launch")
+            undispatched.join()
+            val lazy = launch(start = CoroutineStart.LAZY) { println("lazy body") }
+            println("before join")
+            lazy.join()
+            println(LazyThreadSafetyMode.NONE.name)
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let symbols = try #require(ctx.sema?.symbols)
+            let syntheticEntry = try #require(symbols.lookup(fqName: [
+                "kotlinx", "coroutines", "CoroutineStart", "UNDISPATCHED"
+            ].map(ctx.interner.intern)))
+            #expect(NativeEmitter.shouldUseWeakImportedEnumEntryGlobalReference(
+                for: syntheticEntry,
+                symbols: symbols
+            ))
+            let sourceEntry = try #require(symbols.lookup(fqName: [
+                "kotlin", "LazyThreadSafetyMode", "NONE"
+            ].map(ctx.interner.intern)))
+            #expect(!NativeEmitter.shouldUseWeakImportedEnumEntryGlobalReference(
+                for: sourceEntry,
+                symbols: symbols
+            ))
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == """
+            undispatched1
+            after launch
+            undispatched2
+            before join
+            lazy body
+            NONE
+
+            """)
+        }
+    }
+
     /// Two metadata-path warnings used to fire on every artifact compile:
     /// `KSWIFTK-LIB-0004` because serialized `fieldOffsets` referenced
     /// `backingField` records the layout resolver did not accept, and
@@ -306,6 +379,55 @@ struct StdlibArtifactRegressionTests {
                 !codes.contains("KSWIFTK-SEMA-0102"),
                 "Imported enum synthesis should not emit stub-overlap warnings: \(ctx.diagnostics.diagnostics)"
             )
+        }
+    }
+
+    /// KUU-2815 hoisted the synthetic `withContext` stub into the artifact, so
+    /// consumers see it as an imported symbol. The launcher block adapter must
+    /// still apply to it; otherwise the block is wrapped in the boxed
+    /// function-value ABI and coroutine lowering fails with
+    /// `KSWIFTK-CORO-0004: withContext block capture arity mismatch.`
+    @Test
+    func testWithContextBlockThroughPrecompiledStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        import kotlinx.coroutines.*
+
+        fun main() = runBlocking {
+            val n = 41
+            println(withContext(Dispatchers.Default) { "plain" })
+            println(withContext(Dispatchers.Default) { n + 1 })
+            val block: suspend CoroutineScope.() -> Int = { n * 2 }
+            println(withContext(Dispatchers.Default, block))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            #expect(
+                !ctx.diagnostics.diagnostics.map(\.code).contains("KSWIFTK-CORO-0004"),
+                "withContext block should lower through the launcher ABI: \(ctx.diagnostics.diagnostics)"
+            )
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == "plain\n42\n82\n")
         }
     }
 }

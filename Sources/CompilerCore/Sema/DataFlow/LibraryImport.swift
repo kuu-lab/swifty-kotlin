@@ -13,6 +13,7 @@ extension DataFlowSemaPhase {
         var runtimeReflectionMetadataScope: String? = nil
         var hasPrecomputedSyntheticStubs: Bool = false
         var hasPrecomputedReflectionRecords: Bool = false
+        var stdlibProfile: StdlibProfile = .full
     }
 
     struct LibraryImportDeferredWork {
@@ -576,6 +577,17 @@ extension DataFlowSemaPhase {
             }
             if stdlibArtifact {
                 stdlibArtifactLoaded = manifestInfo.isValid
+                if manifestInfo.isValid, manifestInfo.stdlibProfile != options.stdlibProfile {
+                    diagnostics.error(
+                        "KSWIFTK-LIB-0035",
+                        "Stdlib artifact was built for profile '\(manifestInfo.stdlibProfile.rawValue)' "
+                            + "but this compilation uses profile '\(options.stdlibProfile.rawValue)'; "
+                            + "pass --profile \(manifestInfo.stdlibProfile.rawValue) or select a matching --stdlib-library",
+                        range: nil
+                    )
+                    stdlibArtifactLoaded = false
+                    continue
+                }
             }
             guard manifestInfo.isValid else {
                 continue

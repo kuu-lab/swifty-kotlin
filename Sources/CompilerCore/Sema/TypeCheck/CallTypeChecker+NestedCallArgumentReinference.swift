@@ -83,6 +83,27 @@ extension CallTypeChecker {
         }
     }
 
+    func containsUnresolvedMemberDiagnostic(
+        in expressions: [ExprID],
+        ast: ASTModule,
+        sema: SemaModule
+    ) -> Bool {
+        let unresolvedMemberRanges = sema.diagnostics.diagnostics.compactMap { diagnostic -> SourceRange? in
+            guard diagnostic.code == "KSWIFTK-SEMA-0024",
+                  diagnostic.severity == .error
+            else {
+                return nil
+            }
+            return diagnostic.primaryRange
+        }
+        return expressions.contains { expression in
+            guard let expressionRange = ast.arena.exprRange(expression) else {
+                return false
+            }
+            return unresolvedMemberRanges.contains { expressionRange.contains($0) }
+        }
+    }
+
     /// A bare type parameter directly in a generic argument position
     /// (e.g. `Holder<T>`) is the residue of a nested constructor/generic call
     /// whose type parameter no argument could fix

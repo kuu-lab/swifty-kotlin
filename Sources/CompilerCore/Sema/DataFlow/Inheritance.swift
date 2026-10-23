@@ -184,7 +184,13 @@ extension DataFlowSemaPhase {
             }
         }
 
-        let uniqueSuperSymbols = Array(Set(superSymbols)).sorted(by: { $0.rawValue < $1.rawValue })
+        // Deduplicate while preserving declaration order: the order in which a
+        // class lists its supertypes is semantically significant in Kotlin
+        // (overridden-descriptor order, hence inherited default-argument and
+        // member resolution; KUU-2950). Object-literal and local-class paths
+        // already record declaration order.
+        var seenSuperSymbols: Set<SymbolID> = []
+        let uniqueSuperSymbols = superSymbols.filter { seenSuperSymbols.insert($0).inserted }
         symbols.setDirectSupertypes(uniqueSuperSymbols, for: symbol)
         types.setNominalDirectSupertypes(uniqueSuperSymbols, for: symbol)
 

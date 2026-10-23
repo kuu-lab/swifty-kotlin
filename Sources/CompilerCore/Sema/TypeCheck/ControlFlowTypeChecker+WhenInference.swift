@@ -477,8 +477,8 @@ extension ControlFlowTypeChecker {
                 }
             }
 
-            // A non-exhaustive `when` can fall through with no value (Unit); do not let
-            // all-jump branches collapse the result to Nothing (reachability + lowering).
+            // A non-exhaustive statement-position `when` can fall through with no value,
+            // so its result is Unit even when its branches produce other values.
             let completingLocals = zip(branchTypes, allBranchLocals)
                 .filter { $0.0 != sema.types.nothingType }.map(\.1)
             mergeNullableBranchAssignments(
@@ -488,7 +488,9 @@ extension ControlFlowTypeChecker {
                 expressions: branches.map(\.body) + (elseExpr.map { [$0] } ?? []),
                 types: branchTypes, ctx: ctx
             )
-            let inferredType = sema.types.lub(isExhaustive || !isStatementContext ? contextualizedTypes : contextualizedTypes + [sema.types.unitType])
+            let inferredType = isExhaustive || !isStatementContext
+                ? sema.types.lub(contextualizedTypes)
+                : sema.types.unitType
             let type = isExhaustive
                 ? contextualizeBranchJoin(
                     inferredType,
@@ -632,8 +634,8 @@ extension ControlFlowTypeChecker {
                 }
             }
 
-            // A non-exhaustive `when` can fall through with no value (Unit); do not let
-            // all-jump branches collapse the result to Nothing (reachability + lowering).
+            // A non-exhaustive statement-position `when` can fall through with no value,
+            // so its result is Unit even when its branches produce other values.
             let completingLocals = zip(branchTypes, allBranchLocals)
                 .filter { $0.0 != sema.types.nothingType }.map(\.1)
             mergeNullableBranchAssignments(
@@ -648,7 +650,9 @@ extension ControlFlowTypeChecker {
                 expressions: branches.map(\.body) + (elseExpr.map { [$0] } ?? []),
                 types: branchTypes, ctx: ctx
             )
-            let inferredType = sema.types.lub(isExhaustive || !isStatementContext ? contextualizedTypes : contextualizedTypes + [sema.types.unitType])
+            let inferredType = isExhaustive || !isStatementContext
+                ? sema.types.lub(contextualizedTypes)
+                : sema.types.unitType
             let type = isExhaustive
                 ? contextualizeBranchJoin(
                     inferredType,

@@ -412,6 +412,13 @@ extension TypeCheckHelpers {
         switch types.kind(of: type) {
         case .unit, .nullableUnit, .platformUnit:
             return types.unitClassSymbol.map { [$0] } ?? []
+        case .any:
+            // `Any` and `Any?` are canonical builtin types without a classType
+            // wrapper, but `toString`/`hashCode`/`equals` are their members.
+            // Other builtin kinds deliberately stay rootless here: mapping
+            // e.g. `.stringStruct` to `kotlin.String` would also expose the
+            // whole CharSequence member surface and rebind existing calls.
+            return types.anyClassSymbol.map { [$0] } ?? []
         case let .classType(classType):
             return [classType.classSymbol]
         case let .functionType(functionType):
@@ -450,6 +457,12 @@ extension TypeCheckHelpers {
             // Guard against cycles (e.g. T : U, U : T).
             guard visited.insert(typeParam.symbol).inserted else { return [] }
             let bounds = symbols.typeParameterUpperBounds(for: typeParam.symbol)
+            if bounds.isEmpty {
+                // A type parameter always has `Any?` as its implicit upper
+                // bound, so its members remain callable when no bound was
+                // recorded (e.g. unbounded `T` declarations).
+                return types.anyClassSymbol.map { [$0] } ?? []
+            }
             return bounds.flatMap {
                 allNominalSymbolsImpl(
                     of: $0, types: types, symbols: symbols, interner: interner, visited: &visited
@@ -550,6 +563,19 @@ extension TypeCheckHelpers {
                 ownersInLookupOrder.append((owner, depth))
             }
             ownerQueue.append(contentsOf: sema.symbols.directSupertypes(for: owner).map { ($0, depth + 1) })
+        }
+
+        // `toString`/`hashCode`/`equals` are callable on every Kotlin receiver
+        // (they are members of `Any?`). Receivers whose nominal roots cannot
+        // reach `kotlin.Any` through supertype edges — builtin-disguised types
+        // or synthetic primitive shells whose only edge is `Comparable` —
+        // still expose them, so keep `kotlin.Any` as the deepest owner.
+        if let anyClassSymbol = sema.types.anyClassSymbol,
+           !visitedOwners.contains(anyClassSymbol),
+           allowedOwnerSymbols?.contains(anyClassSymbol) ?? true
+        {
+            let fallbackDepth = (ownersInLookupOrder.map(\.depth).max() ?? -1) + 1
+            ownersInLookupOrder.append((anyClassSymbol, fallbackDepth))
         }
 
         var candidatesByKey: [MemberDispatchKey: [(symbol: SymbolID, owner: SymbolID, depth: Int)]] = [:]

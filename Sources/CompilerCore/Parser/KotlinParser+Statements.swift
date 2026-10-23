@@ -16,11 +16,13 @@ extension KotlinParser {
         // single-line class/interface bodies like `interface I { fun f(): T }`
         // to parse the member function as a declaration node.
         var atBlockStart = true
+        var closed = false
 
         while !stream.atEOF() {
             let token = stream.peek()
             if case .symbol(.rBrace) = token.kind {
                 _ = consumeToken(into: &children, range: &range)
+                closed = true
                 break
             }
             // A contextual keyword followed by @ starts a label, not a declaration.
@@ -74,7 +76,18 @@ extension KotlinParser {
             }
         }
 
+        if !closed {
+            reportUnclosedBlock(lastRange: range.value)
+        }
         return arena.appendNode(kind: .block, range: range.value ?? invalidRange, children)
+    }
+
+    func reportUnclosedBlock(lastRange: SourceRange?) {
+        diagnostics.error(
+            "KSWIFTK-PARSE-0026",
+            "Expected '}' to close block.",
+            range: lastRange.map { SourceRange(start: $0.end, end: $0.end) } ?? invalidRange
+        )
     }
 
     func parseStatement(inBlock: Bool) -> NodeID {

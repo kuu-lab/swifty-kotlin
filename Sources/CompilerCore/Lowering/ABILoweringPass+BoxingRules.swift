@@ -67,6 +67,13 @@ extension ABILoweringPass {
         "__kk_map_get",
         "__kk_mutable_set_remove",
         "__kk_mutable_map_remove",
+        "__kk_mutable_collection_remove_throwing",
+        "__kk_mutable_list_remove_checked",
+        "__kk_mutable_list_remove_dispatch",
+        "__kk_list_index_of",
+        "__kk_list_lastIndexOf",
+        "__kk_map_contains_key",
+        "__kk_map_contains_value",
         "__kk_sequence_builder_yield",
         "__kk_iterator_builder_yield",
     ]

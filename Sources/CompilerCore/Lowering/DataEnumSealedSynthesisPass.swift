@@ -417,8 +417,9 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         // compiler-synthesised enum entries (e.g. RegexOption.DOT_MATCHES_ALL)
         // are inlined as raw ordinals.
         var syntheticEntriesByParent: [[InternedString]: [SymbolID]] = [:]
-        for sym in sema.symbols.allSymbols() {
-            guard sym.kind == .field,
+        for symbolID in referencedEntrySymbols(in: module) {
+            guard let sym = sema.symbols.symbol(symbolID),
+                  sym.kind == .field,
                   !sema.symbols.isSourceBackedSymbol(sym.id),
                   sym.fqName.count >= 2
             else {

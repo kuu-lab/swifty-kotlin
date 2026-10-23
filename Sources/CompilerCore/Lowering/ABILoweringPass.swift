@@ -94,6 +94,22 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             ctx.interner.intern("kk_structural_eq"),
             ctx.interner.intern("kk_structural_ne"),
         ]
+        // Membership intrinsics (`x in c` / `contains`) receive their element
+        // argument raw: enum-typed parameters carry ordinals, while stored
+        // elements are boxed. Enum operands meet the stored elements as the
+        // canonical entry box — the same normalization `==`/`!=` receive — so
+        // `E.A in listOf(E.A)` compares nominal identity, not ordinal payload
+        // (KUU-2957). Integral scalars box for the same reason: a bare `0`
+        // probe would alias a stored enum box by ordinal, while the JVM keeps
+        // `0 in listOf(E.A as Any)` false (KUU-3027). The runtime probes stay
+        // correct for raw ordinals too, but boxing removes the ambiguity.
+        let membershipElementCallees: Set<InternedString> = [
+            ctx.interner.intern("kk_op_contains"),
+            ctx.interner.intern("kk_sequence_contains"),
+            ctx.interner.intern("kk_sequence_indexOf"),
+            ctx.interner.intern("kk_sequence_lastIndexOf"),
+            ctx.interner.intern("kk_sequence_minus"),
+        ]
 
         // Type-check intrinsics: `value` is a bare Int that the runtime can only
         // tell apart as Int/UInt/ULong/Long/Double/Float/Char by inspecting a
@@ -671,21 +687,157 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         )
                     }
                 }
-                // Unit may arrive as a raw builtin value or an erased singleton
-                // handle. Compare singleton handles for both representations,
-                // including when-branch equality emitted by OperatorLowering.
+                // Unit and enum values may arrive as raw builtins or as erased
+                // singleton handles. Compare canonical singleton handles for
+                // both representations, including when-branch equality emitted
+                // by OperatorLowering. Nullable/platform Unit slots carry the
+                // same raw-zero representation (or the null sentinel, which
+                // `kk_box_unit` passes through), so they normalize through the
+                // same callee (KUU-2957).
                 if signature == nil, let types,
                    unitEqualityCallees.contains(effectiveCallee)
                 {
+                    let argEnumClasses: [SymbolID?] = boxedArguments.map { arg in
+                        guard let argType = intrinsicArgType(arg, arena: module.arena, types: types),
+                              case let .classType(classType) = types.kind(of: argType),
+                              symbols?.symbol(classType.classSymbol)?.kind == .enumClass
+                        else {
+                            return nil
+                        }
+                        return classType.classSymbol
+                    }
                     for i in boxedArguments.indices {
-                        guard let argType = intrinsicArgType(boxedArguments[i], arena: module.arena, types: types),
-                              case .unit = types.kind(of: argType),
-                              let boxCallee = boxingCalleeTable.boxCallee(for: .unit, requireNonNull: true)
+                        guard let argType = intrinsicArgType(boxedArguments[i], arena: module.arena, types: types)
                         else { continue }
-                        boxedArguments[i] = emitNonThrowingCall(
-                            callee: boxCallee, arg: boxedArguments[i], resultType: types.anyType,
-                            arena: module.arena, into: &newBody
-                        )
+                        switch types.kind(of: argType) {
+                        case .unit, .nullableUnit, .platformUnit:
+                            guard let boxCallee = boxingCalleeTable.boxCallee(
+                                for: types.kind(of: argType), requireNonNull: false
+                            )
+                            else { continue }
+                            boxedArguments[i] = emitNonThrowingCall(
+                                callee: boxCallee, arg: boxedArguments[i], resultType: types.anyType,
+                                arena: module.arena, into: &newBody
+                            )
+                        case .classType:
+                            // Same-class non-null enum pairs were already
+                            // unboxed to raw ordinals upstream, so an
+                            // enum-typed operand here faces a nullable,
+                            // cross-class, or Any-erased peer and must meet it
+                            // as the canonical singleton box: raw ordinals
+                            // would alias other enum classes' entries and
+                            // could never match an erased handle.
+                            // `kk_enum_box_ordinal` normalizes boxed and raw
+                            // inputs to the cached entry box and keeps the
+                            // null sentinel null (KUU-2957).
+                            guard let enumClass = argEnumClasses[i],
+                                  let symbols,
+                                  let enumSymbol = symbols.symbol(enumClass),
+                                  enumBoxingHasOrdinalNameHelper(enumSymbol, symbols: symbols, interner: ctx.interner)
+                            else { continue }
+                            let boxedTemp = module.arena.appendTemporary(type: types.anyType)
+                            emitEnumOrdinalBoxCall(
+                                ordinal: boxedArguments[i],
+                                classSymbol: enumClass,
+                                result: boxedTemp,
+                                resultType: types.anyType,
+                                types: types,
+                                symbols: symbols,
+                                interner: ctx.interner,
+                                arena: module.arena,
+                                sema: ctx.sema,
+                                cache: ctx.nominalDispatchCache,
+                                into: &newBody
+                            )
+                            boxedArguments[i] = boxedTemp
+                        default:
+                            continue
+                        }
+                    }
+                }
+                // Element arguments to membership intrinsics arrive raw even
+                // when a signature exists (enum-typed parameters carry
+                // ordinals), so this is not gated on `signature == nil`.
+                if let types,
+                   membershipElementCallees.contains(effectiveCallee)
+                {
+                    // `x in range` dispatches to `runtimeRangeContains`, which
+                    // compares the bare word against first/last — the element
+                    // must stay raw there (KUU-3027's scalar boxing would wrap
+                    // it into a pointer). `ClosedRange`-typed receivers are the
+                    // only ones that take this path.
+                    let containerIsRange: Bool = boxedArguments.first.flatMap {
+                        intrinsicArgType($0, arena: module.arena, types: types)
+                    }.flatMap { containerType -> SymbolID? in
+                        guard case let .classType(classType) = types.kind(of: containerType)
+                        else { return nil }
+                        return classType.classSymbol
+                    }.flatMap { symbols?.symbol($0)?.fqName }.map { fqName in
+                        fqName.count >= 2
+                            && fqName[0] == ctx.interner.intern("kotlin")
+                            && fqName[1] == ctx.interner.intern("ranges")
+                    } ?? false
+                    for i in boxedArguments.indices {
+                        guard let argType = intrinsicArgType(
+                            boxedArguments[i], arena: module.arena, types: types
+                        ) else { continue }
+                        switch types.kind(of: argType) {
+                        case let .classType(classType):
+                            guard let symbols,
+                                  let enumSymbol = symbols.symbol(classType.classSymbol),
+                                  enumSymbol.kind == .enumClass,
+                                  enumBoxingHasOrdinalNameHelper(
+                                      enumSymbol, symbols: symbols, interner: ctx.interner
+                                  )
+                            else { continue }
+                            let boxedTemp = module.arena.appendTemporary(type: types.anyType)
+                            emitEnumOrdinalBoxCall(
+                                ordinal: boxedArguments[i],
+                                classSymbol: classType.classSymbol,
+                                result: boxedTemp,
+                                resultType: types.anyType,
+                                types: types,
+                                symbols: symbols,
+                                interner: ctx.interner,
+                                arena: module.arena,
+                                sema: ctx.sema,
+                                cache: ctx.nominalDispatchCache,
+                                into: &newBody
+                            )
+                            boxedArguments[i] = boxedTemp
+                        case .primitive(let primitive, .nonNull)
+                            where primitive != .double && primitive != .float && !containerIsRange:
+                            // A bare integral scalar would alias a stored enum
+                            // box by ordinal (KUU-3027). Floating-point words
+                            // stay raw — the strict equality path compares
+                            // boxed `Double`/`Float` against raw bit patterns,
+                            // which boxing here would defeat.
+                            guard i > 0,
+                                  let boxCallee = boxCalleeForPrimitive(
+                                      types.kind(of: argType),
+                                      boxingCalleeTable: boxingCalleeTable,
+                                      preferStaticPrimitive: true
+                                  )
+                            else { continue }
+                            let boxedTemp = module.arena.appendTemporary(type: types.anyType)
+                            emitBoxCallWithValueClassTag(
+                                boxCallee: boxCallee,
+                                value: boxedArguments[i],
+                                rawSourceKind: types.kind(of: argType),
+                                result: boxedTemp,
+                                resultType: types.anyType,
+                                types: types,
+                                symbols: symbols,
+                                interner: ctx.interner,
+                                arena: module.arena,
+                                sema: ctx.sema,
+                                cache: ctx.nominalDispatchCache,
+                                into: &newBody
+                            )
+                            boxedArguments[i] = boxedTemp
+                        default:
+                            continue
+                        }
                     }
                 }
                 // The result is Boolean so the arithmetic path above cannot

@@ -33,6 +33,16 @@ extension CallTypeChecker {
 
         guard isRangeConstructor else { return }
 
+        // A resolved call returning a range *interface* produces a heap
+        // object — ComparableRange, an anonymous implementation, or a
+        // user-defined class — never the opaque runtime range-box handle
+        // these marks describe. Leave the value unmarked so `x in` dispatches
+        // the object's `contains` instead of a `__kk_*_range_*` bridge that
+        // would trap on a non-box handle (KUU-2941).
+        if driver.helpers.isRangeInterfaceType(returnType, sema: sema, interner: interner) {
+            return
+        }
+
         sema.bindings.markRangeExpr(id)
 
         if let elementType = driver.helpers.rangeLikeDeclaredElementType(
@@ -575,6 +585,10 @@ extension CallTypeChecker {
         let name = request.calleeName
         let candidateType: TypeID?
         if let local = locals[name] {
+            // A local `fun T.name()` is a declaration, not a function value:
+            // naming it bare is rejected (KUU-3007), so leave it to the
+            // ordinary candidate path that ranks it above package extensions.
+            guard sema.symbols.symbol(local.symbol)?.kind != .function else { return nil }
             candidateType = local.type
         } else if let implicitReceiver = ctx.implicitReceiverType,
                   let property = driver.helpers.lookupMemberProperty(
@@ -622,10 +636,12 @@ extension CallTypeChecker {
         if let local = locals[name],
            sema.symbols.symbol(local.symbol)?.kind == .function
         {
-            // A local extension function is a function symbol, not a
-            // function-typed value. Re-inferring the synthesized callee
-            // through name resolution rejects it as a bare function name
-            // (KUU-3007), so bind the already-resolved symbol and its
+            // A local function's `locals` entry is a value binding for the
+            // declared symbol, but name-ref inference rejects function
+            // symbols in value position. For a local extension function,
+            // re-inferring the synthesized callee also rejects its bare name
+            // (KUU-3007). This is an invocation callee, not a user-written
+            // function value, so bind the resolved symbol and its
             // receiver-carrying function type directly.
             sema.bindings.bindIdentifier(calleeExpr, symbol: local.symbol)
             sema.bindings.bindExprType(calleeExpr, type: local.type)

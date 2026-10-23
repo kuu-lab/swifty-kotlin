@@ -362,6 +362,7 @@ extension BuildASTPhase {
             } else if token.kind == .symbol(.colon)
                 || token.kind == .symbol(.assign)
                 || token.kind == .symbol(.lBrace)
+                || token.kind == .softKeyword(.by)
             {
                 break
             }

@@ -565,6 +565,19 @@ final class ObjectLiteralLowerer {
         else {
             return
         }
+        // An anonymous subclass reuses its inner superclass's `$outer` slot.
+        // The object itself is already allocated, so initialize that inherited
+        // link from the active receiver before the superclass constructor (or
+        // its argument expressions) can read members from the enclosing owner.
+        storeOuterInstanceLinkIfNeeded(
+            allocatedObject: objectValue,
+            innerClassSymbol: superclassSymbol,
+            outerReceiver: driver.ctx.activeImplicitReceiverExprID(),
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
         let candidates = sema.symbols.lookupAll(fqName: superclassInfo.fqName + [interner.intern("<init>")])
         let callBinding = sema.bindings.constructorDelegationCallBinding(for: objectSymbol)
         guard let superCtorSymbol = callBinding?.chosenCallee ?? driver.resolveObjectSuperConstructor(
@@ -661,12 +674,20 @@ final class ObjectLiteralLowerer {
             let isReifiedTypeParameter = sema.symbols.symbol(capturedSymbol).map {
                 $0.kind == .typeParameter && $0.flags.contains(.reifiedTypeParameter)
             } ?? false
-            // Mutable captures hold boxed cells, and reified captures hold a
-            // pair of raw tokens. Keep either generic until it is unwrapped;
-            // ordinary immutable captures can use their logical type directly.
+            // A delegated local (`var x by Prop()`/`val x by lazy {}`) stores
+            // its delegate *instance* in the capture field, not a boxed cell
+            // and not the property value — exactly what `captureValueExpr`
+            // materialized and what `bindCapturedLambdaValue` restores for
+            // lambdas. Mutable captures hold boxed cells, and reified
+            // captures hold a pair of raw tokens. Keep all three generic
+            // until they are unwrapped; ordinary immutable captures can use
+            // their logical type directly.
+            let isDelegatedLocal = sema.symbols.delegateGetValueSymbol(for: capturedSymbol) != nil
             let logicalType = sema.bindings.capturedLocalType(for: capturedSymbol)
                 ?? driver.lambdaLowerer.typeForSymbolReference(capturedSymbol, sema: sema)
-            let loadedType = isMutableLocal || isReifiedTypeParameter ? sema.types.anyType : logicalType
+            let loadedType = isMutableLocal || isDelegatedLocal || isReifiedTypeParameter
+                ? sema.types.anyType
+                : logicalType
 
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: intType)
             instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
@@ -679,7 +700,9 @@ final class ObjectLiteralLowerer {
                 canThrow: false,
                 thrownResult: nil
             ))
-            if isMutableLocal {
+            if isDelegatedLocal {
+                driver.ctx.setLocalDelegateStorage(loadedExpr, for: capturedSymbol)
+            } else if isMutableLocal {
                 driver.ctx.setMutableCaptureCell(loadedExpr, for: capturedSymbol)
             } else {
                 driver.ctx.setLocalValue(loadedExpr, for: capturedSymbol)
@@ -896,6 +919,17 @@ final class ObjectLiteralLowerer {
                sema.symbols.companionObjectSymbol(for: parentSymbol) == objectSymbol {
                 flags |= 1 << 11
             }
+        }
+        let ownerKind = sema.symbols.parentSymbol(for: objectSymbol)
+            .flatMap { sema.symbols.symbol($0)?.kind }
+        let isLocalOrAnonymous = symbol.fqName.contains { component in
+            let name = interner.resolve(component)
+            return name.hasPrefix("__localdecl_") || name.hasPrefix("__ObjectLiteral_")
+        }
+        if isLocalOrAnonymous
+            || ownerKind.map({ [.function, .property, .local].contains($0) }) == true
+            || (symbol.kind == .object && symbol.flags.contains(.synthetic)) {
+            flags |= 1 << 13
         }
         let flagsExpr = arena.appendExpr(.intLiteral(flags), type: intType)
         instructions.append(.constValue(result: flagsExpr, value: .intLiteral(flags)))

@@ -144,6 +144,13 @@ struct GCState {
     /// cache box must never be nominal-type tagged in place, so
     /// `kk_tag_value_class_box` consults this set and clones instead.
     var identityPrimitiveBoxHandles: Set<UInt> = []
+    /// Canonical Any-erased box handle per enum entry, keyed by enum class ID
+    /// and ordinal. Kotlin/JVM enum entries are singletons, so boxing the
+    /// same entry twice must return one object for `===` to observe reference
+    /// identity (KUU-2957). Handles are also registered in
+    /// `identityPrimitiveBoxHandles` so value-class tagging clones the shared
+    /// box instead of mutating it in place.
+    var enumIdentityBoxCache: [RuntimeEnumBoxCacheKey: Int] = [:]
     /// Monotonic counter of completed GC passes, surfaced as `GCInfo.epoch`.
     /// The first recorded pass reports epoch 1.
     var gcEpoch: Int64 = 0
@@ -157,6 +164,7 @@ struct MetadataState {
     var primitiveJavaClassCache: [Int: Int] = [:]
     var delegatedPropertyStubCache: [String: Int] = [:]
     var kTypeProjectionStarRaw: Int?
+    var kTypeParameterCache: [Int: Int] = [:]
     var enumEntriesCache: [Int64: Int] = [:]
     var enumValuesByTypeToken: [Int64: [RuntimeEnumValueDescriptor]] = [:]
     // Enum Class handles outlive the boxed entry used to obtain javaClass.
@@ -199,6 +207,7 @@ struct ThreadLocalState {
 
 struct DelegateState {
     var callableRefMetadataByValue: [Int: RuntimeCallableRefMetadata] = [:]
+    var samAdapterIdentityByValue: [Int: RuntimeSamAdapterIdentity] = [:]
     var functionArityByPointer: [Int: Int] = [:]
     var functionDescriptionsByValue: [Int: String] = [:]
     var functionEnclosingClassNamesByPointer: [Int: String] = [:]
@@ -814,11 +823,13 @@ func kk_runtime_reset_metadata() {
                let pointer = UnsafeMutableRawPointer(bitPattern: starRaw) {
                 boxes.append(pointer)
             }
+            boxes += state.kTypeParameterCache.values.compactMap(UnsafeMutableRawPointer.init(bitPattern:))
             state.kClassBoxCache.removeAll(keepingCapacity: false)
             state.javaClassCache.removeAll(keepingCapacity: false)
             state.primitiveJavaClassCache.removeAll(keepingCapacity: false)
             state.delegatedPropertyStubCache.removeAll(keepingCapacity: false)
             state.kTypeProjectionStarRaw = nil
+            state.kTypeParameterCache.removeAll(keepingCapacity: false)
             state.objectTypeByPointer.removeAll(keepingCapacity: false)
             state.arrayTypeIDsByPointer.removeAll(keepingCapacity: false)
             state.typeParents.removeAll(keepingCapacity: false)
@@ -866,6 +877,9 @@ func removeRuntimeObjectMetadata(forObjectKey key: UInt) {
         }
         if state.kTypeProjectionStarRaw == Int(bitPattern: key) {
             state.kTypeProjectionStarRaw = nil
+        }
+        state.kTypeParameterCache = state.kTypeParameterCache.filter { _, raw in
+            UInt(bitPattern: raw) != key
         }
         state.objectTypeByPointer.removeValue(forKey: key)
         state.arrayTypeIDsByPointer.removeValue(forKey: key)
@@ -930,6 +944,7 @@ private func releaseRegisteredRuntimeBoxes(_ pointers: [UnsafeMutableRawPointer]
 func kk_runtime_reset_delegate() {
     runtimeStorage.withDelegateLock { state in
         state.callableRefMetadataByValue.removeAll(keepingCapacity: false)
+        state.samAdapterIdentityByValue.removeAll(keepingCapacity: false)
         state.functionArityByPointer.removeAll(keepingCapacity: false)
         state.functionDescriptionsByValue.removeAll(keepingCapacity: false)
         state.functionEnclosingClassNamesByPointer.removeAll(keepingCapacity: false)

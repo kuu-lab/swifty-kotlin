@@ -279,6 +279,10 @@ func runtimeSignedRangeIsEmpty(_ range: RuntimeRangeBox) -> Bool {
 }
 
 func runtimeRangeContains(_ range: RuntimeRangeBox, _ element: Int) -> Int {
+    // Membership intrinsics box the element argument for non-range
+    // containers; a boxed integral probe that still reaches a range unwraps
+    // back to its payload word here (KUU-3027).
+    let element = maybeUnbox(element)
     switch range.kind {
     case .uintRange, .uintProgression, .ulongRange, .ulongProgression:
         let value = UInt(bitPattern: element)

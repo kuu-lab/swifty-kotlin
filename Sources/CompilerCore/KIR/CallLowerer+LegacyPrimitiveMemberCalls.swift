@@ -314,6 +314,7 @@ extension CallLowerer {
         args: [CallArgument],
         sema: SemaModule,
         interner: StringInterner,
+        arena: KIRArena,
         loweredReceiverID: KIRExprID,
         result: KIRExprID,
         instructions: inout [KIRInstruction]
@@ -331,9 +332,25 @@ extension CallLowerer {
             let floatType = sema.types.make(.primitive(.float, .nonNull))
             let doubleType = sema.types.make(.primitive(.double, .nonNull))
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            let rawNonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            // A smartcast intersection (`Interface & Char`) keeps the
+            // primitive as one part; resolve to it so the conversion table
+            // sees the concrete primitive receiver type.
+            let nonNullReceiverType = smartcastNarrowedPrimitiveType(of: rawNonNullReceiverType, sema: sema)
+                ?? rawNonNullReceiverType
             let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
             let nonNullResultType = sema.types.makeNonNullable(resultType)
+            // The lowered receiver can still carry its erased/boxed
+            // representation (an `Any` slot holds e.g. a RuntimeCharBox
+            // after `x is Char`) while the bound type names a non-null
+            // primitive. Materialize the raw value so conversion callees —
+            // and the identity `.copy` below, which ABI lowering would
+            // otherwise map to the *result* type's unboxer — consume the
+            // primitive payload, not the box handle.
+            let conversionReceiverID = materializePrimitiveValue(
+                loweredReceiverID, toType: nonNullReceiverType, sema: sema,
+                arena: arena, instructions: &instructions
+            ) ?? loweredReceiverID
             let calleeStr = calleeNameStr
             let conversionCallee: InternedString? = switch (calleeStr, nonNullReceiverType, nonNullResultType) {
             case ("toInt", uintType, intType): interner.intern("kk_uint_to_int")
@@ -433,7 +450,7 @@ extension CallLowerer {
                 instructions.append(.call(
                     symbol: nil,
                     callee: callee,
-                    arguments: [loweredReceiverID],
+                    arguments: [conversionReceiverID],
                     result: result,
                     canThrow: false,
                     thrownResult: nil
@@ -459,7 +476,7 @@ extension CallLowerer {
                || nonNullReceiverType == floatType || nonNullReceiverType == doubleType
                || nonNullReceiverType == charType
             {
-                instructions.append(.copy(from: loweredReceiverID, to: result))
+                instructions.append(.copy(from: conversionReceiverID, to: result))
                 return result
             }
         }

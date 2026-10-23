@@ -257,7 +257,7 @@ final class RuntimeSetBox {
                 else {
                     return false
                 }
-                return runtimeValuesEqual(entry.value, currentValue)
+                return runtimeLookupValuesEqual(entry.value, currentValue)
             case .keys:
                 return map.index(ofRawKey: rawValue) != nil
             }
