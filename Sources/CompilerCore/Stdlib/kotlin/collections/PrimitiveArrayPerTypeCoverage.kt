@@ -77,14 +77,6 @@ public fun FloatArray.sorted(): List<Float> = sortedArray().toList()
 
 public fun DoubleArray.sorted(): List<Double> = sortedArray().toList()
 
-public fun BooleanArray.lastIndex(): Int = this.size - 1
-
-public fun ShortArray.lastIndex(): Int = this.size - 1
-
-public fun FloatArray.lastIndex(): Int = this.size - 1
-
-public fun DoubleArray.lastIndex(): Int = this.size - 1
-
 @SinceKotlin("1.4")
 @OptIn(ExperimentalTypeInference::class)
 @OverloadResolutionByLambdaReturnType
