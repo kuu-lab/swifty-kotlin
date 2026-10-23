@@ -176,8 +176,9 @@ func resolveDestructuringComponentCallee(
 extension CallLowerer {
     /// An open `componentN` overridden in a subclass must dispatch on the
     /// receiver's runtime type (`val (x, y): P = Q(...)` calls `Q.component1`),
-    /// so the resolved member goes through `tryEmitVirtualDispatch` first; only
-    /// a non-virtual member falls back to the direct `symbol`/`callee` call.
+    /// while member extensions dispatch on their enclosing receiver and local
+    /// component functions need their captured environment at the call site.
+    /// Other non-virtual members fall back to the direct `symbol`/`callee` call.
     func emitDestructuringComponentCall(
         candidate: SymbolID?,
         symbol: SymbolID?,
@@ -190,13 +191,51 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) {
-        if let virtualInstruction = tryEmitVirtualDispatch(
+        var arguments: [KIRExprID] = []
+        var dispatchReceiverID = receiverID
+        let isLocalFunction = candidate.flatMap { sema.symbols.symbol($0)?.flags.contains(.localFunction) } == true
+        let isMemberExtension = candidate.map { sema.symbols.memberExtensionOwnerSymbol(for: $0) != nil } == true
+
+        if isLocalFunction, let candidate {
+            for capturedSymbol in sema.bindings.localFunctionCaptureSymbols(for: candidate) {
+                guard let captureValue = driver.lambdaLowerer.captureValueExpr(
+                    for: capturedSymbol,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                ) else {
+                    assertionFailure("BuildKIRPhase: missing local component function capture '\(capturedSymbol)'")
+                    continue
+                }
+                arguments.append(captureValue)
+            }
+        }
+
+        if isMemberExtension, let candidate {
+            guard let memberExtensionDispatchReceiver = memberExtensionDispatchReceiver(
+                for: candidate,
+                callExprID: nil,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            ) else {
+                assertionFailure("BuildKIRPhase: member-extension component call has no dispatch receiver")
+                return
+            }
+            dispatchReceiverID = memberExtensionDispatchReceiver
+            arguments.append(memberExtensionDispatchReceiver)
+        }
+        arguments.append(receiverID)
+
+        if !isLocalFunction, let virtualInstruction = tryEmitVirtualDispatch(
             chosenCallee: candidate,
             calleeName: callee,
-            receiverExpr: receiverExpr,
-            loweredReceiverID: receiverID,
+            receiverExpr: isMemberExtension ? nil : receiverExpr,
+            loweredReceiverID: dispatchReceiverID,
             isSuperCall: false,
-            finalArguments: [receiverID],
+            finalArguments: arguments,
             result: result,
             sema: sema,
             arena: arena,
@@ -208,7 +247,7 @@ extension CallLowerer {
         instructions.append(.call(
             symbol: symbol,
             callee: callee,
-            arguments: [receiverID],
+            arguments: arguments,
             result: result,
             canThrow: false,
             thrownResult: nil
