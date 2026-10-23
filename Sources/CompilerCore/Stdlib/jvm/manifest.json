@@ -233,6 +233,11 @@
       "excludeFromStdlibBuild": false
     },
     {
+      "path": "declarations/ArrayUtilities.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-arrays-utility-runtime.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "declarations/UnsignedArrayOperations.kt",
       "virtualPath": "<kswiftk-jvm>/m20-unsigned-array-operations.kt",
       "excludeFromStdlibBuild": true,
