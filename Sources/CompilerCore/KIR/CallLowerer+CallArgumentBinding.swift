@@ -195,9 +195,13 @@ extension CallLowerer {
             }
             let memberFQName = ownerSymbol.fqName + [calleeName]
             for candidate in sema.symbols.lookupAll(fqName: memberFQName) {
+                // The fqName lookup already scopes candidates to this owner;
+                // comparing parentSymbol IDs is wrong when the same nominal
+                // owner exists twice (e.g. a stdlib artifact import beside a
+                // bundled declaration gives members a different SymbolID
+                // under the identical fqName).
                 guard let symbol = sema.symbols.symbol(candidate),
-                      symbol.kind == .function,
-                      sema.symbols.parentSymbol(for: candidate) == owner
+                      symbol.kind == .function
                 else {
                     continue
                 }
@@ -213,7 +217,18 @@ extension CallLowerer {
                 sema: sema
             ))
         }
-        candidates.sort(by: { $0.rawValue < $1.rawValue })
+        // Duplicate registrations (bundled source decl beside an artifact
+        // import) share the fqName; prefer the imported symbol — its link
+        // name is the one the artifact actually exports, while a bundled
+        // decl's `kk_fn_*` symbol exists only in source-injection mode.
+        candidates.sort { lhs, rhs in
+            let lhsImported = sema.symbols.symbol(lhs)?.declSite == nil
+            let rhsImported = sema.symbols.symbol(rhs)?.declSite == nil
+            if lhsImported != rhsImported {
+                return lhsImported
+            }
+            return lhs.rawValue < rhs.rawValue
+        }
         guard !candidates.isEmpty else {
             return nil
         }
@@ -228,8 +243,19 @@ extension CallLowerer {
             else {
                 return false
             }
+            // Member signatures are declared against the owner's nominal type
+            // parameters (`MutableList<E>.add(element: E)`); check argument
+            // compatibility after substituting the receiver's type arguments
+            // so `MutableList<Any>.add` accepts a concrete enum/class element
+            // instead of leaving the call unbound.
+            let candidateOwner = sema.symbols.parentSymbol(for: candidate)
             return zip(argumentTypes, signature.parameterTypes).allSatisfy { argumentType, parameterType in
-                sema.types.isSubtype(argumentType, parameterType)
+                let effectiveParameterType = candidateOwner.map {
+                    sema.types.substituteNominalTypeParameters(
+                        in: parameterType, owner: $0, ownerArgs: classType.args
+                    )
+                } ?? parameterType
+                return sema.types.isSubtype(argumentType, effectiveParameterType)
             }
         }
 

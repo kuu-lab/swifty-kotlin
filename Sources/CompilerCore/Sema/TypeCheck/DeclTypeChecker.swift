@@ -181,13 +181,111 @@ final class DeclTypeChecker {
                 expectedType: inferredPropertyType
             )
             if let declaredType = inferredPropertyType {
-                driver.emitSubtypeConstraint(
-                    left: initializerType, right: declaredType,
-                    range: property.range, solver: solver,
-                    sema: sema, diagnostics: diagnostics
-                )
+                let rangeExprSatisfiesIterableAnnotation: Bool = {
+                    guard sema.bindings.isRangeExpr(initializer),
+                          driver.helpers.isPlainIterableType(
+                              declaredType,
+                              sema: sema,
+                              interner: ctx.interner
+                          ),
+                          let declaredElementType = driver.helpers.plainIterableElementType(
+                              for: declaredType,
+                              sema: sema,
+                              interner: ctx.interner
+                          ),
+                          let rangeElementType = driver.helpers.iterableElementType(
+                              for: initializerType,
+                              isRangeExpr: true,
+                              isCharRangeExpr: sema.bindings.isCharRangeExpr(initializer),
+                              sema: sema,
+                              interner: ctx.interner
+                          )
+                    else {
+                        return false
+                    }
+                    return declaredElementType == rangeElementType
+                }()
+                if rangeExprSatisfiesIterableAnnotation
+                    || driver.helpers.rangeExprMatchesDeclaredElementType(
+                        bodyExprID: initializer,
+                        bodyType: initializerType,
+                        declaredType: declaredType,
+                        sema: sema,
+                        interner: ctx.interner
+                    )
+                {
+                    // Range expressions keep their runtime representation separate
+                    // from the source-level range interface, so accept a matching
+                    // range-like or plain Iterable annotation without forcing a
+                    // nominal subtype check (mirrors inferLocalDeclExpr).
+                } else {
+                    driver.emitSubtypeConstraint(
+                        left: initializerType, right: declaredType,
+                        range: property.range, solver: solver,
+                        sema: sema, diagnostics: diagnostics
+                    )
+                }
             } else {
                 inferredPropertyType = initializerType
+            }
+            // Propagate the initializer's value marks onto the property symbol,
+            // mirroring inferLocalDeclExpr: reads of this property must keep the
+            // range/collection/flow classification so `x in range`, `r.isEmpty()`
+            // and member probes resolve to the typed runtime bridges instead of
+            // the generic interface path (KUU-2942).
+            let declaredOpenEndRange = inferredPropertyType.map {
+                driver.helpers.isOpenEndRangeType($0, sema: sema, interner: ctx.interner)
+            } ?? false
+            // A `var` annotated with `ClosedRange`/`ClosedFloatingPointRange`
+            // can be reassigned to a user-defined range implementation, whose
+            // object is not a runtime range box. Its reads must keep the
+            // interface/probe path (which handles both representations) rather
+            // than being pinned to the box layout, so do not record the value
+            // marks. `OpenEndRange` is excluded: its unmarked `contains`
+            // resolution already binds `__kk_range_contains`, which rejects
+            // floating-point boxes outright — the marks are the only path that
+            // reaches `__kk_double_range_contains` there.
+            let mutableNonBoxedRangeHolder = property.isVar
+                && property.type != nil
+                && !declaredOpenEndRange
+                && inferredPropertyType.map {
+                    nominalRangeElementType(for: $0, sema: sema, interner: ctx.interner) == nil
+                } ?? false
+            if !mutableNonBoxedRangeHolder, sema.bindings.isRangeExpr(initializer) || declaredOpenEndRange {
+                sema.bindings.markRangeSymbol(symbol)
+                if sema.bindings.isCharRangeExpr(initializer) {
+                    sema.bindings.markCharRangeSymbol(symbol)
+                }
+                if sema.bindings.isUIntRangeExpr(initializer) {
+                    sema.bindings.markUIntRangeSymbol(symbol)
+                }
+                if sema.bindings.isULongRangeExpr(initializer) {
+                    sema.bindings.markULongRangeSymbol(symbol)
+                }
+                if sema.bindings.isFloatingPointRangeExpr(initializer) {
+                    sema.bindings.markFloatingPointRangeSymbol(symbol)
+                    if let elementType = sema.bindings.floatingPointRangeElementType(forExpr: initializer) {
+                        sema.bindings.bindFloatingPointRangeElementType(
+                            elementType,
+                            forSymbol: symbol,
+                            endExclusive: sema.bindings.isOpenFloatingPointRangeExpr(initializer)
+                        )
+                    }
+                }
+            }
+            if !mutableNonBoxedRangeHolder {
+                if sema.bindings.isCollectionExpr(initializer) {
+                    sema.bindings.markCollectionSymbol(symbol)
+                }
+                if sema.bindings.isFlowExpr(initializer) {
+                    sema.bindings.markFlowSymbol(symbol)
+                    if let flowElementType = sema.bindings.flowElementType(forExpr: initializer) {
+                        sema.bindings.bindFlowElementType(flowElementType, forSymbol: symbol)
+                    }
+                }
+                if let deferredElementType = sema.bindings.deferredElementType(forExpr: initializer) {
+                    sema.bindings.bindDeferredElementType(deferredElementType, forSymbol: symbol)
+                }
             }
         }
 

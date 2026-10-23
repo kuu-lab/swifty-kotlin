@@ -1013,7 +1013,7 @@ extension CallLowerer {
             else {
                 continue
             }
-            // KUU-2946: a delegated `var` always writes through the
+            // KUU-2943, KUU-2946: a delegated `var` always writes through the
             // synthesized setValue-forwarding setter accessor, so it must
             // win this check before the setter-body test. A bare
             // `private set`/`protected set` clause records only a

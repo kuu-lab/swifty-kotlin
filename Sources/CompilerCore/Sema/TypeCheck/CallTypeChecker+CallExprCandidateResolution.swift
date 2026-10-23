@@ -227,6 +227,13 @@ extension CallTypeChecker {
                 resolved = retried
                 resolvedImplicitReceiverType = callImplicitReceiverType
             }
+            // An unresolved member argument already has the root diagnostic.
+            if resolved.diagnostic?.code == "KSWIFTK-SEMA-0003",
+               containsUnresolvedMemberDiagnostic(in: args.map(\.expr), ast: ast, sema: sema)
+            {
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
             // An applicable member keeps precedence even when the surrounding
             // result expectation fails, or its own overload set is ambiguous.
             if let diagnostic = resolved.diagnostic,

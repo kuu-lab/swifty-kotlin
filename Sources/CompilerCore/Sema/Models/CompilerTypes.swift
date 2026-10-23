@@ -150,6 +150,10 @@ public struct CompilerOptions: Equatable {
     /// Whether the compiler may resolve the process default stdlib artifact.
     /// CLI debug runs can disable this with `--stdlib-from-source`.
     public var allowDefaultStdlibLibrary: Bool
+    /// Which bundled stdlib sources are injected, and which default artifact
+    /// is resolved (`--profile`, KUU-3016). An explicit `stdlibLibraryPath`
+    /// must have been built for the same profile.
+    public var stdlibProfile: StdlibProfile
 
     /// Search paths ordered with stdlibLibraryPath first and duplicates removed.
     public var effectiveLibrarySearchPaths: [String] {
@@ -209,7 +213,8 @@ public struct CompilerOptions: Equatable {
         stdlibLibraryPath: String? = nil,
         allowDefaultStdlibLibrary: Bool = true,
         entryPointFQName: String? = nil,
-        jvmClasspath: [String] = []
+        jvmClasspath: [String] = [],
+        stdlibProfile: StdlibProfile = .full
     ) {
         self.moduleName = moduleName
         self.inputs = inputs
@@ -243,6 +248,7 @@ public struct CompilerOptions: Equatable {
         self.stdlibOnly = stdlibOnly
         self.entryPointFQName = entryPointFQName
         self.jvmClasspath = jvmClasspath
+        self.stdlibProfile = stdlibProfile
     }
 
     /// Default search paths for locating Kotlin stdlib sources.

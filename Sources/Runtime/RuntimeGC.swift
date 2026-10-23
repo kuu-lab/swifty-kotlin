@@ -144,6 +144,13 @@ struct GCState {
     /// cache box must never be nominal-type tagged in place, so
     /// `kk_tag_value_class_box` consults this set and clones instead.
     var identityPrimitiveBoxHandles: Set<UInt> = []
+    /// Canonical Any-erased box handle per enum entry, keyed by enum class ID
+    /// and ordinal. Kotlin/JVM enum entries are singletons, so boxing the
+    /// same entry twice must return one object for `===` to observe reference
+    /// identity (KUU-2957). Handles are also registered in
+    /// `identityPrimitiveBoxHandles` so value-class tagging clones the shared
+    /// box instead of mutating it in place.
+    var enumIdentityBoxCache: [RuntimeEnumBoxCacheKey: Int] = [:]
     /// Monotonic counter of completed GC passes, surfaced as `GCInfo.epoch`.
     /// The first recorded pass reports epoch 1.
     var gcEpoch: Int64 = 0

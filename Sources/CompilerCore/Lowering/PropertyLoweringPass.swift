@@ -31,25 +31,27 @@ final class PropertyLoweringPass: LoweringPass {
             return fn.symbol
         })
 
+        // Every property-derived set below requires an emitted receiver-free
+        // getter, so walk those getters (a handful) and recover the owning
+        // property instead of scanning the whole symbol table.
+        let receiverFreeGetterProperties: [SymbolID] = {
+            guard let sema = ctx.sema else { return [] }
+            return emittedReceiverFreeGetterSymbols.compactMap { getter -> SymbolID? in
+                guard let property = SyntheticSymbolScheme.propertyOwnerOfGetterAccessor(getter),
+                      sema.symbols.symbol(property)?.kind == .property
+                else { return nil }
+                return property
+            }
+        }()
+
         let computedPropertySymbols: Set<SymbolID> = {
             guard let sema = ctx.sema else { return [] }
-            var result = Set<SymbolID>()
-            for sym in sema.symbols.allSymbols() {
-                guard sym.kind == .property,
-                      sema.symbols.backingFieldSymbol(for: sym.id) == nil
-                else {
-                    continue
-                }
-                // Only include if a getter accessor function was actually
-                // emitted — this avoids over-matching regular stored properties
-                // that have no custom getter.
-                let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: sym.id)
-                guard emittedReceiverFreeGetterSymbols.contains(getterSymbol) else {
-                    continue
-                }
-                result.insert(sym.id)
-            }
-            return result
+            // Only include if a getter accessor function was actually emitted
+            // — this avoids over-matching regular stored properties that have
+            // no custom getter.
+            return Set(receiverFreeGetterProperties.filter {
+                sema.symbols.backingFieldSymbol(for: $0) == nil
+            })
         }()
 
         // Top-level AND object-member properties with a custom getter still
@@ -66,20 +68,13 @@ final class PropertyLoweringPass: LoweringPass {
         // ones (a single instance, so no per-object field offset is needed).
         let packageOrObjectAccessorPropertySymbols: Set<SymbolID> = {
             guard let sema = ctx.sema else { return [] }
-            var result = Set<SymbolID>()
-            for sym in sema.symbols.allSymbols() {
-                let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: sym.id)
-                guard sym.kind == .property,
-                      emittedReceiverFreeGetterSymbols.contains(getterSymbol),
-                      sema.symbols.extensionPropertyReceiverType(for: sym.id) == nil
-                else { continue }
-                let parentKind = sema.symbols.parentSymbol(for: sym.id).flatMap {
+            return Set(receiverFreeGetterProperties.filter { property in
+                guard sema.symbols.extensionPropertyReceiverType(for: property) == nil else { return false }
+                let parentKind = sema.symbols.parentSymbol(for: property).flatMap {
                     sema.symbols.symbol($0)?.kind
                 }
-                guard parentKind == nil || parentKind == .package || parentKind == .object else { continue }
-                result.insert(sym.id)
-            }
-            return result
+                return parentKind == nil || parentKind == .package || parentKind == .object
+            })
         }()
 
         let externalGlobalPropertyCallee: (SymbolID) -> InternedString? = { symbol in
@@ -442,13 +437,7 @@ final class PropertyLoweringPass: LoweringPass {
         sema: SemaModule
     ) -> SymbolID? {
         if backingFieldToPropertyMap == nil {
-            var map: [SymbolID: SymbolID] = [:]
-            for sym in sema.symbols.allSymbols() {
-                if let backing = sema.symbols.backingFieldSymbol(for: sym.id) {
-                    map[backing] = sym.id
-                }
-            }
-            backingFieldToPropertyMap = map
+            backingFieldToPropertyMap = sema.symbols.propertiesByBackingFieldSymbol()
         }
         return backingFieldToPropertyMap?[backingFieldSymbol]
     }

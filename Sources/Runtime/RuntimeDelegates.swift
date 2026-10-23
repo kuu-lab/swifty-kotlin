@@ -6,19 +6,27 @@ final class RuntimeKPropertyStub {
     let visibility: Int // intptr_t to a KKString (e.g. "PUBLIC", "INTERNAL", etc.)
     let isLateinit: Bool
     let isConst: Bool
+    /// KUU-2947: a `val/var x by Delegate()` declared inside a function hands
+    /// getValue/setValue a KProperty0-shaped stub (KMutableProperty0 for `var`)
+    /// whose accessor members throw UnsupportedOperationException instead of
+    /// reading storage that does not exist — matching the JVM's
+    /// PropertyReference0Impl behavior for local delegated properties.
+    let isLocalDelegated: Bool
 
     init(
         name: Int,
         returnType: Int,
         visibility: Int = 0,
         isLateinit: Bool = false,
-        isConst: Bool = false
+        isConst: Bool = false,
+        isLocalDelegated: Bool = false
     ) {
         self.name = name
         self.returnType = returnType
         self.visibility = visibility
         self.isLateinit = isLateinit
         self.isConst = isConst
+        self.isLocalDelegated = isLocalDelegated
     }
 }
 private func runtimeTagCallableRef(
@@ -94,6 +102,220 @@ public func kk_kproperty_stub_create_cached(
         )
         return runtimeStorage.withMetadataLock { state in
             state.delegatedPropertyStubCache[identity] = created
+            return created
+        }
+    }
+}
+
+/// The message the JVM's local-delegated property reference (a
+/// `PropertyReference0Impl`/`MutablePropertyReference0Impl`) raises from
+/// `get`/`set`/`invoke`/`call`/`callBy`, because there is no real accessor to
+/// invoke for a local declaration.
+private let kLocalDelegatedCallUnsupportedMessage =
+    "call/callBy are not supported for this declaration."
+
+/// itable signature for `get`/`invoke`/`getDelegate` (arity 0): the emitted
+/// virtual call passes the receiver plus the appended thrown channel.
+private let runtimeLocalDelegatedPropertyGet: @convention(c) (
+    Int,
+    UnsafeMutablePointer<Int>?
+) -> Int = { _, thrown in
+    thrown?.pointee = runtimeAllocateUnsupportedOperationException(
+        message: kLocalDelegatedCallUnsupportedMessage
+    )
+    return runtimeNullSentinelInt
+}
+
+private let runtimeLocalDelegatedPropertyInvoke: @convention(c) (
+    Int,
+    UnsafeMutablePointer<Int>?
+) -> Int = { _, thrown in
+    thrown?.pointee = runtimeAllocateUnsupportedOperationException(
+        message: kLocalDelegatedCallUnsupportedMessage
+    )
+    return runtimeNullSentinelInt
+}
+
+/// `getDelegate()` on a local delegated property returns null on the JVM —
+/// the property has no bound delegate — rather than throwing.
+private let runtimeLocalDelegatedPropertyGetDelegate: @convention(c) (
+    Int,
+    UnsafeMutablePointer<Int>?
+) -> Int = { _, thrown in
+    thrown?.pointee = 0
+    return runtimeNullSentinelInt
+}
+
+private let runtimeLocalDelegatedPropertySet: @convention(c) (
+    Int,
+    Int,
+    UnsafeMutablePointer<Int>?
+) -> Int = { _, _, thrown in
+    thrown?.pointee = runtimeAllocateUnsupportedOperationException(
+        message: kLocalDelegatedCallUnsupportedMessage
+    )
+    return runtimeNullSentinelInt
+}
+
+/// The thrown channel of `invokeCallable`: (environment, arguments, mask,
+/// outThrown) -> Int. `KProperty0.Getter`/`KMutableProperty0.Setter` boxes for
+/// local delegated properties route `.call()` through it so both `call()` and
+/// `invoke()` raise the same UnsupportedOperationException.
+private let runtimeLocalDelegatedAccessorCall: @convention(c) (
+    Int,
+    Int,
+    Int,
+    UnsafeMutablePointer<Int>?
+) -> Int = { _, _, _, thrown in
+    thrown?.pointee = runtimeAllocateUnsupportedOperationException(
+        message: kLocalDelegatedCallUnsupportedMessage
+    )
+    return runtimeNullSentinelInt
+}
+
+private let runtimeLocalDelegatedAccessorInvoke0: @convention(c) (
+    Int,
+    UnsafeMutablePointer<Int>?
+) -> Int = { _, thrown in
+    thrown?.pointee = runtimeAllocateUnsupportedOperationException(
+        message: kLocalDelegatedCallUnsupportedMessage
+    )
+    return runtimeNullSentinelInt
+}
+
+private let runtimeLocalDelegatedAccessorInvoke1: @convention(c) (
+    Int,
+    Int,
+    UnsafeMutablePointer<Int>?
+) -> Int = { _, _, thrown in
+    thrown?.pointee = runtimeAllocateUnsupportedOperationException(
+        message: kLocalDelegatedCallUnsupportedMessage
+    )
+    return runtimeNullSentinelInt
+}
+
+/// KProperty0's itable slots (own methods get/getDelegate/invoke in
+/// declaration order) and KMutableProperty0's `set` slot — matched to the
+/// layout `LayoutSynthesis` computes for the bundled `kotlin.reflect` source.
+private enum RuntimeLocalDelegatedItable {
+    static let kProperty0InterfaceSlot = 1
+    static let kMutableProperty0InterfaceSlot = 2
+    static let getMethodSlot = 0
+    static let getDelegateMethodSlot = 1
+    static let invokeMethodSlot = 2
+    static let setMethodSlot = 0
+}
+
+func runtimeRegisterLocalDelegatedPropertyItable(rawValue: Int, isMutable: Bool) {
+    _ = kk_object_register_itable_iface(
+        rawValue, Int(kProperty0RuntimeTypeID), RuntimeLocalDelegatedItable.kProperty0InterfaceSlot
+    )
+    _ = kk_object_register_itable_method(
+        rawValue,
+        RuntimeLocalDelegatedItable.kProperty0InterfaceSlot,
+        RuntimeLocalDelegatedItable.getMethodSlot,
+        unsafeBitCast(runtimeLocalDelegatedPropertyGet, to: Int.self)
+    )
+    _ = kk_object_register_itable_method(
+        rawValue,
+        RuntimeLocalDelegatedItable.kProperty0InterfaceSlot,
+        RuntimeLocalDelegatedItable.getDelegateMethodSlot,
+        unsafeBitCast(runtimeLocalDelegatedPropertyGetDelegate, to: Int.self)
+    )
+    _ = kk_object_register_itable_method(
+        rawValue,
+        RuntimeLocalDelegatedItable.kProperty0InterfaceSlot,
+        RuntimeLocalDelegatedItable.invokeMethodSlot,
+        unsafeBitCast(runtimeLocalDelegatedPropertyInvoke, to: Int.self)
+    )
+    guard isMutable else { return }
+    _ = kk_object_register_itable_iface(
+        rawValue, Int(kMutableProperty0RuntimeTypeID), RuntimeLocalDelegatedItable.kMutableProperty0InterfaceSlot
+    )
+    _ = kk_object_register_itable_method(
+        rawValue,
+        RuntimeLocalDelegatedItable.kMutableProperty0InterfaceSlot,
+        RuntimeLocalDelegatedItable.setMethodSlot,
+        unsafeBitCast(runtimeLocalDelegatedPropertySet, to: Int.self)
+    )
+}
+
+/// The `KProperty0.Getter`/`KMutableProperty0.Setter` a local delegated
+/// property stub hands out. The JVM returns a real accessor object whose
+/// call/invoke raise UnsupportedOperationException, so fabricate a KFunction
+/// box whose call path does the same instead of handing back null.
+func runtimeLocalDelegatedPropertyAccessor(raw: Int, stub: RuntimeKPropertyStub, isSetter: Bool) -> Int {
+    let arity = isSetter ? 1 : 0
+    let fnPtr: Int
+    if isSetter {
+        fnPtr = unsafeBitCast(runtimeLocalDelegatedAccessorInvoke1, to: Int.self)
+    } else {
+        fnPtr = unsafeBitCast(runtimeLocalDelegatedAccessorInvoke0, to: Int.self)
+    }
+    let name = extractString(from: UnsafeMutableRawPointer(bitPattern: stub.name)) ?? ""
+    let metadata = RuntimeCallableRefMetadata(
+        nameRaw: runtimeMakeStringRaw(isSetter ? "<set-\(name)>" : "<get-\(name)>"),
+        returnTypeRaw: isSetter ? runtimeMakeStringRaw("Unit") : stub.returnType,
+        arity: arity,
+        kind: .function,
+        isSuspend: false,
+        invoker: unsafeBitCast(runtimeLocalDelegatedAccessorCall, to: Int.self),
+        property: raw
+    )
+    let context = RuntimePropertyAccessorContext(metadata: metadata)
+    let contextRaw = registerRuntimeObject(context)
+    let box = RuntimeFunctionValueBox(fnPtr: fnPtr, closureRaw: contextRaw, arity: arity)
+    registerReflectionRuntimeTypeMetadata()
+    let accessor = registerRuntimeObject(box, typeID: kFunctionRuntimeTypeID)
+    context.metadata = metadata
+    runtimeStorage.withDelegateLock { $0.callableRefMetadataByValue[accessor] = metadata }
+    return accessor
+}
+
+/// Local delegated properties hand their getValue/setValue a KProperty0
+/// (KMutableProperty0 for `var`) stub whose accessor members throw
+/// UnsupportedOperationException, matching the JVM's
+/// PropertyReference0Impl/MutablePropertyReference0Impl.
+@_cdecl("__kk_kproperty_stub_create_local")
+public func kk_kproperty_stub_create_local(
+    _ nameStr: Int,
+    _ returnTypeStr: Int,
+    _ identityStr: Int,
+    _ isMutable: Int
+) -> Int {
+    let isMutableFlag = isMutable != 0
+    guard let identity = runtimeStringFromRaw(identityStr) else {
+        registerReflectionRuntimeTypeMetadata()
+        let stub = RuntimeKPropertyStub(
+            name: nameStr, returnType: returnTypeStr, isLocalDelegated: true
+        )
+        let raw = registerRuntimeObject(
+            stub,
+            typeID: isMutableFlag ? kMutableProperty0RuntimeTypeID : kProperty0RuntimeTypeID
+        )
+        runtimeRegisterLocalDelegatedPropertyItable(rawValue: raw, isMutable: isMutableFlag)
+        return raw
+    }
+    // Keep the identity space disjoint from `__kk_kproperty_stub_create_cached`:
+    // a member/top-level stub answering the same identity is a different
+    // reflection kind (plain KProperty) and must not be handed out here.
+    let cacheKey = "local:\(identity)"
+    return runtimeStorage.withDelegatedPropertyStubLock {
+        if let cached = runtimeStorage.withMetadataLock({ $0.delegatedPropertyStubCache[cacheKey] }) {
+            return cached
+        }
+
+        registerReflectionRuntimeTypeMetadata()
+        let stub = RuntimeKPropertyStub(
+            name: nameStr, returnType: returnTypeStr, isLocalDelegated: true
+        )
+        let created = registerRuntimeObject(
+            stub,
+            typeID: isMutableFlag ? kMutableProperty0RuntimeTypeID : kProperty0RuntimeTypeID
+        )
+        runtimeRegisterLocalDelegatedPropertyItable(rawValue: created, isMutable: isMutableFlag)
+        return runtimeStorage.withMetadataLock { state in
+            state.delegatedPropertyStubCache[cacheKey] = created
             return created
         }
     }

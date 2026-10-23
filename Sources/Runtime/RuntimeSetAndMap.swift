@@ -649,7 +649,7 @@ private func runtimeCopySourceMapEntries(
     guard let entries = runtimeSourceInterfaceCall0(
         source,
         interfaceTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.Map"),
-        methodSlot: 2,
+        methodSlot: runtimeMapEntriesGetterSlot,
         context: "Map.entries dispatch",
         outThrown: &thrown
     ), thrown == 0 else { return }
@@ -709,6 +709,32 @@ public func kk_map_get(_ mapRaw: Int, _ key: Int) -> Int {
         return runtimeNullSentinelInt
     }
     return runtimeCollectionABIValue(value)
+}
+
+@_cdecl("__kk_map_contains_key")
+public func kk_map_contains_key(_ mapRaw: Int, _ key: Int) -> Int {
+    guard let map = runtimeMapBox(from: mapRaw) else {
+        if let sourceResult = runtimeSourceMapContainsKey(mapRaw, key: key) {
+            return sourceResult
+        }
+        // The implementation left containsKey on its interface default: fall
+        // back to `keys.contains(key)`, matching the stdlib extension.
+        return kk_op_contains(kk_map_keys(mapRaw), key)
+    }
+    return map.index(ofRawKey: key) != nil ? 1 : 0
+}
+
+@_cdecl("__kk_map_contains_value")
+public func kk_map_contains_value(_ mapRaw: Int, _ value: Int) -> Int {
+    guard let map = runtimeMapBox(from: mapRaw) else {
+        if let sourceResult = runtimeSourceMapContainsValue(mapRaw, value: value) {
+            return sourceResult
+        }
+        // Mirror the stdlib extension's `values.contains(value)` fallback when
+        // the implementation does not override containsValue.
+        return kk_op_contains(kk_map_values(mapRaw), value)
+    }
+    return map.values.contains(where: { map.valuesEqual($0, value) }) ? 1 : 0
 }
 
 @inline(__always)

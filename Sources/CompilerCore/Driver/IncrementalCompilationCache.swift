@@ -609,7 +609,7 @@ public final class IncrementalCompilationCache {
                 stdlibManifestHash = "missing"
             }
         } else if options.includeStdlib || options.stdlibOnly {
-            stdlibManifestHash = BundledStdlib.manifestHash()
+            stdlibManifestHash = BundledStdlib.manifestHash(profile: options.stdlibProfile)
         } else {
             stdlibManifestHash = ""
         }
@@ -637,6 +637,9 @@ public final class IncrementalCompilationCache {
             stdlibOnly: options.stdlibOnly,
             stdlibLibraryPath: options.stdlibLibraryPath,
             stdlibManifestHash: stdlibManifestHash,
+            // The profile changes import validation and diagnostics even when
+            // the same artifact is reused, so it must key the cached output.
+            stdlibProfile: options.stdlibProfile.rawValue,
             entryPointFQName: options.entryPointFQName
         )
         let encoder = JSONEncoder()
@@ -870,6 +873,7 @@ private struct IncrementalBuildConfiguration: Encodable {
     let stdlibOnly: Bool
     let stdlibLibraryPath: String?
     let stdlibManifestHash: String
+    let stdlibProfile: String
     let entryPointFQName: String?
 }
 

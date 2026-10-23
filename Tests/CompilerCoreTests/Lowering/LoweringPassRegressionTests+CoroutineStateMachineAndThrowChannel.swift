@@ -473,7 +473,7 @@ extension LoweringPassRegressionTests {
         let loweredLeaf = try loweredSuspendFunction(originalNamed: "leaf", in: module, interner: interner)
 
         let mainThrowFlags = extractThrowFlags(from: loweredMain.body, interner: interner)
-        #expect(mainThrowFlags[interner.resolve(loweredTop.name)]?.allSatisfy { $0 == true } == true)
+        #expect(mainThrowFlags[RuntimeCall.coroutineCallSuspendWrapper.name]?.allSatisfy { $0 == true } == true)
 
         let topThrowFlags = extractThrowFlags(from: loweredTop.body, interner: interner)
         #expect(topThrowFlags[RuntimeCall.coroutineCallDirectSuspend.name]?.allSatisfy { $0 == false } == true)

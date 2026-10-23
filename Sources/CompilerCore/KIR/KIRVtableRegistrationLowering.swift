@@ -926,7 +926,12 @@ func itableBridgeSymbolForMethod(
     sema: SemaModule,
     interner: StringInterner
 ) -> SymbolID {
-    guard implementation != interfaceMethod,
+    let barrierDefault = kirSpecialBuiltinBarrierDefault(
+        for: interfaceMethod,
+        sema: sema,
+        interner: interner
+    )
+    guard implementation != interfaceMethod || barrierDefault != nil,
           implementation.rawValue >= 0 || SyntheticSymbolScheme.decodedPropertyAccessor(implementation) != nil,
           let interfaceSig = interfaceSignature ?? sema.symbols.functionSignature(for: interfaceMethod),
           let implSig = implementationSignature ?? sema.symbols.functionSignature(for: implementation)
@@ -997,8 +1002,20 @@ func itableBridgeSymbolForMethod(
     }
 
     let receiverCount = interfaceReceiver == nil ? 0 : 1
+    // KUU-2954: special-builtins collection members carry a JVM type-safe
+    // barrier — the erased `Object` slot answers the member's default instead
+    // of reaching an implementation whose parameter cannot hold the value.
+    // The barrier replaces the checkcast on those parameters: a rejected
+    // argument returns the default rather than trapping.
+    let barrierCheckTypes: [TypeID?] = implementationParamTypes.enumerated().map { index, implType -> TypeID? in
+        guard barrierDefault != nil, index >= receiverCount else { return nil }
+        return kirErasedDispatchBarrierCheckType(
+            implementationParamType: implType,
+            sema: sema
+        )
+    }
     let argumentCastTargets = implementationParamTypes.enumerated().map { index, implType -> TypeID? in
-        guard index >= receiverCount else { return nil }
+        guard index >= receiverCount, barrierCheckTypes[index] == nil else { return nil }
         return kirErasedDispatchArgumentCastTarget(
             implementationType: implType,
             dispatchType: interfaceParamTypes[index],
@@ -1007,6 +1024,7 @@ func itableBridgeSymbolForMethod(
     }
 
     var needsBridge = argumentCastTargets.contains { $0 != nil }
+        || barrierCheckTypes.contains { $0 != nil }
     if isStringAggregate(implementationReturnType) != isStringAggregate(interfaceSig.returnType) {
         needsBridge = true
     }
@@ -1117,6 +1135,29 @@ func itableBridgeSymbolForMethod(
         defer { nextLocalLabel += 1 }
         return nextLocalLabel
     }
+    let barrierFailLabel: Int32? = barrierCheckTypes.contains(where: { $0 != nil })
+        ? makeBridgeLabel()
+        : nil
+    if let barrierFailLabel {
+        for (index, checkType) in barrierCheckTypes.enumerated() {
+            guard let checkType else { continue }
+            let token = RuntimeTypeCheckToken.encode(type: checkType, sema: sema, interner: interner)
+            let tokenExpr = arena.appendExpr(.intLiteral(token), type: sema.types.intType)
+            body.append(.constValue(result: tokenExpr, value: .intLiteral(token)))
+            let isResult = arena.appendTemporary(type: sema.types.booleanType)
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_op_is"),
+                arguments: [bridgeParamExprs[index], tokenExpr],
+                result: isResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+            body.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+            body.append(.jumpIfEqual(lhs: isResult, rhs: zeroExpr, target: barrierFailLabel))
+        }
+    }
     for (index, target) in argumentCastTargets.enumerated() {
         guard let target else { continue }
         let token = RuntimeTypeCheckToken.encode(type: target, sema: sema, interner: interner)
@@ -1217,6 +1258,22 @@ func itableBridgeSymbolForMethod(
         bridgeResult = callResult
     }
     body.append(.returnValue(bridgeResult))
+    if let barrierFailLabel, let barrierDefault {
+        body.append(.label(barrierFailLabel))
+        let defaultExpr: KIRExprID
+        switch barrierDefault {
+        case .booleanFalse:
+            defaultExpr = arena.appendExpr(.boolLiteral(false), type: interfaceSig.returnType)
+            body.append(.constValue(result: defaultExpr, value: .boolLiteral(false)))
+        case .indexNegativeOne:
+            defaultExpr = arena.appendExpr(.intLiteral(-1), type: interfaceSig.returnType)
+            body.append(.constValue(result: defaultExpr, value: .intLiteral(-1)))
+        case .nullValue:
+            defaultExpr = arena.appendExpr(.null, type: interfaceSig.returnType)
+            body.append(.constValue(result: defaultExpr, value: .null))
+        }
+        body.append(.returnValue(defaultExpr))
+    }
     body.append(.endBlock)
 
     let bridgeDecl = arena.appendDecl(
@@ -1429,11 +1486,14 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
                 interner: interner
             )
             if implementationSymbol == methodSymbol,
-               sema.symbols.symbol(interfaceSymbol)?.fqName == ["kotlin", "collections", "MutableSet"].map(interner.intern),
-               let method = sema.symbols.symbol(methodSymbol),
-               ["removeAll", "retainAll"].contains(interner.resolve(method.name))
+               sema.symbols.externalLinkName(for: methodSymbol) != nil
             {
-                // Default bulk bodies re-enter their runtime bridge, not an override.
+                // No override exists and the interface member itself is a
+                // runtime `__kk_*` bridge: registering it would re-enter the
+                // same runtime op through this very itable slot and recurse.
+                // Leave the slot empty so the op's own fallback answers the
+                // call (e.g. MutableSet's default bulk bodies, or Map members
+                // such as containsKey/containsValue left unimplemented).
                 continue
             }
             let bridgeSymbol = itableBridgeSymbolForMethod(

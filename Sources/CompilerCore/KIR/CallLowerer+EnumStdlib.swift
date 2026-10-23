@@ -155,6 +155,84 @@ extension CallLowerer {
     }
 }
 
+/// Emits the enum's lazy initializer — `$enumEnsureInit$`, whose body also
+/// runs the companion's lazy init — modelling the JVM `<clinit>` that any
+/// enum API (`values`, `valueOf`, `entries`, `enumValues`, `enumEntries`,
+/// `enumValueOf`) must trigger on first access.
+///
+/// Call sites lowered while the enum class itself is still unlowered (a
+/// forward reference in source order) cannot resolve the helper symbol yet;
+/// a `.symbolRef` to the first entry field is emitted instead and
+/// `insertEnumLazyInitTriggers` rewrites it into the init calls, preserving
+/// the entries-then-companion order. Storage-free literal enums have no
+/// ensure-init — only a companion carrying init side effects needs a call.
+func emitEnumLazyInitGuard(
+    enumSymbol: SymbolID,
+    entryFieldSymbols: [SymbolID],
+    sema: SemaModule,
+    arena: KIRArena,
+    interner: StringInterner,
+    instructions: inout [KIRInstruction]
+) {
+    let ensureInitName = interner.intern(EnumPropertyHelperNames.ensureInitName)
+    if let enumInfo = sema.symbols.symbol(enumSymbol),
+       let ensureInitSymbol = sema.symbols.lookupAll(
+           fqName: enumInfo.fqName + [ensureInitName]
+       ).first(where: { sema.symbols.symbol($0)?.kind == .function })
+    {
+        instructions.append(.call(
+            symbol: ensureInitSymbol,
+            callee: ensureInitName,
+            arguments: [],
+            result: arena.appendTemporary(type: sema.types.unitType),
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return
+    }
+    // A storage-free enum never defines `$enumEnsureInit$`; its companion's
+    // lazy init (if synthesized already, or known through import metadata)
+    // is the only initializer such an enum can carry.
+    if let companionSymbol = sema.symbols.companionObjectSymbolIfKnown(for: enumSymbol) {
+        let lazyInitName = interner.intern("__companion_lazy_init_\(companionSymbol.rawValue)")
+        let localInit = arena.declarations.first(where: { decl in
+            guard case let .function(function) = decl else { return false }
+            return function.name == lazyInitName
+        })
+        if case let .function(function) = localInit {
+            instructions.append(.call(
+                symbol: function.symbol,
+                callee: lazyInitName,
+                arguments: [],
+                result: arena.appendTemporary(type: sema.types.unitType),
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return
+        }
+        if let importedInit = sema.symbols.objectLazyInitializerSymbol(for: companionSymbol),
+           let importedInfo = sema.symbols.symbol(importedInit)
+        {
+            instructions.append(.call(
+                symbol: importedInit,
+                callee: importedInfo.name,
+                arguments: [],
+                result: arena.appendTemporary(type: sema.types.unitType),
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return
+        }
+    }
+    if let firstEntry = entryFieldSymbols.first {
+        // The enum's helpers are synthesized later during its own lowering;
+        // the trigger pass inserts the ensure-init/companion-init calls
+        // ahead of this reference.
+        let marker = arena.appendExpr(.symbolRef(firstEntry), type: sema.types.anyType)
+        instructions.append(.constValue(result: marker, value: .symbolRef(firstEntry)))
+    }
+}
+
 /// Shared by concrete calls and reified calls specialized after inlining.
 func emitEnumEntryCollection(
     classType: ClassType,
@@ -184,6 +262,18 @@ func emitEnumEntryCollection(
             if lhsFieldOffset != rhsFieldOffset { return lhsFieldOffset < rhsFieldOffset }
             return $0.id.rawValue < $1.id.rawValue
         })
+
+    // Kotlin runs the enum's `<clinit>` — entry and companion init blocks —
+    // the first time any enum API is touched, including these entry-point
+    // collections.
+    emitEnumLazyInitGuard(
+        enumSymbol: classType.classSymbol,
+        entryFieldSymbols: entries.map(\.id),
+        sema: sema,
+        arena: arena,
+        interner: interner,
+        instructions: &instructions
+    )
 
     let enumValuesArray = arena.appendTemporary(type: sema.types.anyType)
     let entriesCountExpr = arena.appendExpr(.intLiteral(Int64(entries.count)), type: intType)
