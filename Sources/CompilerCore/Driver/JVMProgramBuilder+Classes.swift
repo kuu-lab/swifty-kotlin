@@ -167,7 +167,7 @@ extension JVMProgramBuilder {
     func prepareProperties(_ plan: JVMClassPlan, ids propertyIDs: [DeclID]) throws {
         for id in propertyIDs {
             guard case let .propertyDecl(p) = ast.arena.decl(id), let symbol = sema.bindings.declSymbol(for: id), let propertyType = sema.symbols.propertyType(for: symbol),
-                  p.typeParams.isEmpty, p.receiverType == nil, p.contextReceivers.isEmpty,
+                  p.typeParams.isEmpty, (p.receiverType == nil || plan.isFacade), p.contextReceivers.isEmpty,
                   p.explicitBackingField == nil,
                   p.modifiers.subtracting([.public, .private, .protected, .internal, .open, .final, .abstract, .override, .lateinit, .const]).isEmpty,
                   p.getter?.isInline != true, p.setter?.isInline != true,
@@ -175,6 +175,10 @@ extension JVMProgramBuilder {
             guard !plan.isInterface || (!p.modifiers.contains(.private) && p.getter?.visibility != .private && p.setter?.visibility != .private) else { throw JVMFrontendError(message: "JVM M5 targets Java 8; private interface accessors are unsupported.", range: p.range) }
             let name = context.interner.resolve(p.name)
             let type = plan.isAnnotation ? try annotationElementType(self.type(propertyType)) : try self.type(propertyType)
+            let extensionReceiverSemantic = sema.symbols.extensionPropertyReceiverType(for: symbol)
+            let extensionReceiver = try extensionReceiverSemantic.map(self.type)
+            let getterParameters = extensionReceiver.map { [$0] } ?? []
+            let setterParameters = getterParameters + [type]
             guard Self.isIdentifier(name), type != .unit else { throw JVMFrontendError(message: "Unsupported JVM property name/type.") }
             let isAbstract = p.modifiers.contains(.abstract) || (plan.isInterface && (p.getter?.body ?? .unit) == .unit)
             let capital = String(name.prefix(1)).uppercased() + name.dropFirst()
@@ -182,18 +186,18 @@ extension JVMProgramBuilder {
             let collectionGetter = collectionPropertyGetter(plan, name: name)
             let getterName = collectionGetter ?? (plan.isAnnotation ? name : (booleanIs ? name : "get" + capital))
             let setterName = booleanIs ? "set" + name.dropFirst(2) : "set" + capital
-            var getter = JVMForeignMethod(owner: plan.name, name: getterName, descriptor: "()" + type.descriptor, parameters: [], result: type, isStatic: plan.isFacade, isInterface: plan.isInterface, isAbstract: isAbstract)
+            var getter = JVMForeignMethod(owner: plan.name, name: getterName, descriptor: "(" + getterParameters.map(\.descriptor).joined() + ")" + type.descriptor, parameters: getterParameters, result: type, isStatic: plan.isFacade, isInterface: plan.isInterface, isAbstract: isAbstract)
             getter.isSpecial = !plan.isFacade && (p.getter?.visibility == .private || p.modifiers.contains(.private))
             var setter: JVMForeignMethod?
             if p.isVar {
-                setter = JVMForeignMethod(owner: plan.name, name: setterName, descriptor: "(" + type.descriptor + ")V", parameters: [type], result: .unit, isStatic: plan.isFacade, isInterface: plan.isInterface, isAbstract: p.modifiers.contains(.abstract) || (plan.isInterface && (p.setter?.body ?? .unit) == .unit))
+                setter = JVMForeignMethod(owner: plan.name, name: setterName, descriptor: "(" + setterParameters.map(\.descriptor).joined() + ")V", parameters: setterParameters, result: .unit, isStatic: plan.isFacade, isInterface: plan.isInterface, isAbstract: p.modifiers.contains(.abstract) || (plan.isInterface && (p.setter?.body ?? .unit) == .unit))
                 setter?.isSpecial = !plan.isFacade && (p.setter?.visibility == .private || p.modifiers.contains(.private))
             }
             if case .nothing = sema.types.kind(of: propertyType) { throw JVMFrontendError(message: "JVM M5 does not expose Nothing properties; specify a supported type.", range: p.range) }
             let validator = DeclarationPositionValidator(astArena: ast.arena, interner: context.interner, diagnostics: nil)
             let backing = sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
             let usesField: (ExprID) -> Bool = { self.sema.bindings.identifierSymbol(for: $0) == backing }
-            let hasField = !plan.isInterface && !p.modifiers.contains(.abstract) &&
+            let hasField = extensionReceiver == nil && !plan.isInterface && !p.modifiers.contains(.abstract) &&
                 (!validator.accessorHasBody(p.getter) || (p.isVar && !validator.accessorHasBody(p.setter)) ||
                  validator.accessorUsesBackingField(p.getter, isBackingFieldReference: usesField) ||
                  validator.accessorUsesBackingField(p.setter, isBackingFieldReference: usesField))
@@ -211,7 +215,9 @@ extension JVMProgramBuilder {
             let field = hasField && p.delegateExpression == nil ? JVMField(owner: plan.name, name: name, type: type, access: (p.modifiers.contains(.lateinit) || exposedField ? self.access(fieldModifiers) : 2) | (plan.isFacade ? 8 : 0) | (p.isVar || plan.isObject ? 0 : 16)) : nil
             var property = JVMProperty(name: name, type: type, getter: getter, setter: setter, field: field, modifiers: p.modifiers)
             property.kotlinType = try kotlinType(propertyType)
+            property.kotlinReceiver = try extensionReceiverSemantic.map(kotlinType)
             property.genericSignature = try signatureType(propertyType)
+            property.receiverGenericSignature = try extensionReceiverSemantic.map { try signatureType($0) }
             property.customGetter = (p.getter?.body ?? .unit) != .unit || (p.getter?.visibility.map { $0 != Visibility(modifiers: p.modifiers) } ?? false)
             property.customSetter = (p.setter?.body ?? .unit) != .unit || (p.setter?.visibility.map { $0 != Visibility(modifiers: p.modifiers) } ?? false)
             if p.delegateExpression != nil {

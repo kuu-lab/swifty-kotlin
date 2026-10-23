@@ -652,7 +652,9 @@ final class JVMFunctionBuilder {
             instructions.append(.print(argument, newline: name == "println")); return nil
         case let .memberAssign(receiver, _, rhs, _):
             guard let property = propertyBinding(id) else { throw fail("Missing JVM property assignment binding.", id) }
-            let object = try property.getter.isStatic ? constant(.null, .reference("java/lang/Object", nullable: true)) : requireValue(receiver)
+            let object = try property.getter.isStatic && property.getter.parameters.isEmpty
+                ? constant(.null, .reference("java/lang/Object", nullable: true))
+                : requireValue(receiver)
             let result = try requireValue(rhs)
             try writeProperty(property, receiver: object, value: result, initializing: reference.name == "<init>" || initializingObject, special: isSuper(receiver), superReceiver: receiver)
             return nil

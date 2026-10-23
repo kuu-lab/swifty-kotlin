@@ -160,6 +160,22 @@ private struct JVMSourceGrammar {
             try require(.symbol(.rParen))
         }
     }
+    mutating func propertyName() throws {
+        let start = index
+        do {
+            try type()
+            guard let receiverSeparator = (start..<index).last(where: { tokens[$0].kind == .symbol(.dot) }) else {
+                index = start
+                try name()
+                return
+            }
+            index = receiverSeparator + 1
+            try name()
+        } catch {
+            index = start
+            try name()
+        }
+    }
     mutating func declaration(member: Bool) throws {
         let enclosingHeader = inDelegationHeader
         inDelegationHeader = false
@@ -224,7 +240,7 @@ private struct JVMSourceGrammar {
                 }
             }
         } else if (take(.keyword(.val)) || take(.keyword(.var))) {
-            try name()
+            try propertyName()
             if take(.symbol(.colon)) { try type() }
             if take(.symbol(.assign)) || take(.softKeyword(.by)) { try expression() }
             while true {

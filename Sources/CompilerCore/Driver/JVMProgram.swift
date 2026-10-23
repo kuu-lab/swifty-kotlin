@@ -271,7 +271,9 @@ public struct JVMProperty {
     public var field: JVMField?
     public let modifiers: Modifiers
     public var kotlinType: JVMKotlinType? = nil
+    public var kotlinReceiver: JVMKotlinType? = nil
     public var genericSignature: String? = nil
+    public var receiverGenericSignature: String? = nil
     public var delegateField: JVMField? = nil
     public var delegateSymbol: SymbolID? = nil
     public var annotationsMethod: JVMForeignMethod? = nil
