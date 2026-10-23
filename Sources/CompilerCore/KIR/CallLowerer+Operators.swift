@@ -1379,12 +1379,12 @@ extension CallLowerer {
     }
 
     /// Resolves an AST reference to its `const val` constant for compile-time
-    /// string-concat folding (KUU-1385). Deliberately narrower than
+    /// literal folding. Deliberately narrower than
     /// `propertyConstantInitializers`: Kotlin's constant-expression rules
     /// admit `const val` reads only — a plain `val` holding a literal is NOT
     /// a compile-time constant on the JVM (`"x" + s` for `val s = "ab"`
     /// concatenates at runtime and does not intern).
-    private func compileTimeConstantRef(
+    func compileTimeConstantRef(
         _ exprID: ExprID,
         ast: ASTModule,
         sema: SemaModule
