@@ -185,10 +185,10 @@ extension JVMFunctionBuilder {
         return result
     }
 
-    func forLoop(_ name: InternedString, _ iterable: ExprID, _ body: ExprID, _ id: ExprID) throws {
+    func forLoop(_ name: InternedString, _ iterable: ExprID, _ body: ExprID, _ id: ExprID, label loopLabel: InternedString? = nil) throws {
         if case let .binary(op, _, _, _) = arena.expr(iterable), op == .rangeTo,
            program.hasSourceRangeOperator(iterable) {
-            try sequenceLoop(name, iterable, body, id)
+            try sequenceLoop(name, iterable, body, id, label: loopLabel)
             return
         }
         let range: (BinaryOp, ExprID, ExprID)? = switch arena.expr(iterable) {
@@ -202,7 +202,7 @@ extension JVMFunctionBuilder {
             nil
         }
         guard let (op, from, to) = range else {
-            try sequenceLoop(name, iterable, body, id); return
+            try sequenceLoop(name, iterable, body, id, label: loopLabel); return
         }
         let first = try requireValue(from), last = try requireValue(to)
         let type = try numericType(first.type, last.type)
@@ -218,7 +218,7 @@ extension JVMFunctionBuilder {
         let comparison: BinaryOp = op == .rangeUntil ? .lessThan : (op == .downTo ? .greaterOrEqual : .lessOrEqual)
         instructions.append(.binary(comparison, induction, bound, check))
         instructions.append(.jumpIfFalse(check, exit))
-        loops.append((exit, advance, pendingAllocations.count)); _ = try expression(body, discarded: true); loops.removeLast()
+        loops.append(LoopFrame(label: loopLabel, exit: exit, next: advance, allocationDepth: pendingAllocations.count)); _ = try expression(body, discarded: true); loops.removeLast()
         mark(advance)
         // Test the inclusive terminal element before incrementing. This keeps
         // MAX_VALUE/MIN_VALUE ranges finite even when the next value overflows.

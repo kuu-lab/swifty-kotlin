@@ -456,7 +456,7 @@ extension JVMFunctionBuilder {
 }
 
 extension JVMFunctionBuilder {
-    func sequenceLoop(_ name: InternedString, _ iterable: ExprID, _ body: ExprID, _ id: ExprID) throws {
+    func sequenceLoop(_ name: InternedString, _ iterable: ExprID, _ body: ExprID, _ id: ExprID, label loopLabel: InternedString? = nil) throws {
         let source = try requireValue(iterable)
         // An Iterator receiver is its own cursor: the stdlib Iterator<T>.iterator()
         // operator returns `this`, so Sema leaves iteratorCall nil for it.
@@ -479,7 +479,7 @@ extension JVMFunctionBuilder {
             let check = try value(.boolean); instructions.append(.binary(.lessThan, index, size, check)); instructions.append(.jumpIfFalse(check, exit))
             let item = try indexedRead(source, index: index, type: elementType)
             instructions.append(.copy(item, local))
-            loops.append((exit, advance, pendingAllocations.count)); _ = try expression(body, discarded: true); loops.removeLast()
+            loops.append(LoopFrame(label: loopLabel, exit: exit, next: advance, allocationDepth: pendingAllocations.count)); _ = try expression(body, discarded: true); loops.removeLast()
             mark(advance)
             let one = try constant(.int(1), .int)
             instructions.append(.binary(.add, index, one, index)); jump(test)
@@ -514,7 +514,7 @@ extension JVMFunctionBuilder {
             instructions.append(.jumpIfFalse(check, exit))
             let next = try jdkCall("java/util/Iterator", "next", [], .reference("java/lang/Object", nullable: true), receiver: iterator, interface: true, resolved: elementType)!
             instructions.append(.copy(next, local))
-            loops.append((exit, advance, pendingAllocations.count)); _ = try expression(body, discarded: true); loops.removeLast()
+            loops.append(LoopFrame(label: loopLabel, exit: exit, next: advance, allocationDepth: pendingAllocations.count)); _ = try expression(body, discarded: true); loops.removeLast()
             mark(advance); jump(test)
         }
         mark(exit)
