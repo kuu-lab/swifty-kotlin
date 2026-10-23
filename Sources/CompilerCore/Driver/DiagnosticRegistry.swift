@@ -302,6 +302,12 @@ enum DiagnosticRegistry {
             summary: "Top-level statements are only allowed in '.kts' script files."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0026",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Expected '}' to close block."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-PARSE-TYPE-DEPTH",
             pass: "PARSE",
             defaultSeverity: .error,
