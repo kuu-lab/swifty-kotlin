@@ -315,7 +315,6 @@ public fun <T, R> Sequence<Pair<T, R>>.unzip(): Pair<List<T>, List<R>> {
     return Pair(list1.toList(), list2.toList())
 }
 
-@KsSymbolName("kk_sequence_plus_element")
 public operator fun <T> Sequence<T>.plus(element: T): Sequence<T> {
     val source = this
     return object : Sequence<T> {
@@ -337,10 +336,8 @@ public operator fun <T> Sequence<T>.plus(element: T): Sequence<T> {
     }
 }
 
-@KsSymbolName("kk_sequence_plus_element")
 public fun <T> Sequence<T>.plusElement(element: T): Sequence<T> = plus(element)
 
-@KsSymbolName("kk_sequence_plus")
 public operator fun <T> Sequence<T>.plus(other: Iterable<T>): Sequence<T> {
     val source = this
     return object : Sequence<T> {
@@ -368,7 +365,6 @@ public operator fun <T> Sequence<T>.plus(other: Iterable<T>): Sequence<T> {
     }
 }
 
-@KsSymbolName("kk_sequence_plus")
 public operator fun <T> Sequence<T>.plus(other: Sequence<T>): Sequence<T> {
     val source = this
     return object : Sequence<T> {
@@ -396,7 +392,6 @@ public operator fun <T> Sequence<T>.plus(other: Sequence<T>): Sequence<T> {
     }
 }
 
-@KsSymbolName("kk_sequence_plus")
 public operator fun <T> Sequence<T>.plus(other: Array<out T>): Sequence<T> {
     val source = this
     val array = other
