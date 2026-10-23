@@ -504,12 +504,12 @@ extension CallLowerer {
         let result = arena.appendTemporary(type: boundType)
         let calleeName = sema.symbols.symbol(chosenCtor)?.name ?? interner.intern("<init>")
         let stubOwner = driver.callSupportLowerer.defaultStubOwnerSymbol(for: chosenCtor, sema: sema)
-        if normalized.defaultMask != 0,
+        if normalized.hasOmittedDefaultArguments,
            sema.symbols.externalLinkName(for: chosenCtor)?.isEmpty ?? true ||
             sema.symbols.externalLinkName(for: driver.callSupportLowerer.defaultStubSymbol(for: stubOwner)) != nil
         {
-            appendDefaultMaskArgument(
-                normalized.defaultMask,
+            appendDefaultMaskArguments(
+                normalized.defaultMaskWords,
                 sema: sema,
                 arena: arena,
                 instructions: &instructions,

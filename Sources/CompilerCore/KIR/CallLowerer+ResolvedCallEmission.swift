@@ -971,7 +971,7 @@ extension CallLowerer {
         // stub; resolve to the base declaration's stub instead (see
         // `defaultStubOwnerSymbol`).
         let defaultStubOwner = chosen.map { driver.callSupportLowerer.defaultStubOwnerSymbol(for: $0, sema: sema, callBinding: callBinding) }
-        if callNormalized.defaultMask != 0,
+        if callNormalized.hasOmittedDefaultArguments,
            let chosen,
            let defaultStubOwner,
            (sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true ||
@@ -986,8 +986,8 @@ extension CallLowerer {
                 instructions: &instructions,
                 arguments: &finalArgIDs
             )
-            appendDefaultMaskArgument(
-                callNormalized.defaultMask,
+            appendDefaultMaskArguments(
+                callNormalized.defaultMaskWords,
                 sema: sema,
                 arena: arena,
                 instructions: &instructions,

@@ -392,7 +392,7 @@ extension CallLowerer {
     }
 
     func tryEmitEnumEntryDispatchCall(
-        defaultMask: Int64,
+        hasOmittedDefaultArguments: Bool,
         isSuperCall: Bool,
         chosenCallee: SymbolID?,
         receiver: MemberCallReceiver,
@@ -418,7 +418,7 @@ extension CallLowerer {
         // `chosenCallee`'s mangled name, same as `enumToStringOverrideHelper`),
         // so `firstEnum.X.toString()` and `secondEnum.Y.toString()` never
         // cross-resolve to each other's dispatch helper.
-        if defaultMask == 0,
+        if !hasOmittedDefaultArguments,
            !isSuperCall,
            let chosenCallee,
            let chosenCalleeInfo = sema.symbols.symbol(chosenCallee),
@@ -554,7 +554,7 @@ extension CallLowerer {
             return
         }
         if tryEmitEnumEntryDispatchCall(
-            defaultMask: normalized.defaultMask,
+            hasOmittedDefaultArguments: normalized.hasOmittedDefaultArguments,
             isSuperCall: isSuperCall,
             chosenCallee: chosenCallee,
             receiver: receiver,
@@ -650,7 +650,7 @@ extension CallLowerer {
             arguments: &finalArguments,
             valueArgOffsetOverride: memberExtensionDispatchReceiver != nil ? 2 : nil
         )
-        if normalized.defaultMask != 0,
+        if normalized.hasOmittedDefaultArguments,
            let chosenCallee,
            let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
            externalLinkName.hasSuffix("_joinToString")
@@ -687,11 +687,18 @@ extension CallLowerer {
                 // argument must resolve the default *and* dispatch
                 // statically to the overridden implementation, never
                 // virtually to the runtime type's own override -- see the
-                // reserved mask bit 30 decoded in
+                // marker decoded in
                 // `CallSupportLowerer.generateDefaultStubFunction`.
-                let effectiveMask = isSuperCall ? (normalized.defaultMask | (Int64(1) << 30)) : normalized.defaultMask
-                appendDefaultMaskArgument(
-                    effectiveMask,
+                var effectiveMasks = normalized.defaultMaskWords
+                if isSuperCall, !effectiveMasks.isEmpty {
+                    if effectiveMasks.count > 1 {
+                        effectiveMasks[effectiveMasks.count - 1] = 1
+                    } else {
+                        effectiveMasks[0] |= Int64(1) << 30
+                    }
+                }
+                appendDefaultMaskArguments(
+                    effectiveMasks,
                     sema: sema,
                     arena: arena,
                     instructions: &instructions,
