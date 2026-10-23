@@ -8,9 +8,17 @@
 package kotlinx.coroutines.flow
 
 import kotlin.coroutines.CoroutineContext
+import kotlinx.atomicfu.locks.SynchronizedObject
+import kotlinx.atomicfu.locks.synchronized
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.launch
 
 private class ReadonlySharedFlow<T>(private val source: SharedFlow<T>) : SharedFlow<T> {
     override val replayCache: List<T>
@@ -37,8 +45,10 @@ public fun <T> MutableSharedFlow<T>.asSharedFlow(): SharedFlow<T> = ReadonlyShar
 
 public fun <T> MutableStateFlow<T>.asStateFlow(): StateFlow<T> = ReadonlyStateFlow(this)
 
-// Snapshot flows have no live producer/consumer buffer or dispatcher boundary.
-// Like the cold-flow temporal operators, fusion preserves the source instance.
+// flowOn, cancellable, and rendezvous buffer are identity operators for
+// SharedFlow. KSwiftK also preserves identity for configurable buffers and
+// conflate because it does not yet model their downstream channel semantics;
+// that compatibility limit is pinned by the snapshot API regression case.
 public fun <T> SharedFlow<T>.buffer(
     capacity: Int = -2,
     onBufferOverflow: BufferOverflow = BufferOverflow.SUSPEND
@@ -56,6 +66,7 @@ public fun <T> SharedFlow<T>.cancellable(): SharedFlow<T> = this
 
 public fun <T> SharedFlow<T>.conflate(): SharedFlow<T> = this
 
+// StateFlow collection already suppresses equal consecutive values.
 public fun <T> StateFlow<T>.distinctUntilChanged(): StateFlow<T> = this
 
 public fun <T> Flow<T>.shareIn(
@@ -63,9 +74,11 @@ public fun <T> Flow<T>.shareIn(
     started: SharingStarted,
     replay: Int = 0
 ): SharedFlow<T> {
-    val shared = MutableSharedFlow<T>(replay)
-    val sharing = SnapshotSharing(this, scope, started, shared) { shared.resetReplayCache() }
-    return SharingSharedFlow(shared, sharing)
+    val shared = newSharedFlowForSharing<T>(replay)
+    val sharing = SnapshotSharing<T>(this, scope, started, shared) {
+        shared.resetReplayCache()
+    }
+    return SharingSharedFlow<T>(shared, sharing.controller)
 }
 
 public fun <T> Flow<T>.stateIn(
@@ -74,99 +87,115 @@ public fun <T> Flow<T>.stateIn(
     initialValue: T
 ): StateFlow<T> {
     val state = MutableStateFlow<T>(initialValue)
-    val sharing = SnapshotSharing(this, scope, started, state) { state.tryEmit(initialValue) }
-    return SharingStateFlow(state, sharing)
+    val sharing = SnapshotSharing<T>(this, scope, started, state) {
+        state.tryEmit(initialValue)
+    }
+    return SharingStateFlow<T>(state, sharing.controller)
 }
 
-// Collection subscribes for the duration of one buffered snapshot.
+// A scope-owned controller applies the reactive sharing command stream.
 private class SnapshotSharing<T>(
-    private val source: Flow<T>,
-    private val scope: CoroutineScope,
-    private val started: SharingStarted,
-    private val collector: FlowCollector<T>,
-    private val reset: () -> Unit
+    source: Flow<T>,
+    scope: CoroutineScope,
+    started: SharingStarted,
+    collector: FlowCollector<T>,
+    reset: () -> Unit
 ) {
-    private val subscriptions = SnapshotSubscriptionCount()
-    private var collecting = false
-    private var launched: Job? = null
+    private val controllerDispatcher: CoroutineDispatcher =
+        scope.coroutineContext[CoroutineDispatcher] ?: Dispatchers.Default
+
+    internal val controller: SnapshotSharingController = SnapshotSharingController(
+        scope,
+        started,
+        { source.collect(collector) },
+        reset
+    )
 
     init {
-        launched = launchCommands()
+        val controller = this.controller
+        scope.launch(controllerDispatcher, start = CoroutineStart.DEFAULT) {
+            controller.collectCommands()
+        }
     }
 
-    private fun launchCommands(): Job = scope.launch {
-        for (command in started.command(subscriptions).toList()) {
+}
+
+internal class SnapshotSharingController(
+    private val scope: CoroutineScope,
+    private val started: SharingStarted,
+    private val collectUpstream: suspend () -> Unit,
+    private val reset: () -> Unit
+) {
+    private val subscriptions = MutableStateFlow(0)
+    private val lock = SynchronizedObject()
+    private var upstreamJob: Job? = null
+
+    suspend fun collectCommands() {
+        started.command(subscriptions).distinctUntilChanged().collect { command ->
             when (command) {
-                SharingCommand.START -> {
-                    if (!collecting) {
-                        collecting = true
-                        source.collect(collector)
-                    }
-                }
-                SharingCommand.STOP -> collecting = false
+                SharingCommand.START -> startUpstream()
+                SharingCommand.STOP -> stopUpstream()
                 SharingCommand.STOP_AND_RESET_REPLAY_CACHE -> {
-                    collecting = false
+                    stopUpstream()
                     reset()
                 }
             }
         }
+        // Eagerly emits one command; keep its scope-owned sharing controller alive afterward.
+        if (started.isEagerly()) awaitCancellation()
     }
 
-    suspend fun subscribe() {
-        launched?.join()
-        subscriptions.update(subscriptions.value + 1)
-        launched = launchCommands()
-        launched?.join()
+    fun subscribe() {
+        subscriptions.update { it + 1 }
     }
 
-    suspend fun unsubscribe() {
-        subscriptions.update(subscriptions.value - 1)
-        launched = launchCommands()
-        launched?.join()
-    }
-}
-
-private class SnapshotSubscriptionCount : StateFlow<Int> {
-    private var previous: Int = 0
-    private var current: Int = 0
-
-    override val value: Int
-        get() = current
-
-    override val replayCache: List<Int>
-        get() = listOf(current)
-
-    fun update(value: Int) {
-        previous = current
-        current = value
+    fun unsubscribe() {
+        subscriptions.update { it - 1 }
     }
 
-    override suspend fun collect(collector: suspend (Int) -> Unit) {
-        if (previous != current) collector(previous)
-        collector(current)
+    private fun startUpstream() {
+        synchronized(lock) {
+            if (upstreamJob?.isActive == true) return
+        }
+        val upstreamAction = collectUpstream
+        val job = scope.launch(start = CoroutineStart.LAZY) {
+            upstreamAction()
+        }
+        synchronized(lock) {
+            if (upstreamJob?.isActive == true) {
+                job.cancel()
+                return
+            }
+            upstreamJob = job
+        }
+        job.start()
+    }
+
+    private suspend fun stopUpstream() {
+        val current = synchronized(lock) {
+            val current = upstreamJob
+            upstreamJob = null
+            current
+        }
+        if (current != null) current.cancelAndJoin()
     }
 }
 
 private class SharingSharedFlow<T>(
-    private val shared: SharedFlow<T>,
-    private val sharing: SnapshotSharing<T>
+    private val shared: SharedFlowImpl<T>,
+    private val sharing: SnapshotSharingController
 ) : SharedFlow<T> {
     override val replayCache: List<T>
         get() = shared.replayCache
 
     override suspend fun collect(collector: suspend (T) -> Unit) {
-        sharing.subscribe()
-        try {
-            shared.collect(collector)
-        } finally {
-            sharing.unsubscribe()
-        }
+        shared.collectWithSharing(collector, sharing)
     }
 }
 
 private class SharingStateFlow<T>(
-    private val state: StateFlow<T>,
-    private val sharing: SnapshotSharing<T>
+    private val state: MutableStateFlow<T>,
+    private val sharing: SnapshotSharingController
 ) : StateFlow<T> {
     override val value: T
         get() = state.value
@@ -175,12 +204,7 @@ private class SharingStateFlow<T>(
         get() = state.replayCache
 
     override suspend fun collect(collector: suspend (T) -> Unit) {
-        sharing.subscribe()
-        try {
-            state.collect(collector)
-        } finally {
-            sharing.unsubscribe()
-        }
+        state.collectWithSharing(collector, sharing)
     }
 }
 

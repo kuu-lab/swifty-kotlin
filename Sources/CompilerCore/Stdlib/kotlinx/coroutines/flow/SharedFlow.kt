@@ -7,6 +7,8 @@
 
 package kotlinx.coroutines.flow
 
+import kotlinx.atomicfu.locks.SynchronizedObject
+import kotlinx.atomicfu.locks.synchronized
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.currentCoroutineContext
@@ -55,7 +57,19 @@ public fun <T> MutableSharedFlow(
     replay: Int = 0,
     extraBufferCapacity: Int = 0,
     onBufferOverflow: BufferOverflow = BufferOverflow.SUSPEND
-): MutableSharedFlow<T> {
+): MutableSharedFlow<T> = createSharedFlowImpl(replay, extraBufferCapacity, onBufferOverflow)
+
+internal fun <T> newSharedFlowForSharing(replay: Int): SharedFlowImpl<T> =
+    createSharedFlowImpl(replay, maxOf(0, DEFAULT_SHARING_BUFFER_CAPACITY - replay), BufferOverflow.SUSPEND)
+
+// shareIn uses the default buffered channel capacity, with replay taking precedence.
+private const val DEFAULT_SHARING_BUFFER_CAPACITY = 64
+
+private fun <T> createSharedFlowImpl(
+    replay: Int,
+    extraBufferCapacity: Int,
+    onBufferOverflow: BufferOverflow
+): SharedFlowImpl<T> {
     require(replay >= 0) { "replay cannot be negative, but was $replay" }
     require(extraBufferCapacity >= 0) { "extraBufferCapacity cannot be negative, but was $extraBufferCapacity" }
     require(replay > 0 || extraBufferCapacity > 0 || onBufferOverflow == BufferOverflow.SUSPEND) {
@@ -84,7 +98,7 @@ private class SharedFlowSlot {
     var cont: CancellableContinuation<Unit>? = null // collector waiting for new value
 }
 
-private class SharedFlowImpl<T>(
+internal class SharedFlowImpl<T>(
     private val replay: Int,
     private val bufferCapacity: Int,
     private val onBufferOverflow: BufferOverflow
@@ -119,6 +133,7 @@ private class SharedFlowImpl<T>(
     */
 
     // Stored state
+    private val lock = SynchronizedObject()
     private var buffer: Array<Any?>? = null // allocated when needed, allocated size always power of two
     private var replayIndex = 0L // minimal index from which new collector gets values
     private var minCollectorIndex = 0L // minimal index of active collectors, equal to replayIndex if there are none
@@ -139,7 +154,7 @@ private class SharedFlowImpl<T>(
     private fun Array<Any?>.setBufferAt(index: Long, item: Any?) = set(index.toInt() and (size - 1), item)
 
     override val subscriptionCount: StateFlow<Int>
-        get() = subscriptionCounter()
+        get() = synchronized(lock) { subscriptionCounter() }
 
     private fun subscriptionCounter(): MutableStateFlow<Int> {
         val existing = subscribers
@@ -151,20 +166,41 @@ private class SharedFlowImpl<T>(
 
     override val replayCache: List<T>
         get() {
-            val replaySize = this.replaySize
-            if (replaySize == 0) return emptyList()
-            val result = ArrayList<T>(replaySize)
-            val buffer = buffer!!
-            for (i in 0 until replaySize) {
-                @Suppress("UNCHECKED_CAST")
-                result.add(buffer.getBufferAt(replayIndex + i) as T)
+            return synchronized(lock) {
+                val replaySize = this.replaySize
+                if (replaySize == 0) return@synchronized emptyList()
+                val result = ArrayList<T>(replaySize)
+                val buffer = buffer!!
+                for (i in 0 until replaySize) {
+                    @Suppress("UNCHECKED_CAST")
+                    result.add(buffer.getBufferAt(replayIndex + i) as T)
+                }
+                result
             }
-            return result
         }
 
     override suspend fun collect(collector: suspend (T) -> Unit) {
+        collectImpl(collector, null)
+    }
+
+    internal suspend fun collectWithSharing(
+        collector: suspend (T) -> Unit,
+        sharing: SnapshotSharingController
+    ) {
+        collectImpl(collector, sharing)
+    }
+
+    private suspend fun collectImpl(
+        collector: suspend (T) -> Unit,
+        sharing: SnapshotSharingController?
+    ) {
         val slot = allocateSlot()
+        var subscribed = false
         try {
+            if (sharing != null) {
+                sharing.subscribe()
+                subscribed = true
+            }
             val collectorContext = currentCoroutineContext()
             while (true) {
                 var newValue: Any?
@@ -179,24 +215,33 @@ private class SharedFlowImpl<T>(
             }
         } finally {
             freeSlot(slot)
+            if (subscribed) sharing?.unsubscribe()
         }
     }
 
     private fun allocateSlot(): SharedFlowSlot {
         val slot = SharedFlowSlot()
-        slot.index = updateNewCollectorIndexLocked()
-        slots.add(slot)
-        subscriptionCounter().value = subscriptionCounter().value + 1
+        val counter = synchronized(lock) {
+            slot.index = updateNewCollectorIndexLocked()
+            slots.add(slot)
+            subscriptionCounter()
+        }
+        counter.update { it + 1 }
         return slot
     }
 
     private fun freeSlot(slot: SharedFlowSlot) {
-        val oldIndex = slot.index
-        slot.index = -1L
-        slot.cont = null
-        slots.remove(slot)
-        subscriptionCounter().value = subscriptionCounter().value - 1
-        val resumes = updateCollectorIndexLocked(oldIndex)
+        var resumes = EMPTY_RESUMES
+        val counter = synchronized(lock) {
+            val oldIndex = slot.index
+            slot.index = -1L
+            slot.cont = null
+            slots.remove(slot)
+            val counter = subscriptionCounter()
+            resumes = updateCollectorIndexLocked(oldIndex)
+            counter
+        }
+        counter.update { it - 1 }
         for (cont in resumes) cont?.resume(Unit)
     }
 
@@ -314,7 +359,7 @@ private class SharedFlowImpl<T>(
     // returns NoValue if cannot take value without suspension
     private fun tryTakeValue(slot: SharedFlowSlot): Any? {
         var resumes = EMPTY_RESUMES
-        val value = run {
+        val value = synchronized(lock) {
             val index = tryPeekLocked(slot)
             if (index < 0) {
                 NoValue
@@ -350,11 +395,15 @@ private class SharedFlowImpl<T>(
 
     private suspend fun awaitValue(slot: SharedFlowSlot) = suspendCancellableCoroutine<Unit> { cont ->
         // recheck under the emitter/collector update boundary
-        if (tryPeekLocked(slot) < 0) {
-            slot.cont = cont // Ok -- suspending
-        } else {
-            cont.resume(Unit) // has value, no need to suspend
+        val shouldResume = synchronized(lock) {
+            if (tryPeekLocked(slot) < 0) {
+                slot.cont = cont // Ok -- suspending
+                false
+            } else {
+                true
+            }
         }
+        if (shouldResume) cont.resume(Unit) // has value, no need to suspend
     }
 
     private fun findSlotsToResumeLocked(
@@ -449,11 +498,13 @@ private class SharedFlowImpl<T>(
 
     override fun tryEmit(value: T): Boolean {
         var resumes = EMPTY_RESUMES
-        val emitted = if (tryEmitLocked(value)) {
-            resumes = findSlotsToResumeLocked(resumes)
-            true
-        } else {
-            false
+        val emitted = synchronized(lock) {
+            if (tryEmitLocked(value)) {
+                resumes = findSlotsToResumeLocked(resumes)
+                true
+            } else {
+                false
+            }
         }
         for (cont in resumes) cont?.resume(Unit)
         return emitted
@@ -466,43 +517,49 @@ private class SharedFlowImpl<T>(
 
     private suspend fun emitSuspend(value: T) = suspendCancellableCoroutine<Unit> { cont ->
         var resumes = EMPTY_RESUMES
-        val emitter = run {
+        var emitter: SharedFlowEmitter? = null
+        var shouldResume = false
+        synchronized(lock) {
             // recheck buffer state again (a collector may have moved in between)
             if (tryEmitLocked(value)) {
-                cont.resume(Unit)
+                shouldResume = true
                 resumes = findSlotsToResumeLocked(resumes)
-                null
             } else {
                 // add suspended emitter to the buffer
-                SharedFlowEmitter(head + totalSize, value, cont).also {
-                    enqueueLocked(it)
-                    queueSize++ // added to queue of waiting emitters
-                    // synchronous shared flow might rendezvous with waiting emitter
-                    if (bufferCapacity == 0) resumes = findSlotsToResumeLocked(resumes)
-                }
+                val queuedEmitter = SharedFlowEmitter(head + totalSize, value, cont)
+                enqueueLocked(queuedEmitter)
+                queueSize++ // added to queue of waiting emitters
+                emitter = queuedEmitter
+                // synchronous shared flow might rendezvous with waiting emitter
+                if (bufferCapacity == 0) resumes = findSlotsToResumeLocked(resumes)
             }
         }
+        if (shouldResume) cont.resume(Unit)
         // outside of the state update: register cancellation, then resume slots
         emitter?.let { em -> cont.invokeOnCancellation { cancelEmitter(em) } }
         for (r in resumes) r?.resume(Unit)
     }
 
     private fun cancelEmitter(emitter: SharedFlowEmitter) {
-        if (emitter.index < head) return // already skipped past this index
-        val buffer = buffer ?: return
-        if (buffer.getBufferAt(emitter.index) !== emitter) return // already resumed
-        buffer.setBufferAt(emitter.index, NoValue)
-        cleanupTailLocked()
+        synchronized(lock) {
+            if (emitter.index < head) return@synchronized // already skipped past this index
+            val buffer = buffer ?: return@synchronized
+            if (buffer.getBufferAt(emitter.index) !== emitter) return@synchronized // already resumed
+            buffer.setBufferAt(emitter.index, NoValue)
+            cleanupTailLocked()
+        }
     }
 
     override fun resetReplayCache() {
         // Update buffer state
-        updateBufferLocked(
-            newReplayIndex = bufferEndIndex,
-            newMinCollectorIndex = minCollectorIndex,
-            newBufferEndIndex = bufferEndIndex,
-            newQueueEndIndex = queueEndIndex
-        )
+        synchronized(lock) {
+            updateBufferLocked(
+                newReplayIndex = bufferEndIndex,
+                newMinCollectorIndex = minCollectorIndex,
+                newBufferEndIndex = bufferEndIndex,
+                newQueueEndIndex = queueEndIndex
+            )
+        }
     }
 }
 

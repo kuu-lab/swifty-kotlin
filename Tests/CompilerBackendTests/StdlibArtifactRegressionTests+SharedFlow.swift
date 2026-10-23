@@ -120,6 +120,15 @@ extension StdlibArtifactRegressionTests {
             }
         }
 
+        suspend fun awaitCondition(label: String, condition: () -> Boolean) {
+            var remaining = 2000
+            while (remaining > 0 && !condition()) {
+                delay(1)
+                remaining -= 1
+            }
+            check(condition()) { "Timed out waiting for $label" }
+        }
+
         fun main() = runBlocking {
             val scope = CoroutineScope(Job())
             val counts = SubscriptionCounts()
@@ -131,15 +140,18 @@ extension StdlibArtifactRegressionTests {
             val state = flowOf(2, 3).stateIn(scope, SharingStarted.Lazily, -1)
             println(state.value)
             state.take(1).collect { println("state=$it") }
+            awaitCondition("lazy state completion") { state.value == 3 }
             println(state.value)
             val shared = flowOf(4, 5).shareIn(scope, SharingStarted.Lazily, 2)
             println(shared.replayCache)
             shared.take(2).collect { println("shared=$it") }
             println(shared.replayCache)
             val reset = flowOf(6).stateIn(scope, SharingStarted.WhileSubscribed(0L, 0L), -2)
-            reset.take(1).collect { println("reset=$it") }
+            reset.take(2).collect { println("reset=$it") }
+            awaitCondition("first replay reset") { reset.value == -2 }
             println(reset.value)
-            reset.take(1).collect { println("restart=$it") }
+            reset.take(2).collect { println("restart=$it") }
+            awaitCondition("second replay reset") { reset.value == -2 }
             println(reset.value)
             val eager = flowOf(7).shareIn(scope, SharingStarted.Eagerly, 1)
             eager.take(1).collect { println("eager=$it") }
@@ -158,14 +170,16 @@ extension StdlibArtifactRegressionTests {
             true
             true
             -1
-            state=3
+            state=-1
             3
             []
             shared=4
             shared=5
             [4, 5]
+            reset=-2
             reset=6
             -2
+            restart=-2
             restart=6
             -2
             eager=7
@@ -606,6 +620,7 @@ extension StdlibArtifactRegressionTests {
         let artifactPath = fromSource ? nil : try Self.buildStdlibArtifact()
         let source = """
         import kotlin.coroutines.EmptyCoroutineContext
+        import kotlinx.coroutines.channels.BufferOverflow
         import kotlinx.coroutines.runBlocking
         import kotlinx.coroutines.flow.*
 
@@ -636,6 +651,9 @@ extension StdlibArtifactRegressionTests {
             }
             println(count.value)
             println(view.buffer(0) === view)
+            println(view.buffer(2) === view)
+            println(view.buffer(2, BufferOverflow.DROP_OLDEST) === view)
+            println(view.buffer(-1) === view)
             println(view.flowOn(EmptyCoroutineContext) === view)
             println(view.cancellable() === view)
             println(view.conflate() === view)
@@ -699,6 +717,9 @@ extension StdlibArtifactRegressionTests {
                 true
                 true
                 true
+                true
+                true
+                true
                 invalid buffer
                 state=5/count=1
                 0
@@ -712,6 +733,111 @@ extension StdlibArtifactRegressionTests {
 
                 """)
         }
+    }
+
+    @Test(arguments: [false, true])
+    func testSnapshotSharingWhileSubscribedStopsAndResets(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        try expectFlowSharingOutput("""
+            import kotlinx.coroutines.*
+            import kotlinx.coroutines.flow.*
+
+            suspend fun awaitCondition(label: String, condition: () -> Boolean) {
+                var remaining = 2000
+                while (remaining > 0 && !condition()) {
+                    delay(1)
+                    remaining -= 1
+                }
+                check(condition()) { "Timed out waiting for $label" }
+            }
+
+            suspend fun awaitJob(label: String, job: Job) {
+                awaitCondition(label) { job.isCompleted }
+                job.join()
+            }
+
+            fun main() = runBlocking {
+                val scope = CoroutineScope(Job())
+
+                var coldStarts = 0
+                val cold = flow {
+                    coldStarts += 1
+                    emit(coldStarts)
+                }.shareIn(scope, SharingStarted.Eagerly, replay = 2)
+                awaitCondition("cold replay") { cold.replayCache == listOf(1) }
+                println("coldReplay=${cold.replayCache}")
+                println("coldSubscriber=${cold.take(1).first()}")
+
+                val lazyColdValues = mutableListOf<Int>()
+                val lazyCold = flowOf(31, 32).shareIn(scope, SharingStarted.Lazily)
+                val lazyColdCollector = scope.launch {
+                    lazyCold.take(2).collect { lazyColdValues.add(it) }
+                }
+                awaitJob("lazy cold subscriber", lazyColdCollector)
+                println("lazyCold=$lazyColdValues")
+
+                val input = MutableSharedFlow<Int>()
+                val shared = input.shareIn(scope, SharingStarted.Lazily, replay = 1)
+                val first = scope.async { shared.first() }
+                val second = scope.async { shared.first() }
+                awaitCondition("one shared upstream") { input.subscriptionCount.value == 1 }
+                input.emit(12)
+                println("multi=${first.await()}/${second.await()}")
+
+                val timedInput = MutableSharedFlow<Int>(replay = 1)
+                val timedShared = timedInput.shareIn(
+                    scope,
+                    SharingStarted.WhileSubscribed(100L, 150L),
+                    replay = 1
+                )
+                val timedValues = mutableListOf<Int>()
+                val timedCollector = scope.launch {
+                    timedShared.take(1).collect { timedValues.add(it) }
+                }
+                awaitCondition("timed upstream start") { timedInput.subscriptionCount.value == 1 }
+                timedInput.emit(7)
+                awaitJob("timed shared collector", timedCollector)
+                delay(5)
+                check(timedInput.subscriptionCount.value == 1) { "stop timeout elapsed too early" }
+                awaitCondition("timed upstream stop") { timedInput.subscriptionCount.value == 0 }
+                println("sharedValues=$timedValues")
+                println("sharedRetained=${timedShared.replayCache}")
+                awaitCondition("shared replay reset") { timedShared.replayCache.isEmpty() }
+                println("sharedReset=${timedShared.replayCache}")
+
+                val stateInput = MutableSharedFlow<Int>()
+                val state = stateInput.stateIn(
+                    scope,
+                    SharingStarted.WhileSubscribed(0L, 0L),
+                    -1
+                )
+                val stateValues = mutableListOf<Int>()
+                val stateCollector = scope.launch {
+                    state.take(2).collect { stateValues.add(it) }
+                }
+                awaitCondition("state upstream start") { stateInput.subscriptionCount.value == 1 }
+                stateInput.emit(9)
+                awaitJob("state collector", stateCollector)
+                awaitCondition("state reset") {
+                    stateInput.subscriptionCount.value == 0 && state.value == -1
+                }
+                println("stateValues=$stateValues")
+                println("stateReset=${state.value}")
+
+                scope.cancel()
+            }
+            """, artifactPath: artifactPath, expected: """
+                coldReplay=[1]
+                coldSubscriber=1
+                lazyCold=[31, 32]
+                multi=12/12
+                sharedValues=[7]
+                sharedRetained=[7]
+                sharedReset=[]
+                stateValues=[-1, 9]
+                stateReset=-1
+
+                """)
     }
 
     /// KUU-2685: `MutableStateFlow.compareAndSet`/`update` must be atomic, and

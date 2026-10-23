@@ -7,6 +7,10 @@
 
 package kotlinx.coroutines.flow
 
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
 public enum class SharingCommand {
     START,
     STOP,
@@ -34,6 +38,8 @@ private class StartedEagerly : SharingStarted {
         flowOf(SharingCommand.START)
 }
 
+internal fun SharingStarted.isEagerly(): Boolean = this is StartedEagerly
+
 private class StartedLazily : SharingStarted {
     override fun command(subscriptionCount: StateFlow<Int>): Flow<SharingCommand> = flow {
         var started = false
@@ -55,24 +61,30 @@ private class StartedWhileSubscribed(
         require(replayExpirationMillis >= 0L)
     }
 
-    override fun command(subscriptionCount: StateFlow<Int>): Flow<SharingCommand> = flow {
-        var started = false
+    override fun command(subscriptionCount: StateFlow<Int>): Flow<SharingCommand> = channelFlow {
+        var hasSubscribers = false
+        var pendingStop: Job? = null
         subscriptionCount.collect { count ->
             if (count > 0) {
-                if (!started) emit(SharingCommand.START)
-                started = true
-            } else if (started) {
-                if (stopTimeoutMillis > 0L) kotlinx.coroutines.delay(stopTimeoutMillis)
-                if (replayExpirationMillis > 0L) {
-                    emit(SharingCommand.STOP)
-                    if (replayExpirationMillis < Long.MAX_VALUE) {
-                        kotlinx.coroutines.delay(replayExpirationMillis)
-                        emit(SharingCommand.STOP_AND_RESET_REPLAY_CACHE)
+                pendingStop?.cancel()
+                pendingStop = null
+                if (!hasSubscribers) send(SharingCommand.START)
+                hasSubscribers = true
+            } else if (hasSubscribers) {
+                hasSubscribers = false
+                pendingStop?.cancel()
+                pendingStop = launch {
+                    if (stopTimeoutMillis > 0L) delay(stopTimeoutMillis)
+                    if (replayExpirationMillis > 0L) {
+                        send(SharingCommand.STOP)
+                        if (replayExpirationMillis < Long.MAX_VALUE) {
+                            delay(replayExpirationMillis)
+                            send(SharingCommand.STOP_AND_RESET_REPLAY_CACHE)
+                        }
+                    } else {
+                        send(SharingCommand.STOP_AND_RESET_REPLAY_CACHE)
                     }
-                } else {
-                    emit(SharingCommand.STOP_AND_RESET_REPLAY_CACHE)
                 }
-                started = false
             }
         }
     }
