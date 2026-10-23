@@ -94,6 +94,59 @@ extension JVMClasspathIndex {
                 }
             }
             """, 0x0601, "java/lang/Object", [method("java/util/Comparator", "compare", [object, object], .int, interface: true), method("java/util/Comparator", "comparingInt", [extractor], comparator, staticMember: true, interface: true)]),
+            ("java/util/LinkedHashMap", """
+            package java.util
+            open class LinkedHashMap<K, V> : kotlin.collections.MutableMap<K, V> {
+                constructor()
+                override val size: Int get() = 0
+                override val keys: kotlin.collections.Set<K> get() = null!!
+                override val values: kotlin.collections.Collection<V> get() = null!!
+                override fun get(key: K): V? = null
+                override fun containsKey(key: K): Boolean = false
+                override fun containsValue(value: V): Boolean = false
+                override fun isEmpty(): Boolean = false
+                override fun put(key: K, value: V): V? = null
+                override operator fun set(key: K, value: V) {}
+                override fun remove(key: K): V? = null
+                override fun clear() {}
+            }
+            """, 0x0001, "java/util/HashMap", [method("java/util/LinkedHashMap", "<init>", [], .reference("java/util/LinkedHashMap", nullable: false))]),
+            ("java/util/SortedMap", """
+            package java.util
+            interface SortedMap<K, V> : kotlin.collections.MutableMap<K, V> {
+                fun comparator(): kotlin.Comparator<in K>?
+                fun firstKey(): K
+                fun lastKey(): K
+            }
+            """, 0x0601, "java/lang/Object", [
+                method("java/util/SortedMap", "comparator", [], .reference("java/util/Comparator", nullable: true), interface: true),
+                method("java/util/SortedMap", "firstKey", [], object, interface: true),
+                method("java/util/SortedMap", "lastKey", [], object, interface: true),
+            ]),
+            ("java/util/TreeMap", """
+            package java.util
+            open class TreeMap<K, V> : SortedMap<K, V> {
+                constructor()
+                constructor(comparator: kotlin.Comparator<in K>?)
+                override fun comparator(): kotlin.Comparator<in K>? = null
+                override fun firstKey(): K = null!!
+                override fun lastKey(): K = null!!
+                override val size: Int get() = 0
+                override val keys: kotlin.collections.Set<K> get() = null!!
+                override val values: kotlin.collections.Collection<V> get() = null!!
+                override fun get(key: K): V? = null
+                override fun containsKey(key: K): Boolean = false
+                override fun containsValue(value: V): Boolean = false
+                override fun isEmpty(): Boolean = false
+                override fun put(key: K, value: V): V? = null
+                override operator fun set(key: K, value: V) {}
+                override fun remove(key: K): V? = null
+                override fun clear() {}
+            }
+            """, 0x0001, "java/util/AbstractMap", [
+                method("java/util/TreeMap", "<init>", [], .reference("java/util/TreeMap", nullable: false)),
+                method("java/util/TreeMap", "<init>", [.reference("java/util/Comparator", nullable: true)], .reference("java/util/TreeMap", nullable: false)),
+            ]),
             ("java/util/Collections", """
             package java.util
             class Collections private constructor() {

@@ -290,7 +290,7 @@
       "path": "declarations/Comparator.kt",
       "virtualPath": "<kswiftk-jvm>/comparator.kt",
       "excludeFromStdlibBuild": false,
-      "onlyForStdlibBuild": true
+      "onlyForStdlibBuild": false
     },
     {
       "path": "declarations/OptIn.kt",
@@ -369,6 +369,12 @@
     {
       "path": "declarations/MapsOperators.kt",
       "virtualPath": "<kswiftk-jvm>/map-operators.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/MapsKt"
+    },
+    {
+      "path": "declarations/Maps.kt",
+      "virtualPath": "<kswiftk-jvm>/map-factories.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/collections/MapsKt"
     },
