@@ -245,7 +245,6 @@ extension JVMBackendTests {
         "fun value(a: Int = 1): Int = a; fun main() { value(a = 1, a = 2) }",
         "class Outer { inner class Inner }; fun main() { Outer.Inner() }",
         "data object Bad { override fun hashCode(): Int = 1 }; fun main() {}",
-        "fun value(vararg n: Int, extra: Int): Int = 0; fun main() {}",
         "fun make() = object { val value = 42 }; fun main() { println(make().value) }",
         "interface A; interface B; fun make() = object: A, B {}; fun main() {}",
     ])

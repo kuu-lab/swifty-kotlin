@@ -32,6 +32,19 @@ extension JVMBackendTests {
     }
 
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func m11LocalClassAndDataClassDeclarations(mode: EmitMode) throws {
+        try withWorkspace { root in
+            try runM11("""
+            fun main() {
+                class Local(val v: Int)
+                data class D(val x: Int)
+                println(Local(3).v); println(D(1))
+            }
+            """, expected: "3\nD(x=1)\n", mode: mode, root: root)
+        }
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func m11ValueClassesBoxingDispatchAndDefaults(mode: EmitMode) throws {
         try withWorkspace { root in
             try runM11("""

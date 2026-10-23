@@ -20,6 +20,12 @@ extension JVMFunctionBuilder {
 
     func binary(_ op: BinaryOp, _ lhs: ExprID, _ rhs: ExprID, _ id: ExprID) throws -> JVMValue? {
         if op == .rangeTo {
+            if let symbol = program.sema.bindings.callBinding(for: id)?.chosenCallee,
+               program.inlineDeclarations[symbol] != nil || program.references[symbol] != nil || program.methods[symbol] != nil {
+                let args = [CallArgument(expr: rhs)]
+                if let call = try inlineCall(args, receiver: lhs, id: id)
+                    ?? sourceCall(args, receiver: lhs, id: id) { return call.value }
+            }
             let lower = try requireValue(lhs), upper = try requireValue(rhs)
             let rangeType = try program.expressionType(id)
             let rangeClass: String
@@ -174,6 +180,11 @@ extension JVMFunctionBuilder {
     }
 
     func forLoop(_ name: InternedString, _ iterable: ExprID, _ body: ExprID, _ id: ExprID) throws {
+        if case let .binary(op, _, _, _) = arena.expr(iterable), op == .rangeTo,
+           program.hasSourceRangeOperator(iterable) {
+            try sequenceLoop(name, iterable, body, id)
+            return
+        }
         let range: (BinaryOp, ExprID, ExprID)? = switch arena.expr(iterable) {
         case let .binary(op, from, to, _) where [BinaryOp.rangeTo, .rangeUntil, .downTo].contains(op):
             (op, from, to)

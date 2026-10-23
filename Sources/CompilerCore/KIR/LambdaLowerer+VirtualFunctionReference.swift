@@ -25,8 +25,6 @@ extension LambdaLowerer {
               let owner = sema.symbols.parentSymbol(for: targetSymbol),
               let ownerInfo = sema.symbols.symbol(owner),
               ownerInfo.kind == .class || ownerInfo.kind == .interface,
-              !ownerInfo.flags.contains(.synthetic),
-              !ownerInfo.flags.contains(.importedLibrary),
               signature.valueParameterSymbols.count == signature.parameterTypes.count
         else {
             return nil
@@ -49,6 +47,15 @@ extension LambdaLowerer {
                 sema: sema,
                 interner: interner
             )
+        }
+        // Imported collection interfaces normally keep their established
+        // callable-reference lowering. Runtime-backed MutableList values are
+        // the exception: they have no Kotlin itable, so the reference must
+        // target the same direct runtime bridge as an ordinary member call.
+        guard runtimeBackedListCallee != nil
+            || (!ownerInfo.flags.contains(.synthetic) && !ownerInfo.flags.contains(.importedLibrary))
+        else {
+            return nil
         }
         let dispatch = runtimeBackedListCallee == nil
             ? driver.callLowerer.resolveVirtualDispatch(

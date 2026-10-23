@@ -418,7 +418,7 @@ final class ValPropertyInitializationChecker {
             deferredLambdaBodyDepth += 1
             walk(body, flow: &deferred, permitsInitialization: false)
             deferredLambdaBodyDepth -= 1
-        case let .localFunDecl(_, _, _, _, body, _, _, _):
+        case let .localFunDecl(_, _, _, _, body, _, _, _, _):
             var deferred = Flow(entry)
             walk(body, flow: &deferred, permitsInitialization: false)
         case let .localDecl(_, _, _, initializer, _, _, _):

@@ -221,6 +221,48 @@ struct ExplicitReceiverFunctionInvocationSyntaxTests {
     }
 
     @Test
+    func localExtensionFunctionOnInterfaceReceiverIsInvocable() throws {
+        // KUU-3023: a local extension declared inside a body resolves through
+        // the lexical function-value path when invoked on an interface-typed
+        // variable. The synthesized callee reference must not be mistaken for
+        // a bare function name (KUU-3007).
+        let diagnostics = try compileAndCollectDiagnostics("""
+        interface Src {
+            val size: Long
+        }
+        class Data(override val size: Long) : Src
+        fun topLevel(s: Src) {
+            fun Src.helper2(): Long = size
+            println(s.helper2())
+        }
+        fun main() {
+            topLevel(Data(7))
+        }
+        """)
+
+        let errors = diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected errors for local extension call on interface receiver: \(errors)")
+    }
+
+    @Test
+    func localExtensionFunctionPropertySyntaxIsRejected() throws {
+        // KUU-3023: dropping the call parentheses on the same local extension
+        // must still require invocation syntax.
+        let diagnostics = try compileAndCollectDiagnostics("""
+        interface Src {
+            val size: Long
+        }
+        fun topLevel(s: Src) {
+            fun Src.helper2(): Long = size
+            println(s.helper2)
+        }
+        """)
+
+        let found = diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0309" }
+        #expect(found, "Expected SEMA-0309 for local extension property syntax, got: \(diagnostics.diagnostics.map(\.code))")
+    }
+
+    @Test
     func declaredPropertiesAreAccepted() throws {
         let diagnostics = try compileAndCollectDiagnostics("""
         class C { val p: Int = 3 }

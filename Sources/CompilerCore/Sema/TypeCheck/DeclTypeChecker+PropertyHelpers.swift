@@ -507,6 +507,14 @@ extension DeclTypeChecker {
                 args: argumentTypes.map { CallArg(type: $0) },
                 dispatchReceiverTypes: dispatchReceiverTypes
             )
+            let inputProbe = ctx.resolver.probeCall(
+                candidates: candidates,
+                call: call,
+                expectedType: nil,
+                implicitReceiverType: callReceiverType,
+                ctx: ctx.sema
+            )
+            driver.inferFunctionReturnTypesIfNeeded(for: inputProbe.viableCandidates.map(\.symbol))
             let probe = ctx.resolver.probeCall(
                 candidates: candidates,
                 call: call,

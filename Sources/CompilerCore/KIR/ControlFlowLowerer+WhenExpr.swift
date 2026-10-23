@@ -134,7 +134,16 @@ extension ControlFlowLowerer {
             )
             let branchTerminated = isTerminatedExpr(bodyID, arena: arena, sema: sema)
             if !branchTerminated {
-                instructions.append(.copy(from: bodyID, to: result))
+                let branchValueID = materializeConditionalCallableValue(
+                    sourceExprID: branch.body,
+                    value: bodyID,
+                    expectedType: boundType,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                instructions.append(.copy(from: branchValueID, to: result))
                 instructions.append(.jump(endLabel))
                 allBranchesTerminated = false
             }
@@ -154,7 +163,16 @@ extension ControlFlowLowerer {
             )
             elseTerminated = isTerminatedExpr(fallbackID, arena: arena, sema: sema)
             if !elseTerminated {
-                instructions.append(.copy(from: fallbackID, to: result))
+                let fallbackValueID = materializeConditionalCallableValue(
+                    sourceExprID: elseExpr,
+                    value: fallbackID,
+                    expectedType: boundType,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                instructions.append(.copy(from: fallbackValueID, to: result))
             }
         } else {
             let unitVal = arena.appendExpr(.unit, type: sema.types.unitType)

@@ -163,10 +163,12 @@ extension ControlFlowTypeChecker {
             iterableExpr: iterableExpr,
             iterableType: iterableType,
             range: range,
+            locals: locals,
             ctx: ctx
         )
+        let layout = ctx.ast.arena.destructuringDeclLayout(for: id)
         let usesNameBasedDestructuring = syntax == .parentheses
-            && sema.nameBasedDestructuringMode == .complete
+            && (sema.nameBasedDestructuringMode == .complete || layout?.properties.contains { $0 != nil } == true)
 
         var bodyLocals = locals
 
@@ -178,7 +180,9 @@ extension ControlFlowTypeChecker {
                     property = (sema.types.errorType, nil)
                 } else {
                     property = inferNameBasedForDestructuringProperty(
-                        name,
+                        layout.flatMap { layout in
+                            layout.properties.indices.contains(index) ? layout.properties[index] : nil
+                        } ?? name,
                         loopExpr: id,
                         receiverType: elementType,
                         range: range,

@@ -246,7 +246,7 @@ extension ExprTypeChecker {
             ctx.builderInference?.constraints.append(contentsOf: constraints)
         }
         if candidates.isEmpty {
-            var implicitMemberResult: (symbol: SymbolID, type: TypeID)?
+            var implicitMemberResult: (symbol: SymbolID, type: TypeID, receiverType: TypeID)?
             for receiver in implicitReceiverLookupEntries {
                 if let result = driver.helpers.lookupMemberProperty(
                     named: name,
@@ -256,12 +256,14 @@ extension ExprTypeChecker {
                     if let receiverSymbol = receiver.symbol {
                         sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: receiverSymbol)
                     }
-                    implicitMemberResult = result
+                    implicitMemberResult = (result.symbol, result.type, receiver.type)
                     break
                 }
             }
             if let result = implicitMemberResult {
-                sema.bindings.markImplicitReceiverMember(id, name: name)
+                sema.bindings.markImplicitReceiverMember(
+                    id, name: name, receiverType: result.receiverType
+                )
                 sema.bindings.bindIdentifier(id, symbol: result.symbol)
                 driver.helpers.checkDeprecation(
                     for: result.symbol,
@@ -341,7 +343,7 @@ extension ExprTypeChecker {
                    sema.types.makeNonNullable(declaredReceiver)
                )
             {
-                sema.bindings.markImplicitReceiverMember(id, name: name)
+                sema.bindings.markImplicitReceiverMember(id, name: name, receiverType: receiverType)
             }
             driver.helpers.checkDeprecation(
                 for: preferredCandidate.id,
@@ -368,9 +370,25 @@ extension ExprTypeChecker {
                 )
             }
         }
-        let resolvedType = preferredCandidate.flatMap {
+        let declaredResolvedType = preferredCandidate.flatMap {
             resolveTypeForCandidate($0, sema: sema)
         } ?? sema.types.anyType
+        // Bind the declaration type before consulting flow facts. A top-level
+        // stable property is not represented in `locals`, but its stable
+        // reference still has a narrowed type inside the current branch.
+        sema.bindings.bindExprType(id, type: declaredResolvedType)
+        let resolvedType: TypeID = if let preferredCandidate,
+           preferredCandidate.kind == .property,
+           let narrowedType = ctx.dataFlow.resolvedTypeFromFlowState(
+               ctx.flowState,
+               reference: DataFlowReference(root: preferredCandidate.id),
+               types: sema.types
+           )
+        {
+            narrowedType
+        } else {
+            declaredResolvedType
+        }
         // Propagate compile-time constant value for `const val` references
         // so downstream passes can fold without re-querying the symbol table.
         if let preferredCandidate, preferredCandidate.flags.contains(.constValue),
@@ -429,7 +447,7 @@ extension ExprTypeChecker {
         if implicitMemberType == nil,
            let result = driver.helpers.lookupMemberProperty(named: name, receiverType: nonNullReceiver, sema: sema)
         {
-            sema.bindings.markImplicitReceiverMember(id, name: name)
+            sema.bindings.markImplicitReceiverMember(id, name: name, receiverType: nonNullReceiver)
             sema.bindings.bindIdentifier(id, symbol: result.symbol)
             driver.helpers.checkDeprecation(
                 for: result.symbol, sema: sema, interner: interner,
@@ -554,14 +572,14 @@ extension ExprTypeChecker {
                     let memberType = driver.callChecker.bindCallAndResolveReturnType(
                         id, chosen: chosen, resolved: resolved, sema: sema
                     )
-                    sema.bindings.markImplicitReceiverMember(id, name: name)
+                    sema.bindings.markImplicitReceiverMember(id, name: name, receiverType: nonNullReceiver)
                     sema.bindings.bindExprType(id, type: memberType)
                     return memberType
                 }
             }
         }
         if let memberType = implicitMemberType {
-            sema.bindings.markImplicitReceiverMember(id, name: name)
+            sema.bindings.markImplicitReceiverMember(id, name: name, receiverType: nonNullReceiver)
             sema.bindings.bindExprType(id, type: memberType)
             return memberType
         }

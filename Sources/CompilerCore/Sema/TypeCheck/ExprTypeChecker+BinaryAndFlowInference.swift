@@ -428,15 +428,18 @@ extension ExprTypeChecker {
         // `collectOperatorCandidates` deliberately excludes primitive receivers
         // from member lookup for non-range operators. That also hides scoped
         // operator extensions because they aren't members. Search for those
-        // extensions in the existing arithmetic fallback cases and for nullable
-        // primitive comparisons, where a user `compareTo` must run before the
-        // built-in primitive comparison path.
+        // extensions in the existing arithmetic fallback cases and for primitive
+        // comparisons without a built-in operand pair (or with a nullable
+        // receiver), where a user `compareTo` must run before builtin fallback.
         let isComparisonOperator: Bool = switch op {
         case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
             true
         default:
             false
         }
+        let isBuiltinComparisonPair = sema.types.isBuiltinArithmeticOperand(lhs)
+            && sema.types.isBuiltinArithmeticOperand(rhs)
+            && ((lhs == charType) == (rhs == charType))
         let isNullablePrimitiveReceiver: Bool = if case .primitive(_, .nullable) = sema.types.kind(of: lhs) {
             true
         } else {
@@ -447,18 +450,29 @@ extension ExprTypeChecker {
             let isPrimitiveArithmeticOperator = [.add, .subtract, .multiply, .divide, .modulo].contains(op)
             let shouldSearchForScopedExtension = isPrimitiveArithmeticOperator
                 && (!rhsIsNumeric || isNullablePrimitiveReceiver || hasInvalidBuiltinCharArithmetic(op: op, lhs: lhs, rhs: rhs, sema: sema))
-                || isNullablePrimitiveReceiver && isComparisonOperator
+                || isComparisonOperator && (isNullablePrimitiveReceiver || !isBuiltinComparisonPair)
             if shouldSearchForScopedExtension {
-                let extensionCandidates = collectScopedOperatorExtensionCandidates(
+                let localExtensionCandidates = collectLocalOperatorExtensionCandidates(
                     names: operatorNames,
                     receiverType: lhs,
-                    argumentType: isComparisonOperator || (isPrimitiveArithmeticOperator && isNullablePrimitiveReceiver)
-                        ? rhs
-                        : lhs == charType && op == .add && sema.types.isString(rhs) ? rhs : nil,
+                    call: operatorCall,
+                    locals: locals,
                     ctx: ctx
                 )
-                if !extensionCandidates.isEmpty {
-                    operatorCandidates = extensionCandidates
+                if !localExtensionCandidates.isEmpty {
+                    operatorCandidates = localExtensionCandidates
+                } else {
+                    let extensionCandidates = collectScopedOperatorExtensionCandidates(
+                        names: operatorNames,
+                        receiverType: lhs,
+                        argumentType: isComparisonOperator || (isPrimitiveArithmeticOperator && isNullablePrimitiveReceiver)
+                            ? rhs
+                            : lhs == charType && op == .add && sema.types.isString(rhs) ? rhs : nil,
+                        ctx: ctx
+                    )
+                    if !extensionCandidates.isEmpty {
+                        operatorCandidates = extensionCandidates
+                    }
                 }
             }
         }
@@ -733,9 +747,6 @@ extension ExprTypeChecker {
             false
         }
         if isRelationalComparison, lhs != sema.types.errorType, rhs != sema.types.errorType {
-            let isBuiltinComparisonPair = sema.types.isBuiltinArithmeticOperand(lhs)
-                && sema.types.isBuiltinArithmeticOperand(rhs)
-                && ((lhs == charType) == (rhs == charType))
             if !isBuiltinComparisonPair {
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0002",

@@ -49,6 +49,17 @@ struct CodegenBackendInterfacePropertyDispatchTests {
     }
 
     @Test
+    func testInheritedConcretePropertiesImplementGenericInterface() throws {
+        let source = try diffCaseSource("kuu_2876_inherited_class_property_itable.kt")
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "Kuu2876InheritedClassPropertyItable",
+            expected: "56\n56\n57\n41\n"
+        )
+    }
+
+    @Test
     func testInterfaceTypedParameterPropertyRead() throws {
         let source = """
         interface Holder { val value: Int }
