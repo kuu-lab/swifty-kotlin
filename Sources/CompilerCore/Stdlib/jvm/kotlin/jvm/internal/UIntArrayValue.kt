@@ -22,7 +22,7 @@ value class UIntArrayValue(val storage: IntArray): Collection<UIntValue>, Iterab
             return UIntValue(storage[index++])
         }
     }
-    fun containsAll(elements: Collection<*>): Boolean {
+    override fun containsAll(elements: Collection<UIntValue>): Boolean {
         for (element in elements) {
             if (!(element is UIntValue) || !contains(element)) return false
         }

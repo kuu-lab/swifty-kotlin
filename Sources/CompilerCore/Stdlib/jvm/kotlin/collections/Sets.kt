@@ -22,23 +22,18 @@ public fun <T> mutableSetOf(vararg elements: T): MutableSet<T> {
 }
 
 public operator fun <T> Set<T>.plus(element: T): Set<T> {
-    val result = mutableSetOf<T>()
-    for (item in this) result.add(item)
+    val result = __jvmCopySet(this)
     result.add(element)
     return result
 }
 public operator fun <T> Set<T>.plus(elements: Iterable<T>): Set<T> {
-    val result = mutableSetOf<T>()
-    for (item in this) result.add(item)
+    val result = __jvmCopySet(this)
     for (item in elements) result.add(item)
     return result
 }
 public operator fun <T> Set<T>.minus(element: T): Set<T> {
-    val result = mutableSetOf<T>()
-    var removed = false
-    for (item in this) {
-        if (!removed && item == element) removed = true else result.add(item)
-    }
+    val result = __jvmCopySet(this)
+    result.remove(element)
     return result
 }
 public operator fun <T> Set<T>.minus(elements: Iterable<T>): Set<T> {
@@ -46,8 +41,8 @@ public operator fun <T> Set<T>.minus(elements: Iterable<T>): Set<T> {
     if (removed.isEmpty()) return this.toSet()
     if (removed is Set<*>) {
         val membership = removed as Set<T>
-        val result = mutableSetOf<T>()
-        for (item in this) if (!membership.contains(item)) result.add(item)
+        val result = __jvmCopySet(this)
+        __jvmRemoveAllCollection(result, membership)
         return result
     }
     val result = __jvmCopySet(this)
@@ -56,8 +51,7 @@ public operator fun <T> Set<T>.minus(elements: Iterable<T>): Set<T> {
 }
 
 public operator fun <T> Set<T>.plus(elements: Array<out T>): Set<T> {
-    val result = mutableSetOf<T>()
-    for (item in this) result.add(item)
+    val result = __jvmCopySet(this)
     for (item in elements) result.add(item)
     return result
 }
@@ -68,8 +62,7 @@ public operator fun <T> Set<T>.minus(elements: Array<out T>): Set<T> {
 }
 
 public operator fun <T> Set<T>.plus(elements: kotlin.sequences.Sequence<T>): Set<T> {
-    val result = mutableSetOf<T>()
-    for (item in this) result.add(item)
+    val result = __jvmCopySet(this)
     for (item in elements) result.add(item)
     return result
 }
