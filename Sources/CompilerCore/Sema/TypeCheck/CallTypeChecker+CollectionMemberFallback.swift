@@ -2,6 +2,25 @@
 import RuntimeABI
 
 extension CallTypeChecker {
+    func collectionSumResultType(elementType: TypeID, sema: SemaModule) -> TypeID? {
+        switch sema.types.kind(of: elementType) {
+        case .primitive(.byte, .nonNull), .primitive(.short, .nonNull), .primitive(.int, .nonNull):
+            return sema.types.intType
+        case .primitive(.long, .nonNull):
+            return sema.types.longType
+        case .primitive(.float, .nonNull):
+            return sema.types.floatType
+        case .primitive(.double, .nonNull):
+            return sema.types.doubleType
+        case .primitive(.ubyte, .nonNull), .primitive(.ushort, .nonNull), .primitive(.uint, .nonNull):
+            return sema.types.uintType
+        case .primitive(.ulong, .nonNull):
+            return sema.types.ulongType
+        default:
+            return nil
+        }
+    }
+
     private func stdlibSurfaceResultType(
         for spec: StdlibSurfaceSpec,
         memberName: InternedString,
@@ -172,7 +191,11 @@ extension CallTypeChecker {
             return sema.types.make(.primitive(.int, .nonNull))
         }
 
-        if memberName == knownNames.sum || memberName == knownNames.maxBy {
+        if memberName == knownNames.sum {
+            return collectionSumResultType(elementType: receiverElementType, sema: sema) ?? receiverElementType
+        }
+
+        if memberName == knownNames.maxBy {
             return receiverElementType
         }
 

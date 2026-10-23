@@ -163,6 +163,7 @@ extension JVMFunctionBuilder {
         if ["map", "filter", "forEach", "fold"].contains(member), builtinHOF || intrinsicHOF {
             return JVMIntrinsicResult(value: try higherOrder(receiverID, operation: member, args: args, id: id))
         }
+        if let aggregate = try collectionAggregateMember(receiverID, name: member, args: args, id: id) { return aggregate }
         let object: JVMValueType = .reference("java/lang/Object", nullable: true)
         // `to` is resolved as an extension; evaluate its receiver before the value.
         if member == "to", let binding = program.sema.bindings.callBinding(for: id),
