@@ -202,10 +202,23 @@ extension JVMFunctionBuilder {
         return result
     }
 
-    func forLoop(_ name: InternedString, _ iterable: ExprID, _ body: ExprID, _ id: ExprID, label loopLabel: InternedString? = nil) throws {
+    func forLoop(
+        _ name: InternedString?,
+        _ iterable: ExprID,
+        _ body: ExprID,
+        _ id: ExprID,
+        destructuringNames: [InternedString?]? = nil,
+        label loopLabel: InternedString? = nil
+    ) throws {
+        let loopName = name ?? context.interner.intern("__jvm_for_destructuring_\(id.rawValue)")
+        if let destructuringNames {
+            guard loopLabel == nil else { throw fail("JVM loop labels are not supported.", id) }
+            try sequenceLoop(loopName, iterable, body, id, destructuringNames: destructuringNames)
+            return
+        }
         if case let .binary(op, _, _, _) = arena.expr(iterable), op == .rangeTo,
            program.hasSourceRangeOperator(iterable) {
-            try sequenceLoop(name, iterable, body, id, label: loopLabel)
+            try sequenceLoop(loopName, iterable, body, id, label: loopLabel)
             return
         }
         let range: (BinaryOp, ExprID, ExprID)? = switch arena.expr(iterable) {
@@ -219,7 +232,7 @@ extension JVMFunctionBuilder {
             nil
         }
         guard let (op, from, to) = range else {
-            try sequenceLoop(name, iterable, body, id, label: loopLabel); return
+            try sequenceLoop(loopName, iterable, body, id, label: loopLabel); return
         }
         let first = try requireValue(from), last = try requireValue(to)
         let type = try numericType(first.type, last.type)
@@ -227,7 +240,7 @@ extension JVMFunctionBuilder {
         let induction = try value(type), bound = try value(type)
         instructions.append(.copy(try convert(first, to: type), induction))
         instructions.append(.copy(try convert(last, to: type), bound))
-        scopes.append([name: Local(value: induction, mutable: false)])
+        scopes.append([loopName: Local(value: induction, mutable: false)])
         defer { scopes.removeLast() }
         let test = label(), advance = label(), exit = label()
         mark(test)
