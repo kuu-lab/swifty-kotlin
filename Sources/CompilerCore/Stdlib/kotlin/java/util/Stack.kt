@@ -12,6 +12,8 @@ public class Stack<E> {
 
     public fun isEmpty(): Boolean = elements.isEmpty()
 
+    public fun empty(): Boolean = isEmpty()
+
     public fun push(element: E): E {
         elements.add(element)
         return element
