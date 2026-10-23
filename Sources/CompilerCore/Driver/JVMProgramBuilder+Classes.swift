@@ -107,6 +107,10 @@ extension JVMProgramBuilder {
         for expr in ast.arena.snapshot().expressions {
             if case let .objectLiteral(_, id?, _) = expr, let symbol = sema.bindings.declSymbol(for: id), classes[symbol] == nil {
                 try collectNominals([id], anonymous: true)
+            } else if case let .localNominalDecl(id, _) = expr,
+                      let symbol = sema.bindings.declSymbol(for: id), classes[symbol] == nil,
+                      case .classDecl = ast.arena.decl(id) {
+                try collectNominals([id])
             }
         }
         for plan in classes.values.sorted(by: { $0.name < $1.name }) {

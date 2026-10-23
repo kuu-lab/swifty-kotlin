@@ -285,6 +285,8 @@ private struct JVMSourceGrammar {
                 if take(.symbol(.assign)) || take(.softKeyword(.by)) { try expression() }
                 else if !hasTypeAnnotation { throw Unsupported() }
             }
+        } else if startsClassDeclaration() {
+            try declaration(member: false)
         } else if kind == .keyword(.fun) {
             let start = index
             do { try anonymousFunction() }
@@ -307,6 +309,13 @@ private struct JVMSourceGrammar {
                 index += 1; try expression()
             }
         }
+    }
+    mutating func startsClassDeclaration() -> Bool {
+        let start = index
+        modifiers()
+        let result = kind == .keyword(.class)
+        index = start
+        return result
     }
     func precedence() -> Int? {
         switch kind {
