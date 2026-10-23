@@ -62,6 +62,77 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
+    /// KUU-2923: versioned parameters must not corrupt suspend member references.
+    @Test
+    func testIntroducedAtSuspendMemberReferencesRunThroughCoroutine() throws {
+        let artifactPath = try testStdlibArtifactPath()
+        let source = """
+        @file:OptIn(ExperimentalVersionOverloading::class)
+
+        import kotlin.coroutines.Continuation
+        import kotlin.coroutines.EmptyCoroutineContext
+        import kotlin.coroutines.startCoroutine
+
+        class SuspendVersionedHolder {
+            suspend fun member(
+                value: String = "O",
+                @IntroducedAt("1") suffix: String = "K",
+            ): String = value + suffix
+        }
+
+        suspend fun String.suspendExtension(
+            @IntroducedAt("1") suffix: String = "K",
+        ): String = this + suffix
+
+        fun <T> runSuspendVersioned(block: suspend () -> T): T {
+            var result: Result<T>? = null
+            block.startCoroutine(Continuation(EmptyCoroutineContext) { result = it })
+            return result!!.getOrThrow()
+        }
+
+        fun main() {
+            val holder = SuspendVersionedHolder()
+            println(runSuspendVersioned { holder.member() })
+            println(runSuspendVersioned { with(holder) { "A".suspendExtension() } })
+
+            val memberReference: suspend (SuspendVersionedHolder, String, String) -> String =
+                SuspendVersionedHolder::member
+            println(runSuspendVersioned { memberReference(holder, "O", "K") })
+
+            val boundMemberReference: suspend (String, String) -> String = holder::member
+            println(runSuspendVersioned { boundMemberReference("O", "K") })
+
+            val extensionReference: suspend (String, String) -> String = String::suspendExtension
+            println(runSuspendVersioned { extensionReference("O", "K") })
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "IntroducedAtSuspendMemberReferences",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try #require(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+            #expect(
+                result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "OK\nAK\nOK\nOK\nOK\n",
+                "stderr: \(result.stderr)"
+            )
+        }
+    }
+
     /// KUU-2118: an inline resume delivered before COROUTINE_SUSPENDED must
     /// continue through if and loop conditions before startCoroutine returns.
     @Test
