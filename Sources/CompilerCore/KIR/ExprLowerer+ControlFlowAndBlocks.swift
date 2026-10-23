@@ -50,12 +50,95 @@ extension ExprLowerer {
             instructions.append(.constValue(result: unit, value: .unit))
             value = unit
         }
+        if nonNullNothingResultType(
+            for: exprID,
+            expr: ast.arena.expr(exprID),
+            sema: sema
+        ) != nil, isPotentialNothingValueProducer(ast.arena.expr(exprID))
+        {
+            // Native calls can still return a register for source-level Nothing.
+            // Match JVM lowering by making that impossible normal edge throw.
+            let exceptionType: TypeID = if let symbol = sema.symbols.lookup(fqName: [
+                interner.intern("kotlin"), interner.intern("KotlinNothingValueException"),
+            ]) {
+                sema.types.make(.classType(ClassType(classSymbol: symbol)))
+            } else {
+                sema.types.anyType
+            }
+            let exception = arena.appendTemporary(type: exceptionType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("__kk_kotlin_nothing_value_exception_new"),
+                arguments: [],
+                result: exception,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            instructions.append(.rethrow(value: exception))
+        }
         if let targetType = sema.bindings.platformNullAssertionTypes[exprID] {
             let checked = arena.appendTemporary(type: targetType)
             instructions.append(.nullAssert(operand: value, result: checked))
             return checked
         }
         return value
+    }
+
+    private func nonNullNothingResultType(
+        for exprID: ExprID,
+        expr: Expr?,
+        sema: SemaModule
+    ) -> TypeID? {
+        if let boundType = sema.bindings.exprTypes[exprID],
+           case .nothing(.nonNull) = sema.types.kind(of: boundType)
+        {
+            return boundType
+        }
+
+        let isDirectCall: Bool = switch expr {
+        case .call, .memberCall:
+            true
+        default:
+            false
+        }
+        guard isDirectCall,
+              let binding = sema.bindings.callBinding(for: exprID),
+              let signature = sema.symbols.functionSignature(for: binding.chosenCallee),
+              signature.typeParameterSymbols.count == binding.substitutedTypeArguments.count,
+              !signature.typeParameterSymbols.isEmpty
+        else {
+            return nil
+        }
+
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        let typeVariables = signature.typeParameterSymbols.compactMap { typeVarBySymbol[$0] }
+            .sorted { $0.rawValue < $1.rawValue }
+        guard typeVariables.count == binding.substitutedTypeArguments.count else {
+            return nil
+        }
+        var substitution: [TypeVarID: TypeID] = [:]
+        for (variable, argument) in zip(typeVariables, binding.substitutedTypeArguments) {
+            substitution[variable] = argument
+        }
+        let resultType = sema.types.substituteTypeParameters(
+            in: signature.returnType,
+            substitution: substitution,
+            typeVarBySymbol: typeVarBySymbol
+        )
+        guard case .nothing(.nonNull) = sema.types.kind(of: resultType) else {
+            return nil
+        }
+        return resultType
+    }
+
+    private func isPotentialNothingValueProducer(_ expr: Expr?) -> Bool {
+        switch expr {
+        case .nameRef, .call, .memberCall, .safeMemberCall, .indexedAccess,
+             .binary, .unaryExpr, .asCast, .nullAssert:
+            true
+        default:
+            false
+        }
     }
 
     private func lowerUnconvertedExpr(
