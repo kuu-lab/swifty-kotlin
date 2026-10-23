@@ -319,6 +319,9 @@ struct RuntimeABIExternalLinkValidationTests {
             "kk_op_lushr",
             "kk_op_mul",
             "kk_op_or",
+            // Legacy alias spelling that ForLoop lowering still accepts when
+            // comparing externalLinkName (the ABI entry is __kk_op_rangeTo).
+            "kk_op_rangeTo",
             "kk_op_sub",
             "kk_op_uadd",
             "kk_op_uge",

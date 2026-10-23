@@ -11,3 +11,7 @@ internal external fun __arrayContentDeepToString(array: Any?): String
 
 @KsSymbolName("__kk_array_contentDeepHashCode")
 internal external fun __arrayContentDeepHashCode(array: Any?): Int
+
+internal external fun __kk_list_index_of(list: List<Any?>, element: Any?): Int
+
+internal external fun __kk_list_lastIndexOf(list: List<Any?>, element: Any?): Int

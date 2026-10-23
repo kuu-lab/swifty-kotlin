@@ -13,6 +13,11 @@ public final class SemaModule {
     /// The trusted JVM runtime owns the implementation of restricted suspension.
     var isJVMStdlibBuild = false
 
+    /// Stdlib profile of this compilation (`--profile`). Under `minimal`, an
+    /// unresolved import into an excluded package gets a dedicated diagnostic
+    /// instead of a plain "Unresolved import path".
+    var stdlibProfile: StdlibProfile = .full
+
     public let symbols: SymbolTable
     public let types: TypeSystem
     public let bindings: BindingTable

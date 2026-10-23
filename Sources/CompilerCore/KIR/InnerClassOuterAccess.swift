@@ -40,7 +40,16 @@ func resolveOuterChainValue(
     }
 
     guard let receiverType = arena.exprType(receiver) else { return nil }
-    guard let targetClassSymbol = receiverClassSymbol(for: target) else { return nil }
+    // `target` is usually a nominal class symbol, but a captured local of
+    // an enclosing class is also legal: the class-match checks below then
+    // never apply and each `$outer` hop is probed only for capture
+    // membership (KUU-2955).
+    let targetClassSymbol = receiverClassSymbol(for: target)
+    let targetType = targetClassSymbol.map {
+        sema.types.make(.classType(ClassType(
+            classSymbol: $0, args: [], nullability: .nonNull
+        )))
+    }
     var currentValue = receiver
     var currentType = sema.types.makeNonNullable(receiverType)
     var hops = 0
@@ -48,28 +57,27 @@ func resolveOuterChainValue(
         guard let (_, currentClassSymbol) = resolveClassTypeSymbol(currentType, sema: sema) else {
             return nil
         }
-        // A direct nominal-symbol match, checked before any structural
-        // `isSubtype` call: two `classType`s built for the very same
-        // nominal class (as `target` and `currentType` are, in the by far
-        // most common case where the receiver's own class already is the
-        // requested owner) do not reliably compare as mutual subtypes when
-        // freshly constructed via `types.make` rather than reusing the
-        // exact interned `TypeID` -- this is the fast, always-correct
-        // check every ordinary (non-inner-class) property/function access
-        // relies on.
-        if currentClassSymbol.id == targetClassSymbol {
-            return currentValue
-        }
-        let targetType = sema.types.make(.classType(ClassType(
-            classSymbol: targetClassSymbol, args: [], nullability: .nonNull
-        )))
-        if sema.types.isSubtype(currentType, targetType) {
-            return currentValue
+        if let targetClassSymbol, let targetType {
+            // A direct nominal-symbol match, checked before any structural
+            // `isSubtype` call: two `classType`s built for the very same
+            // nominal class (as `target` and `currentType` are, in the by far
+            // most common case where the receiver's own class already is the
+            // requested owner) do not reliably compare as mutual subtypes when
+            // freshly constructed via `types.make` rather than reusing the
+            // exact interned `TypeID` -- this is the fast, always-correct
+            // check every ordinary (non-inner-class) property/function access
+            // relies on.
+            if currentClassSymbol.id == targetClassSymbol {
+                return currentValue
+            }
+            if sema.types.isSubtype(currentType, targetType) {
+                return currentValue
+            }
         }
         if sema.bindings.objectLiteralCaptureSymbols(for: currentClassSymbol.id).contains(target),
            let captureOffset = sema.symbols.nominalLayout(for: currentClassSymbol.id)?.fieldOffsets[target]
         {
-            let captureType = sema.bindings.capturedLocalType(for: target) ?? targetType
+            let captureType = sema.bindings.capturedLocalType(for: target) ?? targetType ?? sema.types.anyType
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(captureOffset)), type: sema.types.intType)
             instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(captureOffset))))
             let capturedValue = arena.appendTemporary(type: captureType)

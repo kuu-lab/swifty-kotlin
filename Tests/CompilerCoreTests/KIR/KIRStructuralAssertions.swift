@@ -11,7 +11,7 @@ enum KIRRuntimeFunction {
     case functionInvoke(arity: Int), functionCreate(arity: Int), functionTagArity
     case functionSetDescription, functionCopyDescription, callableName, tagKFunction, tagKProperty
     case kClassCreate, kClassOf, kClassFindAssociatedObject, kClassMetadata, kClassCast, kClassSafeCast
-    case observableCreate, opIs
+    case observableCreate, opIs, opCast, opSafeCast
     case rangeFirst, rangeLast, floatingRangeEndpoint
     case doubleRangeStart, doubleRangeEndInclusive, floatRangeStart, floatRangeEndInclusive
     case unboxInt, unboxDouble, unboxFloat
@@ -50,6 +50,8 @@ enum KIRRuntimeFunction {
         case .kClassSafeCast: linkName = "__kk_kclass_safeCast"
         case .observableCreate: linkName = "kk_observable_create"
         case .opIs: linkName = "kk_op_is"
+        case .opCast: linkName = "kk_op_cast"
+        case .opSafeCast: linkName = "kk_op_safe_cast"
         case .rangeFirst: linkName = "__kk_range_first"
         case .rangeLast: linkName = "__kk_range_last"
         case .floatingRangeEndpoint: linkName = "__kk_floating_range_endpoint_or_null"

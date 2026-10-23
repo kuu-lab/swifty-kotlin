@@ -794,8 +794,10 @@ extension LambdaLowerer {
         // An object literal captures its enclosing class receiver by the
         // class symbol, while a member body may track `this` under a synthetic
         // receiver symbol. Match by nominal type in that case so the captured
-        // field is initialized instead of left zeroed.
-        if sema.symbols.symbol(symbol)?.kind == .class,
+        // field is initialized instead of left zeroed. Enum classes capture the
+        // enum instance (an ordinal value) the same way.
+        if let receiverKind = sema.symbols.symbol(symbol)?.kind,
+           receiverKind == .class || receiverKind == .enumClass,
            let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
         {
             if let receiverType = arena.exprType(receiverExprID),
@@ -868,6 +870,23 @@ extension LambdaLowerer {
                 thrownResult: nil
             ))
             return valueExpr
+        }
+        // KUU-2955: `symbol` may be a captured local (or receiver-owned
+        // value) of an enclosing local nominal, reachable only through the
+        // active receiver's `$outer` chain — e.g. `inner class D` whose
+        // member `copyOuter()` constructs `C()` must source `C`'s captured
+        // fields from `this@D.$outer`, not from a live local slot.
+        if let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+           let outerValue = resolveOuterChainValue(
+               from: receiverExprID,
+               to: symbol,
+               sema: sema,
+               arena: arena,
+               interner: interner,
+               instructions: &instructions
+           )
+        {
+            return outerValue
         }
         return nil
     }

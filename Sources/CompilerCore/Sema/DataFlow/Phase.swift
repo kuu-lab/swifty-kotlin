@@ -52,6 +52,7 @@ final class DataFlowSemaPhase: CompilerPhase {
         )
 
         sema.requiresResolvedLibraryCalls = ctx.options.emit.isJVM
+        sema.stdlibProfile = ctx.options.stdlibProfile
         let fileScopesBeforeImports = KklibSemaSession.shouldCache(options: ctx.options)
             ? nil
             : buildFileScopes(ast: ast, symbols: symbols, interner: ctx.interner)
@@ -84,6 +85,15 @@ final class DataFlowSemaPhase: CompilerPhase {
             importDeferredWork.lazyLoaderState?.resolveDemandedInlineBodies
         if capturesImportedStdlibSnapshot {
             symbols.materializeAllIndexedLibraryState()
+            if let lazyState = importDeferredWork.lazyLoaderState {
+                registerAllImportedInlineFunctionDescriptors(
+                    state: lazyState,
+                    symbols: symbols,
+                    types: types,
+                    diagnostics: ctx.diagnostics,
+                    interner: ctx.interner
+                )
+            }
         }
 
         // KSP-706: when compiling against bundled stdlib source rather than a

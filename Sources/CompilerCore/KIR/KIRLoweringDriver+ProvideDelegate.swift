@@ -1,10 +1,16 @@
 extension KIRLoweringDriver {
     /// Emits the stable KProperty object shared by all operations on a delegated property.
+    /// KUU-2947: a property declared inside a function hands its delegate a
+    /// KProperty0/KMutableProperty0-shaped stub (matching the JVM's
+    /// PropertyReference0Impl), so `isLocal` selects the local-stub runtime
+    /// entry point that registers the 0-arity reflection type and its
+    /// unsupported-accessor behavior.
     func emitKPropertyStubCreate(
         propertySymbol: SymbolID,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
+        isLocal: Bool = false,
         emit body: inout KIRLoweringEmitContext
     ) -> KIRExprID {
         let propertyName = sema.symbols.symbol(propertySymbol)?.name ?? interner.intern("")
@@ -35,13 +41,25 @@ extension KIRLoweringDriver {
             type: sema.types.stringType
         )
         body.append(.constValue(result: identityExprID, value: .stringLiteral(identity)))
+        var stubArguments = [propertyNameExprID, returnTypeExprID, identityExprID]
+        if isLocal {
+            let isMutable: Int64 = sema.symbols.symbol(propertySymbol)?.flags.contains(.mutable) == true ? 1 : 0
+            let isMutableExprID = arena.appendExpr(
+                .intLiteral(isMutable),
+                type: sema.types.intType
+            )
+            body.append(.constValue(result: isMutableExprID, value: .intLiteral(isMutable)))
+            stubArguments.append(isMutableExprID)
+        }
         let kPropertyExprID = arena.appendTemporary(type: sema.types.anyType
         )
         body.append(
             .call(
                 symbol: nil,
-                callee: interner.intern("__kk_kproperty_stub_create_cached"),
-                arguments: [propertyNameExprID, returnTypeExprID, identityExprID],
+                callee: interner.intern(
+                    isLocal ? "__kk_kproperty_stub_create_local" : "__kk_kproperty_stub_create_cached"
+                ),
+                arguments: stubArguments,
                 result: kPropertyExprID,
                 canThrow: false,
                 thrownResult: nil
@@ -90,7 +108,14 @@ extension KIRLoweringDriver {
         )
 
         let provideDelegateName = interner.intern("provideDelegate")
-        let provideDelegateResult = arena.appendTemporary(type: sema.types.anyType
+        // The stored result must keep the provideDelegate return type's ABI
+        // representation: when the effective delegate type is a primitive
+        // (e.g. `Long` from `Double.provideDelegate`), getValue/setValue
+        // receiver code — including inlined bodies — reads the storage as a
+        // raw scalar, so boxing it as `Any` would corrupt the receiver value.
+        let provideDelegateResult = arena.appendTemporary(
+            type: sema.symbols.functionSignature(for: provideDelegateSymbol)?.returnType
+                ?? sema.types.anyType
         )
         let provideDelegateArguments = memberLowerer.prependingMemberExtensionDispatchReceiver(
             to: [delegateObjExpr, thisRefExprID, kPropertyExprID],

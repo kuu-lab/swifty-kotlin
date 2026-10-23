@@ -492,20 +492,41 @@ struct LoweringPassRegressionTests {
             let wrapper = try #require(findAllKIRFunctions(in: module).first { $0.symbol == original.symbol })
             return try loweredSuspendFunction(for: wrapper, in: module, interner: interner)
         }
-        let rewrittenSuspendCalls = loweredCaller.body.compactMap { instruction -> (symbol: SymbolID, arity: Int, canThrow: Bool)? in
-            guard case let .call(symbol, callee, arguments, _, canThrow, _, _, _) = instruction,
-                  let symbol,
-                  loweredTargets.contains(where: { $0.symbol == symbol && $0.name == callee })
+        let wrapperCallee = interner.intern(RuntimeCall.coroutineCallSuspendWrapper.name)
+        let rewrittenSuspendCalls = loweredCaller.body.compactMap { instruction -> (entryPoint: SymbolID, canThrow: Bool)? in
+            guard case let .call(_, callee, arguments, _, canThrow, _, _, _) = instruction,
+                  callee == wrapperCallee,
+                  arguments.count == 2,
+                  case let .symbolRef(entryPoint) = module.arena.expr(arguments[0])
             else {
                 return nil
             }
-            return (symbol: symbol, arity: arguments.count, canThrow: canThrow)
+            return (entryPoint: entryPoint, canThrow: canThrow)
         }
         #expect(rewrittenSuspendCalls.count == 2)
-        #expect(Set(rewrittenSuspendCalls.map(\.symbol)) == Set(loweredTargets.map(\.symbol)))
-        #expect(Set(rewrittenSuspendCalls.map(\.arity)) == Set([1, 2]))
         let allCanThrow = rewrittenSuspendCalls.allSatisfy(\.canThrow)
         #expect(allCanThrow)
+
+        // The no-arg overload is entered through its lowered entry point
+        // directly; the arg-bearing overload is entered through a synthesized
+        // launcher thunk that reads the argument back out of the continuation.
+        let entryPoints = Set(rewrittenSuspendCalls.map(\.entryPoint))
+        #expect(entryPoints.contains(loweredTargets[0].symbol))
+        let launcherThunks = findAllKIRFunctions(in: module).filter {
+            interner.resolve($0.name).hasPrefix("kk_launcher_thunk")
+        }
+        #expect(launcherThunks.count == 1)
+        #expect(entryPoints.contains(launcherThunks[0].symbol))
+        #expect(launcherThunks[0].body.contains { instruction in
+            guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else { return false }
+            return symbol == loweredTargets[1].symbol
+        })
+
+        let argSetCalls = loweredCaller.body.filter { instruction in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+            return callee == interner.intern(RuntimeCall.coroutineLauncherArgSet.name)
+        }
+        #expect(argSetCalls.count == 1)
     }
 
     @Test
