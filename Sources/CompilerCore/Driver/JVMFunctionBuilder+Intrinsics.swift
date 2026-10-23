@@ -271,7 +271,8 @@ extension JVMFunctionBuilder {
             }
             if let selected = try mappedBuiltinMemberOwner(id), collections.contains(selected) { owner = selected }
             if owner == "java/util/ArrayList" { owner = "java/util/List" }
-            if ["set", "add", "addAll", "remove", "removeAll", "removeAt", "put", "clear"].contains(member), owner != "java/util/ListIterator" { try requireMutableCollection(receiverID, at: id) }
+            let isIteratorRemove = owner == "java/util/Iterator" && member == "remove"
+            if ["set", "add", "addAll", "remove", "removeAll", "removeAt", "put", "clear"].contains(member), owner != "java/util/ListIterator", !isIteratorRemove { try requireMutableCollection(receiverID, at: id) }
             if ["set", "add", "addAll", "put"].contains(member), owner != "java/util/ListIterator" { try requireWritableArguments(receiverID, at: id) }
             if ["getOrElse", "getOrPut"].contains(member), ["java/util/List", "java/util/Map"].contains(owner) {
                 return try collectionDefaultValueMember(receiverID, owner: owner, member: member, args: args, id: id)
@@ -586,6 +587,9 @@ extension JVMFunctionBuilder {
         else if source.type.referenceName?.hasPrefix("[") == true { elementType = try arrayComponent(source.type) }
         else if let loopBinding { elementType = try program.type(loopBinding.elementType) }
         else if let jvmIterableElementType { elementType = try program.type(jvmIterableElementType) }
+        else if let iterableElementType = iterableElementTypeFromSemanticType(iterable) {
+            elementType = try program.type(iterableElementType)
+        }
         else { throw fail("JVM for requires an array or iterable collection.", id) }
         let local = try value(elementType), test = label(), advance = label(), exit = label()
         scopes.append([name: Local(value: local, mutable: false)]); defer { scopes.removeLast() }
@@ -638,5 +642,33 @@ extension JVMFunctionBuilder {
             mark(advance); jump(test)
         }
         mark(exit)
+    }
+
+    private func iterableElementTypeFromSemanticType(_ iterable: ExprID) -> TypeID? {
+        let interner = context.interner
+        guard let semanticType = program.sema.bindings.exprType(for: iterable),
+              case let .classType(classType) = program.sema.types.kind(
+                  of: program.sema.types.makeNonNullable(semanticType)
+              ),
+              let iterableSymbol = program.sema.symbols.lookup(fqName: [
+                  interner.intern("kotlin"),
+                  interner.intern("collections"),
+                  interner.intern("Iterable"),
+              ]),
+              let iterableArguments = program.sema.types.liftedNominalSupertypeArgs(
+                  from: classType,
+                  to: iterableSymbol
+              ),
+              let elementArgument = iterableArguments.first
+        else {
+            return nil
+        }
+
+        switch elementArgument {
+        case let .invariant(type), let .out(type), let .in(type):
+            return type
+        case .star:
+            return program.sema.types.anyType
+        }
     }
 }

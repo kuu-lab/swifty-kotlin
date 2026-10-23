@@ -140,6 +140,9 @@ internal class RepositoryMapBuilder<K, V>(capacity: Int): java.util.AbstractMap<
     override fun keySet(): Set<K> = keys
     override fun values(): Collection<V> = values
     override fun entrySet(): Set<Any?> = RepositoryBuilderSet<Any?>(state, __jvmMapEntries(source), true)
+    @Suppress("UNCHECKED_CAST")
+    override val entries: MutableSet<MutableMap.MutableEntry<K, V>>
+        get() = entrySet() as MutableSet<MutableMap.MutableEntry<K, V>>
     private fun writeReplace(): Any {
         if (!state.frozen) throw __jvmBuilderSerializationFailure("The map cannot be serialized while it is being built.")
         return this

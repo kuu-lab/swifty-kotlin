@@ -46,6 +46,15 @@ extension JVMFunctionBuilder {
             let object = method.isStatic || method.isConstructor ? nil : try requireValue(receiver)
             return try foreign(method, receiver: object, args: args, id: id)
         }
+        if member == "compare", args.count == 2,
+           let receiverType = try? program.expressionType(receiver),
+           receiverType.referenceName == "java/util/Comparator",
+           args.allSatisfy({ $0.label == nil && !$0.isSpread }) {
+            let comparator = try convert(requireValue(receiver), to: .reference("java/util/Comparator", nullable: false))
+            let object = JVMValueType.reference("java/lang/Object", nullable: true)
+            let values = try args.map { try convert(requireValue($0.expr), to: object) }
+            return try jdkCall("java/util/Comparator", "compare", [object, object], .int, receiver: comparator, arguments: values, interface: true)
+        }
         let source = try requireValue(receiver)
         let targets = Self.numericConversions
         guard source.type.isNumeric, args.isEmpty, typeArgs.isEmpty,

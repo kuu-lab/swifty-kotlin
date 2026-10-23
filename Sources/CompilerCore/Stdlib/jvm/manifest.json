@@ -350,12 +350,6 @@
       "onlyForStdlibBuild": true
     },
     {
-      "path": "declarations/StackTraceElement.kt",
-      "virtualPath": "<kswiftk-jvm>/stack-trace.kt",
-      "excludeFromStdlibBuild": false,
-      "onlyForStdlibBuild": true
-    },
-    {
       "path": "declarations/InvocationHandler.kt",
       "virtualPath": "<kswiftk-jvm>/invocation-handler.kt",
       "excludeFromStdlibBuild": false,
