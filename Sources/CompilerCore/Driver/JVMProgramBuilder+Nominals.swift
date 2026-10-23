@@ -2,18 +2,175 @@ import Foundation
 
 extension JVMClasspathIndex {
     static func binaryName(_ symbol: SymbolID, sema: SemaModule, ctx: CompilationContext) -> String {
+        binaryName(symbol, sema: sema, ctx: ctx, resolvingAnonymous: [])
+    }
+
+    private static func binaryName(
+        _ symbol: SymbolID,
+        sema: SemaModule,
+        ctx: CompilationContext,
+        resolvingAnonymous: Set<SymbolID>
+    ) -> String {
         guard let value = sema.symbols.symbol(symbol) else { return "" }
+        let name = ctx.interner.resolve(value.name)
+        if isAnonymousObjectLiteral(value, interner: ctx.interner),
+           !resolvingAnonymous.contains(symbol),
+           let info = anonymousObjectName(
+               symbol,
+               sema: sema,
+               ctx: ctx,
+               resolvingAnonymous: resolvingAnonymous.union([symbol])
+           )
+        {
+            return info.binaryName
+        }
         if let parent = sema.symbols.parentSymbol(for: symbol), let enclosing = sema.symbols.symbol(parent),
            [.class, .interface, .object, .enumClass, .annotationClass].contains(enclosing.kind) {
-            return binaryName(parent, sema: sema, ctx: ctx) + "$" + ctx.interner.resolve(value.name)
-        }
-        if value.kind == .class, value.flags.contains(.synthetic), ctx.interner.resolve(value.name).hasPrefix("__ObjectLiteral_"),
-           let site = value.declSite, let file = ctx.ast?.files.first(where: { $0.fileID == site.start.file }) {
-            return (file.packageFQName.map(ctx.interner.resolve) + [ctx.interner.resolve(value.name)]).joined(separator: "/")
+            return binaryName(parent, sema: sema, ctx: ctx, resolvingAnonymous: resolvingAnonymous) + "$" + name
         }
         let sourceName = value.fqName.map(ctx.interner.resolve).joined(separator: "/")
         return ctx.jvmRuntimeClassAliases[sourceName] ?? sourceName
     }
+
+    static func anonymousObjectName(
+        _ symbol: SymbolID,
+        sema: SemaModule,
+        ctx: CompilationContext
+    ) -> JVMAnonymousObjectNameInfo? {
+        anonymousObjectName(symbol, sema: sema, ctx: ctx, resolvingAnonymous: [symbol])
+    }
+
+    private static func anonymousObjectName(
+        _ symbol: SymbolID,
+        sema: SemaModule,
+        ctx: CompilationContext,
+        resolvingAnonymous: Set<SymbolID>
+    ) -> JVMAnonymousObjectNameInfo? {
+        guard let value = sema.symbols.symbol(symbol),
+              isAnonymousObjectLiteral(value, interner: ctx.interner),
+              let ast = ctx.ast
+        else {
+            return nil
+        }
+
+        let snapshot = ast.arena.snapshot()
+        let objectRange = snapshot.expressions.compactMap { expression -> SourceRange? in
+            guard case let .objectLiteral(_, declID?, range) = expression,
+                  sema.bindings.declSymbols[declID] == symbol
+            else {
+                return nil
+            }
+            return range
+        }.first ?? value.declSite
+        guard let objectRange,
+              let file = ast.files.first(where: { $0.fileID == objectRange.start.file }),
+              let fileName = try? JVMProgramBuilder.fileIdentity(for: file, context: ctx).0
+        else {
+            return nil
+        }
+
+        func contains(_ outer: SourceRange, _ inner: SourceRange) -> Bool {
+            outer.start.file == inner.start.file
+                && outer.start.offset <= inner.start.offset
+                && inner.end.offset <= outer.end.offset
+        }
+        func span(_ range: SourceRange) -> Int {
+            range.end.offset - range.start.offset
+        }
+        func nominalOwner(_ owner: SymbolID?) -> SymbolID? {
+            guard let owner, let ownerSymbol = sema.symbols.symbol(owner),
+                  [.class, .interface, .object, .enumClass, .annotationClass].contains(ownerSymbol.kind)
+            else {
+                return nil
+            }
+            return owner
+        }
+
+        let functions = snapshot.declarations.enumerated().compactMap { index, declaration -> (range: SourceRange, name: String, owner: SymbolID?)? in
+            guard case let .funDecl(function) = declaration,
+                  contains(function.range, objectRange)
+            else {
+                return nil
+            }
+            let declID = DeclID(rawValue: Int32(index))
+            guard let functionSymbol = sema.bindings.declSymbols[declID] else { return nil }
+            return (
+                function.range,
+                ctx.interner.resolve(function.name),
+                nominalOwner(sema.symbols.parentSymbol(for: functionSymbol))
+            )
+        }.sorted { span($0.range) < span($1.range) }
+        let function = functions.first
+
+        let localNames = snapshot.expressions.compactMap { expression -> (range: SourceRange, name: String)? in
+            guard case let .localDecl(name, _, _, initializer?, _, _, range) = expression,
+                  let initializerRange = ast.arena.exprRange(initializer),
+                  contains(initializerRange, objectRange)
+            else {
+                return nil
+            }
+            return (range, ctx.interner.resolve(name))
+        }.sorted { span($0.range) < span($1.range) }
+        let propertyNames = snapshot.declarations.enumerated().compactMap { index, declaration -> (range: SourceRange, initializerRange: SourceRange, name: String, owner: SymbolID?)? in
+            guard case let .propertyDecl(property) = declaration,
+                  let initializer = property.initializer,
+                  let initializerRange = ast.arena.exprRange(initializer),
+                  contains(initializerRange, objectRange)
+            else {
+                return nil
+            }
+            let propertySymbol = sema.bindings.declSymbols[DeclID(rawValue: Int32(index))]
+            let owner = propertySymbol.flatMap { nominalOwner(sema.symbols.parentSymbol(for: $0)) }
+            return (property.range, initializerRange, ctx.interner.resolve(property.name), owner)
+        }.sorted { span($0.initializerRange) < span($1.initializerRange) }
+        let localName = localNames.first?.name
+        let property = propertyNames.first
+        let ownerSymbol = function?.owner ?? property?.owner
+        let enclosingClassName: String
+        if let ownerSymbol {
+            enclosingClassName = binaryName(
+                ownerSymbol,
+                sema: sema,
+                ctx: ctx,
+                resolvingAnonymous: resolvingAnonymous
+            )
+        } else {
+            enclosingClassName = fileName
+        }
+
+        let lexicalRange = function?.range ?? property?.initializerRange ?? file.range ?? objectRange
+        let ordinal = snapshot.expressions.reduce(into: 0) { count, expression in
+            guard case let .objectLiteral(_, _, range) = expression,
+                  contains(lexicalRange, range),
+                  range.start.offset <= objectRange.start.offset
+            else {
+                return
+            }
+            count += 1
+        }
+        var suffix = function.map { [$0.name] } ?? []
+        if let localName {
+            suffix.append(localName)
+        } else if let property {
+            suffix.append(property.name)
+        }
+        suffix.append(String(max(ordinal, 1)))
+        return JVMAnonymousObjectNameInfo(
+            binaryName: enclosingClassName + "$" + suffix.joined(separator: "$"),
+            enclosingClassName: enclosingClassName
+        )
+    }
+
+    private static func isAnonymousObjectLiteral(_ symbol: SemanticSymbol, interner: StringInterner) -> Bool {
+        symbol.kind == .class
+            && symbol.flags.contains(.synthetic)
+            && interner.resolve(symbol.name).hasPrefix("__ObjectLiteral_")
+    }
+}
+
+struct JVMAnonymousObjectNameInfo {
+    let binaryName: String
+    let enclosingClassName: String
 }
 
 extension JVMProgramBuilder {
@@ -218,8 +375,17 @@ extension JVMProgramBuilder {
         result.isInner = plan.isInner
         if let field = try outerField(plan) { result.extraFields.append(field) }
         if plan.isAnonymous { result.emitMetadata = false; result.extraFields += plan.captures.map(\.field) }
-        result.outerName = plan.outer.flatMap { classes[$0]?.name }
-        result.innerName = result.outerName == nil ? nil : String(plan.name.split(separator: "$").last!)
+        if plan.isAnonymous {
+            result.outerName = JVMClasspathIndex.anonymousObjectName(
+                plan.symbol,
+                sema: sema,
+                ctx: context
+            )?.enclosingClassName
+            result.innerName = nil
+        } else {
+            result.outerName = plan.outer.flatMap { classes[$0]?.name }
+            result.innerName = result.outerName == nil ? nil : String(plan.name.split(separator: "$").last!)
+        }
         result.nestedNames = classes.values.filter { $0.outer == plan.symbol && $0.enumParent == nil }.map { String($0.name.split(separator: "$").last!) }.sorted()
         result.companionName = classes.values.first(where: { $0.companionOwner == plan.symbol }).map { context.interner.resolve(sema.symbols.symbol($0.symbol)!.name) }
         result.sealedSubclasses = try (sema.symbols.sealedSubclasses(for: plan.symbol) ?? []).map(className).sorted()

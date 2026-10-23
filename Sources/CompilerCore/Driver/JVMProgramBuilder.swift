@@ -69,31 +69,37 @@ final class JVMProgramBuilder {
         guard let first = bytes.first, start(first) else { return false }
         return bytes.dropFirst().allSatisfy { start($0) || (48...57).contains($0) }
     }
+
+    static func fileIdentity(for file: ASTFile, context: CompilationContext) throws -> (String, String) {
+        guard file.scriptBody.isEmpty else {
+            throw JVMFrontendError(message: "JVM source files cannot contain scripts.")
+        }
+        let filename = URL(fileURLWithPath: context.sourceManager.path(of: file.fileID)).lastPathComponent
+        let stem = (filename as NSString).deletingPathExtension
+        let package = file.packageFQName.map(context.interner.resolve)
+        guard isIdentifier(stem), package.allSatisfy(isIdentifier) else {
+            throw JVMFrontendError(message: "JVM M6 requires ASCII identifiers for the source filename and package.")
+        }
+        var facade = String(stem.prefix(1)).uppercased() + stem.dropFirst() + "Kt"
+        guard file.annotations.count <= 1 else {
+            throw JVMFrontendError(message: "JVM supports one fully qualified @file:kotlin.jvm.JvmName annotation.")
+        }
+        if let annotation = file.annotations.first {
+            guard annotation.useSiteTarget == "file", annotation.name == "kotlin.jvm.JvmName", annotation.arguments.count == 1,
+                  let raw = annotation.arguments.first?.components(separatedBy: "=").last?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  let data = ("[" + raw + "]").data(using: .utf8), let names = try? JSONSerialization.jsonObject(with: data) as? [String],
+                  names.count == 1, isIdentifier(names[0]) else {
+                throw JVMFrontendError(message: "JVM @file:kotlin.jvm.JvmName requires one constant ASCII identifier.")
+            }
+            facade = names[0]
+        }
+        return ((package + [facade]).joined(separator: "/"), filename)
+    }
+
     func build() throws -> JVMProgram {
         let files = ast.files.filter { context.sourceManager.origin(of: $0.fileID) == .user }
         guard !files.isEmpty else { throw JVMFrontendError(message: "JVM compilation requires source files.") }
-        func identity(_ file: ASTFile) throws -> (String, String) {
-            guard file.scriptBody.isEmpty else {
-                throw JVMFrontendError(message: "JVM source files cannot contain scripts.")
-            }
-            let filename = URL(fileURLWithPath: context.sourceManager.path(of: file.fileID)).lastPathComponent
-            let stem = (filename as NSString).deletingPathExtension
-            let package = file.packageFQName.map(context.interner.resolve)
-            guard Self.isIdentifier(stem), package.allSatisfy(Self.isIdentifier) else {
-                throw JVMFrontendError(message: "JVM M6 requires ASCII identifiers for the source filename and package.")
-            }
-            var facade = String(stem.prefix(1)).uppercased() + stem.dropFirst() + "Kt"
-            guard file.annotations.count <= 1 else { throw JVMFrontendError(message: "JVM supports one fully qualified @file:kotlin.jvm.JvmName annotation.") }
-            if let annotation = file.annotations.first {
-                guard annotation.useSiteTarget == "file", annotation.name == "kotlin.jvm.JvmName", annotation.arguments.count == 1,
-                      let raw = annotation.arguments.first?.components(separatedBy: "=").last?.trimmingCharacters(in: .whitespacesAndNewlines),
-                      let data = ("[" + raw + "]").data(using: .utf8), let names = try? JSONSerialization.jsonObject(with: data) as? [String],
-                      names.count == 1, Self.isIdentifier(names[0]) else { throw JVMFrontendError(message: "JVM @file:kotlin.jvm.JvmName requires one constant ASCII identifier.") }
-                facade = names[0]
-            }
-            return ((package + [facade]).joined(separator: "/"), filename)
-        }
-        let names = try files.map(identity)
+        let names = try files.map { try Self.fileIdentity(for: $0, context: context) }
         if Set(names.map { $0.0 }).count != names.count {
             guard context.options.stdlibOnly else { throw JVMFrontendError(message: "Duplicate JVM file facade name.") }
             let repeated = Dictionary(grouping: names.indices, by: { names[$0].0 }).values.filter { $0.count > 1 }.flatMap { $0 }
