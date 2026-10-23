@@ -281,10 +281,22 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "declarations/CollectionIndexing.kt",
+      "virtualPath": "<kswiftk-jvm>/collection-indexing.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
       "path": "declarations/CollectionFirstPredicate.kt",
       "virtualPath": "<kswiftk-jvm>/collection-first-predicate.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
+      "path": "declarations/TextIndexing.kt",
+      "virtualPath": "<kswiftk-jvm>/text-indexing.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/text/StringsKt"
     },
     {
       "path": "declarations/Comparator.kt",

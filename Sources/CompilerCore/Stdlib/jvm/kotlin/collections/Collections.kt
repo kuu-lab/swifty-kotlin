@@ -23,6 +23,9 @@ public fun <T> mutableListOf(vararg elements: T): MutableList<T> {
     return result
 }
 
+public fun Collection<*>.indices(): IntRange = 0..this.size - 1
+public fun <T> List<T>.indices(): IntRange = 0..this.size - 1
+public fun <T> List<T>.lastIndex(): Int = this.size - 1
 
 // Official Kotlin consumers select this Collection receiver overload.
 public fun <T> Collection<T>.toMutableList(): MutableList<T> = __jvmCopyList(this)
