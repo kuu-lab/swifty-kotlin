@@ -1,15 +1,7 @@
-// swiftlint:disable file_length
+private let abi = RuntimeABISectionBuilder("Boolean")
 
 public extension RuntimeABISpec {
     static let booleanFunctions: [RuntimeABIFunctionSpec] = [
-        RuntimeABIFunctionSpec(
-            name: "kk_op_not",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Boolean",
-            isThrowing: false
-        ),
+        abi.nt("kk_op_not", "value"),
     ]
 }
