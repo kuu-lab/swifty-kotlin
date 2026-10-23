@@ -32,6 +32,29 @@ extension JVMFunctionBuilder {
             }
             return try constructJDK("kotlin/ranges/IntRange", parameters: [.int, .int], arguments: [lower, upper])
         }
+        if op == .downTo {
+            let first = try requireValue(lhs), last = try requireValue(rhs)
+            guard first.type == .int, last.type == .int else {
+                throw fail("JVM downTo expressions currently require Int operands.", id)
+            }
+            // The range marker maps Int-backed expressions to IntRange, but
+            // downTo returns IntProgression. Its factory is on the companion.
+            let progression: JVMValueType = .reference("kotlin/ranges/IntProgression", nullable: false)
+            let companionType: JVMValueType = .reference("kotlin/ranges/IntProgression$Companion", nullable: false)
+            let companion = try value(companionType)
+            instructions.append(.getStatic(
+                JVMField(owner: "kotlin/ranges/IntProgression", name: "Companion", type: companionType, access: 0x19),
+                companion
+            ))
+            return try jdkCall(
+                "kotlin/ranges/IntProgression$Companion",
+                "fromClosedRange",
+                [.int, .int, .int],
+                progression,
+                receiver: companion,
+                arguments: [first, last, try constant(.int(-1), .int)]
+            )
+        }
         if [.add, .subtract, .multiply, .divide, .modulo].contains(op) {
             let args = [CallArgument(expr: rhs)]
             if let call = try inlineCall(args, receiver: lhs, id: id)
@@ -162,10 +185,10 @@ extension JVMFunctionBuilder {
         return result
     }
 
-    func forLoop(_ name: InternedString, _ iterable: ExprID, _ body: ExprID, _ id: ExprID) throws {
+    func forLoop(_ name: InternedString, _ iterable: ExprID, _ body: ExprID, _ id: ExprID, label loopLabel: InternedString? = nil) throws {
         if case let .binary(op, _, _, _) = arena.expr(iterable), op == .rangeTo,
            program.hasSourceRangeOperator(iterable) {
-            try sequenceLoop(name, iterable, body, id)
+            try sequenceLoop(name, iterable, body, id, label: loopLabel)
             return
         }
         let range: (BinaryOp, ExprID, ExprID)? = switch arena.expr(iterable) {
@@ -179,7 +202,7 @@ extension JVMFunctionBuilder {
             nil
         }
         guard let (op, from, to) = range else {
-            try sequenceLoop(name, iterable, body, id); return
+            try sequenceLoop(name, iterable, body, id, label: loopLabel); return
         }
         let first = try requireValue(from), last = try requireValue(to)
         let type = try numericType(first.type, last.type)
@@ -195,7 +218,7 @@ extension JVMFunctionBuilder {
         let comparison: BinaryOp = op == .rangeUntil ? .lessThan : (op == .downTo ? .greaterOrEqual : .lessOrEqual)
         instructions.append(.binary(comparison, induction, bound, check))
         instructions.append(.jumpIfFalse(check, exit))
-        loops.append((exit, advance, pendingAllocations.count)); _ = try expression(body, discarded: true); loops.removeLast()
+        loops.append(LoopFrame(label: loopLabel, exit: exit, next: advance, allocationDepth: pendingAllocations.count)); _ = try expression(body, discarded: true); loops.removeLast()
         mark(advance)
         // Test the inclusive terminal element before incrementing. This keeps
         // MAX_VALUE/MIN_VALUE ranges finite even when the next value overflows.

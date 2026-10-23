@@ -27,8 +27,26 @@ extension JVMFunctionBuilder {
             let name = context.interner.resolve(program.sema.symbols.symbol(symbol)!.name)
             return try jdkCall(ownerName, name, name == "getValue" ? [object, token] : [object, token, object], name == "getValue" ? object : .unit, receiver: convert(delegate, to: .reference(ownerName, nullable: false)), arguments: arguments, interface: true)
         }
-        if let method = program.methods[symbol] ?? context.jvmImports?.methods[symbol] {
-            let extensionMethod = program.extensionSymbols.contains(symbol)
+        // The official JVM stdlib marks these map accessors @InlineOnly, so
+        // their facade methods are private and must be lowered through public APIs.
+        if let entry = program.textLibraryMethods[symbol], entry.method.owner == "kotlin/collections/MapAccessorsKt", arguments.count >= 2 {
+            let object: JVMValueType = .reference("java/lang/Object", nullable: true)
+            let mapType: JVMValueType = .reference("java/util/Map", nullable: false)
+            let map = try convert(delegate, to: mapType)
+            let propertyName = try jdkCall("kotlin/reflect/KCallable", "getName", [], .string, receiver: arguments[1], interface: true)!
+            switch entry.method.name {
+            case "getValue", "getVar":
+                return try jdkCall("kotlin/collections/MapsKt", "getOrImplicitDefaultNullable", [mapType, object], object, arguments: [map, propertyName])
+            case "setValue":
+                guard arguments.count == 3 else { throw fail("Invalid JVM map property setter arguments.") }
+                _ = try jdkCall("java/util/Map", "put", [object, object], object, receiver: map, arguments: [propertyName, arguments[2]], interface: true)
+                return nil
+            default:
+                break
+            }
+        }
+        if let method = program.methods[symbol] ?? context.jvmImports?.methods[symbol] ?? program.textLibraryMethods[symbol]?.method {
+            let extensionMethod = program.extensionSymbols.contains(symbol) || program.textLibraryMethods[symbol]?.extensionReceiver != nil
             let inputs = (extensionMethod ? [delegate] : []) + arguments
             var args: [JVMValue] = []
             for (arg, type) in zip(inputs, method.parameters) { args.append(try convert(arg, to: type)) }

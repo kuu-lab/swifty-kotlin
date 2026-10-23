@@ -12,12 +12,15 @@ func runCodegenPipeline(
     outputPath: String,
     irFlags: [String] = [],
     optLevel: OptimizationLevel = .O0,
-    includeStdlib: Bool = true,
     allowDefaultStdlibLibrary: Bool = true,
-    stdlibLibraryPath: String? = nil
+    stdlibLibraryPath: String? = nil,
+    includeStdlib: Bool = true,
+    prepareTestStdlibCache: Bool = true
 ) throws -> CompilationContext {
     // The backend wrapper eagerly prepares stdlib even when this input opts out.
-    let target = includeStdlib ? defaultTargetTriple() : CompilerTestSupport.defaultTargetTriple()
+    let target = includeStdlib && prepareTestStdlibCache
+        ? defaultTargetTriple()
+        : CompilerTestSupport.defaultTargetTriple()
     let options = CompilerOptions(
         moduleName: moduleName,
         inputs: [inputPath],
@@ -58,6 +61,7 @@ func assertKotlinOutput(
     optLevel: OptimizationLevel = .O0,
     includeStdlib: Bool = true,
     allowDefaultStdlibLibrary: Bool = true,
+    prepareTestStdlibCache: Bool = true,
     sourceLocation: Testing.SourceLocation = #_sourceLocation
 ) throws {
     try withTemporaryFile(contents: source) { path in
@@ -69,8 +73,9 @@ func assertKotlinOutput(
             emit: .executable,
             outputPath: outputBase,
             optLevel: optLevel,
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary,
             includeStdlib: includeStdlib,
-            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+            prepareTestStdlibCache: prepareTestStdlibCache
         )
         try LinkPhase().run(ctx)
         let result = try CommandRunner.run(executable: outputBase, arguments: [])

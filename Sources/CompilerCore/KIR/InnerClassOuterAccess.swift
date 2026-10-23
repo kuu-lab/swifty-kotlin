@@ -370,6 +370,16 @@ func allocateAndRegisterConstructedObject(
             instructions: &instructions
         )
     }
+    storeInheritedOuterInstanceLinks(
+        allocatedObject: allocatedObj,
+        constructedClassSymbol: ownerNominalSymbol,
+        outerReceiver: outerReceiver,
+        driver: driver,
+        sema: sema,
+        arena: arena,
+        interner: interner,
+        instructions: &instructions
+    )
     return allocatedObj
 }
 
@@ -411,6 +421,107 @@ func storeOuterInstanceLinkIfNeeded(
         canThrow: true,
         thrownResult: nil
     ))
+}
+
+/// A class that subclasses an `inner class` (`class Local : Outer.Inner()`,
+/// `object : Inner()`, or `inner class Sub : Inner()`) inherits the
+/// superclass's `$outer` field through its layout, but is not itself flagged
+/// `.innerClass`, so `storeOuterInstanceLinkIfNeeded` never runs for it.
+/// Walk the constructed class's superclass chain and store the enclosing
+/// instance each `inner` ancestor expects, resolved from `outerReceiver` (the
+/// `outer.Ctor(...)` qualifier or the active implicit receiver) — the
+/// enclosing instance an inner-class super constructor needs is always in
+/// lexical scope at the construction site. Without this, inherited members
+/// that read `this.$outer` observe a zeroed field and fault in
+/// `kk_array_get_inbounds` (KUU-2959).
+func storeInheritedOuterInstanceLinks(
+    allocatedObject: KIRExprID,
+    constructedClassSymbol: SymbolID,
+    outerReceiver: KIRExprID?,
+    driver: KIRLoweringDriver,
+    sema: SemaModule,
+    arena: KIRArena,
+    interner: StringInterner,
+    instructions: inout [KIRInstruction]
+) {
+    guard let layout = sema.symbols.nominalLayout(for: constructedClassSymbol) else { return }
+    var visited: Set<SymbolID> = []
+    var pendingAncestors = sema.symbols.directSupertypes(for: constructedClassSymbol)
+    while let ancestor = pendingAncestors.popLast() {
+        guard visited.insert(ancestor).inserted,
+              let info = sema.symbols.symbol(ancestor),
+              info.kind == .class || info.kind == .enumClass
+        else { continue }
+        pendingAncestors.append(contentsOf: sema.symbols.directSupertypes(for: ancestor))
+        let innerAncestor = if info.flags.contains(.expectDeclaration),
+                               let actualSymbol = sema.symbols.actualSymbol(for: ancestor)
+        {
+            actualSymbol
+        } else {
+            ancestor
+        }
+        guard let ancestorInfo = sema.symbols.symbol(innerAncestor),
+              ancestorInfo.flags.contains(.innerClass),
+              let outerFieldSymbol = sema.symbols.outerInstanceFieldSymbol(for: innerAncestor),
+              let fieldOffset = layout.fieldOffsets[outerFieldSymbol],
+              let outerOwner = sema.symbols.parentSymbol(for: innerAncestor),
+              [.class, .object, .enumClass, .interface].contains(
+                  sema.symbols.symbol(outerOwner)?.kind ?? .class
+              )
+        else { continue }
+        var outerValue = outerReceiver.flatMap {
+            resolveOuterChainValue(
+                from: $0,
+                to: outerOwner,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
+        if outerValue == nil, sema.symbols.symbol(outerOwner)?.kind == .object {
+            // An inner class nested in a singleton object takes that
+            // singleton as its enclosing instance, reachable from any
+            // construction scope.
+            driver.emitObjectLazyInitGuardIfNeeded(
+                objectSymbol: outerOwner,
+                arena: arena,
+                sema: sema,
+                interner: interner,
+                instructions: &instructions
+            )
+            let ownerType = sema.types.make(.classType(ClassType(
+                classSymbol: outerOwner, args: [], nullability: .nonNull
+            )))
+            let objectRef = arena.appendExpr(.symbolRef(outerOwner), type: ownerType)
+            instructions.append(.constValue(result: objectRef, value: .symbolRef(outerOwner)))
+            outerValue = objectRef
+        }
+        // The enclosing instance may arrive through a captured receiver
+        // (e.g. a lambda or the active receiver's own nominal type) rather
+        // than through the explicit construction receiver.
+        if outerValue == nil {
+            outerValue = driver.lambdaLowerer.captureValueExpr(
+                for: outerOwner,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
+        guard let outerValue else { continue }
+        let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
+        instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+        let storeResult = arena.appendTemporary(type: sema.types.anyType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_array_set"),
+            arguments: [allocatedObject, offsetExpr, outerValue],
+            result: storeResult,
+            canThrow: true,
+            thrownResult: nil
+        ))
+    }
 }
 
 extension CallLowerer {
@@ -504,12 +615,12 @@ extension CallLowerer {
         let result = arena.appendTemporary(type: boundType)
         let calleeName = sema.symbols.symbol(chosenCtor)?.name ?? interner.intern("<init>")
         let stubOwner = driver.callSupportLowerer.defaultStubOwnerSymbol(for: chosenCtor, sema: sema)
-        if normalized.defaultMask != 0,
+        if normalized.hasOmittedDefaultArguments,
            sema.symbols.externalLinkName(for: chosenCtor)?.isEmpty ?? true ||
             sema.symbols.externalLinkName(for: driver.callSupportLowerer.defaultStubSymbol(for: stubOwner)) != nil
         {
-            appendDefaultMaskArgument(
-                normalized.defaultMask,
+            appendDefaultMaskArguments(
+                normalized.defaultMaskWords,
                 sema: sema,
                 arena: arena,
                 instructions: &instructions,

@@ -68,13 +68,39 @@ extension StdlibArtifactRegressionTests {
             }
         }
     }
+
+    /// KUU-2850: Enum.name/ordinal property references must use the enum's
+    /// ordinal-backed representation when a consumer imports the stdlib artifact.
+    @Test
+    func testEnumNameOrdinalCallableReferenceGetFromStdlibArtifact() throws {
+        let artifactPath = try testStdlibArtifactPath()
+        let source = """
+        enum class E { I }
+
+        fun main() {
+            val name = (E::name).get(E.I)
+            val ordinal = (E::ordinal).get(E.I)
+            print("$name:$ordinal")
+        }
+        """
+
+        let output = try runEnumCallableReference(
+            source,
+            moduleName: "KUU2850EnumNameOrdinalReference",
+            stdlibLibraryPath: artifactPath,
+            optLevel: .O0,
+            issueLabel: "KUU-2850"
+        )
+        #expect(output == "I:0", "Unexpected enum property-reference output: \(String(reflecting: output))")
+    }
 }
 
 private func runEnumCallableReference(
     _ source: String,
     moduleName: String,
     stdlibLibraryPath: String?,
-    optLevel: OptimizationLevel
+    optLevel: OptimizationLevel,
+    issueLabel: String = "KUU-2305"
 ) throws -> String {
     var output = ""
     try withTemporaryFile(contents: source) { inputPath in
@@ -104,28 +130,28 @@ private func runEnumCallableReference(
             try runToKIR(context)
         } catch {
             throw CompilerPipelineError.invalidInput(
-                "KUU-2305 frontend failed: \(error); diagnostics: \(context.diagnostics.diagnostics)"
+                "\(issueLabel) frontend failed: \(error); diagnostics: \(context.diagnostics.diagnostics)"
             )
         }
         do {
             try LoweringPhase().run(context)
         } catch {
             throw CompilerPipelineError.invalidInput(
-                "KUU-2305 lowering failed: \(error); diagnostics: \(context.diagnostics.diagnostics)"
+                "\(issueLabel) lowering failed: \(error); diagnostics: \(context.diagnostics.diagnostics)"
             )
         }
         do {
             try CodegenPhase().run(context)
         } catch {
             throw CompilerPipelineError.invalidInput(
-                "KUU-2305 codegen failed: \(error); diagnostics: \(context.diagnostics.diagnostics)"
+                "\(issueLabel) codegen failed: \(error); diagnostics: \(context.diagnostics.diagnostics)"
             )
         }
         do {
             try LinkPhase().run(context)
         } catch {
             throw CompilerPipelineError.invalidInput(
-                "KUU-2305 link failed: \(error); diagnostics: \(context.diagnostics.diagnostics)"
+                "\(issueLabel) link failed: \(error); diagnostics: \(context.diagnostics.diagnostics)"
             )
         }
         #expect(
