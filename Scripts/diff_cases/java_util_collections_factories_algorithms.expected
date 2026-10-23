@@ -1,0 +1,29 @@
+empty:true:true:true:true
+empty-list-readonly
+single:one:one:1
+single-list-readonly
+copies:x, x, x
+copies-readonly
+reverse-order:1:1
+sort:1, 2, 3, 4:2:-5
+sort-reverse:4, 3, 2, 1:2
+natural-null
+minmax:1:1
+frequency:2:1
+disjoint:true:false
+fill:8, 8, 8
+copy:4, 5, 8
+copy-widened:a, b
+swap:8, 5, 4
+rotate:5, 4, 8
+reverse:8, 4, 5
+replace:true:false:8, 4, 7
+sublist:0:2:3
+add-all:true:true:a, b, c
+add-all-empty-readonly:false
+shuffle:2, 3, 4, 5, 1
+enumeration:true:a, b:false
+empty-iterators:false:0:false
+checked-add
+checked-set
+synchronized:0, 1, 2, 3:0, 1
