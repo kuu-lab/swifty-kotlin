@@ -480,6 +480,21 @@ extension ExprTypeChecker {
             ))
         }
 
+        // Nested nominals inside the literal (JVM permits `inner class` in
+        // an object expression) lower to separate KIR functions — a member
+        // body or initializer there that references the enclosing receiver
+        // reaches it through this literal's capture fields (`$outer` hop),
+        // so it must be part of the literal's capture set.
+        for nestedDeclID in objectDecl.nestedClasses + objectDecl.nestedObjects {
+            capturedSymbols.formUnion(driver.captureAnalyzer.collectCapturedOuterSymbols(
+                inDecl: nestedDeclID,
+                ast: ast,
+                sema: sema,
+                outerSymbols: captureOuterSymbols,
+                skipNestedClosures: false
+            ))
+        }
+
         // KSP-CAP-018: a custom accessor body is lowered as its own KIR
         // function, exactly like a member function, so an outer local it
         // references needs a capture field too. Property *initializers* are
@@ -1057,14 +1072,14 @@ extension ExprTypeChecker {
             }
             return actualSymbolID
         }
-        // A nested nominal declared inside a local class gets its layout from
-        // `synthesizeNominalLayouts`, which runs only after the enclosing
-        // local nominal's body inference completes — too late for an object
-        // literal (or nested local class) declared inside that body
-        // (KUU-2959). Synthesize the superclass layout on demand so inherited
-        // fields such as an inner class's `$outer` keep their offsets.
-        var inheritedLayout = layoutSuperClass.flatMap { sema.symbols.nominalLayout(for: $0) }
-        if inheritedLayout == nil, let layoutSuperClass {
+        // KUU-2955, KUU-2959: a local class nested inside another local
+        // nominal's member (`class FooC : AB` inside local `A2.foo`), or an
+        // object literal declared inside a local nominal's body, reaches this
+        // point while the enclosing nominal is still being processed —
+        // before sibling nested nominals like `AB` get their layout
+        // synthesized. Materialize the superclass layout on demand so its
+        // fields, `$outer` slot and vtable slots are actually inherited.
+        if let layoutSuperClass, sema.symbols.nominalLayout(for: layoutSuperClass) == nil {
             DataFlowSemaPhase().synthesizeNominalLayouts(
                 for: [layoutSuperClass],
                 symbols: sema.symbols,
@@ -1073,8 +1088,8 @@ extension ExprTypeChecker {
                 diagnostics: sema.diagnostics,
                 includeAncestors: true
             )
-            inheritedLayout = sema.symbols.nominalLayout(for: layoutSuperClass)
         }
+        let inheritedLayout = layoutSuperClass.flatMap { sema.symbols.nominalLayout(for: $0) }
         var fieldOffsets = inheritedLayout?.fieldOffsets ?? [:]
         let objectHeaderWords = inheritedLayout?.objectHeaderWords ?? 2
         var nextFieldOffset = (fieldOffsets.values.max() ?? (objectHeaderWords - 1)) + 1

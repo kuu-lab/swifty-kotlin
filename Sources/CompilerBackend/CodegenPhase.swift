@@ -255,7 +255,10 @@ public final class CodegenPhase: CompilerPhase {
             if bitcodePath != nil {
                 manifestDict["bitcode"] = [bitcodeRelativePath]
             }
-            manifestDict["stdlibManifestHash"] = BundledStdlib.manifestHash()
+            manifestDict["stdlibManifestHash"] = BundledStdlib.manifestHash(profile: ctx.options.stdlibProfile)
+            if ctx.options.stdlibProfile != .full {
+                manifestDict["stdlibProfile"] = ctx.options.stdlibProfile.rawValue
+            }
             manifestDict["bundledMemberIndex"] = "bundled-members.bin"
             manifestDict["precomputedSyntheticStubs"] = true
         }

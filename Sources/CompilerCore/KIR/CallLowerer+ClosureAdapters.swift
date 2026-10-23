@@ -13,8 +13,7 @@ extension CallLowerer {
               callee.fqName.starts(with: ["kotlinx", "coroutines"].map(interner.intern)),
               ["runBlocking", "launch", "async", "withContext", "withTimeout", "withTimeoutOrNull"]
                 .contains(interner.resolve(callee.name)),
-              (callee.flags.contains(.synthetic)
-                  && !callee.flags.contains(.importedLibrary))
+              sema.symbols.isSyntheticStubSymbol(chosenCallee)
                 || ["kk_with_timeout", "kk_with_timeout_or_null_throwing"].contains(
                     sema.symbols.externalLinkName(for: chosenCallee)
                 ),
@@ -567,7 +566,7 @@ extension CallLowerer {
         // Synthetic launchers consume a suspend entry reference plus captures,
         // not the boxed function-value ABI used by ordinary Kotlin functions.
         if let symbol,
-           symbol.flags.contains(.synthetic), !isImported,
+           sema.symbols.isSyntheticStubSymbol(chosenCallee),
            symbol.fqName.starts(with: ["kotlinx", "coroutines"].map(interner.intern)),
            ["runBlocking", "launch", "async", "produce"].contains(interner.resolve(symbol.name))
         {

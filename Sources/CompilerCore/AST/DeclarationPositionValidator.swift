@@ -39,6 +39,10 @@ struct DeclarationPositionValidator {
 
         var kind: Kind
         var isLocal: Bool
+        /// `true` for an anonymous `object : ... { }` expression — unlike a
+        /// named object, the anonymous instance can serve as the enclosing
+        /// receiver of an `inner` member (Kotlin/JVM accepts that form).
+        var isAnonymousObjectLiteral: Bool = false
         var ownerModifiers: Modifiers
         /// `true` when the owner has `init` blocks or secondary constructors
         /// that can assign stored member properties imperatively.
@@ -834,11 +838,13 @@ struct DeclarationPositionValidator {
 
     /// Anonymous object expressions carry no source modifiers of their own,
     /// so only their members are checked — at the same member site a named
-    /// local object would produce.
+    /// local object would produce, except that `inner` members are legal
+    /// (the anonymous object instance acts as their enclosing receiver).
     func validateAnonymousObjectLiteralMembers(_ decl: ObjectDecl) {
         let memberSite = NominalSite(
             kind: .object,
             isLocal: true,
+            isAnonymousObjectLiteral: true,
             ownerModifiers: decl.modifiers,
             allowsImperativeInit: !decl.initBlocks.isEmpty,
             defersPropertyInitialization: !decl.initBlocks.isEmpty

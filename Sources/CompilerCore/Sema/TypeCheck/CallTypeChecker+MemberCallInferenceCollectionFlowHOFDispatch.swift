@@ -116,7 +116,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             }
 
             if ["fold", "foldRight", "foldIndexed", "foldRightIndexed", "scan", "runningFold", "runningFoldIndexed", "scanIndexed"].contains(calleeStr), args.count == 2 {
-                let initialType = sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
+                let initialType = foldAccumulatorType ?? sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
                 if bindBundledListSourceFunction(typeArguments: [collectionElementType, initialType], locals: &locals) {
                     if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
