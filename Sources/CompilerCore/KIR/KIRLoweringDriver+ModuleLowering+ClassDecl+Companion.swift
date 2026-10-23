@@ -272,10 +272,10 @@ extension KIRLoweringDriver {
                     emit: &body
                 )
                 let targetSymbol = sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
-                let propertyType = sema.symbols.propertyType(for: targetSymbol) ?? sema.types.anyType
-                let targetRef = arena.appendExpr(.symbolRef(targetSymbol), type: propertyType)
-                body.append(.constValue(result: targetRef, value: .symbolRef(targetSymbol)))
-                body.append(.copy(from: initializerValue, to: targetRef))
+                // Property initializers initialize backing storage directly.
+                // A copy into a backing-field symbol is later rewritten as a
+                // setter call, which has no companion receiver in this scope.
+                body.append(.storeGlobal(value: initializerValue, symbol: targetSymbol))
             case let .initBlock(index):
                 guard index < companionDecl.initBlocks.count else { continue }
                 let initBlock = companionDecl.initBlocks[index]
