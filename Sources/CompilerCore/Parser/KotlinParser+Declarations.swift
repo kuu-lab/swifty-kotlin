@@ -91,6 +91,19 @@ extension KotlinParser {
             return parseDeclaration()
         default:
             if !modifierChildren.isEmpty {
+                // `get`/`set` after a modifier prefix is a misplaced accessor
+                // (e.g. `private set var x`); accessors must follow the
+                // property declaration. Diagnose, then recover into the
+                // statement tail as before.
+                if case let .softKeyword(soft) = token.kind,
+                   soft == .get || soft == .set
+                {
+                    diagnostics.error(
+                        "KSWIFTK-PARSE-0002",
+                        "Expecting member declaration.",
+                        range: token.range
+                    )
+                }
                 let nextKind = stream.peek().kind
                 if nextKind != .keyword(.package), nextKind != .keyword(.import) {
                     parseTail(inBlock: false, into: &modifierChildren, range: &modifierRange)
