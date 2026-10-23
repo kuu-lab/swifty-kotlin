@@ -1046,6 +1046,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "'if' used as an expression must have an 'else' branch."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0435",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "A declaration can have only one companion object."
+        ),
     ]
 
 

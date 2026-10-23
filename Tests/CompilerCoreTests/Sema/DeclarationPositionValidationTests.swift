@@ -58,6 +58,23 @@ struct DeclarationPositionValidationTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0409", in: ctx)
     }
 
+    @Test func multipleCompanionObjectsInClassAreRejected() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            class C {
+                companion object { }
+                companion object { }
+            }
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0435", in: ctx)
+    }
+
+    @Test func oneCompanionObjectInClassIsAccepted() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            class C { companion object { } }
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0435", in: ctx)
+    }
+
     @Test func dataInnerClassIsRejected() throws {
         let ctx = try semaContext(for: """
             class Outer { data inner class D(val x: Int) }
