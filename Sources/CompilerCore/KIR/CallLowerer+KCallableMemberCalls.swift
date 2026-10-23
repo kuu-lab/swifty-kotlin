@@ -304,4 +304,61 @@ extension CallLowerer {
         return typed
 
     }
+
+    func tryLowerKProperty0GetInvocation(
+        _ exprID: ExprID,
+        receiverExpr: ExprID,
+        calleeName: InternedString,
+        args: [CallArgument],
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        guard interner.resolve(calleeName) == "get", args.isEmpty else { return nil }
+        let receiverType = sema.types.makeNonNullable(
+            sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+        )
+        guard let (_, receiverSymbol) = resolveClassTypeSymbol(receiverType, sema: sema),
+              ["KProperty0", "KMutableProperty0"].contains(interner.resolve(receiverSymbol.name)),
+              let getterSymbol = sema.bindings.callBindings[exprID]?.chosenCallee,
+              let interfaceSymbol = sema.symbols.parentSymbol(for: getterSymbol),
+              let methodSlot = sema.symbols.nominalLayout(for: interfaceSymbol)?.vtableSlots[getterSymbol]
+        else {
+            return nil
+        }
+
+        let receiver = driver.exprLowerer.lowerExpr(
+            receiverExpr,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+        let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+            symbol: interfaceSymbol,
+            sema: sema,
+            interner: interner
+        )
+        let interfaceTypeIDExpr = arena.appendExpr(.intLiteral(interfaceTypeID), type: sema.types.intType)
+        instructions.append(.constValue(result: interfaceTypeIDExpr, value: .intLiteral(interfaceTypeID)))
+        let methodSlotExpr = arena.appendExpr(.intLiteral(Int64(methodSlot)), type: sema.types.intType)
+        instructions.append(.constValue(result: methodSlotExpr, value: .intLiteral(Int64(methodSlot))))
+        let rawResult = arena.appendTemporary(type: sema.types.anyType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("__kk_kproperty0_get"),
+            arguments: [receiver, interfaceTypeIDExpr, methodSlotExpr],
+            result: rawResult,
+            canThrow: true,
+            thrownResult: nil
+        ))
+        let typedResult = arena.appendTemporary(type: sema.bindings.exprTypes[exprID] ?? sema.types.anyType)
+        instructions.append(.copy(from: rawResult, to: typedResult))
+        return typedResult
+    }
 }

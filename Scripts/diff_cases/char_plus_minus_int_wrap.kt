@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun shift(c: Char, d: Int): Char = c + d
 
 fun main() {

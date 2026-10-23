@@ -53,4 +53,19 @@ struct TopLevelFunctionInvocationSyntaxTests {
         let errors = diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.isEmpty, "Unexpected errors for explicit invocations and callable references: \(errors)")
     }
+
+    @Test
+    func localExtensionFunctionShadowsTopLevelExtensionWithoutBareValueError() throws {
+        let diagnostics = try compileAndCollectDiagnostics("""
+        fun Int.twice(): Int = this * 100
+
+        fun main() {
+            fun Int.twice(): Int = this * 2
+            println(3.twice())
+        }
+        """)
+
+        let errors = diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "A local extension call must shadow the top-level one, got: \(errors)")
+    }
 }

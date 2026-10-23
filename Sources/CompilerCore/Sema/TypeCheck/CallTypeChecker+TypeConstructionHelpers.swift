@@ -13,7 +13,7 @@ extension CallTypeChecker {
             interner.intern("collections"),
             interner.intern("List"),
         ]
-        guard let listSymbol = symbols.lookup(fqName: listFQName) else {
+        guard let listSymbol = symbols.lookupNominal(fqName: listFQName) else {
             return types.anyType
         }
         return types.make(.classType(ClassType(
@@ -34,7 +34,7 @@ extension CallTypeChecker {
             interner.intern("collections"),
             interner.intern("Iterable"),
         ]
-        guard let iterableSymbol = symbols.lookup(fqName: iterableFQName) else {
+        guard let iterableSymbol = symbols.lookupNominal(fqName: iterableFQName) else {
             // Fall back to Any rather than List<Char> to avoid granting
             // list-only members (e.g. get()) to the iterable result type.
             return types.anyType
@@ -56,7 +56,7 @@ extension CallTypeChecker {
             interner.intern("kotlin"),
             interner.intern("Array"),
         ]
-        guard let arraySymbol = symbols.lookup(fqName: arrayFQName) else {
+        guard let arraySymbol = symbols.lookupNominal(fqName: arrayFQName) else {
             return types.anyType
         }
         return types.make(.classType(ClassType(
@@ -76,7 +76,7 @@ extension CallTypeChecker {
             interner.intern("kotlin"),
             interner.intern(arrayName),
         ]
-        guard let arraySymbol = symbols.lookup(fqName: arrayFQName) else {
+        guard let arraySymbol = symbols.lookupNominal(fqName: arrayFQName) else {
             return types.anyType
         }
         return types.make(.classType(ClassType(
@@ -95,7 +95,7 @@ extension CallTypeChecker {
         interner _: StringInterner,
         fqName: [InternedString]
     ) -> TypeID {
-        guard let symbol = symbols.lookup(fqName: fqName) else {
+        guard let symbol = symbols.lookupNominal(fqName: fqName) else {
             return types.anyType
         }
         return types.make(.classType(ClassType(
@@ -116,7 +116,7 @@ extension CallTypeChecker {
             interner.intern("sequences"),
             interner.intern("Sequence"),
         ]
-        guard let sequenceSymbol = symbols.lookup(fqName: sequenceFQName) else {
+        guard let sequenceSymbol = symbols.lookupNominal(fqName: sequenceFQName) else {
             return types.anyType
         }
         return types.make(.classType(ClassType(
@@ -136,7 +136,7 @@ extension CallTypeChecker {
             interner.intern("kotlin"),
             interner.intern("Pair"),
         ]
-        guard let pairSymbol = sema.symbols.lookup(fqName: pairFQName) else {
+        guard let pairSymbol = sema.symbols.lookupNominal(fqName: pairFQName) else {
             return nil
         }
 
@@ -177,7 +177,7 @@ extension CallTypeChecker {
             return nil
         }
         let interner = ctx.interner
-        let mapSymbol = ctx.sema.symbols.lookup(fqName: [
+        let mapSymbol = ctx.sema.symbols.lookupNominal(fqName: [
             interner.intern("kotlin"),
             interner.intern("collections"),
             interner.intern("Map"),
@@ -215,7 +215,7 @@ extension CallTypeChecker {
             interner.intern("collections"),
             interner.intern("MutableList"),
         ]
-        guard let mutableListSymbol = symbols.lookup(fqName: mutableListFQName) else {
+        guard let mutableListSymbol = symbols.lookupNominal(fqName: mutableListFQName) else {
             return types.anyType
         }
         return types.make(.classType(ClassType(
@@ -237,7 +237,7 @@ extension CallTypeChecker {
             interner.intern("collections"),
             interner.intern(name),
         ]
-        guard let classSymbol = symbols.lookup(fqName: fqName),
+        guard let classSymbol = symbols.lookupNominal(fqName: fqName),
               symbols.symbol(classSymbol)?.kind == .class
         else {
             return makeSyntheticMutableListType(
@@ -265,7 +265,7 @@ extension CallTypeChecker {
             interner.intern("collections"),
             interner.intern("Set"),
         ]
-        guard let setSymbol = symbols.lookup(fqName: setFQName) else {
+        guard let setSymbol = symbols.lookupNominal(fqName: setFQName) else {
             return types.anyType
         }
         return types.make(.classType(ClassType(
@@ -286,7 +286,7 @@ extension CallTypeChecker {
             interner.intern("collections"),
             interner.intern("MutableSet"),
         ]
-        guard let mutableSetSymbol = symbols.lookup(fqName: mutableSetFQName) else {
+        guard let mutableSetSymbol = symbols.lookupNominal(fqName: mutableSetFQName) else {
             return types.anyType
         }
         return types.make(.classType(ClassType(
@@ -307,7 +307,7 @@ extension CallTypeChecker {
             interner.intern("collections"),
             interner.intern("HashSet"),
         ]
-        guard let hashSetSymbol = symbols.lookup(fqName: hashSetFQName) else {
+        guard let hashSetSymbol = symbols.lookupNominal(fqName: hashSetFQName) else {
             return types.anyType
         }
         return types.make(.classType(ClassType(
@@ -328,7 +328,7 @@ extension CallTypeChecker {
             interner.intern("collections"),
             interner.intern("LinkedHashSet"),
         ]
-        guard let linkedHashSetSymbol = symbols.lookup(fqName: linkedHashSetFQName) else {
+        guard let linkedHashSetSymbol = symbols.lookupNominal(fqName: linkedHashSetFQName) else {
             return types.anyType
         }
         return types.make(.classType(ClassType(
@@ -350,7 +350,7 @@ extension CallTypeChecker {
             interner.intern("collections"),
             interner.intern("Map"),
         ]
-        guard let mapSymbol = symbols.lookup(fqName: mapFQName) else {
+        guard let mapSymbol = symbols.lookupNominal(fqName: mapFQName) else {
             return types.anyType
         }
         return types.make(.classType(ClassType(
@@ -372,7 +372,7 @@ extension CallTypeChecker {
             interner.intern("collections"),
             interner.intern("MutableMap"),
         ]
-        guard let mapSymbol = symbols.lookup(fqName: mapFQName) else {
+        guard let mapSymbol = symbols.lookupNominal(fqName: mapFQName) else {
             return types.anyType
         }
         return types.make(.classType(ClassType(
@@ -394,7 +394,7 @@ extension CallTypeChecker {
             interner.intern("collections"),
             interner.intern("HashMap"),
         ]
-        guard let hashMapSymbol = symbols.lookup(fqName: hashMapFQName) else {
+        guard let hashMapSymbol = symbols.lookupNominal(fqName: hashMapFQName) else {
             return types.anyType
         }
         return types.make(.classType(ClassType(
@@ -419,7 +419,7 @@ extension CallTypeChecker {
             interner.intern("collections"),
             interner.intern("LinkedHashMap"),
         ]
-        guard let linkedHashMapSymbol = symbols.lookup(fqName: linkedHashMapFQName) else {
+        guard let linkedHashMapSymbol = symbols.lookupNominal(fqName: linkedHashMapFQName) else {
             return types.anyType
         }
         return types.make(.classType(ClassType(

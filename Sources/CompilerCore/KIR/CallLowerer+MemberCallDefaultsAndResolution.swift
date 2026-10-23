@@ -579,7 +579,11 @@ extension CallLowerer {
             memberName: fallbackName,
             receiverExpr: receiverExpr,
             receiverType: receiverType,
-            argumentCount: argumentCount,
+            // Arity decisions inside (e.g. `add` vs `add(index,element)`)
+            // count *source* arguments. `argumentCount` is the assembled
+            // finalArguments count, which a prepended receiver inflates by
+            // one and would misroute a one-arg `add` to `__kk_*_add_at`.
+            argumentCount: callArgumentCount,
             sourceArgumentCount: callArgumentCount,
             hasHOFLambdaArg: hasHOFLambdaArg,
             sema: sema,

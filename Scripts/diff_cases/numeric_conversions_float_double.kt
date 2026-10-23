@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println(Double.NaN.toInt())
     println(Double.POSITIVE_INFINITY.toLong())

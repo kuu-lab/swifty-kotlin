@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Basic concatToString
     val chars = charArrayOf('H', 'e', 'l', 'l', 'o')

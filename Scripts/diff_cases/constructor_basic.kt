@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Constructor delegation must run the primary initializer for both constructors.
 class Counter(start: Int) {
     init {

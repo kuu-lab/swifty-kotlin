@@ -78,10 +78,6 @@ private open class CollectionsUnmodifiableList<E>(private val backing: List<E>) 
     override fun removeAll(elements: Collection<E>): Boolean = collectionsRejectMutation()
     override fun retainAll(elements: Collection<E>): Boolean = collectionsRejectMutation()
     override fun clear(): Unit = collectionsRejectMutation()
-    override operator fun plusAssign(element: E): Unit = collectionsRejectMutation()
-    override operator fun plusAssign(elements: Collection<E>): Unit = collectionsRejectMutation()
-    override operator fun minusAssign(element: E): Unit = collectionsRejectMutation()
-    override operator fun minusAssign(elements: Collection<E>): Unit = collectionsRejectMutation()
 }
 
 private class CollectionsUnmodifiableCollection<E>(
@@ -115,10 +111,6 @@ private class CollectionsUnmodifiableSet<E>(private val backing: Set<E>) : Abstr
     override fun removeAll(elements: Collection<E>): Boolean = collectionsRejectMutation()
     override fun retainAll(elements: Collection<E>): Boolean = collectionsRejectMutation()
     override fun clear(): Unit = collectionsRejectMutation()
-    override operator fun plusAssign(element: E): Unit = collectionsRejectMutation()
-    override operator fun plusAssign(elements: Collection<E>): Unit = collectionsRejectMutation()
-    override operator fun minusAssign(element: E): Unit = collectionsRejectMutation()
-    override operator fun minusAssign(elements: Collection<E>): Unit = collectionsRejectMutation()
 }
 
 private class CollectionsUnmodifiableEntry<K, V>(
@@ -168,10 +160,6 @@ private class CollectionsUnmodifiableEntries<K, V>(
     override fun removeAll(elements: Collection<MutableMap.MutableEntry<K, V>>): Boolean = collectionsRejectMutation()
     override fun retainAll(elements: Collection<MutableMap.MutableEntry<K, V>>): Boolean = collectionsRejectMutation()
     override fun clear(): Unit = collectionsRejectMutation()
-    override operator fun plusAssign(element: MutableMap.MutableEntry<K, V>): Unit = collectionsRejectMutation()
-    override operator fun plusAssign(elements: Collection<MutableMap.MutableEntry<K, V>>): Unit = collectionsRejectMutation()
-    override operator fun minusAssign(element: MutableMap.MutableEntry<K, V>): Unit = collectionsRejectMutation()
-    override operator fun minusAssign(elements: Collection<MutableMap.MutableEntry<K, V>>): Unit = collectionsRejectMutation()
 }
 
 private class CollectionsUnmodifiableMap<K, V>(private val backing: Map<out K, V>) : AbstractMutableMap<K, V>() {
@@ -211,8 +199,4 @@ private class CollectionsMapBackedSet<E>(private val backing: MutableMap<E, Bool
     override fun equals(other: Any?): Boolean = other === this || keySet == other
     override fun hashCode(): Int = keySet.hashCode()
     override fun toString(): String = keySet.toString()
-    override operator fun plusAssign(element: E) { add(element) }
-    override operator fun plusAssign(elements: Collection<E>) { addAll(elements) }
-    override operator fun minusAssign(element: E) { remove(element) }
-    override operator fun minusAssign(elements: Collection<E>) { removeAll(elements) }
 }

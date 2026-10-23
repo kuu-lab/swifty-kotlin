@@ -33,6 +33,45 @@ struct CodegenBackendFixtureTests {
         }
     }
 
+    @Test
+    func kuu2925NestedGenericCallInBuilderInferenceLambda() {
+        let relativePath = "inference/pcla_builder_nested_generic_call"
+        let fixtureDirectory = Self.fixturesRoot.appendingPathComponent(relativePath, isDirectory: true)
+        runFixture(Fixture(
+            sourcePath: fixtureDirectory.appendingPathComponent("pcla_builder_nested_generic_call.kt").path,
+            expected: "OK\n",
+            relativePath: relativePath
+        ))
+    }
+
+    @Test
+    func kuu2925CallableReferenceInSafeBuilderCall() {
+        let relativePath = "inference/pcla_builder_callable_reference_safe_call"
+        let fixtureDirectory = Self.fixturesRoot.appendingPathComponent(relativePath, isDirectory: true)
+        runFixture(Fixture(
+            sourcePath: fixtureDirectory.appendingPathComponent("pcla_builder_callable_reference_safe_call.kt").path,
+            expected: "OK\n",
+            relativePath: relativePath
+        ))
+    }
+
+    @Test
+    func kuu2925AdditionalPclaInferenceCases() {
+        for name in [
+            "pcla_source_sink_generic_function_call",
+            "pcla_type_info_source_builder_parameters",
+            "pcla_type_info_source_builder_receivers",
+        ] {
+            let relativePath = "inference/\(name)"
+            let fixtureDirectory = Self.fixturesRoot.appendingPathComponent(relativePath, isDirectory: true)
+            runFixture(Fixture(
+                sourcePath: fixtureDirectory.appendingPathComponent("\(name).kt").path,
+                expected: "OK\n",
+                relativePath: relativePath
+            ))
+        }
+    }
+
     // MARK: - Fixture discovery
 
     /// `expected.txt` を持つ fixture ディレクトリの記述子。

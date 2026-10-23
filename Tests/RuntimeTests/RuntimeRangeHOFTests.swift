@@ -115,6 +115,21 @@ struct RuntimeRangeHOFTests {
     }
 
     @Test
+    func testULongProgressionForEachTraversesDescendingRange() {
+        let range = __kk_ulong_downTo(5, 1)
+        var sum = 0
+        withUnsafeMutablePointer(to: &sum) { ptr in
+            _ = __kk_ulong_range_forEach(
+                range,
+                unsafeBitCast(rangeForEachAccumulate, to: Int.self),
+                Int(bitPattern: ptr),
+                nil
+            )
+        }
+        #expect(sum == 15)
+    }
+
+    @Test
     func testULongRangeChunkedAndWindowedNonPositiveArgumentsThrow() {
         let range = __kk_ulong_rangeTo(1, 5)
         var chunkedThrown: Int = 0

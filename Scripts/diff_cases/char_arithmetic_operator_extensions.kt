@@ -1,3 +1,4 @@
+// DIFF_JVM
 operator fun Char.plus(other: Char): Int = this.code + other.code + 17
 operator fun Char.plus(other: Int): Int = this.code + other + 23
 operator fun Char.times(other: Int): Int = this.code * other + 7

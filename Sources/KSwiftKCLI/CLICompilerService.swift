@@ -40,7 +40,8 @@ final class CLICompilerService: @unchecked Sendable {
             ) {
                 do {
                     CompilerOptions.defaultStdlibLibraryPath = try StdlibArtifactCache.resolveOrBuild(
-                        target: parsedOptions.target
+                        target: parsedOptions.target,
+                        profile: parsedOptions.stdlibProfile
                     )
                 } catch {
                     let message = "KSWIFTK-LIB-0023: Cannot prepare the default bundled stdlib artifact: \(error)\n"
@@ -53,7 +54,14 @@ final class CLICompilerService: @unchecked Sendable {
             IncrementalCompilationCache.environmentFingerprintProvider = { options in
                 incrementalEnvironmentFingerprint(for: options)
             }
-            return Int32(driver.run(options: options))
+            let exitCode = driver.run(options: options)
+            if exitCode == 0, options.stdlibOnly {
+                StdlibArtifactBuilder.attachRuntimePrelinkIfAvailable(
+                    outputBase: options.outputPath,
+                    target: options.target
+                )
+            }
+            return Int32(exitCode)
         } catch let error as CLIParseError {
             if error == .usageRequested {
                 printUsage()

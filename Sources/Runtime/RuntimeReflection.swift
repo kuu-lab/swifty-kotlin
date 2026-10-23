@@ -25,7 +25,7 @@ private extension RuntimeKClassBox {
 
     var reflectionQualifiedName: String {
         if let metadata {
-            return metadata.qualifiedName
+            return metadata.isLocal ? "" : metadata.qualifiedName
         }
         let raw = __kk_type_token_qualified_name(typeToken, nameHint)
         let qualifiedName = extractString(from: UnsafeMutableRawPointer(bitPattern: raw))
@@ -61,7 +61,10 @@ func runtimeKClassToString(_ box: RuntimeKClassBox) -> String {
     if let arrayName = runtimeArrayKClassQualifiedName(typeToken: box.typeToken) {
         return "class \(arrayName)"
     }
-    return "class \(box.metadata?.displayName ?? box.reflectionQualifiedName)"
+    let className = box.metadata.map { metadata in
+        metadata.isLocal ? metadata.simpleName : (metadata.displayName ?? metadata.qualifiedName)
+    } ?? box.reflectionQualifiedName
+    return "class \(className)"
 }
 
 
@@ -860,6 +863,15 @@ func runtimeKTypeToString(_ box: RuntimeKTypeBox) -> String {
     }
 
     var baseName = "kotlin.Any"
+    if let typeParameter = runtimeReflectionObject(
+        from: box.classifierRaw,
+        as: RuntimeKTypeParameterBox.self
+    ) {
+        baseName = extractString(from: UnsafeMutableRawPointer(bitPattern: typeParameter.nameRaw)) ?? "T"
+        return baseName
+            + runtimeKTypeArgumentsToString(box.argumentRaws)
+            + (box.isMarkedNullable ? "?" : "")
+    }
     if box.classifierRaw != 0,
        box.classifierRaw != runtimeNullSentinelInt,
        let classifierPtr = UnsafeMutableRawPointer(bitPattern: box.classifierRaw),

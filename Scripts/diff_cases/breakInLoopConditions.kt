@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun breakInDoWhileCondition(): String {
     var i = 0
     while (true) {

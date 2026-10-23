@@ -245,6 +245,9 @@ public final class CodegenPhase: CompilerPhase {
             "objects": ["objects/\(ctx.options.moduleName)_0.o"],
             "metadata": "metadata.bin",
             "inlineKIRDir": "inline-kir",
+            "runtimeReflectionMetadataScope": ctx.options.includeNonPublicReflectionMetadata || ctx.options.stdlibOnly
+                ? "all"
+                : "public",
             "precomputedReflectionRecords": true
         ]
         if ctx.options.stdlibOnly {
@@ -252,7 +255,10 @@ public final class CodegenPhase: CompilerPhase {
             if bitcodePath != nil {
                 manifestDict["bitcode"] = [bitcodeRelativePath]
             }
-            manifestDict["stdlibManifestHash"] = BundledStdlib.manifestHash()
+            manifestDict["stdlibManifestHash"] = BundledStdlib.manifestHash(profile: ctx.options.stdlibProfile)
+            if ctx.options.stdlibProfile != .full {
+                manifestDict["stdlibProfile"] = ctx.options.stdlibProfile.rawValue
+            }
             manifestDict["bundledMemberIndex"] = "bundled-members.bin"
             manifestDict["precomputedSyntheticStubs"] = true
         }
@@ -767,7 +773,7 @@ public final class CodegenPhase: CompilerPhase {
             interner: ctx.interner,
             functionLinkNames: functionLinkInfo.functionLinkNamesBySymbol,
             inlineFunctionSymbols: functionLinkInfo.inlineFunctionSymbols,
-            includeNonPublic: ctx.options.includeNonPublicReflectionMetadata,
+            includeNonPublic: ctx.options.includeNonPublicReflectionMetadata || ctx.options.stdlibOnly,
             runtimeReflectionOnly: true
         )
     }

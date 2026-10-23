@@ -86,21 +86,37 @@ private struct RuntimeCallableReferenceIdentity {
     let isSuspend: Bool
     let modifierFlags: Int
     let captures: [Int]
+    /// Non-zero when this identity belongs to a `fun interface` SAM-adapter
+    /// wrapper: the stable nominal type ID of the implemented interface.
+    /// Plain callable references carry 0.
+    var samInterfaceTypeID: Int64 = 0
 }
 
 private func runtimeCallableReferenceIdentity(from rawValue: Int) -> RuntimeCallableReferenceIdentity? {
-    guard let metadata = runtimeStorage.withDelegateLock({ $0.callableRefMetadataByValue[rawValue] }),
-          metadata.identityTargetRaw != 0
+    if let metadata = runtimeStorage.withDelegateLock({ $0.callableRefMetadataByValue[rawValue] }),
+       metadata.identityTargetRaw != 0
+    {
+        return RuntimeCallableReferenceIdentity(
+            targetRaw: metadata.identityTargetRaw,
+            arity: metadata.arity,
+            kind: metadata.kind,
+            isSuspend: metadata.isSuspend,
+            modifierFlags: metadata.modifierFlags,
+            captures: metadata.identityCaptures
+        )
+    }
+    guard let samIdentity = runtimeStorage.withDelegateLock({ $0.samAdapterIdentityByValue[rawValue] })
     else {
         return nil
     }
     return RuntimeCallableReferenceIdentity(
-        targetRaw: metadata.identityTargetRaw,
-        arity: metadata.arity,
-        kind: metadata.kind,
-        isSuspend: metadata.isSuspend,
-        modifierFlags: metadata.modifierFlags,
-        captures: metadata.identityCaptures
+        targetRaw: samIdentity.targetRaw,
+        arity: samIdentity.arity,
+        kind: .function,
+        isSuspend: samIdentity.isSuspend,
+        modifierFlags: samIdentity.modifierFlags,
+        captures: samIdentity.captures,
+        samInterfaceTypeID: samIdentity.interfaceTypeID
     )
 }
 
@@ -117,6 +133,18 @@ func runtimeCallableReferenceValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool? {
           lhsIdentity.captures.count == rhsIdentity.captures.count
     else {
         return false
+    }
+    if lhsIdentity.samInterfaceTypeID != rhsIdentity.samInterfaceTypeID {
+        // A SAM-adapter wrapper's synthesized `equals` only succeeds when the
+        // other operand `instanceof`s the same `fun interface` (JVM
+        // FunctionAdapter contract): a plain callable reference, a non-object
+        // value, or a wrapper of an unrelated interface is never equal.
+        guard lhsIdentity.samInterfaceTypeID != 0,
+              let rhsTypeID = runtimeObjectTypeID(rawValue: rhs),
+              runtimeIsAssignable(sourceTypeID: rhsTypeID, targetTypeID: lhsIdentity.samInterfaceTypeID)
+        else {
+            return false
+        }
     }
     return zip(lhsIdentity.captures, rhsIdentity.captures).allSatisfy { lhsCapture, rhsCapture in
         runtimeValuesEqual(lhsCapture, rhsCapture)

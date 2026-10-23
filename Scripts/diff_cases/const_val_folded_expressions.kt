@@ -1,3 +1,4 @@
+// DIFF_JVM
 const val CHANNEL_MAX_SIZE: Int = 1024 * 1024
 const val CR: Byte = '\r'.code.toByte()
 const val LF: Byte = '\n'.code.toByte()

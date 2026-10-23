@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-589: Kotlin strings compare and index UTF-16 code units without
 // applying Unicode canonical-equivalence normalization.
 fun main() {

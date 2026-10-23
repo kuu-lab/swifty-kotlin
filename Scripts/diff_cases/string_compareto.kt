@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println("abc".compareTo("abc"))
     println("abc".compareTo("def"))

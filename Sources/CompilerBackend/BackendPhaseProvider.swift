@@ -21,7 +21,7 @@ public func prefetchBackendLinkInputs(for options: CompilerOptions) {
 }
 
 final class RuntimeLinkInputPrefetch: @unchecked Sendable {
-    typealias Inputs = (objects: [String], linkerCacheDirectory: URL)
+    typealias Inputs = (objects: [String], linkerCacheDirectory: URL, fingerprint: String)
 
     static let shared = RuntimeLinkInputPrefetch()
 

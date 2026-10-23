@@ -38,6 +38,16 @@ public func __kk_kcallable_register(
     return raw
 }
 
+@_cdecl("__kk_kcallable_register_return_type")
+public func __kk_kcallable_register_return_type(_ raw: Int, _ returnTypeKTypeRaw: Int) -> Int {
+    runtimeStorage.withDelegateLock { state in
+        guard var metadata = state.callableRefMetadataByValue[raw] else { return }
+        metadata.returnTypeKTypeRaw = returnTypeKTypeRaw
+        state.callableRefMetadataByValue[raw] = metadata
+    }
+    return raw
+}
+
 @_cdecl("__kk_kcallable_is_runtime")
 public func __kk_kcallable_is_runtime(_ raw: Int) -> Int {
     if callableMetadata(raw) != nil
@@ -74,6 +84,11 @@ public func __kk_kcallable_get_metadata(_ raw: Int, _ member: Int) -> Int {
 }
 
 private func runtimePropertyAccessor(_ raw: Int, isSetter: Bool) -> Int {
+    if let stub = runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self),
+       stub.isLocalDelegated
+    {
+        return runtimeLocalDelegatedPropertyAccessor(raw: raw, stub: stub, isSetter: isSetter)
+    }
     guard var metadata = callableMetadata(raw), metadata.kind == .property,
           !isSetter || metadata.setterInvoker != 0 else { return runtimeNullSentinelInt }
     let arity = metadata.arity + (isSetter ? 1 : 0)
@@ -109,7 +124,7 @@ private func runtimePropertyAccessor(_ raw: Int, isSetter: Bool) -> Int {
         arity: metadata.arity + (isSetter ? 1 : 0), kind: .function, isSuspend: false,
         invoker: metadata.invoker, environment: metadata.environment, parameters: metadata.parameters,
         typeParameters: metadata.typeParameters, flags: metadata.flags & 7, visibility: metadata.visibility,
-        property: raw
+        property: raw, returnTypeKTypeRaw: metadata.returnTypeKTypeRaw
     )
     context.metadata = metadata
     runtimeStorage.withDelegateLock { $0.callableRefMetadataByValue[accessor] = metadata }
@@ -160,12 +175,51 @@ public func __kk_callable_ref_set_identity(_ callable: Int, _ targetRaw: Int, _ 
     }
 }
 
+/// `flags` packs KFunction modifier bits like `kk_callable_ref_tag_kfunction`:
+/// bit0=suspend, bit1=inline, bit2=operator, bit3=infix, bit4=external.
+@_cdecl("__kk_sam_adapter_set_identity")
+public func __kk_sam_adapter_set_identity(
+    _ callable: Int,
+    _ interfaceTypeID: Int,
+    _ targetRaw: Int,
+    _ capturesRaw: Int,
+    _ arity: Int,
+    _ flags: Int
+) {
+    guard interfaceTypeID != 0, targetRaw != 0 else { return }
+    let captures: [Int]
+    if capturesRaw == runtimeNullSentinelInt {
+        captures = []
+    } else if let values = callableArguments(capturesRaw) {
+        captures = values
+    } else {
+        return
+    }
+    runtimeStorage.withDelegateLock { state in
+        state.samAdapterIdentityByValue[callable] = RuntimeSamAdapterIdentity(
+            interfaceTypeID: Int64(interfaceTypeID),
+            targetRaw: targetRaw,
+            arity: arity,
+            isSuspend: (flags & 1) != 0,
+            modifierFlags: flags & ~1,
+            captures: captures
+        )
+    }
+}
+
 func runtimeCallableReflectionRoots() -> [Int] {
-    let entries = runtimeStorage.withDelegateLock { $0.callableRefMetadataByValue }
-    return entries.flatMap { raw, metadata in
+    let (entries, samEntries) = runtimeStorage.withDelegateLock {
+        ($0.callableRefMetadataByValue, $0.samAdapterIdentityByValue)
+    }
+    var roots = entries.flatMap { raw, metadata in
         [raw, metadata.property] + metadata.identityCaptures + (callableArguments(metadata.environment) ?? [])
             + (callableArguments(metadata.typeParameters) ?? [])
     }
+    for (raw, identity) in samEntries {
+        roots.append(raw)
+        roots.append(contentsOf: identity.captures)
+    }
+    return roots
 }
 
 @_cdecl("__kk_kcallable_call")
@@ -176,6 +230,17 @@ public func __kk_kcallable_call(_ raw: Int, _ arguments: Int, _ outThrown: Unsaf
         return runtimeNullSentinelInt
     }
     guard let metadata = callableMetadata(raw) else {
+        // KUU-2947: a local delegated property stub has no real accessor —
+        // the JVM raises UnsupportedOperationException from call/callBy
+        // rather than an invalid-handle error.
+        if let stub = runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self),
+           stub.isLocalDelegated
+        {
+            outThrown?.pointee = runtimeAllocateUnsupportedOperationException(
+                message: "call/callBy are not supported for this declaration."
+            )
+            return runtimeNullSentinelInt
+        }
         let list = registerRuntimeObject(RuntimeListBox(elements: values))
         return __kk_kfunction_call_vararg(raw, list, outThrown)
     }
@@ -184,6 +249,34 @@ public func __kk_kcallable_call(_ raw: Int, _ arguments: Int, _ outThrown: Unsaf
         return runtimeNullSentinelInt
     }
     return invokeCallable(metadata, values: values, mask: 0, outThrown: outThrown)
+}
+
+@_cdecl("__kk_kproperty0_get")
+public func __kk_kproperty0_get(
+    _ raw: Int,
+    _ interfaceTypeID: Int,
+    _ methodSlot: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    if runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self) != nil {
+        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(
+            message: "Local delegated property reflection is not supported."
+        )
+        return runtimeNullSentinelInt
+    }
+    let methodRaw = kk_itable_lookup_dynamic(raw, interfaceTypeID, methodSlot)
+    guard methodRaw != 0 else {
+        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(
+            message: "Property reference has no getter implementation."
+        )
+        return runtimeNullSentinelInt
+    }
+    let method = unsafeBitCast(
+        methodRaw,
+        to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    return method(raw, outThrown)
 }
 
 private let callableVarargArrayTypeIDs: Set<Int64> = Set([
@@ -214,8 +307,19 @@ private func callableEmptyVarargArray(_ raw: Int) -> Int? {
 @_cdecl("__kk_kcallable_call_by")
 public func __kk_kcallable_call_by(_ raw: Int, _ arguments: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard let metadata = callableMetadata(raw),
-          let map = runtimeReflectionObject(from: arguments, as: RuntimeMapBox.self),
+    guard let metadata = callableMetadata(raw) else {
+        if let stub = runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self),
+           stub.isLocalDelegated
+        {
+            outThrown?.pointee = runtimeAllocateUnsupportedOperationException(
+                message: "call/callBy are not supported for this declaration."
+            )
+        } else {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Invalid callable or parameter map.")
+        }
+        return runtimeNullSentinelInt
+    }
+    guard let map = runtimeReflectionObject(from: arguments, as: RuntimeMapBox.self),
           let parameters = callableArguments(metadata.parameters), parameters.count == metadata.arity else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Invalid callable or parameter map.")
         return runtimeNullSentinelInt

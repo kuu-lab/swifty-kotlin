@@ -24,6 +24,14 @@ final class ExprTypeChecker {
 
         validateExpressionAnnotationVisibility(id, ctx: ctx)
 
+        // An Int constant expression (`1 shl 31`) takes a wider integer expected
+        // type the way a plain literal does; its Int value is computed first.
+        if let expectedType,
+           let widened = inferWidenedIntegerConstantExpression(id, ctx: ctx, locals: &locals, expectedType: expectedType)
+        {
+            return widened
+        }
+
         let boolType = sema.types.booleanType
         let intType = sema.types.intType
         let longType = sema.types.longType
@@ -761,7 +769,7 @@ final class ExprTypeChecker {
             sema.bindings.bindExprType(id, type: resultType)
             return resultType
 
-        case let .localFunDecl(name, receiverTypeRef, valueParams, returnTypeRef, body, isSuspend, range, typeParams):
+        case let .localFunDecl(name, receiverTypeRef, valueParams, returnTypeRef, body, isSuspend, range, typeParams, _):
             return driver.localDeclChecker.inferLocalFunDeclExpr(
                 id,
                 name: name,
@@ -1454,8 +1462,9 @@ final class ExprTypeChecker {
             }
         }
 
+        // Primitive receivers normally use the generic runtime helper, but a
+        // scoped `operator fun` extension must take precedence when applicable.
         // Recover nominal range types for generic Iterable.contains resolution.
-        // Other primitives are handled by kk_op_contains at runtime.
         // String is `.stringStruct`, not `.classType` (KSWIFTK-INTERNAL-0001), but it does
         // have a bundled-Kotlin-source `contains` to dispatch to (KSP-408), so it must not
         // be skipped here — unlike genuine primitives/ranges, kk_op_contains has no String
@@ -1475,7 +1484,7 @@ final class ExprTypeChecker {
         }
         let nonNullContainerType = sourceRangeType ?? sema.types.makeNonNullable(containerType)
         switch sema.types.kind(of: nonNullContainerType) {
-        case .classType, .stringStruct:
+        case .classType, .stringStruct, .primitive(_, _):
             break
         default:
             return
@@ -1598,6 +1607,18 @@ final class ExprTypeChecker {
         )]
         let call = CallExpr(range: range, calleeName: containsName, args: callArgs)
         let retainedMembers = candidates.filter { memberCandidates.contains($0) }
+        if case .primitive = sema.types.kind(of: nonNullContainerType),
+           ctx.resolver.probeCall(
+               candidates: candidates,
+               call: call,
+               expectedType: nil,
+               implicitReceiverType: nonNullContainerType,
+               ctx: ctx.sema
+           ).viableCandidates.isEmpty
+        {
+            // Keep the primitive runtime fallback when no custom overload applies.
+            return
+        }
         let hasViableMember = !ctx.resolver.probeCall(
             candidates: retainedMembers,
             call: call,
@@ -2065,6 +2086,28 @@ final class ExprTypeChecker {
     /// receiving a plain `1500`); values outside the Int32 range infer `Long`.
     /// `literalValue` is used to reject out-of-range constants for `Byte`/`Short`
     /// and negative constants for unsigned types.
+    private func inferWidenedIntegerConstantExpression(
+        _ id: ExprID,
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings,
+        expectedType: TypeID
+    ) -> TypeID? {
+        let sema = ctx.sema
+        guard case let .primitive(primitive, _) = sema.types.kind(of: sema.types.makeNonNullable(expectedType)),
+              primitive == .long || primitive == .byte || primitive == .short,
+              let value = driver.callChecker.integerConstantExpressionValue(id, ast: ctx.ast)
+        else { return nil }
+        let widenedType = intLiteralType(
+            expectedType: expectedType, sema: sema, defaultType: sema.types.intType, literalValue: value
+        )
+        guard widenedType != sema.types.intType else { return nil }
+        // Type the operands normally, then retype the whole expression.
+        _ = driver.inferExpr(id, ctx: ctx, locals: &locals, expectedType: nil)
+        sema.bindings.bindConstExprValue(id, value: primitive == .long ? .longLiteral(value) : .intLiteral(value))
+        sema.bindings.bindExprType(id, type: widenedType)
+        return widenedType
+    }
+
     private func intLiteralType(expectedType: TypeID?, sema: SemaModule, defaultType: TypeID, literalValue: Int64 = 0) -> TypeID {
         let inferredType = literalValue >= Int64(Int32.min) && literalValue <= Int64(Int32.max)
             ? defaultType

@@ -56,12 +56,22 @@ func remapSnapshotSignature(
 /// into each consumer's SymbolTable and TypeSystem after decoding.
 public enum StdlibSemaSnapshotArchive {
     static let fileName = "sema.snapshot"
-    private static let schemaVersion = 1
+    // v2: snapshots written by schema 1 omitted the deferred inline-body
+    // descriptors (only eagerly registered `$default` stubs were captured),
+    // so consumers of such an artifact could not expand any stdlib inline
+    // call and failed at link time. Rejecting them here falls the import
+    // back to the compact-index lazy path, which registers every pending
+    // binding correctly.
+    static let schemaVersion = 2
 
     /// Builds a clean import context and writes its complete Sema state into
     /// the artifact. This runs once while producing an artifact, not during a
     /// consumer compilation.
-    public static func write(forArtifactAt artifactPath: String, target: TargetTriple) throws {
+    public static func write(
+        forArtifactAt artifactPath: String,
+        target: TargetTriple,
+        profile: StdlibProfile = .full
+    ) throws {
         let root = URL(fileURLWithPath: artifactPath).standardizedFileURL
         let manifestURL = root.appendingPathComponent("manifest.json")
         guard let manifestData = try? Data(contentsOf: manifestURL),
@@ -77,6 +87,24 @@ public enum StdlibSemaSnapshotArchive {
             throw SnapshotError.invalidArtifact("metadata is unreadable")
         }
 
+        // A snapshot already sitting in the artifact would be loaded by the
+        // capture compile below and short-circuit the lazy import, leaving no
+        // pending inline bindings to serialise — the rewrite would inherit
+        // the old snapshot's gaps. Remove it so the capture always rebuilds
+        // the full import state. The snapshot file is regenerated atomically
+        // at the end of this function; a failed capture simply leaves the
+        // artifact on the lazy path.
+        let snapshotURL = root.appendingPathComponent(fileName)
+        if CompilerFileSystem.isRegularFile(at: snapshotURL) {
+            do {
+                try FileManager.default.removeItem(at: snapshotURL)
+            } catch {
+                throw SnapshotError.write(
+                    "Could not remove existing snapshot for rewrite: \(error.localizedDescription)"
+                )
+            }
+        }
+
         let emptyInput = root.appendingPathComponent(".sema-snapshot-empty.kt").path
         let sourceManager = SourceManager()
         _ = sourceManager.addFile(path: emptyInput, contents: Data())
@@ -88,7 +116,8 @@ public enum StdlibSemaSnapshotArchive {
             target: target,
             includeStdlib: false,
             stdlibLibraryPath: root.path,
-            allowDefaultStdlibLibrary: false
+            allowDefaultStdlibLibrary: false,
+            stdlibProfile: profile
         )
         let context = CompilationContext(
             options: options,
@@ -122,24 +151,26 @@ public enum StdlibSemaSnapshotArchive {
                 .joined(separator: "; ")
             throw SnapshotError.semaBuild(details)
         }
-        let inlineFunctions = try sema.importedInlineFunctions.descriptors.map { symbol, descriptor in
-            let path = URL(fileURLWithPath: descriptor.path).standardizedFileURL
-            let relativePath = relativePath(of: path, under: root)
-            guard let relativePath,
-                  let contained = CompilerFileSystem.containedURL(relativePath: relativePath, under: root),
-                  CompilerFileSystem.isRegularFile(at: contained)
-            else {
-                throw SnapshotError.invalidArtifact("inline KIR path escaped the artifact")
+        let inlineFunctions = try sema.importedInlineFunctions.descriptors
+            .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+            .map { symbol, descriptor in
+                let path = URL(fileURLWithPath: descriptor.path).standardizedFileURL
+                let relativePath = relativePath(of: path, under: root)
+                guard let relativePath,
+                      let contained = CompilerFileSystem.containedURL(relativePath: relativePath, under: root),
+                      CompilerFileSystem.isRegularFile(at: contained)
+                else {
+                    throw SnapshotError.invalidArtifact("inline KIR path escaped the artifact")
+                }
+                return SemaSnapshotInlineFunction(
+                    symbol: symbol,
+                    relativePath: relativePath,
+                    signature: descriptor.signature,
+                    name: context.interner.resolve(descriptor.name),
+                    reifiedComponentTokens: descriptor.reifiedComponentTokens,
+                    packedValueParameterTypes: descriptor.packedValueParameterTypes
+                )
             }
-            return SemaSnapshotInlineFunction(
-                symbol: symbol,
-                relativePath: relativePath,
-                signature: descriptor.signature,
-                name: context.interner.resolve(descriptor.name),
-                reifiedComponentTokens: descriptor.reifiedComponentTokens,
-                packedValueParameterTypes: descriptor.packedValueParameterTypes
-            )
-        }
         let payload = SemaSnapshotArchivePayload(
             schemaVersion: schemaVersion,
             compilerVersion: CompilerBuildInfo.version,
@@ -215,7 +246,7 @@ public enum StdlibSemaSnapshotArchive {
         "\(target.arch)-\(target.vendor)-\(target.os)"
     }
 
-    private static func fingerprint(_ data: Data) -> String {
+    static func fingerprint(_ data: Data) -> String {
         var first: UInt64 = 0xcbf29ce484222325
         var second: UInt64 = 0x9e3779b97f4a7c15
         for byte in data {

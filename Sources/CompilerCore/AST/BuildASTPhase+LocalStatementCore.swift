@@ -410,7 +410,9 @@ extension BuildASTPhase {
                     value: oneExpr,
                     range: range
                 ))
-                if let assignment { context.astArena.markIncrementDecrement(assignment) }
+                if let assignment {
+                    context.astArena.markIncrementDecrement(assignment, cachedValue: lhsExpr)
+                }
 
             case let .indexedAccess(receiver, indices, _):
                 assignment = context.astArena.appendExpr(.indexedCompoundAssign(

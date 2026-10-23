@@ -12,10 +12,12 @@ import Foundation
 package struct LibraryManifest: Decodable {
     let formatVersion: Int?
     let moduleName: String?
-    let libraryKind: String?
-    let stdlibManifestHash: String?
+    package let libraryKind: String?
+    package let stdlibManifestHash: String?
+    /// Absent in artifacts that predate profiles; those are `full`.
+    let stdlibProfile: String?
     let kotlinLanguageVersion: String?
-    let target: String?
+    package let target: String?
     let compilerVersion: String?
     let sourceVarargStorageABI: String?
     let metadata: String?
@@ -24,15 +26,24 @@ package struct LibraryManifest: Decodable {
     let precomputedSyntheticStubs: Bool?
     let precomputedReflectionRecords: Bool?
     let topLevelInitializerLinkName: String?
+    let runtimeReflectionMetadataScope: String?
+    package let prelinkedObject: String?
+    package let prelinkedObjectIncludesRuntime: Bool?
+    package let prelinkedCompilerVersion: String?
+    package let prelinkedFormatVersion: Int?
+    package let prelinkedRuntimeFingerprint: String?
+    package let prelinkedLinkPlanKey: String?
     package let objects: [String]?
 
     private enum CodingKeys: String, CodingKey {
-        case formatVersion, moduleName, libraryKind, stdlibManifestHash
+        case formatVersion, moduleName, libraryKind, stdlibManifestHash, stdlibProfile
         case kotlinLanguageVersion, target
         case sourceVarargStorageABI
         case compilerVersion, metadata, inlineKIRDir, bundledMemberIndex
         case precomputedSyntheticStubs, precomputedReflectionRecords
         case topLevelInitializerLinkName, objects
+        case runtimeReflectionMetadataScope, prelinkedObject, prelinkedObjectIncludesRuntime
+        case prelinkedCompilerVersion, prelinkedFormatVersion, prelinkedRuntimeFingerprint, prelinkedLinkPlanKey
     }
 
     package init(from decoder: Decoder) throws {
@@ -41,6 +52,7 @@ package struct LibraryManifest: Decodable {
         moduleName = try? container.decodeIfPresent(String.self, forKey: .moduleName)
         libraryKind = try? container.decodeIfPresent(String.self, forKey: .libraryKind)
         stdlibManifestHash = try? container.decodeIfPresent(String.self, forKey: .stdlibManifestHash)
+        stdlibProfile = try? container.decodeIfPresent(String.self, forKey: .stdlibProfile)
         kotlinLanguageVersion = try? container.decodeIfPresent(String.self, forKey: .kotlinLanguageVersion)
         target = try? container.decodeIfPresent(String.self, forKey: .target)
         compilerVersion = try? container.decodeIfPresent(String.self, forKey: .compilerVersion)
@@ -51,6 +63,13 @@ package struct LibraryManifest: Decodable {
         precomputedSyntheticStubs = try? container.decodeIfPresent(Bool.self, forKey: .precomputedSyntheticStubs)
         precomputedReflectionRecords = try? container.decodeIfPresent(Bool.self, forKey: .precomputedReflectionRecords)
         topLevelInitializerLinkName = try? container.decodeIfPresent(String.self, forKey: .topLevelInitializerLinkName)
+        runtimeReflectionMetadataScope = try? container.decodeIfPresent(String.self, forKey: .runtimeReflectionMetadataScope)
+        prelinkedObject = try? container.decodeIfPresent(String.self, forKey: .prelinkedObject)
+        prelinkedObjectIncludesRuntime = try? container.decodeIfPresent(Bool.self, forKey: .prelinkedObjectIncludesRuntime)
+        prelinkedCompilerVersion = try? container.decodeIfPresent(String.self, forKey: .prelinkedCompilerVersion)
+        prelinkedFormatVersion = try? container.decodeIfPresent(Int.self, forKey: .prelinkedFormatVersion)
+        prelinkedRuntimeFingerprint = try? container.decodeIfPresent(String.self, forKey: .prelinkedRuntimeFingerprint)
+        prelinkedLinkPlanKey = try? container.decodeIfPresent(String.self, forKey: .prelinkedLinkPlanKey)
         objects = try? container.decodeIfPresent([String].self, forKey: .objects)
     }
 }
@@ -235,9 +254,20 @@ extension DataFlowSemaPhase {
             topLevelInitializerLinkName: manifest.topLevelInitializerLinkName,
             sourceArrayComponentABI: manifest.sourceVarargStorageABI == "array-v1",
             formatVersion: manifest.formatVersion,
+            runtimeReflectionMetadataScope: isStdlibArtifact && manifest.objects?.isEmpty == false
+                ? manifest.runtimeReflectionMetadataScope
+                : nil,
             hasPrecomputedSyntheticStubs: manifest.precomputedSyntheticStubs == true,
-            hasPrecomputedReflectionRecords: manifest.precomputedReflectionRecords == true
+            hasPrecomputedReflectionRecords: manifest.precomputedReflectionRecords == true,
+            stdlibProfile: Self.declaredStdlibProfile(of: manifest) ?? .full
         )
+    }
+
+    /// The profile an artifact manifest declares; `nil` for an unknown name.
+    /// A manifest without the field predates profiles and is `full`.
+    static func declaredStdlibProfile(of manifest: LibraryManifest) -> StdlibProfile? {
+        guard let name = manifest.stdlibProfile, !name.isEmpty else { return .full }
+        return StdlibProfile(rawValue: name)
     }
 
     private func validateManifestSchema(
@@ -342,8 +372,21 @@ extension DataFlowSemaPhase {
                 )
                 isValid = false
             }
+            if manifest.stdlibProfile != nil, Self.declaredStdlibProfile(of: manifest) == nil {
+                diagnostics.error(
+                    "KSWIFTK-LIB-0035",
+                    "Stdlib artifact \(libName) declares unknown stdlibProfile '\(manifest.stdlibProfile ?? "")'",
+                    range: nil
+                )
+                isValid = false
+            }
             if let stdlibManifestHash = manifest.stdlibManifestHash, !stdlibManifestHash.isEmpty {
-                let expectedHash = BundledStdlib.manifestHash()
+                // The artifact's own profile decides which source set its hash
+                // must match; whether that profile is the one this compilation
+                // asked for is checked by the importer (cache-safe).
+                let expectedHash = BundledStdlib.manifestHash(
+                    profile: Self.declaredStdlibProfile(of: manifest) ?? .full
+                )
                 if stdlibManifestHash != expectedHash {
                     diagnostics.error(
                         "KSWIFTK-LIB-0022",

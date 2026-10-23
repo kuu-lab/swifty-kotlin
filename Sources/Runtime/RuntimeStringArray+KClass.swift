@@ -121,6 +121,9 @@ public func __kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) ->
     if base == RuntimeTypeTokenEncoding.nominalBase,
        let metadata = runtimeKClassMetadataRegistry.lookup(typeToken: typeToken)
     {
+        if metadata.isLocal {
+            return runtimeNullSentinelInt
+        }
         return runtimeMakeStringRaw(runtimeKClassQualifiedName(metadata.qualifiedName))
     }
     if nameHint != 0, nameHint != runtimeNullSentinelInt {
@@ -277,7 +280,9 @@ public func __kk_kclass_qualified_name(_ kclassRaw: Int) -> Int {
         return runtimeMakeStringRaw(name)
     }
     if let metadata = box.metadata {
-        return runtimeMakeStringRaw(runtimeKClassQualifiedName(metadata.qualifiedName))
+        return metadata.isLocal
+            ? runtimeNullSentinelInt
+            : runtimeMakeStringRaw(runtimeKClassQualifiedName(metadata.qualifiedName))
     }
     return __kk_type_token_qualified_name(box.typeToken, box.nameHint)
 }
@@ -319,7 +324,7 @@ public func __kk_kclass_register_metadata(
 /// Flags bit layout: bit 0=dataClass, bit 1=sealedClass, bit 2=valueClass,
 ///   bit 3=interface, bit 4=object, bit 5=enumClass, bit 6=annotationClass,
 ///   bit 7=abstract, bit 8=final, bit 9=open,
-///   bit 10=inner, bit 11=companion, bit 12=funInterface.
+///   bit 10=inner, bit 11=companion, bit 12=funInterface, bit 13=local.
 @_cdecl("__kk_kclass_register_metadata_v2")
 public func __kk_kclass_register_metadata_v2(
     _ typeToken: Int,
@@ -377,7 +382,8 @@ public func __kk_kclass_register_metadata_v2(
         typeParameterCount: typeParameterCount,
         isInner: (flags & (1 << 10)) != 0,
         isCompanion: (flags & (1 << 11)) != 0,
-        isFunInterface: (flags & (1 << 12)) != 0
+        isFunInterface: (flags & (1 << 12)) != 0,
+        isLocal: (flags & (1 << 13)) != 0
     )
     runtimeKClassMetadataRegistry.register(typeToken: typeToken, entry: entry)
     return 0

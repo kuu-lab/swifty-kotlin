@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Basic zip: same length
     println("abc".zip("XYZ"))

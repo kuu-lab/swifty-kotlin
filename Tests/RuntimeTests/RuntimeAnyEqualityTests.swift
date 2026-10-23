@@ -194,6 +194,71 @@ struct RuntimeAnyEqualityTests {
         #expect(!boolValue(kk_any_equals(lambda, 0, otherLambda, 0)))
     }
 
+    // KUU-2940: `fun interface` SAM adapters built from callable references get
+    // JVM `FunctionAdapter` equality — equal when the other operand implements
+    // the same interface and holds an equal function delegate; a raw callable
+    // reference or a wrapper of another interface is never equal.
+    @Test
+    func samAdapterEqualityUsesInterfaceTargetAndCaptures() {
+        let ifaceID = 0x51_40
+        let otherIfaceID = 0x51_41
+        let wrapperClassID = 0x51_42
+        let otherWrapperClassID = 0x51_43
+        _ = kk_type_register_iface(wrapperClassID, ifaceID)
+        _ = kk_type_register_iface(otherWrapperClassID, otherIfaceID)
+        func samWrapper(
+            classID: Int = wrapperClassID,
+            interfaceID: Int = ifaceID,
+            target: Int,
+            captures: [Int] = []
+        ) -> Int {
+            let value = kk_object_new(1, classID)
+            let capturesRaw = captures.isEmpty
+                ? runtimeNullSentinelInt
+                : registerRuntimeObject(RuntimeListBox(elements: captures))
+            __kk_sam_adapter_set_identity(value, interfaceID, target, capturesRaw, 0, 0)
+            return value
+        }
+
+        let target = unsafeBitCast(runtimeCallableReferenceTarget, to: Int.self)
+        let otherTarget = unsafeBitCast(runtimeCallableReferenceOtherTarget, to: Int.self)
+        let first = samWrapper(target: target)
+        let same = samWrapper(target: target)
+        let other = samWrapper(target: otherTarget)
+        let captured = samWrapper(target: target, captures: [kk_box_int(7)])
+        let sameCapture = samWrapper(target: target, captures: [kk_box_int(7)])
+        let otherCapture = samWrapper(target: target, captures: [kk_box_int(8)])
+        let otherIface = samWrapper(classID: otherWrapperClassID, interfaceID: otherIfaceID, target: target)
+
+        #expect(boolValue(kk_any_equals(first, 0, same, 0)))
+        #expect(boolValue(kk_any_equals(same, 0, first, 0)))
+        #expect(kk_any_hashCode(first, 0) == kk_any_hashCode(same, 0))
+        #expect(!boolValue(kk_any_equals(first, 0, other, 0)))
+        #expect(boolValue(kk_any_equals(captured, 0, sameCapture, 0)))
+        #expect(kk_any_hashCode(captured, 0) == kk_any_hashCode(sameCapture, 0))
+        #expect(!boolValue(kk_any_equals(captured, 0, otherCapture, 0)))
+        #expect(!boolValue(kk_any_equals(first, 0, otherIface, 0)))
+        #expect(!boolValue(kk_any_equals(otherIface, 0, first, 0)))
+
+        // A SAM adapter is not equal to the raw callable reference it wraps,
+        // but shares its delegate hash code (JVM FunctionAdapter contract).
+        var thrown = 0
+        let rawRef = kk_function_create_1(target, 0, &thrown)
+        _ = kk_callable_ref_tag_kfunction(
+            rawRef, runtimeMakeStringRaw("f"), runtimeMakeStringRaw("kotlin.Unit"), 0, 0
+        )
+        __kk_callable_ref_set_identity(rawRef, target, runtimeNullSentinelInt)
+        #expect(!boolValue(kk_any_equals(first, 0, rawRef, 0)))
+        #expect(!boolValue(kk_any_equals(rawRef, 0, first, 0)))
+        #expect(kk_any_hashCode(first, 0) == kk_any_hashCode(rawRef, 0))
+
+        // An object that implements the interface but carries no adapter
+        // identity is not equal (it is not a FunctionAdapter on the JVM).
+        let plainImpl = kk_object_new(1, wrapperClassID)
+        #expect(!boolValue(kk_any_equals(first, 0, plainImpl, 0)))
+        #expect(!boolValue(kk_any_equals(first, 0, runtimeNullSentinelInt, 0)))
+    }
+
     @Test
     func testDataClassFieldMaskIgnoresBodyPropertySlotsInEqualityAndHash() {
         let classID = 0x51_20

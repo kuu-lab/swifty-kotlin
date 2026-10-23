@@ -28,7 +28,10 @@ extension ExprLowerer {
            }) ?? true,
            let localValue = driver.ctx.localValue(for: paramSymbol)
         {
-            return localValue
+            return driver.callLowerer.materializeSmartcastedPrimitiveValue(
+                localValue, boundType: boundType, sema: sema, arena: arena,
+                instructions: &instructions
+            ) ?? localValue
         }
         if name == thisID,
            let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
@@ -178,6 +181,17 @@ extension ExprLowerer {
             ) {
                 instructions.append(contentsOf: outerInstructions)
                 receiverExprID = outerReceiver
+            } else if let capturedReceiver = driver.ctx.capturedOuterReceiverExprID(
+                for: enumOwnerSymbol
+            ) ?? driver.ctx.capturedOuterReceiverExprID(
+                reaching: enumOwnerSymbol,
+                sema: sema
+            ) {
+                // Object literals register the construction-site receiver as a
+                // captured outer receiver for the enclosing class. Enum entries
+                // must keep dispatching on that value while the anonymous object
+                // is the active implicit receiver.
+                receiverExprID = capturedReceiver
             } else if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: exprID),
                       let capturedReceiver = driver.ctx.localValue(for: receiverSymbol)
             {
@@ -229,7 +243,10 @@ extension ExprLowerer {
                !driver.ctx.isMutableCaptureBoxed(symbol),
                let localValue = driver.ctx.localValue(for: symbol)
             {
-                return localValue
+                return driver.callLowerer.materializeSmartcastedPrimitiveValue(
+                    localValue, boundType: boundType, sema: sema, arena: arena,
+                    instructions: &instructions
+                ) ?? localValue
             }
             let receiverExprID: KIRExprID
             if let symbol = sema.bindings.identifierSymbols[exprID],
@@ -260,7 +277,9 @@ extension ExprLowerer {
             } else {
                 receiverExprID = activeReceiverExprID
             }
-            let receiverType = arena.exprType(receiverExprID) ?? sema.types.anyType
+            let receiverType = sema.bindings.implicitReceiverMemberReceiverType(for: exprID)
+                ?? arena.exprType(receiverExprID)
+                ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             let memberStr = interner.resolve(memberName)
             let resultType = boundType ?? sema.types.anyType
@@ -686,6 +705,12 @@ extension ExprLowerer {
                     return delegateValue
                 }
                 if let localValue = driver.ctx.localValue(for: symbol) {
+                    if let narrowed = driver.callLowerer.materializeSmartcastedPrimitiveValue(
+                        localValue, boundType: boundType, sema: sema, arena: arena,
+                        instructions: &instructions
+                    ) {
+                        return narrowed
+                    }
                     return wrapLateinitReadIfNeeded(
                         localValue, symbol: symbol, sema: sema, arena: arena,
                         interner: interner, instructions: &instructions
@@ -734,6 +759,12 @@ extension ExprLowerer {
                    instructions: &instructions
                )
             {
+                if let narrowed = driver.callLowerer.materializeSmartcastedPrimitiveValue(
+                    loadedValue, boundType: boundType, sema: sema, arena: arena,
+                    instructions: &instructions
+                ) {
+                    return narrowed
+                }
                 return wrapLateinitReadIfNeeded(
                     loadedValue, symbol: symbol, sema: sema, arena: arena,
                     interner: interner, instructions: &instructions
@@ -743,17 +774,23 @@ extension ExprLowerer {
                 symbol: symbol, sema: sema, arena: arena, interner: interner,
                 instructions: &instructions
             ) {
-                return delegateValue
+                return driver.callLowerer.materializeSmartcastedPrimitiveValue(
+                    delegateValue, boundType: boundType, sema: sema, arena: arena,
+                    instructions: &instructions
+                ) ?? delegateValue
             }
             if let localValue = driver.ctx.localValue(for: symbol) {
-                if let boundType,
-                   let storedType = arena.exprType(localValue),
-                   case let .primitive(storedPrimitive, .nullable) = sema.types.kind(of: storedType),
-                   case let .primitive(narrowedPrimitive, .nonNull) = sema.types.kind(of: boundType),
-                   storedPrimitive == narrowedPrimitive
-                {
-                    let narrowed = arena.appendTemporary(type: boundType)
-                    instructions.append(.copy(from: localValue, to: narrowed))
+                // A smartcasted local keeps its declared (erased/boxed or
+                // nullable) storage while the bound type narrows to a
+                // non-null primitive — e.g. an `Any` slot holding a
+                // RuntimeCharBox after `x is Char`. Materialize the unboxed
+                // primitive here so every downstream consumer (conversion
+                // callees, operator intrinsics, member calls) sees a raw
+                // value, not the box handle.
+                if let narrowed = driver.callLowerer.materializeSmartcastedPrimitiveValue(
+                    localValue, boundType: boundType, sema: sema, arena: arena,
+                    instructions: &instructions
+                ) {
                     return narrowed
                 }
                 return wrapLateinitReadIfNeeded(

@@ -42,6 +42,44 @@ struct CaptureAnalyzer {
         outerSymbols: Set<SymbolID>,
         skipNestedClosures: Bool = true
     ) -> [SymbolID] {
+        collectCapturedOuterSymbolsImpl(
+            ast: ast,
+            sema: sema,
+            outerSymbols: outerSymbols,
+            skipNestedClosures: skipNestedClosures
+        ) { visit, _ in
+            visit(exprID)
+        }
+    }
+
+    /// Same visitor rooted at a nominal declaration rather than an
+    /// expression — for nominals nested inside an object literal, whose
+    /// member bodies run as separate KIR functions and must contribute
+    /// their outer references to the literal's capture set.
+    func collectCapturedOuterSymbols(
+        inDecl declID: DeclID,
+        ast: ASTModule,
+        sema: SemaModule,
+        outerSymbols: Set<SymbolID>,
+        skipNestedClosures: Bool = true
+    ) -> [SymbolID] {
+        collectCapturedOuterSymbolsImpl(
+            ast: ast,
+            sema: sema,
+            outerSymbols: outerSymbols,
+            skipNestedClosures: skipNestedClosures
+        ) { _, visitLocalNominalDecl in
+            visitLocalNominalDecl(declID)
+        }
+    }
+
+    private func collectCapturedOuterSymbolsImpl(
+        ast: ASTModule,
+        sema: SemaModule,
+        outerSymbols: Set<SymbolID>,
+        skipNestedClosures: Bool,
+        visitRoot: ((ExprID) -> Void, (DeclID) -> Void) -> Void
+    ) -> [SymbolID] {
         guard !outerSymbols.isEmpty else {
             return []
         }
@@ -69,6 +107,76 @@ struct CaptureAnalyzer {
             }
         }
 
+        /// KUU-555: a named local nominal's captured outer locals are
+        /// stored into instance fields at its construction site —
+        /// which runs in whatever enclosing scope contains this decl —
+        /// so every body that can reference an outer local must be
+        /// visited here or the enclosing closure won't capture it.
+        /// The same applies to nominals nested inside an object literal:
+        /// their members run as separate KIR functions reached through
+        /// `$outer`/capture fields, so the literal must provide the values.
+        func visitLocalNominalDecl(_ declID: DeclID) {
+            guard let decl = ast.arena.decl(declID) else {
+                return
+            }
+            if let owner = sema.bindings.declSymbol(for: declID) {
+                captured.formUnion(sema.bindings.objectLiteralCaptureSymbols(for: owner).filter {
+                    outerSymbols.contains($0)
+                })
+            }
+            let constructorArgExprs: [ExprID]
+            let memberFunctionDecls: [DeclID]
+            let memberPropertyDecls: [DeclID]
+            let initBlocks: [FunctionBody]
+            switch decl {
+            case let .objectDecl(objectDecl):
+                constructorArgExprs = objectDecl.superTypeConstructorArgs.map(\.expr)
+                memberFunctionDecls = objectDecl.memberFunctions
+                memberPropertyDecls = objectDecl.memberProperties
+                initBlocks = []
+            case let .classDecl(classDecl):
+                constructorArgExprs = classDecl.superTypeEntries
+                    .flatMap(\.constructorArgs).map(\.expr)
+                memberFunctionDecls = classDecl.memberFunctions
+                memberPropertyDecls = classDecl.memberProperties
+                initBlocks = classDecl.initBlocks + classDecl.enumEntries.flatMap(\.initBlocks)
+            default:
+                constructorArgExprs = []
+                memberFunctionDecls = []
+                memberPropertyDecls = []
+                initBlocks = []
+            }
+            for argExpr in constructorArgExprs {
+                visit(argExpr)
+            }
+            for memberFunctionID in memberFunctionDecls {
+                guard let memberDecl = ast.arena.decl(memberFunctionID),
+                      case let .funDecl(memberFunction) = memberDecl
+                else {
+                    continue
+                }
+                visitBody(memberFunction.body)
+            }
+            for propertyID in memberPropertyDecls {
+                guard let propertyDecl = ast.arena.decl(propertyID),
+                      case let .propertyDecl(property) = propertyDecl
+                else {
+                    continue
+                }
+                if let initializer = property.initializer {
+                    visit(initializer)
+                }
+                for accessorBody in [property.getter?.body, property.setter?.body, property.delegateBody] {
+                    if let accessorBody {
+                        visitBody(accessorBody)
+                    }
+                }
+            }
+            for initBlock in initBlocks {
+                visitBody(initBlock)
+            }
+        }
+
         // swiftlint:disable:next cyclomatic_complexity
         func visit(_ currentExprID: ExprID) {
             guard let expr = ast.arena.expr(currentExprID) else {
@@ -81,6 +189,18 @@ struct CaptureAnalyzer {
                    outerSymbols.contains(receiverSymbol)
                 {
                     captured.insert(receiverSymbol)
+                }
+                // Enum-entry members are owned by the entry field in Sema but
+                // dispatched on the enum instance at runtime. A member read
+                // inside a nested object/lambda needs that enum instance as
+                // the receiver, so capture the enum owner symbol itself.
+                if let symbol = sema.bindings.identifierSymbol(for: currentExprID),
+                   let entryField = sema.symbols.parentSymbol(for: symbol),
+                   let field = sema.symbols.symbol(entryField),
+                   let enumOwner = sema.symbols.enumOwnerSymbol(for: field),
+                   outerSymbols.contains(enumOwner)
+                {
+                    captured.insert(enumOwner)
                 }
 
             case let .forExpr(_, iterable, body, _, _):
@@ -140,6 +260,18 @@ struct CaptureAnalyzer {
                     // the enclosing nominal so constructor lambdas can
                     // forward the environment after the function is lifted.
                     captured.formUnion(sema.bindings.localFunctionCaptureSymbols(for: calleeSymbol).filter {
+                        outerSymbols.contains($0)
+                    })
+                }
+                // Local class/object constructor calls materialize the
+                // nominal's captured fields in the caller. Forward those
+                // dependencies when the construction happens in another
+                // local nominal or deferred callable body.
+                if let constructor = sema.bindings.callBinding(for: currentExprID)?.chosenCallee,
+                   sema.symbols.symbol(constructor)?.kind == .constructor,
+                   let owner = sema.symbols.parentSymbol(for: constructor)
+                {
+                    captured.formUnion(sema.bindings.objectLiteralCaptureSymbols(for: owner).filter {
                         outerSymbols.contains($0)
                     })
                 }
@@ -294,7 +426,7 @@ struct CaptureAnalyzer {
                     visit(receiver)
                 }
 
-            case let .localFunDecl(_, _, _, _, body, _, _, _):
+            case let .localFunDecl(_, _, _, _, body, _, _, _, _):
                 if !skipNestedClosures {
                     visitBody(body)
                 }
@@ -373,76 +505,41 @@ struct CaptureAnalyzer {
                     }
                     visit(initializer)
                 }
+                // Nested nominals (e.g. `inner class` inside an object
+                // expression, which Kotlin/JVM permits) run as their own
+                // KIR functions — references to enclosing receivers there
+                // are reached through `$outer`/this literal's capture fields.
+                for nestedDeclID in objectDecl.nestedClasses + objectDecl.nestedObjects {
+                    visitLocalNominalDecl(nestedDeclID)
+                }
 
             case let .localNominalDecl(declID, _):
-                // KUU-555: a named local nominal's captured outer locals are
-                // stored into instance fields at its construction site —
-                // which runs in whatever enclosing scope contains this decl —
-                // so every body that can reference an outer local must be
-                // visited here or the enclosing closure won't capture it.
-                guard let decl = ast.arena.decl(declID) else {
-                    break
-                }
-                if let owner = sema.bindings.declSymbol(for: declID) {
-                    captured.formUnion(sema.bindings.objectLiteralCaptureSymbols(for: owner).filter {
-                        outerSymbols.contains($0)
-                    })
-                }
-                let constructorArgExprs: [ExprID]
-                let memberFunctionDecls: [DeclID]
-                let memberPropertyDecls: [DeclID]
-                let initBlocks: [FunctionBody]
-                switch decl {
-                case let .objectDecl(objectDecl):
-                    constructorArgExprs = objectDecl.superTypeConstructorArgs.map(\.expr)
-                    memberFunctionDecls = objectDecl.memberFunctions
-                    memberPropertyDecls = objectDecl.memberProperties
-                    initBlocks = []
-                case let .classDecl(classDecl):
-                    constructorArgExprs = classDecl.superTypeEntries
-                        .flatMap(\.constructorArgs).map(\.expr)
-                    memberFunctionDecls = classDecl.memberFunctions
-                    memberPropertyDecls = classDecl.memberProperties
-                    initBlocks = classDecl.initBlocks + classDecl.enumEntries.flatMap(\.initBlocks)
-                default:
-                    constructorArgExprs = []
-                    memberFunctionDecls = []
-                    memberPropertyDecls = []
-                    initBlocks = []
-                }
-                for argExpr in constructorArgExprs {
-                    visit(argExpr)
-                }
-                for memberFunctionID in memberFunctionDecls {
-                    guard let memberDecl = ast.arena.decl(memberFunctionID),
-                          case let .funDecl(memberFunction) = memberDecl
-                    else {
-                        continue
-                    }
-                    visitBody(memberFunction.body)
-                }
-                for propertyID in memberPropertyDecls {
-                    guard let propertyDecl = ast.arena.decl(propertyID),
-                          case let .propertyDecl(property) = propertyDecl
-                    else {
-                        continue
-                    }
-                    if let initializer = property.initializer {
-                        visit(initializer)
-                    }
-                    for accessorBody in [property.getter?.body, property.setter?.body, property.delegateBody] {
-                        if let accessorBody {
-                            visitBody(accessorBody)
-                        }
-                    }
-                }
-                for initBlock in initBlocks {
-                    visitBody(initBlock)
-                }
+                visitLocalNominalDecl(declID)
             }
         }
 
-        visit(exprID)
-        return captured.sorted(by: { $0.rawValue < $1.rawValue })
+        visitRoot(visit, visitLocalNominalDecl)
+        return capturesWithBackingFieldOwners(captured, sema: sema)
+    }
+
+    /// A backing-field reference captures its owning instance, not a copy of
+    /// the field value. Top-level backing fields are global storage and need
+    /// no closure capture at all.
+    private func capturesWithBackingFieldOwners(
+        _ capturedSymbols: Set<SymbolID>,
+        sema: SemaModule
+    ) -> [SymbolID] {
+        var result = capturedSymbols
+        for field in capturedSymbols where sema.symbols.symbol(field)?.kind == .backingField {
+            result.remove(field)
+            guard let owner = sema.symbols.parentSymbol(for: field),
+                  let ownerKind = sema.symbols.symbol(owner)?.kind,
+                  [.class, .object, .enumClass].contains(ownerKind)
+            else {
+                continue
+            }
+            result.insert(owner)
+        }
+        return result.sorted(by: { $0.rawValue < $1.rawValue })
     }
 }

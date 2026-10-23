@@ -466,12 +466,29 @@ extension ExprTypeChecker {
             guard case let .ifExpr(_, _, elseExpr, _) = ast.arena.expr(tailExpr) else { return false }
             return elseExpr == nil
         }()
+        // A non-exhaustive `when` at the end of a lambda is a statement in
+        // Kotlin. Parentheses make it an expression, so leave that form on the
+        // normal expression path and let exhaustiveness checking reject it.
+        let lambdaTailIsWhenWithoutElse: Bool = {
+            let tailExpr: ExprID = if case let .blockExpr(_, trailingExpr, _) = ast.arena.expr(body),
+                                      let trailingExpr {
+                trailingExpr
+            } else {
+                body
+            }
+            guard !ast.arena.isParenthesized(tailExpr),
+                  case let .whenExpr(_, _, elseExpr, _) = ast.arena.expr(tailExpr)
+            else {
+                return false
+            }
+            return elseExpr == nil
+        }()
         let fallthroughType = driver.inferExpr(
             body,
             ctx: bodyCtx,
             locals: &lambdaLocals,
             expectedType: bodyExpectedType,
-            isStatementContext: lambdaUsesUnitCoercion || lambdaTailIsElselessIf
+            isStatementContext: lambdaUsesUnitCoercion || lambdaTailIsElselessIf || lambdaTailIsWhenWithoutElse
         )
         if expectedLambdaReturnType == sema.types.unitType,
            sema.types.makeNonNullable(fallthroughType) == sema.types.unitType

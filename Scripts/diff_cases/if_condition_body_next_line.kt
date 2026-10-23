@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun choose(a: Boolean, b: Boolean): Int {
     var w = if (a)
         if (b) 1

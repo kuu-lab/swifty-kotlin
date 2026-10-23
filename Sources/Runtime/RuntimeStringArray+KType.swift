@@ -43,6 +43,115 @@ func registerRuntimeObject(_ box: RuntimeKTypeBox) -> Int {
     return raw
 }
 
+private let runtimeKTypeParameterIsReifiedGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
+    raw,
+    outThrown in
+    outThrown?.pointee = 0
+    return runtimeReflectionObject(from: raw, as: RuntimeKTypeParameterBox.self)?.isReified == true ? 1 : 0
+}
+
+private let runtimeKTypeParameterNameGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
+    raw,
+    outThrown in
+    outThrown?.pointee = 0
+    return runtimeReflectionObject(from: raw, as: RuntimeKTypeParameterBox.self)?.nameRaw ?? runtimeNullSentinelInt
+}
+
+private let runtimeKTypeParameterUpperBoundsGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
+    raw,
+    outThrown in
+    outThrown?.pointee = 0
+    return runtimeReflectionObject(from: raw, as: RuntimeKTypeParameterBox.self)?.upperBoundsRaw
+        ?? registerRuntimeObject(RuntimeListBox(elements: []))
+}
+
+private let runtimeKTypeParameterVarianceGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
+    raw,
+    outThrown in
+    outThrown?.pointee = 0
+    guard let box = runtimeReflectionObject(from: raw, as: RuntimeKTypeParameterBox.self) else {
+        return runtimeNullSentinelInt
+    }
+    let names = ["INVARIANT", "IN", "OUT"]
+    let ordinal = (0..<names.count).contains(box.varianceOrdinal) ? box.varianceOrdinal : 0
+    return kk_enum_box_ordinal(
+        ordinal,
+        runtimeMakeStringRaw(names[ordinal]),
+        Int(runtimeStableNominalTypeID(fqName: "kotlin.reflect.KVariance"))
+    )
+}
+
+private func registerRuntimeObject(_ box: RuntimeKTypeParameterBox) -> Int {
+    let raw = registerRuntimeObject(box as AnyObject, typeID: kTypeParameterRuntimeTypeID)
+    _ = kk_object_register_itable_iface(raw, Int(kTypeParameterRuntimeTypeID), 0)
+    _ = kk_object_register_itable_method(
+        raw, 0, 0, unsafeBitCast(runtimeKTypeParameterIsReifiedGetter, to: Int.self)
+    )
+    _ = kk_object_register_itable_method(
+        raw, 0, 1, unsafeBitCast(runtimeKTypeParameterNameGetter, to: Int.self)
+    )
+    _ = kk_object_register_itable_method(
+        raw, 0, 2, unsafeBitCast(runtimeKTypeParameterUpperBoundsGetter, to: Int.self)
+    )
+    _ = kk_object_register_itable_method(
+        raw, 0, 3, unsafeBitCast(runtimeKTypeParameterVarianceGetter, to: Int.self)
+    )
+    return raw
+}
+
+@_cdecl("__kk_ktypeparameter_create")
+public func __kk_ktypeparameter_create(
+    _ identity: Int,
+    _ nameRaw: Int,
+    _ varianceOrdinal: Int,
+    _ isReified: Int
+) -> Int {
+    if let cached = runtimeStorage.withMetadataLock({ $0.kTypeParameterCache[identity] }) {
+        return cached
+    }
+
+    let bounds = registerRuntimeObject(RuntimeListBox(elements: []))
+    let candidate = registerRuntimeObject(RuntimeKTypeParameterBox(
+        identity: identity,
+        nameRaw: nameRaw,
+        varianceOrdinal: varianceOrdinal,
+        isReified: isReified != 0,
+        upperBoundsRaw: bounds
+    ))
+    registerReflectionRuntimeTypeMetadata()
+    let winner = runtimeStorage.withMetadataLock { state -> Int in
+        if let cached = state.kTypeParameterCache[identity] {
+            return cached
+        }
+        state.kTypeParameterCache[identity] = candidate
+        return candidate
+    }
+    if winner != candidate {
+        _ = runtimeReleaseObject(candidate)
+    }
+    return winner
+}
+
+@_cdecl("__kk_ktypeparameter_set_upper_bounds")
+public func __kk_ktypeparameter_set_upper_bounds(_ parameterRaw: Int, _ boundsRaw: Int) -> Int {
+    guard let parameter = runtimeReflectionObject(from: parameterRaw, as: RuntimeKTypeParameterBox.self) else {
+        return 0
+    }
+    parameter.upperBoundsRaw = boundsRaw
+    return 0
+}
+
+@_cdecl("__kk_ktypeparameter_is_runtime")
+public func __kk_ktypeparameter_is_runtime(_ parameterRaw: Int) -> Int {
+    runtimeReflectionObject(from: parameterRaw, as: RuntimeKTypeParameterBox.self) == nil ? 0 : 1
+}
+
+@_cdecl("__kk_ktypeparameter_get_name")
+public func __kk_ktypeparameter_get_name(_ parameterRaw: Int) -> Int {
+    runtimeReflectionObject(from: parameterRaw, as: RuntimeKTypeParameterBox.self)?.nameRaw
+        ?? runtimeNullSentinelInt
+}
+
 private func runtimeKTypeCreate(_ classifierRaw: Int, _ argsRaw: Int, _ isNullable: Int) -> Int {
     var argumentRaws: [Int] = []
     if argsRaw != 0 && argsRaw != runtimeNullSentinelInt,

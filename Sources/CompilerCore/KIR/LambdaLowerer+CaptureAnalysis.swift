@@ -238,10 +238,20 @@ extension LambdaLowerer {
                 )
             }
         }
-        let memberSymbols = [
+        var memberSymbols = [
             sema.bindings.callBinding(for: exprID)?.chosenCallee ?? sema.bindings.identifierSymbols[exprID],
             sema.bindings.extensionPropertyGetterCalls[exprID]?.chosenCallee,
         ].compactMap { $0 }
+        if let components = sema.bindings.destructuringComponentCallees[exprID] {
+            for index in components.keys.sorted() {
+                guard let symbol = components[index],
+                      sema.symbols.memberExtensionOwnerSymbol(for: symbol) != nil
+                else {
+                    continue
+                }
+                memberSymbols.append(symbol)
+            }
+        }
         // An inherited member's declared owner (e.g. `Base`) has no captured
         // receiver of its own inside a member extension; the dispatch receiver
         // is registered under the enclosing class (`Derived`), so record the
@@ -483,6 +493,20 @@ extension LambdaLowerer {
             {
                 referenced.append(symbol)
             }
+            // A local nominal's constructor materializes its captured values
+            // at the call site. A nested callable that constructs one must
+            // therefore carry those values in its own environment even when
+            // none of them appears as a direct name reference in the body.
+            if let constructor = sema.bindings.callBinding(for: exprID)?.chosenCallee,
+               sema.symbols.symbol(constructor)?.kind == .constructor,
+               let owner = sema.symbols.parentSymbol(for: constructor)
+            {
+                for symbol in sema.bindings.objectLiteralCaptureSymbols(for: owner)
+                    where seen.insert(symbol).inserted
+                {
+                    referenced.append(symbol)
+                }
+            }
             collectBoundIdentifierSymbols(in: calleeExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             for argument in args {
                 collectBoundIdentifierSymbols(in: argument.expr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
@@ -605,7 +629,7 @@ extension LambdaLowerer {
                 collectBoundIdentifierSymbols(in: receiverExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             }
 
-        case let .localFunDecl(_, _, _, _, functionBody, _, _, _):
+        case let .localFunDecl(_, _, _, _, functionBody, _, _, _, _):
             switch functionBody {
             case let .block(exprIDs, _):
                 for nestedExpr in exprIDs {
@@ -631,6 +655,12 @@ extension LambdaLowerer {
             collectBoundIdentifierSymbols(in: rhsExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
 
         case let .destructuringDecl(_, _, initializer, _):
+            if let components = sema.bindings.destructuringComponentCallees[exprID] {
+                for index in components.keys.sorted() {
+                    guard let symbol = components[index], seen.insert(symbol).inserted else { continue }
+                    referenced.append(symbol)
+                }
+            }
             collectBoundIdentifierSymbols(in: initializer, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
 
         case let .forDestructuringExpr(_, iterable, body, _, _):
@@ -910,7 +940,7 @@ extension LambdaLowerer {
             }
             return containsImplicitReceiverReference(in: receiverExpr, ast: ast)
 
-        case let .localFunDecl(_, _, _, _, functionBody, _, _, _):
+        case let .localFunDecl(_, _, _, _, functionBody, _, _, _, _):
             switch functionBody {
             case let .block(exprIDs, _):
                 return exprIDs.contains { containsImplicitReceiverReference(in: $0, ast: ast) }

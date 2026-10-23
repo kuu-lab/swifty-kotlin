@@ -524,7 +524,8 @@ final class LambdaLowerer {
             if case .nonLocalReturn = instruction { return true }
             return false
         }
-        let hasNonLocalLoopJump = sema.bindings.loopJumpLambdaPaths.values.contains { $0.contains(exprID) }
+        let hasNonLocalLoopJump = KIRExternalLoopJump.containsExternalJump(in: lambdaBody)
+            || sema.bindings.loopJumpLambdaPaths.values.contains { $0.contains(exprID) }
 
         let lambdaDecl = arena.appendDecl(
             .function(
@@ -824,7 +825,8 @@ final class LambdaLowerer {
             if case .nonLocalReturn = instruction { return true }
             return false
         }
-        let hasNonLocalLoopJump = sema.bindings.loopJumpLambdaPaths.values.contains { $0.contains(exprID) }
+        let hasNonLocalLoopJump = KIRExternalLoopJump.containsExternalJump(in: lambdaBody)
+            || sema.bindings.loopJumpLambdaPaths.values.contains { $0.contains(exprID) }
 
         let lambdaDecl = arena.appendDecl(
             .function(

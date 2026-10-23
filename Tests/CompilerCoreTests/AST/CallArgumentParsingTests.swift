@@ -203,5 +203,35 @@ struct CallArgumentParsingTests {
         #expect(diagnostic.severity == .error)
         #expect(diagnostic.primaryRange?.start.offset == "fun main() {\n    val f = 1e5".utf8.count)
     }
+
+    @Test(arguments: [
+        "fun f(x: Int): Int = x\nfun g(x: Int): Int = x\nfun h(): (Int) -> Int = { f(g(it) }",
+        "fun f(x: Int): Int = x\nfun h(): (Int) -> Int = { f(it }",
+        "fun f(x: Int): Int = x\nfun h(): (Int) -> Int = { f(it, }",
+        "fun f(x: Int): Int = x\nfun main() { val l = { y: Int -> f(y }; println(l(1)) }",
+        "fun main() { val l = { listOf(1).size }; println(l(1.toString()) }",
+        "class A { fun f(x: Int) = x }\nfun h(a: A): (Int) -> Int = { a.f(it }",
+        "class A { fun f(x: Int) = x }\nfun h(a: A): (Int) -> Int = { a?.f(it }",
+        "fun <T> f(x: T) = x\nfun h(): (Int) -> Int = { f<Int>(it }",
+    ])
+    func frontendRejectsCallUnclosedBeforeEnclosingLambdaEnd(_ source: String) throws {
+        let (_, context) = try buildASTModule(from: source, includeStdlib: false)
+        #expect(context.diagnostics.diagnostics.contains {
+            $0.code == "KSWIFTK-PARSE-0015" && $0.severity == .error
+        })
+    }
+
+    @Test
+    func frontendAcceptsWellFormedNestedCallInsideLambda() throws {
+        let source = """
+        fun f(x: Int): Int = x * x
+        fun g(x: Int): Int = x + 2
+        fun h(): (Int) -> Int = { f(g(it)) }
+        """
+        let (_, context) = try buildASTModule(from: source, includeStdlib: false)
+        #expect(!context.diagnostics.diagnostics.contains {
+            $0.code == "KSWIFTK-PARSE-0015"
+        })
+    }
 }
 #endif

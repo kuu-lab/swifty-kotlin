@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Kotlin `Int` is a 32-bit signed integer; arithmetic wraps around using
 // two's complement. Verified against kotlinc.
 fun addOne(x: Int): Int = x + 1

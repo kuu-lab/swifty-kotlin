@@ -13,7 +13,7 @@ set -euo pipefail
 out="" src="" previous=""
 for arg in "$@"; do
   [[ "$previous" != -o ]] || out="$arg"
-  [[ "$arg" != *.kt ]] || src="$arg"
+  [[ "$arg" != *.kt && "$arg" != *.kts ]] || src="$arg"
   previous="$arg"
 done
 if [[ "$src" == *native_compilefail.kt ]]; then
@@ -25,7 +25,7 @@ if [[ "$src" == *native_missing.kt ]]; then
   exit 93
 fi
 printf '%s\n' '#!/usr/bin/env bash' >"$out"
-if [[ "$src" == *script_okcase.kt ]]; then
+if [[ "$src" == *script_okcase.kt || "$src" == *script_okcase.kts ]]; then
   printf '%s\n' "printf 'regular output\\n'" >>"$out"
 else
   printf '%s\n' "printf 'native output\\n'" >>"$out"

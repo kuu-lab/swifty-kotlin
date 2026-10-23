@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println("hello.world.kt".substringBefore("."))
     println("hello.world.kt".substringAfter("."))

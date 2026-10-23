@@ -400,4 +400,38 @@ struct RuntimeRegexTests {
             #expect(kk_unbox_bool(kk_regex_containsMatchIn_flat(literalRegex, data, length, byteCount, hash)) == 1)
         }
     }
+
+    // MARK: - KUU-2772: java.util.regex-only inline flags (?u) / (?U)
+
+    @Test
+    func stripJavaOnlyInlineFlagsRemovesUnicodeFlags() {
+        #expect(stripJavaOnlyInlineFlags("(?U)abc") == "abc")
+        #expect(stripJavaOnlyInlineFlags("(?u)abc") == "abc")
+        #expect(stripJavaOnlyInlineFlags("(?iU)abc") == "(?i)abc")
+        #expect(stripJavaOnlyInlineFlags("(?U-i)abc") == "(?-i)abc")
+        #expect(stripJavaOnlyInlineFlags("a(?U:b)c") == "a(?:b)c")
+        #expect(stripJavaOnlyInlineFlags("(?imsx)abc") == "(?imsx)abc")
+    }
+
+    @Test
+    func stripJavaOnlyInlineFlagsLeavesEscapesAndClassesAlone() {
+        #expect(stripJavaOnlyInlineFlags("\\(?U)") == "\\(?U)")
+        #expect(stripJavaOnlyInlineFlags("\\Q(?U)\\E(?U)x") == "\\Q(?U)\\Ex")
+        #expect(stripJavaOnlyInlineFlags("[(?U)]") == "[(?U)]")
+        #expect(stripJavaOnlyInlineFlags("(?<n>a)(?=b)(?:c)") == "(?<n>a)(?=b)(?:c)")
+    }
+
+    @Test
+    func unicodeCharacterClassInlineFlagCompilesAndMatches() {
+        var thrown = 0
+        let regexRaw = withFlatString("(?U)abc") { data, length, byteCount, hash in
+            kk_regex_create_flat(data, length, byteCount, hash, &thrown)
+        }
+        #expect(thrown == 0)
+        #expect(regexRaw != 0)
+        let matchRaw = regexFind(regexRaw, input: "zabc")
+        #expect(matchRaw != runtimeNullSentinelInt)
+        #expect(matchValue(matchRaw) == "abc")
+        #expect(runtimeString(__kk_regex_pattern(regexRaw)) == "(?U)abc")
+    }
 }

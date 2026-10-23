@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Int -> Byte truncation (low 8 bits, signed interpretation)
     println(200.toByte())

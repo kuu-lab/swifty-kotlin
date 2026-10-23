@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val nf2: (() -> String)? = { "s" }
     println(nf2!!())

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Regression: slots requested while lowering a loop body (the thrown-value slot
 // of a call, string bridge scratch) used to be alloca'd inside the loop block,
 // so the stack grew once per iteration and long loops crashed with SIGSEGV.

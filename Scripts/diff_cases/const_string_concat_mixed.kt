@@ -1,3 +1,4 @@
+// DIFF_JVM
 const val unsignedInt = 0x8fffffffU
 const val unsignedByte = 0x8ffU
 const val unsignedLong = 0xffff_ffff_ffffU

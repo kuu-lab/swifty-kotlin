@@ -26,6 +26,11 @@ struct RuntimeLateinitExceptionTests {
         kk_println_any(Int(bitPattern: value))
     }
 
+    @Test func lateinitIsInitializedReturnsRawBoolean() {
+        #expect(kk_lateinit_is_initialized(runtimeNullSentinelInt) == 0)
+        #expect(kk_lateinit_is_initialized(42) == 1)
+    }
+
     @Test func lateinitGetOrThrowReturnsInitializedValue() {
         var thrown = 0
         let initialized = kk_box_int(42)

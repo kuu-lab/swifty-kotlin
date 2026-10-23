@@ -108,7 +108,9 @@ public struct CompilerOptions: Equatable {
 `JVMSourceValidationPhase` が対応文法、`JVMFrontendPhase` が型付き JVM IR を検査・構築し、
 `JVMCodegenPhase` が facade と各 class／interface の classfile、検証用 StackMapTable を生成する。
 クラスの constructor／field／accessor、継承と動的ディスパッチ、共変 override の bridge、
-Kotlin class metadata を生成する。M5 は非 reified ジェネリクスの型消去・Signature／metadata、
+Kotlin class metadata を生成する。interface default は Java 8 default method に加えて
+Kotlin 2.4.20 互換の `access$…$jd`／`Interface$DefaultImpls` と実装 class の forwarder を出力する。
+M5 は非 reified ジェネリクスの型消去・Signature／metadata、
 JVM 配列命令、JDK List／Set／Map、exception table と finally の制御フローを追加する。
 M6 は Function0〜22 ABI のラムダクラスと同一 owner の static 本体、共有セルによる可変 capture、
 関数型の引数・戻り値・プロパティ、receiver 付き関数型、トップレベル／メンバー拡張関数を追加する。
@@ -608,6 +610,10 @@ public final class KotlinParser {
     public func parseFile() -> (arena: SyntaxArena, root: NodeID)
 }
 ```
+
+### トップレベル文とスクリプト（`.kts`）
+
+`parseFile()` はトップレベルに宣言以外の文（式文・`while` など）を見つけると、ルートを `.script` にして暗黙の `main` 本体へ束ねる。これは `kotlinc -script` と同じ `.kts` 向けの意味論であり、通常の `.kt` では不正。`ParsePhase` は `.kt`（`.kts` 以外のユーザー入力）の `.script` ルートに対し、文ごとに `KSWIFTK-PARSE-0025`（kotlinc の `expecting a top level declaration` 相当）を報告する。`fun main` の書き忘れや不完全なファイルが実行可能バイナリになることを防ぐため。`Scripts/diff_cases/script_*.kt` は diff ハーネスが `.kts` コピーを kotlinc / kswiftc の両方へ渡す。
 
 ## J5.3 TokenStream 補助
 
@@ -1172,7 +1178,31 @@ Foo.kklib/
   "target": "arm64-apple-macosx",
   "objects": ["objects/Foo_0.o"],
   "metadata": "metadata.bin",
-  "inlineKIRDir": "inline-kir"
+  "inlineKIRDir": "inline-kir",
+  "runtimeReflectionMetadataScope": "public"
+}
+```
+
+macOS stdlib artifacts may also carry a single relocatable object containing
+the stdlib and Runtime objects. Its optional fields identify the artifact,
+compiler, Runtime source fingerprint, and Swift link-plan fingerprint; consumers
+use it only when compiler, stdlib, target, and Swift link-plan identities match,
+the Runtime source fingerprint matches when the Runtime source tree is available,
+and the file remains inside the `.kklib` directory. Packaged compiler installs
+without that source tree still require a nonempty Runtime fingerprint in the
+manifest. Missing or stale prelinked data falls back to the ordinary `objects[]`
+and Runtime link inputs. `runtimeReflectionMetadataScope` is
+`public` or `all`; a consumer can omit reflection records already present in
+the linked stdlib object while still generating records outside that scope.
+
+```json
+{
+  "prelinkedObject": "objects/KSwiftKStdlibRuntime_prelinked.o",
+  "prelinkedObjectIncludesRuntime": true,
+  "prelinkedCompilerVersion": "0.1.0",
+  "prelinkedFormatVersion": 1,
+  "prelinkedRuntimeFingerprint": "<runtime source fingerprint>",
+  "prelinkedLinkPlanKey": "<Swift toolchain link-plan fingerprint>"
 }
 ```
 

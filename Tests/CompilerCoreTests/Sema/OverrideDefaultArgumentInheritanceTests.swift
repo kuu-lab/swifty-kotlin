@@ -92,5 +92,135 @@ struct OverrideDefaultArgumentInheritanceTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
         #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
     }
+
+    /// KUU-2950 / KT-36188: when an override inherits the same member through
+    /// several supertypes, the *first declared* supertype's chain supplies the
+    /// default — even when its declaration sits deeper than a later
+    /// supertype's. `Impl : A2, B` resolves through `A2` to `A.foo` ("OK" on
+    /// the JVM), not to `B.foo`.
+    @Test
+    func conflictingInheritedDefaultsPickFirstSupertypeChain() throws {
+        let source = """
+        interface A { fun foo(a: String = "OK"): String }
+        interface A2 : A
+        interface B { fun foo(a: String = "Fail"): String }
+        class Impl : A2, B { override fun foo(a: String) = a }
+        fun probe(): String = Impl().foo()
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+
+        let sema = try #require(ctx.sema)
+        let aFoo = try #require(sema.symbols.lookupAll(fqName: [ctx.interner.intern("A"), ctx.interner.intern("foo")]).first)
+        let implFoo = try #require(sema.symbols.lookupAll(fqName: [ctx.interner.intern("Impl"), ctx.interner.intern("foo")]).first)
+        #expect(
+            sema.symbols.overrideDefaultsBaseSymbol(for: implFoo) == aFoo,
+            "Impl.foo should inherit its default through the first-declared supertype A2 -> A"
+        )
+    }
+
+    @Test
+    func conflictingInheritedDefaultsFollowDeclarationOrder() throws {
+        let source = """
+        interface A { fun foo(a: String = "OK"): String }
+        interface A2 : A
+        interface B { fun foo(a: String = "Fail"): String }
+        class Impl : B, A2 { override fun foo(a: String) = a }
+        fun probe(): String = Impl().foo()
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+
+        let sema = try #require(ctx.sema)
+        let bFoo = try #require(sema.symbols.lookupAll(fqName: [ctx.interner.intern("B"), ctx.interner.intern("foo")]).first)
+        let implFoo = try #require(sema.symbols.lookupAll(fqName: [ctx.interner.intern("Impl"), ctx.interner.intern("foo")]).first)
+        #expect(
+            sema.symbols.overrideDefaultsBaseSymbol(for: implFoo) == bFoo,
+            "With B declared first, Impl.foo should inherit B.foo's default"
+        )
+    }
+
+    @Test
+    func conflictingInheritedDefaultsThroughIntermediateInterface() throws {
+        let source = """
+        interface A { fun foo(a: String = "OK"): String }
+        interface A2 : A
+        interface B { fun foo(a: String = "Fail"): String }
+        interface C : A2, B
+        class Impl : C { override fun foo(a: String) = a }
+        fun probe(): String = Impl().foo()
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+
+        let sema = try #require(ctx.sema)
+        let aFoo = try #require(sema.symbols.lookupAll(fqName: [ctx.interner.intern("A"), ctx.interner.intern("foo")]).first)
+        let implFoo = try #require(sema.symbols.lookupAll(fqName: [ctx.interner.intern("Impl"), ctx.interner.intern("foo")]).first)
+        #expect(sema.symbols.overrideDefaultsBaseSymbol(for: implFoo) == aFoo)
+    }
+
+    @Test
+    func conflictingInheritedDefaultsResolveThroughAbstractClass() throws {
+        let source = """
+        interface A { fun foo(a: String = "OK"): String }
+        interface A2 : A
+        interface B { fun foo(a: String = "Fail"): String }
+        abstract class Impl : A2, B
+        class Impl2 : Impl() { override fun foo(a: String) = a }
+        fun probe(): String = Impl2().foo()
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+
+        let sema = try #require(ctx.sema)
+        let aFoo = try #require(sema.symbols.lookupAll(fqName: [ctx.interner.intern("A"), ctx.interner.intern("foo")]).first)
+        let impl2Foo = try #require(sema.symbols.lookupAll(fqName: [ctx.interner.intern("Impl2"), ctx.interner.intern("foo")]).first)
+        #expect(sema.symbols.overrideDefaultsBaseSymbol(for: impl2Foo) == aFoo)
+    }
+
+    @Test
+    func conflictingInheritedDefaultsDescendThroughIntermediateOverride() throws {
+        let source = """
+        interface A { fun foo(a: String = "OK"): String }
+        interface A2 : A { override fun foo(a: String) = a }
+        interface B { fun foo(a: String = "Fail"): String }
+        class Impl : A2, B { override fun foo(a: String) = a }
+        fun probe(): String = Impl().foo()
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+
+        let sema = try #require(ctx.sema)
+        let aFoo = try #require(sema.symbols.lookupAll(fqName: [ctx.interner.intern("A"), ctx.interner.intern("foo")]).first)
+        let implFoo = try #require(sema.symbols.lookupAll(fqName: [ctx.interner.intern("Impl"), ctx.interner.intern("foo")]).first)
+        #expect(sema.symbols.overrideDefaultsBaseSymbol(for: implFoo) == aFoo)
+    }
+
+    @Test
+    func inheritedDefaultFallsToLaterBranchWhenEarlierHasNone() throws {
+        let source = """
+        interface A { fun foo(a: String): String }
+        interface A2 : A
+        interface B { fun foo(a: String = "Fail"): String }
+        class Impl : A2, B { override fun foo(a: String) = a }
+        fun probe(): String = Impl().foo()
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+
+        let sema = try #require(ctx.sema)
+        let bFoo = try #require(sema.symbols.lookupAll(fqName: [ctx.interner.intern("B"), ctx.interner.intern("foo")]).first)
+        let implFoo = try #require(sema.symbols.lookupAll(fqName: [ctx.interner.intern("Impl"), ctx.interner.intern("foo")]).first)
+        #expect(
+            sema.symbols.overrideDefaultsBaseSymbol(for: implFoo) == bFoo,
+            "A.foo declares no default, so B.foo's applies"
+        )
+    }
 }
 #endif

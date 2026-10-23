@@ -428,15 +428,18 @@ extension ExprTypeChecker {
         // `collectOperatorCandidates` deliberately excludes primitive receivers
         // from member lookup for non-range operators. That also hides scoped
         // operator extensions because they aren't members. Search for those
-        // extensions in the existing arithmetic fallback cases and for nullable
-        // primitive comparisons, where a user `compareTo` must run before the
-        // built-in primitive comparison path.
+        // extensions in the existing arithmetic fallback cases and for primitive
+        // comparisons without a built-in operand pair (or with a nullable
+        // receiver), where a user `compareTo` must run before builtin fallback.
         let isComparisonOperator: Bool = switch op {
         case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
             true
         default:
             false
         }
+        let isBuiltinComparisonPair = sema.types.isBuiltinArithmeticOperand(lhs)
+            && sema.types.isBuiltinArithmeticOperand(rhs)
+            && ((lhs == charType) == (rhs == charType))
         let isNullablePrimitiveReceiver: Bool = if case .primitive(_, .nullable) = sema.types.kind(of: lhs) {
             true
         } else {
@@ -447,18 +450,29 @@ extension ExprTypeChecker {
             let isPrimitiveArithmeticOperator = [.add, .subtract, .multiply, .divide, .modulo].contains(op)
             let shouldSearchForScopedExtension = isPrimitiveArithmeticOperator
                 && (!rhsIsNumeric || isNullablePrimitiveReceiver || hasInvalidBuiltinCharArithmetic(op: op, lhs: lhs, rhs: rhs, sema: sema))
-                || isNullablePrimitiveReceiver && isComparisonOperator
+                || isComparisonOperator && (isNullablePrimitiveReceiver || !isBuiltinComparisonPair)
             if shouldSearchForScopedExtension {
-                let extensionCandidates = collectScopedOperatorExtensionCandidates(
+                let localExtensionCandidates = collectLocalOperatorExtensionCandidates(
                     names: operatorNames,
                     receiverType: lhs,
-                    argumentType: isComparisonOperator || (isPrimitiveArithmeticOperator && isNullablePrimitiveReceiver)
-                        ? rhs
-                        : lhs == charType && op == .add && sema.types.isString(rhs) ? rhs : nil,
+                    call: operatorCall,
+                    locals: locals,
                     ctx: ctx
                 )
-                if !extensionCandidates.isEmpty {
-                    operatorCandidates = extensionCandidates
+                if !localExtensionCandidates.isEmpty {
+                    operatorCandidates = localExtensionCandidates
+                } else {
+                    let extensionCandidates = collectScopedOperatorExtensionCandidates(
+                        names: operatorNames,
+                        receiverType: lhs,
+                        argumentType: isComparisonOperator || (isPrimitiveArithmeticOperator && isNullablePrimitiveReceiver)
+                            ? rhs
+                            : lhs == charType && op == .add && sema.types.isString(rhs) ? rhs : nil,
+                        ctx: ctx
+                    )
+                    if !extensionCandidates.isEmpty {
+                        operatorCandidates = extensionCandidates
+                    }
                 }
             }
         }
@@ -683,37 +697,43 @@ extension ExprTypeChecker {
                     returnType: returnType,
                     sema: sema
                 )
-                if [.rangeTo, .rangeUntil, .downTo].contains(op) {
-                    sema.bindings.markRangeExpr(id)
-                    if lhs == ulongType || rhs == ulongType {
-                        sema.bindings.markULongRangeExpr(id)
-                    } else if lhs == uintType || rhs == uintType
-                        || lhs == ubyteType || rhs == ubyteType
-                        || lhs == ushortType || rhs == ushortType
-                    {
-                        sema.bindings.markUIntRangeExpr(id)
-                    }
-                    if lhs == charType || rhs == charType {
-                        sema.bindings.markCharRangeExpr(id)
-                    }
-                    if lhs == sema.types.doubleType || rhs == sema.types.doubleType
-                        || lhs == sema.types.floatType || rhs == sema.types.floatType
-                    {
-                        let elementType = lhs == sema.types.floatType || rhs == sema.types.floatType
-                            ? sema.types.floatType
-                            : sema.types.doubleType
-                        sema.bindings.bindFloatingPointRangeElementType(elementType, forExpr: id)
-                    }
-                } else {
-                    sema.bindings.markRangeExpr(id)
-                    if lhs == uintType || sema.bindings.isUIntRangeExpr(lhsID) {
-                        sema.bindings.markUIntRangeExpr(id)
-                    }
-                    if lhs == ulongType || sema.bindings.isULongRangeExpr(lhsID) {
-                        sema.bindings.markULongRangeExpr(id)
-                    }
-                    if sema.bindings.isCharRangeExpr(lhsID) {
-                        sema.bindings.markCharRangeExpr(id)
+                // A resolved call returning a range interface yields a heap
+                // object, not a runtime range box. Operand-based marks would
+                // misroute `x in` to the `__kk_*_range_*` bridges and erase
+                // the custom rangeTo call (KUU-2941).
+                if !driver.helpers.isRangeInterfaceType(returnType, sema: sema, interner: interner) {
+                    if [.rangeTo, .rangeUntil, .downTo].contains(op) {
+                        sema.bindings.markRangeExpr(id)
+                        if lhs == ulongType || rhs == ulongType {
+                            sema.bindings.markULongRangeExpr(id)
+                        } else if lhs == uintType || rhs == uintType
+                            || lhs == ubyteType || rhs == ubyteType
+                            || lhs == ushortType || rhs == ushortType
+                        {
+                            sema.bindings.markUIntRangeExpr(id)
+                        }
+                        if lhs == charType || rhs == charType {
+                            sema.bindings.markCharRangeExpr(id)
+                        }
+                        if lhs == sema.types.doubleType || rhs == sema.types.doubleType
+                            || lhs == sema.types.floatType || rhs == sema.types.floatType
+                        {
+                            let elementType = lhs == sema.types.floatType || rhs == sema.types.floatType
+                                ? sema.types.floatType
+                                : sema.types.doubleType
+                            sema.bindings.bindFloatingPointRangeElementType(elementType, forExpr: id)
+                        }
+                    } else {
+                        sema.bindings.markRangeExpr(id)
+                        if lhs == uintType || sema.bindings.isUIntRangeExpr(lhsID) {
+                            sema.bindings.markUIntRangeExpr(id)
+                        }
+                        if lhs == ulongType || sema.bindings.isULongRangeExpr(lhsID) {
+                            sema.bindings.markULongRangeExpr(id)
+                        }
+                        if sema.bindings.isCharRangeExpr(lhsID) {
+                            sema.bindings.markCharRangeExpr(id)
+                        }
                     }
                 }
             }
@@ -727,9 +747,6 @@ extension ExprTypeChecker {
             false
         }
         if isRelationalComparison, lhs != sema.types.errorType, rhs != sema.types.errorType {
-            let isBuiltinComparisonPair = sema.types.isBuiltinArithmeticOperand(lhs)
-                && sema.types.isBuiltinArithmeticOperand(rhs)
-                && ((lhs == charType) == (rhs == charType))
             if !isBuiltinComparisonPair {
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0002",

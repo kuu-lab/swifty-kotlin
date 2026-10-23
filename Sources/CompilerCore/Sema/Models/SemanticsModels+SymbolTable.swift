@@ -293,6 +293,8 @@ public final class SymbolTable {
     /// Selected symbols imported from the validated stdlib artifact, including
     /// indexed declarations whose bodies have not been materialized yet.
     private var importedStdlibSymbolIDs: Set<SymbolID> = []
+    /// Runtime reflection records already embedded in a linked native library object.
+    private var importedRuntimeReflectionScopes: [SymbolID: String] = [:]
     private var moduleFQNames: [SymbolID: InternedString] = [:]
     private var byModuleFQN: [InternedString: [SymbolID]] = [:]
     private var annotationsStorage: [SymbolID: [MetadataAnnotationRecord]] = [:]
@@ -438,6 +440,7 @@ public final class SymbolTable {
         worker.pendingTypeParameterBoundConflictChecks = pendingTypeParameterBoundConflictChecks
         worker.sourceFileIDs = sourceFileIDs
         worker.importedStdlibSymbolIDs = importedStdlibSymbolIDs
+        worker.importedRuntimeReflectionScopes = importedRuntimeReflectionScopes
         worker.moduleFQNames = moduleFQNames
         worker.byModuleFQN = byModuleFQN
         worker.annotationsStorage = annotationsStorage
@@ -940,6 +943,22 @@ public final class SymbolTable {
         defer { lock.unlock() }
         drainIndexedEntries(fqName: fqName)
         return byFQName[fqName]?.first
+    }
+
+    /// Like `lookup(fqName:)`, but prefers a nominal type symbol over a
+    /// same-named function. `kotlin.collections.List` names both the `List`
+    /// interface and the `List(size, init)` factory; picking the factory as a
+    /// class symbol yields a type that is not a subtype of the real `List<T>`.
+    public func lookupNominal(fqName: [InternedString]) -> SymbolID? {
+        let candidates = lookupAll(fqName: fqName)
+        return candidates.first(where: { id in
+            switch symbol(id)?.kind {
+            case .class, .interface, .object, .enumClass, .annotationClass:
+                true
+            default:
+                false
+            }
+        }) ?? candidates.first
     }
 
     public func lookupAll(fqName: [InternedString]) -> [SymbolID] {
@@ -1603,6 +1622,17 @@ public final class SymbolTable {
         backingFieldSymbols[property]
     }
 
+    /// Reverse of `backingFieldSymbol(for:)`, built from the (sparse) backing
+    /// field table rather than by scanning every symbol.
+    func propertiesByBackingFieldSymbol() -> [SymbolID: SymbolID] {
+        var result: [SymbolID: SymbolID] = [:]
+        result.reserveCapacity(backingFieldSymbols.count)
+        for (property, backingField) in backingFieldSymbols {
+            result[backingField] = property
+        }
+        return result
+    }
+
     public func setDelegateStorageSymbol(_ storage: SymbolID, for property: SymbolID) {
         if let previousStorage = delegateStorageSymbols[property], previousStorage != storage {
             delegatePropertiesByStorageSymbol.removeValue(forKey: previousStorage)
@@ -1728,6 +1758,18 @@ public final class SymbolTable {
 
     func isImportedStdlibSymbol(_ symbol: SymbolID) -> Bool {
         importedStdlibSymbolIDs.contains(symbol)
+    }
+
+    func markImportedRuntimeReflectionMetadata(_ scope: String, for symbol: SymbolID) {
+        guard scope == "public" || scope == "all" else { return }
+        importedRuntimeReflectionScopes[symbol] = scope
+    }
+
+    func hasImportedRuntimeReflectionMetadata(for symbol: SymbolID) -> Bool {
+        guard let scope = importedRuntimeReflectionScopes[symbol] else { return false }
+        if scope == "all" { return true }
+        guard let imported = self.symbol(symbol) else { return false }
+        return imported.visibility == .public || imported.visibility == .protected
     }
 
     public func setSourceFileID(_ fileID: FileID, for symbol: SymbolID) {
@@ -2001,6 +2043,20 @@ public final class SymbolTable {
         if symbol.flags.contains(.importedLibrary) { return true }
         return symbol.declSite != nil
     }
+
+    /// Returns true for a compiler-registered synthetic stub with no compiled
+    /// body. A precomputed stdlib artifact serializes these stubs instead of
+    /// letting the consumer register them again (KUU-2815), and every imported
+    /// record carries `.synthetic`, so the imported copy of a stub is the
+    /// stdlib record that has no compiled link name.
+    public func isSyntheticStubSymbol(_ symbolID: SymbolID) -> Bool {
+        guard let symbol = self.symbol(symbolID),
+              symbol.flags.contains(.synthetic)
+        else { return false }
+        guard symbol.flags.contains(.importedLibrary) else { return true }
+        return isImportedStdlibSymbol(symbolID)
+            && (externalLinkName(for: symbolID)?.isEmpty ?? true)
+    }
 }
 
 extension SymbolTable {
@@ -2261,11 +2317,14 @@ extension SymbolTable {
         for (property, accessor) in snapshot.extensionPropertySetterAccessors { extensionPropertySetterAccessors[mapSymbol(property)] = mapSymbol(accessor) }
         for (symbol, bounds) in snapshot.typeParameterUpperBoundsMap { typeParameterUpperBoundsMap[mapSymbol(symbol)] = bounds.map { mapType($0, using: typeMap) } }
         importedStdlibSymbolIDs.formUnion(snapshot.importedStdlibSymbolIDs.map(mapSymbol))
+        var moduleFQNSymbols = byModuleFQN.mapValues { Set($0) }
         for (symbol, module) in snapshot.moduleFQNames {
             let id = mapSymbol(symbol)
             let moduleID = interner.intern(module)
             moduleFQNames[id] = moduleID
-            if byModuleFQN[moduleID]?.contains(id) != true {
+            // Snapshot restoration can add thousands of symbols to one module;
+            // keep duplicate checks constant-time instead of rescanning its array.
+            if moduleFQNSymbols[moduleID, default: []].insert(id).inserted {
                 byModuleFQN[moduleID, default: []].append(id)
             }
         }

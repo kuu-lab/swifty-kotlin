@@ -465,9 +465,10 @@ extension DataFlowSemaPhase {
             && interner.resolve(nominalSymbol.name) == "List"
         if isList {
             // Runtime List bridges dispatch source implementations through
-            // the List itable. Keep get(index) and listIterator(index) at
-            // slots 0 and 1 independently of synthetic-symbol definition order;
-            // the read-only subList bridge uses slot 2.
+            // the List itable using fixed slots, so every member's slot is
+            // pinned independently of synthetic-symbol definition order:
+            // get/listIterator(index)/subList occupy slots 0-2, the runtime
+            // indexOf/lastIndexOf bridges use slots 6 and 7.
             return methods.sorted { lhs, rhs in
                 func fixedSlot(_ symbol: SemanticSymbol) -> Int {
                     let name = interner.resolve(symbol.name)
@@ -475,13 +476,36 @@ extension DataFlowSemaPhase {
                     if name == "get" && arity == 1 { return 0 }
                     if name == "listIterator" && arity == 1 { return 1 }
                     if name == "subList" && arity == 2 { return 2 }
-                    return 3
+                    if name == "iterator" && arity == 0 { return 3 }
+                    if name == "isEmpty" && arity == 0 { return 4 }
+                    if name == "listIterator" && arity == 0 { return 5 }
+                    if name == "indexOf" && arity == 1 { return 6 }
+                    if name == "lastIndexOf" && arity == 1 { return 7 }
+                    return 8
                 }
                 let lhsSlot = fixedSlot(lhs)
                 let rhsSlot = fixedSlot(rhs)
                 if lhsSlot != rhsSlot {
                     return lhsSlot < rhsSlot
                 }
+                return lhs.id.rawValue < rhs.id.rawValue
+            }
+        }
+
+        let isMap = nominalSymbol.fqName.count == 3
+            && interner.resolve(nominalSymbol.fqName[0]) == "kotlin"
+            && interner.resolve(nominalSymbol.fqName[1]) == "collections"
+            && interner.resolve(nominalSymbol.name) == "Map"
+        if isMap {
+            // Runtime Map bridges dispatch source implementations through the
+            // Map itable: isEmpty/get/containsKey/containsValue occupy method
+            // slots 0-3, and the property getters (entries, keys, size,
+            // values) are laid out right after them.
+            let bridgeMethods = ["isEmpty", "get", "containsKey", "containsValue"]
+            return methods.sorted { lhs, rhs in
+                let lhsSlot = bridgeMethods.firstIndex(of: interner.resolve(lhs.name)) ?? bridgeMethods.count
+                let rhsSlot = bridgeMethods.firstIndex(of: interner.resolve(rhs.name)) ?? bridgeMethods.count
+                if lhsSlot != rhsSlot { return lhsSlot < rhsSlot }
                 return lhs.id.rawValue < rhs.id.rawValue
             }
         }

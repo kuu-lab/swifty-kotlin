@@ -27,4 +27,10 @@ public interface Map<K, out V> {
 
     @KsSymbolName("__kk_map_get")
     public operator fun get(key: K): V?
+
+    @KsSymbolName("__kk_map_contains_key")
+    public fun containsKey(key: K): Boolean
+
+    @KsSymbolName("__kk_map_contains_value")
+    public fun containsValue(value: @UnsafeVariance V): Boolean
 }

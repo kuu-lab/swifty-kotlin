@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val text: CharSequence = "Kotlin"
     println(text.indexOf('o', 0, false))

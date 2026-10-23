@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println("hello".startsWith("he"))
     println("hello".startsWith("lo"))

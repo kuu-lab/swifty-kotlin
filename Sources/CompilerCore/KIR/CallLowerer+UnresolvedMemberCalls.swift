@@ -126,6 +126,16 @@ extension CallLowerer {
         {
             return nil
         }
+        // `+=`/`-=` with a bulk operand resolve to the `MutableCollection`
+        // `plusAssign`/`minusAssign` extensions; no residual bridge exists for
+        // their Iterable/Sequence/Array overloads, so keep the source body.
+        if memberName == "plusAssign" || memberName == "minusAssign",
+           parameterName == "Iterable" || parameterName == "Sequence" || parameterName == "Array",
+           let chosenCallee,
+           sema.symbols.isSourceBackedSymbol(chosenCallee)
+        {
+            return nil
+        }
         let operation = switch memberName {
         case "addAll", "plusAssign": "addAll"
         case "retainAll": "retainAll"

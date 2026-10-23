@@ -135,6 +135,10 @@ final class RuntimeObjectBox: RuntimeArrayBox {
     var backingMapBox: RuntimeMapBox?
     var backingMapRaw: Int = 0
     var throwableMessage: String?
+    /// Same role as `RuntimeThrowableBox.messageRaw` for source-defined
+    /// Throwable subclasses: preserves the constructor `message` handle so
+    /// `e.message === arg` holds like on the JVM.
+    var throwableMessageRaw: Int = 0
     var throwableCause: Int
     var throwableStackTraceAddresses: [Int]?
     var throwableSuppressed: [Int]
@@ -328,10 +332,28 @@ struct RuntimeCallableRefMetadata {
     var setterInvoker: Int = 0
     var setterParameters: Int = 0
     var property: Int = 0
+    var returnTypeKTypeRaw: Int = 0
     var annotations: [RuntimeAnnotationRecord] = []
     /// Canonical callable target and captures used by callable-reference equality.
     var identityTargetRaw: Int = 0
     var identityCaptures: [Int] = []
+}
+
+/// Equality identity of a `fun interface` SAM-adapter wrapper created from a
+/// callable reference. The JVM generates an anonymous class implementing the
+/// interface plus `kotlin.jvm.internal.FunctionAdapter`; its synthesized
+/// equals/hashCode delegate to the stored function reference, and equals
+/// additionally requires `other instanceof <that fun interface>` (KUU-2940).
+struct RuntimeSamAdapterIdentity {
+    /// Stable nominal type ID of the `fun interface` the wrapper implements.
+    let interfaceTypeID: Int64
+    /// Referenced callable's function address (the delegate's target).
+    let targetRaw: Int
+    let arity: Int
+    let isSuspend: Bool
+    let modifierFlags: Int
+    /// Bound captures (e.g. the receiver of a bound member reference).
+    let captures: [Int]
 }
 
 final class RuntimeFunctionValueBox {

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-147: local `by Delegates.*` used to bind the local to the delegate handle itself.
 import kotlin.properties.Delegates
 

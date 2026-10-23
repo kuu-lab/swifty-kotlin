@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+import TestStdlibCache
 import Testing
 
 @Suite
@@ -98,6 +99,81 @@ struct ReceiverBuilderInferenceTests {
             println(result + 1)
         }
         """)
+    }
+
+    @Test func nestedGenericReceiverCallDoesNotChangeBuilderInference() throws {
+        let source = """
+        class Buildee<T> {
+            var r: T? = null
+            fun yield(arg: T) { r = arg }
+        }
+        fun <T> build(instructions: Buildee<T>.() -> Unit): Buildee<T> =
+            Buildee<T>().apply(instructions)
+        class Logger { fun error() { throw RuntimeException("") } }
+        fun <T> logger(arg: T): Logger = Logger()
+        fun main() {
+            val b = build {
+                if ("".hashCode() == 0) {
+                    yield("OK")
+                } else {
+                    logger(this).error()
+                }
+            }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            TestStdlibCache.shared.prepare()
+            let ctx = makeCompilationContext(inputs: [path], allowDefaultStdlibLibrary: true)
+            try runToLowering(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+            let kir = try #require(ctx.kir)
+            let kirDump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+            let sequenceBuilderYields = kirDump.split(separator: "\n").filter {
+                $0.contains("__kk_sequence_builder_yield")
+            }
+            #expect(
+                sequenceBuilderYields.isEmpty,
+                "Builder class yield was lowered as a sequence yield: \(sequenceBuilderYields.joined(separator: "\n"))"
+            )
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let loggerCalls = allExprIDs(in: ast, path: path, ctx: ctx) { exprID, expr in
+                guard case let .call(calleeID, _, _, _) = expr,
+                      case let .nameRef(name, _) = ast.arena.expr(calleeID)
+                else { return false }
+                return ctx.interner.resolve(name) == "logger"
+                    && sema.bindings.callBinding(for: exprID) != nil
+            }
+            #expect(loggerCalls.count == 1)
+            let loggerCall = try #require(loggerCalls.first)
+            let loggerBinding = try #require(sema.bindings.callBinding(for: loggerCall))
+            #expect(loggerBinding.substitutedTypeArguments.count == 1)
+            let loggerArgument = try #require(loggerBinding.substitutedTypeArguments.first)
+            guard case let .classType(builderType) = sema.types.kind(of: loggerArgument),
+                  let buildee = sema.symbols.symbol(builderType.classSymbol)
+            else {
+                #expect(Bool(false), "Expected logger to receive the inferred Buildee receiver")
+                return
+            }
+            #expect(ctx.interner.resolve(buildee.name) == "Buildee")
+            let yieldCalls = allExprIDs(in: ast, path: path, ctx: ctx) { exprID, expr in
+                guard case let .call(calleeID, _, _, _) = expr,
+                      case let .nameRef(name, _) = ast.arena.expr(calleeID)
+                else { return false }
+                return ctx.interner.resolve(name) == "yield"
+                    && sema.bindings.callBinding(for: exprID) != nil
+            }
+            #expect(yieldCalls.count == 1)
+            let yieldCall = try #require(yieldCalls.first)
+            let yieldBinding = try #require(sema.bindings.callBinding(for: yieldCall))
+            let yieldSymbol = try #require(sema.symbols.symbol(yieldBinding.chosenCallee))
+            #expect(yieldSymbol.fqName == [
+                ctx.interner.intern("Buildee"),
+                ctx.interner.intern("yield"),
+            ])
+            let yieldedType = try #require(yieldBinding.substitutedTypeArguments.first)
+            #expect(builderType.args == [.invariant(yieldedType)])
+        }
     }
 
     @Test func extensionPropertyReceiverInfersBuilderType() throws {

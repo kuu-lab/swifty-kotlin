@@ -28,6 +28,7 @@ struct RuntimeKClassMetadataEntry {
     var isInner: Bool = false
     var isCompanion: Bool = false
     var isFunInterface: Bool = false
+    var isLocal: Bool = false
     var annotations: [RuntimeAnnotationRecord] = []
 }
 
@@ -319,6 +320,22 @@ final class RuntimeKTypeBox {
         self.argumentRaws = argumentRaws
         self.isMarkedNullable = isMarkedNullable
         self.typeNameRaw = typeNameRaw
+    }
+}
+
+final class RuntimeKTypeParameterBox {
+    let identity: Int
+    let nameRaw: Int
+    let varianceOrdinal: Int
+    let isReified: Bool
+    var upperBoundsRaw: Int
+
+    init(identity: Int, nameRaw: Int, varianceOrdinal: Int, isReified: Bool, upperBoundsRaw: Int) {
+        self.identity = identity
+        self.nameRaw = nameRaw
+        self.varianceOrdinal = varianceOrdinal
+        self.isReified = isReified
+        self.upperBoundsRaw = upperBoundsRaw
     }
 }
 

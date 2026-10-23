@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println("true".toBooleanStrictOrNull())   // true
     println("false".toBooleanStrictOrNull())  // false

@@ -24,7 +24,15 @@ extension ExprLowerer {
             interner: interner,
             instructions: &instructions
         )
-        let providedExprID = arena.appendTemporary(type: sema.types.anyType)
+        // The provided delegate register must carry the provideDelegate
+        // return type: a primitive-returning overload (e.g. `Long` from
+        // `Double.provideDelegate`) leaves a raw scalar that inlined
+        // getValue/setValue receiver code reads verbatim, not a boxed
+        // `Any` handle (see KIRLoweringDriver+ProvideDelegate.swift).
+        let providedExprID = arena.appendTemporary(
+            type: sema.symbols.functionSignature(for: provideDelegateSymbol)?.returnType
+                ?? sema.types.anyType
+        )
         instructions.append(driver.memberLowerer.dispatchedDelegateMemberCall(
             symbol: provideDelegateSymbol,
             callee: interner.intern("provideDelegate"),

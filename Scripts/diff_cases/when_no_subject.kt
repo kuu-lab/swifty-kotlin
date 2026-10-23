@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun classify(x: Int): String = when {
     x < 0 -> "negative"
     x == 0 -> "zero"

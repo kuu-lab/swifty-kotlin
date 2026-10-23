@@ -1,7 +1,9 @@
 
 extension BuildASTPhase.ExpressionParser {
-    private func diagnoseAssignmentOperatorAfterConditionExpression() {
-        guard let token = current() else { return }
+    /// Returns whether an assignment operator was diagnosed.
+    @discardableResult
+    private func diagnoseAssignmentOperatorAfterExpression() -> Bool {
+        guard let token = current() else { return false }
         switch token.kind {
         case .symbol(.assign), .symbol(.plusAssign), .symbol(.minusAssign),
              .symbol(.starAssign), .symbol(.slashAssign), .symbol(.percentAssign):
@@ -10,8 +12,9 @@ extension BuildASTPhase.ExpressionParser {
                 "Unexpected token after expression.",
                 range: token.range
             )
+            return true
         default:
-            break
+            return false
         }
     }
 
@@ -101,6 +104,7 @@ extension BuildASTPhase.ExpressionParser {
         var subject: ExprID?
         var subjectVarName: InternedString?
         var subjectTypeRef: TypeRefID?
+        var headerMalformed = false
         if matches(.symbol(.lParen)) {
             _ = consume()
             if matches(.keyword(.val)),
@@ -117,19 +121,40 @@ extension BuildASTPhase.ExpressionParser {
                     subjectTypeRef = typeRef
                 }
                 guard consumeIf(.symbol(.assign)) != nil else {
+                    if let token = current() {
+                        diagnostics?.error(
+                            "KSWIFTK-PARSE-0010",
+                            "Expected '=' after 'when' subject variable.",
+                            range: token.range
+                        )
+                    }
                     return nil
                 }
             }
             if matches(.symbol(.rParen)) {
                 if let token = current() {
                     diagnostics?.error("KSWIFTK-PARSE-0001", "Expected expression.", range: token.range)
+                    headerMalformed = true
                 }
             } else {
                 subject = parseExpression(minPrecedence: 0)
+                if subject != nil {
+                    headerMalformed = diagnoseAssignmentOperatorAfterExpression()
+                } else if let token = current() {
+                    diagnostics?.error("KSWIFTK-PARSE-0001", "Expected expression.", range: token.range)
+                    headerMalformed = true
+                }
             }
             _ = consumeIf(.symbol(.rParen))
         }
         guard consumeIf(.symbol(.lBrace)) != nil else {
+            if !headerMalformed {
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0010",
+                    "Expected '{' after 'when'.",
+                    range: current()?.range ?? whenToken.range
+                )
+            }
             return nil
         }
 
@@ -155,7 +180,9 @@ extension BuildASTPhase.ExpressionParser {
                 if matches(.symbol(.arrow)) {
                     diagnostics?.error("KSWIFTK-PARSE-0011", "Expected when branch condition.", range: token.range)
                 }
-                if let firstCond = parseWhenBranchCondition(subject: subject) {
+                let firstCond = parseWhenBranchCondition(subject: subject)
+                diagnoseAssignmentOperatorAfterExpression()
+                if let firstCond {
                     conditions.append(firstCond)
                 }
                 while matches(.symbol(.comma)) {
@@ -164,11 +191,12 @@ extension BuildASTPhase.ExpressionParser {
                     if matches(.symbol(.arrow)) {
                         break
                     }
-                    if let nextCond = parseWhenBranchCondition(subject: subject) {
-                        conditions.append(nextCond)
-                    } else {
+                    let nextCond = parseWhenBranchCondition(subject: subject)
+                    diagnoseAssignmentOperatorAfterExpression()
+                    guard let nextCond else {
                         break
                     }
+                    conditions.append(nextCond)
                 }
             }
 
@@ -176,6 +204,7 @@ extension BuildASTPhase.ExpressionParser {
             if !isElseBranch, !conditions.isEmpty, matches(.keyword(.if)) {
                 _ = consume()
                 guardExpr = parseExpression(minPrecedence: 0)
+                diagnoseAssignmentOperatorAfterExpression()
             }
 
             _ = consumeIf(.symbol(.arrow))
@@ -496,6 +525,11 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
         guard consumeIf(.symbol(.lParen)) != nil else {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0004",
+                "Expected parenthesized loop header after 'for'.",
+                range: current()?.range ?? forToken.range
+            )
             return nil
         }
 
@@ -508,6 +542,7 @@ extension BuildASTPhase.ExpressionParser {
             _ = consume()
 
             var destructuringNames: [InternedString?] = []
+            var destructuringProperties: [InternedString?] = []
             var foundClosingDelimiter = false
             while let token = current() {
                 if token.kind == closingKind {
@@ -527,6 +562,15 @@ extension BuildASTPhase.ExpressionParser {
                         destructuringNames.append(name)
                     }
                     _ = consume()
+                    var property: InternedString?
+                    if consumeIf(.symbol(.assign)) != nil,
+                       let propertyToken = current(),
+                       let propertyName = tokenText(propertyToken)
+                    {
+                        property = interner.resolve(propertyName) == "_" ? nil : propertyName
+                        _ = consume()
+                    }
+                    destructuringProperties.append(property)
                     if matches(.symbol(.colon)) {
                         _ = consume()
                         while let t = current(),
@@ -550,8 +594,14 @@ extension BuildASTPhase.ExpressionParser {
                     index = savedIndex
                     return parseForExpressionFallback(forToken: forToken, label: label, start: start)
                 }
-                diagnoseAssignmentOperatorAfterConditionExpression()
-                _ = consumeIf(.symbol(.rParen))
+                diagnoseAssignmentOperatorAfterExpression()
+                if consumeIf(.symbol(.rParen)) == nil {
+                    diagnostics?.error(
+                        "KSWIFTK-PARSE-0004",
+                        "Expected ')' after 'for' loop header.",
+                        range: current()?.range ?? forToken.range
+                    )
+                }
                 guard let body = parseControlFlowBodyExpression() else {
                     index = savedIndex
                     return parseForExpressionFallback(forToken: forToken, label: label, start: start)
@@ -565,6 +615,14 @@ extension BuildASTPhase.ExpressionParser {
                     syntax: syntax,
                     range: range
                 ))
+                astArena.setDestructuringDeclLayout(
+                    DestructuringDeclLayout(
+                        syntax: syntax,
+                        properties: destructuringProperties,
+                        mutableFlags: []
+                    ),
+                    for: exprID
+                )
                 if let label {
                     astArena.setLoopLabel(label, for: exprID)
                 }
@@ -603,17 +661,40 @@ extension BuildASTPhase.ExpressionParser {
         {
             _ = consume()
         }
-        _ = consumeIf(.keyword(.in))
+        if consumeIf(.keyword(.in)) == nil {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0004",
+                "Expected 'in' in 'for' loop header.",
+                range: current()?.range ?? forToken.range
+            )
+            return nil
+        }
 
         guard let iterable = parseExpression(minPrecedence: 0) else {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0001",
+                "Expected expression.",
+                range: current()?.range ?? forToken.range
+            )
             return nil
         }
         // The iterable is an expression: `for (i in x = 1..3)` must not
         // silently drop the assignment and iterate the bare `x`.
-        diagnoseAssignmentOperatorAfterConditionExpression()
-        _ = consumeIf(.symbol(.rParen))
+        diagnoseAssignmentOperatorAfterExpression()
+        if consumeIf(.symbol(.rParen)) == nil {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0004",
+                "Expected ')' after 'for' loop header.",
+                range: current()?.range ?? forToken.range
+            )
+        }
 
         guard let body = parseControlFlowBodyExpression() else {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0004",
+                "Expected loop body after 'for' header.",
+                range: current()?.range ?? forToken.range
+            )
             return nil
         }
         let end = astArena.exprRange(body)?.end ?? forToken.range.end
@@ -626,14 +707,35 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
         guard consumeIf(.symbol(.lParen)) != nil else {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0004",
+                "Expected parenthesized condition after 'while'.",
+                range: current()?.range ?? whileToken.range
+            )
             return nil
         }
         guard let condition = parseRequiredControlFlowCondition() else {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0001",
+                "Expected expression.",
+                range: current()?.range ?? whileToken.range
+            )
             return nil
         }
-        diagnoseAssignmentOperatorAfterConditionExpression()
-        _ = consumeIf(.symbol(.rParen))
+        diagnoseAssignmentOperatorAfterExpression()
+        if consumeIf(.symbol(.rParen)) == nil {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0004",
+                "Expected ')' after 'while' condition.",
+                range: current()?.range ?? whileToken.range
+            )
+        }
         guard let body = parseControlFlowBodyExpression() else {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0004",
+                "Expected loop body after 'while' condition.",
+                range: current()?.range ?? whileToken.range
+            )
             return nil
         }
         let end = astArena.exprRange(body)?.end ?? whileToken.range.end
@@ -677,17 +779,46 @@ extension BuildASTPhase.ExpressionParser {
         }
 
         guard let body else {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0004",
+                "Expected 'do' block body.",
+                range: current()?.range ?? doToken.range
+            )
             return nil
         }
-        guard matches(.keyword(.while)),
-              consume() != nil,
-              consumeIf(.symbol(.lParen)) != nil
-        else {
+        guard matches(.keyword(.while)) else {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0004",
+                "Expected 'while' after 'do' block.",
+                range: current()?.range ?? doToken.range
+            )
             return nil
         }
-        guard let condition = parseRequiredControlFlowCondition() else { return nil }
-        diagnoseAssignmentOperatorAfterConditionExpression()
-        _ = consumeIf(.symbol(.rParen))
+        _ = consume()
+        guard consumeIf(.symbol(.lParen)) != nil else {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0004",
+                "Expected parenthesized condition after 'while'.",
+                range: current()?.range ?? doToken.range
+            )
+            return nil
+        }
+        guard let condition = parseRequiredControlFlowCondition() else {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0001",
+                "Expected expression.",
+                range: current()?.range ?? doToken.range
+            )
+            return nil
+        }
+        diagnoseAssignmentOperatorAfterExpression()
+        if consumeIf(.symbol(.rParen)) == nil {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0004",
+                "Expected ')' after 'while' condition.",
+                range: current()?.range ?? doToken.range
+            )
+        }
         let end = astArena.exprRange(condition)?.end ?? astArena.exprRange(body)?.end ?? doToken.range.end
         let range = SourceRange(start: start ?? doToken.range.start, end: end)
         return astArena.appendExpr(.doWhileExpr(body: body, condition: condition, label: label, range: range))
@@ -739,15 +870,36 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
         guard consumeIf(.symbol(.lParen)) != nil else {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0004",
+                "Expected parenthesized condition after 'if'.",
+                range: current()?.range ?? ifToken.range
+            )
             return nil
         }
         guard let condition = parseRequiredControlFlowCondition() else {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0001",
+                "Expected expression.",
+                range: current()?.range ?? ifToken.range
+            )
             return nil
         }
-        diagnoseAssignmentOperatorAfterConditionExpression()
-        _ = consumeIf(.symbol(.rParen))
+        diagnoseAssignmentOperatorAfterExpression()
+        if consumeIf(.symbol(.rParen)) == nil {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0004",
+                "Expected ')' after 'if' condition.",
+                range: current()?.range ?? ifToken.range
+            )
+        }
 
         guard let thenExpr = parseControlFlowBodyExpression() else {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0004",
+                "Expected then branch after 'if' condition.",
+                range: current()?.range ?? ifToken.range
+            )
             return nil
         }
 
@@ -756,8 +908,15 @@ extension BuildASTPhase.ExpressionParser {
             _ = consume()
         }
         if matches(.keyword(.else)) {
-            _ = consume()
+            let elseToken = consume()!
             elseExpr = parseControlFlowBodyExpression()
+            if elseExpr == nil {
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0004",
+                    "Expected branch after 'else'.",
+                    range: current()?.range ?? elseToken.range
+                )
+            }
         }
 
         let end = elseExpr

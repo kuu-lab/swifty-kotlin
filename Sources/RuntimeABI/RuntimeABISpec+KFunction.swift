@@ -123,6 +123,14 @@ public extension RuntimeABISpec {
             }, returnType: .intptr, section: "Reflection", isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_kcallable_register_return_type",
+            parameters: [
+                RuntimeABIParameter(name: "raw", type: .intptr),
+                RuntimeABIParameter(name: "returnTypeKTypeRaw", type: .intptr),
+            ],
+            returnType: .intptr, section: "Reflection", isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_kcallable_is_runtime",
             parameters: [RuntimeABIParameter(name: "raw", type: .intptr)],
             returnType: .intptr, section: "Reflection", isThrowing: false
@@ -412,6 +420,20 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "callable", type: .intptr),
                 RuntimeABIParameter(name: "targetRaw", type: .intptr),
                 RuntimeABIParameter(name: "capturesRaw", type: .intptr),
+            ],
+            returnType: .void,
+            section: "Reflection",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_sam_adapter_set_identity",
+            parameters: [
+                RuntimeABIParameter(name: "callable", type: .intptr),
+                RuntimeABIParameter(name: "interfaceTypeID", type: .intptr),
+                RuntimeABIParameter(name: "targetRaw", type: .intptr),
+                RuntimeABIParameter(name: "capturesRaw", type: .intptr),
+                RuntimeABIParameter(name: "arity", type: .intptr),
+                RuntimeABIParameter(name: "flags", type: .intptr),
             ],
             returnType: .void,
             section: "Reflection",

@@ -17,7 +17,7 @@ final class RuntimeMapBox {
     }
 
     func valuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
-        usesReferenceEquality ? lhs == rhs : runtimeValuesEqual(lhs, rhs)
+        usesReferenceEquality ? lhs == rhs : runtimeLookupValuesEqual(lhs, rhs)
     }
     let defaultValueFnPtr: Int
     let defaultValueClosureRaw: Int

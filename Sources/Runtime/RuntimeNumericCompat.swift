@@ -279,6 +279,13 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         state.objectPointers.contains(UInt(bitPattern: pointer))
     }
     guard isObjectPointer else {
+        // A capture-less callable reference can surface as a raw function
+        // pointer rather than a boxed object; its registered identity still
+        // defines hashCode (KUU-2940), so `::f.hashCode()` matches both
+        // another `::f` and a `fun interface` adapter wrapping `::f`.
+        if let hash = runtimeCallableReferenceHashCode(value) {
+            return hash
+        }
         return runtimeUnboxedAnyHashCode(value, tag)
     }
     if runtimeIsIdentityMapEntry(value), let entry = runtimeMapEntryValues(rawValue: value) {

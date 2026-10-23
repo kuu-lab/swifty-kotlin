@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun classify(v: Int) = when (v) {
     0 -> 10
     else -> 20

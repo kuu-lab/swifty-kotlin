@@ -115,6 +115,69 @@ struct CodegenBackendIncrementExpressionPositionTests {
     }
 
     @Test
+    func testIncrementDecrementWritesBackNullableSmartcastValues() throws {
+        let source = """
+        class FloatCounter(initial: Float) {
+            private var raw = initial
+            var value: Float
+                get() = raw
+                set(newValue) { raw = newValue }
+        }
+
+        fun main() {
+            var i: Int?
+            i = 10
+            val oldI = i++
+            println("int=$oldI/$i")
+
+            var statementByte: Byte? = 0
+            if (statementByte != null) statementByte--
+            println("statement-byte=$statementByte")
+
+            var byte: Byte? = 0
+            if (byte != null) {
+                val oldByte = byte--
+                println("byte=$oldByte/$byte")
+            }
+
+            var float: Float? = 1.0f
+            if (float != null) {
+                val oldFloat = float++
+                println("float=$oldFloat/$float")
+            }
+
+            var prefix: Byte? = 1
+            if (prefix != null) {
+                val newPrefix = ++prefix
+                println("prefix=$newPrefix/$prefix")
+            }
+
+            val values = mutableListOf(2)
+            values[0]--
+            println("element=${values[0]}")
+
+            val counter = FloatCounter(1.0f)
+            val oldProperty = counter.value++
+            println("property=$oldProperty/${counter.value}")
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "NullableSmartcastIncrementWriteback",
+            expected: """
+            int=10/11
+            statement-byte=-1
+            byte=0/-1
+            float=1.0/2.0
+            prefix=2/2
+            element=1
+            property=1.0/2.0
+
+            """
+        )
+    }
+
+    @Test
     func testUserDefinedIncrementDecrementUsesOperatorFunctions() throws {
         let source = """
         class Vec(val x: Int) {

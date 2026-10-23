@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val concatenated = "he" + "llo"
     println(concatenated is CharSequence)

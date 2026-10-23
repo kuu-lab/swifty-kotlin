@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-625: String == / != must compare UTF-16 code units, not Swift's
 // Unicode-canonical-equivalent String equality.
 fun main() {

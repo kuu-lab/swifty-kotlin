@@ -94,7 +94,7 @@ public final class CompilerDriver {
         let syntaxPhases: [CompilerPhase] = [LoadSourcesPhase()]
             + (options.emit.isJVM ? [JVMPreparationPhase()] : []) + [
             LexPhase(),
-            ParsePhase(),
+            ParsePhase(rejectsTopLevelStatementsOutsideScripts: true),
             BuildASTPhase(),
         ]
         // JVM shares semantic analysis, but has its own typed IR and lowering.
@@ -1106,7 +1106,7 @@ public final class CompilerDriver {
             if let receiver {
                 collectExpr(receiver)
             }
-        case let .localFunDecl(_, receiverType, valueParams, returnType, body, _, _, typeParams):
+        case let .localFunDecl(_, receiverType, valueParams, returnType, body, _, _, typeParams, _):
             if let receiverType {
                 collectTypeRef(receiverType)
             }
