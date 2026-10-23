@@ -160,6 +160,8 @@ extension BuildASTPhase.ExpressionParser {
 
         var branches: [WhenBranch] = []
         var elseExpr: ExprID?
+        var hasSeenElseBranch = false
+        var hasReportedElseBranchPosition = false
         var end = whenToken.range.end
 
         while let token = current() {
@@ -170,12 +172,22 @@ extension BuildASTPhase.ExpressionParser {
                 break
             }
 
+            if hasSeenElseBranch, !hasReportedElseBranchPosition {
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0027",
+                    "The 'else' branch must be the last branch in a 'when' expression.",
+                    range: token.range
+                )
+                hasReportedElseBranchPosition = true
+            }
+
             let branchStart = token.range.start
             var conditions: [ExprID] = []
             var isElseBranch = false
             if token.kind == .keyword(.else) {
                 _ = consume()
                 isElseBranch = true
+                hasSeenElseBranch = true
             } else {
                 if matches(.symbol(.arrow)) {
                     diagnostics?.error("KSWIFTK-PARSE-0011", "Expected when branch condition.", range: token.range)
