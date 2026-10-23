@@ -1,10 +1,5 @@
 import Foundation
 
-enum DataClassSyntheticMethodPhase {
-    case beforeMemberHeaders
-    case afterMemberHeaders
-}
-
 extension DataFlowSemaPhase {
     func contextParameterValueDeclarations(
         _ contextReceivers: [ContextReceiverDecl],
@@ -696,12 +691,20 @@ extension DataFlowSemaPhase {
                 return
             }
         }
-        // Kotlin data classes and data objects keep a final superclass toString().
+        // Kotlin data classes and data objects keep inherited final implementations
+        // of the generated Any members.
+        let toStringName = interner.intern("toString")
         if symbols.symbol(ownerSymbol)?.flags.contains(.dataType) == true,
-           hasInheritedFinalToString(ownerSymbol: ownerSymbol, symbols: symbols, types: types, interner: interner) {
+           hasInheritedFinalDataClassMember(
+               ownerSymbol: ownerSymbol,
+               name: toStringName,
+               parameterTypes: [],
+               returnType: types.stringType,
+               symbols: symbols,
+               types: types
+           ) {
             return
         }
-        let toStringName = interner.intern("toString")
         let toStringFQName = ownerFQName + [toStringName]
         let stringType = types.stringType
         let classTypeParameterSymbols = syntheticDataClassMemberTypeParameterSymbols(
@@ -745,8 +748,8 @@ extension DataFlowSemaPhase {
         scope?.insert(funcSymbol)
     }
 
-    /// Collects data-class and data-object `toString()` members after superclass edges are bound.
-    func collectDataTypeToStringAfterInheritance(
+    /// Collects data-class and data-object generated members after superclass edges are bound.
+    func collectDataTypeGeneratedMembersAfterInheritance(
         ast: ASTModule,
         symbols: SymbolTable,
         bindings: BindingTable,
@@ -788,6 +791,26 @@ extension DataFlowSemaPhase {
                 args: typeArguments,
                 nullability: .nonNull
             )))
+            collectSyntheticHashCode(
+                ownerSymbol: ownerSymbol,
+                ownerFQName: owner.fqName,
+                ownerType: ownerType,
+                requireDataTypeFlag: requireDataTypeFlag,
+                symbols: symbols,
+                types: types,
+                scope: nil,
+                interner: interner
+            )
+            collectSyntheticEquals(
+                ownerSymbol: ownerSymbol,
+                ownerFQName: owner.fqName,
+                ownerType: ownerType,
+                requireDataTypeFlag: requireDataTypeFlag,
+                symbols: symbols,
+                types: types,
+                scope: nil,
+                interner: interner
+            )
             collectSyntheticToString(
                 ownerSymbol: ownerSymbol,
                 ownerFQName: owner.fqName,
@@ -801,14 +824,15 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Returns whether the closest superclass declaration of `toString(): String` is final.
-    private func hasInheritedFinalToString(
+    /// Returns whether the closest superclass declaration of a generated data-class member is final.
+    private func hasInheritedFinalDataClassMember(
         ownerSymbol: SymbolID,
+        name: InternedString,
+        parameterTypes: [TypeID],
+        returnType: TypeID,
         symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
+        types: TypeSystem
     ) -> Bool {
-        let toStringName = interner.intern("toString")
         var currentSuperclass = symbols.directSupertypes(for: ownerSymbol).first {
             symbols.symbol($0)?.kind == .class
         }
@@ -817,13 +841,16 @@ extension DataFlowSemaPhase {
             if let memberID = symbols.children(ofFQName: superclassSymbol.fqName).first(where: { memberID in
                 guard let member = symbols.symbol(memberID),
                       member.kind == .function,
-                      member.name == toStringName,
-                      let signature = symbols.functionSignature(for: memberID)
+                      member.name == name,
+                      let signature = symbols.functionSignature(for: memberID),
+                      let receiverType = signature.receiverType,
+                      case let .classType(receiverClass) = types.kind(of: types.makeNonNullable(receiverType)),
+                      receiverClass.classSymbol == superclass
                 else {
                     return false
                 }
-                return signature.parameterTypes.isEmpty
-                    && (signature.returnType == types.stringType || signature.returnType == types.anyType)
+                return signature.parameterTypes == parameterTypes
+                    && (signature.returnType == returnType || signature.returnType == types.anyType)
             }) {
                 return symbols.symbol(memberID)?.flags.contains(.finalMember) == true
             }
@@ -841,7 +868,7 @@ extension DataFlowSemaPhase {
         requireDataTypeFlag: Bool,
         symbols: SymbolTable,
         types: TypeSystem,
-        scope: Scope,
+        scope: Scope?,
         interner: StringInterner
     ) {
         if requireDataTypeFlag {
@@ -850,9 +877,20 @@ extension DataFlowSemaPhase {
             }
         }
         let equalsName = interner.intern("equals")
-        let equalsFQName = ownerFQName + [equalsName]
         let boolType = types.make(.primitive(.boolean, .nonNull))
         let nullableAnyType = types.nullableAnyType
+        if symbols.symbol(ownerSymbol)?.flags.contains(.dataType) == true,
+           hasInheritedFinalDataClassMember(
+               ownerSymbol: ownerSymbol,
+               name: equalsName,
+               parameterTypes: [nullableAnyType],
+               returnType: boolType,
+               symbols: symbols,
+               types: types
+           ) {
+            return
+        }
+        let equalsFQName = ownerFQName + [equalsName]
         let classTypeParameterSymbols = syntheticDataClassMemberTypeParameterSymbols(
             ownerSymbol: ownerSymbol,
             types: types
@@ -901,7 +939,7 @@ extension DataFlowSemaPhase {
             ),
             for: funcSymbol
         )
-        scope.insert(funcSymbol)
+        scope?.insert(funcSymbol)
     }
 
     func collectSyntheticHashCode(
@@ -911,7 +949,7 @@ extension DataFlowSemaPhase {
         requireDataTypeFlag: Bool,
         symbols: SymbolTable,
         types: TypeSystem,
-        scope: Scope,
+        scope: Scope?,
         interner: StringInterner
     ) {
         if requireDataTypeFlag {
@@ -920,8 +958,19 @@ extension DataFlowSemaPhase {
             }
         }
         let hashCodeName = interner.intern("hashCode")
-        let hashCodeFQName = ownerFQName + [hashCodeName]
         let intType = types.make(.primitive(.int, .nonNull))
+        if symbols.symbol(ownerSymbol)?.flags.contains(.dataType) == true,
+           hasInheritedFinalDataClassMember(
+               ownerSymbol: ownerSymbol,
+               name: hashCodeName,
+               parameterTypes: [],
+               returnType: intType,
+               symbols: symbols,
+               types: types
+           ) {
+            return
+        }
+        let hashCodeFQName = ownerFQName + [hashCodeName]
         let classTypeParameterSymbols = syntheticDataClassMemberTypeParameterSymbols(
             ownerSymbol: ownerSymbol,
             types: types
@@ -960,7 +1009,7 @@ extension DataFlowSemaPhase {
             ),
             for: funcSymbol
         )
-        scope.insert(funcSymbol)
+        scope?.insert(funcSymbol)
     }
 
     private func dataClassPrimaryConstructorParameterTypes(
@@ -1146,13 +1195,12 @@ extension DataFlowSemaPhase {
         scope.insert(copySymbol)
     }
 
-    func collectSyntheticDataClassMethods(
+    func collectSyntheticDataClassComponentsAndCopy(
         classDecl: ClassDecl,
         ast: ASTModule,
         ownerSymbol: SymbolID,
         ownerFQName: [InternedString],
         ownerType: TypeID,
-        phase: DataClassSyntheticMethodPhase,
         symbols: SymbolTable,
         types: TypeSystem,
         scope: Scope,
@@ -1160,58 +1208,32 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         localTypeParameters: [InternedString: SymbolID] = [:]
     ) {
-        switch phase {
-        case .beforeMemberHeaders:
-            collectSyntheticDataClassComponentN(
-                classDecl: classDecl,
-                ast: ast,
-                ownerSymbol: ownerSymbol,
-                ownerFQName: ownerFQName,
-                ownerType: ownerType,
-                symbols: symbols,
-                types: types,
-                scope: scope,
-                interner: interner,
-                diagnostics: diagnostics,
-                localTypeParameters: localTypeParameters
-            )
-            collectSyntheticDataClassCopy(
-                classDecl: classDecl,
-                ast: ast,
-                ownerSymbol: ownerSymbol,
-                ownerFQName: ownerFQName,
-                ownerType: ownerType,
-                symbols: symbols,
-                types: types,
-                scope: scope,
-                interner: interner,
-                diagnostics: diagnostics,
-                localTypeParameters: localTypeParameters
-            )
-        case .afterMemberHeaders:
-            // Keep hashCode() and equals() collection here. toString() depends on
-            // the resolved superclass chain and is collected after inheritance.
-            collectSyntheticHashCode(
-                ownerSymbol: ownerSymbol,
-                ownerFQName: ownerFQName,
-                ownerType: ownerType,
-                requireDataTypeFlag: true,
-                symbols: symbols,
-                types: types,
-                scope: scope,
-                interner: interner
-            )
-            collectSyntheticEquals(
-                ownerSymbol: ownerSymbol,
-                ownerFQName: ownerFQName,
-                ownerType: ownerType,
-                requireDataTypeFlag: true,
-                symbols: symbols,
-                types: types,
-                scope: scope,
-                interner: interner
-            )
-        }
+        collectSyntheticDataClassComponentN(
+            classDecl: classDecl,
+            ast: ast,
+            ownerSymbol: ownerSymbol,
+            ownerFQName: ownerFQName,
+            ownerType: ownerType,
+            symbols: symbols,
+            types: types,
+            scope: scope,
+            interner: interner,
+            diagnostics: diagnostics,
+            localTypeParameters: localTypeParameters
+        )
+        collectSyntheticDataClassCopy(
+            classDecl: classDecl,
+            ast: ast,
+            ownerSymbol: ownerSymbol,
+            ownerFQName: ownerFQName,
+            ownerType: ownerType,
+            symbols: symbols,
+            types: types,
+            scope: scope,
+            interner: interner,
+            diagnostics: diagnostics,
+            localTypeParameters: localTypeParameters
+        )
     }
 
     func collectValueParameters(

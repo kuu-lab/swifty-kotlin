@@ -276,10 +276,58 @@ extension CallLowerer {
                 return unit
             }
         }
-        // Enum `var` properties live in per-entry storage behind the enum's
-        // setter helper; the ordinal-backed receiver has no instance fields.
-        if let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
-           let setterCallee = enumPropertySetterPlaceholder(for: propertySymbol, sema: sema, interner: interner)
+        let enumConstructorOwner = driver.ctx.currentFunctionSymbol.flatMap { functionSymbol -> SymbolID? in
+            guard sema.symbols.symbol(functionSymbol)?.kind == .constructor,
+                  let ownerSymbol = sema.symbols.parentSymbol(for: functionSymbol),
+                  sema.symbols.symbol(ownerSymbol)?.kind == .enumClass
+            else {
+                return nil
+            }
+            return ownerSymbol
+        }
+        let boundPropertySymbol = sema.bindings.identifierSymbol(for: exprID)
+            .flatMap { symbol -> SymbolID? in
+                sema.symbols.symbol(symbol)?.kind == .property ? symbol : nil
+            }
+        let enumPropertySymbol = boundPropertySymbol ?? enumConstructorOwner.flatMap { ownerSymbol in
+            guard let ownerInfo = sema.symbols.symbol(ownerSymbol) else { return nil }
+            return sema.symbols.lookupAll(fqName: ownerInfo.fqName + [calleeName])
+                .first(where: { sema.symbols.symbol($0)?.kind == .property })
+        }
+        // Sema cannot bind constructor-time writes to an immutable member to
+        // a setter. During `$enumEnsureInit$`, use the active entry's slot;
+        // elsewhere in an enum constructor, route through the synthetic setter
+        // emitted for its body property.
+        let enumStorageTarget: (property: SymbolID, slot: SymbolID)? = {
+            if let propertySymbol = enumPropertySymbol,
+               let slotSymbol = driver.ctx.enumEntryStorageSlots[propertySymbol]
+            {
+                return (propertySymbol, slotSymbol)
+            }
+            return driver.ctx.enumEntryStorageSlots.first { propertySymbol, _ in
+                guard let info = sema.symbols.symbol(propertySymbol) else { return false }
+                return info.kind == .property && info.name == calleeName
+            }.map { ($0.key, $0.value) }
+        }()
+        if let enumStorageTarget {
+            let propertyType = sema.symbols.propertyType(for: enumStorageTarget.property) ?? sema.types.anyType
+            let slot = arena.appendExpr(.symbolRef(enumStorageTarget.slot), type: propertyType)
+            instructions.append(.constValue(result: slot, value: .symbolRef(enumStorageTarget.slot)))
+            instructions.append(.copy(from: valueID, to: slot))
+            let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+            instructions.append(.constValue(result: unit, value: .unit))
+            return unit
+        }
+        // Enum `var` properties, and body `val` assignments in secondary
+        // constructors, use ordinal-backed setter helpers when no entry slot
+        // is active in the current lowering scope.
+        if let propertySymbol = enumPropertySymbol,
+           let setterCallee = enumPropertySetterPlaceholder(
+               for: propertySymbol,
+               allowValInitialization: enumConstructorOwner != nil,
+               sema: sema,
+               interner: interner
+           )
         {
             instructions.append(.call(
                 symbol: nil,
@@ -938,12 +986,13 @@ extension CallLowerer {
     /// property is not enum-owned or is written through its own accessor.
     func enumPropertySetterPlaceholder(
         for propertySymbol: SymbolID,
+        allowValInitialization: Bool = false,
         sema: SemaModule,
         interner: StringInterner
     ) -> InternedString? {
         guard let info = sema.symbols.symbol(propertySymbol),
               info.kind == .property,
-              info.flags.contains(.mutable),
+              info.flags.contains(.mutable) || allowValInitialization,
               let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
               sema.symbols.symbol(ownerSymbol)?.kind == .enumClass
         else {
@@ -1013,7 +1062,7 @@ extension CallLowerer {
             else {
                 continue
             }
-            // KUU-2943: a delegated `var` always writes through the
+            // KUU-2943, KUU-2946: a delegated `var` always writes through the
             // synthesized setValue-forwarding setter accessor, so it must
             // win this check before the setter-body test. A bare
             // `private set`/`protected set` clause records only a

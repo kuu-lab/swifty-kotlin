@@ -112,6 +112,28 @@ public fun <T> Iterable<T>.take(n: Int): List<T> {
     if (result.size == 1) return listOf(result[0])
     return result
 }
+public fun <T> List<T>.takeLast(n: Int): List<T> {
+    if (n < 0) throw IllegalArgumentException("Requested element count $n is less than zero.")
+    if (n == 0) return emptyList<T>()
+    val values = this.toList()
+    val start = if (n >= values.size) 0 else values.size - n
+    if (start == 0) return values
+    val result = mutableListOf<T>()
+    var index = start
+    while (index < values.size) {
+        result.add(values[index])
+        index++
+    }
+    return result
+}
+public inline fun <T> Iterable<T>.takeWhile(predicate: (T) -> Boolean): List<T> {
+    val result = mutableListOf<T>()
+    for (element in this) {
+        if (!predicate(element)) break
+        result.add(element)
+    }
+    return result
+}
 public fun <T> Iterable<T>.drop(n: Int): List<T> {
     if (n < 0) throw IllegalArgumentException("Requested element count $n is less than zero.")
     val result = mutableListOf<T>()
@@ -121,6 +143,28 @@ public fun <T> Iterable<T>.drop(n: Int): List<T> {
     }
     if (result.size == 0) return emptyList<T>()
     if (result.size == 1) return listOf(result[0])
+    return result
+}
+public inline fun <T> Iterable<T>.dropWhile(predicate: (T) -> Boolean): List<T> {
+    var dropping = true
+    val result = mutableListOf<T>()
+    for (element in this) {
+        if (dropping && predicate(element)) continue
+        dropping = false
+        result.add(element)
+    }
+    return result
+}
+public fun <T> List<T>.dropLastWhile(predicate: (T) -> Boolean): List<T> {
+    var end = size
+    while (end > 0 && predicate(this[end - 1])) end--
+    if (end == 0) return emptyList<T>()
+    val result = mutableListOf<T>()
+    var index = 0
+    while (index < end) {
+        result.add(this[index])
+        index++
+    }
     return result
 }
 public fun <T> Iterable<T>.joinToString(separator: CharSequence = ", ", prefix: CharSequence = "", postfix: CharSequence = "", limit: Int = -1, truncated: CharSequence = "...", transform: ((T) -> CharSequence)? = null): String {

@@ -156,8 +156,8 @@ public enum ForDestructuringSyntax: Equatable, Codable {
     case squareBrackets
 }
 
-/// Extra shape of a `destructuringDecl` that the positional `names` list cannot
-/// express (Kotlin 2.4 name-based and full-form destructuring declarations).
+/// Extra shape of destructuring expressions that the positional `names` list
+/// cannot express (Kotlin 2.4 name-based and full-form declarations).
 public struct DestructuringDeclLayout: Equatable, Codable {
     public var syntax: ForDestructuringSyntax
     /// Per entry: the property read for `(a = prop)`; nil means "same as the

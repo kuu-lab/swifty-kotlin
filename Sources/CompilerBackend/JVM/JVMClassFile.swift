@@ -34,14 +34,17 @@ enum JVMClassFile {
         method.annotationDefault = function.annotationDefault
         return method
     }
-    private static func innerClasses(_ program: JVMProgram) -> [(String, String, String, UInt16)] {
+    private static func innerClasses(_ program: JVMProgram) -> [(String, String, String?, UInt16)] {
         program.classes.compactMap { type in
-            guard let outer = type.outerName, let inner = type.innerName else { return nil }
+            guard let outer = type.outerName else { return nil }
+            if type.innerName == nil {
+                return (type.name, outer, nil, 0)
+            }
             let visibility: UInt16 = type.modifiers.contains(.private) ? 2 : (type.modifiers.contains(.protected) ? 4 : 1)
-            return (type.name, outer, inner, (type.access & 0x7610) | visibility | (type.isInner ? 0 : 8))
+            return (type.name, outer, type.innerName, (type.access & 0x7610) | visibility | (type.isInner ? 0 : 8))
         }
     }
-    private static func write(name: String, superclass: String, interfaces: [String], access: UInt16, fields: [JVMField], fieldSignatures: [String: String] = [:], methods: [JVMMethodCode], sourceFile: String, metadata: Data?, annotations: [JVMAnnotation] = [], signature: String?, innerClasses: [(String, String, String, UInt16)] = [], pool: JVMConstantPool) throws -> Data {
+    private static func write(name: String, superclass: String, interfaces: [String], access: UInt16, fields: [JVMField], fieldSignatures: [String: String] = [:], methods: [JVMMethodCode], sourceFile: String, metadata: Data?, annotations: [JVMAnnotation] = [], signature: String?, innerClasses: [(String, String, String?, UInt16)] = [], pool: JVMConstantPool) throws -> Data {
         guard methods.count <= 65_535, fields.count <= 65_535, interfaces.count <= 65_535 else { throw JVMEmissionError.limit("JVM member/interface count exceeds the classfile limit.") }
         let thisClass = try pool.classInfo(name), superClass = try pool.classInfo(superclass)
         let interfaceIndices = try interfaces.map(pool.classInfo)
@@ -62,7 +65,14 @@ enum JVMClassFile {
         let fieldAnnotations = try fields.map { try JVMAnnotations.attributes($0.annotations, deprecated: $0.isDeprecated, pool: pool) }
         let methodAnnotations = try methods.map { try JVMAnnotations.methodAttributes($0, pool: pool) }
         let innerName = try innerClasses.isEmpty ? nil : pool.utf8("InnerClasses")
-        let innerIndices = try innerClasses.map { (try pool.classInfo($0.0), try pool.classInfo($0.1), try pool.utf8($0.2), $0.3) }
+        let innerIndices = try innerClasses.map { entry in
+            (
+                try pool.classInfo(entry.0),
+                try pool.classInfo(entry.1),
+                try entry.2.map { try pool.utf8($0) } ?? 0,
+                entry.3
+            )
+        }
         let bootstrapAttribute = try pool.bootstrapMethodsAttribute()
         var bytes = JVMBytes()
         bytes.u4(0xCAFEBABE); bytes.u2(0); bytes.u2(52)

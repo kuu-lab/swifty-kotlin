@@ -6,8 +6,12 @@ import Testing
 // KUU-1407: declarations and modifier combinations that Kotlin/JVM rejects
 // must produce diagnostics instead of being silently accepted.
 
-private func semaContext(for source: String) throws -> CompilationContext {
-    let ctx = makeContextFromSource(source, allowDefaultStdlibLibrary: false)
+private func semaContext(for source: String, frontendFlags: [String] = []) throws -> CompilationContext {
+    let ctx = makeContextFromSource(
+        source,
+        frontendFlags: frontendFlags,
+        allowDefaultStdlibLibrary: false
+    )
     try runSema(ctx)
     return ctx
 }
@@ -287,6 +291,37 @@ struct DeclarationPositionValidationTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0420", in: ctx)
     }
 
+    @Test func fullValueClassesAcceptAbstractEmptyConstructorHierarchy() throws {
+        let ctx = try semaContext(
+            for: """
+                abstract value class Base {
+                    abstract val first: String
+                    fun fakeOverridden(): String = first
+                }
+                abstract value class Child() : Base()
+                """,
+            frontendFlags: ["full-value-classes"]
+        )
+
+        #expect(
+            !ctx.diagnostics.diagnostics.contains {
+                $0.code == "KSWIFTK-SEMA-0420" || $0.code == "KSWIFTK-SEMA-0070"
+            },
+            "FullValueClasses should accept abstract value classes without primary constructor properties"
+        )
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func fullValueClassesKeepJvmInlineValueClassRestrictions() throws {
+        let ctx = try semaContext(
+            for: "@JvmInline abstract value class Empty()",
+            frontendFlags: ["full-value-classes"]
+        )
+
+        assertHasDiagnostic("KSWIFTK-SEMA-0420", in: ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0070", in: ctx)
+    }
+
     // MARK: - Modifier incompatibilities
 
     @Test func finalOpenFunctionIsRejected() throws {
@@ -543,6 +578,46 @@ struct DeclarationPositionValidationTests {
             inline val answer: Int get() = 42
             """)
         assertNoDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+    }
+
+    @Test func inlineTopLevelVarWithCustomAccessorsIsAccepted() throws {
+        let ctx = try semaContext(for: """
+            var backing = 1
+            private inline var value: Int
+                get() = backing + 10000
+                set(v) { backing = v + 100 }
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+    }
+
+    @Test func inlineMemberVarWithCustomAccessorsIsAccepted() throws {
+        let ctx = try semaContext(for: """
+            class C {
+                private var backing = 0
+                private inline var value: Int
+                    get() = backing
+                    set(v) { backing = v }
+            }
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+    }
+
+    @Test func inlineExtensionVarWithCustomAccessorsIsAccepted() throws {
+        let ctx = try semaContext(for: """
+            inline var Int.value: Int
+                get() = this + 1
+                set(v) {}
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+    }
+
+    @Test func inlineOpenMemberPropertyIsRejected() throws {
+        let ctx = try semaContext(for: """
+            open class C {
+                open inline val value: Int get() = 42
+            }
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
     }
 
     @Test func inlineTopLevelPropertyWithInitializerIsRejected() throws {

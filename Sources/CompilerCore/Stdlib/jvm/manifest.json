@@ -223,6 +223,12 @@
       "excludeFromStdlibBuild": false
     },
     {
+      "path": "declarations/UnsignedArrayOperations.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-unsigned-array-operations.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
       "path": "declarations/TextCollectionFunctions.kt",
       "virtualPath": "<kswiftk-jvm>/m20-text-runtime.kt",
       "excludeFromStdlibBuild": true
@@ -283,6 +289,12 @@
     {
       "path": "declarations/CollectionFirstPredicate.kt",
       "virtualPath": "<kswiftk-jvm>/collection-first-predicate.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
+      "path": "declarations/CollectionAggregates.kt",
+      "virtualPath": "<kswiftk-jvm>/collection-aggregates.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/collections/CollectionsKt"
     },
@@ -371,6 +383,12 @@
       "virtualPath": "<kswiftk-jvm>/map-operators.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/collections/MapsKt"
+    },
+    {
+      "path": "declarations/MapAccessors.kt",
+      "virtualPath": "<kswiftk-jvm>/map-accessors.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/MapAccessorsKt"
     },
     {
       "path": "declarations/CollectionElements.kt",

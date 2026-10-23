@@ -160,6 +160,22 @@ private struct JVMSourceGrammar {
             try require(.symbol(.rParen))
         }
     }
+    mutating func propertyName() throws {
+        let start = index
+        do {
+            try type()
+            guard let receiverSeparator = (start..<index).last(where: { tokens[$0].kind == .symbol(.dot) }) else {
+                index = start
+                try name()
+                return
+            }
+            index = receiverSeparator + 1
+            try name()
+        } catch {
+            index = start
+            try name()
+        }
+    }
     mutating func declaration(member: Bool) throws {
         let enclosingHeader = inDelegationHeader
         inDelegationHeader = false
@@ -224,7 +240,7 @@ private struct JVMSourceGrammar {
                 }
             }
         } else if (take(.keyword(.val)) || take(.keyword(.var))) {
-            try name()
+            try propertyName()
             if take(.symbol(.colon)) { try type() }
             if take(.symbol(.assign)) || take(.softKeyword(.by)) { try expression() }
             while true {
@@ -269,6 +285,12 @@ private struct JVMSourceGrammar {
     }
     mutating func statement() throws {
         while kind == .symbol(.at) { try annotation() }
+        if kind.isLabelName,
+           tokens[min(index + 1, tokens.count - 1)].kind == .symbol(.at),
+           [.keyword(.for), .keyword(.while), .keyword(.do)].contains(tokens[min(index + 2, tokens.count - 1)].kind) {
+            try name()
+            try require(.symbol(.at))
+        }
         let late = take(.keyword(.lateinit))
         if late, kind != .keyword(.val), kind != .keyword(.var) { throw Unsupported() }
         if take(.keyword(.val)) || take(.keyword(.var)) {
@@ -285,6 +307,8 @@ private struct JVMSourceGrammar {
                 if take(.symbol(.assign)) || take(.softKeyword(.by)) { try expression() }
                 else if !hasTypeAnnotation { throw Unsupported() }
             }
+        } else if startsClassDeclaration() {
+            try declaration(member: false)
         } else if kind == .keyword(.fun) {
             let start = index
             do { try anonymousFunction() }
@@ -302,6 +326,7 @@ private struct JVMSourceGrammar {
             if take(.symbol(.at)) { try name() }
             if kind != .symbol(.rBrace), kind != .symbol(.semicolon), !newlineBeforeCurrent() { try expression() }
         } else if take(.keyword(.break)) || take(.keyword(.continue)) {
+            if take(.symbol(.at)) { try name() }
             return
         } else {
             try expression()
@@ -309,6 +334,13 @@ private struct JVMSourceGrammar {
                 index += 1; try expression()
             }
         }
+    }
+    mutating func startsClassDeclaration() -> Bool {
+        let start = index
+        modifiers()
+        let result = kind == .keyword(.class)
+        index = start
+        return result
     }
     func startsFunctionDeclarationAfterModifiers() -> Bool {
         var lookahead = self
@@ -389,7 +421,10 @@ private struct JVMSourceGrammar {
             if kind != .templateExprEnd, kind != .symbol(.rBrace), kind != .symbol(.semicolon), !newlineBeforeCurrent() { try expression() }
             return
         }
-        if take(.keyword(.break)) || take(.keyword(.continue)) { return }
+        if take(.keyword(.break)) || take(.keyword(.continue)) {
+            if take(.symbol(.at)) { try name() }
+            return
+        }
         if take(.keyword(.throw)) { try expression(); return }
         if take(.keyword(.try)) {
             try block()
@@ -404,7 +439,8 @@ private struct JVMSourceGrammar {
             return
         }
         if take(.keyword(.when)) {
-            if kind == .symbol(.lParen) {
+            let hasSubject = kind == .symbol(.lParen)
+            if hasSubject {
                 try require(.symbol(.lParen))
                 if take(.keyword(.val)) { try name(); if take(.symbol(.colon)) { try type() }; try require(.symbol(.assign)) }
                 try expression(allowNewlines: true); try require(.symbol(.rParen))
@@ -414,7 +450,11 @@ private struct JVMSourceGrammar {
                 if !take(.keyword(.else)) {
                     repeat {
                         if take(.keyword(.is)) { try type() }
-                        else if take(.symbol(.bang)) { try require(.keyword(.is)); try type() }
+                        else if hasSubject, take(.symbol(.bang)) {
+                            if take(.keyword(.is)) { try type() }
+                            else { try require(.keyword(.in)); try expression() }
+                        }
+                        else if hasSubject, take(.keyword(.in)) { try expression() }
                         else { try expression() }
                     } while take(.symbol(.comma))
                 }

@@ -45,6 +45,59 @@ struct ForwardObjectLazyInitKIRTests {
         }
     }
 
+    @Test
+    func constPropertyReadEvaluatesExplicitExpressionReceiver() throws {
+        let source = """
+        object C {
+            val initialized = 1
+            const val x = 42
+        }
+        fun getC(): C = C
+        fun main() {
+            getC().x
+            C.x
+        }
+        """
+        let path = "/virtual/const-receiver.kt"
+        let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+        _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let sema = try #require(ctx.sema)
+        let getC = try #require(findAllKIRFunctions(in: module).first {
+            ctx.interner.resolve($0.name) == "getC"
+        })
+        let objectSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("C")]))
+        let objectInit = try #require(findAllKIRFunctions(in: module).first {
+            ctx.interner.resolve($0.name) == "__object_lazy_init_\(objectSymbol.rawValue)"
+        })
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let getCBody = try findKIRFunctionBody(named: "getC", in: module, interner: ctx.interner)
+        #expect(body.contains {
+            if case let .call(symbol, _, _, _, _, _, _, _) = $0 {
+                return symbol == getC.symbol
+            }
+            return false
+        }, "the call receiver must remain in KIR after the const value is inlined")
+        #expect(!body.contains {
+            if case let .call(symbol, _, _, _, _, _, _, _) = $0 {
+                return symbol == objectInit.symbol
+            }
+            return false
+        }, "a nominal qualifier used only for a const read must not initialize its object")
+        #expect(getCBody.contains {
+            if case let .call(symbol, _, _, _, _, _, _, _) = $0 {
+                return symbol == objectInit.symbol
+            }
+            return false
+        }, "evaluating getC() must retain the object's normal lazy initialization")
+        #expect(body.contains {
+            if case .constValue(_, .intLiteral(42)) = $0 { return true }
+            return false
+        }, "the const value should still be inlined")
+    }
+
     /// KUU-2945: `O.P` uses `O` as a pure namespace qualifier -- the enclosing
     /// object's lazy-init guard must not be emitted for the nested-object
     /// access itself, whether it appears as a delegated-property delegate or

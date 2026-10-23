@@ -330,7 +330,9 @@ extension ExprLowerer {
             if let targetLabel {
                 instructions.append(.jump(targetLabel))
             }
-            let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+            // Keep the sema type so enclosing try/block lowering sees that
+            // this jump has no normal successor to route through finally.
+            let unit = arena.appendExpr(.unit, type: sema.types.nothingType)
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
 
@@ -349,7 +351,7 @@ extension ExprLowerer {
             if let targetLabel {
                 instructions.append(.jump(targetLabel))
             }
-            let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+            let unit = arena.appendExpr(.unit, type: sema.types.nothingType)
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
 

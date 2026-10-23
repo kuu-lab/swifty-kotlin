@@ -542,6 +542,7 @@ extension BuildASTPhase.ExpressionParser {
             _ = consume()
 
             var destructuringNames: [InternedString?] = []
+            var destructuringProperties: [InternedString?] = []
             var foundClosingDelimiter = false
             while let token = current() {
                 if token.kind == closingKind {
@@ -561,6 +562,15 @@ extension BuildASTPhase.ExpressionParser {
                         destructuringNames.append(name)
                     }
                     _ = consume()
+                    var property: InternedString?
+                    if consumeIf(.symbol(.assign)) != nil,
+                       let propertyToken = current(),
+                       let propertyName = tokenText(propertyToken)
+                    {
+                        property = interner.resolve(propertyName) == "_" ? nil : propertyName
+                        _ = consume()
+                    }
+                    destructuringProperties.append(property)
                     if matches(.symbol(.colon)) {
                         _ = consume()
                         while let t = current(),
@@ -605,6 +615,14 @@ extension BuildASTPhase.ExpressionParser {
                     syntax: syntax,
                     range: range
                 ))
+                astArena.setDestructuringDeclLayout(
+                    DestructuringDeclLayout(
+                        syntax: syntax,
+                        properties: destructuringProperties,
+                        mutableFlags: []
+                    ),
+                    for: exprID
+                )
                 if let label {
                     astArena.setLoopLabel(label, for: exprID)
                 }

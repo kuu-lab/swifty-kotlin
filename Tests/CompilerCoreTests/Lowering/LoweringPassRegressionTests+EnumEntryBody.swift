@@ -77,6 +77,38 @@ extension LoweringPassRegressionTests {
     }
 
     @Test
+    func testSecondaryConstructorOnlyEnumBodyValLowersWithoutUnresolvedCall() throws {
+        // KUU-2871: constructor writes to a body `val` must target enum entry storage.
+        let source = """
+        enum class Test {
+            A(0),
+            B;
+
+            val n: Int
+
+            constructor(n: Int) { this.n = n }
+            constructor() : this(0)
+        }
+        fun main() { println(Test.A.n == Test.B.n) }
+        """
+        let ctx = makeContextFromSource(source, moduleName: "EnumSecondaryConstructorBodyVal")
+        try runToLowering(ctx)
+
+        #expect(
+            !ctx.diagnostics.hasError,
+            "secondary-constructor enum body val should lower without verifier errors: \(ctx.diagnostics.diagnostics.map(\.message))"
+        )
+        let module = try #require(ctx.kir)
+        let ensureInit = try #require(findAllKIRFunctions(in: module).first {
+            ctx.interner.resolve($0.name) == "$enumEnsureInit$"
+        })
+        #expect(!ensureInit.body.contains { instruction in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+            return ctx.interner.resolve(callee) == "n"
+        })
+    }
+
+    @Test
     func testEnumEntryBodyOverrideInheritedFromInterfaceUsesOrdinalDispatch() throws {
         let source = """
         interface F {

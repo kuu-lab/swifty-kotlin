@@ -2,6 +2,44 @@ import Testing
 
 extension BundledStdlibExecutionTests {
     @Test(arguments: [true, false])
+    func testKUU2927TryFinallyExecutesOnceWhenBreakOrContinueExits(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            fun breakThroughTryFinally(): String {
+                var log = "start"
+                while (true) {
+                    try { log += ", try"; break }
+                    finally { log += ", finally" }
+                    log += ", after"
+                }
+                log += ", end"
+                return log
+            }
+
+            fun continueThroughTryFinally(): String {
+                var log = "start"
+                var remaining = 2
+                while (remaining > 0) {
+                    try { log += ", try"; remaining -= 1; continue }
+                    finally { log += ", finally" }
+                    log += ", after"
+                }
+                log += ", end"
+                return log
+            }
+
+            fun main() {
+                println(breakThroughTryFinally())
+                println(continueThroughTryFinally())
+            }
+            """,
+            expectedOutput: "start, try, finally, end\nstart, try, finally, try, finally, end\n",
+            moduleName: "KUU2927TryFinallyBreakContinue",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
+    @Test(arguments: [true, false])
     func testKUU2127InlineLambdaBreakContinue(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
             """

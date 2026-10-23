@@ -85,6 +85,7 @@ enum SemaRuntimeFunction: String {
     case typeOf = "typeof"
     case uintRangeReduce = "uint_range_reduce"
     case uintRangeStep = "uint_range_step"
+    case ulongRangeForEach = "ulong_range_forEach"
     case ulongRangeStep = "ulong_range_step"
     case withTimeout = "with_timeout"
     case withTimeoutOrNull = "with_timeout_or_null"

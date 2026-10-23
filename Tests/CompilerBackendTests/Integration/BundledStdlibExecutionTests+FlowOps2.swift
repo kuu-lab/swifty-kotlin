@@ -112,6 +112,62 @@ extension BundledStdlibExecutionTests {
     }
 
     @Test(arguments: [true, false])
+    func testFlowBufferConflateAndFlowOn(artifact: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            import kotlin.coroutines.ContinuationInterceptor
+            import kotlinx.coroutines.*
+            import kotlinx.coroutines.channels.BufferOverflow
+            import kotlinx.coroutines.flow.*
+
+            fun main() = runBlocking {
+                val dropOldest = mutableListOf<Int>()
+                flowOf(1, 2, 3, 4, 5)
+                    .buffer(1, BufferOverflow.DROP_OLDEST)
+                    .flowOn(Dispatchers.IO)
+                    .collect { value: Int ->
+                        delay(20L)
+                        dropOldest.add(value)
+                    }
+                println(dropOldest)
+
+                val dropLatest = mutableListOf<Int>()
+                flowOf(1, 2, 3, 4, 5)
+                    .buffer(1, BufferOverflow.DROP_LATEST)
+                    .collect { value: Int ->
+                        delay(20L)
+                        dropLatest.add(value)
+                    }
+                println(dropLatest)
+
+                val conflated = mutableListOf<Int>()
+                flowOf(1, 2, 3, 4, 5)
+                    .conflate()
+                    .collect { value: Int ->
+                        delay(20L)
+                        conflated.add(value)
+                    }
+                println(conflated)
+
+                var upstreamName = "missing"
+                var upstreamUsesIO = false
+                flow<Int> {
+                    val context = currentCoroutineContext()
+                    upstreamName = context[CoroutineName]?.name ?: "missing"
+                    upstreamUsesIO = context[ContinuationInterceptor] === Dispatchers.IO
+                    emit(9)
+                }
+                    .flowOn(Dispatchers.IO + CoroutineName("flow-upstream"))
+                    .collect { }
+                println("$upstreamName:$upstreamUsesIO")
+            }
+            """,
+            expectedOutput: "[1, 5]\n[1, 2]\n[1, 5]\nflow-upstream:true\n",
+            allowDefaultStdlibLibrary: artifact
+        )
+    }
+
+    @Test(arguments: [true, false])
     func testFlowLatestCancelsPreviousSuspendingWork(artifact: Bool) throws {
         try compileAndRunKotlin(
             """

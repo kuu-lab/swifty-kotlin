@@ -97,5 +97,29 @@ struct CodegenBackendAnyTypedLocalVarBoxingTests {
             expected: "true\nfalse\ntrue\nfalse\n99\n"
         )
     }
+
+    @Test
+    func testSmartcastedAnyLocalCompoundAssignmentsUsePrimitiveValues() throws {
+        try assertKotlinOutput(
+            """
+            fun main() {
+                var v: Any = 'C'
+                if (v is Char) {
+                    v++
+                    println(v)
+                    println(v.toInt())
+                    v += 2
+                    println(v)
+                    println(v.toInt())
+                    v--
+                    println(v)
+                    println(v.toInt())
+                }
+            }
+            """,
+            moduleName: "SmartcastAnyLocalCompoundAssignments",
+            expected: "D\n68\nF\n70\nE\n69\n"
+        )
+    }
 }
 #endif

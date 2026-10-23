@@ -16,6 +16,7 @@ final class ControlFlowTypeChecker {
         iterableExpr: ExprID,
         iterableType: TypeID,
         range: SourceRange,
+        locals: LocalBindings,
         ctx: TypeInferenceContext
     ) -> TypeID {
         let sema = ctx.sema
@@ -33,7 +34,7 @@ final class ControlFlowTypeChecker {
         let isRangeExpr = Self.isRangeExpression(iterableExpr, ast: ctx.ast)
             || sema.bindings.isRangeExpr(iterableExpr)
         if let elementType = bindLoopIterationOperators(
-            exprID: exprID, iterableType: iterableType, range: range, ctx: ctx
+            exprID: exprID, iterableType: iterableType, range: range, locals: locals, ctx: ctx
         ) ?? driver.helpers.iterableElementType(
             for: iterableType,
             isRangeExpr: isRangeExpr,
@@ -55,6 +56,7 @@ final class ControlFlowTypeChecker {
         exprID: ExprID,
         iterableType: TypeID,
         range: SourceRange,
+        locals: LocalBindings,
         ctx: TypeInferenceContext
     ) -> TypeID? {
         let sema = ctx.sema
@@ -68,12 +70,20 @@ final class ControlFlowTypeChecker {
             return nil
         }
 
+        // Arrays already have an indexed lowering that avoids allocating the
+        // stdlib iterator object. Leave their source-backed iterator
+        // extensions to that established path.
+        if ReceiverClassifier(sema: sema, interner: interner).isArrayLikeType(nonNullIterableType) {
+            return nil
+        }
+
         let iteratorName = interner.intern("iterator")
         let iteratorResolution = resolveLoopOperator(
             named: iteratorName,
             receiverType: nonNullIterableType,
             range: range,
             excludesUnbackedSynthetic: true,
+            locals: locals,
             ctx: ctx
         )
         let iteratorCall: CallBinding?
@@ -90,17 +100,27 @@ final class ControlFlowTypeChecker {
                 return nil
             }
 
-            iteratorCall = makeLoopOperatorCallBinding(
-                from: iteratorResolution,
-                chosenCallee: iteratorChosen
-            )
-
-            iteratorType = substituteResolvedType(
+            let resolvedIteratorType = substituteResolvedType(
                 iteratorSignature.returnType,
                 signature: iteratorSignature,
                 substitutedTypeArguments: iteratorResolution.call.substitutedTypeArguments,
                 sema: sema
             )
+            if isDirectIteratorType(nonNullIterableType, sema: sema, interner: interner),
+               isStdlibIteratorIdentityExtension(iteratorChosen, sema: sema, interner: interner)
+            {
+                // The stdlib's Iterator<T>.iterator() is an identity
+                // extension. Keep the existing direct-iterator fast path,
+                // while allowing more-specific user extensions to bind above.
+                iteratorCall = nil
+                iteratorType = nonNullIterableType
+            } else {
+                iteratorCall = makeLoopOperatorCallBinding(
+                    from: iteratorResolution,
+                    chosenCallee: iteratorChosen
+                )
+                iteratorType = resolvedIteratorType
+            }
         } else if isDirectIteratorType(nonNullIterableType, sema: sema, interner: interner) {
             // Iterator<T> already is the iterator; the stdlib extension
             // Iterator<T>.iterator() returns this, so skip the call and
@@ -118,6 +138,7 @@ final class ControlFlowTypeChecker {
             receiverType: iteratorType,
             range: range,
             excludesUnbackedSynthetic: false,
+            locals: locals,
             ctx: ctx
         )
         let nextResolution = resolveLoopOperator(
@@ -125,6 +146,7 @@ final class ControlFlowTypeChecker {
             receiverType: iteratorType,
             range: range,
             excludesUnbackedSynthetic: false,
+            locals: locals,
             ctx: ctx
         )
 
@@ -182,6 +204,7 @@ final class ControlFlowTypeChecker {
         receiverType: TypeID,
         range: SourceRange,
         excludesUnbackedSynthetic: Bool,
+        locals: LocalBindings,
         ctx: TypeInferenceContext
     ) -> ResolvedLoopOperator? {
         let sema = ctx.sema
@@ -272,6 +295,39 @@ final class ControlFlowTypeChecker {
                 )
             }
         }
+
+        // Top-level extensions (including locally declared extensions) are
+        // part of Kotlin's operator convention lookup after real members and
+        // implicit-receiver member extensions. Reuse ordinary extension-call
+        // candidate collection so imports, visibility, and receiver
+        // applicability follow the same rules as `receiver.iterator()`.
+        let extensionCandidates = driver.callChecker.collectExtensionCallCandidates(
+            named: calleeName,
+            memberLookupType: receiverType,
+            isSuperCall: false,
+            supertypeSymbols: [],
+            ctx: ctx,
+            locals: locals,
+            sema: sema,
+            interner: ctx.interner
+        ).filter { candidate in
+            sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil
+                && isZeroArgumentOperator(candidate)
+        }
+        let visibleExtensionCandidates = ctx.filterByVisibility(extensionCandidates).visible
+        if !visibleExtensionCandidates.isEmpty {
+            let call = CallExpr(range: range, calleeName: calleeName, args: [])
+            return ResolvedLoopOperator(
+                call: ctx.resolver.resolveCall(
+                    candidates: visibleExtensionCandidates,
+                    call: call,
+                    expectedType: nil,
+                    implicitReceiverType: receiverType,
+                    ctx: sema
+                ),
+                dispatchReceiverSymbol: nil
+            )
+        }
         return nil
     }
 
@@ -325,6 +381,25 @@ final class ControlFlowTypeChecker {
         return sema.types.isSubtype(sema.types.makeNonNullable(type), iteratorType)
     }
 
+    private func isStdlibIteratorIdentityExtension(
+        _ candidate: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        let expectedFQName = ["kotlin", "collections", "iterator"].map(interner.intern)
+        let iteratorFQName = ["kotlin", "collections", "Iterator"].map(interner.intern)
+        guard sema.symbols.symbol(candidate)?.fqName == expectedFQName,
+              sema.symbols.symbol(candidate)?.flags.contains(.inlineFunction) == true,
+              let iteratorSymbol = sema.symbols.lookup(fqName: iteratorFQName),
+              let signature = sema.symbols.functionSignature(for: candidate),
+              let receiverType = signature.receiverType,
+              resolveClassTypeSymbol(receiverType, sema: sema)?.symbol.id == iteratorSymbol
+        else {
+            return false
+        }
+        return true
+    }
+
     func inferForExpr(
         _ id: ExprID,
         loopVariable: InternedString?,
@@ -339,7 +414,7 @@ final class ControlFlowTypeChecker {
         let iterableType = driver.inferExpr(iterableExpr, ctx: ctx, locals: &locals, expectedType: nil)
         let elementType = inferLoopElementType(
             exprID: id, iterableExpr: iterableExpr, iterableType: iterableType,
-            range: range, ctx: ctx
+            range: range, locals: locals, ctx: ctx
         )
         invalidateNullableControlFlowAssignments(id, ctx: ctx, locals: &locals)
         var bodyLocals = locals
