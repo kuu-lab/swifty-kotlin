@@ -287,6 +287,12 @@
       "runtimeFacade": "kotlin/collections/CollectionsKt"
     },
     {
+      "path": "declarations/CollectionAggregates.kt",
+      "virtualPath": "<kswiftk-jvm>/collection-aggregates.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
       "path": "declarations/Comparator.kt",
       "virtualPath": "<kswiftk-jvm>/comparator.kt",
       "excludeFromStdlibBuild": false,
