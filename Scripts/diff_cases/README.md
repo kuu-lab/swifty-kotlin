@@ -106,6 +106,7 @@ retain the stdout diff, KIR, crash diagnostics, and a reproduction script.
 - `assert_disabled_default.kt`: `kotlin.assert` が既定無効（JVM `-ea` 無し既定）でも条件式は評価されるが lazyMessage と throw は走らない parity（KUU-2751）
 - `uuid_put_uuid.kt`: `java.nio.ByteBuffer.putUuid(index, uuid)` / `ByteBuffer.getUuid(index)` の round-trip と offset 書き込み parity（STDLIB-UUID-FN-002）
 - `java_nio_files.kt`: 管理下 fixture の `Files.readAllBytes`、`Paths.get` の相対パス・複数セグメント、IOException 捕捉の parity（KUU-2015）。空・バイナリ file と source / fresh `.kklib` × O0/O2 は `testJavaNioFilesAcrossSourceAndFreshLibrary` がカバーする。
+- `java_nio_bytebuffer_typed.kt`: `ByteBuffer` の型付き相対・絶対 get/put、BIG_ENDIAN/LITTLE_ENDIAN、型付き値の round-trip parity（KUU-3064）。source / fresh `.kklib` × O0/O2 は `testJavaNioByteBufferTypedAccessorsAcrossSourceAndFreshLibrary` がカバーする。
 - `member_compound_assign.kt`: 明示的レシーバ経由のフィールド複合代入・インクリメント/デクリメント（`obj.field += x` / `obj.field++` / `obj.field--`、暗黙 `this` 経由・ネストレシーバ・関数引数レシーバ・レシーバ式の単一評価）の parity
 - `val_member_compound_assign_error.kt`: 明示的レシーバ経由の `val` フィールドへの複合代入（`obj.field += x`）が compile error になる parity
 - `custom_getter_setter_var.kt`: KUU-595 の `var` に custom getter と setter を同居させた場合も、読み取りが getter を呼び、setter と対称な計算値を返す parity
