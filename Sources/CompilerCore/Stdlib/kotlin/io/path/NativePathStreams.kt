@@ -1,7 +1,6 @@
 package kotlin.io.path
 
 import java.io.InputStream
-import java.nio.file.Path
 import kotlin.internal.KsSymbolName
 import kotlinx.io.asInputStream
 import kotlinx.io.buffered
