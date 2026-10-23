@@ -7,6 +7,40 @@ import kotlin.internal.KsSymbolName
 private external fun objectsEquals(a: Any, b: Any?): Boolean
 
 public object Objects {
+    public fun equals(a: Any?, b: Any?): Boolean {
+        if (a === b) return true
+        if (a == null || b == null) return false
+        return objectsEquals(a, b)
+    }
+
+    public fun hash(vararg values: Any?): Int {
+        var result = 1
+        for (value in values) {
+            result = 31 * result + (value?.hashCode() ?: 0)
+        }
+        return result
+    }
+
+    public fun toString(value: Any?): String = value?.toString() ?: "null"
+
+    public fun toString(value: Any?, nullDefault: String?): String? = value?.toString() ?: nullDefault
+
+    public fun <T : Any> requireNonNull(value: T?): T {
+        if (value == null) throw NullPointerException()
+        return value
+    }
+
+    public fun <T : Any> requireNonNull(value: T?, message: String?): T {
+        if (value == null) throw NullPointerException(message)
+        return value
+    }
+
+    public fun isNull(value: Any?): Boolean = value == null
+
+    public fun nonNull(value: Any?): Boolean = value != null
+
+    public fun hashCode(value: Any?): Int = value?.hashCode() ?: 0
+
     public fun deepEquals(a: Any?, b: Any?): Boolean {
         if (a === b) return true
         if (a == null || b == null) return false
