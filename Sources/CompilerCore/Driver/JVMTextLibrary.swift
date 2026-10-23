@@ -108,6 +108,20 @@ extension JVMProgramBuilder {
                     if f.isInline { inlineDeclarations[symbol] = f }
                 }
             }
+            if path == "<kswiftk-jvm>/result.kt" {
+                for id in file.topLevelDecls {
+                    guard case let .classDecl(declaration) = ast.arena.decl(id),
+                          context.interner.resolve(declaration.name) == "Result"
+                    else { continue }
+                    for memberID in declaration.memberFunctions {
+                        guard case let .funDecl(function) = ast.arena.decl(memberID),
+                              function.isInline,
+                              let symbol = sema.bindings.declSymbol(for: memberID)
+                        else { continue }
+                        inlineDeclarations[symbol] = function
+                    }
+                }
+            }
             if path == "<kswiftk-jvm>/javaCollections.kt" { try visit(file.topLevelDecls, path: path) }
             if path == "<kswiftk-jvm>/collections.kt" {
                 try visit(file.topLevelDecls.filter { id in

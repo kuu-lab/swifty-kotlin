@@ -241,7 +241,8 @@
     {
       "path": "declarations/Result.kt",
       "virtualPath": "<kswiftk-jvm>/result.kt",
-      "excludeFromStdlibBuild": true
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/ResultKt"
     },
     {
       "path": "declarations/Coroutines.kt",

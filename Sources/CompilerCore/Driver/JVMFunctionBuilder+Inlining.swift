@@ -28,7 +28,16 @@ extension JVMFunctionBuilder {
         let savedScopes = scopes, savedThis = thisValue, savedReceiver = extensionValue, savedContexts = contextualReceivers
         let savedArguments = inlineArguments, savedReturns = inlineReturns, savedLambda = lambdaID
         let method = program.methods[binding.chosenCallee]
-        let dispatch = try method.map { _ in try (receiver != nil || receiverValue != nil) && declaration.receiverType == nil ? receiverValue ?? requireValue(receiver!) : instance(id) }
+        let dispatch: JVMValue?
+        if method != nil {
+            dispatch = try (receiver != nil || receiverValue != nil) && declaration.receiverType == nil
+                ? receiverValue ?? requireValue(receiver!)
+                : instance(id)
+        } else if declaration.receiverType == nil, receiver != nil || receiverValue != nil {
+            dispatch = try receiverValue ?? receiver.map(requireValue)
+        } else {
+            dispatch = nil
+        }
         let extensionReceiver = try declaration.receiverType == nil ? nil : receiverValue ?? receiver.map(requireValue) ?? implicitExtensionReceiver(id)
         var parameters: [InternedString: Local] = [:], lambdas: [InternedString: InlineLambda] = [:]
         var supplied: Set<Int> = []

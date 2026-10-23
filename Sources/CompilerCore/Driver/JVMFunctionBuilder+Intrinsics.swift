@@ -38,6 +38,7 @@ extension JVMFunctionBuilder {
     func intrinsicCall(_ symbolID: SymbolID, args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult? {
         if let method = program.builtinMethod(symbolID) { return JVMIntrinsicResult(value: try foreign(method, receiver: nil, args: args, id: id)) }
         guard let symbol = program.sema.symbols.symbol(symbolID), symbol.declSite.map({ context.sourceManager.origin(of: $0.start.file) != .user }) ?? true else { return nil }
+        if let result = try resultCompanionCall(symbolID, args: args, id: id) { return result }
         if let delegate = try delegationIntrinsic(symbol, args: args, id: id) { return delegate }
         if let coroutine = try coroutineCall(symbol, args: args, id: id) { return coroutine }
         let fq = symbol.fqName.map(context.interner.resolve).joined(separator: "/")
