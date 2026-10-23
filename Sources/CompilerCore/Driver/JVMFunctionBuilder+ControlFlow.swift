@@ -21,10 +21,27 @@ extension JVMFunctionBuilder {
     func binary(_ op: BinaryOp, _ lhs: ExprID, _ rhs: ExprID, _ id: ExprID) throws -> JVMValue? {
         if op == .rangeTo {
             let lower = try requireValue(lhs), upper = try requireValue(rhs)
-            guard lower.type == .int, upper.type == .int else {
-                throw fail("JVM range expressions currently require Int operands.", id)
+            let rangeType = try program.expressionType(id)
+            let rangeClass: String
+            let elementType: JVMValueType
+            switch rangeType.referenceName {
+            case "kotlin/ranges/IntRange":
+                rangeClass = "kotlin/ranges/IntRange"
+                elementType = .int
+            case "kotlin/ranges/LongRange":
+                rangeClass = "kotlin/ranges/LongRange"
+                elementType = .long
+            case "kotlin/ranges/CharRange":
+                rangeClass = "kotlin/ranges/CharRange"
+                elementType = .char
+            default:
+                throw fail("JVM range expressions currently support IntRange, LongRange, and CharRange.", id)
             }
-            return try constructJDK("kotlin/ranges/IntRange", parameters: [.int, .int], arguments: [lower, upper])
+            return try constructJDK(
+                rangeClass,
+                parameters: [elementType, elementType],
+                arguments: [try convert(lower, to: elementType), try convert(upper, to: elementType)]
+            )
         }
         if [.add, .subtract, .multiply, .divide, .modulo].contains(op) {
             let args = [CallArgument(expr: rhs)]

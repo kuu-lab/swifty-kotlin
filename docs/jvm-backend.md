@@ -43,6 +43,7 @@ java -Xverify:all -jar hello.jar
 - ローカル `val` / `var`、型推論、型注釈、代入、数値の `+=` / `-=` / `*=` / `/=` / `%=`、前置／後置 `++` / `--`。型注釈があれば宣言と初回代入を分けられる。
 - 数値の `+` / `-` / `*` / `/` / `%`、単項符号、比較。数値型の混合演算と `toInt` / `toLong` / `toFloat` / `toDouble`。
 - Boolean の `!` / `&&` / `||` と短絡評価。数値・Boolean・参照型の `==` / `!=`。
+- `..` 式は `IntRange`・`LongRange`・`CharRange` の JVM オブジェクトを生成し、`toList()` などの `Iterable` 拡張を利用できる。
 - トップレベル関数の位置引数呼び出し、オーバーロード、再帰、`return`、ブロック本体と式本体。
 - `if` / `else` の文・式、`while`、`do-while`、Int/Long の `..` / `..<` / `downTo` 範囲による `for`、ラベルなしの `break` / `continue`。
 - `print(value)`、`println(value)`、`println()`。対応する値型をそのまま出力できる。

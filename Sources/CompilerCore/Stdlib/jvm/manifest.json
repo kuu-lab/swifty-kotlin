@@ -127,6 +127,16 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "declarations/LongRange.kt",
+      "virtualPath": "<kswiftk-jvm>/m19-long-range.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/CharRange.kt",
+      "virtualPath": "<kswiftk-jvm>/m19-char-range.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "declarations/Sequence.kt",
       "virtualPath": "<kswiftk-jvm>/m19-sequence.kt",
       "excludeFromStdlibBuild": true
