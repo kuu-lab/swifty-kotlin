@@ -373,6 +373,12 @@
       "runtimeFacade": "kotlin/collections/MapsKt"
     },
     {
+      "path": "declarations/MapAccessors.kt",
+      "virtualPath": "<kswiftk-jvm>/map-accessors.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/MapAccessorsKt"
+    },
+    {
       "path": "declarations/CollectionElements.kt",
       "virtualPath": "<kswiftk-jvm>/collection-elements.kt",
       "excludeFromStdlibBuild": true,
