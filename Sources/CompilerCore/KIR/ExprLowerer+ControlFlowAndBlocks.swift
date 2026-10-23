@@ -243,11 +243,12 @@ extension ExprLowerer {
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
 
-        case let .localFunDecl(localFunName, _, localFunValueParams, _, localFunBody, _, _, _):
+        case let .localFunDecl(localFunName, _, localFunValueParams, _, localFunBody, _, _, _, isTailrec):
             return lowerLocalFunDecl(
                 name: localFunName,
                 valueParams: localFunValueParams,
                 body: localFunBody,
+                isTailrec: isTailrec,
                 exprID: exprID,
                 boundType: boundType,
                 ast: ast,

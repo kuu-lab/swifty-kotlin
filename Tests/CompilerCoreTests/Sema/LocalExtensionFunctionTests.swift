@@ -10,7 +10,7 @@ struct LocalExtensionFunctionTests {
         sema: SemaModule
     ) -> SymbolID? {
         guard let index = ast.arena.exprs.indices.first(where: {
-            guard case let .localFunDecl(localName, _, _, _, _, _, _, _) = ast.arena.exprs[$0] else {
+            guard case let .localFunDecl(localName, _, _, _, _, _, _, _, _) = ast.arena.exprs[$0] else {
                 return false
             }
             return localName == name
@@ -176,7 +176,7 @@ struct LocalExtensionFunctionTests {
             if case .localFunDecl = ast.arena.exprs[$0] { return true }
             return false
         })
-        guard case let .localFunDecl(name, receiver, params, _, _, _, _, _) = ast.arena.exprs[localID] else {
+        guard case let .localFunDecl(name, receiver, params, _, _, _, _, _, _) = ast.arena.exprs[localID] else {
             Issue.record("Expected local function")
             return
         }

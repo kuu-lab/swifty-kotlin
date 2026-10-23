@@ -316,7 +316,7 @@ extension DataFlowSemaPhase {
                 typeRefs.append(type)
             case let .objectLiteral(superTypes, _, _):
                 typeRefs.append(contentsOf: superTypes)
-            case let .localFunDecl(_, receiverType, valueParams, returnType, _, _, _, typeParams):
+            case let .localFunDecl(_, receiverType, valueParams, returnType, _, _, _, typeParams, _):
                 if let receiverType {
                     typeRefs.append(receiverType)
                 }
