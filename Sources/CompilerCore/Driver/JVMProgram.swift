@@ -146,6 +146,7 @@ public enum JVMInstruction {
     case referenceCompare(BinaryOp, JVMValue, JVMValue, JVMValue)
     case unary(UnaryOp, JVMValue, JVMValue)
     case call(JVMFunctionReference, [JVMValue], JVMValue?)
+    case invokeDynamic(name: String, descriptor: String, captures: [JVMValue], samDescriptor: String, implementation: JVMFunctionReference, instantiatedDescriptor: String, result: JVMValue)
     case allocate(String, JVMValue)
     case abandonAllocations([JVMValue])
     case foreignCall(JVMForeignMethod, receiver: JVMValue?, arguments: [JVMValue], result: JVMValue?)

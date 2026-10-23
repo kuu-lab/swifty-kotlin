@@ -161,7 +161,7 @@ final class LocalVariableStabilityAnalyzer {
             closureScopes.append(id)
             scoped(body, hiding: params)
             closureScopes.removeLast()
-        case let .localFunDecl(name, _, params, _, body, _, _, _):
+        case let .localFunDecl(name, _, params, _, body, _, _, _, _):
             closureScopes.append(id)
             var scope = locals
             for param in params {

@@ -479,7 +479,7 @@ struct DeclarationPositionValidator {
             [body]
         case .callableRef(let receiver, _, _):
             receiver.map { [$0] } ?? []
-        case .localFunDecl(_, _, _, _, let body, _, _, _):
+        case .localFunDecl(_, _, _, _, let body, _, _, _, _):
             expressionIDs(in: body)
         case .blockExpr(let statements, let trailingExpr, _):
             statements + (trailingExpr.map { [$0] } ?? [])

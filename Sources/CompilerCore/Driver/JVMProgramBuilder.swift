@@ -448,9 +448,15 @@ final class JVMFunctionBuilder {
         case .nullLiteral: return try constant(.null, .reference("java/lang/Object", nullable: true))
         case let .nullAssert(operand, _):
             let source = try requireValue(operand)
-            guard let name = source.type.referenceName else { return source }
+            guard source.type.referenceName != nil else { return source }
             let target = try program.expressionType(id)
-            _ = name
+            let nonNull = label()
+            let null = try constant(.null, source.type), check = try value(.boolean)
+            instructions.append(.referenceCompare(.equal, source, null, check))
+            instructions.append(.jumpIfFalse(check, nonNull))
+            instructions.append(.throwValue(try constructJDK("java/lang/NullPointerException")))
+            terminated = true
+            mark(nonNull)
             return try convert(source, to: target)
         case let .stringTemplate(parts, _): return try stringTemplate(parts)
         case let .stringLiteral(s, _): return try constant(.string(context.interner.resolve(s)), .string)

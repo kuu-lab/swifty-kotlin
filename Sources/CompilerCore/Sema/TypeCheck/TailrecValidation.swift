@@ -19,6 +19,21 @@ extension TypeCheckSemaPhase {
                 }
             }
         }
+        for (index, expression) in ast.arena.exprs.enumerated() {
+            guard case let .localFunDecl(_, _, _, _, body, _, range, _, isTailrec) = expression,
+                  isTailrec,
+                  let functionSymbol = sema.bindings.identifierSymbol(for: ExprID(rawValue: Int32(index)))
+            else { continue }
+            if !checkTailRecursiveBody(
+                body, functionSymbol: functionSymbol, ast: ast, bindings: sema.bindings
+            ) {
+                diagnostics.warning(
+                    "KSWIFTK-SEMA-TAILREC",
+                    "Function marked 'tailrec' but last expression is not a self-recursive call.",
+                    range: range
+                )
+            }
+        }
     }
 
     private func checkTailRecursiveBody(

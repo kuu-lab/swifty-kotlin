@@ -291,6 +291,8 @@ private struct JVMSourceGrammar {
             let start = index
             do { try anonymousFunction() }
             catch { index = start; try declaration(member: false) }
+        } else if startsFunctionDeclarationAfterModifiers() {
+            try declaration(member: false)
         } else if take(.keyword(.while)) {
             try condition(); try body()
         } else if take(.keyword(.do)) {
@@ -316,6 +318,11 @@ private struct JVMSourceGrammar {
         let result = kind == .keyword(.class)
         index = start
         return result
+    }
+    func startsFunctionDeclarationAfterModifiers() -> Bool {
+        var lookahead = self
+        lookahead.modifiers()
+        return lookahead.kind == .keyword(.fun)
     }
     func precedence() -> Int? {
         switch kind {

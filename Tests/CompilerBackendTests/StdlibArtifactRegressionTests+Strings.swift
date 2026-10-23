@@ -240,6 +240,55 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
+    @Test
+    func testTrimIndentAndMarginConstantResultsAreInterned() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = #"""
+        fun constantIndent() = """
+            Hello,
+            World
+        """.trimIndent()
+
+        fun constantMargin() = """
+            |Hello,
+            |World
+        """.trimMargin()
+
+        fun customMargin() = """
+            >Hello,
+            >World
+        """.trimMargin(">")
+
+        fun main() {
+            println(constantIndent() === constantIndent())
+            println(constantMargin() === constantMargin())
+            println(customMargin() === customMargin())
+        }
+        """#
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = CompilerTestSupport.makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "StringIndentConstants",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "true\ntrue\ntrue\n")
+        }
+    }
+
     /// STDLIB-ARTIFACT-INLINE-ONLY-LAMBDA: `joinToString(separator) { ... }` is
     /// an auto-inline overload of the bundled `kotlin.collections` source, so no
     /// standalone body reaches the stdlib artifact. When such a call sits inside

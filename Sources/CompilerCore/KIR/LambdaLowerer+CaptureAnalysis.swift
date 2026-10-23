@@ -619,7 +619,7 @@ extension LambdaLowerer {
                 collectBoundIdentifierSymbols(in: receiverExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             }
 
-        case let .localFunDecl(_, _, _, _, functionBody, _, _, _):
+        case let .localFunDecl(_, _, _, _, functionBody, _, _, _, _):
             switch functionBody {
             case let .block(exprIDs, _):
                 for nestedExpr in exprIDs {
@@ -924,7 +924,7 @@ extension LambdaLowerer {
             }
             return containsImplicitReceiverReference(in: receiverExpr, ast: ast)
 
-        case let .localFunDecl(_, _, _, _, functionBody, _, _, _):
+        case let .localFunDecl(_, _, _, _, functionBody, _, _, _, _):
             switch functionBody {
             case let .block(exprIDs, _):
                 return exprIDs.contains { containsImplicitReceiverReference(in: $0, ast: ast) }

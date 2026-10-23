@@ -562,6 +562,8 @@ extension CallLowerer {
         let symbol = sema.symbols.symbol(chosenCallee)
         let isImported = symbol?.flags.contains(.importedLibrary) == true
         let isInline = symbol?.flags.contains(.inlineFunction) == true
+        let hasImportedInlineBody = sema.importedInlineFunctions.descriptors[chosenCallee] != nil
+            || sema.importedInlineFunctions.functions[chosenCallee] != nil
 
         // Synthetic launchers consume a suspend entry reference plus captures,
         // not the boxed function-value ABI used by ordinary Kotlin functions.
@@ -723,7 +725,13 @@ extension CallLowerer {
             // including lambdas whose suspension comes from a nested inline
             // call. Boxing them hides the body and its coroutine context.
             // Imported parameter metadata excludes escaping callbacks.
+            // An imported declaration can retain its inline flag even when
+            // this compilation has no body to splice (for example, a Sema
+            // snapshot that restored the declaration without its inline KIR
+            // descriptor). In that case the runtime call consumes the regular
+            // boxed function-value ABI, so keep the callback's closure env.
             if isInline,
+               (!isImported || hasImportedInlineBody),
                case .symbolRef? = arena.expr(arguments[finalArgIndex]),
                let callable = driver.ctx.callableValueInfo(for: arguments[finalArgIndex]),
                (!isImported || (!callable.hasClosureParam && callable.captureArguments.isEmpty)
