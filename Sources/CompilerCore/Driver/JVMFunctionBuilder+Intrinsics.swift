@@ -160,7 +160,7 @@ extension JVMFunctionBuilder {
         // Array HOF inference may leave no callee binding, including when its
         // callback is an existing function value rather than a lambda literal.
         let intrinsicHOF = binding == nil && higherOrderReceiver(receiverID) && args.last.flatMap { functionType($0.expr) } != nil
-        if ["map", "filter", "forEach", "fold"].contains(member), builtinHOF || intrinsicHOF {
+        if ["map", "filter", "forEach", "fold", "reduce"].contains(member), builtinHOF || intrinsicHOF {
             return JVMIntrinsicResult(value: try higherOrder(receiverID, operation: member, args: args, id: id))
         }
         let object: JVMValueType = .reference("java/lang/Object", nullable: true)
@@ -228,6 +228,9 @@ extension JVMFunctionBuilder {
             let source = try requireValue(receiverID), result = try value(.int)
             instructions.append(.arrayLength(source, result)); return JVMIntrinsicResult(value: result)
         }
+        if owner == "kotlin/sequences/Sequence", ["sum", "average"].contains(member), args.isEmpty {
+            return JVMIntrinsicResult(value: try sequenceAggregate(receiverID, member: member, id: id))
+        }
         let collections: Set<String> = ["java/util/ArrayList", "java/lang/Iterable", "java/util/Iterator", "java/util/ListIterator", "java/util/Collection", "java/util/List", "kotlin/enums/EnumEntries", "java/util/Set", "java/util/Map", "kotlin/text/MatchGroupCollection"]
         if collections.contains(owner) {
             // JDK collection interfaces retain the virtual Object contract;
@@ -243,6 +246,9 @@ extension JVMFunctionBuilder {
             if owner == "java/util/ArrayList" { owner = "java/util/List" }
             if ["set", "add", "addAll", "remove", "removeAll", "removeAt", "put", "clear"].contains(member), owner != "java/util/ListIterator" { try requireMutableCollection(receiverID, at: id) }
             if ["set", "add", "addAll", "put"].contains(member), owner != "java/util/ListIterator" { try requireWritableArguments(receiverID, at: id) }
+            if ["getOrElse", "getOrPut"].contains(member), ["java/util/List", "java/util/Map"].contains(owner) {
+                return try collectionDefaultValueMember(receiverID, owner: owner, member: member, args: args, id: id)
+            }
             let source = try convert(requireValue(receiverID), to: .reference(owner, nullable: false))
             let result = try program.expressionType(id)
             var values: [JVMValue] = []
