@@ -547,6 +547,15 @@ extension ExprTypeChecker {
                 ownerSymbol: receiverOwnerSymbol
             )
         }
+        // KUU-2959: the object's layout inherits a local superclass's capture
+        // fields verbatim; inherited member functions and the super
+        // constructor's own capture-restore pass read them through `this`, so
+        // the construction site must materialize the same symbols the
+        // superclass captured (mirrors the local-class path in
+        // `typeCheckLocalClassDecl`).
+        for superSymbol in directSuperSymbols where sema.symbols.symbol(superSymbol)?.kind == .class {
+            capturedSymbols.formUnion(sema.bindings.objectLiteralCaptureSymbols(for: superSymbol))
+        }
         bindLocalNominalCaptures(
             capturedSymbols,
             ownerSymbol: objectSymbol,
@@ -1070,8 +1079,9 @@ extension ExprTypeChecker {
             }
             return actualSymbolID
         }
-        // KUU-2955: a local class nested inside another local nominal's
-        // member (`class FooC : AB` inside local `A2.foo`) reaches this
+        // KUU-2955, KUU-2959: a local class nested inside another local
+        // nominal's member (`class FooC : AB` inside local `A2.foo`), or an
+        // object literal declared inside a local nominal's body, reaches this
         // point while the enclosing nominal is still being processed —
         // before sibling nested nominals like `AB` get their layout
         // synthesized. Materialize the superclass layout on demand so its

@@ -343,6 +343,40 @@ final class ObjectLiteralLowerer {
                 thrownResult: nil
             ))
         }
+        // KSP-CAP-001: materialize outer locals/parameters and any enclosing
+        // receiver captured by this object's member functions into instance fields, while the
+        // *enclosing* function's implicit receiver and locals are still
+        // active (needed so `captureValueExpr` can resolve a captured outer
+        // `this` correctly) -- i.e. before `setImplicitReceiver` below
+        // switches the active receiver over to this object literal itself.
+        // Runs before the superclass constructor call because a local
+        // superclass's `<init>` restores its own captures from these fields.
+        let capturedSymbols = sema.bindings.objectLiteralCaptureSymbols(for: objectSymbol)
+        for capturedSymbol in capturedSymbols {
+            guard let fieldOffset = layout?.fieldOffsets[capturedSymbol],
+                  let captureValue = driver.lambdaLowerer.captureValueExpr(
+                      for: capturedSymbol,
+                      sema: sema,
+                      arena: arena,
+                      interner: interner,
+                      instructions: &instructions
+                  )
+            else {
+                continue
+            }
+            let captureOffsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: intType)
+            instructions.append(.constValue(result: captureOffsetExpr, value: .intLiteral(Int64(fieldOffset))))
+            let captureSetResult = arena.appendTemporary(type: sema.types.anyType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_set"),
+                arguments: [objectValue, captureOffsetExpr, captureValue],
+                result: captureSetResult,
+                canThrow: true,
+                thrownResult: nil
+            ))
+        }
+
         emitObjectLiteralSuperConstructorCall(
             objectDecl,
             objectSymbol: objectSymbol,
@@ -372,38 +406,6 @@ final class ObjectLiteralLowerer {
             body: &delegationBody
         )
         instructions = delegationBody.instructions
-
-        // KSP-CAP-001: materialize outer locals/parameters and any enclosing
-        // receiver captured by this object's member functions into instance fields, while the
-        // *enclosing* function's implicit receiver and locals are still
-        // active (needed so `captureValueExpr` can resolve a captured outer
-        // `this` correctly) -- i.e. before `setImplicitReceiver` below
-        // switches the active receiver over to this object literal itself.
-        let capturedSymbols = sema.bindings.objectLiteralCaptureSymbols(for: objectSymbol)
-        for capturedSymbol in capturedSymbols {
-            guard let fieldOffset = layout?.fieldOffsets[capturedSymbol],
-                  let captureValue = driver.lambdaLowerer.captureValueExpr(
-                      for: capturedSymbol,
-                      sema: sema,
-                      arena: arena,
-                      interner: interner,
-                      instructions: &instructions
-                  )
-            else {
-                continue
-            }
-            let captureOffsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: intType)
-            instructions.append(.constValue(result: captureOffsetExpr, value: .intLiteral(Int64(fieldOffset))))
-            let captureSetResult = arena.appendTemporary(type: sema.types.anyType)
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_array_set"),
-                arguments: [objectValue, captureOffsetExpr, captureValue],
-                result: captureSetResult,
-                canThrow: true,
-                thrownResult: nil
-            ))
-        }
 
         let initializerScopeSnapshot = driver.ctx.saveScope()
         let savedReceiverExprID = driver.ctx.activeImplicitReceiverExprID()
@@ -615,6 +617,20 @@ final class ObjectLiteralLowerer {
                 propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions
             ))
         }
+
+        // `object : Outer.Inner()` inherits the inner superclass's `$outer`
+        // field — write it while the enclosing receiver is still active so
+        // inherited members can walk the outer chain (KUU-2959).
+        storeInheritedOuterInstanceLinks(
+            allocatedObject: objectValue,
+            constructedClassSymbol: objectSymbol,
+            outerReceiver: driver.ctx.activeImplicitReceiverExprID(),
+            driver: driver,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
 
         let resultID = arena.appendTemporary(type: sema.types.unitType)
         var body = KIRLoweringEmitContext(instructions)
