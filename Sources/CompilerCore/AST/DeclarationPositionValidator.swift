@@ -51,10 +51,6 @@ struct DeclarationPositionValidator {
         /// including initializers that may prevent later declarations from
         /// being reached.
         var defersPropertyInitialization: Bool = false
-        /// `true` for anonymous object expressions. Unlike named objects an
-        /// anonymous object can capture an enclosing instance, so `inner`
-        /// members are legal inside it (kotlinc accepts them).
-        var isAnonymousObjectLiteral: Bool = false
 
         var name: String {
             switch kind {
@@ -848,8 +844,7 @@ struct DeclarationPositionValidator {
             ownerModifiers: decl.modifiers,
             allowsImperativeInit: !decl.initBlocks.isEmpty,
             defersPropertyInitialization: !decl.initBlocks.isEmpty
-                || hasPropertyInitializationExpression(decl.memberProperties),
-            isAnonymousObjectLiteral: true
+                || hasPropertyInitializationExpression(decl.memberProperties)
         )
         validateObjectMembers(decl, site: memberSite)
     }
