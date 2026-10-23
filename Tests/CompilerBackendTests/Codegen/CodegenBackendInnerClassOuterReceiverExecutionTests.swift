@@ -1,11 +1,57 @@
 #if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
+@testable import CompilerTestSupport
 import Foundation
 import Testing
 
 @Suite
 struct CodegenBackendInnerClassOuterReceiverExecutionTests {
+    @Test func inheritedLateinitIsInitializedUsesInnerReceiver() throws {
+        let source = """
+            open class Foo {
+                lateinit var bar: String
+                inner class InnerSubclass : Foo() {
+                    fun isBarInitialized(): Boolean = this::bar.isInitialized
+                }
+            }
+            fun main() {
+                val inner = Foo().InnerSubclass()
+                if (inner.isBarInitialized()) {
+                    val unexpected = inner.bar
+                } else {
+                    inner.bar = "initialized"
+                    val expected = inner.bar
+                }
+            }
+            """
+        try withTemporaryFile(contents: source) { inputPath in
+            let outputPath = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let options = CompilerOptions(
+                moduleName: "InheritedLateinitInInnerClass",
+                inputs: [inputPath],
+                outputPath: outputPath,
+                emit: .executable,
+                target: CompilerTestSupport.defaultTargetTriple(),
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            let ctx = CompilationContext(
+                options: options,
+                sourceManager: SourceManager(),
+                diagnostics: DiagnosticEngine(),
+                interner: StringInterner()
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputPath, arguments: [])
+            #expect(result.exitCode == 0)
+        }
+    }
+
     @Test func unqualifiedOuterMemberCallUsesCapturedOuterInstance() throws {
         try assertKotlinOutput(
             """
