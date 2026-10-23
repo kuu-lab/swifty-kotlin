@@ -1,229 +1,35 @@
+private let abi = RuntimeABISectionBuilder("Collection")
+private let abiEnum = RuntimeABISectionBuilder("Enum")
+
 public extension RuntimeABISpec {
     static let collectionSetFunctions: [RuntimeABIFunctionSpec] = [
-        RuntimeABIFunctionSpec(
-            name: "__kk_enum_set_class",
-            parameters: [RuntimeABIParameter(name: "classRaw", type: .intptr)],
-            returnType: .intptr,
-            section: "Enum",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_set_of",
-            parameters: [
-                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "count", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_hash_set_of",
-            parameters: [
-                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "count", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_hash_set_new_checked",
-            parameters: [
-                RuntimeABIParameter(name: "capacity", type: .intptr),
-                RuntimeABIParameter(name: "loadFactorBits", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: true
-        ),
+        abiEnum.nt("__kk_enum_set_class", "classRaw"),
+        abi.nt("__kk_set_of", "arrayRaw count"),
+        abi.nt("__kk_hash_set_of", "arrayRaw count"),
+        abi.th("__kk_hash_set_new_checked", "capacity loadFactorBits outThrown"),
         // Nominal-tag bridge for the mutable set factories and the
         // LinkedHashSet constructors, mirroring `__kk_hash_set_of`.
-        RuntimeABIFunctionSpec(
-            name: "__kk_linked_hash_set_of",
-            parameters: [
-                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "count", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_emptySet",
-            parameters: [],
-            returnType: .intptr,
-            section: "Collection"
-        ),
+        abi.nt("__kk_linked_hash_set_of", "arrayRaw count"),
+        abi.th("__kk_emptySet"),
         // Attach runtime-backed storage to source-allocated
         // LinkedHashSet instances, including user subclasses.
-        RuntimeABIFunctionSpec(
-            name: "__kk_linked_hash_set_init",
-            parameters: [
-                RuntimeABIParameter(name: "setRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_set_size",
-            parameters: [
-                RuntimeABIParameter(name: "setRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_set_contains",
-            parameters: [
-                RuntimeABIParameter(name: "setRaw", type: .intptr),
-                RuntimeABIParameter(name: "element", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false,
-            returnsRawBoolean: true
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_set_is_empty",
-            parameters: [
-                RuntimeABIParameter(name: "setRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false,
-            returnsRawBoolean: true
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_set_to_string",
-            parameters: [
-                RuntimeABIParameter(name: "setRaw", type: .intptr),
-            ],
-            returnType: .opaquePointer,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_collection_toList",
-            parameters: [
-                RuntimeABIParameter(name: "collRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_collection_toMutableList",
-            parameters: [
-                RuntimeABIParameter(name: "collRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_array_list_of",
-            parameters: [
-                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "count", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_array_list_new_checked",
-            parameters: [
-                RuntimeABIParameter(name: "initialCapacity", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: true
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_array_list_init",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_collection_toArrayList",
-            parameters: [
-                RuntimeABIParameter(name: "collRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_collection_toTypedArray",
-            parameters: [
-                RuntimeABIParameter(name: "collRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_iterable_toMutableSet",
-            parameters: [
-                RuntimeABIParameter(name: "iterableRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_iterable_toHashSet",
-            parameters: [
-                RuntimeABIParameter(name: "iterableRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_collection_toCollection",
-            parameters: [
-                RuntimeABIParameter(name: "collRaw", type: .intptr),
-                RuntimeABIParameter(name: "destRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_collection_size",
-            parameters: [
-                RuntimeABIParameter(name: "collRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_collection_isEmpty",
-            parameters: [
-                RuntimeABIParameter(name: "collRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_collection_containsAll",
-            parameters: [
-                RuntimeABIParameter(name: "collRaw", type: .intptr),
-                RuntimeABIParameter(name: "elementsRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
+        abi.nt("__kk_linked_hash_set_init", "setRaw"),
+        abi.nt("__kk_set_size", "setRaw"),
+        abi.nt("__kk_set_contains", "setRaw element", raw: true),
+        abi.nt("__kk_set_is_empty", "setRaw", raw: true),
+        abi.nt("__kk_set_to_string", "setRaw", ret: .opaquePointer),
+        abi.th("__kk_collection_toList", "collRaw"),
+        abi.nt("__kk_collection_toMutableList", "collRaw"),
+        abi.nt("__kk_array_list_of", "arrayRaw count"),
+        abi.th("__kk_array_list_new_checked", "initialCapacity outThrown"),
+        abi.nt("__kk_array_list_init", "listRaw"),
+        abi.nt("__kk_collection_toArrayList", "collRaw"),
+        abi.th("__kk_collection_toTypedArray", "collRaw"),
+        abi.nt("__kk_iterable_toMutableSet", "iterableRaw"),
+        abi.nt("__kk_iterable_toHashSet", "iterableRaw"),
+        abi.nt("__kk_collection_toCollection", "collRaw destRaw"),
+        abi.nt("__kk_collection_size", "collRaw"),
+        abi.nt("__kk_collection_isEmpty", "collRaw"),
+        abi.nt("__kk_collection_containsAll", "collRaw elementsRaw"),
     ]
 }
