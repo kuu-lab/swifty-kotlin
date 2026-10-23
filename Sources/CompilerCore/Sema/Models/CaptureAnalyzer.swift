@@ -519,6 +519,27 @@ struct CaptureAnalyzer {
         }
 
         visitRoot(visit, visitLocalNominalDecl)
-        return captured.sorted(by: { $0.rawValue < $1.rawValue })
+        return capturesWithBackingFieldOwners(captured, sema: sema)
+    }
+
+    /// A backing-field reference captures its owning instance, not a copy of
+    /// the field value. Top-level backing fields are global storage and need
+    /// no closure capture at all.
+    private func capturesWithBackingFieldOwners(
+        _ capturedSymbols: Set<SymbolID>,
+        sema: SemaModule
+    ) -> [SymbolID] {
+        var result = capturedSymbols
+        for field in capturedSymbols where sema.symbols.symbol(field)?.kind == .backingField {
+            result.remove(field)
+            guard let owner = sema.symbols.parentSymbol(for: field),
+                  let ownerKind = sema.symbols.symbol(owner)?.kind,
+                  [.class, .object, .enumClass].contains(ownerKind)
+            else {
+                continue
+            }
+            result.insert(owner)
+        }
+        return result.sorted(by: { $0.rawValue < $1.rawValue })
     }
 }
