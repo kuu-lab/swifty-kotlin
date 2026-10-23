@@ -219,11 +219,17 @@ struct RuntimeHashCollectionTests {
         #expect(elementHash(intBox) == elementHash(rawInt))
 
         // Enum boxes cross call sites both as `RuntimeIntBox` carrying
-        // `enumClassID` and as raw unboxed ordinals; runtimeValuesEqual
-        // unboxes them, so a classID-dependent hash would send equal keys to
-        // different buckets (regex_option_options_property).
+        // `enumClassID` and as raw unboxed ordinals. `==` semantics is strict
+        // (KUU-3027: a boxed enum entry never equals the bare ordinal, matching
+        // JVM `Enum.equals` reference identity), but hash-collection probing
+        // (`runtimeLookupValuesEqual`) still matches them, so a classID-
+        // dependent hash would send equal keys to different buckets
+        // (regex_option_options_property).
         let enumBox = registerRuntimeObject(RuntimeIntBox(3, enumEntryName: "UNIX_LINES", enumClassID: 0x5EED))
-        #expect(runtimeValuesEqual(enumBox, 3))
+        #expect(!runtimeValuesEqual(enumBox, 3))
+        #expect(!runtimeValuesEqual(3, enumBox))
+        #expect(runtimeLookupValuesEqual(enumBox, 3))
+        #expect(runtimeLookupValuesEqual(3, enumBox))
         #expect(RuntimeElementKey(value: enumBox) == RuntimeElementKey(value: 3))
         #expect(elementHash(enumBox) == elementHash(3))
 

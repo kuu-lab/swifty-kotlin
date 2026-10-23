@@ -253,6 +253,126 @@ func unboxIfEnumTyped<C: RangeReplaceableCollection>(
     )
 }
 
+/// Resolves the enum class symbol of an equality operand's static type,
+/// ignoring nullability (`E` and `E?` both resolve). `==`/`!=` and `when`
+/// entry matching pick each operand's erased comparison form from this
+/// (KUU-3027).
+func enumEqualityOperandClassSymbol(_ staticType: TypeID?, sema: SemaModule) -> SymbolID? {
+    guard let staticType,
+          case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(staticType)),
+          sema.symbols.symbol(classType.classSymbol)?.kind == .enumClass
+    else {
+        return nil
+    }
+    return classType.classSymbol
+}
+
+/// `kk_unbox_int` on an enum operand yields its ordinal and passes the null
+/// sentinel through unchanged (the sentinel is not a registered pointer), so
+/// a nullable enum slot still compares unequal to every entry and equal to
+/// another null slot.
+func unboxEnumOperandForEquality<C: RangeReplaceableCollection>(
+    _ exprID: KIRExprID,
+    sema: SemaModule,
+    arena: KIRArena,
+    interner: StringInterner,
+    into instructions: inout C
+) -> KIRExprID where C.Element == KIRInstruction {
+    let intType = sema.types.make(.primitive(.int, .nonNull))
+    return emitNonThrowingCall(
+        callee: ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner),
+        arg: exprID,
+        resultType: intType,
+        arena: arena,
+        into: &instructions
+    )
+}
+
+/// Boxes a *non-null* enum operand into the canonical enum-tagged box so a
+/// structural `==` against an erased peer compares nominal enum identity
+/// instead of aliasing the bare ordinal against a boxed scalar of the same
+/// value (KUU-3027: `E.A == (0 as Any)` must be false while
+/// `(E.A as Any) == E.A` stays true). A nullable enum operand already holds
+/// the box-or-sentinel form, so callers leave it untouched.
+func boxEnumOperandForEquality<C: RangeReplaceableCollection>(
+    _ exprID: KIRExprID,
+    staticType: TypeID?,
+    sema: SemaModule,
+    arena: KIRArena,
+    interner: StringInterner,
+    into instructions: inout C
+) -> KIRExprID where C.Element == KIRInstruction {
+    guard let staticType,
+          case let .classType(classType) = sema.types.kind(of: staticType),
+          classType.nullability == .nonNull
+    else {
+        return exprID
+    }
+    let boxed = arena.appendTemporary(type: sema.types.anyType)
+    emitBoxCallWithValueClassTag(
+        boxCallee: ABILoweringPass.primitiveBoxingCallee(for: .int, interner: interner),
+        value: exprID,
+        rawSourceKind: sema.types.kind(of: staticType),
+        result: boxed,
+        resultType: sema.types.anyType,
+        types: sema.types,
+        symbols: sema.symbols,
+        interner: interner,
+        arena: arena,
+        sema: sema,
+        into: &instructions
+    )
+    return boxed
+}
+
+/// Normalizes both sides of an enum-aware `==`/`!=` (and `when` entry match,
+/// which desugars to `==`) into a consistent erased form before the
+/// structural-compare emission (KUU-3027):
+///   - same enum class on both sides, either side nullable: unbox both to
+///     ordinals — `kk_unbox_int` passes the null sentinel through, so `null`
+///     still compares unequal to any entry and equal to another null slot.
+///   - otherwise a *non-null* enum operand is boxed into its canonical
+///     enum-tagged form, so `E.A == (0 as Any)` is false while
+///     `(E.A as Any) == E.A` stays true. A nullable enum operand already
+///     holds that box-or-sentinel form.
+func normalizeEnumEqualityOperands<C: RangeReplaceableCollection>(
+    lhsID: KIRExprID,
+    lhsType: TypeID?,
+    rhsID: KIRExprID,
+    rhsType: TypeID?,
+    sema: SemaModule,
+    arena: KIRArena,
+    interner: StringInterner,
+    into instructions: inout C
+) -> (lhs: KIRExprID, rhs: KIRExprID) where C.Element == KIRInstruction {
+    let lhsEnumSymbol = enumEqualityOperandClassSymbol(lhsType, sema: sema)
+    let rhsEnumSymbol = enumEqualityOperandClassSymbol(rhsType, sema: sema)
+    if let lhsEnumSymbol, lhsEnumSymbol == rhsEnumSymbol {
+        let ordinalLhs = unboxEnumOperandForEquality(
+            lhsID, sema: sema, arena: arena, interner: interner, into: &instructions
+        )
+        let ordinalRhs = unboxEnumOperandForEquality(
+            rhsID, sema: sema, arena: arena, interner: interner, into: &instructions
+        )
+        return (ordinalLhs, ordinalRhs)
+    }
+    var effectiveLhsID = lhsID
+    var effectiveRhsID = rhsID
+    if lhsEnumSymbol != nil {
+        effectiveLhsID = boxEnumOperandForEquality(
+            lhsID, staticType: lhsType, sema: sema, arena: arena,
+            interner: interner, into: &instructions
+        )
+    }
+    if rhsEnumSymbol != nil {
+        effectiveRhsID = boxEnumOperandForEquality(
+            rhsID, staticType: rhsType, sema: sema, arena: arena,
+            interner: interner, into: &instructions
+        )
+    }
+    return (effectiveLhsID, effectiveRhsID)
+}
+
 /// Value classes are unboxed to their underlying primitive everywhere
 /// (ValueClassUnboxingPass) except at reference-type boundaries, where every
 /// boxing-callee lookup in ABILoweringPass and CollectionLiteralLoweringPass
