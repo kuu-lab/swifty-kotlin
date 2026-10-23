@@ -10,7 +10,7 @@ extension JVMFunctionBuilder {
                 return try constant(literal, property.type)
             }
             let object: JVMValue
-            if property.getter.isStatic { object = try constant(.null, .reference("java/lang/Object", nullable: true)) }
+            if property.getter.isStatic && property.getter.parameters.isEmpty { object = try constant(.null, .reference("java/lang/Object", nullable: true)) }
             else if case let .nameRef(qualifier, _) = arena.expr(receiver), !scopes.contains(where: { $0[qualifier] != nil }),
                     let plan = program.classes.values.first(where: { $0.name == property.getter.owner && $0.isObject }),
                     program.sema.symbols.symbol(plan.symbol)?.name == qualifier {
