@@ -508,6 +508,8 @@ final class JVMFunctionBuilder {
             return type == .unit ? local : try convert(local, to: type)
         case .localFunDecl:
             try localFunction(id); return nil
+        case .localNominalDecl:
+            return nil
         case let .localDecl(name, mutable, annotation, initializer, delegated, late, _):
             if delegated || late { try specialLocal(id, name: name, mutable: mutable, initializer: initializer, delegated: delegated, late: late); return nil }
             guard scopes[scopes.count - 1][name] == nil else { throw fail("JVM locals require a unique name in their scope.", id) }
