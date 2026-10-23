@@ -18,13 +18,16 @@ struct TypeCheckScopeBuilder {
         let defaultImportScope = PackageMembersScope(parent: nil, symbols: sema.symbols)
         for packagePath in defaultImportPackages {
             for importedSymbol in topLevelSymbolsByPackage[packagePath] ?? [] {
-                if shouldSkipDefaultImport(importedSymbol, sema: sema, interner: interner) {
+                if shouldSkipDefaultImport(importedSymbol, sema: sema, interner: interner)
+                    || shouldSkipPrimitiveWrapperDefaultImport(importedSymbol, sema: sema, interner: interner)
+                {
                     continue
                 }
                 defaultImportScope.insert(importedSymbol)
             }
             defaultImportScope.addPackage(packagePath) { [self, sema] symbolID in
                 !shouldSkipDefaultImport(symbolID, sema: sema, interner: interner)
+                    && !shouldSkipPrimitiveWrapperDefaultImport(symbolID, sema: sema, interner: interner)
             }
         }
         var fileScopes: [Int32: FileScope] = [:]
@@ -731,6 +734,23 @@ struct TypeCheckScopeBuilder {
         }
 
         return false
+    }
+
+    /// Keep Java's `Long` and `Double` wrappers available by their qualified
+    /// names, but do not let the `java.lang.*` default import shadow Kotlin's
+    /// primitive types in ordinary source.
+    private func shouldSkipPrimitiveWrapperDefaultImport(
+        _ symbolID: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let symbol = sema.symbols.symbol(symbolID),
+              symbol.kind == .class || symbol.kind == .typeAlias
+        else {
+            return false
+        }
+        let fqName = symbol.fqName.map { interner.resolve($0) }
+        return fqName == ["java", "lang", "Long"] || fqName == ["java", "lang", "Double"]
     }
 
     func makeDefaultImportPackages(interner: StringInterner) -> [[InternedString]] {
