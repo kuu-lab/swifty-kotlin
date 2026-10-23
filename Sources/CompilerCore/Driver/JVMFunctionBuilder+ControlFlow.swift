@@ -213,15 +213,7 @@ extension JVMFunctionBuilder {
         let loopName = name ?? context.interner.intern("__jvm_for_destructuring_\(id.rawValue)")
         if let destructuringNames {
             guard loopLabel == nil else { throw fail("JVM loop labels are not supported.", id) }
-            if (try? program.expressionType(iterable).referenceName) == "java/util/Map" {
-                try mapEntryLoop(nil, iterable, body, id, destructuringNames: destructuringNames, label: nil)
-            } else {
-                try sequenceLoop(loopName, iterable, body, id, destructuringNames: destructuringNames)
-            }
-            return
-        }
-        if (try? program.expressionType(iterable).referenceName) == "java/util/Map" {
-            try mapEntryLoop(name, iterable, body, id, destructuringNames: nil, label: loopLabel)
+            try sequenceLoop(loopName, iterable, body, id, destructuringNames: destructuringNames)
             return
         }
         if case let .binary(op, _, _, _) = arena.expr(iterable), op == .rangeTo,
