@@ -49,6 +49,11 @@ struct StdlibArtifactCacheTests {
         #expect(manifest["precomputedSyntheticStubs"] as? Bool == true)
         #expect(manifest["precomputedReflectionRecords"] as? Bool == true)
         #expect(FileManager.default.fileExists(atPath: artifactPath + "/bundled-members.bin"))
+
+        let snapshotURL = URL(fileURLWithPath: artifactPath).appendingPathComponent("sema.snapshot")
+        let snapshotData = try Data(contentsOf: snapshotURL)
+        let snapshot = try PropertyListDecoder().decode(SemaSnapshotArchivePayload.self, from: snapshotData)
+        #expect(snapshot.inlineFunctions.contains { $0.name == "with" })
     }
 
     // MARK: - Cache recovery (KUU-1426)

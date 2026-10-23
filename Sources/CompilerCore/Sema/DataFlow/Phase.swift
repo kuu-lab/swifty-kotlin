@@ -84,6 +84,15 @@ final class DataFlowSemaPhase: CompilerPhase {
             importDeferredWork.lazyLoaderState?.resolveDemandedInlineBodies
         if capturesImportedStdlibSnapshot {
             symbols.materializeAllIndexedLibraryState()
+            if let lazyState = importDeferredWork.lazyLoaderState {
+                registerAllImportedInlineFunctionDescriptors(
+                    state: lazyState,
+                    symbols: symbols,
+                    types: types,
+                    diagnostics: ctx.diagnostics,
+                    interner: ctx.interner
+                )
+            }
         }
 
         // KSP-706: when compiling against bundled stdlib source rather than a
