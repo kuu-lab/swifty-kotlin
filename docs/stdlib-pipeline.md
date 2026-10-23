@@ -84,6 +84,14 @@ Java SE 17 の既定 charset は環境依存なので、JVM との出力一致�
    fileID 順序が決定的になる（golden 安定性の前提。§8）
 3. `Sources/KSwiftKCLI/CLIParser.swift` の `--no-stdlib` で `CompilerOptions.includeStdlib` を false にし、注入全体を opt-out できる（コンパイラ自身のデバッグ用）
 4. ~~`excludedBundledStdlibFiles` は縦切り移行（§10）の完了ごとにエントリを削除し、最終的に撤廃する~~ **完了（KSP-505）**: エントリが 0 件になったため機構ごと撤廃済み
+5. `Stdlib/**/*.kt.tmpl` は読み込み時に `BundledStdlibTemplate` が複数の `.kt` へ展開し、
+   手書きの `.kt` と同じ経路（`__bundled_` 接頭辞・プロファイル絞り込み・パス順ソート）で注入される。
+   要素型だけが違う同一スケルトン（プリミティブ配列など）を 1 箇所に書くための仕組みで、
+   記法は `Sources/CompilerCore/Driver/BundledStdlibTemplate.swift` の doc comment が正。
+   `.kt` 拡張子で走査する既存のスキャナ（`BundledStdlib` 列挙、`RuntimeABIExternalLinkValidationTests` の
+   `@KsSymbolName` 字句走査など）にはテンプレートが見えない。**`@KsSymbolName` を含む宣言はテンプレート化しない**
+   （スキャナが見落とす）。`manifestHash` は展開後のパスとバイトを入力にするため、展開結果が
+   変わらない限りハッシュも `.kklib` も変わらない（テンプレート専用の疑似エントリは不要）。
 
 **不変条件**: bundled ソースはユーザーソースより先に fileID を確保する。
 ユーザーコードの有無で stdlib 側のシンボル ID・診断順序が変わってはならない。
