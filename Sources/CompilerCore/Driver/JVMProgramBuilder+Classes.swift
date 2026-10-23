@@ -269,6 +269,14 @@ extension JVMProgramBuilder {
             }
             functions += try delegationMethods(plan)
             functions += try nominalMethods(plan, existing: functions)
+            var defaultImpls: JVMClass?
+            if plan.isInterface {
+                let defaults = effectiveInterfaceMethods(plan).values.filter { !$0.isAbstract }.sorted { jvmMemberKey($0) < jvmMemberKey($1) }
+                functions += interfaceDefaultAccessBridges(plan, methods: defaults)
+                defaultImpls = defaultImplsClass(for: plan, methods: defaults)
+            } else {
+                functions += interfaceDefaultForwarders(plan, existing: functions)
+            }
             // Return types participate in JVM descriptors. Covariant overrides
             // therefore need bridges for calls through a superclass/interface.
             functions += try bridges(plan, functions: functions)
@@ -307,6 +315,7 @@ extension JVMProgramBuilder {
             let parents = ([plan.superclass] + plan.interfaces).map { parentSignatures[$0] ?? "L" + $0 + ";" }
             result.genericSignature = (result.typeParameters.isEmpty ? "" : "<" + result.typeParameters.map(\.signature).joined() + ">") + parents.joined()
             results.append(result)
+            if let defaultImpls { results.append(defaultImpls) }
         }
         return results
     }

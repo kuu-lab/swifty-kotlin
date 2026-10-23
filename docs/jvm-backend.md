@@ -104,7 +104,10 @@ computed property、custom getter／setter、`field` の参照・代入・数値
 必要な初期化時だけ書き込める。field を必要としない computed property には格納領域を生成しない。
 
 interface の抽象メソッド・抽象プロパティと default メソッド・アクセサを生成する。
-default 本体は Java 8 の interface メソッドへ直接出力する。
+default 本体は Java 8 の interface メソッドへ出力し、Kotlin 2.4.20 の ABI に合わせて
+`access$…$jd` の static synthetic bridge と `Interface$DefaultImpls` の static method も生成する。
+interface default を継承する class には、最も具体的な直接 superinterface を呼ぶ
+`ACC_BRIDGE` の instance method を生成する。明示 override と superclass から継承した実装は維持する。
 JVM descriptor の戻り型が変わる共変 override には synthetic bridge を生成するため、
 基底クラス／interface を介した呼び出しでも実際の override にディスパッチする。
 
