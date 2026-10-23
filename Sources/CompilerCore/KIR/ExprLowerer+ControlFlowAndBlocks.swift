@@ -53,6 +53,33 @@ extension ExprLowerer {
         if let targetType = sema.bindings.platformNullAssertionTypes[exprID] {
             let checked = arena.appendTemporary(type: targetType)
             instructions.append(.nullAssert(operand: value, result: checked))
+            let sourceType = arena.exprType(value)
+            let sourceIsUnit: Bool = if let sourceType {
+                switch sema.types.kind(of: sourceType) {
+                case .unit, .platformUnit: true
+                default: false
+                }
+            } else {
+                false
+            }
+            let targetNeedsReferenceBox: Bool = switch sema.types.kind(of: targetType) {
+            case .any, .classType, .typeParam: true
+            default: false
+            }
+            if sourceIsUnit, targetNeedsReferenceBox, let sourceType {
+                // The null assertion widens its result to the target type. Box
+                // Unit before that widening erases the builtin representation.
+                return boxValueForAnySlot(
+                    checked,
+                    sourceType: sourceType,
+                    types: sema.types,
+                    symbols: sema.symbols,
+                    interner: interner,
+                    arena: arena,
+                    resultType: targetType,
+                    into: &instructions
+                )
+            }
             return checked
         }
         return value
