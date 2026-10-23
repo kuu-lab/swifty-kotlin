@@ -22,15 +22,17 @@ extension JVMProgramBuilder {
 
         func method(_ symbol: SymbolID, owner: String, name: String, declarations: [ValueParamDecl], interface: Bool = false, extensionReceiver: JVMValueType? = nil, adaptation: String? = nil, staticMember: Bool = false) throws {
             guard let signature = sema.symbols.functionSignature(for: symbol) else { return }
-            let parameters = try signature.parameterTypes.map(type), result = name == "<init>" ? JVMValueType.reference(owner, nullable: false) : try type(signature.returnType)
+            let resolvedName = staticMember ? externalJvmName(for: symbol, fallback: name) : name
+            let parameters = try signature.parameterTypes.map(type), result = resolvedName == "<init>" ? JVMValueType.reference(owner, nullable: false) : try type(signature.returnType)
             var explicitParameters = parameters
             for (index, declaration) in declarations.enumerated() where declaration.isVararg { explicitParameters[index] = parameters[index].referenceName?.hasPrefix("[") == true ? parameters[index] : .reference("[" + JVMClasspathIndex.boxed(parameters[index]).descriptor, nullable: false) }
             let params = (extensionReceiver.map { [$0] } ?? []) + explicitParameters
             let unsigned = params.contains { $0.unsignedName != nil }
-            let jvmName = unsigned
-                ? name + "$unsigned$" + JVMNameHash.suffix(params.map { ($0.unsignedName ?? "_") + ($0.isNullable ? "?" : "") }.joined())
-                : name
-            var foreign = JVMForeignMethod(owner: owner, name: jvmName, descriptor: "(" + params.map(\.descriptor).joined() + ")" + (name == "<init>" ? "V" : result.descriptor), parameters: params, result: result, isStatic: staticMember || extensionReceiver != nil, isInterface: interface, isAbstract: false)
+            let usesExternalUnsignedName = owner == "kotlin/collections/ArraysKt" && extensionReceiver?.unsignedName != nil
+            let jvmName = unsigned && !usesExternalUnsignedName
+                ? resolvedName + "$unsigned$" + JVMNameHash.suffix(params.map { ($0.unsignedName ?? "_") + ($0.isNullable ? "?" : "") }.joined())
+                : resolvedName
+            var foreign = JVMForeignMethod(owner: owner, name: jvmName, descriptor: "(" + params.map(\.descriptor).joined() + ")" + (resolvedName == "<init>" ? "V" : result.descriptor), parameters: params, result: result, isStatic: staticMember || extensionReceiver != nil, isInterface: interface, isAbstract: false)
             foreign.isSuspend = signature.isSuspend
             textLibraryMethods[symbol] = JVMTextLibraryMethod(method: foreign, declarations: declarations, extensionReceiver: extensionReceiver, adaptation: adaptation)
         }

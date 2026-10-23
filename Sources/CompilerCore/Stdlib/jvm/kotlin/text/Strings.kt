@@ -10,11 +10,22 @@ import kotlin.jvm.internal.__jvmSubstring
 import kotlin.jvm.internal.__jvmRootLocale
 import kotlin.jvm.internal.__jvmUppercase
 import kotlin.jvm.internal.__jvmLowercase
+import kotlin.jvm.internal.__jvmStringFormat
+import kotlin.jvm.internal.__jvmStringFormatLocale
+import kotlin.jvm.internal.__jvmIsLowerChar
+import kotlin.jvm.internal.__jvmTitleChar
 import kotlin.jvm.internal.__jvmIndexOf
 import kotlin.jvm.internal.__jvmLastIndexOf
 import kotlin.jvm.internal.__jvmUpperChar
 import kotlin.jvm.internal.__jvmLowerChar
 import kotlin.jvm.internal.__jvmEqualsIgnoreCase
+import kotlin.OverloadResolutionByLambdaReturnType
+import kotlin.experimental.ExperimentalTypeInference
+import kotlin.jvm.JvmName
+
+public fun String.format(vararg args: Any?): String = __jvmStringFormat(this, args)
+public fun String.format(locale: java.util.Locale?, vararg args: Any?): String =
+    __jvmStringFormatLocale(locale, this, args)
 
 public fun CharSequence.indices(): IntRange = 0..this.length - 1
 
@@ -90,6 +101,49 @@ public fun CharSequence.repeat(n: Int): String {
 }
 public fun String.uppercase(): String = __jvmUppercase(this, __jvmRootLocale())
 public fun String.lowercase(): String = __jvmLowercase(this, __jvmRootLocale())
+@Deprecated("Use replaceFirstChar instead.")
+public fun String.capitalize(): String {
+    if (this.length == 0) return this
+    val first = this[0]
+    if (!__jvmIsLowerChar(first)) return this
+    val title = __jvmTitleChar(first)
+    val upper = __jvmUpperChar(first)
+    val capitalizedFirst = if (title != upper) title.toString() else first.toString().uppercase()
+    return capitalizedFirst + __jvmSubstring(this, 1, this.length)
+}
+
+@SinceKotlin("1.5")
+@OptIn(ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@JvmName("replaceFirstCharWithChar")
+public fun String.replaceFirstChar(transform: (Char) -> Char): String {
+    if (this.length == 0) return this
+    val result = StringBuilder()
+    result.append(transform(this[0]))
+    var index = 1
+    while (index < this.length) {
+        result.append(this[index])
+        index++
+    }
+    return result.toString()
+}
+
+@SinceKotlin("1.5")
+@OptIn(ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@JvmName("replaceFirstCharWithCharSequence")
+public fun String.replaceFirstChar(transform: (Char) -> CharSequence): String {
+    if (this.length == 0) return this
+    val result = StringBuilder()
+    result.append(transform(this[0]))
+    var index = 1
+    while (index < this.length) {
+        result.append(this[index])
+        index++
+    }
+    return result.toString()
+}
+
 public fun String.reversed(): String {
     val builder = StringBuilder(this)
     return builder.reverse().toString()

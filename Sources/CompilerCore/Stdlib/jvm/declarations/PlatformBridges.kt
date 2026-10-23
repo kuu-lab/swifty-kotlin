@@ -27,6 +27,8 @@ fun __jvmSubstring(value: String, start: Int, end: Int): String = null!!
 fun __jvmRootLocale(): Any = null!!
 fun __jvmUppercase(value: String, locale: Any): String = null!!
 fun __jvmLowercase(value: String, locale: Any): String = null!!
+fun __jvmStringFormat(format: String, args: Array<out Any?>): String = null!!
+fun __jvmStringFormatLocale(locale: java.util.Locale?, format: String, args: Array<out Any?>): String = null!!
 fun __jvmEqualsIgnoreCase(value: String, other: String?): Boolean = false
 fun __jvmParseByte(value: String, radix: Int): Byte = null!!
 fun __jvmParseShort(value: String, radix: Int): Short = null!!
@@ -36,6 +38,8 @@ fun __jvmParseFloat(value: String): Float = null!!
 fun __jvmParseDouble(value: String): Double = null!!
 fun __jvmUpperChar(value: Char): Char = null!!
 fun __jvmLowerChar(value: Char): Char = null!!
+fun __jvmIsLowerChar(value: Char): Boolean = false
+fun __jvmTitleChar(value: Char): Char = null!!
 fun __jvmIndexOf(value: String, needle: String, start: Int): Int = 0
 fun __jvmLastIndexOf(value: String, needle: String, start: Int): Int = 0
 fun <T> __jvmSortList(list: kotlin.collections.MutableList<T>) {}
