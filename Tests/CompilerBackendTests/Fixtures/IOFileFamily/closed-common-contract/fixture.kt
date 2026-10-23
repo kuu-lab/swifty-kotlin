@@ -4,7 +4,7 @@ import kotlin.random.Random
 
 // Candidate safety policy follows pinned common RawSource/RawSink documentation.
 // Upstream Native 0.9.1 closed-flush/read differ; this is deliberately not a
-// JVM/Native implementation differential expectation.
+// JVM/Native implementation differential expectation. See closed-safety-ledger.json.
 private fun observe(label: String, operation: () -> Unit) {
     try {
         operation()

@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "issue": "KUU-1761",
+  "kind": "PINNED_KOTLIN_NATIVE_REFERENCE_ONLY;NOT_CANDIDATE_PASS",
+  "status": "OBSERVED_PARTIAL_REFERENCE_NO_RETRY",
+  "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+  "Kotlin_Native_version": "2.3.10",
+  "target": "linux_x64",
+  "compile_exit": 0,
+  "run_exit": -11,
+  "signal": "SIGSEGV",
+  "observed": {
+    "closed-write-zero": "IllegalStateException",
+    "closed-write-one": "IllegalStateException",
+    "closed-flush": "IOException",
+    "closed-read-zero": "ArrayIndexOutOfBoundsException",
+    "closed-read-one": null
+  },
+  "read_one": "UNOBSERVED_UNVERIFIED",
+  "raw_stdout": "closed-write-zero:IllegalStateException\nclosed-write-one:IllegalStateException\nclosed-flush:IOException\nclosed-read-zero:ArrayIndexOutOfBoundsException\n",
+  "raw_stdout_sha256": "b176ac35c2fbf065f4bc8e44e01d701ee066dce9c65f85834f5e7822a24af054",
+  "raw_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "summary_sha256": "0da70c074e3efc66b3a84c1e86066c16a8947b297694545f02bce896997283bd",
+  "historical_reference_receipt_path": "/workspace/scratch/path-filesystem-1761-integration/closed-native-reference-proposed1/summary.json",
+  "observer_source_path": "Scripts/kotlinx_io_upstream/files/ClosedRawFileObservation.kt",
+  "observer_source_sha256": "8b839226fd3f5031c0380d8113f3a48c9e8b5e2adea900c6bca9f8fc81fabea3",
+  "whole_limit_seconds": 120,
+  "compile_limit_seconds": 90,
+  "run_limit_seconds": 10,
+  "retries": 0,
+  "all_owned_processes_reaped": true,
+  "inputs_before_after_identical": true,
+  "candidate_state": "NOT_RUN",
+  "policy": "Use common documented closed IllegalStateException guards in the candidate; this intentionally differs from observed defective Native flush/read-zero behavior. Never treat the SIGSEGV or unobserved read-one as PASS or a known typed exception. Ordinary30 original tests and per-ID expected controls are unchanged.",
+  "limits": [
+    "Not an Apple host observation.",
+    "No exact crashing instruction or typed read-one exception is established.",
+    "Source/shared reference artifact files and failed binary remain in the historical immutable scratch receipt; no re-execution."
+  ]
+}
