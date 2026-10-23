@@ -340,6 +340,28 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_map_contains_key",
+            parameters: [
+                RuntimeABIParameter(name: "mapRaw", type: .intptr),
+                RuntimeABIParameter(name: "key", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: false,
+            returnsRawBoolean: true
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_map_contains_value",
+            parameters: [
+                RuntimeABIParameter(name: "mapRaw", type: .intptr),
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: false,
+            returnsRawBoolean: true
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_map_is_empty",
             parameters: [
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),
