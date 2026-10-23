@@ -1622,6 +1622,17 @@ public final class SymbolTable {
         backingFieldSymbols[property]
     }
 
+    /// Reverse of `backingFieldSymbol(for:)`, built from the (sparse) backing
+    /// field table rather than by scanning every symbol.
+    func propertiesByBackingFieldSymbol() -> [SymbolID: SymbolID] {
+        var result: [SymbolID: SymbolID] = [:]
+        result.reserveCapacity(backingFieldSymbols.count)
+        for (property, backingField) in backingFieldSymbols {
+            result[backingField] = property
+        }
+        return result
+    }
+
     public func setDelegateStorageSymbol(_ storage: SymbolID, for property: SymbolID) {
         if let previousStorage = delegateStorageSymbols[property], previousStorage != storage {
             delegatePropertiesByStorageSymbol.removeValue(forKey: previousStorage)
