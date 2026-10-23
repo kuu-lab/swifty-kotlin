@@ -241,6 +241,15 @@ final class MemberLowerer {
             let needsVirtualAccessor = propFlags.map {
                 $0.contains(.overrideMember) || $0.contains(.openType) || $0.contains(.abstractType)
             } ?? false
+            let inheritedInterfaceAccessors = if let ownerSymbol = sema.symbols.parentSymbol(for: symbol) {
+                kirStoredPropertyInheritedInterfaceAccessors(
+                    propertySymbol: symbol,
+                    ownerSymbol: ownerSymbol,
+                    sema: sema
+                )
+            } else {
+                (getter: false, setter: false)
+            }
             if !hasCustomGetterBody, !hasDelegate,
                let ownerSymbol = sema.symbols.parentSymbol(for: symbol)
             {
@@ -254,7 +263,7 @@ final class MemberLowerer {
                         interner: interner,
                         allDecls: &allDecls
                     )
-                } else if !isInterfaceContext, needsVirtualAccessor {
+                } else if !isInterfaceContext, needsVirtualAccessor || inheritedInterfaceAccessors.getter {
                     synthesizeStoredPropertyGetterAccessor(
                         propertySymbol: symbol,
                         ownerSymbol: ownerSymbol,
@@ -290,7 +299,7 @@ final class MemberLowerer {
                         interner: interner,
                         allDecls: &allDecls
                     )
-                } else if !isInterfaceContext, needsVirtualAccessor {
+                } else if !isInterfaceContext, needsVirtualAccessor || inheritedInterfaceAccessors.setter {
                     synthesizeStoredPropertySetterAccessor(
                         propertySymbol: symbol,
                         ownerSymbol: ownerSymbol,
