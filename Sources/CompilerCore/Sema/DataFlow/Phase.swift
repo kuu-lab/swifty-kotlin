@@ -52,6 +52,7 @@ final class DataFlowSemaPhase: CompilerPhase {
         )
 
         sema.requiresResolvedLibraryCalls = ctx.options.emit.isJVM
+        sema.stdlibProfile = ctx.options.stdlibProfile
         let fileScopesBeforeImports = KklibSemaSession.shouldCache(options: ctx.options)
             ? nil
             : buildFileScopes(ast: ast, symbols: symbols, interner: ctx.interner)

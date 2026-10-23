@@ -40,7 +40,8 @@ final class CLICompilerService: @unchecked Sendable {
             ) {
                 do {
                     CompilerOptions.defaultStdlibLibraryPath = try StdlibArtifactCache.resolveOrBuild(
-                        target: parsedOptions.target
+                        target: parsedOptions.target,
+                        profile: parsedOptions.stdlibProfile
                     )
                 } catch {
                     let message = "KSWIFTK-LIB-0023: Cannot prepare the default bundled stdlib artifact: \(error)\n"
