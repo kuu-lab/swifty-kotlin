@@ -278,11 +278,18 @@ extension DataFlowSemaPhase {
                     // Multi-field value class (Kotlin 2.x MFVC): lowered as a regular class.
                     symbols.removeFlags(.valueType, for: symbol)
                 } else if valParams.isEmpty {
-                    diagnostics.error(
-                        "KSWIFTK-SEMA-0070",
-                        "Value class must have at least one primary constructor parameter.",
-                        range: classDecl.range
-                    )
+                    if !isFullValueClassDeclaration(
+                        classDecl,
+                        imports: file.imports,
+                        enabled: ctx.options.fullValueClassesEnabled,
+                        interner: interner
+                    ) {
+                        diagnostics.error(
+                            "KSWIFTK-SEMA-0070",
+                            "Value class must have at least one primary constructor parameter.",
+                            range: classDecl.range
+                        )
+                    }
                 } else {
                     let singleParam = valParams[0]
                     let underlyingType = resolveTypeRef(

@@ -26,7 +26,19 @@ extension JVMProgramBuilder {
                 guard
                       c.modifiers.subtracting([.public, .internal, .private, .protected, .open, .final, .abstract, .data, .sealed, .enumModifier, .inner, .value, .annotationClass]).isEmpty else { throw JVMFrontendError(message: "Unsupported JVM M9 class declaration.", range: c.range) }
                 guard !c.modifiers.contains(.enumModifier) || c.secondaryConstructors.isEmpty else { throw JVMFrontendError(message: "JVM M8 does not support enum secondary constructors.", range: c.range) }
-                plan = JVMClassPlan(symbol: symbol, name: try className(symbol), declaration: c)
+                let hasJvmInline = c.annotations.contains {
+                    $0.name == "JvmInline" || $0.name == "kotlin.jvm.JvmInline"
+                } || sema.symbols.annotations(for: symbol).contains {
+                    $0.annotationFQName == "kotlin.jvm.JvmInline"
+                }
+                let isJvmInlineValue = c.modifiers.contains(.value)
+                    && (!context.options.fullValueClassesEnabled || hasJvmInline)
+                plan = JVMClassPlan(
+                    symbol: symbol,
+                    name: try className(symbol),
+                    declaration: c,
+                    isValue: isJvmInlineValue
+                )
                 classes[symbol] = plan
                 try collectNominals(c.nestedClasses + c.nestedObjects, outer: symbol)
                 if let companion = c.companionObject { try collectNominals([companion], outer: symbol, companion: true) }
