@@ -34,7 +34,11 @@ extension TypeCheckSemaPhase {
                   let functionSymbol = sema.bindings.identifierSymbol(for: ExprID(rawValue: Int32(index)))
             else { continue }
             if !checkTailRecursiveBody(
-                body, functionSymbol: functionSymbol, ast: ast, bindings: sema.bindings
+                body,
+                functionSymbol: functionSymbol,
+                ast: ast,
+                bindings: sema.bindings,
+                inlineLambdaArguments: inlineLambdaArguments
             ) {
                 diagnostics.warning(
                     "KSWIFTK-SEMA-TAILREC",
