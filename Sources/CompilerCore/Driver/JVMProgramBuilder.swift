@@ -63,6 +63,12 @@ final class JVMProgramBuilder {
             throw JVMFrontendError(message: "JVM expression has no resolved type.", range: ast.arena.exprRange(id))
         }
         let mapped = try self.type(type)
+        if mapped == .int, sema.bindings.isFloatingPointRangeExpr(id),
+           !sema.bindings.isOpenFloatingPointRangeExpr(id) {
+            // Sema keeps floating-point ranges on its scalar range marker;
+            // JVM values use the common ClosedFloatingPointRange interface.
+            return .reference("kotlin/ranges/ClosedFloatingPointRange", nullable: false)
+        }
         // Primitive range expressions carry their scalar element type in exprTypes,
         // but the JVM materializes a nominal range object. A source-backed rangeTo
         // may return another declared type, so preserve its resolved result type.

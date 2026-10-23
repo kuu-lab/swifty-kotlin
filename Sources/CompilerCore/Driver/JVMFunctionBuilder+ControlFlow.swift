@@ -27,6 +27,22 @@ extension JVMFunctionBuilder {
                     ?? sourceCall(args, receiver: lhs, id: id) { return call.value }
             }
             let lower = try requireValue(lhs), upper = try requireValue(rhs)
+            if lower.type == .double, upper.type == .double {
+                // Kotlin's concrete floating range classes are package-private;
+                // construct them through the public stdlib facade.
+                return try jdkCall(
+                    "kotlin/ranges/RangesKt", "rangeTo", [.double, .double],
+                    .reference("kotlin/ranges/ClosedFloatingPointRange", nullable: false),
+                    arguments: [lower, upper]
+                )
+            }
+            if lower.type == .float, upper.type == .float {
+                return try jdkCall(
+                    "kotlin/ranges/RangesKt", "rangeTo", [.float, .float],
+                    .reference("kotlin/ranges/ClosedFloatingPointRange", nullable: false),
+                    arguments: [lower, upper]
+                )
+            }
             let rangeType = try program.expressionType(id)
             let rangeClass: String
             let elementType: JVMValueType
@@ -41,7 +57,7 @@ extension JVMFunctionBuilder {
                 rangeClass = "kotlin/ranges/CharRange"
                 elementType = .char
             default:
-                throw fail("JVM range expressions currently support IntRange, LongRange, and CharRange.", id)
+                throw fail("JVM range expressions currently support IntRange, LongRange, CharRange, and floating-point ranges.", id)
             }
             return try constructJDK(
                 rangeClass,

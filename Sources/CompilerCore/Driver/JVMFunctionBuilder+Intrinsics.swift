@@ -140,6 +140,31 @@ extension JVMFunctionBuilder {
         if let scalar = try scalarMember(receiverID, name: member, args: args, id: id) { return scalar }
         if let reflection = try reflectionMember(receiverID, name: member, args: args, id: id) { return reflection }
         guard let sourceType = try? program.expressionType(receiverID) else { return nil }
+        if sourceType.referenceName == "kotlin/ranges/ClosedFloatingPointRange" {
+            // The JVM ABI erases generic range elements to Comparable; concrete
+            // Float/Double range classes provide bridges for these interface calls.
+            let comparable: JVMValueType = .reference("java/lang/Comparable", nullable: false)
+            let receiver = try requireValue(receiverID)
+            switch member {
+            case "contains" where args.count == 1 && args.allSatisfy({ $0.label == nil && !$0.isSpread }):
+                return JVMIntrinsicResult(value: try jdkCall(
+                    "kotlin/ranges/ClosedFloatingPointRange", member, [comparable], .boolean,
+                    receiver: receiver, arguments: [requireValue(args[0].expr)], interface: true
+                ))
+            case "isEmpty" where args.isEmpty:
+                return JVMIntrinsicResult(value: try jdkCall(
+                    "kotlin/ranges/ClosedFloatingPointRange", member, [], .boolean,
+                    receiver: receiver, interface: true
+                ))
+            case "lessThanOrEquals" where args.count == 2 && args.allSatisfy({ $0.label == nil && !$0.isSpread }):
+                return JVMIntrinsicResult(value: try jdkCall(
+                    "kotlin/ranges/ClosedFloatingPointRange", member, [comparable, comparable], .boolean,
+                    receiver: receiver, arguments: try args.map { try requireValue($0.expr) }, interface: true
+                ))
+            default:
+                break
+            }
+        }
         if sourceType.referenceName == "kotlin/properties/Delegates", ["notNull", "observable", "vetoable"].contains(member) {
             let receiver = try requireValue(receiverID)
             let object: JVMValueType = .reference("java/lang/Object", nullable: true)
