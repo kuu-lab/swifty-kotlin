@@ -1337,9 +1337,12 @@ extension LambdaLowerer {
         // Bound references need per-value storage: the same target pointer can
         // also represent an unbound reference with a different arity. Boxing
         // preserves the receiver when the value escapes the KIR callable table.
+        // Suspend references also need a box without captures: their launcher
+        // thunk supplies the continuation-only entry ABI instead of calling a
+        // raw Kotlin method pointer through the ordinary function ABI.
         let callableValue: KIRExprID
-        if !captureArguments.isEmpty,
-           case let .functionType(functionType) = sema.types.kind(of: callableType),
+        if case let .functionType(functionType) = sema.types.kind(of: callableType),
+           !captureArguments.isEmpty || functionType.isSuspend,
            let materialized = materializeEscapingCallableValue(
                exprID: exprID,
                lambdaSymbol: callableSymbol,
