@@ -234,6 +234,18 @@ extension JVMFunctionBuilder {
         }
         let collections: Set<String> = ["java/util/ArrayList", "java/lang/Iterable", "java/util/Iterator", "java/util/ListIterator", "java/util/Collection", "java/util/List", "kotlin/enums/EnumEntries", "java/util/Set", "java/util/Map", "kotlin/text/MatchGroupCollection"]
         if collections.contains(owner) {
+            if member == "withIndex", args.isEmpty {
+                let iterableType = JVMValueType.reference("java/lang/Iterable", nullable: false)
+                let source = try convert(requireValue(receiverID), to: iterableType)
+                return JVMIntrinsicResult(value: try jdkCall(
+                    "kotlin/collections/CollectionsKt",
+                    "withIndex",
+                    [iterableType],
+                    iterableType,
+                    arguments: [source],
+                    resolved: program.expressionType(id)
+                ))
+            }
             // JDK collection interfaces retain the virtual Object contract;
             // their implementations provide structural equality and hashing.
             if ["hashCode", "toString"].contains(member), args.isEmpty {
@@ -589,10 +601,6 @@ extension JVMFunctionBuilder {
                 interner: context.interner
             )
         }()
-        if withIndexReceiver == nil, source.type.referenceName == "java/util/Map" {
-            try mapEntryLoop(name, iterable, body, id, destructuringNames: destructuringNames, label: loopLabel)
-            return
-        }
         let explicitElementType: TypeID? = {
             guard let semantic = program.sema.bindings.exprType(for: iterable),
                   case let .classType(type) = program.sema.types.kind(of: semantic),
@@ -624,9 +632,6 @@ extension JVMFunctionBuilder {
             }
         } else if let loopBinding { elementType = try program.type(loopBinding.elementType) }
         else if let jvmIterableElementType { elementType = try program.type(jvmIterableElementType) }
-        else if let iterableElementType = iterableElementTypeFromSemanticType(iterable) {
-            elementType = try program.type(iterableElementType)
-        }
         else { throw fail("JVM for requires an array or iterable collection.", id) }
 
         let indexedElementType: JVMValueType?
@@ -724,33 +729,5 @@ extension JVMFunctionBuilder {
             mark(advance); jump(test)
         }
         mark(exit)
-    }
-
-    private func iterableElementTypeFromSemanticType(_ iterable: ExprID) -> TypeID? {
-        let interner = context.interner
-        guard let semanticType = program.sema.bindings.exprType(for: iterable),
-              case let .classType(classType) = program.sema.types.kind(
-                  of: program.sema.types.makeNonNullable(semanticType)
-              ),
-              let iterableSymbol = program.sema.symbols.lookup(fqName: [
-                  interner.intern("kotlin"),
-                  interner.intern("collections"),
-                  interner.intern("Iterable"),
-              ]),
-              let iterableArguments = program.sema.types.liftedNominalSupertypeArgs(
-                  from: classType,
-                  to: iterableSymbol
-              ),
-              let elementArgument = iterableArguments.first
-        else {
-            return nil
-        }
-
-        switch elementArgument {
-        case let .invariant(type), let .out(type), let .in(type):
-            return type
-        case .star:
-            return program.sema.types.anyType
-        }
     }
 }

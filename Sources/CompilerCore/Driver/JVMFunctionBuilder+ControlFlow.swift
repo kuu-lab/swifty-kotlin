@@ -210,10 +210,23 @@ extension JVMFunctionBuilder {
         destructuringNames: [InternedString?]? = nil,
         label loopLabel: InternedString? = nil
     ) throws {
-        if destructuringNames == nil,
-           case let .binary(op, _, _, _) = arena.expr(iterable), op == .rangeTo,
+        let loopName = name ?? context.interner.intern("__jvm_for_destructuring_\(id.rawValue)")
+        if let destructuringNames {
+            guard loopLabel == nil else { throw fail("JVM loop labels are not supported.", id) }
+            if (try? program.expressionType(iterable).referenceName) == "java/util/Map" {
+                try mapEntryLoop(nil, iterable, body, id, destructuringNames: destructuringNames, label: nil)
+            } else {
+                try sequenceLoop(loopName, iterable, body, id, destructuringNames: destructuringNames)
+            }
+            return
+        }
+        if (try? program.expressionType(iterable).referenceName) == "java/util/Map" {
+            try mapEntryLoop(name, iterable, body, id, destructuringNames: nil, label: loopLabel)
+            return
+        }
+        if case let .binary(op, _, _, _) = arena.expr(iterable), op == .rangeTo,
            program.hasSourceRangeOperator(iterable) {
-            try sequenceLoop(name, iterable, body, id, destructuringNames: destructuringNames, label: loopLabel)
+            try sequenceLoop(loopName, iterable, body, id, label: loopLabel)
             return
         }
         let range: (BinaryOp, ExprID, ExprID)? = switch arena.expr(iterable) {
@@ -226,17 +239,16 @@ extension JVMFunctionBuilder {
         default:
             nil
         }
-        guard destructuringNames == nil, let (op, from, to) = range else {
-            try sequenceLoop(name, iterable, body, id, destructuringNames: destructuringNames, label: loopLabel); return
+        guard let (op, from, to) = range else {
+            try sequenceLoop(loopName, iterable, body, id, label: loopLabel); return
         }
-        guard let name else { throw fail("JVM range loop requires a loop variable.", id) }
         let first = try requireValue(from), last = try requireValue(to)
         let type = try numericType(first.type, last.type)
         guard type.stackType == .int || type.stackType == .long else { throw fail("JVM for ranges require integral operands.", id) }
         let induction = try value(type), bound = try value(type)
         instructions.append(.copy(try convert(first, to: type), induction))
         instructions.append(.copy(try convert(last, to: type), bound))
-        scopes.append([name: Local(value: induction, mutable: false)])
+        scopes.append([loopName: Local(value: induction, mutable: false)])
         defer { scopes.removeLast() }
         let test = label(), advance = label(), exit = label()
         mark(test)
@@ -294,7 +306,7 @@ extension JVMFunctionBuilder {
         )!
         instructions.append(.copy(next, entry))
         if let destructuringNames {
-            try destructuring(id, names: destructuringNames, mutable: false, object: entry)
+            try destructuring(id, names: destructuringNames, mutable: false, object: entry, receiverType: nil)
         }
         loops.append(LoopFrame(label: loopLabel, exit: exit, next: advance, allocationDepth: pendingAllocations.count))
         _ = try expression(body, discarded: true)
