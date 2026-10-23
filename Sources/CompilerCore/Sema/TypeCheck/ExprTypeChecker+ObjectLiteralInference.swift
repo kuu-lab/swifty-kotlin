@@ -1442,6 +1442,7 @@ extension ExprTypeChecker {
         interner: StringInterner
     ) -> SymbolFlags {
         var flags: SymbolFlags = [.synthetic]
+        if functionDecl.receiverType != nil { flags.insert(.memberExtension) }
         if functionDecl.isSuspend { flags.insert(.suspendFunction) }
         if functionDecl.isInline { flags.insert(.inlineFunction) }
         if functionDecl.modifiers.contains(.operator) { flags.insert(.operatorFunction) }
