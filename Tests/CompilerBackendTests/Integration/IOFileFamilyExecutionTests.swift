@@ -163,7 +163,7 @@ struct IOFileFamilyExecutionTests {
         print("KUU1761_RUNTIME_DIRECTORY \(root.path)")
         let source = try Data(contentsOf: repository.appendingPathComponent("Tests/CompilerBackendTests/Fixtures/IOFileFamily/closed-common-contract/fixture.kt"))
         let expected = try Data(contentsOf: repository.appendingPathComponent("Tests/CompilerBackendTests/Fixtures/IOFileFamily/closed-common-contract/expected.stdout"))
-        try #require(FileFingerprint.sha256Hex(source) == "9d9aaec64af3b095b7b7c5dedd5f1eee5ce765085ee1b5102fe6434bd7507b04")
+        try #require(FileFingerprint.sha256Hex(source) == "b48545f0383a737da9c0c22f6b0c7a2644d62dfb0584bf45618eb781ce4d442c")
         try #require(FileFingerprint.sha256Hex(expected) == "d641638b89b1806fad4ee6678bdde525bb8ff4d85e517ceb88309f307db5bdaa")
         try #require(String(decoding: expected, as: UTF8.self).split(separator: "\n").count == 5)
         let input = root.appendingPathComponent("Closed.kt")
