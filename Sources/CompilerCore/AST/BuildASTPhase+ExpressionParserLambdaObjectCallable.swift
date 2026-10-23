@@ -444,9 +444,18 @@ extension BuildASTPhase.ExpressionParser {
         let declarations = params.compactMap { param -> ExprID? in
             guard let names = param.destructuringNames else { return nil }
             let initializer = astArena.appendExpr(.nameRef(param.name, range))
-            return astArena.appendExpr(.destructuringDecl(
+            let declaration = astArena.appendExpr(.destructuringDecl(
                 names: names, isMutable: false, initializer: initializer, range: range
             ))
+            astArena.setDestructuringDeclLayout(
+                DestructuringDeclLayout(
+                    syntax: .parentheses,
+                    properties: Array(repeating: nil, count: names.count),
+                    mutableFlags: []
+                ),
+                for: declaration
+            )
+            return declaration
         }
         guard !declarations.isEmpty else { return body }
         return astArena.appendExpr(.blockExpr(
