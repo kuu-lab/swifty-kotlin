@@ -39,5 +39,10 @@ extension JVMBackendTests {
     func callableReferenceToStringRendersFullSignature(mode: EmitMode) throws {
         try runJVMOwnStdlibFixture("callableReferenceToString", mode: mode)
     }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func stringFormattingAndCaseHelpersAreAvailable(mode: EmitMode) throws {
+        try runJVMOwnStdlibFixture("stringFormattingAndCaseHelpers", mode: mode)
+    }
 }
 #endif

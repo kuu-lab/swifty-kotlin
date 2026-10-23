@@ -112,6 +112,12 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "declarations/StringFormattingCaseFunctions.kt",
+      "virtualPath": "<kswiftk-jvm>/string-formatting-case-functions.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/text/StringsKt"
+    },
+    {
       "path": "declarations/StringBuilder.kt",
       "virtualPath": "<kswiftk-jvm>/m19-builder.kt",
       "excludeFromStdlibBuild": false

@@ -112,6 +112,20 @@
     "kind": "virtual"
   },
   {
+    "symbol": "__jvmStringFormat",
+    "owner": "java/lang/String",
+    "name": "format",
+    "descriptor": "(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmStringFormatLocale",
+    "owner": "java/lang/String",
+    "name": "format",
+    "descriptor": "(Ljava/util/Locale;Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;",
+    "kind": "static"
+  },
+  {
     "symbol": "__jvmEqualsIgnoreCase",
     "owner": "java/lang/String",
     "name": "equalsIgnoreCase",
@@ -171,6 +185,20 @@
     "symbol": "__jvmLowerChar",
     "owner": "java/lang/Character",
     "name": "toLowerCase",
+    "descriptor": "(C)C",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmIsLowerChar",
+    "owner": "java/lang/Character",
+    "name": "isLowerCase",
+    "descriptor": "(C)Z",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmTitleChar",
+    "owner": "java/lang/Character",
+    "name": "toTitleCase",
     "descriptor": "(C)C",
     "kind": "static"
   },
