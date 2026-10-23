@@ -21,7 +21,7 @@ extension JVMClasspathIndex {
         if name == "kotlin/Result" { return "java/lang/Object" }
         if ["kotlin/coroutines/Continuation", "kotlin/coroutines/CoroutineContext", "kotlin/coroutines/EmptyCoroutineContext"].contains(name) { return name }
         if name == "kotlin/text/StringBuilder" { return "java/lang/StringBuilder" }
-        if ["kotlin/text/Regex", "kotlin/text/Regex$Companion", "kotlin/text/RegexOption", "kotlin/text/MatchResult", "kotlin/text/MatchResult$Destructured", "kotlin/text/MatchGroup", "kotlin/text/MatchGroupCollection", "kotlin/ranges/IntRange", "kotlin/sequences/Sequence", "kotlin/sequences/SequenceScope"].contains(name) { return name }
+        if ["kotlin/text/Regex", "kotlin/text/Regex$Companion", "kotlin/text/RegexOption", "kotlin/text/MatchResult", "kotlin/text/MatchResult$Destructured", "kotlin/text/MatchGroup", "kotlin/text/MatchGroupCollection", "kotlin/ranges/IntRange", "kotlin/ranges/LongRange", "kotlin/ranges/CharRange", "kotlin/sequences/Sequence", "kotlin/sequences/SequenceScope"].contains(name) { return name }
         if name == "kotlin/NoSuchElementException" { return "java/util/NoSuchElementException" }
         if name == "kotlin/CharSequence" { return "java/lang/CharSequence" }
         if name == "kotlin/Number" { return "java/lang/Number" }

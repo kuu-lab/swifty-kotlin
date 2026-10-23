@@ -6,12 +6,15 @@ enum TailrecPositionWalker {
         in arena: ASTArena,
         isValuePosition: Bool,
         includeLabeledReturns: Bool = false,
+        inlineLambdaArguments: Set<ExprID> = [],
         onCandidate: (ExprID) -> Void
     ) {
         guard let node = arena.expr(id) else { return }
         func child(_ id: ExprID, result: Bool = false) {
             visit(id, in: arena, isValuePosition: result,
-                  includeLabeledReturns: includeLabeledReturns, onCandidate: onCandidate)
+                  includeLabeledReturns: includeLabeledReturns,
+                  inlineLambdaArguments: inlineLambdaArguments,
+                  onCandidate: onCandidate)
         }
         switch node {
         case let .returnExpr(value, label, _):
@@ -19,11 +22,27 @@ enum TailrecPositionWalker {
         case let .call(callee, _, args, _):
             if isValuePosition { onCandidate(id) }
             child(callee)
-            for argument in args { child(argument.expr) }
+            for argument in args {
+                if inlineLambdaArguments.contains(argument.expr),
+                   case let .lambdaLiteral(_, body, _, _)? = arena.expr(argument.expr)
+                {
+                    child(body)
+                } else {
+                    child(argument.expr)
+                }
+            }
         case let .memberCall(receiver, _, _, args, _), let .safeMemberCall(receiver, _, _, args, _):
             if isValuePosition { onCandidate(id) }
             child(receiver)
-            for argument in args { child(argument.expr) }
+            for argument in args {
+                if inlineLambdaArguments.contains(argument.expr),
+                   case let .lambdaLiteral(_, body, _, _)? = arena.expr(argument.expr)
+                {
+                    child(body)
+                } else {
+                    child(argument.expr)
+                }
+            }
         case let .ifExpr(condition, yes, no, _):
             child(condition)
             child(yes, result: isValuePosition)
