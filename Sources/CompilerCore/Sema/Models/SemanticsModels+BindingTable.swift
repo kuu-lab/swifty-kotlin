@@ -23,6 +23,10 @@ public final class BindingTable {
     }
 
     public private(set) var exprTypes: [ExprID: TypeID] = [:]
+    /// Flow-refined receiver types for local compound assignments. Their
+    /// result is usually `Unit`, so the LHS type cannot be recovered from
+    /// `exprTypes` during KIR lowering.
+    public private(set) var compoundAssignReceiverTypes: [ExprID: TypeID] = [:]
     public private(set) var platformNullAssertionTypes: [ExprID: TypeID] = [:]
 
     public func bindPlatformNullAssertion(_ expr: ExprID, targetType: TypeID?) {
@@ -287,9 +291,10 @@ public final class BindingTable {
     public private(set) var destructuringComponentCallees: [ExprID: [Int: SymbolID]] = [:]
     var destructuringPropertyBindings: [ExprID: [Int: DestructuringPropertyBinding]] = [:]
 
-    /// The initial independent-body contract permits only scalar expression
-    /// types and parameter references. Any other side-table write rejects the
-    /// worker delta, including calls, captures and Worker.execute metadata.
+    /// The initial independent-body contract permits scalar expression types,
+    /// parameter references, and flow-refined compound-assignment receiver
+    /// types. Any other side-table write rejects the worker delta, including
+    /// calls, captures and Worker.execute metadata.
     var hasOnlyIndependentScalarBindings: Bool {
         hasOnlyIndependentScalarBindings(allowingSourceDeclaredExpectedTypeExprIDs: [])
     }
@@ -400,11 +405,16 @@ public final class BindingTable {
     /// Joins the closed scalar delta at its original declaration position.
     func mergeIndependentScalarExpressions(
         types: [ExprID: TypeID], identifiers: [ExprID: SymbolID], typeMapping: [TypeID: TypeID],
+        compoundAssignReceiverTypes: [ExprID: TypeID] = [:],
         sourceDeclaredExpectedTypeExpressions: Set<ExprID> = [],
         symbolMapping: [SymbolID: SymbolID] = [:]
     ) {
         exprTypes.merge(types.mapValues { typeMapping[$0] ?? $0 }, uniquingKeysWith: { _, new in new })
         identifierSymbols.merge(identifiers.mapValues { symbolMapping[$0] ?? $0 }, uniquingKeysWith: { _, new in new })
+        self.compoundAssignReceiverTypes.merge(
+            compoundAssignReceiverTypes.mapValues { typeMapping[$0] ?? $0 },
+            uniquingKeysWith: { _, new in new }
+        )
         sourceDeclaredExpectedTypeExprIDs.formUnion(sourceDeclaredExpectedTypeExpressions)
     }
 
@@ -418,6 +428,7 @@ public final class BindingTable {
         worker.annotationFactoryExpressions = annotationFactoryExpressions
         worker.primaryConstructorPropertyAnnotations = primaryConstructorPropertyAnnotations
         worker.exprTypes = exprTypes
+        worker.compoundAssignReceiverTypes = compoundAssignReceiverTypes
         worker.platformNullAssertionTypes = platformNullAssertionTypes
         worker.whenExhaustiveness = whenExhaustiveness
         worker.identifierSymbols = identifierSymbols
@@ -521,6 +532,14 @@ public final class BindingTable {
 
     public func bindExprType(_ expr: ExprID, type: TypeID) {
         exprTypes[expr] = type
+    }
+
+    public func bindCompoundAssignReceiverType(_ expr: ExprID, type: TypeID) {
+        compoundAssignReceiverTypes[expr] = type
+    }
+
+    public func compoundAssignReceiverType(for expr: ExprID) -> TypeID? {
+        compoundAssignReceiverTypes[expr]
     }
 
     public func bindWhenExhaustiveness(_ expr: ExprID, isExhaustive: Bool) {

@@ -547,6 +547,10 @@ extension ExprTypeChecker {
 
         let valueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: nil)
         if let local = locals[name] {
+            let declaredType = sema.symbols.propertyType(for: local.symbol) ?? local.type
+            if local.type != declaredType {
+                sema.bindings.bindCompoundAssignReceiverType(id, type: local.type)
+            }
             let valueType = contextualCompoundAssignmentValueType(
                 op: op, receiverType: local.type, valueExpr: valueExpr,
                 originalType: valueType, range: range, ctx: ctx, locals: &locals
