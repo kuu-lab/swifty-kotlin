@@ -760,7 +760,9 @@ final class JVMFunctionBuilder {
             guard let name else { throw fail("Unsupported JVM for loop.", id) }
             try forLoop(name, iterable, body, id, label: label); return nil
         case let .forDestructuringExpr(names, iterable, body, _, _):
-            try forLoop(nil, iterable, body, id, destructuringNames: names, label: arena.loopLabel(for: id)); return nil
+            guard arena.loopLabel(for: id) == nil else { throw fail("JVM loop labels are not supported.", id) }
+            let loopName = context.interner.intern("__jvm_for_destructuring_\(id.rawValue)")
+            try sequenceLoop(loopName, iterable, body, id, destructuringNames: names); return nil
         case let .breakExpr(label, _), let .continueExpr(label, _):
             let targetIndex: Int?
             if let label {

@@ -258,6 +258,51 @@ extension JVMFunctionBuilder {
         instructions.append(.binary(op == .downTo ? .subtract : .add, induction, one, next))
         instructions.append(.copy(next, induction)); jump(test); mark(exit)
     }
+
+    func mapEntryLoop(
+        _ name: InternedString?,
+        _ iterable: ExprID,
+        _ body: ExprID,
+        _ id: ExprID,
+        destructuringNames: [InternedString?]?,
+        label loopLabel: InternedString?
+    ) throws {
+        let source = try requireValue(iterable)
+        let entriesType = JVMValueType.reference("java/util/Set", nullable: false)
+        let entries = try jdkCall("java/util/Map", "entrySet", [], entriesType, receiver: source, interface: true)!
+        let iteratorType = JVMValueType.reference("java/util/Iterator", nullable: false)
+        let iterator = try jdkCall("java/lang/Iterable", "iterator", [], iteratorType, receiver: entries, interface: true)!
+        let entryType = JVMValueType.reference("java/util/Map$Entry", nullable: false)
+        let entry = try value(entryType)
+        let test = label(), advance = label(), exit = label()
+        var loopScope: [InternedString: Local] = [:]
+        if let name { loopScope[name] = Local(value: entry, mutable: false) }
+        scopes.append(loopScope)
+        defer { scopes.removeLast() }
+
+        mark(test)
+        let hasNext = try jdkCall("java/util/Iterator", "hasNext", [], .boolean, receiver: iterator, interface: true)!
+        instructions.append(.jumpIfFalse(hasNext, exit))
+        let next = try jdkCall(
+            "java/util/Iterator",
+            "next",
+            [],
+            .reference("java/lang/Object", nullable: true),
+            receiver: iterator,
+            interface: true,
+            resolved: entryType
+        )!
+        instructions.append(.copy(next, entry))
+        if let destructuringNames {
+            try destructuring(id, names: destructuringNames, mutable: false, object: entry)
+        }
+        loops.append(LoopFrame(label: loopLabel, exit: exit, next: advance, allocationDepth: pendingAllocations.count))
+        _ = try expression(body, discarded: true)
+        loops.removeLast()
+        mark(advance)
+        jump(test)
+        mark(exit)
+    }
 }
 
 extension JVMFunctionBuilder {

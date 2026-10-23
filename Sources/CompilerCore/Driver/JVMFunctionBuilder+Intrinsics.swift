@@ -534,15 +534,43 @@ extension JVMFunctionBuilder {
 }
 
 extension JVMFunctionBuilder {
+    func makeIndexedValue(_ index: JVMValue, _ element: JVMValue, as type: JVMValueType) throws -> JVMValue {
+        let object: JVMValueType = .reference("java/lang/Object", nullable: true)
+        let indexedValue = try constructJDK("kotlin/collections/IndexedValue", parameters: [.int, object], arguments: [index, convert(element, to: object)])
+        return try convert(indexedValue, to: type)
+    }
+
+    func checkWithIndexCounter(_ counter: JVMValue) throws {
+        let negative = try value(.boolean)
+        instructions.append(.binary(.lessThan, counter, try constant(.int(0), .int), negative))
+        let valid = label()
+        instructions.append(.jumpIfFalse(negative, valid))
+        let message = try constant(.string("Index overflow has happened."), .string)
+        let error = try constructJDK("java/lang/ArithmeticException", parameters: [.string], arguments: [message])
+        instructions.append(.throwValue(error))
+        mark(valid)
+    }
+
+    func incrementWithIndexCounter(_ counter: JVMValue) throws {
+        let one = try constant(.int(1), .int), next = try value(.int)
+        instructions.append(.binary(.add, counter, one, next))
+        instructions.append(.copy(next, counter))
+    }
+
     func sequenceLoop(
-        _ name: InternedString?,
+        _ name: InternedString,
         _ iterable: ExprID,
         _ body: ExprID,
         _ id: ExprID,
         destructuringNames: [InternedString?]? = nil,
         label loopLabel: InternedString? = nil
     ) throws {
-        let source = try requireValue(iterable)
+        let withIndexReceiver: ExprID? = {
+            guard case let .memberCall(receiver, callee, _, args, _) = arena.expr(iterable),
+                  context.interner.resolve(callee) == "withIndex", args.isEmpty else { return nil }
+            return receiver
+        }()
+        let source = try requireValue(withIndexReceiver ?? iterable)
         // An Iterator receiver is its own cursor: the stdlib Iterator<T>.iterator()
         // operator returns `this`, so Sema leaves iteratorCall nil for it.
         let loopBinding = program.sema.bindings.loopIterationBinding(for: id)
@@ -561,47 +589,103 @@ extension JVMFunctionBuilder {
                 interner: context.interner
             )
         }()
+        if withIndexReceiver == nil, source.type.referenceName == "java/util/Map" {
+            try mapEntryLoop(name, iterable, body, id, destructuringNames: destructuringNames, label: loopLabel)
+            return
+        }
+        let explicitElementType: TypeID? = {
+            guard let semantic = program.sema.bindings.exprType(for: iterable),
+                  case let .classType(type) = program.sema.types.kind(of: semantic),
+                  let argument = type.args.first else { return nil }
+            switch argument {
+            case let .invariant(type), let .out(type), let .in(type): return type
+            case .star: return nil
+            }
+        }()
+        let semanticElementType = loopBinding?.elementType ?? explicitElementType ?? jvmIterableElementType
         let elementType: JVMValueType
-        if source.type.isCharSequence { elementType = .char }
-        else if source.type.referenceName == "kotlin/ranges/IntRange" { elementType = .int }
-        else if source.type.referenceName == "java/util/Map" { elementType = .reference("java/util/Map$Entry", nullable: false) }
-        else if source.type.referenceName?.hasPrefix("[") == true { elementType = try arrayComponent(source.type) }
-        else if let loopBinding { elementType = try program.type(loopBinding.elementType) }
-        else if let semantic = program.sema.bindings.exprType(for: iterable), case let .classType(t) = program.sema.types.kind(of: semantic), let arg = t.args.first {
-            switch arg {
-            case let .invariant(t), let .out(t): elementType = try program.type(t)
-            default: elementType = .reference("java/lang/Object", nullable: true)
+        if withIndexReceiver != nil, let loopBinding { elementType = try program.type(loopBinding.elementType) }
+        else if withIndexReceiver != nil,
+                let semantic = program.sema.bindings.exprType(for: iterable),
+                case let .classType(type) = program.sema.types.kind(of: semantic),
+                let argument = type.args.first {
+            switch argument {
+            case let .invariant(type), let .out(type), let .in(type): elementType = try program.type(type)
+            case .star: elementType = .reference("java/lang/Object", nullable: true)
             }
         }
+        else if source.type.isCharSequence { elementType = .char }
+        else if source.type.referenceName == "kotlin/ranges/IntRange" { elementType = .int }
+        else if source.type.referenceName?.hasPrefix("[") == true { elementType = try arrayComponent(source.type) }
+        else if let semantic = program.sema.bindings.exprType(for: iterable), case let .classType(t) = program.sema.types.kind(of: semantic), let arg = t.args.first {
+            switch arg {
+            case let .invariant(t), let .out(t), let .in(t): elementType = try program.type(t)
+            case .star: elementType = .reference("java/lang/Object", nullable: true)
+            }
+        } else if let loopBinding { elementType = try program.type(loopBinding.elementType) }
         else if let jvmIterableElementType { elementType = try program.type(jvmIterableElementType) }
+        else if let iterableElementType = iterableElementTypeFromSemanticType(iterable) {
+            elementType = try program.type(iterableElementType)
+        }
         else { throw fail("JVM for requires an array or iterable collection.", id) }
+
+        let indexedElementType: JVMValueType?
+        if let withIndexReceiver {
+            if source.type.isCharSequence { indexedElementType = .char }
+            else if source.type.referenceName == "kotlin/ranges/IntRange" { indexedElementType = .int }
+            else if source.type.referenceName?.hasPrefix("[") == true { indexedElementType = try arrayComponent(source.type) }
+            else if let semantic = program.sema.bindings.exprType(for: withIndexReceiver),
+                    case let .classType(type) = program.sema.types.kind(of: semantic),
+                    let argument = type.args.first {
+                switch argument {
+                case let .invariant(type), let .out(type), let .in(type): indexedElementType = try program.type(type)
+                case .star: indexedElementType = .reference("java/lang/Object", nullable: true)
+                }
+            } else { throw fail("JVM withIndex requires an iterable receiver.", id) }
+        } else { indexedElementType = nil }
+
         let local = try value(elementType), test = label(), advance = label(), exit = label()
-        var loopScope: [InternedString: Local] = [:]
-        if let name { loopScope[name] = Local(value: local, mutable: false) }
-        scopes.append(loopScope); defer { scopes.removeLast() }
+        scopes.append([name: Local(value: local, mutable: false)]); defer { scopes.removeLast() }
+        func emitBody() throws {
+            if let destructuringNames {
+                scopes.append([:])
+                try destructuring(
+                    id,
+                    names: destructuringNames,
+                    mutable: false,
+                    object: local,
+                    receiverType: semanticElementType
+                )
+            }
+            defer { if destructuringNames != nil { scopes.removeLast() } }
+            loops.append(LoopFrame(label: loopLabel, exit: exit, next: advance, allocationDepth: pendingAllocations.count))
+            _ = try expression(body, discarded: true)
+            loops.removeLast()
+        }
         if source.type.referenceName?.hasPrefix("[") == true || source.type.isCharSequence {
-            let index = try value(.int)
+            let index = try value(.int), withIndexCounter = indexedElementType == nil ? nil : try value(.int)
             let fixedSize = source.type.referenceName != "java/lang/String" && source.type.referenceName?.hasPrefix("[") != true ? nil : try textLength(source)
             instructions.append(.constant(.int(0), index))
+            if let withIndexCounter { instructions.append(.constant(.int(0), withIndexCounter)) }
             mark(test)
             // CharSequence may change length while the body executes.
             let size = try fixedSize ?? textLength(source)
             let check = try value(.boolean); instructions.append(.binary(.lessThan, index, size, check)); instructions.append(.jumpIfFalse(check, exit))
-            let item = try indexedRead(source, index: index, type: elementType)
-            instructions.append(.copy(item, local))
-            if let destructuringNames { try destructuring(id, names: destructuringNames, mutable: false, object: local) }
-            loops.append(LoopFrame(label: loopLabel, exit: exit, next: advance, allocationDepth: pendingAllocations.count)); _ = try expression(body, discarded: true); loops.removeLast()
+            let element = try indexedRead(source, index: index, type: indexedElementType ?? elementType)
+            if let withIndexCounter {
+                try checkWithIndexCounter(withIndexCounter)
+                let item = try makeIndexedValue(withIndexCounter, element, as: elementType)
+                instructions.append(.copy(item, local))
+                try incrementWithIndexCounter(withIndexCounter)
+            } else { instructions.append(.copy(element, local)) }
+            try emitBody()
             mark(advance)
             let one = try constant(.int(1), .int)
             instructions.append(.binary(.add, index, one, index)); jump(test)
         } else {
             let iteratorType: JVMValueType = .reference("java/util/Iterator", nullable: false)
             let iterator: JVMValue
-            if source.type.referenceName == "java/util/Map" {
-                let entriesType = JVMValueType.reference("java/util/Set", nullable: false)
-                let entries = try jdkCall("java/util/Map", "entrySet", [], entriesType, receiver: source, interface: true)!
-                iterator = try jdkCall("java/lang/Iterable", "iterator", [], iteratorType, receiver: entries, interface: true)!
-            } else if let loopBinding, loopBinding.iteratorCall == nil {
+            if let loopBinding, loopBinding.iteratorCall == nil {
                 iterator = try convert(source, to: iteratorType)
             } else {
                 let iteratorOwner = loopBinding?.iteratorCall
@@ -624,15 +708,49 @@ extension JVMFunctionBuilder {
                 let owner = iteratorOwner == "kotlin/sequences/Sequence" || semanticSequence ? "kotlin/sequences/Sequence" : "java/lang/Iterable"
                 iterator = try jdkCall(owner, "iterator", [], iteratorType, receiver: source, interface: true)!
             }
+            let withIndexCounter = indexedElementType == nil ? nil : try value(.int)
+            if let withIndexCounter { instructions.append(.constant(.int(0), withIndexCounter)) }
             mark(test)
             let check = try jdkCall("java/util/Iterator", "hasNext", [], .boolean, receiver: iterator, interface: true)!
             instructions.append(.jumpIfFalse(check, exit))
-            let next = try jdkCall("java/util/Iterator", "next", [], .reference("java/lang/Object", nullable: true), receiver: iterator, interface: true, resolved: elementType)!
-            instructions.append(.copy(next, local))
-            if let destructuringNames { try destructuring(id, names: destructuringNames, mutable: false, object: local) }
-            loops.append(LoopFrame(label: loopLabel, exit: exit, next: advance, allocationDepth: pendingAllocations.count)); _ = try expression(body, discarded: true); loops.removeLast()
+            if let withIndexCounter { try checkWithIndexCounter(withIndexCounter) }
+            let next = try jdkCall("java/util/Iterator", "next", [], .reference("java/lang/Object", nullable: true), receiver: iterator, interface: true, resolved: indexedElementType ?? elementType)!
+            if let withIndexCounter {
+                let item = try makeIndexedValue(withIndexCounter, next, as: elementType)
+                instructions.append(.copy(item, local))
+                try incrementWithIndexCounter(withIndexCounter)
+            } else { instructions.append(.copy(next, local)) }
+            try emitBody()
             mark(advance); jump(test)
         }
         mark(exit)
+    }
+
+    private func iterableElementTypeFromSemanticType(_ iterable: ExprID) -> TypeID? {
+        let interner = context.interner
+        guard let semanticType = program.sema.bindings.exprType(for: iterable),
+              case let .classType(classType) = program.sema.types.kind(
+                  of: program.sema.types.makeNonNullable(semanticType)
+              ),
+              let iterableSymbol = program.sema.symbols.lookup(fqName: [
+                  interner.intern("kotlin"),
+                  interner.intern("collections"),
+                  interner.intern("Iterable"),
+              ]),
+              let iterableArguments = program.sema.types.liftedNominalSupertypeArgs(
+                  from: classType,
+                  to: iterableSymbol
+              ),
+              let elementArgument = iterableArguments.first
+        else {
+            return nil
+        }
+
+        switch elementArgument {
+        case let .invariant(type), let .out(type), let .in(type):
+            return type
+        case .star:
+            return program.sema.types.anyType
+        }
     }
 }

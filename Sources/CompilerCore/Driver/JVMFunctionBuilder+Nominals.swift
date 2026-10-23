@@ -109,21 +109,54 @@ extension JVMFunctionBuilder {
 
     func destructuring(_ id: ExprID, names: [InternedString?], mutable: Bool, initializer: ExprID) throws {
         let object = try requireValue(initializer)
-        try destructuring(id, names: names, mutable: mutable, object: object)
+        try destructuring(
+            id,
+            names: names,
+            mutable: mutable,
+            object: object,
+            receiverType: program.sema.bindings.exprType(for: initializer)
+        )
     }
 
-    func destructuring(_ id: ExprID, names: [InternedString?], mutable: Bool, object: JVMValue) throws {
+    func destructuring(
+        _ id: ExprID,
+        names: [InternedString?],
+        mutable: Bool,
+        object: JVMValue,
+        receiverType: TypeID?
+    ) throws {
         for (i, name) in names.enumerated() {
             guard let name else { continue }
-            guard let symbol = program.sema.bindings.destructuringComponentCallee(for: id, index: i), let method = program.methods[symbol] ?? program.textLibraryMethods[symbol]?.method else { throw fail("JVM destructuring requires registered components.", id) }
-            let result: JVMValue
-            if method.owner == "kotlin/text/MatchResult$Destructured" { result = try textMatchComponent(object, index: i) }
-            else if program.textLibraryMethods[symbol]?.extensionReceiver != nil {
-                guard let receiverType = method.parameters.first else { throw fail("JVM destructuring extension has no receiver parameter.", id) }
-                let receiver = try convert(object, to: receiverType)
-                result = try jdkCall(method.owner, method.name, method.parameters, method.result, arguments: [receiver])!
+            let symbol = program.sema.bindings.destructuringComponentCallee(for: id, index: i)
+            let method = symbol.flatMap {
+                program.methods[$0] ?? context.jvmImports?.methods[$0] ?? program.textLibraryMethods[$0]?.method
             }
-            else { result = try jdkCall(method.owner, method.name, [], method.result, receiver: object, interface: method.isInterface)! }
+            let result: JVMValue
+            if let method {
+                if method.owner == "kotlin/text/MatchResult$Destructured" { result = try textMatchComponent(object, index: i) }
+                else if let symbol, program.textLibraryMethods[symbol]?.extensionReceiver != nil {
+                    guard let receiverType = method.parameters.first else { throw fail("JVM destructuring extension has no receiver parameter.", id) }
+                    let receiver = try convert(object, to: receiverType)
+                    result = try jdkCall(method.owner, method.name, method.parameters, method.result, arguments: [receiver])!
+                } else { result = try jdkCall(method.owner, method.name, [], method.result, receiver: object, interface: method.isInterface)! }
+            } else if let receiverType,
+                      case let .classType(type) = program.sema.types.kind(of: program.specialized(receiverType)),
+                      (try? program.className(type.classSymbol)) == "kotlin/collections/IndexedValue",
+                      type.args.indices.contains(0), i < 2 {
+                let indexedValue = try convert(object, to: .reference("kotlin/collections/IndexedValue", nullable: false))
+                let objectType: JVMValueType = .reference("java/lang/Object", nullable: true)
+                let erased: JVMValueType
+                let resolved: JVMValueType
+                if i == 0 { erased = .int; resolved = .int }
+                else {
+                    switch type.args[0] {
+                    case let .invariant(argument), let .out(argument), let .in(argument): resolved = try program.type(argument)
+                    case .star: resolved = objectType
+                    }
+                    erased = objectType
+                }
+                result = try jdkCall("kotlin/collections/IndexedValue", "component\(i + 1)", [], erased, receiver: indexedValue, resolved: resolved)!
+            } else { throw fail("JVM destructuring requires registered components.", id) }
             var local = Local(value: result, mutable: mutable)
             if mutable {
                 let cell = try value(.reference("[" + result.type.descriptor, nullable: false))
