@@ -1,5 +1,11 @@
 
 final class KIRLoweringContext {
+    struct ExceptionHandler {
+        let exceptionSlot: KIRExprID
+        let exceptionTypeSlot: KIRExprID
+        var thrownTarget: Int32
+    }
+
     struct ContextReceiverValue {
         let type: TypeID
         let exprID: KIRExprID
@@ -65,6 +71,8 @@ final class KIRLoweringContext {
     /// depth at the time the try-finally scope was entered.  This depth is used to
     /// determine whether a `break`/`continue` exits the try scope (and should inline
     /// the finally block) or stays within the same try scope (and should skip it).
+    /// It also records the exception-handler depth outside the owning try so an
+    /// exception from an inlined finally can bypass handlers whose cleanup has run.
     ///
     /// When a `return`, `break`, or `continue` is lowered inside a try-finally,
     /// the compiler inlines the finally block code before the control-flow transfer
@@ -73,7 +81,8 @@ final class KIRLoweringContext {
     /// Use `pushFinallyBlock`, `popFinallyBlock`, `enclosingFinallyBlocks`,
     /// `enclosingFinallyBlocksForControlFlow`, and `withFinallyStackDepth`
     /// instead of mutating this property directly.
-    private(set) var finallyBlockStack: [(exprID: ExprID, loopDepth: Int)] = []
+    private(set) var finallyBlockStack: [(exprID: ExprID, loopDepth: Int, exceptionHandlerDepth: Int)] = []
+    private(set) var exceptionHandlerStack: [ExceptionHandler] = []
     var nextLoopLabel: Int32 = 10000
 
 
@@ -165,7 +174,8 @@ final class KIRLoweringContext {
         let pendingLambdaNonLocalReturnAllowance: Bool
         let loopControlStack: [(continueLabel: Int32, breakLabel: Int32, name: InternedString?)]
         let enclosingLoopControlStack: [(continueLabel: Int32, breakLabel: Int32, name: InternedString?)]
-        let finallyBlockStack: [(exprID: ExprID, loopDepth: Int)]
+        let finallyBlockStack: [(exprID: ExprID, loopDepth: Int, exceptionHandlerDepth: Int)]
+        let exceptionHandlerStack: [ExceptionHandler]
         let nextLoopLabel: Int32
     }
 
@@ -189,6 +199,7 @@ final class KIRLoweringContext {
             loopControlStack: loopControlStack,
             enclosingLoopControlStack: enclosingLoopControlStack,
             finallyBlockStack: finallyBlockStack,
+            exceptionHandlerStack: exceptionHandlerStack,
             nextLoopLabel: nextLoopLabel
         )
     }
@@ -212,6 +223,7 @@ final class KIRLoweringContext {
         loopControlStack = snapshot.loopControlStack
         enclosingLoopControlStack = snapshot.enclosingLoopControlStack
         finallyBlockStack = snapshot.finallyBlockStack
+        exceptionHandlerStack = snapshot.exceptionHandlerStack
         nextLoopLabel = snapshot.nextLoopLabel
     }
 
@@ -246,6 +258,7 @@ final class KIRLoweringContext {
         loopControlStack.removeAll(keepingCapacity: true)
         enclosingLoopControlStack.removeAll(keepingCapacity: true)
         finallyBlockStack.removeAll(keepingCapacity: true)
+        exceptionHandlerStack.removeAll(keepingCapacity: true)
         nextLoopLabel = 10000
     }
 
@@ -433,8 +446,12 @@ final class KIRLoweringContext {
     }
 
 
-    func pushFinallyBlock(_ exprID: ExprID) {
-        finallyBlockStack.append((exprID: exprID, loopDepth: loopControlStack.count))
+    func pushFinallyBlock(_ exprID: ExprID, exceptionHandlerDepth: Int? = nil) {
+        finallyBlockStack.append((
+            exprID: exprID,
+            loopDepth: loopControlStack.count,
+            exceptionHandlerDepth: exceptionHandlerDepth ?? exceptionHandlerStack.count
+        ))
     }
 
     @discardableResult
@@ -445,6 +462,52 @@ final class KIRLoweringContext {
     /// Returns the current stack of enclosing finally block expression IDs (outermost first).
     func enclosingFinallyBlocks() -> [ExprID] {
         finallyBlockStack.map(\.exprID)
+    }
+
+    func pushExceptionHandler(
+        exceptionSlot: KIRExprID,
+        exceptionTypeSlot: KIRExprID,
+        thrownTarget: Int32
+    ) {
+        exceptionHandlerStack.append(ExceptionHandler(
+            exceptionSlot: exceptionSlot,
+            exceptionTypeSlot: exceptionTypeSlot,
+            thrownTarget: thrownTarget
+        ))
+    }
+
+    @discardableResult
+    func popExceptionHandler() -> ExceptionHandler? {
+        exceptionHandlerStack.popLast()
+    }
+
+    func withExceptionHandlerTarget<T>(_ target: Int32, _ body: () throws -> T) rethrows -> T {
+        precondition(!exceptionHandlerStack.isEmpty)
+        let index = exceptionHandlerStack.count - 1
+        let previousTarget = exceptionHandlerStack[index].thrownTarget
+        exceptionHandlerStack[index].thrownTarget = target
+        defer { exceptionHandlerStack[index].thrownTarget = previousTarget }
+        return try body()
+    }
+
+    func withExceptionHandlerStackDepth<T>(_ depth: Int, _ body: () throws -> T) rethrows -> T {
+        precondition(depth >= 0 && depth <= exceptionHandlerStack.count)
+        let removedSuffix = Array(exceptionHandlerStack[depth...])
+        exceptionHandlerStack.removeSubrange(depth..<exceptionHandlerStack.count)
+        defer { exceptionHandlerStack.append(contentsOf: removedSuffix) }
+        return try body()
+    }
+
+    func exceptionHandlerOutsideFinally(at stackIndex: Int) -> ExceptionHandler? {
+        guard finallyBlockStack.indices.contains(stackIndex) else { return nil }
+        let depth = finallyBlockStack[stackIndex].exceptionHandlerDepth
+        guard depth > 0, depth <= exceptionHandlerStack.count else { return nil }
+        return exceptionHandlerStack[depth - 1]
+    }
+
+    func exceptionHandlerDepthForFinallyBlock(at stackIndex: Int) -> Int {
+        guard finallyBlockStack.indices.contains(stackIndex) else { return 0 }
+        return finallyBlockStack[stackIndex].exceptionHandlerDepth
     }
 
     /// Returns enclosing finally block expression IDs (with their original
