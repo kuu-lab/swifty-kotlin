@@ -8,6 +8,67 @@ import Testing
 struct CodegenBackendPrimitiveArrayEdgeCasesTests {
 
     @Test
+    func testPrimitiveArrayIndexingExtensions() throws {
+        let source = """
+        fun main() {
+            val doubles = doubleArrayOf(1.5, 2.5, 1.5)
+            println(doubles.lastIndex)
+            println(doubles.indices)
+            println(doubles.indexOf(2.5))
+            println(doubles.indexOf(3.5))
+            println(doubleArrayOf(Double.NaN).indexOf(Double.NaN))
+            println(doubleArrayOf(0.0).indexOf(-0.0))
+
+            val floats = floatArrayOf(1.5f, 2.5f, 1.5f)
+            println(floats.lastIndex)
+            println(floats.indices)
+            println(floats.indexOf(2.5f))
+            println(floats.indexOf(3.5f))
+            println(floatArrayOf(Float.NaN).indexOf(Float.NaN))
+            println(floatArrayOf(0.0f).indexOf(-0.0f))
+
+            val shorts = shortArrayOf(1, 2, 1)
+            println(shorts.lastIndex)
+            println(shorts.indices)
+            println(shorts.indexOf(2))
+            println(shorts.indexOf(3))
+
+            val booleans = booleanArrayOf(true, false, true)
+            println(booleans.lastIndex)
+            println(booleans.indices)
+            println(booleans.indexOf(true))
+            println(booleans.indexOf(false))
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "PrimitiveArrayIndexingExtensions",
+            expected: """
+            2
+            0..2
+            1
+            -1
+            -1
+            0
+            2
+            0..2
+            1
+            -1
+            -1
+            0
+            2
+            0..2
+            1
+            -1
+            2
+            0..2
+            0
+            1
+            """ + "\n"
+        )
+    }
+
+    @Test
     func testArrayCloneIsShallowAndPreservesArrayKinds() throws {
         let source = """
         class CloneBox(var value: Int)

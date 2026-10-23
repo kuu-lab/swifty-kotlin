@@ -8,7 +8,10 @@
 package kotlinx.coroutines.flow
 
 import kotlin.internal.KsSymbolName
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.ensureActive
 
 public interface Flow<out T>
@@ -18,7 +21,10 @@ internal external suspend fun <T> Flow<T>.collectCold(collector: suspend (T) -> 
 
 @Suppress("UNCHECKED_CAST")
 public suspend fun <T> Flow<T>.collect(collector: suspend (T) -> Unit) {
-    if (this is SharedFlow<*>) {
+    if (this is ChannelFlow<*>) {
+        @Suppress("UNCHECKED_CAST")
+        (this as ChannelFlow<T>).collectTo(collector)
+    } else if (this is SharedFlow<*>) {
         (this as SharedFlow<T>).collect(collector)
     } else {
         this.collectCold { value -> collector(value) }
@@ -30,10 +36,9 @@ public suspend fun <T> Flow<T>.collect(collector: FlowCollector<T>) {
 }
 
 // MIGRATION-FLOW-004 (KSP-499)
-// Flow operators are bundled Kotlin source. The compiler/runtime keep only the
-// cold-flow core (`flow`, `emit`, and `collect`) as coroutine bridges; the
-// operators below compose that core instead of entering dedicated kk_flow_* ABI
-// functions.
+// Flow operators are bundled Kotlin source. Most operators compose the
+// cold-flow core (`flow`, `emit`, and `collect`); latest flattening uses its
+// runtime bridge so cancellation reaches a suspended inner emitter.
 
 public fun <T, R> Flow<T>.map(transform: suspend (T) -> R): Flow<R> {
     val source = this
@@ -172,10 +177,14 @@ public fun <T, R> Flow<T>.flatMapMerge(
     transform: suspend (T) -> Flow<R>
 ): Flow<R> = flatMapMerge(DEFAULT_CONCURRENCY, transform)
 
-// Synchronous cold flows collect each inner flow to completion before the
-// next outer value arrives, so flatMapLatest reduces to flatMapConcat here.
 public fun <T, R> Flow<T>.flatMapLatest(transform: suspend (T) -> Flow<R>): Flow<R> =
-    flatMapConcat(transform)
+    flatMapLatestRuntime(this, transform)
+
+@KsSymbolName("__kk_flow_flat_map_latest_external")
+internal external fun <T, R> flatMapLatestRuntime(
+    source: Flow<T>,
+    transform: suspend (T) -> Flow<R>
+): Flow<R>
 
 public fun <T, R, V> Flow<T>.zip(
     other: Flow<R>,
@@ -226,25 +235,46 @@ public fun <T> Flow<T>.debounce(timeoutMillis: Long): Flow<T> {
     return flow { source.collect { value -> emit(value) } }
 }
 
-// The operators below share the sequential-collect model: cold flows emit
-// every value synchronously, so temporal/concurrent modifiers reduce to
-// pass-throughs.
+// Buffering and context operators use a per-collection channel. Their fused
+// configuration lives in ChannelFlow so adjacent operators share one producer
+// and one channel.
 
-public fun <T> Flow<T>.buffer(capacity: Int = -2): Flow<T> {
-    require(capacity >= 0 || capacity == -2 || capacity == -1) {
+public fun <T> Flow<T>.buffer(
+    capacity: Int = Channel.BUFFERED,
+    onBufferOverflow: BufferOverflow = BufferOverflow.SUSPEND
+): Flow<T> {
+    require(capacity >= 0 || capacity == Channel.BUFFERED || capacity == Channel.CONFLATED) {
         "Buffer size should be non-negative, BUFFERED, or CONFLATED, but was $capacity"
     }
-    return this
+    require(capacity != Channel.CONFLATED || onBufferOverflow == BufferOverflow.SUSPEND) {
+        "CONFLATED capacity cannot be used with non-default onBufferOverflow"
+    }
+    val actualCapacity = if (capacity == Channel.CONFLATED) 0 else capacity
+    val actualOverflow = if (capacity == Channel.CONFLATED) {
+        BufferOverflow.DROP_OLDEST
+    } else {
+        onBufferOverflow
+    }
+    return fuse(EmptyCoroutineContext, actualCapacity, actualOverflow)
 }
 
-public fun <T> Flow<T>.conflate(): Flow<T> = this
+public fun <T> Flow<T>.conflate(): Flow<T> =
+    fuse(EmptyCoroutineContext, 0, BufferOverflow.DROP_OLDEST)
 
-public fun <T> Flow<T>.flowOn(context: kotlin.coroutines.CoroutineContext): Flow<T> = this
+public fun <T> Flow<T>.flowOn(context: kotlin.coroutines.CoroutineContext): Flow<T> {
+    val containsJob = context.fold(false) { found, element ->
+        found || element is kotlinx.coroutines.Job
+    }
+    require(!containsJob) {
+        "Flow context cannot contain job in it. Had $context"
+    }
+    return fuse(context, OPTIONAL_CHANNEL_CAPACITY, BufferOverflow.SUSPEND)
+}
 
 // KSwiftK compatibility surface: `flowWith` was removed from kotlinx-coroutines
-// (~1.4.x; absent in 1.10.2). In the sequential cold-flow model the context it
-// would introduce is inert, so it reduces to the same pass-through as flowOn.
-public fun <T> Flow<T>.flowWith(flowContext: kotlin.coroutines.CoroutineContext): Flow<T> = this
+// (~1.4.x; absent in 1.10.2). Keep it as an alias of flowOn for compatibility.
+public fun <T> Flow<T>.flowWith(flowContext: kotlin.coroutines.CoroutineContext): Flow<T> =
+    flowOn(flowContext)
 
 // `cancellable` is the exception to the pass-throughs above: it composes the
 // retained collect/emit core with `ensureActive`, so a collector running in a

@@ -285,6 +285,12 @@ private struct JVMSourceGrammar {
     }
     mutating func statement() throws {
         while kind == .symbol(.at) { try annotation() }
+        if kind.isLabelName,
+           tokens[min(index + 1, tokens.count - 1)].kind == .symbol(.at),
+           [.keyword(.for), .keyword(.while), .keyword(.do)].contains(tokens[min(index + 2, tokens.count - 1)].kind) {
+            try name()
+            try require(.symbol(.at))
+        }
         let late = take(.keyword(.lateinit))
         if late, kind != .keyword(.val), kind != .keyword(.var) { throw Unsupported() }
         if take(.keyword(.val)) || take(.keyword(.var)) {
@@ -327,6 +333,7 @@ private struct JVMSourceGrammar {
             if take(.symbol(.at)) { try name() }
             if kind != .symbol(.rBrace), kind != .symbol(.semicolon), !newlineBeforeCurrent() { try expression() }
         } else if take(.keyword(.break)) || take(.keyword(.continue)) {
+            if take(.symbol(.at)) { try name() }
             return
         } else {
             try expression()
@@ -421,7 +428,10 @@ private struct JVMSourceGrammar {
             if kind != .templateExprEnd, kind != .symbol(.rBrace), kind != .symbol(.semicolon), !newlineBeforeCurrent() { try expression() }
             return
         }
-        if take(.keyword(.break)) || take(.keyword(.continue)) { return }
+        if take(.keyword(.break)) || take(.keyword(.continue)) {
+            if take(.symbol(.at)) { try name() }
+            return
+        }
         if take(.keyword(.throw)) { try expression(); return }
         if take(.keyword(.try)) {
             try block()

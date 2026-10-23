@@ -395,6 +395,8 @@ extension ExprLowerer {
             }
             localFunBodyInstructions.append(.endBlock)
 
+            let isTailrec = ast.arena.isLocalTailrecFunction(exprID)
+            if isTailrec { driver.ctx.markTailrecFunction(symbol) }
             let localFunDeclID = arena.appendDecl(
                 .function(
                     KIRFunction(

@@ -47,6 +47,7 @@ public final class LoweringPhase: CompilerPhase {
             InlineLoweringPass(),
             ReifiedEnumValuesLoweringPass(),
             CoroutineLoweringPass(),
+            TailrecAfterInlineLoweringPass(),
             // Must run after every pass that emits integer arithmetic builtins
             // (Operator/For/Inline/...) and before ABILoweringPass so the inserted
             // narrowing calls participate in throw-channel resolution.

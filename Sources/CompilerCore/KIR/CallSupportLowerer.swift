@@ -1,7 +1,65 @@
 
+struct DefaultArgumentMask: Equatable, Sendable {
+    // Each mask word is passed as a Kotlin Int, so keep every word within
+    // Kotlin Int's 32-bit representation even though the scratch value is Int64.
+    // Generated default-stub mask words use Kotlin Long to preserve all bits.
+    static let bitsPerWord = Int64.bitWidth
+
+    private(set) var words: [Int64]
+
+    init(parameterCount: Int) {
+        let wordCount = max(1, (parameterCount + Self.bitsPerWord - 1) / Self.bitsPerWord)
+        words = Array(repeating: 0, count: wordCount)
+    }
+
+    init(words: [Int64]) {
+        self.words = words.isEmpty ? [0] : words
+    }
+
+    var hasSetBits: Bool {
+        words.contains { $0 != 0 }
+    }
+
+    /// Wide default stubs use a separate trailing word for the super-call
+    /// marker so it never shares a bit with a default parameter.
+    var stubWords: [Int64] {
+        words.count > 1 ? words + [0] : words
+    }
+
+    func contains(_ parameterIndex: Int) -> Bool {
+        guard parameterIndex >= 0 else { return false }
+        let wordIndex = parameterIndex / Self.bitsPerWord
+        guard words.indices.contains(wordIndex) else { return false }
+        let bit = Int64(1) << (parameterIndex % Self.bitsPerWord)
+        return words[wordIndex] & bit != 0
+    }
+
+    mutating func insert(_ parameterIndex: Int) {
+        precondition(parameterIndex >= 0, "Default-argument indices must be non-negative.")
+        let wordIndex = parameterIndex / Self.bitsPerWord
+        while words.count <= wordIndex {
+            words.append(0)
+        }
+        words[wordIndex] |= Int64(1) << (parameterIndex % Self.bitsPerWord)
+    }
+}
+
 struct NormalizedCallResult {
     let arguments: [KIRExprID]
-    let defaultMask: Int64
+    let defaultMaskWords: [Int64]
+
+    var defaultMask: Int64 { defaultMaskWords.first ?? 0 }
+    var hasOmittedDefaultArguments: Bool { defaultMaskWords.contains { $0 != 0 } }
+
+    init(arguments: [KIRExprID], defaultMask: Int64) {
+        self.arguments = arguments
+        defaultMaskWords = [defaultMask]
+    }
+
+    init(arguments: [KIRExprID], defaultMaskWords: [Int64]) {
+        self.arguments = arguments
+        self.defaultMaskWords = defaultMaskWords.isEmpty ? [0] : defaultMaskWords
+    }
 }
 
 struct DefaultStubCapture {
@@ -115,6 +173,12 @@ final class CallSupportLowerer {
         SyntheticSymbolScheme.defaultMaskSymbol(for: originalSymbol)
     }
 
+    func defaultStubMaskSymbols(for originalSymbol: SymbolID, wordCount: Int) -> [SymbolID] {
+        guard wordCount > 0 else { return [] }
+        return [defaultStubMaskSymbol(for: originalSymbol)]
+            + (1 ..< wordCount).map { _ in driver.ctx.allocateSyntheticGeneratedSymbol() }
+    }
+
     /// An `override` that inherits its defaults from an overridden
     /// declaration (`OverrideDefaultArgumentInheritance`) never gets a stub
     /// generated for itself -- its own AST has no default value expressions
@@ -206,6 +270,7 @@ final class CallSupportLowerer {
         captures: [DefaultStubCapture] = []
     ) -> KIRDeclID {
         let intType = sema.types.make(.primitive(.int, .nonNull))
+        let maskType = sema.types.make(.primitive(.long, .nonNull))
         let paramCount = signature.parameterTypes.count
 
         let scopeSnapshot = driver.ctx.saveScope()
@@ -221,7 +286,7 @@ final class CallSupportLowerer {
             // Member extensions (`fun T.m(...)` declared inside a nominal
             // type) carry a dispatch receiver (`this@Owner`) ahead of the
             // extension receiver, so the stub's ABI is
-            // [dispatch, extension, params..., mask] and its inner call
+            // [dispatch, extension, params..., mask words] and its inner call
             // forwards both receivers.
             if let ownerSymbol = driver.callLowerer.memberExtensionOwnerSymbol(for: originalSymbol, sema: sema),
                let ownerInfo = sema.symbols.symbol(ownerSymbol)
@@ -295,8 +360,12 @@ final class CallSupportLowerer {
                 }
             }
         }
-        let maskSymbol = defaultStubMaskSymbol(for: originalSymbol)
-        params.append(KIRParameter(symbol: maskSymbol, type: intType))
+        let defaultMask = DefaultArgumentMask(parameterCount: paramCount)
+        let maskSymbols = defaultStubMaskSymbols(
+            for: originalSymbol,
+            wordCount: defaultMask.stubWords.count
+        )
+        params.append(contentsOf: maskSymbols.map { KIRParameter(symbol: $0, type: maskType) })
 
         var body: [KIRInstruction] = [.beginBlock]
         // Defaults can themselves capture reified parameters in a lambda.
@@ -339,8 +408,12 @@ final class CallSupportLowerer {
             captureArgExprs.append(captureExpr)
         }
 
-        let maskExpr = arena.appendExpr(.symbolRef(maskSymbol), type: intType)
-        body.append(.constValue(result: maskExpr, value: .symbolRef(maskSymbol)))
+        let maskExprs = maskSymbols.map { symbol in
+            let expression = arena.appendExpr(.symbolRef(symbol), type: maskType)
+            body.append(.constValue(result: expression, value: .symbolRef(symbol)))
+            return expression
+        }
+        let defaultMaskExprs = Array(maskExprs.prefix(defaultMask.words.count))
 
         var resolvedParamExprs: [KIRExprID] = []
         for i in 0 ..< paramCount {
@@ -350,21 +423,24 @@ final class CallSupportLowerer {
             body.append(.constValue(result: paramExpr, value: .symbolRef(paramSymbol)))
 
             if i < defaultExpressions.count, let defaultExprID = defaultExpressions[i] {
-                let bitValue = Int64(1) << i
-                let divisorExpr = arena.appendExpr(.intLiteral(bitValue), type: intType)
-                body.append(.constValue(result: divisorExpr, value: .intLiteral(bitValue)))
-                let dividedExpr = arena.appendTemporary(type: intType)
-                body.append(.binary(op: .divide, lhs: maskExpr, rhs: divisorExpr, result: dividedExpr))
-                let twoExpr = arena.appendExpr(.intLiteral(2), type: intType)
-                body.append(.constValue(result: twoExpr, value: .intLiteral(2)))
-                let bitExpr = arena.appendTemporary(type: intType)
-                body.append(.binary(op: .modulo, lhs: dividedExpr, rhs: twoExpr, result: bitExpr))
-                let zeroExpr = arena.appendExpr(.intLiteral(0), type: intType)
+                let bitValue = Int64(1) << (i % DefaultArgumentMask.bitsPerWord)
+                let bitMaskExpr = arena.appendExpr(.intLiteral(bitValue), type: maskType)
+                body.append(.constValue(result: bitMaskExpr, value: .intLiteral(bitValue)))
+                let selectedExpr = arena.appendTemporary(type: maskType)
+                body.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_bitwise_and"),
+                    arguments: [defaultMaskExprs[i / DefaultArgumentMask.bitsPerWord], bitMaskExpr],
+                    result: selectedExpr,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                let zeroExpr = arena.appendExpr(.intLiteral(0), type: maskType)
                 body.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
 
                 let skipLabel = driver.ctx.makeLoopLabel()
                 let afterLabel = driver.ctx.makeLoopLabel()
-                body.append(.jumpIfEqual(lhs: bitExpr, rhs: zeroExpr, target: skipLabel))
+                body.append(.jumpIfEqual(lhs: selectedExpr, rhs: zeroExpr, target: skipLabel))
 
                 driver.ctx.setLocalValue(paramExpr, for: paramSymbol)
                 let defaultVal = driver.lowerExpr(
@@ -454,16 +530,10 @@ final class CallSupportLowerer {
         // with no subtypes at all in this compilation (the vtable slot could
         // only ever resolve back to itself).
         //
-        // `super.f()` with an omitted default argument is the one caller
-        // that must bypass this and always reach `originalSymbol` directly.
-        // Kotlin's own `$default` takes an extra marker parameter for
-        // exactly this; here the caller instead sets a reserved high bit
-        // (30) of the existing mask parameter (see the `isSuperCall`
-        // mask-bit edits in `CallLowerer+MemberCallEmission.swift` and
-        // `CallLowerer+SafeMemberCalls.swift`). Bit 30 stays clear of the
-        // sign bit and leaves bits 0..29 for up to 30 defaultable
-        // parameters, matching the pre-existing (unenforced) limit of this
-        // Int64-mask scheme.
+        // `super.f()` with an omitted default argument must bypass virtual
+        // dispatch and reach `originalSymbol` directly. The legacy single-word
+        // ABI stores that marker in bit 30; wide masks carry it in an extra
+        // trailing word so it cannot overlap a parameter bit.
         if let receiverExprForCall, signature.receiverType != nil,
            let virtualInstruction = driver.callLowerer.tryEmitVirtualDispatch(
                chosenCallee: implementationSymbol,
@@ -488,17 +558,27 @@ final class CallSupportLowerer {
                interner: interner
            )
         {
-            let superCallBitValue = Int64(1) << 30
-            let superCallDivisorExpr = arena.appendExpr(.intLiteral(superCallBitValue), type: intType)
-            body.append(.constValue(result: superCallDivisorExpr, value: .intLiteral(superCallBitValue)))
-            let superCallDividedExpr = arena.appendTemporary(type: intType)
-            body.append(.binary(op: .divide, lhs: maskExpr, rhs: superCallDivisorExpr, result: superCallDividedExpr))
-            let superCallTwoExpr = arena.appendExpr(.intLiteral(2), type: intType)
-            body.append(.constValue(result: superCallTwoExpr, value: .intLiteral(2)))
-            let superCallBitExpr = arena.appendTemporary(type: intType)
-            body.append(.binary(op: .modulo, lhs: superCallDividedExpr, rhs: superCallTwoExpr, result: superCallBitExpr))
-            let superCallOneExpr = arena.appendExpr(.intLiteral(1), type: intType)
-            body.append(.constValue(result: superCallOneExpr, value: .intLiteral(1)))
+            let superCallBitExpr: KIRExprID
+            let superCallBitValue: Int64
+            if maskExprs.count > defaultMaskExprs.count {
+                superCallBitValue = 1
+                superCallBitExpr = maskExprs[maskExprs.count - 1]
+            } else {
+                superCallBitValue = Int64(1) << 30
+                let superCallBitMaskExpr = arena.appendExpr(.intLiteral(superCallBitValue), type: maskType)
+                body.append(.constValue(result: superCallBitMaskExpr, value: .intLiteral(superCallBitValue)))
+                superCallBitExpr = arena.appendTemporary(type: intType)
+                body.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_bitwise_and"),
+                    arguments: [maskExprs[0], superCallBitMaskExpr],
+                    result: superCallBitExpr,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+            }
+            let superCallOneExpr = arena.appendExpr(.intLiteral(superCallBitValue), type: maskType)
+            body.append(.constValue(result: superCallOneExpr, value: .intLiteral(superCallBitValue)))
 
             let directDispatchLabel = driver.ctx.makeLoopLabel()
             let afterDispatchLabel = driver.ctx.makeLoopLabel()
@@ -549,7 +629,7 @@ final class CallSupportLowerer {
     /// receiver would bind to the wrong object here.
     private func expandSelfTailrecDefaults(
         normalized: inout [KIRExprID],
-        mask: Int64,
+        mask: DefaultArgumentMask,
         chosenCallee: SymbolID,
         signature: FunctionSignature,
         ast: ASTModule,
@@ -570,14 +650,14 @@ final class CallSupportLowerer {
         else {
             return false
         }
-        for index in normalized.indices where mask & (Int64(1) << index) != 0 {
+        for index in normalized.indices where mask.contains(index) {
             guard index < defaults.count, defaults[index] != nil else { return false }
         }
         let paramSymbols = signature.valueParameterSymbols
         let savedLocals = paramSymbols.map { ctx.localValue(for: $0) }
         var expanded = normalized
         for index in normalized.indices {
-            if mask & (Int64(1) << index) != 0, let defaultExpr = defaults[index] {
+            if mask.contains(index), let defaultExpr = defaults[index] {
                 let value = driver.lowerExpr(
                     defaultExpr,
                     ast: ast,
@@ -835,7 +915,7 @@ final class CallSupportLowerer {
         var normalized: [KIRExprID] = []
         normalized.reserveCapacity(parameterCount)
         let intType = sema.types.make(.primitive(.int, .nonNull))
-        var mask: Int64 = 0
+        var defaultMask = DefaultArgumentMask(parameterCount: parameterCount)
 
         for paramIndex in 0 ..< parameterCount {
             if let argIndices = argIndicesByParameter[paramIndex] {
@@ -975,7 +1055,7 @@ final class CallSupportLowerer {
             guard hasDefaultValues[paramIndex] else {
                 return NormalizedCallResult(arguments: providedArguments, defaultMask: 0)
             }
-            mask |= Int64(1) << paramIndex
+            defaultMask.insert(paramIndex)
             let sentinelType = defaultParameterStorageType(
                 at: paramIndex, functionSymbol: chosenCallee, signature: signature,
                 sema: sema, interner: interner
@@ -985,10 +1065,10 @@ final class CallSupportLowerer {
             normalized.append(sentinel)
         }
 
-        if mask != 0,
+        if defaultMask.hasSetBits,
            expandSelfTailrecDefaults(
                normalized: &normalized,
-               mask: mask,
+               mask: defaultMask,
                chosenCallee: chosenCallee,
                signature: signature,
                ast: ast,
@@ -1008,10 +1088,10 @@ final class CallSupportLowerer {
         // a generic or Any-typed parameter is forwarded through such a stub.
         // Defaulted parameters remain sentinels and are materialized inside the
         // stub before the ordinary call boundary applies its own boxing rules.
-        if mask != 0 {
+        if defaultMask.hasSetBits {
             for paramIndex in 0 ..< parameterCount {
                 let parameterKind = sema.types.kind(of: defaultSignature.parameterTypes[paramIndex])
-                guard mask & (Int64(1) << paramIndex) == 0,
+                guard !defaultMask.contains(paramIndex),
                       paramIndex < normalized.count,
                       let sourceType = arena.exprType(normalized[paramIndex])
                 else {
@@ -1041,7 +1121,7 @@ final class CallSupportLowerer {
                 )
             }
         }
-        return NormalizedCallResult(arguments: normalized, defaultMask: mask)
+        return NormalizedCallResult(arguments: normalized, defaultMaskWords: defaultMask.stubWords)
     }
 
     /// Boxes non-spread primitive arguments when the vararg's declared element type is Any/reference/type-param — e.g. `printAll(vararg items: Any)` — but not for a concrete-primitive element type like `IntArray`'s `intArrayOf(vararg elements: Int)`, which needs raw storage.

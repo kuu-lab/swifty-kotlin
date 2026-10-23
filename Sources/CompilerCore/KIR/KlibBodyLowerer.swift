@@ -414,10 +414,15 @@ final class KlibBodyLowerer {
         thisExpr = nil
         currentCallableSymbol = nil
 
-        let maskSymbol = driver.callSupportLowerer.defaultStubMaskSymbol(for: symbol)
-        let maskExpr = arena.appendExpr(.symbolRef(maskSymbol), type: types.intType)
+        let maskSymbols = driver.callSupportLowerer.defaultStubMaskSymbols(
+            for: symbol,
+            wordCount: DefaultArgumentMask(parameterCount: base.regularParameters.count).stubWords.count
+        )
+        let maskExprs = maskSymbols.map { arena.appendExpr(.symbolRef($0), type: types.longType) }
         var body: KIRLoweringEmitContext = [.beginBlock]
-        body.append(.constValue(result: maskExpr, value: .symbolRef(maskSymbol)))
+        for (symbol, expression) in zip(maskSymbols, maskExprs) {
+            body.append(.constValue(result: expression, value: .symbolRef(symbol)))
+        }
         var forwarded: [KIRExprID] = []
         let receiverCount = signature.receiverType == nil ? 0 : 1
         for (index, parameter) in params.enumerated() {
@@ -439,8 +444,8 @@ final class KlibBodyLowerer {
             let serialized = base.regularParameters[regularIndex]
             var resolved = provided
             if let defaultIndex = serialized.defaultValueIndex {
-                let selected = defaultMaskBit(regularIndex, mask: maskExpr, into: &body)
-                let zero = arena.appendExpr(.intLiteral(0), type: types.intType)
+                let selected = defaultMaskBit(regularIndex, masks: maskExprs, into: &body)
+                let zero = arena.appendExpr(.intLiteral(0), type: types.longType)
                 body.append(.constValue(result: zero, value: .intLiteral(0)))
                 resolved = arena.appendTemporary(type: parameter.type)
                 body.append(.copy(from: provided, to: resolved))
@@ -482,7 +487,7 @@ final class KlibBodyLowerer {
         body.append(.returnValue(result))
         body.append(.endBlock)
         let stubSymbol = driver.callSupportLowerer.defaultStubSymbol(for: symbol)
-        let stubParams = params + [KIRParameter(symbol: maskSymbol, type: types.intType)]
+        let stubParams = params + maskSymbols.map { KIRParameter(symbol: $0, type: types.longType) }
         // The stub's receiver is an ordinary KIR parameter. Register its
         // complete erased ABI so Any/T receivers and values are boxed at
         // source and serialized call sites, including constructors.
@@ -507,20 +512,23 @@ final class KlibBodyLowerer {
         )))
     }
 
-    private func defaultMaskBit(_ index: Int, mask: KIRExprID, into body: inout KIRLoweringEmitContext) -> KIRExprID {
-        guard index < 63 else {
-            reportUnsupported("more than 63 default-argument mask bits")
-            return appendIntegerConstant(0, into: &body)
-        }
-        let bit = Int64(1) << index
-        let divisor = arena.appendExpr(.intLiteral(bit), type: types.intType)
-        let two = arena.appendExpr(.intLiteral(2), type: types.intType)
-        body.append(.constValue(result: divisor, value: .intLiteral(bit)))
-        body.append(.constValue(result: two, value: .intLiteral(2)))
-        let divided = arena.appendTemporary(type: types.intType)
-        let selected = arena.appendTemporary(type: types.intType)
-        body.append(.binary(op: .divide, lhs: mask, rhs: divisor, result: divided))
-        body.append(.binary(op: .modulo, lhs: divided, rhs: two, result: selected))
+    private func defaultMaskBit(
+        _ index: Int,
+        masks: [KIRExprID],
+        into body: inout KIRLoweringEmitContext
+    ) -> KIRExprID {
+        let bit = Int64(1) << (index % DefaultArgumentMask.bitsPerWord)
+        let bitMask = arena.appendExpr(.intLiteral(bit), type: types.longType)
+        body.append(.constValue(result: bitMask, value: .intLiteral(bit)))
+        let selected = arena.appendTemporary(type: types.longType)
+        body.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_bitwise_and"),
+            arguments: [masks[index / DefaultArgumentMask.bitsPerWord], bitMask],
+            result: selected,
+            canThrow: false,
+            thrownResult: nil
+        ))
         return selected
     }
 
@@ -1360,9 +1368,9 @@ final class KlibBodyLowerer {
         _ arguments: [KlibIrExpression?],
         signature: FunctionSignature?,
         into body: inout KIRLoweringEmitContext
-    ) -> (values: [KIRExprID], mask: Int64) {
+    ) -> (values: [KIRExprID], masks: [Int64]) {
         var values: [KIRExprID] = []
-        var mask: Int64 = 0
+        var mask = DefaultArgumentMask(parameterCount: signature?.parameterTypes.count ?? arguments.count)
         for (index, argument) in arguments.enumerated() {
             if let argument {
                 values.append(translateExpression(argument, into: &body))
@@ -1374,8 +1382,8 @@ final class KlibBodyLowerer {
             }
             let parameterType = signature.parameterTypes[index]
             if index < signature.valueParameterHasDefaultValues.count,
-               signature.valueParameterHasDefaultValues[index], index < 63 {
-                mask |= Int64(1) << index
+               signature.valueParameterHasDefaultValues[index] {
+                mask.insert(index)
                 let placeholder = arena.appendExpr(.intLiteral(0), type: parameterType)
                 body.append(.constValue(result: placeholder, value: .intLiteral(0)))
                 values.append(placeholder)
@@ -1388,13 +1396,21 @@ final class KlibBodyLowerer {
                 reportUnsupported("missing argument for parameter \(index)")
             }
         }
-        return (values, mask)
+        return (values, mask.stubWords)
     }
 
     private func appendIntegerConstant(_ mask: Int64, into body: inout KIRLoweringEmitContext) -> KIRExprID {
         let expression = arena.appendExpr(.intLiteral(mask), type: types.intType)
         body.append(.constValue(result: expression, value: .intLiteral(mask)))
         return expression
+    }
+
+    private func appendDefaultMaskConstants(_ masks: [Int64], into body: inout KIRLoweringEmitContext) -> [KIRExprID] {
+        masks.map { value in
+            let expression = arena.appendExpr(.intLiteral(value), type: types.longType)
+            body.append(.constValue(result: expression, value: .intLiteral(value)))
+            return expression
+        }
     }
 
     private func translateCall(
@@ -1430,17 +1446,17 @@ final class KlibBodyLowerer {
         let result = arena.appendTemporary(type: resultType)
         let calleeName = self.calleeName(for: calleeSymbol, ref: ref)
 
-        if lowered.mask != 0 {
+        if lowered.masks.contains(where: { $0 != 0 }) {
             guard superRef == nil else {
                 reportUnsupported("super call with omitted default arguments")
                 return errorExpr(type: resultType, into: &body)
             }
             let owner = driver.callSupportLowerer.defaultStubOwnerSymbol(for: calleeSymbol, sema: sema)
-            let mask = appendIntegerConstant(lowered.mask, into: &body)
+            let masks = appendDefaultMaskConstants(lowered.masks, into: &body)
             body.append(.call(
                 symbol: driver.callSupportLowerer.defaultStubSymbol(for: owner),
                 callee: interner.intern(interner.resolve(calleeName) + "$default"),
-                arguments: loweredReceivers + loweredArguments + [mask],
+                arguments: loweredReceivers + loweredArguments + masks,
                 result: result, canThrow: true, thrownResult: nil
             ))
         } else if superRef == nil, !loweredReceivers.isEmpty,
@@ -1507,11 +1523,12 @@ final class KlibBodyLowerer {
         let split = splitArguments(memberAccess, signature: signature)
         let lowered = lowerArguments(split.regular, signature: signature, into: &body)
         var arguments: [KIRExprID] = [allocated] + lowered.values
-        if lowered.mask != 0 { arguments.append(appendIntegerConstant(lowered.mask, into: &body)) }
+        let hasOmittedDefaults = lowered.masks.contains(where: { $0 != 0 })
+        if hasOmittedDefaults { arguments.append(contentsOf: appendDefaultMaskConstants(lowered.masks, into: &body)) }
         let initResult = arena.appendTemporary(type: types.unitType)
         body.append(.call(
-            symbol: lowered.mask == 0 ? ctorSymbol : driver.callSupportLowerer.defaultStubSymbol(for: ctorSymbol),
-            callee: interner.intern(lowered.mask == 0 ? "<init>" : "<init>$default"),
+            symbol: hasOmittedDefaults ? driver.callSupportLowerer.defaultStubSymbol(for: ctorSymbol) : ctorSymbol,
+            callee: interner.intern(hasOmittedDefaults ? "<init>$default" : "<init>"),
             arguments: arguments, result: initResult,
             canThrow: true, thrownResult: nil
         ))
@@ -1543,11 +1560,12 @@ final class KlibBodyLowerer {
         let split = splitArguments(memberAccess, signature: signature)
         let lowered = lowerArguments(split.regular, signature: signature, into: &body)
         var arguments: [KIRExprID] = [thisExpr] + lowered.values
-        if lowered.mask != 0 { arguments.append(appendIntegerConstant(lowered.mask, into: &body)) }
+        let hasOmittedDefaults = lowered.masks.contains(where: { $0 != 0 })
+        if hasOmittedDefaults { arguments.append(contentsOf: appendDefaultMaskConstants(lowered.masks, into: &body)) }
         let result = arena.appendTemporary(type: types.unitType)
         body.append(.call(
-            symbol: lowered.mask == 0 ? ctorSymbol : driver.callSupportLowerer.defaultStubSymbol(for: ctorSymbol),
-            callee: interner.intern(lowered.mask == 0 ? "<init>" : "<init>$default"),
+            symbol: hasOmittedDefaults ? driver.callSupportLowerer.defaultStubSymbol(for: ctorSymbol) : ctorSymbol,
+            callee: interner.intern(hasOmittedDefaults ? "<init>$default" : "<init>"),
             arguments: arguments, result: result,
             canThrow: true, thrownResult: nil
         ))

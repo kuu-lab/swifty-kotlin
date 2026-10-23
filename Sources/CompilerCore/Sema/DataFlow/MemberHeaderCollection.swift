@@ -474,7 +474,8 @@ extension DataFlowSemaPhase {
         let declarationPositionValidator = DeclarationPositionValidator(
             astArena: ast.arena,
             interner: interner,
-            diagnostics: nil
+            diagnostics: nil,
+            fullValueClassesEnabled: ctx.options.fullValueClassesEnabled
         )
         for declID in members.properties {
             guard let decl = ast.arena.decl(declID),
@@ -1323,11 +1324,18 @@ extension DataFlowSemaPhase {
                     // Multi-field value class (Kotlin 2.x MFVC): lowered as a regular class.
                     symbols.removeFlags(.valueType, for: nestedSymbol)
                 } else if valParams.isEmpty {
-                    diagnostics.error(
-                        "KSWIFTK-SEMA-0070",
-                        "Value class must have at least one primary constructor parameter.",
-                        range: nestedClass.range
-                    )
+                    if !isFullValueClassDeclaration(
+                        nestedClass,
+                        imports: sourceImports,
+                        enabled: ctx.options.fullValueClassesEnabled,
+                        interner: interner
+                    ) {
+                        diagnostics.error(
+                            "KSWIFTK-SEMA-0070",
+                            "Value class must have at least one primary constructor parameter.",
+                            range: nestedClass.range
+                        )
+                    }
                 } else {
                     let singleParam = valParams[0]
                     let underlyingType = resolveTypeRef(
@@ -1431,13 +1439,12 @@ extension DataFlowSemaPhase {
                 )
             }
             if nestedClass.modifiers.contains(.data) {
-                collectSyntheticDataClassMethods(
+                collectSyntheticDataClassComponentsAndCopy(
                     classDecl: nestedClass,
                     ast: ast,
                     ownerSymbol: nestedSymbol,
                     ownerFQName: nestedFQName,
                     ownerType: nestedType,
-                    phase: .beforeMemberHeaders,
                     symbols: symbols,
                     types: types,
                     scope: nestedScope,
@@ -1466,22 +1473,6 @@ extension DataFlowSemaPhase {
                 classTypeParameterSymbols: nestedClassTypeParameterSymbols,
                 classLocalTypeParameters: nestedLocalTypeParameters
             )
-            if nestedClass.modifiers.contains(.data) {
-                collectSyntheticDataClassMethods(
-                    classDecl: nestedClass,
-                    ast: ast,
-                    ownerSymbol: nestedSymbol,
-                    ownerFQName: nestedFQName,
-                    ownerType: nestedType,
-                    phase: .afterMemberHeaders,
-                    symbols: symbols,
-                    types: types,
-                    scope: nestedScope,
-                    interner: interner,
-                    diagnostics: diagnostics,
-                    localTypeParameters: nestedLocalTypeParameters
-                )
-            }
             if nestedClassKind == .annotationClass {
                 collectSyntheticHashCode(
                     ownerSymbol: nestedSymbol, ownerFQName: nestedFQName, ownerType: nestedType,
@@ -1755,28 +1746,6 @@ extension DataFlowSemaPhase {
             diagnostics: diagnostics,
             interner: interner
         )
-        if nestedObject.modifiers.contains(.data) {
-            collectSyntheticHashCode(
-                ownerSymbol: nestedSymbol,
-                ownerFQName: nestedFQName,
-                ownerType: nestedType,
-                requireDataTypeFlag: false,
-                symbols: symbols,
-                types: types,
-                scope: nestedScope,
-                interner: interner
-            )
-            collectSyntheticEquals(
-                ownerSymbol: nestedSymbol,
-                ownerFQName: nestedFQName,
-                ownerType: nestedType,
-                requireDataTypeFlag: false,
-                symbols: symbols,
-                types: types,
-                scope: nestedScope,
-                interner: interner
-            )
-        }
     }
 
     /// Returns a synthetic member function placeholder with the same fully-qualified

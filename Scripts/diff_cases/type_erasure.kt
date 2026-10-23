@@ -2,8 +2,8 @@
 //
 // At runtime, generic type arguments are erased.  The JVM (and this compiler)
 // therefore cannot distinguish List<String> from List<Int> at runtime.
-// Using 'is List<String>' triggers an "unchecked" warning; use 'is List<*>'
-// (star-projection) to check only the raw type.
+// A check such as 'is List<String>' is rejected because its type argument is
+// erased; use 'is List<*>' (star-projection) to check only the raw type.
 
 fun checkRawList(v: Any): Boolean = v is List<*>
 

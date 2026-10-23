@@ -1,7 +1,6 @@
 package kotlin.collections
 
 import kotlin.internal.KsSymbolName
-import kotlin.reflect.KProperty
 
 // KSP-431: Map's four runtime-backed property links and MutableMap's mutation
 // links are registered as direct residual ABI members because built-in map
@@ -63,14 +62,6 @@ internal fun <K, V> Map<K, V>.getOrImplicitDefault(key: K): V {
 
 public fun <K, V> Map<K, V>.getValue(key: K): V = getOrImplicitDefault(key)
 
-public inline operator fun <V, V1 : V> Map<in String, V>.getValue(
-    thisRef: Any?,
-    property: KProperty<*>
-): V1 {
-    @Suppress("UNCHECKED_CAST")
-    return getOrImplicitDefault(property.name) as V1
-}
-
 public fun <K, V> Map<K, V>.getOrDefault(key: K, defaultValue: V): V {
     for (entry in this.entries) {
         if (entry.key == key) return entry.value
@@ -119,22 +110,6 @@ public fun <K, V> MutableMap<out K, out V>.remove(key: K, value: V): Boolean {
     if (current != value || (current == null && !map.containsKey(key))) return false
     map.remove(key)
     return true
-}
-
-public inline operator fun <V, V1 : V> MutableMap<in String, out V>.getValue(
-    thisRef: Any?,
-    property: kotlin.reflect.KProperty<*>
-): V1 {
-    @Suppress("UNCHECKED_CAST")
-    return getValue(property.name) as V1
-}
-
-public inline operator fun <V> MutableMap<in String, in V>.setValue(
-    thisRef: Any?,
-    property: kotlin.reflect.KProperty<*>,
-    value: V
-) {
-    put(property.name, value)
 }
 
 public inline operator fun <K, V> MutableMap<K, V>.iterator(): MutableIterator<MutableMap.MutableEntry<K, V>> =

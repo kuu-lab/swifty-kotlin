@@ -67,6 +67,13 @@ struct CLIParserTests {
         #expect(options.frontendFlags.contains("generate-test-runner"))
         #expect(options.emit == .executable)
     }
+
+    @Test(arguments: ["-Xfull-value-classes", "-XXLanguage:+FullValueClasses"])
+    func parsesFullValueClassesFlag(flag: String) throws {
+        let options = try CLIParser.parse(args: [flag, "input.kt"])
+        #expect(options.frontendFlags.contains("full-value-classes"))
+        #expect(options.fullValueClassesEnabled)
+    }
     @Test
     func selectsQualifiedExecutableEntryWithoutRewritingLibraryMains() throws {
         let options = try CLIParser.parse(args: [

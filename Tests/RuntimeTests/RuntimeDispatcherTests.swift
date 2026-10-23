@@ -536,6 +536,20 @@ struct RuntimeDispatcherTests {
         #expect(runtimeElementToString(view) == "Dispatchers.IO.limitedParallelism(2)")
     }
 
+    @Test func nestedLimitedViewNameShowsOutermostLimit() {
+        let firstHandle = kk_dispatcher_limited_parallelism(kk_dispatcher_default(), 4, 0)
+        let firstView = runtimeResolveDispatcher(from: firstHandle)
+        let nestedHandle = kk_dispatcher_limited_parallelism(firstHandle, 2, 0)
+        let nestedView = runtimeResolveDispatcher(from: nestedHandle) as? RuntimeLimitedDispatcher
+        let deeperHandle = kk_dispatcher_limited_parallelism(nestedHandle, 1, 0)
+
+        #expect(runtimeElementToString(firstHandle) == "Dispatchers.Default.limitedParallelism(4)")
+        #expect(runtimeElementToString(nestedHandle) == "Dispatchers.Default.limitedParallelism(2)")
+        #expect(runtimeElementToString(deeperHandle) == "Dispatchers.Default.limitedParallelism(1)")
+        #expect(nestedView?.base === firstView,
+                "nested views must keep their base chain for compounded limits")
+    }
+
     @Test func mainLimitedParallelismIsNamedOrThis() {
         let mainTag = kk_dispatcher_main()
         // No name → upstream `namedOrThis` returns the dispatcher itself.

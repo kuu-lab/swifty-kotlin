@@ -284,6 +284,7 @@ extension ExprTypeChecker {
                         bindings: sema.bindings,
                         types: sema.types,
                         diagnostics: sema.diagnostics,
+                        sourceManager: ctx.visibilityChecker.sourceManager,
                         interner: interner
                     )
                 }
@@ -486,13 +487,31 @@ extension ExprTypeChecker {
         // reaches it through this literal's capture fields (`$outer` hop),
         // so it must be part of the literal's capture set.
         for nestedDeclID in objectDecl.nestedClasses + objectDecl.nestedObjects {
-            capturedSymbols.formUnion(driver.captureAnalyzer.collectCapturedOuterSymbols(
+            let nestedCaptures = driver.captureAnalyzer.collectCapturedOuterSymbols(
                 inDecl: nestedDeclID,
                 ast: ast,
                 sema: sema,
                 outerSymbols: captureOuterSymbols,
                 skipNestedClosures: false
-            ))
+            )
+            capturedSymbols.formUnion(nestedCaptures)
+
+            // A nested inner class resolves an enclosing property through its
+            // `$outer` link. Capturing only an immutable property copies its
+            // value into this literal, but does not give that lookup a receiver
+            // of the property's owner type. Preserve the owner instance too so
+            // `resolveOuterChainValue` can continue through the literal after
+            // reaching it from the nested inner class.
+            for capturedProperty in nestedCaptures
+                where outerReceiverPropertySymbols.contains(capturedProperty)
+            {
+                guard let propertyOwner = sema.symbols.parentSymbol(for: capturedProperty),
+                      sema.symbols.symbol(propertyOwner)?.kind == .class
+                else {
+                    continue
+                }
+                capturedSymbols.insert(propertyOwner)
+            }
         }
 
         // KSP-CAP-018: a custom accessor body is lowered as its own KIR
@@ -545,6 +564,15 @@ extension ExprTypeChecker {
                 receiverSymbol: receiverCaptureSymbol,
                 ownerSymbol: receiverOwnerSymbol
             )
+        }
+        // KUU-2959: the object's layout inherits a local superclass's capture
+        // fields verbatim; inherited member functions and the super
+        // constructor's own capture-restore pass read them through `this`, so
+        // the construction site must materialize the same symbols the
+        // superclass captured (mirrors the local-class path in
+        // `typeCheckLocalClassDecl`).
+        for superSymbol in directSuperSymbols where sema.symbols.symbol(superSymbol)?.kind == .class {
+            capturedSymbols.formUnion(sema.bindings.objectLiteralCaptureSymbols(for: superSymbol))
         }
         bindLocalNominalCaptures(
             capturedSymbols,
@@ -1069,8 +1097,9 @@ extension ExprTypeChecker {
             }
             return actualSymbolID
         }
-        // KUU-2955: a local class nested inside another local nominal's
-        // member (`class FooC : AB` inside local `A2.foo`) reaches this
+        // KUU-2955, KUU-2959: a local class nested inside another local
+        // nominal's member (`class FooC : AB` inside local `A2.foo`), or an
+        // object literal declared inside a local nominal's body, reaches this
         // point while the enclosing nominal is still being processed —
         // before sibling nested nominals like `AB` get their layout
         // synthesized. Materialize the superclass layout on demand so its
@@ -1431,6 +1460,7 @@ extension ExprTypeChecker {
         interner: StringInterner
     ) -> SymbolFlags {
         var flags: SymbolFlags = [.synthetic]
+        if functionDecl.receiverType != nil { flags.insert(.memberExtension) }
         if functionDecl.isSuspend { flags.insert(.suspendFunction) }
         if functionDecl.isInline { flags.insert(.inlineFunction) }
         if functionDecl.modifiers.contains(.operator) { flags.insert(.operatorFunction) }

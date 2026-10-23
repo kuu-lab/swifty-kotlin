@@ -308,13 +308,46 @@ extension OverloadResolver {
             resultIsDiscarded: resultIsDiscarded,
             ctx: ctx
         )
-        return selectResult(
+        let resolved = selectResult(
             from: viable,
             call: call,
             typeSystem: ctx.types,
             candidateFailures: candidateFailures,
             preserveMemberExtensionAmbiguity: preserveMemberExtensionAmbiguity
         )
+        guard resolved.diagnostic?.code == "KSWIFTK-SEMA-0003" else {
+            return resolved
+        }
+
+        // Error types are subtypes of every type, so unrelated overloads can
+        // remain ambiguous even though the argument already has a root error.
+        // Retry with Any? to allow a broad recovery overload (such as
+        // println(Any?)) to win; keep the original result if the retry fails.
+        let errorArgumentTypes = Dictionary(uniqueKeysWithValues: call.args.enumerated().compactMap { index, argument in
+            argument.type == ctx.types.errorType ? (index, ctx.types.nullableAnyType) : nil
+        })
+        guard !errorArgumentTypes.isEmpty else {
+            return resolved
+        }
+        let recoveredCall = call.replacingArgumentTypes(errorArgumentTypes)
+        let (recoveredViable, recoveredFailures) = evaluateCandidates(
+            candidates,
+            call: recoveredCall,
+            expectedType: expectedType,
+            implicitReceiverType: implicitReceiverType,
+            candidateArgumentTypes: candidateArgumentTypes,
+            ignoredLambdaReturnTypeArgumentIndices: [],
+            resultIsDiscarded: resultIsDiscarded,
+            ctx: ctx
+        )
+        let recovered = selectResult(
+            from: recoveredViable,
+            call: recoveredCall,
+            typeSystem: ctx.types,
+            candidateFailures: recoveredFailures,
+            preserveMemberExtensionAmbiguity: preserveMemberExtensionAmbiguity
+        )
+        return recovered.diagnostic == nil ? recovered : resolved
     }
 
     private func evaluateCandidates(
