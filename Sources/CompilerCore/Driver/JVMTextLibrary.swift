@@ -56,8 +56,6 @@ extension JVMProgramBuilder {
                     let source = context.interner.resolve(f.name)
                     var receiverType = try signature.receiverType.map(type)
                     var owner = path.hasSuffix("m19-sequence.kt") ? "kotlin/sequences/SequencesKt" : source == "get" ? "kotlin/text/jdk8/RegexExtensionsJDK8Kt" : "kotlin/text/StringsKt"
-                    let mapEntryComponent = path == "<kswiftk-jvm>/collections.kt" && ["component1", "component2"].contains(source)
-                    if mapEntryComponent { owner = "java/util/Map$Entry" }
                     if path.contains("m20-") {
                         if path.contains("sequence-") { owner = "kotlin/sequences/SequencesKt" }
                         else if path.contains("text-") { owner = "kotlin/text/StringsKt" }
@@ -72,16 +70,7 @@ extension JVMProgramBuilder {
                     }
                     let adaptation = path.contains("m20-factories") ? "collectionFactory" : source == "toRegex" ? "toRegex" : path.hasSuffix("m19-regex.kt") && source != "get" ? "regexExtension" : nil
                     let jvmName = path.contains("m20-") ? externalJvmName(for: symbol, fallback: source) : source
-                    try method(
-                        symbol,
-                        owner: owner,
-                        name: mapEntryComponent ? (source == "component1" ? "getKey" : "getValue") : jvmName,
-                        declarations: f.valueParams,
-                        interface: mapEntryComponent,
-                        extensionReceiver: mapEntryComponent ? nil : receiverType,
-                        adaptation: adaptation,
-                        staticMember: !mapEntryComponent
-                    )
+                    try method(symbol, owner: owner, name: jvmName, declarations: f.valueParams, extensionReceiver: receiverType, adaptation: adaptation, staticMember: true)
                 case let .classDecl(c):
                     guard let symbol = sema.bindings.declSymbol(for: id) else { continue }
                     let source = try className(symbol), owner = JVMClasspathIndex.builtinName(source) ?? source
@@ -108,6 +97,21 @@ extension JVMProgramBuilder {
                 }
             }
         }
+        func registerMapEntryComponent(_ id: DeclID) throws {
+            guard case let .funDecl(declaration) = ast.arena.decl(id),
+                  let symbol = sema.bindings.declSymbol(for: id),
+                  let signature = sema.symbols.functionSignature(for: symbol)
+            else { return }
+            let source = context.interner.resolve(declaration.name)
+            guard ["component1", "component2"].contains(source) else { return }
+            let owner = "java/util/Map$Entry"
+            let name = source == "component1" ? "getKey" : "getValue"
+            let result = try type(signature.returnType)
+            var method = JVMForeignMethod(owner: owner, name: name, descriptor: "()" + result.descriptor, parameters: [], result: result, isStatic: false, isInterface: true, isAbstract: false)
+            method.isSuspend = signature.isSuspend
+            textLibraryMethods[symbol] = JVMTextLibraryMethod(method: method, declarations: declaration.valueParams)
+        }
+
         let runtimeFacades = Dictionary(uniqueKeysWithValues: try JVMStdlibCatalog.manifest().declarations.compactMap { declaration in declaration.runtimeFacade.map { (declaration.virtualPath, $0) } })
         for file in ast.files {
             let path = context.sourceManager.path(of: file.fileID)
@@ -125,12 +129,12 @@ extension JVMProgramBuilder {
                     if case let .interfaceDecl(declaration) = ast.arena.decl(id) { return ["Iterator", "Iterable", "Collection", "MutableIterator", "MutableIterable", "MutableCollection", "List", "MutableList", "Set", "MutableSet", "Map", "MutableMap"].contains(context.interner.resolve(declaration.name)) }
                     return false
                 }, path: path)
-                try visit(file.topLevelDecls.filter { id in
-                    if case let .funDecl(f) = ast.arena.decl(id) {
-                        return ["component1", "component2"].contains(context.interner.resolve(f.name))
-                    }
-                    return false
-                }, path: path)
+                for id in file.topLevelDecls {
+                    guard case let .funDecl(declaration) = ast.arena.decl(id),
+                          ["component1", "component2"].contains(context.interner.resolve(declaration.name))
+                    else { continue }
+                    try registerMapEntryComponent(id)
+                }
                 let factories: Set<String> = ["arrayListOf", "listOf", "setOf", "mapOf", "mutableListOf", "mutableSetOf", "mutableMapOf", "emptyList", "emptySet", "emptyMap"]
                 try visit(file.topLevelDecls.filter { id in if case let .funDecl(f) = ast.arena.decl(id) { return factories.contains(context.interner.resolve(f.name)) }; return false }, path: "<kswiftk-jvm>/m20-factories-runtime.kt")
             }
