@@ -1,28 +1,8 @@
 private let arraySpecialBridgeFunctions: [RuntimeABIFunctionSpec] = [
-    RuntimeABIFunctionSpec(
-        name: "kk_bits_to_double",
-        parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
-        returnType: .double,
-        section: "NumericConversion"
-    ),
-    RuntimeABIFunctionSpec(
-        name: "kk_bits_to_float",
-        parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
-        returnType: .float,
-        section: "NumericConversion"
-    ),
-    RuntimeABIFunctionSpec(
-        name: "kk_double_to_bits",
-        parameters: [RuntimeABIParameter(name: "value", type: .double)],
-        returnType: .intptr,
-        section: "NumericConversion"
-    ),
-    RuntimeABIFunctionSpec(
-        name: "kk_float_to_bits",
-        parameters: [RuntimeABIParameter(name: "value", type: .float)],
-        returnType: .intptr,
-        section: "NumericConversion"
-    ),
+    abi.th("kk_bits_to_double", "value", ret: .double),
+    abi.th("kk_bits_to_float", "value", ret: .float),
+    abi.th("kk_double_to_bits", "value:double"),
+    abi.th("kk_float_to_bits", "value:float"),
 ]
 
 private let minMaxFloatDoubleBridgeFunctions: [RuntimeABIFunctionSpec] =
@@ -43,6 +23,8 @@ private let coroutineOnlyBridgeFunctions: [RuntimeABIFunctionSpec] = [
     bridgeSpec("__kk_flow_stopped", section: "Coroutine"),
     bridgeSpec("kk_supervisor_scope_new", section: "Coroutine"),
 ]
+
+private let abi = RuntimeABISectionBuilder("NumericConversion")
 
 public extension RuntimeABISpec {
     static let runtimeOnlyBridgeFunctions: [RuntimeABIFunctionSpec] =
