@@ -10,9 +10,15 @@ package kotlinx.coroutines.flow
 import kotlin.internal.KsSymbolName
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.cancel
+import kotlinx.coroutines.channels.close
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.channels.receiveCatching
 
 public interface Flow<out T>
 
@@ -192,13 +198,112 @@ public fun <T, R, V> Flow<T>.zip(
 ): Flow<V> {
     val source = this
     return flow {
-        val left = source.toList()
-        val right = other.toList()
-        val count = if (left.size < right.size) left.size else right.size
-        var index = 0
-        while (index < count) {
-            emit(transform(left[index], right[index]))
-            index += 1
+        coroutineScope {
+            val otherValues = Channel<R>(Channel.RENDEZVOUS)
+            val otherJob = launch {
+                try {
+                    other.collect { value -> otherValues.send(value) }
+                    otherValues.close()
+                } catch (failure: Throwable) {
+                    otherValues.close(failure)
+                    throw failure
+                }
+            }
+            val zipOwner = Any()
+            val collector = SendingCollector<T> { left ->
+                val received = otherValues.receiveCatching()
+                if (!received.isSuccess) {
+                    val failure = received.exceptionOrNull()
+                    if (failure != null) throw failure
+                    throw AbortFlowException(zipOwner)
+                }
+                emit(transform(left, received.getOrThrow()))
+            }
+            try {
+                source.collect { value -> collector.emit(value) }
+            } catch (failure: AbortFlowException) {
+                if (failure.owner !== zipOwner) throw failure else Unit
+            } finally {
+                otherJob.cancel()
+                otherValues.cancel()
+            }
+        }
+    }
+}
+
+private class FlowCombineEvent(val index: Int, val value: Any?, val completed: Boolean)
+
+// Collect every input in its own child and feed updates through a bounded
+// channel. The channel preserves backpressure while letting the downstream
+// transform run as soon as each input has produced its first value.
+internal fun <T, R> combineInternal(
+    flows: List<Flow<T>>,
+    transform: suspend FlowCollector<R>.(Array<T>) -> Unit
+): Flow<R> = flow {
+    val count = flows.size
+    if (count == 0) return@flow
+
+    coroutineScope {
+        val updates = Channel<FlowCombineEvent>(count)
+        val jobs = mutableListOf<Job>()
+        var sourceIndex = 0
+        for (source in flows) {
+            val index = sourceIndex
+            sourceIndex += 1
+            jobs.add(launch {
+                try {
+                    source.collect { value -> updates.send(FlowCombineEvent(index, value, false)) }
+                    updates.send(FlowCombineEvent(index, null, true))
+                } catch (failure: Throwable) {
+                    updates.close(failure)
+                    throw failure
+                }
+            })
+        }
+
+        val latest = arrayOfNulls<Any?>(count)
+        val hasValue = BooleanArray(count)
+        val collector = SendingCollector<R> { value -> emit(value) }
+        var missingValues = count
+        var completed = 0
+        try {
+            while (completed < count) {
+                val received = updates.receiveCatching()
+                if (!received.isSuccess) {
+                    val failure = received.exceptionOrNull()
+                    if (failure != null) throw failure
+                    break
+                }
+                val event = received.getOrThrow()
+                if (event.completed) {
+                    completed += 1
+                    if (!hasValue[event.index]) {
+                        for (job in jobs) job.cancel()
+                        updates.cancel()
+                        break
+                    }
+                } else {
+                    if (!hasValue[event.index]) {
+                        hasValue[event.index] = true
+                        missingValues -= 1
+                    }
+                    latest[event.index] = event.value
+                    if (missingValues == 0) {
+                        val values = arrayOfNulls<Any?>(count)
+                        var index = 0
+                        while (index < count) {
+                            values[index] = latest[index]
+                            index += 1
+                        }
+                        @Suppress("UNCHECKED_CAST")
+                        transform(collector, values as Array<T>)
+                    }
+                }
+            }
+        } catch (failure: Throwable) {
+            for (job in jobs) job.cancel()
+            updates.cancel()
+            throw failure
         }
     }
 }
@@ -207,19 +312,9 @@ public fun <T, R, V> Flow<T>.combine(
     other: Flow<R>,
     transform: suspend (T, R) -> V
 ): Flow<V> {
-    val source = this
-    return flow {
-        val left = source.toList()
-        val right = other.toList()
-        if (left.isEmpty() || right.isEmpty()) return@flow
-        val count = if (left.size > right.size) left.size else right.size
-        var index = 0
-        while (index < count) {
-            val leftValue = left[if (index < left.size) index else left.size - 1]
-            val rightValue = right[if (index < right.size) index else right.size - 1]
-            emit(transform(leftValue, rightValue))
-            index += 1
-        }
+    return combineInternal<Any?, V>(listOf<Flow<Any?>>(this, other)) { values ->
+        @Suppress("UNCHECKED_CAST")
+        emit(transform(values[0] as T, values[1] as R))
     }
 }
 
