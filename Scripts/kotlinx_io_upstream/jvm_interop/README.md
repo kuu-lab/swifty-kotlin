@@ -21,15 +21,9 @@ SequenceInputStream validation/close/error composition. The separate 12-line
 FileChannel producer has actual JVM evidence and Native source/library O0/O2
 cases. None has been executed on the candidate.
 
-The scoped port expands every one of the 235 logical original IDs through the original six SourceFactory/two SinkFactory concrete
-classes: 599 unique executions. Twenty-two original test/helper files are pinned.
-All 235 selected bodies, original constructors and factory algorithms are byte
-preserved. Only JvmPlatformTest's nine unselected network/file methods and four
-unused imports are removed in that scoped port; their original full bytes and
-hashes remain retained. Jupiter annotations and the reviewed Native POSIX
-existence adapter are test support only. The generated driver stops at its first
-failure, uses the original SmokeFileTest cleanup and supplies the NioTest TempDir.
-Six original driver modes remain HOLD until Root release and independent audit.
+The prepared scoped port of the 235 logical original IDs (599 unique executions
+through the original six SourceFactory/two SinkFactory concrete classes) is no
+longer committed. Six original driver modes remain HOLD until Root release and independent audit.
 
 V7 extends the existing Sequence test with InputStream.copyTo and markSupported
 through the actual Sequence handle. Its three new lines are observed JVM stdout.
