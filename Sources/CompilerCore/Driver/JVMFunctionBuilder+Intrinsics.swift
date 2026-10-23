@@ -276,7 +276,7 @@ extension JVMFunctionBuilder {
                 else { parameters = [object]; returns = .boolean }
             case "remove":
                 actual = member
-                if owner == "java/util/ListIterator" { parameters = []; returns = .unit }
+                if owner == "java/util/Iterator" || owner == "java/util/ListIterator" { parameters = []; returns = .unit }
                 else { parameters = [object]; returns = owner == "java/util/Map" ? object : .boolean }
             case "contains", "containsKey", "containsValue": actual = member; parameters = [object]; returns = .boolean
             case "addAll":
@@ -454,11 +454,27 @@ extension JVMFunctionBuilder {
         // An Iterator receiver is its own cursor: the stdlib Iterator<T>.iterator()
         // operator returns `this`, so Sema leaves iteratorCall nil for it.
         let loopBinding = program.sema.bindings.loopIterationBinding(for: id)
+        let jvmIterableElementType: TypeID? = {
+            guard let referenceName = source.type.referenceName,
+                  ["java/lang/Iterable", "java/util/Collection", "java/util/List", "java/util/Set"]
+                    .contains(referenceName),
+                  let iterableType = program.sema.bindings.exprType(for: iterable)
+            else {
+                return nil
+            }
+            return TypeCheckHelpers().iterableElementType(
+                for: iterableType,
+                isRangeExpr: false,
+                sema: program.sema,
+                interner: context.interner
+            )
+        }()
         let elementType: JVMValueType
         if source.type.isCharSequence { elementType = .char }
         else if source.type.referenceName == "kotlin/ranges/IntRange" { elementType = .int }
         else if source.type.referenceName?.hasPrefix("[") == true { elementType = try arrayComponent(source.type) }
         else if let loopBinding { elementType = try program.type(loopBinding.elementType) }
+        else if let jvmIterableElementType { elementType = try program.type(jvmIterableElementType) }
         else { throw fail("JVM for requires an array or iterable collection.", id) }
         let local = try value(elementType), test = label(), advance = label(), exit = label()
         scopes.append([name: Local(value: local, mutable: false)]); defer { scopes.removeLast() }
