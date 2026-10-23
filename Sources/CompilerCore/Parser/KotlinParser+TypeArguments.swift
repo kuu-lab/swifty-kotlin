@@ -67,8 +67,15 @@ extension KotlinParser {
             case .symbol(.greaterThan):
                 depth -= 1
                 if depth == 0 {
-                    if projectionExpected { return false }
-                    return followsTypeArgs(stream.peek(lookahead + 1))
+                    // Every caller sits at a declaration-header position
+                    // (after a `class`/`interface`/`enum class`/`typealias`
+                    // name or the `fun`/`val`/`var` keyword), where `<…>`
+                    // can only be a type-parameter list: no infix
+                    // comparison is possible, so any token may follow `>`.
+                    // In particular a bodiless generic class may be followed
+                    // by a hard keyword such as `fun` or `val` starting the
+                    // next declaration.
+                    return !projectionExpected
                 }
             case .symbol(.comma):
                 if depth == 1 {
@@ -103,20 +110,6 @@ extension KotlinParser {
                 }
             }
             lookahead += 1
-        }
-    }
-
-    func followsTypeArgs(_ token: Token) -> Bool {
-        switch token.kind {
-        case .symbol(.lParen), .symbol(.dot), .symbol(.questionDot), .symbol(.bangBang),
-             .symbol(.doubleColon), .symbol(.lessThan), .symbol(.colon), .symbol(.comma),
-             .symbol(.lBrace), .symbol(.rParen), .symbol(.rBrace), .symbol(.question),
-             .symbol(.assign), .symbol(.at):
-            true
-        case .eof:
-            true
-        default:
-            token.kind.isLabelName
         }
     }
 
