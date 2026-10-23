@@ -7,91 +7,18 @@
 // representations stopped being safe once kotlin.random.Random became a genuine
 // compiled object instead of sharing java.util.Random's native SeededRandomBox.
 
+private let abi = RuntimeABISectionBuilder("Random")
+
 public extension RuntimeABISpec {
     static let randomFunctions: [RuntimeABIFunctionSpec] = [
-        RuntimeABIFunctionSpec(
-            name: "__kk_random_seed_entropy",
-            parameters: [],
-            returnType: .intptr,
-            section: "Random",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_random_nextInt_rangeObject",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "range", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Random"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_random_nextLong_rangeObject",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "range", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Random"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_random_nextULong_ulongRange",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "range", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Random"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_random_nextUInt_uintRange",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "range", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Random"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_secure_random_get_instance",
-            parameters: [],
-            returnType: .intptr,
-            section: "Random",
-            isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_secure_random_set_seed",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "seed", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Random",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_secure_random_generate_seed",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "size", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Random",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_secure_random_next_bytes",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "array", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Random",
-            isThrowing: false
-        ),
+        abi.nt("__kk_random_seed_entropy"),
+        abi.th("__kk_random_nextInt_rangeObject", "receiver range outThrown"),
+        abi.th("__kk_random_nextLong_rangeObject", "receiver range outThrown"),
+        abi.th("__kk_random_nextULong_ulongRange", "receiver range outThrown"),
+        abi.th("__kk_random_nextUInt_uintRange", "receiver range outThrown"),
+        abi.nt("__kk_secure_random_get_instance"),
+        abi.nt("__kk_secure_random_set_seed", "receiver seed"),
+        abi.nt("__kk_secure_random_generate_seed", "receiver size"),
+        abi.nt("__kk_secure_random_next_bytes", "receiver array"),
     ]
 }
