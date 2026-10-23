@@ -13,7 +13,7 @@ extension JVMProgramBuilder {
         guard let symbol = sema.symbols.symbol(symbolID), symbol.kind == .constructor,
               let parent = sema.symbols.parentSymbol(for: symbolID), classes[parent] == nil,
               let source = try? className(parent), let name = JVMClasspathIndex.builtinName(source),
-              (name.hasPrefix("java/lang/") || ["java/util/NoSuchElementException", "java/util/AbstractCollection", "java/util/AbstractList", "java/util/AbstractSet", "java/util/AbstractMap", "kotlin/collections/AbstractSet", "kotlin/UninitializedPropertyAccessException"].contains(name)), let signature = sema.symbols.functionSignature(for: symbolID),
+              (name.hasPrefix("java/lang/") || ["java/util/NoSuchElementException", "java/util/AbstractCollection", "java/util/AbstractList", "java/util/AbstractSet", "java/util/AbstractMap", "kotlin/collections/AbstractSet", "kotlin/collections/IntIterator", "kotlin/UninitializedPropertyAccessException"].contains(name)), let signature = sema.symbols.functionSignature(for: symbolID),
               let parameters = try? signature.parameterTypes.map(type) else { return nil }
         return JVMForeignMethod(owner: name, name: "<init>", descriptor: "(" + parameters.map(\.descriptor).joined() + ")V", parameters: parameters, result: .reference(name, nullable: false), isStatic: false, isInterface: false, isAbstract: false)
     }
@@ -253,7 +253,7 @@ extension JVMFunctionBuilder {
             let source = try requireValue(receiverID), result = try value(.int)
             instructions.append(.arrayLength(source, result)); return JVMIntrinsicResult(value: result)
         }
-        let collections: Set<String> = ["java/util/ArrayList", "java/lang/Iterable", "java/util/Iterator", "java/util/Collection", "java/util/List", "kotlin/enums/EnumEntries", "java/util/Set", "java/util/Map", "kotlin/text/MatchGroupCollection"]
+        let collections: Set<String> = ["java/util/ArrayList", "java/lang/Iterable", "java/util/Iterator", "java/util/ListIterator", "java/util/Collection", "java/util/List", "kotlin/enums/EnumEntries", "java/util/Set", "java/util/Map", "kotlin/text/MatchGroupCollection"]
         if collections.contains(owner) {
             // JDK collection interfaces retain the virtual Object contract;
             // their implementations provide structural equality and hashing.
@@ -266,8 +266,8 @@ extension JVMFunctionBuilder {
             }
             if let selected = try mappedBuiltinMemberOwner(id), collections.contains(selected) { owner = selected }
             if owner == "java/util/ArrayList" { owner = "java/util/List" }
-            if ["set", "add", "addAll", "remove", "removeAll", "removeAt", "put", "clear"].contains(member) { try requireMutableCollection(receiverID, at: id) }
-            if ["set", "add", "addAll", "put"].contains(member) { try requireWritableArguments(receiverID, at: id) }
+            if ["set", "add", "addAll", "remove", "removeAll", "removeAt", "put", "clear"].contains(member), owner != "java/util/ListIterator" { try requireMutableCollection(receiverID, at: id) }
+            if ["set", "add", "addAll", "put"].contains(member), owner != "java/util/ListIterator" { try requireWritableArguments(receiverID, at: id) }
             let source = try convert(requireValue(receiverID), to: .reference(owner, nullable: false))
             let result = try program.expressionType(id)
             var values: [JVMValue] = []
@@ -279,13 +279,36 @@ extension JVMFunctionBuilder {
             case "keys": actual = "keySet"; parameters = []; returns = .reference("java/util/Set", nullable: false)
             case "values": actual = "values"; parameters = []; returns = .reference("java/util/Collection", nullable: false)
             case "containsAll": actual = member; parameters = [.reference("java/util/Collection", nullable: false)]; returns = .boolean
-            case "isEmpty", "hasNext": actual = member; parameters = []; returns = .boolean
+            case "isEmpty", "hasNext", "hasPrevious": actual = member; parameters = []; returns = .boolean
+            case "nextIndex", "previousIndex": actual = member; parameters = []; returns = .int
             case "iterator": actual = member; parameters = []; returns = .reference("java/util/Iterator", nullable: false)
-            case "next": actual = member; parameters = []; returns = object
+            case "listIterator":
+                actual = member
+                parameters = args.isEmpty ? [] : [.int]
+                returns = .reference("java/util/ListIterator", nullable: false)
+            case "subList": actual = member; parameters = [.int, .int]; returns = .reference("java/util/List", nullable: false)
+            case "next", "previous": actual = member; parameters = []; returns = object
             case "get": actual = member; parameters = [["java/util/List", "kotlin/enums/EnumEntries"].contains(owner) ? .int : object]; returns = object
-            case "set": actual = owner == "java/util/Map" ? "put" : "set"; parameters = [["java/util/List", "kotlin/enums/EnumEntries"].contains(owner) ? .int : object, object]; returns = object
-            case "add", "remove", "contains", "containsKey": actual = member; parameters = [object]; returns = owner == "java/util/Map" && member == "remove" ? object : .boolean
-            case "addAll", "removeAll": actual = member; parameters = [.reference("java/util/Collection", nullable: false)]; returns = .boolean
+            case "set":
+                actual = owner == "java/util/Map" ? "put" : "set"
+                if owner == "java/util/ListIterator" { parameters = [object]; returns = .unit }
+                else { parameters = [["java/util/List", "kotlin/enums/EnumEntries"].contains(owner) ? .int : object, object]; returns = object }
+            case "indexOf", "lastIndexOf": actual = member; parameters = [object]; returns = .int
+            case "add":
+                actual = member
+                if owner == "java/util/ListIterator" { parameters = [object]; returns = .unit }
+                else if args.count == 2 { parameters = [.int, object]; returns = .unit }
+                else { parameters = [object]; returns = .boolean }
+            case "remove":
+                actual = member
+                if owner == "java/util/ListIterator" { parameters = []; returns = .unit }
+                else { parameters = [object]; returns = owner == "java/util/Map" ? object : .boolean }
+            case "contains", "containsKey", "containsValue": actual = member; parameters = [object]; returns = .boolean
+            case "addAll":
+                actual = member
+                parameters = args.count == 2 ? [.int, .reference("java/util/Collection", nullable: false)] : [.reference("java/util/Collection", nullable: false)]
+                returns = .boolean
+            case "removeAll", "retainAll": actual = member; parameters = [.reference("java/util/Collection", nullable: false)]; returns = .boolean
             case "removeAt": actual = "remove"; parameters = [.int]; returns = object
             case "put": actual = member; parameters = [object, object]; returns = object
             case "clear": actual = member; parameters = []; returns = .unit
@@ -459,13 +482,8 @@ extension JVMFunctionBuilder {
         let elementType: JVMValueType
         if source.type.isCharSequence { elementType = .char }
         else if source.type.referenceName == "kotlin/ranges/IntRange" { elementType = .int }
-        else if let semantic = program.sema.bindings.exprType(for: iterable), case let .classType(t) = program.sema.types.kind(of: semantic), let arg = t.args.first {
-            switch arg {
-            case let .invariant(t), let .out(t): elementType = try program.type(t)
-            default: elementType = .reference("java/lang/Object", nullable: true)
-            }
-        } else if source.type.referenceName?.hasPrefix("[") == true { elementType = try arrayComponent(source.type) }
-        else if let loopBinding, loopBinding.iteratorCall == nil { elementType = try program.type(loopBinding.elementType) }
+        else if source.type.referenceName?.hasPrefix("[") == true { elementType = try arrayComponent(source.type) }
+        else if let loopBinding { elementType = try program.type(loopBinding.elementType) }
         else { throw fail("JVM for requires an array or iterable collection.", id) }
         let local = try value(elementType), test = label(), advance = label(), exit = label()
         scopes.append([name: Local(value: local, mutable: false)]); defer { scopes.removeLast() }
@@ -489,7 +507,24 @@ extension JVMFunctionBuilder {
             if let loopBinding, loopBinding.iteratorCall == nil {
                 iterator = try convert(source, to: iteratorType)
             } else {
-                let owner = source.type.referenceName == "kotlin/sequences/Sequence" ? "kotlin/sequences/Sequence" : "java/lang/Iterable"
+                let iteratorOwner = loopBinding?.iteratorCall
+                    .flatMap { program.sema.symbols.parentSymbol(for: $0.chosenCallee) }
+                    .flatMap { try? program.className($0) }
+                let sequenceSymbol = program.sema.symbols.lookup(fqName: ["kotlin", "sequences", "Sequence"].map(context.interner.intern))
+                func isSequence(_ type: TypeID, visited: Set<SymbolID>) -> Bool {
+                    switch program.sema.types.kind(of: type) {
+                    case let .typeParam(parameter):
+                        guard !visited.contains(parameter.symbol) else { return false }
+                        return program.sema.symbols.typeParameterUpperBounds(for: parameter.symbol).contains {
+                            isSequence($0, visited: visited.union([parameter.symbol]))
+                        }
+                    case let .classType(classType):
+                        return sequenceSymbol.map { program.sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: $0) } == true
+                    default: return false
+                    }
+                }
+                let semanticSequence = program.sema.bindings.exprType(for: iterable).map { isSequence($0, visited: []) } == true
+                let owner = iteratorOwner == "kotlin/sequences/Sequence" || semanticSequence ? "kotlin/sequences/Sequence" : "java/lang/Iterable"
                 iterator = try jdkCall(owner, "iterator", [], iteratorType, receiver: source, interface: true)!
             }
             mark(test)

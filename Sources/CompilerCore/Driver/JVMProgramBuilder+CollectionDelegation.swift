@@ -24,6 +24,14 @@ extension JVMProgramBuilder {
             return [method("hasNext", [], .boolean), method("next", [], object), method("remove", [], .unit, mutating: true)]
         }
         if owner == "java/lang/Iterable" { return [method("iterator", [], iterator)] }
+        if owner == "java/util/ListIterator" {
+            return [
+                method("hasPrevious", [], .boolean), method("previous", [], object),
+                method("nextIndex", [], .int), method("previousIndex", [], .int),
+                method("add", [object], .unit, mutating: true), method("set", [object], .unit, mutating: true),
+                method("remove", [], .unit, mutating: true),
+            ]
+        }
         if owner == "java/util/Map" {
             let function = JVMValueType.reference("java/util/function/Function", nullable: false)
             let binary = JVMValueType.reference("java/util/function/BiFunction", nullable: false)

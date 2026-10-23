@@ -276,6 +276,64 @@ struct FinallyExecutionOnControlFlowTests {
         )
     }
 
+    @Test func testBreakAndContinueInsideTryFinallyHaveNoNormalFinallySuccessor() throws {
+        let source = """
+        fun breakThroughTryFinally() {
+            var total = 0
+            while (true) {
+                try { total = 1; break }
+                finally { total = 10 }
+            }
+        }
+
+        fun continueThroughTryFinally() {
+            var total = 0
+            var remaining = 1
+            while (remaining > 0) {
+                try { remaining = 0; continue }
+                finally { total = 10 }
+            }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            for functionName in ["breakThroughTryFinally", "continueThroughTryFinally"] {
+                let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
+                #expect(
+                    unconditionalJumpCountInsideFirstFinallyGuard(body) == 1,
+                    "The try body must contain only its break/continue jump, with no normal jump to finally"
+                )
+            }
+        }
+    }
+
+    private func unconditionalJumpCountInsideFirstFinallyGuard(_ body: [KIRInstruction]) -> Int {
+        var guardDepth = 0
+        var foundGuard = false
+        var jumpCount = 0
+        for instruction in body {
+            switch instruction {
+            case .beginFinallyGuard:
+                foundGuard = true
+                guardDepth += 1
+            case .endFinallyGuard:
+                guardDepth -= 1
+                if foundGuard, guardDepth == 0 {
+                    return jumpCount
+                }
+            case .jump where foundGuard:
+                jumpCount += 1
+            default:
+                break
+            }
+        }
+        return 0
+    }
+
     @Test func testFinallyBlockStackPushPopSymmetry() {
         let ctx = KIRLoweringContext()
         #expect(ctx.enclosingFinallyBlocks().isEmpty)

@@ -18,16 +18,25 @@ extension JVMFunctionBuilder {
     /// Missing values are placeholders; the callee's default bridge evaluates
     /// defaults in declaration order after all explicit expressions have run.
     func arguments(_ args: [CallArgument], binding: CallBinding?, parameters: [JVMValueType], declarations: [ValueParamDecl]?, id: ExprID? = nil) throws -> (values: [JVMValue], masks: [UInt32]) {
-        if declarations?.count == 1, declarations![0].isVararg, let id {
-            let element = try arrayComponent(parameters[0])
-            let op = JVMTextOperation(name: "sourceVararg", receiver: "", receiverType: element, parameters: [JVMTextParameter(name: context.interner.resolve(declarations![0].name), source: "T", type: element, fallback: nil, variadic: true)], sourceResult: "", result: .unit, owner: "", method: nil, instance: false)
-            return (try textArguments(op, args: args, binding: binding, source: zero(element), id: id), [0])
-        }
+        let varargIndex = declarations?.firstIndex(where: \.isVararg)
+        let varargElement = try varargIndex.map { try arrayComponent(parameters[$0]) }
         var supplied: [Int: JVMValue] = [:]
+        var varargValues: [(JVMValue, Bool)] = []
+        var positionalCursor = 0
         for (i, arg) in args.enumerated() {
-            guard !arg.isSpread else { throw fail("JVM vararg spreading is unsupported.", id) }
-            let index = binding?.parameterMapping[i] ?? arg.label.flatMap { label in declarations?.firstIndex { $0.name == label } } ?? i
-            guard parameters.indices.contains(index), supplied[index] == nil else { throw fail("Invalid JVM argument mapping.", id) }
+            let index: Int
+            if let mapped = binding?.parameterMapping[i] {
+                index = mapped
+            } else if let named = arg.label.flatMap({ label in declarations?.firstIndex { $0.name == label } }) {
+                index = named
+            } else if let varargIndex, positionalCursor >= varargIndex {
+                index = varargIndex
+            } else {
+                index = positionalCursor
+                positionalCursor += 1
+            }
+            guard parameters.indices.contains(index), index == varargIndex || supplied[index] == nil else { throw fail("Invalid JVM argument mapping.", id) }
+            if index != varargIndex { positionalCursor = max(positionalCursor, index + 1) }
             let evaluated = try expression(arg.expr)
             if terminated { throw JVMTerminatedExpression() }
             let sourceValue: JVMValue
@@ -46,11 +55,25 @@ extension JVMFunctionBuilder {
                TypeCheckHelpers().effectiveSamAbstractMethod(for: target.classSymbol, symbols: program.sema.symbols) != nil {
                 source = try adaptSAM(source, target: signature.parameterTypes[index], at: arg.expr)
             }
+            if index == varargIndex {
+                guard let element = varargElement else { throw fail("Missing JVM vararg component type.", id) }
+                let spread = arg.isSpread || arg.label != nil && source.type.referenceName?.hasPrefix("[") == true
+                if spread && element.referenceName != nil {
+                    let array = JVMValueType.reference("[" + element.descriptor, nullable: false)
+                    let erased = JVMValueType.reference("[Ljava/lang/Object;", nullable: false)
+                    source = try jdkCall("java/util/Arrays", "copyOf", [erased, .int], erased, arguments: [source, textLength(source)], resolved: array)!
+                }
+                varargValues.append((source, spread))
+                continue
+            }
+            guard !arg.isSpread else { throw fail("JVM vararg spreading is unsupported.", id) }
             supplied[index] = try convert(source, to: parameters[index])
         }
         var values: [JVMValue] = [], masks = Array(repeating: UInt32(0), count: (parameters.count + 31) / 32)
         for (i, type) in parameters.enumerated() {
-            if let value = supplied[i] { values.append(value) }
+            if i == varargIndex {
+                values.append(try textVararg(varargValues, element: varargElement!))
+            } else if let value = supplied[i] { values.append(value) }
             else {
                 guard declarations?.indices.contains(i) == true, declarations![i].hasDefaultValue else { throw fail("Missing JVM argument without a default.", id) }
                 masks[i / 32] |= UInt32(1) << UInt32(i % 32)
