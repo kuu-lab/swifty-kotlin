@@ -95,7 +95,11 @@ extension ExprTypeChecker {
                 let isBundled = sema.symbols.isImportedStdlibSymbol(symbolID)
                     || file.flatMap { ctx.visibilityChecker.sourceManager?.origin(of: $0)?.isBundledStdlib } == true
                 if isBundled, !ctx.cachedScopeLookup(name).contains(symbolID) {
-                    return false
+                    // kotlin.Function.FunctionN are compiler built-ins nested
+                    // under the kotlin.Function classifier: no import path can
+                    // reach them by simple name, yet `Function0::class` must
+                    // resolve unconditionally (KUU-3031).
+                    return sema.types.functionNInterfaceSymbols.values.contains(symbolID)
                 }
                 switch symbol.kind {
                 case .object:
