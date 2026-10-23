@@ -394,13 +394,12 @@ extension DataFlowSemaPhase {
                 )
             }
             if declaration.flags.contains(.dataType) {
-                collectSyntheticDataClassMethods(
+                collectSyntheticDataClassComponentsAndCopy(
                     classDecl: classDecl,
                     ast: ast,
                     ownerSymbol: symbol,
                     ownerFQName: fqName,
                     ownerType: classType,
-                    phase: .beforeMemberHeaders,
                     symbols: symbols,
                     types: types,
                     scope: classScope,
@@ -429,22 +428,6 @@ extension DataFlowSemaPhase {
                 classTypeParameterSymbols: classTypeParamSymbols,
                 classLocalTypeParameters: classLocalTypeParameters
             )
-            if declaration.flags.contains(.dataType) {
-                collectSyntheticDataClassMethods(
-                    classDecl: classDecl,
-                    ast: ast,
-                    ownerSymbol: symbol,
-                    ownerFQName: fqName,
-                    ownerType: classType,
-                    phase: .afterMemberHeaders,
-                    symbols: symbols,
-                    types: types,
-                    scope: classScope,
-                    interner: interner,
-                    diagnostics: diagnostics,
-                    localTypeParameters: classLocalTypeParameters
-                )
-            }
             if declaration.kind == .annotationClass {
                 collectSyntheticHashCode(
                     ownerSymbol: symbol, ownerFQName: fqName, ownerType: classType,
@@ -649,29 +632,6 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 interner: interner
             )
-            if objectDecl.modifiers.contains(.data) {
-                collectSyntheticHashCode(
-                    ownerSymbol: symbol,
-                    ownerFQName: fqName,
-                    ownerType: objectType,
-                    requireDataTypeFlag: false,
-                    symbols: symbols,
-                    types: types,
-                    scope: objectScope,
-                    interner: interner
-                )
-                collectSyntheticEquals(
-                    ownerSymbol: symbol,
-                    ownerFQName: fqName,
-                    ownerType: objectType,
-                    requireDataTypeFlag: false,
-                    symbols: symbols,
-                    types: types,
-                    scope: objectScope,
-                    interner: interner
-                )
-            }
-
         case let .funDecl(funDecl):
             let localNamespaceFQName = fqName + [interner.intern("$\(symbol.rawValue)")]
             let typeParamResult = collectFunctionTypeParameters(

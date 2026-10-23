@@ -16,11 +16,27 @@ public fun ByteArray.lastIndex(): Int = this.size - 1
 
 public fun ByteArray.indices(): IntRange = 0..this.lastIndex()
 
+public fun ShortArray.lastIndex(): Int = this.size - 1
+
+public fun ShortArray.indices(): IntRange = 0..this.lastIndex()
+
 public fun ByteArray.isEmpty(): Boolean = this.size == 0
 
 public fun CharArray.lastIndex(): Int = this.size - 1
 
 public fun CharArray.indices(): IntRange = 0..this.lastIndex()
+
+public fun BooleanArray.lastIndex(): Int = this.size - 1
+
+public fun BooleanArray.indices(): IntRange = 0..this.lastIndex()
+
+public fun FloatArray.lastIndex(): Int = this.size - 1
+
+public fun FloatArray.indices(): IntRange = 0..this.lastIndex()
+
+public fun DoubleArray.lastIndex(): Int = this.size - 1
+
+public fun DoubleArray.indices(): IntRange = 0..this.lastIndex()
 
 public operator fun <T> Array<out T>.iterator(): Iterator<T> {
     val array = this

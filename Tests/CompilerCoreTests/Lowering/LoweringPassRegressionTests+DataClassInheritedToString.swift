@@ -4,13 +4,20 @@ import Testing
 
 extension LoweringPassRegressionTests {
     @Test
-    func testDataClassInheritedFinalToStringSuppressesSynthesis() throws {
+    func testDataClassInheritedFinalGeneratedMembersSuppressSynthesis() throws {
         let source = """
         abstract class FinalBase {
             final override fun toString(): String = "base"
+            final override fun hashCode(): Int = 42
+            final override fun equals(other: Any?): Boolean = false
         }
         abstract class FinalMiddle : FinalBase()
         data class FinalChild(val field: String) : FinalMiddle()
+
+        abstract class FinalHashCodeBase {
+            final override fun hashCode() = 7
+        }
+        data class PartialChild(val field: String) : FinalHashCodeBase()
 
         open class OpenBase {
             override fun toString(): String = "base"
@@ -26,14 +33,15 @@ extension LoweringPassRegressionTests {
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(
-                inputs: [path], moduleName: "DataClassInheritedFinalToString", emit: .kirDump
+                inputs: [path], moduleName: "DataClassInheritedFinalToString",
+                emit: .kirDump, includeStdlib: false
             )
             try runToLowering(ctx)
             #expect(!ctx.diagnostics.hasError)
 
             let sema = try #require(ctx.sema)
             let module = try #require(ctx.kir)
-            let toStringName = ctx.interner.intern("toString")
+            let generatedMemberNames = ["equals", "hashCode", "toString"]
 
             func owner(named name: String) throws -> SemanticSymbol {
                 try #require(sema.symbols.allSymbols().first {
@@ -41,27 +49,44 @@ extension LoweringPassRegressionTests {
                 })
             }
 
-            func toStringMembers(of name: String) throws -> [SymbolID] {
+            func members(of name: String, method: String) throws -> [SymbolID] {
                 let owner = try owner(named: name)
-                return sema.symbols.lookupAll(fqName: owner.fqName + [toStringName])
+                return sema.symbols.lookupAll(fqName: owner.fqName + [ctx.interner.intern(method)])
             }
 
-            let finalChildMembers = try toStringMembers(of: "FinalChild")
-            #expect(!finalChildMembers.contains {
-                sema.symbols.symbol($0)?.flags.contains(.synthetic) == true
-            }, "a final inherited toString() must suppress the data-class synthetic member")
+            for method in generatedMemberNames {
+                let finalBaseMembers = try members(of: "FinalBase", method: method)
+                #expect(finalBaseMembers.contains {
+                    guard let symbol = sema.symbols.symbol($0) else { return false }
+                    return !symbol.flags.contains(.synthetic) && symbol.flags.contains(.finalMember)
+                }, "FinalBase must declare a final (method)()")
 
-            for name in ["OpenChild", "PlainChild"] {
-                let syntheticMembers = try toStringMembers(of: name).filter {
+                let finalChildMembers = try members(of: "FinalChild", method: method)
+                #expect(!finalChildMembers.contains {
+                    sema.symbols.symbol($0)?.flags.contains(.synthetic) == true
+                }, "a final inherited \(method)() must suppress the data-class synthetic member")
+
+                let partialChildMembers = try members(of: "PartialChild", method: method)
+                let expectedSynthetic = method != "hashCode"
+                let partialSyntheticMembers = partialChildMembers.filter {
                     sema.symbols.symbol($0)?.flags.contains(.synthetic) == true
                 }
-                #expect(syntheticMembers.count == 1, "\(name) must retain its data-class toString()")
-                #expect(findAllKIRFunctions(in: module).contains {
-                    $0.symbol == syntheticMembers.first
-                }, "\(name)'s synthetic toString() must still have a KIR body")
+                #expect(partialSyntheticMembers.count == (expectedSynthetic ? 1 : 0))
             }
 
-            let explicitMembers = try toStringMembers(of: "ExplicitChild")
+            for name in ["OpenChild", "PlainChild"] {
+                for method in generatedMemberNames {
+                    let syntheticMembers = try members(of: name, method: method).filter {
+                        sema.symbols.symbol($0)?.flags.contains(.synthetic) == true
+                    }
+                    #expect(syntheticMembers.count == 1, "\(name) must retain its data-class \(method)()")
+                    #expect(findAllKIRFunctions(in: module).contains {
+                        $0.symbol == syntheticMembers.first
+                    }, "\(name)'s synthetic \(method)() must still have a KIR body")
+                }
+            }
+
+            let explicitMembers = try members(of: "ExplicitChild", method: "toString")
             #expect(explicitMembers.count == 1)
             #expect(sema.symbols.symbol(explicitMembers[0])?.flags.contains(.synthetic) != true)
         }
