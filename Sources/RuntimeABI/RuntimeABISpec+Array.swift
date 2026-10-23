@@ -1,164 +1,22 @@
-// swiftlint:disable file_length
+private let abi = RuntimeABISectionBuilder("Array")
 
 public extension RuntimeABISpec {
     static let arrayFunctions: [RuntimeABIFunctionSpec] = [
-        RuntimeABIFunctionSpec(
-            name: "__kk_array_new_same_component",
-            parameters: [
-                RuntimeABIParameter(name: "sourceRaw", type: .intptr),
-                RuntimeABIParameter(name: "size", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Array",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_array_component_type",
-            parameters: [
-                RuntimeABIParameter(name: "classifier", type: .intptr),
-                RuntimeABIParameter(name: "element", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Array",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_array_tag_component",
-            parameters: [
-                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "component", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Array",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_array_new",
-            parameters: [
-                RuntimeABIParameter(name: "length", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Array",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_array_new_checked",
-            parameters: [
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Array"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_array_tag_type",
-            parameters: [
-                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "typeID", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Array",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_array_of_nulls",
-            parameters: [
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Array"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_object_new",
-            parameters: [
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "classId", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Array",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_runtime_register_data_class",
-            parameters: [
-                RuntimeABIParameter(name: "classID", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Array",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_runtime_register_data_class_fields",
-            parameters: [
-                RuntimeABIParameter(name: "classID", type: .intptr),
-                RuntimeABIParameter(name: "mask", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Array",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_object_type_id",
-            parameters: [
-                RuntimeABIParameter(name: "objectRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Array",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_array_get",
-            parameters: [
-                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "index", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Array"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_array_get_inbounds",
-            parameters: [
-                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "index", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Array",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_array_set",
-            parameters: [
-                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "index", type: .intptr),
-                RuntimeABIParameter(name: "value", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Array"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_array_set_typed",
-            parameters: [
-                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "index", type: .intptr),
-                RuntimeABIParameter(name: "value", type: .intptr),
-                RuntimeABIParameter(name: "anyFallbackTag", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Array",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_vararg_spread_concat",
-            parameters: [
-                RuntimeABIParameter(name: "pairsArrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "pairCount", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Array",
-            isThrowing: false
-        ),
+        abi.nt("__kk_array_new_same_component", "sourceRaw size"),
+        abi.nt("__kk_array_component_type", "classifier element"),
+        abi.nt("__kk_array_tag_component", "arrayRaw component"),
+        abi.nt("kk_array_new", "length"),
+        abi.th("kk_array_new_checked", "length outThrown"),
+        abi.nt("kk_array_tag_type", "arrayRaw typeID"),
+        abi.th("kk_array_of_nulls", "length outThrown"),
+        abi.nt("kk_object_new", "length classId"),
+        abi.nt("kk_runtime_register_data_class", "classID"),
+        abi.nt("kk_runtime_register_data_class_fields", "classID mask"),
+        abi.nt("kk_object_type_id", "objectRaw"),
+        abi.th("kk_array_get", "arrayRaw index outThrown"),
+        abi.nt("kk_array_get_inbounds", "arrayRaw index"),
+        abi.th("kk_array_set", "arrayRaw index value outThrown"),
+        abi.nt("kk_array_set_typed", "arrayRaw index value anyFallbackTag"),
+        abi.nt("kk_vararg_spread_concat", "pairsArrayRaw pairCount"),
     ]
 }

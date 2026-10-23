@@ -126,6 +126,11 @@ final class ConstPropertyEvaluator {
         if name == "length", nonNullReceiverType == sema.types.stringType {
             return args.isEmpty && isBuiltinStringLengthProperty(expr)
         }
+        if name == "code" {
+            return args.isEmpty
+                && nonNullReceiverType == sema.types.charType
+                && (!isSourceBackedMemberExtensionCall(expr) || isBuiltinCharCodeProperty(expr))
+        }
         if name == "compareTo" {
             guard args.count == 1,
                   let argumentType = sema.bindings.exprType(for: args[0].expr),
@@ -176,9 +181,6 @@ final class ConstPropertyEvaluator {
         if ["toByte", "toShort", "toInt", "toLong", "toChar"].contains(name) {
             return args.isEmpty && isNumericPrimitiveType(nonNullReceiverType)
         }
-        if name == "code" {
-            return args.isEmpty && nonNullReceiverType == sema.types.charType
-        }
         return false
     }
 
@@ -194,6 +196,22 @@ final class ConstPropertyEvaluator {
               property.name == interner.intern("length"),
               property.fqName == [interner.intern("kotlin"), interner.intern("length")],
               sema.symbols.extensionPropertyReceiverType(for: propertySymbol) == sema.types.stringType
+        else { return false }
+        return sema.symbols.isSourceBackedSymbol(propertySymbol)
+    }
+
+    private func isBuiltinCharCodeProperty(_ expr: ExprID) -> Bool {
+        guard let callee = sema.bindings.callBinding(for: expr)?.chosenCallee,
+              let calleeSymbol = sema.symbols.symbol(callee)
+        else { return false }
+        let propertySymbol = sema.symbols.accessorOwnerProperty(for: callee)
+            ?? (calleeSymbol.kind == .property ? callee : sema.symbols.parentSymbol(for: callee))
+        guard let propertySymbol,
+              let property = sema.symbols.symbol(propertySymbol),
+              property.kind == .property,
+              property.name == interner.intern("code"),
+              property.fqName == [interner.intern("kotlin"), interner.intern("code")],
+              sema.symbols.extensionPropertyReceiverType(for: propertySymbol) == sema.types.charType
         else { return false }
         return sema.symbols.isSourceBackedSymbol(propertySymbol)
     }

@@ -1,25 +1,8 @@
-// swiftlint:disable file_length
+private let abi = RuntimeABISectionBuilder("Memory")
 
 public extension RuntimeABISpec {
-    static let allocSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: "kk_alloc",
-        parameters: [
-            RuntimeABIParameter(name: "size", type: .uint32),
-            RuntimeABIParameter(name: "typeInfo", type: .constTypeInfoPointer),
-        ],
-        returnType: .opaquePointer,
-        section: "Memory"
-    )
-
-    static let gcCollectSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: "kk_gc_collect",
-        parameters: [
-            RuntimeABIParameter(name: "gcRaw", type: .intptr),
-        ],
-        returnType: .void,
-        section: "Memory",
-        isThrowing: false,
-    )
+    static let allocSpec: RuntimeABIFunctionSpec = abi.th("kk_alloc", "size:uint32 typeInfo:constTypeInfoPointer", ret: .opaquePointer)
+    static let gcCollectSpec: RuntimeABIFunctionSpec = abi.nt("kk_gc_collect", "gcRaw", ret: .void)
 
     static let memoryFunctions: [RuntimeABIFunctionSpec] = [
         allocSpec,

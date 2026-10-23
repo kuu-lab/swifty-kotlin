@@ -2,6 +2,7 @@ package java.lang
 
 import java.io.InputStream
 import java.io.PrintStream
+import java.util.__identityHashCode
 import kotlin.internal.KsSymbolName
 
 public object System {
@@ -22,6 +23,8 @@ public object System {
 
     public fun getProperty(propertyName: String, defaultValue: String): String =
         __getProperty(propertyName) ?: defaultValue
+
+    public fun identityHashCode(value: Any?): Int = __identityHashCode(value)
 
     public fun lineSeparator(): String = __getProperty("line.separator") ?: "\n"
 

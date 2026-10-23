@@ -13,7 +13,7 @@ extension JVMProgramBuilder {
         guard let symbol = sema.symbols.symbol(symbolID), symbol.kind == .constructor,
               let parent = sema.symbols.parentSymbol(for: symbolID), classes[parent] == nil,
               let source = try? className(parent), let name = JVMClasspathIndex.builtinName(source),
-              (name.hasPrefix("java/lang/") || ["java/util/NoSuchElementException", "java/util/AbstractCollection", "java/util/AbstractList", "java/util/AbstractSet", "java/util/AbstractMap", "kotlin/collections/AbstractSet", "kotlin/collections/IntIterator", "kotlin/UninitializedPropertyAccessException"].contains(name)), let signature = sema.symbols.functionSignature(for: symbolID),
+              (name.hasPrefix("java/lang/") || ["java/util/NoSuchElementException", "java/util/AbstractCollection", "java/util/AbstractList", "java/util/AbstractSet", "java/util/AbstractMap", "kotlin/collections/AbstractSet", "kotlin/collections/IntIterator", "kotlin/NotImplementedError", "kotlin/UninitializedPropertyAccessException"].contains(name)), let signature = sema.symbols.functionSignature(for: symbolID),
               let parameters = try? signature.parameterTypes.map(type) else { return nil }
         return JVMForeignMethod(owner: name, name: "<init>", descriptor: "(" + parameters.map(\.descriptor).joined() + ")V", parameters: parameters, result: .reference(name, nullable: false), isStatic: false, isInterface: false, isAbstract: false)
     }
@@ -38,6 +38,7 @@ extension JVMFunctionBuilder {
     func intrinsicCall(_ symbolID: SymbolID, args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult? {
         if let method = program.builtinMethod(symbolID) { return JVMIntrinsicResult(value: try foreign(method, receiver: nil, args: args, id: id)) }
         guard let symbol = program.sema.symbols.symbol(symbolID), symbol.declSite.map({ context.sourceManager.origin(of: $0.start.file) != .user }) ?? true else { return nil }
+        if let result = try resultCompanionCall(symbolID, args: args, id: id) { return result }
         if let delegate = try delegationIntrinsic(symbol, args: args, id: id) { return delegate }
         if let coroutine = try coroutineCall(symbol, args: args, id: id) { return coroutine }
         let fq = symbol.fqName.map(context.interner.resolve).joined(separator: "/")
@@ -338,7 +339,7 @@ extension JVMFunctionBuilder {
                 else { parameters = [object]; returns = .boolean }
             case "remove":
                 actual = member
-                if owner == "java/util/ListIterator" { parameters = []; returns = .unit }
+                if owner == "java/util/Iterator" || owner == "java/util/ListIterator" { parameters = []; returns = .unit }
                 else { parameters = [object]; returns = owner == "java/util/Map" ? object : .boolean }
             case "contains", "containsKey", "containsValue": actual = member; parameters = [object]; returns = .boolean
             case "addAll":
@@ -539,11 +540,27 @@ extension JVMFunctionBuilder {
         // An Iterator receiver is its own cursor: the stdlib Iterator<T>.iterator()
         // operator returns `this`, so Sema leaves iteratorCall nil for it.
         let loopBinding = program.sema.bindings.loopIterationBinding(for: id)
+        let jvmIterableElementType: TypeID? = {
+            guard let referenceName = source.type.referenceName,
+                  ["java/lang/Iterable", "java/util/Collection", "java/util/List", "java/util/Set"]
+                    .contains(referenceName),
+                  let iterableType = program.sema.bindings.exprType(for: iterable)
+            else {
+                return nil
+            }
+            return TypeCheckHelpers().iterableElementType(
+                for: iterableType,
+                isRangeExpr: false,
+                sema: program.sema,
+                interner: context.interner
+            )
+        }()
         let elementType: JVMValueType
         if source.type.isCharSequence { elementType = .char }
         else if source.type.referenceName == "kotlin/ranges/IntRange" { elementType = .int }
         else if source.type.referenceName?.hasPrefix("[") == true { elementType = try arrayComponent(source.type) }
         else if let loopBinding { elementType = try program.type(loopBinding.elementType) }
+        else if let jvmIterableElementType { elementType = try program.type(jvmIterableElementType) }
         else { throw fail("JVM for requires an array or iterable collection.", id) }
         let local = try value(elementType), test = label(), advance = label(), exit = label()
         scopes.append([name: Local(value: local, mutable: false)]); defer { scopes.removeLast() }

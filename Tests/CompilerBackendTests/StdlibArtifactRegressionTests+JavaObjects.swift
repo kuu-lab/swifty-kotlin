@@ -5,6 +5,35 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
+    /// KUU-3056: core java.util.Objects helpers must be available from bundled source and artifacts.
+    @Test(arguments: [false, true])
+    func testJavaObjectsCoreHelpersAcrossSourceAndFreshArtifact(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let source = try diffCaseSource("java_util_objects_basic.kt", file: #filePath)
+        let expected = "true\nfalse\ntrue\nfalse\ntrue\n994\n1\n31\n51\n1\nnull\nfallback\n1\nvalue:2\n1\nrequireNonNull:null\nmissing\ntrue\nfalse\nfalse\ntrue\n0\n1\n20\n"
+        try withTemporaryFile(contents: source) { path in
+            for level in [OptimizationLevel.O0, .O2] {
+                let output = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString).path
+                defer { try? FileManager.default.removeItem(atPath: output) }
+                let context = try runCodegenPipeline(
+                    inputPath: path,
+                    moduleName: "JavaObjectsCoreHelpers",
+                    outputPath: output,
+                    optLevel: level,
+                    allowDefaultStdlibLibrary: false,
+                    stdlibLibraryPath: artifactPath
+                )
+                try assertNoDiagnosticErrors(context)
+                try LinkPhase().run(context)
+                let result = try CommandRunner.run(executable: output, arguments: [])
+                #expect(result.exitCode == 0, "\(useArtifact) \(level): \(result.stderr)")
+                #expect(result.stderr.isEmpty)
+                #expect(result.stdout == expected, "\(useArtifact) \(level): \(result.stdout)")
+            }
+        }
+    }
+
     /// KUU-2068: the nullable JVM facade and existing array control must survive
     /// serialization and execute with ordinary equals dispatch at both levels.
     @Test(arguments: [false, true])

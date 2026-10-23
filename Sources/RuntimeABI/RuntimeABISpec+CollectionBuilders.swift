@@ -1,62 +1,16 @@
+private let abi = RuntimeABISectionBuilder("Collection")
+
 public extension RuntimeABISpec {
     static let collectionBuilderFunctions: [RuntimeABIFunctionSpec] = [
         // `__kk_build_list` / `__kk_build_list_with_capacity` were removed with
         // their lowering rewrite (RF-LOWER-CALL-004); `buildList` is served by
         // `CollectionBuilders.kt` via `__kk_builder_list_*`.
-        RuntimeABIFunctionSpec(
-            name: "__kk_builder_list_new",
-            parameters: [
-                RuntimeABIParameter(name: "capacity", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_builder_set_new",
-            parameters: [
-                RuntimeABIParameter(name: "capacity", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_builder_map_new",
-            parameters: [
-                RuntimeABIParameter(name: "capacity", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_builder_list_freeze",
-            parameters: [
-                RuntimeABIParameter(name: "raw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_builder_set_freeze",
-            parameters: [
-                RuntimeABIParameter(name: "raw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_builder_map_freeze",
-            parameters: [
-                RuntimeABIParameter(name: "raw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
+        abi.nt("__kk_builder_list_new", "capacity"),
+        abi.nt("__kk_builder_set_new", "capacity"),
+        abi.nt("__kk_builder_map_new", "capacity"),
+        abi.nt("__kk_builder_list_freeze", "raw"),
+        abi.nt("__kk_builder_set_freeze", "raw"),
+        abi.nt("__kk_builder_map_freeze", "raw"),
         bridgeMutableListAddSpec,
         bridgeMutableCollectionAddThrowingSpec,
         bridgeMutableCollectionRemoveThrowingSpec,
@@ -65,254 +19,42 @@ public extension RuntimeABISpec {
         bridgeMutableCollectionRetainAllThrowingSpec,
         bridgeMutableCollectionAddAllThrowingSpec,
         bridgeMutableCollectionAddSpec,
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_collection_add_checked",
-            parameters: [
-                RuntimeABIParameter(name: "raw", type: .intptr),
-                RuntimeABIParameter(name: "argument", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_list_addAll_checked",
-            parameters: [
-                RuntimeABIParameter(name: "raw", type: .intptr),
-                RuntimeABIParameter(name: "argument", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_list_remove_checked",
-            parameters: [
-                RuntimeABIParameter(name: "raw", type: .intptr),
-                RuntimeABIParameter(name: "argument", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_list_clear_checked",
-            parameters: [
-                RuntimeABIParameter(name: "raw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_list_removeAll_checked",
-            parameters: [
-                RuntimeABIParameter(name: "raw", type: .intptr),
-                RuntimeABIParameter(name: "argument", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_list_retainAll_checked",
-            parameters: [
-                RuntimeABIParameter(name: "raw", type: .intptr),
-                RuntimeABIParameter(name: "argument", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
+        abi.th("__kk_mutable_collection_add_checked", "raw argument outThrown"),
+        abi.th("__kk_mutable_list_addAll_checked", "raw argument outThrown"),
+        abi.th("__kk_mutable_list_remove_checked", "raw argument outThrown"),
+        abi.th("__kk_mutable_list_clear_checked", "raw outThrown"),
+        abi.th("__kk_mutable_list_removeAll_checked", "raw argument outThrown"),
+        abi.th("__kk_mutable_list_retainAll_checked", "raw argument outThrown"),
         bridgeMutableListRemoveSpec,
         bridgeMutableListRemoveDispatchSpec,
         bridgeMutableCollectionAddAllSpec,
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_list_addAll",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "collectionRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_collection_addAll_iterable",
-            parameters: [
-                RuntimeABIParameter(name: "collectionRaw", type: .intptr),
-                RuntimeABIParameter(name: "iterableRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_list_removeAll",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "collectionRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_list_retainAll",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "collectionRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
+        abi.nt("__kk_mutable_list_addAll", "listRaw collectionRaw"),
+        abi.th("__kk_mutable_collection_addAll_iterable", "collectionRaw iterableRaw"),
+        abi.nt("__kk_mutable_list_removeAll", "listRaw collectionRaw"),
+        abi.nt("__kk_mutable_list_retainAll", "listRaw collectionRaw"),
         bridgeMutableListRemoveAtSpec,
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_list_removeFirst",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_list_removeFirstOrNull",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_list_removeLast",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_list_removeLastOrNull",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_list_clear",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
+        abi.th("__kk_mutable_list_removeFirst", "listRaw outThrown"),
+        abi.nt("__kk_mutable_list_removeFirstOrNull", "listRaw"),
+        abi.th("__kk_mutable_list_removeLast", "listRaw outThrown"),
+        abi.nt("__kk_mutable_list_removeLastOrNull", "listRaw"),
+        abi.nt("__kk_mutable_list_clear", "listRaw"),
         bridgeMutableListAddAtSpec,
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_list_addAll_at",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "index", type: .intptr),
-                RuntimeABIParameter(name: "collectionRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
+        abi.th("__kk_mutable_list_addAll_at", "listRaw index collectionRaw outThrown"),
         bridgeMutableListSetSpec,
         bridgeMutableSetAddSpec,
         bridgeMutableSetRemoveSpec,
         bridgeMutableSetClearSpec,
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_set_addAll",
-            parameters: [
-                RuntimeABIParameter(name: "setRaw", type: .intptr),
-                RuntimeABIParameter(name: "collectionRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_set_addAll_sequence",
-            parameters: [
-                RuntimeABIParameter(name: "setRaw", type: .intptr),
-                RuntimeABIParameter(name: "sequenceRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_set_addAll_iterable",
-            parameters: [
-                RuntimeABIParameter(name: "setRaw", type: .intptr),
-                RuntimeABIParameter(name: "iterableRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_set_removeAll",
-            parameters: [
-                RuntimeABIParameter(name: "setRaw", type: .intptr),
-                RuntimeABIParameter(name: "collectionRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            returnsRawBoolean: true
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_set_retainAll",
-            parameters: [
-                RuntimeABIParameter(name: "setRaw", type: .intptr),
-                RuntimeABIParameter(name: "collectionRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            returnsRawBoolean: true
-        ),
+        abi.nt("__kk_mutable_set_addAll", "setRaw collectionRaw"),
+        abi.nt("__kk_mutable_set_addAll_sequence", "setRaw sequenceRaw"),
+        abi.th("__kk_mutable_set_addAll_iterable", "setRaw iterableRaw"),
+        abi.th("__kk_mutable_set_removeAll", "setRaw collectionRaw outThrown", raw: true),
+        abi.th("__kk_mutable_set_retainAll", "setRaw collectionRaw outThrown", raw: true),
         bridgeMutableMapPutSpec,
         bridgeMutableMapRemoveSpec,
         bridgeMutableMapClearSpec,
         bridgeMutableMapPutAllSpec,
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_map_plusAssign_pair",
-            parameters: [
-                RuntimeABIParameter(name: "mapRaw", type: .intptr),
-                RuntimeABIParameter(name: "pairRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_map_withDefault",
-            parameters: [
-                RuntimeABIParameter(name: "mapRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_map_entry_setValue",
-            parameters: [
-                RuntimeABIParameter(name: "entryRaw", type: .intptr),
-                RuntimeABIParameter(name: "value", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
+        abi.nt("__kk_mutable_map_plusAssign_pair", "mapRaw pairRaw"),
+        abi.nt("__kk_mutable_map_withDefault", "mapRaw fnPtr closureRaw"),
+        abi.th("__kk_mutable_map_entry_setValue", "entryRaw value outThrown"),
     ]
 }

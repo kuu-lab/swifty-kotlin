@@ -31,6 +31,36 @@ struct ForLoopReceiverValidationTests {
         #expect(errors.contains { $0.code == "KSWIFTK-SEMA-0172" }, "\(errors)")
     }
 
+    @Test
+    func rejectsFloatingPointRangesWithoutIterator() throws {
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource("""
+        fun test() {
+            for (doubleValue in 1.0..5.0) {}
+            for (floatValue in 1f..5f) {}
+        }
+        """, allowDefaultStdlibLibrary: true)
+        do { try runSema(ctx) } catch {}
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        let missingIteratorErrors = errors.filter { $0.code == "KSWIFTK-SEMA-0172" }
+        #expect(missingIteratorErrors.count == 2, "\(errors)")
+    }
+
+    @Test
+    func acceptsFloatingPointRangeWithIteratorOperator() throws {
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource("""
+        import kotlin.ranges.ClosedFloatingPointRange
+        operator fun ClosedFloatingPointRange<Double>.iterator(): Iterator<Double> =
+            listOf(start, endInclusive).iterator()
+        fun test() {
+            for (value in 1.0..5.0) {}
+        }
+        """, allowDefaultStdlibLibrary: true)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
     @Test(arguments: ["List<Int>", "String", "IntArray", "Iterator<Int>"])
     func rejectsNullableReceivers(type: String) throws {
         let ctx = makeContextFromSource("""
@@ -152,6 +182,28 @@ struct ForLoopReceiverValidationTests {
         let loopID = ExprID(rawValue: Int32(loopIndex))
         #expect(ctx.sema?.bindings.destructuringProperty(for: loopID, index: 0) != nil)
         #expect(ctx.sema?.bindings.destructuringProperty(for: loopID, index: 1) != nil)
+    }
+
+    @Test
+    func completeNameBasedDestructuringAllowsStatementBodies() throws {
+        let ctx = makeNameDestructuringContext("""
+        class P(val first: String, val second: Int)
+
+        fun singleExpressionBody(x: P): Boolean {
+            for ((first, second) in arrayOf(x))
+                if (first != "OK" || second != 1) return false
+            return true
+        }
+
+        fun blockBody(x: P): Boolean {
+            for ((first, second) in arrayOf(x)) {
+                if (first != "OK" || second != 1) return false
+            }
+            return true
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
     @Test

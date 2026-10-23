@@ -1,105 +1,17 @@
+private let abi = RuntimeABISectionBuilder("NativeConcurrent")
+
 public extension RuntimeABISpec {
     static let nativeConcurrentFunctions: [RuntimeABIFunctionSpec] = [
-        RuntimeABIFunctionSpec(
-            name: "__kk_native_concurrent_active_workers",
-            parameters: [],
-            returnType: .intptr,
-            section: "NativeConcurrent",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_native_concurrent_attach_object_graph",
-            parameters: [
-                RuntimeABIParameter(name: "stableRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "NativeConcurrent",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_native_concurrent_consume_future",
-            parameters: [
-                RuntimeABIParameter(name: "futureHandle", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "NativeConcurrent",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_native_concurrent_current_worker",
-            parameters: [],
-            returnType: .intptr,
-            section: "NativeConcurrent",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_native_concurrent_detach_object_graph",
-            parameters: [
-                RuntimeABIParameter(name: "modeRaw", type: .intptr),
-                RuntimeABIParameter(name: "valueRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "NativeConcurrent",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_native_concurrent_execute_impl",
-            parameters: [
-                RuntimeABIParameter(name: "workerHandle", type: .intptr),
-                RuntimeABIParameter(name: "modeRaw", type: .intptr),
-                RuntimeABIParameter(name: "jobArgumentRaw", type: .intptr),
-                RuntimeABIParameter(name: "jobPointerHandle", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "NativeConcurrent",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_native_concurrent_start_worker",
-            parameters: [
-                RuntimeABIParameter(name: "errorReportingRaw", type: .intptr),
-                RuntimeABIParameter(name: "nameRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "NativeConcurrent",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_native_concurrent_terminate_worker",
-            parameters: [
-                RuntimeABIParameter(name: "workerHandle", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "NativeConcurrent",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_native_concurrent_wait_for_multiple_futures",
-            parameters: [
-                RuntimeABIParameter(name: "futuresHandle", type: .intptr),
-                RuntimeABIParameter(name: "timeoutMillis", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "NativeConcurrent",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_native_concurrent_wait_worker_termination",
-            parameters: [
-                RuntimeABIParameter(name: "workerHandle", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "NativeConcurrent",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_native_concurrent_worker_from_cpointer",
-            parameters: [
-                RuntimeABIParameter(name: "pointerHandle", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "NativeConcurrent",
-            isThrowing: false
-        ),
+        abi.nt("__kk_native_concurrent_active_workers"),
+        abi.nt("__kk_native_concurrent_attach_object_graph", "stableRaw"),
+        abi.nt("__kk_native_concurrent_consume_future", "futureHandle"),
+        abi.nt("__kk_native_concurrent_current_worker"),
+        abi.nt("__kk_native_concurrent_detach_object_graph", "modeRaw valueRaw"),
+        abi.nt("__kk_native_concurrent_execute_impl", "workerHandle modeRaw jobArgumentRaw jobPointerHandle"),
+        abi.nt("__kk_native_concurrent_start_worker", "errorReportingRaw nameRaw"),
+        abi.nt("__kk_native_concurrent_terminate_worker", "workerHandle"),
+        abi.nt("__kk_native_concurrent_wait_for_multiple_futures", "futuresHandle timeoutMillis"),
+        abi.nt("__kk_native_concurrent_wait_worker_termination", "workerHandle"),
+        abi.nt("__kk_native_concurrent_worker_from_cpointer", "pointerHandle"),
     ]
 }

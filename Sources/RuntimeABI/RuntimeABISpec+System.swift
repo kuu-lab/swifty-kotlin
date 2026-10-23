@@ -1,248 +1,39 @@
-// swiftlint:disable file_length
+private let abi = RuntimeABISectionBuilder("System")
 
 public extension RuntimeABISpec {
-    static let dynamicIteratorSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: "kk_dynamic_iterator",
-        parameters: [
-            RuntimeABIParameter(name: "value", type: .intptr),
-        ],
-        returnType: .intptr,
-        section: "System"
-    )
+    static let dynamicIteratorSpec: RuntimeABIFunctionSpec = abi.th("kk_dynamic_iterator", "value")
 
     static let systemFunctions: [RuntimeABIFunctionSpec] = [
-        RuntimeABIFunctionSpec(
-            name: "__kk_system_in",
-            parameters: [],
-            returnType: .intptr,
-            section: "System",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_system_getProperty",
-            parameters: [
-                RuntimeABIParameter(name: "propertyName", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System",
-            isThrowing: false
-        ),
+        abi.nt("__kk_system_in"),
+        abi.nt("__kk_system_getProperty", "propertyName"),
         // Compiler-only startup bridge: argc is the C int32 ABI and argv is
         // a borrowed pointer to a null-terminated C-string pointer vector.
-        RuntimeABIFunctionSpec(
-            name: "__kk_process_args_from_argv",
-            parameters: [
-                RuntimeABIParameter(name: "argc", type: .int32),
-                RuntimeABIParameter(name: "argv", type: .nullableConstRawPointer),
-            ],
-            returnType: .intptr,
-            section: "System",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_system_exitProcess",
-            parameters: [
-                RuntimeABIParameter(name: "status", type: .intptr),
-            ],
-            returnType: .noreturn,
-            section: "System",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_system_currentTimeMillis",
-            parameters: [],
-            returnType: .intptr,
-            section: "System",
-            isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_system_nanoTime",
-            parameters: [],
-            returnType: .intptr,
-            section: "System",
-            isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_system_getTimeMicros",
-            parameters: [],
-            returnType: .intptr,
-            section: "System",
-            isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_system_getTimeMillis",
-            parameters: [],
-            returnType: .intptr,
-            section: "System",
-            isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_system_getTimeNanos",
-            parameters: [],
-            returnType: .intptr,
-            section: "System",
-            isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_system_process_start_nanos",
-            parameters: [],
-            returnType: .intptr,
-            section: "System",
-            isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_platform_canAccessUnaligned",
-            parameters: [
-                RuntimeABIParameter(name: "platformRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_platform_isLittleEndian",
-            parameters: [
-                RuntimeABIParameter(name: "platformRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_platform_osFamily",
-            parameters: [
-                RuntimeABIParameter(name: "platformRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_platform_cpuArchitecture",
-            parameters: [
-                RuntimeABIParameter(name: "platformRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_platform_getAvailableProcessors",
-            parameters: [
-                RuntimeABIParameter(name: "platformRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_platform_programName",
-            parameters: [
-                RuntimeABIParameter(name: "platformRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_platform_isMemoryLeakCheckerActive_load",
-            parameters: [
-                RuntimeABIParameter(name: "platformRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_platform_isMemoryLeakCheckerActive_store",
-            parameters: [
-                RuntimeABIParameter(name: "platformRaw", type: .intptr),
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_platform_getAvailableProcessorsEnv",
-            parameters: [
-                RuntimeABIParameter(name: "platformRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_system_gc",
-            parameters: [],
-            returnType: .void,
-            section: "System",
-            isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_system_arraycopy",
-            parameters: [
-                RuntimeABIParameter(name: "sourceRaw", type: .intptr),
-                RuntimeABIParameter(name: "sourcePosition", type: .intptr),
-                RuntimeABIParameter(name: "destinationRaw", type: .intptr),
-                RuntimeABIParameter(name: "destinationPosition", type: .intptr),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_runtime_getRuntime",
-            parameters: [],
-            returnType: .intptr,
-            section: "System",
-            isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_runtime_totalMemory",
-            parameters: [],
-            returnType: .intptr,
-            section: "System",
-            isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_runtime_freeMemory",
-            parameters: [],
-            returnType: .intptr,
-            section: "System",
-            isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_runtime_maxMemory",
-            parameters: [],
-            returnType: .intptr,
-            section: "System",
-            isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_runtime_availableProcessors",
-            parameters: [],
-            returnType: .intptr,
-            section: "System",
-            isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_clock_now",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_clock_system_now",
-            parameters: [],
-            returnType: .intptr,
-            section: "System",
-            isThrowing: false,
-        ),
+        abi.nt("__kk_process_args_from_argv", "argc:int32 argv:nullableConstRawPointer"),
+        abi.nt("__kk_system_exitProcess", "status", ret: .noreturn),
+        abi.nt("__kk_system_currentTimeMillis"),
+        abi.nt("__kk_system_nanoTime"),
+        abi.nt("__kk_system_getTimeMicros"),
+        abi.nt("__kk_system_getTimeMillis"),
+        abi.nt("__kk_system_getTimeNanos"),
+        abi.nt("__kk_system_process_start_nanos"),
+        abi.nt("kk_platform_canAccessUnaligned", "platformRaw"),
+        abi.nt("kk_platform_isLittleEndian", "platformRaw"),
+        abi.nt("kk_platform_osFamily", "platformRaw"),
+        abi.nt("kk_platform_cpuArchitecture", "platformRaw"),
+        abi.nt("kk_platform_getAvailableProcessors", "platformRaw"),
+        abi.nt("kk_platform_programName", "platformRaw"),
+        abi.nt("kk_platform_isMemoryLeakCheckerActive_load", "platformRaw"),
+        abi.nt("kk_platform_isMemoryLeakCheckerActive_store", "platformRaw value"),
+        abi.nt("kk_platform_getAvailableProcessorsEnv", "platformRaw"),
+        abi.nt("__kk_system_gc", ret: .void),
+        abi.th("__kk_system_arraycopy", "sourceRaw sourcePosition destinationRaw destinationPosition length outThrown"),
+        abi.nt("__kk_runtime_getRuntime"),
+        abi.nt("__kk_runtime_totalMemory"),
+        abi.nt("__kk_runtime_freeMemory"),
+        abi.nt("__kk_runtime_maxMemory"),
+        abi.nt("__kk_runtime_availableProcessors"),
+        abi.nt("kk_clock_now", "receiver"),
+        abi.nt("kk_clock_system_now"),
         dynamicIteratorSpec,
     ]
 }

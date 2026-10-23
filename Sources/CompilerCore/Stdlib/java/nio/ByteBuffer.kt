@@ -1,5 +1,7 @@
 package java.nio
 
+import kotlin.fromBits
+
 /** Views share storage; position, limit and mark belong to each view.
  * This is not a JVM classfile. */
 public class ByteBuffer private constructor(
@@ -12,6 +14,7 @@ public class ByteBuffer private constructor(
     private var currentPosition: Int = 0
     private var currentLimit: Int = extent
     private var currentMark: Int = -1
+    private var currentOrder: ByteOrder = ByteOrder.BIG_ENDIAN
 
     public companion object {
         public fun allocate(capacity: Int): ByteBuffer {
@@ -51,6 +54,8 @@ public class ByteBuffer private constructor(
     public override fun hasRemaining(): Boolean = currentPosition < currentLimit
     public override fun isReadOnly(): Boolean = readOnly
     public override fun isDirect(): Boolean = direct
+    public fun order(): ByteOrder = currentOrder
+    public fun order(order: ByteOrder): ByteBuffer { currentOrder = order; return this }
 
     // Java bean-property spelling used by unchanged Kotlin consumers.
     // Native accessors preserve the Java names in metadata; no classfile is emitted.
@@ -96,6 +101,18 @@ public class ByteBuffer private constructor(
         if (!hasRemaining()) throw BufferUnderflowException()
         return bytes[start + currentPosition++]
     }
+    public fun getChar(): Char = Char(getShort().toUShort())
+    public fun getChar(index: Int): Char = Char(getShort(index).toUShort())
+    public fun getShort(): Short = getBits(2).toShort()
+    public fun getShort(index: Int): Short = getBits(index, 2).toShort()
+    public fun getInt(): Int = getBits(4).toInt()
+    public fun getInt(index: Int): Int = getBits(index, 4).toInt()
+    public fun getLong(): Long = getBits(8)
+    public fun getLong(index: Int): Long = getBits(index, 8)
+    public fun getFloat(): Float = fromBits(getInt())
+    public fun getFloat(index: Int): Float = fromBits(getInt(index))
+    public fun getDouble(): Double = fromBits(getLong())
+    public fun getDouble(index: Int): Double = fromBits(getLong(index))
     public operator fun get(index: Int): Byte {
         if (index < 0 || index >= currentLimit) throw IndexOutOfBoundsException()
         return bytes[start + index]
@@ -116,6 +133,18 @@ public class ByteBuffer private constructor(
         bytes[start + currentPosition++] = value
         return this
     }
+    public fun putChar(value: Char): ByteBuffer = putBits(value.code.toLong(), 2)
+    public fun putChar(index: Int, value: Char): ByteBuffer = putBits(index, value.code.toLong(), 2)
+    public fun putShort(value: Short): ByteBuffer = putBits(value.toLong(), 2)
+    public fun putShort(index: Int, value: Short): ByteBuffer = putBits(index, value.toLong(), 2)
+    public fun putInt(value: Int): ByteBuffer = putBits(value.toLong(), 4)
+    public fun putInt(index: Int, value: Int): ByteBuffer = putBits(index, value.toLong(), 4)
+    public fun putLong(value: Long): ByteBuffer = putBits(value, 8)
+    public fun putLong(index: Int, value: Long): ByteBuffer = putBits(index, value, 8)
+    public fun putFloat(value: Float): ByteBuffer = putBits(value.toRawBits().toLong(), 4)
+    public fun putFloat(index: Int, value: Float): ByteBuffer = putBits(index, value.toRawBits().toLong(), 4)
+    public fun putDouble(value: Double): ByteBuffer = putBits(value.toRawBits(), 8)
+    public fun putDouble(index: Int, value: Double): ByteBuffer = putBits(index, value.toRawBits(), 8)
     public fun put(index: Int, value: Byte): ByteBuffer {
         if (readOnly) throw ReadOnlyBufferException()
         if (index < 0 || index >= currentLimit) throw IndexOutOfBoundsException()
@@ -133,5 +162,47 @@ public class ByteBuffer private constructor(
         for (index in 0..<length) bytes[start + currentPosition + index] = copy[index]
         currentPosition += length
         return this
+    }
+
+    private fun getBits(width: Int): Long {
+        if (width > remaining()) throw BufferUnderflowException()
+        val value = getBits(currentPosition, width)
+        currentPosition += width
+        return value
+    }
+
+    private fun getBits(index: Int, width: Int): Long {
+        if (index < 0 || index > currentLimit - width) throw IndexOutOfBoundsException()
+        var value = 0L
+        for (offset in 0..<width) {
+            val byteIndex = if (currentOrder == ByteOrder.BIG_ENDIAN) width - offset - 1 else offset
+            val shift = byteIndex * 8
+            val byteValue = bytes[start + index + offset].toInt() and 0xff
+            value = value or (byteValue.toLong() shl shift)
+        }
+        return value
+    }
+
+    private fun putBits(value: Long, width: Int): ByteBuffer {
+        if (readOnly) throw ReadOnlyBufferException()
+        if (width > remaining()) throw BufferOverflowException()
+        putBitsAt(currentPosition, value, width)
+        currentPosition += width
+        return this
+    }
+
+    private fun putBits(index: Int, value: Long, width: Int): ByteBuffer {
+        if (readOnly) throw ReadOnlyBufferException()
+        if (index < 0 || index > currentLimit - width) throw IndexOutOfBoundsException()
+        putBitsAt(index, value, width)
+        return this
+    }
+
+    private fun putBitsAt(index: Int, value: Long, width: Int) {
+        for (offset in 0..<width) {
+            val byteIndex = if (currentOrder == ByteOrder.BIG_ENDIAN) width - offset - 1 else offset
+            val shift = byteIndex * 8
+            bytes[start + index + offset] = (value ushr shift).toByte()
+        }
     }
 }
