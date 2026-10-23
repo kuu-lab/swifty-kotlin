@@ -30,7 +30,8 @@ package enum BundledStdlib {
     }
 
     internal static func collectBundledStdlibSources(
-        resourcePath: String? = Bundle.module.resourcePath
+        resourcePath: String? = Bundle.module.resourcePath,
+        profile: StdlibProfile = .full
     ) throws -> [(path: String, contents: Data)] {
         guard let resourcePath else {
             throw LoadError.resourcePathMissing
@@ -64,32 +65,82 @@ package enum BundledStdlib {
             guard let data = fm.contents(atPath: fullPath) else {
                 throw LoadError.readFailed(path: fullPath)
             }
+            if profile != .full,
+               !profile.includes(package: StdlibProfile.declaredPackage(in: data))
+            {
+                continue
+            }
             bundledSources.append((path: bundledPath, contents: data))
         }
 
         return bundledSources.sorted(by: { $0.path < $1.path })
     }
 
-    private static let _bundledStdlibSources: [(path: String, contents: Data)] =
-        (try? Self.collectBundledStdlibSources()) ?? []
+    /// Per-profile source and hash cache. Profiles are computed on first use so
+    /// a compile that never asks for `minimal` pays nothing for it.
+    private final class ProfileCache: @unchecked Sendable {
+        private let lock = NSLock()
+        private var sources: [StdlibProfile: [(path: String, contents: Data)]] = [:]
+        private var hashes: [StdlibProfile: String] = [:]
 
-    /// Returns all bundled stdlib sources as (virtualPath, contents) pairs in a
-    /// deterministic order. This matches the sources injected by `LoadSourcesPhase`
-    /// and is used to compute the stdlib manifest hash for incremental builds.
-    package static func bundledStdlibSources() -> [(path: String, contents: Data)] {
-        _bundledStdlibSources
+        func sources(for profile: StdlibProfile) -> [(path: String, contents: Data)] {
+            lock.lock()
+            defer { lock.unlock() }
+            if let cached = sources[profile] { return cached }
+            let loaded = (try? BundledStdlib.collectBundledStdlibSources(profile: profile)) ?? []
+            sources[profile] = loaded
+            return loaded
+        }
+
+        func hash(for profile: StdlibProfile) -> String {
+            let loaded = sources(for: profile)
+            lock.lock()
+            defer { lock.unlock() }
+            if let cached = hashes[profile] { return cached }
+            // Rebuild artifacts predating metadata or callback ABI changes. The
+            // profile is part of the hash so a minimal artifact can never
+            // validate as full (or the reverse); the full profile keeps the
+            // pre-profile hash input.
+            var hashed = loaded + [
+                (path: "__metadata_visibility_v2", contents: Data()),
+                (path: "__metadata_callback_abi_v1", contents: Data()),
+            ]
+            if profile != .full {
+                hashed.append((path: "__stdlib_profile_\(profile.rawValue)", contents: Data()))
+            }
+            let value = BundledStdlib.manifestHash(for: hashed)
+            hashes[profile] = value
+            return value
+        }
     }
 
-    // Rebuild artifacts predating metadata or callback ABI changes.
-    private static let _manifestHash: String = Self.manifestHash(
-        for: _bundledStdlibSources + [
-            (path: "__metadata_visibility_v2", contents: Data()),
-            (path: "__metadata_callback_abi_v1", contents: Data()),
-        ]
-    )
+    private static let profileCache = ProfileCache()
 
-    package static func manifestHash() -> String {
-        _manifestHash
+    /// Returns the bundled stdlib sources of `profile` as (virtualPath, contents)
+    /// pairs in a deterministic order. This matches the sources injected by
+    /// `LoadSourcesPhase` and is used to compute the stdlib manifest hash for
+    /// incremental builds.
+    package static func bundledStdlibSources(
+        profile: StdlibProfile = .full
+    ) -> [(path: String, contents: Data)] {
+        profileCache.sources(for: profile)
+    }
+
+    package static func manifestHash(profile: StdlibProfile = .full) -> String {
+        profileCache.hash(for: profile)
+    }
+
+    /// Packages declared by the full profile that `profile` leaves out, as
+    /// sorted dotted names. Used to explain a missing import precisely.
+    package static func excludedPackages(for profile: StdlibProfile) -> [String] {
+        guard profile != .full else { return [] }
+        let kept = Set(bundledStdlibSources(profile: profile).map {
+            StdlibProfile.declaredPackage(in: $0.contents)
+        })
+        let all = Set(bundledStdlibSources(profile: .full).map {
+            StdlibProfile.declaredPackage(in: $0.contents)
+        })
+        return all.subtracting(kept).sorted()
     }
 
     private static func manifestHash(for sources: [(path: String, contents: Data)]) -> String {

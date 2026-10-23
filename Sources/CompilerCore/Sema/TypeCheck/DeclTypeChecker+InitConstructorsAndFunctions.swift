@@ -1105,6 +1105,48 @@ extension DeclTypeChecker {
         } else {
             inferredBodyType = bodyType
         }
+        // Propagate the expression body's value marks onto the function symbol
+        // so call results inherit them through bindCall — the same convention
+        // local declarations apply to local symbols (KUU-2942: without this,
+        // `0.0 in makeRange()` cannot reach `__kk_double_range_contains` and
+        // falls back to the generic contains path that treats `0.0..-0.0` as
+        // empty).
+        if case let .expr(bodyExprID, _) = function.body {
+            if sema.bindings.isRangeExpr(bodyExprID) {
+                sema.bindings.markRangeSymbol(symbol)
+                if sema.bindings.isCharRangeExpr(bodyExprID) {
+                    sema.bindings.markCharRangeSymbol(symbol)
+                }
+                if sema.bindings.isUIntRangeExpr(bodyExprID) {
+                    sema.bindings.markUIntRangeSymbol(symbol)
+                }
+                if sema.bindings.isULongRangeExpr(bodyExprID) {
+                    sema.bindings.markULongRangeSymbol(symbol)
+                }
+                if sema.bindings.isFloatingPointRangeExpr(bodyExprID) {
+                    sema.bindings.markFloatingPointRangeSymbol(symbol)
+                    if let elementType = sema.bindings.floatingPointRangeElementType(forExpr: bodyExprID) {
+                        sema.bindings.bindFloatingPointRangeElementType(
+                            elementType,
+                            forSymbol: symbol,
+                            endExclusive: sema.bindings.isOpenFloatingPointRangeExpr(bodyExprID)
+                        )
+                    }
+                }
+            }
+            if sema.bindings.isCollectionExpr(bodyExprID) {
+                sema.bindings.markCollectionSymbol(symbol)
+            }
+            if sema.bindings.isFlowExpr(bodyExprID) {
+                sema.bindings.markFlowSymbol(symbol)
+                if let flowElementType = sema.bindings.flowElementType(forExpr: bodyExprID) {
+                    sema.bindings.bindFlowElementType(flowElementType, forSymbol: symbol)
+                }
+            }
+            if let deferredElementType = sema.bindings.deferredElementType(forExpr: bodyExprID) {
+                sema.bindings.bindDeferredElementType(deferredElementType, forSymbol: symbol)
+            }
+        }
         // Expression bodies that are range expressions infer as the scalar element
         // type (the isRangeExpr duck-typing convention), so `fun f(): IntRange = a..b`
         // skips the nominal subtype check like the equivalent local declaration does —

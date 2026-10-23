@@ -146,6 +146,48 @@ struct TypeCheckScopeBuilder {
         return ImportDecl(range: decl.range, path: rewritten, alias: decl.alias, isWildcard: decl.isWildcard)
     }
 
+    /// Under `--profile minimal`, an import into a package the minimal stdlib
+    /// leaves out is reported as such (KUU-3016) rather than as a plain
+    /// unresolved import, so the fix — drop `--profile minimal` — is explicit.
+    ///
+    /// The check is "not declared by the user", not "does not resolve": some
+    /// excluded packages still have Swift-side synthetic stubs (for example
+    /// `kotlinx.coroutines.runBlocking`) that resolve in Sema but have no
+    /// implementation in a minimal artifact, so they would otherwise pass
+    /// type checking and fail later as an undefined link symbol.
+    ///
+    /// Returns true when the import was reported and must not be processed
+    /// further.
+    private func reportMinimalProfileExcludedImport(
+        _ importDecl: ImportDecl,
+        topLevelSymbolsByPackage: [[InternedString]: [SymbolID]],
+        sema: SemaModule,
+        interner: StringInterner,
+        sourceManager: SourceManager?,
+        diagnostics: DiagnosticEngine
+    ) -> Bool {
+        guard sema.stdlibProfile == .minimal else { return false }
+        let dotted = importDecl.path.map { interner.resolve($0) }.joined(separator: ".")
+        guard StdlibProfile.isExcludedFromMinimal(package: dotted) else { return false }
+        // A user file may declare its own package under an excluded prefix.
+        if !(topLevelSymbolsByPackage[importDecl.path] ?? []).isEmpty { return false }
+        let resolved = resolveExplicitImport(
+            importDecl.path, sema: sema, interner: interner, sourceManager: sourceManager
+        )
+        let declaredByUser = resolved.contains { id in
+            guard let symbol = sema.symbols.symbol(id), symbol.kind != .package else { return false }
+            return !symbol.flags.contains(.synthetic) && !symbol.flags.contains(.importedLibrary)
+        }
+        if declaredByUser { return false }
+        diagnostics.error(
+            "KSWIFTK-LIB-0036",
+            "Import '\(dotted)\(importDecl.isWildcard ? ".*" : "")' is not available in the minimal stdlib profile "
+                + "(--profile minimal); compile without --profile minimal to use it.",
+            range: importDecl.range
+        )
+        return true
+    }
+
     private func resolveExplicitImport(
         _ path: [InternedString],
         sema: SemaModule,
@@ -377,6 +419,18 @@ struct TypeCheckScopeBuilder {
 
         for declaredImport in file.imports {
             let importDecl = rewritingJavaLangMathFacade(declaredImport, interner: interner)
+            if validatesImports,
+               reportMinimalProfileExcludedImport(
+                   importDecl,
+                   topLevelSymbolsByPackage: topLevelSymbolsByPackage,
+                   sema: sema,
+                   interner: interner,
+                   sourceManager: sourceManager,
+                   diagnostics: diagnostics
+               )
+            {
+                continue
+            }
             if let alias = importDecl.alias {
                 if interner.resolve(alias).isEmpty {
                     continue

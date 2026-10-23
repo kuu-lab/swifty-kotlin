@@ -459,5 +459,73 @@ struct LocalDelegatePropertyKIRTests {
         }
         #expect(sawGetValue, "a lambda reading a captured lazy local should call getValue")
     }
+
+    /// KUU-2949 (JetBrains `delegatedProperty/local/kt13557.kt`): an
+    /// anonymous-object member writing a captured delegated local must
+    /// dispatch `setValue` on the delegate instance loaded from the object's
+    /// capture field. `restoreObjectLiteralCaptures` used to register every
+    /// mutable captured local as a boxed capture cell, so `foo = "OK"`
+    /// lowered to `kk_array_set(delegate, 0, "OK")` -- a raw store into the
+    /// delegate object's layout that left `NotNullVar.value` unset and made
+    /// the later `getValue` throw.
+    @Test func testLocalDelegatedVarCapturedByObjectLiteralDispatchesSetValue() throws {
+        let source = """
+        import kotlin.properties.Delegates
+        fun box(): String {
+            var foo: String by Delegates.notNull()
+            object { fun baz() { foo = "OK" } }.baz()
+            return foo
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToLowering(ctx)
+
+        let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
+        #expect(!(ctx.diagnostics.hasError), "delegated local captured by an object literal should compile: \(diagnosticMessages)")
+
+        let module = try #require(ctx.kir)
+        let bazBody = try findKIRFunctionBody(named: "baz", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: bazBody, interner: ctx.interner)
+        let virtualCallees = extractVirtualCallees(from: bazBody, interner: ctx.interner)
+
+        #expect(
+            virtualCallees.contains("setValue") || callees.contains("setValue"),
+            "the member-body write must call setValue on the captured delegate, got callees: \(callees), virtual: \(virtualCallees)"
+        )
+        #expect(
+            !callees.contains("kk_array_set"),
+            "a captured delegated local is delegate storage, not a mutable capture cell: \(callees)"
+        )
+    }
+
+    /// Same capture restore path, read side: an anonymous-object member
+    /// reading a captured delegated `val` must dispatch `getValue` rather
+    /// than observing the delegate instance itself.
+    @Test func testLocalDelegatedValCapturedByObjectLiteralDispatchesGetValue() throws {
+        let source = """
+        class IntProp {
+            operator fun getValue(thisRef: Any?, property: Any?): Int = 42
+        }
+        fun box(): Int {
+            val x by IntProp()
+            return object { fun baz(): Int = x }.baz()
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToLowering(ctx)
+
+        let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
+        #expect(!(ctx.diagnostics.hasError), "delegated val captured by an object literal should compile: \(diagnosticMessages)")
+
+        let module = try #require(ctx.kir)
+        let bazBody = try findKIRFunctionBody(named: "baz", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: bazBody, interner: ctx.interner)
+        let virtualCallees = extractVirtualCallees(from: bazBody, interner: ctx.interner)
+
+        #expect(
+            virtualCallees.contains("getValue") || callees.contains("getValue"),
+            "the member-body read must call getValue on the captured delegate, got callees: \(callees), virtual: \(virtualCallees)"
+        )
+    }
 }
 #endif

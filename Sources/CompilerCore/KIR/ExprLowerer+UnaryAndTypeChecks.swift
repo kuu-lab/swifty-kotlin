@@ -148,6 +148,32 @@ extension ExprLowerer {
         return negatedResult
     }
 
+    /// The runtime erasure a non-reified `as T`/`as? T` can check against:
+    /// the parameter's first upper bound, resolved transitively when bounds
+    /// reference other type parameters. Kotlin/JVM checkcasts `as T` against
+    /// exactly this erasure — `R : C, I1, I2` checks `C` and leaves the rest
+    /// unchecked. Returns nil when there is no bound or the bound encodes no
+    /// runtime classifier (`.any`/`.unknown`), where the cast keeps the
+    /// null-contract-only behavior.
+    private func checkableCastErasure(of type: TypeID, sema: SemaModule) -> TypeID? {
+        var visited: Set<SymbolID> = []
+        var current = type
+        while case let .typeParam(parameter) = sema.types.kind(of: current) {
+            guard visited.insert(parameter.symbol).inserted,
+                  let bound = sema.symbols.typeParameterUpperBounds(for: parameter.symbol).first
+            else {
+                return nil
+            }
+            current = bound
+        }
+        switch RuntimeTypeCheckToken.classify(type: current, sema: sema).category {
+        case .unknown, .any:
+            return nil
+        default:
+            return current
+        }
+    }
+
     /// A plain T may admit null through its upper bounds even when its type
     /// parameter node has no explicit `?`. Follow dependent bounds as well.
     private func castTypeRequiresNonNull(_ type: TypeID, sema: SemaModule) -> Bool {
@@ -226,16 +252,13 @@ extension ExprLowerer {
         {
             return operandID
         }
-        // Unchecked erasure cast: `as`/`as?` to a non-reified type parameter
-        // has no runtime type information to check against — Sema allows
-        // this (with an "unchecked cast" warning) but only rejects `is T`
-        // for non-reified T (KSWIFTK-SEMA-0084), matching Kotlin/JVM, where
-        // `as T` under erasure needs no classifier checkcast. Its non-null
-        // upper-bound contract still requires a null assertion. Passing it to
-        // `kk_op_cast` would encode an `unknownBase` token, which
-        // `kk_op_is` always reports as a mismatch — turning every such cast
-        // into an unconditional ClassCastException. Preserve the value and
-        // check only the null contract instead.
+        // Unchecked erasure cast: `as`/`as?` to a non-reified type parameter.
+        // Kotlin/JVM still checkcasts against the parameter's erasure — its
+        // first upper bound — so `Any() as R` with `R : C, I1, I2` throws a
+        // catchable ClassCastException rather than silently passing. Bounds
+        // that erase to Any (unbounded T, `T : Any`) or encode no classifier
+        // carry no runtime contract beyond nullability, so those keep the
+        // null-assertion-only path below.
         if let targetType = sema.bindings.castTargetType(for: exprID),
            case let .typeParam(typeParam) = sema.types.kind(of: targetType),
            let typeParamSymbol = sema.symbols.symbol(typeParam.symbol),
@@ -245,6 +268,31 @@ extension ExprLowerer {
             let operandIsNonNull = sema.bindings.exprType(for: exprToCast).map {
                 castTypeRequiresNonNull($0, sema: sema)
             } ?? false
+            if let erasure = checkableCastErasure(of: targetType, sema: sema) {
+                // A statically non-null operand can still reach the runtime as
+                // an unboxed Long.MIN_VALUE — the null sentinel — so its token
+                // is marked nullable to skip the sentinel branch only, not the
+                // classifier check itself.
+                let tokenType = operandIsNonNull || !castTypeRequiresNonNull(targetType, sema: sema)
+                    ? sema.types.makeNullable(erasure)
+                    : sema.types.makeNonNullable(erasure)
+                let typeToken = lowerTypeCheckTokenExpr(
+                    targetType: tokenType,
+                    sema: sema,
+                    interner: interner,
+                    arena: arena,
+                    instructions: &instructions
+                )
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern(isSafe ? "kk_op_safe_cast" : "kk_op_cast"),
+                    arguments: [operandID, typeToken],
+                    result: result,
+                    canThrow: !isSafe,
+                    thrownResult: nil
+                ))
+                return result
+            }
             // A check on a statically non-null value is redundant and can
             // misread an unboxed Long.MIN_VALUE after inline specialization.
             if !isSafe, !operandIsNonNull, castTypeRequiresNonNull(targetType, sema: sema) {

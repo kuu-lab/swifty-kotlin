@@ -5,6 +5,20 @@ import Testing
 @Suite
 struct SyntheticSymbolSchemeTests {
 
+    /// `propertyOwnerOfGetterAccessor` inverts the getter encoding and rejects
+    /// every other synthetic kind and every real symbol.
+    @Test
+    func propertyOwnerOfGetterAccessorRoundTripsOnlyGetters() {
+        for raw in [Int32(0), 1, 7, 4999, 100_000] {
+            let property = SymbolID(rawValue: raw)
+            let getter = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: property)
+            let setter = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: property)
+            #expect(SyntheticSymbolScheme.propertyOwnerOfGetterAccessor(getter) == property)
+            #expect(SyntheticSymbolScheme.propertyOwnerOfGetterAccessor(setter) == nil)
+            #expect(SyntheticSymbolScheme.propertyOwnerOfGetterAccessor(property) == nil)
+        }
+    }
+
     /// A property setter accessor must never alias a *different* property's
     /// getter accessor. Regression for the additive `offset - symbol` layout,
     /// where `setter(P)` collided with `getter(P + gap)` once symbol IDs grew

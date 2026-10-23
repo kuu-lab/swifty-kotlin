@@ -19,24 +19,26 @@ private let runtimeSourceMapEntryInterfaceTypeID = runtimeStableNominalTypeID(
 // (4 slots) -- KSP-960 (source-backing Collection.random/randomOrNull as
 // top-level extensions in Collections.kt) removed the two synthetic
 // Collection.random/randomOrNull member registrations that previously
-// contributed 2 more vtable slots here, so this dropped from 6 to 4. Map's
-// own vtable method count (2 slots) is untouched by KSP-960, which only
-// changes Collection's synthetic member registration.
+// contributed 2 more vtable slots here, so this dropped from 6 to 4.
 private let runtimeCollectionSizeGetterSlot = 4
 private let runtimeSetSizeGetterSlot = 3
 private let runtimeCollectionIsEmptyMethodSlot = 0
 private let runtimeListIteratorAtMethodSlot = 1
 private let runtimeListSubListMethodSlot = 2
+private let runtimeListIndexOfMethodSlot = 6
+private let runtimeListLastIndexOfMethodSlot = 7
 private let runtimeMutableListSubListMethodSlot = 0
 private let runtimeMutableListSetMethodSlot = 1
-// Map properties are ordered alphabetically after Map's two methods:
-// entries, keys, size, values.
-private let runtimeMapEntriesGetterSlot = 2
-private let runtimeMapKeysGetterSlot = 3
-private let runtimeMapSizeGetterSlot = 4
-private let runtimeMapValuesGetterSlot = 5
+// Map's own methods are isEmpty/get/containsKey/containsValue (slots 0-3).
+// Its properties follow, ordered alphabetically: entries, keys, size, values.
+let runtimeMapEntriesGetterSlot = 4
+private let runtimeMapKeysGetterSlot = 5
+private let runtimeMapSizeGetterSlot = 6
+private let runtimeMapValuesGetterSlot = 7
 private let runtimeMapIsEmptyMethodSlot = 0
 private let runtimeMapGetMethodSlot = 1
+private let runtimeMapContainsKeyMethodSlot = 2
+private let runtimeMapContainsValueMethodSlot = 3
 private let runtimeListGetInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.List"
 )
@@ -387,6 +389,85 @@ func runtimeSourceMapGet(_ rawValue: Int, key: Int) -> Int? {
         runtimeStructuredPanic("Map.get dispatch threw exception handle \(thrown)")
     }
     return result
+}
+
+/// Map.containsKey occupies the third method slot in Map's own interface
+/// table, after isEmpty/get.
+@inline(__always)
+func runtimeSourceMapContainsKey(_ rawValue: Int, key: Int) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(
+        rawValue,
+        Int(runtimeMapInterfaceTypeID),
+        runtimeMapContainsKeyMethodSlot
+    )
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, key, &thrown)
+    if thrown != 0 {
+        runtimeStructuredPanic("Map.containsKey dispatch threw exception handle \(thrown)")
+    }
+    return result
+}
+
+/// Map.containsValue occupies the fourth method slot in Map's own interface
+/// table, after isEmpty/get/containsKey.
+@inline(__always)
+func runtimeSourceMapContainsValue(_ rawValue: Int, value: Int) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(
+        rawValue,
+        Int(runtimeMapInterfaceTypeID),
+        runtimeMapContainsValueMethodSlot
+    )
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, value, &thrown)
+    if thrown != 0 {
+        runtimeStructuredPanic("Map.containsValue dispatch threw exception handle \(thrown)")
+    }
+    return result
+}
+
+/// List.indexOf occupies slot 6 in List's own interface table; the override's
+/// bridge answers the JVM default (-1) for arguments its parameter rejects.
+@inline(__always)
+func runtimeSourceListIndexOf(
+    _ rawValue: Int,
+    element: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    runtimeSourceInterfaceCall1(
+        rawValue,
+        element,
+        interfaceTypeID: runtimeListGetInterfaceTypeID,
+        methodSlot: runtimeListIndexOfMethodSlot,
+        context: "List.indexOf dispatch",
+        outThrown: outThrown
+    )
+}
+
+/// List.lastIndexOf occupies slot 7 in List's own interface table.
+@inline(__always)
+func runtimeSourceListLastIndexOf(
+    _ rawValue: Int,
+    element: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    runtimeSourceInterfaceCall1(
+        rawValue,
+        element,
+        interfaceTypeID: runtimeListGetInterfaceTypeID,
+        methodSlot: runtimeListLastIndexOfMethodSlot,
+        context: "List.lastIndexOf dispatch",
+        outThrown: outThrown
+    )
 }
 
 @inline(__always)

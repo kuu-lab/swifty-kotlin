@@ -649,6 +649,42 @@ extension ExprTypeChecker {
         for superSymbol in directSuperSymbols where sema.symbols.symbol(superSymbol)?.kind == .class {
             capturedSymbols.formUnion(sema.bindings.objectLiteralCaptureSymbols(for: superSymbol))
         }
+        // KUU-2955: `class FooC : A.AB(...)` — an inner-class supertype's
+        // inherited `$outer` slot must point at the enclosing `A` instance
+        // when `FooC.<init>` delegates to `AB.<init>`. `FooC` itself is not
+        // inner so nothing else captures that receiver; record the innermost
+        // matching `this` so the value is materialized into a `FooC` field
+        // and reachable inside `<init>`'s independent KIR function.
+        for superSymbol in directSuperSymbols {
+            guard sema.symbols.symbol(superSymbol)?.flags.contains(.innerClass) == true,
+                  let outerOwner = sema.symbols.parentSymbol(for: superSymbol)
+            else {
+                continue
+            }
+            let outerOwnerArgs = sema.types.nominalTypeParameterSymbols(for: outerOwner).map {
+                TypeArg.invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0))))
+            }
+            let outerOwnerType = sema.types.make(.classType(ClassType(
+                classSymbol: outerOwner, args: outerOwnerArgs, nullability: .nonNull
+            )))
+            var receiverCandidates: [(type: TypeID, symbol: SymbolID?)] = ctx.outerReceiverTypes.map {
+                (type: $0.type, symbol: $0.symbol)
+            }
+            receiverCandidates.append(contentsOf: ctx.implicitReceiverStack.map {
+                (type: $0.type, symbol: $0.symbol)
+            })
+            for candidate in receiverCandidates.reversed() {
+                guard let receiverSymbol = candidate.symbol,
+                      sema.types.isSubtype(
+                          sema.types.makeNonNullable(candidate.type), outerOwnerType
+                      )
+                else {
+                    continue
+                }
+                capturedSymbols.insert(receiverSymbol)
+                break
+            }
+        }
         bindLocalNominalCaptures(
             capturedSymbols,
             ownerSymbol: classSymbol,

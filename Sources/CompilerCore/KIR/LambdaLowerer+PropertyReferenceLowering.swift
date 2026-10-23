@@ -578,6 +578,27 @@ extension LambdaLowerer {
         )
     }
 
+    /// The `$enumConstructorProperty$` / `$enumPropertySetter$` placeholder
+    /// callee for an enum-owned property accessor, or nil when the property
+    /// keeps ordinary instance/global storage.
+    private func enumPropertyAccessorPlaceholder(
+        for propertySymbol: SymbolID,
+        kind: PropertyAccessorKind,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> InternedString? {
+        switch kind {
+        case .getter:
+            return driver.callLowerer.enumPropertyGetterPlaceholder(
+                for: propertySymbol, sema: sema, interner: interner
+            )
+        case .setter:
+            return driver.callLowerer.enumPropertySetterPlaceholder(
+                for: propertySymbol, sema: sema, interner: interner
+            )
+        }
+    }
+
     private func emitPropertyReferenceAccessor(
         propertySymbol: SymbolID,
         accessorSymbol: SymbolID,
@@ -677,6 +698,47 @@ extension LambdaLowerer {
                 thrownResult: nil
             ))
             body.append(.returnValue(result))
+        } else if let receiverExpr,
+                  let enumHelperCallee = enumPropertyAccessorPlaceholder(
+                      for: propertySymbol,
+                      kind: kind,
+                      sema: sema,
+                      interner: interner
+                  )
+        {
+            // Enum member state lives in per-entry ordinal slots behind the
+            // `$enumConstructorProperty$` / `$enumPropertySetter$` helpers —
+            // there is no instance field to index and no per-property global,
+            // so the field/global fallbacks below read a slot that is never
+            // written (e.g. `this::value.get()` inside an enum entry returned
+            // null). The placeholder callee is rewritten to the ID-free
+            // helper by EnumNameAccessLoweringPass, matching the ordinary
+            // member read/write paths.
+            if kind == .getter {
+                let result = arena.appendTemporary(type: propertyType)
+                body.append(.call(
+                    symbol: nil,
+                    callee: enumHelperCallee,
+                    arguments: [receiverExpr],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                body.append(.returnValue(result))
+            } else if let valueSymbol {
+                let valueExpr = arena.appendExpr(.symbolRef(valueSymbol), type: propertyType)
+                body.append(.constValue(result: valueExpr, value: .symbolRef(valueSymbol)))
+                let result = arena.appendTemporary(type: sema.types.unitType)
+                body.append(.call(
+                    symbol: nil,
+                    callee: enumHelperCallee,
+                    arguments: [receiverExpr, valueExpr],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                body.append(.returnUnit)
+            }
         } else if let fieldOffset,
            let receiverExpr
         {
