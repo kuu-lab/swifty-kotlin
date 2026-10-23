@@ -404,7 +404,8 @@ private struct JVMSourceGrammar {
             return
         }
         if take(.keyword(.when)) {
-            if kind == .symbol(.lParen) {
+            let hasSubject = kind == .symbol(.lParen)
+            if hasSubject {
                 try require(.symbol(.lParen))
                 if take(.keyword(.val)) { try name(); if take(.symbol(.colon)) { try type() }; try require(.symbol(.assign)) }
                 try expression(allowNewlines: true); try require(.symbol(.rParen))
@@ -414,7 +415,11 @@ private struct JVMSourceGrammar {
                 if !take(.keyword(.else)) {
                     repeat {
                         if take(.keyword(.is)) { try type() }
-                        else if take(.symbol(.bang)) { try require(.keyword(.is)); try type() }
+                        else if hasSubject, take(.symbol(.bang)) {
+                            if take(.keyword(.is)) { try type() }
+                            else { try require(.keyword(.in)); try expression() }
+                        }
+                        else if hasSubject, take(.keyword(.in)) { try expression() }
                         else { try expression() }
                     } while take(.symbol(.comma))
                 }
