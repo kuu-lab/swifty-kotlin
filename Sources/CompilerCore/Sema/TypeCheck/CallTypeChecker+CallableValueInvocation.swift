@@ -575,6 +575,10 @@ extension CallTypeChecker {
         let name = request.calleeName
         let candidateType: TypeID?
         if let local = locals[name] {
+            // A local `fun T.name()` is a declaration, not a function value:
+            // naming it bare is rejected (KUU-3007), so leave it to the
+            // ordinary candidate path that ranks it above package extensions.
+            guard sema.symbols.symbol(local.symbol)?.kind != .function else { return nil }
             candidateType = local.type
         } else if let implicitReceiver = ctx.implicitReceiverType,
                   let property = driver.helpers.lookupMemberProperty(
