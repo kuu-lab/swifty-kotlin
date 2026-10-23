@@ -107,7 +107,7 @@ evidence file and artifact run directory. For example, the corrected unbound
       --case reflection \
       --case native_observations \
       --stdlib-timeout 1800 \
-      --record-summary docs/fixtures/js_annotations/evidence/create-instance-postfix-matrix-results.json
+      --record-summary docs/fixtures/js_annotations/evidence/<focused-run>.json
 
 KUU-1616's captured full run is `native-matrix-results.json` (108 cells: 56
 passed, 52 failed). All 27 fixtures have matching outcomes across the four
@@ -117,9 +117,8 @@ unmapped diagnostic codes in 13 fixtures whose native contracts are still
 marked `required-by-followup-not-yet-implemented`. The full run includes the
 KClass constructor-property fix and corrected unbound fixture source. The
 post-fix, fresh-artifact four-cell result for the focused annotation/reflection
-fixtures is saved separately in
-`create-instance-postfix-matrix-results.json` (12/12 passed across
-`unbound_create_instance`, `reflection`, and `native_observations`). The run
+fixtures passed 12/12 across
+`unbound_create_instance`, `reflection`, and `native_observations`. The run
 summaries under `.artifacts/js_annotations_matrix/<run-id>/` retain each
 compiler and artifact identity and all per-cell command/output files.
 

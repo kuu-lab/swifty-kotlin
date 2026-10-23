@@ -1,15 +1,13 @@
 # KUU-1762 retained JVM/Native interoperability closure
 
 The upstream commit is `362bdc35e159bad6da1e08101c8321792d762281`, Kotlin 2.3.10.
-`api-ledger-155.json` preserves every original row and owner. The exact JVM
-reference probe is evidence for official Java descriptors and flags; Native
+The exact JVM reference probe is evidence for official Java descriptors and flags; Native
 source, `.kklib` metadata and emitted classfiles have separate states.
 
 `native-api-shapes.expected.json` pins 28 public Java-facing signatures and the
 Native exception aliases. Core checks actual source and fresh artifact imports,
 selected overloads, named/default mappings, annotations and callback effects.
-`original-235-ids.prepared.json` retains the original concrete IDs and file SHA
-pins. The 156-line supplement is pinned to actual reference stdout by
+The 156-line supplement is pinned to actual reference stdout by
 `supplement-156-reference-lines.json` and `reference-provenance.json`.
 
 All candidate cases and original IDs remain NOT_RUN. Required future modes are
@@ -23,8 +21,7 @@ SequenceInputStream validation/close/error composition. The separate 12-line
 FileChannel producer has actual JVM evidence and Native source/library O0/O2
 cases. None has been executed on the candidate.
 
-`original-candidate/catalog.prepared.json` expands every one of the 235 logical
-original IDs through the original six SourceFactory/two SinkFactory concrete
+The scoped port expands every one of the 235 logical original IDs through the original six SourceFactory/two SinkFactory concrete
 classes: 599 unique executions. Twenty-two original test/helper files are pinned.
 All 235 selected bodies, original constructors and factory algorithms are byte
 preserved. Only JvmPlatformTest's nine unselected network/file methods and four
@@ -36,9 +33,8 @@ Six original driver modes remain HOLD until Root release and independent audit.
 
 V7 extends the existing Sequence test with InputStream.copyTo and markSupported
 through the actual Sequence handle. Its three new lines are observed JVM stdout.
-`native-row-to-original-executions.prepared.json` maps each of the 155 retained
-rows to its exact concrete original execution IDs. Seventy-nine rows have an
-original body mapping; 76 have only additional Native representation obligations.
+Of the 155 retained rows, seventy-nine have an original body mapping; 76 have
+only additional Native representation obligations.
 No original execution establishes physical Java facades, ACC flags or descriptors;
 those remain official reference facts. All planned Native cases remain NOT_RUN.
 

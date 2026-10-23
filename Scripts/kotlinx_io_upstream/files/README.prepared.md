@@ -12,7 +12,7 @@ PosixFileExistenceTestAdapter.ktはtest-onlyで、F_OK==0かつPath(path).toStri
 
 promotionは明示的にcandidate_fingerprintを適用後の新compiler/artifactへbindしてから、promote_api_coverage.pyへ実check ID→retained immutable receiptを渡します。check kind/実phase exit0/input不変/reap/hash/individual PASSが一致するものだけを採用し、全必要checkがそろう行だけPASSへ上げます。compile-only、古いcandidate、missing/unfinished、関連successor APIだけ、JVM連携34行、preparationのfingerprintはPASSにしません。cellの結果も独立に更新します。入力schemaはコードとtest_file_api_coverage.pyに固定しています。
 
-実際のpinned Kotlin/Native 2.3.10/Linux upstream参照はcompile exit0、run -11(SIGSEGV)、4行のみ観測しました。closed-write-zero/oneはIllegalStateException、closed-flushはIOException、closed-read-zeroはArrayIndexOutOfBoundsExceptionです。closed-read-oneのtyped例外は未観測で、retryは0、失敗binary/raw/receiptを保持しています。closed-native-reference-observation.jsonとclosed-safety-ledger.jsonがこの部分観測を記録します。これは候補PASSでも原本30件PASSでもありません。
+実際のpinned Kotlin/Native 2.3.10/Linux upstream参照はcompile exit0、run -11(SIGSEGV)、4行のみ観測しました。closed-write-zero/oneはIllegalStateException、closed-flushはIOException、closed-read-zeroはArrayIndexOutOfBoundsExceptionです。closed-read-oneのtyped例外は未観測で、retryは0でした。これは候補PASSでも原本30件PASSでもありません。
 
 closed-common-contractはcommon RawSource/RawSinkに明記されたIllegalStateException安全性契約に従う候補回帰です。flush/read-zeroについて実Native参照とは明示的に異なり、Nativeのtrapを再現しません。通常の原本30件は完全byteを維持した別の差分経路です。api-coverage.prepared.jsonには元のNative参照checkを未充足のまま保持するので、common安全性回帰だけでFileSystem.source/sink行を全API PASSに昇格できません。未観測read-oneの参照closure、例外差分の明示的なacceptance判断、実candidate経路、host env分岐、Darwin実行が残ります。LinuxとmacOSのcompiler/artifactは別provenanceなので、単一candidate mapperで両targetを混ぜず別台帳receiptにします。
 

@@ -88,15 +88,11 @@ adapter 未対応による失敗と製品の契約不一致を、同じ「未実
 
 2026-10-13 JST の最初のローカル実行は Runtime の packaged SwiftPM build が
 `sandbox_apply: Operation not permitted` となったため中断した。stdlib artifact の生成は
-成功し、4セルの失敗と残り104セルの未実行を
-[`kuu-1617-restricted-interruption.json`](fixtures/js_annotations/evidence/kuu-1617-restricted-interruption.json)
-に保存した。この中断記録は完全 matrix の証拠ではなく、製品だけの失敗数にも混ぜない。
+成功し、4セルが失敗、残り104セルは未実行だった。この中断記録は完全 matrix の証拠ではなく、製品だけの失敗数にも混ぜない。
 実行環境を変更した再検証では Runtime の sandbox 障害は解消したが、
 高負荷の下で debug CompilerCore の Sema に時間がかかり、source/O2 の
 `marker_requirements` と `native_observations` が compile timeout (600秒) となった。
-45セルの結果 (17 pass / 26 fail / 2 timeout) と残り63セルを
-[`kuu-1617-debug-interruption.json`](fixtures/js_annotations/evidence/kuu-1617-debug-interruption.json)
-に保存し、同じソースから `KSWIFTK_OPTIMIZE_COMPILER_CORE=1` で compiler を再ビルドした。
+45セルの結果は 17 pass / 26 fail / 2 timeout、残り63セルは未実行で、同じソースから `KSWIFTK_OPTIMIZE_COMPILER_CORE=1` で compiler を再ビルドした。
 stack sample は LLVM 前の `collectOperatorCandidates` / `StringInterner.resolve` を示した。
 この中断記録も完全 matrix ではない。再検証は別 run directory / fresh artifact を使用し、
 compiler SHA を区別する。
@@ -110,8 +106,7 @@ fresh stdlib build は exit0 / 74.48秒、専用コマンド全体は契約不�
 | 保存ファイル | 内容 |
 |---|---|
 | [kuu-1617-native-matrix-results.json](fixtures/js_annotations/evidence/kuu-1617-native-matrix-results.json) | 全108セルの portable matrix、全artifactファイルのhash、toolchain、期待値/map hash、経路間比較 |
-| [kuu-1617-ci-results.md](fixtures/js_annotations/evidence/kuu-1617-ci-results.md) / [JSON](fixtures/js_annotations/evidence/kuu-1617-ci-results.json) | 解除判定false、fixture別結果・理由、runner回帰、実際のbuild/検証コマンド、CI未実行 |
-| [kuu-1617-process-results.json](fixtures/js_annotations/evidence/kuu-1617-process-results.json) | 全108セル・stdlib build・runner回帰の正確なcommand、stdout/stderr、終了コード、timeout、所要時間。出力のUTF-8 bytes/hashを保持 |
+| [kuu-1617-ci-results.md](fixtures/js_annotations/evidence/kuu-1617-ci-results.md) | 解除判定false、fixture別結果・理由、runner回帰、実際のbuild/検証コマンド、CI未実行 |
 
 実行は2026-10-13 10:13:25–10:35:41 JST、revision
 `4838c0b14c1d4a3cb279a198a721bf8d1cac2f6f`、Apple Swift 6.4 / arm64 macOSで行った。

@@ -4,8 +4,6 @@
 # are deliberately not listed, so weakening an oracle stays visible in review.
 docs/fixtures/js_annotations/evidence/*-matrix-results.json linguist-generated=true
 docs/fixtures/js_annotations/evidence/*reference-results.json linguist-generated=true
-docs/fixtures/js_annotations/evidence/*-ci-results.json linguist-generated=true
-docs/fixtures/js_annotations/evidence/*-process-results.json linguist-generated=true
 docs/fixtures/nightly-38181051846/evidence/local-observations.json linguist-generated=true
 
 # Runtime output oracles intentionally preserve printed trailing spaces.

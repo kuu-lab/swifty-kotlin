@@ -24,8 +24,7 @@ every possible input. Prepared mappings and failed or unexecuted lanes remain
 UNVERIFIED until their required execution and API checks pass.
 
 The 2026-10-10 final audit verified all 65 rows for these listed checks, with
-56 direct and 9 indirect/container relationships retained. `validation.json`
-records the compiler/artifact identity, gate counts and evidence hashes.
+56 direct and 9 indirect/container relationships retained.
 The fresh API/startup/label gate passed 6 methods / 9 cases / 4 suites. All six
 original-test lanes passed the same 76 IDs (456 assertion executions), and the
 74-line JVM supplement/ABI reference matched Native source/library O2 exactly.
