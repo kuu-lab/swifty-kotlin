@@ -5,6 +5,43 @@ struct RuntimeEnumValueDescriptor {
     let classID: Int64
 }
 
+/// Cache key for `GCState.enumIdentityBoxCache`: the enum class's stable
+/// nominal type ID plus the entry ordinal uniquely identify a Kotlin enum
+/// singleton.
+struct RuntimeEnumBoxCacheKey: Hashable {
+    let classID: Int64
+    let ordinal: Int
+}
+
+/// Canonical Any-erased box for one enum entry. Kotlin/JVM enum entries are
+/// singletons, so every boxing path — a direct `E.A` crossing an Any
+/// boundary, a `values()`/`entries` element, a `valueOf` result — must hand
+/// back one object for `===` to observe reference identity (KUU-2957).
+///
+/// The box keeps the tagged-handle representation `kk_enum_box_ordinal` has
+/// always emitted, so its raw address stays out of `objectPointers` and a raw
+/// scalar that equals that address cannot be mistaken for this box by the
+/// `kk_box_*` pass-through (KUU-857). The shared handle is also registered in
+/// `identityPrimitiveBoxHandles` so `kk_tag_value_class_box` clones it before
+/// applying a value-class tag instead of mutating the canonical box.
+func runtimeEnumIdentityBox(ordinal: Int, name: String?, classID: Int64) -> Int {
+    let key = RuntimeEnumBoxCacheKey(classID: classID, ordinal: ordinal)
+    let handle = runtimeStorage.withGCLock { state -> Int in
+        if let cached = state.enumIdentityBoxCache[key] {
+            return cached
+        }
+        let handle = registerTaggedPrimitiveBox(
+            RuntimeIntBox(ordinal, enumEntryName: name, enumClassID: classID),
+            inLockedState: &state
+        )
+        state.enumIdentityBoxCache[key] = handle
+        state.identityPrimitiveBoxHandles.insert(UInt(bitPattern: handle))
+        return handle
+    }
+    runtimeRegisterObjectType(rawValue: handle, classID: classID)
+    return handle
+}
+
 /// Enum values are stored as ordinals, so their default object hash must mix
 /// both the enum's nominal identity and the entry ordinal instead of exposing
 /// the ordinal as the hash itself. The final adjustment avoids returning the
@@ -75,14 +112,15 @@ public func kk_enum_box_ordinal(_ ordinal: Int, _ namePtr: Int, _ classID: Int) 
     runtimeStorage.withMetadataLock { state in
         _ = state.enumClassifierIDs.insert(Int64(classID) & RuntimeTypeTokenEncoding.payloadMask)
     }
+    // A nullable enum slot stores the null sentinel as its ordinal. Keep it
+    // null: boxing it would produce a live non-null object for a Kotlin null
+    // (KUU-2957). No valid ordinal is Int64.min, so genuine entries never
+    // reach this branch.
+    if ordinal == runtimeNullSentinelInt {
+        return ordinal
+    }
     let name = extractString(from: UnsafeMutableRawPointer(bitPattern: namePtr))
-    // Tagged-handle registration keeps the box's raw address out of
-    // `objectPointers`, so a raw scalar that equals that address cannot be
-    // mistaken for this box by the `kk_box_*` pass-through (KUU-857).
-    return registerTaggedRuntimeObject(
-        RuntimeIntBox(ordinal, enumEntryName: name, enumClassID: Int64(classID)),
-        typeID: Int64(classID)
-    )
+    return runtimeEnumIdentityBox(ordinal: ordinal, name: name, classID: Int64(classID))
 }
 
 /// The lowering stage builds an array of enum singleton objects (`RuntimeArrayBox`) and
@@ -130,11 +168,10 @@ public func kk_enum_values_for_token(_ typeToken: Int) -> Int {
     guard let values = runtimeStorage.withMetadataLock({ $0.enumValuesByTypeToken[Int64(typeToken)] }) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: enumValues received an unregistered enum type token \(typeToken)")
     }
+    // Elements go through the same canonical cache as kk_enum_box_ordinal so
+    // `enumValues<E>()[0] === E.A` observes JVM singleton identity.
     let handles = values.map { value in
-        registerTaggedRuntimeObject(
-            RuntimeIntBox(value.ordinal, enumEntryName: value.name, enumClassID: value.classID),
-            typeID: value.classID
-        )
+        runtimeEnumIdentityBox(ordinal: value.ordinal, name: value.name, classID: value.classID)
     }
     let box = RuntimeArrayBox(length: handles.count)
     box.elements = handles

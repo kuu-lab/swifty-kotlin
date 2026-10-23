@@ -1046,6 +1046,36 @@ public func kk_mutable_list_remove(_ listRaw: Int, _ elem: Int) -> Int {
     kk_mutable_list_remove_dispatch(listRaw, elem, nil)
 }
 
+/// Erased `List<T>.indexOf` behind the special-builtins contract: list boxes
+/// search their storage directly, while source-defined List implementations
+/// dispatch through the List itable so an override's type-safe barrier still
+/// applies before the element reaches a narrowed parameter.
+@_cdecl("__kk_list_index_of")
+public func kk_list_index_of(
+    _ listRaw: Int,
+    _ element: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    if let list = runtimeListBox(from: listRaw) {
+        return list.values.firstIndex(where: { list.elementsEqual($0.legacyRawValue, element) }) ?? -1
+    }
+    return runtimeSourceListIndexOf(listRaw, element: element, outThrown: outThrown) ?? -1
+}
+
+@_cdecl("__kk_list_lastIndexOf")
+public func kk_list_lastIndexOf(
+    _ listRaw: Int,
+    _ element: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    if let list = runtimeListBox(from: listRaw) {
+        return list.values.lastIndex(where: { list.elementsEqual($0.legacyRawValue, element) }) ?? -1
+    }
+    return runtimeSourceListLastIndexOf(listRaw, element: element, outThrown: outThrown) ?? -1
+}
+
 @_cdecl("__kk_mutable_list_remove_dispatch")
 public func kk_mutable_list_remove_dispatch(
     _ listRaw: Int,

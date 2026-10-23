@@ -1095,6 +1095,43 @@ extension KIRLoweringDriver {
         if let receiver {
             argIDs.append(receiver)
         }
+        // KUU-2955: delegating to an inner-class `<init>` (`class FooC :
+        // A.AB` inside an `A` member/extension) must populate the inherited
+        // `$outer` slot with the enclosing `A` instance before the super
+        // constructor runs — inherited member bodies read through it. The
+        // object under construction may itself be a non-inner local class,
+        // so the instance is resolved from its own `$outer` chain or, as a
+        // fallback, from a captured receiver field.
+        if let receiver,
+           let target,
+           let superclassSymbol = sema.symbols.parentSymbol(for: target),
+           sema.symbols.symbol(superclassSymbol)?.flags.contains(.innerClass) == true,
+           let declaredOuterSymbol = sema.symbols.parentSymbol(for: superclassSymbol),
+           let outerFieldSymbol = sema.symbols.outerInstanceFieldSymbol(for: superclassSymbol),
+           let constructedOwner = ctx.currentFunctionSymbol.flatMap({ sema.symbols.parentSymbol(for: $0) }),
+           let outerOffset = sema.symbols.nominalLayout(for: constructedOwner)?.fieldOffsets[outerFieldSymbol],
+           let outerValue = innerSuperOuterInstance(
+               declaredOuterSymbol: declaredOuterSymbol,
+               ownerSymbol: constructedOwner,
+               receiver: receiver,
+               sema: sema,
+               arena: arena,
+               interner: shared.interner,
+               body: &body
+           )
+        {
+            let offsetExpr = arena.appendExpr(.intLiteral(Int64(outerOffset)), type: sema.types.intType)
+            body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(outerOffset))))
+            let storeResult = arena.appendTemporary(type: sema.types.anyType)
+            body.append(.call(
+                symbol: nil,
+                callee: shared.interner.intern("kk_array_set"),
+                arguments: [receiver, offsetExpr, outerValue],
+                result: storeResult,
+                canThrow: true,
+                thrownResult: nil
+            ))
+        }
         var defaultMask: Int64 = 0
         if let target, let callBinding, callBinding.chosenCallee == target {
             let normalized = callSupportLowerer.normalizedCallArguments(
@@ -1180,6 +1217,54 @@ extension KIRLoweringDriver {
             canThrow: false,
             thrownResult: nil
         ))
+    }
+
+    /// Resolves the enclosing `declaredOuterSymbol` instance for an
+    /// inner-class super-constructor delegation (KUU-2955). `receiver` is
+    /// the object under construction: it may itself reach the outer
+    /// instance through its own `$outer` chain (`inner class D :
+    /// InnerBase`), or — when it is a non-inner local class (`class FooC :
+    /// A.AB` inside an `A` member/extension) — the instance arrives through
+    /// one of its captured receiver fields.
+    private func innerSuperOuterInstance(
+        declaredOuterSymbol: SymbolID,
+        ownerSymbol: SymbolID,
+        receiver: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        body: inout KIRLoweringEmitContext
+    ) -> KIRExprID? {
+        if let outerValue = resolveOuterChainValue(
+            from: receiver,
+            to: declaredOuterSymbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &body.instructions
+        ) {
+            return outerValue
+        }
+        let outerOwnerArgs = sema.types.nominalTypeParameterSymbols(for: declaredOuterSymbol).map {
+            TypeArg.invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0))))
+        }
+        let outerType = sema.types.make(.classType(ClassType(
+            classSymbol: declaredOuterSymbol, args: outerOwnerArgs, nullability: .nonNull
+        )))
+        for capturedSymbol in sema.bindings.objectLiteralCaptureSymbols(for: ownerSymbol) {
+            guard let capturedValue = ctx.localValue(for: capturedSymbol) else {
+                continue
+            }
+            let capturedType = sema.bindings.capturedLocalType(for: capturedSymbol)
+                ?? arena.exprType(capturedValue)
+            guard let capturedType,
+                  sema.types.isSubtype(sema.types.makeNonNullable(capturedType), outerType)
+            else {
+                continue
+            }
+            return capturedValue
+        }
+        return nil
     }
 
     private func collectionCopyConstructorPopulateCallee(

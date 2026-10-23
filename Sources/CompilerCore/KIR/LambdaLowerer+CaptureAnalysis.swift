@@ -483,6 +483,20 @@ extension LambdaLowerer {
             {
                 referenced.append(symbol)
             }
+            // A local nominal's constructor materializes its captured values
+            // at the call site. A nested callable that constructs one must
+            // therefore carry those values in its own environment even when
+            // none of them appears as a direct name reference in the body.
+            if let constructor = sema.bindings.callBinding(for: exprID)?.chosenCallee,
+               sema.symbols.symbol(constructor)?.kind == .constructor,
+               let owner = sema.symbols.parentSymbol(for: constructor)
+            {
+                for symbol in sema.bindings.objectLiteralCaptureSymbols(for: owner)
+                    where seen.insert(symbol).inserted
+                {
+                    referenced.append(symbol)
+                }
+            }
             collectBoundIdentifierSymbols(in: calleeExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             for argument in args {
                 collectBoundIdentifierSymbols(in: argument.expr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
