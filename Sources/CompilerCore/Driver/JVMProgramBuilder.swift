@@ -226,6 +226,12 @@ final class JVMProgramBuilder {
 
 final class JVMFunctionBuilder {
     struct Local { let value: JVMValue; let mutable: Bool; var cell: JVMValue? = nil; var functionType: FunctionType? = nil; var symbol: SymbolID? = nil; var delegateSymbol: SymbolID? = nil; var lateName: String? = nil; var deferredInitialization = false; var numericBoxingOrigin: JVMValue? = nil }
+    struct LoopFrame {
+        let label: InternedString?
+        let exit: Int
+        let next: Int
+        let allocationDepth: Int
+    }
     let program: JVMProgramBuilder
     let declaration: FunDecl
     let reference: JVMFunctionReference
@@ -252,13 +258,13 @@ final class JVMFunctionBuilder {
     var locals: [JVMValue] = []
     var instructions: [JVMInstruction] = []
     var scopes: [[InternedString: Local]] = [[:]]
-    var loops: [(exit: Int, next: Int, allocationDepth: Int)] = []
+    var loops: [LoopFrame] = []
     var pendingAllocations: [JVMValue] = []
     var handlers: [JVMExceptionHandler] = []
     struct FinallyFrame {
         let body: ExprID
         let scopes: [[InternedString: Local]]
-        let loops: [(exit: Int, next: Int, allocationDepth: Int)]
+        let loops: [LoopFrame]
         let regionDepth: Int
         let dispatch: JVMValue?
         let receiver: JVMValue?
@@ -684,18 +690,16 @@ final class JVMFunctionBuilder {
             return result
         case let .ifExpr(condition, thenExpr, elseExpr, _): return try conditional(id, condition, thenExpr, elseExpr, discarded: discarded)
         case let .whileExpr(condition, body, label, _):
-            guard label == nil else { throw fail("JVM loop labels are not supported.", id) }
             let test = self.label(), exit = self.label()
             mark(test); let check = try requireValue(condition)
             guard check.type == .boolean else { throw fail("JVM while condition must be Boolean.", id) }
-            instructions.append(.jumpIfFalse(check, exit)); loops.append((exit, test, pendingAllocations.count))
+            instructions.append(.jumpIfFalse(check, exit)); loops.append(LoopFrame(label: label, exit: exit, next: test, allocationDepth: pendingAllocations.count))
             _ = try expression(body, discarded: true); loops.removeLast()
             if !terminated { jump(test) }; mark(exit); return nil
         case let .doWhileExpr(body, condition, label, _):
-            guard label == nil else { throw fail("JVM loop labels are not supported.", id) }
             let start = self.label(), test = self.label(), exit = self.label()
             scopes.append([:]); defer { scopes.removeLast() }
-            mark(start); loops.append((exit, test, pendingAllocations.count))
+            mark(start); loops.append(LoopFrame(label: label, exit: exit, next: test, allocationDepth: pendingAllocations.count))
             // Kotlin keeps do-body declarations visible in its condition.
             if case let .blockExpr(statements, trailing, _) = arena.expr(body) {
                 for statement in statements where !terminated { _ = try expression(statement, discarded: true) }
@@ -718,12 +722,19 @@ final class JVMFunctionBuilder {
             }
             return nil
         case let .forExpr(name, iterable, body, label, _):
-            guard let name, label == nil else { throw fail("Unsupported JVM for loop.", id) }
-            try forLoop(name, iterable, body, id); return nil
+            guard let name else { throw fail("Unsupported JVM for loop.", id) }
+            try forLoop(name, iterable, body, id, label: label); return nil
         case let .breakExpr(label, _), let .continueExpr(label, _):
-            guard label == nil, let loop = loops.last else { throw fail("JVM break/continue requires an enclosing unlabeled loop.", id) }
+            let targetIndex: Int?
+            if let label {
+                targetIndex = loops.lastIndex { $0.label == label }
+            } else {
+                targetIndex = loops.indices.last
+            }
+            guard let targetIndex else { throw fail("JVM break/continue requires a matching enclosing loop.", id) }
+            let loop = loops[targetIndex]
             instructions.append(.abandonAllocations(Array(pendingAllocations.dropFirst(loop.allocationDepth))))
-            try emitFinalizers(leavingLoop: loops.count)
+            try emitFinalizers(leavingLoop: targetIndex + 1)
             if terminated { return nil }
             if case .breakExpr = expr { jump(loop.exit) } else { jump(loop.next) }; return nil
         case let .returnExpr(returned, label, _):
