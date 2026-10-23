@@ -1,4 +1,25 @@
 package kotlin.collections
+fun <T> Iterable<T>.any(): Boolean {
+    if (this is Collection<*>) return !(this as Collection<*>).isEmpty()
+    return iterator().hasNext()
+}
+inline fun <T> Iterable<T>.any(predicate: (T) -> Boolean): Boolean {
+    for (element in this) if (predicate(element)) return true
+    return false
+}
+inline fun <T> Iterable<T>.all(predicate: (T) -> Boolean): Boolean {
+    for (element in this) if (!predicate(element)) return false
+    return true
+}
+fun <T> Iterable<T>.none(): Boolean {
+    if (this is Collection<*>) return (this as Collection<*>).isEmpty()
+    return !iterator().hasNext()
+}
+inline fun <T> Iterable<T>.none(predicate: (T) -> Boolean): Boolean {
+    if (this is Collection<*> && (this as Collection<*>).isEmpty()) return true
+    for (element in this) if (predicate(element)) return false
+    return true
+}
 inline fun <T, K> Iterable<T>.groupBy(keySelector: (T) -> K): Map<K, List<T>> { val result = mutableMapOf<K, MutableList<T>>(); for (item in this) { val key = keySelector(item); val list = result[key]; if (list == null) { val created = mutableListOf<T>(); result[key] = created; created.add(item) } else list.add(item) }; return result }
 inline fun <T, K, V> Iterable<T>.groupBy(keySelector: (T) -> K, valueTransform: (T) -> V): Map<K, List<V>> { val result = mutableMapOf<K, MutableList<V>>(); for (item in this) { val key = keySelector(item); var list = result[key]; if (list == null) { list = mutableListOf<V>(); result[key] = list }; list.add(valueTransform(item)) }; return result }
 inline fun <T, K, V> Iterable<T>.associate(transform: (T) -> Pair<K, V>): Map<K, V> { val result = mutableMapOf<K, V>(); for (item in this) { val pair = transform(item); result[pair.first] = pair.second }; return result }
