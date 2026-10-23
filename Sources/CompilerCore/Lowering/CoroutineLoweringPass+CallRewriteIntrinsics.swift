@@ -200,20 +200,36 @@ extension CoroutineLoweringPass {
         ),
         let loweredTarget = rewrite.loweredBySymbol[referencedSymbol]
         else {
-            // Standalone inline bodies retain these link-only markers when the
-            // suspend callable is a parameter rather than a known entry point.
-            // Preserve the boxed value and supply the unused context slot, just
-            // as the create markers do, so their calls match the runtime ABI.
-            guard call.callee == rewrite.startCoroutineUninterceptedOrReturnNoReceiverCallee
-                    || call.callee == rewrite.startCoroutineUninterceptedOrReturnWithReceiverCallee else {
+            // A dynamic suspend callable has no compiler-known entry point, so
+            // it must use the boxed-function runtime bridge. Public inline
+            // wrappers can leave the source intrinsic name here, while KLIB
+            // bodies retain the explicit link-only marker name.
+            let dynamicCallee: InternedString
+            let dynamicArguments: [KIRExprID]
+            let preserveSymbol: SymbolID?
+            switch (call.callee, call.arguments.count) {
+            case (rewrite.startCoroutineUninterceptedOrReturnCallee, 2):
+                dynamicCallee = rewrite.startCoroutineUninterceptedOrReturnNoReceiverCallee
+                dynamicArguments = call.arguments
+                preserveSymbol = nil
+            case (rewrite.startCoroutineUninterceptedOrReturnCallee, 3):
+                dynamicCallee = rewrite.startCoroutineUninterceptedOrReturnWithReceiverCallee
+                dynamicArguments = call.arguments
+                preserveSymbol = nil
+            case (rewrite.startCoroutineUninterceptedOrReturnNoReceiverCallee, 2),
+                 (rewrite.startCoroutineUninterceptedOrReturnWithReceiverCallee, 3):
+                dynamicCallee = call.callee
+                dynamicArguments = call.arguments
+                preserveSymbol = call.symbol
+            default:
                 return nil
             }
             let unusedContext = rewrite.module.arena.appendExpr(.intLiteral(0), type: rewrite.intType)
             return [
                 .constValue(result: unusedContext, value: .intLiteral(0)),
                 .call(
-                    symbol: call.symbol, callee: call.callee,
-                    arguments: [call.arguments[0], unusedContext] + Array(call.arguments.dropFirst()),
+                    symbol: preserveSymbol, callee: dynamicCallee,
+                    arguments: [dynamicArguments[0], unusedContext] + Array(dynamicArguments.dropFirst()),
                     result: call.result, canThrow: call.canThrow,
                     thrownResult: call.thrownResult
                 ),
