@@ -143,6 +143,34 @@ extension CallTypeChecker {
             }
             return nil
         }()
+        let coroutineLauncherReceiverType: TypeID? = {
+            guard isCoroutineLauncher,
+                  let lambdaIndex = coroutineLauncherLambdaArgIndex
+            else {
+                return nil
+            }
+            // Prefer the candidate's receiver identity. Imported CoroutineScope
+            // declarations can coexist with a synthetic nominal at the same
+            // FQName, and contextualizing against the synthetic twin makes the
+            // lambda argument incompatible with the imported signature.
+            for candidate in candidates {
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      let parameterType = lambdaParameterTypeForArgument(
+                          at: lambdaIndex,
+                          args: args,
+                          callRange: callRange,
+                          in: signature,
+                          ctx: ctx
+                      ),
+                      case let .functionType(functionType) = sema.types.kind(of: parameterType),
+                      let receiver = functionType.receiver
+                else {
+                    continue
+                }
+                return receiver
+            }
+            return coroutineScopeType(sema: sema, interner: interner)
+        }()
         if isCoroutineLauncher,
            let lambdaIndex = coroutineLauncherLambdaArgIndex,
            lambdaIndex < args.count
@@ -157,7 +185,7 @@ extension CallTypeChecker {
                 lambdaReturnType = expectedType ?? sema.types.nullableAnyType
             }
             coroutineLauncherExpectedLambdaType = sema.types.make(.functionType(FunctionType(
-                receiver: coroutineScopeType(sema: sema, interner: interner),
+                receiver: coroutineLauncherReceiverType,
                 params: [],
                 returnType: lambdaReturnType,
                 isSuspend: true,
@@ -568,7 +596,7 @@ extension CallTypeChecker {
             expectedTypeOverrides[launcherIndex] = coroutineLauncherExpectedLambdaType
             var builderContext = ctx
             builderContext.isCoroutineBuilderLambdaScope = true
-            if let coroutineScopeType = coroutineScopeType(sema: sema, interner: interner) {
+            if let coroutineScopeType = coroutineLauncherReceiverType {
                 builderContext = builderContext.with(implicitReceiverType: coroutineScopeType)
                 if sema.bindings.isCoroutineLauncherLambdaExpr(args[launcherIndex].expr) {
                     sema.bindings.bindCoroutineScopeLambdaReceiverType(args[launcherIndex].expr, type: coroutineScopeType)
