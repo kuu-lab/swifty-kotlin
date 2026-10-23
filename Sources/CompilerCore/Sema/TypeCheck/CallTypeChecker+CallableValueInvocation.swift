@@ -33,6 +33,16 @@ extension CallTypeChecker {
 
         guard isRangeConstructor else { return }
 
+        // A resolved call returning a range *interface* produces a heap
+        // object — ComparableRange, an anonymous implementation, or a
+        // user-defined class — never the opaque runtime range-box handle
+        // these marks describe. Leave the value unmarked so `x in` dispatches
+        // the object's `contains` instead of a `__kk_*_range_*` bridge that
+        // would trap on a non-box handle (KUU-2941).
+        if driver.helpers.isRangeInterfaceType(returnType, sema: sema, interner: interner) {
+            return
+        }
+
         sema.bindings.markRangeExpr(id)
 
         if let elementType = driver.helpers.rangeLikeDeclaredElementType(

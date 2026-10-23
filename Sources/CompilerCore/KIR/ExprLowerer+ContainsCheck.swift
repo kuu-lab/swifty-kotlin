@@ -121,6 +121,7 @@ extension ExprLowerer {
            callBinding.chosenCallee != .invalid,
            let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee),
            signature.receiverType != nil
+              || isRangeObjectReceiver(containerExpr, sema: sema, interner: interner)
         {
             let calleeName: InternedString
             // Set when `calleeName` is a concrete runtime range bridge rather
@@ -153,6 +154,13 @@ extension ExprLowerer {
             }
             // An open member `contains` must dispatch on the container's
             // runtime type, exactly like `container.contains(element)`.
+            // A virtual call supplies the receiver through its own field, so
+            // a nominal member (receiverType == nil) only passes the value
+            // argument; an extension callee still carries its receiver as
+            // argument 0, which tryEmitVirtualDispatch drops.
+            let virtualArguments: [KIRExprID] = signature.receiverType == nil
+                ? [elementID]
+                : [containerID, elementID]
             if !remappedToRangeBridge,
                let virtualInstruction = driver.callLowerer.tryEmitVirtualDispatch(
                    chosenCallee: callBinding.chosenCallee,
@@ -160,7 +168,7 @@ extension ExprLowerer {
                    receiverExpr: containerExpr,
                    loweredReceiverID: containerID,
                    isSuperCall: false,
-                   finalArguments: [containerID, elementID],
+                   finalArguments: virtualArguments,
                    result: resultID,
                    sema: sema,
                    arena: arena,
@@ -205,6 +213,36 @@ extension ExprLowerer {
                 thrownResult: nil
             ))
         }
+    }
+
+    /// `kk_op_contains` only recognizes runtime range boxes, collections and
+    /// arrays — a heap object such as a `ComparableRange` or a user-defined
+    /// `ClosedRange` implementation falls through and silently yields false.
+    /// When the container's static type conforms to `ClosedRange` or
+    /// `OpenEndRange`, a member `contains` callee (signature.receiverType ==
+    /// nil) must dispatch through the resolved callee: the runtime-range
+    /// bridge remap still covers tracked boxes, while source objects go
+    /// through interface dispatch (KUU-2941).
+    private func isRangeObjectReceiver(
+        _ containerExpr: ExprID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let containerType = sema.bindings.exprTypes[containerExpr],
+              let (containerClass, _) = resolveClassTypeSymbol(
+                  sema.types.makeNonNullable(containerType), sema: sema
+              )
+        else {
+            return false
+        }
+        for name in ["ClosedRange", "OpenEndRange"] {
+            if let rangeSymbol = sema.symbols.lookup(
+                fqName: ["kotlin", "ranges", name].map(interner.intern)
+            ), sema.types.isNominalSubtypeSymbol(containerClass.classSymbol, of: rangeSymbol) {
+                return true
+            }
+        }
+        return false
     }
 
     private func floatingPointRangeContainsCallee(
