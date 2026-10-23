@@ -381,4 +381,53 @@ struct StdlibArtifactRegressionTests {
             )
         }
     }
+
+    /// KUU-2815 hoisted the synthetic `withContext` stub into the artifact, so
+    /// consumers see it as an imported symbol. The launcher block adapter must
+    /// still apply to it; otherwise the block is wrapped in the boxed
+    /// function-value ABI and coroutine lowering fails with
+    /// `KSWIFTK-CORO-0004: withContext block capture arity mismatch.`
+    @Test
+    func testWithContextBlockThroughPrecompiledStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        import kotlinx.coroutines.*
+
+        fun main() = runBlocking {
+            val n = 41
+            println(withContext(Dispatchers.Default) { "plain" })
+            println(withContext(Dispatchers.Default) { n + 1 })
+            val block: suspend CoroutineScope.() -> Int = { n * 2 }
+            println(withContext(Dispatchers.Default, block))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            #expect(
+                !ctx.diagnostics.diagnostics.map(\.code).contains("KSWIFTK-CORO-0004"),
+                "withContext block should lower through the launcher ABI: \(ctx.diagnostics.diagnostics)"
+            )
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == "plain\n42\n82\n")
+        }
+    }
 }
