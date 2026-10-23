@@ -223,6 +223,12 @@
       "excludeFromStdlibBuild": false
     },
     {
+      "path": "declarations/UnsignedArrayOperations.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-unsigned-array-operations.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
       "path": "declarations/TextCollectionFunctions.kt",
       "virtualPath": "<kswiftk-jvm>/m20-text-runtime.kt",
       "excludeFromStdlibBuild": true
