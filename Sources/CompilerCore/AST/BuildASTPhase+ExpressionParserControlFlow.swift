@@ -271,6 +271,11 @@ extension BuildASTPhase.ExpressionParser {
             if token.kind == .keyword(.is) {
                 _ = consume()
                 guard let typeRef = parseTypeReference(token.range, allowFunctionType: true) else {
+                    diagnostics?.error(
+                        "KSWIFTK-PARSE-0005",
+                        "Expected type after 'is'.",
+                        range: current()?.range ?? token.range
+                    )
                     return nil
                 }
                 let conditionRange = mergeRanges(astArena.exprRange(subject), nil, fallback: token.range)
@@ -283,6 +288,11 @@ extension BuildASTPhase.ExpressionParser {
                 _ = consume()
                 _ = consume()
                 guard let typeRef = parseTypeReference(token.range, allowFunctionType: true) else {
+                    diagnostics?.error(
+                        "KSWIFTK-PARSE-0005",
+                        "Expected type after 'is'.",
+                        range: current()?.range ?? token.range
+                    )
                     return nil
                 }
                 let conditionRange = mergeRanges(astArena.exprRange(subject), nil, fallback: token.range)
@@ -299,6 +309,11 @@ extension BuildASTPhase.ExpressionParser {
                 _ = consume()
                 if negatedIn { _ = consume() }
                 guard let rangeExpr = parseExpression(minPrecedence: 0) else {
+                    diagnostics?.error(
+                        "KSWIFTK-PARSE-0001",
+                        "Expected expression after 'in'.",
+                        range: current()?.range ?? token.range
+                    )
                     return nil
                 }
                 let conditionRange = mergeRanges(

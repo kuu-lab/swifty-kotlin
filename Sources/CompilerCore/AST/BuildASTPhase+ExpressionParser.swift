@@ -189,7 +189,14 @@ extension BuildASTPhase {
             guard minPrecedence <= 85 else { return nil }
             _ = consume()
             if negated { _ = consume() }
-            guard let typeRef = parseTypeReference(token.range, allowFunctionType: true) else { return nil }
+            guard let typeRef = parseTypeReference(token.range, allowFunctionType: true) else {
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0005",
+                    "Expected type after 'is'.",
+                    range: current()?.range ?? token.range
+                )
+                return nil
+            }
             let range = mergeRanges(astArena.exprRange(lhs), nil, fallback: token.range)
             return astArena.appendExpr(.isCheck(expr: lhs, type: typeRef, negated: negated, range: range))
         }
@@ -205,7 +212,14 @@ extension BuildASTPhase {
             guard minPrecedence <= 85 else { return nil }
             _ = consume()
             if negated { _ = consume() }
-            guard let rhs = parseExpression(minPrecedence: 86) else { return nil }
+            guard let rhs = parseExpression(minPrecedence: 86) else {
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0001",
+                    "Expected expression after 'in'.",
+                    range: current()?.range ?? token.range
+                )
+                return nil
+            }
             let range = mergeRanges(astArena.exprRange(lhs), astArena.exprRange(rhs), fallback: token.range)
             return negated
                 ? astArena.appendExpr(.notInExpr(lhs: lhs, rhs: rhs, range: range))
@@ -217,7 +231,14 @@ extension BuildASTPhase {
             guard minPrecedence <= 130 else { return nil }
             _ = consume()
             let isSafe = consumeIf(.symbol(.question)) != nil
-            guard let typeRef = parseTypeReference(token.range, allowFunctionType: true) else { return nil }
+            guard let typeRef = parseTypeReference(token.range, allowFunctionType: true) else {
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0005",
+                    "Expected type after 'as'.",
+                    range: current()?.range ?? token.range
+                )
+                return nil
+            }
             let range = mergeRanges(astArena.exprRange(lhs), nil, fallback: token.range)
             return astArena.appendExpr(.asCast(expr: lhs, type: typeRef, isSafe: isSafe, range: range))
         }
