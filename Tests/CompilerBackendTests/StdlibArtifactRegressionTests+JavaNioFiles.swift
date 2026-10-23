@@ -67,6 +67,9 @@ extension StdlibArtifactRegressionTests {
         fun main() {
             println(String(Files.readAllBytes(Paths.get("input.txt"))).trim())
             println(String(runFile("input.txt")).trim())
+            println(Files.exists(Paths.get("input.txt")))
+            println(Files.exists(Paths.get("parts")))
+            println(Files.exists(Paths.get("missing.txt")))
             val path: Path = Paths.get("parts", "", "input.txt")
             println(String(read(path)).trim())
             println(read(Paths.get("empty.txt")).size)
@@ -99,7 +102,7 @@ extension StdlibArtifactRegressionTests {
         """
         let input = directory.appendingPathComponent("Main.kt")
         try source.write(to: input, atomically: true, encoding: .utf8)
-        let expected = "hello\nhello\nsegments\n0\n0,127,-128,-1\n0\n16385\n-1\n0\n0\nparts/input.txt\ntrue\n/\n0\nmissing: IOException\nmissing: Exception\n"
+        let expected = "hello\nhello\ntrue\ntrue\nfalse\nsegments\n0\n0,127,-128,-1\n0\n16385\n-1\n0\n0\nparts/input.txt\ntrue\n/\n0\nmissing: IOException\nmissing: Exception\n"
         let artifactPath = try Self.buildStdlibArtifact()
         for (surface, library) in [("Source", nil as String?), ("Library", artifactPath)] {
             for optimization in [OptimizationLevel.O0, .O2] {
