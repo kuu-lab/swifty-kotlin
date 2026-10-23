@@ -33,7 +33,7 @@ extension JVMBackendTests {
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func hashCollectionElementAccessOriginalUsesOnlyRepositoryRuntime(mode: EmitMode) throws {
         let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/JVMOwnStdlib")
-        let source = try String(contentsOf: fixtures.appendingPathComponent("hashCollectionElementAccessOriginal.kt"), encoding: .utf8)
+        let source = try diffCaseSource("arch010_hash_collections.kt")
         let expected = try String(contentsOf: fixtures.appendingPathComponent("hashCollectionElementAccessOriginal.out"), encoding: .utf8)
         try withWorkspace { root in
             try runRuntimeParity(source, expected: expected, mode: mode, root: root)
