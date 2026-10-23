@@ -1,125 +1,19 @@
+private let abi = RuntimeABISectionBuilder("IoFileSystem")
+
 public extension RuntimeABISpec {
     static let ioFileSystemFunctions: [RuntimeABIFunctionSpec] = [
-        RuntimeABIFunctionSpec(
-            name: "__kk_io_fs_temporary_directory",
-            parameters: [],
-            returnType: .intptr,
-            section: "IoFileSystem",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_io_fs_exists",
-            parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr)],
-            returnType: .intptr,
-            section: "IoFileSystem",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_io_fs_delete",
-            parameters: [
-                RuntimeABIParameter(name: "pathRaw", type: .intptr),
-                RuntimeABIParameter(name: "mustExist", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "IoFileSystem"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_io_fs_create_directories",
-            parameters: [
-                RuntimeABIParameter(name: "pathRaw", type: .intptr),
-                RuntimeABIParameter(name: "mustCreate", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "IoFileSystem"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_io_fs_atomic_move",
-            parameters: [
-                RuntimeABIParameter(name: "sourceRaw", type: .intptr),
-                RuntimeABIParameter(name: "destinationRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "IoFileSystem"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_io_fs_metadata",
-            parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr)],
-            returnType: .intptr,
-            section: "IoFileSystem",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_io_fs_list",
-            parameters: [
-                RuntimeABIParameter(name: "pathRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "IoFileSystem"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_io_fs_resolve",
-            parameters: [
-                RuntimeABIParameter(name: "pathRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "IoFileSystem"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_io_fs_open_read",
-            parameters: [
-                RuntimeABIParameter(name: "pathRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "IoFileSystem"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_io_fs_open_write",
-            parameters: [
-                RuntimeABIParameter(name: "pathRaw", type: .intptr),
-                RuntimeABIParameter(name: "append", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "IoFileSystem"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_io_fs_read",
-            parameters: [
-                RuntimeABIParameter(name: "descriptor", type: .intptr),
-                RuntimeABIParameter(name: "dstRaw", type: .intptr),
-                RuntimeABIParameter(name: "dstOffset", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "IoFileSystem"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_io_fs_write",
-            parameters: [
-                RuntimeABIParameter(name: "descriptor", type: .intptr),
-                RuntimeABIParameter(name: "srcRaw", type: .intptr),
-                RuntimeABIParameter(name: "srcOffset", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "IoFileSystem"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_io_fs_close",
-            parameters: [
-                RuntimeABIParameter(name: "descriptor", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "IoFileSystem"
-        ),
+        abi.nt("__kk_io_fs_temporary_directory"),
+        abi.nt("__kk_io_fs_exists", "pathRaw"),
+        abi.th("__kk_io_fs_delete", "pathRaw mustExist outThrown"),
+        abi.th("__kk_io_fs_create_directories", "pathRaw mustCreate outThrown"),
+        abi.th("__kk_io_fs_atomic_move", "sourceRaw destinationRaw outThrown"),
+        abi.nt("__kk_io_fs_metadata", "pathRaw"),
+        abi.th("__kk_io_fs_list", "pathRaw outThrown"),
+        abi.th("__kk_io_fs_resolve", "pathRaw outThrown"),
+        abi.th("__kk_io_fs_open_read", "pathRaw outThrown"),
+        abi.th("__kk_io_fs_open_write", "pathRaw append outThrown"),
+        abi.th("__kk_io_fs_read", "descriptor dstRaw dstOffset byteCount outThrown"),
+        abi.th("__kk_io_fs_write", "descriptor srcRaw srcOffset byteCount outThrown"),
+        abi.th("__kk_io_fs_close", "descriptor outThrown"),
     ]
 }

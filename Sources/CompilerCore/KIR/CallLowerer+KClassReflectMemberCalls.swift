@@ -391,6 +391,22 @@ extension CallLowerer {
             canThrow: false,
             thrownResult: nil
         ))
+        emitClassTypeParameterMetadataRegistration(
+            for: classSymbol,
+            typeTokenExpr: typeTokenExpr,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+        emitClassEnclosingMetadataRegistration(
+            for: classSymbol,
+            typeTokenExpr: typeTokenExpr,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
         emitKClassDisplayNameRegistration(
             symbol: classSymbol, typeTokenExpr: typeTokenExpr,
             sema: sema, arena: arena, interner: interner, instructions: &instructions
@@ -599,6 +615,297 @@ extension CallLowerer {
             default:
                 continue
             }
+        }
+    }
+
+    private func emitClassTypeParameterMetadataRegistration(
+        for classSymbol: SymbolID,
+        typeTokenExpr: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        let intType = sema.types.intType
+        let parameterSymbols = sema.types.nominalTypeParameterSymbols(for: classSymbol)
+        let variances = sema.types.nominalTypeParameterVariances(for: classSymbol)
+        for (index, parameterSymbol) in parameterSymbols.enumerated() {
+            guard let parameter = sema.symbols.symbol(parameterSymbol) else { continue }
+            let name = interner.resolve(parameter.name)
+            let nameLiteral = interner.intern(name)
+            let indexExpr = arena.appendExpr(.intLiteral(Int64(index)), type: intType)
+            let identity = RuntimeTypeCheckToken.stableNominalTypeID(
+                symbol: parameterSymbol,
+                sema: sema,
+                interner: interner
+            )
+            let identityExpr = arena.appendExpr(.intLiteral(identity), type: intType)
+            let nameExpr = arena.appendExpr(.stringLiteral(nameLiteral), type: intType)
+            let varianceOrdinal: Int64
+            if variances.indices.contains(index) {
+                switch variances[index] {
+                case .invariant: varianceOrdinal = 0
+                case .in: varianceOrdinal = 1
+                case .out: varianceOrdinal = 2
+                }
+            } else {
+                varianceOrdinal = 0
+            }
+            let varianceExpr = arena.appendExpr(.intLiteral(varianceOrdinal), type: intType)
+            let isReifiedOrdinal: Int64 = sema.symbols.symbol(parameterSymbol)?.flags.contains(.reifiedTypeParameter) == true
+                ? 1 : 0
+            let isReified = arena.appendExpr(.intLiteral(isReifiedOrdinal), type: intType)
+            let declaredBounds = sema.symbols.typeParameterUpperBounds(for: parameterSymbol)
+            let upperBounds = declaredBounds.isEmpty ? [sema.types.nullableAnyType] : declaredBounds
+            let upperBoundTypes = upperBounds.map { bound in
+                driver.lowerKTypeExpr(
+                    for: bound,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions,
+                    registerClassMetadata: false
+                )
+            }
+            let upperBoundsExpr = makeReflectionArgumentList(
+                upperBoundTypes,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            instructions.append(contentsOf: [
+                .constValue(result: indexExpr, value: .intLiteral(Int64(index))),
+                .constValue(result: identityExpr, value: .intLiteral(identity)),
+                .constValue(result: nameExpr, value: .stringLiteral(nameLiteral)),
+                .constValue(result: varianceExpr, value: .intLiteral(varianceOrdinal)),
+                .constValue(result: isReified, value: .intLiteral(isReifiedOrdinal)),
+            ])
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("__kk_kclass_register_type_parameter"),
+                arguments: [typeTokenExpr, indexExpr, identityExpr, nameExpr, varianceExpr, isReified, upperBoundsExpr],
+                result: arena.appendTemporary(type: intType),
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
+    }
+
+    func emitClassEnclosingMetadataRegistration(
+        for classSymbol: SymbolID,
+        typeTokenExpr: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        let intType = sema.types.intType
+        let classInfo = sema.symbols.symbol(classSymbol)
+        let nominalKinds: Set<SymbolKind> = [.class, .interface, .object, .enumClass, .annotationClass]
+        let directOwner = sema.symbols.parentSymbol(for: classSymbol)
+        let isLocalOrAnonymous = classInfo?.fqName.contains { component in
+            let name = interner.resolve(component)
+            return name.hasPrefix("__localdecl_") || name.hasPrefix("__ObjectLiteral_")
+        } == true || (classInfo?.kind == .object && classInfo?.flags.contains(.synthetic) == true)
+
+        func lexicallyContainingSymbols(matching predicate: (SemanticSymbol) -> Bool) -> [SemanticSymbol] {
+            guard let classRange = classInfo?.declSite else { return [] }
+            return sema.symbols.allSymbols().compactMap { candidate -> (SemanticSymbol, Int)? in
+                guard candidate.id != classSymbol,
+                      sema.symbols.parentSymbol(for: candidate.id) != classSymbol,
+                      predicate(candidate),
+                      let candidateRange = candidate.declSite,
+                      candidateRange.contains(classRange)
+                else {
+                    return nil
+                }
+                return (candidate, candidateRange.end.offset - candidateRange.start.offset)
+            }
+            .sorted { lhs, rhs in
+                if lhs.1 != rhs.1 { return lhs.1 < rhs.1 }
+                // An initializer-local class belongs to the constructor when
+                // its range ties the enclosing class's declaration range.
+                if lhs.0.kind != rhs.0.kind {
+                    if lhs.0.kind == .constructor { return true }
+                    if rhs.0.kind == .constructor { return false }
+                }
+                return lhs.0.id.rawValue < rhs.0.id.rawValue
+            }
+            .map(\.0)
+        }
+
+        func namedEnclosingClass() -> SemanticSymbol? {
+            var owner = directOwner
+            while let candidate = owner, let info = sema.symbols.symbol(candidate) {
+                if nominalKinds.contains(info.kind) { return info }
+                owner = sema.symbols.parentSymbol(for: candidate)
+            }
+            guard let fqName = classInfo?.fqName, fqName.count > 1 else { return nil }
+            for end in stride(from: fqName.count - 1, through: 1, by: -1) {
+                let prefix = Array(fqName.prefix(end))
+                if let candidate = sema.symbols.lookup(fqName: prefix),
+                   let info = sema.symbols.symbol(candidate),
+                   nominalKinds.contains(info.kind) {
+                    return info
+                }
+            }
+            return nil
+        }
+
+        var enclosingClassName = namedEnclosingClass()
+            .map { $0.fqName.map(interner.resolve).joined(separator: ".") }
+        if enclosingClassName == nil, isLocalOrAnonymous {
+            enclosingClassName = lexicallyContainingSymbols(matching: { nominalKinds.contains($0.kind) })
+                .first?.fqName.map(interner.resolve).joined(separator: ".")
+        }
+        if enclosingClassName == nil,
+           let fileID = sema.symbols.sourceFileID(for: classSymbol) ?? classInfo?.declSite?.start.file {
+            enclosingClassName = driver.ctx.lambdaEnclosingClassNamesByFileID[fileID]
+        }
+
+        let declaringClassName: String?
+        if !isLocalOrAnonymous, let owner = namedEnclosingClass() {
+            declaringClassName = owner.fqName.map(interner.resolve).joined(separator: ".")
+        } else {
+            declaringClassName = nil
+        }
+
+        var enclosingMember: SemanticSymbol?
+        var currentOwner = directOwner
+        while let owner = currentOwner, let ownerInfo = sema.symbols.symbol(owner) {
+            if ownerInfo.kind == .function || ownerInfo.kind == .constructor {
+                let parentKind = sema.symbols.parentSymbol(for: owner)
+                    .flatMap { sema.symbols.symbol($0)?.kind }
+                if parentKind.map({ nominalKinds.contains($0) || $0 == .package }) ?? true {
+                    enclosingMember = ownerInfo
+                    break
+                }
+            } else if ownerInfo.kind == .property {
+                break
+            }
+            currentOwner = sema.symbols.parentSymbol(for: owner)
+        }
+        if enclosingMember == nil, isLocalOrAnonymous {
+            enclosingMember = lexicallyContainingSymbols(matching: {
+                $0.kind == .function || $0.kind == .constructor
+            }).first
+        }
+
+        var memberKind: Int64 = 0
+        var memberName = ""
+        var memberSignature = ""
+        if let enclosingMember {
+            if enclosingMember.kind == .constructor {
+                memberKind = 2
+                memberName = "<init>"
+                var parameterTypes = sema.symbols.functionSignature(for: enclosingMember.id)?.parameterTypes ?? []
+                let constructorOwner = sema.symbols.parentSymbol(for: enclosingMember.id)
+                    .flatMap(sema.symbols.symbol)
+                if constructorOwner?.kind == .enumClass {
+                    parameterTypes = [sema.types.stringType, sema.types.intType] + parameterTypes
+                }
+                let parameterTokens = parameterTypes.map { type in
+                    String(RuntimeTypeCheckToken.encode(type: type, sema: sema, interner: interner)
+                        & ~RuntimeTypeCheckToken.nullableFlag)
+                }
+                let ownerType = sema.symbols.parentSymbol(for: enclosingMember.id)
+                    .map { sema.types.make(.classType(ClassType(classSymbol: $0, args: [], nullability: .nonNull))) }
+                    ?? sema.types.anyType
+                let returnToken = RuntimeTypeCheckToken.encode(type: ownerType, sema: sema, interner: interner)
+                    & ~RuntimeTypeCheckToken.nullableFlag
+                let returnName = sema.symbols.parentSymbol(for: enclosingMember.id)
+                    .flatMap { sema.symbols.symbol($0)?.fqName.map(interner.resolve).joined(separator: ".") }
+                    ?? enclosingClassName
+                    ?? "java.lang.Object"
+                memberSignature = "\(parameterTokens.joined(separator: ","))|\(returnToken)|\(returnName)"
+            } else if let signature = sema.symbols.functionSignature(for: enclosingMember.id) {
+                memberKind = 1
+                memberName = interner.resolve(enclosingMember.name)
+                var parameterTypes = signature.contextParameterTypes
+                if let receiverType = signature.receiverType {
+                    parameterTypes.append(receiverType)
+                }
+                parameterTypes.append(contentsOf: signature.parameterTypes)
+                let parameterTokens = parameterTypes.map { type in
+                    String(RuntimeTypeCheckToken.encode(type: type, sema: sema, interner: interner)
+                        & ~RuntimeTypeCheckToken.nullableFlag)
+                }
+                let returnToken = RuntimeTypeCheckToken.encode(
+                    type: signature.returnType,
+                    sema: sema,
+                    interner: interner
+                ) & ~RuntimeTypeCheckToken.nullableFlag
+                memberSignature = "\(parameterTokens.joined(separator: ","))|\(returnToken)|\(javaReflectionTypeName(signature.returnType, sema: sema, interner: interner))"
+            }
+        }
+
+        func stringExpression(_ value: String?) -> KIRExprID {
+            guard let value else {
+                let zero = arena.appendExpr(.intLiteral(0), type: intType)
+                instructions.append(.constValue(result: zero, value: .intLiteral(0)))
+                return zero
+            }
+            let literal = interner.intern(value)
+            let expression = arena.appendExpr(.stringLiteral(literal), type: intType)
+            instructions.append(.constValue(result: expression, value: .stringLiteral(literal)))
+            return expression
+        }
+
+        let enclosingClassExpr = stringExpression(enclosingClassName)
+        let declaringClassExpr = stringExpression(declaringClassName)
+        let memberKindExpr = arena.appendExpr(.intLiteral(memberKind), type: intType)
+        instructions.append(.constValue(result: memberKindExpr, value: .intLiteral(memberKind)))
+        let memberNameExpr = stringExpression(memberKind == 0 ? nil : memberName)
+        let memberSignatureExpr = stringExpression(memberKind == 0 ? nil : memberSignature)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("__kk_kclass_register_enclosing_metadata"),
+            arguments: [
+                typeTokenExpr,
+                enclosingClassExpr,
+                declaringClassExpr,
+                memberKindExpr,
+                memberNameExpr,
+                memberSignatureExpr,
+            ],
+            result: arena.appendTemporary(type: intType),
+            canThrow: false,
+            thrownResult: nil
+        ))
+    }
+
+    private func javaReflectionTypeName(
+        _ type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> String {
+        switch sema.types.kind(of: type) {
+        case .unit, .platformUnit: return "void"
+        case .nullableUnit: return "kotlin.Unit"
+        case .nothing: return "java.lang.Void"
+        case .stringStruct: return "java.lang.String"
+        case let .primitive(primitive, _):
+            switch primitive {
+            case .boolean: return "boolean"
+            case .char: return "char"
+            case .int: return "int"
+            case .long: return "long"
+            case .float: return "float"
+            case .double: return "double"
+            case .byte: return "byte"
+            case .short: return "short"
+            case .uint: return "kotlin.UInt"
+            case .ulong: return "kotlin.ULong"
+            case .ubyte: return "kotlin.UByte"
+            case .ushort: return "kotlin.UShort"
+            }
+        case let .classType(classType):
+            return sema.symbols.symbol(classType.classSymbol)
+                .map { $0.fqName.map(interner.resolve).joined(separator: ".") }
+                ?? "java.lang.Object"
+        case .error, .any, .intersection, .typeParam, .functionType, .kClassType:
+            return "java.lang.Object"
         }
     }
 

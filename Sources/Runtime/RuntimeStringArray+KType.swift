@@ -99,6 +99,37 @@ private func registerRuntimeObject(_ box: RuntimeKTypeParameterBox) -> Int {
     return raw
 }
 
+func runtimeKTypeParameterHandle(
+    identity: Int,
+    name: String,
+    varianceOrdinal: Int
+) -> Int {
+    let raw = __kk_ktypeparameter_create(
+        identity,
+        runtimeMakeStringRaw(name),
+        varianceOrdinal,
+        0
+    )
+    guard let box = runtimeReflectionObject(from: raw, as: RuntimeKTypeParameterBox.self),
+          let bounds = runtimeReflectionObject(from: box.upperBoundsRaw, as: RuntimeListBox.self),
+          bounds.elements.isEmpty
+    else {
+        return raw
+    }
+    let anyKClass = __kk_kclass_create(
+        Int(RuntimeTypeTokenEncoding.anyBase),
+        runtimeMakeStringRaw("kotlin.Any")
+    )
+    let anyType = registerRuntimeObject(RuntimeKTypeBox(
+        classifierRaw: anyKClass,
+        argumentRaws: [],
+        isMarkedNullable: true
+    ))
+    let upperBounds = registerRuntimeObject(RuntimeListBox(elements: [anyType]))
+    _ = __kk_ktypeparameter_set_upper_bounds(raw, upperBounds)
+    return raw
+}
+
 @_cdecl("__kk_ktypeparameter_create")
 public func __kk_ktypeparameter_create(
     _ identity: Int,

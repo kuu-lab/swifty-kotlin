@@ -1,3 +1,0 @@
-mode	case	status	exit	artifact_dir	log
-O0	stdlib_kotlin_native_concurrent_n_n	FAIL	1	/tmp/kuu1943-validation/O0/additional-artifacts/candidate_only_stdlib_kotlin_native_concurrent_n_n	/tmp/kuu1943-validation/O0/stdlib_kotlin_native_concurrent_n_n.log
-O2	stdlib_kotlin_native_concurrent_n_n	FAIL	1	/tmp/kuu1943-validation/O2/additional-artifacts/candidate_only_stdlib_kotlin_native_concurrent_n_n	/tmp/kuu1943-validation/O2/stdlib_kotlin_native_concurrent_n_n.log

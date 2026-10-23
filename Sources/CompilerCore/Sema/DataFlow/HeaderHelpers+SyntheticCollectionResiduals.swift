@@ -114,7 +114,8 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             types: types,
             interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg
+            kotlinCollectionsPkg: kotlinCollectionsPkg,
+            bundledIndex: bundledIndex
         )
         registerSyntheticMapRuntimeResiduals(
             symbols: symbols,

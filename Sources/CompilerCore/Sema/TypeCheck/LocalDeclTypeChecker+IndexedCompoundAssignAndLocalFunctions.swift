@@ -210,13 +210,22 @@ extension LocalDeclTypeChecker {
             let isCharOffset = elementType == sema.types.charType
                 && valueType == sema.types.intType
                 && [.add, .subtract].contains(binaryOp)
+            let arithmeticLhs = resolvePrimitiveArithmeticUpperBound(
+                of: elementType, types: sema.types, symbols: sema.symbols
+            ) ?? elementType
+            let arithmeticRhs = resolvePrimitiveArithmeticUpperBound(
+                of: valueType, types: sema.types, symbols: sema.symbols
+            ) ?? valueType
+            let isBuiltinArithmeticPair = sema.types.isBuiltinArithmeticOperand(arithmeticLhs)
+                && sema.types.isBuiltinArithmeticOperand(arithmeticRhs)
             // Builtin indexed `++` / `--` has no explicit RHS: the synthetic
             // Int literal `1` is an AST implementation detail, while the
-            // operation is defined by the element type. Explicit
-            // `a[i] += value` still has to satisfy this RHS subtype rule.
+            // operation is defined by the element type. Numeric binary
+            // operators also accept a different RHS type when their result
+            // can be written back to the element.
             let isStringConcatenation = binaryOp == .add
                 && sema.types.makeNonNullable(elementType) == sema.types.stringType
-            if !isCharOffset && !isBuiltinNumericIncrement && !isStringConcatenation {
+            if !isCharOffset && !isBuiltinNumericIncrement && !isBuiltinArithmeticPair && !isStringConcatenation {
                 driver.emitSubtypeConstraint(
                     left: valueType, right: elementType,
                     range: ctx.ast.arena.exprRange(valueExpr) ?? range,
@@ -586,6 +595,41 @@ extension LocalDeclTypeChecker {
     ) -> TypeID {
         let stringType = sema.types.stringType
         let underlyingOp = driver.helpers.compoundAssignToBinaryOp(assignOp)
+        let arithmeticLhs = resolvePrimitiveArithmeticUpperBound(
+            of: elementType, types: sema.types, symbols: sema.symbols
+        ) ?? elementType
+        let arithmeticRhs = resolvePrimitiveArithmeticUpperBound(
+            of: valueType, types: sema.types, symbols: sema.symbols
+        ) ?? valueType
+        if sema.types.isBuiltinArithmeticOperand(arithmeticLhs),
+           sema.types.isBuiltinArithmeticOperand(arithmeticRhs)
+        {
+            if arithmeticLhs == sema.types.charType,
+               arithmeticRhs == sema.types.intType,
+               underlyingOp == .add || underlyingOp == .subtract
+            {
+                return sema.types.charType
+            }
+            if arithmeticLhs == sema.types.doubleType || arithmeticRhs == sema.types.doubleType {
+                return sema.types.doubleType
+            }
+            if arithmeticLhs == sema.types.floatType || arithmeticRhs == sema.types.floatType {
+                return sema.types.floatType
+            }
+            if arithmeticLhs == sema.types.longType || arithmeticRhs == sema.types.longType {
+                return sema.types.longType
+            }
+            if arithmeticLhs == sema.types.ulongType || arithmeticRhs == sema.types.ulongType {
+                return sema.types.ulongType
+            }
+            if arithmeticLhs == sema.types.uintType || arithmeticRhs == sema.types.uintType
+                || arithmeticLhs == sema.types.ubyteType || arithmeticRhs == sema.types.ubyteType
+                || arithmeticLhs == sema.types.ushortType || arithmeticRhs == sema.types.ushortType
+            {
+                return sema.types.uintType
+            }
+            return sema.types.intType
+        }
         return switch underlyingOp {
         case .add:
             sema.types.makeNonNullable(elementType) == stringType ? stringType : elementType

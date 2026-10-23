@@ -6,8 +6,17 @@ struct JVMClassInfo {
     let superclass: String?
     let interfaces: [String]
     let methods: [JVMForeignMethod]
+    var fields: [JVMForeignField] = []
     var bridgeMethods: [JVMForeignMethod] = []
     var isInterface: Bool { flags & 0x0200 != 0 }
+}
+
+struct JVMForeignField {
+    let name: String
+    let descriptor: String
+    let access: UInt16
+    var isStatic: Bool { access & 8 != 0 }
+    var isPublic: Bool { access & 1 != 0 }
 }
 
 /// Reads declarations only. Dependency code and class initializers are never run.
@@ -75,8 +84,14 @@ struct JVMClassReader {
         var interfaces: [String] = []
         let interfaceCount = try u2()
         for _ in 0..<interfaceCount { interfaces.append(try className(Int(u2()))) }
-        let fields = try u2()
-        for _ in 0..<fields { try skip(6); try attributes() }
+        let fieldCount = try u2()
+        var fields: [JVMForeignField] = []
+        for _ in 0..<fieldCount {
+            let access = try u2(), nameIndex = try u2(), descriptorIndex = try u2()
+            let fieldName = try text(Int(nameIndex)), descriptor = try text(Int(descriptorIndex))
+            fields.append(JVMForeignField(name: fieldName, descriptor: descriptor, access: access))
+            try attributes()
+        }
         var methods: [JVMForeignMethod] = []
         var bridgeMethods: [JVMForeignMethod] = []
         let methodCount = try u2()
@@ -97,7 +112,7 @@ struct JVMClassReader {
         }
         try attributes()
         guard offset == bytes.count else { throw Invalid() }
-        return JVMClassInfo(name: name, flags: flags, superclass: superclass, interfaces: interfaces, methods: methods, bridgeMethods: bridgeMethods)
+        return JVMClassInfo(name: name, flags: flags, superclass: superclass, interfaces: interfaces, methods: methods, fields: fields, bridgeMethods: bridgeMethods)
     }
 }
 

@@ -506,11 +506,30 @@ extension CallLowerer {
             case .modAssign: isUnsignedElement ? "kk_op_urem" : "kk_op_mod"
             }
         }
+        let effectiveValueID: KIRExprID
+        if let floatingPointPrefix {
+            let rhsIsFloatingPoint: Bool = switch sema.types.kind(of: valueType) {
+            case .primitive(.float, _), .primitive(.double, _): true
+            default: false
+            }
+            effectiveValueID = widenIntegerOperandToFloatingPoint(
+                valueID,
+                operandTypeID: valueType,
+                isFloatingPoint: rhsIsFloatingPoint,
+                toDouble: floatingPointPrefix == "d",
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        } else {
+            effectiveValueID = valueID
+        }
         let opResult = arena.appendTemporary(type: elementType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern(opName),
-            arguments: [getResult, valueID],
+            arguments: [getResult, effectiveValueID],
             result: opResult,
             canThrow: false,
             thrownResult: nil

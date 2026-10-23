@@ -31,6 +31,17 @@ struct ResultSafeLetElvisInferenceTests {
             package ordinaryElvisHeterogeneous
             fun f(value: String?): Any = value?.let { "text" } ?: 42
             """,
+            """
+            package resultElvisMemberCompanion
+            import kotlin.coroutines.*
+            interface Task { val continuation: Continuation<Unit> }
+            class Write(override val continuation: Continuation<Unit>) : Task {
+                fun resume() = continuation.resumeWith(RESUME)
+                fun resume(throwable: Throwable? = null) =
+                    continuation.resumeWith(throwable?.let { Result.failure(it) } ?: RESUME)
+                companion object { val RESUME = Result.success(Unit) }
+            }
+            """,
         ]
         try withTemporaryFiles(contents: sources) { paths in
             let ctx = makeCompilationContext(inputs: paths)
@@ -48,6 +59,9 @@ struct ResultSafeLetElvisInferenceTests {
                 "KSWIFTK-TYPE-0001",
                 in: diagnosticsForPath(paths[3], in: ctx)
             )
+            let memberCompanionDiagnostics = diagnosticsForPath(paths[4], in: ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-INFER", in: memberCompanionDiagnostics)
+            assertNoDiagnostic("KSWIFTK-TYPE-0001", in: memberCompanionDiagnostics)
         }
     }
 }

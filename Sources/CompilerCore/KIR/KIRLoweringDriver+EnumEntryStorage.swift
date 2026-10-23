@@ -774,7 +774,7 @@ extension KIRLoweringDriver {
                 return value
             }
 
-            guard property.isMutable else { continue }
+            guard property.isMutable || bodyStoredPropertySymbols[property.name] != nil else { continue }
             let setterName = interner.intern(EnumPropertyHelperNames.setterPrefix + interner.resolve(property.name))
             guard !helperFunctionExists(name: setterName, ownerInfo: ownerInfo, sema: sema) else { continue }
             let setterSymbol = defineEnumHelperSymbol(

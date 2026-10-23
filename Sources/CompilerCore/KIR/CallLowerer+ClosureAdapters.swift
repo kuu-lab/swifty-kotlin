@@ -414,11 +414,12 @@ extension CallLowerer {
         }
 
         let concreteCallableType = arena.exprType(loweredCallableID) ?? sema.bindings.exprTypes[argExprID]
+        let concreteFunctionType = concreteCallableType.flatMap {
+            callableFunctionType(for: $0, matching: functionType, sema: sema)
+        }
         let hasStringSignature: Bool
         let needsReturnBoxing: Bool
-        if let concreteCallableType,
-           case let .functionType(concreteType) = sema.types.kind(of: sema.types.makeNonNullable(concreteCallableType))
-        {
+        if let concreteType = concreteFunctionType {
             hasStringSignature = concreteType.params.contains(where: sema.types.isString)
                 || sema.types.isString(concreteType.returnType)
             // The erased ABI applies to `Any`/`Any?` reference returns and to
@@ -654,11 +655,15 @@ extension CallLowerer {
                     range: sema.bindings.workerExecuteJobRanges[sourceArgExprs[sourceArgExprIndex]]
                 )
             }
+            let isCallableReference = sema.bindings.callableRefKind(
+                for: sourceArgExprs[sourceArgExprIndex]
+            ) != nil
             // Ordinary same-module inline callbacks consume raw symbols directly.
             // Restricted callbacks may escape; tagged references use the erased ABI.
             if isInline, !isImported,
                signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex),
                signature.valueParameterAllowsNonLocalReturn[parameterIndex],
+               !isCallableReference,
                case .symbolRef? = arena.expr(arguments[finalArgIndex])
             {
                 continue
@@ -732,6 +737,7 @@ extension CallLowerer {
             // boxed function-value ABI, so keep the callback's closure env.
             if isInline,
                (!isImported || hasImportedInlineBody),
+               !isCallableReference,
                case .symbolRef? = arena.expr(arguments[finalArgIndex]),
                let callable = driver.ctx.callableValueInfo(for: arguments[finalArgIndex]),
                (!isImported || (!callable.hasClosureParam && callable.captureArguments.isEmpty)
