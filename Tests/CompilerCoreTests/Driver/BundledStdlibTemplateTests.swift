@@ -144,6 +144,34 @@ struct BundledStdlibTemplateTests {
         }
     }
 
+    /// `PrimitiveArrayHOF.kt.tmpl` replaced six hand-written files. Their virtual
+    /// paths fix declaration order (hence SymbolIDs and goldens), and the drift
+    /// between element types was carried over verbatim: normalizing it changes
+    /// behavior and belongs in a separate change with diff cases.
+    @Test
+    func testPrimitiveArrayHOFTemplateKeepsSixPathsAndDrift() throws {
+        let sources = try BundledStdlib.collectBundledStdlibSources()
+        let names = ["", "+ByteShort", "+DoubleFloat", "+BooleanChar", "+UByteUShort", "+UIntULong"]
+        let paths = names.map { "__bundled_kotlin/collections/PrimitiveArrayHOF\($0).kt" }
+        #expect(sources.map(\.path).filter { $0.contains("PrimitiveArrayHOF") } == paths.sorted())
+        func text(_ index: Int) throws -> String {
+            let source = try #require(sources.first { $0.path == paths[index] })
+            return String(decoding: source.contents, as: UTF8.self)
+        }
+        let ints = try text(0), bytes = try text(1), unsignedSmall = try text(4), unsignedWide = try text(5)
+        // Only IntArray.forEach is inline, and only IntArray has scanIndexed.
+        #expect(ints.contains("public inline fun IntArray.forEach("))
+        #expect(ints.contains("public fun LongArray.forEach(") && bytes.contains("public fun ByteArray.forEach("))
+        #expect(ints.contains("IntArray.scanIndexed(") && !ints.contains("LongArray.scanIndexed("))
+        // IntArray.map alone has no blank line before mapIndexed.
+        #expect(ints.contains("}\npublic fun <R> IntArray.mapIndexed("))
+        #expect(ints.contains("}\n\npublic fun <R> LongArray.mapIndexed("))
+        // Unsigned arrays carry extra accessors; UInt alone has four more.
+        #expect(unsignedSmall.contains("UByteArray.elementAt(") && !unsignedSmall.contains("UByteArray.forEachIndexed("))
+        #expect(unsignedWide.contains("UIntArray.forEachIndexed(") && unsignedWide.contains("UIntArray.maxOrNull("))
+        #expect(unsignedWide.contains("ULongArray.elementAt(") && !unsignedWide.contains("ULongArray.indexOf("))
+    }
+
     @Test
     func testBrokenTemplateEmits0102AndThrows() throws {
         try withStdlibResources(["kotlin/x/Foo.kt.tmpl": "//@ body\n"]) { root in
