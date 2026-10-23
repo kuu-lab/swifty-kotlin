@@ -1,7 +1,7 @@
 
 extension CallTypeChecker {
     func coroutineScopeType(sema: SemaModule, interner: StringInterner) -> TypeID? {
-        let symbol = sema.symbols.lookup(fqName: [
+        let symbol = sema.symbols.lookupNominal(fqName: [
             interner.intern("kotlinx"),
             interner.intern("coroutines"),
             interner.intern("CoroutineScope"),
