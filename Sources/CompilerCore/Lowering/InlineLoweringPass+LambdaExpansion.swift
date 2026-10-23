@@ -102,14 +102,10 @@ extension InlineLoweringPass {
         {
             return fn
         }
-        // A suspend callable materialized through `kk_function_create_N`
-        // (rewritten to `kk_suspend_function_create` by CoroutineLowering)
-        // wraps the lambda symbol as its first argument. See through the
-        // adapter call so a suspend lambda passed to an inline HOF can still be
-        // spliced; otherwise the erased invoke would run it on a dead
-        // continuation and store COROUTINE_SUSPENDED. Restricted to suspend
-        // functions: non-suspend adapters carry captures positionally and are
-        // handled by the regular path.
+        // A callable materialized through `kk_function_create_N` wraps the
+        // lambda or adapter symbol as its first argument. CoroutineLowering
+        // rewrites suspend factories to `kk_suspend_function_create`, so both
+        // factory forms must be visible here for inline HOF callbacks.
         if let ctx {
             for instruction in callerBody {
                 guard case let .call(_, callee, arguments, result, _, _, _, _) = instruction,
@@ -119,17 +115,14 @@ extension InlineLoweringPass {
                       || calleeName == "kk_suspend_function_create",
                       let first = arguments.first,
                       let symbol = lambdaSymbolRef(for: first, arena: arena, callerBody: callerBody),
-                      let fn = allFunctionsBySymbol[symbol],
-                      fn.isSuspend
+                      let fn = allFunctionsBySymbol[symbol]
                 else {
                     continue
                 }
                 // The factory call's second argument carries the captured
-                // environment handed to the adapter's leading closure
-                // parameter. Without it the spliced adapter body leaves that
-                // parameter's `symbolRef` dangling in the caller (it reads
-                // back as 0 at runtime), so bind it explicitly for
-                // `lambdaCaptureArguments`.
+                // environment handed to the callable's leading closure
+                // parameter. Preserve it for `lambdaCaptureArguments` when
+                // the factory is expanded.
                 if arguments.count > 1 {
                     lambdaCaptureArgsByExpr[argExpr] = [arguments[1]]
                 }

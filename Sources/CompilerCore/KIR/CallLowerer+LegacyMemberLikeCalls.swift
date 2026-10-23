@@ -15,6 +15,8 @@ extension CallLowerer {
 
     /// bundled Kotlin source in KSP-435, KSP-632, KSP-978, KSP-983, and KSP-986. A call bound to one of those
     /// source declarations bypasses this file's runtime-bridge special cases.
+    /// KUU-3032 keeps the inline `zipWithNext(transform)` body on this path so
+    /// its callback can be expanded with non-local returns intact.
     static let sourceBackedIterableCollectionMemberNames: Set<String> = [
         "all", "any", "none", "firstNotNullOf", "firstNotNullOfOrNull", "joinTo", "joinToString",
         "containsAll", "count", "isNotEmpty", "intersect", "last", "lastIndexOf", "lastOrNull",
@@ -25,7 +27,7 @@ extension CallLowerer {
         "reduceRightOrNull", "sumBy", "sumByDouble", "subtract", "toCollection", "toHashSet",
         "toBooleanArray", "toByteArray", "toCharArray", "toDoubleArray", "toFloatArray", "toIntArray",
         "toList", "toLongArray", "toMap", "toMutableList", "toMutableSet", "toSet", "toShortArray",
-        "toTypedArray", "toUByteArray", "toUIntArray", "toULongArray", "toUShortArray", "union",
+        "toTypedArray", "toUByteArray", "toUIntArray", "toULongArray", "toUShortArray", "union", "zipWithNext",
         "filter", "filterIndexed", "filterIndexedTo", "filterIsInstance",
         "filterIsInstanceTo", "filterNot", "filterNotNull", "filterNotNullTo", "filterNotTo", "filterTo",
         "indexOf", "indexOfFirst", "indexOfLast",
