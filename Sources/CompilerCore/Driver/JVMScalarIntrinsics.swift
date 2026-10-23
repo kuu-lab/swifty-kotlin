@@ -67,6 +67,33 @@ extension JVMFunctionBuilder {
         if let target = Self.numericConversions[name], sourceType.isNumeric, args.isEmpty {
             return JVMIntrinsicResult(value: try convert(requireValue(receiver), to: target))
         }
+        if name == "toString", args.count == 1,
+           [.byte, .short, .int, .long, .uint, .ulong, .ubyte, .ushort].contains(sourceType)
+        {
+            let source = try requireValue(receiver)
+            let radix = try convert(requireValue(args[0].expr), to: .int)
+            let checkedRadix = try jdkCall("kotlin/text/CharsKt", "checkRadix", [.int], .int, arguments: [radix])!
+            let owner: String
+            let method: String
+            let parameters: [JVMValueType]
+            let numericValue: JVMValue
+            switch sourceType {
+            case .long:
+                owner = "java/lang/Long"; method = "toString"; parameters = [.long, .int]; numericValue = try convert(source, to: .long)
+            case .ulong:
+                owner = "java/lang/Long"; method = "toUnsignedString"; parameters = [.long, .int]; numericValue = try convert(source, to: .long)
+            case .uint:
+                owner = "java/lang/Integer"; method = "toUnsignedString"; parameters = [.int, .int]; numericValue = try convert(source, to: .int)
+            case .ubyte, .ushort:
+                let mask = sourceType == .ubyte ? 0xff : 0xffff
+                let normalized = try value(.int)
+                instructions.append(.binary(.bitwiseAnd, try convert(source, to: .int), try constant(.int(Int32(mask)), .int), normalized))
+                owner = "java/lang/Integer"; method = "toString"; parameters = [.int, .int]; numericValue = normalized
+            default:
+                owner = "java/lang/Integer"; method = "toString"; parameters = [.int, .int]; numericValue = try convert(source, to: .int)
+            }
+            return JVMIntrinsicResult(value: try jdkCall(owner, method, parameters, .string, arguments: [numericValue, checkedRadix]))
+        }
         if sourceType == .char, name == "code", args.isEmpty {
             return JVMIntrinsicResult(value: try convert(requireValue(receiver), to: .int))
         }
