@@ -348,7 +348,7 @@ final class RuntimeListBox {
            let map = runtimeMapBox(from: mapRaw) {
             return map.valuesEqual(lhs, rhs)
         }
-        return runtimeValuesEqual(lhs, rhs)
+        return runtimeLookupValuesEqual(lhs, rhs)
     }
 
     /// Removes the backing map's key/value pair at `index` (as seen through

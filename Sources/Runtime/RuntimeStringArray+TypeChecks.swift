@@ -583,7 +583,7 @@ public func kk_op_contains(_ container: Int, _ element: Int) -> Int {
     // `runtimeArrayBox` would also match class instances (whose storage holds
     // fields, not elements) and wrongly answer `false` for `x in obj`.
     if let array = runtimeArrayBoxExcludingObjects(from: container) {
-        return array.values.contains(where: { runtimeValuesEqual($0.legacyRawValue, element) }) ? 1 : 0
+        return array.values.contains(where: { runtimeLookupValuesEqual($0.legacyRawValue, element) }) ? 1 : 0
     }
     // Source-defined collections (e.g. `class C : List<Int> by delegate`)
     // are not native boxes; dispatch through the object's Collection itable.
