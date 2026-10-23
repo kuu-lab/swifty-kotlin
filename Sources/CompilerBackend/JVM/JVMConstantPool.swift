@@ -27,10 +27,17 @@ struct JVMBytes {
     }
 }
 
+private struct JVMBootstrapMethod: Hashable {
+    let methodHandle: UInt16
+    let arguments: [UInt16]
+}
+
 final class JVMConstantPool {
     private var entries: [Data] = []
     // Data keys preserve distinct UTF-16 spellings, unlike Swift String equality.
     private var indices: [Data: UInt16] = [:]
+    private var bootstrapMethods: [JVMBootstrapMethod] = []
+    private var bootstrapIndices: [JVMBootstrapMethod: UInt16] = [:]
 
     func intern(_ entry: JVMBytes, wide: Bool = false) throws -> UInt16 {
         if let index = indices[entry.data] { return index }
@@ -92,6 +99,71 @@ final class JVMConstantPool {
         let descriptorIndex = try utf8(descriptor)
         let nameAndType = try pair(12, nameIndex, descriptorIndex)
         return try pair(tag, ownerIndex, nameAndType)
+    }
+
+    func methodType(_ descriptor: String) throws -> UInt16 {
+        try single(16, utf8(descriptor))
+    }
+
+    func methodHandle(referenceKind: UInt8, referenceTag: UInt8, owner: String, name: String, descriptor: String) throws -> UInt16 {
+        var entry = JVMBytes()
+        entry.u1(15); entry.u1(referenceKind)
+        entry.u2(try member(referenceTag, owner: owner, name: name, descriptor: descriptor))
+        return try intern(entry)
+    }
+
+    func invokeDynamic(name: String, descriptor: String, samDescriptor: String, implementation: JVMFunctionReference, instantiatedDescriptor: String) throws -> UInt16 {
+        let metafactoryDescriptor = "(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/CallSite;"
+        let bootstrapHandle = try methodHandle(
+            referenceKind: 6,
+            referenceTag: 10,
+            owner: "java/lang/invoke/LambdaMetafactory",
+            name: "metafactory",
+            descriptor: metafactoryDescriptor
+        )
+        let implementationHandle = try methodHandle(
+            referenceKind: 6,
+            referenceTag: implementation.ownerIsInterface ? 11 : 10,
+            owner: implementation.owner ?? "",
+            name: implementation.name,
+            descriptor: implementation.descriptor
+        )
+        let bootstrap = JVMBootstrapMethod(
+            methodHandle: bootstrapHandle,
+            arguments: [try methodType(samDescriptor), implementationHandle, try methodType(instantiatedDescriptor)]
+        )
+        let bootstrapIndex: UInt16
+        if let existing = bootstrapIndices[bootstrap] {
+            bootstrapIndex = existing
+        } else {
+            guard bootstrapMethods.count < Int(UInt16.max) else {
+                throw JVMEmissionError.limit("JVM BootstrapMethods attribute exceeds 65535 entries.")
+            }
+            bootstrapIndex = UInt16(bootstrapMethods.count)
+            bootstrapMethods.append(bootstrap)
+            bootstrapIndices[bootstrap] = bootstrapIndex
+        }
+        let nameIndex = try utf8(name)
+        let descriptorIndex = try utf8(descriptor)
+        let nameAndType = try pair(12, nameIndex, descriptorIndex)
+        return try pair(18, bootstrapIndex, nameAndType)
+    }
+
+    func bootstrapMethodsAttribute() throws -> (nameIndex: UInt16, data: Data)? {
+        guard !bootstrapMethods.isEmpty else { return nil }
+        guard bootstrapMethods.count <= Int(UInt16.max) else {
+            throw JVMEmissionError.limit("JVM BootstrapMethods attribute exceeds 65535 entries.")
+        }
+        var bytes = JVMBytes()
+        bytes.u2(UInt16(bootstrapMethods.count))
+        for method in bootstrapMethods {
+            guard method.arguments.count <= Int(UInt16.max) else {
+                throw JVMEmissionError.limit("JVM bootstrap method exceeds 65535 arguments.")
+            }
+            bytes.u2(method.methodHandle); bytes.u2(UInt16(method.arguments.count))
+            for argument in method.arguments { bytes.u2(argument) }
+        }
+        return (try utf8("BootstrapMethods"), bytes.data)
     }
 
 
