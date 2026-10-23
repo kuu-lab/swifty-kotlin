@@ -16,7 +16,7 @@ extension JVMClasspathIndex {
         if name == "kotlin/annotation/AnnotationTarget" || name == "kotlin/annotation/AnnotationRetention" { return name }
         if name == "kotlin/Enum" { return "java/lang/Enum" }
         if name == "kotlin/enums/EnumEntries" { return "kotlin/enums/EnumEntries" }
-        if ["kotlin/collections/IntIterator", "java/util/ArrayList"].contains(name) { return name }
+        if ["kotlin/collections/IntIterator", "kotlin/collections/IndexedValue", "java/util/ArrayList"].contains(name) { return name }
         if ["kotlin/collections/Map$Entry", "kotlin/collections/MutableMap$MutableEntry"].contains(name) { return "java/util/Map$Entry" }
         if name == "kotlin/Result" { return "java/lang/Object" }
         if ["kotlin/coroutines/Continuation", "kotlin/coroutines/CoroutineContext", "kotlin/coroutines/EmptyCoroutineContext"].contains(name) { return name }

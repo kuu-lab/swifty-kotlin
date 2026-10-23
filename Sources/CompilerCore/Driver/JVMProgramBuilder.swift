@@ -766,6 +766,8 @@ final class JVMFunctionBuilder {
         case let .forExpr(name, iterable, body, label, _):
             guard let name else { throw fail("Unsupported JVM for loop.", id) }
             try forLoop(name, iterable, body, id, label: label); return nil
+        case let .forDestructuringExpr(names, iterable, body, _, _):
+            try forLoop(nil, iterable, body, id, destructuringNames: names, label: arena.loopLabel(for: id)); return nil
         case let .breakExpr(label, _), let .continueExpr(label, _):
             let targetIndex: Int?
             if let label {
