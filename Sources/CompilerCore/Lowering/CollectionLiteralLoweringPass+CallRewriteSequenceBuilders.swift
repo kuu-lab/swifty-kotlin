@@ -1,4 +1,24 @@
 extension CollectionLiteralConstructionLoweringPass {
+    private func isSequenceScopeBuilderMethod(
+        _ symbol: SymbolID?,
+        named name: InternedString,
+        ctx: KIRContext
+    ) -> Bool {
+        guard let symbol,
+              let sema = ctx.sema,
+              let info = sema.symbols.symbol(symbol),
+              info.fqName.count == 4,
+              info.fqName[0] == ctx.interner.intern("kotlin"),
+              info.fqName[1] == ctx.interner.intern("sequences"),
+              info.fqName[2] == ctx.interner.intern("SequenceScope"),
+              info.fqName[3] == name,
+              sema.symbols.functionSignature(for: symbol)?.isSuspend == true
+        else {
+            return false
+        }
+        return true
+    }
+
     func rewriteSequenceBuilderCall(
         symbol: SymbolID?,
         callee: InternedString,
@@ -30,7 +50,10 @@ extension CollectionLiteralConstructionLoweringPass {
         // The raw-source-name rewrites that used to synthesize these calls for
         // the Swift-side synthetic stub were removed here.
 
-        if callee == lookup.yieldName, arguments.count == 2 {
+        if callee == lookup.yieldName,
+           arguments.count == 2,
+           isSequenceScopeBuilderMethod(symbol, named: lookup.yieldName, ctx: ctx)
+        {
             let builderArg = arguments[0]
             let valueArg = arguments[1]
             let storedValue: KIRExprID
@@ -74,7 +97,10 @@ extension CollectionLiteralConstructionLoweringPass {
         }
 
         // Keep initial iterator-probe exceptions in the producer's catch scope.
-        if callee == lookup.yieldAllName, arguments.count == 2 {
+        if callee == lookup.yieldAllName,
+           arguments.count == 2,
+           isSequenceScopeBuilderMethod(symbol, named: lookup.yieldAllName, ctx: ctx)
+        {
             loweredBody.append(.call(
                 symbol: nil,
                 callee: lookup.kkSequenceBuilderYieldAllName,
