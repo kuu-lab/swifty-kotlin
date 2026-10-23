@@ -1,5 +1,6 @@
 package kotlin
 open class Throwable { constructor(); constructor(message: String?); constructor(message: String?, cause: Throwable?); constructor(cause: Throwable?); val message: String? get() = null }
+open class Error: Throwable { constructor(): super(); constructor(message: String?): super(message); constructor(message: String?, cause: Throwable?): super(message, cause); constructor(cause: Throwable?): super(cause) }
 open class NegativeArraySizeException: RuntimeException { constructor(): super(); constructor(message: String?): super(message) }
 open class UnsupportedOperationException: RuntimeException { constructor(): super(); constructor(message: String?): super(message) }
 open class Exception: Throwable { constructor(): super(); constructor(message: String?): super(message); constructor(message: String?, cause: Throwable?): super(message, cause); constructor(cause: Throwable?): super(cause) }

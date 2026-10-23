@@ -58,6 +58,41 @@ extension JVMBackendTests {
     }
 
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func bundledJvmRequireAndTodoAreAvailableAndCatchable(mode: EmitMode) throws {
+        let runtime = try m11Runtime()
+        try withWorkspace { root in
+            let result = try compile("""
+            fun checked(value: String?): Int {
+                requireNotNull(value)
+                return value.length
+            }
+            fun main() {
+                require(true)
+                println(checked("ok"))
+                try { require(false) }
+                catch (failure: IllegalArgumentException) { println(failure.message) }
+                try { require(false) { "lazy requirement" } }
+                catch (failure: IllegalArgumentException) { println(failure.message) }
+                try { requireNotNull(null as String?) }
+                catch (failure: IllegalArgumentException) { println(failure.message) }
+                try { requireNotNull(null as String?) { "lazy null requirement" } }
+                catch (failure: IllegalArgumentException) { println(failure.message) }
+                try { TODO() }
+                catch (failure: NotImplementedError) { println("caught") }
+                try { TODO("later") }
+                catch (failure: Error) { println(failure.message) }
+            }
+            """, root: root, mode: mode)
+            try #require(result.0 == 0, "\(result.1.map(\.message))")
+            let artifact = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes")
+            let execution = try java(["-cp", artifact.path + ":" + runtime, "HelloKt"])
+            #expect(execution.exitCode == 0)
+            #expect(execution.stdout == "2\nFailed requirement.\nlazy requirement\nRequired value was null.\nlazy null requirement\ncaught\nAn operation is not implemented: later\n")
+            #expect(execution.stderr.isEmpty)
+        }
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func ownStdlibCheckAndErrorPreserveSmartCastsAndNonLocalReturns(mode: EmitMode) throws {
         let library = try ownStdlibLibrary()
         try withWorkspace { root in
