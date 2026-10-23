@@ -252,6 +252,9 @@ extension BuildASTPhase {
         if !contextReceivers.isEmpty {
             astArena.setLocalFunContextReceivers(contextReceivers, for: declaration)
         }
+        if leadingModifiers.contains(where: { $0.name == "tailrec" }) {
+            astArena.markLocalTailrecFunction(declaration)
+        }
         if isInfix { astArena.markInfixFunction(declaration) }
         if hasOperator { astArena.markOperatorFunction(declaration) }
         return declaration

@@ -393,6 +393,8 @@ extension ExprLowerer {
             }
             localFunBodyInstructions.append(.endBlock)
 
+            let isTailrec = ast.arena.isLocalTailrecFunction(exprID)
+            if isTailrec { driver.ctx.markTailrecFunction(symbol) }
             let localFunDeclID = arena.appendDecl(
                 .function(
                     KIRFunction(
@@ -403,7 +405,8 @@ extension ExprLowerer {
                         returnType: localFunReturnType,
                         body: localFunBodyInstructions,
                         isSuspend: sig?.isSuspend ?? false,
-                        isInline: false
+                        isInline: false,
+                        isTailrec: isTailrec
                     )
                 )
             )

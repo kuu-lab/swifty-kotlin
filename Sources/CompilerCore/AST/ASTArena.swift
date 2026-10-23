@@ -23,6 +23,7 @@ public struct ASTArenaSnapshot: Codable {
     public let anonymousFunctionExpressions: Set<ExprID>
     public let parenthesizedExpressions: Set<ExprID>
     public let localFunContextReceivers: [ExprID: [ContextReceiverDecl]]
+    public let localTailrecFunctionExpressions: Set<ExprID>
     public let destructuringDeclLayouts: [ExprID: DestructuringDeclLayout]
 
     private enum CodingKeys: String, CodingKey {
@@ -48,6 +49,7 @@ public struct ASTArenaSnapshot: Codable {
         case anonymousFunctionExpressions
         case parenthesizedExpressions
         case localFunContextReceivers
+        case localTailrecFunctionExpressions
         case destructuringDeclLayouts
     }
 
@@ -74,6 +76,7 @@ public struct ASTArenaSnapshot: Codable {
         anonymousFunctionExpressions: Set<ExprID> = [],
         parenthesizedExpressions: Set<ExprID> = [],
         localFunContextReceivers: [ExprID: [ContextReceiverDecl]] = [:],
+        localTailrecFunctionExpressions: Set<ExprID> = [],
         destructuringDeclLayouts: [ExprID: DestructuringDeclLayout] = [:]
     ) {
         self.declarations = declarations
@@ -98,6 +101,7 @@ public struct ASTArenaSnapshot: Codable {
         self.anonymousFunctionExpressions = anonymousFunctionExpressions
         self.parenthesizedExpressions = parenthesizedExpressions
         self.localFunContextReceivers = localFunContextReceivers
+        self.localTailrecFunctionExpressions = localTailrecFunctionExpressions
         self.destructuringDeclLayouts = destructuringDeclLayouts
     }
 
@@ -155,6 +159,9 @@ public struct ASTArenaSnapshot: Codable {
         localFunContextReceivers = try container.decodeIfPresent(
             [ExprID: [ContextReceiverDecl]].self, forKey: .localFunContextReceivers
         ) ?? [:]
+        localTailrecFunctionExpressions = try container.decodeIfPresent(
+            Set<ExprID>.self, forKey: .localTailrecFunctionExpressions
+        ) ?? []
         destructuringDeclLayouts = try container.decodeIfPresent(
             [ExprID: DestructuringDeclLayout].self, forKey: .destructuringDeclLayouts
         ) ?? [:]
@@ -249,6 +256,7 @@ public final class ASTArena: @unchecked Sendable {
     private var _anonymousFunctionExpressions: Set<ExprID> = []
     private var _parenthesizedExpressions: Set<ExprID> = []
     private var _localFunContextReceivers: [ExprID: [ContextReceiverDecl]] = [:]
+    private var _localTailrecFunctionExpressions: Set<ExprID> = []
     private var _destructuringDeclLayouts: [ExprID: DestructuringDeclLayout] = [:]
 
     public var decls: [Decl] {
@@ -288,6 +296,7 @@ public final class ASTArena: @unchecked Sendable {
         _anonymousFunctionExpressions = snapshot.anonymousFunctionExpressions
         _parenthesizedExpressions = snapshot.parenthesizedExpressions
         _localFunContextReceivers = snapshot.localFunContextReceivers
+        _localTailrecFunctionExpressions = snapshot.localTailrecFunctionExpressions
         _destructuringDeclLayouts = snapshot.destructuringDeclLayouts
     }
 
@@ -317,6 +326,7 @@ public final class ASTArena: @unchecked Sendable {
             anonymousFunctionExpressions: _anonymousFunctionExpressions,
             parenthesizedExpressions: _parenthesizedExpressions,
             localFunContextReceivers: _localFunContextReceivers,
+            localTailrecFunctionExpressions: _localTailrecFunctionExpressions,
             destructuringDeclLayouts: _destructuringDeclLayouts
         )
     }
@@ -366,6 +376,9 @@ public final class ASTArena: @unchecked Sendable {
         for (key, value) in snapshot.localFunContextReceivers {
             _localFunContextReceivers[remapper.remap(key)] = value.map { remapper.remap($0) }
         }
+        _localTailrecFunctionExpressions.formUnion(
+            snapshot.localTailrecFunctionExpressions.map { remapper.remap($0) }
+        )
         for (key, value) in snapshot.destructuringDeclLayouts {
             _destructuringDeclLayouts[remapper.remap(key)] = DestructuringDeclLayout(
                 syntax: value.syntax,
@@ -679,6 +692,18 @@ public final class ASTArena: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return _operatorFunctionExpressions.contains(exprID)
+    }
+
+    public func markLocalTailrecFunction(_ exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _localTailrecFunctionExpressions.insert(exprID)
+    }
+
+    public func isLocalTailrecFunction(_ exprID: ExprID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _localTailrecFunctionExpressions.contains(exprID)
     }
 
     public func markInfixCall(_ exprID: ExprID) {
