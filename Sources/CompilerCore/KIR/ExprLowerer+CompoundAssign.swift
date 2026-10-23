@@ -817,16 +817,30 @@ extension ExprLowerer {
                     // let this read observe the RHS's own mutation instead of
                     // the value Kotlin's left-to-right evaluation order
                     // requires. Freeze it into a fresh temporary first.
-                    let frozenLHS = arena.appendTemporary(type: operationType)
+                    let checkedValue: KIRExprID
                     if let cachedIncrementValue {
-                        instructions.append(.copy(from: cachedIncrementValue, to: frozenLHS))
+                        checkedValue = cachedIncrementValue
                     } else {
-                        let checkedValue = wrapLateinitReadIfNeeded(
+                        checkedValue = wrapLateinitReadIfNeeded(
                             storageID, symbol: symbol, sema: sema, arena: arena,
                             interner: interner, instructions: &instructions
                         )
-                        instructions.append(.copy(from: checkedValue, to: frozenLHS))
                     }
+                    // Erased local storage retains its declared type (for
+                    // example `Any`), while sema records the flow-refined LHS
+                    // type for this assignment. Unbox smartcasted primitives
+                    // before computing the result, then box on the copy back
+                    // to the declared storage slot.
+                    let operationValue = driver.callLowerer.materializeSmartcastedPrimitiveValue(
+                        checkedValue,
+                        boundType: sema.bindings.compoundAssignReceiverType(for: exprID),
+                        sema: sema,
+                        arena: arena,
+                        instructions: &instructions
+                    ) ?? checkedValue
+                    let lhsType = arena.exprType(operationValue) ?? operationType
+                    let frozenLHS = arena.appendTemporary(type: lhsType)
+                    instructions.append(.copy(from: operationValue, to: frozenLHS))
                     let rhsID = lowerRHS()
                     if let callBinding = sema.bindings.callBindings[exprID],
                        let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee) {
@@ -848,7 +862,7 @@ extension ExprLowerer {
                     } else {
                         let resultID = appendBuiltinCompoundResult(
                             lhs: frozenLHS,
-                            lhsType: operationType,
+                            lhsType: lhsType,
                             rhs: rhsID,
                             rhsType: arena.exprType(rhsID)
                         )
