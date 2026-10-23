@@ -2,40 +2,13 @@
 // Parsing, formatting, bit extraction, comparison, and ByteArray packing are
 // pure Kotlin (Sources/CompilerCore/Stdlib/kotlin/uuid/Uuid.kt).
 
+private let abi = RuntimeABISectionBuilder("Uuid")
+
 public extension RuntimeABISpec {
     static let uuidFunctions: [RuntimeABIFunctionSpec] = [
-        RuntimeABIFunctionSpec(
-            name: "__kk_uuid_random",
-            parameters: [],
-            returnType: .intptr,
-            section: "Uuid",
-            isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_uuid_lexicalOrder",
-            parameters: [],
-            returnType: .intptr,
-            section: "Uuid",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_uuid_fromLongs",
-            parameters: [
-                RuntimeABIParameter(name: "mostSignificantBits", type: .intptr),
-                RuntimeABIParameter(name: "leastSignificantBits", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Uuid",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_uuid_toKotlinUuid",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Uuid",
-            isThrowing: false
-        ),
+        abi.nt("__kk_uuid_random"),
+        abi.nt("__kk_uuid_lexicalOrder"),
+        abi.nt("__kk_uuid_fromLongs", "mostSignificantBits leastSignificantBits"),
+        abi.nt("__kk_uuid_toKotlinUuid", "receiver"),
     ]
 }

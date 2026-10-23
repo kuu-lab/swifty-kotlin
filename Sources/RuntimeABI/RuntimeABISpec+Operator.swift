@@ -229,6 +229,35 @@ public extension RuntimeABISpec {
             section: "TypeCheck"
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_kclass_register_type_parameter",
+            parameters: [
+                RuntimeABIParameter(name: "typeToken", type: .intptr),
+                RuntimeABIParameter(name: "index", type: .intptr),
+                RuntimeABIParameter(name: "identity", type: .intptr),
+                RuntimeABIParameter(name: "nameRaw", type: .intptr),
+                RuntimeABIParameter(name: "varianceOrdinal", type: .intptr),
+                RuntimeABIParameter(name: "isReified", type: .intptr),
+                RuntimeABIParameter(name: "upperBoundsRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_kclass_register_enclosing_metadata",
+            parameters: [
+                RuntimeABIParameter(name: "typeToken", type: .intptr),
+                RuntimeABIParameter(name: "enclosingClassNameRaw", type: .intptr),
+                RuntimeABIParameter(name: "declaringClassNameRaw", type: .intptr),
+                RuntimeABIParameter(name: "memberKind", type: .intptr),
+                RuntimeABIParameter(name: "memberNameRaw", type: .intptr),
+                RuntimeABIParameter(name: "memberSignatureRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_kclass_is_data",
             parameters: [
                 RuntimeABIParameter(name: "kclassRaw", type: .intptr),
