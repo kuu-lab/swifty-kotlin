@@ -562,8 +562,9 @@ extension CallLowerer {
         let symbol = sema.symbols.symbol(chosenCallee)
         let isImported = symbol?.flags.contains(.importedLibrary) == true
         let isInline = symbol?.flags.contains(.inlineFunction) == true
-        let hasImportedInlineBody = sema.importedInlineFunctions.descriptors[chosenCallee] != nil
+        let hasInlineBody = sema.importedInlineFunctions.descriptors[chosenCallee] != nil
             || sema.importedInlineFunctions.functions[chosenCallee] != nil
+            || arena.function(for: chosenCallee).map { $0.isInline && !$0.body.isEmpty } == true
 
         // Synthetic launchers consume a suspend entry reference plus captures,
         // not the boxed function-value ABI used by ordinary Kotlin functions.
@@ -654,11 +655,17 @@ extension CallLowerer {
                     range: sema.bindings.workerExecuteJobRanges[sourceArgExprs[sourceArgExprIndex]]
                 )
             }
-            // Ordinary same-module inline callbacks consume raw symbols directly.
-            // Restricted callbacks may escape; tagged references use the erased ABI.
-            if isInline, !isImported,
-               signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex),
-               signature.valueParameterAllowsNonLocalReturn[parameterIndex],
+            // Older imported inline signatures may omit the per-parameter
+            // permission mask. Match `allowsNonLocalReturn`: with an inline
+            // body available, unmarked function parameters default to inline.
+            let allowsRawInlineArgument = signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
+                ? signature.valueParameterAllowsNonLocalReturn[parameterIndex]
+                : !isImported || hasInlineBody
+            // Inline callback bodies can stay as raw symbols when this
+            // compilation has their inline body to splice. Keep the erased
+            // function-value ABI when an imported declaration has no body.
+            if isInline, (!isImported || hasInlineBody),
+               allowsRawInlineArgument,
                case .symbolRef? = arena.expr(arguments[finalArgIndex])
             {
                 continue
@@ -718,9 +725,6 @@ extension CallLowerer {
             }
             // Imported bodies can store callbacks in escaping closures. Without
             // explicit inline-parameter metadata, preserve the function environment.
-            let allowsRawInlineArgument = signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
-                ? signature.valueParameterAllowsNonLocalReturn[parameterIndex]
-                : !isImported
             // Ordinary inline callbacks retain their captures,
             // including lambdas whose suspension comes from a nested inline
             // call. Boxing them hides the body and its coroutine context.
@@ -731,7 +735,7 @@ extension CallLowerer {
             // descriptor). In that case the runtime call consumes the regular
             // boxed function-value ABI, so keep the callback's closure env.
             if isInline,
-               (!isImported || hasImportedInlineBody),
+               (!isImported || hasInlineBody),
                case .symbolRef? = arena.expr(arguments[finalArgIndex]),
                let callable = driver.ctx.callableValueInfo(for: arguments[finalArgIndex]),
                (!isImported || (!callable.hasClosureParam && callable.captureArguments.isEmpty)
