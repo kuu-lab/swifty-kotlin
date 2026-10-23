@@ -535,11 +535,15 @@ extension DataFlowAndSemaRegressionTests {
             #expect(errors.isEmpty, Comment(rawValue: "unexpected errors: \(errors.map(\.code))"))
     }
 
-    @Test func testIsCheckWithErasedGenericTypeEmitsWarning() throws {
+    @Test func testIsCheckWithErasedGenericTypeEmitsError() throws {
         let (ctx, paths) = try sharedDataFlowTryCatchCtx()
         let samplePath = paths[18]
         let sampleDiagnostics = diagnosticsForPath(samplePath, in: ctx)
-            assertHasDiagnostic("KSWIFTK-SEMA-ERASED-TYPE", in: sampleDiagnostics)
+        #expect(sampleDiagnostics.contains {
+            $0.severity == .error
+                && $0.code == "KSWIFTK-SEMA-ERASED-TYPE"
+                && $0.message.contains("List<String>")
+        })
     }
 
     @Test func testIsCheckWithStarProjectionDoesNotEmitErasureWarning() throws {

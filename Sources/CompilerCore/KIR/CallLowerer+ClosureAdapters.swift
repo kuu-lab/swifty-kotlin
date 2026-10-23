@@ -414,11 +414,12 @@ extension CallLowerer {
         }
 
         let concreteCallableType = arena.exprType(loweredCallableID) ?? sema.bindings.exprTypes[argExprID]
+        let concreteFunctionType = concreteCallableType.flatMap {
+            callableFunctionType(for: $0, matching: functionType, sema: sema)
+        }
         let hasStringSignature: Bool
         let needsReturnBoxing: Bool
-        if let concreteCallableType,
-           case let .functionType(concreteType) = sema.types.kind(of: sema.types.makeNonNullable(concreteCallableType))
-        {
+        if let concreteType = concreteFunctionType {
             hasStringSignature = concreteType.params.contains(where: sema.types.isString)
                 || sema.types.isString(concreteType.returnType)
             // The erased ABI applies to `Any`/`Any?` reference returns and to
@@ -562,9 +563,8 @@ extension CallLowerer {
         let symbol = sema.symbols.symbol(chosenCallee)
         let isImported = symbol?.flags.contains(.importedLibrary) == true
         let isInline = symbol?.flags.contains(.inlineFunction) == true
-        let hasInlineBody = sema.importedInlineFunctions.descriptors[chosenCallee] != nil
+        let hasImportedInlineBody = sema.importedInlineFunctions.descriptors[chosenCallee] != nil
             || sema.importedInlineFunctions.functions[chosenCallee] != nil
-            || arena.function(for: chosenCallee).map { $0.isInline && !$0.body.isEmpty } == true
 
         // Synthetic launchers consume a suspend entry reference plus captures,
         // not the boxed function-value ABI used by ordinary Kotlin functions.
@@ -655,17 +655,20 @@ extension CallLowerer {
                     range: sema.bindings.workerExecuteJobRanges[sourceArgExprs[sourceArgExprIndex]]
                 )
             }
+            let isCallableReference = sema.bindings.callableRefKind(
+                for: sourceArgExprs[sourceArgExprIndex]
+            ) != nil
             // Older imported inline signatures may omit the per-parameter
-            // permission mask. Match `allowsNonLocalReturn`: with an inline
-            // body available, unmarked function parameters default to inline.
+            // permission mask. When an inline body is available, treat those
+            // unmarked parameters as inline while preserving tagged references.
             let allowsRawInlineArgument = signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
                 ? signature.valueParameterAllowsNonLocalReturn[parameterIndex]
-                : !isImported || hasInlineBody
-            // Inline callback bodies can stay as raw symbols when this
-            // compilation has their inline body to splice. Keep the erased
-            // function-value ABI when an imported declaration has no body.
-            if isInline, (!isImported || hasInlineBody),
+                : !isImported || hasImportedInlineBody
+            // Keep the erased function-value ABI when an imported declaration
+            // has no body available for inlining.
+            if isInline, (!isImported || hasImportedInlineBody),
                allowsRawInlineArgument,
+               !isCallableReference,
                case .symbolRef? = arena.expr(arguments[finalArgIndex])
             {
                 continue
@@ -735,7 +738,8 @@ extension CallLowerer {
             // descriptor). In that case the runtime call consumes the regular
             // boxed function-value ABI, so keep the callback's closure env.
             if isInline,
-               (!isImported || hasInlineBody),
+               (!isImported || hasImportedInlineBody),
+               !isCallableReference,
                case .symbolRef? = arena.expr(arguments[finalArgIndex]),
                let callable = driver.ctx.callableValueInfo(for: arguments[finalArgIndex]),
                (!isImported || (!callable.hasClosureParam && callable.captureArguments.isEmpty)

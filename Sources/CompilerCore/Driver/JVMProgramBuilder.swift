@@ -62,12 +62,19 @@ final class JVMProgramBuilder {
             throw JVMFrontendError(message: "JVM expression has no resolved type.", range: ast.arena.exprRange(id))
         }
         let mapped = try self.type(type)
-        // Primitive range expressions carry their element type (Int) in
-        // exprTypes, but the JVM backend materializes an IntRange reference.
-        // A source-backed rangeTo may instead return Int or another declared
-        // type, so preserve its resolved result type.
-        if mapped == .int, sema.bindings.isRangeExpr(id), !hasSourceRangeOperator(id) {
-            return .reference("kotlin/ranges/IntRange", nullable: false)
+        // Primitive range expressions carry their scalar element type in exprTypes,
+        // but the JVM materializes a nominal range object. A source-backed rangeTo
+        // may return another declared type, so preserve its resolved result type.
+        if sema.bindings.isRangeExpr(id), !hasSourceRangeOperator(id) {
+            if sema.bindings.isCharRangeExpr(id) {
+                return .reference("kotlin/ranges/CharRange", nullable: false)
+            }
+            if mapped == .long {
+                return .reference("kotlin/ranges/LongRange", nullable: false)
+            }
+            if mapped == .int {
+                return .reference("kotlin/ranges/IntRange", nullable: false)
+            }
         }
         return mapped
     }

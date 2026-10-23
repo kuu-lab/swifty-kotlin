@@ -789,7 +789,21 @@ extension DataFlowSemaPhase {
                 parameterTypes: parameterTypes
             )
         }
-        guard let parent else { return }
+        guard let parent else {
+            if isFunction,
+               !isMemberExtension,
+               findInheritedFunction(
+                   named: memberName,
+                   for: ownerSymbol,
+                   childMember: memberSymbol,
+                   requireMatchingSignature: true,
+                   ctx: ctx
+               ) == nil,
+               hasSourceBackedInheritedFunction(named: memberName, for: ownerSymbol, ctx: ctx) {
+                diagnoseOverrideNothing(memberName: memberName, memberRange: memberRange, ctx: ctx)
+            }
+            return
+        }
         guard let parentSym = ctx.symbols.symbol(parent.memberID) else {
             return
         }
@@ -840,6 +854,55 @@ extension DataFlowSemaPhase {
         ctx.diagnostics.error(
             "KSWIFTK-SEMA-FINAL",
             "'\(name)' in '\(ownerName)' is final and cannot be overridden.",
+            range: memberRange
+        )
+    }
+
+    private func hasSourceBackedInheritedFunction(
+        named memberName: InternedString,
+        for ownerSymbol: SymbolID,
+        ctx: OpenFinalOverrideContext
+    ) -> Bool {
+        var visited: Set<SymbolID> = [ownerSymbol]
+        var queue = ctx.symbols.directSupertypes(for: ownerSymbol)
+
+        while !queue.isEmpty {
+            let current = queue.removeFirst()
+            guard visited.insert(current).inserted,
+                  let owner = ctx.symbols.symbol(current)
+            else {
+                continue
+            }
+
+            for candidateID in ctx.symbols.children(ofFQName: owner.fqName) {
+                guard let candidate = ctx.symbols.symbol(candidateID),
+                      candidate.fqName == owner.fqName + [candidate.name],
+                      candidate.kind == .function,
+                      candidate.name == memberName,
+                      isInheritedMember(candidate, from: owner),
+                      !candidate.flags.contains(.extensionMemberAlias)
+                else {
+                    continue
+                }
+                if ctx.symbols.isSourceBackedSymbol(candidateID) {
+                    return true
+                }
+            }
+
+            queue.append(contentsOf: ctx.symbols.directSupertypes(for: current))
+        }
+        return false
+    }
+
+    private func diagnoseOverrideNothing(
+        memberName: InternedString,
+        memberRange: SourceRange,
+        ctx: OpenFinalOverrideContext
+    ) {
+        let name = ctx.interner.resolve(memberName)
+        ctx.diagnostics.error(
+            "KSWIFTK-SEMA-OVERRIDE-NOTHING",
+            "'\(name)' overrides nothing.",
             range: memberRange
         )
     }

@@ -1,4 +1,9 @@
+@file:kotlin.jvm.JvmName("MapsKt")
 package kotlin.collections
+
+operator fun <K, V> Map.Entry<K, V>.component1(): K = null!!
+operator fun <K, V> Map.Entry<K, V>.component2(): V = null!!
+
 operator fun <K, V> Map<out K, V>.minus(key: K): Map<K, V> = null!!
 operator fun <K, V> Map<out K, V>.minus(keys: Iterable<K>): Map<K, V> = null!!
 operator fun <K, V> Map<out K, V>.plus(pair: Pair<K, V>): Map<K, V> = null!!

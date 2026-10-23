@@ -1,5 +1,10 @@
 extension TypeCheckSemaPhase {
-    func validateTailrecFunctions(ast: ASTModule, sema: SemaModule, diagnostics: DiagnosticEngine) {
+    func validateTailrecFunctions(
+        ast: ASTModule,
+        sema: SemaModule,
+        diagnostics: DiagnosticEngine,
+        inlineLambdaArguments: Set<ExprID>
+    ) {
         // Callee identity is available only after overload resolution. Extension
         // receivers can change between iterations without changing the callee.
         for file in ast.sortedFiles {
@@ -9,7 +14,11 @@ extension TypeCheckSemaPhase {
                       let functionSymbol = sema.bindings.declSymbol(for: declID)
                 else { continue }
                 if !checkTailRecursiveBody(
-                    function.body, functionSymbol: functionSymbol, ast: ast, bindings: sema.bindings
+                    function.body,
+                    functionSymbol: functionSymbol,
+                    ast: ast,
+                    bindings: sema.bindings,
+                    inlineLambdaArguments: inlineLambdaArguments
                 ) {
                     diagnostics.warning(
                         "KSWIFTK-SEMA-TAILREC",
@@ -25,7 +34,11 @@ extension TypeCheckSemaPhase {
                   let functionSymbol = sema.bindings.identifierSymbol(for: ExprID(rawValue: Int32(index)))
             else { continue }
             if !checkTailRecursiveBody(
-                body, functionSymbol: functionSymbol, ast: ast, bindings: sema.bindings
+                body,
+                functionSymbol: functionSymbol,
+                ast: ast,
+                bindings: sema.bindings,
+                inlineLambdaArguments: inlineLambdaArguments
             ) {
                 diagnostics.warning(
                     "KSWIFTK-SEMA-TAILREC",
@@ -37,14 +50,23 @@ extension TypeCheckSemaPhase {
     }
 
     private func checkTailRecursiveBody(
-        _ body: FunctionBody, functionSymbol: SymbolID, ast: ASTModule, bindings: BindingTable
+        _ body: FunctionBody,
+        functionSymbol: SymbolID,
+        ast: ASTModule,
+        bindings: BindingTable,
+        inlineLambdaArguments: Set<ExprID>
     ) -> Bool {
         switch body {
         case .unit:
             return false
         case let .expr(exprID, _):
             return containsTailCall(
-                exprID, isValuePosition: true, functionSymbol: functionSymbol, ast: ast, bindings: bindings
+                exprID,
+                isValuePosition: true,
+                functionSymbol: functionSymbol,
+                ast: ast,
+                bindings: bindings,
+                inlineLambdaArguments: inlineLambdaArguments
             )
         case let .block(exprIDs, _):
             for (index, exprID) in exprIDs.enumerated() {
@@ -52,7 +74,12 @@ extension TypeCheckSemaPhase {
                 // statements only count through an explicit `return`.
                 let isLast = index == exprIDs.count - 1
                 if containsTailCall(
-                    exprID, isValuePosition: isLast, functionSymbol: functionSymbol, ast: ast, bindings: bindings
+                    exprID,
+                    isValuePosition: isLast,
+                    functionSymbol: functionSymbol,
+                    ast: ast,
+                    bindings: bindings,
+                    inlineLambdaArguments: inlineLambdaArguments
                 ) {
                     return true
                 }
@@ -64,14 +91,24 @@ extension TypeCheckSemaPhase {
     /// `isValuePosition` is true when the expression's value is the function's
     /// result; otherwise only an explicit `return f(..)` inside it counts.
     private func containsTailCall(
-        _ exprID: ExprID, isValuePosition: Bool, functionSymbol: SymbolID, ast: ASTModule, bindings: BindingTable
+        _ exprID: ExprID,
+        isValuePosition: Bool,
+        functionSymbol: SymbolID,
+        ast: ASTModule,
+        bindings: BindingTable,
+        inlineLambdaArguments: Set<ExprID>
     ) -> Bool {
         var found = false
         TailrecPositionWalker.visit(
-            exprID, in: ast.arena, isValuePosition: isValuePosition, includeLabeledReturns: true
+            exprID,
+            in: ast.arena,
+            isValuePosition: isValuePosition,
+            includeLabeledReturns: true,
+            inlineLambdaArguments: inlineLambdaArguments
         ) { candidate in
             if bindings.callBinding(for: candidate)?.chosenCallee == functionSymbol { found = true }
         }
         return found
     }
+
 }

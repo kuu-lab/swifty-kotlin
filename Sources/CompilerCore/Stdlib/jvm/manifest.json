@@ -127,6 +127,16 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "declarations/LongRange.kt",
+      "virtualPath": "<kswiftk-jvm>/m19-long-range.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/CharRange.kt",
+      "virtualPath": "<kswiftk-jvm>/m19-char-range.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "declarations/Sequence.kt",
       "virtualPath": "<kswiftk-jvm>/m19-sequence.kt",
       "excludeFromStdlibBuild": true
@@ -293,6 +303,12 @@
       "runtimeFacade": "kotlin/collections/CollectionsKt"
     },
     {
+      "path": "declarations/CollectionAggregates.kt",
+      "virtualPath": "<kswiftk-jvm>/collection-aggregates.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
       "path": "declarations/Comparator.kt",
       "virtualPath": "<kswiftk-jvm>/comparator.kt",
       "excludeFromStdlibBuild": false,
@@ -412,6 +428,11 @@
       "virtualPath": "<kswiftk-jvm>/map-builders.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/collections/MapsKt"
+    },
+    {
+      "path": "declarations/MapHigherOrderFunctions.kt",
+      "virtualPath": "<kswiftk-jvm>/map-higher-order-functions.kt",
+      "excludeFromStdlibBuild": true
     },
     {
       "path": "declarations/BuilderContracts.kt",
