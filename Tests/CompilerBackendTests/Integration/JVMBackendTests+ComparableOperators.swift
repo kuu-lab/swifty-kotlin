@@ -6,6 +6,20 @@ import Testing
 
 extension JVMBackendTests {
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func enumRelationalOperatorsCompareOrdinals(mode: EmitMode) throws {
+        try assertJVM("""
+        enum class Direction { NORTH, SOUTH, WEST }
+        fun main() {
+            println(Direction.NORTH < Direction.SOUTH)
+            println(Direction.SOUTH > Direction.NORTH)
+            println(Direction.NORTH <= Direction.NORTH)
+            println(Direction.SOUTH >= Direction.WEST)
+            println(Direction.NORTH.compareTo(Direction.SOUTH))
+        }
+        """, "true\ntrue\ntrue\nfalse\n-1\n", mode: mode)
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func comparableOperatorsUseSignedCompareToResults(mode: EmitMode) throws {
         let source = """
         class Rank(val n: Int): Comparable<Rank> {

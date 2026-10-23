@@ -93,11 +93,13 @@ struct RuntimeTaskKey: Hashable, Sendable {
 //        sync awaitResult() blocks on a per-waiter gate registered via
 //        addCompletionResumer.
 //
-// [TODO] runtimeFlowDeliverValue (RuntimeCoroutineFlow.swift): the suspend
-//        collector path still blocks via waitForResumeSignal().  Full
-//        migration requires making runtimeFlowDeliverValue itself async
-//        (return via continuation instead of Bool) and restructuring the
-//        flow collect loop as a suspend-entry loop.
+// [TODO] runtimeFlowDeliverValue (RuntimeCoroutineFlow.swift): ordinary flow
+//        collection still waits synchronously for each suspend collector call.
+//        collectLatest actions and flatMapLatest inner flows run in cancellable
+//        child Jobs, so cancellation wakes suspended work and allows upstream
+//        collection to continue. Full non-blocking collection still needs
+//        runtimeFlowDeliverValue to return through its caller continuation and
+//        the flow collect loop to become a suspend-entry loop.
 //
 // [DONE] kk_with_context (RuntimeCoroutineContext.swift): caller-blocking
 //        semaphore removed for the IO/Default dispatcher path.  When called

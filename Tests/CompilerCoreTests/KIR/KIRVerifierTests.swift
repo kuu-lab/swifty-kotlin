@@ -197,5 +197,35 @@ struct KIRVerifierTests {
         #expect(kirDiagnostics.isEmpty, "unexpected KIR verifier failures: \(kirDiagnostics)")
         #expect(!ctx.diagnostics.hasError)
     }
+
+    @Test
+    func testWhenCastWithOnlyThrowingBranchesDoesNotReadUndefinedResult() throws {
+        let source = """
+        fun box(): String {
+            when (1) {
+                else -> throw Error()
+            } as String
+            return "OK"
+        }
+
+        fun lambdaCase() {
+            val action = {
+                when (1) {
+                    else -> throw Error()
+                } as String
+            }
+        }
+        """
+        let ctx = makeContextFromSource(source, moduleName: "KIRVerifierWhenCast")
+        try runToLowering(ctx)
+        let kirDiagnostics = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-KIR-0003"
+        }
+        #expect(kirDiagnostics.isEmpty, "unexpected KIR verifier failures: \(kirDiagnostics)")
+        let otherErrors = ctx.diagnostics.diagnostics.filter {
+            $0.severity == .error && $0.code != "KSWIFTK-KIR-0003"
+        }
+        #expect(otherErrors.isEmpty, "unexpected compiler errors: \(otherErrors)")
+    }
 }
 #endif

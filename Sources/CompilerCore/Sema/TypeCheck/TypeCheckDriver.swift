@@ -522,6 +522,7 @@ final class TypeCheckDriver {
                     sema.bindings.mergeIndependentScalarExpressions(
                         types: result.expressionTypes, identifiers: result.identifierSymbols,
                         typeMapping: typeMapping,
+                        compoundAssignReceiverTypes: result.compoundAssignReceiverTypes,
                         sourceDeclaredExpectedTypeExpressions: result.sourceDeclaredExpectedTypeExpressions,
                         symbolMapping: symbolMapping
                     )
