@@ -133,6 +133,15 @@ extension DataEnumSealedSynthesisPass {
         let signature = FunctionSignature(parameterTypes: [], returnType: returnType, isSuspend: false)
 
         var body = KIRLoweringEmitContext()
+        // `E.values()` triggers the enum's `<clinit>` (entries + companion).
+        emitEnumLazyInitGuard(
+            enumSymbol: owner.id,
+            entryFieldSymbols: entries.map(\.id),
+            sema: sema,
+            arena: module.arena,
+            interner: interner,
+            instructions: &body.instructions
+        )
         let (arrayExpr, countExpr, _) = appendEnumOrdinalArrayCreation(
             enumClassSymbol: owner.id,
             entries: entries,
@@ -241,6 +250,15 @@ extension DataEnumSealedSynthesisPass {
         let signature = FunctionSignature(parameterTypes: [], returnType: returnType, isSuspend: false)
 
         var body = KIRLoweringEmitContext()
+        // `E.entries` triggers the enum's `<clinit>` (entries + companion).
+        emitEnumLazyInitGuard(
+            enumSymbol: enumSymbol.id,
+            entryFieldSymbols: entries.map(\.id),
+            sema: sema,
+            arena: module.arena,
+            interner: interner,
+            instructions: &body.instructions
+        )
         let (arrayExpr, countExpr, classIDExpr) = appendEnumOrdinalArrayCreation(
             enumClassSymbol: enumSymbol.id,
             entries: entries,
@@ -697,6 +715,19 @@ extension DataEnumSealedSynthesisPass {
 
         var body = KIRLoweringEmitContext()
         body.append(.constValue(result: paramRef, value: .symbolRef(parameterSymbol)))
+
+        // `E.valueOf(name)`/`enumValueOf<E>(name)` trigger the enum's
+        // `<clinit>` before any name comparison or failure path runs.
+        if case let .classType(enumClassType) = sema.types.kind(of: enumType) {
+            emitEnumLazyInitGuard(
+                enumSymbol: enumClassType.classSymbol,
+                entryFieldSymbols: entries.map(\.id),
+                sema: sema,
+                arena: module.arena,
+                interner: interner,
+                instructions: &body.instructions
+            )
+        }
 
         var labelCounter: Int32 = 5000
 
