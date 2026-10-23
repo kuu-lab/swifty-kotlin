@@ -49,11 +49,6 @@ extension JVMProgramBuilder {
     func memberFinal(_ modifiers: Modifiers) -> Bool {
         !modifiers.contains(.abstract) && (modifiers.contains(.final) || modifiers.intersection([.open, .override]).isEmpty)
     }
-    func validateParameters(_ parameters: [ValueParamDecl]) throws {
-        guard context.options.stdlibOnly || !parameters.contains(where: \.isVararg) || parameters.count == 1 else {
-            throw JVMFrontendError(message: "JVM source varargs currently require a single parameter.")
-        }
-    }
     func functionReference(_ function: FunDecl, symbol: SymbolID, member: Bool) throws -> JVMFunctionReference {
         let allowed: Modifiers = member ? [.public, .private, .internal, .protected, .open, .final, .abstract, .override, .inline, .tailrec, .suspend, .operator, .infix] : [.public, .private, .internal, .inline, .tailrec, .suspend, .operator, .infix]
         guard function.contextReceivers.isEmpty,
@@ -64,7 +59,6 @@ extension JVMProgramBuilder {
             throw JVMFrontendError(message: "tailrec is prohibited on open JVM members.", range: function.range)
         }
         if function.isInline { inlineDeclarations[symbol] = function }
-        try validateParameters(function.valueParams)
         sourceParameters[symbol] = function.valueParams
         sourceDeclarations[symbol] = function
         let name = context.interner.resolve(function.name)
@@ -152,7 +146,6 @@ extension JVMProgramBuilder {
                     else if let secondary = c.secondaryConstructors.first(where: { $0.range == site }) { declaration = secondary }
                     else { throw JVMFrontendError(message: "Missing JVM secondary constructor.") }
                     guard !declaration.valueParams.contains(where: \.isVararg) else { throw JVMFrontendError(message: "JVM vararg constructors are unsupported.", range: declaration.range) }
-                    try validateParameters(declaration.valueParams)
                     sourceParameters[symbol] = declaration.valueParams
                     guard declaration.modifiers.subtracting([.public, .protected, .internal, .private]).isEmpty else { throw JVMFrontendError(message: "Unsupported JVM constructor modifiers.") }
                     try validateSignature(signature, instance: true)
