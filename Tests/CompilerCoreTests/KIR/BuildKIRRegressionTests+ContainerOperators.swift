@@ -454,6 +454,76 @@ extension BuildKIRRegressionTests {
         }
     }
 
+    // KUU-2942: floating-point range values must keep their range marks when
+    // read through top-level/member/object properties and inferred-body
+    // function calls. Without the marks, `in` falls back to the generic
+    // contains path (kk_op_contains / interface dispatch), which does not
+    // handle RuntimeDoubleRangeBox and reports `0.0 in (0.0..-0.0)` as false.
+    @Test func testFloatingPointRangeMembershipThroughSymbolsUsesIEEEContains() throws {
+        let source = """
+        val topRange = 0.0 .. -0.0
+        val topFloatRange = 0.0f .. -0.0f
+        class Holder { val range = 0.0 .. -0.0 }
+        object Obj { val range = 0.0 .. -0.0 }
+        fun makeRange() = 0.0 .. -0.0
+        fun checkTop(): Boolean = 0.0 in topRange
+        fun checkMember(holder: Holder): Boolean = -0.0 in holder.range
+        fun checkObject(): Boolean = 0.0 in Obj.range
+        fun checkCall(): Boolean = 0.0 in makeRange()
+        fun checkFloat(): Boolean = -0.0f in topFloatRange
+        fun checkMemberContains(): Boolean = topRange.contains(0.0)
+        fun checkIsEmpty(): Boolean = topRange.isEmpty()
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let doubleContains = runtimeCallee(.doubleRangeContains)
+        for functionName in ["checkTop", "checkMember", "checkObject", "checkCall", "checkMemberContains"] {
+            let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+            #expect(callees.contains(doubleContains),
+                    "\(functionName) must lower `in`/contains to __kk_double_range_contains, got: \(callees)")
+            #expect(!callees.contains(runtimeCallee(.opContains)),
+                    "\(functionName) must not fall back to kk_op_contains, got: \(callees)")
+        }
+        let floatBody = try findKIRFunctionBody(named: "checkFloat", in: module, interner: ctx.interner)
+        #expect(extractCallees(from: floatBody, interner: ctx.interner)
+            .contains(runtimeCallee(.floatRangeContains)),
+                "Float range membership must lower to __kk_float_range_contains")
+        let isEmptyBody = try findKIRFunctionBody(named: "checkIsEmpty", in: module, interner: ctx.interner)
+        #expect(extractCallees(from: isEmptyBody, interner: ctx.interner)
+            .contains(runtimeCallee(.doubleRangeIsEmpty)),
+                "Marked range receiver must lower isEmpty to __kk_double_range_isEmpty")
+    }
+
+    // KUU-2942: user-defined ClosedRange implementations must keep interface
+    // dispatch — the IEEE fast path is only for compiler-produced range boxes.
+    @Test func testUserDefinedClosedRangeKeepsInterfaceDispatch() throws {
+        let source = """
+        class Weird(val lo: Double, val hi: Double) : ClosedRange<Double> {
+            override val start: Double get() = lo
+            override val endInclusive: Double get() = hi
+            override fun contains(value: Double): Boolean = false
+            override fun isEmpty(): Boolean = false
+        }
+        fun check(range: ClosedRange<Double>): Boolean = 0.0 in range
+        fun checkMember(range: ClosedRange<Double>): Boolean = range.contains(0.0)
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        for functionName in ["check", "checkMember"] {
+            let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+            #expect(!callees.contains(runtimeCallee(.doubleRangeContains)),
+                    "Erased ClosedRange must not be forced onto the box-only IEEE bridge, got: \(callees)")
+        }
+    }
+
     @Test func testClosedRangeInterfaceMembershipUsesInterfaceDispatch() throws {
         let source = """
         fun check(range: ClosedRange<Int>): Boolean = 3 in range && range.contains(3)
