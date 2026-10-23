@@ -4,6 +4,7 @@ struct IndependentBodyResult: @unchecked Sendable {
     let declaration: DeclID
     let expressionTypes: [ExprID: TypeID]
     let identifierSymbols: [ExprID: SymbolID]
+    let compoundAssignReceiverTypes: [ExprID: TypeID]
     let sourceDeclaredExpectedTypeExpressions: Set<ExprID>
     let diagnostics: [Diagnostic]
     let newTypes: [TypeKind]
@@ -82,6 +83,7 @@ private final class IndependentFileWork: @unchecked Sendable {
             let ownedSymbols = parameterSymbols.union(localSymbols?.map { $0.symbol.id } ?? [])
             var expressionTypes: [ExprID: TypeID] = [:]
             var identifierSymbols: [ExprID: SymbolID] = [:]
+            var compoundAssignReceiverTypes: [ExprID: TypeID] = [:]
             // Preparation already owns the body's expression IDs. Reuse them
             // instead of rescanning accumulated bindings through locked AST APIs.
             for expression in expressions {
@@ -90,6 +92,9 @@ private final class IndependentFileWork: @unchecked Sendable {
                 }
                 if let target = driver.sema.bindings.identifierSymbols[expression] {
                     identifierSymbols[expression] = target
+                }
+                if let type = driver.sema.bindings.compoundAssignReceiverTypes[expression] {
+                    compoundAssignReceiverTypes[expression] = type
                 }
             }
             let sourceDeclaredExpectedTypeExpressions =
@@ -109,6 +114,7 @@ private final class IndependentFileWork: @unchecked Sendable {
             results.append(IndependentBodyResult(
                 declaration: declaration, expressionTypes: expressionTypes,
                 identifierSymbols: identifierSymbols,
+                compoundAssignReceiverTypes: compoundAssignReceiverTypes,
                 sourceDeclaredExpectedTypeExpressions: sourceDeclaredExpectedTypeExpressions,
                 diagnostics: Array(driver.diagnostics.diagnostics.dropFirst(checkpoint)),
                 newTypes: driver.sema.types.workerTypeKinds(since: initialTypeCount),

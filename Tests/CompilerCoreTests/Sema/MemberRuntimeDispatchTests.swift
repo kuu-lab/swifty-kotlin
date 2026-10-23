@@ -148,6 +148,12 @@ struct MemberRuntimeDispatchTests {
         let ulongProgressionKey = MemberDispatchKey(receiverKind: .ulongProgression, memberName: "reduce", arity: 1)
         #expect(isInternalCompilerDispatch(MemberRuntimeDispatch.rangeRuntimeLinkName(for: ulongProgressionKey), .ulongRangeReduce))
 
+        let ulongProgressionForEachKey = MemberDispatchKey(receiverKind: .ulongProgression, memberName: "forEach", arity: 1)
+        #expect(
+            MemberRuntimeDispatch.rangeRuntimeLinkName(for: ulongProgressionForEachKey)
+                == runtimeABIName(.ulongRangeForEach)
+        )
+
         // KSP-1524 retains the constant-time step property bridge (arity 0),
         // demoted to an internal `__kk_` link by KSP-709.
         let ulongStepPropertyKey = MemberDispatchKey(receiverKind: .ulongProgression, memberName: "step", arity: 0)

@@ -477,10 +477,12 @@ final class ExprTypeChecker {
                 usageRange: range,
                 allowBareGenericTypeAliasProjection: true
             )
+            let subjectNonNull = sema.types.makeNonNullable(subjectType)
+            let targetNonNull = sema.types.makeNonNullable(targetType)
             if case .functionType = sema.types.kind(of: targetType),
                !sema.types.isSubtype(
-                   sema.types.makeNonNullable(subjectType),
-                   sema.types.makeNonNullable(targetType)
+                   subjectNonNull,
+                   targetNonNull
                )
             {
                 ctx.sema.diagnostics.error(
@@ -499,24 +501,29 @@ final class ExprTypeChecker {
                     range: range
                 )
             }
-            if let typeRef = ast.arena.typeRef(typeRefID),
-               case let .named(_, argRefs, _) = typeRef, !argRefs.isEmpty
-            {
-                let hasNonStarArg = argRefs.contains { arg in
+            let hasErasedTypeArguments: Bool
+            if case let .classType(classType) = sema.types.kind(of: targetType) {
+                hasErasedTypeArguments = (classType.args + classType.enclosingTypeArgs).contains { arg in
                     if case .star = arg { return false }
                     return true
                 }
-                if hasNonStarArg {
-                    ctx.sema.diagnostics.warning(
-                        "KSWIFTK-SEMA-ERASED-TYPE",
-                        "Cannot check for instance of erased type: type arguments are not available at runtime. Use star-projection, e.g. 'is List<*>'.",
-                        range: range
-                    )
-                }
+            } else {
+                hasErasedTypeArguments = false
+            }
+            // Kotlin permits this when the subject is already known to have
+            // the target instantiation; otherwise its type arguments are erased.
+            if hasErasedTypeArguments,
+               subjectType != sema.types.errorType,
+               targetType != sema.types.errorType,
+               !sema.types.isSubtype(subjectNonNull, targetNonNull)
+            {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-ERASED-TYPE",
+                    "Cannot check for instance of erased type '\(sema.types.displayName(of: targetType, symbols: sema.symbols, interner: interner))'.",
+                    range: range
+                )
             }
             if subjectType != sema.types.errorType, targetType != sema.types.errorType {
-                let subjectNonNull = sema.types.makeNonNullable(subjectType)
-                let targetNonNull = sema.types.makeNonNullable(targetType)
                 let nullEscape = sema.types.nullability(of: subjectType) == .nullable
                     && sema.types.nullability(of: targetType) == .nullable
                 if !nullEscape,
@@ -1462,8 +1469,9 @@ final class ExprTypeChecker {
             }
         }
 
+        // Primitive receivers normally use the generic runtime helper, but a
+        // scoped `operator fun` extension must take precedence when applicable.
         // Recover nominal range types for generic Iterable.contains resolution.
-        // Other primitives are handled by kk_op_contains at runtime.
         // String is `.stringStruct`, not `.classType` (KSWIFTK-INTERNAL-0001), but it does
         // have a bundled-Kotlin-source `contains` to dispatch to (KSP-408), so it must not
         // be skipped here — unlike genuine primitives/ranges, kk_op_contains has no String
@@ -1483,7 +1491,7 @@ final class ExprTypeChecker {
         }
         let nonNullContainerType = sourceRangeType ?? sema.types.makeNonNullable(containerType)
         switch sema.types.kind(of: nonNullContainerType) {
-        case .classType, .stringStruct:
+        case .classType, .stringStruct, .primitive(_, _):
             break
         default:
             return
@@ -1606,6 +1614,18 @@ final class ExprTypeChecker {
         )]
         let call = CallExpr(range: range, calleeName: containsName, args: callArgs)
         let retainedMembers = candidates.filter { memberCandidates.contains($0) }
+        if case .primitive = sema.types.kind(of: nonNullContainerType),
+           ctx.resolver.probeCall(
+               candidates: candidates,
+               call: call,
+               expectedType: nil,
+               implicitReceiverType: nonNullContainerType,
+               ctx: ctx.sema
+           ).viableCandidates.isEmpty
+        {
+            // Keep the primitive runtime fallback when no custom overload applies.
+            return
+        }
         let hasViableMember = !ctx.resolver.probeCall(
             candidates: retainedMembers,
             call: call,

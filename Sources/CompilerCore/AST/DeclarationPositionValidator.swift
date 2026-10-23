@@ -8,6 +8,8 @@ struct DeclarationPositionValidator {
     let astArena: ASTArena
     let interner: StringInterner
     let diagnostics: DiagnosticEngine?
+    var fullValueClassesEnabled: Bool = false
+    var jvmInlineAnnotationNames: Set<String> = ["JvmInline", "kotlin.jvm.JvmInline"]
 
     enum OwnerSite: Equatable {
         case file
@@ -198,7 +200,7 @@ struct DeclarationPositionValidator {
         let target = propertyTargetName(site: site)
 
         for (modifier, name) in Self.propertyImpossibleModifiers where modifiers.contains(modifier) {
-            if modifier == .inline, isTopLevelInlineGetterOnlyProperty(decl, site: site) {
+            if modifier == .inline, isInlinePropertyWithCustomAccessors(decl, site: site) {
                 continue
             }
             emitNotApplicable(name, to: target, range: decl.range)
@@ -275,16 +277,35 @@ struct DeclarationPositionValidator {
         decl.initializer == nil && decl.getter == nil && decl.setter == nil
     }
 
-    /// KUU-1459 covers top-level read-only properties with a custom getter and
-    /// no declared storage. Keep this exception matched to that syntax.
-    private func isTopLevelInlineGetterOnlyProperty(_ decl: PropertyDecl, site: OwnerSite) -> Bool {
-        site == .file
-            && !decl.isVar
-            && decl.initializer == nil
-            && decl.getter.map { $0.body != .unit } == true
-            && decl.setter == nil
-            && decl.delegateExpression == nil
-            && decl.explicitBackingField == nil
+    /// KUU-2879: inline properties need explicit, implemented accessors so
+    /// they have no backing field. Mutable properties need both accessors;
+    /// inline member accessors must not be virtual.
+    private func isInlinePropertyWithCustomAccessors(_ decl: PropertyDecl, site: OwnerSite) -> Bool {
+        switch site {
+        case .file:
+            break
+        case .function:
+            return false
+        case .nominal(let nominal):
+            guard nominal.kind != .interface else { return false }
+        }
+
+        let modifiers = decl.modifiers
+        guard !modifiers.contains(.open),
+              !modifiers.contains(.abstract),
+              !(modifiers.contains(.override) && !modifiers.contains(.final)),
+              decl.initializer == nil,
+              decl.delegateExpression == nil,
+              decl.explicitBackingField == nil,
+              decl.getter.map({ $0.body != .unit }) == true
+        else {
+            return false
+        }
+
+        if decl.isVar {
+            return decl.setter.map { $0.body != .unit } == true
+        }
+        return decl.setter == nil
     }
 
     private func hasPropertyInitializationExpression(_ properties: [DeclID]) -> Bool {
@@ -567,10 +588,17 @@ struct DeclarationPositionValidator {
             }
         }
         if isValue {
-            if modifiers.contains(.open)
+            let hasInheritableModality = modifiers.contains(.open)
                 || modifiers.contains(.abstract)
                 || modifiers.contains(.sealed)
-            {
+            let isFullValueClass = fullValueClassesEnabled
+                && modifiers.contains(.value)
+                && !modifiers.contains(.inline)
+                && !decl.annotations.contains { jvmInlineAnnotationNames.contains($0.name) }
+            let allowsFullValueClassInheritance = isFullValueClass
+                && !modifiers.contains(.open)
+                && (modifiers.contains(.abstract) || modifiers.contains(.sealed))
+            if hasInheritableModality && !allowsFullValueClassInheritance {
                 diagnostics?.error(
                     "KSWIFTK-SEMA-0420",
                     "value class can be only final.",

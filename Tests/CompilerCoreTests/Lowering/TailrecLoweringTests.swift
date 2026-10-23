@@ -663,6 +663,118 @@ struct TailrecLoweringTests {
         }
     }
 
+    @Test
+    func testTailrecCallsThroughInlineRunAndExpressionWrappersAreLowered() throws {
+        let source = """
+        inline fun <R> run(block: () -> R): R = block()
+
+        tailrec fun tailCallInRun(x: Int): Int {
+            if (x <= 0) return 0
+            run { return tailCallInRun(x - 1) }
+        }
+
+        tailrec fun tailCallInParentheses(x: Int) {
+            if (x == 0) return
+            return (tailCallInParentheses(x - 1))
+        }
+
+        tailrec fun tailCallInBlockInParentheses(x: Int) {
+            return if (x > 0) { (tailCallInBlockInParentheses(x - 1)) } else {}
+        }
+
+        tailrec fun returnInParentheses(x: Int) {
+            if (x == 0) return
+            (return returnInParentheses(x - 1))
+        }
+
+        tailrec infix fun Int.infixRecursiveCall(x: Int) {
+            if (x == 0) return
+            val next = x - 1
+            return 1 infixRecursiveCall next
+        }
+
+        tailrec fun Int.extensionTailCall(x: Int) {
+            if (x == 0) return
+            return 1.extensionTailCall(x - 1)
+        }
+
+        fun recursiveInnerFunction() {
+            tailrec fun g3(counter: Int) {
+                if (counter > 0) { g3(counter - 1) }
+            }
+            g3(1_000_000)
+        }
+
+        fun nonTailControl(x: Int): Int {
+            if (x <= 0) return 0
+            return 1 + nonTailControl(x - 1)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path], moduleName: "TailrecWrappedCalls", emit: .kirDump
+            )
+            try runToLowering(ctx)
+
+            let module = try #require(ctx.kir)
+            #expect(!ctx.diagnostics.hasError, "The tailrec regression source should type-check")
+            #expect(
+                !ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-TAILREC" },
+                "An explicit non-local return from inline run is still a tail call"
+            )
+            let optimizedNames = [
+                "tailCallInRun",
+                "tailCallInParentheses",
+                "tailCallInBlockInParentheses",
+                "returnInParentheses",
+                "infixRecursiveCall",
+                "extensionTailCall",
+                "g3",
+            ]
+            for name in optimizedNames {
+                let function = try findKIRFunction(named: name, in: module, interner: ctx.interner)
+                #expect(function.isTailrec, "Expected \(name) to retain its tailrec flag")
+                #expect(
+                    function.body.contains { instruction in
+                        if case let .jump(target) = instruction { return target >= tailrecLoopLabelBase }
+                        return false
+                    },
+                    "Expected \(name) to jump back to its tailrec loop"
+                )
+                #expect(
+                    !function.body.contains { instruction in
+                        if case let .call(symbol, _, _, _, _, _, _, _) = instruction {
+                            return symbol == function.symbol
+                        }
+                        return false
+                    },
+                    "Expected \(name)'s self-call to be eliminated"
+                )
+            }
+
+            let nonTailControl = try findKIRFunction(
+                named: "nonTailControl", in: module, interner: ctx.interner
+            )
+            #expect(
+                nonTailControl.body.contains { instruction in
+                    if case let .call(symbol, _, _, _, _, _, _, _) = instruction {
+                        return symbol == nonTailControl.symbol
+                    }
+                    return false
+                },
+                "A recursive call followed by arithmetic must remain a call"
+            )
+            #expect(
+                !nonTailControl.body.contains { instruction in
+                    if case let .jump(target) = instruction { return target >= tailrecLoopLabelBase }
+                    return false
+                },
+                "A non-tail recursive call must not receive a loop rewrite"
+            )
+        }
+    }
+
     // MARK: - Expression bodies / omitted defaults (regressions)
 
     /// Compiles `source` to the lowered KIR and returns `name`'s function plus
@@ -723,6 +835,27 @@ struct TailrecLoweringTests {
             function: "count", module: "TailrecWhenExprBody"
         )
         #expect(!result.hasError)
+        #expect(!result.hasSemaTailrecWarning)
+        #expect(result.hasLoopJump)
+        #expect(!result.hasSelfCall)
+    }
+
+    @Test
+    func testTailrecWhenWithIsExpressionBodyPassesKIRVerification() throws {
+        let result = try lowerTailrecSource(
+            """
+            tailrec fun withWhen(counter: Int, d: Any): Int =
+                if (counter == 0) 0
+                else if (counter == 5) withWhen(counter - 1, 999)
+                else when (d) {
+                    is String -> withWhen(counter - 1, "is String")
+                    is Number -> withWhen(counter, "is Number")
+                    else -> throw IllegalStateException()
+                }
+            """,
+            function: "withWhen", module: "TailrecWhenWithIsExprBody"
+        )
+        #expect(!result.hasError, "tailrec when/is expression body should pass KIR verification")
         #expect(!result.hasSemaTailrecWarning)
         #expect(result.hasLoopJump)
         #expect(!result.hasSelfCall)

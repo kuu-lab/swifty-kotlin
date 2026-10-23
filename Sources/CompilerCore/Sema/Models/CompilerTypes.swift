@@ -371,4 +371,15 @@ public struct CompilerOptions: Equatable {
         frontendFlags.contains("ProperTypeInferenceConstraintsProcessing")
             || frontendFlags.contains("proper-type-inference-constraints-processing")
     }
+
+    /// Enables Kotlin's experimental full value class declaration rules.
+    /// Accept the compiler option spelling and the language feature name used
+    /// by Kotlin's test directives so both CLI and direct frontend clients can
+    /// select the same mode.
+    public var fullValueClassesEnabled: Bool {
+        frontendFlags.contains("full-value-classes")
+            || frontendFlags.contains("-Xfull-value-classes")
+            || frontendFlags.contains("FullValueClasses")
+            || frontendFlags.contains("+FullValueClasses")
+    }
 }

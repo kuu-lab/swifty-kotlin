@@ -3,6 +3,15 @@ extension JVMFunctionBuilder {
         let field = program.singletonField(plan), value = try value(field.type)
         instructions.append(.getStatic(field, value)); return value
     }
+    func importedCompanionValue(for ownerSymbol: SymbolID) throws -> JVMValue? {
+        guard let companion = program.sema.symbols.companionObjectSymbol(for: ownerSymbol) else { return nil }
+        let owner = try program.className(ownerSymbol), companionName = try program.className(companion)
+        guard let imported = context.jvmImports?.classes[owner],
+              let field = imported.fields.first(where: { $0.name == "Companion" && $0.isPublic && $0.isStatic && $0.descriptor == "L\(companionName);" }) else { return nil }
+        let type = JVMValueType.reference(companionName, nullable: false), result = try value(type)
+        instructions.append(.getStatic(JVMField(owner: owner, name: field.name, type: type, access: field.access), result))
+        return result
+    }
     func nominalValue(_ id: ExprID) throws -> JVMValue? {
         if let scalar = try scalarConstant(id) { return scalar }
         guard let symbol = program.sema.bindings.identifierSymbol(for: id) else { return nil }
@@ -26,6 +35,7 @@ extension JVMFunctionBuilder {
         }
         if let plan = program.classes[symbol], plan.isObject { return try singleton(plan) }
         if let companion = program.sema.symbols.companionObjectSymbol(for: symbol), let plan = program.classes[companion], plan.isObject { return try singleton(plan) }
+        if let result = try importedCompanionValue(for: symbol) { return result }
         if let entry = program.sema.symbols.symbol(symbol), entry.kind == .field,
            let parent = program.sema.symbols.parentSymbol(for: symbol), let plan = program.classes[parent], plan.isEnum,
            plan.declaration!.enumEntries.contains(where: { $0.name == entry.name }) {
@@ -104,6 +114,11 @@ extension JVMFunctionBuilder {
             guard let symbol = program.sema.bindings.destructuringComponentCallee(for: id, index: i), let method = program.methods[symbol] ?? program.textLibraryMethods[symbol]?.method else { throw fail("JVM destructuring requires registered components.", id) }
             let result: JVMValue
             if method.owner == "kotlin/text/MatchResult$Destructured" { result = try textMatchComponent(object, index: i) }
+            else if program.textLibraryMethods[symbol]?.extensionReceiver != nil {
+                guard let receiverType = method.parameters.first else { throw fail("JVM destructuring extension has no receiver parameter.", id) }
+                let receiver = try convert(object, to: receiverType)
+                result = try jdkCall(method.owner, method.name, method.parameters, method.result, arguments: [receiver])!
+            }
             else { result = try jdkCall(method.owner, method.name, [], method.result, receiver: object, interface: method.isInterface)! }
             var local = Local(value: result, mutable: mutable)
             if mutable {
@@ -117,6 +132,9 @@ extension JVMFunctionBuilder {
 
     func whenExpression(_ id: ExprID, subject: ExprID?, branches: [WhenBranch], fallback: ExprID?, discarded: Bool) throws -> JVMValue? {
         let snapshot = try subject.map(requireValue), type = try program.expressionType(id)
+        let savedEvaluatedOperands = evaluatedOperands
+        if let subject, let snapshot { evaluatedOperands[subject] = snapshot }
+        defer { evaluatedOperands = savedEvaluatedOperands }
         let result = discarded || type == .unit ? nil : try value(type), end = label()
         scopes.append([:]); defer { scopes.removeLast() }
         if let name = arena.whenSubjectVarName(for: id), let snapshot { scopes[scopes.count - 1][name] = Local(value: snapshot, mutable: false) }
@@ -142,12 +160,20 @@ extension JVMFunctionBuilder {
                     let tested = try expression(condition)
                     if terminated { canTestNext = false; break }
                     guard let tested else { throw fail("JVM when condition requires a value.", condition) }
-                    if let snapshot {
+                    let isMembershipCondition: Bool
+                    switch arena.expr(condition) {
+                    case .inExpr(_, _, _), .notInExpr(_, _, _): isMembershipCondition = true
+                    default: isMembershipCondition = false
+                    }
+                    if let snapshot, !isMembershipCondition {
                         check = try value(.boolean)
                         if snapshot.type.referenceName != nil || tested.type.referenceName != nil {
                             instructions.append(.binary(.equal, try convert(snapshot, to: .reference("java/lang/Object", nullable: true)), try convert(tested, to: .reference("java/lang/Object", nullable: true)), check))
                         } else { instructions.append(.binary(.equal, snapshot, try convert(tested, to: snapshot.type), check)) }
-                    } else { check = tested }
+                    } else {
+                        guard tested.type == .boolean || snapshot == nil else { throw fail("JVM membership when conditions must produce Boolean.", condition) }
+                        check = tested
+                    }
                 }
                 let alternative = label()
                 instructions.append(.jumpIfFalse(check, alternative)); jump(selected); selectedReachable = true; mark(alternative)

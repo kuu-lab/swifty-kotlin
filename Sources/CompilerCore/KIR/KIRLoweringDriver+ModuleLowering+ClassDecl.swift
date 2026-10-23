@@ -1132,7 +1132,7 @@ extension KIRLoweringDriver {
                 thrownResult: nil
             ))
         }
-        var defaultMask: Int64 = 0
+        var defaultMaskWords: [Int64] = [0]
         if let target, let callBinding, callBinding.chosenCallee == target {
             let normalized = callSupportLowerer.normalizedCallArguments(
                 providedArguments: loweredArgs,
@@ -1144,7 +1144,7 @@ extension KIRLoweringDriver {
                 emit: &body
             )
             argIDs.append(contentsOf: normalized.arguments)
-            defaultMask = normalized.defaultMask
+            defaultMaskWords = normalized.defaultMaskWords
         } else {
             argIDs.append(contentsOf: loweredArgs)
         }
@@ -1159,13 +1159,13 @@ extension KIRLoweringDriver {
             valueArgOffsetOverride: receiver == nil ? 0 : 1,
             parameterMapping: callBinding?.chosenCallee == target ? callBinding?.parameterMapping : nil
         )
-        if defaultMask != 0,
+        if defaultMaskWords.contains(where: { $0 != 0 }),
            let target,
            sema.symbols.externalLinkName(for: target)?.isEmpty ?? true,
            let ownerName = sema.symbols.parentSymbol(for: target).flatMap({ sema.symbols.symbol($0)?.name })
         {
-            callLowerer.appendDefaultMaskArgument(
-                defaultMask,
+            callLowerer.appendDefaultMaskArguments(
+                defaultMaskWords,
                 sema: sema,
                 arena: arena,
                 instructions: &body.instructions,

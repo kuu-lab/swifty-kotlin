@@ -126,6 +126,23 @@ final class ConstPropertyEvaluator {
         if name == "length", nonNullReceiverType == sema.types.stringType {
             return args.isEmpty && isBuiltinStringLengthProperty(expr)
         }
+        if name == "compareTo" {
+            guard args.count == 1,
+                  let argumentType = sema.bindings.exprType(for: args[0].expr),
+                  isSupportedPrimitiveComparison(nonNullReceiverType, argumentType)
+            else { return false }
+            return !isSourceBackedMemberExtensionCall(expr)
+                || isBuiltinKotlinComparableMemberCall(expr)
+                || isBuiltinKotlinPrimitiveExtensionCall(expr, name: name, receiverType: nonNullReceiverType)
+        }
+        if name == "toString" {
+            return args.isEmpty && isPrimitiveType(nonNullReceiverType)
+                && !isSourceBackedMemberExtensionCall(expr)
+        }
+        if name == "unaryPlus" || name == "unaryMinus" {
+            return args.isEmpty && isSignedNumericPrimitiveType(nonNullReceiverType)
+                && isBuiltinKotlinPrimitiveExtensionCall(expr, name: name, receiverType: nonNullReceiverType)
+        }
         guard !isSourceBackedMemberExtensionCall(expr) else { return false }
         if name == "not" {
             return args.isEmpty && nonNullReceiverType == sema.types.booleanType
@@ -188,9 +205,62 @@ final class ConstPropertyEvaluator {
         return primitive != .boolean
     }
 
+    private func isPrimitiveType(_ type: TypeID) -> Bool {
+        if case .primitive = sema.types.kind(of: sema.types.makeNonNullable(type)) { return true }
+        return false
+    }
+
+    private func isSignedNumericPrimitiveType(_ type: TypeID) -> Bool {
+        switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
+        case .primitive(.byte, _), .primitive(.short, _), .primitive(.int, _),
+             .primitive(.long, _), .primitive(.float, _), .primitive(.double, _):
+            true
+        default:
+            false
+        }
+    }
+
+    private func isSupportedPrimitiveComparison(_ receiverType: TypeID, _ argumentType: TypeID) -> Bool {
+        let receiverType = sema.types.makeNonNullable(receiverType)
+        let argumentType = sema.types.makeNonNullable(argumentType)
+        if isSignedNumericPrimitiveType(receiverType), isSignedNumericPrimitiveType(argumentType) {
+            return true
+        }
+        return receiverType == argumentType && isPrimitiveType(receiverType)
+    }
+
+    /// Unary signs and some primitive `compareTo` overloads are represented
+    /// by source-backed extensions in the bundled `kotlin` package. Permit
+    /// only those canonical declarations so user extensions are never folded.
+    private func isBuiltinKotlinPrimitiveExtensionCall(
+        _ expr: ExprID,
+        name: String,
+        receiverType: TypeID
+    ) -> Bool {
+        guard let callee = sema.bindings.callBinding(for: expr)?.chosenCallee,
+              sema.symbols.isSourceBackedSymbol(callee),
+              let symbol = sema.symbols.symbol(callee),
+              symbol.fqName == [interner.intern("kotlin"), interner.intern(name)],
+              let declaredReceiver = sema.symbols.functionSignature(for: callee)?.receiverType
+        else { return false }
+        return sema.types.makeNonNullable(declaredReceiver) == receiverType
+    }
+
+    private func isBuiltinKotlinComparableMemberCall(_ expr: ExprID) -> Bool {
+        guard let callee = sema.bindings.callBinding(for: expr)?.chosenCallee,
+              sema.symbols.isSourceBackedSymbol(callee),
+              let symbol = sema.symbols.symbol(callee),
+              symbol.kind == .function,
+              symbol.fqName == [interner.intern("kotlin"), interner.intern("Comparable"), interner.intern("compareTo")],
+              sema.symbols.parentSymbol(for: callee) == sema.types.comparableInterfaceSymbol
+        else { return false }
+        return true
+    }
+
     private func isSourceBackedMemberExtensionCall(_ expr: ExprID) -> Bool {
         guard let callee = sema.bindings.callBinding(for: expr)?.chosenCallee,
               sema.symbols.isSourceBackedSymbol(callee),
+              sema.symbols.symbol(callee)?.flags.contains(.synthetic) != true,
               sema.symbols.functionSignature(for: callee)?.receiverType != nil
         else {
             return false

@@ -238,10 +238,20 @@ extension LambdaLowerer {
                 )
             }
         }
-        let memberSymbols = [
+        var memberSymbols = [
             sema.bindings.callBinding(for: exprID)?.chosenCallee ?? sema.bindings.identifierSymbols[exprID],
             sema.bindings.extensionPropertyGetterCalls[exprID]?.chosenCallee,
         ].compactMap { $0 }
+        if let components = sema.bindings.destructuringComponentCallees[exprID] {
+            for index in components.keys.sorted() {
+                guard let symbol = components[index],
+                      sema.symbols.memberExtensionOwnerSymbol(for: symbol) != nil
+                else {
+                    continue
+                }
+                memberSymbols.append(symbol)
+            }
+        }
         // An inherited member's declared owner (e.g. `Base`) has no captured
         // receiver of its own inside a member extension; the dispatch receiver
         // is registered under the enclosing class (`Derived`), so record the
@@ -645,6 +655,12 @@ extension LambdaLowerer {
             collectBoundIdentifierSymbols(in: rhsExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
 
         case let .destructuringDecl(_, _, initializer, _):
+            if let components = sema.bindings.destructuringComponentCallees[exprID] {
+                for index in components.keys.sorted() {
+                    guard let symbol = components[index], seen.insert(symbol).inserted else { continue }
+                    referenced.append(symbol)
+                }
+            }
             collectBoundIdentifierSymbols(in: initializer, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
 
         case let .forDestructuringExpr(_, iterable, body, _, _):

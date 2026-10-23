@@ -103,15 +103,15 @@ extension LambdaLowerer {
             ),
             for: methodSymbol
         )
-        // The SAM method may be inherited, in which case call sites dispatch
-        // through the declaring interface's itable rather than the fun
-        // interface's own.
-        var samItableSlots: [SymbolID: Int] = [interfaceSymbol: 0]
-        if let declaringInterface = sema.symbols.parentSymbol(for: samMethod.symbol),
-           declaringInterface != interfaceSymbol
-        {
-            samItableSlots[declaringInterface] = 1
-        }
+        // SAM wrappers implement the full interface surface, including
+        // inherited defaults and property accessors. Keep a slot for every
+        // interface in the transitive hierarchy so the shared itable
+        // registration path can install those dispatch targets as well as the
+        // synthesized SAM method.
+        let samItableSlots = Dictionary(uniqueKeysWithValues: driver.ctx.nominalDispatchCache
+            .transitiveInterfaceSupertypes(of: wrapperSymbol, sema: sema)
+            .enumerated()
+            .map { ($0.element, $0.offset) })
         sema.symbols.setNominalLayout(
             NominalLayout(
                 objectHeaderWords: 2,
@@ -273,55 +273,15 @@ extension LambdaLowerer {
             instructions: &instructions
         )
 
-        let registeredMethodSymbol = itableBridgeSymbolForMethod(
-            interfaceMethod: samMethod.symbol,
-            implementation: methodSymbol,
+        appendObjectItableMethodRegistrations(
+            objectValue: wrapperValue,
             nominalSymbol: wrapperSymbol,
             driver: driver,
-            arena: arena,
             sema: sema,
-            interner: interner
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
         )
-        let declaringInterface = sema.symbols.parentSymbol(for: samMethod.symbol) ?? interfaceSymbol
-        var itableTargets = [interfaceSymbol]
-        if declaringInterface != interfaceSymbol { itableTargets.append(declaringInterface) }
-        for target in itableTargets {
-            let targetTypeID = target == interfaceSymbol
-                ? interfaceTypeID
-                : RuntimeTypeCheckToken.stableNominalTypeID(symbol: target, sema: sema, interner: interner)
-            let targetTypeExpr = arena.appendExpr(.intLiteral(targetTypeID), type: sema.types.intType)
-            instructions.append(.constValue(result: targetTypeExpr, value: .intLiteral(targetTypeID)))
-            let ifaceSlot = Int64(sema.symbols.nominalLayout(for: wrapperSymbol)?.itableSlots[target] ?? 0)
-            let methodSlot = Int64(
-                sema.symbols.nominalLayout(for: target)?.vtableSlots[samMethod.symbol]
-                    ?? sema.symbols.nominalLayout(for: declaringInterface)?.vtableSlots[samMethod.symbol]
-                    ?? 0
-            )
-            let ifaceSlotExpr = arena.appendExpr(.intLiteral(ifaceSlot), type: sema.types.intType)
-            instructions.append(.constValue(result: ifaceSlotExpr, value: .intLiteral(ifaceSlot)))
-            let registerIfaceResult = arena.appendTemporary(type: sema.types.intType)
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_object_register_itable_iface"),
-                arguments: [wrapperValue, targetTypeExpr, ifaceSlotExpr],
-                result: registerIfaceResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            let methodSlotExpr = arena.appendExpr(.intLiteral(methodSlot), type: sema.types.intType)
-            instructions.append(.constValue(result: methodSlotExpr, value: .intLiteral(methodSlot)))
-            let methodFnExpr = arena.appendExpr(.symbolRef(registeredMethodSymbol), type: sema.types.intType)
-            instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(registeredMethodSymbol)))
-            let registerMethodResult = arena.appendTemporary(type: sema.types.intType)
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_object_register_itable_method"),
-                arguments: [wrapperValue, ifaceSlotExpr, methodSlotExpr, methodFnExpr],
-                result: registerMethodResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-        }
 
         // Expose the SAM wrapper as an invokable comparator value so stdlib
         // comparison lowering can call `compare` directly when needed.

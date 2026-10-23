@@ -45,8 +45,11 @@ extension JVMFunctionBuilder {
         }
         let unbound = program.sema.bindings.isUnboundCallableRef(id)
         if let property = program.properties[symbol] {
-            let bound = property.getter.isStatic || unbound ? nil : try receiver.map(requireValue) ?? instance(id)
-            let arity = !property.getter.isStatic && unbound ? 1 : 0
+            let extensionProperty = property.kotlinReceiver != nil
+            let bound = extensionProperty
+                ? (unbound ? nil : try receiver.map(requireValue) ?? instance(id))
+                : (property.getter.isStatic || unbound ? nil : try receiver.map(requireValue) ?? instance(id))
+            let arity = unbound && (!property.getter.isStatic || extensionProperty) ? 1 : 0
             let name = "kotlin/jvm/internal/" + (property.setter == nil ? "PropertyReference" : "MutablePropertyReference") + String(arity) + "Impl"
             let klass = try javaClass(.reference(property.getter.owner, nullable: false))
             var args: [JVMValue] = []

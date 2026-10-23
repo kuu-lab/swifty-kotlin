@@ -131,28 +131,75 @@ struct SuperCallAndQualifiedThisTests {
         let module = try #require(ctx.kir)
         let sema = try #require(ctx.sema)
         let zzzName = ctx.interner.intern("zzz")
-        var qualifiedSuperCalls: [(callee: SymbolID, qualifier: SymbolID)] = []
+        var qualifiedSuperCalls: [(callee: SymbolID, qualifier: SymbolID, receiver: KIRExprID)] = []
         for body in findAllKIRFunctionBodies(named: "foo", in: module, interner: ctx.interner) {
             for instruction in body {
-                guard case let .call(callee, name, _, _, _, _, true, qualifier?) = instruction,
+                guard case let .call(callee, name, arguments, _, _, _, true, qualifier?) = instruction,
                       name == zzzName,
-                      let callee
+                      let callee,
+                      let receiver = arguments.first
                 else {
                     continue
                 }
-                qualifiedSuperCalls.append((callee: callee, qualifier: qualifier))
+                qualifiedSuperCalls.append((callee: callee, qualifier: qualifier, receiver: receiver))
             }
         }
         let base = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("BBase")]))
         let tag = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("BTag")]))
+        let function = try #require(findAllKIRFunctions(in: module).first {
+            $0.name == ctx.interner.intern("foo")
+        })
+        let dispatchReceiverSymbol = try #require(function.params.first?.symbol)
 
         #expect(qualifiedSuperCalls.count == 2)
         var qualifiers: Set<SymbolID> = []
         for call in qualifiedSuperCalls {
             qualifiers.insert(call.qualifier)
             #expect(sema.symbols.parentSymbol(for: call.callee) == call.qualifier)
+            let usesDispatchReceiver: Bool = if case let .symbolRef(symbol)? = module.arena.expr(call.receiver) {
+                symbol == dispatchReceiverSymbol
+            } else {
+                false
+            }
+            #expect(usesDispatchReceiver)
         }
         #expect(qualifiers == Set([base, tag]))
+    }
+
+    @Test func testQualifiedOuterThisInMemberExtensionStartsAtDispatchReceiver() throws {
+        let source = """
+        class D
+        class A(val outerValue: Int) {
+            inner class B {
+                fun D.foo(): Int = this@A.outerValue
+            }
+        }
+        """
+        let inputPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".kt").path
+        let ctx = makeCompilationContext(inputs: [inputPath], includeStdlib: false)
+        _ = ctx.sourceManager.addFile(path: inputPath, contents: Data(source.utf8))
+        try runToKIR(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "Unexpected errors: \(ctx.diagnostics.diagnostics.map(\.message))")
+        let module = try #require(ctx.kir)
+        let function = try #require(findAllKIRFunctions(in: module).first {
+            $0.name == ctx.interner.intern("foo")
+        })
+        let dispatchReceiverSymbol = try #require(function.params.first?.symbol)
+        let arrayGetInbounds = ctx.interner.intern("kk_array_get_inbounds")
+        let loadsOuterFromDispatchReceiver = function.body.contains { instruction in
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                  callee == arrayGetInbounds,
+                  let receiver = arguments.first,
+                  case let .symbolRef(symbol)? = module.arena.expr(receiver)
+            else {
+                return false
+            }
+            return symbol == dispatchReceiverSymbol
+        }
+
+        #expect(loadsOuterFromDispatchReceiver)
     }
 
     @Test func testEnumEntryOverrideCanCallEnumMemberThroughSuper() throws {

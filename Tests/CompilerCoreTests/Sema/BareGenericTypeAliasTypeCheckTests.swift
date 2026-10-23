@@ -104,4 +104,22 @@ struct BareGenericTypeAliasTypeCheckTests {
             $0.severity == .error && $0.code == "KSWIFTK-SEMA-0062"
         })
     }
+
+    @Test
+    func parameterizedGenericChecksRejectErasedTypesAndAliases() throws {
+        let ctx = try contextWithoutStdlib("""
+        class List<T>
+        typealias IntList = List<Int>
+        fun invalid(value: Any) = value is List<Int>
+        fun invalidAlias(value: Any) = value is IntList
+        fun raw(value: Any) = value is List<*>
+        fun alreadyKnown(value: List<Int>) = value is List<Int>
+        """)
+
+        let erasedTypeErrors = ctx.diagnostics.diagnostics.filter {
+            $0.severity == .error && $0.code == "KSWIFTK-SEMA-ERASED-TYPE"
+        }
+        #expect(erasedTypeErrors.count == 2, "got: \(ctx.diagnostics.diagnostics)")
+        #expect(erasedTypeErrors.allSatisfy { $0.message.contains("List<Int>") })
+    }
 }

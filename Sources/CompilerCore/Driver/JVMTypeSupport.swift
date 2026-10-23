@@ -3,7 +3,7 @@ import Foundation
 extension JVMClasspathIndex {
     static let wrappers: [String: String] = ["Int": "Integer", "Long": "Long", "Float": "Float", "Double": "Double", "Boolean": "Boolean", "Byte": "Byte", "Short": "Short", "Char": "Character"]
     static let primitiveArrays: [String: JVMValueType] = ["IntArray": .int, "LongArray": .long, "FloatArray": .float, "DoubleArray": .double, "BooleanArray": .boolean, "ByteArray": .byte, "ShortArray": .short, "CharArray": .char]
-    static let collectionNames = ["Iterable": "java/lang/Iterable", "MutableIterable": "java/lang/Iterable", "Iterator": "java/util/Iterator", "MutableIterator": "java/util/Iterator", "Collection": "java/util/Collection", "MutableCollection": "java/util/Collection", "List": "java/util/List", "MutableList": "java/util/List", "Set": "java/util/Set", "MutableSet": "java/util/Set", "Map": "java/util/Map", "MutableMap": "java/util/Map"]
+    static let collectionNames = ["Iterable": "java/lang/Iterable", "MutableIterable": "java/lang/Iterable", "Iterator": "java/util/Iterator", "MutableIterator": "java/util/Iterator", "ListIterator": "java/util/ListIterator", "MutableListIterator": "java/util/ListIterator", "Collection": "java/util/Collection", "MutableCollection": "java/util/Collection", "List": "java/util/List", "MutableList": "java/util/List", "Set": "java/util/Set", "MutableSet": "java/util/Set", "Map": "java/util/Map", "MutableMap": "java/util/Map"]
     static let exceptionNames: Set<String> = ["NoSuchElementException", "UnsupportedOperationException", "Throwable", "Exception", "RuntimeException", "IllegalArgumentException", "IllegalStateException", "IndexOutOfBoundsException", "ArrayIndexOutOfBoundsException", "ArithmeticException", "NumberFormatException", "NullPointerException", "ClassCastException", "NegativeArraySizeException"]
     static func builtinName(_ name: String) -> String? {
         if name == "java/util/MapEntry" { return "java/util/Map$Entry" }
@@ -21,7 +21,7 @@ extension JVMClasspathIndex {
         if name == "kotlin/Result" { return "java/lang/Object" }
         if ["kotlin/coroutines/Continuation", "kotlin/coroutines/CoroutineContext", "kotlin/coroutines/EmptyCoroutineContext"].contains(name) { return name }
         if name == "kotlin/text/StringBuilder" { return "java/lang/StringBuilder" }
-        if ["kotlin/text/Regex", "kotlin/text/Regex$Companion", "kotlin/text/RegexOption", "kotlin/text/MatchResult", "kotlin/text/MatchResult$Destructured", "kotlin/text/MatchGroup", "kotlin/text/MatchGroupCollection", "kotlin/ranges/IntRange", "kotlin/sequences/Sequence", "kotlin/sequences/SequenceScope"].contains(name) { return name }
+        if ["kotlin/text/Regex", "kotlin/text/Regex$Companion", "kotlin/text/RegexOption", "kotlin/text/MatchResult", "kotlin/text/MatchResult$Destructured", "kotlin/text/MatchGroup", "kotlin/text/MatchGroupCollection", "kotlin/ranges/IntRange", "kotlin/ranges/LongRange", "kotlin/ranges/CharRange", "kotlin/sequences/Sequence", "kotlin/sequences/SequenceScope"].contains(name) { return name }
         if name == "kotlin/NoSuchElementException" { return "java/util/NoSuchElementException" }
         if name == "kotlin/CharSequence" { return "java/lang/CharSequence" }
         if name == "kotlin/Number" { return "java/lang/Number" }
