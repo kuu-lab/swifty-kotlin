@@ -140,6 +140,7 @@ extension BuildASTPhase {
                      .symbol(.assign), .symbol(.plusAssign), .symbol(.minusAssign), .symbol(.starAssign),
                      .symbol(.slashAssign), .symbol(.percentAssign), .symbol(.dotDot), .symbol(.dotDotLt),
                      .symbol(.arrow), .symbol(.plusPlus), .symbol(.minusMinus), .symbol(.bang),
+                     .symbol(.question),
                      .keyword(.in), .keyword(.is), .keyword(.as):
                     diagnostics?.error("KSWIFTK-PARSE-0001", "Expected expression.", range: first.range)
                 default:
@@ -508,7 +509,7 @@ extension BuildASTPhase {
         /// the expression end before it is diagnosed.
         private func isUnexpectedTokenAfterExpression(_ token: Token, expressionEnd: Int) -> Bool {
             switch token.kind {
-            case .symbol(.plusPlus), .symbol(.minusMinus):
+            case .symbol(.plusPlus), .symbol(.minusMinus), .symbol(.question):
                 return true
             default:
                 return expressionEnd == token.range.start.offset && isInfixIdentifierToken(token)
