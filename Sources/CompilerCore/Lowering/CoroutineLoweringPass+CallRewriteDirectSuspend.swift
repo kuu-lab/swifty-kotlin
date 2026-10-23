@@ -54,14 +54,18 @@ extension CoroutineLoweringPass {
         }
         let continuationFunctionID = rewrite.module.arena.appendTemporary(type: rewrite.intType
         )
-        // Synthetic KIR fixtures and non-suspend callers do not carry a lowered
-        // caller continuation. Preserve their historical continuation argument
-        // shape; only lowered suspend bodies can use the relay ABI below.
+        // Synthetic KIR fixtures and non-suspend callers (such as itable
+        // bridges) do not carry a lowered caller continuation. Route them
+        // through kk_coroutine_call_suspend_wrapper, which binds the child
+        // continuation to the ambient RuntimeContinuationState.current caller
+        // (or runs the child to completion when none exists) so a suspended
+        // callee's completion still reaches the caller's suspend point; a bare
+        // entry-point call would orphan the child continuation.
         guard let callerContinuationSymbol else {
             let continuationTemp = rewrite.module.arena.appendTemporary(
                 type: rewrite.continuationTypeByLoweredSymbol[loweredTarget.symbol] ?? rewrite.anyType
             )
-            return [
+            var instructions: [KIRInstruction] = [
                 .constValue(
                     result: continuationFunctionID,
                     value: .intLiteral(Int64(loweredTarget.symbol.rawValue))
@@ -74,16 +78,52 @@ extension CoroutineLoweringPass {
                     canThrow: false,
                     thrownResult: nil
                 ),
+            ]
+            let entryPointSymbol: SymbolID
+            if call.arguments.isEmpty {
+                entryPointSymbol = loweredTarget.symbol
+            } else {
+                let originalSymbol = call.symbol
+                    ?? rewrite.originalByLoweredName[loweredTarget.name]?.original
+                guard let originalSymbol,
+                      let thunk = rewrite.launcherThunkByOriginalSymbol[originalSymbol]
+                else {
+                    return nil
+                }
+                entryPointSymbol = thunk.symbol
+                for (index, argumentExpr) in call.arguments.enumerated() {
+                    let slotExpr = rewrite.module.arena.appendExpr(
+                        .intLiteral(Int64(index)),
+                        type: rewrite.intType
+                    )
+                    instructions.append(
+                        .call(
+                            symbol: nil,
+                            callee: rewrite.launcherArgSetCallee,
+                            arguments: [continuationTemp, slotExpr, argumentExpr],
+                            result: nil,
+                            canThrow: false,
+                            thrownResult: nil
+                        )
+                    )
+                }
+            }
+            let entryPointExpr = rewrite.module.arena.appendExpr(
+                .symbolRef(entryPointSymbol),
+                type: rewrite.intType
+            )
+            instructions.append(
                 .call(
-                    symbol: loweredTarget.symbol,
-                    callee: loweredTarget.name,
-                    arguments: call.arguments + [continuationTemp],
+                    symbol: nil,
+                    callee: rewrite.ctx.interner.intern("kk_coroutine_call_suspend_wrapper"),
+                    arguments: [entryPointExpr, continuationTemp],
                     result: call.result,
-                    canThrow: call.canThrow,
+                    canThrow: true,
                     thrownResult: call.thrownResult,
                     isSuperCall: call.isSuperCall
-                ),
-            ]
+                )
+            )
+            return instructions
         }
 
         // STDLIB-CORO-BUG-01: a direct call from one suspend function's body to
