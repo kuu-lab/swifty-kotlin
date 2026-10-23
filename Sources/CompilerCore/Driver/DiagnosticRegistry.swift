@@ -1192,6 +1192,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Import refers to a stdlib package excluded from the minimal profile."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0032",
+            pass: "LIB",
+            defaultSeverity: .error,
+            summary: "A deferred inline body could not be registered into the stdlib Sema snapshot."
+        ),
     ]
 
 

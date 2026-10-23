@@ -252,6 +252,22 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
+        // A snapshot missing a descriptor silently degrades to an unresolved
+        // external call at link time. Fail the capture build instead of
+        // writing an under-registered snapshot.
+        let missing = state.pendingInlineBindings.keys.filter {
+            state.importedInlineFunctions.descriptors[$0] == nil
+        }
+        for symbol in missing.sorted(by: { $0.rawValue < $1.rawValue }) {
+            let record = state.pendingInlineBindings[symbol]?.record
+            let name = record?.fqName.map { interner.resolve($0) }.joined(separator: ".")
+                ?? "#\(symbol.rawValue)"
+            diagnostics.error(
+                "KSWIFTK-LIB-0032",
+                "Could not register inline KIR descriptor for '\(name)' in the stdlib Sema snapshot",
+                range: nil
+            )
+        }
     }
 
     private func registerImportedInlineFunctionDescriptor(
