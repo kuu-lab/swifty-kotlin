@@ -422,7 +422,15 @@ extension CallTypeChecker {
         if let diagnostic = resolved.diagnostic,
            diagnostic.code == "KSWIFTK-SEMA-0003"
         {
-            ctx.sema.diagnostics.emit(diagnostic)
+            // An unresolved receiver or argument already has the root diagnostic.
+            let hasUnresolvedMemberInput = containsUnresolvedMemberDiagnostic(
+                in: [request.receiverID] + args.map(\.expr),
+                ast: ast,
+                sema: sema
+            )
+            if !hasUnresolvedMemberInput {
+                ctx.sema.diagnostics.emit(diagnostic)
+            }
             return (candidates, preparedArgs, resolved, driver.helpers.bindAndReturnErrorType(id, sema: sema))
         }
         // A same-named member that cannot accept the call must not hide an
