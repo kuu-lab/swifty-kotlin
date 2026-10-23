@@ -99,10 +99,9 @@ extension ExprLowerer {
     ///
     /// **Exception routing (CODE-001)**: Each inlined finally block is
     /// lowered into a separate instruction buffer and wrapped with
-    /// `appendThrowAwareInstructions` using its own rethrow label.  If
-    /// the inlined finally body throws, the exception propagates outward
-    /// via `.rethrow` rather than being caught by the enclosing try-catch
-    /// dispatch, matching Kotlin semantics.
+    /// `appendThrowAwareInstructions` using its own rethrow label. If the
+    /// inlined finally body throws, it is routed to the nearest handler
+    /// outside the try scopes whose cleanup has already run.
     func inlineAllEnclosingFinallyBlocks(
         ast: ASTModule,
         sema: SemaModule,
@@ -175,24 +174,27 @@ extension ExprLowerer {
         // CODE-001 fix: Each inlined finally block is lowered into a separate
         // instruction buffer, then wrapped with appendThrowAwareInstructions
         // that routes exceptions to a *rethrow* label instead of the
-        // enclosing try-catch dispatch.  This matches Kotlin semantics where
-        // an exception thrown from a finally block propagates outward (to the
-        // next outer exception handler) rather than being caught by the
-        // try-catch that owns the finally.
+        // try scopes whose cleanup has already run. This matches Kotlin
+        // semantics where an exception thrown from a finally block propagates
+        // to the next outer exception handler.
         for i in stride(from: blocks.count - 1, through: 0, by: -1) {
             let entry = blocks[i]
+            let exceptionHandlerDepth = driver.ctx.exceptionHandlerDepthForFinallyBlock(at: entry.stackIndex)
+            let exceptionHandler = driver.ctx.exceptionHandlerOutsideFinally(at: entry.stackIndex)
             instructions.append(.beginFinallyCleanup(skipping: finallyDepth - entry.stackIndex))
             var finallyInstructions: [KIRInstruction] = []
             driver.ctx.withFinallyStackDepth(entry.stackIndex) {
-                _ = lowerExpr(
-                    entry.exprID,
-                    ast: ast,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    propertyConstantInitializers: propertyConstantInitializers,
-                    instructions: &finallyInstructions
-                )
+                driver.ctx.withExceptionHandlerStackDepth(exceptionHandlerDepth) {
+                    _ = lowerExpr(
+                        entry.exprID,
+                        ast: ast,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        propertyConstantInitializers: propertyConstantInitializers,
+                        instructions: &finallyInstructions
+                    )
+                }
             }
 
             // Check whether the finally body contains any call / virtualCall
@@ -247,7 +249,13 @@ extension ExprLowerer {
                 instructions.append(.jump(afterRethrowLabel))
 
                 instructions.append(.label(rethrowLabel))
-                instructions.append(.rethrow(value: exSlot))
+                if let exceptionHandler {
+                    instructions.append(.copy(from: exSlot, to: exceptionHandler.exceptionSlot))
+                    instructions.append(.copy(from: zeroValue, to: exceptionHandler.exceptionTypeSlot))
+                    instructions.append(.jump(exceptionHandler.thrownTarget))
+                } else {
+                    instructions.append(.rethrow(value: exSlot))
+                }
 
                 instructions.append(.label(afterRethrowLabel))
                 instructions.append(.endFinallyGuard)

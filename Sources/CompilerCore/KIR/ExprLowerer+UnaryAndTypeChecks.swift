@@ -212,6 +212,9 @@ extension ExprLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
+        if driver.controlFlowLowerer.isTerminatedExpr(operandID, arena: arena, sema: sema) {
+            return operandID
+        }
         if let targetType = sema.bindings.castTargetType(for: exprID),
            let componentType = referenceArrayElementType(targetType, sema: sema, interner: interner)
         {

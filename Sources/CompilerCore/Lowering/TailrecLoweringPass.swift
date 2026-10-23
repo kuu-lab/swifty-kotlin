@@ -16,7 +16,19 @@ final class TailrecLoweringPass: LoweringPass {
         return module.features.contains(.hasTailrecFunction)
     }
 
-    func run(module: KIRModule, ctx _: KIRContext) throws {
+    func run(module: KIRModule, ctx: KIRContext) throws {
+        rewriteTailrecFunctions(
+            module: module,
+            interner: ctx.interner,
+            loweringName: Self.name
+        )
+    }
+
+    func rewriteTailrecFunctions(
+        module: KIRModule,
+        interner: StringInterner,
+        loweringName: String
+    ) {
         var nextLoopLabel = tailrecLoopLabelBase
 
         module.arena.transformFunctions { function in
@@ -40,8 +52,11 @@ final class TailrecLoweringPass: LoweringPass {
                 functionIdentity: functionIdentity,
                 params: function.params,
                 loopLabel: loopLabel,
+                returnType: function.returnType,
+                interner: interner,
                 arena: module.arena
             )
+            guard rewrittenBody != function.body else { return function }
             // The rewrite changes instruction count, so the old parallel
             // array is stale.  Use the function-level sourceRange as a
             // conservative location for every synthesised instruction.
@@ -52,7 +67,7 @@ final class TailrecLoweringPass: LoweringPass {
             return updated
         }
 
-        module.recordLowering(Self.name)
+        module.recordLowering(loweringName)
     }
 
     /// A non-zero mask means the `$default` stub would evaluate default
@@ -66,6 +81,7 @@ final class TailrecLoweringPass: LoweringPass {
         arguments: [KIRExprID],
         body: [KIRInstruction],
         callIndex: Int,
+        parameterCount: Int,
         arena: KIRArena
     ) -> (canOptimize: Bool, defaultMask: Int64?) {
         let isDefault = isDefaultStubCall(symbol: symbol, functionIdentity: functionIdentity)
@@ -73,7 +89,8 @@ final class TailrecLoweringPass: LoweringPass {
             return (canOptimize: true, defaultMask: nil)
         }
         let mask = extractDefaultMask(
-            arguments: arguments, body: body, callIndex: callIndex, arena: arena
+            arguments: arguments, body: body, callIndex: callIndex,
+            parameterCount: parameterCount, arena: arena
         )
         guard let mask, mask == 0 else {
             return (canOptimize: false, defaultMask: mask)
@@ -86,6 +103,8 @@ final class TailrecLoweringPass: LoweringPass {
         functionIdentity: TailrecFunctionIdentity,
         params: [KIRParameter],
         loopLabel: Int32,
+        returnType: TypeID,
+        interner: StringInterner,
         arena: KIRArena
     ) -> [KIRInstruction] {
         var result = KIRLoweringEmitContext()
@@ -122,14 +141,22 @@ final class TailrecLoweringPass: LoweringPass {
                 continue
             }
 
-            if case let .call(symbol, _, arguments, callResult, _, _, _, _) = instruction,
+            if case let .call(symbol, _, arguments, callResult, _, thrownResult, _, _) = instruction,
                isSelfRecursiveCall(symbol: symbol, functionIdentity: functionIdentity),
-               tailReturnIndex(body: body, callIndex: instructionIndex, callResult: callResult) != nil
+               tailReturnIndex(
+                   body: body,
+                   callIndex: instructionIndex,
+                   callResult: callResult,
+                   thrownResult: thrownResult,
+                   returnType: returnType,
+                   interner: interner,
+                   arena: arena
+               ) != nil
             {
                 let check = canOptimizeDefaultStubCall(
                     symbol: symbol, functionIdentity: functionIdentity,
                     arguments: arguments, body: body,
-                    callIndex: instructionIndex, arena: arena
+                    callIndex: instructionIndex, parameterCount: params.count, arena: arena
                 )
                 guard check.canOptimize else {
                     result.append(instruction)
@@ -177,7 +204,7 @@ final class TailrecLoweringPass: LoweringPass {
             return body
         }
 
-        return emittedTailJump ? pruneUnreachableJoins(result.instructions) : result.instructions
+        return emittedTailJump ? pruneUnreachableJoins(result.instructions) : body
     }
 
     /// Tail-call replacement can make the remaining instructions after an
@@ -256,8 +283,8 @@ final class TailrecLoweringPass: LoweringPass {
         return symbol == SyntheticSymbolScheme.defaultStubSymbol(for: functionIdentity.symbol)
     }
 
-    /// The mask is always the last argument and is expected to be a constant
-    /// integer literal.
+    /// Default masks follow the target's ordinary parameters and are expected
+    /// to be constant integer literals.
     ///
     /// The `callIndex` parameter limits the slow-path scan to instructions
     /// that precede the call site, so we only pick up definitions that
@@ -266,37 +293,41 @@ final class TailrecLoweringPass: LoweringPass {
         arguments: [KIRExprID],
         body: [KIRInstruction],
         callIndex: Int,
+        parameterCount: Int,
         arena: KIRArena
     ) -> Int64? {
-        guard let maskExprID = arguments.last else { return nil }
-        if let exprKind = arena.expr(maskExprID),
-           case let .intLiteral(mask) = exprKind
-        {
-            return mask
-        }
-        // Scanning only instructions before `callIndex` ensures the
-        // definition dominates the use.  Stop at control-flow boundaries
-        // (labels, jumps, conditional branches) to stay within the same
-        // basic block — a linear backward scan cannot guarantee dominance
-        // across control flow.
-        for i in stride(from: callIndex - 1, through: 0, by: -1) {
-            let inst = body[i]
-            // Stop at control-flow boundaries to ensure we stay in the
-            // same basic block.  Definitions across branches may not
-            // dominate the call site.
-            switch inst {
-            case .label, .jump, .jumpIfEqual, .jumpIfNotNull:
-                return nil
-            default:
-                break
+        guard arguments.count > parameterCount else { return nil }
+        let maskExprIDs = arguments.dropFirst(parameterCount)
+        guard !maskExprIDs.isEmpty else { return nil }
+        var maskValues: [Int64] = []
+        for maskExprID in maskExprIDs {
+            if let exprKind = arena.expr(maskExprID), case let .intLiteral(mask) = exprKind {
+                maskValues.append(mask)
+                continue
             }
-            if case let .constValue(result, .intLiteral(value)) = inst,
-               result == maskExprID
-            {
-                return value
+            var found: Int64?
+            // Scanning only instructions before `callIndex` ensures the
+            // definition dominates the use. Stop at control-flow boundaries
+            // so a linear backward scan cannot cross branches.
+            for i in stride(from: callIndex - 1, through: 0, by: -1) {
+                let inst = body[i]
+                switch inst {
+                case .label, .jump, .jumpIfEqual, .jumpIfNotNull:
+                    return nil
+                default:
+                    break
+                }
+                if case let .constValue(result, .intLiteral(value)) = inst,
+                   result == maskExprID
+                {
+                    found = value
+                    break
+                }
             }
+            guard let found else { return nil }
+            maskValues.append(found)
         }
-        return nil
+        return maskValues.first(where: { $0 != 0 }) ?? 0
     }
 
     /// Expression bodies (`= if (c) acc else f(..)`, `= when { .. }`) lower to
@@ -311,7 +342,11 @@ final class TailrecLoweringPass: LoweringPass {
     private func tailReturnIndex(
         body: [KIRInstruction],
         callIndex: Int,
-        callResult: KIRExprID?
+        callResult: KIRExprID?,
+        thrownResult: KIRExprID?,
+        returnType: TypeID,
+        interner: StringInterner,
+        arena: KIRArena
     ) -> Int? {
         var aliases: Set<KIRExprID> = []
         var unitValues: Set<KIRExprID> = []
@@ -340,8 +375,46 @@ final class TailrecLoweringPass: LoweringPass {
             case let .constValue(result, .unit):
                 unitValues.insert(result)
                 index += 1
+            case let .call(symbol, callee, arguments, result, canThrow, callThrownResult, _, _):
+                let name = interner.resolve(callee)
+                guard symbol == nil,
+                      !canThrow,
+                      callThrownResult == nil,
+                      name.hasPrefix("kk_unbox_"),
+                      name.hasSuffix("_static"),
+                      arguments.count == 1,
+                      let argument = arguments.first,
+                      aliases.contains(argument),
+                      let result
+                else {
+                    return nil
+                }
+                aliases.insert(result)
+                index += 1
+            case let .jumpIfNotNull(value, target):
+                guard let thrownResult,
+                      value == thrownResult,
+                      exceptionTargetRethrows(
+                          value: thrownResult,
+                          target: target,
+                          body: body
+                      )
+                else {
+                    return nil
+                }
+                index += 1
             case let .returnValue(value):
-                return aliases.contains(value) ? index : nil
+                if aliases.contains(value) { return index }
+                guard unitValues.contains(value),
+                      let callResult,
+                      let callType = arena.exprType(callResult),
+                      let valueType = arena.exprType(value),
+                      callType == valueType,
+                      valueType == returnType
+                else {
+                    return nil
+                }
+                return index
             case .returnUnit:
                 // A self-call followed by `returnUnit` can only sit in a
                 // Unit function; its (Unit) result, if materialized by an
@@ -354,12 +427,51 @@ final class TailrecLoweringPass: LoweringPass {
         return nil
     }
 
+    /// A throwing recursive call is tail-positioned only when its non-null
+    /// exception edge reaches the same rethrow without running user code.
+    private func exceptionTargetRethrows(
+        value: KIRExprID,
+        target: Int32,
+        body: [KIRInstruction]
+    ) -> Bool {
+        guard let labelIndex = body.firstIndex(where: {
+            if case let .label(id) = $0 { return id == target }
+            return false
+        }) else {
+            return false
+        }
+
+        var visited: Set<Int> = []
+        var index = labelIndex
+        while index < body.count, visited.insert(index).inserted {
+            switch body[index] {
+            case .nop, .label, .beginBlock, .endBlock, .constValue(_, .unit):
+                index += 1
+            case let .jump(nextTarget):
+                guard let nextIndex = body.firstIndex(where: {
+                    if case let .label(id) = $0 { return id == nextTarget }
+                    return false
+                }) else { return false }
+                index = nextIndex
+            case let .jumpIfNotNull(checkedValue, nextTarget) where checkedValue == value:
+                guard let nextIndex = body.firstIndex(where: {
+                    if case let .label(id) = $0 { return id == nextTarget }
+                    return false
+                }) else { return false }
+                index = nextIndex
+            case let .rethrow(thrownValue):
+                return thrownValue == value
+            default:
+                return false
+            }
+        }
+        return false
+    }
+
     /// When `defaultMask` is non-nil, it is expected to be 0 (all
-    /// arguments explicitly provided).  The caller skips tailrec for
-    /// non-zero masks because we cannot inline default expressions at
-    /// this lowering stage.  The mask-bit logic below is retained as
-    /// defense-in-depth and will become useful when default-expression
-    /// inlining is implemented.
+    /// arguments explicitly provided). The caller extracts every trailing
+    /// mask word and skips tailrec for non-zero masks because we cannot inline
+    /// default expressions at this lowering stage.
     ///
     /// The default mask bits are 0-indexed on *value parameter* positions
     /// (excluding the receiver).  When the function has a receiver
@@ -379,7 +491,7 @@ final class TailrecLoweringPass: LoweringPass {
         result: inout KIRLoweringEmitContext
     ) {
         // Only copy the first `params.count` arguments; $default calls
-        // carry trailing reified-type tokens and a mask that must not
+        // carry trailing reified-type tokens and mask words that must not
         // participate in parameter reassignment.
         let effectiveCount = min(arguments.count, params.count)
 
@@ -390,12 +502,9 @@ final class TailrecLoweringPass: LoweringPass {
         for i in 0 ..< effectiveCount {
             // Skip sentinel arguments whose default mask bit is set.
             // The mask is indexed on value-parameter positions (excluding
-            // the receiver), so subtract `receiverOffset`.  When the
-            // mask bit index exceeds Int64.bitWidth (>= 64 value params),
-            // we conservatively treat the argument as non-defaulted;
-            // this is safe because functions with that many defaulted
-            // parameters would use multiple mask words, and the caller
-            // already skips tailrec when the mask is unresolvable.
+            // the receiver), so subtract `receiverOffset`. The caller skips
+            // tailrec for any non-zero word, leaving this path with a zero
+            // mask; retain the conservative handling for defense-in-depth.
             if let mask = defaultMask {
                 let maskBitIndex = i - receiverOffset
                 if maskBitIndex >= 0 {
@@ -458,5 +567,27 @@ final class TailrecLoweringPass: LoweringPass {
             index += 1
         }
         return index
+    }
+}
+
+/// Inline expansion can expose a self-call that was hidden inside a non-local
+/// return from an inline lambda. Re-run the same tail-position rewrite after
+/// inline bodies have been spliced into their caller.
+final class TailrecAfterInlineLoweringPass: LoweringPass {
+    static let name = "TailrecAfterInline"
+    static let requiredStage: KIRStage = .propertyLowered
+    static let producedStage: KIRStage = .propertyLowered
+
+    func shouldRun(module: KIRModule, ctx _: KIRContext) -> Bool {
+        module.ensureFeaturesScanned()
+        return module.features.contains(.hasTailrecFunction)
+    }
+
+    func run(module: KIRModule, ctx: KIRContext) throws {
+        TailrecLoweringPass().rewriteTailrecFunctions(
+            module: module,
+            interner: ctx.interner,
+            loweringName: Self.name
+        )
     }
 }

@@ -9,4 +9,7 @@ class IntRange: Iterable<Int> {
     fun isEmpty(): Boolean = false
     operator fun contains(value: Int): Boolean = false
     override fun toString(): String = null!!
+    companion object {
+        val EMPTY: IntRange get() = null!!
+    }
 }

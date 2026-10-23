@@ -576,12 +576,16 @@ extension CallLowerer {
                     instructions: &instructions,
                     arguments: &finalArguments
                 )
-                if normalizedResult.defaultMask != 0,
+                if normalizedResult.hasOmittedDefaultArguments,
                    sema.symbols.externalLinkName(for: callBinding.chosenCallee)?.isEmpty ?? true
                 {
-                    let maskExpr = arena.appendExpr(.intLiteral(Int64(normalizedResult.defaultMask)), type: intType)
-                    instructions.append(.constValue(result: maskExpr, value: .intLiteral(Int64(normalizedResult.defaultMask))))
-                    finalArguments.append(maskExpr)
+                    appendDefaultMaskArguments(
+                        normalizedResult.defaultMaskWords,
+                        sema: sema,
+                        arena: arena,
+                        instructions: &instructions,
+                        arguments: &finalArguments
+                    )
                     let stubName = interner.intern(
                         (sema.symbols.symbol(callBinding.chosenCallee).map { interner.resolve($0.name) } ?? "unknown") + "$default"
                     )

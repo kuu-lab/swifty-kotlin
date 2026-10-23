@@ -6,8 +6,12 @@ import Testing
 // KUU-1407: declarations and modifier combinations that Kotlin/JVM rejects
 // must produce diagnostics instead of being silently accepted.
 
-private func semaContext(for source: String) throws -> CompilationContext {
-    let ctx = makeContextFromSource(source, allowDefaultStdlibLibrary: false)
+private func semaContext(for source: String, frontendFlags: [String] = []) throws -> CompilationContext {
+    let ctx = makeContextFromSource(
+        source,
+        frontendFlags: frontendFlags,
+        allowDefaultStdlibLibrary: false
+    )
     try runSema(ctx)
     return ctx
 }
@@ -56,6 +60,23 @@ struct DeclarationPositionValidationTests {
             interface I { constructor(x: Int) }
             """)
         assertHasDiagnostic("KSWIFTK-SEMA-0409", in: ctx)
+    }
+
+    @Test func multipleCompanionObjectsInClassAreRejected() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            class C {
+                companion object { }
+                companion object { }
+            }
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0435", in: ctx)
+    }
+
+    @Test func oneCompanionObjectInClassIsAccepted() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            class C { companion object { } }
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0435", in: ctx)
     }
 
     @Test func dataInnerClassIsRejected() throws {
@@ -285,6 +306,37 @@ struct DeclarationPositionValidationTests {
             @JvmInline sealed value class V(val x: Int)
             """)
         assertHasDiagnostic("KSWIFTK-SEMA-0420", in: ctx)
+    }
+
+    @Test func fullValueClassesAcceptAbstractEmptyConstructorHierarchy() throws {
+        let ctx = try semaContext(
+            for: """
+                abstract value class Base {
+                    abstract val first: String
+                    fun fakeOverridden(): String = first
+                }
+                abstract value class Child() : Base()
+                """,
+            frontendFlags: ["full-value-classes"]
+        )
+
+        #expect(
+            !ctx.diagnostics.diagnostics.contains {
+                $0.code == "KSWIFTK-SEMA-0420" || $0.code == "KSWIFTK-SEMA-0070"
+            },
+            "FullValueClasses should accept abstract value classes without primary constructor properties"
+        )
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func fullValueClassesKeepJvmInlineValueClassRestrictions() throws {
+        let ctx = try semaContext(
+            for: "@JvmInline abstract value class Empty()",
+            frontendFlags: ["full-value-classes"]
+        )
+
+        assertHasDiagnostic("KSWIFTK-SEMA-0420", in: ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0070", in: ctx)
     }
 
     // MARK: - Modifier incompatibilities

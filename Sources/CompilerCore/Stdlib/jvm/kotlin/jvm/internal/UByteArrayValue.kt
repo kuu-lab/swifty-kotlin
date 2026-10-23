@@ -22,8 +22,8 @@ value class UByteArrayValue(val storage: ByteArray): Collection<UByteValue>, Ite
             return UByteValue(storage[index++])
         }
     }
-    override fun containsAll(elements: Collection<*>): Boolean {
-        for (element in elements) {
+    override fun containsAll(elements: Collection<UByteValue>): Boolean {
+        for (element in elements as Collection<*>) {
             if (!(element is UByteValue) || !contains(element)) return false
         }
         return true

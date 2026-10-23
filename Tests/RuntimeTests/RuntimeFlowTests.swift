@@ -6,6 +6,8 @@ private typealias RuntimeFlowEmitterEntry = @convention(c) (UnsafeMutablePointer
 private typealias RuntimeCapturingFlowEmitterEntry = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
 /// Non-suspend collector ABI: (closureRaw, value, outThrown)
 private typealias RuntimeFlowCollectorEntry = @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int
+/// Suspend collector ABI: (closureRaw, value, continuation, outThrown)
+private typealias RuntimeFlowSuspendCollectorEntry = @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 /// Map/filter ABI: (closureRaw, elem, outThrown)
 private typealias RuntimeFlowUnaryEntry = @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int
 
@@ -88,6 +90,121 @@ private final class RuntimeFlowTestState: @unchecked Sendable {
 }
 
 private let runtimeFlowTestState = RuntimeFlowTestState()
+
+private final class RuntimeFlowLatestTestRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private let delayMillis: Int
+    private let throwOnValue: Int?
+    private let thrownException: Int
+    private let onStart: (@Sendable (Int) -> Void)?
+    private var started: [Int] = []
+    private var completed: [Int] = []
+
+    init(
+        delayMillis: Int,
+        throwOnValue: Int? = nil,
+        thrownException: Int = 0,
+        onStart: (@Sendable (Int) -> Void)? = nil
+    ) {
+        self.delayMillis = delayMillis
+        self.throwOnValue = throwOnValue
+        self.thrownException = thrownException
+        self.onStart = onStart
+    }
+
+    func recordStart(_ value: Int) {
+        lock.lock()
+        started.append(value)
+        lock.unlock()
+        onStart?(value)
+    }
+
+    func recordCompletion(_ value: Int) {
+        lock.lock()
+        completed.append(value)
+        lock.unlock()
+    }
+
+    func snapshot() -> (started: [Int], completed: [Int]) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (started, completed)
+    }
+
+    var configuredDelayMillis: Int { delayMillis }
+    var valueToThrowOn: Int? { throwOnValue }
+    var exception: Int { thrownException }
+}
+
+@_cdecl("runtime_test_flow_latest_suspend_collector")
+private func runtime_test_flow_latest_suspend_collector(
+    _ recorderHandle: Int,
+    _ value: Int,
+    _ continuation: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard let recorderPointer = UnsafeMutableRawPointer(bitPattern: recorderHandle),
+          let state = runtimeContinuationState(from: continuation)
+    else { return 0 }
+    let recorder = Unmanaged<RuntimeFlowLatestTestRecorder>.fromOpaque(recorderPointer).takeUnretainedValue()
+    let label = kk_coroutine_state_enter(continuation, 273_701)
+    if label == 0 {
+        recorder.recordStart(value)
+        if recorder.valueToThrowOn == value {
+            outThrown?.pointee = recorder.exception
+            return 0
+        }
+        _ = kk_coroutine_state_set_label(continuation, 1)
+        return kk_kxmini_delay(recorder.configuredDelayMillis, continuation)
+    }
+    if let job = state.jobHandle, job.cancellationSnapshot() {
+        outThrown?.pointee = runtimeJobCancellationException(job)
+        return 0
+    }
+    recorder.recordCompletion(value)
+    outThrown?.pointee = 0
+    return kk_coroutine_state_exit(continuation, 0)
+}
+
+private let runtimeFlowFlatMapLatestEmitterFunctionID = 273_702
+
+@_cdecl("runtime_test_flow_flat_map_latest_inner")
+private func runtime_test_flow_flat_map_latest_inner(
+    _ continuation: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let value = Int(kk_coroutine_launcher_arg_get(continuation, 0))
+    if kk_coroutine_state_enter(continuation, runtimeFlowFlatMapLatestEmitterFunctionID) == 0 {
+        _ = kk_flow_emit(0, value * 10, RuntimeFlowTag.emit.rawValue, outThrown)
+        _ = kk_coroutine_state_set_label(continuation, 1)
+        return kk_kxmini_delay(80, continuation)
+    }
+    if let job = runtimeContinuationState(from: continuation)?.jobHandle,
+       job.cancellationSnapshot()
+    {
+        outThrown?.pointee = runtimeJobCancellationException(job)
+        return 0
+    }
+    _ = kk_flow_emit(0, value, RuntimeFlowTag.emit.rawValue, outThrown)
+    outThrown?.pointee = 0
+    return kk_coroutine_state_exit(continuation, 0)
+}
+
+@_cdecl("runtime_test_flow_flat_map_latest_mapper")
+private func runtime_test_flow_flat_map_latest_mapper(
+    _: Int,
+    _ value: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let continuation = kk_coroutine_continuation_new(runtimeFlowFlatMapLatestEmitterFunctionID)
+    _ = kk_coroutine_launcher_arg_set(continuation, 0, Int64(value))
+    let emitter = unsafeBitCast(
+        runtime_test_flow_flat_map_latest_inner as RuntimeCapturingFlowEmitterEntry,
+        to: Int.self
+    )
+    return kk_flow_create(emitter, continuation)
+}
 
 private final class RuntimeFlowErrorTestState: @unchecked Sendable {
     private let lock = NSLock()
@@ -997,7 +1114,94 @@ struct RuntimeFlowTests {
         runtimeFlowTestState.reset()
         let latest = __kk_flow_flat_map_latest(source, mapperPtr, 0)
         _ = kk_flow_collect(latest, collectorPtr, 0, 0)
-        #expect(runtimeFlowTestState.snapshot().values == [2, 12], "flatMapLatest should keep only the last mapped flow")
+        #expect(runtimeFlowTestState.snapshot().values == [1, 11, 2, 12], "completed inner flows should keep their emissions")
+    }
+
+    @Test func testFlatMapLatestCancelsPreviousSuspendedInnerAndKeepsItsEmittedValue() {
+        let mapperPtr = unsafeBitCast(
+            runtime_test_flow_flat_map_latest_mapper as RuntimeFlowUnaryEntry,
+            to: Int.self
+        )
+        let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
+        let source = runtimeFlowOf([1, 2, 3])
+        let latest = __kk_flow_flat_map_latest(source, mapperPtr, 0)
+        var thrown = 0
+
+        let result = kk_flow_collect(latest, collectorPtr, 0, 0, &thrown)
+
+        #expect(result == 0)
+        #expect(thrown == 0)
+        #expect(runtimeFlowTestState.snapshot().values == [10, 20, 30, 3])
+    }
+
+    @Test func testCollectLatestCancelsSuspendedCollectorsAndWaitsForLastValue() {
+        let recorder = RuntimeFlowLatestTestRecorder(delayMillis: 40)
+        let recorderHandle = Int(bitPattern: Unmanaged.passUnretained(recorder).toOpaque())
+        let collectorPtr = unsafeBitCast(
+            runtime_test_flow_latest_suspend_collector as RuntimeFlowSuspendCollectorEntry,
+            to: Int.self
+        )
+        let flow = runtimeFlowOf([1, 2, 3])
+        var thrown = 0
+
+        let result = __kk_flow_collectLatest(flow, collectorPtr, recorderHandle, 273_701, &thrown)
+
+        let snapshot = recorder.snapshot()
+        #expect(result == 0)
+        #expect(thrown == 0)
+        #expect(snapshot.started == [1, 2, 3])
+        #expect(snapshot.completed == [3], "only the final suspended collector should complete")
+    }
+
+    @Test func testCollectLatestStopsAfterCollectorFailure() {
+        let expectedFailure = runtimeAllocateIllegalStateException(message: "collectLatest action failed")
+        let recorder = RuntimeFlowLatestTestRecorder(delayMillis: 100, throwOnValue: 2, thrownException: expectedFailure)
+        let recorderHandle = Int(bitPattern: Unmanaged.passUnretained(recorder).toOpaque())
+        let collectorPtr = unsafeBitCast(
+            runtime_test_flow_latest_suspend_collector as RuntimeFlowSuspendCollectorEntry,
+            to: Int.self
+        )
+        let flow = runtimeFlowOf([1, 2, 3])
+        var thrown = 0
+
+        let result = __kk_flow_collectLatest(flow, collectorPtr, recorderHandle, 273_701, &thrown)
+
+        #expect(result == expectedFailure)
+        #expect(thrown == expectedFailure)
+        #expect(recorder.snapshot().started == [1, 2], "the collector failure should stop later upstream values")
+    }
+
+    @Test func testCollectLatestPropagatesCallerCancellationIntoActiveCollector() {
+        let callerJob = RuntimeJobHandle()
+        callerJob.markStarted()
+        let callerJobHandle = runtimeRegisterObject(callerJob)
+        let previousJob = RuntimeJobHandle.current
+        RuntimeJobHandle.current = callerJob
+        let recorder = RuntimeFlowLatestTestRecorder(delayMillis: 1_000) { _ in
+            DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(10)) {
+                _ = callerJob.cancel(message: "Runtime flow test cancelled")
+            }
+        }
+        let recorderHandle = Int(bitPattern: Unmanaged.passUnretained(recorder).toOpaque())
+        let collectorPtr = unsafeBitCast(
+            runtime_test_flow_latest_suspend_collector as RuntimeFlowSuspendCollectorEntry,
+            to: Int.self
+        )
+        var thrown = 0
+
+        let start = DispatchTime.now().uptimeNanoseconds
+        let result = __kk_flow_collectLatest(
+            runtimeFlowOf([1]), collectorPtr, recorderHandle, 273_701, &thrown
+        )
+        let elapsedMillis = (DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
+
+        RuntimeJobHandle.current = previousJob
+        _ = runtimeReleaseObject(callerJobHandle)
+        #expect(result != 0)
+        #expect(kk_is_cancellation_exception(thrown) != 0)
+        #expect(elapsedMillis < 500, "caller cancellation should wake the suspended collector before its delay ends")
+        #expect(recorder.snapshot().started == [1])
+        #expect(recorder.snapshot().completed.isEmpty)
     }
 }
 

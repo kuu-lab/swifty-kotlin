@@ -22,8 +22,8 @@ value class ULongArrayValue(val storage: LongArray): Collection<ULongValue>, Ite
             return ULongValue(storage[index++])
         }
     }
-    override fun containsAll(elements: Collection<*>): Boolean {
-        for (element in elements) {
+    override fun containsAll(elements: Collection<ULongValue>): Boolean {
+        for (element in elements as Collection<*>) {
             if (!(element is ULongValue) || !contains(element)) return false
         }
         return true

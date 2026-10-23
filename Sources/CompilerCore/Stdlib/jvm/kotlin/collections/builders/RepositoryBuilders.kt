@@ -96,6 +96,8 @@ internal class RepositoryListBuilder<E>(private val state: RepositoryBuilderStat
     override fun contains(element: E): Boolean = source.contains(element)
     override fun containsAll(elements: Collection<E>): Boolean = source.containsAll(elements)
     override fun get(index: Int): E = source[index]
+    override fun indexOf(element: E): Int = source.indexOf(element)
+    override fun lastIndexOf(element: E): Int = source.lastIndexOf(element)
     override fun set(index: Int, element: E): E { state.checkMutable(); return source.set(index, element) }
     override fun add(element: E): Boolean { state.checkMutable(); val changed = source.add(element); state.modification++; return changed }
     override fun add(index: Int, element: E) { state.checkMutable(); __jvmListAdd(source, index, element); state.modification++ }
@@ -110,8 +112,6 @@ internal class RepositoryListBuilder<E>(private val state: RepositoryBuilderStat
     override fun listIterator(): java.util.ListIterator<E> = RepositoryBuilderListIterator(state, __jvmListIterator(source, 0))
     override fun listIterator(index: Int): java.util.ListIterator<E> = RepositoryBuilderListIterator(state, __jvmListIterator(source, index))
     override fun iterator(): MutableIterator<E> = RepositoryBuilderIterator(state, source.iterator() as MutableIterator<E>, false)
-    override fun indexOf(element: E): Int = source.indexOf(element)
-    override fun lastIndexOf(element: E): Int = source.lastIndexOf(element)
     override fun subList(fromIndex: Int, toIndex: Int): MutableList<E> = RepositoryListBuilder(state, __jvmListSubList(source, fromIndex, toIndex))
     private fun writeReplace(): Any {
         if (!state.frozen) throw __jvmBuilderSerializationFailure("The list cannot be serialized while it is being built.")
@@ -140,6 +140,9 @@ internal class RepositoryMapBuilder<K, V>(capacity: Int): java.util.AbstractMap<
     override fun keySet(): Set<K> = keys
     override fun values(): Collection<V> = values
     override fun entrySet(): Set<Any?> = RepositoryBuilderSet<Any?>(state, __jvmMapEntries(source), true)
+    @Suppress("UNCHECKED_CAST")
+    override val entries: MutableSet<MutableMap.MutableEntry<K, V>>
+        get() = entrySet() as MutableSet<MutableMap.MutableEntry<K, V>>
     private fun writeReplace(): Any {
         if (!state.frozen) throw __jvmBuilderSerializationFailure("The map cannot be serialized while it is being built.")
         return this
