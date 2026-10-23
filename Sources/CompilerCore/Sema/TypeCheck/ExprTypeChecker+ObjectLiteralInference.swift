@@ -1048,6 +1048,22 @@ extension ExprTypeChecker {
             }
             return actualSymbolID
         }
+        // KUU-2955: a local class nested inside another local nominal's
+        // member (`class FooC : AB` inside local `A2.foo`) reaches this
+        // point while the enclosing nominal is still being processed —
+        // before sibling nested nominals like `AB` get their layout
+        // synthesized. Materialize the superclass layout on demand so its
+        // fields, `$outer` slot and vtable slots are actually inherited.
+        if let layoutSuperClass, sema.symbols.nominalLayout(for: layoutSuperClass) == nil {
+            DataFlowSemaPhase().synthesizeNominalLayouts(
+                for: [layoutSuperClass],
+                symbols: sema.symbols,
+                types: sema.types,
+                interner: interner,
+                diagnostics: sema.diagnostics,
+                includeAncestors: true
+            )
+        }
         let inheritedLayout = layoutSuperClass.flatMap { sema.symbols.nominalLayout(for: $0) }
         var fieldOffsets = inheritedLayout?.fieldOffsets ?? [:]
         let objectHeaderWords = inheritedLayout?.objectHeaderWords ?? 2

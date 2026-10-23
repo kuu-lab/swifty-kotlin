@@ -869,6 +869,23 @@ extension LambdaLowerer {
             ))
             return valueExpr
         }
+        // KUU-2955: `symbol` may be a captured local (or receiver-owned
+        // value) of an enclosing local nominal, reachable only through the
+        // active receiver's `$outer` chain — e.g. `inner class D` whose
+        // member `copyOuter()` constructs `C()` must source `C`'s captured
+        // fields from `this@D.$outer`, not from a live local slot.
+        if let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+           let outerValue = resolveOuterChainValue(
+               from: receiverExprID,
+               to: symbol,
+               sema: sema,
+               arena: arena,
+               interner: interner,
+               instructions: &instructions
+           )
+        {
+            return outerValue
+        }
         return nil
     }
 }
