@@ -160,6 +160,33 @@ struct CodegenBackendPropertyDelegateEdgeCasesTests {
         )
     }
 
+    @Test
+    func testCallableReferencesInConditionalLazyDelegates() throws {
+        let source = """
+        fun foo(): Int = 1
+        fun bar(): Int = 2
+        class Test(b: Boolean) {
+            val test_1 by lazy { val a = if (b) { ::foo } else { ::bar }; a }
+            val test_2 by lazy { val a = if (b) ::foo else ::bar; a }
+            val test_3 by lazy { val a = when { b -> { ::foo } else -> { ::bar } }; a }
+        }
+        fun main() {
+            println(Test(true).test_1())
+            println(Test(false).test_1())
+            println(Test(true).test_2())
+            println(Test(false).test_2())
+            println(Test(true).test_3())
+            println(Test(false).test_3())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "CallableReferencesInConditionalLazyDelegates",
+            expected: "1\n2\n1\n2\n1\n2\n"
+        )
+    }
+
     // KSP-781: a local `by lazy` delegate can be captured by a nested lambda.
     // The delegate factory must be rewritten at declaration lowering time;
     // a later same-function consumer scan cannot see the nested read.

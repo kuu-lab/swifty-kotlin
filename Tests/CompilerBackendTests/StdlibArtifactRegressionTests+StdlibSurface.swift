@@ -56,7 +56,7 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-1339: Unit literals and returned values share identity at erased boundaries.
+    /// KUU-1339/KUU-2919: Unit retains singleton identity and rendering at erased boundaries.
     @Test(arguments: [false, true])
     func testUnitReturnSingleton(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try testStdlibArtifactPath() : nil
@@ -101,6 +101,7 @@ extension StdlibArtifactRegressionTests {
             false
             true
             boxed
+            kotlin.Unit
             kotlin.Unit
 
             """)

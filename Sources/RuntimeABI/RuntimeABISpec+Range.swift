@@ -1335,6 +1335,17 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_ulong_range_forEach",
+            parameters: [
+                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
+                RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
+                RuntimeABIParameter(name: "captureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Range"
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_ulong_range_randomOrNull",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),

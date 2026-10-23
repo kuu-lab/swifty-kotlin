@@ -5,6 +5,17 @@ import Testing
 
 extension JVMBackendTests {
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func localTailrecFunctionsBecomeLoopsWithDefaults(mode: EmitMode) throws {
+        try assertJVM("""
+        fun main() {
+            tailrec fun tc(n: Int, acc: Int = 0): Int = if (n == 0) acc else tc(n - 1, acc + n)
+            println(tc(100))
+            println(tc(100000))
+        }
+        """, "5050\n705082704\n", mode: mode)
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func tailrecCallsBecomeLoopsWithDefaultsAndArgumentSnapshots(mode: EmitMode) throws {
         try assertJVM("""
         tailrec fun count(n: Int, sum: Long = 0L): Long =

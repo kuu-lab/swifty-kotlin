@@ -85,6 +85,9 @@ public struct SymbolFlags: OptionSet, Sendable, Codable {
     /// The owning library object already contains this symbol's runtime
     /// reflection record, so consumers must not rebuild it.
     public static let precomputedRuntimeReflection = SymbolFlags(rawValue: 1 << 30)
+    /// Marks the synthetic class that represents an anonymous object literal.
+    /// Its type is usable only within the source file that declares the literal.
+    public static let objectLiteralType = SymbolFlags(rawValue: UInt32(1) << 31)
 }
 
 extension SymbolFlags {

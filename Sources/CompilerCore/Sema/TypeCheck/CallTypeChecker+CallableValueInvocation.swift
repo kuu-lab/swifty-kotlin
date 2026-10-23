@@ -638,9 +638,11 @@ extension CallTypeChecker {
         {
             // A local function's `locals` entry is a value binding for the
             // declared symbol, but name-ref inference rejects function
-            // symbols in value position. This synthesized reference is the
-            // callee of an invocation, not a user-written function value, so
-            // bind it directly instead of running bare-name inference.
+            // symbols in value position. For a local extension function,
+            // re-inferring the synthesized callee also rejects its bare name
+            // (KUU-3007). This is an invocation callee, not a user-written
+            // function value, so bind the resolved symbol and its
+            // receiver-carrying function type directly.
             sema.bindings.bindIdentifier(calleeExpr, symbol: local.symbol)
             sema.bindings.bindExprType(calleeExpr, type: local.type)
             calleeType = local.type
