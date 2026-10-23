@@ -38,6 +38,16 @@ public func __kk_kcallable_register(
     return raw
 }
 
+@_cdecl("__kk_kcallable_register_return_type")
+public func __kk_kcallable_register_return_type(_ raw: Int, _ returnTypeKTypeRaw: Int) -> Int {
+    runtimeStorage.withDelegateLock { state in
+        guard var metadata = state.callableRefMetadataByValue[raw] else { return }
+        metadata.returnTypeKTypeRaw = returnTypeKTypeRaw
+        state.callableRefMetadataByValue[raw] = metadata
+    }
+    return raw
+}
+
 @_cdecl("__kk_kcallable_is_runtime")
 public func __kk_kcallable_is_runtime(_ raw: Int) -> Int {
     if callableMetadata(raw) != nil
@@ -114,7 +124,7 @@ private func runtimePropertyAccessor(_ raw: Int, isSetter: Bool) -> Int {
         arity: metadata.arity + (isSetter ? 1 : 0), kind: .function, isSuspend: false,
         invoker: metadata.invoker, environment: metadata.environment, parameters: metadata.parameters,
         typeParameters: metadata.typeParameters, flags: metadata.flags & 7, visibility: metadata.visibility,
-        property: raw
+        property: raw, returnTypeKTypeRaw: metadata.returnTypeKTypeRaw
     )
     context.metadata = metadata
     runtimeStorage.withDelegateLock { $0.callableRefMetadataByValue[accessor] = metadata }
@@ -200,6 +210,34 @@ public func __kk_kcallable_call(_ raw: Int, _ arguments: Int, _ outThrown: Unsaf
         return runtimeNullSentinelInt
     }
     return invokeCallable(metadata, values: values, mask: 0, outThrown: outThrown)
+}
+
+@_cdecl("__kk_kproperty0_get")
+public func __kk_kproperty0_get(
+    _ raw: Int,
+    _ interfaceTypeID: Int,
+    _ methodSlot: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    if runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self) != nil {
+        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(
+            message: "Local delegated property reflection is not supported."
+        )
+        return runtimeNullSentinelInt
+    }
+    let methodRaw = kk_itable_lookup_dynamic(raw, interfaceTypeID, methodSlot)
+    guard methodRaw != 0 else {
+        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(
+            message: "Property reference has no getter implementation."
+        )
+        return runtimeNullSentinelInt
+    }
+    let method = unsafeBitCast(
+        methodRaw,
+        to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    return method(raw, outThrown)
 }
 
 private let callableVarargArrayTypeIDs: Set<Int64> = Set([

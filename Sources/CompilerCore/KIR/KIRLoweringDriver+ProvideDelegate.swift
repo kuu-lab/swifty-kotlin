@@ -33,32 +33,51 @@ extension KIRLoweringDriver {
             .joined(separator: ".") ?? interner.resolve(propertyName)
         let receiverTypeSig = sema.symbols.extensionPropertyReceiverType(for: propertySymbol)
             .map { sema.types.displayName(of: $0, symbols: sema.symbols, interner: interner) } ?? ""
+        let ownerKind = sema.symbols.parentSymbol(for: propertySymbol)
+            .flatMap { sema.symbols.symbol($0)?.kind }
+        let hasReceiver = sema.symbols.extensionPropertyReceiverType(for: propertySymbol) != nil
+            || ownerKind.map { [.class, .interface, .object, .enumClass, .annotationClass].contains($0) } == true
+        let isMutable = sema.symbols.symbol(propertySymbol)?.flags.contains(.mutable) == true
         let identity = interner.intern(
-            "delegate-property:\(qualifiedName):receiver=\(receiverTypeSig):return=\(interner.resolve(returnTypeSig))"
+            "delegate-property:\(qualifiedName):id=\(propertySymbol.rawValue):receiver=\(receiverTypeSig):return=\(interner.resolve(returnTypeSig)):arity=\(hasReceiver ? 1 : 0):mutable=\(isMutable)"
         )
         let identityExprID = arena.appendExpr(
             .stringLiteral(identity),
             type: sema.types.stringType
         )
         body.append(.constValue(result: identityExprID, value: .stringLiteral(identity)))
+        let stubCalleeName: String
         var stubArguments = [propertyNameExprID, returnTypeExprID, identityExprID]
         if isLocal {
-            let isMutable: Int64 = sema.symbols.symbol(propertySymbol)?.flags.contains(.mutable) == true ? 1 : 0
+            let isMutableFlag: Int64 = isMutable ? 1 : 0
             let isMutableExprID = arena.appendExpr(
-                .intLiteral(isMutable),
+                .intLiteral(isMutableFlag),
                 type: sema.types.intType
             )
-            body.append(.constValue(result: isMutableExprID, value: .intLiteral(isMutable)))
+            body.append(.constValue(result: isMutableExprID, value: .intLiteral(isMutableFlag)))
             stubArguments.append(isMutableExprID)
+            stubCalleeName = "__kk_kproperty_stub_create_local"
+        } else {
+            let arityExprID = arena.appendExpr(.intLiteral(hasReceiver ? 1 : 0), type: sema.types.intType)
+            body.append(.constValue(result: arityExprID, value: .intLiteral(hasReceiver ? 1 : 0)))
+            let isMutableExprID = arena.appendExpr(.intLiteral(isMutable ? 1 : 0), type: sema.types.intType)
+            body.append(.constValue(result: isMutableExprID, value: .intLiteral(isMutable ? 1 : 0)))
+            let returnTypeKTypeRaw = lowerKTypeExpr(
+                for: propertyType,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &body.instructions
+            )
+            stubArguments.append(contentsOf: [returnTypeKTypeRaw, arityExprID, isMutableExprID])
+            stubCalleeName = "__kk_kproperty_stub_create_cached_typed"
         }
         let kPropertyExprID = arena.appendTemporary(type: sema.types.anyType
         )
         body.append(
             .call(
                 symbol: nil,
-                callee: interner.intern(
-                    isLocal ? "__kk_kproperty_stub_create_local" : "__kk_kproperty_stub_create_cached"
-                ),
+                callee: interner.intern(stubCalleeName),
                 arguments: stubArguments,
                 result: kPropertyExprID,
                 canThrow: false,
