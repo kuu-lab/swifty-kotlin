@@ -153,6 +153,12 @@ enum DiagnosticRegistry {
             summary: "Unescaped line break in string literal."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-LEX-0005",
+            pass: "LEX",
+            defaultSeverity: .error,
+            summary: "Leading zeros are not allowed in integer literals."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-LEX-0006",
             pass: "LEX",
             defaultSeverity: .error,

@@ -300,6 +300,21 @@ struct LexerParserEdgeCaseTests {
         assertHasDiagnostic("KSWIFTK-LEX-0006", in: result.diagnostics.diagnostics)
     }
 
+    @Test(arguments: ["012", "00", "000", "01L", "01u", "01uL", "0_1"])
+    func testLexerRejectsLeadingZeroIntegerLiterals(literal: String) {
+        let result = lex("val x = \(literal)")
+
+        assertHasDiagnostic("KSWIFTK-LEX-0005", in: result.diagnostics.diagnostics)
+    }
+
+    @Test(arguments: ["0", "0L", "0u", "0uL", "10", "10L", "1_000", "0.5", "01.5", "1e3", "01e3", "0x1F", "0b101"])
+    func testLexerAcceptsLegalNumericLiterals(literal: String) {
+        let result = lex("val x = \(literal)")
+
+        assertNoDiagnostic("KSWIFTK-LEX-0005", in: result.diagnostics.diagnostics)
+        #expect(!result.diagnostics.hasError)
+    }
+
     @Test
     func testParserParsesDeclarationsTypeArgsAndEmitsWarningsForBrokenInput() {
         let source = """

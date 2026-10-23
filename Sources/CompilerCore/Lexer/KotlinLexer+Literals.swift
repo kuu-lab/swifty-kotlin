@@ -21,6 +21,24 @@ extension KotlinLexer {
             _ = scanPrefixedDigits(cursor: &cursor, isDigit: isDigit, rangeStart: start)
         }
 
+        if !parsedPrefix, !hasDot, !hasExponent {
+            var digitCount = 0
+            var index = start
+            while index < cursor {
+                if isDigit(byte(at: index)) {
+                    digitCount += 1
+                }
+                index += 1
+            }
+            if digitCount > 1, byte(at: start) == 0x30 {
+                diagnostics.error(
+                    "KSWIFTK-LEX-0005",
+                    "Leading zeros are not allowed in integer literals.",
+                    range: makeRange(start: start, end: cursor)
+                )
+            }
+        }
+
         let suffix = cursor < byteCount() ? byte(at: cursor) : nil
         var textEnd = cursor
 
