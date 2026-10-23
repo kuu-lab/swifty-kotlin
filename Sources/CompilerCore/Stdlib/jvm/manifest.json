@@ -158,6 +158,11 @@
       "appendForConsumers": "declarations/CollectionFactories.kt"
     },
     {
+      "path": "declarations/IndexedValue.kt",
+      "virtualPath": "<kswiftk-jvm>/indexed-value.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "declarations/Pair.kt",
       "virtualPath": "<kswiftk-jvm>/m20-pairs.kt",
       "excludeFromStdlibBuild": true

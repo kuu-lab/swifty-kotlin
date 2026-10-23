@@ -137,7 +137,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     resultType = sema.types.makeNullable(collectionElementType)
                 case "find": resultType = sema.types.makeNullable(collectionElementType)
                 case "withIndex":
-                    let indexedValueSymbol = lookupStdlibSymbol("IndexedValue", symbols: sema.symbols, interner: interner)
+                    let indexedValueSymbol = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsIndexedValueFQName)
                     let indexedValueType: TypeID = if let indexedValueSymbol {
                         sema.types.make(.classType(ClassType(
                             classSymbol: indexedValueSymbol,

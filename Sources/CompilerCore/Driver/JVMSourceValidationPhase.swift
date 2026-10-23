@@ -314,7 +314,14 @@ private struct JVMSourceGrammar {
         } else if take(.keyword(.do)) {
             try body(); try require(.keyword(.while)); try condition()
         } else if take(.keyword(.for)) {
-            try require(.symbol(.lParen)); try name(); try require(.keyword(.in))
+            try require(.symbol(.lParen))
+            if take(.symbol(.lParen)) {
+                repeat { try name() } while take(.symbol(.comma))
+                try require(.symbol(.rParen))
+            } else {
+                try name()
+            }
+            try require(.keyword(.in))
             try expression(allowNewlines: true); try require(.symbol(.rParen)); try body()
         } else if take(.keyword(.return)) {
             if take(.symbol(.at)) { try name() }
