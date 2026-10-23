@@ -452,10 +452,10 @@ extension ExprTypeChecker {
             lexicalEnclosingFQNames: lexicalEnclosingFQNames
         )
         if classDecl.modifiers.contains(.data) {
-            DataFlowSemaPhase().collectSyntheticDataClassMethods(
+            DataFlowSemaPhase().collectSyntheticDataClassComponentsAndCopy(
                 classDecl: classDecl, ast: ast, ownerSymbol: classSymbol,
                 ownerFQName: classFQName, ownerType: classType,
-                phase: .beforeMemberHeaders, symbols: sema.symbols, types: sema.types,
+                symbols: sema.symbols, types: sema.types,
                 scope: classScope, interner: interner,
                 diagnostics: ctx.sema.diagnostics
             )
@@ -486,17 +486,23 @@ extension ExprTypeChecker {
             classScope.insert(forwardingSymbol)
         }
         if classDecl.modifiers.contains(.data) {
-            DataFlowSemaPhase().collectSyntheticDataClassMethods(
-                classDecl: classDecl, ast: ast, ownerSymbol: classSymbol,
+            let dataFlow = DataFlowSemaPhase()
+            dataFlow.collectSyntheticHashCode(
+                ownerSymbol: classSymbol,
                 ownerFQName: classFQName, ownerType: classType,
-                phase: .afterMemberHeaders, symbols: sema.symbols, types: sema.types,
-                scope: classScope, interner: interner,
-                diagnostics: ctx.sema.diagnostics
+                requireDataTypeFlag: true, symbols: sema.symbols, types: sema.types,
+                scope: classScope, interner: interner
+            )
+            dataFlow.collectSyntheticEquals(
+                ownerSymbol: classSymbol,
+                ownerFQName: classFQName, ownerType: classType,
+                requireDataTypeFlag: true, symbols: sema.symbols, types: sema.types,
+                scope: classScope, interner: interner
             )
             // Local declarations are discovered during body inference, after
             // the module-wide post-inheritance pass. Their superclass edges
             // are already bound here, so collect the generated override now.
-            DataFlowSemaPhase().collectSyntheticToString(
+            dataFlow.collectSyntheticToString(
                 ownerSymbol: classSymbol,
                 ownerFQName: classFQName,
                 ownerType: classType,
