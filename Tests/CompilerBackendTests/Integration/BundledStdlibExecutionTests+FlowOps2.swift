@@ -212,23 +212,32 @@ extension BundledStdlibExecutionTests {
     }
 
     @Test(arguments: [true, false])
-    func testFlowOps2CombineSequentialSnapshots(artifact: Bool) throws {
+    func testFlowOps2CombineLiveUpdates(artifact: Bool) throws {
         try compileAndRunKotlin(
             """
+            import kotlinx.coroutines.channels.Channel
             import kotlinx.coroutines.runBlocking
             import kotlinx.coroutines.flow.*
 
             fun main() = runBlocking {
                 val combined = combine(flowOf(1, 2, 3), flowOf(10), flowOf(100, 200)) { values: Array<Int> ->
                     values.toList().sum()
-                }
-                println(combined.toList())
-                println(combined.toList())
-                println(combine(listOf(flowOf(2), flowOf(20))) { values: Array<Int> -> values.toList().sum() }.toList())
+                }.toList()
+                println(combined.size > 0)
+                println(combined.last())
+                val iterableCombined = combine(listOf(flowOf(1, 2), flowOf(3, 4))) { values: Array<Int> ->
+                    values.toList().sum()
+                }.toList()
+                println(iterableCombined.last())
+                println(combine(flowOf(2), flowOf(20)) { a, b -> a + b }.single())
                 println(combine<Int, Int>(transform = { values: Array<Int> -> values.toList().sum() }).toList())
                 println(combine(emptyList<Flow<Int>>()) { values: Array<Int> -> values.toList().sum() }.toList())
-                println(flowOf(1, 2).combineLatest(flowOf(10), flowOf(100)) { a, b, c -> a + b + c }.toList())
+                val threeWayLatest = flowOf(1, 2).combineLatest(flowOf(10), flowOf(100)) { a, b, c -> a + b + c }.toList()
+                println(threeWayLatest.size > 0)
+                println(threeWayLatest.last())
+                println(combine(flowOf(1), flowOf(2), flowOf(3)) { a, b, c -> a + b + c }.single())
                 println(combine(flowOf(1), flowOf(2), flowOf(3), flowOf(4), flowOf(5)) { a, b, c, d, e -> a + b + c + d + e }.toList())
+                println(combine(flowOf(1), flowOf(2), flowOf(3), flowOf(4)) { a, b, c, d -> a + b + c + d }.single())
                 println(combine(flowOf<Int?>(null), flowOf<Int?>(1)) { values: Array<Int?> -> values.toList() }.toList())
                 println(flowOf(2).combineLatest(flowOf("x")) { a, b -> "$a$b" }.toList())
                 println(combine(flowOf(2), flowOf("x"), flowOf(true), flowOf(3.5), flowOf('z')) { a, b, c, d, e ->
@@ -236,9 +245,30 @@ extension BundledStdlibExecutionTests {
                 }.toList())
                 val suffix = "!"
                 println(flowOf(2).combineLatest(flowOf("x"), flowOf(3)) { a, b, c -> "$a$b$c$suffix" }.toList())
+                println(flowOf(1).combineLatest(flowOf(2), flowOf(3), flowOf(4)) { a, b, c, d -> a + b + c + d }.single())
+                println(flowOf(1).combineLatest(flowOf(2), flowOf(3), flowOf(4), flowOf(5)) { a, b, c, d, e -> a + b + c + d + e }.single())
+
+                val leftReady = Channel<Unit>(0)
+                val allowLeftUpdate = Channel<Unit>(0)
+                val leftUpdated = Channel<Unit>(0)
+                val liveLeft = flow {
+                    emit(1)
+                    leftReady.send(Unit)
+                    allowLeftUpdate.receive()
+                    emit(2)
+                    leftUpdated.send(Unit)
+                }
+                val liveRight = flow {
+                    leftReady.receive()
+                    emit(10)
+                    allowLeftUpdate.send(Unit)
+                    leftUpdated.receive()
+                    emit(20)
+                }
+                println(liveLeft.combine(liveRight) { a, b -> a + b }.toList())
             }
             """,
-            expectedOutput: "[111, 212, 213]\n[111, 212, 213]\n[22]\n[]\n[]\n[111, 112]\n[15]\n[[null, 1]]\n[2x]\n[2:x:true:3.5:z]\n[2x3!]\n",
+            expectedOutput: "true\n213\n6\n22\n[]\n[]\ntrue\n112\n6\n[15]\n10\n[[null, 1]]\n[2x]\n[2:x:true:3.5:z]\n[2x3!]\n10\n15\n[11, 12, 22]\n",
             allowDefaultStdlibLibrary: artifact
         )
     }
