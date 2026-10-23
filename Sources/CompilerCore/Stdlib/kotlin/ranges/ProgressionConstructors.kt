@@ -170,6 +170,18 @@ public infix fun UInt.until(to: UInt): UIntRange = __rangeUntil(this, to)
 public operator infix fun UInt.rangeUntil(to: UInt): UIntRange = __rangeUntil(this, to)
 public operator infix fun UInt.downTo(to: UInt): UIntProgression = UIntProgression.fromClosedRange(this, to, -1)
 
+public operator fun UByte.rangeTo(to: UByte): UIntRange = __uintRangeTo(this.toUInt(), to.toUInt())
+public infix fun UByte.until(to: UByte): UIntRange = __rangeUntil(this.toUInt(), to.toUInt())
+public operator infix fun UByte.rangeUntil(to: UByte): UIntRange = __rangeUntil(this.toUInt(), to.toUInt())
+public operator infix fun UByte.downTo(to: UByte): UIntProgression =
+    UIntProgression.fromClosedRange(this.toUInt(), to.toUInt(), -1)
+
+public operator fun UShort.rangeTo(to: UShort): UIntRange = __uintRangeTo(this.toUInt(), to.toUInt())
+public infix fun UShort.until(to: UShort): UIntRange = __rangeUntil(this.toUInt(), to.toUInt())
+public operator infix fun UShort.rangeUntil(to: UShort): UIntRange = __rangeUntil(this.toUInt(), to.toUInt())
+public operator infix fun UShort.downTo(to: UShort): UIntProgression =
+    UIntProgression.fromClosedRange(this.toUInt(), to.toUInt(), -1)
+
 public operator fun ULong.rangeTo(to: ULong): ULongRange = __ulongRangeTo(this, to)
 public infix fun ULong.until(to: ULong): ULongRange = __ulongRangeUntil(this, to)
 public operator infix fun ULong.rangeUntil(to: ULong): ULongRange = __ulongRangeUntil(this, to)

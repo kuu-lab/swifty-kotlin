@@ -645,6 +645,44 @@ struct SemaDelegateTypeCheckTests {
         }
     }
 
+    @Test func testTopLevelDelegateCanUseLaterObjectMemberWithInferredReturnType() throws {
+        let source = """
+        package kuu2878
+
+        import kotlin.reflect.KProperty
+
+        val four: Int by NumberDecrypter
+
+        object NumberDecrypter {
+            operator fun getValue(instance: Any?, data: KProperty<*>) = 4
+        }
+
+        fun main() { println(four) }
+        """
+
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
+            try runToKIR(ctx)
+
+            let diagnostics = diagnosticsForPath(paths[0], in: ctx)
+            #expect(
+                !diagnostics.contains { $0.severity == .error },
+                "A top-level delegate should resolve getValue from a later object, got: \(diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | "))"
+            )
+
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            let property = try #require(
+                topLevelSymbol(named: "four", kind: .property, package: "kuu2878", sema: sema, interner: interner)
+            )
+            let object = try #require(
+                topLevelSymbol(named: "NumberDecrypter", kind: .object, package: "kuu2878", sema: sema, interner: interner)
+            )
+            let getValue = try #require(sema.symbols.delegateGetValueSymbol(for: property))
+            #expect(sema.symbols.parentSymbol(for: getValue) == object)
+        }
+    }
+
     @Test func testGenericDelegateFactoryInferenceFromConventionContext() throws {
         let source = """
         package kuu2277

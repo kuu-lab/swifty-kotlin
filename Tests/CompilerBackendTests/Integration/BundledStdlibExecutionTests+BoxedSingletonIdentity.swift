@@ -67,15 +67,20 @@ extension BundledStdlibExecutionTests {
 
             fun ga(): Any = E.A
             fun gf(): F = F.A
+            fun same(x: Any?, y: Any?) = x === y
 
             fun main() {
                 val e: E = E.A
                 val e2: E? = E.A
                 val en: E? = null
                 val a: Any = E.A
+                val nullableA: Any? = E.A
+                val nullableB: Any? = E.A
 
                 println(a === e)
                 println(a === ga())          // repeated Any boxing -> same entry
+                println(same(E.A, E.A))
+                println(nullableA === nullableB)
                 println(e2 === a)
                 println(e2 == a)
                 println(en === a)
@@ -92,7 +97,7 @@ extension BundledStdlibExecutionTests {
                 println(E.valueOf("A") === E.A)
             }
             """,
-            expectedOutput: "true\ntrue\ntrue\ntrue\nfalse\nfalse\ntrue\nfalse\ntrue\ntrue\nfalse\ntrue\ntrue\ntrue\n",
+            expectedOutput: "true\ntrue\ntrue\ntrue\ntrue\ntrue\nfalse\nfalse\ntrue\nfalse\ntrue\ntrue\nfalse\ntrue\ntrue\ntrue\n",
             moduleName: "BoxedEnumIdentity",
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )

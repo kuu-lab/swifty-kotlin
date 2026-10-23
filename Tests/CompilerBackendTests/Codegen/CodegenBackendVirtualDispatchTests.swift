@@ -270,8 +270,8 @@ struct CodegenBackendVirtualDispatchTests {
                 moduleName: "KUU2898TwoLevelGenericSuper",
                 expected: "",
                 optLevel: optLevel,
-                allowDefaultStdlibLibrary: false,
                 includeStdlib: false,
+                allowDefaultStdlibLibrary: false,
                 prepareTestStdlibCache: false
             )
         }
@@ -293,8 +293,8 @@ struct CodegenBackendVirtualDispatchTests {
                 moduleName: "KUU2898GenericPropertyVtableABI",
                 expected: "",
                 optLevel: optLevel,
-                allowDefaultStdlibLibrary: false,
                 includeStdlib: false,
+                allowDefaultStdlibLibrary: false,
                 prepareTestStdlibCache: false
             )
         }

@@ -729,6 +729,27 @@ struct TailrecLoweringTests {
     }
 
     @Test
+    func testTailrecWhenWithIsExpressionBodyPassesKIRVerification() throws {
+        let result = try lowerTailrecSource(
+            """
+            tailrec fun withWhen(counter: Int, d: Any): Int =
+                if (counter == 0) 0
+                else if (counter == 5) withWhen(counter - 1, 999)
+                else when (d) {
+                    is String -> withWhen(counter - 1, "is String")
+                    is Number -> withWhen(counter, "is Number")
+                    else -> throw IllegalStateException()
+                }
+            """,
+            function: "withWhen", module: "TailrecWhenWithIsExprBody"
+        )
+        #expect(!result.hasError, "tailrec when/is expression body should pass KIR verification")
+        #expect(!result.hasSemaTailrecWarning)
+        #expect(result.hasLoopJump)
+        #expect(!result.hasSelfCall)
+    }
+
+    @Test
     func testTailrecNestedIfBranchesAllRewritten() throws {
         let result = try lowerTailrecSource(
             """

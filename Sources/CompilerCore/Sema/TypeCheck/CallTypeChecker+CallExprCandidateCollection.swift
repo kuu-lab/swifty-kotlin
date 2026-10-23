@@ -259,9 +259,40 @@ extension CallTypeChecker {
                 }
             })
             if !localFunctionCandidates.isEmpty {
-                // Call-position lookup keeps every same-scope local overload,
-                // even when a value with the same name occupies the value namespace.
-                candidates = localFunctionCandidates
+                let localReceiverFunctionValueIsApplicable: Bool = {
+                    guard explicitTypeArgs.isEmpty,
+                          args.isEmpty,
+                          localFunctionCandidates.allSatisfy({
+                              sema.symbols.functionSignature(for: $0)?.receiverType != nil
+                          }),
+                          let local = locals[calleeName],
+                          ctx.cachedSymbol(local.symbol)?.kind != .function,
+                          ctx.cachedSymbol(local.symbol)?.kind != .class,
+                          case let .functionType(function) = sema.types.kind(of: local.type),
+                          function.nullability == .nonNull,
+                          function.params.isEmpty,
+                          let declaredReceiver = function.receiver
+                    else {
+                        return false
+                    }
+                    return ctx.implicitReceiverMemberLookupEntries().contains { entry in
+                        implicitMemberExtensionReceiverMatches(
+                            entry.type,
+                            declared: declaredReceiver,
+                            sema: sema
+                        )
+                    }
+                }()
+                if localReceiverFunctionValueIsApplicable {
+                    // A same-named local `T.() -> R` value is invoked with the
+                    // matching implicit receiver and shadows local extensions
+                    // in this call form (KUU-2921).
+                    candidates = []
+                } else {
+                    // Call-position lookup keeps every same-scope local overload,
+                    // even when a value with the same name occupies the value namespace.
+                    candidates = localFunctionCandidates
+                }
                 resolvedFromLocalShadow = true
             }
             // Lambda parameters carry synthetic (negative) symbol IDs with no

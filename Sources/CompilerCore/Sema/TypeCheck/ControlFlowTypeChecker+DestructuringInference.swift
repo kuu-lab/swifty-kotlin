@@ -163,6 +163,7 @@ extension ControlFlowTypeChecker {
             iterableExpr: iterableExpr,
             iterableType: iterableType,
             range: range,
+            locals: locals,
             ctx: ctx
         )
         let usesNameBasedDestructuring = syntax == .parentheses
