@@ -22,6 +22,7 @@ final class JVMProgramBuilder {
     var inlineDeclarations: [SymbolID: FunDecl] = [:]
     var sourceParameters: [SymbolID: [ValueParamDecl]] = [:]
     var sourceDeclarations: [SymbolID: FunDecl] = [:]
+    var sourceRangeResultSymbols: Set<SymbolID> = []
     var inlineTypeArguments: [SymbolID: TypeID] = [:]
     var textLibraryMethods: [SymbolID: JVMTextLibraryMethod] = [:]
     var textLibraryProperties: [SymbolID: JVMForeignMethod] = [:]
@@ -41,6 +42,13 @@ final class JVMProgramBuilder {
         noteFunctionTypes(actual)
         return try JVMClasspathIndex.type(actual, sema: sema, ctx: context)
     }
+    func hasSourceRangeOperator(_ id: ExprID) -> Bool {
+        if let symbol = sema.bindings.callBinding(for: id)?.chosenCallee,
+           methods[symbol] != nil || references[symbol] != nil || inlineDeclarations[symbol] != nil {
+            return true
+        }
+        return sema.bindings.identifierSymbol(for: id).map(sourceRangeResultSymbols.contains) ?? false
+    }
     /// The declared type without the active inline substitution. Storage that
     /// outlives one instantiation (anonymous object capture fields, shared
     /// mutable-variable cells) is emitted once, so it must erase reified type
@@ -54,11 +62,11 @@ final class JVMProgramBuilder {
             throw JVMFrontendError(message: "JVM expression has no resolved type.", range: ast.arena.exprRange(id))
         }
         let mapped = try self.type(type)
-        // Range expressions carry the runtime-box element type (Int) in
-        // exprTypes, but the JVM backend materializes a real IntRange
-        // reference. Reads of range-marked expressions must keep the nominal
-        // type or the value would be unboxed like an Int.
-        if mapped == .int, sema.bindings.isRangeExpr(id) {
+        // Primitive range expressions carry their element type (Int) in
+        // exprTypes, but the JVM backend materializes an IntRange reference.
+        // A source-backed rangeTo may instead return Int or another declared
+        // type, so preserve its resolved result type.
+        if mapped == .int, sema.bindings.isRangeExpr(id), !hasSourceRangeOperator(id) {
             return .reference("kotlin/ranges/IntRange", nullable: false)
         }
         return mapped
@@ -487,7 +495,7 @@ final class JVMFunctionBuilder {
                 if property.getter.isStatic { instructions.append(.getStatic(field, result)) }
                 else { instructions.append(.getField(field, thisValue!, result)) }; return result
             }
-            if let result = try implicitTextProperty(id, name: name) { return result }
+            if let result = try implicitReceiverProperty(id, name: name) { return result }
             if !scopes.contains(where: { $0[name] != nil }), let property = propertyBinding(id) {
                 if let literal = property.field?.constantValue { return try constant(literal, property.type) }
                 return try convert(readProperty(property, receiver: instance(id), special: false), to: program.expressionType(id))
@@ -500,10 +508,15 @@ final class JVMFunctionBuilder {
             return type == .unit ? local : try convert(local, to: type)
         case .localFunDecl:
             try localFunction(id); return nil
+        case .localNominalDecl:
+            return nil
         case let .localDecl(name, mutable, annotation, initializer, delegated, late, _):
             if delegated || late { try specialLocal(id, name: name, mutable: mutable, initializer: initializer, delegated: delegated, late: late); return nil }
             guard scopes[scopes.count - 1][name] == nil else { throw fail("JVM locals require a unique name in their scope.", id) }
             let symbol = program.sema.bindings.identifierSymbol(for: id)
+            if let symbol, let initializer, program.hasSourceRangeOperator(initializer) {
+                program.sourceRangeResultSymbols.insert(symbol)
+            }
             let semanticType = symbol.flatMap { program.sema.symbols.propertyType(for: $0) }
                 ?? initializer.flatMap { program.sema.bindings.exprType(for: $0) }
             let declaredType: JVMValueType?
@@ -638,6 +651,7 @@ final class JVMFunctionBuilder {
             guard args.allSatisfy({ !$0.isSpread }),
                   let binding = program.sema.bindings.callBinding(for: id) else { throw fail("Unsupported JVM call.", id) }
             if let result = try implicitExtensionCall(binding.chosenCallee, args: args, id: id) { return result.value }
+            if let result = try implicitCollectionIteratorCall(binding.chosenCallee, args: args, id: id) { return result.value }
             if let result = try intrinsicCall(binding.chosenCallee, args: args, id: id) { return result.value }
             if let method = program.methods[binding.chosenCallee] ?? context.jvmImports?.methods[binding.chosenCallee] {
                 return try foreign(method, receiver: method.isConstructor || method.isStatic ? nil : instance(id), args: args, id: id)
@@ -658,7 +672,9 @@ final class JVMFunctionBuilder {
             instructions.append(.print(argument, newline: name == "println")); return nil
         case let .memberAssign(receiver, _, rhs, _):
             guard let property = propertyBinding(id) else { throw fail("Missing JVM property assignment binding.", id) }
-            let object = try property.getter.isStatic ? constant(.null, .reference("java/lang/Object", nullable: true)) : requireValue(receiver)
+            let object = try property.getter.isStatic && property.getter.parameters.isEmpty
+                ? constant(.null, .reference("java/lang/Object", nullable: true))
+                : requireValue(receiver)
             let result = try requireValue(rhs)
             try writeProperty(property, receiver: object, value: result, initializing: reference.name == "<init>" || initializingObject, special: isSuper(receiver), superReceiver: receiver)
             return nil

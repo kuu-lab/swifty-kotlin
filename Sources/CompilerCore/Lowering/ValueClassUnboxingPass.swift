@@ -65,6 +65,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                 arena: module.arena,
                 interner: interner,
                 types: types,
+                symbols: symbols,
                 valueClassCtors: valueClassCtors,
                 valueClassSymbols: valueClassSymbols,
                 kk_object_new: kk_object_new,
@@ -89,12 +90,28 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
         _ expr: KIRExprID,
         arena: KIRArena,
         types: TypeSystem,
-        valueClassSymbols: Set<SymbolID>
+        symbols: SymbolTable,
+        valueClassSymbols: Set<SymbolID>,
+        allowTypeParameterUpperBound: Bool = false
     ) -> Bool {
         guard let type = arena.exprType(expr) else { return false }
-        if case let .classType(classType) = types.kind(of: type),
-           valueClassSymbols.contains(classType.classSymbol)
-        {
+        let classSymbol: SymbolID?
+        switch types.kind(of: type) {
+        case let .classType(classType):
+            classSymbol = classType.classSymbol
+        case let .typeParam(typeParameter) where allowTypeParameterUpperBound:
+            // A type parameter bounded by a value class still uses that
+            // value class's unboxed representation for direct property reads.
+            classSymbol = symbols.typeParameterUpperBounds(for: typeParameter.symbol).compactMap { bound -> SymbolID? in
+                guard case let .classType(classType) = types.kind(of: bound),
+                      valueClassSymbols.contains(classType.classSymbol)
+                else { return nil }
+                return classType.classSymbol
+            }.first
+        default:
+            classSymbol = nil
+        }
+        if let classSymbol, valueClassSymbols.contains(classSymbol) {
             return true
         }
         return false
@@ -105,6 +122,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
         arena: KIRArena,
         interner: StringInterner,
         types: TypeSystem,
+        symbols: SymbolTable,
         valueClassCtors: Set<SymbolID>,
         valueClassSymbols: Set<SymbolID>,
         kk_object_new: InternedString,
@@ -125,7 +143,10 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
             if case let .call(_, callee, arguments, result, _, _, _, _) = instruction,
                callee == kk_object_new,
                let result,
-               isValueClassExpr(result, arena: arena, types: types, valueClassSymbols: valueClassSymbols)
+               isValueClassExpr(
+                   result, arena: arena, types: types, symbols: symbols,
+                   valueClassSymbols: valueClassSymbols
+               )
             {
                 allocExprs.insert(result)
                 // arguments[0] = slotCount, arguments[1] = classID
@@ -223,7 +244,11 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                 if callee == kk_array_get_inbounds,
                    let callResult,
                    arguments.count == 2,
-                   isValueClassExpr(arguments[0], arena: arena, types: types, valueClassSymbols: valueClassSymbols)
+                   isValueClassExpr(
+                       arguments[0], arena: arena, types: types, symbols: symbols,
+                       valueClassSymbols: valueClassSymbols,
+                       allowTypeParameterUpperBound: true
+                   )
                 {
                     result.append(.copy(from: arguments[0], to: callResult))
                     continue

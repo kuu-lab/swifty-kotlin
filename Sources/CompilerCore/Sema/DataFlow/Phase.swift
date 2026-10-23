@@ -726,7 +726,7 @@ final class DataFlowSemaPhase: CompilerPhase {
         withSubPhaseTiming("bindInheritanceEdges", timer: ctx.phaseTimer) {
             bindInheritanceEdges(
                 ast: ast, symbols: symbols, bindings: bindings, types: types,
-                diagnostics: ctx.diagnostics, interner: ctx.interner
+                diagnostics: ctx.diagnostics, sourceManager: ctx.sourceManager, interner: ctx.interner
             )
         }
         withSubPhaseTiming("collectDataTypeToString", timer: ctx.phaseTimer) {
@@ -883,7 +883,8 @@ final class DataFlowSemaPhase: CompilerPhase {
             validateDeclarationPositions(
                 ast: ast, symbols: symbols, types: types,
                 diagnostics: ctx.diagnostics, interner: ctx.interner,
-                sourceManager: ctx.sourceManager
+                sourceManager: ctx.sourceManager,
+                fullValueClassesEnabled: ctx.options.fullValueClassesEnabled
             )
         }
         withSubPhaseTiming("validateDeclarationSiteVariance", timer: ctx.phaseTimer) {

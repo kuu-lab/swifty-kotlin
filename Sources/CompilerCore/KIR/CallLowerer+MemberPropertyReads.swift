@@ -213,6 +213,75 @@ extension CallLowerer {
         return (implementationSymbol, .vtable(slot: slot))
     }
 
+    /// A const read skips storage access and owner initialization, but an explicit
+    /// value receiver still has to run before the inlined value is produced.
+    func lowerConstMemberReceiverIfNeeded(
+        exprID: ExprID,
+        receiverExpr: ExprID,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) {
+        guard !sema.bindings.isFQNQualifiedValueExpr(exprID),
+              !isNominalQualifierReceiver(receiverExpr, ast: ast, sema: sema)
+        else {
+            return
+        }
+        _ = driver.lowerExpr(
+            receiverExpr,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+    }
+
+    private func isNominalQualifierReceiver(_ expr: ExprID, ast: ASTModule, sema: SemaModule) -> Bool {
+        switch ast.arena.expr(expr) {
+        case .nameRef:
+            let symbol = sema.bindings.identifierSymbol(for: expr)
+                ?? bareNameRefClassLikeSymbol(expr, ast: ast, sema: sema)
+            guard let symbol else {
+                // An unbound bare name can be a class-name receiver resolved by Sema's fallback.
+                return true
+            }
+            return isClassLikeQualifierSymbol(symbol, sema: sema)
+
+        case let .memberCall(ownerExpr, _, _, args, _):
+            guard args.isEmpty else { return false }
+            if let symbol = sema.bindings.identifierSymbol(for: expr) {
+                return isClassLikeQualifierSymbol(symbol, sema: sema)
+            }
+            guard let ownerSymbol = sema.bindings.identifierSymbol(for: ownerExpr)
+                      ?? bareNameRefClassLikeSymbol(ownerExpr, ast: ast, sema: sema),
+                  isClassLikeQualifierSymbol(ownerSymbol, sema: sema),
+                  let nestedSymbol = nestedClassLikeMemberSymbol(
+                      expr, ownerSymbol: ownerSymbol, ast: ast, sema: sema
+                  )
+            else {
+                return false
+            }
+            return isClassLikeQualifierSymbol(nestedSymbol, sema: sema)
+
+        default:
+            return false
+        }
+    }
+
+    private func isClassLikeQualifierSymbol(_ symbol: SymbolID, sema: SemaModule) -> Bool {
+        switch sema.symbols.symbol(symbol)?.kind {
+        case .class, .interface, .object, .enumClass, .annotationClass:
+            true
+        default:
+            false
+        }
+    }
+
     func tryLowerObjectMemberPropertyRead(
         _ exprID: ExprID,
         receiverExpr: ExprID,
@@ -243,9 +312,18 @@ extension CallLowerer {
         if info.flags.contains(.constValue),
            let constant = sema.symbols.constValueExprKind(for: valueSym)
         {
-            // A `const val` is a compile-time constant inlined at the use
-            // site -- Kotlin never runs clinit for reading one, so this
-            // deliberately returns before the BUG-274 lazy-init guard below.
+            // A `const val` is inlined and does not initialize its owner, but
+            // an explicit expression receiver still runs before that value.
+            lowerConstMemberReceiverIfNeeded(
+                exprID: exprID,
+                receiverExpr: receiverExpr,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
             let propType = sema.bindings.exprTypes[exprID]
                 ?? sema.symbols.propertyType(for: valueSym)
                 ?? sema.types.anyType
@@ -1705,8 +1783,8 @@ extension CallLowerer {
             else {
                 continue
             }
-            if let getter = propertyDecl.getter {
-                return getter.body != .unit
+            if let getter = propertyDecl.getter, getter.body != .unit {
+                return true
             }
             return propertyDecl.delegateExpression != nil
         }

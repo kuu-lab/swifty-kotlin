@@ -52,6 +52,43 @@ struct CodegenBackendInnerClassOuterReceiverExecutionTests {
         }
     }
 
+    /// KUU-2846: a nested inner subclass and a local subclass of an inner
+    /// class declared in an outer scope must capture the current `Child`
+    /// instance. It is a `Father` subtype with its own constructor state.
+    @Test func innerSupertypeFromOuterScopeCapturesCurrentReceiver() throws {
+        try assertKotlinOutput(
+            """
+            open class Father(val param: String) {
+                abstract inner class InClass {
+                    fun work(): String = param
+                }
+
+                inner class Child(p: String) : Father(p) {
+                    inner class Child2 : Father.InClass()
+
+                    inner class Child2ViaSecondary : Father.InClass {
+                        constructor() : super()
+                    }
+
+                    fun localExtendsInner(): InClass {
+                        class Local : Father.InClass()
+                        return Local()
+                    }
+                }
+            }
+
+            fun main() {
+                val child = Father("fail").Child("OK")
+                println(child.Child2().work())
+                println(child.Child2ViaSecondary().work())
+                println(child.localExtendsInner().work())
+            }
+            """,
+            moduleName: "KUU2846InnerExtendsOuterInner",
+            expected: "OK\nOK\nOK\n"
+        )
+    }
+
     @Test func unqualifiedOuterMemberCallUsesCapturedOuterInstance() throws {
         try assertKotlinOutput(
             """
@@ -65,6 +102,24 @@ struct CodegenBackendInnerClassOuterReceiverExecutionTests {
             """,
             moduleName: "InnerClassOuterReceiverCall",
             expected: "8\n"
+        )
+    }
+
+    @Test
+    func qualifiedThisSelectsEnclosingInstanceWhenInnerClassExtendsOuterClass() throws {
+        try assertKotlinOutput(
+            """
+            open class Outer private constructor(val s: String) {
+                inner class Inner : Outer("O") {
+                    fun foo() = this.s + this@Outer.s
+                }
+                class Nested : Outer("K")
+                fun bar() = Inner()
+            }
+            fun main() { println(Outer.Nested().bar().foo()) }
+            """,
+            moduleName: "QualifiedThisWhenInnerExtendsOuter",
+            expected: "OK\n"
         )
     }
 

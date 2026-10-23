@@ -2317,11 +2317,14 @@ extension SymbolTable {
         for (property, accessor) in snapshot.extensionPropertySetterAccessors { extensionPropertySetterAccessors[mapSymbol(property)] = mapSymbol(accessor) }
         for (symbol, bounds) in snapshot.typeParameterUpperBoundsMap { typeParameterUpperBoundsMap[mapSymbol(symbol)] = bounds.map { mapType($0, using: typeMap) } }
         importedStdlibSymbolIDs.formUnion(snapshot.importedStdlibSymbolIDs.map(mapSymbol))
+        var moduleFQNSymbols = byModuleFQN.mapValues { Set($0) }
         for (symbol, module) in snapshot.moduleFQNames {
             let id = mapSymbol(symbol)
             let moduleID = interner.intern(module)
             moduleFQNames[id] = moduleID
-            if byModuleFQN[moduleID]?.contains(id) != true {
+            // Snapshot restoration can add thousands of symbols to one module;
+            // keep duplicate checks constant-time instead of rescanning its array.
+            if moduleFQNSymbols[moduleID, default: []].insert(id).inserted {
                 byModuleFQN[moduleID, default: []].append(id)
             }
         }

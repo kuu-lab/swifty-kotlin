@@ -254,6 +254,21 @@ extension JVMBackendTests {
         }
     }
 
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func collectionNumericAggregatesRunAgainstRepositoryStdlib(mode: EmitMode) throws {
+        let library = try JVMOwnStdlibCache.shared.library()
+        let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/JVMOwnStdlib")
+        let source = try String(contentsOf: fixtures.appendingPathComponent("collectionNumericAggregates.kt"), encoding: .utf8)
+        let expected = try String(contentsOf: fixtures.appendingPathComponent("collectionNumericAggregates.out"), encoding: .utf8)
+        try withWorkspace { root in
+            let app = try m22Build(root: root, sources: [("hello.kt", source)], name: mode == .jvmJar ? "app.jar" : "classes", mode: mode, classpath: [library.path])
+            try #require(app.1 == 0, "\(app.2.map(\.message))")
+            let result = try java(["-cp", app.0.path + ":" + library.path, "HelloKt"])
+            #expect(result.stdout == expected)
+            #expect(result.stderr.isEmpty)
+        }
+    }
+
     @Test(arguments: [false, true])
     func officialKotlinConsumerUsesOnlyRepositoryStdlib(withoutOfficialCompileClasspath: Bool) throws {
         let library = try JVMOwnStdlibCache.shared.library()

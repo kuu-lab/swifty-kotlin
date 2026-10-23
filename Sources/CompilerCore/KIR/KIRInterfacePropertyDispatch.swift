@@ -16,6 +16,65 @@ struct KIRInterfacePropertyGetterSlot {
     let slot: Int
 }
 
+/// A stored property declared on an open superclass may implement an
+/// interface property only in a descendant. Materialize its ordinary
+/// accessor so the descendant's itable bridge has a real function to call.
+func kirStoredPropertyInheritedInterfaceAccessors(
+    propertySymbol: SymbolID,
+    ownerSymbol: SymbolID,
+    sema: SemaModule
+) -> (getter: Bool, setter: Bool) {
+    guard let property = sema.symbols.symbol(propertySymbol),
+          property.kind == .property,
+          let owner = sema.symbols.symbol(ownerSymbol),
+          owner.kind == .class,
+          !sema.symbols.directSubtypes(of: ownerSymbol).isEmpty
+    else {
+        return (false, false)
+    }
+
+    let ownerGetter = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+    let ownerSetter = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
+    let supportsSetter = property.flags.contains(.mutable)
+    var needsGetter = false
+    var needsSetter = false
+
+    var pending = sema.symbols.directSubtypes(of: ownerSymbol)
+    var visited: Set<SymbolID> = []
+    while let nominal = pending.popLast() {
+        guard visited.insert(nominal).inserted else {
+            continue
+        }
+        pending.append(contentsOf: sema.symbols.directSubtypes(of: nominal))
+
+        for interface in kirTransitiveInterfaceSupertypes(of: nominal, sema: sema) {
+            guard let interfaceInfo = sema.symbols.symbol(interface) else {
+                continue
+            }
+            for candidate in sema.symbols.lookupAll(fqName: interfaceInfo.fqName + [property.name]) {
+                guard let candidateInfo = sema.symbols.symbol(candidate),
+                      candidateInfo.kind == .property,
+                      sema.symbols.parentSymbol(for: candidate) == interface
+                else {
+                    continue
+                }
+                if kirFindOverridePropertyGetter(for: candidate, in: nominal, sema: sema) == ownerGetter {
+                    needsGetter = true
+                }
+                if supportsSetter, candidateInfo.flags.contains(.mutable),
+                   kirFindOverridePropertySetter(for: candidate, in: nominal, sema: sema) == ownerSetter
+                {
+                    needsSetter = true
+                }
+                if needsGetter, !supportsSetter || needsSetter {
+                    return (needsGetter, needsSetter)
+                }
+            }
+        }
+    }
+    return (needsGetter, needsSetter)
+}
+
 /// The interface's own instance properties that participate in itable dispatch,
 /// paired with the itable method slot each getter occupies. Ordered by property
 /// name so the dispatch site and the registration site agree even when they are

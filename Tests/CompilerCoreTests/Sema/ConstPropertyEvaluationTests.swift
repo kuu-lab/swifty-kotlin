@@ -258,6 +258,81 @@ struct ConstPropertyEvaluationTests {
     }
 
     @Test
+    func foldsPrimitiveCompareToToStringAndUnaryMemberCalls() throws {
+        let ctx = makeContextFromSource("""
+        package primitiveMemberConstants
+        const val ONE_BYTE = 1.toByte()
+        const val BYTE_COMPARE = ONE_BYTE.compareTo(2.toByte())
+        const val MIXED_COMPARE = 1.compareTo(2L)
+        const val CHAR_COMPARE = 'A'.compareTo('B')
+        const val BOOLEAN_COMPARE = true.compareTo(false)
+        const val FLOAT_COMPARE = 1.5f.compareTo(1.25f)
+        const val NAN_COMPARE = Double.NaN.compareTo(1.0)
+        const val NEGATIVE_ZERO_COMPARE = (-0.0).compareTo(0.0)
+        const val BYTE_UNARY_PLUS = ONE_BYTE.unaryPlus()
+        const val BYTE_UNARY_MINUS = ONE_BYTE.unaryMinus()
+        const val INT_UNARY_PLUS = 1.unaryPlus()
+        const val LONG_UNARY_MINUS = 1L.unaryMinus()
+        const val FLOAT_UNARY_MINUS = 1.0f.unaryMinus()
+        const val DOUBLE_UNARY_PLUS = (-0.0).unaryPlus()
+        const val BOOLEAN_STRING = true.toString()
+        const val CHAR_STRING = 'A'.toString()
+        const val BYTE_STRING = ONE_BYTE.toString()
+        const val FLOAT_STRING = 1.25f.toString()
+        const val NAN_STRING = Double.NaN.toString()
+        val runtimeInt = 1
+        const val NOT_CONSTANT = runtimeInt.toString()
+        """)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 1)
+        #expect(errors.first?.code == "KSWIFTK-SEMA-0083")
+
+        let sema = try #require(ctx.sema)
+        let expected: [String: KIRExprKind] = [
+            "BYTE_COMPARE": .intLiteral(-1),
+            "MIXED_COMPARE": .intLiteral(-1),
+            "CHAR_COMPARE": .intLiteral(-1),
+            "BOOLEAN_COMPARE": .intLiteral(1),
+            "FLOAT_COMPARE": .intLiteral(1),
+            "NAN_COMPARE": .intLiteral(1),
+            "NEGATIVE_ZERO_COMPARE": .intLiteral(-1),
+            "BYTE_UNARY_PLUS": .intLiteral(1),
+            "BYTE_UNARY_MINUS": .intLiteral(-1),
+            "INT_UNARY_PLUS": .intLiteral(1),
+            "LONG_UNARY_MINUS": .longLiteral(-1),
+            "FLOAT_UNARY_MINUS": .floatLiteral(-1.0),
+            "BOOLEAN_STRING": .stringLiteral(ctx.interner.intern("true")),
+            "CHAR_STRING": .stringLiteral(ctx.interner.intern("A")),
+            "BYTE_STRING": .stringLiteral(ctx.interner.intern("1")),
+            "FLOAT_STRING": .stringLiteral(ctx.interner.intern("1.25")),
+            "NAN_STRING": .stringLiteral(ctx.interner.intern("NaN")),
+        ]
+        for (name, value) in expected {
+            let symbol = try #require(sema.symbols.lookup(
+                fqName: ["primitiveMemberConstants", name].map { ctx.interner.intern($0) }
+            ))
+            #expect(sema.symbols.constValueExprKind(for: symbol) == value, "Incorrect constant for \(name)")
+        }
+
+        let doubleUnaryPlus = try #require(sema.symbols.lookup(
+            fqName: ["primitiveMemberConstants", "DOUBLE_UNARY_PLUS"].map { ctx.interner.intern($0) }
+        ))
+        guard case let .doubleLiteral(doubleUnaryPlusValue) = sema.symbols.constValueExprKind(for: doubleUnaryPlus) else {
+            Issue.record("Missing Double constant for DOUBLE_UNARY_PLUS")
+            return
+        }
+        #expect(doubleUnaryPlusValue == 0.0)
+        #expect(doubleUnaryPlusValue.sign == .minus)
+
+        let rejected = try #require(sema.symbols.lookup(
+            fqName: ["primitiveMemberConstants", "NOT_CONSTANT"].map { ctx.interner.intern($0) }
+        ))
+        #expect(sema.symbols.constValueExprKind(for: rejected) == nil)
+    }
+
+    @Test
     func foldsLengthOfStringLiteralsAndConstProperties() throws {
         let ctx = makeContextFromSource("""
         package stringLengthConstants

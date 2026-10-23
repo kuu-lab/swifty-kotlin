@@ -197,6 +197,44 @@ struct CodegenBackendInterfaceIterableForLoopTests {
     }
 
     @Test
+    func testNameBasedDestructuringPropertyAliasesReadProperties() throws {
+        let source = """
+        class Tuple(val first: String, val second: Int)
+
+        fun main() {
+            val tuple = Tuple("OK", 1)
+            val (a = first, b = second) = tuple
+            println("$a,$b")
+            for ((c = first, d = second) in listOf(tuple)) {
+                println("$c,$d")
+            }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let output = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            defer { try? FileManager.default.removeItem(atPath: output) }
+
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "NameBasedDestructuringPropertyAliases",
+                emit: .executable,
+                outputPath: output,
+                frontendFlags: ["name-based-destructuring=complete"]
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: output, arguments: [])
+            #expect(result.exitCode == 0, "Execution stderr: \(result.stderr)")
+            #expect(result.stdout == "OK,1\nOK,1\n")
+        }
+    }
+
+    @Test
     func testIterableUnzipUsesOneIteratorAndPreservesOrder() throws {
         let source = """
         class CountingPairs : Iterable<Pair<Int, String>> {
