@@ -334,6 +334,23 @@ struct RuntimeCallableRefMetadata {
     var identityCaptures: [Int] = []
 }
 
+/// Equality identity of a `fun interface` SAM-adapter wrapper created from a
+/// callable reference. The JVM generates an anonymous class implementing the
+/// interface plus `kotlin.jvm.internal.FunctionAdapter`; its synthesized
+/// equals/hashCode delegate to the stored function reference, and equals
+/// additionally requires `other instanceof <that fun interface>` (KUU-2940).
+struct RuntimeSamAdapterIdentity {
+    /// Stable nominal type ID of the `fun interface` the wrapper implements.
+    let interfaceTypeID: Int64
+    /// Referenced callable's function address (the delegate's target).
+    let targetRaw: Int
+    let arity: Int
+    let isSuspend: Bool
+    let modifierFlags: Int
+    /// Bound captures (e.g. the receiver of a bound member reference).
+    let captures: [Int]
+}
+
 final class RuntimeFunctionValueBox {
     let fnPtr: Int
     let closureRaw: Int
