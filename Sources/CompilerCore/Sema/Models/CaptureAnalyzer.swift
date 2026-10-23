@@ -263,6 +263,18 @@ struct CaptureAnalyzer {
                         outerSymbols.contains($0)
                     })
                 }
+                // Local class/object constructor calls materialize the
+                // nominal's captured fields in the caller. Forward those
+                // dependencies when the construction happens in another
+                // local nominal or deferred callable body.
+                if let constructor = sema.bindings.callBinding(for: currentExprID)?.chosenCallee,
+                   sema.symbols.symbol(constructor)?.kind == .constructor,
+                   let owner = sema.symbols.parentSymbol(for: constructor)
+                {
+                    captured.formUnion(sema.bindings.objectLiteralCaptureSymbols(for: owner).filter {
+                        outerSymbols.contains($0)
+                    })
+                }
                 // A call that resolved on an outer implicit receiver needs the
                 // enclosing `this` captured so the receiver value reaches the
                 // member body's lowering.

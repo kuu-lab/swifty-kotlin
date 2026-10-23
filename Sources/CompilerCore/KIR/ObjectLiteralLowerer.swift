@@ -565,6 +565,19 @@ final class ObjectLiteralLowerer {
         else {
             return
         }
+        // An anonymous subclass reuses its inner superclass's `$outer` slot.
+        // The object itself is already allocated, so initialize that inherited
+        // link from the active receiver before the superclass constructor (or
+        // its argument expressions) can read members from the enclosing owner.
+        storeOuterInstanceLinkIfNeeded(
+            allocatedObject: objectValue,
+            innerClassSymbol: superclassSymbol,
+            outerReceiver: driver.ctx.activeImplicitReceiverExprID(),
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
         let candidates = sema.symbols.lookupAll(fqName: superclassInfo.fqName + [interner.intern("<init>")])
         let callBinding = sema.bindings.constructorDelegationCallBinding(for: objectSymbol)
         guard let superCtorSymbol = callBinding?.chosenCallee ?? driver.resolveObjectSuperConstructor(
