@@ -92,15 +92,24 @@ public class Class<T> {
     @KsSymbolName("__kk_class_get_enclosing_class")
     private external fun __classGetEnclosingClass(): Class<*>?
 
+    @KsSymbolName("__kk_class_get_enclosing_constructor")
+    private external fun __classGetEnclosingConstructor(): Constructor<*>?
+
+    @KsSymbolName("__kk_class_get_enclosing_method")
+    private external fun __classGetEnclosingMethod(): Method?
+
+    @KsSymbolName("__kk_class_get_declaring_class")
+    private external fun __classGetDeclaringClass(): Class<*>?
+
     public fun getName(): String = name
 
     public fun getEnclosingClass(): Class<*>? = __classGetEnclosingClass()
 
-    public fun getEnclosingConstructor(): Constructor<*>? = null
+    public fun getEnclosingConstructor(): Constructor<*>? = __classGetEnclosingConstructor()
 
-    public fun getEnclosingMethod(): java.lang.reflect.Method? = null
+    public fun getEnclosingMethod(): Method? = __classGetEnclosingMethod()
 
-    public fun getDeclaringClass(): Class<*>? = null
+    public fun getDeclaringClass(): Class<*>? = __classGetDeclaringClass()
 
     public companion object {
         public fun forName(className: String): Class<*> = __classForName(className)

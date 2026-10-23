@@ -389,6 +389,75 @@ public func __kk_kclass_register_metadata_v2(
     return 0
 }
 
+/// Adds one declared type parameter to the metadata for a KClass.
+@_cdecl("__kk_kclass_register_type_parameter")
+public func __kk_kclass_register_type_parameter(
+    _ typeToken: Int,
+    _ index: Int,
+    _ identity: Int,
+    _ nameRaw: Int,
+    _ varianceOrdinal: Int,
+    _ isReified: Int,
+    _ upperBoundsRaw: Int
+) -> Int {
+    guard let name = extractString(from: UnsafeMutableRawPointer(bitPattern: nameRaw)) else {
+        return 0
+    }
+    let parameterRaw = __kk_ktypeparameter_create(identity, nameRaw, varianceOrdinal, isReified)
+    if runtimeReflectionObject(from: upperBoundsRaw, as: RuntimeListBox.self) != nil {
+        _ = __kk_ktypeparameter_set_upper_bounds(parameterRaw, upperBoundsRaw)
+    }
+    runtimeKClassMetadataRegistry.registerTypeParameter(
+        typeToken: typeToken,
+        index: index,
+        metadata: RuntimeKTypeParameterMetadata(
+            identity: identity,
+            name: name,
+            varianceOrdinal: varianceOrdinal
+        )
+    )
+    return 0
+}
+
+/// Stores the Java reflection owner and member for a local or nested class.
+/// `memberKind` is 0 for no member, 1 for a method, and 2 for a constructor.
+@_cdecl("__kk_kclass_register_enclosing_metadata")
+public func __kk_kclass_register_enclosing_metadata(
+    _ typeToken: Int,
+    _ enclosingClassNameRaw: Int,
+    _ declaringClassNameRaw: Int,
+    _ memberKind: Int,
+    _ memberNameRaw: Int,
+    _ memberSignatureRaw: Int
+) -> Int {
+    let enclosingClassName = extractString(
+        from: UnsafeMutableRawPointer(bitPattern: enclosingClassNameRaw)
+    )
+    let declaringClassName = extractString(
+        from: UnsafeMutableRawPointer(bitPattern: declaringClassNameRaw)
+    )
+    let memberName = extractString(from: UnsafeMutableRawPointer(bitPattern: memberNameRaw))
+    let memberSignature = extractString(from: UnsafeMutableRawPointer(bitPattern: memberSignatureRaw))
+    let kind = RuntimeKClassEnclosingMember.Kind(rawValue: memberKind)
+    let member: RuntimeKClassEnclosingMember?
+    if let kind, let memberName, let memberSignature {
+        member = RuntimeKClassEnclosingMember(
+            kind: kind,
+            name: memberName,
+            signature: memberSignature
+        )
+    } else {
+        member = nil
+    }
+    runtimeKClassMetadataRegistry.registerEnclosingMetadata(
+        typeToken: typeToken,
+        enclosingClassName: enclosingClassName,
+        declaringClassName: declaringClassName,
+        enclosingMember: member
+    )
+    return 0
+}
+
 /// Registers a compiler-derived JVM binary name without changing qualifiedName.
 @_cdecl("__kk_kclass_register_display_name")
 public func __kk_kclass_register_display_name(_ typeToken: Int, _ displayNameRaw: Int) -> Int {
@@ -528,8 +597,7 @@ public func __kk_kclass_visibility(_ kclassRaw: Int) -> Int {
     )
 }
 
-/// Returns the type parameters of this KClass as a runtime list.
-/// Each element is an integer representing the type parameter index.
+/// Returns the type parameters of this KClass as runtime KTypeParameter boxes.
 /// Returns an empty list if no type parameters.
 @_cdecl("__kk_kclass_type_parameters")
 public func __kk_kclass_type_parameters(_ kclassRaw: Int) -> Int {
@@ -537,7 +605,10 @@ public func __kk_kclass_type_parameters(_ kclassRaw: Int) -> Int {
           let metadata = box.metadata else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
-    let count = max(0, metadata.typeParameterCount)
-    let indices = (0..<count).map { $0 }
-    return registerRuntimeObject(RuntimeListBox(elements: indices))
+    let qualifiedName = metadata.qualifiedName
+    let parameters = runtimeKClassTypeParameterHandles(
+        qualifiedName: qualifiedName,
+        metadata: metadata
+    )
+    return registerRuntimeObject(RuntimeListBox(elements: parameters))
 }
