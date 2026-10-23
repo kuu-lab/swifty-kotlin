@@ -53,8 +53,8 @@ private final class RuntimeSQLExceptionBox: RuntimeThrowableBox {
     }
 }
 
-private func runtimeAllocateSQLException(message: String?) -> Int {
-    registerRuntimeObject(RuntimeSQLExceptionBox(message: message))
+private func runtimeAllocateSQLException(message: String?, messageRaw: Int = 0) -> Int {
+    registerRuntimeObject(RuntimeSQLExceptionBox(message: message, messageRaw: messageRaw))
 }
 
 private func runtimeJDBCSetError(_ message: String, _ outThrown: UnsafeMutablePointer<Int>?) {
@@ -504,5 +504,8 @@ public func kk_jdbc_sql_exception_new() -> Int {
 
 @_cdecl("__kk_jdbc_sql_exception_new_message")
 public func kk_jdbc_sql_exception_new_message(_ messageRaw: Int) -> Int {
-    runtimeAllocateSQLException(message: runtimeStringFromRaw(messageRaw))
+    runtimeAllocateSQLException(
+        message: runtimeStringFromRaw(messageRaw),
+        messageRaw: messageRaw == runtimeNullSentinelInt ? 0 : messageRaw
+    )
 }

@@ -135,6 +135,10 @@ final class RuntimeObjectBox: RuntimeArrayBox {
     var backingMapBox: RuntimeMapBox?
     var backingMapRaw: Int = 0
     var throwableMessage: String?
+    /// Same role as `RuntimeThrowableBox.messageRaw` for source-defined
+    /// Throwable subclasses: preserves the constructor `message` handle so
+    /// `e.message === arg` holds like on the JVM.
+    var throwableMessageRaw: Int = 0
     var throwableCause: Int
     var throwableStackTraceAddresses: [Int]?
     var throwableSuppressed: [Int]

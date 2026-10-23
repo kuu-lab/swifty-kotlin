@@ -223,7 +223,8 @@ private func runtimeAllocateArrayBox(length: Int) -> Int {
 @_cdecl("__kk_throwable_new")
 public func __kk_throwable_new(_ message: UnsafeMutableRawPointer?) -> UnsafeMutableRawPointer {
     let text = extractString(from: message)
-    let throwableInt = runtimeAllocateThrowable(message: text)
+    let messageRaw = normalizeNullableRuntimePointer(message).map { Int(bitPattern: $0) } ?? 0
+    let throwableInt = runtimeAllocateThrowable(message: text, messageRaw: messageRaw)
     guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableInt) else {
         runtimeStructuredPanic("__kk_throwable_new: allocation returned null")
     }
@@ -233,8 +234,9 @@ public func __kk_throwable_new(_ message: UnsafeMutableRawPointer?) -> UnsafeMut
 @_cdecl("__kk_throwable_new_with_cause")
 public func __kk_throwable_new_with_cause(_ message: UnsafeMutableRawPointer?, _ causeRaw: Int) -> UnsafeMutableRawPointer {
     let text = extractString(from: message)
+    let messageRaw = normalizeNullableRuntimePointer(message).map { Int(bitPattern: $0) } ?? 0
     let cause = (causeRaw == runtimeNullSentinelInt || causeRaw == 0) ? 0 : causeRaw
-    let throwableInt = runtimeAllocateThrowable(message: text, cause: cause)
+    let throwableInt = runtimeAllocateThrowable(message: text, cause: cause, messageRaw: messageRaw)
     guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableInt) else {
         runtimeStructuredPanic("__kk_throwable_new_with_cause: allocation returned null")
     }
@@ -268,6 +270,27 @@ public func kk_throwable_is_cancellation(_ throwableRaw: Int) -> Int {
     kk_is_cancellation_exception(throwableRaw)
 }
 
+/// `Throwable.message` getter: returns the constructor argument's own `String`
+/// handle when one was supplied (matching the JVM field reference), otherwise
+/// lazily materializes and caches one stable box for runtime-synthesized
+/// messages so `e.message === e.message` holds too.
+private func runtimeThrowableMessageHandle(boxRaw: inout Int, text: String?) -> Int {
+    if boxRaw != 0 {
+        return boxRaw
+    }
+    guard let text else {
+        return runtimeNullSentinelInt
+    }
+    let box = RuntimeStringBox(text)
+    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: opaque))
+    }
+    let raw = Int(bitPattern: opaque)
+    boxRaw = raw
+    return raw
+}
+
 @_cdecl("__kk_throwable_message")
 public func __kk_throwable_message(_ throwableRaw: Int) -> Int {
     if throwableRaw == runtimeNullSentinelInt || throwableRaw == 0 {
@@ -276,23 +299,13 @@ public func __kk_throwable_message(_ throwableRaw: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw) else {
         return runtimeNullSentinelInt
     }
-    let message: String?
     if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
-        message = throwable.message
-    } else if let cancellation = tryCast(ptr, to: RuntimeCancellationBox.self) {
-        message = cancellation.message
-    } else if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
-        message = object.throwableMessage
-    } else {
-        return runtimeNullSentinelInt
+        return runtimeThrowableMessageHandle(boxRaw: &throwable.messageRaw, text: throwable.message)
     }
-    guard let message else { return runtimeNullSentinelInt }
-    let box = RuntimeStringBox(message)
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
+    if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
+        return runtimeThrowableMessageHandle(boxRaw: &object.throwableMessageRaw, text: object.throwableMessage)
     }
-    return Int(bitPattern: opaque)
+    return runtimeNullSentinelInt
 }
 
 /// Stores a message for a Kotlin-defined Throwable subclass allocated through
@@ -307,6 +320,7 @@ public func __kk_throwable_setMessage(_ throwableRaw: Int, _ messageRaw: Int) ->
         return throwableRaw
     }
     object.throwableMessage = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw))
+    object.throwableMessageRaw = messageRaw == runtimeNullSentinelInt ? 0 : messageRaw
     runtimeRegisterTypeEdge(
         childTypeID: object.classID,
         parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.Throwable")

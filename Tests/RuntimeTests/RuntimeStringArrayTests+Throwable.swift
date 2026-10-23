@@ -65,6 +65,35 @@ extension RuntimeStringArrayTests {
         }
     }
 
+    /// JVM parity: `Throwable(message)` keeps the argument String's reference,
+    /// so the getter returns the same handle it was constructed with.
+    @Test
+    func testThrowableMessagePreservesArgumentStringIdentity() {
+        let msg = makeRuntimeString("identity")
+        let messageRaw = Int(bitPattern: msg)
+
+        for throwable in [
+            Int(bitPattern: __kk_throwable_new(msg)),
+            Int(bitPattern: __kk_throwable_new_with_cause(msg, runtimeNullSentinelInt)),
+            kk_illegal_state_exception_new_message(messageRaw),
+        ] {
+            #expect(__kk_throwable_message(throwable) == messageRaw)
+            #expect(__kk_throwable_message(throwable) == __kk_throwable_message(throwable))
+        }
+    }
+
+    /// Synthesized messages (cause-only ctor) are materialized once and cached,
+    /// so repeated getter calls return one stable String handle.
+    @Test
+    func testThrowableSynthesizedMessageIsStableAcrossGetterCalls() {
+        let cause = Int(bitPattern: __kk_throwable_new(makeRuntimeString("inner")))
+        let throwable = Int(bitPattern: __kk_throwable_new_cause(cause))
+
+        let first = __kk_throwable_message(throwable)
+        #expect(first != runtimeNullSentinelInt)
+        #expect(__kk_throwable_message(throwable) == first)
+    }
+
     /// Runtime-allocated throwables have no Kotlin vtable; the open `message`
     /// and `cause` getter slots must resolve to raw-ABI runtime bridges.
     @Test
