@@ -22,7 +22,7 @@ struct DeclarationGraphBuilderTests {
     private func invalidatedNames(_ old: String, _ new: String) throws -> Set<String> {
         let newGraph = try graph(new)
         let ids = newGraph.invalidated(since: try graph(old))
-        return Set(ids.map { String($0.split(separator: "::").last ?? "") })
+        return Set(ids.map { $0.components(separatedBy: "::").last ?? "" })
     }
 
     private let base = """
