@@ -284,16 +284,26 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                sema.bindings.callBindings[id] == nil,
                ["sum", "average"].contains(calleeStr)
             {
-                ctx.sema.diagnostics.error(
-                    "KSWIFTK-SEMA-0024",
-                    "No viable overload found for call.",
-                    range: ast.arena.exprRange(id)
-                )
-                let failedType = safeCall
-                    ? sema.types.makeNullable(sema.types.errorType)
-                    : sema.types.errorType
-                sema.bindings.bindExprType(id, type: failedType)
-                return failedType
+                if sema.requiresResolvedLibraryCalls,
+                   let aggregateType = CallTypeChecker.jvmSequenceAggregateResultType(
+                       member: calleeStr,
+                       elementType: collectionElementType,
+                       sema: sema
+                   )
+                {
+                    resultType = aggregateType
+                } else {
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0024",
+                        "No viable overload found for call.",
+                        range: ast.arena.exprRange(id)
+                    )
+                    let failedType = safeCall
+                        ? sema.types.makeNullable(sema.types.errorType)
+                        : sema.types.errorType
+                    sema.bindings.bindExprType(id, type: failedType)
+                    return failedType
+                }
             }
 
             let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType

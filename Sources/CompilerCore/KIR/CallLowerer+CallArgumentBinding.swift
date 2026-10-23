@@ -103,10 +103,28 @@ extension CallLowerer {
         instructions: inout [KIRInstruction],
         arguments: inout [KIRExprID]
     ) {
-        let intType = sema.types.make(.primitive(.int, .nonNull))
-        let maskExpr = arena.appendExpr(.intLiteral(Int64(defaultMask)), type: intType)
+        let maskType = sema.types.make(.primitive(.long, .nonNull))
+        let maskExpr = arena.appendExpr(.intLiteral(Int64(defaultMask)), type: maskType)
         instructions.append(.constValue(result: maskExpr, value: .intLiteral(Int64(defaultMask))))
         arguments.append(maskExpr)
+    }
+
+    func appendDefaultMaskArguments(
+        _ defaultMasks: [Int64],
+        sema: SemaModule,
+        arena: KIRArena,
+        instructions: inout [KIRInstruction],
+        arguments: inout [KIRExprID]
+    ) {
+        for defaultMask in defaultMasks {
+            appendDefaultMaskArgument(
+                defaultMask,
+                sema: sema,
+                arena: arena,
+                instructions: &instructions,
+                arguments: &arguments
+            )
+        }
     }
 
     func normalizedCallableValueArguments(

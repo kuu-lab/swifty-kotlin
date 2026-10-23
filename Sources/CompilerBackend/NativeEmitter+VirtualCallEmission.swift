@@ -21,6 +21,97 @@ extension NativeEmitter.FunctionEmissionContext {
         let calleeName = interner.resolve(callee)
         let argumentValues = [resolveValue(receiver)] + arguments.map(resolveValue)
         let argumentTypes = [module.arena.exprType(receiver)] + arguments.map(module.arena.exprType)
+        // A vtable slot retains the erased signature of its root-most
+        // declaration. The call-site symbol may be a specialized override
+        // whose native String ABI differs from the bridge registered in that
+        // slot, so recover the slot contract before choosing an indirect-call
+        // type.
+        let vtableABISymbol: SymbolID? = {
+            guard case let .vtable(slot) = dispatch,
+                  let symbol,
+                  symbol != .invalid,
+                  let symbols
+            else {
+                return nil
+            }
+
+            func nominalOwner(for member: SymbolID) -> SymbolID? {
+                let property = symbols.propertySymbol(forAccessor: member)
+                    ?? symbols.accessorOwnerProperty(for: member)
+                var current = symbols.parentSymbol(for: property ?? member)
+                var visited: Set<SymbolID> = []
+                while let currentSymbol = current, visited.insert(currentSymbol).inserted {
+                    guard let info = symbols.symbol(currentSymbol) else {
+                        return nil
+                    }
+                    switch info.kind {
+                    case .class, .object, .enumClass, .annotationClass, .interface:
+                        return currentSymbol
+                    default:
+                        current = symbols.parentSymbol(for: currentSymbol)
+                    }
+                }
+                return nil
+            }
+
+            guard let owner = nominalOwner(for: symbol),
+                  let layout = symbols.nominalLayout(for: owner)
+            else {
+                return nil
+            }
+
+            var distances: [SymbolID: Int] = [owner: 0]
+            var pending = [owner]
+            var head = 0
+            while head < pending.count {
+                let current = pending[head]
+                head += 1
+                let distance = (distances[current] ?? 0) + 1
+                for supertype in symbols.directSupertypes(for: current) {
+                    guard distances[supertype] == nil,
+                          let info = symbols.symbol(supertype)
+                    else {
+                        continue
+                    }
+                    switch info.kind {
+                    case .class, .object, .enumClass, .annotationClass, .interface:
+                        distances[supertype] = distance
+                        pending.append(supertype)
+                        if info.flags.contains(.expectDeclaration),
+                           let actual = symbols.actualSymbol(for: supertype),
+                           symbols.symbol(actual)?.kind == info.kind,
+                           distances[actual] == nil
+                        {
+                            distances[actual] = distance
+                            pending.append(actual)
+                        }
+                    default:
+                        continue
+                    }
+                }
+            }
+
+            let candidates = layout.vtableSlots.compactMap { candidate, candidateSlot -> (distance: Int, symbol: SymbolID)? in
+                guard candidateSlot == slot else {
+                    return nil
+                }
+                let candidateProperty = symbols.propertySymbol(forAccessor: candidate)
+                    ?? symbols.accessorOwnerProperty(for: candidate)
+                    ?? (symbols.symbol(candidate)?.kind == .property ? candidate : nil)
+                guard symbols.functionSignature(for: candidate) != nil || candidateProperty != nil,
+                      let candidateOwner = nominalOwner(for: candidate),
+                      let distance = distances[candidateOwner]
+                else {
+                    return nil
+                }
+                return (distance, candidate)
+            }
+            return candidates.max { lhs, rhs in
+                lhs.distance == rhs.distance
+                    ? lhs.symbol.rawValue < rhs.symbol.rawValue
+                    : lhs.distance < rhs.distance
+            }?.symbol ?? symbol
+        }()
         // Use the declared signature, not the substituted call-site
         // type: generic members returning T keep the raw handle ABI
         // even when invoked as String. Getters may require recovering
@@ -31,12 +122,13 @@ extension NativeEmitter.FunctionEmissionContext {
             }
             if calleeName == "get",
                argumentValues.count == 1,
-               let symbol,
-               let property = symbols?.propertySymbol(forAccessor: symbol)
+               let signatureSymbol = vtableABISymbol ?? symbol,
+               let property = symbols?.propertySymbol(forAccessor: signatureSymbol)
+                   ?? symbols?.accessorOwnerProperty(for: signatureSymbol)
             {
                 return stringAggregateBridge.isStringAggregateType(symbols?.propertyType(for: property))
             }
-            if let signature = symbol.flatMap({ symbols?.functionSignature(for: $0) }) {
+            if let signature = (vtableABISymbol ?? symbol).flatMap({ symbols?.functionSignature(for: $0) }) {
                 return stringAggregateBridge.isStringAggregateType(signature.returnType)
             }
             return nil
@@ -131,21 +223,22 @@ extension NativeEmitter.FunctionEmissionContext {
             nil
         }
         let effectiveSymbol = normalizedSymbol ?? fallbackInternal?.symbol
-        let isInternalCall = effectiveSymbol.flatMap { internalFunctions[$0] } != nil
-        let effectiveExternalName = effectiveSymbol.flatMap { symbols?.externalLinkName(for: $0) } ?? externalCalleeName
+        let effectiveABISymbol = vtableABISymbol ?? effectiveSymbol
+        let isInternalCall = effectiveABISymbol.flatMap { internalFunctions[$0] } != nil
+        let effectiveExternalName = effectiveABISymbol.flatMap { symbols?.externalLinkName(for: $0) } ?? externalCalleeName
         let sourceExternalCallSignature = !isInternalCall
             ? sourceExternalSignature(
-                for: effectiveSymbol,
+                for: effectiveABISymbol,
                 argumentCount: argumentValues.count
             )
             : nil
         let virtualSourceCallSignature: (parameters: [TypeID], returnType: TypeID)? = {
             guard !isInternalCall,
-                  let effectiveSymbol,
+                  let effectiveABISymbol,
                   let symbols,
                   let typeSystem,
-                  let signature = symbols.functionSignature(for: effectiveSymbol),
-                  let linkName = symbols.externalLinkName(for: effectiveSymbol),
+                  let signature = symbols.functionSignature(for: effectiveABISymbol),
+                  let linkName = symbols.externalLinkName(for: effectiveABISymbol),
                   linkName.hasPrefix("kk_fn_"),
                   (
                       stringAggregateBridge.isStringAggregateType(signature.returnType)
@@ -155,7 +248,7 @@ extension NativeEmitter.FunctionEmissionContext {
             else {
                 return nil
             }
-            let receivers = sourceReceiverTypes(for: effectiveSymbol, signature: signature)
+            let receivers = sourceReceiverTypes(for: effectiveABISymbol, signature: signature)
             let valueParameters = signature.parameterTypes.enumerated().map { index, parameter in
                 // Metadata records a vararg's element type, but its ABI
                 // passes one erased array handle, including for String.
@@ -237,8 +330,8 @@ extension NativeEmitter.FunctionEmissionContext {
                 argumentCount: 1,
                 appendThrownChannel: true
             )
-        } else if let effectiveSymbol,
-                  let internalFunction = internalFunctions[effectiveSymbol]
+        } else if let effectiveABISymbol,
+                  let internalFunction = internalFunctions[effectiveABISymbol]
         {
             internalFunction
         } else if let fallbackInternal {
@@ -287,7 +380,7 @@ extension NativeEmitter.FunctionEmissionContext {
             return
         }
 
-        let calleeKIRFunction = effectiveSymbol.flatMap { module.arena.function(for: $0) }
+        let calleeKIRFunction = effectiveABISymbol.flatMap { module.arena.function(for: $0) }
         let isRuntimeCallbackRawABIVirtualCall = isInternalCall
             && effectiveSymbol.map { runtimeCallbackRawReturnSymbols.contains($0) } == true
         let shouldBridgeVirtualExternalStringABI = !isInternalCall

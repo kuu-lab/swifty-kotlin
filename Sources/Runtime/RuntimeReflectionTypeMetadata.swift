@@ -120,8 +120,20 @@ func runtimeRegisterKCallableItableIfNeeded(rawValue: Int, typeID: Int64) {
     ]
     guard callableTypeIDs.contains(typeID) else { return }
 
-    let interfaceSlot = 0
-    _ = kk_object_register_itable_iface(rawValue, Int(kCallableRuntimeTypeID), interfaceSlot)
+    // Source-backed callable-reference wrappers register their interface
+    // closure in generated code. Reuse KCallable's actual slot when present:
+    // always using slot zero can alias KProperty1.get in a KLIB consumer and
+    // replace it with the KCallable.call bridge.
+    let interfaceSlot: Int
+    if let registeredSlot = runtimeRegisteredInterfaceSlot(
+        objectRaw: rawValue,
+        interfaceTypeID: kCallableRuntimeTypeID
+    ) {
+        interfaceSlot = registeredSlot
+    } else {
+        interfaceSlot = 0
+        _ = kk_object_register_itable_iface(rawValue, Int(kCallableRuntimeTypeID), interfaceSlot)
+    }
     if typeID == kProperty0RuntimeTypeID || typeID == kMutableProperty0RuntimeTypeID {
         _ = kk_object_register_itable_iface(rawValue, Int(kProperty0RuntimeTypeID), interfaceSlot)
     }

@@ -168,6 +168,71 @@ struct FinallyExceptionRouteTests {
         try assertInlinedFinallyIsThrowAware(source: source, functionName: "loopWithContinue")
     }
 
+    @Test func testInlinedFinallyExceptionSkipsExitedTryHandlers() throws {
+        let source = """
+        fun innerCatch(): Unit {}
+        fun outerCatch(): Unit {}
+        fun compute() {
+            try {
+                while (true) {
+                    try {
+                        try {
+                            break
+                        } catch (e: Throwable) {
+                            innerCatch()
+                        }
+                    } finally {
+                        throw RuntimeException()
+                    }
+                }
+            } catch (e: RuntimeException) {
+                outerCatch()
+            }
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "compute", in: module, interner: ctx.interner)
+        let outerBodyGuardStart = try #require(body.firstIndex { if case .beginFinallyGuard = $0 { return true }; return false })
+
+        var guardDepth = 0
+        var outerBodyGuardEnd: Int?
+        for index in outerBodyGuardStart..<body.count {
+            switch body[index] {
+            case .beginFinallyGuard:
+                guardDepth += 1
+            case .endFinallyGuard:
+                guardDepth -= 1
+                if guardDepth == 0 {
+                    outerBodyGuardEnd = index
+                    break
+                }
+            default:
+                break
+            }
+            if outerBodyGuardEnd != nil { break }
+        }
+        let outerBodyGuardEndIndex = try #require(outerBodyGuardEnd)
+        let outerCatchLabelIndex = try #require(
+            body.indices.dropFirst(outerBodyGuardEndIndex + 1)
+                .first { if case .label = body[$0] { return true }; return false }
+        )
+        guard case let .label(outerCatchDispatch) = body[outerCatchLabelIndex] else {
+            Issue.record("Expected the label immediately after the outer try body to be its catch dispatch")
+            return
+        }
+
+        #expect(
+            body[..<outerBodyGuardEndIndex].contains { instruction in
+                if case let .jump(target) = instruction { return target == outerCatchDispatch }
+                return false
+            },
+            "An exception from the inlined finally must target the handler outside both nested try scopes"
+        )
+    }
+
     // MARK: - usePinned nested inside an outer try (CODE-001 guard placement)
 
     /// Verifies that `usePinned`'s block-call is wrapped in its own nested

@@ -253,6 +253,7 @@ extension DataEnumSealedSynthesisPass {
         interner: StringInterner
     ) {
         let intType = sema.types.intType
+        let maskType = sema.types.longType
         let fqName = owner.fqName + [name]
         let selfParamName = interner.intern("$self")
         let selfParamSymbol = sema.symbols.define(
@@ -278,17 +279,31 @@ extension DataEnumSealedSynthesisPass {
             params.append(KIRParameter(symbol: paramSymbol, type: propertyParam.type))
             valueParamSymbols.append(paramSymbol)
         }
-        let maskSymbol = SyntheticSymbolScheme.defaultMaskSymbol(for: functionSymbol)
-        params.append(KIRParameter(symbol: maskSymbol, type: intType))
+        let maskWordCount = DefaultArgumentMask(parameterCount: propertyParams.count).stubWords.count
+        let maskSymbols = [SyntheticSymbolScheme.defaultMaskSymbol(for: functionSymbol)]
+            + (1 ..< maskWordCount).map { wordIndex in
+                let maskName = interner.intern("$mask_\(wordIndex)")
+                return sema.symbols.define(
+                    kind: .valueParameter,
+                    name: maskName,
+                    fqName: fqName + [interner.intern("$default"), maskName],
+                    declSite: owner.declSite,
+                    visibility: .private,
+                    flags: [.synthetic]
+                )
+            }
+        params.append(contentsOf: maskSymbols.map { KIRParameter(symbol: $0, type: maskType) })
 
         let defaultStubName = interner.intern("\(interner.resolve(name))$default")
         let defaultStubSymbol = SyntheticSymbolScheme.defaultStubSymbol(for: functionSymbol)
         let selfRef = module.arena.appendExpr(.symbolRef(selfParamSymbol), type: receiverType)
-        let maskRef = module.arena.appendExpr(.symbolRef(maskSymbol), type: intType)
+        let maskRefs = maskSymbols.map { module.arena.appendExpr(.symbolRef($0), type: maskType) }
         var body: [KIRInstruction] = [
             .constValue(result: selfRef, value: .symbolRef(selfParamSymbol)),
-            .constValue(result: maskRef, value: .symbolRef(maskSymbol)),
         ]
+        for (symbol, ref) in zip(maskSymbols, maskRefs) {
+            body.append(.constValue(result: ref, value: .symbolRef(symbol)))
+        }
 
         let layout = sema.symbols.nominalLayout(for: owner.id)
         let propertySymbols = primaryConstructorPropertySymbols(owner: owner, sema: sema)
@@ -298,21 +313,22 @@ extension DataEnumSealedSynthesisPass {
             let providedExpr = module.arena.appendExpr(.symbolRef(valueParamSymbols[index]), type: propertyParam.type)
             body.append(.constValue(result: providedExpr, value: .symbolRef(valueParamSymbols[index])))
 
-            let bitValue = Int64(1) << index
-            let bitExpr = module.arena.appendExpr(.intLiteral(bitValue), type: intType)
+            let bitValue = Int64(1) << (index % DefaultArgumentMask.bitsPerWord)
+            let bitExpr = module.arena.appendExpr(.intLiteral(bitValue), type: maskType)
             body.append(.constValue(result: bitExpr, value: .intLiteral(bitValue)))
 
-            let dividedExpr = module.arena.appendTemporary(type: intType
+            let maskedExpr = module.arena.appendTemporary(type: maskType
             )
-            body.append(.binary(op: .divide, lhs: maskRef, rhs: bitExpr, result: dividedExpr))
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_bitwise_and"),
+                arguments: [maskRefs[index / DefaultArgumentMask.bitsPerWord], bitExpr],
+                result: maskedExpr,
+                canThrow: false,
+                thrownResult: nil
+            ))
 
-            let twoExpr = module.arena.appendExpr(.intLiteral(2), type: intType)
-            body.append(.constValue(result: twoExpr, value: .intLiteral(2)))
-            let maskedExpr = module.arena.appendTemporary(type: intType
-            )
-            body.append(.binary(op: .modulo, lhs: dividedExpr, rhs: twoExpr, result: maskedExpr))
-
-            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: intType)
+            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: maskType)
             body.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
 
             let resolvedExpr = module.arena.appendTemporary(type: propertyParam.type
@@ -365,12 +381,12 @@ extension DataEnumSealedSynthesisPass {
 
         let signature = FunctionSignature(
             receiverType: receiverType,
-            parameterTypes: propertyParams.map(\.type) + [intType],
+            parameterTypes: propertyParams.map(\.type) + Array(repeating: maskType, count: maskSymbols.count),
             returnType: receiverType,
             isSuspend: false,
-            valueParameterSymbols: valueParamSymbols + [maskSymbol],
-            valueParameterHasDefaultValues: Array(repeating: false, count: propertyParams.count + 1),
-            valueParameterIsVararg: Array(repeating: false, count: propertyParams.count + 1)
+            valueParameterSymbols: valueParamSymbols + maskSymbols,
+            valueParameterHasDefaultValues: Array(repeating: false, count: propertyParams.count + maskSymbols.count),
+            valueParameterIsVararg: Array(repeating: false, count: propertyParams.count + maskSymbols.count)
         )
         appendSyntheticFunctionWithSymbol(
             functionSymbol: defaultStubSymbol,
