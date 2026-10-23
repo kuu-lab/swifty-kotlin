@@ -152,20 +152,24 @@ extension CallTypeChecker {
                 return nil
             }
         }
-        let flowElementType: TypeID = if let elementType = sema.bindings.flowElementType(forExpr: receiverID) {
-            elementType
-        } else if case .nameRef = ast.arena.expr(receiverID),
-                  let receiverSymbol = sema.bindings.identifierSymbol(for: receiverID),
-                  let elementType = sema.bindings.flowElementType(forSymbol: receiverSymbol)
-        {
-            elementType
-        } else if let firstArg = receiverFlowClassType?.args.first {
+        // Prefer the instantiated receiver type when it is available. Flow
+        // expressions can retain the builder's generic element variable in
+        // flowElementType even after an explicit call type argument (for
+        // example flowOf<Int>(...)) has fixed the public receiver to Flow<Int>.
+        let flowElementType: TypeID = if let firstArg = receiverFlowClassType?.args.first {
             switch firstArg {
             case let .invariant(t), let .out(t), let .in(t):
                 t
             case .star:
                 sema.types.anyType
             }
+        } else if let elementType = sema.bindings.flowElementType(forExpr: receiverID) {
+            elementType
+        } else if case .nameRef = ast.arena.expr(receiverID),
+                  let receiverSymbol = sema.bindings.identifierSymbol(for: receiverID),
+                  let elementType = sema.bindings.flowElementType(forSymbol: receiverSymbol)
+        {
+            elementType
         } else {
             sema.types.anyType
         }
@@ -581,11 +585,22 @@ extension CallTypeChecker {
                 guard let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
                       sema.symbols.isSourceBackedSymbol(candidate),
-                      let signature = sema.symbols.functionSignature(for: candidate)
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      let declaredReceiver = signature.receiverType,
+                      let declaredReceiverOwner = driver.helpers.nominalSymbol(
+                          of: declaredReceiver,
+                          types: sema.types
+                      ),
+                      let declaredReceiverFQName = sema.symbols.symbol(declaredReceiverOwner)?.fqName
                 else {
                     return false
                 }
-                return signature.parameterTypes.count == args.count && signature.receiverType != nil
+                // SharedFlow declares pass-through overloads with the same
+                // name and arity. The Flow intrinsic path must bind the
+                // source declaration for this receiver, rather than whichever
+                // same-named overload happens to be first in the symbol table.
+                return signature.parameterTypes.count == args.count
+                    && declaredReceiverFQName == flowOwnerFQNameForPriorityCheck
             }),
                let signature = sema.symbols.functionSignature(for: bundledCallee)
             {
