@@ -32,6 +32,29 @@ extension JVMFunctionBuilder {
             }
             return try constructJDK("kotlin/ranges/IntRange", parameters: [.int, .int], arguments: [lower, upper])
         }
+        if op == .downTo {
+            let first = try requireValue(lhs), last = try requireValue(rhs)
+            guard first.type == .int, last.type == .int else {
+                throw fail("JVM downTo expressions currently require Int operands.", id)
+            }
+            // The range marker maps Int-backed expressions to IntRange, but
+            // downTo returns IntProgression. Its factory is on the companion.
+            let progression: JVMValueType = .reference("kotlin/ranges/IntProgression", nullable: false)
+            let companionType: JVMValueType = .reference("kotlin/ranges/IntProgression$Companion", nullable: false)
+            let companion = try value(companionType)
+            instructions.append(.getStatic(
+                JVMField(owner: "kotlin/ranges/IntProgression", name: "Companion", type: companionType, access: 0x19),
+                companion
+            ))
+            return try jdkCall(
+                "kotlin/ranges/IntProgression$Companion",
+                "fromClosedRange",
+                [.int, .int, .int],
+                progression,
+                receiver: companion,
+                arguments: [first, last, try constant(.int(-1), .int)]
+            )
+        }
         if [.add, .subtract, .multiply, .divide, .modulo].contains(op) {
             let args = [CallArgument(expr: rhs)]
             if let call = try inlineCall(args, receiver: lhs, id: id)
