@@ -449,16 +449,27 @@ extension ExprTypeChecker {
                 && (!rhsIsNumeric || isNullablePrimitiveReceiver || hasInvalidBuiltinCharArithmetic(op: op, lhs: lhs, rhs: rhs, sema: sema))
                 || isNullablePrimitiveReceiver && isComparisonOperator
             if shouldSearchForScopedExtension {
-                let extensionCandidates = collectScopedOperatorExtensionCandidates(
+                let localExtensionCandidates = collectLocalOperatorExtensionCandidates(
                     names: operatorNames,
                     receiverType: lhs,
-                    argumentType: isComparisonOperator || (isPrimitiveArithmeticOperator && isNullablePrimitiveReceiver)
-                        ? rhs
-                        : lhs == charType && op == .add && sema.types.isString(rhs) ? rhs : nil,
+                    call: operatorCall,
+                    locals: locals,
                     ctx: ctx
                 )
-                if !extensionCandidates.isEmpty {
-                    operatorCandidates = extensionCandidates
+                if !localExtensionCandidates.isEmpty {
+                    operatorCandidates = localExtensionCandidates
+                } else {
+                    let extensionCandidates = collectScopedOperatorExtensionCandidates(
+                        names: operatorNames,
+                        receiverType: lhs,
+                        argumentType: isComparisonOperator || (isPrimitiveArithmeticOperator && isNullablePrimitiveReceiver)
+                            ? rhs
+                            : lhs == charType && op == .add && sema.types.isString(rhs) ? rhs : nil,
+                        ctx: ctx
+                    )
+                    if !extensionCandidates.isEmpty {
+                        operatorCandidates = extensionCandidates
+                    }
                 }
             }
         }
