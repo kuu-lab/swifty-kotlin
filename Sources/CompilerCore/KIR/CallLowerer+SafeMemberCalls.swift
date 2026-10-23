@@ -1219,6 +1219,19 @@ extension CallLowerer {
             finalArguments.insert(contentsOf: callable.captureArguments, at: 0)
         }
 
+        if let chosen {
+            materializeSourceBackedFunctionValueArguments(
+                chosenCallee: chosen,
+                sourceArgExprs: args.map(\.expr),
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions.instructions,
+                arguments: &finalArguments,
+                valueArgOffsetOverride: dispatchReceiver == nil ? nil : 2
+            )
+        }
+
         if tryEmitEnumEntryDispatchCall(
             defaultMask: safeNormalized.defaultMask,
             isSuperCall: isSuperCall,

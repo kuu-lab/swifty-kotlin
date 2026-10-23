@@ -73,6 +73,7 @@ enum JVMClassFile {
                 entry.3
             )
         }
+        let bootstrapAttribute = try pool.bootstrapMethodsAttribute()
         var bytes = JVMBytes()
         bytes.u4(0xCAFEBABE); bytes.u2(0); bytes.u2(52)
         pool.write(to: &bytes)
@@ -111,12 +112,16 @@ enum JVMClassFile {
             } else { bytes.u2(0) }
             if let generic { bytes.u2(signatureName); bytes.u4(2); bytes.u2(generic) }
         }
-        bytes.u2(UInt16(1 + classAnnotations.count + (classSignature == nil ? 0 : 1) + (innerClasses.isEmpty ? 0 : 1))); bytes.u2(sourceName); bytes.u4(2); bytes.u2(sourceIndex)
+        bytes.u2(UInt16(1 + classAnnotations.count + (classSignature == nil ? 0 : 1) + (innerClasses.isEmpty ? 0 : 1) + (bootstrapAttribute == nil ? 0 : 1))); bytes.u2(sourceName); bytes.u4(2); bytes.u2(sourceIndex)
         for (name, data) in classAnnotations { bytes.u2(name); bytes.u4(UInt32(data.count)); bytes.data.append(data) }
         if let classSignature { bytes.u2(signatureName); bytes.u4(2); bytes.u2(classSignature) }
         if !innerClasses.isEmpty {
             bytes.u2(innerName!); bytes.u4(UInt32(2 + 8 * innerIndices.count)); bytes.u2(UInt16(innerIndices.count))
             for entry in innerIndices { bytes.u2(entry.0); bytes.u2(entry.1); bytes.u2(entry.2); bytes.u2(entry.3) }
+        }
+        if let bootstrapAttribute {
+            guard let size = UInt32(exactly: bootstrapAttribute.data.count) else { throw JVMEmissionError.limit("JVM BootstrapMethods attribute exceeds the classfile size limit.") }
+            bytes.u2(bootstrapAttribute.nameIndex); bytes.u4(size); bytes.data.append(bootstrapAttribute.data)
         }
         return bytes.data
     }

@@ -103,7 +103,7 @@ enum GoldenHarnessExprFormat {
             return "objectLiteral supers=[\(renderedSuperTypes)]"
         case let .callableRef(receiver, member, _):
             return "callableRef recv=\(renderExprKey(receiver, ctx)) member=\(interner.resolve(member))"
-        case let .localFunDecl(name, receiverType, valueParams, returnType, body, isSuspend, _, typeParams):
+        case let .localFunDecl(name, receiverType, valueParams, returnType, body, isSuspend, _, typeParams, isTailrec):
             let params = valueParams.map { interner.resolve($0.name) }.joined(separator: ",")
             let bodyStr = switch body {
             case let .block(exprs, _):
@@ -120,7 +120,7 @@ enum GoldenHarnessExprFormat {
                 return interner.resolve(typeParam.name) + (bounds.isEmpty ? "" : " : \(bounds)")
             }.joined(separator: ",")
             let typeParamsStr = typeParamDescriptions.isEmpty ? "" : " typeParams=[\(typeParamDescriptions)]"
-            return "localFunDecl \(interner.resolve(name))\(typeParamsStr)\(receiverStr)\(isSuspend ? " suspend=1" : "") params=[\(params)] returnType=\(retStr) body=\(bodyStr)"
+            return "localFunDecl \(interner.resolve(name))\(typeParamsStr)\(receiverStr)\(isSuspend ? " suspend=1" : "")\(isTailrec ? " tailrec=1" : "") params=[\(params)] returnType=\(retStr) body=\(bodyStr)"
         case let .localNominalDecl(declID, _):
             return "localNominalDecl decl=\(declID.rawValue)"
         case let .blockExpr(statements, trailingExpr, _):
