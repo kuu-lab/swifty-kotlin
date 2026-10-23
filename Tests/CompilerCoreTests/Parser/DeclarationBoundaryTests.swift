@@ -914,5 +914,78 @@ struct DeclarationBoundaryTests {
             #expect(parsed.arena.node(parsed.root).kind == .kotlinFile, "\(source.path)")
         }
     }
+
+    // KUU-3025: the type-argument lookahead once required the token after `>`
+    // to be a label name, so a bodiless generic class followed by a
+    // hard-keyword declaration (`fun`, `val`, `class`, …) lost its
+    // type-parameter list. The synthesized constructor then carried no type
+    // parameters and calls such as `Box()`/`Box<Int>()` failed overload
+    // resolution with KSWIFTK-SEMA-0002.
+
+    @Test(arguments: [
+        "fun after() {}",
+        "val after = 1",
+        "var after = 1",
+        "class After",
+        "interface After",
+        "object After {}",
+        "enum class After { A }",
+        "typealias After = Int",
+        "annotation class After",
+        "private class After",
+        "@Deprecated(\"x\") class After",
+    ])
+    func bodilessGenericClassKeepsTypeParametersBeforeNextDeclaration(next: String) {
+        let parsed = parse("class Box<T>\n\(next)")
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(nodeCount(in: parsed.arena, kind: .typeArgs) == 1)
+    }
+
+    @Test
+    func bodilessGenericClassKeepsTypeParametersBeforeSemicolon() {
+        let parsed = parse("class Box<T>;\nfun after() {}")
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(nodeCount(in: parsed.arena, kind: .typeArgs) == 1)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 1)
+    }
+
+    @Test
+    func bodilessGenericClassKeepsTypeParametersAcrossNewline() {
+        let parsed = parse("class Box\n    <T>\nfun after() {}")
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(nodeCount(in: parsed.arena, kind: .typeArgs) == 1)
+    }
+
+    @Test
+    func nestedBodilessGenericClassKeepsTypeParametersBeforeMemberFunction() {
+        let parsed = parse("""
+        object Host {
+            class Delegate<D, E, R>
+            fun <D, E, R> delegate() = Delegate
+        }
+        """)
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(nodeCount(in: parsed.arena, kind: .typeArgs) == 2)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 1)
+    }
+
+    @Test(arguments: [
+        ("interface Box<T>", "fun after() {}"),
+        ("typealias Box<T> = T", "fun after() {}"),
+        ("fun <T> make(): T? = null", "class After"),
+        ("class Box<T>", "enum class After { A }"),
+    ])
+    func genericDeclarationKeepsTypeParametersBeforeHardKeyword(
+        declaration: String, next: String
+    ) {
+        let parsed = parse("\(declaration)\n\(next)")
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(nodeCount(in: parsed.arena, kind: .typeArgs) == 1)
+    }
 }
 #endif
