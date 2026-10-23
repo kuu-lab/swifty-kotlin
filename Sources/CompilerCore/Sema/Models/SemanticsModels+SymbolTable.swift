@@ -2016,6 +2016,20 @@ public final class SymbolTable {
         if symbol.flags.contains(.importedLibrary) { return true }
         return symbol.declSite != nil
     }
+
+    /// Returns true for a compiler-registered synthetic stub with no compiled
+    /// body. A precomputed stdlib artifact serializes these stubs instead of
+    /// letting the consumer register them again (KUU-2815), and every imported
+    /// record carries `.synthetic`, so the imported copy of a stub is the
+    /// stdlib record that has no compiled link name.
+    public func isSyntheticStubSymbol(_ symbolID: SymbolID) -> Bool {
+        guard let symbol = self.symbol(symbolID),
+              symbol.flags.contains(.synthetic)
+        else { return false }
+        guard symbol.flags.contains(.importedLibrary) else { return true }
+        return isImportedStdlibSymbol(symbolID)
+            && (externalLinkName(for: symbolID)?.isEmpty ?? true)
+    }
 }
 
 extension SymbolTable {
