@@ -4,10 +4,13 @@
 func kirErasedDispatchArgumentCastTarget(
     implementationType: TypeID,
     dispatchType: TypeID,
-    sema: SemaModule
+    sema: SemaModule,
+    allowNonTypeParameterDispatchType: Bool = false
 ) -> TypeID? {
-    guard case .typeParam = sema.types.kind(of: dispatchType) else {
-        return nil
+    if !allowNonTypeParameterDispatchType {
+        guard case .typeParam = sema.types.kind(of: dispatchType) else {
+            return nil
+        }
     }
 
     func erasedUpperBound(_ type: TypeID) -> TypeID {
@@ -40,4 +43,27 @@ func kirErasedDispatchArgumentCastTarget(
         return nil
     }
     return nullableTarget
+}
+
+/// Whether a dispatch argument may be null after substituting its declared
+/// type parameters. An unconstrained type parameter has the Kotlin default
+/// upper bound `Any?` and therefore accepts null.
+func kirErasedDispatchImplementationAcceptsNull(
+    _ implementationType: TypeID,
+    sema: SemaModule
+) -> Bool {
+    var current = implementationType
+    var visited: Set<SymbolID> = []
+    while case let .typeParam(parameter) = sema.types.kind(of: current) {
+        if sema.types.nullability(of: current) == .nullable {
+            return true
+        }
+        guard visited.insert(parameter.symbol).inserted,
+              let bound = sema.symbols.typeParameterUpperBound(for: parameter.symbol)
+        else {
+            return true
+        }
+        current = bound
+    }
+    return sema.types.nullability(of: current) == .nullable
 }

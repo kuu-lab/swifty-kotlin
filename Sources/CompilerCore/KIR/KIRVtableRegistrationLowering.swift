@@ -997,12 +997,18 @@ func itableBridgeSymbolForMethod(
     }
 
     let receiverCount = interfaceReceiver == nil ? 0 : 1
+    let containsBridgeReturnsFalseOnTypeMismatch = kirCollectionContainsBridgeMethod(
+        interfaceMethod,
+        sema: sema,
+        interner: interner
+    )
     let argumentCastTargets = implementationParamTypes.enumerated().map { index, implType -> TypeID? in
         guard index >= receiverCount else { return nil }
         return kirErasedDispatchArgumentCastTarget(
             implementationType: implType,
             dispatchType: interfaceParamTypes[index],
-            sema: sema
+            sema: sema,
+            allowNonTypeParameterDispatchType: containsBridgeReturnsFalseOnTypeMismatch && index == receiverCount
         )
     }
 
@@ -1119,9 +1125,30 @@ func itableBridgeSymbolForMethod(
     }
     for (index, target) in argumentCastTargets.enumerated() {
         guard let target else { continue }
-        let token = RuntimeTypeCheckToken.encode(type: target, sema: sema, interner: interner)
+        let containsElementMismatch = containsBridgeReturnsFalseOnTypeMismatch && index == receiverCount
+        let checkTarget = containsElementMismatch
+            && !kirErasedDispatchImplementationAcceptsNull(implementationParamTypes[index], sema: sema)
+            ? sema.types.withNullability(.nonNull, for: target)
+            : target
+        let token = RuntimeTypeCheckToken.encode(type: checkTarget, sema: sema, interner: interner)
         let tokenExpr = arena.appendExpr(.intLiteral(token), type: sema.types.intType)
         body.append(.constValue(result: tokenExpr, value: .intLiteral(token)))
+        if containsElementMismatch {
+            let boolType = sema.types.make(.primitive(.boolean, .nonNull))
+            let typeMatches = arena.appendTemporary(type: boolType)
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_op_is"),
+                arguments: [bridgeParamExprs[index], tokenExpr],
+                result: typeMatches,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            let falseValue = arena.appendExpr(.boolLiteral(false), type: boolType)
+            body.append(.constValue(result: falseValue, value: .boolLiteral(false)))
+            body.append(.returnIfEqual(lhs: typeMatches, rhs: falseValue))
+            continue
+        }
         // Keep the erased representation until the implementation call performs
         // its ABI conversion (notably raw String handles to flat aggregates).
         let checked = arena.appendTemporary(type: interfaceParamTypes[index])
@@ -1238,6 +1265,36 @@ func itableBridgeSymbolForMethod(
     }
 
     return bridgeSymbol
+}
+
+private func kirCollectionContainsBridgeMethod(
+    _ method: SymbolID,
+    sema: SemaModule,
+    interner: StringInterner
+) -> Bool {
+    guard sema.symbols.symbol(method).map({ interner.resolve($0.name) == "contains" }) == true,
+          sema.symbols.functionSignature(for: method)?.parameterTypes.count == 1,
+          let owner = sema.symbols.parentSymbol(for: method),
+          let fqName = sema.symbols.symbol(owner)?.fqName.map(interner.resolve)
+    else {
+        return false
+    }
+
+    let collectionContainsOwners: Set<[String]> = [
+        ["kotlin", "collections", "Collection"],
+        ["kotlin", "collections", "MutableCollection"],
+        ["kotlin", "collections", "Set"],
+        ["kotlin", "collections", "MutableSet"],
+        ["kotlin", "collections", "List"],
+        ["kotlin", "collections", "MutableList"],
+        ["kotlin", "collections", "AbstractCollection"],
+        ["kotlin", "collections", "AbstractMutableCollection"],
+        ["kotlin", "collections", "AbstractSet"],
+        ["kotlin", "collections", "AbstractMutableSet"],
+        ["kotlin", "collections", "AbstractList"],
+        ["kotlin", "collections", "AbstractMutableList"],
+    ]
+    return collectionContainsOwners.contains(fqName)
 }
 
 /// Registers a nominal type's vtable implementations on an object produced by
