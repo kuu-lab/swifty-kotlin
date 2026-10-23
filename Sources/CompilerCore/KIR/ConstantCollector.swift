@@ -220,7 +220,14 @@ struct ConstantCollector {
             return literalConstantBinaryExpr(op: op, lhs: lhs, rhs: rhs, ast: ast, interner: interner)
         case let .memberCall(receiver, callee, _, args, _):
             guard let interner, canFoldMemberCall?(exprID) != false else { return nil }
-            return literalConstantMemberCall(receiver: receiver, callee: callee, args: args, ast: ast, interner: interner)
+            return literalConstantMemberCall(
+                exprID: exprID,
+                receiver: receiver,
+                callee: callee,
+                args: args,
+                ast: ast,
+                interner: interner
+            )
         case let .stringTemplate(parts, _):
             return literalConstantStringTemplate(parts)
         default:
@@ -370,12 +377,45 @@ struct ConstantCollector {
     /// when written as a zero-arg call in some source shapes, so both are
     /// covered by the same `calleeName` dispatch.
     private func literalConstantMemberCall(
-        receiver: ExprID, callee: InternedString, args: [CallArgument], ast: ASTModule, interner: StringInterner
+        exprID: ExprID,
+        receiver: ExprID,
+        callee: InternedString,
+        args: [CallArgument],
+        ast: ASTModule,
+        interner: StringInterner
     ) -> KIRExprKind? {
         guard let receiverConst = literalConstantExpr(receiver, ast: ast, interner: interner) else {
             return nil
         }
         let name = interner.resolve(callee)
+        if canFoldMemberCall?(exprID) == true,
+           case let .stringLiteral(value) = receiverConst
+        {
+            let receiverText = interner.resolve(value)
+            switch name {
+            case "trimIndent" where args.isEmpty:
+                return .stringLiteral(interner.intern(trimIndentString(receiverText)))
+            case "trimMargin" where args.count <= 1:
+                let marginPrefix: String
+                if args.isEmpty {
+                    marginPrefix = "|"
+                } else {
+                    guard !args[0].isSpread,
+                          case let .stringLiteral(prefix) = literalConstantExpr(
+                              args[0].expr, ast: ast, interner: interner
+                          )
+                    else {
+                        return nil
+                    }
+                    marginPrefix = interner.resolve(prefix)
+                }
+                let prefixUnits = Array(marginPrefix.utf16)
+                guard !isKotlinBlank(prefixUnits) else { return nil }
+                return .stringLiteral(interner.intern(trimMarginString(receiverText, prefix: prefixUnits)))
+            default:
+                break
+            }
+        }
         if args.count == 1, canFoldMemberCall != nil,
            let argument = literalConstantExpr(args[0].expr, ast: ast, interner: interner)
         {
@@ -527,6 +567,101 @@ struct ConstantCollector {
             return 0
         }
         return lhs < rhs ? -1 : 1
+    }
+
+    private func trimIndentString(_ text: String) -> String {
+        let lines = trimBlankEdges(from: splitLines(text))
+        var minimumIndent = Int.max
+        for line in lines where !isKotlinBlank(line) {
+            minimumIndent = min(minimumIndent, leadingKotlinWhitespaceCount(in: line))
+        }
+        if minimumIndent == Int.max {
+            minimumIndent = 0
+        }
+        return joinLines(lines.map { line in
+            Array(line.dropFirst(min(minimumIndent, line.count)))
+        })
+    }
+
+    private func trimMarginString(_ text: String, prefix: [UInt16]) -> String {
+        let lines = trimBlankEdges(from: splitLines(text))
+        let trimmedLines = lines.map { line -> [UInt16] in
+            let indentation = leadingKotlinWhitespaceCount(in: line)
+            let prefixEnd = indentation + prefix.count
+            guard indentation < line.count,
+                  prefixEnd <= line.count,
+                  Array(line[indentation ..< prefixEnd]) == prefix
+            else {
+                return line
+            }
+            return Array(line.dropFirst(prefixEnd))
+        }
+        return joinLines(trimmedLines)
+    }
+
+    private func splitLines(_ text: String) -> [[UInt16]] {
+        let units = Array(text.utf16)
+        var lines: [[UInt16]] = [[]]
+        var index = 0
+        while index < units.count {
+            switch units[index] {
+            case 0x000D:
+                if index + 1 < units.count, units[index + 1] == 0x000A {
+                    index += 1
+                }
+                lines.append([])
+            case 0x000A:
+                lines.append([])
+            default:
+                lines[lines.count - 1].append(units[index])
+            }
+            index += 1
+        }
+        return lines
+    }
+
+    private func trimBlankEdges(from lines: [[UInt16]]) -> [[UInt16]] {
+        var start = 0
+        var end = lines.count
+        if start < end, isKotlinBlank(lines[start]) {
+            start += 1
+        }
+        if end > start, isKotlinBlank(lines[end - 1]) {
+            end -= 1
+        }
+        return Array(lines[start ..< end])
+    }
+
+    private func isKotlinBlank(_ units: [UInt16]) -> Bool {
+        units.allSatisfy(isKotlinWhitespace)
+    }
+
+    private func leadingKotlinWhitespaceCount(in units: [UInt16]) -> Int {
+        units.prefix(while: isKotlinWhitespace).count
+    }
+
+    private func isKotlinWhitespace(_ unit: UInt16) -> Bool {
+        if (0x0009 ... 0x000D).contains(unit) || (0x001C ... 0x001F).contains(unit) {
+            return true
+        }
+        guard let scalar = Unicode.Scalar(Int(unit)) else { return false }
+        switch scalar.properties.generalCategory {
+        case .spaceSeparator, .lineSeparator, .paragraphSeparator:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func joinLines(_ lines: [[UInt16]]) -> String {
+        var result: [UInt16] = []
+        for (index, line) in lines.enumerated() {
+            if index > 0 {
+                result.append(0x000A)
+            }
+            result.append(contentsOf: line)
+        }
+        return String(decoding: result, as: UTF16.self)
     }
 
     private func constantArithmeticOperator(_ name: String) -> BinaryOp? {
@@ -733,6 +868,39 @@ struct ConstantCollector {
         let plusName = interner.intern("plus")
         return symbol.fqName == [kotlinName, interner.intern("String"), plusName]
             || symbol.fqName == [kotlinName, interner.intern("text"), plusName]
+    }
+
+    static func isBuiltinStringIndentTrimCall(
+        _ exprID: ExprID,
+        ast: ASTModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard case let .memberCall(receiver, callee, typeArgs, args, _) = ast.arena.expr(exprID),
+              typeArgs.isEmpty,
+              let receiverType = sema.bindings.exprType(for: receiver),
+              receiverType == sema.types.stringType,
+              let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee,
+              let symbol = sema.symbols.symbol(chosenCallee),
+              let signature = sema.symbols.functionSignature(for: chosenCallee),
+              signature.receiverType == sema.types.stringType
+        else {
+            return false
+        }
+        let name = interner.resolve(callee)
+        guard ["trimIndent", "trimMargin"].contains(name),
+              symbol.fqName == ["kotlin", "text", name].map(interner.intern)
+        else {
+            return false
+        }
+        switch name {
+        case "trimIndent":
+            return args.isEmpty
+        case "trimMargin":
+            return args.count <= 1 && args.allSatisfy { !$0.isSpread }
+        default:
+            return false
+        }
     }
 
     private func stringConcatOperandText(

@@ -9,6 +9,13 @@ enum KIRExternalLoopJump {
         marker < 0 ? -marker : nil
     }
 
+    static func containsExternalJump(in instructions: [KIRInstruction]) -> Bool {
+        instructions.contains { instruction in
+            guard case let .jump(target) = instruction else { return false }
+            return label(for: target) != nil
+        }
+    }
+
     static func resolvingTargets(in instructions: [KIRInstruction]) -> [KIRInstruction] {
         let definedLabels = Set(instructions.compactMap { instruction -> Int32? in
             if case let .label(id) = instruction { return id }

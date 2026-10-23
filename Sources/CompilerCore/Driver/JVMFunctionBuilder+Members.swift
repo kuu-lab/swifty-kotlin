@@ -11,7 +11,13 @@ extension JVMFunctionBuilder {
         return try convert(receiver, to: .reference(objectName, nullable: false))
     }
     func unconvertedInstance(_ id: ExprID) throws -> JVMValue {
-        if propertyBinding(id)?.getter.isStatic == true { return try constant(.null, .reference("java/lang/Object", nullable: true)) }
+        if let property = propertyBinding(id), property.getter.isStatic {
+            guard let receiverType = property.getter.parameters.first else {
+                return try constant(.null, .reference("java/lang/Object", nullable: true))
+            }
+            guard let receiver = implicitExtensionReceiver(id) else { throw fail("Missing JVM extension property receiver.", id) }
+            return try convert(receiver, to: receiverType)
+        }
         let bindings = program.sema.bindings
         // An object-member import binds its singleton independently of the
         // active extension receiver, even when their nominal types match.
@@ -76,14 +82,24 @@ extension JVMFunctionBuilder {
 
     func propertyBinding(_ id: ExprID) -> JVMProperty? {
         let sema = program.sema
-        if let symbol = sema.bindings.identifierSymbol(for: id), let property = program.properties[symbol] { return property }
+        func sourceProperty(for candidate: SymbolID) -> JVMProperty? {
+            if let property = program.properties[candidate] { return property }
+            let owner = sema.symbols.propertySymbol(forAccessor: candidate)
+                ?? sema.symbols.accessorOwnerProperty(for: candidate)
+                ?? sema.symbols.parentSymbol(for: candidate).flatMap { parent in
+                    sema.symbols.symbol(parent)?.kind == .property ? parent : nil
+                }
+            return owner.flatMap { program.properties[$0] }
+        }
+        if let symbol = sema.bindings.identifierSymbol(for: id), let property = sourceProperty(for: symbol) { return property }
         if let call = sema.bindings.callBinding(for: id) {
-            if let property = program.properties[call.chosenCallee] { return property }
-            if let symbol = sema.symbols.propertySymbol(forAccessor: call.chosenCallee) { return program.properties[symbol] }
+            if let property = sourceProperty(for: call.chosenCallee) { return property }
         }
         let selected = sema.bindings.identifierSymbol(for: id) ?? sema.bindings.callBinding(for: id)?.chosenCallee
         if let selected {
-            let symbol = sema.symbols.propertySymbol(forAccessor: selected) ?? selected
+            let symbol = sema.symbols.propertySymbol(forAccessor: selected)
+                ?? sema.symbols.accessorOwnerProperty(for: selected)
+                ?? selected
             if let semanticSymbol = sema.symbols.symbol(symbol), semanticSymbol.kind == .property,
                let parent = sema.symbols.parentSymbol(for: symbol),
                let owner = try? program.className(parent),
@@ -139,7 +155,8 @@ extension JVMFunctionBuilder {
         var getter = property.getter
         if special { getter = try superMethod(getter, receiver: superReceiver) }
         let result = try value(property.type)
-        instructions.append(.foreignCall(getter, receiver: getter.isStatic ? nil : receiver, arguments: [], result: result))
+        let arguments = try getter.parameters.first.map { [try convert(receiver, to: $0)] } ?? []
+        instructions.append(.foreignCall(getter, receiver: getter.isStatic ? nil : receiver, arguments: arguments, result: result))
         if getter.result.referenceName == "java/lang/Class", case .named("kotlin/reflect/KClass", _, _)? = property.kotlinType {
             return try jdkCall("kotlin/jvm/JvmClassMappingKt", "getKotlinClass", [getter.result], .reference("kotlin/reflect/KClass", nullable: false), arguments: [result])!
         }
@@ -167,7 +184,13 @@ extension JVMFunctionBuilder {
         }
         guard var setter = property.setter else { throw fail("JVM val has no setter.") }
         if special { setter = try superMethod(setter, receiver: superReceiver) }
-        instructions.append(.foreignCall(setter, receiver: setter.isStatic ? nil : receiver, arguments: [converted], result: nil))
+        var arguments: [JVMValue] = []
+        if setter.parameters.count == 2 {
+            arguments.append(try convert(receiver, to: setter.parameters[0]))
+        }
+        guard let valueType = setter.parameters.last else { throw fail("JVM property setter has no value parameter.") }
+        arguments.append(try convert(converted, to: valueType))
+        instructions.append(.foreignCall(setter, receiver: setter.isStatic ? nil : receiver, arguments: arguments, result: nil))
     }
     func propertyCompound(_ property: JVMProperty, receiver: JVMValue, op: CompoundAssignOp, rhs: ExprID, id: ExprID, special: Bool = false, superReceiver: ExprID? = nil) throws -> JVMValue? {
         let originalReceiver = receiver, receiver = try value(receiver.type)
@@ -200,6 +223,8 @@ extension JVMFunctionBuilder {
 
 extension JVMProgramBuilder {
     func emitAccessors(_ plan: JVMClassPlan, _ declaration: PropertyDecl, _ property: JVMProperty) throws -> [JVMFunction] {
+        let propertyID = plan.properties.first(where: { $0.1.range == declaration.range })?.0
+        let propertySymbol = propertyID.flatMap { sema.bindings.declSymbol(for: $0) }
         var functions: [JVMFunction] = []
         for setter in [false, true] where !declaration.modifiers.contains(.const) {
             guard let method = setter ? property.setter : property.getter else { continue }
@@ -215,9 +240,10 @@ extension JVMProgramBuilder {
                 }
             }
             let parameter = ValueParamDecl(name: accessor?.parameterName ?? context.interner.intern("value"), type: declaration.type)
-            let f = FunDecl(range: declaration.range, name: context.interner.intern(method.name), modifiers: modifiers,
+            let f = FunDecl(range: declaration.range, name: context.interner.intern(method.name), modifiers: modifiers, receiverType: declaration.receiverType,
                             valueParams: setter ? [parameter] : [], body: accessor?.body ?? .unit)
             let builder = JVMFunctionBuilder(program: self, declaration: f, reference: JVMFunctionReference(name: method.name, parameters: method.parameters, result: method.result), owner: plan)
+            builder.functionSymbol = propertySymbol
             builder.isStaticBody = plan.isFacade
             builder.backingProperty = property
             if method.isAbstract {
@@ -255,7 +281,7 @@ extension JVMProgramBuilder {
         }
         var decorated = try functions.map { function in
             var f = function
-            if let symbol = sema.bindings.declSymbol(for: plan.properties.first(where: { $0.2.name == property.name })!.0) {
+            if let symbol = propertySymbol {
                 f.annotations = try annotations(for: symbol, target: function.reference.result == .unit ? "set" : "get")
                 applyDeprecation(try annotations(for: symbol, target: nil) + annotations(for: symbol, target: "property") + f.annotations, to: &f)
                 if function.reference.result == .unit { f.parameterAnnotations = [try annotations(for: symbol, target: "setparam")] }
@@ -263,17 +289,20 @@ extension JVMProgramBuilder {
             if plan.isFacade { f.access = (f.isPrivate ? 2 : 1) | 8 | 16; f.isSynthetic = false }
             let setter = f.reference.result == .unit
             let syntheticTarget = setter ? "set" : "get"
-            if let symbol = sema.bindings.declSymbol(for: plan.properties.first(where: { $0.2.name == property.name })!.0),
+            if let symbol = propertySymbol,
                sema.symbols.annotations(for: symbol).contains(where: { $0.annotationFQName == "kotlin.jvm.JvmSynthetic" && $0.useSiteTarget == syntheticTarget }) {
                 f.access = (f.access ?? 0) | 0x1000
             }
             f.kotlinParameters = setter ? [property.kotlinType].compactMap { $0 } : []
             f.kotlinResult = setter ? .named("kotlin/Unit", [], nullable: false) : property.kotlinType
-            f.genericSignature = setter ? "(" + (property.genericSignature ?? property.type.descriptor) + ")V" : "()" + (property.genericSignature ?? property.type.descriptor)
+            let receiverSignature = property.receiverGenericSignature ?? property.getter.parameters.first?.descriptor ?? ""
+            f.genericSignature = setter
+                ? "(" + receiverSignature + (property.genericSignature ?? property.type.descriptor) + ")V"
+                : "(" + receiverSignature + ")" + (property.genericSignature ?? property.type.descriptor)
             if plan.isAnnotation { f.genericSignature = f.genericSignature?.replacingOccurrences(of: "Lkotlin/reflect/KClass", with: "Ljava/lang/Class") }
             return f
         }
-        if let carrier = property.annotationsMethod, let symbol = sema.bindings.declSymbol(for: plan.properties.first(where: { $0.2.name == property.name })!.0) {
+        if let carrier = property.annotationsMethod, let symbol = propertySymbol {
             var f = rawFunction(plan.name, name: carrier.name, parameters: [], result: .unit, access: access(declaration.modifiers) | 0x1008, locals: [], instructions: [.returnValue(nil)])
             f.annotations = try annotations(for: symbol, target: nil) + annotations(for: symbol, target: "property")
             decorated.append(f)
@@ -432,6 +461,7 @@ extension JVMProgramBuilder {
                   let alias = method.name.range(of: "$jvmName$") else { return nil }
             return String(method.name[alias.upperBound...]) + method.descriptor
         })
+        let inheritedFinalSignatures = Set(parents.filter(\.isFinal).map { $0.name + $0.descriptor })
         var implementations = functions
         func dispatchKey(_ name: String, _ parameters: [JVMValueType]) -> String { name + "(" + parameters.map(\.descriptor).joined() + ")" }
         var selected = Set(functions.filter { !$0.isConstructor }.map { dispatchKey($0.reference.name, $0.reference.parameters) })
@@ -453,7 +483,7 @@ extension JVMProgramBuilder {
         }
         for function in implementations where !function.isConstructor && !function.isPrivate && !function.isAbstract {
             let ref = function.reference
-            for parent in parents where !parent.isSpecial && matchesSourceName(parent, function) &&
+            for parent in parents where !parent.isFinal && !parent.isSpecial && matchesSourceName(parent, function) &&
                 (specializedParameters[parent.owner + parent.name + parent.descriptor] ?? parent.parameters).map(\.descriptor) == ref.parameters.map(\.descriptor) && parent.descriptor != ref.descriptor {
                 guard (parent.result == .unit) == (ref.result == .unit), parent.parameters.count == ref.parameters.count else { throw JVMFrontendError(message: "Unsupported JVM override bridge.") }
                 let boxedResult = JVMClasspathIndex.boxed(ref.result)
@@ -462,6 +492,7 @@ extension JVMProgramBuilder {
                     let descriptor = "(" + ref.parameters.map(\.descriptor).joined() + ")" + boxedResult.descriptor
                     if !declaredPhysicalSignatures.contains(parent.name + descriptor),
                        !inheritedPhysicalAliases.contains(parent.name + descriptor),
+                       !inheritedFinalSignatures.contains(parent.name + descriptor),
                        signatures.insert(parent.name + descriptor).inserted {
                         // Kotlin consumers call a boxed specialization of a
                         // collection element result as well as its Object bridge.

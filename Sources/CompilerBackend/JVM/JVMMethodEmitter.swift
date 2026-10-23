@@ -279,6 +279,18 @@ final class JVMMethodEmitter {
             assembler.code.u2(try pool.member(ref.ownerIsInterface ? 11 : 10, owner: ref.owner ?? owner, name: ref.name, descriptor: ref.descriptor))
             if let result { try conversion(ref.result, result.type); store(result) }
             else if ref.result != .unit { assembler.code.u1(ref.result.width == 2 ? 0x58 : 0x57) }
+        case let .invokeDynamic(name, descriptor, captures, samDescriptor, implementation, instantiatedDescriptor, result):
+            maxStack = max(maxStack, max(1, captures.reduce(0) { $0 + $1.type.width }))
+            for capture in captures { load(capture) }
+            let index = try pool.invokeDynamic(
+                name: name,
+                descriptor: descriptor,
+                samDescriptor: samDescriptor,
+                implementation: implementation,
+                instantiatedDescriptor: instantiatedDescriptor
+            )
+            assembler.code.u1(0xBA); assembler.code.u2(index); assembler.code.u2(0)
+            store(result)
         case let .abandonAllocations(objects):
             // Clear only this escaping edge. The other arm of an if still
             // owns the allocation until its invokespecial initializes it.

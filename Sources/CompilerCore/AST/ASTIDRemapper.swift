@@ -437,8 +437,8 @@ struct ASTIDRemapper {
             .objectLiteral(superTypes: superTypes.map { remap($0) }, decl: decl.map { remap($0) }, range: range)
         case let .callableRef(receiver, member, range):
             .callableRef(receiver: receiver.map { remap($0) }, member: remap(member), range: range)
-        case let .localFunDecl(name, receiverType, valueParams, returnType, body, isSuspend, range, typeParams):
-            .localFunDecl(name: remap(name), receiverType: receiverType.map { remap($0) }, valueParams: valueParams.map { remap($0) }, returnType: returnType.map { remap($0) }, body: remap(body), isSuspend: isSuspend, range: range, typeParams: typeParams.map { remap($0) })
+        case let .localFunDecl(name, receiverType, valueParams, returnType, body, isSuspend, range, typeParams, isTailrec):
+            .localFunDecl(name: remap(name), receiverType: receiverType.map { remap($0) }, valueParams: valueParams.map { remap($0) }, returnType: returnType.map { remap($0) }, body: remap(body), isSuspend: isSuspend, range: range, typeParams: typeParams.map { remap($0) }, isTailrec: isTailrec)
         case let .localNominalDecl(declID, range):
             .localNominalDecl(declID: remap(declID), range: range)
         case let .blockExpr(statements, trailingExpr, range):

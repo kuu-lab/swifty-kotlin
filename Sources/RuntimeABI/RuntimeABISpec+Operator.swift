@@ -690,6 +690,46 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_ktypeparameter_create",
+            parameters: [
+                RuntimeABIParameter(name: "identity", type: .intptr),
+                RuntimeABIParameter(name: "nameRaw", type: .intptr),
+                RuntimeABIParameter(name: "varianceOrdinal", type: .intptr),
+                RuntimeABIParameter(name: "isReified", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_ktypeparameter_set_upper_bounds",
+            parameters: [
+                RuntimeABIParameter(name: "parameterRaw", type: .intptr),
+                RuntimeABIParameter(name: "boundsRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_ktypeparameter_is_runtime",
+            parameters: [
+                RuntimeABIParameter(name: "parameterRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_ktypeparameter_get_name",
+            parameters: [
+                RuntimeABIParameter(name: "parameterRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_ktypeprojection_create",
             parameters: [
                 RuntimeABIParameter(name: "typeRaw", type: .intptr),

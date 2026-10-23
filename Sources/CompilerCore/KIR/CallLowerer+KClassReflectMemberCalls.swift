@@ -356,6 +356,17 @@ extension CallLowerer {
                 flags |= 1 << 11
             }
         }
+        let ownerKind = sema.symbols.parentSymbol(for: classSymbol)
+            .flatMap { sema.symbols.symbol($0)?.kind }
+        let isLocalOrAnonymous = symbol.fqName.contains { component in
+            let name = interner.resolve(component)
+            return name.hasPrefix("__localdecl_") || name.hasPrefix("__ObjectLiteral_")
+        }
+        if isLocalOrAnonymous
+            || ownerKind.map({ [.function, .property, .local].contains($0) }) == true
+            || (symbol.kind == .object && symbol.flags.contains(.synthetic)) {
+            flags |= 1 << 13
+        }
         let flagsExpr = arena.appendExpr(.intLiteral(flags), type: intType)
         instructions.append(.constValue(result: flagsExpr, value: .intLiteral(flags)))
 

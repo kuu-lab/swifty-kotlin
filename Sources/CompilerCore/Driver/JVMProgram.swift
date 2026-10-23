@@ -146,6 +146,7 @@ public enum JVMInstruction {
     case referenceCompare(BinaryOp, JVMValue, JVMValue, JVMValue)
     case unary(UnaryOp, JVMValue, JVMValue)
     case call(JVMFunctionReference, [JVMValue], JVMValue?)
+    case invokeDynamic(name: String, descriptor: String, captures: [JVMValue], samDescriptor: String, implementation: JVMFunctionReference, instantiatedDescriptor: String, result: JVMValue)
     case allocate(String, JVMValue)
     case abandonAllocations([JVMValue])
     case foreignCall(JVMForeignMethod, receiver: JVMValue?, arguments: [JVMValue], result: JVMValue?)
@@ -271,7 +272,9 @@ public struct JVMProperty {
     public var field: JVMField?
     public let modifiers: Modifiers
     public var kotlinType: JVMKotlinType? = nil
+    public var kotlinReceiver: JVMKotlinType? = nil
     public var genericSignature: String? = nil
+    public var receiverGenericSignature: String? = nil
     public var delegateField: JVMField? = nil
     public var delegateSymbol: SymbolID? = nil
     public var annotationsMethod: JVMForeignMethod? = nil

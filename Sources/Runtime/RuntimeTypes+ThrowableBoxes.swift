@@ -2,6 +2,11 @@ import Foundation
 
 class RuntimeThrowableBox {
     let message: String?
+    /// Handle of the Kotlin `String` argument handed to the constructor, when
+    /// one was supplied. `__kk_throwable_message` returns it verbatim so
+    /// `throwable.message === arg` holds like on the JVM; for synthesized
+    /// messages the getter lazily materializes one stable box here.
+    var messageRaw: Int
     var cause: Int
     var stackTraceAddresses: [Int]
     var suppressionEnabled = true
@@ -21,9 +26,10 @@ class RuntimeThrowableBox {
         message ?? "Throwable"
     }
 
-    init(message: String?, cause: Int = 0) {
+    init(message: String?, cause: Int = 0, messageRaw: Int = 0) {
         self.message = message
         self.cause = cause
+        self.messageRaw = messageRaw == runtimeNullSentinelInt ? 0 : messageRaw
         self.stackTraceAddresses = runtimeCurrentStackTraceAddresses()
     }
 }
@@ -87,8 +93,8 @@ class RuntimeCancellationBox: RuntimeThrowableBox {
         message ?? "CancellationException"
     }
 
-    override init(message: String?, cause: Int = 0) {
-        super.init(message: message, cause: cause)
+    override init(message: String?, cause: Int = 0, messageRaw: Int = 0) {
+        super.init(message: message, cause: cause, messageRaw: messageRaw)
     }
 }
 

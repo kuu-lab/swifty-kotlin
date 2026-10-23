@@ -208,7 +208,7 @@ public func kk_sequence_contains(_ seqRaw: Int, _ element: Int) -> Int {
     var found = false
     if let seq = runtimeSequenceBox(from: seqRaw) {
         runtimeTraverseSequence(seq, outThrown: nil) { elem in
-            if runtimeValuesEqual(elem, element) {
+            if runtimeLookupValuesEqual(elem, element) {
                 found = true
                 return false
             }
@@ -216,7 +216,7 @@ public func kk_sequence_contains(_ seqRaw: Int, _ element: Int) -> Int {
         }
     } else {
         let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
-        found = elements.contains { runtimeValuesEqual($0, element) }
+        found = elements.contains { runtimeLookupValuesEqual($0, element) }
     }
     return found ? 1 : 0
 }
@@ -227,7 +227,7 @@ public func kk_sequence_indexOf(_ seqRaw: Int, _ element: Int) -> Int {
     var currentIndex = 0
     if let seq = runtimeSequenceBox(from: seqRaw) {
         runtimeTraverseSequence(seq, outThrown: nil) { elem in
-            if runtimeValuesEqual(elem, element) {
+            if runtimeLookupValuesEqual(elem, element) {
                 index = currentIndex
                 return false
             }
@@ -236,7 +236,7 @@ public func kk_sequence_indexOf(_ seqRaw: Int, _ element: Int) -> Int {
         }
     } else {
         for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
-            if runtimeValuesEqual(elem, element) {
+            if runtimeLookupValuesEqual(elem, element) {
                 index = currentIndex
                 break
             }
@@ -297,7 +297,7 @@ public func kk_sequence_lastIndexOf(_ seqRaw: Int, _ element: Int) -> Int {
     var currentIndex = 0
     if let seq = runtimeSequenceBox(from: seqRaw) {
         runtimeTraverseSequence(seq, outThrown: nil) { elem in
-            if runtimeValuesEqual(elem, element) {
+            if runtimeLookupValuesEqual(elem, element) {
                 index = currentIndex
             }
             currentIndex += 1
@@ -305,7 +305,7 @@ public func kk_sequence_lastIndexOf(_ seqRaw: Int, _ element: Int) -> Int {
         }
     } else {
         for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
-            if runtimeValuesEqual(elem, element) {
+            if runtimeLookupValuesEqual(elem, element) {
                 index = currentIndex
             }
             currentIndex += 1

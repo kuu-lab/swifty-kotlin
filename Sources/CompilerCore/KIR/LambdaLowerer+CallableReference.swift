@@ -198,6 +198,8 @@ extension LambdaLowerer {
         targetName: InternedString?,
         captureArguments: [KIRExprID],
         isReifiedThunk: Bool = false,
+        identityTargetSymbol: SymbolID? = nil,
+        callableType: TypeID? = nil,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -305,7 +307,7 @@ extension LambdaLowerer {
             (capturedSymbol: param.symbol, param: param, valueExpr: valueExpr, declaredType: param.type)
         }
 
-        return lowerSamWrapperValue(
+        guard let samValue = lowerSamWrapperValue(
             exprID,
             interfaceType: interfaceType,
             lambdaSymbol: thunkSymbol,
@@ -318,7 +320,125 @@ extension LambdaLowerer {
             arena: arena,
             interner: interner,
             instructions: &instructions
+        ) else {
+            return nil
+        }
+        emitSamAdapterIdentity(
+            callableExpr: samValue,
+            exprID: exprID,
+            interfaceType: interfaceType,
+            identityTargetSymbol: identityTargetSymbol,
+            captures: captureArguments,
+            callableType: callableType,
+            samFunctionType: samFunctionType,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
         )
+        return samValue
+    }
+
+    /// JVM `fun interface` SAM wrappers built from callable references also
+    /// implement `kotlin.jvm.internal.FunctionAdapter`: their synthesized
+    /// equals/hashCode delegate to the stored function reference, and equals
+    /// additionally requires `other instanceof <that interface>` (KUU-2940).
+    /// Record the referenced target and bound captures on the wrapper so the
+    /// erased `==`/`!=` and `hashCode()` runtime paths compare the delegate
+    /// rather than wrapper object identity.
+    private func emitSamAdapterIdentity(
+        callableExpr: KIRExprID,
+        exprID: ExprID,
+        interfaceType: ClassType,
+        identityTargetSymbol: SymbolID?,
+        captures: [KIRExprID],
+        callableType: TypeID?,
+        samFunctionType: FunctionType,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        // Mirror emitCallableRefTypeTag's identity target: a function ref
+        // keys on the referenced symbol itself (not the per-site SAM thunk
+        // or adapted-reference adapter), a property ref on its getter.
+        let targetSymbol: SymbolID? = switch sema.bindings.callableRefKind(for: exprID) {
+        case .functionRef:
+            identityTargetSymbol
+        case .propertyRef:
+            identityTargetSymbol.flatMap { target in
+                let propertySymbol = sema.symbols.symbol(target)?.kind == .property
+                    ? target
+                    : sema.symbols.accessorOwnerProperty(for: target)
+                return propertySymbol.flatMap {
+                    sema.symbols.extensionPropertyGetterAccessor(for: $0)
+                        ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: $0)
+                }
+            }
+        case nil:
+            nil
+        }
+        guard let targetSymbol else { return }
+
+        let functionType = callableType.flatMap { type -> FunctionType? in
+            guard case let .functionType(functionType) = sema.types.kind(of: type) else { return nil }
+            return functionType
+        } ?? samFunctionType
+        let arity = Int64(functionType.contextReceivers.count
+            + (functionType.receiver == nil ? 0 : 1) + functionType.params.count)
+        // Same packing as emitCallableRefTypeTag: bit0=suspend, bit1=inline,
+        // bit2=operator, bit3=infix, bit4=external.
+        var flags: Int64 = functionType.isSuspend ? 1 : 0
+        if let target = sema.symbols.symbol(targetSymbol) {
+            if target.flags.contains(.inlineFunction) { flags |= 1 << 1 }
+            if target.flags.contains(.operatorFunction) { flags |= 1 << 2 }
+            if target.flags.contains(.infixFunction) { flags |= 1 << 3 }
+            if sema.symbols.externalLinkName(for: targetSymbol) != nil { flags |= 1 << 4 }
+        }
+
+        let intType = sema.types.intType
+        let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+            symbol: interfaceType.classSymbol, sema: sema, interner: interner
+        )
+        let interfaceTypeExpr = arena.appendExpr(.intLiteral(interfaceTypeID), type: intType)
+        instructions.append(.constValue(result: interfaceTypeExpr, value: .intLiteral(interfaceTypeID)))
+        let identityTarget = arena.appendExpr(.symbolRef(targetSymbol), type: intType)
+        instructions.append(.constValue(result: identityTarget, value: .symbolRef(targetSymbol)))
+        let boxedCaptures = captures.map { capture in
+            boxValueForAnySlot(
+                capture,
+                sourceType: arena.exprType(capture) ?? sema.types.anyType,
+                types: sema.types,
+                symbols: sema.symbols,
+                interner: interner,
+                arena: arena,
+                requireNonNull: true,
+                sema: sema,
+                into: &instructions
+            )
+        }
+        let capturesExpr: KIRExprID
+        if boxedCaptures.isEmpty {
+            capturesExpr = arena.appendExpr(.null, type: sema.types.nullableAnyType)
+            instructions.append(.constValue(result: capturesExpr, value: .null))
+        } else {
+            capturesExpr = makeReflectionArgumentList(
+                boxedCaptures, sema: sema, arena: arena,
+                interner: interner, instructions: &instructions
+            )
+        }
+        let arityExpr = arena.appendExpr(.intLiteral(arity), type: intType)
+        instructions.append(.constValue(result: arityExpr, value: .intLiteral(arity)))
+        let flagsExpr = arena.appendExpr(.intLiteral(flags), type: intType)
+        instructions.append(.constValue(result: flagsExpr, value: .intLiteral(flags)))
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("__kk_sam_adapter_set_identity"),
+            arguments: [callableExpr, interfaceTypeExpr, identityTarget, capturesExpr, arityExpr, flagsExpr],
+            result: nil,
+            canThrow: false,
+            thrownResult: nil
+        ))
     }
 
     func lowerCallableRefExpr(
@@ -611,7 +731,9 @@ extension LambdaLowerer {
            let targetSymbol,
            let thunk = virtualFunctionReferenceThunk(
                targetSymbol: targetSymbol,
-               receiverStaticType: isUnbound ? nil : receiverExpr.flatMap { sema.bindings.exprTypes[$0] },
+               receiverStaticType: isUnbound ? nil
+                   : (receiverExpr.flatMap { sema.bindings.exprTypes[$0] }
+                       ?? captureArguments.first.flatMap { arena.exprType($0) }),
                sema: sema,
                arena: arena,
                interner: interner
@@ -705,6 +827,8 @@ extension LambdaLowerer {
                 targetName: samTarget.name,
                 captureArguments: captureArguments,
                 isReifiedThunk: samTarget.isReified,
+                identityTargetSymbol: targetSymbol,
+                callableType: boundType,
                 sema: sema,
                 arena: arena,
                 interner: interner,
@@ -1213,9 +1337,12 @@ extension LambdaLowerer {
         // Bound references need per-value storage: the same target pointer can
         // also represent an unbound reference with a different arity. Boxing
         // preserves the receiver when the value escapes the KIR callable table.
+        // Suspend references also need a box without captures: their launcher
+        // thunk supplies the continuation-only entry ABI instead of calling a
+        // raw Kotlin method pointer through the ordinary function ABI.
         let callableValue: KIRExprID
-        if !captureArguments.isEmpty,
-           case let .functionType(functionType) = sema.types.kind(of: callableType),
+        if case let .functionType(functionType) = sema.types.kind(of: callableType),
+           !captureArguments.isEmpty || functionType.isSuspend,
            let materialized = materializeEscapingCallableValue(
                exprID: exprID,
                lambdaSymbol: callableSymbol,

@@ -1,6 +1,18 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
+    func continuationNominalSymbol(
+        for fqName: [InternedString],
+        in sema: SemaModule
+    ) -> SymbolID? {
+        sema.symbols.lookupAll(fqName: fqName).first { candidate in
+            guard let kind = sema.symbols.symbol(candidate)?.kind else {
+                return false
+            }
+            return kind == .class || kind == .interface
+        }
+    }
+
     func inferBundledProduceCall(
         _ id: ExprID,
         args: [CallArgument],
@@ -151,7 +163,10 @@ extension CallTypeChecker {
            !isSuspendCoroutineShadowed
         {
             let resultType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs) ?? expectedType ?? sema.types.anyType
-            let continuationType: TypeID = if let continuationSymbol = sema.symbols.lookup(fqName: knownNames.kotlinCoroutinesFQName + [knownNames.continuation]) {
+            let continuationType: TypeID = if let continuationSymbol = continuationNominalSymbol(
+                for: knownNames.kotlinCoroutinesFQName + [knownNames.continuation],
+                in: sema
+            ) {
                 sema.types.make(.classType(ClassType(
                     classSymbol: continuationSymbol,
                     args: [.invariant(resultType)],
@@ -210,7 +225,10 @@ extension CallTypeChecker {
            args.count == 1
         {
             let resultType = expectedType ?? resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs) ?? sema.types.anyType
-            let continuationType: TypeID = if let continuationSymbol = sema.symbols.lookup(fqName: knownNames.kotlinContinuationFQName) {
+            let continuationType: TypeID = if let continuationSymbol = continuationNominalSymbol(
+                for: knownNames.kotlinContinuationFQName,
+                in: sema
+            ) {
                 sema.types.make(.classType(ClassType(
                     classSymbol: continuationSymbol,
                     args: [.invariant(resultType)],

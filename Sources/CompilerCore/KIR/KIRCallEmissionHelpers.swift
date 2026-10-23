@@ -176,8 +176,9 @@ func resolveDestructuringComponentCallee(
 extension CallLowerer {
     /// An open `componentN` overridden in a subclass must dispatch on the
     /// receiver's runtime type (`val (x, y): P = Q(...)` calls `Q.component1`),
-    /// so the resolved member goes through `tryEmitVirtualDispatch` first; only
-    /// a non-virtual member falls back to the direct `symbol`/`callee` call.
+    /// while member extensions dispatch on their enclosing receiver and local
+    /// component functions need their captured environment at the call site.
+    /// Other non-virtual members fall back to the direct `symbol`/`callee` call.
     func emitDestructuringComponentCall(
         candidate: SymbolID?,
         symbol: SymbolID?,
@@ -190,13 +191,51 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) {
-        if let virtualInstruction = tryEmitVirtualDispatch(
+        var arguments: [KIRExprID] = []
+        var dispatchReceiverID = receiverID
+        let isLocalFunction = candidate.flatMap { sema.symbols.symbol($0)?.flags.contains(.localFunction) } == true
+        let isMemberExtension = candidate.map { sema.symbols.memberExtensionOwnerSymbol(for: $0) != nil } == true
+
+        if isLocalFunction, let candidate {
+            for capturedSymbol in sema.bindings.localFunctionCaptureSymbols(for: candidate) {
+                guard let captureValue = driver.lambdaLowerer.captureValueExpr(
+                    for: capturedSymbol,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                ) else {
+                    assertionFailure("BuildKIRPhase: missing local component function capture '\(capturedSymbol)'")
+                    continue
+                }
+                arguments.append(captureValue)
+            }
+        }
+
+        if isMemberExtension, let candidate {
+            guard let memberExtensionDispatchReceiver = memberExtensionDispatchReceiver(
+                for: candidate,
+                callExprID: nil,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            ) else {
+                assertionFailure("BuildKIRPhase: member-extension component call has no dispatch receiver")
+                return
+            }
+            dispatchReceiverID = memberExtensionDispatchReceiver
+            arguments.append(memberExtensionDispatchReceiver)
+        }
+        arguments.append(receiverID)
+
+        if !isLocalFunction, let virtualInstruction = tryEmitVirtualDispatch(
             chosenCallee: candidate,
             calleeName: callee,
-            receiverExpr: receiverExpr,
-            loweredReceiverID: receiverID,
+            receiverExpr: isMemberExtension ? nil : receiverExpr,
+            loweredReceiverID: dispatchReceiverID,
             isSuperCall: false,
-            finalArguments: [receiverID],
+            finalArguments: arguments,
             result: result,
             sema: sema,
             arena: arena,
@@ -208,7 +247,7 @@ extension CallLowerer {
         instructions.append(.call(
             symbol: symbol,
             callee: callee,
-            arguments: [receiverID],
+            arguments: arguments,
             result: result,
             canThrow: false,
             thrownResult: nil
@@ -251,6 +290,126 @@ func unboxIfEnumTyped<C: RangeReplaceableCollection>(
         arena: arena,
         into: &instructions
     )
+}
+
+/// Resolves the enum class symbol of an equality operand's static type,
+/// ignoring nullability (`E` and `E?` both resolve). `==`/`!=` and `when`
+/// entry matching pick each operand's erased comparison form from this
+/// (KUU-3027).
+func enumEqualityOperandClassSymbol(_ staticType: TypeID?, sema: SemaModule) -> SymbolID? {
+    guard let staticType,
+          case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(staticType)),
+          sema.symbols.symbol(classType.classSymbol)?.kind == .enumClass
+    else {
+        return nil
+    }
+    return classType.classSymbol
+}
+
+/// `kk_unbox_int` on an enum operand yields its ordinal and passes the null
+/// sentinel through unchanged (the sentinel is not a registered pointer), so
+/// a nullable enum slot still compares unequal to every entry and equal to
+/// another null slot.
+func unboxEnumOperandForEquality<C: RangeReplaceableCollection>(
+    _ exprID: KIRExprID,
+    sema: SemaModule,
+    arena: KIRArena,
+    interner: StringInterner,
+    into instructions: inout C
+) -> KIRExprID where C.Element == KIRInstruction {
+    let intType = sema.types.make(.primitive(.int, .nonNull))
+    return emitNonThrowingCall(
+        callee: ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner),
+        arg: exprID,
+        resultType: intType,
+        arena: arena,
+        into: &instructions
+    )
+}
+
+/// Boxes a *non-null* enum operand into the canonical enum-tagged box so a
+/// structural `==` against an erased peer compares nominal enum identity
+/// instead of aliasing the bare ordinal against a boxed scalar of the same
+/// value (KUU-3027: `E.A == (0 as Any)` must be false while
+/// `(E.A as Any) == E.A` stays true). A nullable enum operand already holds
+/// the box-or-sentinel form, so callers leave it untouched.
+func boxEnumOperandForEquality<C: RangeReplaceableCollection>(
+    _ exprID: KIRExprID,
+    staticType: TypeID?,
+    sema: SemaModule,
+    arena: KIRArena,
+    interner: StringInterner,
+    into instructions: inout C
+) -> KIRExprID where C.Element == KIRInstruction {
+    guard let staticType,
+          case let .classType(classType) = sema.types.kind(of: staticType),
+          classType.nullability == .nonNull
+    else {
+        return exprID
+    }
+    let boxed = arena.appendTemporary(type: sema.types.anyType)
+    emitBoxCallWithValueClassTag(
+        boxCallee: ABILoweringPass.primitiveBoxingCallee(for: .int, interner: interner),
+        value: exprID,
+        rawSourceKind: sema.types.kind(of: staticType),
+        result: boxed,
+        resultType: sema.types.anyType,
+        types: sema.types,
+        symbols: sema.symbols,
+        interner: interner,
+        arena: arena,
+        sema: sema,
+        into: &instructions
+    )
+    return boxed
+}
+
+/// Normalizes both sides of an enum-aware `==`/`!=` (and `when` entry match,
+/// which desugars to `==`) into a consistent erased form before the
+/// structural-compare emission (KUU-3027):
+///   - same enum class on both sides, either side nullable: unbox both to
+///     ordinals — `kk_unbox_int` passes the null sentinel through, so `null`
+///     still compares unequal to any entry and equal to another null slot.
+///   - otherwise a *non-null* enum operand is boxed into its canonical
+///     enum-tagged form, so `E.A == (0 as Any)` is false while
+///     `(E.A as Any) == E.A` stays true. A nullable enum operand already
+///     holds that box-or-sentinel form.
+func normalizeEnumEqualityOperands<C: RangeReplaceableCollection>(
+    lhsID: KIRExprID,
+    lhsType: TypeID?,
+    rhsID: KIRExprID,
+    rhsType: TypeID?,
+    sema: SemaModule,
+    arena: KIRArena,
+    interner: StringInterner,
+    into instructions: inout C
+) -> (lhs: KIRExprID, rhs: KIRExprID) where C.Element == KIRInstruction {
+    let lhsEnumSymbol = enumEqualityOperandClassSymbol(lhsType, sema: sema)
+    let rhsEnumSymbol = enumEqualityOperandClassSymbol(rhsType, sema: sema)
+    if let lhsEnumSymbol, lhsEnumSymbol == rhsEnumSymbol {
+        let ordinalLhs = unboxEnumOperandForEquality(
+            lhsID, sema: sema, arena: arena, interner: interner, into: &instructions
+        )
+        let ordinalRhs = unboxEnumOperandForEquality(
+            rhsID, sema: sema, arena: arena, interner: interner, into: &instructions
+        )
+        return (ordinalLhs, ordinalRhs)
+    }
+    var effectiveLhsID = lhsID
+    var effectiveRhsID = rhsID
+    if lhsEnumSymbol != nil {
+        effectiveLhsID = boxEnumOperandForEquality(
+            lhsID, staticType: lhsType, sema: sema, arena: arena,
+            interner: interner, into: &instructions
+        )
+    }
+    if rhsEnumSymbol != nil {
+        effectiveRhsID = boxEnumOperandForEquality(
+            rhsID, staticType: rhsType, sema: sema, arena: arena,
+            interner: interner, into: &instructions
+        )
+    }
+    return (effectiveLhsID, effectiveRhsID)
 }
 
 /// Value classes are unboxed to their underlying primitive everywhere

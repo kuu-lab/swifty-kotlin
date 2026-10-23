@@ -146,7 +146,16 @@ extension ControlFlowLowerer {
         )
         let thenTerminated = isTerminatedExpr(thenID, arena: arena, sema: sema)
         if !thenTerminated {
-            instructions.append(.copy(from: thenID, to: result))
+            let thenValueID = materializeConditionalCallableValue(
+                sourceExprID: thenExpr,
+                value: thenID,
+                expectedType: boundType,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            instructions.append(.copy(from: thenValueID, to: result))
             instructions.append(.jump(endLabel))
         }
         instructions.append(.label(elseLabel))
@@ -163,7 +172,16 @@ extension ControlFlowLowerer {
             )
             elseTerminated = isTerminatedExpr(elseID, arena: arena, sema: sema)
             if !elseTerminated {
-                instructions.append(.copy(from: elseID, to: result))
+                let elseValueID = materializeConditionalCallableValue(
+                    sourceExprID: elseExpr,
+                    value: elseID,
+                    expectedType: boundType,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                instructions.append(.copy(from: elseValueID, to: result))
             }
         } else {
             let unitVal = arena.appendExpr(.unit, type: sema.types.unitType)

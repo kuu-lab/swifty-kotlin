@@ -132,6 +132,7 @@ final class ConstPropertyEvaluator {
                   isSupportedPrimitiveComparison(nonNullReceiverType, argumentType)
             else { return false }
             return !isSourceBackedMemberExtensionCall(expr)
+                || isBuiltinKotlinComparableMemberCall(expr)
                 || isBuiltinKotlinPrimitiveExtensionCall(expr, name: name, receiverType: nonNullReceiverType)
         }
         if name == "toString" {
@@ -243,6 +244,17 @@ final class ConstPropertyEvaluator {
               let declaredReceiver = sema.symbols.functionSignature(for: callee)?.receiverType
         else { return false }
         return sema.types.makeNonNullable(declaredReceiver) == receiverType
+    }
+
+    private func isBuiltinKotlinComparableMemberCall(_ expr: ExprID) -> Bool {
+        guard let callee = sema.bindings.callBinding(for: expr)?.chosenCallee,
+              sema.symbols.isSourceBackedSymbol(callee),
+              let symbol = sema.symbols.symbol(callee),
+              symbol.kind == .function,
+              symbol.fqName == [interner.intern("kotlin"), interner.intern("Comparable"), interner.intern("compareTo")],
+              sema.symbols.parentSymbol(for: callee) == sema.types.comparableInterfaceSymbol
+        else { return false }
+        return true
     }
 
     private func isSourceBackedMemberExtensionCall(_ expr: ExprID) -> Bool {

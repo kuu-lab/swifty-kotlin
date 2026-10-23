@@ -125,6 +125,16 @@ extension CallLowerer {
             instructions.append(.constValue(result: constResult, value: constValue))
             return constResult
         }
+        if let foldedString = tryFoldBuiltinStringIndentTrimCall(
+            exprID,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        ) {
+            return foldedString
+        }
         if let staticMemberValue = tryLowerClassNameMemberValueExpr(
             exprID,
             receiverExpr: receiverExpr,
@@ -611,6 +621,7 @@ extension CallLowerer {
             args: args,
             sema: sema,
             interner: interner,
+            arena: arena,
             loweredReceiverID: loweredReceiverID,
             result: result,
             instructions: &instructions
@@ -895,6 +906,41 @@ extension CallLowerer {
             sourceArgLabels: args.map(\.label),
             callExprID: exprID
         )
+        return result
+    }
+
+    private func tryFoldBuiltinStringIndentTrimCall(
+        _ exprID: ExprID,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        guard ConstantCollector.isBuiltinStringIndentTrimCall(
+            exprID, ast: ast, sema: sema, interner: interner
+        ) else {
+            return nil
+        }
+        var collector = driver.constantCollector
+        collector.resolvedConstant = { constantExpr in
+            self.compileTimeConstantRef(constantExpr, ast: ast, sema: sema)
+        }
+        collector.canFoldMemberCall = { candidate in
+            ConstantCollector.isBuiltinStringIndentTrimCall(
+                candidate, ast: ast, sema: sema, interner: interner
+            )
+        }
+        guard let value = collector.literalConstantExpr(exprID, ast: ast, interner: interner),
+              case .stringLiteral = value
+        else {
+            return nil
+        }
+        let result = arena.appendExpr(
+            value,
+            type: sema.bindings.exprType(for: exprID) ?? sema.types.stringType
+        )
+        instructions.append(.constValue(result: result, value: value))
         return result
     }
 }

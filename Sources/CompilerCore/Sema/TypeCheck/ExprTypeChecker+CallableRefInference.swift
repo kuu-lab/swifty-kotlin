@@ -407,6 +407,7 @@ extension ExprTypeChecker {
                 ownerType: nil,
                 isUnbound: false,
                 expectedType: expectedType,
+                ctx: ctx,
                 sema: sema,
                 interner: interner,
                 resolvedPropertyType: implicitPropertyType
@@ -544,6 +545,7 @@ extension ExprTypeChecker {
                         ownerType: unboundClassType != nil ? nonNullReceiver : nil,
                         isUnbound: unboundClassType != nil,
                         expectedType: expectedType,
+                        ctx: ctx,
                         sema: sema,
                         interner: interner,
                         resolvedPropertyType: property.type
@@ -558,6 +560,7 @@ extension ExprTypeChecker {
                         ownerType: nil,
                         isUnbound: false,
                         expectedType: expectedType,
+                        ctx: ctx,
                         sema: sema,
                         interner: interner,
                         resolvedPropertyType: property.type
@@ -623,6 +626,7 @@ extension ExprTypeChecker {
                             ownerType: unboundClassType != nil ? nonNullReceiver : nil,
                             isUnbound: unboundClassType != nil,
                             expectedType: expectedType,
+                            ctx: ctx,
                             sema: sema,
                             interner: interner,
                             resolvedPropertyType: extensionPropertyReference.valueType
@@ -759,7 +763,7 @@ extension ExprTypeChecker {
             } ?? false
             if let propertySymbol = propertyCandidates.first, !packagePropertyShadowedByMember {
                 let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.errorType
-                let isMutable = sema.symbols.symbol(propertySymbol)?.flags.contains(.mutable) == true
+                let isMutable = isPropertySetterAccessible(propertySymbol, ctx: ctx)
                 // KSP-496/KSP-505: a bare `::member` reference to a member
                 // property of the enclosing class or singleton is implicitly
                 // bound to `this`. For `.class` owners the receiver is a
@@ -1038,7 +1042,7 @@ extension ExprTypeChecker {
             kPropertyReferenceType(
                 ownerType: candidate.ownerType,
                 valueType: candidate.type,
-                isMutable: sema.symbols.symbol(candidate.symbol)?.flags.contains(.mutable) == true,
+                isMutable: isPropertySetterAccessible(candidate.symbol, ctx: ctx),
                 sema: sema,
                 interner: interner
             )
@@ -1057,6 +1061,7 @@ extension ExprTypeChecker {
                 ownerType: candidate.ownerType,
                 isUnbound: candidate.isUnbound,
                 expectedType: expectedType,
+                ctx: ctx,
                 sema: sema,
                 interner: interner,
                 resolvedPropertyType: candidate.type
@@ -1087,6 +1092,7 @@ extension ExprTypeChecker {
                     ownerType: candidate.ownerType,
                     isUnbound: candidate.isUnbound,
                     expectedType: expectedType,
+                    ctx: ctx,
                     sema: sema,
                     interner: interner,
                     resolvedPropertyType: candidate.type
@@ -1214,6 +1220,7 @@ extension ExprTypeChecker {
                 ownerType: candidate.ownerType,
                 isUnbound: candidate.isUnbound,
                 expectedType: expectedType,
+                ctx: ctx,
                 sema: sema,
                 interner: interner,
                 resolvedPropertyType: candidate.type
@@ -1638,6 +1645,7 @@ extension ExprTypeChecker {
         ownerType: TypeID?,
         isUnbound: Bool,
         expectedType: TypeID?,
+        ctx: TypeInferenceContext,
         sema: SemaModule,
         interner: StringInterner,
         resolvedPropertyType: TypeID? = nil
@@ -1656,7 +1664,7 @@ extension ExprTypeChecker {
                 sema: sema
             )
         }
-        let isMutable = sema.symbols.symbol(propertySymbol)?.flags.contains(.mutable) == true
+        let isMutable = isPropertySetterAccessible(propertySymbol, ctx: ctx)
         let inferredType = kPropertyReferenceType(
             ownerType: ownerType,
             valueType: propertyType,
@@ -1727,6 +1735,35 @@ extension ExprTypeChecker {
             args: typeArgs,
             nullability: .nonNull
         )))
+    }
+
+    private func isPropertySetterAccessible(_ propertySymbol: SymbolID, ctx: TypeInferenceContext) -> Bool {
+        guard let property = ctx.sema.symbols.symbol(propertySymbol),
+              property.flags.contains(.mutable)
+        else {
+            return false
+        }
+        guard let setterVisibility = ctx.sema.symbols.propertySetterVisibility(for: propertySymbol) else {
+            return ctx.visibilityChecker.isAccessible(
+                property,
+                fromFile: ctx.currentFileID,
+                enclosingClass: ctx.enclosingClassSymbol
+            )
+        }
+        let setter = SemanticSymbol(
+            id: property.id,
+            kind: property.kind,
+            name: property.name,
+            fqName: property.fqName,
+            declSite: property.declSite,
+            visibility: setterVisibility,
+            flags: property.flags
+        )
+        return ctx.visibilityChecker.isAccessible(
+            setter,
+            fromFile: ctx.currentFileID,
+            enclosingClass: ctx.enclosingClassSymbol
+        )
     }
 
     /// KSP-496: a *property* callable reference used in a fun-interface

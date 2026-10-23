@@ -22,7 +22,7 @@ extension ExprTypeChecker {
             fqName: fqNamePrefix + [objectDecl.name],
             declSite: objectDecl.range,
             visibility: .private,
-            flags: [.synthetic]
+            flags: symbolKind == .class ? [.synthetic, .objectLiteralType] : [.synthetic]
         )
         sema.bindings.bindDecl(declID, symbol: objectSymbol)
         let capturedTypeParameters = driver.helpers.lexicalTypeParameterSymbols(in: ctx)

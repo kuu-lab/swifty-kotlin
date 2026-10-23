@@ -6,6 +6,37 @@ import Testing
 
 extension JVMBackendTests {
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func userDefinedRangeToOperatorsUseTheirDeclaredReturnTypes(mode: EmitMode) throws {
+        let source = """
+        class P(val v: Int) { operator fun rangeTo(other: P) = v + other.v }
+        class Label(val value: String) { override fun toString(): String = value }
+        class Q(val v: Int) {
+            operator fun rangeTo(other: Q): Label = Label("sum=${v + other.v}")
+        }
+        class Indices(val value: Int) {
+            operator fun rangeTo(other: Indices): IntArray = intArrayOf(value, other.value)
+        }
+        fun main() {
+            println(P(1)..P(2))
+            val sum = P(3)..P(4)
+            println(sum)
+            println(Q(3)..Q(4))
+            val label = Q(5)..Q(6)
+            println(label)
+            for (index in Indices(5)..Indices(6)) println(index)
+        }
+        """
+        try withWorkspace { root in
+            let result = try compile(source, root: root, mode: mode)
+            try #require(result.0 == 0, "\(result.1.map(\.message))")
+            let artifact = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes").path
+            let execution = try java(["-cp", artifact, "HelloKt"])
+            #expect(execution.stdout == "3\n7\nsum=7\nsum=11\n5\n6\n")
+            #expect(execution.stderr.isEmpty)
+        }
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func resolvedBinaryOperatorsPreserveSourceAndInlineCalls(mode: EmitMode) throws {
         let source = """
         operator fun Char.plus(other: Char): Int = this.code + other.code + 17

@@ -18,6 +18,17 @@ struct VisibilityChecker {
         fromFile accessFileID: FileID,
         enclosingClass: SymbolID?
     ) -> Bool {
+        // Anonymous object types are local to their declaring file. Their
+        // synthetic private owner chain must not make their public members
+        // inaccessible within that file, including through nested literals.
+        if symbol.flags.contains(.objectLiteralType) {
+            guard !symbol.flags.contains(.importedLibrary),
+                  let declarationFileID = symbols.sourceFileID(for: symbol.id) ?? symbol.declSite?.start.file
+            else {
+                return false
+            }
+            return declarationFileID == accessFileID
+        }
         // A nested declaration cannot expose an owner that is invisible at its
         // use site, for source declarations or imported metadata alike.
         if let parent = symbols.parentSymbol(for: symbol.id),

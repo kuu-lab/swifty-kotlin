@@ -220,6 +220,21 @@ extension CallLowerer {
             return kParameterResult
         }
 
+        if let kProperty0GetResult = tryLowerKProperty0GetInvocation(
+            exprID,
+            receiverExpr: receiverExpr,
+            calleeName: calleeName,
+            args: args,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions.instructions
+        ) {
+            return kProperty0GetResult
+        }
+
         if let kFunctionCallResult = tryLowerKFunctionCallInvocation(
             exprID,
             receiverExpr: receiverExpr,

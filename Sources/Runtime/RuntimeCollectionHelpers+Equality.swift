@@ -140,6 +140,38 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     return runtimeNonNullValuesEqual(lhs, rhs)
 }
 
+/// Lookup-key equality for runtime collection internals (hash-table probing
+/// and linear membership scans). Behaves like `runtimeValuesEqual`, but
+/// additionally lets an enum-tagged `RuntimeIntBox` match a bare ordinal
+/// scalar: enum arguments can still reach an erased `E` parameter slot
+/// unboxed, and a lookup must keep finding the canonical box the element was
+/// stored as (KUU-3027). `==`/`equals` semantics must not use this — on the
+/// JVM `Enum.equals` is final reference identity, so a boxed enum entry never
+/// equals a primitive scalar carrying the same ordinal.
+func runtimeLookupValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
+    if runtimeValuesEqual(lhs, rhs) {
+        return true
+    }
+    return runtimeEnumTaggedBoxMatchesOrdinal(lhs, rawSide: rhs)
+        || runtimeEnumTaggedBoxMatchesOrdinal(rhs, rawSide: lhs)
+}
+
+private func runtimeEnumTaggedBoxMatchesOrdinal(_ boxedSide: Int, rawSide: Int) -> Bool {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: boxedSide) else {
+        return false
+    }
+    let isRegistered = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isRegistered,
+          let intBox = tryCast(ptr, to: RuntimeIntBox.self),
+          intBox.enumClassID != nil
+    else {
+        return false
+    }
+    return intBox.value == rawSide
+}
+
 /// Callers that have already established — via means other than guessing
 /// from the raw bits, e.g. `kk_nullable_primitive_eq`'s object-pointer-registry
 /// check — that neither operand is genuinely null should call this directly:
@@ -171,6 +203,16 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         let rawSide = lhsIsObjectPointer ? rhs : lhs
         if let bitPattern = runtimeFloatingBoxBitPattern(boxedSide) {
             return bitPattern == rawSide
+        }
+        // An enum-tagged box never equals a bare scalar carrying the same
+        // ordinal: JVM `Enum.equals` is final reference identity, so
+        // `(E.A as Any) == 0` must be false (KUU-3027). Collection probe
+        // paths that may receive enum arguments unboxed go through
+        // `runtimeLookupValuesEqual` instead.
+        if let ptr = UnsafeMutableRawPointer(bitPattern: boxedSide),
+           let intBox = tryCast(ptr, to: RuntimeIntBox.self),
+           intBox.enumClassID != nil {
+            return false
         }
         return maybeUnbox(lhs) == maybeUnbox(rhs)
     }

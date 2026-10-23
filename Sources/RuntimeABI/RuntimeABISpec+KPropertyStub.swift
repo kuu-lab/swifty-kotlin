@@ -22,6 +22,20 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_kproperty_stub_create_cached_typed",
+            parameters: [
+                RuntimeABIParameter(name: "nameRaw", type: .intptr),
+                RuntimeABIParameter(name: "returnTypeRaw", type: .intptr),
+                RuntimeABIParameter(name: "identityRaw", type: .intptr),
+                RuntimeABIParameter(name: "returnTypeKTypeRaw", type: .intptr),
+                RuntimeABIParameter(name: "arity", type: .intptr),
+                RuntimeABIParameter(name: "isMutable", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Delegate",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_kproperty_stub_create_local",
             parameters: [
                 RuntimeABIParameter(name: "nameStr", type: .intptr),
@@ -32,6 +46,18 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Delegate",
             isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_kproperty0_get",
+            parameters: [
+                RuntimeABIParameter(name: "raw", type: .intptr),
+                RuntimeABIParameter(name: "interfaceTypeID", type: .intptr),
+                RuntimeABIParameter(name: "methodSlot", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Delegate",
+            isThrowing: true
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_kproperty_stub_create_full",
