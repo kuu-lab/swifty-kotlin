@@ -667,10 +667,24 @@ extension BuildASTPhase.ExpressionParser {
             }
         }
 
-        while let token = current(),
-              token.kind != .keyword(.in),
-              token.kind != .symbol(.rParen)
-        {
+        var groupDepth = 0
+        while let token = current() {
+            if token.kind == .keyword(.in) { break }
+            if token.kind == .symbol(.rParen), groupDepth == 0 { break }
+            switch token.kind {
+            case .symbol(.lParen), .symbol(.lBracket), .symbol(.lessThan):
+                groupDepth += 1
+            case .symbol(.rParen), .symbol(.rBracket), .symbol(.greaterThan), .symbol(.greaterOrEqual):
+                groupDepth -= 1
+            case .symbol(.comma) where groupDepth == 0:
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0004",
+                    "Unexpected ',' in 'for' loop header.",
+                    range: token.range
+                )
+            default:
+                break
+            }
             _ = consume()
         }
         if consumeIf(.keyword(.in)) == nil {
