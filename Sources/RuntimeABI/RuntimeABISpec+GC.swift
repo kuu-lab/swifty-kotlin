@@ -1,58 +1,13 @@
-// swiftlint:disable file_length
+private let abi = RuntimeABISectionBuilder("GC")
 
 public extension RuntimeABISpec {
     static let gcFunctions: [RuntimeABIFunctionSpec] = [
-        RuntimeABIFunctionSpec(
-            name: "kk_register_frame_map",
-            parameters: [
-                RuntimeABIParameter(name: "functionID", type: .uint32),
-                RuntimeABIParameter(name: "mapPtr", type: .nullableConstRawPointer),
-            ],
-            returnType: .void,
-            section: "GC"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_push_frame",
-            parameters: [
-                RuntimeABIParameter(name: "functionID", type: .uint32),
-                RuntimeABIParameter(name: "frameBase", type: .nullableOpaquePointer),
-            ],
-            returnType: .void,
-            section: "GC"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_pop_frame",
-            parameters: [],
-            returnType: .void,
-            section: "GC"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_register_coroutine_root",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .nullableOpaquePointer),
-            ],
-            returnType: .void,
-            section: "GC"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_unregister_coroutine_root",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .nullableOpaquePointer),
-            ],
-            returnType: .void,
-            section: "GC"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_runtime_heap_object_count",
-            parameters: [],
-            returnType: .uint32,
-            section: "GC"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_runtime_force_reset",
-            parameters: [],
-            returnType: .void,
-            section: "GC"
-        ),
+        abi.th("kk_register_frame_map", "functionID:uint32 mapPtr:nullableConstRawPointer", ret: .void),
+        abi.th("kk_push_frame", "functionID:uint32 frameBase:nullableOpaquePointer", ret: .void),
+        abi.th("kk_pop_frame", ret: .void),
+        abi.th("kk_register_coroutine_root", "value:nullableOpaquePointer", ret: .void),
+        abi.th("kk_unregister_coroutine_root", "value:nullableOpaquePointer", ret: .void),
+        abi.th("kk_runtime_heap_object_count", ret: .uint32),
+        abi.th("kk_runtime_force_reset", ret: .void),
     ]
 }

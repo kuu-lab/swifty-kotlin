@@ -155,6 +155,28 @@ struct ForLoopReceiverValidationTests {
     }
 
     @Test
+    func completeNameBasedDestructuringAllowsStatementBodies() throws {
+        let ctx = makeNameDestructuringContext("""
+        class P(val first: String, val second: Int)
+
+        fun singleExpressionBody(x: P): Boolean {
+            for ((first, second) in arrayOf(x))
+                if (first != "OK" || second != 1) return false
+            return true
+        }
+
+        fun blockBody(x: P): Boolean {
+            for ((first, second) in arrayOf(x)) {
+                if (first != "OK" || second != 1) return false
+            }
+            return true
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
     func nameBasedDestructuringDeclarationResolvesExplicitPropertyAliases() throws {
         let source = """
         class Tuple(val first: Int, val second: Int)

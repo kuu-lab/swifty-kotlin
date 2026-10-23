@@ -24,12 +24,33 @@ struct RuntimeKClassMetadataEntry {
     let isFinal: Bool
     let isOpen: Bool
     let visibility: String
-    let typeParameterCount: Int
+    var typeParameterCount: Int = 0
+    var typeParameters: [RuntimeKTypeParameterMetadata] = []
+    var enclosingClassName: String? = nil
+    var declaringClassName: String? = nil
+    var enclosingMember: RuntimeKClassEnclosingMember? = nil
     var isInner: Bool = false
     var isCompanion: Bool = false
     var isFunInterface: Bool = false
     var isLocal: Bool = false
     var annotations: [RuntimeAnnotationRecord] = []
+}
+
+struct RuntimeKTypeParameterMetadata: Equatable {
+    let identity: Int
+    let name: String
+    let varianceOrdinal: Int
+}
+
+struct RuntimeKClassEnclosingMember: Equatable {
+    enum Kind: Int {
+        case method = 1
+        case constructor = 2
+    }
+
+    let kind: Kind
+    let name: String
+    let signature: String
 }
 
 struct RuntimeAnnotationRecord {
@@ -73,7 +94,58 @@ final class RuntimeKClassMetadataRegistry: @unchecked Sendable {
             // metadata registration. Keep lazy factories, reset legacy records.
             registered.annotations = entries[typeToken]?.annotations.filter { $0.factory != 0 } ?? []
         }
+        if registered.typeParameters.isEmpty,
+           let previous = entries[typeToken], !previous.typeParameters.isEmpty {
+            registered.typeParameters = previous.typeParameters
+            registered.typeParameterCount = previous.typeParameterCount
+        }
+        if registered.enclosingClassName == nil, let previous = entries[typeToken] {
+            registered.enclosingClassName = previous.enclosingClassName
+        }
+        if registered.declaringClassName == nil, let previous = entries[typeToken] {
+            registered.declaringClassName = previous.declaringClassName
+        }
+        if registered.enclosingMember == nil, let previous = entries[typeToken] {
+            registered.enclosingMember = previous.enclosingMember
+        }
         entries[typeToken] = registered
+    }
+
+    func registerTypeParameter(
+        typeToken: Int,
+        index: Int,
+        metadata: RuntimeKTypeParameterMetadata
+    ) {
+        guard index >= 0 else { return }
+        lock.lock()
+        defer { lock.unlock() }
+        guard var entry = entries[typeToken] else { return }
+        while entry.typeParameters.count <= index {
+            let missingIndex = entry.typeParameters.count
+            entry.typeParameters.append(RuntimeKTypeParameterMetadata(
+                identity: 0,
+                name: "T\(missingIndex)",
+                varianceOrdinal: 0
+            ))
+        }
+        entry.typeParameters[index] = metadata
+        entry.typeParameterCount = max(entry.typeParameterCount, index + 1)
+        entries[typeToken] = entry
+    }
+
+    func registerEnclosingMetadata(
+        typeToken: Int,
+        enclosingClassName: String?,
+        declaringClassName: String?,
+        enclosingMember: RuntimeKClassEnclosingMember?
+    ) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard var entry = entries[typeToken] else { return }
+        entry.enclosingClassName = enclosingClassName
+        entry.declaringClassName = declaringClassName
+        entry.enclosingMember = enclosingMember
+        entries[typeToken] = entry
     }
 
     func lookup(typeToken: Int) -> RuntimeKClassMetadataEntry? {

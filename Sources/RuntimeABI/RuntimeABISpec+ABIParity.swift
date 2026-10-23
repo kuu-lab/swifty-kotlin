@@ -133,6 +133,15 @@ public extension RuntimeABISpec {
         abiParitySpec("__kk_class_get_enclosing_class", parameters: [
             p("classRaw", .intptr),
         ], isThrowing: false),
+        abiParitySpec("__kk_class_get_enclosing_constructor", parameters: [
+            p("classRaw", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("__kk_class_get_enclosing_method", parameters: [
+            p("classRaw", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("__kk_class_get_declaring_class", parameters: [
+            p("classRaw", .intptr),
+        ], isThrowing: false),
         abiParitySpec("__kk_function_set_enclosing_class", parameters: [
             p("value", .intptr),
             p("enclosingClassNameRaw", .intptr),

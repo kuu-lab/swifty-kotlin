@@ -124,7 +124,7 @@ final class RuntimeJavaClassBox: @unchecked Sendable {
     }
 }
 
-private func runtimeJavaClassHandle(typeToken: Int, nameHint: @autoclosure () -> Int) -> Int {
+func runtimeJavaClassHandle(typeToken: Int, nameHint: @autoclosure () -> Int) -> Int {
     if let cached = runtimeStorage.withMetadataLock({ $0.javaClassCache[typeToken] }) {
         return cached
     }

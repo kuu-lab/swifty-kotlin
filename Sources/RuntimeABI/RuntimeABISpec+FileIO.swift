@@ -1,599 +1,83 @@
+private let abi = RuntimeABISectionBuilder("FileIO")
+
 public extension RuntimeABISpec {
     static let fileIOFunctions: [RuntimeABIFunctionSpec] = [
-        RuntimeABIFunctionSpec(
-            name: "__kk_input_stream_reader_new",
-            parameters: [RuntimeABIParameter(name: "streamRaw", type: .intptr)],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_buffered_reader_new",
-            parameters: [RuntimeABIParameter(name: "readerRaw", type: .intptr)],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
+        abi.nt("__kk_input_stream_reader_new", "streamRaw"),
+        abi.nt("__kk_buffered_reader_new", "readerRaw"),
         // File must stay constructible for kotlin.io.FileSystemException (KSP-619)
         // and Files.kt's resolveSibling/normalize (KSP-483); see CLEANUP-STUB-107.
-        RuntimeABIFunctionSpec(name: "__kk_bytearray_output_stream_new_default", parameters: [], returnType: .intptr, section: "FileIO"),
-        RuntimeABIFunctionSpec(name: "__kk_bytearray_output_stream_new", parameters: [RuntimeABIParameter(name: "value0", type: .intptr), RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer)], returnType: .intptr, section: "FileIO"),
-        RuntimeABIFunctionSpec(name: "__kk_bytearray_output_stream_to_byte_array", parameters: [RuntimeABIParameter(name: "value0", type: .intptr)], returnType: .intptr, section: "FileIO"),
-        RuntimeABIFunctionSpec(name: "__kk_bytearray_output_stream_reset", parameters: [RuntimeABIParameter(name: "value0", type: .intptr)], returnType: .intptr, section: "FileIO"),
-        RuntimeABIFunctionSpec(name: "__kk_bytearray_output_stream_size", parameters: [RuntimeABIParameter(name: "value0", type: .intptr)], returnType: .intptr, section: "FileIO"),
-        RuntimeABIFunctionSpec(name: "__kk_bytearray_output_stream_to_string", parameters: [RuntimeABIParameter(name: "value0", type: .intptr)], returnType: .intptr, section: "FileIO"),
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_new",
-            parameters: [
-                RuntimeABIParameter(name: "pathRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_new_parent_child",
-            parameters: [
-                RuntimeABIParameter(name: "parentRaw", type: .intptr),
-                RuntimeABIParameter(name: "childRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_readText",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-                RuntimeABIParameter(name: "charsetTag", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_path",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_buffered_reader_readLine",
-            parameters: [
-                RuntimeABIParameter(name: "readerRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_buffered_reader_readLines",
-            parameters: [
-                RuntimeABIParameter(name: "readerRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_buffered_reader_close",
-            parameters: [
-                RuntimeABIParameter(name: "readerRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_buffered_reader_read",
-            parameters: [
-                RuntimeABIParameter(name: "readerRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_buffered_reader_ready",
-            parameters: [
-                RuntimeABIParameter(name: "readerRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_buffered_reader_iterator",
-            parameters: [
-                RuntimeABIParameter(name: "readerRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_buffered_reader_useLines",
-            parameters: [
-                RuntimeABIParameter(name: "readerRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_buffered_reader_forEachLine",
-            parameters: [
-                RuntimeABIParameter(name: "readerRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_reader_readText",
-            parameters: [
-                RuntimeABIParameter(name: "readerRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_buffered_writer_write",
-            parameters: [
-                RuntimeABIParameter(name: "writerRaw", type: .intptr),
-                RuntimeABIParameter(name: "textRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_buffered_writer_new_line",
-            parameters: [
-                RuntimeABIParameter(name: "writerRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_buffered_writer_flush",
-            parameters: [
-                RuntimeABIParameter(name: "writerRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_buffered_writer_close_throwing",
-            parameters: [
-                RuntimeABIParameter(name: "writerRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_writer_buffered_default",
-            parameters: [
-                RuntimeABIParameter(name: "writerRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_writer_buffered",
-            parameters: [
-                RuntimeABIParameter(name: "writerRaw", type: .intptr),
-                RuntimeABIParameter(name: "bufferSizeRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_bytearrayinputstream_new",
-            parameters: [
-                RuntimeABIParameter(name: "bufferRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_bytearray_inputStream",
-            parameters: [
-                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_bytearray_inputStream_range",
-            parameters: [
-                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "offsetRaw", type: .intptr),
-                RuntimeABIParameter(name: "lengthRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_string_byteInputStream_flat",
-            parameters: [
-                RuntimeABIParameter(name: "receiverData", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "receiverLength", type: .intptr),
-                RuntimeABIParameter(name: "receiverByteCount", type: .intptr),
-                RuntimeABIParameter(name: "receiverHash", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_string_byteInputStream_charset_flat",
-            parameters: [
-                RuntimeABIParameter(name: "receiverData", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "receiverLength", type: .intptr),
-                RuntimeABIParameter(name: "receiverByteCount", type: .intptr),
-                RuntimeABIParameter(name: "receiverHash", type: .intptr),
-                RuntimeABIParameter(name: "charsetTag", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_input_stream_read",
-            parameters: [
-                RuntimeABIParameter(name: "streamRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_input_stream_available",
-            parameters: [
-                RuntimeABIParameter(name: "streamRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_input_stream_skip",
-            parameters: [
-                RuntimeABIParameter(name: "streamRaw", type: .intptr),
-                RuntimeABIParameter(name: "countRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_input_stream_read_bytes",
-            parameters: [
-                RuntimeABIParameter(name: "streamRaw", type: .intptr),
-                RuntimeABIParameter(name: "bytesRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_input_stream_readAllBytes",
-            parameters: [
-                RuntimeABIParameter(name: "streamRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_input_stream_close",
-            parameters: [
-                RuntimeABIParameter(name: "streamRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_input_stream_buffered_default",
-            parameters: [
-                RuntimeABIParameter(name: "streamRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_input_stream_buffered",
-            parameters: [
-                RuntimeABIParameter(name: "streamRaw", type: .intptr),
-                RuntimeABIParameter(name: "bufferSizeRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_input_stream_copyTo",
-            parameters: [
-                RuntimeABIParameter(name: "streamRaw", type: .intptr),
-                RuntimeABIParameter(name: "outStreamRaw", type: .intptr),
-                RuntimeABIParameter(name: "bufferSizeRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_input_stream_bufferedReader",
-            parameters: [
-                RuntimeABIParameter(name: "streamRaw", type: .intptr),
-                RuntimeABIParameter(name: "charsetRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_output_stream_write_byte",
-            parameters: [
-                RuntimeABIParameter(name: "streamRaw", type: .intptr),
-                RuntimeABIParameter(name: "valueRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_output_stream_write_bytes",
-            parameters: [
-                RuntimeABIParameter(name: "streamRaw", type: .intptr),
-                RuntimeABIParameter(name: "bytesRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_output_stream_flush",
-            parameters: [
-                RuntimeABIParameter(name: "streamRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_output_stream_bufferedWriter",
-            parameters: [
-                RuntimeABIParameter(name: "streamRaw", type: .intptr),
-                RuntimeABIParameter(name: "charsetRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_output_stream_buffered",
-            parameters: [
-                RuntimeABIParameter(name: "streamRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_reader_copyTo",
-            parameters: [
-                RuntimeABIParameter(name: "readerRaw", type: .intptr),
-                RuntimeABIParameter(name: "writerRaw", type: .intptr),
-                RuntimeABIParameter(name: "bufferSizeRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_reader_copyTo_default",
-            parameters: [
-                RuntimeABIParameter(name: "readerRaw", type: .intptr),
-                RuntimeABIParameter(name: "writerRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_output_stream_buffered_sized",
-            parameters: [
-                RuntimeABIParameter(name: "streamRaw", type: .intptr),
-                RuntimeABIParameter(name: "bufferSize", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(name: "__kk_io_stream_to_string", parameters: [
-            RuntimeABIParameter(name: "stream", type: .intptr),
-            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-        ], returnType: .intptr, section: "FileIO", isThrowing: true),
-        RuntimeABIFunctionSpec(name: "__kk_sequence_input_stream_available_throwing", parameters: [
-            RuntimeABIParameter(name: "stream", type: .intptr),
-            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-        ], returnType: .intptr, section: "FileIO", isThrowing: true),
-        RuntimeABIFunctionSpec(name: "__kk_sequence_input_stream_close_throwing", parameters: [
-            RuntimeABIParameter(name: "stream", type: .intptr),
-            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-        ], returnType: .intptr, section: "FileIO", isThrowing: true),
+        abi.th("__kk_bytearray_output_stream_new_default"),
+        abi.th("__kk_bytearray_output_stream_new", "value0 outThrown"),
+        abi.th("__kk_bytearray_output_stream_to_byte_array", "value0"),
+        abi.th("__kk_bytearray_output_stream_reset", "value0"),
+        abi.th("__kk_bytearray_output_stream_size", "value0"),
+        abi.th("__kk_bytearray_output_stream_to_string", "value0"),
+        abi.nt("__kk_file_new", "pathRaw"),
+        abi.nt("__kk_file_new_parent_child", "parentRaw childRaw"),
+        abi.th("__kk_file_readText", "fileRaw charsetTag outThrown"),
+        abi.nt("__kk_file_path", "fileRaw"),
+        abi.nt("__kk_buffered_reader_readLine", "readerRaw"),
+        abi.nt("__kk_buffered_reader_readLines", "readerRaw"),
+        abi.nt("__kk_buffered_reader_close", "readerRaw"),
+        abi.nt("__kk_buffered_reader_read", "readerRaw"),
+        abi.nt("__kk_buffered_reader_ready", "readerRaw"),
+        abi.nt("__kk_buffered_reader_iterator", "readerRaw"),
+        abi.th("__kk_buffered_reader_useLines", "readerRaw fnPtr closureRaw outThrown"),
+        abi.th("__kk_buffered_reader_forEachLine", "readerRaw fnPtr closureRaw outThrown"),
+        abi.th("__kk_reader_readText", "readerRaw"),
+        abi.th("__kk_buffered_writer_write", "writerRaw textRaw outThrown"),
+        abi.th("__kk_buffered_writer_new_line", "writerRaw outThrown"),
+        abi.th("__kk_buffered_writer_flush", "writerRaw outThrown"),
+        abi.th("__kk_buffered_writer_close_throwing", "writerRaw outThrown"),
+        abi.th("__kk_writer_buffered_default", "writerRaw outThrown"),
+        abi.th("__kk_writer_buffered", "writerRaw bufferSizeRaw outThrown"),
+        abi.th("__kk_bytearrayinputstream_new", "bufferRaw outThrown"),
+        abi.th("__kk_bytearray_inputStream", "arrayRaw outThrown"),
+        abi.th("__kk_bytearray_inputStream_range", "arrayRaw offsetRaw lengthRaw outThrown"),
+        abi.nt("__kk_string_byteInputStream_flat", "receiverData:nullableConstUInt8Pointer receiverLength receiverByteCount receiverHash"),
+        abi.nt("__kk_string_byteInputStream_charset_flat", "receiverData:nullableConstUInt8Pointer receiverLength receiverByteCount receiverHash charsetTag"),
+        abi.th("__kk_input_stream_read", "streamRaw outThrown"),
+        abi.th("__kk_input_stream_available", "streamRaw"),
+        abi.th("__kk_input_stream_skip", "streamRaw countRaw outThrown"),
+        abi.th("__kk_input_stream_read_bytes", "streamRaw bytesRaw outThrown"),
+        abi.th("__kk_input_stream_readAllBytes", "streamRaw outThrown"),
+        abi.th("__kk_input_stream_close", "streamRaw"),
+        abi.th("__kk_input_stream_buffered_default", "streamRaw outThrown"),
+        abi.th("__kk_input_stream_buffered", "streamRaw bufferSizeRaw outThrown"),
+        abi.th("__kk_input_stream_copyTo", "streamRaw outStreamRaw bufferSizeRaw outThrown"),
+        abi.th("__kk_input_stream_bufferedReader", "streamRaw charsetRaw outThrown"),
+        abi.th("__kk_output_stream_write_byte", "streamRaw valueRaw outThrown"),
+        abi.th("__kk_output_stream_write_bytes", "streamRaw bytesRaw outThrown"),
+        abi.th("__kk_output_stream_flush", "streamRaw outThrown"),
+        abi.th("__kk_output_stream_bufferedWriter", "streamRaw charsetRaw"),
+        abi.th("__kk_output_stream_buffered", "streamRaw"),
+        abi.th("__kk_reader_copyTo", "readerRaw writerRaw bufferSizeRaw outThrown"),
+        abi.th("__kk_reader_copyTo_default", "readerRaw writerRaw outThrown"),
+        abi.th("__kk_output_stream_buffered_sized", "streamRaw bufferSize"),
+        abi.th("__kk_io_stream_to_string", "stream outThrown"),
+        abi.th("__kk_sequence_input_stream_available_throwing", "stream outThrown"),
+        abi.th("__kk_sequence_input_stream_close_throwing", "stream outThrown"),
         // KUU1762: foreign stream range/closure storage and error channels only.
-        RuntimeABIFunctionSpec(
-            name: "__kk_kotlin_source_input_stream",
-            parameters: [
-                RuntimeABIParameter(name: "readFn", type: .intptr),
-                RuntimeABIParameter(name: "readClosure", type: .intptr),
-                RuntimeABIParameter(name: "rangeFn", type: .intptr),
-                RuntimeABIParameter(name: "rangeClosure", type: .intptr),
-                RuntimeABIParameter(name: "availableFn", type: .intptr),
-                RuntimeABIParameter(name: "availableClosure", type: .intptr),
-                RuntimeABIParameter(name: "closeFn", type: .intptr),
-                RuntimeABIParameter(name: "closeClosure", type: .intptr),
-                RuntimeABIParameter(name: "descriptionFn", type: .intptr),
-                RuntimeABIParameter(name: "descriptionClosure", type: .intptr),
-            ],
-            returnType: .intptr, section: "FileIO", isThrowing: false),
-        RuntimeABIFunctionSpec(
-            name: "__kk_kotlin_sink_output_stream_range",
-            parameters: [
-                RuntimeABIParameter(name: "writeFn", type: .intptr),
-                RuntimeABIParameter(name: "writeClosure", type: .intptr),
-                RuntimeABIParameter(name: "flushFn", type: .intptr),
-                RuntimeABIParameter(name: "flushClosure", type: .intptr),
-                RuntimeABIParameter(name: "closeFn", type: .intptr),
-                RuntimeABIParameter(name: "closeClosure", type: .intptr),
-                RuntimeABIParameter(name: "descriptionFn", type: .intptr),
-                RuntimeABIParameter(name: "descriptionClosure", type: .intptr),
-            ],
-            returnType: .intptr, section: "FileIO", isThrowing: false),
-        RuntimeABIFunctionSpec(
-            name: "__kk_input_stream_read_range",
-            parameters: [
-                RuntimeABIParameter(name: "streamRaw", type: .intptr),
-                RuntimeABIParameter(name: "bytesRaw", type: .intptr),
-                RuntimeABIParameter(name: "offset", type: .intptr),
-                RuntimeABIParameter(name: "count", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr, section: "FileIO", isThrowing: true),
-        RuntimeABIFunctionSpec(
-            name: "__kk_output_stream_write_range",
-            parameters: [
-                RuntimeABIParameter(name: "streamRaw", type: .intptr),
-                RuntimeABIParameter(name: "bytesRaw", type: .intptr),
-                RuntimeABIParameter(name: "offset", type: .intptr),
-                RuntimeABIParameter(name: "count", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr, section: "FileIO", isThrowing: true),
-        RuntimeABIFunctionSpec(
-            name: "__kk_input_stream_available_throwing",
-            parameters: [
-                RuntimeABIParameter(name: "streamRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr, section: "FileIO", isThrowing: true),
-        RuntimeABIFunctionSpec(
-            name: "__kk_input_stream_close_throwing",
-            parameters: [
-                RuntimeABIParameter(name: "streamRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr, section: "FileIO", isThrowing: true),
-        RuntimeABIFunctionSpec(
-            name: "__kk_output_stream_close_throwing",
-            parameters: [
-                RuntimeABIParameter(name: "streamRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr, section: "FileIO", isThrowing: true),
+        abi.nt("__kk_kotlin_source_input_stream", "readFn readClosure rangeFn rangeClosure availableFn availableClosure closeFn closeClosure descriptionFn descriptionClosure"),
+        abi.nt("__kk_kotlin_sink_output_stream_range", "writeFn writeClosure flushFn flushClosure closeFn closeClosure descriptionFn descriptionClosure"),
+        abi.th("__kk_input_stream_read_range", "streamRaw bytesRaw offset count outThrown"),
+        abi.th("__kk_output_stream_write_range", "streamRaw bytesRaw offset count outThrown"),
+        abi.th("__kk_input_stream_available_throwing", "streamRaw outThrown"),
+        abi.th("__kk_input_stream_close_throwing", "streamRaw outThrown"),
+        abi.th("__kk_output_stream_close_throwing", "streamRaw outThrown"),
         // KSP-1553: kotlinx.io Sink.asOutputStream() — the write/flush/close
         // Kotlin lambdas arrive as (fnPtr, closureRaw) pairs expanded by
         // KIRLowering, same convention as `__kk_synchronized` /
         // `kk_worker_execute`.
-        RuntimeABIFunctionSpec(
-            name: "__kk_kotlin_sink_output_stream",
-            parameters: [
-                RuntimeABIParameter(name: "writeFnPtr", type: .intptr),
-                RuntimeABIParameter(name: "writeClosureRaw", type: .intptr),
-                RuntimeABIParameter(name: "flushFnPtr", type: .intptr),
-                RuntimeABIParameter(name: "flushClosureRaw", type: .intptr),
-                RuntimeABIParameter(name: "closeFnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closeClosureRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_native_filechannel_open",
-            parameters: [
-                RuntimeABIParameter(name: "pathRaw", type: .intptr),
-                RuntimeABIParameter(name: "options", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr, section: "FileIO", isThrowing: true),
-        RuntimeABIFunctionSpec(
-            name: "__kk_native_filechannel_write",
-            parameters: [
-                RuntimeABIParameter(name: "descriptor", type: .intptr),
-                RuntimeABIParameter(name: "bytesRaw", type: .intptr),
-                RuntimeABIParameter(name: "offset", type: .intptr),
-                RuntimeABIParameter(name: "count", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr, section: "FileIO", isThrowing: true),
-        RuntimeABIFunctionSpec(
-            name: "__kk_native_nio_create_file",
-            parameters: [
-                RuntimeABIParameter(name: "pathRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr, section: "FileIO", isThrowing: true),
-        RuntimeABIFunctionSpec(
-            name: "__kk_classloader_getSystemClassLoader",
-            parameters: [],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_classloader_getResource",
-            parameters: [
-                RuntimeABIParameter(name: "loaderRaw", type: .intptr),
-                RuntimeABIParameter(name: "nameRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_classloader_getResourceAsStream",
-            parameters: [
-                RuntimeABIParameter(name: "loaderRaw", type: .intptr),
-                RuntimeABIParameter(name: "nameRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_resource_exists",
-            parameters: [
-                RuntimeABIParameter(name: "nameRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_readResourceAsText",
-            parameters: [
-                RuntimeABIParameter(name: "nameRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
+        abi.nt("__kk_kotlin_sink_output_stream", "writeFnPtr writeClosureRaw flushFnPtr flushClosureRaw closeFnPtr closeClosureRaw"),
+        abi.th("__kk_native_filechannel_open", "pathRaw options outThrown"),
+        abi.th("__kk_native_filechannel_write", "descriptor bytesRaw offset count outThrown"),
+        abi.th("__kk_native_nio_create_file", "pathRaw outThrown"),
+        abi.nt("__kk_classloader_getSystemClassLoader"),
+        abi.nt("__kk_classloader_getResource", "loaderRaw nameRaw"),
+        abi.nt("__kk_classloader_getResourceAsStream", "loaderRaw nameRaw"),
+        abi.nt("__kk_resource_exists", "nameRaw"),
+        abi.th("__kk_readResourceAsText", "nameRaw outThrown"),
     ]
 
 }

@@ -4,7 +4,8 @@ extension KIRLoweringDriver {
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
-        instructions: inout [KIRInstruction]
+        instructions: inout [KIRInstruction],
+        registerClassMetadata: Bool = true
     ) -> KIRExprID {
         let intType = sema.types.intType
         let stringType = sema.types.stringType
@@ -112,7 +113,11 @@ extension KIRLoweringDriver {
         func makeTypeParameterClassifier(_ typeParameter: TypeParamType) -> KIRExprID {
             let symbol = typeParameter.symbol
             let info = sema.symbols.symbol(symbol)
-            let identity = integer(Int64(symbol.rawValue))
+            let identity = integer(RuntimeTypeCheckToken.stableNominalTypeID(
+                symbol: symbol,
+                sema: sema,
+                interner: interner
+            ))
             let name = string(info.map { interner.resolve($0.name) } ?? "T")
             let variance = integer(typeParameterVarianceOrdinal(for: symbol))
             let isReified = integer(info?.flags.contains(.reifiedTypeParameter) == true ? 1 : 0)
@@ -211,7 +216,7 @@ extension KIRLoweringDriver {
                 return parameter
             }()
             let tokenExpr = makeTypeTokenExpr(for: nonNullableType)
-            if typeParameter == nil {
+            if typeParameter == nil && registerClassMetadata {
                 callLowerer.emitClassLiteralMetadataRegistration(
                     classRefTargetType: nonNullableType,
                     typeTokenExpr: tokenExpr,
