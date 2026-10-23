@@ -118,6 +118,31 @@ struct ExpectActualCompatibilityTests {
         #expect(errors.allSatisfy { $0.code == "KSWIFTK-MPP-UNRESOLVED" }, "Unexpected diagnostics: \(errors)")
     }
 
+    @Test func testExpectClassCompanionBodylessMembersOnlyReportMissingActual() throws {
+        try withTemporaryFile(
+            contents: """
+            interface Sink
+            expect class HashingSink : Sink {
+                companion object {
+                    fun md5(sink: Sink): HashingSink
+                }
+            }
+            """
+        ) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                frontendFlags: ["common-module"],
+                includeStdlib: false
+            )
+            try runSema(ctx)
+
+            #expect(
+                !ctx.diagnostics.hasError,
+                "Expect class companion members are contracts in common modules: \(ctx.diagnostics.diagnostics)"
+            )
+        }
+    }
+
     @Test func testExpectActualObjectLinksWithoutDuplicateDeclaration() throws {
         let ctx = makeContextFromSources([
             """
