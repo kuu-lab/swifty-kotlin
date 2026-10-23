@@ -92,6 +92,18 @@ extension CallLowerer {
             if lhsIsNullLiteral != rhsIsNullLiteral,
                isNonNullPrimitiveExpr(lhsIsNullLiteral ? rhs : lhs)
             {
+                // The comparison result is statically known, but evaluating
+                // the non-null operand may still call code with side effects
+                // or exceptions. Lower it before replacing the comparison.
+                _ = driver.lowerExpr(
+                    lhsIsNullLiteral ? rhs : lhs,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                )
                 let foldedID = arena.appendExpr(.boolLiteral(op == .notEqual), type: boolType)
                 instructions.append(.constValue(result: foldedID, value: .boolLiteral(op == .notEqual)))
                 return foldedID
