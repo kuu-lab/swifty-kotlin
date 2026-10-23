@@ -14,9 +14,12 @@
 /// `nil` when `target` is never reached — `receiver`'s class is neither
 /// `target` nor an `inner class` with an outer link to follow — so the
 /// caller can fall back to its pre-existing (non-inner-class) behavior.
+/// Labeled `this` callers can disable subtype matching because the label
+/// identifies a specific enclosing instance, not any subtype.
 func resolveOuterChainValue(
     from receiver: KIRExprID,
     to target: SymbolID,
+    allowSubtypeMatch: Bool = true,
     sema: SemaModule,
     arena: KIRArena,
     interner: StringInterner,
@@ -63,7 +66,7 @@ func resolveOuterChainValue(
         let targetType = sema.types.make(.classType(ClassType(
             classSymbol: targetClassSymbol, args: [], nullability: .nonNull
         )))
-        if sema.types.isSubtype(currentType, targetType) {
+        if allowSubtypeMatch, sema.types.isSubtype(currentType, targetType) {
             return currentValue
         }
         if sema.bindings.objectLiteralCaptureSymbols(for: currentClassSymbol.id).contains(target),

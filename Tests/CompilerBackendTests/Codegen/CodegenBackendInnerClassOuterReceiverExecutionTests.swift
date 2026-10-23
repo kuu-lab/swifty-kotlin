@@ -22,6 +22,24 @@ struct CodegenBackendInnerClassOuterReceiverExecutionTests {
         )
     }
 
+    @Test
+    func qualifiedThisSelectsEnclosingInstanceWhenInnerClassExtendsOuterClass() throws {
+        try assertKotlinOutput(
+            """
+            open class Outer private constructor(val s: String) {
+                inner class Inner : Outer("O") {
+                    fun foo() = this.s + this@Outer.s
+                }
+                class Nested : Outer("K")
+                fun bar() = Inner()
+            }
+            fun main() { println(Outer.Nested().bar().foo()) }
+            """,
+            moduleName: "QualifiedThisWhenInnerExtendsOuter",
+            expected: "OK\n"
+        )
+    }
+
     @Test func unqualifiedOuterMemberCallFromAnonymousObjectUsesCapturedOuterInstance() throws {
         try assertKotlinOutput(
             """
