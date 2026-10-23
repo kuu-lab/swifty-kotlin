@@ -33,6 +33,16 @@ extension CallLowerer {
         }
         guard let value = propertyValue else { return nil }
         let loweredArgs = args.enumerated().map { index, argument in
+            let previousAllowance = driver.ctx.pendingLambdaNonLocalReturnAllowance
+            driver.ctx.pendingLambdaNonLocalReturnAllowance = allowsNonLocalReturn(
+                argumentExpr: argument.expr,
+                argumentIndex: index,
+                ast: shared.ast,
+                sema: sema,
+                callBinding: call,
+                chosen: call.chosenCallee
+            )
+            defer { driver.ctx.pendingLambdaNonLocalReturnAllowance = previousAllowance }
             let value = driver.lowerExpr(argument.expr, shared: shared, emit: &instructions)
             return needsEvaluationOrderFreeze(argument.expr, ast: shared.ast, sema: sema)
                 && anyExpressionMayMutateState(args[(index + 1)...].map(\.expr), ast: shared.ast)

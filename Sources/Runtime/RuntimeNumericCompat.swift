@@ -861,7 +861,7 @@ public func __kk_math_atan2(_ y: Int, _ x: Int) -> Int {
 
 @_cdecl("__kk_math_exp")
 public func __kk_math_exp(_ value: Int) -> Int {
-    kk_double_to_bits(fdlibmExp(kk_bits_to_double(value)))
+    kk_double_to_bits(exp(kk_bits_to_double(value)))
 }
 
 @_cdecl("__kk_math_expm1")
@@ -1027,7 +1027,7 @@ public func __kk_math_floor_float(_ v: Int) -> Int {
 
 @_cdecl("__kk_math_exp_float")
 public func __kk_math_exp_float(_ value: Int) -> Int {
-    kk_float_to_bits(Float(fdlibmExp(Double(kk_bits_to_float(value)))))
+    kk_float_to_bits(Float(exp(Double(kk_bits_to_float(value)))))
 }
 
 @_cdecl("__kk_math_expm1_float")

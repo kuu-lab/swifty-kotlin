@@ -19,4 +19,25 @@ fun main() = runBlocking {
     }
     println(mapped.toList())
     println(mappedSideEffects)
+
+    val innerStarted = mutableListOf<Int>()
+    val innerCompleted = mutableListOf<Int>()
+    val flattenedLatest = flow {
+        emit(1)
+        delay(200)
+        emit(2)
+        delay(200)
+        emit(3)
+    }.flatMapLatest { value ->
+        flow {
+            innerStarted.add(value)
+            emit(value * 10)
+            delay(1_000)
+            innerCompleted.add(value)
+            emit(value)
+        }
+    }.toList()
+    println(flattenedLatest)
+    println(innerStarted)
+    println(innerCompleted)
 }

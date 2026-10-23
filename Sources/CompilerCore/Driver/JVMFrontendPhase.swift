@@ -11,11 +11,13 @@ final class JVMPreparationPhase: CompilerPhase {
         guard (!o.inputs.isEmpty || o.stdlibOnly), o.stdlibLibraryPath == nil,
               o.searchPaths.isEmpty, o.libraryPaths.isEmpty, o.linkLibraries.isEmpty,
               o.entryPointFQName == nil, o.incrementalCachePath == nil,
-              o.frontendFlags.allSatisfy({ $0 == "time-phases" || $0 == "no-incremental" }),
+              o.frontendFlags.allSatisfy({
+                  $0 == "time-phases" || $0 == "no-incremental" || $0 == "full-value-classes"
+              }),
               o.irFlags.isEmpty, o.runtimeFlags.isEmpty, o.optLevel == .O0,
               !o.debugInfo, o.target == .hostDefault(),
               !ctx.sourceManager.containsFile(path: Self.consolePath) else {
-            ctx.diagnostics.error("KSWIFTK-JVM-0001", "JVM requires source files and does not support Native libraries/target triples, custom entry points, incremental compilation, optimization, debug info or feature flags.", range: nil)
+            ctx.diagnostics.error("KSWIFTK-JVM-0001", "JVM requires source files and does not support Native libraries/target triples, custom entry points, incremental compilation, optimization, debug info or unsupported feature flags.", range: nil)
             return
         }
         do {

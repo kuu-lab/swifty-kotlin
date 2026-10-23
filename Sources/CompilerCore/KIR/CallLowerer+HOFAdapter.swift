@@ -12,8 +12,11 @@ extension CallLowerer {
         erasedFunctionType: FunctionType? = nil
     ) -> KIRCallableValueInfo? {
         let callableType = arena.exprType(loweredArgID) ?? sema.bindings.exprTypes[argExprID] ?? sema.types.anyType
-        let nonNullCallableType = sema.types.makeNonNullable(callableType)
-        guard case let .functionType(functionType) = sema.types.kind(of: nonNullCallableType) else {
+        guard let functionType = callableFunctionType(
+            for: callableType,
+            matching: erasedFunctionType,
+            sema: sema
+        ) else {
             return nil
         }
 
@@ -123,6 +126,12 @@ extension CallLowerer {
                 + Array(callArguments.prefix(captureCount))
         }
 
+        // Use the emitted function's return type: a callable reference can be
+        // contextually typed as `(T) -> R` while its entry point returns a
+        // concrete primitive such as `Int`.
+        let callableReturnType = arena.function(for: callableInfo.symbol)?.returnType
+            ?? functionType.returnType
+
         // Reference-returning callbacks (e.g. Comparable selectors) need boxes
         // even when the concrete callable already has a closure parameter.
         let adapterReturnType = erasedFunctionType.flatMap {
@@ -133,10 +142,8 @@ extension CallLowerer {
             )
         } ?? functionType.returnType
 
-        // Generic callbacks may already return an erased, boxed value. Use
-        // the emitted callable's ABI type rather than its contextual type.
-        let callableReturnType = arena.function(for: callableInfo.symbol)?.returnType
-            ?? functionType.returnType
+        // Generic callbacks may already return an erased, boxed value. The
+        // emitted callable ABI also preserves that distinction here.
         let callResult = arena.appendTemporary(type: callableReturnType)
         let canThrow = callableRequiresThrownChannel(callableInfo.symbol, arena: arena)
         body.append(.call(
@@ -188,6 +195,37 @@ extension CallLowerer {
             captureArguments: callableInfo.captureArguments,
             hasClosureParam: true
         )
+    }
+
+    func callableFunctionType(
+        for type: TypeID,
+        matching expectedFunctionType: FunctionType? = nil,
+        sema: SemaModule
+    ) -> FunctionType? {
+        let nonNullType = sema.types.makeNonNullable(type)
+        switch sema.types.kind(of: nonNullType) {
+        case let .functionType(functionType):
+            return functionType
+        case let .classType(classType):
+            if let functionType = sema.types.nominalFunctionType(for: nonNullType) {
+                return functionType
+            }
+            guard let expectedFunctionType else { return nil }
+            let arity = (expectedFunctionType.receiver == nil ? 0 : 1)
+                + expectedFunctionType.params.count
+            guard let inheritedFunctionType = sema.types.inheritedFunctionInterfaceClassType(
+                of: classType,
+                arity: arity,
+                isSuspend: expectedFunctionType.isSuspend
+            ) else {
+                return nil
+            }
+            return sema.types.nominalFunctionType(
+                for: sema.types.make(.classType(inheritedFunctionType))
+            )
+        default:
+            return nil
+        }
     }
 
     func functionValueBoxedReturnType(

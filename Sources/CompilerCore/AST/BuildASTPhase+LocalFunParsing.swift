@@ -13,6 +13,7 @@ extension BuildASTPhase {
 
         var startIndex = 0
         var contextReceivers: [ContextReceiverDecl] = []
+        var contextReceiverTokens: [Token] = []
         if statementTokens.first?.kind == .softKeyword(.context),
            statementTokens.count > 1,
            statementTokens[1].kind == .symbol(.lParen)
@@ -33,11 +34,7 @@ extension BuildASTPhase {
                 if closingIndex != nil { break }
             }
             if let closingIndex {
-                contextReceivers = parseContextReceivers(
-                    from: Array(statementTokens[0 ... closingIndex]),
-                    interner: interner,
-                    astArena: astArena
-                )
+                contextReceiverTokens = Array(statementTokens[0 ... closingIndex])
                 startIndex = closingIndex + 1
             }
         }
@@ -78,6 +75,16 @@ extension BuildASTPhase {
            statementTokens[startIndex + 1].kind == .symbol(.lParen)
         {
             return nil
+        }
+        // Parse the context clause only after `fun` is confirmed: a statement
+        // like `context(Tag("x")) { ... }` is a call to the stdlib `context`
+        // helper, not a declaration, and must not emit receiver diagnostics.
+        if !contextReceiverTokens.isEmpty {
+            contextReceivers = parseContextReceivers(
+                from: contextReceiverTokens,
+                interner: interner,
+                astArena: astArena
+            )
         }
         // KUU-1407: local functions accept only `suspend`/`infix`/`operator`/
         // `tailrec` modifiers on JVM; `inline` gets its own error.
@@ -254,6 +261,9 @@ extension BuildASTPhase {
         ))
         if !contextReceivers.isEmpty {
             astArena.setLocalFunContextReceivers(contextReceivers, for: declaration)
+        }
+        if leadingModifiers.contains(where: { $0.name == "tailrec" }) {
+            astArena.markLocalTailrecFunction(declaration)
         }
         if isInfix { astArena.markInfixFunction(declaration) }
         if hasOperator { astArena.markOperatorFunction(declaration) }

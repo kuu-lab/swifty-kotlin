@@ -160,9 +160,10 @@ extension JVMFunctionBuilder {
         // Array HOF inference may leave no callee binding, including when its
         // callback is an existing function value rather than a lambda literal.
         let intrinsicHOF = binding == nil && higherOrderReceiver(receiverID) && args.last.flatMap { functionType($0.expr) } != nil
-        if ["map", "filter", "forEach", "fold"].contains(member), builtinHOF || intrinsicHOF {
+        if ["map", "filter", "forEach", "fold", "reduce"].contains(member), builtinHOF || intrinsicHOF {
             return JVMIntrinsicResult(value: try higherOrder(receiverID, operation: member, args: args, id: id))
         }
+        if let aggregate = try collectionAggregateMember(receiverID, name: member, args: args, id: id) { return aggregate }
         let object: JVMValueType = .reference("java/lang/Object", nullable: true)
         // `to` is resolved as an extension; evaluate its receiver before the value.
         if member == "to", let binding = program.sema.bindings.callBinding(for: id),
@@ -228,6 +229,9 @@ extension JVMFunctionBuilder {
             let source = try requireValue(receiverID), result = try value(.int)
             instructions.append(.arrayLength(source, result)); return JVMIntrinsicResult(value: result)
         }
+        if owner == "kotlin/sequences/Sequence", ["sum", "average"].contains(member), args.isEmpty {
+            return JVMIntrinsicResult(value: try sequenceAggregate(receiverID, member: member, id: id))
+        }
         let collections: Set<String> = ["java/util/ArrayList", "java/lang/Iterable", "java/util/Iterator", "java/util/ListIterator", "java/util/Collection", "java/util/List", "kotlin/enums/EnumEntries", "java/util/Set", "java/util/Map", "kotlin/text/MatchGroupCollection"]
         if collections.contains(owner) {
             if member == "withIndex", args.isEmpty {
@@ -255,6 +259,9 @@ extension JVMFunctionBuilder {
             if owner == "java/util/ArrayList" { owner = "java/util/List" }
             if ["set", "add", "addAll", "remove", "removeAll", "removeAt", "put", "clear"].contains(member), owner != "java/util/ListIterator" { try requireMutableCollection(receiverID, at: id) }
             if ["set", "add", "addAll", "put"].contains(member), owner != "java/util/ListIterator" { try requireWritableArguments(receiverID, at: id) }
+            if ["getOrElse", "getOrPut"].contains(member), ["java/util/List", "java/util/Map"].contains(owner) {
+                return try collectionDefaultValueMember(receiverID, owner: owner, member: member, args: args, id: id)
+            }
             let source = try convert(requireValue(receiverID), to: .reference(owner, nullable: false))
             let result = try program.expressionType(id)
             var values: [JVMValue] = []
@@ -265,6 +272,61 @@ extension JVMFunctionBuilder {
             case "entries": actual = "entrySet"; parameters = []; returns = .reference("java/util/Set", nullable: false)
             case "keys": actual = "keySet"; parameters = []; returns = .reference("java/util/Set", nullable: false)
             case "values": actual = "values"; parameters = []; returns = .reference("java/util/Collection", nullable: false)
+            case "filterKeys", "filterValues", "mapKeys", "mapValues":
+                guard owner == "java/util/Map", values.count == 1,
+                      let signature = functionType(args[0].expr), signature.params.count == 1
+                else { throw fail("JVM Map transforms require a one-argument callback.", id) }
+                let destination = try constructJDK("java/util/LinkedHashMap")
+                let entries = try jdkCall("java/util/Map", "entrySet", [], .reference("java/util/Set", nullable: false), receiver: source, interface: true)!
+                let iterator = try jdkCall("java/lang/Iterable", "iterator", [], .reference("java/util/Iterator", nullable: false), receiver: entries, interface: true)!
+                let test = label(), advance = label(), end = label()
+                mark(test)
+                let hasNext = try jdkCall("java/util/Iterator", "hasNext", [], .boolean, receiver: iterator, interface: true)!
+                instructions.append(.jumpIfFalse(hasNext, end))
+                let entry = try jdkCall("java/util/Iterator", "next", [], object, receiver: iterator, interface: true)!
+                let key = try jdkCall("java/util/Map$Entry", "getKey", [], object, receiver: entry, interface: true)!
+                let value = try jdkCall("java/util/Map$Entry", "getValue", [], object, receiver: entry, interface: true)!
+                var outputKey = key
+                var outputValue = value
+                if member == "mapKeys" {
+                    outputKey = try invoke(values[0], signature: signature, arguments: [entry], resultType: object)!
+                } else if member == "mapValues" {
+                    outputValue = try invoke(values[0], signature: signature, arguments: [entry], resultType: object)!
+                } else {
+                    let selected = try invoke(
+                        values[0],
+                        signature: signature,
+                        arguments: [member == "filterKeys" ? key : value],
+                        resultType: .boolean
+                    )!
+                    instructions.append(.jumpIfFalse(selected, advance))
+                }
+                _ = try jdkCall("java/util/Map", "put", [object, object], object, receiver: destination, arguments: [outputKey, outputValue], interface: true)
+                mark(advance)
+                jump(test)
+                mark(end)
+                return JVMIntrinsicResult(value: try convert(destination, to: result))
+            case "getOrElse", "getOrPut":
+                guard owner == "java/util/Map", values.count == 2,
+                      let signature = functionType(args[1].expr), signature.params.isEmpty
+                else { throw fail("JVM Map default accessors require a zero-argument fallback.", id) }
+                let stored = try jdkCall("java/util/Map", "get", [object], object, receiver: source, arguments: [values[0]], interface: true)!
+                let answer = try value(result), fallback = label(), end = label()
+                let null = try constant(.null, object), present = try value(.boolean)
+                instructions.append(.referenceCompare(.notEqual, stored, null, present))
+                instructions.append(.jumpIfFalse(present, fallback))
+                instructions.append(.copy(try convert(stored, to: result), answer))
+                jump(end)
+                mark(fallback)
+                let defaultValue = try invoke(values[1], signature: signature, arguments: [], resultType: result)
+                guard let defaultValue else { throw fail("JVM Map fallback must produce a value.", id) }
+                if member == "getOrPut" {
+                    try requireMutableCollection(receiverID, at: id)
+                    _ = try jdkCall("java/util/Map", "put", [object, object], object, receiver: source, arguments: [values[0], defaultValue], interface: true)
+                }
+                instructions.append(.copy(try convert(defaultValue, to: result), answer))
+                mark(end)
+                return JVMIntrinsicResult(value: answer)
             case "containsAll": actual = member; parameters = [.reference("java/util/Collection", nullable: false)]; returns = .boolean
             case "isEmpty", "hasNext", "hasPrevious": actual = member; parameters = []; returns = .boolean
             case "nextIndex", "previousIndex": actual = member; parameters = []; returns = .int
@@ -311,8 +373,31 @@ extension JVMFunctionBuilder {
         let throwable = program.sema.symbols.lookup(fqName: [context.interner.intern("kotlin"), context.interner.intern("Throwable")])
         let throwableType = throwable.map { program.sema.types.make(.classType(ClassType(classSymbol: $0))) }
         let semanticReceiver = program.sema.bindings.exprType(for: receiverID)
-        if member == "message", args.isEmpty, let throwableType, let semanticReceiver, program.sema.types.isSubtype(semanticReceiver, throwableType) {
-            return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "getMessage", [], .reference("java/lang/String", nullable: true), receiver: requireValue(receiverID)))
+        let nonNullReceiver = semanticReceiver.map { program.sema.types.withNullability(.nonNull, for: $0) }
+        if let throwableType, let nonNullReceiver, program.sema.types.isSubtype(nonNullReceiver, throwableType) {
+            let receiver = try requireValue(receiverID)
+            switch member {
+            case "message" where args.isEmpty:
+                return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "getMessage", [], .reference("java/lang/String", nullable: true), receiver: receiver))
+            case "cause" where args.isEmpty:
+                return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "getCause", [], .reference("java/lang/Throwable", nullable: true), receiver: receiver))
+            case "stackTrace" where args.isEmpty:
+                return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "getStackTrace", [], .reference("[Ljava/lang/StackTraceElement;", nullable: false), receiver: receiver))
+            case "suppressed" where args.isEmpty:
+                return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "getSuppressed", [], .reference("[Ljava/lang/Throwable;", nullable: false), receiver: receiver))
+            case "initCause" where args.count == 1:
+                let cause = try requireValue(args[0].expr)
+                return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "initCause", [.reference("java/lang/Throwable", nullable: true)], .reference("java/lang/Throwable", nullable: false), receiver: receiver, arguments: [cause]))
+            case "addSuppressed" where args.count == 1:
+                let exception = try requireValue(args[0].expr)
+                return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "addSuppressed", [.reference("java/lang/Throwable", nullable: false)], .unit, receiver: receiver, arguments: [exception]))
+            case "printStackTrace" where args.isEmpty:
+                return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "printStackTrace", [], .unit, receiver: receiver))
+            case "fillInStackTrace" where args.isEmpty:
+                return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "fillInStackTrace", [], .reference("java/lang/Throwable", nullable: false), receiver: receiver))
+            default:
+                break
+            }
         }
         return nil
     }
@@ -489,7 +574,8 @@ extension JVMFunctionBuilder {
         _ iterable: ExprID,
         _ body: ExprID,
         _ id: ExprID,
-        destructuringNames: [InternedString?]? = nil
+        destructuringNames: [InternedString?]? = nil,
+        label loopLabel: InternedString? = nil
     ) throws {
         let withIndexReceiver: ExprID? = {
             guard case let .memberCall(receiver, callee, _, args, _) = arena.expr(iterable),
@@ -560,7 +646,7 @@ extension JVMFunctionBuilder {
                 )
             }
             defer { if destructuringNames != nil { scopes.removeLast() } }
-            loops.append((exit, advance, pendingAllocations.count))
+            loops.append(LoopFrame(label: loopLabel, exit: exit, next: advance, allocationDepth: pendingAllocations.count))
             _ = try expression(body, discarded: true)
             loops.removeLast()
         }

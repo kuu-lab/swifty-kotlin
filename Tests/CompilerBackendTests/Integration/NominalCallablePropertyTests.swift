@@ -74,6 +74,25 @@ struct NominalCallablePropertyTests {
         #expect(execution.stdout == "extension\nmember\nspecific-extension\nnull\nextension\nextension\nextension\nOK\ndispatch-extension\nextension\ngetters:1\n")
     }
 
+    @Test(arguments: [0, 2])
+    func propertyInvokePropagatesNonLocalReturn(optimization: Int) throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let input = directory.appendingPathComponent("consumer.kt").path
+        let output = directory.appendingPathComponent("consumer").path
+        try diffCase("inline_property_invoke_non_local_return.kt")
+            .write(toFile: input, atomically: true, encoding: .utf8)
+        try assertCompilationSucceeded(makeTestDriver().runForTesting(options: CompilerOptions(
+            moduleName: "InlinePropertyInvokeNonLocalReturn", inputs: [input], outputPath: output, emit: .executable,
+            target: defaultTargetTriple(), optLevel: try #require(OptimizationLevel(rawValue: optimization)),
+            stdlibLibraryPath: try testStdlibArtifactPath()
+        )))
+        let execution = try CommandRunner.run(executable: output, arguments: [])
+        #expect(execution.exitCode == 0, "\(execution.stderr)")
+        #expect(execution.stdout == "member\nextension\n")
+    }
+
     @Test(arguments: [false, true], [0, 2])
     func nominalPropertyInvocationMatchesJVM(fromSource: Bool, optimization: Int) throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
