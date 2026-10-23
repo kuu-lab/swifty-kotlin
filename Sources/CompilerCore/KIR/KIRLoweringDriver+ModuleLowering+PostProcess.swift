@@ -381,7 +381,7 @@ extension KIRLoweringDriver {
     /// pointer from a boxed `Function0`/`Function3` closure value (BUG-151
     /// made the latter dispatch safe for `.observable`/`.vetoable` too, by
     /// unboxing through the same arity-tagged `RuntimeFunctionValueBox` the
-    /// general closure-invocation path uses). So a captured receiver is
+    /// general closure-invocation path uses). Captured outer values are
     /// threaded in by materializing a closure object instead, mirroring
     /// `LambdaLowerer.materializeEscapingCallableValue`'s `(closureRaw) -> T`
     /// adapter pattern.
@@ -397,11 +397,18 @@ extension KIRLoweringDriver {
         let sema = shared.sema
         let arena = shared.arena
         let interner = shared.interner
-        // Top-level delegate properties have no enclosing receiver, so this is
-        // nil and the capture machinery below is a no-op for them.
+        // Top-level delegate properties have no enclosing receiver. Local
+        // delegate lambdas can still carry value-parameter captures below.
         let outerReceiver = ctx.activeImplicitReceiver()
 
         let scopeSnapshot = ctx.saveScope()
+        let capturedValues = capturedDelegateLambdaParameterValues(
+            delegateBody: delegateBody,
+            scopeSnapshot: scopeSnapshot,
+            ast: shared.ast,
+            sema: sema,
+            arena: arena
+        )
         defer { ctx.restoreScope(scopeSnapshot) }
         ctx.resetScopeForFunction()
 
@@ -426,7 +433,10 @@ extension KIRLoweringDriver {
                 type: arena.exprType(receiver.exprID) ?? sema.types.anyType
             )
         }
-        let params = (receiverParam.map { [$0] } ?? []) + numberedParams
+        let capturedParams = capturedValues.map { capture in
+            KIRParameter(symbol: ctx.allocateSyntheticGeneratedSymbol(), type: capture.type)
+        }
+        let params = (receiverParam.map { [$0] } ?? []) + capturedParams + numberedParams
 
         var lambdaBody: KIRLoweringEmitContext = [.beginBlock]
         if let receiverParam {
@@ -437,6 +447,11 @@ extension KIRLoweringDriver {
             // against the captured receiver, not the enclosing constructor's —
             // this standalone function has no way to see that one.
             ctx.setImplicitReceiver(symbol: receiverParam.symbol, exprID: receiverExpr)
+        }
+        for (capture, param) in zip(capturedValues, capturedParams) {
+            let captureExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
+            lambdaBody.append(.constValue(result: captureExpr, value: .symbolRef(param.symbol)))
+            ctx.setLocalValue(captureExpr, for: capture.symbol)
         }
         // BUG-267: a delegate body on an object-literal member (e.g.
         // `object { val x by lazy { outerLocal } }`) is lowered as its own KIR
@@ -493,6 +508,21 @@ extension KIRLoweringDriver {
         )))
         ctx.appendGeneratedCallableDecl(lambdaDecl)
 
+        if outerReceiver == nil, !capturedValues.isEmpty {
+            return materializeCapturingDelegateLambda(
+                innerLambdaSymbol: lambdaSymbol,
+                innerLambdaName: lambdaName,
+                receiverExpr: nil,
+                capturedValues: capturedValues,
+                numberedParams: numberedParams,
+                returnType: sema.types.anyType,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
+
         guard let outerReceiver else {
             // KSP-491: `lambdaSymbol` above was previously returned bare (a
             // "raw thunk" `(numberedParams...) -> T` function pointer),
@@ -532,6 +562,7 @@ extension KIRLoweringDriver {
             innerLambdaSymbol: lambdaSymbol,
             innerLambdaName: lambdaName,
             receiverExpr: outerReceiver.exprID,
+            capturedValues: capturedValues,
             numberedParams: numberedParams,
             returnType: sema.types.anyType,
             sema: sema,
@@ -539,6 +570,33 @@ extension KIRLoweringDriver {
             interner: interner,
             instructions: &instructions
         )
+    }
+
+    private func capturedDelegateLambdaParameterValues(
+        delegateBody: FunctionBody?,
+        scopeSnapshot: KIRLoweringContext.ScopeSnapshot,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena
+    ) -> [(symbol: SymbolID, value: KIRExprID, type: TypeID)] {
+        guard let delegateBody else { return [] }
+        let outerParameters = Set(scopeSnapshot.localValuesBySymbol.keys.filter { symbol in
+            sema.symbols.symbol(symbol)?.kind == .valueParameter
+        })
+        guard !outerParameters.isEmpty else { return [] }
+
+        let capturedSymbols = CaptureAnalyzer().collectCapturedOuterSymbols(
+            inBody: delegateBody,
+            ast: ast,
+            sema: sema,
+            outerSymbols: outerParameters,
+            skipNestedClosures: false
+        )
+        return capturedSymbols.compactMap { symbol in
+            guard let value = scopeSnapshot.localValuesBySymbol[symbol] else { return nil }
+            let type = arena.exprType(value) ?? lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
+            return (symbol: symbol, value: value, type: type)
+        }
     }
 
     /// Wraps `innerLambdaSymbol` (a plain `(numberedParams...) -> T` function,
@@ -627,9 +685,9 @@ extension KIRLoweringDriver {
         return materializedExpr
     }
 
-    /// Wraps `innerLambdaSymbol` (a `(receiver, [property, old, new]) -> T`
+    /// Wraps `innerLambdaSymbol` (a `([receiver, captures], [property, old, new]) -> T`
     /// function) into a boxed `Function0`/`Function3` closure value carrying
-    /// `receiverExpr` as captured state, so it can be invoked through
+    /// its outer values as captured state, so it can be invoked through
     /// `kk_function_invoke_0`'s (arity 0, `.lazy`) or `kk_function_invoke_3`'s
     /// (arity 3, `.observable`/`.vetoable`) boxed-closure path with only the
     /// numbered arguments (if any) at the call site — the receiver arrives via
@@ -641,7 +699,8 @@ extension KIRLoweringDriver {
     private func materializeCapturingDelegateLambda(
         innerLambdaSymbol: SymbolID,
         innerLambdaName: InternedString,
-        receiverExpr: KIRExprID,
+        receiverExpr: KIRExprID?,
+        capturedValues: [(symbol: SymbolID, value: KIRExprID, type: TypeID)],
         numberedParams: [KIRParameter],
         returnType: TypeID,
         sema: SemaModule,
@@ -652,7 +711,7 @@ extension KIRLoweringDriver {
         let adapterSymbol = ctx.allocateSyntheticGeneratedSymbol()
         let adapterName = interner.intern("kk_delegate_lambda_adapter_\(adapterSymbol.rawValue)")
         let closureParam = KIRParameter(symbol: ctx.allocateSyntheticGeneratedSymbol(), type: sema.types.intType)
-        let captureOffset = Int64(2)
+        let firstCaptureOffset = Int64(2)
         // The adapter needs its own parameter symbols for the numbered
         // (property/old/new) arguments — KIR functions can't share parameter
         // symbols with the inner lambda — but forwards the same values through
@@ -666,20 +725,24 @@ extension KIRLoweringDriver {
         let closureExpr = arena.appendExpr(.symbolRef(closureParam.symbol), type: closureParam.type)
         body.append(.constValue(result: closureExpr, value: .symbolRef(closureParam.symbol)))
 
-        let receiverType = arena.exprType(receiverExpr) ?? sema.types.anyType
-        let loadOffsetExpr = arena.appendExpr(.intLiteral(captureOffset), type: sema.types.intType)
-        body.append(.constValue(result: loadOffsetExpr, value: .intLiteral(captureOffset)))
-        let loadedReceiver = arena.appendTemporary(type: receiverType)
-        body.append(.call(
-            symbol: nil,
-            callee: interner.intern("kk_array_get_inbounds"),
-            arguments: [closureExpr, loadOffsetExpr],
-            result: loadedReceiver,
-            canThrow: false,
-            thrownResult: nil
-        ))
-
-        var forwardedArgs: [KIRExprID] = [loadedReceiver]
+        let captureTypes = (receiverExpr.map { [arena.exprType($0) ?? sema.types.anyType] } ?? [])
+            + capturedValues.map { $0.type }
+        var forwardedArgs: [KIRExprID] = []
+        for (index, captureType) in captureTypes.enumerated() {
+            let offset = firstCaptureOffset + Int64(index)
+            let offsetExpr = arena.appendExpr(.intLiteral(offset), type: sema.types.intType)
+            body.append(.constValue(result: offsetExpr, value: .intLiteral(offset)))
+            let loadedCapture = arena.appendTemporary(type: captureType)
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_get_inbounds"),
+                arguments: [closureExpr, offsetExpr],
+                result: loadedCapture,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            forwardedArgs.append(loadedCapture)
+        }
         for param in adapterNumberedParams {
             let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
             body.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
@@ -704,8 +767,10 @@ extension KIRLoweringDriver {
         )))
         ctx.appendGeneratedCallableDecl(adapterDecl)
 
-        let slotCountExpr = arena.appendExpr(.intLiteral(3), type: sema.types.intType)
-        instructions.append(.constValue(result: slotCountExpr, value: .intLiteral(3)))
+        let captureValues = (receiverExpr.map { [$0] } ?? []) + capturedValues.map { $0.value }
+        let slotCount = Int64(2 + captureValues.count)
+        let slotCountExpr = arena.appendExpr(.intLiteral(slotCount), type: sema.types.intType)
+        instructions.append(.constValue(result: slotCountExpr, value: .intLiteral(slotCount)))
         let classIDExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
         instructions.append(.constValue(result: classIDExpr, value: .intLiteral(0)))
         let closureObj = arena.appendTemporary(type: sema.types.intType)
@@ -717,17 +782,20 @@ extension KIRLoweringDriver {
             canThrow: false,
             thrownResult: nil
         ))
-        let storeOffsetExpr = arena.appendExpr(.intLiteral(captureOffset), type: sema.types.intType)
-        instructions.append(.constValue(result: storeOffsetExpr, value: .intLiteral(captureOffset)))
-        let setResult = arena.appendTemporary(type: sema.types.anyType)
-        instructions.append(.call(
-            symbol: nil,
-            callee: interner.intern("kk_array_set"),
-            arguments: [closureObj, storeOffsetExpr, receiverExpr],
-            result: setResult,
-            canThrow: true,
-            thrownResult: nil
-        ))
+        for (index, captureValue) in captureValues.enumerated() {
+            let offset = firstCaptureOffset + Int64(index)
+            let storeOffsetExpr = arena.appendExpr(.intLiteral(offset), type: sema.types.intType)
+            instructions.append(.constValue(result: storeOffsetExpr, value: .intLiteral(offset)))
+            let setResult = arena.appendTemporary(type: sema.types.anyType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_set"),
+                arguments: [closureObj, storeOffsetExpr, captureValue],
+                result: setResult,
+                canThrow: true,
+                thrownResult: nil
+            ))
+        }
 
         let adapterExpr = arena.appendExpr(.symbolRef(adapterSymbol), type: sema.types.intType)
         instructions.append(.constValue(result: adapterExpr, value: .symbolRef(adapterSymbol)))
