@@ -438,6 +438,29 @@ extension LambdaLowerer {
         let arguments = unpack(refs[0], types: captureTypes)
             + unpack(refs[1], types: parameterTypes, valueParameters: true)
         let result = arena.appendTemporary(type: returnType)
+        func reflectionMaskWords(
+            first: KIRExprID,
+            parameterCount: Int,
+            into instructions: inout [KIRInstruction]
+        ) -> [KIRExprID] {
+            let widened = arena.appendTemporary(type: sema.types.longType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_int_to_long"),
+                arguments: [first],
+                result: widened,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            var words = [widened]
+            let wordCount = DefaultArgumentMask(parameterCount: parameterCount).stubWords.count
+            for _ in 1 ..< wordCount {
+                let zero = arena.appendExpr(.intLiteral(0), type: sema.types.longType)
+                instructions.append(.constValue(result: zero, value: .intLiteral(0)))
+                words.append(zero)
+            }
+            return words
+        }
         if let packedFunctionTarget {
             let targetName = callableTargetName(for: packedFunctionTarget, sema: sema, interner: interner)
             func emitNormalPackedCall() {
@@ -465,9 +488,14 @@ extension LambdaLowerer {
                 body.append(.jumpIfEqual(lhs: refs[2], rhs: zero, target: normal))
                 let owner = driver.callSupportLowerer.defaultStubOwnerSymbol(for: packedFunctionTarget, sema: sema)
                 let ownerName = callableTargetName(for: owner, sema: sema, interner: interner)
+                let masks = reflectionMaskWords(
+                    first: refs[2],
+                    parameterCount: signature?.parameterTypes.count ?? parameterTypes.count,
+                    into: &body
+                )
                 body.append(.call(symbol: driver.callSupportLowerer.defaultStubSymbol(for: owner),
                                   callee: interner.intern(interner.resolve(ownerName) + "$default"),
-                                  arguments: arguments + [refs[2]], result: result, canThrow: true, thrownResult: nil))
+                                  arguments: arguments + masks, result: result, canThrow: true, thrownResult: nil))
                 body.append(.jump(done))
                 body.append(.label(normal))
                 emitNormalPackedCall()
@@ -485,13 +513,28 @@ extension LambdaLowerer {
             let constructorSymbol = sema.symbols.define(kind: .function, name: constructorName, fqName: [constructorName],
                                                         declSite: nil, visibility: .private, flags: [.synthetic])
             let targetName = callableTargetName(for: targetSymbol, sema: sema, interner: interner)
-            var constructorBody = wrapper.body.map { instruction -> KIRInstruction in
-                guard case let .call(calleeSymbol, _, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType) = instruction,
-                      calleeSymbol == targetSymbol else { return instruction }
-                return .call(symbol: driver.callSupportLowerer.defaultStubSymbol(for: targetSymbol),
-                             callee: interner.intern(interner.resolve(targetName) + "$default"),
-                             arguments: arguments + [refs[2]], result: result, canThrow: canThrow,
-                             thrownResult: thrownResult, isSuperCall: isSuperCall, qualifiedSuperType: qualifiedSuperType)
+            var constructorBody: [KIRInstruction] = []
+            for instruction in wrapper.body {
+                guard case let .call(calleeSymbol, _, arguments, callResult, canThrow, thrownResult, isSuperCall, qualifiedSuperType) = instruction,
+                      calleeSymbol == targetSymbol else {
+                    constructorBody.append(instruction)
+                    continue
+                }
+                let masks = reflectionMaskWords(
+                    first: refs[2],
+                    parameterCount: signature?.parameterTypes.count ?? parameterTypes.count,
+                    into: &constructorBody
+                )
+                constructorBody.append(.call(
+                    symbol: driver.callSupportLowerer.defaultStubSymbol(for: targetSymbol),
+                    callee: interner.intern(interner.resolve(targetName) + "$default"),
+                    arguments: arguments + masks,
+                    result: callResult,
+                    canThrow: canThrow,
+                    thrownResult: thrownResult,
+                    isSuperCall: isSuperCall,
+                    qualifiedSuperType: qualifiedSuperType
+                ))
             }
             constructorBody.insert(.constValue(result: refs[2], value: .symbolRef(params[2].symbol)), at: 1)
             driver.ctx.appendGeneratedCallableDecl(arena.appendDecl(.function(KIRFunction(
@@ -508,9 +551,14 @@ extension LambdaLowerer {
             body.append(.jumpIfEqual(lhs: refs[2], rhs: zero, target: normal))
             let owner = driver.callSupportLowerer.defaultStubOwnerSymbol(for: targetSymbol, sema: sema)
             let targetName = callableTargetName(for: owner, sema: sema, interner: interner)
+            let masks = reflectionMaskWords(
+                first: refs[2],
+                parameterCount: signature?.parameterTypes.count ?? parameterTypes.count,
+                into: &body
+            )
             body.append(.call(symbol: driver.callSupportLowerer.defaultStubSymbol(for: owner),
                               callee: interner.intern(interner.resolve(targetName) + "$default"),
-                              arguments: arguments + [refs[2]], result: result, canThrow: true, thrownResult: nil))
+                              arguments: arguments + masks, result: result, canThrow: true, thrownResult: nil))
             body.append(.jump(done))
             body.append(.label(normal))
             body.append(.call(symbol: callableSymbol, callee: callableName, arguments: arguments,

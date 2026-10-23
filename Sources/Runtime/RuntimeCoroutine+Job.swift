@@ -186,7 +186,13 @@ final class RuntimeJobHandle: @unchecked Sendable {
     private var cancelMessage: String = "CancellationException"
     private var usesDefaultCancellationMessage = false
     private let defaultCancellationMessageFallback: String
-    weak var continuationState: RuntimeContinuationState?
+    weak var continuationState: RuntimeContinuationState? {
+        didSet {
+            if let continuationState {
+                RuntimeCoroutineDebugProbes.shared.register(continuationState: continuationState, job: self)
+            }
+        }
+    }
     var producerChannel: Int?
     private var producerCompletionPending = false
     private var childJobHandles: [Int] = []

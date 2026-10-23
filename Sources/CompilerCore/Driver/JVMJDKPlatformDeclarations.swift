@@ -51,6 +51,10 @@ extension JVMClasspathIndex {
                 method("java/lang/System", "getProperty", [.string, .string], .reference("java/lang/String", nullable: false), staticMember: true),
                 method("java/lang/System", "arraycopy", [object, .int, object, .int, .int], .unit, staticMember: true),
             ]),
+            ("java/lang/StackTraceElement", """
+            package java.lang
+            class StackTraceElement private constructor()
+            """, 0x0011, "java/lang/Object", []),
             ("java/lang/Integer", """
             package java.lang
             class Integer private constructor() {

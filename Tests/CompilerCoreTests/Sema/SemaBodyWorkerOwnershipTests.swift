@@ -165,17 +165,25 @@ struct SemaBodyWorkerOwnershipTests {
         parent.bindCallableReference(expr, binding: call)
         parent.bindCaptureSymbols(expr, symbols: [symbol])
         parent.bindCapturedLocalType(symbol, type: TypeID(rawValue: 8))
+        let workerReceiverType = TypeID(rawValue: 10)
+        parent.mergeIndependentScalarExpressions(
+            types: [:], identifiers: [:], typeMapping: [TypeID(rawValue: 9): workerReceiverType],
+            compoundAssignReceiverTypes: [expr: TypeID(rawValue: 9)]
+        )
         parent.deferAnnotationTargets(decl, lexicalEnclosingFQNames: [[InternedString(rawValue: 4)]])
         parent.recordValidatedAnnotationOptIn(usageID: "annotation", markers: [symbol])
         let worker = parent.makeSemaWorkerBindings()
         #expect(worker.callableReferenceBindings[expr]?.chosenCallee == symbol)
+        #expect(worker.compoundAssignReceiverType(for: expr) == workerReceiverType)
         #expect(worker.captureSymbolsByExpr[expr] == [symbol])
         #expect(worker.capturedLocalTypesBySymbol[symbol] == TypeID(rawValue: 8))
         #expect(worker.validatedAnnotationOptInMarkers["annotation"] == [symbol])
         #expect(worker.takePendingAnnotationTargets()[decl] == [[InternedString(rawValue: 4)]])
         worker.bindCallableReference(expr, binding: nil)
+        worker.bindCompoundAssignReceiverType(expr, type: TypeID(rawValue: 12))
         worker.bindCapturedLocalType(symbol, type: TypeID(rawValue: 9))
         #expect(parent.callableReferenceBindings[expr]?.chosenCallee == symbol)
+        #expect(parent.compoundAssignReceiverType(for: expr) == workerReceiverType)
         #expect(parent.capturedLocalTypesBySymbol[symbol] == TypeID(rawValue: 8))
         #expect(parent.takePendingAnnotationTargets()[decl] == [[InternedString(rawValue: 4)]])
     }

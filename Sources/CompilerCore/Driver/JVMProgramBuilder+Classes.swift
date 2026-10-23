@@ -29,11 +29,18 @@ final class JVMClassPlan {
     var methodSymbols: [String: SymbolID] = [:]
     var constructors: [(SymbolID, ConstructorDecl, Bool)] = []
     var isAnnotation: Bool { declaration?.modifiers.contains(.annotationClass) == true }
-    var isValue: Bool { declaration?.modifiers.contains(.value) == true }
+    let isValue: Bool
     var isInterface: Bool { interface != nil || isAnnotation }
     var modifiers: Modifiers { declaration?.modifiers ?? interface!.modifiers }
-    init(symbol: SymbolID, name: String, declaration: ClassDecl? = nil, interface: InterfaceDecl? = nil) {
+    init(
+        symbol: SymbolID,
+        name: String,
+        declaration: ClassDecl? = nil,
+        interface: InterfaceDecl? = nil,
+        isValue: Bool? = nil
+    ) {
         self.symbol = symbol; self.name = name; self.declaration = declaration; self.interface = interface
+        self.isValue = isValue ?? (declaration?.modifiers.contains(.value) == true)
     }
 }
 
@@ -108,7 +115,10 @@ extension JVMProgramBuilder {
             }
         }
         for plan in classes.values.sorted(by: { $0.name < $1.name }) {
-            guard plan.name.split(whereSeparator: { $0 == "/" || $0 == "$" }).allSatisfy({ Self.isIdentifier(String($0)) }) else { throw JVMFrontendError(message: "JVM classes require ASCII names.") }
+            guard plan.name.split(whereSeparator: { $0 == "/" || $0 == "$" }).allSatisfy({ component in
+                Self.isIdentifier(String(component))
+                    || plan.isAnonymous && !component.isEmpty && component.utf8.allSatisfy { (48...57).contains($0) }
+            }) else { throw JVMFrontendError(message: "JVM classes require ASCII names.") }
             if let parent = plan.enumParent { plan.superclass = classes[parent]!.name }
             for parent in plan.enumParent == nil ? sema.symbols.directSupertypes(for: plan.symbol) : [] {
                 let sourceName = try className(parent)

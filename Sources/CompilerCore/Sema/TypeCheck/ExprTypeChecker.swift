@@ -477,10 +477,12 @@ final class ExprTypeChecker {
                 usageRange: range,
                 allowBareGenericTypeAliasProjection: true
             )
+            let subjectNonNull = sema.types.makeNonNullable(subjectType)
+            let targetNonNull = sema.types.makeNonNullable(targetType)
             if case .functionType = sema.types.kind(of: targetType),
                !sema.types.isSubtype(
-                   sema.types.makeNonNullable(subjectType),
-                   sema.types.makeNonNullable(targetType)
+                   subjectNonNull,
+                   targetNonNull
                )
             {
                 ctx.sema.diagnostics.error(
@@ -499,24 +501,29 @@ final class ExprTypeChecker {
                     range: range
                 )
             }
-            if let typeRef = ast.arena.typeRef(typeRefID),
-               case let .named(_, argRefs, _) = typeRef, !argRefs.isEmpty
-            {
-                let hasNonStarArg = argRefs.contains { arg in
+            let hasErasedTypeArguments: Bool
+            if case let .classType(classType) = sema.types.kind(of: targetType) {
+                hasErasedTypeArguments = (classType.args + classType.enclosingTypeArgs).contains { arg in
                     if case .star = arg { return false }
                     return true
                 }
-                if hasNonStarArg {
-                    ctx.sema.diagnostics.warning(
-                        "KSWIFTK-SEMA-ERASED-TYPE",
-                        "Cannot check for instance of erased type: type arguments are not available at runtime. Use star-projection, e.g. 'is List<*>'.",
-                        range: range
-                    )
-                }
+            } else {
+                hasErasedTypeArguments = false
+            }
+            // Kotlin permits this when the subject is already known to have
+            // the target instantiation; otherwise its type arguments are erased.
+            if hasErasedTypeArguments,
+               subjectType != sema.types.errorType,
+               targetType != sema.types.errorType,
+               !sema.types.isSubtype(subjectNonNull, targetNonNull)
+            {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-ERASED-TYPE",
+                    "Cannot check for instance of erased type '\(sema.types.displayName(of: targetType, symbols: sema.symbols, interner: interner))'.",
+                    range: range
+                )
             }
             if subjectType != sema.types.errorType, targetType != sema.types.errorType {
-                let subjectNonNull = sema.types.makeNonNullable(subjectType)
-                let targetNonNull = sema.types.makeNonNullable(targetType)
                 let nullEscape = sema.types.nullability(of: subjectType) == .nullable
                     && sema.types.nullability(of: targetType) == .nullable
                 if !nullEscape,
