@@ -333,6 +333,41 @@ struct LocalExtensionFunctionTests {
     }
 
     @Test
+    func localExtensionOnClassReceiverInvokesThroughLexicalCallee() throws {
+        let ctx = makeContextFromSource("""
+        class OuterDelegate
+        fun ordinaryLocalCall() {
+            fun OuterDelegate.read(): Int = 4
+            println(OuterDelegate().read())
+            OuterDelegate().read()
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let symbol = try #require(localFunctionSymbol(
+            named: ctx.interner.intern("read"),
+            in: ast,
+            sema: sema
+        ))
+        #expect(sema.bindings.callableTargets.values.contains { $0 == .symbol(symbol) })
+    }
+
+    @Test
+    func localExtensionInvocationPreservesBareNameRejection() throws {
+        let ctx = makeContextFromSource("""
+        class OuterDelegate
+        fun probe() {
+            fun OuterDelegate.read(): Int = 4
+            val reference = OuterDelegate().read
+        }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0309" })
+    }
+
+    @Test
     func bareLocalExtensionReferenceIsRejectedWithoutThisDiagnostic() throws {
         let ctx = makeContextFromSource("""
         fun probe() {

@@ -618,7 +618,21 @@ extension CallTypeChecker {
         }
 
         let calleeExpr = ctx.ast.arena.appendExpr(.nameRef(name, request.range))
-        let calleeType = driver.inferExpr(calleeExpr, ctx: ctx, locals: &locals)
+        let calleeType: TypeID
+        if let local = locals[name],
+           sema.symbols.symbol(local.symbol)?.kind == .function
+        {
+            // A local function's `locals` entry is a value binding for the
+            // declared symbol, but name-ref inference rejects function
+            // symbols in value position. This synthesized reference is the
+            // callee of an invocation, not a user-written function value, so
+            // bind it directly instead of running bare-name inference.
+            sema.bindings.bindIdentifier(calleeExpr, symbol: local.symbol)
+            sema.bindings.bindExprType(calleeExpr, type: local.type)
+            calleeType = local.type
+        } else {
+            calleeType = driver.inferExpr(calleeExpr, ctx: ctx, locals: &locals)
+        }
         guard case let .functionType(functionType) = sema.types.kind(of: calleeType),
               functionType.receiver != nil
         else {
