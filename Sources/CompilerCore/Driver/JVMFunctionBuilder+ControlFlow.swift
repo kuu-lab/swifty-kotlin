@@ -21,6 +21,22 @@ extension JVMFunctionBuilder {
     func binary(_ op: BinaryOp, _ lhs: ExprID, _ rhs: ExprID, _ id: ExprID) throws -> JVMValue? {
         if op == .rangeTo {
             let lower = try requireValue(lhs), upper = try requireValue(rhs)
+            if lower.type == .double, upper.type == .double {
+                // Kotlin's concrete floating range classes are package-private;
+                // construct them through the public stdlib facade.
+                return try jdkCall(
+                    "kotlin/ranges/RangesKt", "rangeTo", [.double, .double],
+                    .reference("kotlin/ranges/ClosedFloatingPointRange", nullable: false),
+                    arguments: [lower, upper]
+                )
+            }
+            if lower.type == .float, upper.type == .float {
+                return try jdkCall(
+                    "kotlin/ranges/RangesKt", "rangeTo", [.float, .float],
+                    .reference("kotlin/ranges/ClosedFloatingPointRange", nullable: false),
+                    arguments: [lower, upper]
+                )
+            }
             guard lower.type == .int, upper.type == .int else {
                 throw fail("JVM range expressions currently require Int operands.", id)
             }
