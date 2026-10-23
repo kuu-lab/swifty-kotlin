@@ -433,6 +433,7 @@ func runSuspendEntryLoopWithContinuation(
     taskKeyBox.outerJob = outerJob
 
     loopBodyBox.body = {
+        RuntimeCoroutineDebugProbes.shared.markRunning(continuation: continuation)
         // Run every burst -- the initial one kicked off below and each resumed
         // one -- with the bound event loop installed, so a `launch{}` inside
         // the body and the pending-launch flush at the bottom queue onto it
@@ -550,6 +551,7 @@ func runSuspendEntryLoopWithContinuation(
         // the order kotlinx.coroutines produces. Installing first inverted it.
         RuntimeCoroutineBurstDepth.exit()
         RuntimePendingLaunchQueue.flush()
+        RuntimeCoroutineDebugProbes.shared.markSuspended(continuation: continuation)
         // A pool can deliver the pending resume immediately after install.
         // Capture this burst's displaced TLS before the callback can mutate
         // TaskKeyBox for the resumed burst on a different thread.

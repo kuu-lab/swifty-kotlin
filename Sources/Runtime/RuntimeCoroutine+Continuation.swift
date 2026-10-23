@@ -403,6 +403,7 @@ public func kk_coroutine_state_set_label(_ continuation: Int, _ label: Int) -> I
 public func kk_coroutine_state_exit(_ continuation: Int, _ value: Int) -> Int {
     if let state = runtimeContinuationState(from: continuation) {
         state.markExited()
+        RuntimeCoroutineDebugProbes.shared.remove(continuation: continuation)
         state.retireCancellableDeliveryOnExit()
         state.releaseInterception(continuationRaw: continuation)
     }
