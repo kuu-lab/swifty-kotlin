@@ -30,10 +30,9 @@ public suspend fun <T> Flow<T>.collect(collector: FlowCollector<T>) {
 }
 
 // MIGRATION-FLOW-004 (KSP-499)
-// Flow operators are bundled Kotlin source. The compiler/runtime keep only the
-// cold-flow core (`flow`, `emit`, and `collect`) as coroutine bridges; the
-// operators below compose that core instead of entering dedicated kk_flow_* ABI
-// functions.
+// Flow operators are bundled Kotlin source. Most operators compose the
+// cold-flow core (`flow`, `emit`, and `collect`); latest flattening uses its
+// runtime bridge so cancellation reaches a suspended inner emitter.
 
 public fun <T, R> Flow<T>.map(transform: suspend (T) -> R): Flow<R> {
     val source = this
@@ -172,10 +171,14 @@ public fun <T, R> Flow<T>.flatMapMerge(
     transform: suspend (T) -> Flow<R>
 ): Flow<R> = flatMapMerge(DEFAULT_CONCURRENCY, transform)
 
-// Synchronous cold flows collect each inner flow to completion before the
-// next outer value arrives, so flatMapLatest reduces to flatMapConcat here.
 public fun <T, R> Flow<T>.flatMapLatest(transform: suspend (T) -> Flow<R>): Flow<R> =
-    flatMapConcat(transform)
+    flatMapLatestRuntime(this, transform)
+
+@KsSymbolName("__kk_flow_flat_map_latest_external")
+internal external fun <T, R> flatMapLatestRuntime(
+    source: Flow<T>,
+    transform: suspend (T) -> Flow<R>
+): Flow<R>
 
 public fun <T, R, V> Flow<T>.zip(
     other: Flow<R>,
