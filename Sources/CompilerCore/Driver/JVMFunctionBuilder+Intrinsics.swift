@@ -13,7 +13,7 @@ extension JVMProgramBuilder {
         guard let symbol = sema.symbols.symbol(symbolID), symbol.kind == .constructor,
               let parent = sema.symbols.parentSymbol(for: symbolID), classes[parent] == nil,
               let source = try? className(parent), let name = JVMClasspathIndex.builtinName(source),
-              (name.hasPrefix("java/lang/") || ["java/util/NoSuchElementException", "java/util/AbstractCollection", "java/util/AbstractList", "java/util/AbstractSet", "java/util/AbstractMap", "kotlin/collections/AbstractSet", "kotlin/collections/IntIterator", "kotlin/UninitializedPropertyAccessException"].contains(name)), let signature = sema.symbols.functionSignature(for: symbolID),
+              (name.hasPrefix("java/lang/") || ["java/util/NoSuchElementException", "java/util/AbstractCollection", "java/util/AbstractList", "java/util/AbstractSet", "java/util/AbstractMap", "kotlin/collections/AbstractSet", "kotlin/collections/IntIterator", "kotlin/NotImplementedError", "kotlin/UninitializedPropertyAccessException"].contains(name)), let signature = sema.symbols.functionSignature(for: symbolID),
               let parameters = try? signature.parameterTypes.map(type) else { return nil }
         return JVMForeignMethod(owner: name, name: "<init>", descriptor: "(" + parameters.map(\.descriptor).joined() + ")V", parameters: parameters, result: .reference(name, nullable: false), isStatic: false, isInterface: false, isAbstract: false)
     }
