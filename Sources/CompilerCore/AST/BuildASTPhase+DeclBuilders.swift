@@ -840,6 +840,11 @@ extension BuildASTPhase {
                 )
             }
         } else {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0020",
+                "An explicit type is required on a value parameter.",
+                range: nameToken.range
+            )
             typeRef = nil
         }
 
