@@ -13,16 +13,21 @@ func runCodegenPipeline(
     irFlags: [String] = [],
     optLevel: OptimizationLevel = .O0,
     allowDefaultStdlibLibrary: Bool = true,
-    stdlibLibraryPath: String? = nil
+    stdlibLibraryPath: String? = nil,
+    includeStdlib: Bool = true,
+    prepareTestStdlibCache: Bool = true
 ) throws -> CompilationContext {
     let options = CompilerOptions(
         moduleName: moduleName,
         inputs: [inputPath],
         outputPath: outputPath,
         emit: emit,
-        target: defaultTargetTriple(),
+        target: prepareTestStdlibCache
+            ? defaultTargetTriple()
+            : CompilerTestSupport.defaultTargetTriple(),
         optLevel: optLevel,
         irFlags: irFlags,
+        includeStdlib: includeStdlib,
         stdlibLibraryPath: stdlibLibraryPath,
         allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
     )
@@ -53,6 +58,8 @@ func assertKotlinOutput(
     expected: String,
     optLevel: OptimizationLevel = .O0,
     allowDefaultStdlibLibrary: Bool = true,
+    includeStdlib: Bool = true,
+    prepareTestStdlibCache: Bool = true,
     sourceLocation: Testing.SourceLocation = #_sourceLocation
 ) throws {
     try withTemporaryFile(contents: source) { path in
@@ -64,7 +71,9 @@ func assertKotlinOutput(
             emit: .executable,
             outputPath: outputBase,
             optLevel: optLevel,
-            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary,
+            includeStdlib: includeStdlib,
+            prepareTestStdlibCache: prepareTestStdlibCache
         )
         try LinkPhase().run(ctx)
         let result = try CommandRunner.run(executable: outputBase, arguments: [])

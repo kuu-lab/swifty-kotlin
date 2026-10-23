@@ -251,6 +251,56 @@ struct CodegenBackendVirtualDispatchTests {
     }
 
     @Test
+    func testSuperCallThroughTwoLevelGenericSuperclassUsesSpecializedOverrideBridge() throws {
+        // The matching diff case keeps the exact println/String-concatenation
+        // reproducer. This variant skips stdlib setup while exercising dispatch.
+        let source = """
+        open class A<R> {
+            open fun foo(r: R): R = r
+        }
+        open class B : A<String>()
+        open class C : B() {
+            override fun foo(r: String): String = super.foo(r)
+        }
+        fun main() { C().foo("O") }
+        """
+        for optLevel in [OptimizationLevel.O0, .O2] {
+            try assertKotlinOutput(
+                source,
+                moduleName: "KUU2898TwoLevelGenericSuper",
+                expected: "",
+                optLevel: optLevel,
+                allowDefaultStdlibLibrary: false,
+                includeStdlib: false,
+                prepareTestStdlibCache: false
+            )
+        }
+    }
+
+    @Test
+    func testGenericPropertyOverrideUsesRootVtableAccessorABI() throws {
+        let source = """
+        open class A<R>(open val value: R)
+        open class B : A<String>("O")
+        open class C : B() {
+            override val value: String get() = super.value
+        }
+        fun main() { C().value }
+        """
+        for optLevel in [OptimizationLevel.O0, .O2] {
+            try assertKotlinOutput(
+                source,
+                moduleName: "KUU2898GenericPropertyVtableABI",
+                expected: "",
+                optLevel: optLevel,
+                allowDefaultStdlibLibrary: false,
+                includeStdlib: false,
+                prepareTestStdlibCache: false
+            )
+        }
+    }
+
+    @Test
     func testKuu2091CastInitializerKeepsOriginalInterfaceDispatch() throws {
         let source = try diffCaseSource("kuu_2091_smartcast_after_as_bridge.kt")
         for optLevel in [OptimizationLevel.O0, .O2] {
