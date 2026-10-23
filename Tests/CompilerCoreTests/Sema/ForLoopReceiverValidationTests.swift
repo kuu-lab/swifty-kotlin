@@ -155,6 +155,90 @@ struct ForLoopReceiverValidationTests {
     }
 
     @Test
+    func nameBasedDestructuringDeclarationResolvesExplicitPropertyAliases() throws {
+        let source = """
+        class Tuple(val first: Int, val second: Int)
+        fun test(x: Tuple): Int {
+            val (a = first, b = second) = x
+            return a + b
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                frontendFlags: ["name-based-destructuring=complete"],
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+            let sourceDiagnostics = diagnosticsForPath(path, in: ctx)
+            #expect(!sourceDiagnostics.hasError, "\(sourceDiagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sourceFile = try #require(ctx.sourceManager.fileID(forPath: path))
+            let declarationIndex = try #require(ast.arena.exprs.indices.first { index in
+                let id = ExprID(rawValue: Int32(index))
+                guard case .destructuringDecl = ast.arena.exprs[index] else { return false }
+                return ast.arena.exprRange(id)?.start.file == sourceFile
+            })
+            let declarationID = ExprID(rawValue: Int32(declarationIndex))
+            let firstBinding = try #require(ctx.sema?.bindings.destructuringProperty(for: declarationID, index: 0))
+            let secondBinding = try #require(ctx.sema?.bindings.destructuringProperty(for: declarationID, index: 1))
+            #expect(ctx.sema?.symbols.symbol(firstBinding.propertySymbol)?.name == ctx.interner.intern("first"))
+            #expect(ctx.sema?.symbols.symbol(secondBinding.propertySymbol)?.name == ctx.interner.intern("second"))
+        }
+    }
+
+    @Test
+    func nameBasedForLoopDestructuringResolvesExplicitPropertyAliases() throws {
+        let source = """
+        class Tuple(val first: Int, val second: Int)
+        class Cursor {
+            operator fun hasNext(): Boolean = false
+            operator fun next(): Tuple = Tuple(1, 2)
+        }
+        class Values {
+            operator fun iterator(): Cursor = Cursor()
+        }
+        fun test(values: Values): Int {
+            var total = 0
+            for ((a = first, b = second) in values) total = a + b
+            return total
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                frontendFlags: ["name-based-destructuring=complete"],
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+            let sourceDiagnostics = diagnosticsForPath(path, in: ctx)
+            #expect(!sourceDiagnostics.hasError, "\(sourceDiagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sourceFile = try #require(ctx.sourceManager.fileID(forPath: path))
+            let loopIndex = try #require(ast.arena.exprs.indices.first { index in
+                let id = ExprID(rawValue: Int32(index))
+                guard case .forDestructuringExpr = ast.arena.exprs[index] else { return false }
+                return ast.arena.exprRange(id)?.start.file == sourceFile
+                    && ctx.sema?.bindings.destructuringProperty(for: id, index: 0) != nil
+            })
+            let loopID = ExprID(rawValue: Int32(loopIndex))
+            if case let .forDestructuringExpr(names, _, _, _, _) = ast.arena.exprs[loopIndex] {
+                #expect(names.map { $0.map(ctx.interner.resolve) } == ["a", "b"])
+            } else {
+                Issue.record("Expected a destructuring for-loop expression")
+            }
+            let firstBinding = try #require(ctx.sema?.bindings.destructuringProperty(for: loopID, index: 0))
+            let secondBinding = try #require(ctx.sema?.bindings.destructuringProperty(for: loopID, index: 1))
+            #expect(ctx.sema?.symbols.symbol(firstBinding.propertySymbol)?.name == ctx.interner.intern("first"))
+            #expect(ctx.sema?.symbols.symbol(secondBinding.propertySymbol)?.name == ctx.interner.intern("second"))
+        }
+    }
+
+    @Test
     func completeNameBasedDestructuringDoesNotFallbackToComponentFunctions() throws {
         let ctx = makeNameDestructuringContext("""
         data class C(val first: Int, val second: Int)
