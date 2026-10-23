@@ -7,7 +7,8 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        kotlinCollectionsPkg: [InternedString]
+        kotlinCollectionsPkg: [InternedString],
+        bundledIndex: BundledDeclarationIndex
     ) {
         let mapName = interner.intern("Map")
         let mapFQName = kotlinCollectionsPkg + [mapName]
@@ -30,6 +31,21 @@ extension DataFlowSemaPhase {
 
         let entryName = interner.intern("Entry")
         let entryFQName = mapFQName + [entryName]
+        let mutableMapName = interner.intern("MutableMap")
+        let mutableMapFQName = kotlinCollectionsPkg + [mutableMapName]
+        let mutableEntryName = interner.intern("MutableEntry")
+        let mutableEntryFQName = mutableMapFQName + [mutableEntryName]
+        let hasBundledEntryProperties = bundledIndex.contains(owner: entryFQName, name: interner.intern("key"), arity: 0)
+            && bundledIndex.contains(owner: entryFQName, name: interner.intern("value"), arity: 0)
+        let hasBundledMutableEntry = bundledIndex.contains(
+            owner: mutableEntryFQName,
+            name: interner.intern("setValue"),
+            arity: 1
+        )
+        if hasBundledEntryProperties, hasBundledMutableEntry {
+            return
+        }
+
         let entrySymbol: SymbolID
         if let existing = symbols.lookup(fqName: entryFQName) {
             entrySymbol = existing
@@ -78,12 +94,8 @@ extension DataFlowSemaPhase {
             typeParameterSymbols: [mapKeySymbol, mapValueSymbol]
         )
 
-        let mutableMapName = interner.intern("MutableMap")
-        let mutableMapFQName = kotlinCollectionsPkg + [mutableMapName]
         guard let mutableMapSymbol = symbols.lookup(fqName: mutableMapFQName) else { return }
 
-        let mutableEntryName = interner.intern("MutableEntry")
-        let mutableEntryFQName = mutableMapFQName + [mutableEntryName]
         let mutableEntrySymbol: SymbolID
         if let existing = symbols.lookup(fqName: mutableEntryFQName) {
             mutableEntrySymbol = existing

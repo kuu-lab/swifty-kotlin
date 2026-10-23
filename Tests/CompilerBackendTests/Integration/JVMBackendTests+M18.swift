@@ -6,6 +6,19 @@ import Testing
 
 extension JVMBackendTests {
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func kuu2911StringSliceAndCodePointAt(mode: EmitMode) throws {
+        try withWorkspace { root in
+            try runM11(#"""
+            fun main() {
+                println("kotlin".slice(0..2))
+                println("kotlin".slice(listOf(0, 2)))
+                println("a".codePointAt(0))
+            }
+            """#, expected: "kot\nkt\n97\n", mode: mode, root: root)
+        }
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func m18ConcatenationTemplatesAndEvaluationOrder(mode: EmitMode) throws {
         try withWorkspace { root in
             try runM11(#"""

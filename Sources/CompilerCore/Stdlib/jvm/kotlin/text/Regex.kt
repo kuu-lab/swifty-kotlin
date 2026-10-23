@@ -162,7 +162,7 @@ private class MatcherGroups(private val matcher: Any): MatchGroupCollection, kot
         return false
     }
     override fun containsAll(elements: Collection<MatchGroup?>): Boolean {
-        for (element in elements) {
+        for (element in elements as Collection<*>) {
             if (element != null && !(element is MatchGroup)) return false
             if (!contains(element as MatchGroup?)) return false
         }

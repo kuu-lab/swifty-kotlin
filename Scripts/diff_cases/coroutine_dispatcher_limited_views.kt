@@ -1,10 +1,10 @@
 import kotlinx.coroutines.*
 import kotlin.coroutines.ContinuationInterceptor
 
-// KUU-2687: limitedParallelism view semantics — deterministic identity,
-// toString, and rejection parity with kotlinx. Dispatchers.Main behavior is
-// exercised in KSwiftK tests instead: on JVM it resolves to
-// MissingMainCoroutineDispatcher and calling any member throws.
+// KUU-2687 / KUU-2770: limitedParallelism view semantics — deterministic
+// identity, flattened nested toString names, and rejection parity with kotlinx.
+// Dispatchers.Main behavior is exercised in KSwiftK tests instead: on JVM it
+// resolves to MissingMainCoroutineDispatcher and calling any member throws.
 fun main() = runBlocking {
     // Views are distinct dispatcher objects.
     println(Dispatchers.Default.limitedParallelism(1) === Dispatchers.Default)
@@ -19,6 +19,7 @@ fun main() = runBlocking {
     // toString parity: "$dispatcher.limitedParallelism($parallelism)".
     println(view1.toString())
     println(view2.limitedParallelism(2).toString())
+    println(view2.limitedParallelism(3).limitedParallelism(2).toString())
     println(Dispatchers.Default.limitedParallelism(1, "named-view").toString())
     // Nominal checks.
     println(view1 is CoroutineDispatcher)

@@ -23,7 +23,7 @@ value class ULongArrayValue(val storage: LongArray): Collection<ULongValue>, Ite
         }
     }
     override fun containsAll(elements: Collection<ULongValue>): Boolean {
-        for (element in elements) {
+        for (element in elements as Collection<*>) {
             if (!(element is ULongValue) || !contains(element)) return false
         }
         return true

@@ -122,7 +122,7 @@ final class JVMClasspathIndex {
             for bridge in bridges where abstractMethods.contains(key(bridge)) && !methods.contains(where: { key($0) == key(bridge) }) {
                 methods.append(accessibleMethod(bridge, on: info))
             }
-            classes[info.name] = JVMClassInfo(name: info.name, flags: info.flags, superclass: superclass, interfaces: interfaces, methods: methods)
+            classes[info.name] = JVMClassInfo(name: info.name, flags: info.flags, superclass: superclass, interfaces: interfaces, methods: methods, fields: info.fields)
         }
     }
     func expose(_ type: JVMValueType) -> Bool {
@@ -133,6 +133,7 @@ final class JVMClasspathIndex {
         if name.hasPrefix("["), let element = try? JVMDescriptor.parse("()" + String(name.dropFirst())).1 { return expose(element) }
         return name == "java/lang/String" || name == "java/lang/Object" || classes[name] != nil
     }
+    func hasClassFile(_ name: String) -> Bool { hierarchyClasses[name] != nil }
     func kotlinType(_ type: JVMValueType) -> String {
         switch type {
         case .byte: return "kotlin.Byte"
@@ -402,7 +403,8 @@ final class JVMClasspathIndex {
                name.hasSuffix("$Companion") {
                 let outer = String(name.dropLast("$Companion".count))
                 if ctx.jvmImports?.classes[outer] != nil {
-                    return .reference(outer, nullable: type.nullability != .nonNull)
+                    let importedName = ctx.jvmImports?.hasClassFile(name) == true ? name : outer
+                    return .reference(importedName, nullable: type.nullability != .nonNull)
                 }
             }
             if name == "kotlin/Array" {

@@ -178,6 +178,36 @@ struct CodegenBackendListSortExtremaTests {
         )
     }
 
+    /// KUU-2749: a callable reference returning a primitive must cross the
+    /// erased return ABI when captured by a generic sorting callback.
+    @Test
+    func genericListSortingBoxesCallableReferenceKeys() throws {
+        let source = """
+        fun <T, R : Comparable<R>> List<T>.swA(keyFn: (T) -> R): List<T> =
+            this.sortedBy { keyFn(it) }
+
+        fun <T, R : Comparable<R>> List<T>.swC(keyFn: (T) -> R): List<R> =
+            this.map { keyFn(it) }.sortedBy { it }
+
+        fun <T> List<T>.swConcrete(keyFn: (T) -> Int): List<Int> =
+            this.map { keyFn(it) }.sortedBy { it }
+
+        fun main() {
+            val words = listOf("bbb", "a", "cc")
+            println(words.swA(String::length))
+            println(words.swC(String::length))
+            println(words.swC { it.length })
+            println(words.swConcrete(String::length))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "KUU2749GenericCallableReferenceSorting",
+            expected: "[a, cc, bbb]\n[1, 2, 3]\n[1, 2, 3]\n[1, 2, 3]\n"
+        )
+    }
+
     /// Comparator parameters erase their element type, so primitive candidates
     /// must be boxed before the Comparator bridge performs its generic cast.
     @Test

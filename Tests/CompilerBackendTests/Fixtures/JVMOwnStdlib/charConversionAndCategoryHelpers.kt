@@ -1,0 +1,17 @@
+fun main() {
+    println('a'.toByte())
+    println('\u00FF'.toByte())
+    println('5'.isDigit())
+    println('\u0665'.isDigit())
+    println('a'.isDigit())
+    println('a'.isLowerCase())
+    println('\u2170'.isLowerCase())
+    println('A'.isLowerCase())
+    println('A'.isUpperCase())
+    println('\u2160'.isUpperCase())
+    println('a'.isUpperCase())
+    println(' '.isWhitespace())
+    println('\u00A0'.isWhitespace())
+    println('x'.isWhitespace())
+    println('a'.uppercaseChar())
+}

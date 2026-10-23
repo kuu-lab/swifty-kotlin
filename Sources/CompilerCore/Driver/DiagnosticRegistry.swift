@@ -308,6 +308,12 @@ enum DiagnosticRegistry {
             summary: "Expected '}' to close block."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0027",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "The 'else' branch must be the last branch in a 'when' expression."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-PARSE-TYPE-DEPTH",
             pass: "PARSE",
             defaultSeverity: .error,
@@ -761,6 +767,12 @@ enum DiagnosticRegistry {
             codeActions: [DiagnosticCodeAction(title: "Add 'override' keyword")]
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-OVERRIDE-NOTHING",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Member marked 'override' does not override an inherited member."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-DATA-INHERIT",
             pass: "SEMA",
             defaultSeverity: .error,
@@ -1045,6 +1057,12 @@ enum DiagnosticRegistry {
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "'if' used as an expression must have an 'else' branch."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0435",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "A declaration can have only one companion object."
         ),
     ]
 

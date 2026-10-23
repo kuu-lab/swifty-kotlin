@@ -396,6 +396,15 @@ public fun FloatArray.getOrNull(index: Int): Float? =
 public inline fun FloatArray.elementAtOrElse(index: Int, defaultValue: (Int) -> Float): Float =
     getOrElse(index, defaultValue)
 
+public fun FloatArray.indexOf(element: Float): Int {
+    var index = 0
+    while (index < size) {
+        if (this[index] == element) return index
+        index++
+    }
+    return -1
+}
+
 public inline fun FloatArray.indexOfFirst(predicate: (Float) -> Boolean): Int =
     asList().indexOfFirst(predicate)
 
@@ -452,6 +461,15 @@ public fun DoubleArray.getOrNull(index: Int): Double? =
 
 public inline fun DoubleArray.elementAtOrElse(index: Int, defaultValue: (Int) -> Double): Double =
     getOrElse(index, defaultValue)
+
+public fun DoubleArray.indexOf(element: Double): Int {
+    var index = 0
+    while (index < size) {
+        if (this[index] == element) return index
+        index++
+    }
+    return -1
+}
 
 public inline fun DoubleArray.indexOfFirst(predicate: (Double) -> Boolean): Int =
     asList().indexOfFirst(predicate)
