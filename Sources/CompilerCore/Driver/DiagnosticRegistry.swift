@@ -767,6 +767,12 @@ enum DiagnosticRegistry {
             codeActions: [DiagnosticCodeAction(title: "Add 'override' keyword")]
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-OVERRIDE-NOTHING",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Member marked 'override' does not override an inherited member."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-DATA-INHERIT",
             pass: "SEMA",
             defaultSeverity: .error,
