@@ -23,6 +23,11 @@ public fun <T> mutableListOf(vararg elements: T): MutableList<T> {
     return result
 }
 
+public operator fun <T> List<T>.component1(): T = this[0]
+public operator fun <T> List<T>.component2(): T = this[1]
+public operator fun <T> List<T>.component3(): T = this[2]
+public operator fun <T> List<T>.component4(): T = this[3]
+public operator fun <T> List<T>.component5(): T = this[4]
 
 // Official Kotlin consumers select this Collection receiver overload.
 public fun <T> Collection<T>.toMutableList(): MutableList<T> = __jvmCopyList(this)

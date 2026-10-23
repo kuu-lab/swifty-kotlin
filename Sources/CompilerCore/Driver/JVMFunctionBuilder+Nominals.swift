@@ -104,6 +104,11 @@ extension JVMFunctionBuilder {
             guard let symbol = program.sema.bindings.destructuringComponentCallee(for: id, index: i), let method = program.methods[symbol] ?? program.textLibraryMethods[symbol]?.method else { throw fail("JVM destructuring requires registered components.", id) }
             let result: JVMValue
             if method.owner == "kotlin/text/MatchResult$Destructured" { result = try textMatchComponent(object, index: i) }
+            else if program.textLibraryMethods[symbol]?.extensionReceiver != nil {
+                guard let receiverType = method.parameters.first else { throw fail("JVM destructuring extension has no receiver parameter.", id) }
+                let receiver = try convert(object, to: receiverType)
+                result = try jdkCall(method.owner, method.name, method.parameters, method.result, arguments: [receiver])!
+            }
             else { result = try jdkCall(method.owner, method.name, [], method.result, receiver: object, interface: method.isInterface)! }
             var local = Local(value: result, mutable: mutable)
             if mutable {
