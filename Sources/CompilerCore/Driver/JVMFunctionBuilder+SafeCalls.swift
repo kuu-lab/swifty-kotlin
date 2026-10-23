@@ -3,6 +3,14 @@ extension JVMFunctionBuilder {
         if context.interner.resolve(name) == "isInitialized", args.isEmpty, let result = try lateinitInitialized(receiver) { return result }
         if !arena.isExplicitCall(id), let value = try nominalValue(id) { return value }
         if let value = try nominalCall(id, receiver: receiver, name: context.interner.resolve(name), args: args) { return value.value }
+        let member = context.interner.resolve(name)
+        let collectionOwners: Set<String> = ["java/lang/Iterable", "java/util/Iterator", "java/util/ListIterator", "java/util/Collection", "java/util/List", "java/util/Set", "java/util/Map", "java/util/ArrayList", "kotlin/enums/EnumEntries"]
+        let collectionMembers: Set<String> = ["add", "addAll", "clear", "contains", "containsAll", "containsKey", "containsValue", "equals", "get", "hasNext", "hasPrevious", "hashCode", "indexOf", "isEmpty", "iterator", "lastIndexOf", "listIterator", "next", "nextIndex", "previous", "previousIndex", "put", "remove", "removeAll", "removeAt", "retainAll", "set", "subList", "toString"]
+        if let receiverType = try? program.expressionType(receiver),
+           collectionOwners.contains(receiverType.referenceName ?? ""), collectionMembers.contains(member),
+           let result = try intrinsicMember(receiver, name: name, args: args, id: id) {
+            return result.value
+        }
         if !arena.isExplicitCall(id), let property = propertyBinding(id) {
             if let literal = property.field?.constantValue,
                let symbol = program.sema.bindings.identifierSymbol(for: receiver),

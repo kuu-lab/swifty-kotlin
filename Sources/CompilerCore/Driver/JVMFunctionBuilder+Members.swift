@@ -461,6 +461,7 @@ extension JVMProgramBuilder {
                   let alias = method.name.range(of: "$jvmName$") else { return nil }
             return String(method.name[alias.upperBound...]) + method.descriptor
         })
+        let inheritedFinalSignatures = Set(parents.filter(\.isFinal).map { $0.name + $0.descriptor })
         var implementations = functions
         func dispatchKey(_ name: String, _ parameters: [JVMValueType]) -> String { name + "(" + parameters.map(\.descriptor).joined() + ")" }
         var selected = Set(functions.filter { !$0.isConstructor }.map { dispatchKey($0.reference.name, $0.reference.parameters) })
@@ -482,7 +483,7 @@ extension JVMProgramBuilder {
         }
         for function in implementations where !function.isConstructor && !function.isPrivate && !function.isAbstract {
             let ref = function.reference
-            for parent in parents where !parent.isSpecial && matchesSourceName(parent, function) &&
+            for parent in parents where !parent.isFinal && !parent.isSpecial && matchesSourceName(parent, function) &&
                 (specializedParameters[parent.owner + parent.name + parent.descriptor] ?? parent.parameters).map(\.descriptor) == ref.parameters.map(\.descriptor) && parent.descriptor != ref.descriptor {
                 guard (parent.result == .unit) == (ref.result == .unit), parent.parameters.count == ref.parameters.count else { throw JVMFrontendError(message: "Unsupported JVM override bridge.") }
                 let boxedResult = JVMClasspathIndex.boxed(ref.result)
@@ -491,6 +492,7 @@ extension JVMProgramBuilder {
                     let descriptor = "(" + ref.parameters.map(\.descriptor).joined() + ")" + boxedResult.descriptor
                     if !declaredPhysicalSignatures.contains(parent.name + descriptor),
                        !inheritedPhysicalAliases.contains(parent.name + descriptor),
+                       !inheritedFinalSignatures.contains(parent.name + descriptor),
                        signatures.insert(parent.name + descriptor).inserted {
                         // Kotlin consumers call a boxed specialization of a
                         // collection element result as well as its Object bridge.

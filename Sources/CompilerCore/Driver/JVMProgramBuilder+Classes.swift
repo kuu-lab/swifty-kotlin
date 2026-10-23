@@ -121,7 +121,6 @@ extension JVMProgramBuilder {
                 if sourceName == "kotlin/CharSequence" { throw JVMFrontendError(message: "JVM supports CharSequence inputs but not source implementations.") }
                 if sourceName == "kotlin/Number" { throw JVMFrontendError(message: "JVM M5 does not support source subclasses of kotlin.Number.") }
                 if !context.options.stdlibOnly && ["kotlin/coroutines/CoroutineContext", "kotlin/Result"].contains(sourceName) { throw JVMFrontendError(message: "JVM M7 does not support source implementations of CoroutineContext or Result.") }
-                if sourceName.hasPrefix("kotlin/collections/"), sourceName != "kotlin/collections/AbstractSet", !context.options.stdlibOnly, !sema.symbols.delegatedInterfaces(forClass: plan.symbol).contains(where: { sema.types.isNominalSubtypeSymbol($0, of: parent) }) { throw JVMFrontendError(message: "JVM M5 collection interfaces are available through factories; source implementations are unsupported.") }
                 guard classes[parent] != nil || context.jvmImports?.classes[name] != nil || JVMClasspathIndex.builtinName(sourceName) != nil else { throw JVMFrontendError(message: "Unsupported JVM supertype: \(name)") }
                 if sema.symbols.symbol(parent)?.kind == .interface { plan.interfaces.append(name) }
                 else {
