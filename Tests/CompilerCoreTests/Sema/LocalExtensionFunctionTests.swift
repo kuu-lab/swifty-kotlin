@@ -238,6 +238,34 @@ struct LocalExtensionFunctionTests {
     }
 
     @Test
+    func localNullablePrimitiveOperatorWinsInsideImplicitLambda() throws {
+        try withTemporaryFile(contents: """
+        infix operator fun Int?.plus(a: Int): Int = -100
+        fun foo(f: (Int?) -> Int): Int = f(0)
+        fun box(): Int {
+            infix operator fun Int?.plus(a: Int): Int = a!! + 2
+            if (foo { it + 1 } != 3) return -1
+            if (foo { it plus 1 } != 3) return -2
+            return 0
+        }
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let localPlus = try #require(localFunctionSymbol(
+                named: ctx.interner.intern("plus"),
+                in: ast,
+                sema: sema
+            ))
+            let localPlusCalls = sema.bindings.callBindings.values.filter { $0.chosenCallee == localPlus }
+            #expect(localPlusCalls.count == 2, "Both operator and infix syntax should bind the local plus: \(localPlusCalls)")
+        }
+    }
+
+    @Test
     func liftedCallPassesCaptureBeforeReceiverAndValueParameters() throws {
         let ctx = makeContextFromSource("""
         fun probe(base: Int): Int {
