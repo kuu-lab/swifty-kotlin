@@ -1068,6 +1068,16 @@ extension CallLowerer {
         ) {
             return result
         }
+        let runtimeKTypeParameterNameEndLabel = emitRuntimeKTypeParameterNameFastPath(
+            propertyInfo: propertyInfo,
+            ownerInfo: ownerInfo,
+            loweredReceiverID: loweredReceiverID,
+            result: result,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
         let runtimeNameEndLabel = emitRuntimeKCallableNameFastPath(
             propertyInfo: propertyInfo,
             ownerInfo: ownerInfo,
@@ -1094,6 +1104,9 @@ extension CallLowerer {
             thrownResult: nil,
             dispatch: .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
         ))
+        if let runtimeKTypeParameterNameEndLabel {
+            instructions.append(.label(runtimeKTypeParameterNameEndLabel))
+        }
         if let runtimeNameEndLabel {
             instructions.append(.label(runtimeNameEndLabel))
         }
@@ -1104,6 +1117,51 @@ extension CallLowerer {
             instructions.append(.label(annotationEndLabel))
         }
         return result
+    }
+
+    /// Runtime KTypeParameter boxes need a typed String fast path on AArch64,
+    /// where a Swift C shim cannot synthesize the source interface's flattened
+    /// String aggregate return value.
+    private func emitRuntimeKTypeParameterNameFastPath(
+        propertyInfo: SemanticSymbol,
+        ownerInfo: SemanticSymbol,
+        loweredReceiverID: KIRExprID,
+        result: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> Int32? {
+        guard ownerInfo.fqName == ["kotlin", "reflect", "KTypeParameter"].map(interner.intern),
+              interner.resolve(propertyInfo.name) == "name"
+        else {
+            return nil
+        }
+
+        let isRuntime = emitNonThrowingCall(
+            callee: interner.intern("__kk_ktypeparameter_is_runtime"),
+            arg: loweredReceiverID,
+            resultType: sema.types.intType,
+            arena: arena,
+            into: &instructions
+        )
+        let runtimeLabel = driver.ctx.makeLoopLabel()
+        let endLabel = driver.ctx.makeLoopLabel()
+        let interfaceLabel = driver.ctx.makeLoopLabel()
+        let one = arena.appendExpr(.intLiteral(1), type: sema.types.intType)
+        instructions.append(.constValue(result: one, value: .intLiteral(1)))
+        instructions.append(.jumpIfEqual(lhs: isRuntime, rhs: one, target: runtimeLabel))
+        instructions.append(.jump(interfaceLabel))
+        instructions.append(.label(runtimeLabel))
+        emitNonThrowingCall(
+            callee: interner.intern("__kk_ktypeparameter_get_name"),
+            arg: loweredReceiverID,
+            result: result,
+            into: &instructions
+        )
+        instructions.append(.jump(endLabel))
+        instructions.append(.label(interfaceLabel))
+        return endLabel
     }
 
     /// KAnnotatedElement also admits user implementations. Only native

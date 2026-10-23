@@ -122,6 +122,9 @@ func runtimeRegisterKCallableItableIfNeeded(rawValue: Int, typeID: Int64) {
 
     let interfaceSlot = 0
     _ = kk_object_register_itable_iface(rawValue, Int(kCallableRuntimeTypeID), interfaceSlot)
+    if typeID == kProperty0RuntimeTypeID || typeID == kMutableProperty0RuntimeTypeID {
+        _ = kk_object_register_itable_iface(rawValue, Int(kProperty0RuntimeTypeID), interfaceSlot)
+    }
     _ = kk_object_register_itable_method(
         rawValue, interfaceSlot, 7, unsafeBitCast(runtimeKCallableNameGetter, to: Int.self)
     )
@@ -220,6 +223,20 @@ public func __kk_kcallable_get_name(_ callableRaw: Int) -> Int {
 
 @_cdecl("__kk_kcallable_get_return_type")
 public func __kk_kcallable_get_return_type(_ callableRaw: Int) -> Int {
+    let returnTypeKTypeRaw: Int?
+    if let metadata = runtimeStorage.withDelegateLock({ $0.callableRefMetadataByValue[callableRaw] }) {
+        returnTypeKTypeRaw = metadata.returnTypeKTypeRaw
+    } else if let property = runtimeReflectionObject(from: callableRaw, as: RuntimeKPropertyStub.self) {
+        returnTypeKTypeRaw = property.returnTypeKTypeRaw
+    } else {
+        returnTypeKTypeRaw = nil
+    }
+    if let returnTypeKTypeRaw,
+       returnTypeKTypeRaw != 0,
+       returnTypeKTypeRaw != runtimeNullSentinelInt {
+        return returnTypeKTypeRaw
+    }
+
     let returnTypeRaw: Int?
     if let taggedReturnType = runtimeStorage.withDelegateLock({ state in
         state.callableRefMetadataByValue[callableRaw]?.returnTypeRaw

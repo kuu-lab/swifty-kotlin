@@ -6,19 +6,68 @@ final class RuntimeKPropertyStub {
     let visibility: Int // intptr_t to a KKString (e.g. "PUBLIC", "INTERNAL", etc.)
     let isLateinit: Bool
     let isConst: Bool
+    let returnTypeKTypeRaw: Int
+    let isMutable: Bool
 
     init(
         name: Int,
         returnType: Int,
         visibility: Int = 0,
         isLateinit: Bool = false,
-        isConst: Bool = false
+        isConst: Bool = false,
+        returnTypeKTypeRaw: Int = 0,
+        isMutable: Bool = false
     ) {
         self.name = name
         self.returnType = returnType
         self.visibility = visibility
         self.isLateinit = isLateinit
         self.isConst = isConst
+        self.returnTypeKTypeRaw = returnTypeKTypeRaw
+        self.isMutable = isMutable
+    }
+}
+
+@_cdecl("__kk_kproperty_stub_create_cached_typed")
+public func kk_kproperty_stub_create_cached_typed(
+    _ nameRaw: Int,
+    _ returnTypeRaw: Int,
+    _ identityRaw: Int,
+    _ returnTypeKTypeRaw: Int,
+    _ arity: Int,
+    _ isMutable: Int
+) -> Int {
+    guard let identity = runtimeStringFromRaw(identityRaw) else {
+        return kk_kproperty_stub_create(nameRaw, returnTypeRaw)
+    }
+    let typeID: Int64
+    switch (arity, isMutable != 0) {
+    case (0, false): typeID = kProperty0RuntimeTypeID
+    case (0, true): typeID = kMutableProperty0RuntimeTypeID
+    case (1, false): typeID = kProperty1RuntimeTypeID
+    case (1, true): typeID = kMutableProperty1RuntimeTypeID
+    default: typeID = kPropertyRuntimeTypeID
+    }
+    return runtimeStorage.withDelegatedPropertyStubLock {
+        if let cached = runtimeStorage.withMetadataLock({ $0.delegatedPropertyStubCache[identity] }) {
+            return cached
+        }
+
+        registerReflectionRuntimeTypeMetadata()
+        let created = registerRuntimeObject(
+            RuntimeKPropertyStub(
+                name: nameRaw,
+                returnType: returnTypeRaw,
+                returnTypeKTypeRaw: returnTypeKTypeRaw,
+                isMutable: isMutable != 0
+            ),
+            typeID: typeID
+        )
+        runtimeRegisterKCallableItableIfNeeded(rawValue: created, typeID: typeID)
+        return runtimeStorage.withMetadataLock { state in
+            state.delegatedPropertyStubCache[identity] = created
+            return created
+        }
     }
 }
 private func runtimeTagCallableRef(

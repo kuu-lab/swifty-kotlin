@@ -123,6 +123,14 @@ public extension RuntimeABISpec {
             }, returnType: .intptr, section: "Reflection", isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_kcallable_register_return_type",
+            parameters: [
+                RuntimeABIParameter(name: "raw", type: .intptr),
+                RuntimeABIParameter(name: "returnTypeKTypeRaw", type: .intptr),
+            ],
+            returnType: .intptr, section: "Reflection", isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_kcallable_is_runtime",
             parameters: [RuntimeABIParameter(name: "raw", type: .intptr)],
             returnType: .intptr, section: "Reflection", isThrowing: false

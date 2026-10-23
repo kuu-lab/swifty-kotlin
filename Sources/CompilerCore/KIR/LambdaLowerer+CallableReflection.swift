@@ -187,6 +187,21 @@ extension LambdaLowerer {
             arguments: [value, invoker, environment, parameterList, typeParameterList, integer(flags), integer(visibility), setter, setterParameters],
             result: nil, canThrow: false, thrownResult: nil
         ))
+        let returnTypeKType = driver.lowerKTypeExpr(
+            for: returnType,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("__kk_kcallable_register_return_type"),
+            arguments: [value, returnTypeKType],
+            result: nil,
+            canThrow: false,
+            thrownResult: nil
+        ))
         if let targetSymbol {
             emitKClassAnnotationRegistration(
                 objectSymbol: targetSymbol, typeTokenExpr: value, sema: sema,

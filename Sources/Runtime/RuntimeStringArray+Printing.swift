@@ -1,6 +1,17 @@
 import Foundation
 import RuntimeABI
 
+func runtimeKPropertyStubToString(_ property: RuntimeKPropertyStub) -> String {
+    let name = extractString(from: UnsafeMutableRawPointer(bitPattern: property.name)) ?? "<anonymous>"
+    let returnType = runtimeReflectionObject(
+        from: property.returnTypeKTypeRaw,
+        as: RuntimeKTypeBox.self
+    ).map(runtimeKTypeToString)
+        ?? extractString(from: UnsafeMutableRawPointer(bitPattern: property.returnType))
+        ?? "kotlin.Any?"
+    return "\(property.isMutable ? "var" : "val") \(name): \(returnType)"
+}
+
 @_cdecl("__kk_print_raw")
 public func __kk_print_raw(_ messageRaw: Int) {
     let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? "null"
@@ -152,6 +163,9 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     }
     if let kclassBox = tryCast(raw, to: RuntimeKClassBox.self) {
         return runtimeKClassToString(kclassBox)
+    }
+    if let property = tryCast(raw, to: RuntimeKPropertyStub.self) {
+        return runtimeKPropertyStubToString(property)
     }
     if let ktypeProjectionBox = tryCast(raw, to: RuntimeKTypeProjectionBox.self) {
         return runtimeKTypeProjectionToString(ktypeProjectionBox)

@@ -140,6 +140,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     if let kclassBox = tryCast(ptr, to: RuntimeKClassBox.self) {
         return runtimeKClassToString(kclassBox)
     }
+    if let property = tryCast(ptr, to: RuntimeKPropertyStub.self) {
+        return runtimeKPropertyStubToString(property)
+    }
     if let ktypeProjectionBox = tryCast(ptr, to: RuntimeKTypeProjectionBox.self) {
         return runtimeKTypeProjectionToString(ktypeProjectionBox)
     }

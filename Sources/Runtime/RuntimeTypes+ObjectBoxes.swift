@@ -328,6 +328,7 @@ struct RuntimeCallableRefMetadata {
     var setterInvoker: Int = 0
     var setterParameters: Int = 0
     var property: Int = 0
+    var returnTypeKTypeRaw: Int = 0
     var annotations: [RuntimeAnnotationRecord] = []
     /// Canonical callable target and captures used by callable-reference equality.
     var identityTargetRaw: Int = 0
