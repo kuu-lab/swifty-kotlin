@@ -66,6 +66,7 @@ final class TailrecLoweringPass: LoweringPass {
         arguments: [KIRExprID],
         body: [KIRInstruction],
         callIndex: Int,
+        parameterCount: Int,
         arena: KIRArena
     ) -> (canOptimize: Bool, defaultMask: Int64?) {
         let isDefault = isDefaultStubCall(symbol: symbol, functionIdentity: functionIdentity)
@@ -73,7 +74,8 @@ final class TailrecLoweringPass: LoweringPass {
             return (canOptimize: true, defaultMask: nil)
         }
         let mask = extractDefaultMask(
-            arguments: arguments, body: body, callIndex: callIndex, arena: arena
+            arguments: arguments, body: body, callIndex: callIndex,
+            parameterCount: parameterCount, arena: arena
         )
         guard let mask, mask == 0 else {
             return (canOptimize: false, defaultMask: mask)
@@ -129,7 +131,7 @@ final class TailrecLoweringPass: LoweringPass {
                 let check = canOptimizeDefaultStubCall(
                     symbol: symbol, functionIdentity: functionIdentity,
                     arguments: arguments, body: body,
-                    callIndex: instructionIndex, arena: arena
+                    callIndex: instructionIndex, parameterCount: params.count, arena: arena
                 )
                 guard check.canOptimize else {
                     result.append(instruction)
@@ -260,8 +262,8 @@ final class TailrecLoweringPass: LoweringPass {
         return symbol == SyntheticSymbolScheme.defaultStubSymbol(for: functionIdentity.symbol)
     }
 
-    /// The mask is always the last argument and is expected to be a constant
-    /// integer literal.
+    /// Default masks follow the target's ordinary parameters and are expected
+    /// to be constant integer literals.
     ///
     /// The `callIndex` parameter limits the slow-path scan to instructions
     /// that precede the call site, so we only pick up definitions that
@@ -270,37 +272,41 @@ final class TailrecLoweringPass: LoweringPass {
         arguments: [KIRExprID],
         body: [KIRInstruction],
         callIndex: Int,
+        parameterCount: Int,
         arena: KIRArena
     ) -> Int64? {
-        guard let maskExprID = arguments.last else { return nil }
-        if let exprKind = arena.expr(maskExprID),
-           case let .intLiteral(mask) = exprKind
-        {
-            return mask
-        }
-        // Scanning only instructions before `callIndex` ensures the
-        // definition dominates the use.  Stop at control-flow boundaries
-        // (labels, jumps, conditional branches) to stay within the same
-        // basic block — a linear backward scan cannot guarantee dominance
-        // across control flow.
-        for i in stride(from: callIndex - 1, through: 0, by: -1) {
-            let inst = body[i]
-            // Stop at control-flow boundaries to ensure we stay in the
-            // same basic block.  Definitions across branches may not
-            // dominate the call site.
-            switch inst {
-            case .label, .jump, .jumpIfEqual, .jumpIfNotNull:
-                return nil
-            default:
-                break
+        guard arguments.count > parameterCount else { return nil }
+        let maskExprIDs = arguments.dropFirst(parameterCount)
+        guard !maskExprIDs.isEmpty else { return nil }
+        var maskValues: [Int64] = []
+        for maskExprID in maskExprIDs {
+            if let exprKind = arena.expr(maskExprID), case let .intLiteral(mask) = exprKind {
+                maskValues.append(mask)
+                continue
             }
-            if case let .constValue(result, .intLiteral(value)) = inst,
-               result == maskExprID
-            {
-                return value
+            var found: Int64?
+            // Scanning only instructions before `callIndex` ensures the
+            // definition dominates the use. Stop at control-flow boundaries
+            // so a linear backward scan cannot cross branches.
+            for i in stride(from: callIndex - 1, through: 0, by: -1) {
+                let inst = body[i]
+                switch inst {
+                case .label, .jump, .jumpIfEqual, .jumpIfNotNull:
+                    return nil
+                default:
+                    break
+                }
+                if case let .constValue(result, .intLiteral(value)) = inst,
+                   result == maskExprID
+                {
+                    found = value
+                    break
+                }
             }
+            guard let found else { return nil }
+            maskValues.append(found)
         }
-        return nil
+        return maskValues.first(where: { $0 != 0 }) ?? 0
     }
 
     /// Expression bodies (`= if (c) acc else f(..)`, `= when { .. }`) lower to
@@ -359,11 +365,9 @@ final class TailrecLoweringPass: LoweringPass {
     }
 
     /// When `defaultMask` is non-nil, it is expected to be 0 (all
-    /// arguments explicitly provided).  The caller skips tailrec for
-    /// non-zero masks because we cannot inline default expressions at
-    /// this lowering stage.  The mask-bit logic below is retained as
-    /// defense-in-depth and will become useful when default-expression
-    /// inlining is implemented.
+    /// arguments explicitly provided). The caller extracts every trailing
+    /// mask word and skips tailrec for non-zero masks because we cannot inline
+    /// default expressions at this lowering stage.
     ///
     /// The default mask bits are 0-indexed on *value parameter* positions
     /// (excluding the receiver).  When the function has a receiver
@@ -383,7 +387,7 @@ final class TailrecLoweringPass: LoweringPass {
         result: inout KIRLoweringEmitContext
     ) {
         // Only copy the first `params.count` arguments; $default calls
-        // carry trailing reified-type tokens and a mask that must not
+        // carry trailing reified-type tokens and mask words that must not
         // participate in parameter reassignment.
         let effectiveCount = min(arguments.count, params.count)
 
@@ -394,12 +398,9 @@ final class TailrecLoweringPass: LoweringPass {
         for i in 0 ..< effectiveCount {
             // Skip sentinel arguments whose default mask bit is set.
             // The mask is indexed on value-parameter positions (excluding
-            // the receiver), so subtract `receiverOffset`.  When the
-            // mask bit index exceeds Int64.bitWidth (>= 64 value params),
-            // we conservatively treat the argument as non-defaulted;
-            // this is safe because functions with that many defaulted
-            // parameters would use multiple mask words, and the caller
-            // already skips tailrec when the mask is unresolvable.
+            // the receiver), so subtract `receiverOffset`. The caller skips
+            // tailrec for any non-zero word, leaving this path with a zero
+            // mask; retain the conservative handling for defense-in-depth.
             if let mask = defaultMask {
                 let maskBitIndex = i - receiverOffset
                 if maskBitIndex >= 0 {

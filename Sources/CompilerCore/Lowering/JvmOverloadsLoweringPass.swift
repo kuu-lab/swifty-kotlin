@@ -197,13 +197,15 @@ final class JvmOverloadsLoweringPass: LoweringPass {
             forwardedArgs.append(sentinel)
         }
 
-        var defaultMask: Int64 = 0
+        var defaultMask = DefaultArgumentMask(parameterCount: originalSignature.parameterTypes.count)
         for parameterIndex in keepParameterCount ..< originalSignature.parameterTypes.count {
-            defaultMask |= Int64(1) << parameterIndex
+            defaultMask.insert(parameterIndex)
         }
-        let mask = arena.appendExpr(.intLiteral(defaultMask), type: intType)
-        body.append(.constValue(result: mask, value: .intLiteral(defaultMask)))
-        forwardedArgs.append(mask)
+        for mask in defaultMask.stubWords {
+            let maskExpr = arena.appendExpr(.intLiteral(mask), type: intType)
+            body.append(.constValue(result: maskExpr, value: .intLiteral(mask)))
+            forwardedArgs.append(maskExpr)
+        }
 
         let stubSymbol = SyntheticSymbolScheme.defaultStubSymbol(for: originalFunction.symbol)
         let stubName = interner.intern(interner.resolve(originalFunction.name) + "$default")
