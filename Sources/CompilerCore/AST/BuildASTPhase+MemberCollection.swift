@@ -694,7 +694,15 @@ extension BuildASTPhase {
             let objectDecl = makeObjectDecl(from: childID, in: arena, interner: interner, astArena: astArena)
             let declID = astArena.appendDecl(.objectDecl(objectDecl))
             if objectDecl.modifiers.contains(.companion) {
-                companionObject = declID
+                if companionObject == nil {
+                    companionObject = declID
+                } else {
+                    diagnostics?.error(
+                        "KSWIFTK-SEMA-0435",
+                        "A declaration can have only one companion object.",
+                        range: objectDecl.range
+                    )
+                }
             } else {
                 nestedObjects.append(declID)
             }

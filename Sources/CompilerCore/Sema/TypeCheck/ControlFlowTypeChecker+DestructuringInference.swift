@@ -288,7 +288,8 @@ extension ControlFlowTypeChecker {
                 loopFlowScopes: loopFlowScopes
             ),
             locals: &bodyLocals,
-            expectedType: nil
+            expectedType: nil,
+            isStatementContext: true
         )
         sema.bindings.bindExprType(id, type: sema.types.unitType)
         return sema.types.unitType

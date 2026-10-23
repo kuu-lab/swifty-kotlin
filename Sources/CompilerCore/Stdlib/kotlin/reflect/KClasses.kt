@@ -119,9 +119,8 @@ public val KClass<*>.isFun: Boolean
 // element types (`Collection<KCallable<*>>`, `Collection<KClass<*>>`,
 // `List<KType>`, …) — the returned runtime handles carry stable reflection
 // nominal IDs (KSP-689), so `is`/`as` and shared `KCallable` metadata
-// dispatch are valid at the Kotlin boundary. `typeParameters` remains
-// `List<Any?>` because the runtime still reports raw parameter indices
-// rather than KTypeParameter handles.
+// dispatch are valid at the Kotlin boundary. `typeParameters` is backed by
+// runtime KTypeParameter boxes for each declared class type parameter.
 //
 // `findAnnotation<T>()` is declared in reflect/full/KAnnotatedElements.kt
 // with the upstream KAnnotatedElement receiver. Its resolved KClass calls
@@ -141,7 +140,7 @@ public val KClass<*>.isFun: Boolean
 private external fun __kk_kclass_visibility(kclass: KClass<*>): KVisibility?
 
 @KsSymbolName("__kk_kclass_type_parameters")
-private external fun __kk_kclass_type_parameters(kclass: KClass<*>): List<Any?>
+private external fun __kk_kclass_type_parameters(kclass: KClass<*>): List<KTypeParameter>
 
 @KsSymbolName("__kk_kclass_get_annotations_typed")
 private external fun __kk_kclass_get_annotations(kclass: KClass<*>): List<Annotation>
@@ -177,7 +176,7 @@ private external fun __kk_kclass_companion_object(kclass: KClass<*>): Any?
 public val KClass<*>.visibility: KVisibility?
     get() = __kk_kclass_visibility(this)
 
-public val KClass<*>.typeParameters: List<Any?>
+public val KClass<*>.typeParameters: List<KTypeParameter>
     get() = __kk_kclass_type_parameters(this)
 
 public val KClass<*>.annotations: List<Annotation>

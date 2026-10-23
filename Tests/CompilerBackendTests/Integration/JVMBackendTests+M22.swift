@@ -19,6 +19,16 @@ extension JVMBackendTests {
         return (output, result.exitCode, result.diagnostics)
     }
 
+    /// KUU-3045: the bundled JVM stdlib must build after honoring inherited JDK collection members.
+    @Test
+    func m22JvmStdlibJarBuildsWithInheritedCollectionMembers() throws {
+        try withWorkspace { root in
+            let library = try m22Build(root: root, name: "kswiftk-stdlib.jar", stdlib: true)
+            try #require(library.1 == 0, "\(library.2.map(\.message))")
+            #expect(FileManager.default.fileExists(atPath: library.0.path))
+        }
+    }
+
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func m22RepositoryStdlibWithoutOfficialRuntime(mode: EmitMode) throws {
         try withWorkspace { root in
