@@ -1462,8 +1462,9 @@ final class ExprTypeChecker {
             }
         }
 
+        // Primitive receivers normally use the generic runtime helper, but a
+        // scoped `operator fun` extension must take precedence when applicable.
         // Recover nominal range types for generic Iterable.contains resolution.
-        // Other primitives are handled by kk_op_contains at runtime.
         // String is `.stringStruct`, not `.classType` (KSWIFTK-INTERNAL-0001), but it does
         // have a bundled-Kotlin-source `contains` to dispatch to (KSP-408), so it must not
         // be skipped here — unlike genuine primitives/ranges, kk_op_contains has no String
@@ -1483,7 +1484,7 @@ final class ExprTypeChecker {
         }
         let nonNullContainerType = sourceRangeType ?? sema.types.makeNonNullable(containerType)
         switch sema.types.kind(of: nonNullContainerType) {
-        case .classType, .stringStruct:
+        case .classType, .stringStruct, .primitive(_, _):
             break
         default:
             return
