@@ -9,6 +9,17 @@ struct JVMTextLibraryMethod {
 
 extension JVMProgramBuilder {
     func prepareTextLibrary() throws {
+        func externalJvmName(for symbol: SymbolID, fallback: String) -> String {
+            guard let raw = sema.symbols.annotations(for: symbol)
+                .first(where: { $0.annotationFQName == "kotlin.jvm.JvmName" })?.arguments.first,
+                let literal = raw.components(separatedBy: "=").last?.trimmingCharacters(in: .whitespacesAndNewlines),
+                let data = ("[" + literal + "]").data(using: .utf8),
+                let names = try? JSONSerialization.jsonObject(with: data) as? [String],
+                let name = names.first
+            else { return fallback }
+            return name
+        }
+
         func method(_ symbol: SymbolID, owner: String, name: String, declarations: [ValueParamDecl], interface: Bool = false, extensionReceiver: JVMValueType? = nil, adaptation: String? = nil, staticMember: Bool = false) throws {
             guard let signature = sema.symbols.functionSignature(for: symbol) else { return }
             let parameters = try signature.parameterTypes.map(type), result = name == "<init>" ? JVMValueType.reference(owner, nullable: false) : try type(signature.returnType)
@@ -62,11 +73,7 @@ extension JVMProgramBuilder {
                         owner = source.lowercased().contains("map") ? "kotlin/collections/MapsKt" : source.lowercased().contains("set") ? "kotlin/collections/SetsKt" : "kotlin/collections/CollectionsKt"
                     }
                     let adaptation = path.contains("m20-factories") ? "collectionFactory" : source == "toRegex" ? "toRegex" : path.hasSuffix("m19-regex.kt") && source != "get" ? "regexExtension" : nil
-                    var jvmName = source
-                    if path.contains("m20-"), let raw = sema.symbols.annotations(for: symbol).first(where: { $0.annotationFQName == "kotlin.jvm.JvmName" })?.arguments.first {
-                        let literal = raw.components(separatedBy: "=").last!.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if let data = ("[" + literal + "]").data(using: .utf8), let names = try? JSONSerialization.jsonObject(with: data) as? [String], let name = names.first { jvmName = name }
-                    }
+                    let jvmName = path.contains("m20-") ? externalJvmName(for: symbol, fallback: source) : source
                     try method(symbol, owner: owner, name: jvmName, declarations: f.valueParams, extensionReceiver: receiverType, adaptation: adaptation, staticMember: true)
                 case let .classDecl(c):
                     guard let symbol = sema.bindings.declSymbol(for: id) else { continue }
@@ -102,7 +109,8 @@ extension JVMProgramBuilder {
                     switch ast.arena.decl(id) {
                     case let .funDecl(function):
                         guard let symbol = sema.bindings.declSymbol(for: id), let signature = sema.symbols.functionSignature(for: symbol) else { continue }
-                        try method(symbol, owner: owner, name: context.interner.resolve(function.name), declarations: function.valueParams, extensionReceiver: try signature.receiverType.map(type), staticMember: true)
+                        let source = context.interner.resolve(function.name)
+                        try method(symbol, owner: owner, name: externalJvmName(for: symbol, fallback: source), declarations: function.valueParams, extensionReceiver: try signature.receiverType.map(type), staticMember: true)
                         if function.isInline { inlineDeclarations[symbol] = function }
                     case let .propertyDecl(property):
                         guard let symbol = sema.bindings.declSymbol(for: id), let valueType = sema.symbols.propertyType(for: symbol) else { continue }

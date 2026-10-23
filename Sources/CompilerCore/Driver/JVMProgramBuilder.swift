@@ -78,31 +78,37 @@ final class JVMProgramBuilder {
         guard let first = bytes.first, start(first) else { return false }
         return bytes.dropFirst().allSatisfy { start($0) || (48...57).contains($0) }
     }
+
+    static func fileIdentity(for file: ASTFile, context: CompilationContext) throws -> (String, String) {
+        guard file.scriptBody.isEmpty else {
+            throw JVMFrontendError(message: "JVM source files cannot contain scripts.")
+        }
+        let filename = URL(fileURLWithPath: context.sourceManager.path(of: file.fileID)).lastPathComponent
+        let stem = (filename as NSString).deletingPathExtension
+        let package = file.packageFQName.map(context.interner.resolve)
+        guard isIdentifier(stem), package.allSatisfy(isIdentifier) else {
+            throw JVMFrontendError(message: "JVM M6 requires ASCII identifiers for the source filename and package.")
+        }
+        var facade = String(stem.prefix(1)).uppercased() + stem.dropFirst() + "Kt"
+        guard file.annotations.count <= 1 else {
+            throw JVMFrontendError(message: "JVM supports one fully qualified @file:kotlin.jvm.JvmName annotation.")
+        }
+        if let annotation = file.annotations.first {
+            guard annotation.useSiteTarget == "file", annotation.name == "kotlin.jvm.JvmName", annotation.arguments.count == 1,
+                  let raw = annotation.arguments.first?.components(separatedBy: "=").last?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  let data = ("[" + raw + "]").data(using: .utf8), let names = try? JSONSerialization.jsonObject(with: data) as? [String],
+                  names.count == 1, isIdentifier(names[0]) else {
+                throw JVMFrontendError(message: "JVM @file:kotlin.jvm.JvmName requires one constant ASCII identifier.")
+            }
+            facade = names[0]
+        }
+        return ((package + [facade]).joined(separator: "/"), filename)
+    }
+
     func build() throws -> JVMProgram {
         let files = ast.files.filter { context.sourceManager.origin(of: $0.fileID) == .user }
         guard !files.isEmpty else { throw JVMFrontendError(message: "JVM compilation requires source files.") }
-        func identity(_ file: ASTFile) throws -> (String, String) {
-            guard file.scriptBody.isEmpty else {
-                throw JVMFrontendError(message: "JVM source files cannot contain scripts.")
-            }
-            let filename = URL(fileURLWithPath: context.sourceManager.path(of: file.fileID)).lastPathComponent
-            let stem = (filename as NSString).deletingPathExtension
-            let package = file.packageFQName.map(context.interner.resolve)
-            guard Self.isIdentifier(stem), package.allSatisfy(Self.isIdentifier) else {
-                throw JVMFrontendError(message: "JVM M6 requires ASCII identifiers for the source filename and package.")
-            }
-            var facade = String(stem.prefix(1)).uppercased() + stem.dropFirst() + "Kt"
-            guard file.annotations.count <= 1 else { throw JVMFrontendError(message: "JVM supports one fully qualified @file:kotlin.jvm.JvmName annotation.") }
-            if let annotation = file.annotations.first {
-                guard annotation.useSiteTarget == "file", annotation.name == "kotlin.jvm.JvmName", annotation.arguments.count == 1,
-                      let raw = annotation.arguments.first?.components(separatedBy: "=").last?.trimmingCharacters(in: .whitespacesAndNewlines),
-                      let data = ("[" + raw + "]").data(using: .utf8), let names = try? JSONSerialization.jsonObject(with: data) as? [String],
-                      names.count == 1, Self.isIdentifier(names[0]) else { throw JVMFrontendError(message: "JVM @file:kotlin.jvm.JvmName requires one constant ASCII identifier.") }
-                facade = names[0]
-            }
-            return ((package + [facade]).joined(separator: "/"), filename)
-        }
-        let names = try files.map(identity)
+        let names = try files.map { try Self.fileIdentity(for: $0, context: context) }
         if Set(names.map { $0.0 }).count != names.count {
             guard context.options.stdlibOnly else { throw JVMFrontendError(message: "Duplicate JVM file facade name.") }
             let repeated = Dictionary(grouping: names.indices, by: { names[$0].0 }).values.filter { $0.count > 1 }.flatMap { $0 }
@@ -235,6 +241,12 @@ final class JVMProgramBuilder {
 
 final class JVMFunctionBuilder {
     struct Local { let value: JVMValue; let mutable: Bool; var cell: JVMValue? = nil; var functionType: FunctionType? = nil; var symbol: SymbolID? = nil; var delegateSymbol: SymbolID? = nil; var lateName: String? = nil; var deferredInitialization = false; var numericBoxingOrigin: JVMValue? = nil }
+    struct LoopFrame {
+        let label: InternedString?
+        let exit: Int
+        let next: Int
+        let allocationDepth: Int
+    }
     let program: JVMProgramBuilder
     let declaration: FunDecl
     let reference: JVMFunctionReference
@@ -261,13 +273,13 @@ final class JVMFunctionBuilder {
     var locals: [JVMValue] = []
     var instructions: [JVMInstruction] = []
     var scopes: [[InternedString: Local]] = [[:]]
-    var loops: [(exit: Int, next: Int, allocationDepth: Int)] = []
+    var loops: [LoopFrame] = []
     var pendingAllocations: [JVMValue] = []
     var handlers: [JVMExceptionHandler] = []
     struct FinallyFrame {
         let body: ExprID
         let scopes: [[InternedString: Local]]
-        let loops: [(exit: Int, next: Int, allocationDepth: Int)]
+        let loops: [LoopFrame]
         let regionDepth: Int
         let dispatch: JVMValue?
         let receiver: JVMValue?
@@ -496,7 +508,7 @@ final class JVMFunctionBuilder {
                 if property.getter.isStatic { instructions.append(.getStatic(field, result)) }
                 else { instructions.append(.getField(field, thisValue!, result)) }; return result
             }
-            if let result = try implicitTextProperty(id, name: name) { return result }
+            if let result = try implicitReceiverProperty(id, name: name) { return result }
             if !scopes.contains(where: { $0[name] != nil }), let property = propertyBinding(id) {
                 if let literal = property.field?.constantValue { return try constant(literal, property.type) }
                 return try convert(readProperty(property, receiver: instance(id), special: false), to: program.expressionType(id))
@@ -652,6 +664,7 @@ final class JVMFunctionBuilder {
             guard args.allSatisfy({ !$0.isSpread }),
                   let binding = program.sema.bindings.callBinding(for: id) else { throw fail("Unsupported JVM call.", id) }
             if let result = try implicitExtensionCall(binding.chosenCallee, args: args, id: id) { return result.value }
+            if let result = try implicitCollectionIteratorCall(binding.chosenCallee, args: args, id: id) { return result.value }
             if let result = try intrinsicCall(binding.chosenCallee, args: args, id: id) { return result.value }
             if let method = program.methods[binding.chosenCallee] ?? context.jvmImports?.methods[binding.chosenCallee] {
                 return try foreign(method, receiver: method.isConstructor || method.isStatic ? nil : instance(id), args: args, id: id)
@@ -706,18 +719,16 @@ final class JVMFunctionBuilder {
             return result
         case let .ifExpr(condition, thenExpr, elseExpr, _): return try conditional(id, condition, thenExpr, elseExpr, discarded: discarded)
         case let .whileExpr(condition, body, label, _):
-            guard label == nil else { throw fail("JVM loop labels are not supported.", id) }
             let test = self.label(), exit = self.label()
             mark(test); let check = try requireValue(condition)
             guard check.type == .boolean else { throw fail("JVM while condition must be Boolean.", id) }
-            instructions.append(.jumpIfFalse(check, exit)); loops.append((exit, test, pendingAllocations.count))
+            instructions.append(.jumpIfFalse(check, exit)); loops.append(LoopFrame(label: label, exit: exit, next: test, allocationDepth: pendingAllocations.count))
             _ = try expression(body, discarded: true); loops.removeLast()
             if !terminated { jump(test) }; mark(exit); return nil
         case let .doWhileExpr(body, condition, label, _):
-            guard label == nil else { throw fail("JVM loop labels are not supported.", id) }
             let start = self.label(), test = self.label(), exit = self.label()
             scopes.append([:]); defer { scopes.removeLast() }
-            mark(start); loops.append((exit, test, pendingAllocations.count))
+            mark(start); loops.append(LoopFrame(label: label, exit: exit, next: test, allocationDepth: pendingAllocations.count))
             // Kotlin keeps do-body declarations visible in its condition.
             if case let .blockExpr(statements, trailing, _) = arena.expr(body) {
                 for statement in statements where !terminated { _ = try expression(statement, discarded: true) }
@@ -740,12 +751,19 @@ final class JVMFunctionBuilder {
             }
             return nil
         case let .forExpr(name, iterable, body, label, _):
-            guard let name, label == nil else { throw fail("Unsupported JVM for loop.", id) }
-            try forLoop(name, iterable, body, id); return nil
+            guard let name else { throw fail("Unsupported JVM for loop.", id) }
+            try forLoop(name, iterable, body, id, label: label); return nil
         case let .breakExpr(label, _), let .continueExpr(label, _):
-            guard label == nil, let loop = loops.last else { throw fail("JVM break/continue requires an enclosing unlabeled loop.", id) }
+            let targetIndex: Int?
+            if let label {
+                targetIndex = loops.lastIndex { $0.label == label }
+            } else {
+                targetIndex = loops.indices.last
+            }
+            guard let targetIndex else { throw fail("JVM break/continue requires a matching enclosing loop.", id) }
+            let loop = loops[targetIndex]
             instructions.append(.abandonAllocations(Array(pendingAllocations.dropFirst(loop.allocationDepth))))
-            try emitFinalizers(leavingLoop: loops.count)
+            try emitFinalizers(leavingLoop: targetIndex + 1)
             if terminated { return nil }
             if case .breakExpr = expr { jump(loop.exit) } else { jump(loop.next) }; return nil
         case let .returnExpr(returned, label, _):

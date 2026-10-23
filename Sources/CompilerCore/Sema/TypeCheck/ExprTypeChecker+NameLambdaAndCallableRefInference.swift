@@ -95,7 +95,11 @@ extension ExprTypeChecker {
                 let isBundled = sema.symbols.isImportedStdlibSymbol(symbolID)
                     || file.flatMap { ctx.visibilityChecker.sourceManager?.origin(of: $0)?.isBundledStdlib } == true
                 if isBundled, !ctx.cachedScopeLookup(name).contains(symbolID) {
-                    return false
+                    // kotlin.Function.FunctionN are compiler built-ins nested
+                    // under the kotlin.Function classifier: no import path can
+                    // reach them by simple name, yet `Function0::class` must
+                    // resolve unconditionally (KUU-3031).
+                    return sema.types.functionNInterfaceSymbols.values.contains(symbolID)
                 }
                 switch symbol.kind {
                 case .object:
@@ -370,9 +374,25 @@ extension ExprTypeChecker {
                 )
             }
         }
-        let resolvedType = preferredCandidate.flatMap {
+        let declaredResolvedType = preferredCandidate.flatMap {
             resolveTypeForCandidate($0, sema: sema)
         } ?? sema.types.anyType
+        // Bind the declaration type before consulting flow facts. A top-level
+        // stable property is not represented in `locals`, but its stable
+        // reference still has a narrowed type inside the current branch.
+        sema.bindings.bindExprType(id, type: declaredResolvedType)
+        let resolvedType: TypeID = if let preferredCandidate,
+           preferredCandidate.kind == .property,
+           let narrowedType = ctx.dataFlow.resolvedTypeFromFlowState(
+               ctx.flowState,
+               reference: DataFlowReference(root: preferredCandidate.id),
+               types: sema.types
+           )
+        {
+            narrowedType
+        } else {
+            declaredResolvedType
+        }
         // Propagate compile-time constant value for `const val` references
         // so downstream passes can fold without re-querying the symbol table.
         if let preferredCandidate, preferredCandidate.flags.contains(.constValue),

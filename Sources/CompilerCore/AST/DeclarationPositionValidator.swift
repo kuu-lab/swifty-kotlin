@@ -8,6 +8,8 @@ struct DeclarationPositionValidator {
     let astArena: ASTArena
     let interner: StringInterner
     let diagnostics: DiagnosticEngine?
+    var fullValueClassesEnabled: Bool = false
+    var jvmInlineAnnotationNames: Set<String> = ["JvmInline", "kotlin.jvm.JvmInline"]
 
     enum OwnerSite: Equatable {
         case file
@@ -586,10 +588,17 @@ struct DeclarationPositionValidator {
             }
         }
         if isValue {
-            if modifiers.contains(.open)
+            let hasInheritableModality = modifiers.contains(.open)
                 || modifiers.contains(.abstract)
                 || modifiers.contains(.sealed)
-            {
+            let isFullValueClass = fullValueClassesEnabled
+                && modifiers.contains(.value)
+                && !modifiers.contains(.inline)
+                && !decl.annotations.contains { jvmInlineAnnotationNames.contains($0.name) }
+            let allowsFullValueClassInheritance = isFullValueClass
+                && !modifiers.contains(.open)
+                && (modifiers.contains(.abstract) || modifiers.contains(.sealed))
+            if hasInheritableModality && !allowsFullValueClassInheritance {
                 diagnostics?.error(
                     "KSWIFTK-SEMA-0420",
                     "value class can be only final.",

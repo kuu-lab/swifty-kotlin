@@ -225,7 +225,9 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     // rather than the historical hard-wired Int.
                     resultType = (isSequenceReceiver
                         ? bindBundledSequenceSumSource(locals: &locals)
-                        : bindBundledIterableSumSource(locals: &locals)) ?? sema.types.intType
+                        : bindBundledIterableSumSource(locals: &locals))
+                        ?? checker.collectionSumResultType(elementType: collectionElementType, sema: sema)
+                        ?? sema.types.intType
                 case "average":
                     resultType = sema.types.doubleType
                 case "reversed":

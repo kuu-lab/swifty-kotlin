@@ -42,6 +42,9 @@ struct JVMTextOperation {
             }
         }
         add("substring", [p("startIndex", "Int", .int), p("endIndex", "Int", .int, "length")], owner: "java/lang/String", instance: true)
+        add("codePointAt", [p("index", "Int", .int)], sourceResult: "Int", result: .int, owner: "java/lang/String", instance: true)
+        add("slice", [p("indices", "IntRange", .reference("kotlin/ranges/IntRange", nullable: false))])
+        add("slice", [p("indices", "Iterable<Int>", .reference("java/lang/Iterable", nullable: false))], sourceResult: "CharSequence", result: sequence, receiver: "CharSequence", jvmReceiver: sequence)
         for name in ["take", "takeLast", "drop", "dropLast"] { add(name, [p("n", "Int", .int)]) }
         for name in ["trim", "trimStart", "trimEnd"] {
             add(name, result: sequence, jvmReceiver: sequence)

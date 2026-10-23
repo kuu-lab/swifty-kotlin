@@ -47,13 +47,29 @@ extension ControlFlowLowerer {
         let catchBodyLabels = catchClauses.map { _ in driver.ctx.makeLoopLabel() }
         let unmatchedCatchLabel = driver.ctx.makeLoopLabel()
 
+        let enclosingExceptionHandlerDepth = driver.ctx.exceptionHandlerStack.count
+
         // CODE-001: Push finally block so that return/break/continue inside the
         // try body or catch bodies will inline the finally code before transferring.
         // The block is popped explicitly before lowering the finally body itself
         // (see the pop site below) so that the finally body does not see itself
         // on the stack.
         if let finallyExpr {
-            driver.ctx.pushFinallyBlock(finallyExpr)
+            driver.ctx.pushFinallyBlock(
+                finallyExpr,
+                exceptionHandlerDepth: enclosingExceptionHandlerDepth
+            )
+        }
+        driver.ctx.pushExceptionHandler(
+            exceptionSlot: exceptionSlot,
+            exceptionTypeSlot: exceptionTypeSlot,
+            thrownTarget: catchDispatchLabel
+        )
+        var exceptionHandlerIsActive = true
+        defer {
+            if exceptionHandlerIsActive {
+                _ = driver.ctx.popExceptionHandler()
+            }
         }
 
         var bodyInstructions: [KIRInstruction] = []
@@ -153,15 +169,17 @@ extension ControlFlowLowerer {
             instructions.append(.copy(from: zeroTypeToken, to: exceptionTypeSlot))
 
             var catchBodyInstructions: [KIRInstruction] = []
-            let catchBodyResult = driver.lowerExpr(
-                clause.body,
-                ast: ast,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
-                instructions: &catchBodyInstructions
-            )
+            let catchBodyResult = driver.ctx.withExceptionHandlerTarget(finallyLabel) {
+                driver.lowerExpr(
+                    clause.body,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &catchBodyInstructions
+                )
+            }
             // CODE-001: see the matching guard around the body's own
             // appendThrowAwareInstructions call above — a nested try inside
             // this catch body would otherwise have its exception routing
@@ -282,15 +300,17 @@ extension ControlFlowLowerer {
                 instructions.append(.copy(from: zeroTypeToken, to: exceptionTypeSlot))
 
                 var catchBodyInstructions: [KIRInstruction] = []
-                let catchBodyResult = driver.lowerExpr(
-                    clause.body,
-                    ast: ast,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    propertyConstantInitializers: propertyConstantInitializers,
-                    instructions: &catchBodyInstructions
-                )
+                let catchBodyResult = driver.ctx.withExceptionHandlerTarget(finallyLabel) {
+                    driver.lowerExpr(
+                        clause.body,
+                        ast: ast,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        propertyConstantInitializers: propertyConstantInitializers,
+                        instructions: &catchBodyInstructions
+                    )
+                }
                 // CODE-001: see the matching guard around the body's own
                 // appendThrowAwareInstructions call above — a nested try
                 // inside this catch body would otherwise have its exception
@@ -342,6 +362,8 @@ extension ControlFlowLowerer {
         if finallyExpr != nil {
             driver.ctx.popFinallyBlock()
         }
+        _ = driver.ctx.popExceptionHandler()
+        exceptionHandlerIsActive = false
 
         if let nonLocalReturnLabel {
             instructions.append(.endNonLocalReturnScope)
@@ -535,7 +557,18 @@ extension ControlFlowLowerer {
         // an already-wrapped finally region are passed through verbatim,
         // preventing double-wrapping (CODE-001).
         var finallyGuardDepth = 0
+        var finallyCleanupDepth = 0
         for instruction in loweredInstructions {
+            if case .beginFinallyCleanup = instruction {
+                finallyCleanupDepth += 1
+                instructions.append(instruction)
+                continue
+            }
+            if case .endFinallyCleanup = instruction {
+                finallyCleanupDepth -= 1
+                instructions.append(instruction)
+                continue
+            }
             if case .beginFinallyGuard = instruction {
                 finallyGuardDepth += 1
                 instructions.append(instruction)
@@ -543,6 +576,13 @@ extension ControlFlowLowerer {
             }
             if case .endFinallyGuard = instruction {
                 finallyGuardDepth -= 1
+                instructions.append(instruction)
+                continue
+            }
+            if finallyCleanupDepth > 0, case .rethrow = instruction {
+                // An inlined finally already ran as part of leaving its try
+                // scope. Let its exception reach the handler selected by the
+                // inline-finally lowering instead of a handler being unwound.
                 instructions.append(instruction)
                 continue
             }
