@@ -5,10 +5,8 @@ package golden.sema
 import kotlin.text.HexFormat
 import kotlin.text.StringBuilder
 
-@Suppress("DEPRECATION_ERROR")
 fun charsToString(chars: CharArray): String = String(chars)
 
-@Suppress("DEPRECATION_ERROR")
 fun charsSliceToString(chars: CharArray): String = String(chars, 1, 3)
 
 fun appendAll(target: StringBuilder): StringBuilder {
