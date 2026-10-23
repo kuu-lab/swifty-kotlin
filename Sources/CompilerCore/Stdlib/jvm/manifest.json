@@ -223,6 +223,11 @@
       "excludeFromStdlibBuild": false
     },
     {
+      "path": "declarations/ArrayUtilities.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-arrays-utility-runtime.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "declarations/TextCollectionFunctions.kt",
       "virtualPath": "<kswiftk-jvm>/m20-text-runtime.kt",
       "excludeFromStdlibBuild": true

@@ -19,6 +19,10 @@ extension JVMProgramBuilder {
             foreign.isSuspend = signature.isSuspend
             textLibraryMethods[symbol] = JVMTextLibraryMethod(method: foreign, declarations: declarations, extensionReceiver: extensionReceiver, adaptation: adaptation)
         }
+        func valueClassMangleElement(_ type: JVMValueType) -> String {
+            guard let name = type.unsignedName else { return "_" }
+            return "L" + name.replacingOccurrences(of: "/", with: ".") + (type.isNullable ? "?" : "") + ";"
+        }
         func members(_ ids: [DeclID], _ properties: [DeclID], owner: String, interface: Bool) throws {
             for id in ids {
                 guard case let .funDecl(f) = ast.arena.decl(id), let symbol = sema.bindings.declSymbol(for: id) else { continue }
@@ -50,7 +54,10 @@ extension JVMProgramBuilder {
                         else if path.contains("text-") { owner = "kotlin/text/StringsKt" }
                         else if path.contains("arrays-") { owner = "kotlin/collections/ArraysKt" }
                         else { owner = "kotlin/collections/CollectionsKt" }
-                        if case .unsignedArray? = receiverType { receiverType = .reference("java/lang/Iterable", nullable: false); owner = "kotlin/collections/CollectionsKt" }
+                        if case .unsignedArray? = receiverType, !path.contains("arrays-utility-") {
+                            receiverType = .reference("java/lang/Iterable", nullable: false)
+                            owner = "kotlin/collections/CollectionsKt"
+                        }
                     }
                     if path.contains("m21-") { owner = "kotlin/sequences/SequencesKt" }
                     if path.contains("m20-"), source == "toMap" { owner = "kotlin/collections/MapsKt" }
@@ -58,10 +65,20 @@ extension JVMProgramBuilder {
                         owner = source.lowercased().contains("map") ? "kotlin/collections/MapsKt" : source.lowercased().contains("set") ? "kotlin/collections/SetsKt" : "kotlin/collections/CollectionsKt"
                     }
                     let adaptation = path.contains("m20-factories") ? "collectionFactory" : source == "toRegex" ? "toRegex" : path.hasSuffix("m19-regex.kt") && source != "get" ? "regexExtension" : nil
-                    var jvmName = source
+                    var jvmName = source, hasExplicitJvmName = false
                     if path.contains("m20-"), let raw = sema.symbols.annotations(for: symbol).first(where: { $0.annotationFQName == "kotlin.jvm.JvmName" })?.arguments.first {
                         let literal = raw.components(separatedBy: "=").last!.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if let data = ("[" + literal + "]").data(using: .utf8), let names = try? JSONSerialization.jsonObject(with: data) as? [String], let name = names.first { jvmName = name }
+                        if let data = ("[" + literal + "]").data(using: .utf8), let names = try? JSONSerialization.jsonObject(with: data) as? [String], let name = names.first {
+                            jvmName = name
+                            hasExplicitJvmName = true
+                        }
+                    }
+                    if path.contains("arrays-utility-"), !hasExplicitJvmName, let receiverType, receiverType.unsignedName != nil {
+                        // File facade mangling hashes the receiver and formal parameters, but not the result type.
+                        let hashArguments = ([receiverType] + (try signature.parameterTypes.map(type)))
+                            .map(valueClassMangleElement)
+                            .joined()
+                        jvmName = source + "-" + JVMNameHash.suffix(hashArguments)
                     }
                     try method(symbol, owner: owner, name: jvmName, declarations: f.valueParams, extensionReceiver: receiverType, adaptation: adaptation, staticMember: true)
                 case let .classDecl(c):
