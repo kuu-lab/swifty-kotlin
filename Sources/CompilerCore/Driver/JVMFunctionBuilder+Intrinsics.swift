@@ -426,7 +426,13 @@ extension JVMFunctionBuilder {
 }
 
 extension JVMFunctionBuilder {
-    func sequenceLoop(_ name: InternedString, _ iterable: ExprID, _ body: ExprID, _ id: ExprID) throws {
+    func sequenceLoop(
+        _ name: InternedString?,
+        _ iterable: ExprID,
+        _ body: ExprID,
+        _ id: ExprID,
+        destructuringNames: [InternedString?]? = nil
+    ) throws {
         let source = try requireValue(iterable)
         // An Iterator receiver is its own cursor: the stdlib Iterator<T>.iterator()
         // operator returns `this`, so Sema leaves iteratorCall nil for it.
@@ -434,16 +440,19 @@ extension JVMFunctionBuilder {
         let elementType: JVMValueType
         if source.type.isCharSequence { elementType = .char }
         else if source.type.referenceName == "kotlin/ranges/IntRange" { elementType = .int }
+        else if source.type.referenceName == "java/util/Map" { elementType = .reference("java/util/Map$Entry", nullable: false) }
+        else if source.type.referenceName?.hasPrefix("[") == true { elementType = try arrayComponent(source.type) }
+        else if let loopBinding { elementType = try program.type(loopBinding.elementType) }
         else if let semantic = program.sema.bindings.exprType(for: iterable), case let .classType(t) = program.sema.types.kind(of: semantic), let arg = t.args.first {
             switch arg {
             case let .invariant(t), let .out(t): elementType = try program.type(t)
             default: elementType = .reference("java/lang/Object", nullable: true)
             }
-        } else if source.type.referenceName?.hasPrefix("[") == true { elementType = try arrayComponent(source.type) }
-        else if let loopBinding, loopBinding.iteratorCall == nil { elementType = try program.type(loopBinding.elementType) }
-        else { throw fail("JVM for requires an array or iterable collection.", id) }
+        } else { throw fail("JVM for requires an array or iterable collection.", id) }
         let local = try value(elementType), test = label(), advance = label(), exit = label()
-        scopes.append([name: Local(value: local, mutable: false)]); defer { scopes.removeLast() }
+        var loopScope: [InternedString: Local] = [:]
+        if let name { loopScope[name] = Local(value: local, mutable: false) }
+        scopes.append(loopScope); defer { scopes.removeLast() }
         if source.type.referenceName?.hasPrefix("[") == true || source.type.isCharSequence {
             let index = try value(.int)
             let fixedSize = source.type.referenceName != "java/lang/String" && source.type.referenceName?.hasPrefix("[") != true ? nil : try textLength(source)
@@ -454,6 +463,7 @@ extension JVMFunctionBuilder {
             let check = try value(.boolean); instructions.append(.binary(.lessThan, index, size, check)); instructions.append(.jumpIfFalse(check, exit))
             let item = try indexedRead(source, index: index, type: elementType)
             instructions.append(.copy(item, local))
+            if let destructuringNames { try destructuring(id, names: destructuringNames, mutable: false, object: local) }
             loops.append((exit, advance, pendingAllocations.count)); _ = try expression(body, discarded: true); loops.removeLast()
             mark(advance)
             let one = try constant(.int(1), .int)
@@ -461,7 +471,11 @@ extension JVMFunctionBuilder {
         } else {
             let iteratorType: JVMValueType = .reference("java/util/Iterator", nullable: false)
             let iterator: JVMValue
-            if let loopBinding, loopBinding.iteratorCall == nil {
+            if source.type.referenceName == "java/util/Map" {
+                let entriesType = JVMValueType.reference("java/util/Set", nullable: false)
+                let entries = try jdkCall("java/util/Map", "entrySet", [], entriesType, receiver: source, interface: true)!
+                iterator = try jdkCall("java/lang/Iterable", "iterator", [], iteratorType, receiver: entries, interface: true)!
+            } else if let loopBinding, loopBinding.iteratorCall == nil {
                 iterator = try convert(source, to: iteratorType)
             } else {
                 let owner = source.type.referenceName == "kotlin/sequences/Sequence" ? "kotlin/sequences/Sequence" : "java/lang/Iterable"
@@ -472,6 +486,7 @@ extension JVMFunctionBuilder {
             instructions.append(.jumpIfFalse(check, exit))
             let next = try jdkCall("java/util/Iterator", "next", [], .reference("java/lang/Object", nullable: true), receiver: iterator, interface: true, resolved: elementType)!
             instructions.append(.copy(next, local))
+            if let destructuringNames { try destructuring(id, names: destructuringNames, mutable: false, object: local) }
             loops.append((exit, advance, pendingAllocations.count)); _ = try expression(body, discarded: true); loops.removeLast()
             mark(advance); jump(test)
         }

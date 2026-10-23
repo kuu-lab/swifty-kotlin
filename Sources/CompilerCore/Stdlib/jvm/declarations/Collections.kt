@@ -34,3 +34,6 @@ interface MutableMap<K, V>: Map<K, V> {
     fun remove(key: K): V?
     fun clear()
 }
+
+external operator fun <K, V> Map.Entry<K, V>.component1(): K
+external operator fun <K, V> Map.Entry<K, V>.component2(): V

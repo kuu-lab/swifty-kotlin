@@ -726,6 +726,9 @@ final class JVMFunctionBuilder {
         case let .forExpr(name, iterable, body, label, _):
             guard let name, label == nil else { throw fail("Unsupported JVM for loop.", id) }
             try forLoop(name, iterable, body, id); return nil
+        case let .forDestructuringExpr(names, iterable, body, _, _):
+            guard arena.loopLabel(for: id) == nil else { throw fail("JVM loop labels are not supported.", id) }
+            try forLoop(nil, iterable, body, id, destructuringNames: names); return nil
         case let .breakExpr(label, _), let .continueExpr(label, _):
             guard label == nil, let loop = loops.last else { throw fail("JVM break/continue requires an enclosing unlabeled loop.", id) }
             instructions.append(.abandonAllocations(Array(pendingAllocations.dropFirst(loop.allocationDepth))))

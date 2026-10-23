@@ -45,6 +45,8 @@ extension JVMProgramBuilder {
                     let source = context.interner.resolve(f.name)
                     var receiverType = try signature.receiverType.map(type)
                     var owner = path.hasSuffix("m19-sequence.kt") ? "kotlin/sequences/SequencesKt" : source == "get" ? "kotlin/text/jdk8/RegexExtensionsJDK8Kt" : "kotlin/text/StringsKt"
+                    let mapEntryComponent = path == "<kswiftk-jvm>/collections.kt" && ["component1", "component2"].contains(source)
+                    if mapEntryComponent { owner = "java/util/Map$Entry" }
                     if path.contains("m20-") {
                         if path.contains("sequence-") { owner = "kotlin/sequences/SequencesKt" }
                         else if path.contains("text-") { owner = "kotlin/text/StringsKt" }
@@ -63,7 +65,16 @@ extension JVMProgramBuilder {
                         let literal = raw.components(separatedBy: "=").last!.trimmingCharacters(in: .whitespacesAndNewlines)
                         if let data = ("[" + literal + "]").data(using: .utf8), let names = try? JSONSerialization.jsonObject(with: data) as? [String], let name = names.first { jvmName = name }
                     }
-                    try method(symbol, owner: owner, name: jvmName, declarations: f.valueParams, extensionReceiver: receiverType, adaptation: adaptation, staticMember: true)
+                    try method(
+                        symbol,
+                        owner: owner,
+                        name: mapEntryComponent ? (source == "component1" ? "getKey" : "getValue") : jvmName,
+                        declarations: f.valueParams,
+                        interface: mapEntryComponent,
+                        extensionReceiver: mapEntryComponent ? nil : receiverType,
+                        adaptation: adaptation,
+                        staticMember: !mapEntryComponent
+                    )
                 case let .classDecl(c):
                     guard let symbol = sema.bindings.declSymbol(for: id) else { continue }
                     let source = try className(symbol), owner = JVMClasspathIndex.builtinName(source) ?? source
@@ -104,6 +115,12 @@ extension JVMProgramBuilder {
             if path == "<kswiftk-jvm>/collections.kt" {
                 try visit(file.topLevelDecls.filter { id in
                     if case let .interfaceDecl(declaration) = ast.arena.decl(id) { return ["Iterator", "Iterable", "Collection", "MutableIterator", "MutableIterable", "MutableCollection", "List", "MutableList", "Set", "MutableSet", "Map", "MutableMap"].contains(context.interner.resolve(declaration.name)) }
+                    return false
+                }, path: path)
+                try visit(file.topLevelDecls.filter { id in
+                    if case let .funDecl(f) = ast.arena.decl(id) {
+                        return ["component1", "component2"].contains(context.interner.resolve(f.name))
+                    }
                     return false
                 }, path: path)
                 let factories: Set<String> = ["arrayListOf", "listOf", "setOf", "mapOf", "mutableListOf", "mutableSetOf", "mutableMapOf", "emptyList", "emptySet", "emptyMap"]

@@ -99,6 +99,10 @@ extension JVMFunctionBuilder {
 
     func destructuring(_ id: ExprID, names: [InternedString?], mutable: Bool, initializer: ExprID) throws {
         let object = try requireValue(initializer)
+        try destructuring(id, names: names, mutable: mutable, object: object)
+    }
+
+    func destructuring(_ id: ExprID, names: [InternedString?], mutable: Bool, object: JVMValue) throws {
         for (i, name) in names.enumerated() {
             guard let name else { continue }
             guard let symbol = program.sema.bindings.destructuringComponentCallee(for: id, index: i), let method = program.methods[symbol] ?? program.textLibraryMethods[symbol]?.method else { throw fail("JVM destructuring requires registered components.", id) }

@@ -156,7 +156,13 @@ extension JVMFunctionBuilder {
         return result
     }
 
-    func forLoop(_ name: InternedString, _ iterable: ExprID, _ body: ExprID, _ id: ExprID) throws {
+    func forLoop(
+        _ name: InternedString?,
+        _ iterable: ExprID,
+        _ body: ExprID,
+        _ id: ExprID,
+        destructuringNames: [InternedString?]? = nil
+    ) throws {
         let range: (BinaryOp, ExprID, ExprID)? = switch arena.expr(iterable) {
         case let .binary(op, from, to, _) where [BinaryOp.rangeTo, .rangeUntil, .downTo].contains(op):
             (op, from, to)
@@ -167,9 +173,10 @@ extension JVMFunctionBuilder {
         default:
             nil
         }
-        guard let (op, from, to) = range else {
-            try sequenceLoop(name, iterable, body, id); return
+        guard destructuringNames == nil, let (op, from, to) = range else {
+            try sequenceLoop(name, iterable, body, id, destructuringNames: destructuringNames); return
         }
+        guard let name else { throw fail("JVM range loop requires a loop variable.", id) }
         let first = try requireValue(from), last = try requireValue(to)
         let type = try numericType(first.type, last.type)
         guard type.stackType == .int || type.stackType == .long else { throw fail("JVM for ranges require integral operands.", id) }

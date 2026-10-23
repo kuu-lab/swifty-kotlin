@@ -112,6 +112,19 @@ extension JVMBackendTests {
     }
 
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func m11MapEntryDestructuringIteration(mode: EmitMode) throws {
+        try withWorkspace { root in
+            try runM11("""
+            fun main() {
+                val m = mapOf("b" to 2, "a" to 1)
+                for ((k, v) in m) print("$k$v ")
+                println()
+            }
+            """, expected: "b2 a1 \n", mode: mode, root: root)
+        }
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func m11AnnotationConstantsAndReflection(mode: EmitMode) throws {
         try withWorkspace { root in
             try runM11("""
