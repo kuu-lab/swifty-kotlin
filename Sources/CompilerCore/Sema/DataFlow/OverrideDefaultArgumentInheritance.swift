@@ -207,10 +207,13 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Mirrors `findAllInheritedMembers`: once a level declares the member,
-    /// deeper ancestors are earlier overrides of the same logical member, not
-    /// independent candidates, so the BFS stops at the first level with
-    /// matches.
+    /// Kotlin's overridden-descriptor order: each supertype in declaration
+    /// order contributes its branch's *nearest* declaration of the member —
+    /// `class C : A2, B` where `A2 : A` and both `A` and `B` declare `f`
+    /// yields `[A.f, B.f]`, so the first supertype's inherited declaration
+    /// supplies default values (matching the JVM; KUU-2950). A match prunes
+    /// only that branch's deeper ancestors, which are earlier overrides of
+    /// the same logical member, not independent candidates.
     func nearestOverriddenFunctionCandidates(
         of id: SymbolID,
         symbols: SymbolTable,
@@ -224,13 +227,13 @@ extension DataFlowSemaPhase {
 
         let paramCount = signature.parameterTypes.count
         var visited: Set<SymbolID> = [ownerID]
-        var queue = symbols.directSupertypes(for: ownerID)
-        while !queue.isEmpty {
-            let currentOwner = queue.removeFirst()
+        var candidates: [SymbolID] = []
+        var stack = Array(symbols.directSupertypes(for: ownerID).reversed())
+        while let currentOwner = stack.popLast() {
             guard visited.insert(currentOwner).inserted else { continue }
             guard let ownerSym = symbols.symbol(currentOwner) else { continue }
 
-            var candidates: [SymbolID] = []
+            var matched = false
             for candidateID in symbols.children(ofFQName: ownerSym.fqName) {
                 guard let candidate = symbols.symbol(candidateID),
                       candidate.kind == .function,
@@ -258,12 +261,12 @@ extension DataFlowSemaPhase {
                       )
                 else { continue }
                 candidates.append(candidateID)
+                matched = true
             }
-            if !candidates.isEmpty {
-                return candidates
+            if !matched {
+                stack.append(contentsOf: symbols.directSupertypes(for: currentOwner).reversed())
             }
-            queue.append(contentsOf: symbols.directSupertypes(for: currentOwner))
         }
-        return []
+        return candidates
     }
 }
