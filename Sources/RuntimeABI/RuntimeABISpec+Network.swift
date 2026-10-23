@@ -1,55 +1,13 @@
+private let abi = RuntimeABISectionBuilder("Network")
+
 public extension RuntimeABISpec {
     static let networkFunctions: [RuntimeABIFunctionSpec] = [
-        RuntimeABIFunctionSpec(
-            name: "kk_http_client_setConnectTimeoutMillis",
-            parameters: [
-                RuntimeABIParameter(name: "clientRaw", type: .intptr),
-                RuntimeABIParameter(name: "timeoutMillis", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Network"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_http_client_setReadTimeoutMillis",
-            parameters: [
-                RuntimeABIParameter(name: "clientRaw", type: .intptr),
-                RuntimeABIParameter(name: "timeoutMillis", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Network"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_http_response_url",
-            parameters: [RuntimeABIParameter(name: "responseRaw", type: .intptr)],
-            returnType: .intptr,
-            section: "Network"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_http_response_errorMessage",
-            parameters: [RuntimeABIParameter(name: "responseRaw", type: .intptr)],
-            returnType: .intptr,
-            section: "Network"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_http_response_timedOut",
-            parameters: [RuntimeABIParameter(name: "responseRaw", type: .intptr)],
-            returnType: .intptr,
-            section: "Network"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_http_response_isSuccessful",
-            parameters: [RuntimeABIParameter(name: "responseRaw", type: .intptr)],
-            returnType: .intptr,
-            section: "Network"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_http_response_header",
-            parameters: [
-                RuntimeABIParameter(name: "responseRaw", type: .intptr),
-                RuntimeABIParameter(name: "nameRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Network"
-        ),
+        abi.th("kk_http_client_setConnectTimeoutMillis", "clientRaw timeoutMillis"),
+        abi.th("kk_http_client_setReadTimeoutMillis", "clientRaw timeoutMillis"),
+        abi.th("kk_http_response_url", "responseRaw"),
+        abi.th("kk_http_response_errorMessage", "responseRaw"),
+        abi.th("kk_http_response_timedOut", "responseRaw"),
+        abi.th("kk_http_response_isSuccessful", "responseRaw"),
+        abi.th("kk_http_response_header", "responseRaw nameRaw"),
     ]
 }
