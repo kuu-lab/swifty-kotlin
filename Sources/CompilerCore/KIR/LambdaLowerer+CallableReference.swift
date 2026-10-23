@@ -731,7 +731,9 @@ extension LambdaLowerer {
            let targetSymbol,
            let thunk = virtualFunctionReferenceThunk(
                targetSymbol: targetSymbol,
-               receiverStaticType: isUnbound ? nil : receiverExpr.flatMap { sema.bindings.exprTypes[$0] },
+               receiverStaticType: isUnbound ? nil
+                   : (receiverExpr.flatMap { sema.bindings.exprTypes[$0] }
+                       ?? captureArguments.first.flatMap { arena.exprType($0) }),
                sema: sema,
                arena: arena,
                interner: interner
