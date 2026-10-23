@@ -16,6 +16,8 @@ import kotlin.jvm.internal.__jvmUpperChar
 import kotlin.jvm.internal.__jvmLowerChar
 import kotlin.jvm.internal.__jvmEqualsIgnoreCase
 
+public fun CharSequence.indices(): IntRange = 0..this.length - 1
+
 public fun String.isEmpty(): Boolean = this.length == 0
 public fun String.isNotEmpty(): Boolean = this.length != 0
 public fun CharSequence.isEmpty(): Boolean = this.length == 0
