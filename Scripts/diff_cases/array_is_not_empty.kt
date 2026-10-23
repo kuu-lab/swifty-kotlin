@@ -1,0 +1,21 @@
+fun main() {
+    println(arrayOf("a").isNotEmpty())
+    println(emptyArray<Int>().isNotEmpty())
+
+    println(booleanArrayOf(true).isNotEmpty())
+    println(booleanArrayOf().isNotEmpty())
+    println(byteArrayOf(1).isNotEmpty())
+    println(byteArrayOf().isNotEmpty())
+    println(charArrayOf('a').isNotEmpty())
+    println(charArrayOf().isNotEmpty())
+    println(doubleArrayOf(1.0).isNotEmpty())
+    println(doubleArrayOf().isNotEmpty())
+    println(floatArrayOf(1.0f).isNotEmpty())
+    println(floatArrayOf().isNotEmpty())
+    println(intArrayOf(1).isNotEmpty())
+    println(intArrayOf().isNotEmpty())
+    println(longArrayOf(1L).isNotEmpty())
+    println(longArrayOf().isNotEmpty())
+    println(shortArrayOf(1).isNotEmpty())
+    println(shortArrayOf().isNotEmpty())
+}

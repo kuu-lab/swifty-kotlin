@@ -84,6 +84,27 @@
     "kind": "static"
   },
   {
+    "symbol": "__jvmIsDigit",
+    "owner": "java/lang/Character",
+    "name": "isDigit",
+    "descriptor": "(C)Z",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmIsUpperCase",
+    "owner": "java/lang/Character",
+    "name": "isUpperCase",
+    "descriptor": "(C)Z",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmIsLowerCase",
+    "owner": "java/lang/Character",
+    "name": "isLowerCase",
+    "descriptor": "(C)Z",
+    "kind": "static"
+  },
+  {
     "symbol": "__jvmSubstring",
     "owner": "java/lang/String",
     "name": "substring",
@@ -256,6 +277,265 @@
     "owner": "java/lang/Math",
     "name": "max",
     "descriptor": "(FF)F",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathAbsDouble",
+    "owner": "java/lang/Math",
+    "name": "abs",
+    "descriptor": "(D)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathAbsFloat",
+    "owner": "java/lang/Math",
+    "name": "abs",
+    "descriptor": "(F)F",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathAbsInt",
+    "owner": "java/lang/Math",
+    "name": "abs",
+    "descriptor": "(I)I",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathAbsLong",
+    "owner": "java/lang/Math",
+    "name": "abs",
+    "descriptor": "(J)J",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathAcos",
+    "owner": "java/lang/Math",
+    "name": "acos",
+    "descriptor": "(D)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathAsin",
+    "owner": "java/lang/Math",
+    "name": "asin",
+    "descriptor": "(D)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathAtan",
+    "owner": "java/lang/Math",
+    "name": "atan",
+    "descriptor": "(D)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathAtan2",
+    "owner": "java/lang/Math",
+    "name": "atan2",
+    "descriptor": "(DD)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathCbrt",
+    "owner": "java/lang/Math",
+    "name": "cbrt",
+    "descriptor": "(D)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathCeil",
+    "owner": "java/lang/Math",
+    "name": "ceil",
+    "descriptor": "(D)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathCopySignDouble",
+    "owner": "java/lang/Math",
+    "name": "copySign",
+    "descriptor": "(DD)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathCopySignFloat",
+    "owner": "java/lang/Math",
+    "name": "copySign",
+    "descriptor": "(FF)F",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathCos",
+    "owner": "java/lang/Math",
+    "name": "cos",
+    "descriptor": "(D)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathCosh",
+    "owner": "java/lang/Math",
+    "name": "cosh",
+    "descriptor": "(D)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathExp",
+    "owner": "java/lang/Math",
+    "name": "exp",
+    "descriptor": "(D)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathExpm1",
+    "owner": "java/lang/Math",
+    "name": "expm1",
+    "descriptor": "(D)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathFloor",
+    "owner": "java/lang/Math",
+    "name": "floor",
+    "descriptor": "(D)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathHypot",
+    "owner": "java/lang/Math",
+    "name": "hypot",
+    "descriptor": "(DD)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathIeeeRemainder",
+    "owner": "java/lang/Math",
+    "name": "IEEEremainder",
+    "descriptor": "(DD)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathLog",
+    "owner": "java/lang/Math",
+    "name": "log",
+    "descriptor": "(D)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathLog10",
+    "owner": "java/lang/Math",
+    "name": "log10",
+    "descriptor": "(D)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathLog1p",
+    "owner": "java/lang/Math",
+    "name": "log1p",
+    "descriptor": "(D)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathNextAfter",
+    "owner": "java/lang/Math",
+    "name": "nextAfter",
+    "descriptor": "(DD)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathNextAfterFloat",
+    "owner": "java/lang/Math",
+    "name": "nextAfter",
+    "descriptor": "(FD)F",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathNextDownDouble",
+    "owner": "java/lang/Math",
+    "name": "nextDown",
+    "descriptor": "(D)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathNextDownFloat",
+    "owner": "java/lang/Math",
+    "name": "nextDown",
+    "descriptor": "(F)F",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathNextUpDouble",
+    "owner": "java/lang/Math",
+    "name": "nextUp",
+    "descriptor": "(D)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathNextUpFloat",
+    "owner": "java/lang/Math",
+    "name": "nextUp",
+    "descriptor": "(F)F",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathRoundLong",
+    "owner": "java/lang/Math",
+    "name": "round",
+    "descriptor": "(D)J",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathRint",
+    "owner": "java/lang/Math",
+    "name": "rint",
+    "descriptor": "(D)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathSin",
+    "owner": "java/lang/Math",
+    "name": "sin",
+    "descriptor": "(D)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathSinh",
+    "owner": "java/lang/Math",
+    "name": "sinh",
+    "descriptor": "(D)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathSqrt",
+    "owner": "java/lang/Math",
+    "name": "sqrt",
+    "descriptor": "(D)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathTan",
+    "owner": "java/lang/Math",
+    "name": "tan",
+    "descriptor": "(D)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathTanh",
+    "owner": "java/lang/Math",
+    "name": "tanh",
+    "descriptor": "(D)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathUlpDouble",
+    "owner": "java/lang/Math",
+    "name": "ulp",
+    "descriptor": "(D)D",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmMathUlpFloat",
+    "owner": "java/lang/Math",
+    "name": "ulp",
+    "descriptor": "(F)F",
     "kind": "static"
   },
   {

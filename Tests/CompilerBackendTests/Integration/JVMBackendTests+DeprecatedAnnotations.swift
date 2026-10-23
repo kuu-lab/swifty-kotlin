@@ -4,10 +4,10 @@ import Foundation
 import Testing
 
 extension JVMBackendTests {
-    @Test(arguments: ["annotatedImmutableCalls", "deprecatedAnnotationContracts", "deprecatedConstContracts"], [EmitMode.jvmClass, .jvmJar])
+    @Test(arguments: ["annotated_expression_immutable_calls", "deprecatedAnnotationContracts", "deprecatedConstContracts"], [EmitMode.jvmClass, .jvmJar])
     func deprecatedAnnotationsPreserveRuntimeValues(name: String, mode: EmitMode) throws {
         let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/JVMOwnStdlib")
-        let source = try String(contentsOf: fixtures.appendingPathComponent(name + ".kt"), encoding: .utf8)
+        let source = try fixtureOrDiffCaseSource(fixtures, name)
         let expected = try String(contentsOf: fixtures.appendingPathComponent(name + ".out"), encoding: .utf8)
         try withWorkspace { root in
             try runRuntimeParity(source, expected: expected, mode: mode, root: root)

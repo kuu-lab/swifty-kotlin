@@ -80,17 +80,47 @@ extension JVMFunctionBuilder {
             supplied[index] = (arg.expr, try requireValue(arg.expr))
         }
         guard let callbackEntry = supplied[operation == "fold" ? 1 : 0], let signature = functionType(callbackEntry.0) else { throw fail("Missing JVM higher-order callback.", id) }
-        let accumulator: JVMValue?
-        if operation == "fold" {
-            let initial = supplied[0]!.1, stored = try value(program.expressionType(id))
-            instructions.append(.copy(try convert(initial, to: stored.type), stored)); accumulator = stored
-        } else { accumulator = nil }
-        let callback = callbackEntry.1
-        let list = operation == "map" || operation == "filter" ? try constructJDK("java/util/ArrayList") : nil
         let array = receiver.type.referenceName?.hasPrefix("[") == true
         let iterator = array ? nil : try jdkCall("java/lang/Iterable", "iterator", [], .reference("java/util/Iterator", nullable: false), receiver: receiver, interface: true)
         let index = array ? try value(.int) : nil, size = array ? try value(.int) : nil
         if let index, let size { instructions.append(.constant(.int(0), index)); instructions.append(.arrayLength(receiver, size)) }
+        let accumulator: JVMValue?
+        if operation == "fold" {
+            let initial = supplied[0]!.1, stored = try value(program.expressionType(id))
+            instructions.append(.copy(try convert(initial, to: stored.type), stored)); accumulator = stored
+        } else if operation == "reduce" {
+            let stored = try value(program.expressionType(id))
+            let empty = label(), ready = label()
+            let hasFirst: JVMValue
+            if let index, let size {
+                hasFirst = try value(.boolean)
+                instructions.append(.binary(.lessThan, index, size, hasFirst))
+            } else {
+                hasFirst = try jdkCall("java/util/Iterator", "hasNext", [], .boolean, receiver: iterator, interface: true)!
+            }
+            instructions.append(.jumpIfFalse(hasFirst, empty))
+            let first: JVMValue
+            if let index {
+                first = try value(.reference("java/lang/Object", nullable: true))
+                instructions.append(.arrayGet(receiver, index, first))
+                instructions.append(.constant(.int(1), index))
+            } else {
+                first = try jdkCall("java/util/Iterator", "next", [], .reference("java/lang/Object", nullable: true), receiver: iterator, interface: true)!
+            }
+            instructions.append(.copy(try convert(first, to: stored.type), stored))
+            jump(ready)
+            mark(empty)
+            let error = try constructJDK(
+                "java/lang/UnsupportedOperationException",
+                parameters: [.string],
+                arguments: [try constant(.string("Empty collection can't be reduced."), .string)]
+            )
+            instructions.append(.throwValue(error)); terminated = true
+            mark(ready)
+            accumulator = stored
+        } else { accumulator = nil }
+        let callback = callbackEntry.1
+        let list = operation == "map" || operation == "filter" ? try constructJDK("java/util/ArrayList") : nil
         let test = label(), advance = label(), end = label()
         mark(test)
         let object: JVMValueType = .reference("java/lang/Object", nullable: true)
@@ -111,6 +141,9 @@ extension JVMFunctionBuilder {
             instructions.append(.jumpIfFalse(matches, advance))
             _ = try jdkCall("java/util/ArrayList", "add", [object], .boolean, receiver: list, arguments: [item])
         case "fold":
+            let next = try invoke(callback, signature: signature, arguments: [accumulator!, item], resultType: accumulator!.type)!
+            instructions.append(.copy(next, accumulator!))
+        case "reduce":
             let next = try invoke(callback, signature: signature, arguments: [accumulator!, item], resultType: accumulator!.type)!
             instructions.append(.copy(next, accumulator!))
         default: throw fail("Unsupported JVM higher-order operation.", id)

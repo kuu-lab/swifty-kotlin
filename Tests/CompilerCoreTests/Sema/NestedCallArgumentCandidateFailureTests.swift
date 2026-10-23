@@ -217,6 +217,27 @@ struct NestedCallArgumentCandidateFailureTests {
     }
 
     @Test
+    func unresolvedMemberArgumentSelectsBroadFallbackOverload() throws {
+        let context = makeContext("""
+        class Receiver
+        fun main() { println(Receiver().missing()) }
+        """)
+
+        try runSema(context)
+
+        let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.map(\.code) == ["KSWIFTK-SEMA-0024"],
+            "Expected only the root unresolved-member diagnostic, got: \(errors)"
+        )
+        let sema = try #require(context.sema)
+        let ast = try #require(context.ast)
+        let printlnCall = try #require(nameRefCallExprID(named: "println", in: ast, interner: context.interner))
+        let chosen = try #require(sema.bindings.callBinding(for: printlnCall)?.chosenCallee)
+        #expect(sema.symbols.functionSignature(for: chosen)?.parameterTypes == [sema.types.nullableAnyType])
+    }
+
+    @Test
     func boundedFactoryWithoutExpectedTypeStillCannotInferResult() throws {
         let context = makeContext("""
         fun <T : String> value(): T = "x" as T

@@ -8,7 +8,7 @@ import kotlin.internal.KsSymbolName
 private external fun <K, V> __identityMapInit(map: IdentityHashMap<K, V>)
 
 @KsSymbolName("kk_native_identityHashCode")
-private external fun __identityHashCode(value: Any?): Int
+internal external fun __identityHashCode(value: Any?): Int
 
 public open class IdentityHashMap<K, V> : MutableMap<K, V> {
     public constructor() {

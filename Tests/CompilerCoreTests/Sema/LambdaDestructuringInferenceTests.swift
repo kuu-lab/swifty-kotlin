@@ -110,6 +110,38 @@ struct LambdaDestructuringInferenceTests {
     }
 
     @Test
+    func completeNameBasedDestructuringBindsLambdaParameterProperties() throws {
+        let source = """
+        class Point(val first: Int, val second: Int)
+        fun transform(point: Point): Int {
+            val combine: (Point) -> Int = { (first, second) -> first + second }
+            return combine(point)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                frontendFlags: ["name-based-destructuring=complete"],
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+            let sourceDiagnostics = diagnosticsForPath(path, in: ctx)
+            #expect(!sourceDiagnostics.hasError, "Unexpected diagnostics: \(sourceDiagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let declarationIndex = try #require(ast.arena.exprs.indices.first { index in
+                if case .destructuringDecl = ast.arena.exprs[index] { return true }
+                return false
+            })
+            let declarationID = ExprID(rawValue: Int32(declarationIndex))
+            #expect(sema.bindings.destructuringProperty(for: declarationID, index: 0) != nil)
+            #expect(sema.bindings.destructuringProperty(for: declarationID, index: 1) != nil)
+        }
+    }
+
+    @Test
     func acceptsMixedDestructuring() throws {
         let expressions = [
             "listOf(2 to 3).runningFold(0) { acc, (_, value) -> acc + value }",

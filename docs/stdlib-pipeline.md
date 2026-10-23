@@ -1235,8 +1235,8 @@ This admission is prepared and unexecuted, not an enforcing-green completion.
 
 This ABI change is proposed and requires the focused Core/Runtime gates and the
 nine strict JVM-backed source/library fixtures at O0/O2 before completion.
-The existing source/artifact combine and combineTransform snapshot controls are
-also required after the typed-array factory boundary is updated.
+The source/artifact combine and combineTransform controls also verify that
+each upstream update reaches the transform through the live latest-value core.
 Source-backed reference-vararg bodies and constructor properties store the same
 `Array<out T>` handle. Primitive varargs retain their primitive arrays; runtime
 `kk_*`/`__kk_*` bridges retain their existing List payload contract. Metadata keeps
@@ -1283,10 +1283,11 @@ V5 source boundary controls keep the existing String.format private List bridges
 by adapting each public Array vararg through asList. Collection/List.toTypedArray
 uses inline reified allocation, including typed empty arrays. Generic array
 slice/reversal and provided-array collection copies preserve the source array's
-actual component. The existing non-reified Flow snapshot loops retain explicit
-Object-array storage through a private Kotlin helper; their public API and
-sequential snapshot behavior are unchanged. New imported inline bodies recover
-physical Array/primitive-array parameters and every raw class/component Int slot;
+actual component. The earlier non-reified Flow snapshot loops used explicit
+Object-array storage through a private Kotlin helper. KUU-2739 later replaced
+those loops with a live latest-value core; each transform receives a fresh
+Object array, and zip pairs values during collection. New imported inline bodies
+recover physical Array/primitive-array parameters and every raw class/component Int slot;
 legacy and runtime-bridge descriptors retain their class-only interpretation.
 Direct default suppliers and two-reified functions have strict source/library
 fixtures, including captured descriptors and last-position default masks. These

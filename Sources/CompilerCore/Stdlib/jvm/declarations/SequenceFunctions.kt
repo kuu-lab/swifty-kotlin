@@ -8,6 +8,10 @@ fun <T: Any> generateSequence(seedFunction: () -> T?, nextFunction: (T) -> T?): 
 fun <T> Iterator<T>.asSequence(): Sequence<T> = null!!
 fun <T> Sequence<T>.asIterable(): Iterable<T> = null!!
 fun <T> Sequence<T>.constrainOnce(): Sequence<T> = null!!
+operator fun <T> Sequence<T>.plus(element: T): Sequence<T> = null!!
+operator fun <T> Sequence<T>.plus(elements: Array<out T>): Sequence<T> = null!!
+operator fun <T> Sequence<T>.plus(elements: Iterable<T>): Sequence<T> = null!!
+operator fun <T> Sequence<T>.plus(elements: Sequence<T>): Sequence<T> = null!!
 fun <T, R> Sequence<T>.map(transform: (T) -> R): Sequence<R> = null!!
 fun <T, R> Sequence<T>.mapIndexed(transform: (Int, T) -> R): Sequence<R> = null!!
 fun <T, R: Any> Sequence<T>.mapNotNull(transform: (T) -> R?): Sequence<R> = null!!

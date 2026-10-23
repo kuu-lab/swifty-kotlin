@@ -4,6 +4,33 @@ import Foundation
 import Testing
 
 extension BundledStdlibExecutionTests {
+    @Test(arguments: [false, true])
+    func javaClassEnclosingMetadataAndTypeParameterClassifier(fromArtifact: Bool) throws {
+        try compileAndRunKotlin(
+            try diffCaseSource("kuu_2746_enclosing_members_and_type_parameter.kt", file: #filePath),
+            expectedOutput: """
+            true
+            true
+            true
+            true
+            methodOwner
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            U
+            INVARIANT
+            false
+            true
+            """ + "\n",
+            moduleName: "KUU2746EnclosingMembersAndTypeParameter",
+            allowDefaultStdlibLibrary: fromArtifact
+        )
+    }
+
     // Source-mode O2 is tracked by KUU-2241: even a trivial source-mode program
     // currently fails LLVM verification on a high-arity function invocation.
     @Test(arguments: [false, true])

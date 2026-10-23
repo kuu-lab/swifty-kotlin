@@ -72,6 +72,7 @@ retain the stdout diff, KIR, crash diagnostics, and a reproduction script.
 - `interface_default_method.kt`: interface default method（body あり fun）の default 実装呼び出しと concrete override の共存 parity
 - `abstract_class.kt`: abstract class / abstract member の制約と override 強制（abstract fun, multi-level inheritance chain）
 - `tailrec_fun.kt`: `tailrec` 関数の再帰実行 parity
+- `tailrec_wrapped_calls.kt`: inline `run`、括弧、infix / extension 呼び出し、ローカル関数内の末尾再帰を 100 万回実行する parity（KUU-2900）
 - `collection_builders.kt`: `buildString` / `buildList` / `buildSet` / `buildMap` DSL builder の正常系 parity
 - `ksp950_build_family.kt`: KSP-950 の capacity、重複排除・キー上書き、負capacity、read-only返却、例外伝播 parity
 - `builder_dsl_invalid_arg.kt`: builder への不正引数（非 lambda）を compile error として扱う parity
@@ -105,6 +106,7 @@ retain the stdout diff, KIR, crash diagnostics, and a reproduction script.
 - `assert_disabled_default.kt`: `kotlin.assert` が既定無効（JVM `-ea` 無し既定）でも条件式は評価されるが lazyMessage と throw は走らない parity（KUU-2751）
 - `uuid_put_uuid.kt`: `java.nio.ByteBuffer.putUuid(index, uuid)` / `ByteBuffer.getUuid(index)` の round-trip と offset 書き込み parity（STDLIB-UUID-FN-002）
 - `java_nio_files.kt`: 管理下 fixture の `Files.readAllBytes`、`Paths.get` の相対パス・複数セグメント、IOException 捕捉の parity（KUU-2015）。空・バイナリ file と source / fresh `.kklib` × O0/O2 は `testJavaNioFilesAcrossSourceAndFreshLibrary` がカバーする。
+- `java_nio_bytebuffer_typed.kt`: `ByteBuffer` の型付き相対・絶対 get/put、BIG_ENDIAN/LITTLE_ENDIAN、型付き値の round-trip parity（KUU-3064）。source / fresh `.kklib` × O0/O2 は `testJavaNioByteBufferTypedAccessorsAcrossSourceAndFreshLibrary` がカバーする。
 - `member_compound_assign.kt`: 明示的レシーバ経由のフィールド複合代入・インクリメント/デクリメント（`obj.field += x` / `obj.field++` / `obj.field--`、暗黙 `this` 経由・ネストレシーバ・関数引数レシーバ・レシーバ式の単一評価）の parity
 - `val_member_compound_assign_error.kt`: 明示的レシーバ経由の `val` フィールドへの複合代入（`obj.field += x`）が compile error になる parity
 - `custom_getter_setter_var.kt`: KUU-595 の `var` に custom getter と setter を同居させた場合も、読み取りが getter を呼び、setter と対称な計算値を返す parity

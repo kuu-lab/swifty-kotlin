@@ -1685,6 +1685,189 @@ private func runtimeFlowCollectStreaming(
     return outThrown != 0 ? outThrown : context.failure
 }
 
+/// Runs one suspend collector invocation as a child coroutine. The initial
+/// burst runs inline, while any later resume is delivered asynchronously.
+private func runtimeFlowLatestCollectorBody(
+    _ continuation: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard let state = runtimeContinuationState(from: continuation) else { return 0 }
+    let collector = unsafeBitCast(
+        Int(state.launcherArgs[0] ?? 0),
+        to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    return collector(
+        Int(state.launcherArgs[1] ?? 0),
+        Int(state.launcherArgs[2] ?? 0),
+        continuation,
+        outThrown
+    )
+}
+
+private final class RuntimeFlowLatestCollectState: @unchecked Sendable {
+    private let lock = NSLock()
+    private let collectorFnPtr: Int
+    private let collectorEnvPtr: Int
+    private let continuation: Int
+    private let collectionScope: RuntimeCoroutineScope
+    private let collectionJob: RuntimeJobHandle
+    private var activeJob: RuntimeJobHandle?
+    private var failure = 0
+
+    init(
+        collectorFnPtr: Int,
+        collectorEnvPtr: Int,
+        continuation: Int,
+        collectionScope: RuntimeCoroutineScope,
+        collectionJob: RuntimeJobHandle
+    ) {
+        self.collectorFnPtr = collectorFnPtr
+        self.collectorEnvPtr = collectorEnvPtr
+        self.continuation = continuation
+        self.collectionScope = collectionScope
+        self.collectionJob = collectionJob
+    }
+
+    private func failureSnapshot() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return failure
+    }
+
+    private func takeActiveJob() -> RuntimeJobHandle? {
+        lock.lock()
+        let job = activeJob
+        activeJob = nil
+        lock.unlock()
+        return job
+    }
+
+    private func recordFailure(_ exception: Int) {
+        guard exception != 0, kk_is_cancellation_exception(exception) == 0 else { return }
+        lock.lock()
+        if failure == 0 { failure = exception }
+        lock.unlock()
+    }
+
+    func receive(_ value: Int) -> Int {
+        if continuation == 0 {
+            let context = RuntimeFlowCollectContext()
+            return runtimeFlowDeliverValue(
+                value,
+                collectorFnPtr: collectorFnPtr,
+                collectorEnvPtr: collectorEnvPtr,
+                continuation: 0,
+                owningContext: context
+            ) ? 0 : context.failure
+        }
+
+        if let previous = takeActiveJob() {
+            if !previous.completedSnapshot() {
+                _ = previous.cancel(message: "Latest value was received")
+            }
+            _ = previous.join()
+        }
+        let currentFailure = failureSnapshot()
+        if currentFailure != 0 { return currentFailure }
+        if collectionJob.cancellationSnapshot() {
+            return collectionJob.cancellationCauseSnapshot()
+        }
+
+        let actionScope = RuntimeCoroutineScope(context: collectionScope.context)
+        actionScope.blockingScheduler = collectionScope.blockingScheduler
+        let actionJob = actionScope.installJob(defaultCancellationMessage: "Latest collector was cancelled")
+        actionJob.debugName = "FlowLatestCollector"
+        actionJob.propagatesFailureToParent = false
+        let actionHandle = actionJob.identityHandle
+        collectionJob.registerChild(actionHandle)
+        let actionContinuationRaw = kk_coroutine_continuation_new(continuation)
+        guard let actionContinuation = runtimeContinuationState(from: actionContinuationRaw) else {
+            _ = actionJob.complete(with: 0)
+            _ = runtimeReleaseObject(actionHandle)
+            return 0
+        }
+        actionJob.continuationState = actionContinuation
+        actionContinuation.launcherArgs = [
+            0: Int64(collectorFnPtr),
+            1: Int64(collectorEnvPtr),
+            2: Int64(value),
+        ]
+        actionContinuation.scope = actionScope
+        actionContinuation.jobHandle = actionJob
+        actionContinuation.flowCollectContext = runtimeFlowCurrentEmitContext()
+
+        lock.lock()
+        activeJob = actionJob
+        lock.unlock()
+        actionJob.markStarted()
+
+        let entryPointRaw = unsafeBitCast(
+            runtimeFlowLatestCollectorBody as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        runtimeStartLaunchedBody(
+            entryPointRaw: entryPointRaw,
+            continuation: actionContinuationRaw,
+            scope: actionScope,
+            job: actionJob
+        ) { [weak self, actionScope, actionJob, actionHandle] result, thrown in
+            let nestedFailure = actionScope.waitForChildren()
+            let finalThrown = thrown != 0 ? thrown : nestedFailure
+            if finalThrown != 0, kk_is_cancellation_exception(finalThrown) == 0 {
+                self?.recordFailure(finalThrown)
+            }
+            if finalThrown != 0 {
+                _ = actionJob.completeExceptionally(with: finalThrown)
+            } else {
+                _ = actionJob.complete(with: result)
+            }
+            self?.collectionJob.detachChild(actionHandle)
+            _ = runtimeReleaseObject(actionHandle)
+            if finalThrown != 0, kk_is_cancellation_exception(finalThrown) == 0 {
+                _ = self?.collectionJob.cancel(cause: finalThrown)
+            }
+            self?.lock.lock()
+            if self?.activeJob === actionJob { self?.activeJob = nil }
+            self?.lock.unlock()
+        }
+        return failureSnapshot()
+    }
+
+    func finish(upstreamFailure: Int) -> Int {
+        if let active = takeActiveJob() {
+            if upstreamFailure != 0, !active.completedSnapshot() {
+                _ = active.cancel(cause: upstreamFailure)
+            }
+            _ = active.join()
+        }
+        let nestedFailure = collectionScope.waitForChildren()
+        let actionFailure = failureSnapshot()
+        let cancellation = collectionJob.cancellationSnapshot()
+            ? collectionJob.cancellationCauseSnapshot() : 0
+        let finalFailure = actionFailure != 0 ? actionFailure
+            : (upstreamFailure != 0 ? upstreamFailure
+                : (nestedFailure != 0 ? nestedFailure : cancellation))
+        if finalFailure != 0 {
+            _ = collectionJob.completeExceptionally(with: finalFailure)
+        } else {
+            _ = collectionJob.complete(with: 0)
+        }
+        return finalFailure
+    }
+}
+
+private func runtimeFlowLatestCollectorReceiver(
+    _ stateHandle: Int,
+    _ value: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard let pointer = UnsafeMutableRawPointer(bitPattern: stateHandle) else { return 0 }
+    let state = Unmanaged<RuntimeFlowLatestCollectState>.fromOpaque(pointer).takeUnretainedValue()
+    let failure = state.receive(value)
+    outThrown?.pointee = failure
+    return value
+}
+
 /// Returns true on success, false if the collector threw (signalling the flow
 /// should stop).
 private func runtimeFlowDeliverValue(
@@ -1866,17 +2049,59 @@ public func kk_flow_collect(_ flowHandle: Int, _ collectorFnPtr: Int, _ collecto
     return failure
 }
 
-// `collectLatest` should cancel an in-flight collector invocation when a new
-// value arrives and only run the collector to completion for the last value.
-// The emitter/collector pipeline here delivers values synchronously (one
-// collector call fully returns before the next value is produced), so there
-// is no in-flight invocation to cancel; every delivered value already runs
-// to completion in emission order, same as `collect`. This keeps the final
-// collected/observed values correct while the true concurrent-cancellation
-// semantics remain unimplemented.
+// Runs each `collectLatest` action in its own child Job so a new upstream value
+// can cancel a suspended collector before waiting for the last action at EOF.
 @_cdecl("__kk_flow_collectLatest")
 public func __kk_flow_collectLatest(_ flowHandle: Int, _ collectorFnPtr: Int, _ collectorEnvPtr: Int, _ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
-    kk_flow_collect(flowHandle, collectorFnPtr, collectorEnvPtr, continuation, outThrown)
+    outThrown?.pointee = 0
+    guard let flow = runtimeFlowHandle(from: flowHandle), collectorFnPtr != 0 else { return 0 }
+
+    let callerState = RuntimeContinuationState.current
+    let previousScope = RuntimeCoroutineScope.current
+    let previousJob = RuntimeJobHandle.current
+    let parentJob = callerState?.jobHandle ?? previousJob ?? previousScope?.job
+    let parentStateScope = callerState?.scope
+    let parentStateJob = callerState?.jobHandle
+    let collectionScope = RuntimeCoroutineScope(
+        context: previousScope?.context ?? callerState?.makeContinuationContext() ?? RuntimeCoroutineContext()
+    )
+    collectionScope.blockingScheduler = previousScope?.blockingScheduler
+    RuntimeJobHandle.current = parentJob
+    let collectionJob = collectionScope.installJob(defaultCancellationMessage: "Flow collection was cancelled")
+    RuntimeCoroutineScope.current = collectionScope
+    RuntimeJobHandle.current = collectionJob
+    callerState?.scope = collectionScope
+    callerState?.jobHandle = collectionJob
+    defer {
+        callerState?.scope = parentStateScope
+        callerState?.jobHandle = parentStateJob
+        RuntimeCoroutineScope.current = previousScope
+        RuntimeJobHandle.current = previousJob
+        parentJob?.detachChild(collectionJob.identityHandle)
+        _ = runtimeReleaseObject(collectionJob.identityHandle)
+    }
+
+    let latestState = RuntimeFlowLatestCollectState(
+        collectorFnPtr: collectorFnPtr,
+        collectorEnvPtr: collectorEnvPtr,
+        continuation: continuation,
+        collectionScope: collectionScope,
+        collectionJob: collectionJob
+    )
+    let stateHandle = Int(bitPattern: Unmanaged.passUnretained(latestState).toOpaque())
+    let receiverRaw = unsafeBitCast(
+        runtimeFlowLatestCollectorReceiver as @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int,
+        to: Int.self
+    )
+    let upstreamFailure = runtimeFlowCollectLazy(
+        flow,
+        collectorFnPtr: receiverRaw,
+        collectorEnvPtr: stateHandle,
+        continuation: 0
+    )
+    let failure = latestState.finish(upstreamFailure: upstreamFailure)
+    outThrown?.pointee = failure
+    return failure
 }
 
 @_cdecl("__kk_flow_retain")
@@ -2101,28 +2326,322 @@ private func runtimeFlowEvaluateFlatMapLatest(
     guard mapperFnPtr != 0 else {
         return runtimeFlowEvaluate(flow: sourceFlow)
     }
-    let mapper = unsafeBitCast(
-        mapperFnPtr,
-        to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    let callerState = RuntimeContinuationState.current
+    let previousScope = RuntimeCoroutineScope.current
+    let previousJob = RuntimeJobHandle.current
+    let parentJob = callerState?.jobHandle ?? previousJob ?? previousScope?.job
+    let parentStateScope = callerState?.scope
+    let parentStateJob = callerState?.jobHandle
+    let collectionScope = RuntimeCoroutineScope(
+        context: previousScope?.context ?? callerState?.makeContinuationContext() ?? RuntimeCoroutineContext()
     )
-    let sourceResult = runtimeFlowEvaluate(flow: sourceFlow)
-    if let failure = sourceResult.failure {
-        return RuntimeFlowExecutionResult(values: [], failure: failure)
+    collectionScope.blockingScheduler = previousScope?.blockingScheduler
+    RuntimeJobHandle.current = parentJob
+    let collectionJob = collectionScope.installJob(defaultCancellationMessage: "flatMapLatest collection was cancelled")
+    RuntimeCoroutineScope.current = collectionScope
+    RuntimeJobHandle.current = collectionJob
+    callerState?.scope = collectionScope
+    callerState?.jobHandle = collectionJob
+    defer {
+        callerState?.scope = parentStateScope
+        callerState?.jobHandle = parentStateJob
+        RuntimeCoroutineScope.current = previousScope
+        RuntimeJobHandle.current = previousJob
+        parentJob?.detachChild(collectionJob.identityHandle)
+        _ = runtimeReleaseObject(collectionJob.identityHandle)
     }
-    var lastInnerHandle: Int = 0
-    for value in sourceResult.values {
-        var thrown = 0
-        let innerHandle = mapper(0, value, &thrown)
-        if thrown != 0 {
-            return RuntimeFlowExecutionResult(values: [], failure: thrown)
+
+    let latestState = RuntimeFlowLatestFlatMapState(
+        mapperFnPtr: mapperFnPtr,
+        collectionScope: collectionScope,
+        collectionJob: collectionJob
+    )
+    let stateHandle = Int(bitPattern: Unmanaged.passUnretained(latestState).toOpaque())
+    let receiverRaw = unsafeBitCast(
+        runtimeFlowLatestFlatMapReceiver as @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int,
+        to: Int.self
+    )
+    let upstreamFailure = runtimeFlowCollectLazy(
+        sourceFlow,
+        collectorFnPtr: receiverRaw,
+        collectorEnvPtr: stateHandle,
+        continuation: 0
+    )
+    let latestResult = latestState.finish(upstreamFailure: upstreamFailure)
+    return runtimeFlowRunNormalStage(latestResult, ops: ops)
+}
+
+/// Collects each flatMapLatest inner flow in a child Job so a newer upstream
+/// value can cancel it while preserving values emitted before cancellation.
+private final class RuntimeFlowLatestFlatMapState: @unchecked Sendable {
+    static let innerFlowArgument = Int64.min
+    static let stateArgument = Int64.min + 1
+
+    private let lock = NSLock()
+    private let mapperFnPtr: Int
+    private let collectionScope: RuntimeCoroutineScope
+    private let collectionJob: RuntimeJobHandle
+    private var activeJob: RuntimeJobHandle?
+    private var values: [Int] = []
+    private var failure = 0
+
+    init(
+        mapperFnPtr: Int,
+        collectionScope: RuntimeCoroutineScope,
+        collectionJob: RuntimeJobHandle
+    ) {
+        self.mapperFnPtr = mapperFnPtr
+        self.collectionScope = collectionScope
+        self.collectionJob = collectionJob
+    }
+
+    func append(_ value: Int) {
+        lock.lock()
+        values.append(value)
+        lock.unlock()
+    }
+
+    private func failureSnapshot() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return failure
+    }
+
+    private func recordFailure(_ exception: Int) {
+        guard exception != 0, kk_is_cancellation_exception(exception) == 0 else { return }
+        lock.lock()
+        if failure == 0 { failure = exception }
+        lock.unlock()
+    }
+
+    private func takeActiveJob() -> RuntimeJobHandle? {
+        lock.lock()
+        let job = activeJob
+        activeJob = nil
+        lock.unlock()
+        return job
+    }
+
+    func receive(_ value: Int) -> Int {
+        if let previous = takeActiveJob() {
+            if !previous.completedSnapshot() {
+                _ = previous.cancel(message: "Latest outer value was received")
+            }
+            _ = previous.join()
         }
-        lastInnerHandle = innerHandle
+        let previousFailure = failureSnapshot()
+        if previousFailure != 0 { return previousFailure }
+        if collectionJob.cancellationSnapshot() {
+            return collectionJob.cancellationCauseSnapshot()
+        }
+
+        var mapperFailure = 0
+        let innerHandle: Int
+        if runtimeFunctionValueBox(from: mapperFnPtr) != nil {
+            innerHandle = runtimeInvokeSuspendFunction(
+                mapperFnPtr,
+                arguments: [value],
+                continuation: 0,
+                outThrown: &mapperFailure
+            )
+        } else {
+            let mapper = unsafeBitCast(
+                mapperFnPtr,
+                to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+            )
+            innerHandle = mapper(0, value, &mapperFailure)
+        }
+        if mapperFailure != 0 {
+            recordFailure(mapperFailure)
+            return mapperFailure
+        }
+        guard innerHandle != 0, runtimeFlowHandle(from: innerHandle) != nil else {
+            return 0
+        }
+
+        let actionScope = RuntimeCoroutineScope(context: collectionScope.context)
+        actionScope.blockingScheduler = collectionScope.blockingScheduler
+        let previousJob = RuntimeJobHandle.current
+        RuntimeJobHandle.current = collectionJob
+        let actionJob = actionScope.installJob(defaultCancellationMessage: "Latest inner flow was cancelled")
+        RuntimeJobHandle.current = previousJob
+        actionJob.debugName = "FlowLatestInner"
+        actionJob.propagatesFailureToParent = false
+        let actionHandle = actionJob.identityHandle
+        collectionJob.registerChild(actionHandle)
+
+        let innerFlow = runtimeFlowHandle(from: innerHandle)!
+        let template = innerFlow.emitterTemplateState
+        let continuationRaw = kk_coroutine_continuation_new(template.map { Int($0.functionID) } ?? 0)
+        guard let continuationState = runtimeContinuationState(from: continuationRaw) else {
+            _ = actionJob.complete(with: 0)
+            _ = runtimeReleaseObject(actionHandle)
+            return 0
+        }
+        actionJob.continuationState = continuationState
+        continuationState.launcherArgs = template?.launcherArgs ?? [:]
+        continuationState.launcherArgs[Self.innerFlowArgument] = Int64(innerHandle)
+        continuationState.launcherArgs[Self.stateArgument] = Int64(Int(bitPattern: Unmanaged.passUnretained(self).toOpaque()))
+        continuationState.scope = actionScope
+        continuationState.jobHandle = actionJob
+        continuationState.flowCollectContext = runtimeFlowLatestInnerCollectContext(innerFlow, state: self)
+
+        lock.lock()
+        activeJob = actionJob
+        lock.unlock()
+        actionJob.markStarted()
+
+        let entryPointRaw: Int
+        if case let .emitter(emitterFnPtr, emitterTemplate) = innerFlow.source,
+           emitterTemplate != nil
+        {
+            entryPointRaw = emitterFnPtr
+        } else {
+            entryPointRaw = unsafeBitCast(
+                runtimeFlowLatestFlatMapInnerBody as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+                to: Int.self
+            )
+        }
+        runtimeStartLaunchedBody(
+            entryPointRaw: entryPointRaw,
+            continuation: continuationRaw,
+            scope: actionScope,
+            job: actionJob
+        ) { [weak self, actionScope, actionJob, actionHandle] result, thrown in
+            let nestedFailure = actionScope.waitForChildren()
+            let finalThrown = thrown != 0 ? thrown : nestedFailure
+            if finalThrown != 0, kk_is_cancellation_exception(finalThrown) == 0 {
+                self?.recordFailure(finalThrown)
+                _ = self?.collectionJob.cancel(cause: finalThrown)
+                _ = actionJob.completeExceptionally(with: finalThrown)
+            } else {
+                _ = actionJob.complete(with: result)
+            }
+            self?.collectionJob.detachChild(actionHandle)
+            _ = runtimeReleaseObject(actionHandle)
+            self?.lock.lock()
+            if self?.activeJob === actionJob { self?.activeJob = nil }
+            self?.lock.unlock()
+        }
+        return failureSnapshot()
     }
-    guard lastInnerHandle != 0, let lastFlow = runtimeFlowHandle(from: lastInnerHandle) else {
-        return RuntimeFlowExecutionResult(values: [], failure: nil)
+
+    func finish(upstreamFailure: Int) -> RuntimeFlowExecutionResult {
+        if let active = takeActiveJob() {
+            if upstreamFailure != 0, kk_is_cancellation_exception(upstreamFailure) == 0,
+               !active.completedSnapshot()
+            {
+                _ = active.cancel(cause: upstreamFailure)
+            }
+            _ = active.join()
+        }
+        let nestedFailure = collectionScope.waitForChildren()
+        let actionFailure = failureSnapshot()
+        let cancellation = collectionJob.cancellationSnapshot()
+            ? collectionJob.cancellationCauseSnapshot() : 0
+        let finalFailure = actionFailure != 0 ? actionFailure
+            : (upstreamFailure != 0 ? upstreamFailure
+                : (nestedFailure != 0 ? nestedFailure : cancellation))
+        if finalFailure != 0 {
+            _ = collectionJob.completeExceptionally(with: finalFailure)
+        } else {
+            _ = collectionJob.complete(with: 0)
+        }
+        lock.lock()
+        let resultValues = values
+        lock.unlock()
+        return RuntimeFlowExecutionResult(values: resultValues, failure: finalFailure == 0 ? nil : finalFailure)
     }
-    let inner = runtimeFlowEvaluate(flow: lastFlow)
-    return runtimeFlowRunNormalStage(inner, ops: ops)
+}
+
+private func runtimeFlowLatestFlatMapInnerBody(
+    _ continuation: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard let state = runtimeContinuationState(from: continuation),
+          let innerFlow = runtimeFlowHandle(from: Int(state.launcherArgs[RuntimeFlowLatestFlatMapState.innerFlowArgument] ?? 0))
+    else { return 0 }
+    if case let .emitter(emitterFnPtr, template) = innerFlow.source, template == nil {
+        let emitter = unsafeBitCast(
+            emitterFnPtr,
+            to: (@convention(c) (UnsafeMutablePointer<Int>?) -> Int).self
+        )
+        return emitter(outThrown)
+    }
+
+    let stateHandle = Int(state.launcherArgs[RuntimeFlowLatestFlatMapState.stateArgument] ?? 0)
+    let receiver = unsafeBitCast(
+        runtimeFlowLatestFlatMapInnerReceiver as @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int,
+        to: Int.self
+    )
+    let failure = runtimeFlowCollectLazy(
+        innerFlow,
+        collectorFnPtr: receiver,
+        collectorEnvPtr: stateHandle,
+        continuation: 0
+    )
+    outThrown?.pointee = failure
+    return failure
+}
+
+private func runtimeFlowLatestInnerCollectContext(
+    _ flow: RuntimeFlowHandle,
+    state: RuntimeFlowLatestFlatMapState
+) -> RuntimeFlowCollectContext {
+    let context = RuntimeFlowCollectContext()
+    var takeCounters = runtimeFlowInitTakeCounters(flow.opChain)
+    var lastValues: [Int: Int] = [:]
+    context.emitHandler = { emittedValue in
+        let result = runtimeFlowApplyOpsLazy(
+            runtimeFlowMaybeUnbox(emittedValue),
+            ops: flow.opChain,
+            takeCounters: &takeCounters,
+            lastValues: &lastValues
+        )
+        switch result {
+        case let .emit(value):
+            state.append(value)
+            if runtimeFlowTakeExhausted(ops: flow.opChain, takeCounters: takeCounters) {
+                context.cancelled = true
+                return runtimeFlowStopSentinel
+            }
+            return value
+        case .filtered:
+            return emittedValue
+        case let .thrown(failure):
+            context.failure = failure
+            context.cancelled = true
+            return runtimeFlowStopSentinel
+        case .done:
+            context.cancelled = true
+            return runtimeFlowStopSentinel
+        }
+    }
+    return context
+}
+
+private func runtimeFlowLatestFlatMapInnerReceiver(
+    _ stateHandle: Int,
+    _ value: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard let pointer = UnsafeMutableRawPointer(bitPattern: stateHandle) else { return 0 }
+    let state = Unmanaged<RuntimeFlowLatestFlatMapState>.fromOpaque(pointer).takeUnretainedValue()
+    state.append(runtimeFlowMaybeUnbox(value))
+    outThrown?.pointee = 0
+    return value
+}
+
+private func runtimeFlowLatestFlatMapReceiver(
+    _ stateHandle: Int,
+    _ value: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard let pointer = UnsafeMutableRawPointer(bitPattern: stateHandle) else { return 0 }
+    let state = Unmanaged<RuntimeFlowLatestFlatMapState>.fromOpaque(pointer).takeUnretainedValue()
+    let failure = state.receive(value)
+    outThrown?.pointee = failure
+    return value
 }
 
 private func runtimeFlowEvaluateMerge(
@@ -2238,6 +2757,18 @@ public func __kk_flow_flat_map_latest(_ flowHandle: Int, _ mapperFnPtr: Int, _: 
         opChain: []
     )
     return runtimeRegisterFlowHandle(derived)
+}
+
+// Kotlin external calls carry an `outThrown` pointer; the non-throwing
+// compiler intrinsic above keeps its existing dummy-argument ABI.
+@_cdecl("__kk_flow_flat_map_latest_external")
+public func __kk_flow_flat_map_latest_external(
+    _ flowHandle: Int,
+    _ mapperFnPtr: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    return __kk_flow_flat_map_latest(flowHandle, mapperFnPtr, 0)
 }
 
 /// flowArrayHandle: handle to an array of flow handles; count: element count.

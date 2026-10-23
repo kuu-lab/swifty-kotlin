@@ -13,7 +13,7 @@ extension JVMProgramBuilder {
         guard let symbol = sema.symbols.symbol(symbolID), symbol.kind == .constructor,
               let parent = sema.symbols.parentSymbol(for: symbolID), classes[parent] == nil,
               let source = try? className(parent), let name = JVMClasspathIndex.builtinName(source),
-              (name.hasPrefix("java/lang/") || ["java/util/NoSuchElementException", "java/util/AbstractCollection", "java/util/AbstractList", "java/util/AbstractSet", "java/util/AbstractMap", "kotlin/collections/AbstractSet", "kotlin/collections/IntIterator", "kotlin/UninitializedPropertyAccessException"].contains(name)), let signature = sema.symbols.functionSignature(for: symbolID),
+              (name.hasPrefix("java/lang/") || ["java/util/NoSuchElementException", "java/util/AbstractCollection", "java/util/AbstractList", "java/util/AbstractSet", "java/util/AbstractMap", "kotlin/collections/AbstractSet", "kotlin/collections/IntIterator", "kotlin/NotImplementedError", "kotlin/UninitializedPropertyAccessException"].contains(name)), let signature = sema.symbols.functionSignature(for: symbolID),
               let parameters = try? signature.parameterTypes.map(type) else { return nil }
         return JVMForeignMethod(owner: name, name: "<init>", descriptor: "(" + parameters.map(\.descriptor).joined() + ")V", parameters: parameters, result: .reference(name, nullable: false), isStatic: false, isInterface: false, isAbstract: false)
     }
@@ -38,6 +38,7 @@ extension JVMFunctionBuilder {
     func intrinsicCall(_ symbolID: SymbolID, args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult? {
         if let method = program.builtinMethod(symbolID) { return JVMIntrinsicResult(value: try foreign(method, receiver: nil, args: args, id: id)) }
         guard let symbol = program.sema.symbols.symbol(symbolID), symbol.declSite.map({ context.sourceManager.origin(of: $0.start.file) != .user }) ?? true else { return nil }
+        if let result = try resultCompanionCall(symbolID, args: args, id: id) { return result }
         if let delegate = try delegationIntrinsic(symbol, args: args, id: id) { return delegate }
         if let coroutine = try coroutineCall(symbol, args: args, id: id) { return coroutine }
         let fq = symbol.fqName.map(context.interner.resolve).joined(separator: "/")
@@ -139,6 +140,31 @@ extension JVMFunctionBuilder {
         if let scalar = try scalarMember(receiverID, name: member, args: args, id: id) { return scalar }
         if let reflection = try reflectionMember(receiverID, name: member, args: args, id: id) { return reflection }
         guard let sourceType = try? program.expressionType(receiverID) else { return nil }
+        if sourceType.referenceName == "kotlin/ranges/ClosedFloatingPointRange" {
+            // The JVM ABI erases generic range elements to Comparable; concrete
+            // Float/Double range classes provide bridges for these interface calls.
+            let comparable: JVMValueType = .reference("java/lang/Comparable", nullable: false)
+            let receiver = try requireValue(receiverID)
+            switch member {
+            case "contains" where args.count == 1 && args.allSatisfy({ $0.label == nil && !$0.isSpread }):
+                return JVMIntrinsicResult(value: try jdkCall(
+                    "kotlin/ranges/ClosedFloatingPointRange", member, [comparable], .boolean,
+                    receiver: receiver, arguments: [requireValue(args[0].expr)], interface: true
+                ))
+            case "isEmpty" where args.isEmpty:
+                return JVMIntrinsicResult(value: try jdkCall(
+                    "kotlin/ranges/ClosedFloatingPointRange", member, [], .boolean,
+                    receiver: receiver, interface: true
+                ))
+            case "lessThanOrEquals" where args.count == 2 && args.allSatisfy({ $0.label == nil && !$0.isSpread }):
+                return JVMIntrinsicResult(value: try jdkCall(
+                    "kotlin/ranges/ClosedFloatingPointRange", member, [comparable, comparable], .boolean,
+                    receiver: receiver, arguments: try args.map { try requireValue($0.expr) }, interface: true
+                ))
+            default:
+                break
+            }
+        }
         if sourceType.referenceName == "kotlin/properties/Delegates", ["notNull", "observable", "vetoable"].contains(member) {
             let receiver = try requireValue(receiverID)
             let object: JVMValueType = .reference("java/lang/Object", nullable: true)
@@ -160,7 +186,7 @@ extension JVMFunctionBuilder {
         // Array HOF inference may leave no callee binding, including when its
         // callback is an existing function value rather than a lambda literal.
         let intrinsicHOF = binding == nil && higherOrderReceiver(receiverID) && args.last.flatMap { functionType($0.expr) } != nil
-        if ["map", "filter", "forEach", "fold"].contains(member), builtinHOF || intrinsicHOF {
+        if ["map", "filter", "forEach", "fold", "reduce"].contains(member), builtinHOF || intrinsicHOF {
             return JVMIntrinsicResult(value: try higherOrder(receiverID, operation: member, args: args, id: id))
         }
         if let aggregate = try collectionAggregateMember(receiverID, name: member, args: args, id: id) { return aggregate }
@@ -229,6 +255,9 @@ extension JVMFunctionBuilder {
             let source = try requireValue(receiverID), result = try value(.int)
             instructions.append(.arrayLength(source, result)); return JVMIntrinsicResult(value: result)
         }
+        if owner == "kotlin/sequences/Sequence", ["sum", "average"].contains(member), args.isEmpty {
+            return JVMIntrinsicResult(value: try sequenceAggregate(receiverID, member: member, id: id))
+        }
         let collections: Set<String> = ["java/util/ArrayList", "java/lang/Iterable", "java/util/Iterator", "java/util/ListIterator", "java/util/Collection", "java/util/List", "kotlin/enums/EnumEntries", "java/util/Set", "java/util/Map", "kotlin/text/MatchGroupCollection"]
         if collections.contains(owner) {
             // JDK collection interfaces retain the virtual Object contract;
@@ -244,6 +273,9 @@ extension JVMFunctionBuilder {
             if owner == "java/util/ArrayList" { owner = "java/util/List" }
             if ["set", "add", "addAll", "remove", "removeAll", "removeAt", "put", "clear"].contains(member), owner != "java/util/ListIterator" { try requireMutableCollection(receiverID, at: id) }
             if ["set", "add", "addAll", "put"].contains(member), owner != "java/util/ListIterator" { try requireWritableArguments(receiverID, at: id) }
+            if ["getOrElse", "getOrPut"].contains(member), ["java/util/List", "java/util/Map"].contains(owner) {
+                return try collectionDefaultValueMember(receiverID, owner: owner, member: member, args: args, id: id)
+            }
             let source = try convert(requireValue(receiverID), to: .reference(owner, nullable: false))
             let result = try program.expressionType(id)
             var values: [JVMValue] = []
@@ -254,6 +286,61 @@ extension JVMFunctionBuilder {
             case "entries": actual = "entrySet"; parameters = []; returns = .reference("java/util/Set", nullable: false)
             case "keys": actual = "keySet"; parameters = []; returns = .reference("java/util/Set", nullable: false)
             case "values": actual = "values"; parameters = []; returns = .reference("java/util/Collection", nullable: false)
+            case "filterKeys", "filterValues", "mapKeys", "mapValues":
+                guard owner == "java/util/Map", values.count == 1,
+                      let signature = functionType(args[0].expr), signature.params.count == 1
+                else { throw fail("JVM Map transforms require a one-argument callback.", id) }
+                let destination = try constructJDK("java/util/LinkedHashMap")
+                let entries = try jdkCall("java/util/Map", "entrySet", [], .reference("java/util/Set", nullable: false), receiver: source, interface: true)!
+                let iterator = try jdkCall("java/lang/Iterable", "iterator", [], .reference("java/util/Iterator", nullable: false), receiver: entries, interface: true)!
+                let test = label(), advance = label(), end = label()
+                mark(test)
+                let hasNext = try jdkCall("java/util/Iterator", "hasNext", [], .boolean, receiver: iterator, interface: true)!
+                instructions.append(.jumpIfFalse(hasNext, end))
+                let entry = try jdkCall("java/util/Iterator", "next", [], object, receiver: iterator, interface: true)!
+                let key = try jdkCall("java/util/Map$Entry", "getKey", [], object, receiver: entry, interface: true)!
+                let value = try jdkCall("java/util/Map$Entry", "getValue", [], object, receiver: entry, interface: true)!
+                var outputKey = key
+                var outputValue = value
+                if member == "mapKeys" {
+                    outputKey = try invoke(values[0], signature: signature, arguments: [entry], resultType: object)!
+                } else if member == "mapValues" {
+                    outputValue = try invoke(values[0], signature: signature, arguments: [entry], resultType: object)!
+                } else {
+                    let selected = try invoke(
+                        values[0],
+                        signature: signature,
+                        arguments: [member == "filterKeys" ? key : value],
+                        resultType: .boolean
+                    )!
+                    instructions.append(.jumpIfFalse(selected, advance))
+                }
+                _ = try jdkCall("java/util/Map", "put", [object, object], object, receiver: destination, arguments: [outputKey, outputValue], interface: true)
+                mark(advance)
+                jump(test)
+                mark(end)
+                return JVMIntrinsicResult(value: try convert(destination, to: result))
+            case "getOrElse", "getOrPut":
+                guard owner == "java/util/Map", values.count == 2,
+                      let signature = functionType(args[1].expr), signature.params.isEmpty
+                else { throw fail("JVM Map default accessors require a zero-argument fallback.", id) }
+                let stored = try jdkCall("java/util/Map", "get", [object], object, receiver: source, arguments: [values[0]], interface: true)!
+                let answer = try value(result), fallback = label(), end = label()
+                let null = try constant(.null, object), present = try value(.boolean)
+                instructions.append(.referenceCompare(.notEqual, stored, null, present))
+                instructions.append(.jumpIfFalse(present, fallback))
+                instructions.append(.copy(try convert(stored, to: result), answer))
+                jump(end)
+                mark(fallback)
+                let defaultValue = try invoke(values[1], signature: signature, arguments: [], resultType: result)
+                guard let defaultValue else { throw fail("JVM Map fallback must produce a value.", id) }
+                if member == "getOrPut" {
+                    try requireMutableCollection(receiverID, at: id)
+                    _ = try jdkCall("java/util/Map", "put", [object, object], object, receiver: source, arguments: [values[0], defaultValue], interface: true)
+                }
+                instructions.append(.copy(try convert(defaultValue, to: result), answer))
+                mark(end)
+                return JVMIntrinsicResult(value: answer)
             case "containsAll": actual = member; parameters = [.reference("java/util/Collection", nullable: false)]; returns = .boolean
             case "isEmpty", "hasNext", "hasPrevious": actual = member; parameters = []; returns = .boolean
             case "nextIndex", "previousIndex": actual = member; parameters = []; returns = .int
@@ -277,7 +364,7 @@ extension JVMFunctionBuilder {
                 else { parameters = [object]; returns = .boolean }
             case "remove":
                 actual = member
-                if owner == "java/util/ListIterator" { parameters = []; returns = .unit }
+                if owner == "java/util/Iterator" || owner == "java/util/ListIterator" { parameters = []; returns = .unit }
                 else { parameters = [object]; returns = owner == "java/util/Map" ? object : .boolean }
             case "contains", "containsKey", "containsValue": actual = member; parameters = [object]; returns = .boolean
             case "addAll":
@@ -300,8 +387,31 @@ extension JVMFunctionBuilder {
         let throwable = program.sema.symbols.lookup(fqName: [context.interner.intern("kotlin"), context.interner.intern("Throwable")])
         let throwableType = throwable.map { program.sema.types.make(.classType(ClassType(classSymbol: $0))) }
         let semanticReceiver = program.sema.bindings.exprType(for: receiverID)
-        if member == "message", args.isEmpty, let throwableType, let semanticReceiver, program.sema.types.isSubtype(semanticReceiver, throwableType) {
-            return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "getMessage", [], .reference("java/lang/String", nullable: true), receiver: requireValue(receiverID)))
+        let nonNullReceiver = semanticReceiver.map { program.sema.types.withNullability(.nonNull, for: $0) }
+        if let throwableType, let nonNullReceiver, program.sema.types.isSubtype(nonNullReceiver, throwableType) {
+            let receiver = try requireValue(receiverID)
+            switch member {
+            case "message" where args.isEmpty:
+                return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "getMessage", [], .reference("java/lang/String", nullable: true), receiver: receiver))
+            case "cause" where args.isEmpty:
+                return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "getCause", [], .reference("java/lang/Throwable", nullable: true), receiver: receiver))
+            case "stackTrace" where args.isEmpty:
+                return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "getStackTrace", [], .reference("[Ljava/lang/StackTraceElement;", nullable: false), receiver: receiver))
+            case "suppressed" where args.isEmpty:
+                return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "getSuppressed", [], .reference("[Ljava/lang/Throwable;", nullable: false), receiver: receiver))
+            case "initCause" where args.count == 1:
+                let cause = try requireValue(args[0].expr)
+                return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "initCause", [.reference("java/lang/Throwable", nullable: true)], .reference("java/lang/Throwable", nullable: false), receiver: receiver, arguments: [cause]))
+            case "addSuppressed" where args.count == 1:
+                let exception = try requireValue(args[0].expr)
+                return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "addSuppressed", [.reference("java/lang/Throwable", nullable: false)], .unit, receiver: receiver, arguments: [exception]))
+            case "printStackTrace" where args.isEmpty:
+                return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "printStackTrace", [], .unit, receiver: receiver))
+            case "fillInStackTrace" where args.isEmpty:
+                return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "fillInStackTrace", [], .reference("java/lang/Throwable", nullable: false), receiver: receiver))
+            default:
+                break
+            }
         }
         return nil
     }
@@ -450,16 +560,32 @@ extension JVMFunctionBuilder {
 }
 
 extension JVMFunctionBuilder {
-    func sequenceLoop(_ name: InternedString, _ iterable: ExprID, _ body: ExprID, _ id: ExprID) throws {
+    func sequenceLoop(_ name: InternedString, _ iterable: ExprID, _ body: ExprID, _ id: ExprID, label loopLabel: InternedString? = nil) throws {
         let source = try requireValue(iterable)
         // An Iterator receiver is its own cursor: the stdlib Iterator<T>.iterator()
         // operator returns `this`, so Sema leaves iteratorCall nil for it.
         let loopBinding = program.sema.bindings.loopIterationBinding(for: id)
+        let jvmIterableElementType: TypeID? = {
+            guard let referenceName = source.type.referenceName,
+                  ["java/lang/Iterable", "java/util/Collection", "java/util/List", "java/util/Set"]
+                    .contains(referenceName),
+                  let iterableType = program.sema.bindings.exprType(for: iterable)
+            else {
+                return nil
+            }
+            return TypeCheckHelpers().iterableElementType(
+                for: iterableType,
+                isRangeExpr: false,
+                sema: program.sema,
+                interner: context.interner
+            )
+        }()
         let elementType: JVMValueType
         if source.type.isCharSequence { elementType = .char }
         else if source.type.referenceName == "kotlin/ranges/IntRange" { elementType = .int }
         else if source.type.referenceName?.hasPrefix("[") == true { elementType = try arrayComponent(source.type) }
         else if let loopBinding { elementType = try program.type(loopBinding.elementType) }
+        else if let jvmIterableElementType { elementType = try program.type(jvmIterableElementType) }
         else { throw fail("JVM for requires an array or iterable collection.", id) }
         let local = try value(elementType), test = label(), advance = label(), exit = label()
         scopes.append([name: Local(value: local, mutable: false)]); defer { scopes.removeLast() }
@@ -473,7 +599,7 @@ extension JVMFunctionBuilder {
             let check = try value(.boolean); instructions.append(.binary(.lessThan, index, size, check)); instructions.append(.jumpIfFalse(check, exit))
             let item = try indexedRead(source, index: index, type: elementType)
             instructions.append(.copy(item, local))
-            loops.append((exit, advance, pendingAllocations.count)); _ = try expression(body, discarded: true); loops.removeLast()
+            loops.append(LoopFrame(label: loopLabel, exit: exit, next: advance, allocationDepth: pendingAllocations.count)); _ = try expression(body, discarded: true); loops.removeLast()
             mark(advance)
             let one = try constant(.int(1), .int)
             instructions.append(.binary(.add, index, one, index)); jump(test)
@@ -508,7 +634,7 @@ extension JVMFunctionBuilder {
             instructions.append(.jumpIfFalse(check, exit))
             let next = try jdkCall("java/util/Iterator", "next", [], .reference("java/lang/Object", nullable: true), receiver: iterator, interface: true, resolved: elementType)!
             instructions.append(.copy(next, local))
-            loops.append((exit, advance, pendingAllocations.count)); _ = try expression(body, discarded: true); loops.removeLast()
+            loops.append(LoopFrame(label: loopLabel, exit: exit, next: advance, allocationDepth: pendingAllocations.count)); _ = try expression(body, discarded: true); loops.removeLast()
             mark(advance); jump(test)
         }
         mark(exit)

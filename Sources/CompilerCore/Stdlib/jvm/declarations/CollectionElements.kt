@@ -1,4 +1,11 @@
+@file:kotlin.jvm.JvmName("CollectionsKt")
 package kotlin.collections
+
+operator fun <T> List<T>.component1(): T = null!!
+operator fun <T> List<T>.component2(): T = null!!
+operator fun <T> List<T>.component3(): T = null!!
+operator fun <T> List<T>.component4(): T = null!!
+operator fun <T> List<T>.component5(): T = null!!
 
 fun <T> Iterable<T>.first(): T = null!!
 fun <T> List<T>.first(): T = null!!

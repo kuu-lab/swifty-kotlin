@@ -49,6 +49,7 @@ fun main() {
     println(GC.heapTriggerCoefficient)
     println(GC.pauseOnTargetHeapOverflow)
     println(detected == null)
+    // GC.collect() above records a completed pass, so lastGCInfo is non-null.
     println(lastInfo == null)
     println(cycle == null)
 

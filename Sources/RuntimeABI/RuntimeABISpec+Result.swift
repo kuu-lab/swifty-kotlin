@@ -1,156 +1,20 @@
+private let abi = RuntimeABISectionBuilder("Result")
+
 public extension RuntimeABISpec {
     static let resultFunctions: [RuntimeABIFunctionSpec] = [
-        RuntimeABIFunctionSpec(
-            name: "kk_runtime_result_success",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Result",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_runtime_result_is_success",
-            parameters: [
-                RuntimeABIParameter(name: "resultRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Result",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_runtime_result_is_failure",
-            parameters: [
-                RuntimeABIParameter(name: "resultRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Result",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_runtime_result_value_or_null",
-            parameters: [
-                RuntimeABIParameter(name: "resultRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Result",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_runtime_result_get_or_throw",
-            parameters: [
-                RuntimeABIParameter(name: "resultRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Result",
-            isThrowing: true
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_runtime_result_exception_or_null",
-            parameters: [
-                RuntimeABIParameter(name: "resultRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Result",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_runtime_result_run_catching",
-            parameters: [
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Result",
-            isThrowing: true
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_runtime_result_get_or_else",
-            parameters: [
-                RuntimeABIParameter(name: "resultRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Result",
-            isThrowing: true
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_runtime_result_map",
-            parameters: [
-                RuntimeABIParameter(name: "resultRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Result",
-            isThrowing: true
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_runtime_result_fold",
-            parameters: [
-                RuntimeABIParameter(name: "resultRaw", type: .intptr),
-                RuntimeABIParameter(name: "successFnPtr", type: .intptr),
-                RuntimeABIParameter(name: "successClosureRaw", type: .intptr),
-                RuntimeABIParameter(name: "failureFnPtr", type: .intptr),
-                RuntimeABIParameter(name: "failureClosureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Result",
-            isThrowing: true
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_runtime_result_on_success",
-            parameters: [
-                RuntimeABIParameter(name: "resultRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Result",
-            isThrowing: true
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_runtime_result_on_failure",
-            parameters: [
-                RuntimeABIParameter(name: "resultRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Result",
-            isThrowing: true
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_runtime_result_recover",
-            parameters: [
-                RuntimeABIParameter(name: "resultRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Result",
-            isThrowing: true
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_runtime_result_recover_catching",
-            parameters: [
-                RuntimeABIParameter(name: "resultRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Result",
-            isThrowing: true
-        ),
+        abi.nt("kk_runtime_result_success", "value"),
+        abi.nt("kk_runtime_result_is_success", "resultRaw"),
+        abi.nt("kk_runtime_result_is_failure", "resultRaw"),
+        abi.nt("kk_runtime_result_value_or_null", "resultRaw"),
+        abi.th("kk_runtime_result_get_or_throw", "resultRaw outThrown"),
+        abi.nt("kk_runtime_result_exception_or_null", "resultRaw"),
+        abi.th("kk_runtime_result_run_catching", "fnPtr closureRaw outThrown"),
+        abi.th("kk_runtime_result_get_or_else", "resultRaw fnPtr closureRaw outThrown"),
+        abi.th("kk_runtime_result_map", "resultRaw fnPtr closureRaw outThrown"),
+        abi.th("kk_runtime_result_fold", "resultRaw successFnPtr successClosureRaw failureFnPtr failureClosureRaw outThrown"),
+        abi.th("kk_runtime_result_on_success", "resultRaw fnPtr closureRaw outThrown"),
+        abi.th("kk_runtime_result_on_failure", "resultRaw fnPtr closureRaw outThrown"),
+        abi.th("kk_runtime_result_recover", "resultRaw fnPtr closureRaw outThrown"),
+        abi.th("kk_runtime_result_recover_catching", "resultRaw fnPtr closureRaw outThrown"),
     ]
 }

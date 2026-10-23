@@ -258,6 +258,33 @@ struct ConstPropertyEvaluationTests {
     }
 
     @Test
+    func foldsCharCodeNumericConversionConstInitializers() throws {
+        let ctx = makeContextFromSource("""
+        package charCodeConstants
+        private const val CR: Byte = '\\r'.code.toByte()
+        private const val LF: Byte = '\\n'.code.toByte()
+        const val CODE: Int = '\\r'.code
+        const val WIDE_CODE: Long = '\\uFFFF'.code.toLong()
+        """)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.diagnostics.filter { $0.severity == .error }.isEmpty)
+        let sema = try #require(ctx.sema)
+        let expected: [String: KIRExprKind] = [
+            "CR": .intLiteral(13),
+            "LF": .intLiteral(10),
+            "CODE": .intLiteral(13),
+            "WIDE_CODE": .longLiteral(65535),
+        ]
+        for (name, value) in expected {
+            let symbol = try #require(sema.symbols.lookup(
+                fqName: ["charCodeConstants", name].map { ctx.interner.intern($0) }
+            ))
+            #expect(sema.symbols.constValueExprKind(for: symbol) == value, "Incorrect constant for \(name)")
+        }
+    }
+
+    @Test
     func foldsPrimitiveCompareToToStringAndUnaryMemberCalls() throws {
         let ctx = makeContextFromSource("""
         package primitiveMemberConstants

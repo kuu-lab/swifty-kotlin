@@ -43,6 +43,26 @@ public fun <T, R : Comparable<R>> Array<out T>.sortedBy(selector: (T) -> R?): Li
     return result
 }
 
+public inline fun <T, R : Comparable<R>> Array<out T>.sortedByDescending(
+    crossinline selector: (T) -> R?
+): List<T> {
+    val result = this.toMutableList()
+    result.stableSortBySelector(selector, true)
+    return result
+}
+
+@Suppress("UNCHECKED_CAST")
+public inline fun <T, R : Comparable<R>> Array<out T>.sortBy(crossinline selector: (T) -> R?) {
+    val result = this.toMutableList()
+    result.stableSortBySelector(selector, false)
+    val array = this as Array<T>
+    var index = 0
+    while (index < result.size) {
+        array[index] = result[index]
+        index += 1
+    }
+}
+
 @Suppress("UNCHECKED_CAST")
 public fun <T> Array<out T>.sort(fromIndex: Int = 0, toIndex: Int = this.size) {
     checkBinarySearchBounds(this.size, fromIndex, toIndex)

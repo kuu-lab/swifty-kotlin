@@ -1,9 +1,33 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+import TestStdlibCache
 
 @Suite
 struct CoroutineScopeSourceMigrationTests {
+    @Test
+    func unrelatedImportDoesNotHideCoroutineSuspendBuilders() throws {
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource("""
+        import kotlinx.coroutines.*
+        import java.util.LinkedList
+
+        suspend fun probe() {
+            coroutineScope {
+                supervisorScope {
+                    withTimeout(1L) {
+                        delay(1L)
+                        async { 7 }.await()
+                    }
+                }
+            }
+        }
+        """, allowDefaultStdlibLibrary: true)
+        #expect(ctx.options.stdlibLibraryPath != nil)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+    }
+
     @Test
     func scopeBuildersAcceptReceiverFunctionValuesAndLiterals() throws {
         let ctx = makeContextFromSource("""

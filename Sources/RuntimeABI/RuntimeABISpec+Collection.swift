@@ -1,254 +1,41 @@
+private let abi = RuntimeABISectionBuilder("Collection")
+private let abiEnum = RuntimeABISectionBuilder("Enum")
+
 public extension RuntimeABISpec {
-    static let bridgeListGetSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: "__kk_list_get",
-        parameters: [
-            RuntimeABIParameter(name: "listRaw", type: .intptr),
-            RuntimeABIParameter(name: "index", type: .intptr),
-            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-        ],
-        returnType: .intptr,
-        section: "Collection"
-    )
-
-    static let listIteratorNextSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: "kk_list_iterator_next",
-        parameters: [
-            RuntimeABIParameter(name: "iterRaw", type: .intptr),
-            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-        ],
-        returnType: .intptr,
-        section: "Collection"
-    )
-
-    static let indexingIterableNextSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: "kk_indexing_iterable_next",
-        parameters: [
-            RuntimeABIParameter(name: "iterRaw", type: .intptr),
-            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-        ],
-        returnType: .intptr,
-        section: "Collection"
-    )
+    static let bridgeListGetSpec: RuntimeABIFunctionSpec = abi.th("__kk_list_get", "listRaw index outThrown")
+    static let listIteratorNextSpec: RuntimeABIFunctionSpec = abi.th("kk_list_iterator_next", "iterRaw outThrown")
+    static let indexingIterableNextSpec: RuntimeABIFunctionSpec = abi.th("kk_indexing_iterable_next", "iterRaw outThrown")
 
     static let collectionFunctions: [RuntimeABIFunctionSpec] = [
-        RuntimeABIFunctionSpec(
-            name: "__kk_objects_equals",
-            parameters: [
-                RuntimeABIParameter(name: "lhs", type: .intptr),
-                RuntimeABIParameter(name: "rhs", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_values_equal",
-            parameters: [
-                RuntimeABIParameter(name: "lhs", type: .intptr),
-                RuntimeABIParameter(name: "rhs", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_list_check_modification",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_list_of",
-            parameters: [
-                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "count", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_emptyList",
-            parameters: [],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_array_list_is_read_only",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_list_size",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
+        abi.th("__kk_objects_equals", "lhs rhs outThrown"),
+        abi.nt("__kk_values_equal", "lhs rhs"),
+        abi.th("__kk_list_check_modification", "listRaw outThrown"),
+        abi.nt("__kk_list_of", "arrayRaw count"),
+        abi.th("__kk_emptyList"),
+        abi.nt("__kk_array_list_is_read_only", "listRaw"),
+        abi.nt("__kk_list_size", "listRaw"),
         bridgeListGetSpec,
-        RuntimeABIFunctionSpec(
-            name: "__kk_list_index_of",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "element", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_list_lastIndexOf",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "element", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_enum_entries_get",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "index", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Enum",
-            isThrowing: true
-        ),
+        abi.th("__kk_list_index_of", "listRaw element outThrown"),
+        abi.th("__kk_list_lastIndexOf", "listRaw element outThrown"),
+        abiEnum.th("__kk_enum_entries_get", "listRaw index outThrown"),
     ]
     + [
-        RuntimeABIFunctionSpec(
-            name: "kk_list_is_empty",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_list_iterator",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_list_iterator_hasNext",
-            parameters: [
-                RuntimeABIParameter(name: "iterRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_list_listIterator",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
+        abi.nt("kk_list_is_empty", "listRaw"),
+        abi.nt("kk_list_iterator", "listRaw"),
+        abi.nt("kk_list_iterator_hasNext", "iterRaw"),
+        abi.nt("__kk_mutable_list_listIterator", "listRaw"),
         listIteratorNextSpec,
         // IndexingIterable is the iterator bridge retained by List.withIndex().
-        RuntimeABIFunctionSpec(
-            name: "kk_indexing_iterable_iterator",
-            parameters: [
-                RuntimeABIParameter(name: "iterableRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_indexing_iterable_hasNext",
-            parameters: [
-                RuntimeABIParameter(name: "iterRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
+        abi.nt("kk_indexing_iterable_iterator", "iterableRaw"),
+        abi.nt("kk_indexing_iterable_hasNext", "iterRaw"),
         indexingIterableNextSpec,
-        RuntimeABIFunctionSpec(
-            name: "kk_list_iterator_at",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "index", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_list_subList",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "fromIndex", type: .intptr),
-                RuntimeABIParameter(name: "toIndex", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_list_iterator_hasPrevious",
-            parameters: [
-                RuntimeABIParameter(name: "iterRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_list_iterator_previous",
-            parameters: [
-                RuntimeABIParameter(name: "iterRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_list_iterator_nextIndex",
-            parameters: [
-                RuntimeABIParameter(name: "iterRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_list_iterator_previousIndex",
-            parameters: [
-                RuntimeABIParameter(name: "iterRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_list_to_string",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .opaquePointer,
-            section: "Collection",
-            isThrowing: false
-        ),
+        abi.th("kk_list_iterator_at", "listRaw index outThrown"),
+        abi.th("kk_list_subList", "listRaw fromIndex toIndex outThrown"),
+        abi.th("kk_list_iterator_hasPrevious", "iterRaw"),
+        abi.th("kk_list_iterator_previous", "iterRaw"),
+        abi.nt("kk_list_iterator_nextIndex", "iterRaw"),
+        abi.nt("kk_list_iterator_previousIndex", "iterRaw"),
+        abi.nt("kk_list_to_string", "listRaw", ret: .opaquePointer),
     ] + collectionSetFunctions
         + Self.collectionHOFFunctions
         + collectionMapFunctions

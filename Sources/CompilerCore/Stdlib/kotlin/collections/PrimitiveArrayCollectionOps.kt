@@ -338,8 +338,6 @@ public inline fun <R, V> LongArray.zip(other: Iterable<R>, transform: (Long, R) 
     return result
 }
 
-public inline fun ByteArray.isNotEmpty(): Boolean = size != 0
-
 public fun ByteArray.toHashSet(): HashSet<Byte> = asList().toHashSet()
 
 public fun ByteArray.toMutableSet(): MutableSet<Byte> = asList().toMutableSet()

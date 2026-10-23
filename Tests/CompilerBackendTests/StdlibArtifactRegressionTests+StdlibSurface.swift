@@ -7,7 +7,7 @@ import TestStdlibCache
 
 extension StdlibArtifactRegressionTests {
 
-    /// KUU-1919: Pattern/Matcher and Regex.toPattern must preserve JVM region semantics.
+    /// KUU-1919/KUU-3060: Pattern/Matcher APIs preserve JVM region and matching semantics.
     @Test(arguments: [false, true])
     func testJavaRegexPatternMatcherRegion(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
@@ -51,6 +51,25 @@ extension StdlibArtifactRegressionTests {
             word
             true
             WORD
+            a+
+            2
+            true
+            true
+            false
+            a|b
+            a|b||
+            a|b,c
+            abc
+            a|b|c
+            true
+            true
+            true
+            word
+            2
+            axbx
+            axb34
+            $1
+            a<12>b<34>
 
             """)
         }

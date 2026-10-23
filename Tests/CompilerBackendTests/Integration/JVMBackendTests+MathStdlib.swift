@@ -38,5 +38,91 @@ extension JVMBackendTests {
             #expect(execution.stderr.isEmpty)
         }
     }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func ownStdlibMathSurface(mode: EmitMode) throws {
+        let library = try ownStdlibLibrary()
+        try withWorkspace { root in
+            let result = try compile("""
+            import kotlin.math.*
+            fun main() {
+                println(max(3, 7) + min(3, 7) + abs(-5))
+                println(sqrt(16.0))
+                println(2.0.pow(10.0))
+                println(floor(2.7) + ceil(2.1))
+                println(round(2.5))
+                println(truncate(2.9))
+                println(sign(-3.5))
+                println(hypot(3.0, 4.0))
+                println(ln(E))
+                println(log10(1000.0))
+                println(PI)
+                println((-4.5).absoluteValue)
+                println((-3.5).sign)
+                println((-9L).sign)
+                println(2.5.roundToInt())
+                println((-2.5).roundToLong())
+                println(2.0.withSign(-1))
+                println(2.0f.pow(3))
+                println(sqrt(9.0f))
+                println(atan2(1.0, 0.0) > 1.57)
+                println(log2(8.0) == 3.0)
+                println(expm1(0.0) == 0.0)
+                println(ln1p(0.0) == 0.0)
+                println(acosh(1.0) == 0.0)
+                println(asinh(0.0) == 0.0)
+                println(atanh(1.0).isInfinite())
+                println(1.0.nextUp() > 1.0)
+                println(1.0.nextDown() < 1.0)
+                println(1.0.nextTowards(2.0) > 1.0)
+                println(7.0.IEEErem(2.5) == -0.5)
+                println(1.0.ulp > 0.0)
+                println(min(1u, 2u) == 1u)
+                println(max(1uL, 2uL) == 2uL)
+            }
+            """, root: root, mode: mode, classpath: [library.path])
+            try #require(result.0 == 0, "\(result.1.map(\.message))")
+            let output = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes")
+            let execution = try java(["-cp", output.path + ":" + library.path, "HelloKt"])
+            #expect(execution.exitCode == 0)
+            #expect(execution.stdout == """
+            15
+            4.0
+            1024.0
+            5.0
+            2.0
+            2.0
+            -1.0
+            5.0
+            1.0
+            3.0
+            3.141592653589793
+            4.5
+            -1.0
+            -1
+            3
+            -2
+            -2.0
+            8.0
+            3.0
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+
+            """)
+            #expect(execution.stderr.isEmpty)
+        }
+    }
 }
 #endif

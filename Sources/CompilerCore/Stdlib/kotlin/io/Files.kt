@@ -7,10 +7,35 @@ package kotlin.io
 //   kk_file_toRelativeString, kk_file_normalize
 // `path` reads File's internal state, so it stays the existing synthetic member
 // (a Kotlin-source `path` extension property would collide with the
-// `kotlin.io.path` package FQName). Every member below is pure string logic
-// derived from `path`.
+// `kotlin.io.path` package FQName). String helpers derive their results from
+// `path`; filesystem existence uses the shared native filesystem bridge.
 
 import java.io.File
+import kotlin.internal.KsSymbolName
+
+@KsSymbolName("__kk_io_fs_exists")
+private external fun fileSystemEntryExists(path: String): Boolean
+
+public fun File.exists(): Boolean = fileSystemEntryExists(path)
+
+public val File.isAbsolute: Boolean
+    get() = path.startsWith("/")
+
+private fun fileAbsolutePath(path: String): String {
+    if (path.isEmpty()) return java.lang.System.getProperty("user.dir", ".")
+
+    val candidate = if (path.startsWith("/")) {
+        path
+    } else {
+        val workingDirectory = java.lang.System.getProperty("user.dir", ".")
+        if (workingDirectory.endsWith("/")) "$workingDirectory$path" else "$workingDirectory/$path"
+    }
+    val components = candidate.split("/").filter { it.isNotEmpty() }
+    return "/${components.joinToString("/")}"
+}
+
+public val File.absolutePath: String
+    get() = fileAbsolutePath(path)
 
 // NOTE: `String.lastIndexOf(Char)` (single-argument) is not usable here — this
 // compiler only registers the 3-arg `lastIndexOf(Char, startIndex, ignoreCase)`

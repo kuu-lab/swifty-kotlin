@@ -35,13 +35,21 @@ final class ControlFlowTypeChecker {
             || sema.bindings.isRangeExpr(iterableExpr)
         if let elementType = bindLoopIterationOperators(
             exprID: exprID, iterableType: iterableType, range: range, locals: locals, ctx: ctx
-        ) ?? driver.helpers.iterableElementType(
+        ) {
+            return elementType
+        }
+        // The legacy range-element fallback bypasses iterator convention
+        // lookup, so floating-point ranges may use it only after a real
+        // iterator operator was bound above.
+        if !sema.bindings.isFloatingPointRangeExpr(iterableExpr),
+           let elementType = driver.helpers.iterableElementType(
             for: iterableType,
             isRangeExpr: isRangeExpr,
             isCharRangeExpr: sema.bindings.isCharRangeExpr(iterableExpr),
             sema: sema,
             interner: ctx.interner
-        ) {
+           )
+        {
             return elementType
         }
         ctx.sema.diagnostics.error(
@@ -411,7 +419,24 @@ final class ControlFlowTypeChecker {
         locals: inout LocalBindings
     ) -> TypeID {
         let sema = ctx.sema
-        let iterableType = driver.inferExpr(iterableExpr, ctx: ctx, locals: &locals, expectedType: nil)
+        let inferredIterableType = driver.inferExpr(iterableExpr, ctx: ctx, locals: &locals, expectedType: nil)
+        // Floating-point ranges keep an Int scalar representation for lowering,
+        // but for-in convention lookup must use their source-level range type.
+        // Otherwise the integer-range fallback accepts them without checking
+        // that an `iterator()` operator exists.
+        let iterableType: TypeID
+        if sema.bindings.isFloatingPointRangeExpr(iterableExpr),
+           let sourceLevelRangeType = driver.callChecker.floatingPointRangeArgumentType(
+               iterableExpr,
+               ast: ctx.ast,
+               sema: sema,
+               interner: ctx.interner
+           )
+        {
+            iterableType = sourceLevelRangeType
+        } else {
+            iterableType = inferredIterableType
+        }
         let elementType = inferLoopElementType(
             exprID: id, iterableExpr: iterableExpr, iterableType: iterableType,
             range: range, locals: locals, ctx: ctx

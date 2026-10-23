@@ -1,5 +1,6 @@
 @testable import CompilerCore
 import Testing
+import TestStdlibCache
 
 @Suite
 struct CoroutineAPIShapeTests {
@@ -73,5 +74,65 @@ struct CoroutineAPIShapeTests {
         let job = try #require(jobs.first)
         let jobKind = sema.symbols.symbol(job)?.kind
         #expect(jobKind == .interface)
+    }
+
+    @Test
+    func coroutineScopeExtensionCanCallBundledLaunchImplicitlyFromSource() throws {
+        try assertCoroutineScopeCanCallBundledLaunch(useArtifact: false)
+    }
+
+    @Test
+    func coroutineScopeExtensionCanCallBundledLaunchImplicitlyFromKlib() throws {
+        TestStdlibCache.shared.prepare()
+        try assertCoroutineScopeCanCallBundledLaunch(useArtifact: true)
+    }
+
+    private func assertCoroutineScopeCanCallBundledLaunch(useArtifact: Bool) throws {
+        // KUU-3036: the bundled external extension must remain available
+        // through a CoroutineScope extension's implicit receiver.
+        let ctx = makeContextFromSource("""
+        import kotlin.coroutines.*
+        import kotlinx.coroutines.*
+
+        fun CoroutineScope.launchWithContext(context: CoroutineContext): Job = launch(context) {
+            val receiver: CoroutineScope = this
+            println(receiver.coroutineContext)
+        }
+
+        fun CoroutineScope.launchWithDefaults(): Job = launch {
+            val receiver: CoroutineScope = this
+            println(receiver.coroutineContext)
+        }
+        """, emit: useArtifact ? .executable : .kirDump, allowDefaultStdlibLibrary: useArtifact)
+        if useArtifact {
+            #expect(ctx.options.stdlibLibraryPath != nil, "Expected the test stdlib artifact to be loaded")
+        }
+        try runSema(ctx)
+
+        let sema = try #require(ctx.sema)
+        let launchFQName = ["kotlinx", "coroutines", "launch"].map(ctx.interner.intern)
+        let launches = sema.symbols.lookupAll(fqName: launchFQName)
+        #expect(launches.count == 1, "Expected one bundled launch declaration, got: \(launches)")
+        let launch = try #require(launches.first)
+        let launchSignature = try #require(sema.symbols.functionSignature(for: launch))
+        let extensionSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("launchWithContext")]))
+        let extensionSignature = try #require(sema.symbols.functionSignature(for: extensionSymbol))
+        let extensionReceiver = try #require(extensionSignature.receiverType)
+        #expect(launchSignature.receiverType == extensionReceiver)
+        #expect(launchSignature.parameterTypes.count == 3)
+        #expect(launchSignature.valueParameterHasDefaultValues == [true, true, false])
+        if launchSignature.parameterTypes.count == 3,
+           case let .functionType(block) = sema.types.kind(of: launchSignature.parameterTypes[2])
+        {
+            #expect(block.receiver == extensionReceiver)
+            #expect(block.isSuspend)
+            #expect(block.returnType == sema.types.unitType)
+        } else {
+            Issue.record("Expected launch's bundled block to be a suspend CoroutineScope receiver function")
+        }
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Unexpected errors for implicit CoroutineScope.launch calls (artifact: \(useArtifact)): \(ctx.diagnostics.diagnostics)"
+        )
     }
 }

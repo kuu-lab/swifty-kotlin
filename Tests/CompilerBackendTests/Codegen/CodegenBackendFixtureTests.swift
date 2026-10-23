@@ -94,6 +94,13 @@ struct CodegenBackendFixtureTests {
             .appendingPathComponent("Fixtures", isDirectory: true)
     }()
 
+    /// `diff_case.txt` だけを持つ fixture が指す `Scripts/diff_cases` のルート。
+    private static let diffCasesRoot: URL = fixturesRoot
+        .deletingLastPathComponent() // CompilerBackendTests/
+        .deletingLastPathComponent() // Tests/
+        .deletingLastPathComponent() // リポジトリルート
+        .appendingPathComponent("Scripts/diff_cases", isDirectory: true)
+
     private func discoverFixtures() throws -> [Fixture] {
         let fm = FileManager.default
         let root = Self.fixturesRoot
@@ -117,6 +124,23 @@ struct CodegenBackendFixtureTests {
                 .filter { $0.hasSuffix(".kt") }
                 .sorted()
             let relativePath = url.path.replacingOccurrences(of: root.path + "/", with: "")
+
+            // 同じプログラムが diff_cases にある場合はコピーを置かず、名前だけを参照する。
+            let diffCaseURL = url.appendingPathComponent("diff_case.txt")
+            if ktFiles.isEmpty, fm.fileExists(atPath: diffCaseURL.path) {
+                let name = try String(contentsOf: diffCaseURL, encoding: .utf8)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let expected = try String(contentsOf: expectedURL, encoding: .utf8)
+                    .replacingOccurrences(of: "\r\n", with: "\n")
+                fixtures.append(
+                    Fixture(
+                        sourcePath: Self.diffCasesRoot.appendingPathComponent(name).path,
+                        expected: expected,
+                        relativePath: relativePath
+                    )
+                )
+                continue
+            }
 
             guard ktFiles.count == 1 else {
                 Issue.record(

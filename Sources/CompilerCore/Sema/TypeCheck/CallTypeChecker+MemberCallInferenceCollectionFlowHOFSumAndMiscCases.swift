@@ -192,6 +192,19 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 } else {
                     resultType = sema.types.anyType
                 }
+                let didBindIterableSource = !isSequenceReceiver && bindBundledIterableSourceFunction(
+                    typeArguments: [collectionElementType, bodyType],
+                    enforceTypeParameterCount: true,
+                    matchingReceiverElementType: collectionElementType,
+                    allowNominalIterableReceiver: true,
+                    allowCollectionReceiver: true,
+                    locals: &locals
+                )
+                if didBindIterableSource,
+                   let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef
+                {
+                    sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+                }
             }
 
         case "indexOfFirst", "indexOfLast":

@@ -22,5 +22,28 @@ struct CodegenBackendCollectionZipWithNextEdgeCasesTests {
 
         try assertKotlinOutput(source, moduleName: "CollectionZipWithNextOverloads", expected: "[(1, 3), (3, 6), (6, 10)]\n[2, 3, 4]\n[]\n")
     }
+
+    @Test
+    func testCodegenCollectionZipWithNextSupportsNonLocalReturn() throws {
+        let source = """
+        private fun returnFromZipWithNext(values: List<Int>): Int {
+            values.zipWithNext { _, second ->
+                if (second == 2) return 37
+                second
+            }
+            return 0
+        }
+
+        fun main() {
+            println(returnFromZipWithNext(listOf(1, 2, 3)))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "CollectionZipWithNextNonLocalReturn",
+            expected: "37\n"
+        )
+    }
 }
 #endif

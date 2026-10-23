@@ -672,8 +672,10 @@ final class ObjectLiteralLowerer {
             return
         }
         let capturedSymbols = sema.bindings.objectLiteralCaptureSymbols(for: ownerSymbol)
+        // Member extensions keep their extension receiver active, but captures live on the object instance.
         guard !capturedSymbols.isEmpty,
-              let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+              let receiverExprID = driver.ctx.localValue(for: ownerSymbol)
+                  ?? driver.ctx.activeImplicitReceiverExprID(),
               let layout = sema.symbols.nominalLayout(for: ownerSymbol)
         else {
             return
@@ -983,6 +985,14 @@ final class ObjectLiteralLowerer {
             canThrow: false,
             thrownResult: nil
         ))
+        driver.callLowerer.emitClassEnclosingMetadataRegistration(
+            for: objectSymbol,
+            typeTokenExpr: typeTokenExpr,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
         emitKClassDisplayNameRegistration(
             symbol: objectSymbol, typeTokenExpr: typeTokenExpr,
             sema: sema, arena: arena, interner: interner, instructions: &instructions

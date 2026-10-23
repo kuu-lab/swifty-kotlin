@@ -18,12 +18,7 @@ struct JavaDoubleTests {
             let sema = try #require(context.sema)
             let javaDoublePath = ["java", "lang", "Double"].map(context.interner.intern)
             let javaDouble = try #require(sema.symbols.lookup(fqName: javaDoublePath))
-            #expect(sema.symbols.symbol(javaDouble)?.kind == .package)
-
-            let propertyPath = javaDoublePath + [context.interner.intern("POSITIVE_INFINITY")]
-            let property = try #require(sema.symbols.lookup(fqName: propertyPath))
-            #expect(sema.symbols.symbol(property)?.kind == .property)
-            #expect(sema.symbols.propertyType(for: property) == sema.types.doubleType)
+            #expect(sema.symbols.symbol(javaDouble)?.kind == .class)
         }
     }
 }
