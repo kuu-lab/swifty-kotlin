@@ -299,8 +299,31 @@ extension JVMFunctionBuilder {
         let throwable = program.sema.symbols.lookup(fqName: [context.interner.intern("kotlin"), context.interner.intern("Throwable")])
         let throwableType = throwable.map { program.sema.types.make(.classType(ClassType(classSymbol: $0))) }
         let semanticReceiver = program.sema.bindings.exprType(for: receiverID)
-        if member == "message", args.isEmpty, let throwableType, let semanticReceiver, program.sema.types.isSubtype(semanticReceiver, throwableType) {
-            return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "getMessage", [], .reference("java/lang/String", nullable: true), receiver: requireValue(receiverID)))
+        let nonNullReceiver = semanticReceiver.map { program.sema.types.withNullability(.nonNull, for: $0) }
+        if let throwableType, let nonNullReceiver, program.sema.types.isSubtype(nonNullReceiver, throwableType) {
+            let receiver = try requireValue(receiverID)
+            switch member {
+            case "message" where args.isEmpty:
+                return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "getMessage", [], .reference("java/lang/String", nullable: true), receiver: receiver))
+            case "cause" where args.isEmpty:
+                return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "getCause", [], .reference("java/lang/Throwable", nullable: true), receiver: receiver))
+            case "stackTrace" where args.isEmpty:
+                return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "getStackTrace", [], .reference("[Ljava/lang/StackTraceElement;", nullable: false), receiver: receiver))
+            case "suppressed" where args.isEmpty:
+                return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "getSuppressed", [], .reference("[Ljava/lang/Throwable;", nullable: false), receiver: receiver))
+            case "initCause" where args.count == 1:
+                let cause = try requireValue(args[0].expr)
+                return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "initCause", [.reference("java/lang/Throwable", nullable: true)], .reference("java/lang/Throwable", nullable: false), receiver: receiver, arguments: [cause]))
+            case "addSuppressed" where args.count == 1:
+                let exception = try requireValue(args[0].expr)
+                return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "addSuppressed", [.reference("java/lang/Throwable", nullable: false)], .unit, receiver: receiver, arguments: [exception]))
+            case "printStackTrace" where args.isEmpty:
+                return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "printStackTrace", [], .unit, receiver: receiver))
+            case "fillInStackTrace" where args.isEmpty:
+                return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "fillInStackTrace", [], .reference("java/lang/Throwable", nullable: false), receiver: receiver))
+            default:
+                break
+            }
         }
         return nil
     }
