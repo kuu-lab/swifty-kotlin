@@ -379,6 +379,9 @@ struct ConstantCollector {
         if args.count == 1, canFoldMemberCall != nil,
            let argument = literalConstantExpr(args[0].expr, ast: ast, interner: interner)
         {
+            if name == "compareTo" {
+                return literalConstantCompareTo(receiverConst, argument)
+            }
             if case let .boolLiteral(lhs) = receiverConst, case let .boolLiteral(rhs) = argument {
                 switch name {
                 case "and": return .boolLiteral(lhs && rhs)
@@ -411,6 +414,13 @@ struct ConstantCollector {
         }
         guard args.isEmpty else { return nil }
         switch name {
+        case "toString" where canFoldMemberCall != nil:
+            guard let text = stringConcatOperandText(of: receiverConst, interner: interner) else { return nil }
+            return .stringLiteral(interner.intern(text))
+        case "unaryPlus" where canFoldMemberCall != nil:
+            return positiveConstant(receiverConst)
+        case "unaryMinus" where canFoldMemberCall != nil:
+            return negatedConstant(receiverConst)
         case "length" where canFoldMemberCall != nil:
             if case let .stringLiteral(value) = receiverConst {
                 return .intLiteral(Int64(interner.resolve(value).utf16.count))
@@ -442,6 +452,81 @@ struct ConstantCollector {
         default:
             return nil
         }
+    }
+
+    private func literalConstantCompareTo(_ lhs: KIRExprKind, _ rhs: KIRExprKind) -> KIRExprKind? {
+        let result: Int64? = switch (lhs, rhs) {
+        case let (.boolLiteral(left), .boolLiteral(right)):
+            compare(left ? 1 : 0, right ? 1 : 0)
+        case let (.charLiteral(left), .charLiteral(right)):
+            compare(Int64(left), Int64(right))
+        case let (.intLiteral(left), .intLiteral(right)), let (.intLiteral(left), .longLiteral(right)),
+             let (.longLiteral(left), .intLiteral(right)), let (.longLiteral(left), .longLiteral(right)):
+            compare(left, right)
+        case let (.uintLiteral(left), .uintLiteral(right)), let (.uintLiteral(left), .ulongLiteral(right)),
+             let (.ulongLiteral(left), .uintLiteral(right)), let (.ulongLiteral(left), .ulongLiteral(right)):
+            compare(left, right)
+        case let (.floatLiteral(left), .floatLiteral(right)):
+            compareFloatingPoint(Float(left), Float(right))
+        case let (.doubleLiteral(left), .doubleLiteral(right)):
+            compareFloatingPoint(left, right)
+        case let (.floatLiteral(left), .doubleLiteral(right)):
+            compareFloatingPoint(Double(Float(left)), right)
+        case let (.doubleLiteral(left), .floatLiteral(right)):
+            compareFloatingPoint(left, Double(Float(right)))
+        case let (.intLiteral(left), .floatLiteral(right)):
+            compareFloatingPoint(Float(left), Float(right))
+        case let (.longLiteral(left), .floatLiteral(right)):
+            compareFloatingPoint(Float(left), Float(right))
+        case let (.uintLiteral(left), .floatLiteral(right)):
+            compareFloatingPoint(Float(left), Float(right))
+        case let (.ulongLiteral(left), .floatLiteral(right)):
+            compareFloatingPoint(Float(left), Float(right))
+        case let (.floatLiteral(left), .intLiteral(right)):
+            compareFloatingPoint(Float(left), Float(right))
+        case let (.floatLiteral(left), .longLiteral(right)):
+            compareFloatingPoint(Float(left), Float(right))
+        case let (.floatLiteral(left), .uintLiteral(right)):
+            compareFloatingPoint(Float(left), Float(right))
+        case let (.floatLiteral(left), .ulongLiteral(right)):
+            compareFloatingPoint(Float(left), Float(right))
+        case let (.intLiteral(left), .doubleLiteral(right)):
+            compareFloatingPoint(Double(left), right)
+        case let (.longLiteral(left), .doubleLiteral(right)):
+            compareFloatingPoint(Double(left), right)
+        case let (.uintLiteral(left), .doubleLiteral(right)):
+            compareFloatingPoint(Double(left), right)
+        case let (.ulongLiteral(left), .doubleLiteral(right)):
+            compareFloatingPoint(Double(left), right)
+        case let (.doubleLiteral(left), .intLiteral(right)):
+            compareFloatingPoint(left, Double(right))
+        case let (.doubleLiteral(left), .longLiteral(right)):
+            compareFloatingPoint(left, Double(right))
+        case let (.doubleLiteral(left), .uintLiteral(right)):
+            compareFloatingPoint(left, Double(right))
+        case let (.doubleLiteral(left), .ulongLiteral(right)):
+            compareFloatingPoint(left, Double(right))
+        default:
+            nil
+        }
+        return result.map(KIRExprKind.intLiteral)
+    }
+
+    private func compare<T: Comparable>(_ lhs: T, _ rhs: T) -> Int64 {
+        if lhs == rhs { return 0 }
+        return lhs < rhs ? -1 : 1
+    }
+
+    private func compareFloatingPoint<T: BinaryFloatingPoint>(_ lhs: T, _ rhs: T) -> Int64 {
+        if lhs.isNaN { return rhs.isNaN ? 0 : 1 }
+        if rhs.isNaN { return -1 }
+        if lhs == rhs {
+            if lhs == 0, lhs.sign != rhs.sign {
+                return lhs.sign == .minus ? -1 : 1
+            }
+            return 0
+        }
+        return lhs < rhs ? -1 : 1
     }
 
     private func constantArithmeticOperator(_ name: String) -> BinaryOp? {
