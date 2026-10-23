@@ -23,6 +23,16 @@ struct TailrecDiagnosticTests {
             if (other == 0L) this else this.count(other - 1L)
         fun main() {}
         """, expectedWarningCount: 0),
+        Case(name: "localTailrec", source: """
+        fun main() {
+            tailrec fun count(n: Int): Int = if (n == 0) 0 else count(n - 1)
+        }
+        """, expectedWarningCount: 0),
+        Case(name: "localTailrecWithoutSelfCall", source: """
+        fun main() {
+            tailrec fun count(n: Int): Int = n
+        }
+        """, expectedWarningCount: 1),
         Case(name: "implicitReceiver", source: """
         tailrec fun Long.count(other: Long): Long =
             if (other == 0L) this else count(other - 1L)

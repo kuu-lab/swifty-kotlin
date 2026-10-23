@@ -45,7 +45,7 @@ struct SoftKeywordLocalDeclarationNameTests {
 
     private func localFunDeclNames(_ ast: ASTModule) -> [InternedString] {
         ast.arena.exprs.compactMap { expr in
-            guard case let .localFunDecl(name, _, _, _, _, _, _, _) = expr else { return nil }
+            guard case let .localFunDecl(name, _, _, _, _, _, _, _, _) = expr else { return nil }
             return name
         }
     }
@@ -145,7 +145,7 @@ struct SoftKeywordLocalDeclarationNameTests {
         }
         """)
         let receivers = ast.arena.exprs.compactMap { expr -> TypeRefID? in
-            guard case let .localFunDecl(_, receiver, _, _, _, _, _, _) = expr else { return nil }
+            guard case let .localFunDecl(_, receiver, _, _, _, _, _, _, _) = expr else { return nil }
             return receiver
         }
         #expect(localFunDeclNames(ast) == [ctx.interner.intern(SoftKeyword.out.rawValue)])

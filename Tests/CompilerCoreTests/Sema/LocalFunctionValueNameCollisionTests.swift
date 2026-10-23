@@ -26,7 +26,7 @@ struct LocalFunctionValueNameCollisionTests {
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
         let fooSymbols = ast.arena.exprs.indices.compactMap { index -> SymbolID? in
-            guard case let .localFunDecl(name, _, _, _, _, _, _, _) = ast.arena.exprs[index],
+            guard case let .localFunDecl(name, _, _, _, _, _, _, _, _) = ast.arena.exprs[index],
                   name == ctx.interner.intern("foo")
             else {
                 return nil
