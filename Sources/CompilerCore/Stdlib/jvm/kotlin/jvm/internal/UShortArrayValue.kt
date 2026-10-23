@@ -22,7 +22,7 @@ value class UShortArrayValue(val storage: ShortArray): Collection<UShortValue>, 
             return UShortValue(storage[index++])
         }
     }
-    fun containsAll(elements: Collection<*>): Boolean {
+    override fun containsAll(elements: Collection<*>): Boolean {
         for (element in elements) {
             if (!(element is UShortValue) || !contains(element)) return false
         }

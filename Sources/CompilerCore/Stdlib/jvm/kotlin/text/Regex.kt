@@ -161,7 +161,7 @@ private class MatcherGroups(private val matcher: Any): MatchGroupCollection, kot
         while (index < size) { if (get(index) == element) return true; index++ }
         return false
     }
-    fun containsAll(elements: Collection<*>): Boolean {
+    override fun containsAll(elements: Collection<*>): Boolean {
         for (element in elements) {
             if (element != null && !(element is MatchGroup)) return false
             if (!contains(element as MatchGroup?)) return false

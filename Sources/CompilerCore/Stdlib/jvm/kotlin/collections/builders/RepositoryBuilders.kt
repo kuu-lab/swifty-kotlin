@@ -61,13 +61,14 @@ internal open class RepositoryBuilderCollection<E>(protected val state: Reposito
     override val size: Int get() = source.size
     override fun isEmpty(): Boolean = source.isEmpty()
     override fun contains(element: E): Boolean = source.contains(element)
+    override fun containsAll(elements: Collection<E>): Boolean = source.containsAll(elements)
     override fun iterator(): MutableIterator<E> = RepositoryBuilderIterator(state, source.iterator() as MutableIterator<E>, entries)
     override fun add(element: E): Boolean { throw UnsupportedOperationException() }
     override fun remove(element: E): Boolean { state.checkMutable(); val changed = __jvmCollectionRemove(source, element); if (changed) state.modification++; return changed }
     override fun clear() { state.checkMutable(); __jvmCollectionClear(source); state.modification++ }
-    fun addAll(elements: Collection<E>): Boolean { throw UnsupportedOperationException() }
-    fun removeAll(elements: Collection<E>): Boolean { state.checkMutable(); val changed = __jvmCollectionRemoveAll(source, elements); if (changed) state.modification++; return changed }
-    fun retainAll(elements: Collection<E>): Boolean { state.checkMutable(); val changed = __jvmCollectionRetainAll(source, elements); if (changed) state.modification++; return changed }
+    override fun addAll(elements: Collection<E>): Boolean { throw UnsupportedOperationException() }
+    override fun removeAll(elements: Collection<E>): Boolean { state.checkMutable(); val changed = __jvmCollectionRemoveAll(source, elements); if (changed) state.modification++; return changed }
+    override fun retainAll(elements: Collection<E>): Boolean { state.checkMutable(); val changed = __jvmCollectionRetainAll(source, elements); if (changed) state.modification++; return changed }
 }
 internal class RepositoryBuilderSet<E>(state: RepositoryBuilderState, source: Collection<E>, entries: Boolean = false): RepositoryBuilderCollection<E>(state, source, entries), MutableSet<E>, KMutableSet {
     override fun equals(other: Any?): Boolean = source == other
@@ -93,22 +94,25 @@ internal class RepositoryListBuilder<E>(private val state: RepositoryBuilderStat
     override val size: Int get() = source.size
     override fun isEmpty(): Boolean = source.isEmpty()
     override fun contains(element: E): Boolean = source.contains(element)
+    override fun containsAll(elements: Collection<E>): Boolean = source.containsAll(elements)
     override fun get(index: Int): E = source[index]
     override fun set(index: Int, element: E): E { state.checkMutable(); return source.set(index, element) }
     override fun add(element: E): Boolean { state.checkMutable(); val changed = source.add(element); state.modification++; return changed }
-    fun add(index: Int, element: E) { state.checkMutable(); __jvmListAdd(source, index, element); state.modification++ }
+    override fun add(index: Int, element: E) { state.checkMutable(); __jvmListAdd(source, index, element); state.modification++ }
     override fun remove(element: E): Boolean { state.checkMutable(); val changed = source.remove(element); if (changed) state.modification++; return changed }
     @kotlin.jvm.JvmName("remove")
     override fun removeAt(index: Int): E { state.checkMutable(); val removed = source.removeAt(index); state.modification++; return removed }
     override fun clear() { state.checkMutable(); val wasEmpty = source.isEmpty(); source.clear(); if (!wasEmpty) state.modification++ }
-    fun addAll(elements: Collection<E>): Boolean { state.checkMutable(); val changed = __jvmCollectionAddAll(source, elements); state.modification++; return changed }
-    fun addAll(index: Int, elements: Collection<E>): Boolean { state.checkMutable(); val changed = __jvmListAddAll(source, index, elements); state.modification++; return changed }
-    fun removeAll(elements: Collection<E>): Boolean { state.checkMutable(); val changed = __jvmCollectionRemoveAll(source, elements); if (changed) state.modification++; return changed }
-    fun retainAll(elements: Collection<E>): Boolean { state.checkMutable(); val changed = __jvmCollectionRetainAll(source, elements); if (changed) state.modification++; return changed }
+    override fun addAll(elements: Collection<E>): Boolean { state.checkMutable(); val changed = __jvmCollectionAddAll(source, elements); state.modification++; return changed }
+    override fun addAll(index: Int, elements: Collection<E>): Boolean { state.checkMutable(); val changed = __jvmListAddAll(source, index, elements); state.modification++; return changed }
+    override fun removeAll(elements: Collection<E>): Boolean { state.checkMutable(); val changed = __jvmCollectionRemoveAll(source, elements); if (changed) state.modification++; return changed }
+    override fun retainAll(elements: Collection<E>): Boolean { state.checkMutable(); val changed = __jvmCollectionRetainAll(source, elements); if (changed) state.modification++; return changed }
     override fun listIterator(): java.util.ListIterator<E> = RepositoryBuilderListIterator(state, __jvmListIterator(source, 0))
     override fun listIterator(index: Int): java.util.ListIterator<E> = RepositoryBuilderListIterator(state, __jvmListIterator(source, index))
-    fun iterator(): MutableIterator<E> = RepositoryBuilderIterator(state, source.iterator() as MutableIterator<E>, false)
-    fun subList(fromIndex: Int, toIndex: Int): List<E> = RepositoryListBuilder(state, __jvmListSubList(source, fromIndex, toIndex))
+    override fun iterator(): MutableIterator<E> = RepositoryBuilderIterator(state, source.iterator() as MutableIterator<E>, false)
+    override fun indexOf(element: E): Int = source.indexOf(element)
+    override fun lastIndexOf(element: E): Int = source.lastIndexOf(element)
+    override fun subList(fromIndex: Int, toIndex: Int): MutableList<E> = RepositoryListBuilder(state, __jvmListSubList(source, fromIndex, toIndex))
     private fun writeReplace(): Any {
         if (!state.frozen) throw __jvmBuilderSerializationFailure("The list cannot be serialized while it is being built.")
         val copy = RepositoryListBuilder(RepositoryBuilderState(), __jvmCopyList(source))
@@ -124,6 +128,7 @@ internal class RepositoryMapBuilder<K, V>(capacity: Int): java.util.AbstractMap<
     fun size(): Int = source.size
     override fun isEmpty(): Boolean = source.isEmpty()
     override fun containsKey(key: K): Boolean = source.containsKey(key)
+    override fun containsValue(value: V): Boolean = source.containsValue(value)
     override fun get(key: K): V? = source[key]
     override fun put(key: K, value: V): V? { state.checkMutable(); val size = source.size; val previous = source.put(key, value); if (source.size != size) state.modification++; return previous }
     override fun set(key: K, value: V) { put(key, value) }

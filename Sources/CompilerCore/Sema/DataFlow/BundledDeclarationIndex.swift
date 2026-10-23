@@ -220,6 +220,19 @@ package struct BundledDeclarationIndex: Sendable {
             ) else {
                 continue
             }
+            // Pair.copy is also a source-backed top-level extension. Since
+            // this index keys both declarations by receiver owner, name, and
+            // arity, the synthetic member copy otherwise looks like a missed
+            // stub skip even though the bundled extension is present.
+            if Self.isSyntheticPairCopyOverlapWithSourceBackedExtension(
+                symbol,
+                key: key,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            ) {
+                continue
+            }
             // KSP-1019: MutableCollection keeps its interface members for
             // member-priority dispatch while the same names also have
             // source-backed top-level extensions. The arity-only index cannot
@@ -280,6 +293,46 @@ package struct BundledDeclarationIndex: Sendable {
                 "Synthetic stub '\(memberDisplay)' on '\(ownerDisplay)' (arity \(key.arity)) duplicates bundled stdlib declaration; KSP-002 skip guard missed.",
                 range: nil
             )
+        }
+    }
+
+    private static func isSyntheticPairCopyOverlapWithSourceBackedExtension(
+        _ symbol: SemanticSymbol,
+        key: BundledMemberKey,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> Bool {
+        let pairFQName = ["kotlin", "Pair"].map { interner.intern($0) }
+        let copyName = interner.intern("copy")
+        guard symbol.kind == .function,
+              key.ownerFQName == pairFQName,
+              key.name == copyName,
+              let pairSymbolID = symbols.parentSymbol(for: symbol.id),
+              symbols.symbol(pairSymbolID)?.fqName == pairFQName
+        else {
+            return false
+        }
+
+        let kotlinCopyFQName = ["kotlin", "copy"].map { interner.intern($0) }
+        return symbols.lookupByShortName(copyName).contains { candidateID in
+            guard let candidate = symbols.symbol(candidateID),
+                  candidate.kind == .function,
+                  candidate.fqName == kotlinCopyFQName,
+                  symbols.isSourceBackedSymbol(candidate.id),
+                  let signature = symbols.functionSignature(for: candidate.id),
+                  signature.receiverType != nil,
+                  let candidateKey = memberKey(
+                      for: candidate,
+                      symbolID: candidate.id,
+                      symbols: symbols,
+                      types: types,
+                      interner: interner
+                  )
+            else {
+                return false
+            }
+            return candidateKey == key
         }
     }
 

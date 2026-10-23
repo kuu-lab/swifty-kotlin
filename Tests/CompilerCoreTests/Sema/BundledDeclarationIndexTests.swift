@@ -387,6 +387,126 @@ struct BundledDeclarationIndexTests {
     }
 
     @Test
+    func syntheticPairCopyOverlappingBundledExtensionEmitsNoWarning() {
+        let sourceManager = SourceManager()
+        let fileID = sourceManager.addFile(
+            path: "__bundled_pair_copy.kt",
+            contents: Data("".utf8),
+            origin: .bundledStdlib
+        )
+        let range = SourceRange(
+            start: SourceLocation(file: fileID, offset: 0),
+            end: SourceLocation(file: fileID, offset: 0)
+        )
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        types.symbolTable = symbols
+        let pairFQName = intern(["kotlin", "Pair"], interner)
+        let pairName = interner.intern("Pair")
+        let pairSymbol = symbols.define(
+            kind: .class,
+            name: pairName,
+            fqName: pairFQName,
+            declSite: range,
+            visibility: .public
+        )
+        let pairType = types.make(.classType(ClassType(classSymbol: pairSymbol)))
+        let copyName = interner.intern("copy")
+        let copySignature = FunctionSignature(
+            receiverType: pairType,
+            parameterTypes: [types.anyType, types.anyType],
+            returnType: pairType
+        )
+        let sourceExtension = symbols.define(
+            kind: .function,
+            name: copyName,
+            fqName: intern(["kotlin", "copy"], interner),
+            declSite: range,
+            visibility: .public
+        )
+        symbols.setFunctionSignature(copySignature, for: sourceExtension)
+
+        let syntheticMember = symbols.define(
+            kind: .function,
+            name: copyName,
+            fqName: pairFQName + [copyName],
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(pairSymbol, for: syntheticMember)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                parameterTypes: [types.anyType, types.anyType],
+                returnType: pairType
+            ),
+            for: syntheticMember
+        )
+
+        let bundledIndex = BundledDeclarationIndex(keys: [
+            BundledMemberKey(ownerFQName: pairFQName, name: copyName, arity: 2),
+        ])
+        let diagnostics = DiagnosticEngine()
+        bundledIndex.warnSyntheticOverlaps(
+            symbols: symbols,
+            types: types,
+            diagnostics: diagnostics,
+            interner: interner
+        )
+
+        let warnings = diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0102" }
+        #expect(warnings.isEmpty)
+    }
+
+    @Test
+    func syntheticPairCopyWithoutBundledExtensionStillWarns() {
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        let pairFQName = intern(["kotlin", "Pair"], interner)
+        let pairSymbol = symbols.define(
+            kind: .class,
+            name: interner.intern("Pair"),
+            fqName: pairFQName,
+            declSite: nil,
+            visibility: .public
+        )
+        let pairType = types.make(.classType(ClassType(classSymbol: pairSymbol)))
+        let copyName = interner.intern("copy")
+        let syntheticMember = symbols.define(
+            kind: .function,
+            name: copyName,
+            fqName: pairFQName + [copyName],
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(pairSymbol, for: syntheticMember)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                parameterTypes: [types.anyType, types.anyType],
+                returnType: pairType
+            ),
+            for: syntheticMember
+        )
+
+        let bundledIndex = BundledDeclarationIndex(keys: [
+            BundledMemberKey(ownerFQName: pairFQName, name: copyName, arity: 2),
+        ])
+        let diagnostics = DiagnosticEngine()
+        bundledIndex.warnSyntheticOverlaps(
+            symbols: symbols,
+            types: types,
+            diagnostics: diagnostics,
+            interner: interner
+        )
+
+        let warnings = diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0102" }
+        #expect(warnings.count == 1)
+    }
+
+    @Test
     func syntheticAliasWithDifferentOwnerEmitsWarning() throws {
         try checkSyntheticAlias(
             mutateSource: { symbols, _, interner, range, sourceSymbol in
