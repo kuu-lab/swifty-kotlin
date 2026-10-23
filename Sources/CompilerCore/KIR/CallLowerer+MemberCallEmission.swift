@@ -227,8 +227,10 @@ extension CallLowerer {
         receiverExpr: ExprID,
         args: [CallArgument],
         requireNonNullableReceiver: Bool,
+        ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
+        interner: StringInterner,
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
@@ -251,6 +253,16 @@ extension CallLowerer {
             }
         }
         let boundType = sema.bindings.exprTypes[exprID]
+        lowerConstMemberReceiverIfNeeded(
+            exprID: exprID,
+            receiverExpr: receiverExpr,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
         let id = arena.appendExpr(constant, type: boundType ?? sema.types.anyType)
         instructions.append(.constValue(result: id, value: constant))
         return id
