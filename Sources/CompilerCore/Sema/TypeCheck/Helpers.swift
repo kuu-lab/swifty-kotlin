@@ -322,6 +322,45 @@ struct TypeCheckHelpers {
         return interner.resolve(symbol.name) == "OpenEndRange"
     }
 
+    /// True when a resolved call's return type yields a heap-backed range
+    /// object — the `ClosedRange`/`ClosedFloatingPointRange`/`OpenEndRange`
+    /// interfaces or any user-defined class conforming to them — rather
+    /// than the opaque runtime range-box handle that `isRangeExpr` and the
+    /// floating-point range marks describe. Concrete built-in range and
+    /// progression classes (`IntRange`, `CharProgression`, ...) *are*
+    /// runtime boxes, so they are deliberately excluded (KUU-2941).
+    func isRangeInterfaceType(
+        _ type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let (classType, symbol) = resolveClassTypeSymbol(
+            sema.types.makeNonNullable(type), sema: sema
+        ) else {
+            return false
+        }
+        switch interner.resolve(symbol.name) {
+        case "ClosedRange", "ClosedFloatingPointRange", "OpenEndRange":
+            return true
+        case "IntRange", "IntProgression",
+             "LongRange", "LongProgression",
+             "UIntRange", "UIntProgression",
+             "ULongRange", "ULongProgression",
+             "CharRange", "CharProgression":
+            return false
+        default:
+            break
+        }
+        for interface in ["ClosedRange", "ClosedFloatingPointRange", "OpenEndRange"] {
+            if let rangeSymbol = sema.symbols.lookup(
+                fqName: ["kotlin", "ranges", interface].map(interner.intern)
+            ), sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: rangeSymbol) {
+                return true
+            }
+        }
+        return false
+    }
+
     /// - Parameter isCharRangeExpr: true when the range expression's operands were Char
     ///   (STDLIB-290). Char ranges share Int's runtime/static representation (see the
     ///   `.rangeTo`/`.rangeUntil`/`.downTo` binary op inference), so this must be checked
