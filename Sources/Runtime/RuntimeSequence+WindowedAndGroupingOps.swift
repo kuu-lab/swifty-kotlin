@@ -432,7 +432,7 @@ public func kk_sequence_minus(_ seqRaw: Int, _ element: Int) -> Int {
     // instances).  This is a known limitation; fixing it requires adding
     // recursive structural comparison to runtimeValuesEqual, which is
     // tracked separately.
-    if let index = result.firstIndex(where: { runtimeValuesEqual($0, element) }) {
+    if let index = result.firstIndex(where: { runtimeLookupValuesEqual($0, element) }) {
         result.remove(at: index)
     }
     let newSeq = RuntimeSequenceBox(steps: [.source(elements: result)])

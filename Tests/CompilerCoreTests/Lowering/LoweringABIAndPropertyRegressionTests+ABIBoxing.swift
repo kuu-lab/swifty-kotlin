@@ -79,6 +79,12 @@ extension LoweringABIAndPropertyRegressionTests {
 
                 let lowered = try findKIRFunction(named: "caller", in: module, interner: interner)
                 let shouldUnbox = receiverType != primitiveType && targetType == primitiveType
+                // KUU-2939: a `.typeParam` receiver slot is the same erased
+                // Any boundary as a type-parameter value argument, so the
+                // floating-point arguments that always box at that boundary
+                // (-0.0 is bit-identical to the null sentinel) box here too.
+                let shouldBoxReceiver = receiverType == primitiveType && targetType == genericType
+                    && (primitive == .float || primitive == .double)
                 let targetCallIndex = try #require(lowered.body.firstIndex { instruction in
                     if case let .call(_, callee, _, _, _, _, _, _) = instruction {
                         return callee == targetName
@@ -103,6 +109,23 @@ extension LoweringABIAndPropertyRegressionTests {
                     let expectedUnbox = try loweringBoxingABI(.unbox, for: primitive, nonNull: true, staticPrimitive: true)
                     guard case let .call(_, callee, _, _, _, _, _, _) = lowered.body[unboxIndex] else { continue }
                     #expect(callee == interner.intern(expectedUnbox.name))
+                } else if shouldBoxReceiver {
+                    #expect(arguments[0] != receiver)
+                    let boxIndex = try #require(lowered.body.firstIndex { instruction in
+                        if case let .call(_, _, args, result, canThrow, thrownResult, _, _) = instruction {
+                            return args == [receiver] && result == arguments[0] && !canThrow && thrownResult == nil
+                        }
+                        return false
+                    })
+                    #expect(boxIndex < targetCallIndex)
+                    // A provably non-null Double uses the `_nonnull` box
+                    // variant (raw -0.0 is the null sentinel); Float has no
+                    // override and keeps the plain static callee.
+                    let expectedBox = try loweringBoxingABI(
+                        .box, for: primitive, nonNull: primitive == .double, staticPrimitive: true
+                    )
+                    guard case let .call(_, callee, _, _, _, _, _, _) = lowered.body[boxIndex] else { continue }
+                    #expect(callee == interner.intern(expectedBox.name))
                 } else {
                     #expect(arguments[0] == receiver, "Raw, generic and nullable slots must retain their representation")
                     #expect(targetCallIndex == 0)
@@ -652,6 +675,70 @@ extension LoweringABIAndPropertyRegressionTests {
             }
         }
         #expect(foundInnerCall, "Expected to find lowered call to inner")
+    }
+
+    // KUU-2939: a `.typeParam` extension receiver is erased exactly like a
+    // type-parameter value argument, so a primitive receiver argument must be
+    // boxed or the callee reads its raw word as an Any pointer
+    // (`'c'.myToString()` rendering `99` instead of `c`).
+    @Test
+    func testABILoweringBoxesPrimitiveExtensionReceiverForTypeParam() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let types = TypeSystem()
+        let symbols = SymbolTable()
+
+        let charType = types.make(.primitive(.char, .nonNull))
+        let typeParamSymbol = SymbolID(rawValue: 3700)
+        let genericType = types.make(.typeParam(TypeParamType(symbol: typeParamSymbol)))
+
+        // A `declSite` marks the callee Kotlin source-backed, so the generic
+        // ABI applies (`isKotlinSourceCallee` / `boxTypeParamArguments`).
+        let targetName = interner.intern("ext")
+        let targetSym = symbols.define(
+            kind: .function,
+            name: targetName,
+            fqName: [targetName],
+            declSite: SourceRange(
+                start: SourceLocation(file: FileID(rawValue: 0), offset: 0),
+                end: SourceLocation(file: FileID(rawValue: 0), offset: 1)
+            ),
+            visibility: .public
+        )
+        symbols.setFunctionSignature(
+            FunctionSignature(receiverType: genericType, parameterTypes: [], returnType: types.unitType),
+            for: targetSym
+        )
+
+        let receiverExpr = arena.appendExpr(.charLiteral(99), type: charType)
+        let resultExpr = arena.appendExpr(.temporary(1), type: types.unitType)
+
+        let callerFn = KIRFunction(
+            symbol: SymbolID(rawValue: 3701),
+            name: interner.intern("main"),
+            params: [],
+            returnType: types.unitType,
+            body: [
+                .call(symbol: targetSym, callee: targetName, arguments: [receiverExpr], result: resultExpr, canThrow: false, thrownResult: nil),
+                .returnUnit,
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+        let callerID = arena.appendDecl(.function(callerFn))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
+
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
+        try runLowering(module: module, interner: interner, moduleName: "ABIBoxTypeParamReceiver", sema: sema)
+
+        let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
+        let abi = try loweringBoxingABI(.box, for: .char, staticPrimitive: true)
+        let conversion = try requireLoweringRuntimeCall(abi, in: lowered.body, interner: interner)
+        #expect(conversion.arguments == [receiverExpr])
+        let boxed = try #require(conversion.result)
+        let targetCall = try #require(loweringCalls(in: lowered.body).first { $0.symbol == targetSym })
+        #expect(targetCall.arguments == [boxed])
+        #expect(boxed != receiverExpr)
     }
 }
 #endif

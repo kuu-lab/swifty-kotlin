@@ -683,37 +683,43 @@ extension ExprTypeChecker {
                     returnType: returnType,
                     sema: sema
                 )
-                if [.rangeTo, .rangeUntil, .downTo].contains(op) {
-                    sema.bindings.markRangeExpr(id)
-                    if lhs == ulongType || rhs == ulongType {
-                        sema.bindings.markULongRangeExpr(id)
-                    } else if lhs == uintType || rhs == uintType
-                        || lhs == ubyteType || rhs == ubyteType
-                        || lhs == ushortType || rhs == ushortType
-                    {
-                        sema.bindings.markUIntRangeExpr(id)
-                    }
-                    if lhs == charType || rhs == charType {
-                        sema.bindings.markCharRangeExpr(id)
-                    }
-                    if lhs == sema.types.doubleType || rhs == sema.types.doubleType
-                        || lhs == sema.types.floatType || rhs == sema.types.floatType
-                    {
-                        let elementType = lhs == sema.types.floatType || rhs == sema.types.floatType
-                            ? sema.types.floatType
-                            : sema.types.doubleType
-                        sema.bindings.bindFloatingPointRangeElementType(elementType, forExpr: id)
-                    }
-                } else {
-                    sema.bindings.markRangeExpr(id)
-                    if lhs == uintType || sema.bindings.isUIntRangeExpr(lhsID) {
-                        sema.bindings.markUIntRangeExpr(id)
-                    }
-                    if lhs == ulongType || sema.bindings.isULongRangeExpr(lhsID) {
-                        sema.bindings.markULongRangeExpr(id)
-                    }
-                    if sema.bindings.isCharRangeExpr(lhsID) {
-                        sema.bindings.markCharRangeExpr(id)
+                // A resolved call returning a range interface yields a heap
+                // object, not a runtime range box. Operand-based marks would
+                // misroute `x in` to the `__kk_*_range_*` bridges and erase
+                // the custom rangeTo call (KUU-2941).
+                if !driver.helpers.isRangeInterfaceType(returnType, sema: sema, interner: interner) {
+                    if [.rangeTo, .rangeUntil, .downTo].contains(op) {
+                        sema.bindings.markRangeExpr(id)
+                        if lhs == ulongType || rhs == ulongType {
+                            sema.bindings.markULongRangeExpr(id)
+                        } else if lhs == uintType || rhs == uintType
+                            || lhs == ubyteType || rhs == ubyteType
+                            || lhs == ushortType || rhs == ushortType
+                        {
+                            sema.bindings.markUIntRangeExpr(id)
+                        }
+                        if lhs == charType || rhs == charType {
+                            sema.bindings.markCharRangeExpr(id)
+                        }
+                        if lhs == sema.types.doubleType || rhs == sema.types.doubleType
+                            || lhs == sema.types.floatType || rhs == sema.types.floatType
+                        {
+                            let elementType = lhs == sema.types.floatType || rhs == sema.types.floatType
+                                ? sema.types.floatType
+                                : sema.types.doubleType
+                            sema.bindings.bindFloatingPointRangeElementType(elementType, forExpr: id)
+                        }
+                    } else {
+                        sema.bindings.markRangeExpr(id)
+                        if lhs == uintType || sema.bindings.isUIntRangeExpr(lhsID) {
+                            sema.bindings.markUIntRangeExpr(id)
+                        }
+                        if lhs == ulongType || sema.bindings.isULongRangeExpr(lhsID) {
+                            sema.bindings.markULongRangeExpr(id)
+                        }
+                        if sema.bindings.isCharRangeExpr(lhsID) {
+                            sema.bindings.markCharRangeExpr(id)
+                        }
                     }
                 }
             }

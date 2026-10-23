@@ -611,6 +611,7 @@ extension CallLowerer {
             args: args,
             sema: sema,
             interner: interner,
+            arena: arena,
             loweredReceiverID: loweredReceiverID,
             result: result,
             instructions: &instructions

@@ -28,7 +28,10 @@ internal struct RuntimeElementKey: Hashable {
         if lhs.isCharScalar || rhs.isCharScalar {
             return runtimeCharScalarKeyEqual(lhs, rhs)
         }
-        return runtimeValuesEqual(lhs.value, rhs.value)
+        // Probing equality, not `==`: an enum argument may reach this key
+        // unboxed (a bare ordinal) while the stored element is the canonical
+        // enum-tagged box (KUU-3027).
+        return runtimeLookupValuesEqual(lhs.value, rhs.value)
     }
 }
 
@@ -107,10 +110,11 @@ func runtimeElementKeyHash(_ value: Int, into hasher: inout Hasher, depth: Int =
     }
     if let intBox = tryCast(pointer, to: RuntimeIntBox.self) {
         // Enum ordinals cross call sites as both `RuntimeIntBox` (optionally
-        // carrying `enumClassID`) and raw unboxed `Int`s. `runtimeValuesEqual`
-        // unboxes both sides and reports such pairs equal, so the internal
-        // hash must be keyed by value only — hashing `enumClassID` here would
-        // send equal keys to different buckets and break `Set.contains`.
+        // carrying `enumClassID`) and raw unboxed `Int`s. The probing equality
+        // (`runtimeLookupValuesEqual`, KUU-3027) still reports such pairs
+        // equal, so the internal hash must be keyed by value only — hashing
+        // `enumClassID` here would send equal keys to different buckets and
+        // break `Set.contains`.
         hasher.combine(1)
         hasher.combine(intBox.value)
         return
