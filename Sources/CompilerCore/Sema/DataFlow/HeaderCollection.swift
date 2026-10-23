@@ -5,6 +5,28 @@ extension DataFlowSemaPhase {
         classDecl.modifiers.contains(.value) || classDecl.modifiers.contains(.inline)
     }
 
+    func isFullValueClassDeclaration(
+        _ classDecl: ClassDecl,
+        imports: [ImportDecl],
+        enabled: Bool,
+        interner: StringInterner
+    ) -> Bool {
+        guard enabled,
+              classDecl.modifiers.contains(.value),
+              !classDecl.modifiers.contains(.inline)
+        else {
+            return false
+        }
+
+        var jvmInlineAnnotationNames: Set<String> = ["JvmInline", "kotlin.jvm.JvmInline"]
+        for importDecl in imports where !importDecl.isWildcard
+            && importDecl.path.map(interner.resolve).joined(separator: ".") == "kotlin.jvm.JvmInline"
+        {
+            jvmInlineAnnotationNames.insert(interner.resolve(importDecl.alias ?? importDecl.path.last!))
+        }
+        return !classDecl.annotations.contains { jvmInlineAnnotationNames.contains($0.name) }
+    }
+
     func registerFileAnnotations(
         file: ASTFile,
         symbols: SymbolTable,

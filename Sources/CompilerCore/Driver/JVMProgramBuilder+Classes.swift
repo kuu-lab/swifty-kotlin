@@ -29,11 +29,18 @@ final class JVMClassPlan {
     var methodSymbols: [String: SymbolID] = [:]
     var constructors: [(SymbolID, ConstructorDecl, Bool)] = []
     var isAnnotation: Bool { declaration?.modifiers.contains(.annotationClass) == true }
-    var isValue: Bool { declaration?.modifiers.contains(.value) == true }
+    let isValue: Bool
     var isInterface: Bool { interface != nil || isAnnotation }
     var modifiers: Modifiers { declaration?.modifiers ?? interface!.modifiers }
-    init(symbol: SymbolID, name: String, declaration: ClassDecl? = nil, interface: InterfaceDecl? = nil) {
+    init(
+        symbol: SymbolID,
+        name: String,
+        declaration: ClassDecl? = nil,
+        interface: InterfaceDecl? = nil,
+        isValue: Bool? = nil
+    ) {
         self.symbol = symbol; self.name = name; self.declaration = declaration; self.interface = interface
+        self.isValue = isValue ?? (declaration?.modifiers.contains(.value) == true)
     }
 }
 

@@ -6,17 +6,26 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         diagnostics: DiagnosticEngine?,
         interner: StringInterner,
-        sourceManager: SourceManager
+        sourceManager: SourceManager,
+        fullValueClassesEnabled: Bool = false
     ) {
-        let validator = DeclarationPositionValidator(
-            astArena: ast.arena,
-            interner: interner,
-            diagnostics: diagnostics
-        )
         for file in ast.sortedFiles {
             if sourceManager.origin(of: file.fileID)?.isBundledStdlib == true {
                 continue
             }
+            var jvmInlineAnnotationNames: Set<String> = ["JvmInline", "kotlin.jvm.JvmInline"]
+            for importDecl in file.imports where !importDecl.isWildcard
+                && importDecl.path.map(interner.resolve).joined(separator: ".") == "kotlin.jvm.JvmInline"
+            {
+                jvmInlineAnnotationNames.insert(interner.resolve(importDecl.alias ?? importDecl.path.last!))
+            }
+            let validator = DeclarationPositionValidator(
+                astArena: ast.arena,
+                interner: interner,
+                diagnostics: diagnostics,
+                fullValueClassesEnabled: fullValueClassesEnabled,
+                jvmInlineAnnotationNames: jvmInlineAnnotationNames
+            )
             for declID in file.topLevelDecls {
                 validator.validate(declID: declID, site: .file)
                 validateSemanticDeclRules(

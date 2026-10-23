@@ -883,7 +883,8 @@ final class DataFlowSemaPhase: CompilerPhase {
             validateDeclarationPositions(
                 ast: ast, symbols: symbols, types: types,
                 diagnostics: ctx.diagnostics, interner: ctx.interner,
-                sourceManager: ctx.sourceManager
+                sourceManager: ctx.sourceManager,
+                fullValueClassesEnabled: ctx.options.fullValueClassesEnabled
             )
         }
         withSubPhaseTiming("validateDeclarationSiteVariance", timer: ctx.phaseTimer) {
