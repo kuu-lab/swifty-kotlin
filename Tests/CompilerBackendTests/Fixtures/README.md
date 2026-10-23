@@ -11,6 +11,9 @@ stdout を比較する。`Scripts/diff_cases` と同じく「ファイルを置�
 - `*.kt` … コンパイル・実行する Kotlin ソース（`fun main()` を持つ実行可能プログラム）。1 ディレクトリにつき 1 つ。
 - `expected.txt` … 実行後に期待する stdout（`\r\n` は `\n` に正規化して比較）。
 
+同じプログラムが `Scripts/diff_cases` にある場合は `*.kt` をコピーせず、代わりに
+`diff_case.txt`（`Scripts/diff_cases` からの相対パスを 1 行、例: `hello.kt`）を置く。
+
 ディレクトリは領域単位でネストしてよい（例: `collections/list_sum/`）。
 ハーネスは `expected.txt` を持つ全ディレクトリを再帰的に fixture として検出する。
 
