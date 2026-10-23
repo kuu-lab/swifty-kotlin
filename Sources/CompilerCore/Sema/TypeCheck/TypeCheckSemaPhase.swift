@@ -101,10 +101,15 @@ final class TypeCheckSemaPhase: CompilerPhase {
         }
 
         try withSemaSubPhaseTiming("post-validation", ctx: ctx) {
-            validateTailrecFunctions(ast: ast, sema: sema, diagnostics: ctx.diagnostics)
+            let (inlineLambdaArguments, suspendLambdaArguments) = collectInlineLambdaArguments(ast: ast, sema: sema)
+            validateTailrecFunctions(
+                ast: ast,
+                sema: sema,
+                diagnostics: ctx.diagnostics,
+                inlineLambdaArguments: inlineLambdaArguments
+            )
             validateWorkerExecuteJobs(ast: ast, sema: sema, ctx: ctx)
 
-            let (inlineLambdaArguments, suspendLambdaArguments) = collectInlineLambdaArguments(ast: ast, sema: sema)
             validateLoopJumpLambdaPaths(ast: ast, sema: sema, diagnostics: ctx.diagnostics, inlineLambdaArguments: inlineLambdaArguments)
             validateReturnLambdaPaths(ast: ast, sema: sema, diagnostics: ctx.diagnostics, inlineLambdaArguments: inlineLambdaArguments)
             driver.validateSuspensionContexts(

@@ -20,6 +20,9 @@ fun __jvmNewline() {}
 
 fun __jvmWhitespace(value: Char): Boolean = false
 fun __jvmSpaceChar(value: Char): Boolean = false
+fun __jvmIsDigit(value: Char): Boolean = false
+fun __jvmIsUpperCase(value: Char): Boolean = false
+fun __jvmIsLowerCase(value: Char): Boolean = false
 fun __jvmSubstring(value: String, start: Int, end: Int): String = null!!
 fun __jvmRootLocale(): Any = null!!
 fun __jvmUppercase(value: String, locale: Any): String = null!!

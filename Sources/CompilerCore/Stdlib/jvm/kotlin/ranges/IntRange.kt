@@ -11,6 +11,11 @@ class IntRange(val first: Int, val last: Int): Iterable<Int>, kotlin.jvm.interna
     override fun equals(other: Any?): Boolean = other is IntRange && (isEmpty() && other.isEmpty() || first == other.first && last == other.last)
     override fun hashCode(): Int = if (isEmpty()) -1 else first * 31 + last
     override fun toString(): String = "$first..$last"
+
+    // KUU-2834: Keep the JVM range companion surface available to consumers.
+    companion object {
+        val EMPTY: IntRange = IntRange(1, 0)
+    }
 }
 
 private class IntRangeIterator(first: Int, private val last: Int): kotlin.collections.IntIterator() {

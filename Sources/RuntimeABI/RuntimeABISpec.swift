@@ -107,6 +107,7 @@ public enum RuntimeABISpec {
         collectionFunctions,
         comparatorFunctions,
         consolePrintFunctions,
+        coroutineDebugProbesFunctions,
         coroutineFunctions,
         dateFormatFunctions,
         deepRecursiveFunctions,

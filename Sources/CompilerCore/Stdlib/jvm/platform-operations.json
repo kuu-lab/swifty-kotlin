@@ -84,6 +84,27 @@
     "kind": "static"
   },
   {
+    "symbol": "__jvmIsDigit",
+    "owner": "java/lang/Character",
+    "name": "isDigit",
+    "descriptor": "(C)Z",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmIsUpperCase",
+    "owner": "java/lang/Character",
+    "name": "isUpperCase",
+    "descriptor": "(C)Z",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmIsLowerCase",
+    "owner": "java/lang/Character",
+    "name": "isLowerCase",
+    "descriptor": "(C)Z",
+    "kind": "static"
+  },
+  {
     "symbol": "__jvmSubstring",
     "owner": "java/lang/String",
     "name": "substring",
