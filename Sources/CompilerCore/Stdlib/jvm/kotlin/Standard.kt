@@ -1,6 +1,14 @@
 @file:kotlin.jvm.JvmName("StandardKt")
 package kotlin
 
+public inline fun repeat(times: Int, action: (Int) -> Unit) {
+    var index = 0
+    while (index < times) {
+        action(index)
+        index += 1
+    }
+}
+
 public inline fun <T, R> T.let(block: (T) -> R): R = block(this)
 
 public inline fun <T, R> T.run(block: T.() -> R): R = block()

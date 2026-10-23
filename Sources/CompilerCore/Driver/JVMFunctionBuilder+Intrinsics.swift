@@ -365,7 +365,7 @@ extension JVMFunctionBuilder {
                 else { parameters = [object]; returns = .boolean }
             case "remove":
                 actual = member
-                if owner == "java/util/Iterator" || owner == "java/util/ListIterator" { parameters = []; returns = .unit }
+                if ["java/util/Iterator", "java/util/ListIterator"].contains(owner), args.isEmpty { parameters = []; returns = .unit }
                 else { parameters = [object]; returns = owner == "java/util/Map" ? object : .boolean }
             case "contains", "containsKey", "containsValue": actual = member; parameters = [object]; returns = .boolean
             case "addAll":
