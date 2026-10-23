@@ -156,12 +156,12 @@ final class RuntimeClosedSendChannelExceptionBox: RuntimeThrowableBox {
     }
 }
 
-func runtimeAllocateClosedReceiveChannelException(message: String?, cause: Int = 0) -> Int {
-    runtimeRegisterThrowable(RuntimeClosedReceiveChannelExceptionBox(message: message, cause: cause))
+func runtimeAllocateClosedReceiveChannelException(message: String?, cause: Int = 0, messageRaw: Int = 0) -> Int {
+    runtimeRegisterThrowable(RuntimeClosedReceiveChannelExceptionBox(message: message, cause: cause, messageRaw: messageRaw))
 }
 
-func runtimeAllocateClosedSendChannelException(message: String? = "Channel was closed", cause: Int = 0) -> Int {
-    runtimeRegisterThrowable(RuntimeClosedSendChannelExceptionBox(message: message, cause: cause))
+func runtimeAllocateClosedSendChannelException(message: String? = "Channel was closed", cause: Int = 0, messageRaw: Int = 0) -> Int {
+    runtimeRegisterThrowable(RuntimeClosedSendChannelExceptionBox(message: message, cause: cause, messageRaw: messageRaw))
 }
 
 /// Channel with proper Kotlin suspend semantics:
@@ -1956,7 +1956,10 @@ public func kk_closed_receive_channel_exception_new_message(_ messageRaw: Int) -
     let message = (messageRaw == 0 || messageRaw == runtimeNullSentinelInt)
         ? nil
         : extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw))
-    return runtimeAllocateClosedReceiveChannelException(message: message)
+    return runtimeAllocateClosedReceiveChannelException(
+        message: message,
+        messageRaw: messageRaw == runtimeNullSentinelInt ? 0 : messageRaw
+    )
 }
 
 @_cdecl("__kk_closed_send_channel_exception_new_message")
@@ -1964,7 +1967,10 @@ public func kk_closed_send_channel_exception_new_message(_ messageRaw: Int) -> I
     let message = (messageRaw == 0 || messageRaw == runtimeNullSentinelInt)
         ? nil
         : extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw))
-    return runtimeAllocateClosedSendChannelException(message: message)
+    return runtimeAllocateClosedSendChannelException(
+        message: message,
+        messageRaw: messageRaw == runtimeNullSentinelInt ? 0 : messageRaw
+    )
 }
 
 /// Read an element from a runtime array by index (mirrors kk_array_get without throw).

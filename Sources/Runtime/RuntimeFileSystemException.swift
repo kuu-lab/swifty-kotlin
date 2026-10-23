@@ -22,11 +22,16 @@ class RuntimeFileSystemExceptionBox: RuntimeThrowableBox {
     let fileRaw: Int
     let otherRaw: Int
     let reason: String?
+    /// Same role as `messageRaw` on `RuntimeThrowableBox` for the `reason`
+    /// accessor: retains the constructor's String handle so `e.reason` keeps
+    /// reference identity; synthesized messages cache their box here lazily.
+    var reasonRaw: Int
 
-    init(fileRaw: Int, otherRaw: Int, reason: String?) {
+    init(fileRaw: Int, otherRaw: Int, reason: String?, reasonRaw: Int = 0) {
         self.fileRaw = fileRaw
         self.otherRaw = otherRaw
         self.reason = reason
+        self.reasonRaw = reasonRaw == runtimeNullSentinelInt ? 0 : reasonRaw
         super.init(message: runtimeFileSystemExceptionMessage(
             file: runtimeFileSystemExceptionPath(from: fileRaw) ?? "null",
             other: runtimeFileSystemExceptionPath(from: otherRaw),
@@ -103,7 +108,7 @@ func runtimeAllocateFileSystemException(file: String, other: String? = nil, reas
 
 
 private func runtimeMakeFileSystemException<Box: RuntimeFileSystemExceptionBox>(
-    _ makeBox: (Int, Int, String?) -> Box,
+    _ makeBox: (Int, Int, String?, Int) -> Box,
     _ fileRaw: Int,
     _ otherRaw: Int,
     _ reasonRaw: Int
@@ -111,7 +116,8 @@ private func runtimeMakeFileSystemException<Box: RuntimeFileSystemExceptionBox>(
     registerRuntimeObject(makeBox(
         runtimeFileSystemExceptionHandle(fileRaw),
         runtimeFileSystemExceptionHandle(otherRaw),
-        extractString(from: UnsafeMutableRawPointer(bitPattern: reasonRaw))
+        extractString(from: UnsafeMutableRawPointer(bitPattern: reasonRaw)),
+        runtimeFileSystemExceptionHandle(reasonRaw)
     ))
 }
 
@@ -209,8 +215,16 @@ public func __kk_file_system_exception_other(_ selfRaw: Int) -> Int {
 
 @_cdecl("__kk_file_system_exception_reason")
 public func __kk_file_system_exception_reason(_ selfRaw: Int) -> Int {
-    guard let box = runtimeFileSystemExceptionBox(from: selfRaw), let reason = box.reason else {
+    guard let box = runtimeFileSystemExceptionBox(from: selfRaw) else {
         return runtimeNullSentinelInt
     }
-    return registerRuntimeObject(RuntimeStringBox(reason))
+    if box.reasonRaw != 0 {
+        return box.reasonRaw
+    }
+    guard let reason = box.reason else {
+        return runtimeNullSentinelInt
+    }
+    let raw = registerRuntimeObject(RuntimeStringBox(reason))
+    box.reasonRaw = raw
+    return raw
 }
