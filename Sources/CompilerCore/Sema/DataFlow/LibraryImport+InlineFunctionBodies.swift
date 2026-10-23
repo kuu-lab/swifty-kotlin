@@ -231,6 +231,55 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// The stdlib Sema snapshot serialises only `importedInlineFunctions`
+    /// descriptors, so the capture build must register one per deferred
+    /// inline binding — otherwise the restored import resolves no bodies at
+    /// all and inline calls (e.g. `run`, `let`, `lazy`) reach codegen as raw
+    /// symbol references that fail to link.
+    func registerAllPendingInlineDescriptors(
+        state: ImportedLibraryLazyLoaderState,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner
+    ) {
+        for (symbol, binding) in state.pendingInlineBindings.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
+            guard let inlinePath = resolvedImportedInlineKIRPath(
+                binding,
+                diagnostics: diagnostics
+            ) else {
+                continue
+            }
+            let signature = symbols.functionSignature(for: symbol)
+            state.importedInlineFunctions.register(
+                ImportedInlineFunctionStore.Descriptor(
+                    path: inlinePath,
+                    signature: signature,
+                    name: binding.record.fqName.last ?? interner.intern("_"),
+                    reifiedComponentTokens: importedInlineUsesComponentTokens(binding, symbol: symbol, symbols: symbols),
+                    packedValueParameterTypes: importedInlinePackedValueTypes(signature, binding: binding, symbol: symbol, symbols: symbols, types: types, interner: interner)
+                ),
+                for: symbol
+            )
+        }
+        // A snapshot missing a descriptor silently degrades to an unresolved
+        // external call at link time. Fail the capture build instead of
+        // writing an under-registered snapshot.
+        let missing = state.pendingInlineBindings.keys.filter {
+            state.importedInlineFunctions.descriptors[$0] == nil
+        }
+        for symbol in missing.sorted(by: { $0.rawValue < $1.rawValue }) {
+            let record = state.pendingInlineBindings[symbol]?.record
+            let name = record?.fqName.map { interner.resolve($0) }.joined(separator: ".")
+                ?? "#\(symbol.rawValue)"
+            diagnostics.error(
+                "KSWIFTK-LIB-0032",
+                "Could not register inline KIR descriptor for '\(name)' in the stdlib Sema snapshot",
+                range: nil
+            )
+        }
+    }
+
     private func resolvedImportedInlineKIRPath(
         _ binding: ImportedLibraryBinding,
         diagnostics: DiagnosticEngine
