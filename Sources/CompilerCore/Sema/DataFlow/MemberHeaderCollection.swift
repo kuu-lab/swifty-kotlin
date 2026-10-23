@@ -1431,13 +1431,12 @@ extension DataFlowSemaPhase {
                 )
             }
             if nestedClass.modifiers.contains(.data) {
-                collectSyntheticDataClassMethods(
+                collectSyntheticDataClassComponentsAndCopy(
                     classDecl: nestedClass,
                     ast: ast,
                     ownerSymbol: nestedSymbol,
                     ownerFQName: nestedFQName,
                     ownerType: nestedType,
-                    phase: .beforeMemberHeaders,
                     symbols: symbols,
                     types: types,
                     scope: nestedScope,
@@ -1466,22 +1465,6 @@ extension DataFlowSemaPhase {
                 classTypeParameterSymbols: nestedClassTypeParameterSymbols,
                 classLocalTypeParameters: nestedLocalTypeParameters
             )
-            if nestedClass.modifiers.contains(.data) {
-                collectSyntheticDataClassMethods(
-                    classDecl: nestedClass,
-                    ast: ast,
-                    ownerSymbol: nestedSymbol,
-                    ownerFQName: nestedFQName,
-                    ownerType: nestedType,
-                    phase: .afterMemberHeaders,
-                    symbols: symbols,
-                    types: types,
-                    scope: nestedScope,
-                    interner: interner,
-                    diagnostics: diagnostics,
-                    localTypeParameters: nestedLocalTypeParameters
-                )
-            }
             if nestedClassKind == .annotationClass {
                 collectSyntheticHashCode(
                     ownerSymbol: nestedSymbol, ownerFQName: nestedFQName, ownerType: nestedType,
@@ -1755,28 +1738,6 @@ extension DataFlowSemaPhase {
             diagnostics: diagnostics,
             interner: interner
         )
-        if nestedObject.modifiers.contains(.data) {
-            collectSyntheticHashCode(
-                ownerSymbol: nestedSymbol,
-                ownerFQName: nestedFQName,
-                ownerType: nestedType,
-                requireDataTypeFlag: false,
-                symbols: symbols,
-                types: types,
-                scope: nestedScope,
-                interner: interner
-            )
-            collectSyntheticEquals(
-                ownerSymbol: nestedSymbol,
-                ownerFQName: nestedFQName,
-                ownerType: nestedType,
-                requireDataTypeFlag: false,
-                symbols: symbols,
-                types: types,
-                scope: nestedScope,
-                interner: interner
-            )
-        }
     }
 
     /// Returns a synthetic member function placeholder with the same fully-qualified
