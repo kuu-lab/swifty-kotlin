@@ -1,4 +1,6 @@
 
+import Foundation
+
 extension DataFlowSemaPhase {
     func bindInheritanceEdges(
         ast: ASTModule,
@@ -6,6 +8,7 @@ extension DataFlowSemaPhase {
         bindings: BindingTable,
         types: TypeSystem,
         diagnostics: DiagnosticEngine = DiagnosticEngine(),
+        sourceManager: SourceManager? = nil,
         interner: StringInterner
     ) {
         for file in ast.sortedFiles {
@@ -21,6 +24,7 @@ extension DataFlowSemaPhase {
                     bindings: bindings,
                     types: types,
                     diagnostics: diagnostics,
+                    sourceManager: sourceManager,
                     interner: interner
                 )
             }
@@ -38,6 +42,7 @@ extension DataFlowSemaPhase {
         bindings: BindingTable,
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
+        sourceManager: SourceManager? = nil,
         interner: StringInterner
     ) {
         guard let symbol = bindings.declSymbols[declID],
@@ -164,6 +169,27 @@ extension DataFlowSemaPhase {
                 symbols.setSupertypeTypeArgs(enumTypeArg, for: symbol, supertype: enumBaseSymbol)
                 types.setNominalSupertypeTypeArgs(enumTypeArg, for: symbol, supertype: enumBaseSymbol)
                 superSymbols.append(enumBaseSymbol)
+
+                // JVM preparation uses a synthetic kotlin.Enum shell because
+                // it does not load the common Enum.kt source. In that mode the
+                // shell has no Comparable<T> edge, so expose the conformance on
+                // each user enum type for member lookup and operator binding.
+                let comparableFQName = [interner.intern("kotlin"), interner.intern("Comparable")]
+                let sourceFileID = symbols.sourceFileID(for: symbol) ?? symbols.symbol(symbol)?.declSite?.start.file
+                let isBundledStdlibSource = sourceFileID.map { fileID in
+                    guard let sourceManager, let resourcePath = Bundle.module.resourcePath else { return false }
+                    let stdlibPath = URL(fileURLWithPath: resourcePath).appendingPathComponent("Stdlib").path
+                    return sourceManager.path(of: fileID).hasPrefix(stdlibPath + "/")
+                } ?? false
+                if sourceFileID.flatMap({ sourceManager?.origin(of: $0) }) == .user,
+                   !isBundledStdlibSource,
+                   let comparableSymbol = types.comparableInterfaceSymbol ?? symbols.lookup(fqName: comparableFQName),
+                   !types.isNominalSubtypeSymbol(enumBaseSymbol, of: comparableSymbol) {
+                    let comparableTypeArg: [TypeArg] = [.invariant(enumType)]
+                    symbols.setSupertypeTypeArgs(comparableTypeArg, for: symbol, supertype: comparableSymbol)
+                    types.setNominalSupertypeTypeArgs(comparableTypeArg, for: symbol, supertype: comparableSymbol)
+                    superSymbols.append(comparableSymbol)
+                }
             }
             // Add implicit kotlin.Any for classes/objects/enums that have no
             // class supertype yet (they may still implement interfaces).
@@ -213,6 +239,7 @@ extension DataFlowSemaPhase {
                 bindings: bindings,
                 types: types,
                 diagnostics: diagnostics,
+                sourceManager: sourceManager,
                 interner: interner
             )
         }

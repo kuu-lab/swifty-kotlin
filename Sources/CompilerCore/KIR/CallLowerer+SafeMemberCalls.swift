@@ -1233,7 +1233,7 @@ extension CallLowerer {
         }
 
         if tryEmitEnumEntryDispatchCall(
-            defaultMask: safeNormalized.defaultMask,
+            hasOmittedDefaultArguments: safeNormalized.hasOmittedDefaultArguments,
             isSuperCall: isSuperCall,
             chosenCallee: chosen,
             receiver: MemberCallReceiver(expr: receiverExpr, loweredID: loweredReceiverID,
@@ -1288,7 +1288,7 @@ extension CallLowerer {
         let safeDefaultStubOwner = chosen.map {
             driver.callSupportLowerer.defaultStubOwnerSymbol(for: $0, sema: sema, callBinding: callBinding)
         }
-        if safeNormalized.defaultMask != 0,
+        if safeNormalized.hasOmittedDefaultArguments,
            let chosen,
            let stubOwner = safeDefaultStubOwner,
            (sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true ||
@@ -1309,9 +1309,16 @@ extension CallLowerer {
             // KUU-655: see the matching comment in
             // `CallLowerer+MemberCallEmission.swift` -- a `super?.f()` call
             // that omits a defaulted argument must dispatch statically.
-            let effectiveMask = isSuperCall ? (safeNormalized.defaultMask | (Int64(1) << 30)) : safeNormalized.defaultMask
-            appendDefaultMaskArgument(
-                effectiveMask,
+            var effectiveMasks = safeNormalized.defaultMaskWords
+            if isSuperCall, !effectiveMasks.isEmpty {
+                if effectiveMasks.count > 1 {
+                    effectiveMasks[effectiveMasks.count - 1] = 1
+                } else {
+                    effectiveMasks[0] |= Int64(1) << 30
+                }
+            }
+            appendDefaultMaskArguments(
+                effectiveMasks,
                 sema: sema,
                 arena: arena,
                 instructions: &instructions.instructions,

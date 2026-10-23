@@ -682,6 +682,19 @@ extension LambdaLowerer {
             body.append(.constValue(result: expr, value: .symbolRef(symbol)))
             return expr
         }
+        let enumPropertyInfo = sema.symbols.symbol(propertySymbol)
+        let isSyntheticEnumNameOrdinalProperty: Bool = {
+            guard let enumPropertyInfo,
+                  enumPropertyInfo.kind == .property,
+                  enumPropertyInfo.flags.contains(.synthetic),
+                  enumPropertyInfo.name == interner.intern("name")
+                    || enumPropertyInfo.name == interner.intern("ordinal"),
+                  let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol)
+            else {
+                return false
+            }
+            return sema.symbols.symbol(ownerSymbol)?.kind == .enumClass
+        }()
         if kind == .getter,
            let externalLinkName = sema.symbols.externalLinkName(for: propertySymbol),
            !externalLinkName.isEmpty
@@ -698,6 +711,40 @@ extension LambdaLowerer {
                 thrownResult: nil
             ))
             body.append(.returnValue(result))
+        } else if let receiverExpr,
+                  kind == .getter,
+                  isSyntheticEnumNameOrdinalProperty,
+                  let enumPropertyInfo
+        {
+            // Enum headers synthesize these properties on each concrete enum.
+            // Route them through the enum name/ordinal lowering instead of the
+            // constructor-property slot helpers used by ordinary enum fields.
+            let result = arena.appendTemporary(type: propertyType)
+            body.append(.call(
+                symbol: nil,
+                callee: enumPropertyInfo.name,
+                arguments: [receiverExpr],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            body.append(.returnValue(result))
+        } else if let receiverExpr,
+                  kind == .getter,
+                  let enumBaseValue = driver.callLowerer.tryLowerEnumBasePropertyRead(
+                      propertySymbol: propertySymbol,
+                      receiver: receiverExpr,
+                      receiverType: ownerType,
+                      resultType: propertyType,
+                      sema: sema,
+                      arena: arena,
+                      interner: interner,
+                      instructions: &body
+                  )
+        {
+            // Enum.name and Enum.ordinal are compiler-owned views over the
+            // boxed ordinal, not fields in Enum's nominal object layout.
+            body.append(.returnValue(enumBaseValue))
         } else if let receiverExpr,
                   let enumHelperCallee = enumPropertyAccessorPlaceholder(
                       for: propertySymbol,

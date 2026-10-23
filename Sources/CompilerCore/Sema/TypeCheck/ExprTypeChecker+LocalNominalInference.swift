@@ -440,6 +440,7 @@ extension ExprTypeChecker {
                     bindings: sema.bindings,
                     types: sema.types,
                     diagnostics: sema.diagnostics,
+                    sourceManager: ctx.visibilityChecker.sourceManager,
                     interner: interner
                 )
             }

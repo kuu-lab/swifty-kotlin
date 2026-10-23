@@ -474,7 +474,8 @@ extension DataFlowSemaPhase {
         let declarationPositionValidator = DeclarationPositionValidator(
             astArena: ast.arena,
             interner: interner,
-            diagnostics: nil
+            diagnostics: nil,
+            fullValueClassesEnabled: ctx.options.fullValueClassesEnabled
         )
         for declID in members.properties {
             guard let decl = ast.arena.decl(declID),
@@ -1323,11 +1324,18 @@ extension DataFlowSemaPhase {
                     // Multi-field value class (Kotlin 2.x MFVC): lowered as a regular class.
                     symbols.removeFlags(.valueType, for: nestedSymbol)
                 } else if valParams.isEmpty {
-                    diagnostics.error(
-                        "KSWIFTK-SEMA-0070",
-                        "Value class must have at least one primary constructor parameter.",
-                        range: nestedClass.range
-                    )
+                    if !isFullValueClassDeclaration(
+                        nestedClass,
+                        imports: sourceImports,
+                        enabled: ctx.options.fullValueClassesEnabled,
+                        interner: interner
+                    ) {
+                        diagnostics.error(
+                            "KSWIFTK-SEMA-0070",
+                            "Value class must have at least one primary constructor parameter.",
+                            range: nestedClass.range
+                        )
+                    }
                 } else {
                     let singleParam = valParams[0]
                     let underlyingType = resolveTypeRef(

@@ -495,7 +495,7 @@ final class JVMFunctionBuilder {
                 if property.getter.isStatic { instructions.append(.getStatic(field, result)) }
                 else { instructions.append(.getField(field, thisValue!, result)) }; return result
             }
-            if let result = try implicitTextProperty(id, name: name) { return result }
+            if let result = try implicitReceiverProperty(id, name: name) { return result }
             if !scopes.contains(where: { $0[name] != nil }), let property = propertyBinding(id) {
                 if let literal = property.field?.constantValue { return try constant(literal, property.type) }
                 return try convert(readProperty(property, receiver: instance(id), special: false), to: program.expressionType(id))
@@ -651,6 +651,7 @@ final class JVMFunctionBuilder {
             guard args.allSatisfy({ !$0.isSpread }),
                   let binding = program.sema.bindings.callBinding(for: id) else { throw fail("Unsupported JVM call.", id) }
             if let result = try implicitExtensionCall(binding.chosenCallee, args: args, id: id) { return result.value }
+            if let result = try implicitCollectionIteratorCall(binding.chosenCallee, args: args, id: id) { return result.value }
             if let result = try intrinsicCall(binding.chosenCallee, args: args, id: id) { return result.value }
             if let method = program.methods[binding.chosenCallee] ?? context.jvmImports?.methods[binding.chosenCallee] {
                 return try foreign(method, receiver: method.isConstructor || method.isStatic ? nil : instance(id), args: args, id: id)

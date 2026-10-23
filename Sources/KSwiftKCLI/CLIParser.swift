@@ -44,6 +44,7 @@ enum CLIParser {
                              Enable unrestricted builder inference
       -Xproper-type-inference-constraints-processing
                              Enable proper type inference constraints processing
+      -Xfull-value-classes  Enable experimental full value classes
       -Xname-based-destructuring=complete
                              Enable name-based short-form destructuring in for loops
       -Xir <flag>            IR/lowering feature flag (e.g. trace-lowering)
@@ -160,6 +161,8 @@ enum CLIParser {
                 frontendFlags.append("unrestricted-builder-inference")
             case "-Xproper-type-inference-constraints-processing":
                 frontendFlags.append("ProperTypeInferenceConstraintsProcessing")
+            case "-Xfull-value-classes", "-XXLanguage:+FullValueClasses":
+                frontendFlags.append("full-value-classes")
             case _ where arg.hasPrefix("-Xname-based-destructuring="):
                 let mode = String(arg.dropFirst("-Xname-based-destructuring=".count))
                 guard mode == "complete" else {

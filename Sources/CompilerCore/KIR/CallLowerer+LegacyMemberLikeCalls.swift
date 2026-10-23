@@ -110,8 +110,10 @@ extension CallLowerer {
             receiverExpr: receiverExpr,
             args: args,
             requireNonNullableReceiver: requireNonNullableReceiverForConstFold,
+            ast: ast,
             sema: sema,
             arena: arena,
+            interner: interner,
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         ) {
