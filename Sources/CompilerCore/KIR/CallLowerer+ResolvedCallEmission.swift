@@ -716,6 +716,78 @@ extension CallLowerer {
             if let explicitReceiverOverride {
                 implicitReceiver = explicitReceiverOverride
             }
+            if let extensionReceiver = implicitReceiver,
+               let linkName = sema.symbols.externalLinkName(for: chosen),
+               ["kk_any_member_to_string", "kk_any_member_hashCode", "kk_any_member_equals"]
+                   .contains(linkName),
+               let receiverType = arena.exprType(extensionReceiver) ?? signature.receiverType,
+               case .primitive = sema.types.kind(of: sema.types.makeNonNullable(receiverType))
+            {
+                // `kotlin.Any` member stubs are bindable on primitive
+                // receivers, whose runtime representation is a raw scalar
+                // rather than an object pointer. The member-dispatch bridge
+                // would read that raw word as a pointer, so emit the tagged
+                // `kk_any_*` fallbacks explicit `x.toString()` calls use.
+                if linkName == "kk_any_member_to_string", args.isEmpty {
+                    let converted = emitAnyToStringWithNullGuard(
+                        valueID: extensionReceiver, valueType: receiverType,
+                        sema: sema, arena: arena, interner: interner,
+                        instructions: &instructions
+                    )
+                    instructions.append(.copy(from: converted, to: result))
+                    return result
+                }
+                let intType = sema.types.make(.primitive(.int, .nonNull))
+                if linkName == "kk_any_member_hashCode", args.isEmpty {
+                    let hashReceiverID = boxSentinelProneHashCodeReceiver(
+                        extensionReceiver,
+                        sourceType: receiverType,
+                        sema: sema,
+                        interner: interner,
+                        arena: arena,
+                        into: &instructions
+                    )
+                    let tag = anyFallbackTag(for: receiverType, sema: sema)
+                    let tagID = arena.appendExpr(.intLiteral(tag), type: intType)
+                    instructions.append(.constValue(result: tagID, value: .intLiteral(tag)))
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_any_hashCode"),
+                        arguments: [hashReceiverID, tagID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+                if linkName == "kk_any_member_equals", args.count == 1 {
+                    let receiverTag = anyFallbackTag(for: receiverType, sema: sema)
+                    let argType = sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
+                    let argTag = anyFallbackTag(for: argType, sema: sema)
+                    let receiverTagID = arena.appendExpr(.intLiteral(receiverTag), type: intType)
+                    instructions.append(.constValue(result: receiverTagID, value: .intLiteral(receiverTag)))
+                    let argTagID = arena.appendExpr(.intLiteral(argTag), type: intType)
+                    instructions.append(.constValue(result: argTagID, value: .intLiteral(argTag)))
+                    let boxedResult = arena.appendTemporary(type: sema.types.makeNullable(sema.types.booleanType))
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_any_equals"),
+                        arguments: [extensionReceiver, receiverTagID, loweredArgIDs[0], argTagID],
+                        result: boxedResult,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_unbox_bool_static"),
+                        arguments: [boxedResult],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+            }
             if let extensionReceiver = implicitReceiver {
                 finalArgIDs.insert(extensionReceiver, at: 0)
                 if let dispatchReceiver = memberExtensionDispatchReceiver(
