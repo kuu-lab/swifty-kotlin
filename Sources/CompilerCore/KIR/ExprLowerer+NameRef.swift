@@ -178,6 +178,17 @@ extension ExprLowerer {
             ) {
                 instructions.append(contentsOf: outerInstructions)
                 receiverExprID = outerReceiver
+            } else if let capturedReceiver = driver.ctx.capturedOuterReceiverExprID(
+                for: enumOwnerSymbol
+            ) ?? driver.ctx.capturedOuterReceiverExprID(
+                reaching: enumOwnerSymbol,
+                sema: sema
+            ) {
+                // Object literals register the construction-site receiver as a
+                // captured outer receiver for the enclosing class. Enum entries
+                // must keep dispatching on that value while the anonymous object
+                // is the active implicit receiver.
+                receiverExprID = capturedReceiver
             } else if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: exprID),
                       let capturedReceiver = driver.ctx.localValue(for: receiverSymbol)
             {

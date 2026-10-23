@@ -199,6 +199,24 @@ struct NestedCallArgumentCandidateFailureTests {
     }
 
     @Test
+    func unresolvedMemberCallArgumentsDoNotCascadeAmbiguity() throws {
+        let context = makeContext("""
+        fun main() {
+            println(arrayOf("a").isNotEmpty())
+            println(Throwable().stackTrace.joinToString("\\n"))
+        }
+        """)
+
+        try runSema(context)
+
+        let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.map(\.code) == ["KSWIFTK-SEMA-0024", "KSWIFTK-SEMA-0024"],
+            "Expected only root unresolved-member diagnostics, got: \(errors)"
+        )
+    }
+
+    @Test
     func boundedFactoryWithoutExpectedTypeStillCannotInferResult() throws {
         let context = makeContext("""
         fun <T : String> value(): T = "x" as T

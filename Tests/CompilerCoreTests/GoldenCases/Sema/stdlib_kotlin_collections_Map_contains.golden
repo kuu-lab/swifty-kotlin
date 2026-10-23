@@ -55,11 +55,11 @@ expr e@13:36#1 memberCall recv=e@13:36 callee=contains args=[_:e@13:49] type=Boo
 expr e@13:5 localDecl explicitPresent mutable=0 type=Boolean init=e@13:36#1 type=Unit ref=__local_3.explicitPresent[kind=local;type=Boolean;origin=fixture]
 expr e@14:30 name(map) type=kotlin.collections.Map<String, Int?> ref=__local_0.map[kind=local;type=kotlin.collections.Map<String,Int?>;origin=fixture]
 expr e@14:48 name(null) type=Nothing?
-expr e@14:30#1 memberCall recv=e@14:30 callee=containsValue args=[_:e@14:48] type=Boolean call=kotlin.collections.containsValue[kind=fun;recv=kotlin.collections.Map<T0,T1>;params=T1;ret=Boolean;gen=2;names=[value]]
+expr e@14:30#1 memberCall recv=e@14:30 callee=containsValue args=[_:e@14:48] type=Boolean call=kotlin.collections.Map.containsValue[kind=fun;recv=kotlin.collections.Map<T0,T1>;params=T1;ret=Boolean;gen=2;classGen=2;names=[value]]
 expr e@14:5 localDecl nullValue mutable=0 type=Boolean init=e@14:30#1 type=Unit ref=__local_4.nullValue[kind=local;type=Boolean;origin=fixture]
 expr e@15:33 name(map) type=kotlin.collections.Map<String, Int?> ref=__local_0.map[kind=local;type=kotlin.collections.Map<String,Int?>;origin=fixture]
 expr e@15:51 int(1) type=Int
-expr e@15:33#1 memberCall recv=e@15:33 callee=containsValue args=[_:e@15:51] type=Boolean call=kotlin.collections.containsValue[kind=fun;recv=kotlin.collections.Map<T0,T1>;params=T1;ret=Boolean;gen=2;names=[value]]
+expr e@15:33#1 memberCall recv=e@15:33 callee=containsValue args=[_:e@15:51] type=Boolean call=kotlin.collections.Map.containsValue[kind=fun;recv=kotlin.collections.Map<T0,T1>;params=T1;ret=Boolean;gen=2;classGen=2;names=[value]]
 expr e@15:5 localDecl integerValue mutable=0 type=Boolean init=e@15:33#1 type=Unit ref=__local_5.integerValue[kind=local;type=Boolean;origin=fixture]
 expr e@17:49 name(null) type=Nothing?
 expr e@17:57 name(null) type=Nothing?

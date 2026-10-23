@@ -116,6 +116,7 @@ public final class BindingTable {
     public private(set) var extensionPropertyGetterCalls: [ExprID: CallBinding] = [:]
     public func bindExtensionPropertyGetterCall(_ expression: ExprID, binding: CallBinding) {
         extensionPropertyGetterCalls[expression] = binding
+        propagateValueMarks(from: binding.chosenCallee, to: expression)
     }
 
     public private(set) var invokeOperatorPropertyCalls: [ExprID: InvokeOperatorPropertyBinding] = [:]
@@ -528,6 +529,7 @@ public final class BindingTable {
 
     public func bindIdentifier(_ expr: ExprID, symbol: SymbolID) {
         identifierSymbols[expr] = symbol
+        propagateValueMarks(from: symbol, to: expr)
     }
 
     public func setNonEscapingComparableCharLocals(_ symbols: Set<SymbolID>) {
@@ -550,6 +552,55 @@ public final class BindingTable {
 
     public func bindCall(_ expr: ExprID, binding: CallBinding) {
         callBindings[expr] = binding
+        propagateValueMarks(from: binding.chosenCallee, to: expr)
+    }
+
+    /// Symbols holding a range/collection/flow value carry side-channel marks so
+    /// membership and member lowering can pick the typed runtime bridge. An
+    /// expression bound to such a symbol evaluates to that same runtime value,
+    /// so the marks transfer. `inferLocalDeclExpr` performs this copy explicitly
+    /// for local declarations; doing it inside `bindIdentifier`/`bindCall`
+    /// extends the convention to name/member reads of top-level, member, and
+    /// object properties, and to calls of range-returning functions (KUU-2942:
+    /// `0.0 in TOP_LEVEL_RANGE` must reach `__kk_double_range_contains` rather
+    /// than falling back to the generic `kk_op_contains`/Comparable path, which
+    /// misclassifies `0.0..-0.0` as empty).
+    private func propagateValueMarks(from symbol: SymbolID, to expr: ExprID) {
+        if rangeSymbolIDs.contains(symbol) {
+            rangeExprIDs.insert(expr)
+        }
+        if charRangeSymbolIDs.contains(symbol) {
+            charRangeExprIDs.insert(expr)
+        }
+        if uintRangeSymbolIDs.contains(symbol) {
+            uintRangeExprIDs.insert(expr)
+        }
+        if ulongRangeSymbolIDs.contains(symbol) {
+            ulongRangeExprIDs.insert(expr)
+        }
+        if floatingPointRangeSymbolIDs.contains(symbol) {
+            floatingPointRangeExprIDs.insert(expr)
+            if let elementType = floatingPointRangeElementTypesBySymbol[symbol] {
+                floatingPointRangeElementTypesByExpr[expr] = elementType
+            }
+            if openFloatingPointRangeSymbolIDs.contains(symbol) {
+                openFloatingPointRangeExprIDs.insert(expr)
+            } else {
+                openFloatingPointRangeExprIDs.remove(expr)
+            }
+        }
+        if collectionSymbolIDs.contains(symbol) {
+            collectionExprIDs.insert(expr)
+        }
+        if flowSymbolIDs.contains(symbol) {
+            flowExprIDs.insert(expr)
+            if let elementType = flowElementTypesBySymbol[symbol] {
+                flowElementTypesByExpr[expr] = elementType
+            }
+        }
+        if let elementType = deferredElementTypesBySymbol[symbol] {
+            deferredElementTypesByExpr[expr] = elementType
+        }
     }
 
     public func markWorkerExecuteCallee(_ symbol: SymbolID) {

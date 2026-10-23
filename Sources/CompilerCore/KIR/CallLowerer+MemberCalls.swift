@@ -142,11 +142,25 @@ extension CallLowerer {
            ),
            let ownerSymbol = sema.symbols.parentSymbol(for: targetSymbol)
         {
-            driver.emitObjectLazyInitGuardIfNeeded(
-                objectSymbol: ownerSymbol, arena: arena, sema: sema,
-                interner: interner,
-                instructions: &instructions.instructions
-            )
+            // KUU-2945: a member that resolves to a nested nominal type
+            // (the `P` of `O.P`, a nested class, enum, ...) is a namespace
+            // qualifier, not owner state -- `O` in `O.P` is never
+            // evaluated, so `O`'s lazy init must not run. The nested
+            // object's own guard, when it has one, is emitted by the
+            // member-value lowering paths below.
+            let targetIsNominalMember = switch sema.symbols.symbol(targetSymbol)?.kind {
+            case .object, .class, .interface, .enumClass, .annotationClass:
+                true
+            default:
+                false
+            }
+            if !targetIsNominalMember {
+                driver.emitObjectLazyInitGuardIfNeeded(
+                    objectSymbol: ownerSymbol, arena: arena, sema: sema,
+                    interner: interner,
+                    instructions: &instructions.instructions
+                )
+            }
         }
 
         if let lateinitStatus = tryLowerLateinitIsInitialized(

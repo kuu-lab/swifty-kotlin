@@ -13,17 +13,19 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
             let initialType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+            let accumulatorType = inferFoldAccumulatorType(initialType: initialType, locals: &locals)
+            foldAccumulatorType = accumulatorType
             let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                params: [initialType, collectionElementType],
-                returnType: initialType
+                params: [accumulatorType, collectionElementType],
+                returnType: accumulatorType
             )))
             if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
                 sema.bindings.markCollectionHOFLambdaExpr(args[1].expr)
             }
             _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
-            resultType = initialType
+            resultType = accumulatorType
             if isSequenceReceiver {
-                sourceBackedSequenceAggregateTypeArguments = [collectionElementType, initialType]
+                sourceBackedSequenceAggregateTypeArguments = [collectionElementType, accumulatorType]
             }
 
         case "foldIndexed":
@@ -36,17 +38,19 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
             let initialType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+            let accumulatorType = inferFoldAccumulatorType(initialType: initialType, locals: &locals)
+            foldAccumulatorType = accumulatorType
             let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                params: [sema.types.intType, initialType, collectionElementType],
-                returnType: initialType
+                params: [sema.types.intType, accumulatorType, collectionElementType],
+                returnType: accumulatorType
             )))
             if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
                 sema.bindings.markCollectionHOFLambdaExpr(args[1].expr)
             }
             _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
-            resultType = initialType
+            resultType = accumulatorType
             if isSequenceReceiver {
-                sourceBackedSequenceAggregateTypeArguments = [collectionElementType, initialType]
+                sourceBackedSequenceAggregateTypeArguments = [collectionElementType, accumulatorType]
             }
 
         case "foldRight":
@@ -59,15 +63,17 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
             let initialType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+            let accumulatorType = inferFoldAccumulatorType(initialType: initialType, locals: &locals)
+            foldAccumulatorType = accumulatorType
             let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                params: [collectionElementType, initialType],
-                returnType: initialType
+                params: [collectionElementType, accumulatorType],
+                returnType: accumulatorType
             )))
             if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
                 sema.bindings.markCollectionHOFLambdaExpr(args[1].expr)
             }
             _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
-            resultType = initialType
+            resultType = accumulatorType
 
         case "foldRightIndexed":
             guard args.count == 2 else {
@@ -79,15 +85,17 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
             let initialType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+            let accumulatorType = inferFoldAccumulatorType(initialType: initialType, locals: &locals)
+            foldAccumulatorType = accumulatorType
             let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                params: [sema.types.intType, collectionElementType, initialType],
-                returnType: initialType
+                params: [sema.types.intType, collectionElementType, accumulatorType],
+                returnType: accumulatorType
             )))
             if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
                 sema.bindings.markCollectionHOFLambdaExpr(args[1].expr)
             }
             _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
-            resultType = initialType
+            resultType = accumulatorType
 
         case "reduceRight":
             guard args.count == 1 else {

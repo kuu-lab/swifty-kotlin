@@ -924,6 +924,46 @@ extension LocalDeclTypeChecker {
             inferredBodyType = sema.types.unitType
         }
 
+        // Propagate the expression body's value marks onto the local function
+        // symbol so call results inherit them through bindCall — mirrors
+        // typeCheckFunctionDecl (KUU-2942).
+        if case let .expr(bodyExprID, _) = body {
+            if sema.bindings.isRangeExpr(bodyExprID) {
+                sema.bindings.markRangeSymbol(funSymbol)
+                if sema.bindings.isCharRangeExpr(bodyExprID) {
+                    sema.bindings.markCharRangeSymbol(funSymbol)
+                }
+                if sema.bindings.isUIntRangeExpr(bodyExprID) {
+                    sema.bindings.markUIntRangeSymbol(funSymbol)
+                }
+                if sema.bindings.isULongRangeExpr(bodyExprID) {
+                    sema.bindings.markULongRangeSymbol(funSymbol)
+                }
+                if sema.bindings.isFloatingPointRangeExpr(bodyExprID) {
+                    sema.bindings.markFloatingPointRangeSymbol(funSymbol)
+                    if let elementType = sema.bindings.floatingPointRangeElementType(forExpr: bodyExprID) {
+                        sema.bindings.bindFloatingPointRangeElementType(
+                            elementType,
+                            forSymbol: funSymbol,
+                            endExclusive: sema.bindings.isOpenFloatingPointRangeExpr(bodyExprID)
+                        )
+                    }
+                }
+            }
+            if sema.bindings.isCollectionExpr(bodyExprID) {
+                sema.bindings.markCollectionSymbol(funSymbol)
+            }
+            if sema.bindings.isFlowExpr(bodyExprID) {
+                sema.bindings.markFlowSymbol(funSymbol)
+                if let flowElementType = sema.bindings.flowElementType(forExpr: bodyExprID) {
+                    sema.bindings.bindFlowElementType(flowElementType, forSymbol: funSymbol)
+                }
+            }
+            if let deferredElementType = sema.bindings.deferredElementType(forExpr: bodyExprID) {
+                sema.bindings.bindDeferredElementType(deferredElementType, forSymbol: funSymbol)
+            }
+        }
+
         if returnTypeRef == nil, case .expr = body, inferredBodyType != sema.types.errorType {
             let inferredSignature = FunctionSignature(
                 receiverType: receiverType,

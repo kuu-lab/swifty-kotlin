@@ -656,6 +656,28 @@ struct NativeEmitter {
     private func shouldUseWeakImportedGlobalReference(for symbol: SymbolID) -> Bool {
         guard let symbols else { return false }
         return Self.shouldUseWeakImportedObjectGlobalReference(for: symbol, symbols: symbols)
+            || Self.shouldUseWeakImportedEnumEntryGlobalReference(for: symbol, symbols: symbols)
+    }
+
+    /// Entries of a synthetic enum (for example `kotlinx.coroutines.CoroutineStart`)
+    /// are symbolic markers: the stdlib artifact serializes them since KUU-2815
+    /// precomputed synthesis, but has no static initializer that would define
+    /// their root slots. A consumer therefore keeps a weak zero slot, matching
+    /// the value they had when the consumer synthesized them itself. A
+    /// source-backed enum owns a static initializer and a strong definition.
+    static func shouldUseWeakImportedEnumEntryGlobalReference(
+        for symbol: SymbolID,
+        symbols: SymbolTable
+    ) -> Bool {
+        guard let sym = symbols.symbol(symbol),
+              sym.kind == .field,
+              sym.flags.contains(.importedLibrary),
+              let parentID = symbols.parentSymbol(for: symbol),
+              symbols.symbol(parentID)?.kind == .enumClass
+        else {
+            return false
+        }
+        return symbols.enumStaticInitSymbol(for: parentID) == nil
     }
 
     /// A non-package parent is not sufficient to identify a companion object:

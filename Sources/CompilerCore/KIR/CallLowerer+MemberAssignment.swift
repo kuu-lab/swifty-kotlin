@@ -1013,10 +1013,20 @@ extension CallLowerer {
             else {
                 continue
             }
+            // KUU-2943: a delegated `var` always writes through the
+            // synthesized setValue-forwarding setter accessor, so it must
+            // win this check before the setter-body test. A bare
+            // `private set`/`protected set` clause records only a
+            // visibility restriction — its `.unit` body would otherwise
+            // downgrade the write to direct field storage, which lands on
+            // a dead slot since the property has no backing field.
+            if propertyDecl.delegateExpression != nil {
+                return true
+            }
             if let setter = propertyDecl.setter {
                 return setter.body != .unit
             }
-            return propertyDecl.delegateExpression != nil
+            return false
         }
         return false
     }

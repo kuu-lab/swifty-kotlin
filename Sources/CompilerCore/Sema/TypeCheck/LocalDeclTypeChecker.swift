@@ -213,18 +213,33 @@ final class LocalDeclTypeChecker {
             ctx.dataFlow.localDeclarations[localSymbol] = id
         }
         sema.bindings.bindIdentifier(id, symbol: localSymbol)
-        // Propagate collection marks through local variable declarations
-        // so that `val list = listOf(1,2,3); list.size` still recognizes
-        // `list` as a collection receiver (P5-84).
-        if let initializer, sema.bindings.isCollectionExpr(initializer) {
-            sema.bindings.markCollectionExpr(id)
-            sema.bindings.markCollectionSymbol(localSymbol)
-        }
+        // A `var` annotated with a range interface (or any other type that is
+        // not a concrete range class) can be reassigned to a user-defined
+        // range implementation, whose object is not a runtime range box. Its
+        // reads must keep the interface/probe path rather than being pinned to
+        // the box layout, so do not record the value marks. `OpenEndRange` is
+        // excluded: its unmarked `contains` resolution already binds
+        // `__kk_range_contains`, which rejects floating-point boxes outright —
+        // the marks are the only path that reaches `__kk_double_range_contains`
+        // there.
         let declaredOpenEndRange = declaredType.map {
             driver.helpers.isOpenEndRangeType($0, sema: sema, interner: interner)
         } ?? false
+        let mutableNonBoxedRangeHolder = isMutable
+            && typeAnnotation != nil
+            && !declaredOpenEndRange
+            && declaredType.map {
+                nominalRangeElementType(for: $0, sema: sema, interner: interner) == nil
+            } ?? false
+        // Propagate collection marks through local variable declarations
+        // so that `val list = listOf(1,2,3); list.size` still recognizes
+        // `list` as a collection receiver (P5-84).
+        if let initializer, !mutableNonBoxedRangeHolder, sema.bindings.isCollectionExpr(initializer) {
+            sema.bindings.markCollectionExpr(id)
+            sema.bindings.markCollectionSymbol(localSymbol)
+        }
         if let initializer {
-            if sema.bindings.isRangeExpr(initializer) || declaredOpenEndRange {
+            if !mutableNonBoxedRangeHolder, sema.bindings.isRangeExpr(initializer) || declaredOpenEndRange {
                 sema.bindings.markRangeExpr(id)
                 sema.bindings.markRangeSymbol(localSymbol)
                 if sema.bindings.isCharRangeExpr(initializer) {
@@ -250,7 +265,7 @@ final class LocalDeclTypeChecker {
                 }
             }
         }
-        if let initializer, sema.bindings.isFlowExpr(initializer) {
+        if let initializer, !mutableNonBoxedRangeHolder, sema.bindings.isFlowExpr(initializer) {
             sema.bindings.markFlowExpr(id)
             sema.bindings.markFlowSymbol(localSymbol)
             if let flowElementType = sema.bindings.flowElementType(forExpr: initializer) {
@@ -258,7 +273,7 @@ final class LocalDeclTypeChecker {
                 sema.bindings.bindFlowElementType(flowElementType, forSymbol: localSymbol)
             }
         }
-        if let initializer, let deferredElementType = sema.bindings.deferredElementType(forExpr: initializer) {
+        if let initializer, !mutableNonBoxedRangeHolder, let deferredElementType = sema.bindings.deferredElementType(forExpr: initializer) {
             sema.bindings.bindDeferredElementType(deferredElementType, forExpr: id)
             sema.bindings.bindDeferredElementType(deferredElementType, forSymbol: localSymbol)
         }
