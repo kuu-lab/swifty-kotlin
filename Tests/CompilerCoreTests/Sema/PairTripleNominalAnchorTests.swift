@@ -5,7 +5,7 @@ import Testing
 
 /// KSP-706: `kotlin.Pair`/`kotlin.Triple` are forward-declared from bundled
 /// `Tuples.kt`/`Pair/Stdlib.kt` before early synthetic stub registration runs
-/// (`predeclareBundledTupleHeaders`), replacing the deleted
+/// (the Tuple row of `BundledPredeclareRow.early`), replacing the deleted
 /// `HeaderHelpers+SyntheticPairTripleAnchors.swift`. These tests pin the two
 /// review-flagged edge cases: `--no-stdlib` builds (no bundled source, no
 /// library import) must still resolve `Pair`/`Triple` as class types instead

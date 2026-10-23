@@ -136,7 +136,7 @@ extension DataFlowSemaPhase {
 
         // KSP-1517: `Array<T>`/primitive array class shells are predeclared
         // from bundled Kotlin source (`ArrayIntrinsics.kt`) via
-        // `predeclareBundledArrayHeaders` before this pass runs; no
+        // the Array row of `BundledPredeclareRow.early` before this pass runs; no
         // registration is needed here anymore
         // (`HeaderHelpers+SyntheticArrayStubs.swift` deleted).
         registerMutableCollectionArrayAddAllMembers(
