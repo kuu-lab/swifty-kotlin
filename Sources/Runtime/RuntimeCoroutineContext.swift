@@ -1502,14 +1502,27 @@ class RuntimeDispatcher: @unchecked Sendable {
 final class RuntimeLimitedDispatcher: RuntimeDispatcher, @unchecked Sendable {
     let base: RuntimeDispatcher
     let parallelismLimit: Int
+    /// The name prefix for this view's default display name. When another
+    /// limited view is created on top, reuse this prefix so `toString()` shows
+    /// the outermost limit instead of accumulating the view chain.
+    let displayNamePrefix: String
     private let gateLock = NSLock()
     private var inFlight = 0
     private var pending: [@Sendable () -> Void] = []
 
-    init(base: RuntimeDispatcher, parallelism: Int, displayName: String) {
+    init(base: RuntimeDispatcher, parallelism: Int, name: String?) {
         self.base = base
         self.parallelismLimit = parallelism
-        super.init(queue: base.queue, tag: 0, displayName: displayName)
+        let displayNamePrefix = name
+            ?? (base as? RuntimeLimitedDispatcher)?.displayNamePrefix
+            ?? base.displayName
+            ?? "dispatcher"
+        self.displayNamePrefix = displayNamePrefix
+        super.init(
+            queue: base.queue,
+            tag: 0,
+            displayName: name ?? "\(displayNamePrefix).limitedParallelism(\(parallelism))"
+        )
         self.tag = Int(bitPattern: Unmanaged.passUnretained(self).toOpaque())
     }
 
@@ -1897,8 +1910,7 @@ public func kk_dispatcher_limited_parallelism(
         view = RuntimeLimitedDispatcher(
             base: resolved,
             parallelism: parallelism,
-            // Upstream: `name ?: "$dispatcher.limitedParallelism($parallelism)"`.
-            displayName: name ?? "\(resolved.displayName ?? "dispatcher").limitedParallelism(\(parallelism))"
+            name: name
         )
         created = true
     }
