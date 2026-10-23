@@ -227,7 +227,7 @@ public func kk_box_bool(_ value: Int) -> Int {
 
 @_cdecl("kk_lateinit_is_initialized")
 public func kk_lateinit_is_initialized(_ value: Int) -> Int {
-    kk_box_bool(value != runtimeNullSentinelInt ? 1 : 0)
+    value != runtimeNullSentinelInt ? 1 : 0
 }
 
 @_cdecl("kk_lateinit_get_or_throw")

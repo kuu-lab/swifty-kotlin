@@ -3,6 +3,7 @@ extension ExprLowerer {
         name localFunName: InternedString,
         valueParams localFunValueParams: [ValueParamDecl],
         body localFunBody: FunctionBody,
+        isTailrec: Bool,
         exprID: ExprID,
         boundType: TypeID?,
         ast: ASTModule,
@@ -31,6 +32,7 @@ extension ExprLowerer {
             driver.ctx.setLocalValue(funRef, for: symbol)
 
             let localFunCalleeName = driver.lambdaLowerer.callableTargetName(for: symbol, sema: sema, interner: interner)
+            if isTailrec { driver.ctx.markTailrecFunction(symbol) }
 
             let localFunValueParamList: [KIRParameter]
             let localFunContextParamList = sig.map { signature in

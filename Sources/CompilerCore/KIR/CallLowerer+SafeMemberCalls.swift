@@ -657,7 +657,9 @@ extension CallLowerer {
             let floatType = sema.types.make(.primitive(.float, .nonNull))
             let doubleType = sema.types.make(.primitive(.double, .nonNull))
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            let rawNonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            let nonNullReceiverType = smartcastNarrowedPrimitiveType(of: rawNonNullReceiverType, sema: sema)
+                ?? rawNonNullReceiverType
             let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
             let nonNullResultType = sema.types.makeNonNullable(resultType)
             let conversionCallee: InternedString? = switch (calleeStr, nonNullReceiverType, nonNullResultType) {
@@ -766,11 +768,19 @@ extension CallLowerer {
                 instructions.append(.copy(from: nullValue, to: result))
                 instructions.append(.jump(endLabel))
                 instructions.append(.label(nonNullLabel))
+                // The receiver slot keeps its erased/nullable
+                // representation under the non-null branch; materialize
+                // the raw primitive so the conversion callee consumes the
+                // payload, not the box handle or sentinel.
+                let conversionReceiverID = materializePrimitiveValue(
+                    loweredReceiverID, toType: nonNullReceiverType, sema: sema,
+                    arena: arena, instructions: &instructions.instructions
+                ) ?? loweredReceiverID
                 let nonNullResult = arena.appendTemporary(type: nonNullResultType)
                 instructions.append(.call(
                     symbol: nil,
                     callee: callee,
-                    arguments: [loweredReceiverID],
+                    arguments: [conversionReceiverID],
                     result: nonNullResult,
                     canThrow: false,
                     thrownResult: nil
@@ -1207,6 +1217,19 @@ extension CallLowerer {
            let callable = driver.ctx.callableValueInfo(for: localValue)
         {
             finalArguments.insert(contentsOf: callable.captureArguments, at: 0)
+        }
+
+        if let chosen {
+            materializeSourceBackedFunctionValueArguments(
+                chosenCallee: chosen,
+                sourceArgExprs: args.map(\.expr),
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions.instructions,
+                arguments: &finalArguments,
+                valueArgOffsetOverride: dispatchReceiver == nil ? nil : 2
+            )
         }
 
         if tryEmitEnumEntryDispatchCall(

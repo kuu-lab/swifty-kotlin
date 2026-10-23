@@ -99,9 +99,16 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         // elements are boxed. Enum operands meet the stored elements as the
         // canonical entry box — the same normalization `==`/`!=` receive — so
         // `E.A in listOf(E.A)` compares nominal identity, not ordinal payload
-        // (KUU-2957).
+        // (KUU-2957). Integral scalars box for the same reason: a bare `0`
+        // probe would alias a stored enum box by ordinal, while the JVM keeps
+        // `0 in listOf(E.A as Any)` false (KUU-3027). The runtime probes stay
+        // correct for raw ordinals too, but boxing removes the ambiguity.
         let membershipElementCallees: Set<InternedString> = [
             ctx.interner.intern("kk_op_contains"),
+            ctx.interner.intern("kk_sequence_contains"),
+            ctx.interner.intern("kk_sequence_indexOf"),
+            ctx.interner.intern("kk_sequence_lastIndexOf"),
+            ctx.interner.intern("kk_sequence_minus"),
         ]
 
         // Type-check intrinsics: `value` is a bare Int that the runtime can only
@@ -754,33 +761,83 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 if let types,
                    membershipElementCallees.contains(effectiveCallee)
                 {
+                    // `x in range` dispatches to `runtimeRangeContains`, which
+                    // compares the bare word against first/last — the element
+                    // must stay raw there (KUU-3027's scalar boxing would wrap
+                    // it into a pointer). `ClosedRange`-typed receivers are the
+                    // only ones that take this path.
+                    let containerIsRange: Bool = boxedArguments.first.flatMap {
+                        intrinsicArgType($0, arena: module.arena, types: types)
+                    }.flatMap { containerType -> SymbolID? in
+                        guard case let .classType(classType) = types.kind(of: containerType)
+                        else { return nil }
+                        return classType.classSymbol
+                    }.flatMap { symbols?.symbol($0)?.fqName }.map { fqName in
+                        fqName.count >= 2
+                            && fqName[0] == ctx.interner.intern("kotlin")
+                            && fqName[1] == ctx.interner.intern("ranges")
+                    } ?? false
                     for i in boxedArguments.indices {
                         guard let argType = intrinsicArgType(
                             boxedArguments[i], arena: module.arena, types: types
-                        ),
-                              case let .classType(classType) = types.kind(of: argType),
-                              let symbols,
-                              let enumSymbol = symbols.symbol(classType.classSymbol),
-                              enumSymbol.kind == .enumClass,
-                              enumBoxingHasOrdinalNameHelper(
-                                  enumSymbol, symbols: symbols, interner: ctx.interner
-                              )
-                        else { continue }
-                        let boxedTemp = module.arena.appendTemporary(type: types.anyType)
-                        emitEnumOrdinalBoxCall(
-                            ordinal: boxedArguments[i],
-                            classSymbol: classType.classSymbol,
-                            result: boxedTemp,
-                            resultType: types.anyType,
-                            types: types,
-                            symbols: symbols,
-                            interner: ctx.interner,
-                            arena: module.arena,
-                            sema: ctx.sema,
-                            cache: ctx.nominalDispatchCache,
-                            into: &newBody
-                        )
-                        boxedArguments[i] = boxedTemp
+                        ) else { continue }
+                        switch types.kind(of: argType) {
+                        case let .classType(classType):
+                            guard let symbols,
+                                  let enumSymbol = symbols.symbol(classType.classSymbol),
+                                  enumSymbol.kind == .enumClass,
+                                  enumBoxingHasOrdinalNameHelper(
+                                      enumSymbol, symbols: symbols, interner: ctx.interner
+                                  )
+                            else { continue }
+                            let boxedTemp = module.arena.appendTemporary(type: types.anyType)
+                            emitEnumOrdinalBoxCall(
+                                ordinal: boxedArguments[i],
+                                classSymbol: classType.classSymbol,
+                                result: boxedTemp,
+                                resultType: types.anyType,
+                                types: types,
+                                symbols: symbols,
+                                interner: ctx.interner,
+                                arena: module.arena,
+                                sema: ctx.sema,
+                                cache: ctx.nominalDispatchCache,
+                                into: &newBody
+                            )
+                            boxedArguments[i] = boxedTemp
+                        case .primitive(let primitive, .nonNull)
+                            where primitive != .double && primitive != .float && !containerIsRange:
+                            // A bare integral scalar would alias a stored enum
+                            // box by ordinal (KUU-3027). Floating-point words
+                            // stay raw — the strict equality path compares
+                            // boxed `Double`/`Float` against raw bit patterns,
+                            // which boxing here would defeat.
+                            guard i > 0,
+                                  let boxCallee = boxCalleeForPrimitive(
+                                      types.kind(of: argType),
+                                      boxingCalleeTable: boxingCalleeTable,
+                                      preferStaticPrimitive: true
+                                  )
+                            else { continue }
+                            let boxedTemp = module.arena.appendTemporary(type: types.anyType)
+                            emitBoxCallWithValueClassTag(
+                                boxCallee: boxCallee,
+                                value: boxedArguments[i],
+                                rawSourceKind: types.kind(of: argType),
+                                result: boxedTemp,
+                                resultType: types.anyType,
+                                types: types,
+                                symbols: symbols,
+                                interner: ctx.interner,
+                                arena: module.arena,
+                                sema: ctx.sema,
+                                cache: ctx.nominalDispatchCache,
+                                into: &newBody
+                            )
+                            boxedArguments[i] = boxedTemp
+                        default:
+                            continue
+                        }
                     }
                 }
                 // The result is Boolean so the arithmetic path above cannot

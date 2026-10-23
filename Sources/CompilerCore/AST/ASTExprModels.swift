@@ -156,8 +156,8 @@ public enum ForDestructuringSyntax: Equatable, Codable {
     case squareBrackets
 }
 
-/// Extra shape of a `destructuringDecl` that the positional `names` list cannot
-/// express (Kotlin 2.4 name-based and full-form destructuring declarations).
+/// Extra shape of destructuring expressions that the positional `names` list
+/// cannot express (Kotlin 2.4 name-based and full-form declarations).
 public struct DestructuringDeclLayout: Equatable, Codable {
     public var syntax: ForDestructuringSyntax
     /// Per entry: the property read for `(a = prop)`; nil means "same as the
@@ -216,7 +216,7 @@ public enum Expr: Equatable, Codable {
     case lambdaLiteral(params: [InternedString], body: ExprID, label: InternedString? = nil, range: SourceRange)
     case objectLiteral(superTypes: [TypeRefID], decl: DeclID?, range: SourceRange)
     case callableRef(receiver: ExprID?, member: InternedString, range: SourceRange)
-    case localFunDecl(name: InternedString, receiverType: TypeRefID? = nil, valueParams: [ValueParamDecl], returnType: TypeRefID?, body: FunctionBody, isSuspend: Bool, range: SourceRange, typeParams: [TypeParamDecl] = [])
+    case localFunDecl(name: InternedString, receiverType: TypeRefID? = nil, valueParams: [ValueParamDecl], returnType: TypeRefID?, body: FunctionBody, isSuspend: Bool, range: SourceRange, typeParams: [TypeParamDecl] = [], isTailrec: Bool = false)
     /// Unlike a top-level nominal decl the name is only visible to statements
     /// after it inside the same block scope, mirroring `localFunDecl`.
     case localNominalDecl(declID: DeclID, range: SourceRange)

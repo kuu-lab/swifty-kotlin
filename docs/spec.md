@@ -108,7 +108,9 @@ public struct CompilerOptions: Equatable {
 `JVMSourceValidationPhase` が対応文法、`JVMFrontendPhase` が型付き JVM IR を検査・構築し、
 `JVMCodegenPhase` が facade と各 class／interface の classfile、検証用 StackMapTable を生成する。
 クラスの constructor／field／accessor、継承と動的ディスパッチ、共変 override の bridge、
-Kotlin class metadata を生成する。M5 は非 reified ジェネリクスの型消去・Signature／metadata、
+Kotlin class metadata を生成する。interface default は Java 8 default method に加えて
+Kotlin 2.4.20 互換の `access$…$jd`／`Interface$DefaultImpls` と実装 class の forwarder を出力する。
+M5 は非 reified ジェネリクスの型消去・Signature／metadata、
 JVM 配列命令、JDK List／Set／Map、exception table と finally の制御フローを追加する。
 M6 は Function0〜22 ABI のラムダクラスと同一 owner の static 本体、共有セルによる可変 capture、
 関数型の引数・戻り値・プロパティ、receiver 付き関数型、トップレベル／メンバー拡張関数を追加する。

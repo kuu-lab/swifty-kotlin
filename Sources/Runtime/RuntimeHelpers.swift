@@ -424,12 +424,12 @@ func runtimeRegisterThrowable(_ throwable: RuntimeThrowableBox) -> Int {
     return Int(bitPattern: ptr)
 }
 
-func runtimeAllocateThrowable(message: String?, cause: Int = 0) -> Int {
-    runtimeRegisterThrowable(RuntimeThrowableBox(message: message, cause: cause))
+func runtimeAllocateThrowable(message: String?, cause: Int = 0, messageRaw: Int = 0) -> Int {
+    runtimeRegisterThrowable(RuntimeThrowableBox(message: message, cause: cause, messageRaw: messageRaw))
 }
 
-func runtimeAllocateUninitializedPropertyAccessException(message: String?, cause: Int = 0) -> Int {
-    runtimeRegisterThrowable(RuntimeUninitializedPropertyAccessExceptionBox(message: message, cause: cause))
+func runtimeAllocateUninitializedPropertyAccessException(message: String?, cause: Int = 0, messageRaw: Int = 0) -> Int {
+    runtimeRegisterThrowable(RuntimeUninitializedPropertyAccessExceptionBox(message: message, cause: cause, messageRaw: messageRaw))
 }
 
 func runtimeStableNominalTypeID(fqName: String) -> Int64 {
@@ -452,9 +452,10 @@ func runtimeThrowableMatchesNominalTypeID(_ throwable: RuntimeThrowableBox, targ
 /// The returned opaque pointer can be stored in `outThrown` and later detected via
 /// `kk_is_cancellation_exception`.
 func runtimeAllocateCancellationException(
-    message: String? = "CancellationException", cause: Int = 0, cancellationJob: RuntimeJobHandle? = nil
+    message: String? = "CancellationException", cause: Int = 0, cancellationJob: RuntimeJobHandle? = nil,
+    messageRaw: Int = 0
 ) -> Int {
-    let exception = RuntimeCancellationBox(message: message, cause: cause)
+    let exception = RuntimeCancellationBox(message: message, cause: cause, messageRaw: messageRaw)
     exception.cancellationJob = cancellationJob
     return runtimeRegisterThrowable(exception)
 }
@@ -510,6 +511,18 @@ func runtimeStringBox(fromRaw raw: Int) -> RuntimeStringBox? {
         return nil
     }
     return extractStringBox(from: UnsafeMutableRawPointer(bitPattern: raw))
+}
+
+/// Returns `raw` when it points at a `RuntimeStringBox`, else 0. Throwable
+/// constructors taking `Any?` (AssertionError) preserve reference identity
+/// only for actual String arguments, matching `String.valueOf` on the JVM.
+func runtimeThrowableStringMessageRaw(_ raw: Int) -> Int {
+    guard raw != 0, raw != runtimeNullSentinelInt,
+          extractStringBox(from: UnsafeMutableRawPointer(bitPattern: raw)) != nil
+    else {
+        return 0
+    }
+    return raw
 }
 
 private let runtimeCharSequenceInterfaceTypeID =

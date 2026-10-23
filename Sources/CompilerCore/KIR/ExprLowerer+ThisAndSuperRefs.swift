@@ -90,6 +90,7 @@ extension ExprLowerer {
            let outerValue = resolveOuterChainValue(
                from: implicitReceiverExprID,
                to: targetClassSymbol.id,
+               allowSubtypeMatch: false,
                sema: sema,
                arena: arena,
                interner: interner,

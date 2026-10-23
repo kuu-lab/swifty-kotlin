@@ -47,5 +47,20 @@ struct CodegenBackendErasedBridgeArgumentCastTests {
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }
+
+    @Test(arguments: [0, 2], [true, false])
+    func collectionContainsBridgeReturnsFalseForIncompatibleErasedArguments(
+        optimization: Int,
+        allowDefaultStdlibLibrary: Bool
+    ) throws {
+        let optLevel = try #require(OptimizationLevel(rawValue: optimization))
+        try assertKotlinOutput(
+            source("kuu_2918_contains_any_abstract_set"),
+            moduleName: "KUU2918ContainsAnyAbstractSet",
+            expected: "false\nfalse\ntrue\n",
+            optLevel: optLevel,
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
 }
 #endif

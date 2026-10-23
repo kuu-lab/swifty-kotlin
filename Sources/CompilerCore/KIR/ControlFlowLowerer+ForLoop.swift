@@ -543,7 +543,7 @@ extension ControlFlowLowerer {
             return true
         }
         if let linkName = sema.symbols.externalLinkName(for: chosenCallee) {
-            return linkName == "kk_op_rangeTo" || linkName == "__kk_op_rangeTo"
+            return linkName == "__kk_op_rangeTo"
         }
         return false
     }

@@ -42,6 +42,7 @@ extension BuildASTPhase {
             }
         }
         var isSuspend = false
+        var isTailrec = false
         var isInfix = false
         var hasOperator = false
         var hasExternal = false
@@ -53,6 +54,7 @@ extension BuildASTPhase {
             if keyword == .suspend {
                 isSuspend = true
             }
+            if keyword == .tailrec { isTailrec = true }
             if keyword == .infix { isInfix = true }
             if keyword == .operator { hasOperator = true }
             if keyword == .external { hasExternal = true }
@@ -247,7 +249,8 @@ extension BuildASTPhase {
             body: body,
             isSuspend: isSuspend,
             range: range,
-            typeParams: typeParams
+            typeParams: typeParams,
+            isTailrec: isTailrec
         ))
         if !contextReceivers.isEmpty {
             astArena.setLocalFunContextReceivers(contextReceivers, for: declaration)

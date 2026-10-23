@@ -12,17 +12,21 @@ func runCodegenPipeline(
     outputPath: String,
     irFlags: [String] = [],
     optLevel: OptimizationLevel = .O0,
+    includeStdlib: Bool = true,
     allowDefaultStdlibLibrary: Bool = true,
     stdlibLibraryPath: String? = nil
 ) throws -> CompilationContext {
+    // The backend wrapper eagerly prepares stdlib even when this input opts out.
+    let target = includeStdlib ? defaultTargetTriple() : CompilerTestSupport.defaultTargetTriple()
     let options = CompilerOptions(
         moduleName: moduleName,
         inputs: [inputPath],
         outputPath: outputPath,
         emit: emit,
-        target: defaultTargetTriple(),
+        target: target,
         optLevel: optLevel,
         irFlags: irFlags,
+        includeStdlib: includeStdlib,
         stdlibLibraryPath: stdlibLibraryPath,
         allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
     )
@@ -52,6 +56,7 @@ func assertKotlinOutput(
     moduleName: String,
     expected: String,
     optLevel: OptimizationLevel = .O0,
+    includeStdlib: Bool = true,
     allowDefaultStdlibLibrary: Bool = true,
     sourceLocation: Testing.SourceLocation = #_sourceLocation
 ) throws {
@@ -64,6 +69,7 @@ func assertKotlinOutput(
             emit: .executable,
             outputPath: outputBase,
             optLevel: optLevel,
+            includeStdlib: includeStdlib,
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
         try LinkPhase().run(ctx)

@@ -152,7 +152,6 @@ extension JVMFunctionBuilder {
         program.noteFunctionTypes(program.sema.bindings.exprType(for: id)!)
         let number = program.nextClosure; program.nextClosure += 1
         let container = owner?.name ?? program.facadeName
-        let name = container + "$Lambda" + String(number)
         let visible = localCaptureEnvironment()
         let symbols = Set(visible.values.compactMap(\.symbol))
         var free = Set(CaptureAnalyzer().collectCapturedOuterSymbols(in: body, ast: program.ast, sema: program.sema, outerSymbols: symbols, skipNestedClosures: false))
@@ -190,7 +189,9 @@ extension JVMFunctionBuilder {
         }
         let inputTypes = try ([function.receiver].compactMap { $0 } + function.params).map(program.type)
         let resultType = try program.type(function.returnType)
-        let helperRef = JVMFunctionReference(name: "$lambda" + String(number), parameters: captures.map { $0.1.type } + inputTypes, result: resultType, owner: container, ownerIsInterface: owner?.isInterface == true)
+        let unitType = JVMValueType.reference("kotlin/Unit", nullable: false)
+        let helperResultType = resultType == .unit ? unitType : resultType
+        let helperRef = JVMFunctionReference(name: "$lambda" + String(number), parameters: captures.map { $0.1.type } + inputTypes, result: helperResultType, owner: container, ownerIsInterface: owner?.isInterface == true)
         guard helperRef.parameters.reduce(0, { $0 + $1.width }) <= 255, captures.map({ $0.1.type }).reduce(1, { $0 + $1.width }) <= 255 else { throw fail("JVM lambda capture/parameter slot limit exceeded.", id) }
         let declaration = FunDecl(range: arena.exprRange(id)!, name: context.interner.intern(helperRef.name), modifiers: [], valueParams: [], body: .expr(body, arena.exprRange(body)!))
         let helper = JVMFunctionBuilder(program: program, declaration: declaration, reference: helperRef, owner: owner)
@@ -230,22 +231,67 @@ extension JVMFunctionBuilder {
         }
         let returned = try helper.expression(body, discarded: resultType == .unit)
         if !helper.terminated {
-            if resultType == .unit { helper.instructions.append(.returnValue(nil)) }
+            if resultType == .unit {
+                let unit = try helper.value(unitType)
+                helper.instructions.append(.getStatic(JVMField(owner: "kotlin/Unit", name: "INSTANCE", type: unitType, access: 0x19), unit))
+                helper.instructions.append(.returnValue(unit))
+            }
             else {
                 guard let returned else { throw fail("JVM lambda must return a value.", id) }
                 helper.instructions.append(.returnValue(try helper.convert(returned, to: resultType)))
             }
         }
         program.syntheticFunctions[container, default: []].append(helper.finish())
-        program.closureClasses.append(try program.closureClass(name, captures: captures.map { ($0.0, $0.1.type) }, inputs: inputTypes, result: resultType, helper: helperRef, suspend: function.isSuspend))
-        let object = try destination ?? value(.reference(name, nullable: false))
-        instructions.append(.allocate(name, object))
-        let constructor = JVMForeignMethod(owner: name, name: "<init>", descriptor: "(" + captures.map { $0.1.type.descriptor }.joined() + ")V", parameters: captures.map { $0.1.type }, result: object.type, isStatic: false, isInterface: false, isAbstract: false)
-        instructions.append(.foreignCall(constructor, receiver: object, arguments: captures.map { $0.1 }, result: nil))
-        if program.sema.bindings.samUnderlyingFunctionType(for: id) != nil || program.sema.bindings.samInterfaceType(for: id) != nil {
-            return try convert(object, to: .reference("kotlin/jvm/functions/Function" + String(inputTypes.count + (function.isSuspend ? 1 : 0)), nullable: false))
+        let continuationType = JVMValueType.reference("kotlin/coroutines/Continuation", nullable: false)
+        let objectType = JVMValueType.reference("java/lang/Object", nullable: true)
+        let invokedInputs = inputTypes + (function.isSuspend ? [continuationType] : [])
+        let instantiatedInputs = invokedInputs.map { $0 == .unit ? unitType : JVMClasspathIndex.boxed($0) }
+        let instantiatedResult = function.isSuspend ? objectType : (resultType == .unit ? unitType : JVMClasspathIndex.boxed(resultType))
+        let arity = invokedInputs.count
+        let adapterReference = JVMFunctionReference(
+            name: "$lambdaInvoke" + String(number),
+            parameters: captures.map { $0.1.type } + instantiatedInputs,
+            result: instantiatedResult,
+            owner: container,
+            ownerIsInterface: owner?.isInterface == true
+        )
+        let adapterDeclaration = FunDecl(range: arena.exprRange(id)!, name: context.interner.intern(adapterReference.name), modifiers: [], body: .unit)
+        let adapter = JVMFunctionBuilder(program: program, declaration: adapterDeclaration, reference: adapterReference, owner: owner)
+        adapter.isStaticBody = true
+        let adapterValues = try adapterReference.parameters.map { try adapter.value($0) }
+        let captureValues = Array(adapterValues.prefix(captures.count))
+        let dynamicInputs = Array(adapterValues.dropFirst(captures.count))
+        var implementationArguments = captureValues
+        for (source, targetType) in zip(dynamicInputs, invokedInputs) {
+            implementationArguments.append(try adapter.convert(source, to: targetType))
         }
-        return destination == nil ? try convert(object, to: program.expressionType(id)) : object
+        let implementation = function.isSuspend ? helperRef.suspendABI : helperRef
+        let implementationResult = implementation.result == .unit ? nil : try adapter.value(implementation.result)
+        adapter.instructions.append(.call(implementation, implementationArguments, implementationResult))
+        if let implementationResult {
+            adapter.instructions.append(.returnValue(try adapter.convert(implementationResult, to: instantiatedResult)))
+        } else {
+            adapter.instructions.append(.returnValue(nil))
+        }
+        program.syntheticFunctions[container, default: []].append(adapter.finish())
+
+        let functionInterface = JVMValueType.reference("kotlin/jvm/functions/Function" + String(arity), nullable: false)
+        let result = try destination ?? value(functionInterface)
+        let samDescriptor = "(" + String(repeating: objectType.descriptor, count: arity) + ")" + objectType.descriptor
+        let instantiatedDescriptor = "(" + instantiatedInputs.map(\.descriptor).joined() + ")" + instantiatedResult.descriptor
+        instructions.append(.invokeDynamic(
+            name: "invoke",
+            descriptor: "(" + captures.map { $0.1.type.descriptor }.joined() + ")" + functionInterface.descriptor,
+            captures: captures.map(\.1),
+            samDescriptor: samDescriptor,
+            implementation: adapterReference,
+            instantiatedDescriptor: instantiatedDescriptor,
+            result: result
+        ))
+        if program.sema.bindings.samUnderlyingFunctionType(for: id) != nil || program.sema.bindings.samInterfaceType(for: id) != nil {
+            return try convert(result, to: functionInterface)
+        }
+        return destination == nil ? try convert(result, to: program.expressionType(id)) : result
     }
 }
 

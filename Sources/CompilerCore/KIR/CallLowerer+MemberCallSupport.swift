@@ -345,6 +345,87 @@ extension CallLowerer {
         computeAnyFallbackTag(for: type, sema: sema)
     }
 
+    /// The non-null primitive a flow narrowing (smartcast, null check)
+    /// binds an expression to: the bound type itself, or the primitive
+    /// part of a smartcast intersection such as `Interface & Char`.
+    /// Returns nil when the bound type carries no primitive component.
+    func smartcastNarrowedPrimitiveType(of type: TypeID, sema: SemaModule) -> TypeID? {
+        switch sema.types.kind(of: type) {
+        case .primitive(_, .nonNull):
+            return type
+        case let .intersection(parts):
+            return parts.first {
+                if case .primitive(_, .nonNull) = sema.types.kind(of: $0) { return true }
+                return false
+            }
+        default:
+            return nil
+        }
+    }
+
+    /// Whether a KIR value of kind `storedKind` still carries an erased
+    /// (boxed) or nullable representation for `narrowedPrimitive` — i.e. a
+    /// `.copy` into the primitive type lowers to a real `kk_unbox_*`
+    /// rather than a verbatim copy that would only relabel a box handle.
+    func smartcastStorageNeedsPrimitiveUnbox(
+        _ storedKind: TypeKind,
+        narrowedPrimitive: PrimitiveType
+    ) -> Bool {
+        switch storedKind {
+        case let .primitive(storedPrimitive, .nullable):
+            storedPrimitive == narrowedPrimitive
+        case .any, .typeParam, .classType:
+            true
+        default:
+            false
+        }
+    }
+
+    /// Emit a `.copy` into a `primitiveType`-typed temp when `value`'s
+    /// storage still holds the erased/nullable representation described
+    /// above. Returns nil when the value is already primitive-shaped or
+    /// `primitiveType` is not a non-null primitive.
+    func materializePrimitiveValue(
+        _ value: KIRExprID,
+        toType primitiveType: TypeID,
+        sema: SemaModule,
+        arena: KIRArena,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        guard case let .primitive(narrowedPrimitive, .nonNull) = sema.types.kind(of: primitiveType),
+              let storedType = arena.exprType(value),
+              smartcastStorageNeedsPrimitiveUnbox(
+                  sema.types.kind(of: storedType),
+                  narrowedPrimitive: narrowedPrimitive
+              )
+        else {
+            return nil
+        }
+        let narrowed = arena.appendTemporary(type: primitiveType)
+        instructions.append(.copy(from: value, to: narrowed))
+        return narrowed
+    }
+
+    /// Resolve `boundType` to its narrowed non-null primitive and
+    /// materialize `value` accordingly (see materializePrimitiveValue).
+    func materializeSmartcastedPrimitiveValue(
+        _ value: KIRExprID,
+        boundType: TypeID?,
+        sema: SemaModule,
+        arena: KIRArena,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        guard let boundType,
+              let primitiveType = smartcastNarrowedPrimitiveType(of: boundType, sema: sema)
+        else {
+            return nil
+        }
+        return materializePrimitiveValue(
+            value, toType: primitiveType, sema: sema, arena: arena,
+            instructions: &instructions
+        )
+    }
+
     /// Target kind for `kk_number_to_primitive` (KSP-1540). Mirrors the
     /// Runtime-side `RuntimeNumberConversionTargetKind` by raw value — the two
     /// enums live in separate modules linked only through the C ABI, so they

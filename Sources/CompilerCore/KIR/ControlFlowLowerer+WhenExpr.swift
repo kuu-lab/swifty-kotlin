@@ -134,7 +134,16 @@ extension ControlFlowLowerer {
             )
             let branchTerminated = isTerminatedExpr(bodyID, arena: arena, sema: sema)
             if !branchTerminated {
-                instructions.append(.copy(from: bodyID, to: result))
+                let branchValueID = materializeConditionalCallableValue(
+                    sourceExprID: branch.body,
+                    value: bodyID,
+                    expectedType: boundType,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                instructions.append(.copy(from: branchValueID, to: result))
                 instructions.append(.jump(endLabel))
                 allBranchesTerminated = false
             }
@@ -154,7 +163,16 @@ extension ControlFlowLowerer {
             )
             elseTerminated = isTerminatedExpr(fallbackID, arena: arena, sema: sema)
             if !elseTerminated {
-                instructions.append(.copy(from: fallbackID, to: result))
+                let fallbackValueID = materializeConditionalCallableValue(
+                    sourceExprID: elseExpr,
+                    value: fallbackID,
+                    expectedType: boundType,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                instructions.append(.copy(from: fallbackValueID, to: result))
             }
         } else {
             let unitVal = arena.appendExpr(.unit, type: sema.types.unitType)
@@ -269,29 +287,22 @@ extension ControlFlowLowerer {
 
         if let loweredSubjectID {
             let matchesID = arena.appendTemporary(type: boolType)
-            // Mirror the boxed-vs-raw normalization in
-            // CallLowerer+Operators.swift's lowerBinaryExpr: `when (e0) {
-            // Direction.NORTH -> ... }` desugars to `==` comparisons here,
-            // not through lowerBinaryExpr, so it needs the same fix.
-            // A `null` condition must probe the subject's own slot: the
-            // normalized value is a non-null Int, so `subject == null`
-            // would fold to false before the runtime sees the sentinel
-            // (KUU-2957).
-            let isNullCondition: Bool = {
-                guard case .nullLiteral = ast.arena.expr(conditionExprID) else { return false }
-                return true
-            }()
-            let normalizedSubjectID = isNullCondition
-                ? loweredSubjectID
-                : unboxIfEnumTyped(
-                    loweredSubjectID,
-                    staticType: subjectExprID.flatMap { sema.bindings.exprTypes[$0] },
-                    sema: sema, arena: arena, interner: interner, into: &instructions
-                )
-            let normalizedConditionID = unboxIfEnumTyped(
-                conditionValueID,
-                staticType: sema.bindings.exprTypes[conditionExprID],
-                sema: sema, arena: arena, interner: interner, into: &instructions
+            // `when (e0) { Direction.NORTH -> ... }` desugars to `==`
+            // comparisons here, not through lowerBinaryExpr, so it applies
+            // the same erased-form normalization (KUU-3027): an
+            // `Any`/nullable subject holds the enum's boxed-or-sentinel
+            // form, a same-class entry condition compares as a bare ordinal,
+            // and a mismatched enum condition is boxed into its canonical
+            // entry box so `when (x: Any) { E.A -> }` still matches. A `null`
+            // condition leaves both sides untouched, so the subject's own
+            // slot meets the null sentinel directly (KUU-2957).
+            let (normalizedSubjectID, normalizedConditionID) = normalizeEnumEqualityOperands(
+                lhsID: loweredSubjectID,
+                lhsType: subjectExprID.flatMap { sema.bindings.exprTypes[$0] },
+                rhsID: conditionValueID,
+                rhsType: sema.bindings.exprTypes[conditionExprID],
+                sema: sema, arena: arena, interner: interner,
+                into: &instructions
             )
             instructions.append(.binary(
                 op: .equal,

@@ -16,6 +16,27 @@ struct ScopeCallablePropertyPriorityTests {
         try String(contentsOf: repository.appendingPathComponent("Scripts/diff_cases/scope_callable_property_priority.kt"), encoding: .utf8)
     }
 
+    @Test
+    func localReceiverPropertyPrecedesSameNamedExtension() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let input = directory.appendingPathComponent("consumer.kt").path
+        let output = directory.appendingPathComponent("consumer").path
+        let source = try String(
+            contentsOf: repository.appendingPathComponent("Scripts/diff_cases/kuu_2921_with_scope_callable_property.kt"),
+            encoding: .utf8
+        )
+        try source.write(toFile: input, atomically: true, encoding: .utf8)
+        try assertCompilationSucceeded(makeTestDriver().runForTesting(options: CompilerOptions(
+            moduleName: "KUU2921", inputs: [input], outputPath: output, emit: .executable,
+            target: defaultTargetTriple(), stdlibLibraryPath: try testStdlibArtifactPath()
+        )))
+        let result = try CommandRunner.run(executable: output, arguments: [])
+        #expect(result.exitCode == 0, "\(result.stderr)")
+        #expect(result.stdout == "false\ntrue\n")
+    }
+
     @Test(arguments: ["any", "sam", "nominalFunction", "functionSupertype", "functionReferenceSupertype", "callableReferenceSupertype", "callableReference", "boundReference", "unboundReference", "memberLocal", "explicitTypeArguments", "directReceiver", "privateImplicit"])
     func contextualArgumentsAndMemberPriority(_ mode: String) throws {
         let source: String

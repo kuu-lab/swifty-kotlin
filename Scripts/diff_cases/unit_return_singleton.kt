@@ -1,6 +1,7 @@
 fun f() { }
 fun explicitUnit(): Unit = Unit
 fun <T> identity(value: T): T = value
+fun foo(x: Any) = x.toString()
 
 fun main() {
     val u = Unit
@@ -29,4 +30,5 @@ fun main() {
     println(Unit === x)
     println(when (x) { Unit -> "boxed"; else -> "other" })
     println(Unit.toString())
+    println(foo(Unit))
 }

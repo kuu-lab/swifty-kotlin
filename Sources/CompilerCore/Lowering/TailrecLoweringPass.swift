@@ -205,11 +205,11 @@ final class TailrecLoweringPass: LoweringPass {
         return emittedTailJump ? pruneUnreachableJoins(result.instructions) : body
     }
 
-    /// When every branch of an `if`/`when` expression body ended in a rewritten
-    /// tail call, the join label (and the `returnValue` behind it) is no longer
-    /// reachable. Left in place it would read a join temporary nothing defines,
-    /// so drop any label that no jump targets and that follows a terminator,
-    /// together with the straight-line run up to the next label.
+    /// Tail-call replacement can make the remaining instructions after an
+    /// unconditional terminator unreachable, including expression-join code
+    /// emitted after a throwing branch. Drop that code through unreferenced
+    /// labels until reaching a label with an incoming jump. Keep block markers
+    /// so the surrounding KIR structure remains balanced.
     private func pruneUnreachableJoins(_ instructions: [KIRInstruction]) -> [KIRInstruction] {
         var current = instructions
         var changed = true
@@ -226,29 +226,25 @@ final class TailrecLoweringPass: LoweringPass {
             }
             var pruned: [KIRInstruction] = []
             pruned.reserveCapacity(current.count)
-            var index = 0
-            while index < current.count {
-                if case let .label(id) = current[index],
-                   !targets.contains(id),
-                   let previous = pruned.last,
-                   isTerminator(previous)
-                {
-                    index += 1
-                    while index < current.count {
-                        switch current[index] {
-                        case .label, .beginBlock, .endBlock:
-                            break
-                        default:
-                            index += 1
-                            continue
-                        }
-                        break
+            var isUnreachable = false
+            for instruction in current {
+                if isUnreachable {
+                    switch instruction {
+                    case let .label(id) where targets.contains(id):
+                        pruned.append(instruction)
+                        isUnreachable = false
+                    case .beginBlock, .endBlock:
+                        pruned.append(instruction)
+                    default:
+                        changed = true
                     }
-                    changed = true
                     continue
                 }
-                pruned.append(current[index])
-                index += 1
+
+                pruned.append(instruction)
+                if isTerminator(instruction) {
+                    isUnreachable = true
+                }
             }
             current = pruned
         }
