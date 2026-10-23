@@ -260,7 +260,9 @@ extension ExprLowerer {
             } else {
                 receiverExprID = activeReceiverExprID
             }
-            let receiverType = arena.exprType(receiverExprID) ?? sema.types.anyType
+            let receiverType = sema.bindings.implicitReceiverMemberReceiverType(for: exprID)
+                ?? arena.exprType(receiverExprID)
+                ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             let memberStr = interner.resolve(memberName)
             let resultType = boundType ?? sema.types.anyType
