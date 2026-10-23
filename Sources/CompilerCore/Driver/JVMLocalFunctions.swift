@@ -83,11 +83,11 @@ extension JVMFunctionBuilder {
     }
 
     func localFunction(_ id: ExprID) throws {
-        guard case let .localFunDecl(name, receiverType, parameters, returnType, body, suspend, range, typeParameters) = arena.expr(id),
+        guard case let .localFunDecl(name, receiverType, parameters, returnType, body, suspend, range, typeParameters, isTailrec) = arena.expr(id),
               let symbol = program.sema.bindings.identifierSymbol(for: id),
               let signature = program.sema.symbols.functionSignature(for: symbol),
               signature.contextReceiverTypes.isEmpty, signature.contextParameterTypes.isEmpty else { throw fail("Missing JVM local function declaration.", id) }
-        let declaration = FunDecl(range: range, name: name, modifiers: [], typeParams: typeParameters, receiverType: receiverType, valueParams: parameters, returnType: returnType, body: body, isSuspend: suspend)
+        let declaration = FunDecl(range: range, name: name, modifiers: [], typeParams: typeParameters, receiverType: receiverType, valueParams: parameters, returnType: returnType, body: body, isSuspend: suspend, isTailrec: isTailrec)
         let logical = try program.functionReference(declaration, symbol: symbol, member: false)
         let container = owner?.name ?? program.facadeName
         let number = program.nextClosure; program.nextClosure += 1
@@ -175,6 +175,13 @@ extension JVMFunctionBuilder {
             ordered = ([try zero(types[0])], [1])
         } else {
             ordered = try arguments(args, binding: program.sema.bindings.callBinding(for: id), parameters: types, declarations: declarations, id: id)
+        }
+        let tailrecPrefix = extensionReceiver ? Array(values.suffix(1)) : []
+        if try emitTailrec(
+            id, symbol: symbol, dispatch: nil, prefix: tailrecPrefix,
+            values: ordered.values, masks: ordered.masks
+        ) {
+            return JVMIntrinsicResult(value: nil)
         }
         values += ordered.values
         let result = reference.result == .unit ? nil : try value(reference.result)

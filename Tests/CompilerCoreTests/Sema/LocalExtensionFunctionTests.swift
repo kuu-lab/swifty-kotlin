@@ -10,7 +10,7 @@ struct LocalExtensionFunctionTests {
         sema: SemaModule
     ) -> SymbolID? {
         guard let index = ast.arena.exprs.indices.first(where: {
-            guard case let .localFunDecl(localName, _, _, _, _, _, _, _) = ast.arena.exprs[$0] else {
+            guard case let .localFunDecl(localName, _, _, _, _, _, _, _, _) = ast.arena.exprs[$0] else {
                 return false
             }
             return localName == name
@@ -176,7 +176,7 @@ struct LocalExtensionFunctionTests {
             if case .localFunDecl = ast.arena.exprs[$0] { return true }
             return false
         })
-        guard case let .localFunDecl(name, receiver, params, _, _, _, _, _) = ast.arena.exprs[localID] else {
+        guard case let .localFunDecl(name, receiver, params, _, _, _, _, _, _) = ast.arena.exprs[localID] else {
             Issue.record("Expected local function")
             return
         }
@@ -235,6 +235,34 @@ struct LocalExtensionFunctionTests {
         let ctx = makeContextFromSource(source)
         try runToKIR(ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func localNullablePrimitiveOperatorWinsInsideImplicitLambda() throws {
+        try withTemporaryFile(contents: """
+        infix operator fun Int?.plus(a: Int): Int = -100
+        fun foo(f: (Int?) -> Int): Int = f(0)
+        fun box(): Int {
+            infix operator fun Int?.plus(a: Int): Int = a!! + 2
+            if (foo { it + 1 } != 3) return -1
+            if (foo { it plus 1 } != 3) return -2
+            return 0
+        }
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let localPlus = try #require(localFunctionSymbol(
+                named: ctx.interner.intern("plus"),
+                in: ast,
+                sema: sema
+            ))
+            let localPlusCalls = sema.bindings.callBindings.values.filter { $0.chosenCallee == localPlus }
+            #expect(localPlusCalls.count == 2, "Both operator and infix syntax should bind the local plus: \(localPlusCalls)")
+        }
     }
 
     @Test

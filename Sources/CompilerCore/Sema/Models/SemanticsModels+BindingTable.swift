@@ -227,6 +227,9 @@ public final class BindingTable {
     public private(set) var stdlibSpecialCallExprIDs: Set<ExprID> = []
     public private(set) var stdlibSpecialCallKinds: [ExprID: StdlibSpecialCallKind] = [:]
     public private(set) var implicitReceiverMemberNames: [ExprID: InternedString] = [:]
+    /// Static or flow-refined receiver type selected by implicit-member lookup.
+    /// The KIR receiver value can retain its declaration type after a smart cast.
+    public private(set) var implicitReceiverMemberReceiverTypes: [ExprID: TypeID] = [:]
     /// For member accesses that resolved on an *outer* implicit receiver (e.g. an
     /// enclosing class's member called unqualified from an object literal's
     /// member body), the enclosing function's receiver parameter symbol. KIR
@@ -385,6 +388,7 @@ public final class BindingTable {
         if !stdlibSpecialCallExprIDs.isEmpty { return false }
         if !stdlibSpecialCallKinds.isEmpty { return false }
         if !implicitReceiverMemberNames.isEmpty { return false }
+        if !implicitReceiverMemberReceiverTypes.isEmpty { return false }
         if !implicitReceiverOuterReceiverSymbols.isEmpty { return false }
         if !implicitExtensionReceiverSymbols.isEmpty { return false }
         if !coroutineScopeImplicitReceiverCallExprs.isEmpty { return false }
@@ -511,6 +515,7 @@ public final class BindingTable {
         worker.stdlibSpecialCallExprIDs = stdlibSpecialCallExprIDs
         worker.stdlibSpecialCallKinds = stdlibSpecialCallKinds
         worker.implicitReceiverMemberNames = implicitReceiverMemberNames
+        worker.implicitReceiverMemberReceiverTypes = implicitReceiverMemberReceiverTypes
         worker.implicitReceiverOuterReceiverSymbols = implicitReceiverOuterReceiverSymbols
         worker.implicitExtensionReceiverSymbols = implicitExtensionReceiverSymbols
         worker.coroutineScopeImplicitReceiverCallExprs = coroutineScopeImplicitReceiverCallExprs
@@ -1206,8 +1211,19 @@ public final class BindingTable {
         stdlibSpecialCallKinds[expr]
     }
 
-    public func markImplicitReceiverMember(_ expr: ExprID, name: InternedString) {
+    public func markImplicitReceiverMember(
+        _ expr: ExprID,
+        name: InternedString,
+        receiverType: TypeID? = nil
+    ) {
         implicitReceiverMemberNames[expr] = name
+        if let receiverType {
+            implicitReceiverMemberReceiverTypes[expr] = receiverType
+        }
+    }
+
+    public func implicitReceiverMemberReceiverType(for expr: ExprID) -> TypeID? {
+        implicitReceiverMemberReceiverTypes[expr]
     }
 
     public func markImplicitReceiverOuterReceiver(_ expr: ExprID, symbol: SymbolID) {

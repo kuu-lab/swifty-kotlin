@@ -1106,7 +1106,7 @@ public final class CompilerDriver {
             if let receiver {
                 collectExpr(receiver)
             }
-        case let .localFunDecl(_, receiverType, valueParams, returnType, body, _, _, typeParams):
+        case let .localFunDecl(_, receiverType, valueParams, returnType, body, _, _, typeParams, _):
             if let receiverType {
                 collectTypeRef(receiverType)
             }

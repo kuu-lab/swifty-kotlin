@@ -213,6 +213,8 @@ extension JVMInstruction {
         case let .referenceCompare(op, a, b, c): .referenceCompare(op, f(a), f(b), f(c))
         case let .unary(op, a, b): .unary(op, f(a), f(b))
         case let .call(ref, args, result): .call(ref, args.map(f), result.map(f))
+        case let .invokeDynamic(name, descriptor, captures, samDescriptor, implementation, instantiatedDescriptor, result):
+            .invokeDynamic(name: name, descriptor: descriptor, captures: captures.map(f), samDescriptor: samDescriptor, implementation: implementation, instantiatedDescriptor: instantiatedDescriptor, result: f(result))
         case let .allocate(name, v): .allocate(name, f(v))
         case let .abandonAllocations(v): .abandonAllocations(v.map(f))
         case let .foreignCall(method, receiver, args, result): .foreignCall(method, receiver: receiver.map(f), arguments: args.map(f), result: result.map(f))

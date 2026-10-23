@@ -751,6 +751,22 @@ extension ExprLowerer {
                     // persists across loop iterations.
                     let symbolType = driver.ctx.localDeclaredType(for: symbol)
                         ?? driver.lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
+                    let cachedIncrementValue: KIRExprID? = if ast.arena.isIncrementDecrement(exprID),
+                        let cachedValue = ast.arena.incrementDecrementCachedValue(for: exprID)
+                    {
+                        driver.lowerExpr(
+                            cachedValue,
+                            ast: ast,
+                            sema: sema,
+                            arena: arena,
+                            interner: interner,
+                            propertyConstantInitializers: propertyConstantInitializers,
+                            instructions: &instructions
+                        )
+                    } else {
+                        nil
+                    }
+                    let operationType = cachedIncrementValue.flatMap { arena.exprType($0) } ?? symbolType
                     // `storageID` is this local's persistent storage register,
                     // returned by identity (not a value snapshot). If the RHS
                     // mutates the same local in place (e.g. `y += y++ + ++y`),
@@ -758,10 +774,15 @@ extension ExprLowerer {
                     // let this read observe the RHS's own mutation instead of
                     // the value Kotlin's left-to-right evaluation order
                     // requires. Freeze it into a fresh temporary first.
-                    let checkedValue = wrapLateinitReadIfNeeded(
-                        storageID, symbol: symbol, sema: sema, arena: arena,
-                        interner: interner, instructions: &instructions
-                    )
+                    let checkedValue: KIRExprID
+                    if let cachedIncrementValue {
+                        checkedValue = cachedIncrementValue
+                    } else {
+                        checkedValue = wrapLateinitReadIfNeeded(
+                            storageID, symbol: symbol, sema: sema, arena: arena,
+                            interner: interner, instructions: &instructions
+                        )
+                    }
                     // Erased local storage retains its declared type (for
                     // example `Any`), while sema records the flow-refined LHS
                     // type for this assignment. Unbox smartcasted primitives
@@ -774,7 +795,7 @@ extension ExprLowerer {
                         arena: arena,
                         instructions: &instructions
                     ) ?? checkedValue
-                    let lhsType = arena.exprType(operationValue) ?? symbolType
+                    let lhsType = arena.exprType(operationValue) ?? operationType
                     let frozenLHS = arena.appendTemporary(type: lhsType)
                     instructions.append(.copy(from: operationValue, to: frozenLHS))
                     let rhsID = lowerRHS()
@@ -783,7 +804,16 @@ extension ExprLowerer {
                         if signature.returnType == sema.types.unitType {
                             _ = appendOperatorCompoundResult(lhs: frozenLHS, rhs: rhsID, resultType: signature.returnType)
                         } else if let resultID = appendOperatorCompoundResult(lhs: frozenLHS, rhs: rhsID, resultType: signature.returnType) {
-                            instructions.append(.copy(from: resultID, to: storageID))
+                            let storedValue = ast.arena.isIncrementDecrement(exprID)
+                                ? normalizedValueForNullablePrimitiveSlot(
+                                    resultID,
+                                    slotType: symbolType,
+                                    types: sema.types,
+                                    arena: arena,
+                                    into: &instructions
+                                )
+                                : resultID
+                            instructions.append(.copy(from: storedValue, to: storageID))
                             rememberIncrementDecrementResult(resultID)
                         }
                     } else {
@@ -793,7 +823,16 @@ extension ExprLowerer {
                             rhs: rhsID,
                             rhsType: arena.exprType(rhsID)
                         )
-                        instructions.append(.copy(from: resultID, to: storageID))
+                        let storedValue = ast.arena.isIncrementDecrement(exprID)
+                            ? normalizedValueForNullablePrimitiveSlot(
+                                resultID,
+                                slotType: symbolType,
+                                types: sema.types,
+                                arena: arena,
+                                into: &instructions
+                            )
+                            : resultID
+                        instructions.append(.copy(from: storedValue, to: storageID))
                         rememberIncrementDecrementResult(resultID)
                     }
                 } else {

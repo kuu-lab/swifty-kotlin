@@ -215,7 +215,7 @@ final class ComparableCharEscapeAnalyzer {
             visit(value, depth, false)
         case let .lambdaLiteral(_, body, _, _):
             visit(body, depth + 1, false)
-        case let .localFunDecl(_, _, valueParams, _, body, _, _, _):
+        case let .localFunDecl(_, _, valueParams, _, body, _, _, _, _):
             for param in valueParams {
                 if let defaultValue = param.defaultValue { visit(defaultValue, depth + 1, false) }
             }

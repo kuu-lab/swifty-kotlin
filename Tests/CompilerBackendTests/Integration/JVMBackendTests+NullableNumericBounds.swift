@@ -4,6 +4,20 @@ import Testing
 
 extension JVMBackendTests {
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func nullableAssertionsThrowMessageLessNullPointerExceptionBeforeUnboxing(mode: EmitMode) throws {
+        try assertJVM("""
+        fun main() {
+            val n: Int? = null
+            val s: String? = null
+            try { println(n!!) }
+            catch (e: Exception) { println("${e.javaClass.simpleName}: ${e.message}") }
+            try { println(s!!.length) }
+            catch (e: Exception) { println("${e.javaClass.simpleName}: ${e.message}") }
+        }
+        """, "NullPointerException: null\nNullPointerException: null\n", mode: mode)
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func nullableNumericBoundsUseNonNullEvidence(mode: EmitMode) throws {
         try assertJVM("""
         fun <T : Double?> asserted(v: T): Double = v!! * v!!
