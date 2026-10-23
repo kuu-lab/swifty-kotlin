@@ -253,6 +253,61 @@ extension JVMFunctionBuilder {
             case "entries": actual = "entrySet"; parameters = []; returns = .reference("java/util/Set", nullable: false)
             case "keys": actual = "keySet"; parameters = []; returns = .reference("java/util/Set", nullable: false)
             case "values": actual = "values"; parameters = []; returns = .reference("java/util/Collection", nullable: false)
+            case "filterKeys", "filterValues", "mapKeys", "mapValues":
+                guard owner == "java/util/Map", values.count == 1,
+                      let signature = functionType(args[0].expr), signature.params.count == 1
+                else { throw fail("JVM Map transforms require a one-argument callback.", id) }
+                let destination = try constructJDK("java/util/LinkedHashMap")
+                let entries = try jdkCall("java/util/Map", "entrySet", [], .reference("java/util/Set", nullable: false), receiver: source, interface: true)!
+                let iterator = try jdkCall("java/lang/Iterable", "iterator", [], .reference("java/util/Iterator", nullable: false), receiver: entries, interface: true)!
+                let test = label(), advance = label(), end = label()
+                mark(test)
+                let hasNext = try jdkCall("java/util/Iterator", "hasNext", [], .boolean, receiver: iterator, interface: true)!
+                instructions.append(.jumpIfFalse(hasNext, end))
+                let entry = try jdkCall("java/util/Iterator", "next", [], object, receiver: iterator, interface: true)!
+                let key = try jdkCall("java/util/Map$Entry", "getKey", [], object, receiver: entry, interface: true)!
+                let value = try jdkCall("java/util/Map$Entry", "getValue", [], object, receiver: entry, interface: true)!
+                var outputKey = key
+                var outputValue = value
+                if member == "mapKeys" {
+                    outputKey = try invoke(values[0], signature: signature, arguments: [entry], resultType: object)!
+                } else if member == "mapValues" {
+                    outputValue = try invoke(values[0], signature: signature, arguments: [entry], resultType: object)!
+                } else {
+                    let selected = try invoke(
+                        values[0],
+                        signature: signature,
+                        arguments: [member == "filterKeys" ? key : value],
+                        resultType: .boolean
+                    )!
+                    instructions.append(.jumpIfFalse(selected, advance))
+                }
+                _ = try jdkCall("java/util/Map", "put", [object, object], object, receiver: destination, arguments: [outputKey, outputValue], interface: true)
+                mark(advance)
+                jump(test)
+                mark(end)
+                return JVMIntrinsicResult(value: try convert(destination, to: result))
+            case "getOrElse", "getOrPut":
+                guard owner == "java/util/Map", values.count == 2,
+                      let signature = functionType(args[1].expr), signature.params.isEmpty
+                else { throw fail("JVM Map default accessors require a zero-argument fallback.", id) }
+                let stored = try jdkCall("java/util/Map", "get", [object], object, receiver: source, arguments: [values[0]], interface: true)!
+                let answer = try value(result), fallback = label(), end = label()
+                let null = try constant(.null, object), present = try value(.boolean)
+                instructions.append(.referenceCompare(.notEqual, stored, null, present))
+                instructions.append(.jumpIfFalse(present, fallback))
+                instructions.append(.copy(try convert(stored, to: result), answer))
+                jump(end)
+                mark(fallback)
+                let defaultValue = try invoke(values[1], signature: signature, arguments: [], resultType: result)
+                guard let defaultValue else { throw fail("JVM Map fallback must produce a value.", id) }
+                if member == "getOrPut" {
+                    try requireMutableCollection(receiverID, at: id)
+                    _ = try jdkCall("java/util/Map", "put", [object, object], object, receiver: source, arguments: [values[0], defaultValue], interface: true)
+                }
+                instructions.append(.copy(try convert(defaultValue, to: result), answer))
+                mark(end)
+                return JVMIntrinsicResult(value: answer)
             case "containsAll": actual = member; parameters = [.reference("java/util/Collection", nullable: false)]; returns = .boolean
             case "isEmpty", "hasNext", "hasPrevious": actual = member; parameters = []; returns = .boolean
             case "nextIndex", "previousIndex": actual = member; parameters = []; returns = .int
