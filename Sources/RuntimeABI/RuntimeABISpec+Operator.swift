@@ -384,6 +384,16 @@ public extension RuntimeABISpec {
             section: "TypeCheck"
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_java_class_isInstance",
+            parameters: [
+                RuntimeABIParameter(name: "classRaw", type: .intptr),
+                RuntimeABIParameter(name: "valueRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_kclass_cast",
             parameters: [
                 RuntimeABIParameter(name: "kclassRaw", type: .intptr),

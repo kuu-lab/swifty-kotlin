@@ -89,6 +89,11 @@ public class Class<T> {
     public val name: String
         get() = __classGetName(this)
 
+    @KsSymbolName("__kk_java_class_isInstance")
+    private external fun __isInstance(value: Any?): Boolean
+
+    public fun isInstance(value: Any?): Boolean = __isInstance(value)
+
     @KsSymbolName("__kk_class_get_enclosing_class")
     private external fun __classGetEnclosingClass(): Class<*>?
 
