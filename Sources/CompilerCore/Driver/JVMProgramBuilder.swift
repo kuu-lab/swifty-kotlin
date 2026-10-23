@@ -26,6 +26,7 @@ final class JVMProgramBuilder {
     var inlineTypeArguments: [SymbolID: TypeID] = [:]
     var textLibraryMethods: [SymbolID: JVMTextLibraryMethod] = [:]
     var textLibraryProperties: [SymbolID: JVMForeignMethod] = [:]
+    var textLibraryFields: [SymbolID: JVMField] = [:]
     let platformOperations: [String: JVMPlatformOperation]
     var rawAnnotationConstructions: [String: ExprID] = [:]
 
