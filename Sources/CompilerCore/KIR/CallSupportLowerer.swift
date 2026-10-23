@@ -329,7 +329,9 @@ final class CallSupportLowerer {
         for capture in captures {
             let captureExpr = arena.appendExpr(.symbolRef(capture.param.symbol), type: capture.param.type)
             body.append(.constValue(result: captureExpr, value: .symbolRef(capture.param.symbol)))
-            if capture.isBoxedMutable {
+            if sema.symbols.delegateGetValueSymbol(for: capture.capturedSymbol) != nil {
+                driver.ctx.setLocalDelegateStorage(captureExpr, for: capture.capturedSymbol)
+            } else if capture.isBoxedMutable {
                 driver.ctx.setMutableCaptureCell(captureExpr, for: capture.capturedSymbol)
             } else {
                 driver.ctx.setLocalValue(captureExpr, for: capture.capturedSymbol)
