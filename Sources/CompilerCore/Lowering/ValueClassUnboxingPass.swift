@@ -102,7 +102,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
         case let .typeParam(typeParameter) where allowTypeParameterUpperBound:
             // A type parameter bounded by a value class still uses that
             // value class's unboxed representation for direct property reads.
-            classSymbol = symbols.typeParameterUpperBounds(for: typeParameter.symbol).compactMap { bound in
+            classSymbol = symbols.typeParameterUpperBounds(for: typeParameter.symbol).compactMap { bound -> SymbolID? in
                 guard case let .classType(classType) = types.kind(of: bound),
                       valueClassSymbols.contains(classType.classSymbol)
                 else { return nil }
