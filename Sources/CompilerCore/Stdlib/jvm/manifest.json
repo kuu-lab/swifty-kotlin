@@ -430,6 +430,11 @@
       "runtimeFacade": "kotlin/collections/MapsKt"
     },
     {
+      "path": "declarations/MapHigherOrderFunctions.kt",
+      "virtualPath": "<kswiftk-jvm>/map-higher-order-functions.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "declarations/BuilderContracts.kt",
       "virtualPath": "<kswiftk-jvm>/builder-contracts.kt",
       "excludeFromStdlibBuild": false
