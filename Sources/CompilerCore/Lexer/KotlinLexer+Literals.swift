@@ -237,6 +237,14 @@ extension KotlinLexer {
             offset += 1
             return Token(kind: .charLiteral(0), range: makeRange(start: start, end: offset), leadingTrivia: leadingTrivia)
         }
+        if byte(at: offset) == 0x0A || byte(at: offset) == 0x0D {
+            diagnostics.error(
+                "KSWIFTK-LEX-0002",
+                "Unterminated character literal.",
+                range: makeRange(start: start, end: offset)
+            )
+            return Token(kind: .charLiteral(0), range: makeRange(start: start, end: offset), leadingTrivia: leadingTrivia)
+        }
         if byte(at: offset) == 0x5C {
             if offset + 1 >= byteCount() {
                 diagnostics.error(

@@ -300,6 +300,21 @@ struct LexerParserEdgeCaseTests {
         assertHasDiagnostic("KSWIFTK-LEX-0006", in: result.diagnostics.diagnostics)
     }
 
+    @Test(arguments: ["\n", "\r"])
+    func testLexerRejectsRawLineBreakAsCharLiteralContent(lineBreak: String) {
+        // kotlinc reports the unterminated `'` and the orphaned closing `'` separately.
+        let result = lex("val c = '\(lineBreak)'")
+
+        assertDiagnosticCount("KSWIFTK-LEX-0002", expected: 2, in: result.diagnostics.diagnostics)
+    }
+
+    @Test(arguments: ["\n", "\r"])
+    func testLexerRejectsRawLineBreakAsCharLiteralContentUnclosed(lineBreak: String) {
+        let result = lex("val c = '\(lineBreak)")
+
+        assertDiagnosticCount("KSWIFTK-LEX-0002", expected: 1, in: result.diagnostics.diagnostics)
+    }
+
     @Test
     func testParserParsesDeclarationsTypeArgsAndEmitsWarningsForBrokenInput() {
         let source = """
