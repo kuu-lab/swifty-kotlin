@@ -224,10 +224,10 @@ extension CallLowerer {
 /// `==`/`when` comparison normalizes either representation to a raw ordinal
 /// without needing to know which side (if either) is actually boxed.
 ///
-/// Deliberately scoped to non-null enum types only: nullable enum
-/// comparisons are unrelated to the values()/entries element bug this
-/// exists for, and `kk_unbox_int` treats its null sentinel as ordinal 0,
-/// which would misclassify a null as the first enum entry.
+/// Nullable enums are unboxed too: `kk_unbox_int` passes the null sentinel
+/// through unchanged (and unwraps boxed handles to their ordinals), so a
+/// null subject compares unequal to every raw ordinal instead of aliasing
+/// the first entry. Non-enum static types are still passed through.
 func unboxIfEnumTyped<C: RangeReplaceableCollection>(
     _ exprID: KIRExprID,
     staticType: TypeID?,
@@ -238,7 +238,6 @@ func unboxIfEnumTyped<C: RangeReplaceableCollection>(
 ) -> KIRExprID where C.Element == KIRInstruction {
     guard let staticType,
           case let .classType(classType) = sema.types.kind(of: staticType),
-          classType.nullability == .nonNull,
           let sym = sema.symbols.symbol(classType.classSymbol),
           sym.kind == .enumClass
     else {
@@ -301,13 +300,9 @@ func emitBoxCallWithValueClassTag<C: RangeReplaceableCollection>(
     // plain (untagged) box for these — same as before this function grew
     // enum awareness — rather than emitting a call to a helper that will
     // never exist.
-    let enumHasOrdinalNameHelper = sym.kind == .enumClass
-        && (!sym.flags.contains(.synthetic) || {
-            let probeName = NameMangler.enumOrdinalToNameHelperName(for: sym, interner: interner)
-            return symbols.lookupAll(fqName: sym.fqName + [probeName]).contains { id in
-                symbols.symbol(id).map { $0.kind == .function } ?? false
-            }
-        }())
+    let enumHasOrdinalNameHelper = enumBoxingHasOrdinalNameHelper(
+        sym, symbols: symbols, interner: interner
+    )
     if enumHasOrdinalNameHelper {
         emitEnumOrdinalBoxCall(
             ordinal: value,
@@ -348,6 +343,24 @@ func emitBoxCallWithValueClassTag<C: RangeReplaceableCollection>(
         symbol: nil, callee: tagCallee, arguments: [boxedTemp, classIDExpr],
         result: result, canThrow: false, thrownResult: nil
     ))
+}
+
+/// True when `emitEnumOrdinalBoxCall` can resolve the entry name for this
+/// enum class: source-backed enums always synthesize `$enumOrdinalToName$`,
+/// while `.synthetic` header-only symbols (platform enums like
+/// `RegexOption`/`OsFamily`, `.kklib` imports) may use it only when the
+/// helper symbol is actually present (KUU-1364).
+func enumBoxingHasOrdinalNameHelper(
+    _ sym: SemanticSymbol,
+    symbols: SymbolTable,
+    interner: StringInterner
+) -> Bool {
+    guard sym.kind == .enumClass else { return false }
+    guard sym.flags.contains(.synthetic) else { return true }
+    let probeName = NameMangler.enumOrdinalToNameHelperName(for: sym, interner: interner)
+    return symbols.lookupAll(fqName: sym.fqName + [probeName]).contains { id in
+        symbols.symbol(id).map { $0.kind == .function } ?? false
+    }
 }
 
 /// Boxes an enum ordinal via `kk_enum_box_ordinal(ordinal, name, classID)`

@@ -480,6 +480,21 @@ extension ExprTypeChecker {
             ))
         }
 
+        // Nested nominals inside the literal (JVM permits `inner class` in
+        // an object expression) lower to separate KIR functions — a member
+        // body or initializer there that references the enclosing receiver
+        // reaches it through this literal's capture fields (`$outer` hop),
+        // so it must be part of the literal's capture set.
+        for nestedDeclID in objectDecl.nestedClasses + objectDecl.nestedObjects {
+            capturedSymbols.formUnion(driver.captureAnalyzer.collectCapturedOuterSymbols(
+                inDecl: nestedDeclID,
+                ast: ast,
+                sema: sema,
+                outerSymbols: captureOuterSymbols,
+                skipNestedClosures: false
+            ))
+        }
+
         // KSP-CAP-018: a custom accessor body is lowered as its own KIR
         // function, exactly like a member function, so an outer local it
         // references needs a capture field too. Property *initializers* are
@@ -1047,6 +1062,22 @@ extension ExprTypeChecker {
                 return superClassID
             }
             return actualSymbolID
+        }
+        // KUU-2955: a local class nested inside another local nominal's
+        // member (`class FooC : AB` inside local `A2.foo`) reaches this
+        // point while the enclosing nominal is still being processed —
+        // before sibling nested nominals like `AB` get their layout
+        // synthesized. Materialize the superclass layout on demand so its
+        // fields, `$outer` slot and vtable slots are actually inherited.
+        if let layoutSuperClass, sema.symbols.nominalLayout(for: layoutSuperClass) == nil {
+            DataFlowSemaPhase().synthesizeNominalLayouts(
+                for: [layoutSuperClass],
+                symbols: sema.symbols,
+                types: sema.types,
+                interner: interner,
+                diagnostics: sema.diagnostics,
+                includeAncestors: true
+            )
         }
         let inheritedLayout = layoutSuperClass.flatMap { sema.symbols.nominalLayout(for: $0) }
         var fieldOffsets = inheritedLayout?.fieldOffsets ?? [:]

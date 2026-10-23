@@ -11,10 +11,10 @@ expr e@13:12 string(missing) type=String
 expr e@13:5#1 indexedAccess receiver=e@13:5 indices=[e@13:12] type=Int? call=kotlin.collections.Map.get[kind=fun;recv=kotlin.collections.Map<T0,T1>;params=T0;ret=T1?;gen=2;classGen=2;names=[key]] targs=[String,Int?]
 expr e@14:5 name(values) type=kotlin.collections.Map<String, Int?> ref=golden.sema.readMap.$0.values[kind=vparam;origin=fixture]
 expr e@14:24 string(missing) type=String
-expr e@14:5#1 memberCall recv=e@14:5 callee=containsKey args=[_:e@14:24] type=Boolean call=kotlin.collections.containsKey[kind=fun;recv=kotlin.collections.Map<T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]]
+expr e@14:5#1 memberCall recv=e@14:5 callee=containsKey args=[_:e@14:24] type=Boolean call=kotlin.collections.Map.containsKey[kind=fun;recv=kotlin.collections.Map<T0,T1>;params=T0;ret=Boolean;gen=2;classGen=2;names=[key]]
 expr e@15:5 name(values) type=kotlin.collections.Map<String, Int?> ref=golden.sema.readMap.$0.values[kind=vparam;origin=fixture]
 expr e@15:26 name(null) type=Nothing?
-expr e@15:5#1 memberCall recv=e@15:5 callee=containsValue args=[_:e@15:26] type=Boolean call=kotlin.collections.containsValue[kind=fun;recv=kotlin.collections.Map<T0,T1>;params=T1;ret=Boolean;gen=2;names=[value]]
+expr e@15:5#1 memberCall recv=e@15:5 callee=containsValue args=[_:e@15:26] type=Boolean call=kotlin.collections.Map.containsValue[kind=fun;recv=kotlin.collections.Map<T0,T1>;params=T1;ret=Boolean;gen=2;classGen=2;names=[value]]
 expr e@16:5 name(values) type=kotlin.collections.Map<String, Int?> ref=golden.sema.readMap.$0.values[kind=vparam;origin=fixture]
 expr e@16:5#1 memberCall recv=e@16:5 callee=entries args=[] type=kotlin.collections.Set<kotlin.collections.Map.Entry<String, Int?>> ref=kotlin.collections.Map.entries[kind=prop;type=kotlin.collections.Set<kotlin.collections.Map.Entry<T0,T1>>]
 expr e@17:5 name(values) type=kotlin.collections.Map<String, Int?> ref=golden.sema.readMap.$0.values[kind=vparam;origin=fixture]

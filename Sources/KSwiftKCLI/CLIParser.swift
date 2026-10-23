@@ -13,6 +13,7 @@ enum CLIParseError: Error, Equatable {
     case noInputFiles
     case incompatibleStdlibOptions(String)
     case stdlibOnlyRequiresLibraryEmit
+    case unsupportedStdlibProfile(String)
     case runRequiresExecutableEmit
 }
 
@@ -53,6 +54,9 @@ enum CLIParser {
       --stdlib-only          Compile bundled stdlib (.kklib by default; --emit jar for JVM)
       --stdlib-library <path> Use <path>.kklib as the stdlib instead of source injection
       --stdlib-from-source   Debug fallback: inject bundled stdlib Kotlin sources
+      --profile <name>       Stdlib profile: full (default) | minimal
+                             minimal: default-import packages only; importing an excluded
+                             package (kotlinx.coroutines, kotlin.test, kotlin.uuid, ...) is an error
       --run                  Compile and run immediately. Pure-logic programs are executed by the
                              in-process KIR interpreter (no codegen/link); anything it does not
                              model falls back to native compilation + execution
@@ -85,6 +89,7 @@ enum CLIParser {
         var stdlibOnly: Bool = false
         var stdlibLibraryPath: String? = nil
         var allowDefaultStdlibLibrary = true
+        var stdlibProfile: StdlibProfile = .full
         var explicitIncludeStdlib: Bool? = nil
         var target = TargetTriple.hostDefault()
         var jvmClasspath: [String] = []
@@ -190,6 +195,12 @@ enum CLIParser {
                 let path = try requireValue(option: arg, args: args, index: &index)
                 stdlibLibraryPath = path
                 includeStdlib = false
+            case "--profile":
+                let value = try requireValue(option: arg, args: args, index: &index)
+                guard let profile = StdlibProfile(rawValue: value) else {
+                    throw CLIParseError.unsupportedStdlibProfile(value)
+                }
+                stdlibProfile = profile
             case "--stdlib-from-source":
                 allowDefaultStdlibLibrary = false
                 includeStdlib = true
@@ -239,6 +250,12 @@ enum CLIParser {
             throw CLIParseError.incompatibleStdlibOptions("--stdlib-library cannot be combined with --stdlib")
         }
 
+        if stdlibProfile != .full, emitMode.isJVM {
+            throw CLIParseError.incompatibleStdlibOptions(
+                "--profile \(stdlibProfile.rawValue) is not supported with --emit class or jar"
+            )
+        }
+
         if inputPaths.isEmpty && !stdlibOnly {
             throw CLIParseError.noInputFiles
         }
@@ -285,7 +302,8 @@ enum CLIParser {
             stdlibLibraryPath: stdlibLibraryPath,
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary,
             entryPointFQName: entryPointFQName,
-            jvmClasspath: jvmClasspath
+            jvmClasspath: jvmClasspath,
+            stdlibProfile: stdlibProfile
         )
     }
 
