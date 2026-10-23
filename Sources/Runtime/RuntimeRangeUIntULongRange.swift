@@ -362,6 +362,24 @@ public func __kk_ulong_step(_ rangeRaw: Int, _ stepValue: Int) -> Int {
     __kk_uint_step(rangeRaw, stepValue)
 }
 
+@_cdecl("__kk_ulong_range_forEach")
+public func __kk_ulong_range_forEach(
+    _ rangeRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeRangeHOFEntry(
+        RuntimeUnsignedRangeHOFKind.self,
+        rangeRaw,
+        fnPtr,
+        closureRaw,
+        outThrown,
+        functionName: "__kk_ulong_range_forEach",
+        operation: RuntimeUnsignedRangeHOFKind.forEach
+    )
+}
+
 @_cdecl("__kk_range_step")
 public func kk_range_step(_ rangeRaw: Int) -> Int {
     runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_range_step") { range in

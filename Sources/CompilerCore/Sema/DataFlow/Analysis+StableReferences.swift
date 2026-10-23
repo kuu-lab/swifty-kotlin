@@ -14,6 +14,11 @@ extension DataFlowAnalyzer {
         case let .nameRef(name, _):
             if let resolved = locals[name] {
                 local = resolved
+            } else if let property = sema.bindings.identifierSymbols[id],
+                      isStableTopLevelProperty(property, ast: ast, sema: sema),
+                      let type = sema.bindings.exprType(for: id)
+            {
+                return (DataFlowReference(root: property), type, true)
             } else {
                 // A bare member name and `this.member` must share a flow reference.
                 // Only use the current receiver when lookup selects the same property;
@@ -74,6 +79,18 @@ extension DataFlowAnalyzer {
         let stable = hasStableMemberDeclaration(property, ast: ast, sema: sema)
         stableMemberProperties[property] = stable
         return stable
+    }
+
+    func isStableTopLevelProperty(_ property: SymbolID, ast: ASTModule, sema: SemaModule) -> Bool {
+        guard sema.symbols.symbol(property)?.kind == .property,
+              sema.symbols.extensionPropertyReceiverType(for: property) == nil,
+              sema.symbols.parentSymbol(for: property).map({
+                  sema.symbols.symbol($0)?.kind == .package
+              }) ?? true
+        else {
+            return false
+        }
+        return isStableMemberProperty(property, ast: ast, sema: sema)
     }
 
     private func hasStableMemberDeclaration(_ property: SymbolID, ast: ASTModule, sema: SemaModule) -> Bool {

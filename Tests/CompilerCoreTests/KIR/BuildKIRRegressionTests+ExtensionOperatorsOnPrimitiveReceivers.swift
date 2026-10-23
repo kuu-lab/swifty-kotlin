@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+import Foundation
 import Testing
 
 // Regression coverage for extension operators declared on a primitive
@@ -11,6 +12,46 @@ import Testing
 // dispatch and CallLowerer+Operators's string-add shortcut) used to ignore
 // argument applicability and silently miscompile these calls.
 extension BuildKIRRegressionTests {
+    @Test func testBuildKIRUsesPrimitiveContainsExtensionInWhenCondition() throws {
+        let source = """
+        operator fun Int.contains(value: Int): Boolean = this == 2 && value == 1
+        fun matchIn(): Int = when (1) { in 2 -> 1; else -> 0 }
+        fun matchNotIn(): Int = when (1) { !in 3 -> 1; else -> 0 }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let module = try #require(ctx.kir)
+            for functionName in ["matchIn", "matchNotIn"] {
+                let whenID = try #require(topLevelExpressionBodyExprID(
+                    named: functionName,
+                    ast: ast,
+                    interner: ctx.interner
+                ))
+                guard case let .whenExpr(_, branches, _, _) = ast.arena.expr(whenID),
+                      let conditionID = branches.first?.conditions.first
+                else {
+                    Issue.record("Expected \(functionName) to contain an in/not-in condition.")
+                    continue
+                }
+                let chosenCallee = try #require(sema.bindings.callBindings[conditionID]?.chosenCallee)
+                let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))
+                #expect(signature.receiverType != nil, "Expected the scoped Int.contains extension to be bound.")
+
+                let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
+                #expect(body.contains { instruction in
+                    guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else { return false }
+                    return symbol == chosenCallee
+                }, "Expected \(functionName) to call its resolved Int.contains extension.")
+                #expect(!extractCallees(from: body, interner: ctx.interner).contains(runtimeCallee(.opContains)))
+            }
+        }
+    }
+
     @Test(arguments: ["plus", "times", "div", "rem"])
     func testBuildKIRUsesCharArithmeticExtensionForExplicitCall(name: String) throws {
         let rhsType = name == "plus" ? "Char" : "Int"

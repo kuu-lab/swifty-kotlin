@@ -545,6 +545,46 @@ struct DeclarationPositionValidationTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
     }
 
+    @Test func inlineTopLevelVarWithCustomAccessorsIsAccepted() throws {
+        let ctx = try semaContext(for: """
+            var backing = 1
+            private inline var value: Int
+                get() = backing + 10000
+                set(v) { backing = v + 100 }
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+    }
+
+    @Test func inlineMemberVarWithCustomAccessorsIsAccepted() throws {
+        let ctx = try semaContext(for: """
+            class C {
+                private var backing = 0
+                private inline var value: Int
+                    get() = backing
+                    set(v) { backing = v }
+            }
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+    }
+
+    @Test func inlineExtensionVarWithCustomAccessorsIsAccepted() throws {
+        let ctx = try semaContext(for: """
+            inline var Int.value: Int
+                get() = this + 1
+                set(v) {}
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+    }
+
+    @Test func inlineOpenMemberPropertyIsRejected() throws {
+        let ctx = try semaContext(for: """
+            open class C {
+                open inline val value: Int get() = 42
+            }
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+    }
+
     @Test func inlineTopLevelPropertyWithInitializerIsRejected() throws {
         let ctx = try semaContext(for: """
             inline val answer: Int = 42

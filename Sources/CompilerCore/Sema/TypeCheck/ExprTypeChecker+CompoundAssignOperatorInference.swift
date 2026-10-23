@@ -563,6 +563,7 @@ extension ExprTypeChecker {
             }
             if let cachedValue = ctx.ast.arena.incrementDecrementCachedValue(for: id) {
                 validateExpressionAnnotationVisibility(cachedValue, ctx: ctx)
+                _ = driver.inferExpr(cachedValue, ctx: ctx, locals: &locals, expectedType: local.type)
             }
             if let resolvedType = inferIncrementDecrementIfNeeded(
                 exprID: id,

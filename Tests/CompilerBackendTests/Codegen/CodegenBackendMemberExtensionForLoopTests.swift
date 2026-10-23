@@ -7,6 +7,38 @@ import Testing
 @Suite
 struct CodegenBackendMemberExtensionForLoopTests {
     @Test
+    func lambdaParameterDestructuringCallsScopedExtensionComponents() throws {
+        let source = """
+        class A<T>(val x: Int, val y: Int, val z: Int)
+        operator fun A<*>.component1() = x
+        fun <T, R> foo(value: T, block: (T) -> R): R = block(value)
+        object B {
+            operator fun A<*>.component2() = y
+            fun bar(): Int {
+                operator fun <R> A<R>.component3() = z
+                return foo(A<Int>(1, 2, 3)) { (x, y, z) -> x + y + z }
+            }
+            fun barWithCapturedLocal(): Int {
+                val bonus = 4
+                operator fun <R> A<R>.component3() = z + bonus
+                return foo(A<Int>(1, 2, 3)) { (x, y, z) -> x + y + z }
+            }
+        }
+        fun main() {
+            val valid = B.bar() == 6 && B.barWithCapturedLocal() == 10
+            val divisor = if (valid) 1 else 0
+            val ignored = 12 / divisor
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "LambdaDestructuringExtensionComponents",
+            expected: "",
+            includeStdlib: false
+        )
+    }
+
+    @Test
     func memberExtensionsImplementAllForLoopOperators() throws {
         let source = """
         class It {}

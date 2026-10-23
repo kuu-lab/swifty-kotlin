@@ -370,9 +370,25 @@ extension ExprTypeChecker {
                 )
             }
         }
-        let resolvedType = preferredCandidate.flatMap {
+        let declaredResolvedType = preferredCandidate.flatMap {
             resolveTypeForCandidate($0, sema: sema)
         } ?? sema.types.anyType
+        // Bind the declaration type before consulting flow facts. A top-level
+        // stable property is not represented in `locals`, but its stable
+        // reference still has a narrowed type inside the current branch.
+        sema.bindings.bindExprType(id, type: declaredResolvedType)
+        let resolvedType: TypeID = if let preferredCandidate,
+           preferredCandidate.kind == .property,
+           let narrowedType = ctx.dataFlow.resolvedTypeFromFlowState(
+               ctx.flowState,
+               reference: DataFlowReference(root: preferredCandidate.id),
+               types: sema.types
+           )
+        {
+            narrowedType
+        } else {
+            declaredResolvedType
+        }
         // Propagate compile-time constant value for `const val` references
         // so downstream passes can fold without re-querying the symbol table.
         if let preferredCandidate, preferredCandidate.flags.contains(.constValue),

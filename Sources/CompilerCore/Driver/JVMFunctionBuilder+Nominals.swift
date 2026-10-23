@@ -121,6 +121,9 @@ extension JVMFunctionBuilder {
 
     func whenExpression(_ id: ExprID, subject: ExprID?, branches: [WhenBranch], fallback: ExprID?, discarded: Bool) throws -> JVMValue? {
         let snapshot = try subject.map(requireValue), type = try program.expressionType(id)
+        let savedEvaluatedOperands = evaluatedOperands
+        if let subject, let snapshot { evaluatedOperands[subject] = snapshot }
+        defer { evaluatedOperands = savedEvaluatedOperands }
         let result = discarded || type == .unit ? nil : try value(type), end = label()
         scopes.append([:]); defer { scopes.removeLast() }
         if let name = arena.whenSubjectVarName(for: id), let snapshot { scopes[scopes.count - 1][name] = Local(value: snapshot, mutable: false) }
@@ -146,12 +149,20 @@ extension JVMFunctionBuilder {
                     let tested = try expression(condition)
                     if terminated { canTestNext = false; break }
                     guard let tested else { throw fail("JVM when condition requires a value.", condition) }
-                    if let snapshot {
+                    let isMembershipCondition: Bool
+                    switch arena.expr(condition) {
+                    case .inExpr(_, _, _), .notInExpr(_, _, _): isMembershipCondition = true
+                    default: isMembershipCondition = false
+                    }
+                    if let snapshot, !isMembershipCondition {
                         check = try value(.boolean)
                         if snapshot.type.referenceName != nil || tested.type.referenceName != nil {
                             instructions.append(.binary(.equal, try convert(snapshot, to: .reference("java/lang/Object", nullable: true)), try convert(tested, to: .reference("java/lang/Object", nullable: true)), check))
                         } else { instructions.append(.binary(.equal, snapshot, try convert(tested, to: snapshot.type), check)) }
-                    } else { check = tested }
+                    } else {
+                        guard tested.type == .boolean || snapshot == nil else { throw fail("JVM membership when conditions must produce Boolean.", condition) }
+                        check = tested
+                    }
                 }
                 let alternative = label()
                 instructions.append(.jumpIfFalse(check, alternative)); jump(selected); selectedReachable = true; mark(alternative)
