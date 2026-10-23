@@ -4,10 +4,10 @@ import Foundation
 import Testing
 
 extension JVMBackendTests {
-    @Test(arguments: ["companionPropertyCallableReferences", "constCompanionValues", "interfaceCompanionConstants", "constPropertyCallerArityContracts", "constPropertyInitialization", "objectConstNoLazyInitialization", "constPropertyReflectionFields"], [EmitMode.jvmClass, .jvmJar])
+    @Test(arguments: ["companion_property_callable_reference", "const_val_references_and_infix", "interface_companion", "constPropertyCallerArityContracts", "constPropertyInitialization", "object_const_val_no_lazy_init", "constPropertyReflectionFields"], [EmitMode.jvmClass, .jvmJar])
     func constPropertiesUseFieldsWithoutCompanionGetters(name: String, mode: EmitMode) throws {
         let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/JVMOwnStdlib")
-        let source = try String(contentsOf: fixtures.appendingPathComponent(name + ".kt"), encoding: .utf8)
+        let source = try fixtureOrDiffCaseSource(fixtures, name)
         let expected = try String(contentsOf: fixtures.appendingPathComponent(name + ".out"), encoding: .utf8)
         try withWorkspace { root in
             try runRuntimeParity(source, expected: expected, mode: mode, root: root)
