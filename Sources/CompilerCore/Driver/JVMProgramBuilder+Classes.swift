@@ -122,7 +122,12 @@ extension JVMProgramBuilder {
             if let parent = plan.enumParent { plan.superclass = classes[parent]!.name }
             for parent in plan.enumParent == nil ? sema.symbols.directSupertypes(for: plan.symbol) : [] {
                 let sourceName = try className(parent)
-                let name = JVMClasspathIndex.builtinName(sourceName) ?? sourceName
+                // A source declaration takes precedence over a JVM alias with
+                // the same name; generated subclasses must implement the
+                // emitted source type rather than its platform replacement.
+                let name = classes[parent] == nil
+                    ? JVMClasspathIndex.builtinName(sourceName) ?? sourceName
+                    : sourceName
                 if name == "kotlin/Any" { continue }
                 if plan.isEnum && sourceName == "kotlin/Enum" { plan.superclass = "java/lang/Enum"; continue }
                 if !context.options.stdlibOnly && ["kotlin/reflect/KProperty", "kotlin/reflect/KMutableProperty"].contains(sourceName) { throw JVMFrontendError(message: "JVM does not support source implementations of reflection interfaces.") }
