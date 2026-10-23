@@ -273,11 +273,21 @@ extension ControlFlowLowerer {
             // CallLowerer+Operators.swift's lowerBinaryExpr: `when (e0) {
             // Direction.NORTH -> ... }` desugars to `==` comparisons here,
             // not through lowerBinaryExpr, so it needs the same fix.
-            let normalizedSubjectID = unboxIfEnumTyped(
-                loweredSubjectID,
-                staticType: subjectExprID.flatMap { sema.bindings.exprTypes[$0] },
-                sema: sema, arena: arena, interner: interner, into: &instructions
-            )
+            // A `null` condition must probe the subject's own slot: the
+            // normalized value is a non-null Int, so `subject == null`
+            // would fold to false before the runtime sees the sentinel
+            // (KUU-2957).
+            let isNullCondition: Bool = {
+                guard case .nullLiteral = ast.arena.expr(conditionExprID) else { return false }
+                return true
+            }()
+            let normalizedSubjectID = isNullCondition
+                ? loweredSubjectID
+                : unboxIfEnumTyped(
+                    loweredSubjectID,
+                    staticType: subjectExprID.flatMap { sema.bindings.exprTypes[$0] },
+                    sema: sema, arena: arena, interner: interner, into: &instructions
+                )
             let normalizedConditionID = unboxIfEnumTyped(
                 conditionValueID,
                 staticType: sema.bindings.exprTypes[conditionExprID],

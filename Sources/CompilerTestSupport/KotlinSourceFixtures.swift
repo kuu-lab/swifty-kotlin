@@ -7,16 +7,6 @@ enum KotlinSourceFixtures {
     }
     """
 
-    static let atomicfuAtomicRefStub = """
-    package kotlinx.atomicfu
-
-    class AtomicRef<T>(var value: T) {
-        fun compareAndSet(expect: T, update: T): Boolean = true
-    }
-
-    fun <T> atomic(value: T): AtomicRef<T> = AtomicRef(value)
-    """
-
     static let classOverrideInheritedDefaultArgument = """
     open class A { open fun f(x: Int = 1) = "A$x" }
     class B : A() { override fun f(x: Int) = "B$x" }

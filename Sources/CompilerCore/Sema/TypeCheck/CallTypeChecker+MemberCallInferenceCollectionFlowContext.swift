@@ -52,6 +52,9 @@ extension CallTypeChecker {
         var sourceBackedIterableAggregateTypeArguments: [TypeID]?
         var sourceBackedIterableAggregateMatchingParameterTypes: [TypeID]?
         var didReturnNil = false
+        /// Accumulator type `R` of a `fold` family call, widened beyond the initial
+        /// value's type when that type still has uninferred (`Nothing`) arguments.
+        var foldAccumulatorType: TypeID?
 
         init(
             checker: CallTypeChecker,

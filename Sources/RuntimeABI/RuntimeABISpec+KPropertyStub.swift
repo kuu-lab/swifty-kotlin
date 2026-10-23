@@ -36,6 +36,18 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_kproperty_stub_create_local",
+            parameters: [
+                RuntimeABIParameter(name: "nameStr", type: .intptr),
+                RuntimeABIParameter(name: "returnTypeStr", type: .intptr),
+                RuntimeABIParameter(name: "identityStr", type: .intptr),
+                RuntimeABIParameter(name: "isMutable", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Delegate",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_kproperty0_get",
             parameters: [
                 RuntimeABIParameter(name: "raw", type: .intptr),

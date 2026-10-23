@@ -302,6 +302,12 @@ enum DiagnosticRegistry {
             summary: "Top-level statements are only allowed in '.kts' script files."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0026",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Expected '}' to close block."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-PARSE-TYPE-DEPTH",
             pass: "PARSE",
             defaultSeverity: .error,
@@ -1173,6 +1179,18 @@ enum DiagnosticRegistry {
             pass: "LIB",
             defaultSeverity: .warning,
             summary: "Duplicate library declaration ignored; first on the search path wins."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0035",
+            pass: "LIB",
+            defaultSeverity: .error,
+            summary: "Stdlib artifact was built for a different --profile than this compilation uses."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0036",
+            pass: "LIB",
+            defaultSeverity: .error,
+            summary: "Import refers to a stdlib package excluded from the minimal profile."
         ),
     ]
 

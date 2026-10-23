@@ -1880,8 +1880,8 @@ extension CallLowerer {
     }
 
     /// Resolves a bare `nameRef` receiver (e.g. `Outer` in `Outer.Color`) to a
-    /// class/interface/enum-class symbol by short name, for the cases where
-    /// Sema's own `classNameReceiverNominalSymbol` fallback
+    /// class/interface/enum-class/object symbol by short name, for the cases
+    /// where Sema's own `classNameReceiverNominalSymbol` fallback
     /// (CallTypeChecker+MemberCallInferenceRegularResolution.swift) resolved it
     /// via a raw-name scope lookup instead of `bindIdentifier`, leaving no
     /// `identifierSymbol` binding for KIR lowering to read. A global
@@ -1895,7 +1895,7 @@ extension CallLowerer {
         }
         return sema.symbols.lookupByShortName(name).first { candidate in
             switch sema.symbols.symbol(candidate)?.kind {
-            case .class, .interface, .enumClass, .annotationClass:
+            case .class, .interface, .enumClass, .object, .annotationClass:
                 true
             default:
                 false

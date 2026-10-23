@@ -1097,7 +1097,13 @@ extension KIRLoweringDriver {
             emit: &body
         )
         let provideDelegateName = shared.interner.intern("provideDelegate")
-        let provideDelegateResult = arena.appendTemporary(type: sema.types.anyType
+        // Keep the provideDelegate return type on the result register (see the
+        // top-level twin in KIRLoweringDriver+ProvideDelegate.swift): a
+        // primitive-returning overload must leave a raw scalar in the delegate
+        // storage, not a boxed `Any` handle.
+        let provideDelegateResult = arena.appendTemporary(
+            type: sema.symbols.functionSignature(for: provideDelegateSymbol)?.returnType
+                ?? sema.types.anyType
         )
         let provideDelegateArguments = memberLowerer.prependingMemberExtensionDispatchReceiver(
             to: [delegateValue, thisRefExprID, kPropertyExprID],

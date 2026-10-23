@@ -1148,20 +1148,15 @@ extension CallLowerer {
             preconditionFailure("Bitwise/shift binary operators must be lowered through member-call special handling")
         }
         if op == .equal || op == .notEqual {
-            // A values()/entries element read out of an Any-erased array is a
-            // boxed ordinal, while a direct enum reference (e.g.
-            // Direction.NORTH) is a raw one -- normalize both operands so the
-            // comparison isn't a boxed-handle-vs-raw-ordinal mismatch. See
-            // unboxIfEnumTyped.
-            let normalizedLhsID = unboxIfEnumTyped(
-                lhsID, staticType: sema.bindings.exprTypes[lhs],
-                sema: sema, arena: arena, interner: interner, into: &instructions
-            )
-            let normalizedRhsID = unboxIfEnumTyped(
-                rhsID, staticType: sema.bindings.exprTypes[rhs],
-                sema: sema, arena: arena, interner: interner, into: &instructions
-            )
-            instructions.append(.binary(op: kirOp, lhs: normalizedLhsID, rhs: normalizedRhsID, result: result))
+            // Enum operands that reach this point have mismatched static types
+            // (same-class non-null pairs were handled above) -- a nullable,
+            // cross-class, or erased peer. Unboxing to ordinals here would
+            // compare enum identity by raw payload and could alias entries of
+            // unrelated classes; ABILoweringPass instead normalizes every
+            // enum-typed operand to the canonical entry box, which preserves
+            // both the boxed-handle and raw-ordinal representations and keeps
+            // `E.A == 0` false (KUU-2957).
+            instructions.append(.binary(op: kirOp, lhs: lhsID, rhs: rhsID, result: result))
             return result
         }
         instructions.append(.binary(op: kirOp, lhs: lhsID, rhs: rhsID, result: result))

@@ -84,6 +84,11 @@ public func __kk_kcallable_get_metadata(_ raw: Int, _ member: Int) -> Int {
 }
 
 private func runtimePropertyAccessor(_ raw: Int, isSetter: Bool) -> Int {
+    if let stub = runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self),
+       stub.isLocalDelegated
+    {
+        return runtimeLocalDelegatedPropertyAccessor(raw: raw, stub: stub, isSetter: isSetter)
+    }
     guard var metadata = callableMetadata(raw), metadata.kind == .property,
           !isSetter || metadata.setterInvoker != 0 else { return runtimeNullSentinelInt }
     let arity = metadata.arity + (isSetter ? 1 : 0)
@@ -186,6 +191,17 @@ public func __kk_kcallable_call(_ raw: Int, _ arguments: Int, _ outThrown: Unsaf
         return runtimeNullSentinelInt
     }
     guard let metadata = callableMetadata(raw) else {
+        // KUU-2947: a local delegated property stub has no real accessor —
+        // the JVM raises UnsupportedOperationException from call/callBy
+        // rather than an invalid-handle error.
+        if let stub = runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self),
+           stub.isLocalDelegated
+        {
+            outThrown?.pointee = runtimeAllocateUnsupportedOperationException(
+                message: "call/callBy are not supported for this declaration."
+            )
+            return runtimeNullSentinelInt
+        }
         let list = registerRuntimeObject(RuntimeListBox(elements: values))
         return __kk_kfunction_call_vararg(raw, list, outThrown)
     }
@@ -252,8 +268,19 @@ private func callableEmptyVarargArray(_ raw: Int) -> Int? {
 @_cdecl("__kk_kcallable_call_by")
 public func __kk_kcallable_call_by(_ raw: Int, _ arguments: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard let metadata = callableMetadata(raw),
-          let map = runtimeReflectionObject(from: arguments, as: RuntimeMapBox.self),
+    guard let metadata = callableMetadata(raw) else {
+        if let stub = runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self),
+           stub.isLocalDelegated
+        {
+            outThrown?.pointee = runtimeAllocateUnsupportedOperationException(
+                message: "call/callBy are not supported for this declaration."
+            )
+        } else {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Invalid callable or parameter map.")
+        }
+        return runtimeNullSentinelInt
+    }
+    guard let map = runtimeReflectionObject(from: arguments, as: RuntimeMapBox.self),
           let parameters = callableArguments(metadata.parameters), parameters.count == metadata.arity else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Invalid callable or parameter map.")
         return runtimeNullSentinelInt
