@@ -1607,6 +1607,18 @@ final class ExprTypeChecker {
         )]
         let call = CallExpr(range: range, calleeName: containsName, args: callArgs)
         let retainedMembers = candidates.filter { memberCandidates.contains($0) }
+        if case .primitive = sema.types.kind(of: nonNullContainerType),
+           ctx.resolver.probeCall(
+               candidates: candidates,
+               call: call,
+               expectedType: nil,
+               implicitReceiverType: nonNullContainerType,
+               ctx: ctx.sema
+           ).viableCandidates.isEmpty
+        {
+            // Keep the primitive runtime fallback when no custom overload applies.
+            return
+        }
         let hasViableMember = !ctx.resolver.probeCall(
             candidates: retainedMembers,
             call: call,
