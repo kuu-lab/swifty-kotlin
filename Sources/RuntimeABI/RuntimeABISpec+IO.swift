@@ -1,13 +1,7 @@
-// swiftlint:disable file_length
+private let abi = RuntimeABISectionBuilder("IO")
 
 public extension RuntimeABISpec {
     static let ioFunctions: [RuntimeABIFunctionSpec] = [
-        RuntimeABIFunctionSpec(
-            name: "__kk_readline_raw",
-            parameters: [],
-            returnType: .intptr,
-            section: "IO",
-            isThrowing: false,
-        ),
+        abi.nt("__kk_readline_raw"),
     ]
 }

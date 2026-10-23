@@ -1,25 +1,8 @@
-// swiftlint:disable file_length
+private let abi = RuntimeABISectionBuilder("Print")
 
 public extension RuntimeABISpec {
-    static let bridgePrintRawSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: "__kk_print_raw",
-        parameters: [
-            RuntimeABIParameter(name: "messageRaw", type: .intptr),
-        ],
-        returnType: .void,
-        section: "Print",
-        isThrowing: false
-    )
-
-    static let bridgePrintlnRawSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: "__kk_println_raw",
-        parameters: [
-            RuntimeABIParameter(name: "messageRaw", type: .intptr),
-        ],
-        returnType: .void,
-        section: "Print",
-        isThrowing: false
-    )
+    static let bridgePrintRawSpec: RuntimeABIFunctionSpec = abi.nt("__kk_print_raw", "messageRaw", ret: .void)
+    static let bridgePrintlnRawSpec: RuntimeABIFunctionSpec = abi.nt("__kk_println_raw", "messageRaw", ret: .void)
 
     static let consolePrintFunctions: [RuntimeABIFunctionSpec] = [
         bridgePrintRawSpec,
