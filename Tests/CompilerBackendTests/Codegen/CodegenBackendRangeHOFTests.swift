@@ -118,6 +118,17 @@ struct CodegenBackendRangeHOFTests {
     }
 
     @Test
+    func testCodegenULongProgressionForEach() throws {
+        let source = try diffCaseSource("ulong_progression_for_each.kt", file: #filePath)
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ULongProgressionForEach",
+            expected: "54321\n"
+        )
+    }
+
+    @Test
     func testCodegenIntRangeMapNotNull() throws {
         let source = """
         fun main() {
