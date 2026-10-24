@@ -231,6 +231,8 @@ extension ExprTypeChecker {
             enclosingClassSymbol: classSymbol
         )
 
+        let declIsBundledStdlib = driver.sourceManager?
+            .origin(of: ctx.currentFileID)?.isBundledStdlib == true
         var directSuperSymbols: [SymbolID] = []
         directSuperSymbols.reserveCapacity(classDecl.superTypeEntries.count)
         var directSuperTypeArgs: [SymbolID: [TypeArg]] = [:]
@@ -253,6 +255,17 @@ extension ExprTypeChecker {
                         range: classDecl.range
                     )
                     continue
+                }
+                if !entry.hasConstructorCallSyntax,
+                   entry.delegateExpression == nil,
+                   sema.symbols.symbol(classType.classSymbol)?.kind == .class,
+                   !declIsBundledStdlib
+                {
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0436",
+                        "this type has a constructor, so it must be initialized here.",
+                        range: entry.range ?? classDecl.range
+                    )
                 }
                 directSuperSymbols.append(classType.classSymbol)
                 directSuperTypeArgs[classType.classSymbol] = classType.args

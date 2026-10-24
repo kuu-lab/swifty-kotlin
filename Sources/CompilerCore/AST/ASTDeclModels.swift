@@ -101,15 +101,40 @@ public struct SuperTypeEntry: Equatable, Codable {
     /// Arguments of the superclass constructor invocation in the class header.
     /// Empty for interfaces and for `Base()`.
     public let constructorArgs: [CallArgument]
+    /// True when the source wrote the superclass constructor invocation —
+    /// `Base(...)` including `Base()` — rather than a bare `Base` reference.
+    /// Kotlin requires the invocation for class supertypes; interfaces and
+    /// delegated entries list the bare type.
+    public let hasConstructorCallSyntax: Bool
+    /// Range of the entry's type portion (`Base` in `Base(x)`); used for
+    /// supertype diagnostics.
+    public let range: SourceRange?
 
     public init(
         typeRef: TypeRefID,
         delegateExpression: ExprID? = nil,
-        constructorArgs: [CallArgument] = []
+        constructorArgs: [CallArgument] = [],
+        hasConstructorCallSyntax: Bool = false,
+        range: SourceRange? = nil
     ) {
         self.typeRef = typeRef
         self.delegateExpression = delegateExpression
         self.constructorArgs = constructorArgs
+        self.hasConstructorCallSyntax = hasConstructorCallSyntax
+        self.range = range
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case typeRef, delegateExpression, constructorArgs, hasConstructorCallSyntax, range
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        typeRef = try container.decode(TypeRefID.self, forKey: .typeRef)
+        delegateExpression = try container.decodeIfPresent(ExprID.self, forKey: .delegateExpression)
+        constructorArgs = try container.decodeIfPresent([CallArgument].self, forKey: .constructorArgs) ?? []
+        hasConstructorCallSyntax = try container.decodeIfPresent(Bool.self, forKey: .hasConstructorCallSyntax) ?? false
+        range = try container.decodeIfPresent(SourceRange.self, forKey: .range)
     }
 }
 

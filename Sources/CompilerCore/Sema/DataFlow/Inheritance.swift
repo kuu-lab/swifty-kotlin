@@ -52,18 +52,22 @@ extension DataFlowSemaPhase {
         }
 
         let superTypeRefs: [TypeRefID]
+        let superTypeEntries: [SuperTypeEntry]
         let nestedDecls: [DeclID]
         switch decl {
         case let .classDecl(classDecl):
             superTypeRefs = classDecl.superTypeEntries.map(\.typeRef)
+            superTypeEntries = classDecl.superTypeEntries
             nestedDecls = classDecl.nestedClasses + classDecl.nestedObjects
                 + (classDecl.companionObject.map { [$0] } ?? [])
         case let .interfaceDecl(interfaceDecl):
             superTypeRefs = interfaceDecl.superTypes
+            superTypeEntries = []
             nestedDecls = interfaceDecl.nestedClasses + interfaceDecl.nestedObjects
                 + (interfaceDecl.companionObject.map { [$0] } ?? [])
         case let .objectDecl(objectDecl):
             superTypeRefs = objectDecl.superTypes
+            superTypeEntries = objectDecl.superTypeEntries
             nestedDecls = objectDecl.nestedClasses + objectDecl.nestedObjects
         default:
             return
@@ -83,7 +87,11 @@ extension DataFlowSemaPhase {
         }
 
         var superSymbols: [SymbolID] = []
-        for superTypeRef in superTypeRefs {
+        let declFileID = symbols.sourceFileID(for: symbol)
+            ?? symbols.symbol(symbol)?.declSite?.start.file
+        let isBundledStdlibDecl = declFileID
+            .flatMap { sourceManager?.origin(of: $0)?.isBundledStdlib } == true
+        for (index, superTypeRef) in superTypeRefs.enumerated() {
             if let resolved = resolveNominalSymbolAndTypeArgs(
                 superTypeRef,
                 currentPackage: currentPackage,
@@ -95,6 +103,20 @@ extension DataFlowSemaPhase {
                 types: types,
                 interner: interner
             ) {
+                if index < superTypeEntries.count {
+                    let entry = superTypeEntries[index]
+                    if !entry.hasConstructorCallSyntax,
+                       entry.delegateExpression == nil,
+                       symbols.symbol(resolved.symbol)?.kind == .class,
+                       !isBundledStdlibDecl
+                    {
+                        diagnostics.error(
+                            "KSWIFTK-SEMA-0436",
+                            "this type has a constructor, so it must be initialized here.",
+                            range: entry.range ?? symbols.symbol(symbol)?.declSite
+                        )
+                    }
+                }
                 if let imported = symbols.symbol(resolved.symbol),
                    imported.flags.contains(.importedLibrary),
                    let fileID = symbols.sourceFileID(for: symbol)
