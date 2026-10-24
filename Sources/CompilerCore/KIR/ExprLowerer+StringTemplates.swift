@@ -10,6 +10,26 @@ extension ExprLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
+        // A template whose interpolated parts are all compile-time constants
+        // is itself a compile-time constant on the JVM — folded into one
+        // interned literal, so identical non-const initializers such as
+        // `object A { val s = "1234$constA" }` / `object B { ... }` share the
+        // same string instance (`A.s === B.s`). Mirror the `+` fold in
+        // CallLowerer+Operators: `compileTimeConstantRef` resolves `const
+        // val` reads only, so a plain `val`/`var` or any effectful part keeps
+        // the runtime `__kk_string_concat_flat` path below (KUU-3180).
+        var collector = driver.constantCollector
+        collector.resolvedConstant = { constExprID in
+            self.driver.callLowerer.compileTimeConstantRef(constExprID, ast: ast, sema: sema)
+        }
+        if let foldedText = collector.constantStringConcatOperandText(
+            exprID, ast: ast, sema: sema, interner: interner
+        ) {
+            let foldedSymbol = interner.intern(foldedText)
+            let literalID = arena.appendExpr(.stringLiteral(foldedSymbol), type: stringType)
+            instructions.append(.constValue(result: literalID, value: .stringLiteral(foldedSymbol)))
+            return literalID
+        }
         var partIDs: [KIRExprID] = []
         for part in parts {
             switch part {
