@@ -1004,9 +1004,27 @@ extension BuildASTPhase.ExpressionParser {
 
     func parseCatchParameter() -> (paramName: InternedString?, paramType: TypeRefID?) {
         guard matches(.symbol(.lParen)) else {
+            let fallback = index > tokens.startIndex ? tokens[index - 1].range : tokens.first?.range
+            guard let range = current()?.range ?? fallback else {
+                return (nil, nil)
+            }
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0028",
+                "Expected exception variable declaration after 'catch'.",
+                range: range
+            )
             return (nil, nil)
         }
-        _ = consume()
+        let lParen = consume()!
+        while matches(.symbol(.at)) {
+            let remaining = Array(tokens[index...])
+            guard let parsed = AnnotationParsingSupport.parseAnnotation(
+                from: remaining, start: 0, interner: interner, allowUseSiteTarget: false
+            ), parsed.nextIndex > 0 else {
+                break
+            }
+            index += parsed.nextIndex
+        }
         var paramName: InternedString?
         var paramType: TypeRefID?
         if case let .identifier(name) = current()?.kind {
@@ -1022,7 +1040,26 @@ extension BuildASTPhase.ExpressionParser {
                         range: current()?.range ?? colonToken.range
                     )
                 }
+            } else {
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0028",
+                    "Expected ':' and exception type after catch parameter name.",
+                    range: current()?.range ?? lParen.range
+                )
             }
+        } else {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0028",
+                "Expected exception variable declaration.",
+                range: current()?.range ?? lParen.range
+            )
+        }
+        if !matches(.symbol(.rParen)) {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0028",
+                "Expected ')' after catch parameter.",
+                range: current()?.range ?? lParen.range
+            )
         }
         var depth = 1
         while let token = current(), depth > 0 {
