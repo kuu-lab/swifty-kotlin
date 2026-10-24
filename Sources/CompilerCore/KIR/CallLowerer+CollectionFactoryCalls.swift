@@ -445,30 +445,24 @@ extension CallLowerer {
             )
 
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_set"),
                 arguments: [keysArray, indexExpr, key],
                 result: nil,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_set"),
                 arguments: [valuesArray, indexExpr, value],
                 result: nil,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
 
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern(runtimeCallee),
             arguments: [keysArray, valuesArray, count],
             result: result,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         return result
     }
@@ -480,12 +474,10 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) {
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern(callee),
             arguments: [],
             result: result,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
     }
 
@@ -508,12 +500,10 @@ extension CallLowerer {
         }
         arguments.append(zero)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern(callee),
             arguments: arguments,
             result: result,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
     }
 
@@ -526,12 +516,10 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) {
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern(callee),
             arguments: [array, count],
             result: result,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
     }
 }

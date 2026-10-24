@@ -111,12 +111,10 @@ extension CallLowerer {
         let resultType = sema.types.makeNonNullable(sema.bindings.exprTypes[exprID] ?? sema.types.intType)
         let result = arena.appendTemporary(type: resultType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_primitive_compareTo"),
             arguments: [lhsID, rhsID, kindExpr],
             result: result,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         return result
     }

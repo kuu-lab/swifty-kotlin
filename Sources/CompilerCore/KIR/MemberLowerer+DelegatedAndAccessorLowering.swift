@@ -178,12 +178,10 @@ extension MemberLowerer {
                 ))
                 let checkedResultExprID = arena.appendTemporary(type: propertyType)
                 body.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_op_cast_erased_return"),
                     arguments: [resultExprID, typeTokenExprID],
                     result: checkedResultExprID,
-                    canThrow: true,
-                    thrownResult: nil
+                    canThrow: true
                 ))
                 body.append(.returnValue(checkedResultExprID))
             } else {
@@ -332,7 +330,6 @@ extension MemberLowerer {
                 arguments: dispatchReceiver.map { _ in [receiver] + extraArguments } ?? extraArguments,
                 result: result,
                 canThrow: false,
-                thrownResult: nil,
                 dispatch: .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
             )
         }
@@ -345,8 +342,7 @@ extension MemberLowerer {
             callee: callee,
             arguments: captures + arguments,
             result: result,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         )
     }
 
@@ -393,12 +389,10 @@ extension MemberLowerer {
             )
             let result = arena.appendTemporary(type: delegateType)
             body.append(.call(
-                symbol: nil,
                 callee: helperName,
                 arguments: [receiverExprID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return result
         }
@@ -412,12 +406,10 @@ extension MemberLowerer {
             body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
             let result = arena.appendTemporary(type: delegateType)
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_get_inbounds"),
                 arguments: [receiverValue, offsetExpr],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return result
         }
@@ -850,16 +842,13 @@ extension MemberLowerer {
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
             body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_get_inbounds"),
                 arguments: [receiverExpr, offsetExpr],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         } else {
             body.append(.call(
-                symbol: nil,
                 callee: EnumPropertyHelperNames.placeholder(
                     prefix: EnumPropertyHelperNames.getterPrefix,
                     ownerSymbol: ownerSymbol,
@@ -868,8 +857,7 @@ extension MemberLowerer {
                 ),
                 arguments: [receiverExpr],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
         body.append(.returnValue(result))
@@ -938,16 +926,13 @@ extension MemberLowerer {
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
             body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_set"),
                 arguments: [receiverExpr, offsetExpr, valueExpr],
                 result: nil,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         } else {
             body.append(.call(
-                symbol: nil,
                 callee: EnumPropertyHelperNames.placeholder(
                     prefix: EnumPropertyHelperNames.setterPrefix,
                     ownerSymbol: ownerSymbol,
@@ -956,8 +941,7 @@ extension MemberLowerer {
                 ),
                 arguments: [receiverExpr, valueExpr],
                 result: arena.appendTemporary(type: sema.types.unitType),
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
         body.append(.returnUnit)

@@ -27,7 +27,7 @@ struct NonInlineRecursiveCallbackTests {
             _ = arena.appendDecl(.function(KIRFunction(
                 symbol: symbol, name: name, params: [], returnType: types.unitType,
                 body: [.call(symbol: symbol, callee: name, arguments: [], result: nil,
-                             canThrow: false, thrownResult: nil)],
+                             canThrow: false)],
                 isSuspend: false, isInline: true, isInlineOnly: true
             )))
         }

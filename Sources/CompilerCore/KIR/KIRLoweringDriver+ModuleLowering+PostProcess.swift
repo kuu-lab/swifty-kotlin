@@ -162,7 +162,7 @@ extension KIRLoweringDriver {
             guard let context = guardStack.last ?? nil else {
                 result.append(.call(
                     symbol: symbol, callee: callee, arguments: arguments,
-                    result: callResult, canThrow: false, thrownResult: nil
+                    result: callResult, canThrow: false
                 ))
                 return
             }
@@ -633,8 +633,7 @@ extension KIRLoweringDriver {
             callee: innerLambdaName,
             arguments: forwardedArgs,
             result: callResult,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         body.append(.returnValue(callResult))
         body.append(.endBlock)
@@ -675,12 +674,10 @@ extension KIRLoweringDriver {
         }
         let materializedExpr = arena.appendTemporary(type: sema.types.anyType)
         instructions.append(.call(
-            symbol: nil,
             callee: createCallee,
             arguments: [lambdaRefExpr, zeroClosureExpr],
             result: materializedExpr,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         return materializedExpr
     }
@@ -734,12 +731,10 @@ extension KIRLoweringDriver {
             body.append(.constValue(result: offsetExpr, value: .intLiteral(offset)))
             let loadedCapture = arena.appendTemporary(type: captureType)
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_get_inbounds"),
                 arguments: [closureExpr, offsetExpr],
                 result: loadedCapture,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             forwardedArgs.append(loadedCapture)
         }
@@ -755,8 +750,7 @@ extension KIRLoweringDriver {
             callee: innerLambdaName,
             arguments: forwardedArgs,
             result: callResult,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         body.append(.returnValue(callResult))
         body.append(.endBlock)
@@ -775,12 +769,10 @@ extension KIRLoweringDriver {
         instructions.append(.constValue(result: classIDExpr, value: .intLiteral(0)))
         let closureObj = arena.appendTemporary(type: sema.types.intType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_object_new"),
             arguments: [slotCountExpr, classIDExpr],
             result: closureObj,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         for (index, captureValue) in captureValues.enumerated() {
             let offset = firstCaptureOffset + Int64(index)
@@ -788,12 +780,10 @@ extension KIRLoweringDriver {
             instructions.append(.constValue(result: storeOffsetExpr, value: .intLiteral(offset)))
             let setResult = arena.appendTemporary(type: sema.types.anyType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_set"),
                 arguments: [closureObj, storeOffsetExpr, captureValue],
                 result: setResult,
-                canThrow: true,
-                thrownResult: nil
+                canThrow: true
             ))
         }
 
@@ -810,12 +800,10 @@ extension KIRLoweringDriver {
         default: preconditionFailure("Unsupported delegate callback arity: \(adapterNumberedParams.count)")
         }
         instructions.append(.call(
-            symbol: nil,
             callee: createCallee,
             arguments: [adapterExpr, closureObj],
             result: materializedExpr,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         return materializedExpr
     }

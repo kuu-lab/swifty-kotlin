@@ -267,7 +267,6 @@ extension LambdaLowerer {
                 arguments: Array(callArguments.dropFirst()),
                 result: callResult,
                 canThrow: isReifiedThunk,
-                thrownResult: nil,
                 dispatch: dispatch
             ))
         } else {
@@ -276,8 +275,7 @@ extension LambdaLowerer {
                 callee: callee,
                 arguments: callArguments,
                 result: callResult,
-                canThrow: isReifiedThunk,
-                thrownResult: nil
+                canThrow: isReifiedThunk
             ))
         }
         switch sema.types.kind(of: returnType) {
@@ -432,12 +430,10 @@ extension LambdaLowerer {
         let flagsExpr = arena.appendExpr(.intLiteral(flags), type: intType)
         instructions.append(.constValue(result: flagsExpr, value: .intLiteral(flags)))
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("__kk_sam_adapter_set_identity"),
             arguments: [callableExpr, interfaceTypeExpr, identityTarget, capturesExpr, arityExpr, flagsExpr],
             result: nil,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
     }
 
@@ -1095,7 +1091,6 @@ extension LambdaLowerer {
                 arguments: valueRefs,
                 result: callResult,
                 canThrow: false,
-                thrownResult: nil,
                 dispatch: dispatch
             ))
             switch sema.types.kind(of: returnType) {
@@ -1187,8 +1182,7 @@ extension LambdaLowerer {
                     sema: sema, arena: arena, interner: interner, instructions: &body
                 ),
                 result: callResult,
-                canThrow: !needsHOFWrapper,
-                thrownResult: nil
+                canThrow: !needsHOFWrapper
             ))
             switch sema.types.kind(of: returnType) {
             case .unit, .nothing(.nonNull), .nothing(.nullable):
@@ -1242,7 +1236,7 @@ extension LambdaLowerer {
             let result = arena.appendTemporary(type: functionType.returnType)
             body.append(.call(symbol: callTargetSymbol,
                               callee: callTargetName ?? callableTargetName(for: callTargetSymbol, sema: sema, interner: interner),
-                              arguments: arguments, result: result, canThrow: true, thrownResult: nil))
+                              arguments: arguments, result: result, canThrow: true))
             switch sema.types.kind(of: functionType.returnType) {
             case .unit, .nothing: body.append(.returnUnit)
             default: body.append(.returnValue(result))
@@ -1809,12 +1803,10 @@ extension LambdaLowerer {
         let taggedExpr = arena.appendTemporary(type: callableType
         )
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern(tagCallee),
             arguments: tagArguments,
             result: taggedExpr,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         let identityTargetSymbol: SymbolID? = {
             guard let targetSymbol else { return nil }
@@ -1895,12 +1887,10 @@ extension LambdaLowerer {
             )
         }
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("__kk_callable_ref_set_identity"),
             arguments: [callableExpr, identityTarget, identityCaptures],
             result: nil,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
     }
 }

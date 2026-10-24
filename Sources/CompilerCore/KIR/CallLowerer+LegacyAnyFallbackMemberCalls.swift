@@ -53,12 +53,10 @@ extension CallLowerer {
         if args.isEmpty, calleeNameStr == "toString", allowsAnyFallback {
             if nonNullAnyFallbackReceiverType == sema.types.anyType {
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_any_member_to_string"),
                     arguments: [loweredReceiverID],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }
@@ -67,12 +65,10 @@ extension CallLowerer {
             let tagID = arena.appendExpr(.intLiteral(tag), type: intType)
             instructions.append(.constValue(result: tagID, value: .intLiteral(tag)))
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_any_to_string"),
                 arguments: [loweredReceiverID, tagID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return result
         }
@@ -91,12 +87,10 @@ extension CallLowerer {
             let receiverTagID = arena.appendExpr(.intLiteral(receiverTag), type: intType)
             instructions.append(.constValue(result: receiverTagID, value: .intLiteral(receiverTag)))
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_any_hashCode"),
                 arguments: [hashReceiverID, receiverTagID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return result
         }
@@ -112,20 +106,16 @@ extension CallLowerer {
             instructions.append(.constValue(result: argTagID, value: .intLiteral(argTag)))
             let boxedResult = arena.appendTemporary(type: sema.types.makeNullable(sema.types.booleanType))
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_any_equals"),
                 arguments: [loweredReceiverID, receiverTagID, loweredArgIDs[0], argTagID],
                 result: boxedResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_unbox_bool_static"),
                 arguments: [boxedResult],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return result
         }

@@ -62,8 +62,7 @@ struct CollectionClassificationTests {
         ) -> KIRInstruction {
             .virtualCall(
                 symbol: symbol, callee: interner.intern(name), receiver: receiver,
-                arguments: [], result: result, canThrow: false, thrownResult: nil,
-                dispatch: .vtable(slot: 0)
+                arguments: [], result: result, canThrow: false, dispatch: .vtable(slot: 0)
             )
         }
 
@@ -77,8 +76,8 @@ struct CollectionClassificationTests {
 
         func call(_ name: String, arguments: [KIRExprID] = [], result: KIRExprID) -> KIRInstruction {
             .call(
-                symbol: nil, callee: interner.intern(name), arguments: arguments,
-                result: result, canThrow: false, thrownResult: nil
+                callee: interner.intern(name), arguments: arguments,
+                result: result, canThrow: false
             )
         }
 
@@ -265,7 +264,7 @@ struct CollectionClassificationTests {
             fixture.call("userIteratorFactory", result: replacement),
             .copy(from: replacement, to: storage),
             .call(
-                symbol: nil, callee: LoweringTestRuntime.callee("iterator_next", interner: fixture.interner),
+                callee: LoweringTestRuntime.callee("iterator_next", interner: fixture.interner),
                 arguments: [storage], result: result, canThrow: true, thrownResult: thrown
             ),
         ])

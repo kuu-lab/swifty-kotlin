@@ -366,12 +366,10 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                             result.append(.constValue(result: offsetExpr, value: .intLiteral(offset)))
                             resultLocations.append(location)
                             result.append(.call(
-                                symbol: nil,
                                 callee: kk_array_get_inbounds,
                                 arguments: [callResult, offsetExpr],
                                 result: callResult,
-                                canThrow: false,
-                                thrownResult: nil
+                                canThrow: false
                             ))
                             resultLocations.append(location)
                         }
@@ -404,12 +402,10 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                         result.append(.constValue(result: offsetExpr, value: .intLiteral(offset)))
                         resultLocations.append(location)
                         result.append(.call(
-                            symbol: nil,
                             callee: kk_array_get_inbounds,
                             arguments: [callResult, offsetExpr],
                             result: callResult,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: false
                         ))
                         resultLocations.append(location)
                         continue

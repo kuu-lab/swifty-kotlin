@@ -26,7 +26,7 @@ extension CallLowerer {
             let result = arena.appendTemporary(type: sema.bindings.exprTypes[exprID])
             instructions.append(.call(
                 symbol: binding.chosenCallee, callee: interner.intern("$reifiedEnumValues"),
-                arguments: [token], result: result, canThrow: false, thrownResult: nil
+                arguments: [token], result: result, canThrow: false
             ))
             return result
         }
@@ -148,8 +148,7 @@ extension CallLowerer {
             callee: valueOfName,
             arguments: [companionReceiverExpr, nameArg],
             result: result,
-            canThrow: true,
-            thrownResult: nil
+            canThrow: true
         ))
         return result
     }
@@ -185,8 +184,7 @@ func emitEnumLazyInitGuard(
             callee: ensureInitName,
             arguments: [],
             result: arena.appendTemporary(type: sema.types.unitType),
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         return
     }
@@ -205,8 +203,7 @@ func emitEnumLazyInitGuard(
                 callee: lazyInitName,
                 arguments: [],
                 result: arena.appendTemporary(type: sema.types.unitType),
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return
         }
@@ -218,8 +215,7 @@ func emitEnumLazyInitGuard(
                 callee: importedInfo.name,
                 arguments: [],
                 result: arena.appendTemporary(type: sema.types.unitType),
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return
         }
@@ -279,9 +275,9 @@ func emitEnumEntryCollection(
     let entriesCountExpr = arena.appendExpr(.intLiteral(Int64(entries.count)), type: intType)
     instructions.append(.constValue(result: entriesCountExpr, value: .intLiteral(Int64(entries.count))))
     instructions.append(.call(
-        symbol: nil, callee: interner.intern("kk_array_new"),
+        callee: interner.intern("kk_array_new"),
         arguments: [entriesCountExpr], result: enumValuesArray,
-        canThrow: false, thrownResult: nil
+        canThrow: false
     ))
 
     let stringType = sema.types.stringType
@@ -309,20 +305,16 @@ func emitEnumEntryCollection(
         // rather than T.values()/T.entries) that had the same bug.
         let entryExpr = arena.appendTemporary(type: sema.types.anyType)
         instructions.append(.call(
-            symbol: nil,
             callee: boxOrdinalCallee,
             arguments: [indexExpr, nameExpr, classIDExpr],
             result: entryExpr,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_array_set"),
             arguments: [enumValuesArray, indexExpr, entryExpr],
             result: nil,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
     }
 
@@ -339,8 +331,7 @@ func emitEnumEntryCollection(
             callee: countHelperName,
             arguments: [],
             result: countResult,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         countExpr = countResult
     } else {
@@ -354,14 +345,12 @@ func emitEnumEntryCollection(
 
     let result = arena.appendTemporary(type: boundType)
     instructions.append(.call(
-        symbol: nil,
         callee: interner.intern(runtimeCalleeName),
         arguments: kind == .enumEntries
             ? [enumValuesArray, countExpr, cachedClassIDExpr]
             : [enumValuesArray, countExpr],
         result: result,
-        canThrow: false,
-        thrownResult: nil
+        canThrow: false
     ))
     return result
 }

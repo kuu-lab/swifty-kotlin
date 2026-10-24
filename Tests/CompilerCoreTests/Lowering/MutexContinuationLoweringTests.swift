@@ -18,7 +18,7 @@ struct MutexContinuationLoweringTests {
             symbol: SymbolID(rawValue: 1), name: interner.intern("waitForMutex"),
             params: [], returnType: types.unitType,
             body: [
-                .call(symbol: nil, callee: callee, arguments: arguments,
+                .call(callee: callee, arguments: arguments,
                       result: nil, canThrow: owner, thrownResult: owner ? thrown : nil),
                 .returnUnit,
             ],

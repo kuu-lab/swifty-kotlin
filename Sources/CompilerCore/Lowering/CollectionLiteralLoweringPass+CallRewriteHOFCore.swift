@@ -54,7 +54,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 let hofResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: kkName,
                     arguments: [receiverID, lambdaID, closureRawID],
                     result: hofResult,
@@ -112,7 +111,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 let hofResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: kkName,
                     arguments: [receiverID, lambdaID, closureRawID],
                     result: hofResult,

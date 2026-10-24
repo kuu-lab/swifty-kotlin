@@ -467,7 +467,7 @@ final class KlibBodyLowerer {
         let name = symbols.symbol(symbol)?.name ?? interner.intern("<klib>")
         let directCall = KIRInstruction.call(
             symbol: symbol, callee: name, arguments: forwarded,
-            result: result, canThrow: true, thrownResult: nil
+            result: result, canThrow: true
         )
         if let receiver = thisExpr,
            symbols.symbol(symbol)?.kind != .constructor,
@@ -479,7 +479,7 @@ final class KlibBodyLowerer {
             body.append(.virtualCall(
                 symbol: symbol, callee: name, receiver: receiver,
                 arguments: Array(forwarded.dropFirst()), result: result,
-                canThrow: true, thrownResult: nil, dispatch: dispatch
+                canThrow: true, dispatch: dispatch
             ))
         } else {
             body.append(directCall)
@@ -522,12 +522,10 @@ final class KlibBodyLowerer {
         body.append(.constValue(result: bitMask, value: .intLiteral(bit)))
         let selected = arena.appendTemporary(type: types.longType)
         body.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_bitwise_and"),
             arguments: [masks[index / DefaultArgumentMask.bitsPerWord], bitMask],
             result: selected,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         return selected
     }
@@ -757,8 +755,8 @@ final class KlibBodyLowerer {
         let count = appendIntegerConstant(1, into: &body)
         let cell = arena.appendTemporary(type: types.anyType)
         body.append(.call(
-            symbol: nil, callee: interner.intern("kk_array_new"), arguments: [count],
-            result: cell, canThrow: false, thrownResult: nil
+            callee: interner.intern("kk_array_new"), arguments: [count],
+            result: cell, canThrow: false
         ))
         storeCell(value, cell: cell, into: &body)
         mutableCells[index] = cell
@@ -769,8 +767,8 @@ final class KlibBodyLowerer {
         let zero = appendIntegerConstant(0, into: &body)
         let value = arena.appendTemporary(type: type)
         body.append(.call(
-            symbol: nil, callee: interner.intern("kk_array_get_inbounds"), arguments: [cell, zero],
-            result: value, canThrow: false, thrownResult: nil
+            callee: interner.intern("kk_array_get_inbounds"), arguments: [cell, zero],
+            result: value, canThrow: false
         ))
         return value
     }
@@ -779,8 +777,8 @@ final class KlibBodyLowerer {
         let zero = appendIntegerConstant(0, into: &body)
         let result = arena.appendTemporary(type: types.anyType)
         body.append(.call(
-            symbol: nil, callee: interner.intern("kk_array_set"), arguments: [cell, zero, value],
-            result: result, canThrow: false, thrownResult: nil
+            callee: interner.intern("kk_array_set"), arguments: [cell, zero, value],
+            result: result, canThrow: false
         ))
     }
 
@@ -958,7 +956,7 @@ final class KlibBodyLowerer {
         let eagerResult = arena.appendTemporary(type: types.unitType)
         eagerObjectInit.append(.call(
             symbol: eagerSymbol, callee: eagerName, arguments: [],
-            result: eagerResult, canThrow: false, thrownResult: nil
+            result: eagerResult, canThrow: false
         ))
 
         let flagName = interner.intern("$initialized")
@@ -989,7 +987,7 @@ final class KlibBodyLowerer {
             lazy.append(.call(
                 symbol: ctorSymbol, callee: interner.intern("<init>"),
                 arguments: [handle], result: initResult,
-                canThrow: true, thrownResult: nil
+                canThrow: true
             ))
         } else {
             reportUnsupported("object without a no-arg primary constructor")
@@ -1457,7 +1455,7 @@ final class KlibBodyLowerer {
                 symbol: driver.callSupportLowerer.defaultStubSymbol(for: owner),
                 callee: interner.intern(interner.resolve(calleeName) + "$default"),
                 arguments: loweredReceivers + loweredArguments + masks,
-                result: result, canThrow: true, thrownResult: nil
+                result: result, canThrow: true
             ))
         } else if superRef == nil, !loweredReceivers.isEmpty,
            let dispatch = resolveVirtualDispatchKind(
@@ -1470,15 +1468,13 @@ final class KlibBodyLowerer {
                 symbol: calleeSymbol, callee: calleeName,
                 receiver: loweredReceivers[0],
                 arguments: Array(loweredReceivers.dropFirst()) + loweredArguments,
-                result: result, canThrow: true, thrownResult: nil,
-                dispatch: dispatch
+                result: result, canThrow: true, dispatch: dispatch
             ))
         } else {
             body.append(.call(
                 symbol: calleeSymbol, callee: calleeName,
                 arguments: loweredReceivers + loweredArguments,
-                result: result, canThrow: true, thrownResult: nil,
-                isSuperCall: superRef != nil,
+                result: result, canThrow: true, isSuperCall: superRef != nil,
                 qualifiedSuperType: superRef.flatMap { symbol(for: $0) }
             ))
         }
@@ -1500,8 +1496,8 @@ final class KlibBodyLowerer {
             let count = appendIntegerConstant(1, into: &body)
             let cell = arena.appendTemporary(type: types.anyType)
             body.append(.call(
-                symbol: nil, callee: interner.intern("kk_array_new"), arguments: [count],
-                result: cell, canThrow: false, thrownResult: nil
+                callee: interner.intern("kk_array_new"), arguments: [count],
+                result: cell, canThrow: false
             ))
             storeCell(values[0], cell: cell, into: &body)
             return cell
@@ -1530,7 +1526,7 @@ final class KlibBodyLowerer {
             symbol: hasOmittedDefaults ? driver.callSupportLowerer.defaultStubSymbol(for: ctorSymbol) : ctorSymbol,
             callee: interner.intern(hasOmittedDefaults ? "<init>$default" : "<init>"),
             arguments: arguments, result: initResult,
-            canThrow: true, thrownResult: nil
+            canThrow: true
         ))
         return allocated
     }
@@ -1567,7 +1563,7 @@ final class KlibBodyLowerer {
             symbol: hasOmittedDefaults ? driver.callSupportLowerer.defaultStubSymbol(for: ctorSymbol) : ctorSymbol,
             callee: interner.intern(hasOmittedDefaults ? "<init>$default" : "<init>"),
             arguments: arguments, result: result,
-            canThrow: true, thrownResult: nil
+            canThrow: true
         ))
     }
 
@@ -1598,9 +1594,9 @@ final class KlibBodyLowerer {
             body.append(.constValue(result: nullValue, value: .null))
             let result = arena.appendTemporary(type: types.anyType)
             body.append(.call(
-                symbol: nil, callee: interner.intern("kk_array_set"),
+                callee: interner.intern("kk_array_set"),
                 arguments: [receiver, offset, nullValue], result: result,
-                canThrow: true, thrownResult: nil
+                canThrow: true
             ))
         }
     }
@@ -1624,9 +1620,9 @@ final class KlibBodyLowerer {
         body.append(.constValue(result: classIDExpr, value: .intLiteral(classIDValue)))
         let allocated = arena.appendTemporary(type: objectType)
         body.append(.call(
-            symbol: nil, callee: interner.intern("kk_object_new"),
+            callee: interner.intern("kk_object_new"),
             arguments: [slotCountExpr, classIDExpr],
-            result: allocated, canThrow: false, thrownResult: nil
+            result: allocated, canThrow: false
         ))
 
         if symbols.symbol(classSymbol)?.flags.contains(.dataType) == true {
@@ -1725,9 +1721,9 @@ final class KlibBodyLowerer {
             }
             let result = arena.appendTemporary(type: types.anyType)
             body.append(.call(
-                symbol: nil, callee: interner.intern("kk_array_set"),
+                callee: interner.intern("kk_array_set"),
                 arguments: [thisExpr, offset, value], result: result,
-                canThrow: true, thrownResult: nil
+                canThrow: true
             ))
         }
         for bodyIndex in initInfo.anonymousInitBodyIndices {
@@ -1881,9 +1877,9 @@ final class KlibBodyLowerer {
             }
             let result = arena.appendTemporary(type: resultType)
             body.append(.call(
-                symbol: nil, callee: interner.intern("kk_array_get_inbounds"),
+                callee: interner.intern("kk_array_get_inbounds"),
                 arguments: [receiver, offset], result: result,
-                canThrow: false, thrownResult: nil
+                canThrow: false
             ))
             return result
         }
@@ -1910,9 +1906,9 @@ final class KlibBodyLowerer {
             }
             let result = arena.appendTemporary(type: types.anyType)
             body.append(.call(
-                symbol: nil, callee: interner.intern("kk_array_set"),
+                callee: interner.intern("kk_array_set"),
                 arguments: [receiver, offset, lowered], result: result,
-                canThrow: true, thrownResult: nil
+                canThrow: true
             ))
         } else {
             body.append(.storeGlobal(value: lowered, symbol: fieldSymbol))
@@ -1969,9 +1965,9 @@ final class KlibBodyLowerer {
         for part in partIDs.dropFirst() {
             let next = arena.appendTemporary(type: stringType)
             body.append(.call(
-                symbol: nil, callee: interner.intern("__kk_string_concat_flat"),
+                callee: interner.intern("__kk_string_concat_flat"),
                 arguments: [accumulated, part], result: next,
-                canThrow: false, thrownResult: nil
+                canThrow: false
             ))
             accumulated = next
         }
@@ -1997,9 +1993,9 @@ final class KlibBodyLowerer {
             let boolType = types.booleanType
             let isResult = arena.appendTemporary(type: boolType)
             body.append(.call(
-                symbol: nil, callee: interner.intern("kk_op_is"),
+                callee: interner.intern("kk_op_is"),
                 arguments: [operand, token], result: isResult,
-                canThrow: false, thrownResult: nil
+                canThrow: false
             ))
             if op == .is { return isResult }
             let falseExpr = arena.appendExpr(.boolLiteral(false), type: boolType)
@@ -2012,10 +2008,9 @@ final class KlibBodyLowerer {
             let token = typeCheckToken(typeIndex: operandType, into: &body)
             let result = arena.appendTemporary(type: resultType)
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern(op == .safeCast ? "kk_op_safe_cast" : "kk_op_cast"),
                 arguments: [operand, token], result: result,
-                canThrow: op == .cast, thrownResult: nil
+                canThrow: op == .cast
             ))
             return result
 
@@ -2066,9 +2061,9 @@ final class KlibBodyLowerer {
         body.append(.constValue(result: sizeExpr, value: .intLiteral(Int64(elements.count))))
         let array = arena.appendTemporary(type: resultType)
         body.append(.call(
-            symbol: nil, callee: interner.intern("kk_array_new"),
+            callee: interner.intern("kk_array_new"),
             arguments: [sizeExpr], result: array,
-            canThrow: false, thrownResult: nil
+            canThrow: false
         ))
         for (index, element) in elements.enumerated() {
             switch element {
@@ -2078,9 +2073,9 @@ final class KlibBodyLowerer {
                 body.append(.constValue(result: indexExpr, value: .intLiteral(Int64(index))))
                 let store = arena.appendTemporary(type: types.anyType)
                 body.append(.call(
-                    symbol: nil, callee: interner.intern("kk_array_set"),
+                    callee: interner.intern("kk_array_set"),
                     arguments: [array, indexExpr, value], result: store,
-                    canThrow: true, thrownResult: nil
+                    canThrow: true
                 ))
             case .spread(let spread, _, _):
                 reportUnsupported("vararg spread")
@@ -2116,9 +2111,8 @@ final class KlibBodyLowerer {
             }
             let result = arena.appendTemporary(type: resultType)
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern(shape.arity == 1 ? "kk_function_invoke" : "kk_function_invoke_\(shape.arity)"),
-                arguments: arguments, result: result, canThrow: true, thrownResult: nil
+                arguments: arguments, result: result, canThrow: true
             ))
             return result
         }
@@ -2146,7 +2140,7 @@ final class KlibBodyLowerer {
             let result = arena.appendTemporary(type: resultType)
             body.append(.call(
                 symbol: bridge, callee: interner.intern(linkName), arguments: arguments,
-                result: result, canThrow: false, thrownResult: nil
+                result: result, canThrow: false
             ))
             return result
         }
@@ -2231,10 +2225,9 @@ final class KlibBodyLowerer {
             body.append(.constValue(result: oneExpr, value: .intLiteral(1)))
             let result = arena.appendTemporary(type: resultType)
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern(member == "inc" ? "kk_op_add" : "kk_op_sub"),
                 arguments: [operand, oneExpr], result: result,
-                canThrow: false, thrownResult: nil
+                canThrow: false
             ))
             return result
         }
@@ -2252,9 +2245,9 @@ final class KlibBodyLowerer {
         guard let opName else { return nil }
         let result = arena.appendTemporary(type: resultType)
         body.append(.call(
-            symbol: nil, callee: interner.intern(opName),
+            callee: interner.intern(opName),
             arguments: loweredArguments, result: result,
-            canThrow: false, thrownResult: nil
+            canThrow: false
         ))
         return result
     }
@@ -2430,9 +2423,9 @@ final class KlibBodyLowerer {
     private func errorExpr(type: TypeID, into body: inout KIRLoweringEmitContext) -> KIRExprID {
         let result = arena.appendTemporary(type: type)
         body.append(.call(
-            symbol: nil, callee: interner.intern("kk_abort_unreachable"),
+            callee: interner.intern("kk_abort_unreachable"),
             arguments: [], result: result,
-            canThrow: true, thrownResult: nil
+            canThrow: true
         ))
         return result
     }
