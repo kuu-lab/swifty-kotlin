@@ -47,7 +47,7 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
                     ? function.instructionLocations[index]
                     : nil
                 switch instruction {
-                case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _):
+                case let .call(symbol, callee, arguments, result, _, _, _, _):
                     if let printKind = Self.consolePrintKind(
                         symbol: symbol,
                         callee: callee,
